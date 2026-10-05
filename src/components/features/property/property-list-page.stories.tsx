@@ -308,7 +308,8 @@ export const ShowNeedsAttention: Story = {
     expect(canvas.getByText('3 of 6')).toBeVisible()
     expect(canvas.getByRole('button', { name: 'Show: Needs attention' })).toBeVisible()
 
-    await userEvent.click(canvas.getByRole('button', { name: 'Clear' }))
+    // Only a filter is in force, so the one Clear control says "filters".
+    await userEvent.click(canvas.getByRole('button', { name: 'Clear filters' }))
     expect(bodyRows(canvas)).toHaveLength(6)
   },
 }
@@ -340,7 +341,12 @@ export const SearchNoMatch: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText('No properties match')).toBeVisible()
-    await userEvent.click(canvas.getByRole('button', { name: 'Clear search and filter' }))
+    // The toolbar's Clear and the empty result's are the same control in the same
+    // words; the panel's is the one this story presses.
+    const panel = within(
+      canvasElement.querySelector<HTMLElement>('[data-slot="empty-state"]')!,
+    )
+    await userEvent.click(panel.getByRole('button', { name: 'Clear search and filters' }))
     expect(bodyRows(canvas)).toHaveLength(6)
   },
 }
@@ -490,7 +496,7 @@ export const RemovedTabForPropertyManager: Story = {
 
 async function openRowActions(canvasElement: HTMLElement, name: string) {
   await userEvent.click(
-    within(canvasElement).getByRole('button', { name: `Actions for ${name}` }),
+    within(canvasElement).getByRole('button', { name: `More actions for ${name}` }),
   )
   // The menu renders in a portal, outside the story's canvas.
   return within(await within(document.body).findByRole('menu'))

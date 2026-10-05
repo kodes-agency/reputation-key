@@ -1,5 +1,5 @@
 // Dashboard → Ratings (redesign rows 7a, 8, 9, 10, 12–14).
-import { useId, type ReactNode } from 'react'
+import { useId } from 'react'
 import type { DashboardData } from '#/contexts/reporting/application/public-api'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -11,10 +11,10 @@ import {
   DASHBOARD_RANGE_LABELS,
   type DashboardRange,
 } from '#/shared/dashboard-range'
-import { cn } from '#/lib/utils'
 import { PropertyReputationTrendChart } from './property-reputation-trend-chart'
 import { formatNumber } from '#/lib/format'
 import { MetricDelta } from '#/components/ui/metric-delta'
+import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { RatingFigure } from '#/components/ui/rating-figure'
 
 export interface PropertyRatingsPageProps {
@@ -22,37 +22,6 @@ export interface PropertyRatingsPageProps {
   dashboard: DashboardData
   range: DashboardRange
   onRangeChange: (range: DashboardRange) => void
-}
-
-function MetricFigure({
-  label,
-  value,
-  context,
-  className,
-}: Readonly<{
-  label: ReactNode
-  value: ReactNode
-  context?: ReactNode
-  className?: string
-}>) {
-  return (
-    <div className={cn('min-w-0', className)}>
-      <dt className="text-sm font-medium text-muted-foreground">{label}</dt>
-      {value === null ? null : (
-        <dd className="mt-1 text-3xl font-semibold tabular-nums">{value}</dd>
-      )}
-      {context ? (
-        <dd
-          className={cn(
-            'text-sm text-muted-foreground',
-            value === null ? 'mt-1' : 'mt-0.5',
-          )}
-        >
-          {context}
-        </dd>
-      ) : null}
-    </div>
-  )
 }
 
 function formatReplyTime(hours: number): string {
@@ -125,33 +94,24 @@ export function PropertyRatingsPage({
         actions={<DashboardRangeControl range={range} onRangeChange={onRangeChange} />}
       />
 
-      <dl
-        aria-label="Ratings summary"
-        className="grid divide-y border-y sm:grid-cols-3 sm:divide-x sm:divide-y-0"
-      >
-        <MetricFigure
-          label="Average rating"
-          value={
-            kpis.avgRating.value === null ? null : (
-              <RatingFigure value={kpis.avgRating.value} size="lg" />
-            )
-          }
-          context={ratingContext}
-          className="py-4 sm:pr-4"
-        />
-        <MetricFigure
-          label="Reviews"
-          value={formatNumber(kpis.reviews.value)}
-          context={reviewContext}
-          className="py-4 sm:px-4"
-        />
-        <MetricFigure
-          label={<GlossaryTerm term="reply-rate" />}
-          value={replyRateValue}
-          context={replyRateContext}
-          className="py-4 sm:pl-4"
-        />
-      </dl>
+      <MetricStrip aria-label="Ratings summary" variant="ruled">
+        <Metric label="Average rating">
+          <MetricValue
+            value={
+              kpis.avgRating.value === null ? null : (
+                <RatingFigure value={kpis.avgRating.value} size="lg" />
+              )
+            }
+            detail={ratingContext}
+          />
+        </Metric>
+        <Metric label="Reviews">
+          <MetricValue value={formatNumber(kpis.reviews.value)} detail={reviewContext} />
+        </Metric>
+        <Metric label={<GlossaryTerm term="reply-rate" />}>
+          <MetricValue value={replyRateValue} detail={replyRateContext} />
+        </Metric>
+      </MetricStrip>
 
       <section aria-labelledby="ratings-trend-title" className="min-w-0 space-y-3">
         <h2 id="ratings-trend-title" className="text-lg font-semibold tracking-tight">
@@ -182,20 +142,14 @@ export function PropertyRatingsPage({
         >
           Responding
         </h2>
-        <dl className="grid gap-4 sm:grid-cols-2">
-          <MetricFigure
-            label="Reply rate"
-            value={replyRateValue}
-            context={replyRateContext}
-            className="border-t pt-3"
-          />
-          <MetricFigure
-            label="Average reply time"
-            value={replyTimeValue}
-            context={replyTimeContext}
-            className="border-t pt-3"
-          />
-        </dl>
+        <MetricStrip aria-label="Responding" variant="ruled">
+          <Metric label="Reply rate">
+            <MetricValue value={replyRateValue} detail={replyRateContext} />
+          </Metric>
+          <Metric label="Average reply time">
+            <MetricValue value={replyTimeValue} detail={replyTimeContext} />
+          </Metric>
+        </MetricStrip>
       </section>
     </PageShell>
   )

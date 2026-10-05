@@ -9,7 +9,7 @@ import type {
 } from '#/contexts/inbox/application/public-api'
 import { InboxListV2 } from '#/components/inbox/inbox-list-v2'
 import { InboxBulkActions } from '#/components/inbox/inbox-bulk-actions'
-import { Button } from '#/components/ui/button'
+import { LoadMoreButton } from '#/components/ui/load-more-button'
 import type { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import type { bulkAssignInboxItemsFn } from '#/contexts/inbox/server/inbox'
 import type { InboxAssignmentOption } from './inbox-owner-view'
@@ -28,6 +28,8 @@ export interface InboxListPanelProps {
   /** At organization scope every row names its property. */
   showPropertyNames: boolean
   totalCount: number
+  /** What the queue holds before any search or filter; null until its count has arrived. */
+  queueTotal: number | null
   searchQ: string | undefined
   filters: InboxListFilterValues
   sort: InboxSort
@@ -45,8 +47,8 @@ export interface InboxListPanelProps {
   onSearchChange: (q: string | undefined) => void
   onFiltersChange: (patch: Partial<InboxListFilterValues>) => void
   onSortChange: (sort: InboxSort) => void
-  /** Drops every filter and the sort in one navigation. */
-  onClearAll: () => void
+  /** Drops the search and every filter in one navigation; the sort stays. */
+  onClearFilters: () => void
   onToggleSelect: (id: string) => void
   onSelectAll: () => void
   onDeselectAll: () => void
@@ -84,6 +86,8 @@ export function renderListContent(props: InboxListPanelProps): ReactNode {
       <InboxListEmpty
         queue={props.queue}
         isFiltered={!!props.searchQ || countActiveInboxFilters(props.filters) > 0}
+        searching={!!props.searchQ}
+        onClearFilters={props.onClearFilters}
       />
     )
   }
@@ -104,7 +108,7 @@ export function renderListContent(props: InboxListPanelProps): ReactNode {
 }
 
 /** Renders nothing until there is a next page and the initial load is done. */
-export function LoadMoreButton({
+export function InboxLoadMore({
   nextCursor,
   loadedCount,
   totalCount,
@@ -125,14 +129,10 @@ export function LoadMoreButton({
       <span className="text-xs tabular-nums text-muted-foreground">
         {loadedCount} of {totalCount}
       </span>
-      <Button
-        variant="outline"
-        size="sm"
-        pending={loadAction.isPending}
-        onClick={() => onLoadMore(nextCursor)}
-      >
-        Load more
-      </Button>
+      <LoadMoreButton
+        loading={loadAction.isPending}
+        onLoadMore={() => void onLoadMore(nextCursor)}
+      />
     </div>
   )
 }

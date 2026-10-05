@@ -577,7 +577,7 @@ export const FocusLeftElsewhereStaysThere: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await waitFor(() => expect(rowsIn(canvas)).toHaveLength(3))
-    canvas.getAllByRole('button', { name: /^More actions for:/ })[1]!.focus()
+    canvas.getAllByRole('button', { name: /^More actions for/ })[1]!.focus()
     await userEvent.click(
       canvas.getByRole('heading', { level: 1, name: 'Notifications' }),
     )

@@ -4,7 +4,7 @@
 
 import type { ReactNode } from 'react'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
-import { Button } from '#/components/ui/button'
+import { LoadMoreButton } from '#/components/ui/load-more-button'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { Timeline } from '#/components/ui/timeline'
@@ -127,16 +127,12 @@ export function PortalHistoryLedger(props: Props) {
           </Timeline>
         ) : null}
         {state === 'ready' && props.hasMore ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
+          <LoadMoreButton
             className="mt-4"
-            disabled={props.loadingMore}
-            onClick={props.onLoadMore}
-          >
-            {props.loadingMore ? 'Loading…' : 'Load earlier activity'}
-          </Button>
+            label="Load earlier activity"
+            loading={props.loadingMore}
+            onLoadMore={props.onLoadMore}
+          />
         ) : null}
       </div>
     </section>

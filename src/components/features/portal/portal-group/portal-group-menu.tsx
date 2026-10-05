@@ -3,21 +3,17 @@
 // inside a menu item closes with the menu.
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Ellipsis } from 'lucide-react'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
+  RowActionsItem,
+  RowActionsMenu,
+  RowActionsSeparator,
+} from '#/components/ui/row-actions-menu'
 import { PortalGroupArchiveDialog } from './portal-group-archive-dialog'
 import { PortalGroupRenameDialog } from './portal-group-dialogs'
 import { groupMenu } from './portal-group-menu-rules'
 import type { PortalGroupMutations, PortalGroupRef } from './portal-group-mutations'
-import { IconButton } from '#/components/ui/icon-button'
 
 type Props = Readonly<{
   group: PortalGroupRef
@@ -51,63 +47,55 @@ export function PortalGroupMenu({
   const others = menu.filter((entry) => entry.id !== 'archive')
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <IconButton
-            variant="ghost"
-            size="icon-sm"
-            tooltip={false}
-            className="text-muted-foreground"
-            label={`Actions for group ${group.name}`}
-          >
-            <Ellipsis aria-hidden="true" />
-          </IconButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-48">
-          {others.map((entry) => {
-            if (entry.id === 'open') {
-              return (
-                <DropdownMenuItem key={entry.id} asChild>
-                  <Link
-                    to="/properties/$propertyId/portals/groups/$groupId"
-                    params={{ propertyId, groupId: group.id }}
-                  >
-                    {entry.label}
-                  </Link>
-                </DropdownMenuItem>
-              )
-            }
-            if (entry.id === 'goal') {
-              return (
-                <DropdownMenuItem key={entry.id} asChild>
-                  <Link
-                    to="/properties/$propertyId/goals/new"
-                    params={{ propertyId }}
-                    search={{ subject: `portal_group:${group.id}` }}
-                  >
-                    {entry.label}
-                  </Link>
-                </DropdownMenuItem>
-              )
-            }
+      <RowActionsMenu name={`group ${group.name}`}>
+        {others.map((entry) => {
+          if (entry.id === 'open') {
             return (
-              <DropdownMenuItem key={entry.id} onSelect={() => setDialog('rename')}>
-                {entry.label}
-              </DropdownMenuItem>
+              <RowActionsItem key={entry.id} asChild>
+                <Link
+                  to="/properties/$propertyId/portals/groups/$groupId"
+                  params={{ propertyId, groupId: group.id }}
+                >
+                  {entry.label}
+                </Link>
+              </RowActionsItem>
             )
-          })}
-          {others.length > 0 && archive.length > 0 ? <DropdownMenuSeparator /> : null}
-          {archive.map((entry) => (
-            <DropdownMenuItem
+          }
+          if (entry.id === 'goal') {
+            return (
+              <RowActionsItem key={entry.id} asChild>
+                <Link
+                  to="/properties/$propertyId/goals/new"
+                  params={{ propertyId }}
+                  search={{ subject: `portal_group:${group.id}` }}
+                >
+                  {entry.label}
+                </Link>
+              </RowActionsItem>
+            )
+          }
+          return (
+            <RowActionsItem
               key={entry.id}
-              variant={entry.destructive ? 'destructive' : 'default'}
-              onSelect={() => setDialog('archive')}
+              opensDialog
+              onSelect={() => setDialog('rename')}
             >
               {entry.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+            </RowActionsItem>
+          )
+        })}
+        {others.length > 0 && archive.length > 0 ? <RowActionsSeparator /> : null}
+        {archive.map((entry) => (
+          <RowActionsItem
+            key={entry.id}
+            destructive={entry.destructive}
+            opensDialog
+            onSelect={() => setDialog('archive')}
+          >
+            {entry.label}
+          </RowActionsItem>
+        ))}
+      </RowActionsMenu>
       <PortalGroupRenameDialog
         open={dialog === 'rename'}
         onOpenChange={(open) => setDialog(open ? 'rename' : null)}

@@ -8,6 +8,7 @@
 import type { ReactNode } from 'react'
 import type { PortalVersionDetail } from '#/contexts/portal/application/public-api'
 import { Button } from '#/components/ui/button'
+import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import { RegionError } from '#/components/ui/region-error'
 import {
   Dialog,
@@ -46,24 +47,21 @@ type Props = Readonly<{
 function Facts({ detail }: Readonly<{ detail: PortalVersionDetail }>) {
   const { content } = detail
   return (
-    <dl className="grid gap-3 text-sm sm:grid-cols-[8rem_1fr]">
-      <dt className="text-muted-foreground">Languages</dt>
-      <dd>
+    <DescriptionList aria-label="Version content">
+      <DescriptionItem
+        term="Languages"
+        note={`Main: ${GUEST_LOCALE_METADATA[content.primaryLanguage].nativeName}`}
+      >
         {content.languages
           .map((locale) => GUEST_LOCALE_METADATA[locale].nativeName)
-          .join(', ')}{' '}
-        <span className="text-muted-foreground">
-          (main: {GUEST_LOCALE_METADATA[content.primaryLanguage].nativeName})
-        </span>
-      </dd>
+          .join(', ')}
+      </DescriptionItem>
       {content.title === null ? null : (
-        <>
-          <dt className="text-muted-foreground">Title</dt>
-          <dd lang={content.primaryLanguage}>{content.title}</dd>
-        </>
+        <DescriptionItem term="Title" lang={content.primaryLanguage}>
+          {content.title}
+        </DescriptionItem>
       )}
-      <dt className="text-muted-foreground">Linktree</dt>
-      <dd>
+      <DescriptionItem term="Linktree">
         {content.linktreeEnabled === false ? (
           'Switched off'
         ) : content.links.length === 0 ? (
@@ -80,8 +78,8 @@ function Facts({ detail }: Readonly<{ detail: PortalVersionDetail }>) {
             ))}
           </ul>
         )}
-      </dd>
-    </dl>
+      </DescriptionItem>
+    </DescriptionList>
   )
 }
 

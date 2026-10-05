@@ -9,6 +9,7 @@ import { Link } from '@tanstack/react-router'
 import { CircleDashed, History, PencilLine, TriangleAlert } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { OwnerDisc } from '#/components/ui/owner-disc'
+import { ROW_FIGURE_LINK, ROW_NAME_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import { attentionLine } from './portal-attention'
 import { PortalIssuesPopover } from './portal-issues-popover'
@@ -18,8 +19,6 @@ import type {
   PortalOverviewItem,
 } from './portal-overview-view'
 
-const FOCUS_RING = 'rounded-sm underline-offset-4 hover:underline focus-ring'
-
 type RowRef = Readonly<{ propertyId: string; portalId: string; name: string }>
 
 export function PortalNameLink({ row }: Readonly<{ row: RowRef }>) {
@@ -28,7 +27,7 @@ export function PortalNameLink({ row }: Readonly<{ row: RowRef }>) {
       to="/properties/$propertyId/portals/$portalId"
       params={{ propertyId: row.propertyId, portalId: row.portalId }}
       search={{ tab: 'page' }}
-      className={cn('truncate font-medium', FOCUS_RING)}
+      className={cn('truncate font-medium', ROW_NAME_LINK)}
     >
       {row.name}
     </Link>
@@ -71,7 +70,7 @@ export function PortalAttentionLine({
               params={{ propertyId, portalId: row.portalId }}
               search={{ tab: 'page' }}
               aria-label={`Continue setup for ${row.name}`}
-              className={cn('font-medium whitespace-nowrap text-foreground', FOCUS_RING)}
+              className={cn('font-medium whitespace-nowrap', ROW_FIGURE_LINK)}
             >
               Continue setup
             </Link>
@@ -87,7 +86,7 @@ export function PortalAttentionLine({
             params={{ propertyId, portalId: row.portalId }}
             search={{ tab: 'share' }}
             aria-label={`${line}: open Share for ${row.name}`}
-            className={cn('text-foreground', FOCUS_RING)}
+            className={ROW_FIGURE_LINK}
           >
             {line}
           </Link>

@@ -4,13 +4,9 @@
 // read through the Property's own days. A quiet notice says when its Google link
 // needs attention; nothing is said when it does not.
 import { Link } from '@tanstack/react-router'
-import { Ellipsis, TriangleAlert } from 'lucide-react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
+import { TriangleAlert } from 'lucide-react'
+import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
+import { ROW_NAME_LINK } from '#/components/ui/row-link'
 import { TableCell, TableHead, TableRow } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
 import { PortalMeasureCells } from './portal-overview-measure-cells'
@@ -18,7 +14,6 @@ import { groupHeadCount, type MeasureSlot } from './portal-overview-results'
 import { PORTAL_OVERVIEW_COLUMNS } from './portal-overview-table-row'
 import type { PortalPropertySection } from './portal-all-properties-view'
 import { describeGroupCount } from './portal-overview-view'
-import { IconButton } from '#/components/ui/icon-button'
 import { PortalOverviewToggle } from './portal-overview-toggle'
 
 type Props = Readonly<{
@@ -31,41 +26,26 @@ type Props = Readonly<{
   onToggle: () => void
 }>
 
-const FOCUS_RING = 'rounded-sm underline-offset-4 hover:underline focus-ring'
-
 function PropertyMenu({ property }: Readonly<{ property: PortalPropertySection }>) {
   const params = { propertyId: property.propertyId }
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <IconButton
-          variant="ghost"
-          size="icon-sm"
-          tooltip={false}
-          className="text-muted-foreground"
-          label={`More actions for ${property.name}`}
-        >
-          <Ellipsis aria-hidden="true" />
-        </IconButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-48">
-        <DropdownMenuItem asChild>
-          <Link to="/properties/$propertyId/portals" params={params}>
-            Open portals
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link to="/properties/$propertyId" params={params}>
-            Open dashboard
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link to="/properties/$propertyId/settings" params={params}>
-            Property settings
-          </Link>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <RowActionsMenu name={property.name}>
+      <RowActionsItem asChild>
+        <Link to="/properties/$propertyId/portals" params={params}>
+          Open portals
+        </Link>
+      </RowActionsItem>
+      <RowActionsItem asChild>
+        <Link to="/properties/$propertyId" params={params}>
+          Open dashboard
+        </Link>
+      </RowActionsItem>
+      <RowActionsItem asChild>
+        <Link to="/properties/$propertyId/settings" params={params}>
+          Property settings
+        </Link>
+      </RowActionsItem>
+    </RowActionsMenu>
   )
 }
 
@@ -103,7 +83,7 @@ export function PortalOverviewPropertyHead({
         <Link
           to="/properties/$propertyId/portals"
           params={{ propertyId: property.propertyId }}
-          className={cn('font-semibold', FOCUS_RING)}
+          className={cn('font-semibold', ROW_NAME_LINK)}
         >
           {name}
         </Link>

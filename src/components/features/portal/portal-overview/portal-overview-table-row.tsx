@@ -4,7 +4,8 @@
 // once, which Storybook (no CSS container queries to lean on) and the e2e
 // journeys both rely on.
 import type { ReactNode } from 'react'
-import { TableCell, TableHead, TableRow } from '#/components/ui/table'
+import { DataTableRow } from '#/components/ui/data-table'
+import { TableCell, TableHead } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
 import {
   PortalAttentionLine,
@@ -51,7 +52,7 @@ export function PortalOverviewTableRow({
   // A draft has no results: its card says so by saying nothing, as its table row does.
   const summary = figures.kind === 'figures' && !draft ? figures.measures.summary : null
   return (
-    <TableRow className={cn(classes.card, archived && 'opacity-70')}>
+    <DataTableRow className={cn(archived && 'opacity-70')}>
       <TableHead scope="row" className={classes.nameCell}>
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
@@ -81,6 +82,6 @@ export function PortalOverviewTableRow({
           extra={menuExtra}
         />
       </TableCell>
-    </TableRow>
+    </DataTableRow>
   )
 }

@@ -83,7 +83,7 @@ export const HeaderSaysWhatAGroupIs: Story = {
     // One in the header, and the quiet one under the table.
     await expect(canvas.getAllByRole('button', { name: 'Add portal' })).toHaveLength(2)
     await expect(
-      canvas.getByRole('button', { name: 'Actions for group Pool side' }),
+      canvas.getByRole('button', { name: 'More actions for group Pool side' }),
     ).toBeInTheDocument()
   },
 }
@@ -288,7 +288,9 @@ export const ArchivingAsksFirstAndKeepsThePortals: Story = {
   args: { archiveGroupMutation: spy<{ data: { portalGroupId: string } }>() },
   play: async ({ canvasElement, args }) => {
     await userEvent.click(
-      within(canvasElement).getByRole('button', { name: 'Actions for group Pool side' }),
+      within(canvasElement).getByRole('button', {
+        name: 'More actions for group Pool side',
+      }),
     )
     const item = await screen.findByRole('menuitem', { name: 'Archive group…' })
     // A group has no restore, so its archive is red in the menu and in the confirm.

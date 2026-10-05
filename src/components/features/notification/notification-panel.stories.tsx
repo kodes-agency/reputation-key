@@ -76,9 +76,7 @@ const idsIn = (section: HTMLElement) =>
 
 /** Picks `item` from the first row's menu. Radix portals the menu outside the popover. */
 async function chooseFromFirstRowMenu(popover: Popover, item: string): Promise<void> {
-  await userEvent.click(
-    popover.getAllByRole('button', { name: /^More actions for:/ })[0]!,
-  )
+  await userEvent.click(popover.getAllByRole('button', { name: /^More actions for/ })[0]!)
   await userEvent.click(
     await within(document.body).findByRole('menuitem', { name: item }),
   )
@@ -377,7 +375,7 @@ export const DismissKeepsFocusInTheList: Story = {
   play: async ({ canvasElement }) => {
     const popover = await openBell(canvasElement)
     const [first, second] = await popover.findAllByRole('button', {
-      name: /^More actions for:/,
+      name: /^More actions for/,
     })
     await dismissFromTheKeyboard(first!)
     await waitFor(() => expect(second).toHaveFocus())
@@ -393,7 +391,7 @@ export const MarkReadFromTheMenuKeepsFocus: Story = {
   args: { notificationFns: pendingRowFns(notificationFixtures) },
   play: async ({ canvasElement }) => {
     const popover = await openBell(canvasElement)
-    const triggers = await popover.findAllByRole('button', { name: /^More actions for:/ })
+    const triggers = await popover.findAllByRole('button', { name: /^More actions for/ })
     triggers[0]!.focus()
     await userEvent.keyboard('{Enter}')
     const markRead = await within(document.body).findByRole('menuitem', {
@@ -417,7 +415,7 @@ export const DismissingTheLastRowFocusesTheList: Story = {
   play: async ({ canvasElement }) => {
     const popover = await openBell(canvasElement)
     await dismissFromTheKeyboard(
-      await popover.findByRole('button', { name: /^More actions for:/ }),
+      await popover.findByRole('button', { name: /^More actions for/ }),
     )
     const { needsYou } = await bellLists(popover)
     await waitFor(() => expect(needsYou).toHaveFocus())
@@ -1035,11 +1033,11 @@ export const StackDismissAllOffersUndo: Story = {
     expect(href.searchParams.get('propertyId')).toBe(HARBOUR)
 
     await userEvent.click(
-      within(row).getByRole('button', { name: /^More actions for: 3 new reviews / }),
+      within(row).getByRole('button', { name: /^More actions for 3 new reviews / }),
     )
     const menu = within(document.body)
     await menu.findByRole('menuitem', { name: 'Mark all as read' })
-    await userEvent.click(menu.getByRole('menuitem', { name: 'Dismiss all 3' }))
+    await userEvent.click(menu.getByRole('menuitem', { name: 'Dismiss all 3…' }))
 
     // It asks first, as the page's "Dismiss all" does. Cancel leaves the stack
     // and every row in it.
@@ -1051,9 +1049,9 @@ export const StackDismissAllOffersUndo: Story = {
     expect(popover.getByRole('link', { name: STACK_NAME })).toBeInTheDocument()
 
     await userEvent.click(
-      within(row).getByRole('button', { name: /^More actions for: 3 new reviews / }),
+      within(row).getByRole('button', { name: /^More actions for 3 new reviews / }),
     )
-    await userEvent.click(await menu.findByRole('menuitem', { name: 'Dismiss all 3' }))
+    await userEvent.click(await menu.findByRole('menuitem', { name: 'Dismiss all 3…' }))
     await userEvent.click(
       within(await menu.findByRole('alertdialog')).getByRole('button', {
         name: 'Dismiss all',

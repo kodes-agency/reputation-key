@@ -12,14 +12,13 @@ import {
 import { EmptyState } from '#/components/ui/empty-state'
 import { Switch } from '#/components/ui/switch'
 import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '#/components/ui/table'
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+} from '#/components/ui/data-table'
 import type { SetPropertyReplyTemplateEnabledInput } from '#/contexts/review/application/dto/reply-library.dto'
 import type {
   PropertyReplyLibraryProfile,
@@ -87,44 +86,39 @@ export function PropertyReplyTemplateLibraryCard({
             description="Add a template for a rating band, review type, and language to make it available in the reply composer."
           />
         ) : (
-          <Table>
-            <TableCaption className="sr-only">
-              Property reply template library
-            </TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Rating band</TableHead>
-                <TableHead>Review type</TableHead>
-                <TableHead>Aspect</TableHead>
-                <TableHead>Language</TableHead>
-                <TableHead>Enabled</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <DataTable label="Property reply template library" layout="scroll">
+            <DataTableHeader>
+              <DataTableHead>Title</DataTableHead>
+              <DataTableHead>Rating band</DataTableHead>
+              <DataTableHead>Review type</DataTableHead>
+              <DataTableHead>Aspect</DataTableHead>
+              <DataTableHead>Language</DataTableHead>
+              <DataTableHead>Enabled</DataTableHead>
+              <DataTableHead actions />
+            </DataTableHeader>
+            <DataTableBody>
               {templates.map((template) => (
-                <TableRow key={template.id}>
-                  <TableCell className="max-w-64 whitespace-normal font-medium">
+                <DataTableRow key={template.id}>
+                  <DataTableCell className="max-w-64 whitespace-normal font-medium">
                     {template.title}
-                  </TableCell>
-                  <TableCell>
+                  </DataTableCell>
+                  <DataTableCell>
                     {template.ratingMin === template.ratingMax
                       ? `${template.ratingMin} star${template.ratingMin === 1 ? '' : 's'}`
                       : `${template.ratingMin}–${template.ratingMax} stars`}
-                  </TableCell>
-                  <TableCell>
+                  </DataTableCell>
+                  <DataTableCell>
                     <Badge variant="outline">
                       {template.hasText ? 'With text' : 'Rating only'}
                     </Badge>
-                  </TableCell>
-                  <TableCell className="capitalize">
+                  </DataTableCell>
+                  <DataTableCell className="capitalize">
                     {template.aspect?.replaceAll('_', ' ') ?? 'General'}
-                  </TableCell>
-                  <TableCell>
+                  </DataTableCell>
+                  <DataTableCell>
                     <code>{template.languageTag}</code>
-                  </TableCell>
-                  <TableCell>
+                  </DataTableCell>
+                  <DataTableCell>
                     <label
                       htmlFor={`reply-template-enabled-${template.id}`}
                       className="flex min-h-11 cursor-pointer items-center gap-2"
@@ -144,8 +138,8 @@ export function PropertyReplyTemplateLibraryCard({
                         {template.enabled ? 'On' : 'Off'}
                       </span>
                     </label>
-                  </TableCell>
-                  <TableCell className="text-right">
+                  </DataTableCell>
+                  <DataTableCell className="text-right">
                     <ReplyTemplateEditor
                       key={`${template.id}:${template.version}`}
                       propertyId={propertyId}
@@ -154,11 +148,11 @@ export function PropertyReplyTemplateLibraryCard({
                       defaultLanguageTag={defaultLanguageTag}
                       action={saveAction}
                     />
-                  </TableCell>
-                </TableRow>
+                  </DataTableCell>
+                </DataTableRow>
               ))}
-            </TableBody>
-          </Table>
+            </DataTableBody>
+          </DataTable>
         )}
       </CardContent>
     </Card>

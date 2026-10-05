@@ -108,3 +108,52 @@ for (const width of CARD_WIDTHS) {
     expect(documentScrolls, 'the document scrolls sideways').toBe(false)
   })
 }
+
+// A section's head row is the only row of its body once the group is folded, so it is
+// the body's last row. The cards' "last card keeps its border" rule once matched it
+// and boxed the head in a square 1px border (it is not a card and has no radius).
+const FOLDED_GROUP_STORY = 'portal-portallistpage--default'
+
+for (const width of CARD_WIDTHS) {
+  test(`a ${width}px window draws a folded group's head with no box around it`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await openStory(page, FOLDED_GROUP_STORY)
+
+    const table = page.getByRole('table', { name: /portals at avela resort/i })
+    await table.getByRole('button', { name: 'Portals in Pool side' }).click()
+    await expect(table.getByRole('link', { name: 'Pool & Terrace' })).toHaveCount(0)
+
+    const widths = (row: ReturnType<typeof table.locator>) =>
+      row.evaluate((element) => {
+        const style = getComputedStyle(element)
+        return [
+          style.borderTopWidth,
+          style.borderRightWidth,
+          style.borderBottomWidth,
+          style.borderLeftWidth,
+        ]
+      })
+    const head = table
+      .getByRole('button', { name: 'Portals in Pool side' })
+      .locator('xpath=ancestor::tr')
+    expect(await widths(head), 'the folded head row’s borders').toEqual([
+      '0px',
+      '0px',
+      '0px',
+      '0px',
+    ])
+
+    // The last card of an open group keeps its border: only the head lost none.
+    const card = table
+      .getByRole('link', { name: 'Reception' })
+      .locator('xpath=ancestor::tr')
+    expect(await widths(card), 'a Portal card’s borders').toEqual([
+      '1px',
+      '1px',
+      '1px',
+      '1px',
+    ])
+  })
+}

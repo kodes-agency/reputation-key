@@ -5,16 +5,15 @@
 // each row stacks as a small grid — name and rating, then reviews, then the
 // work and setup lines — and the header row is not shown; from 56 rem it is a
 // table with sortable column headers.
-import type { ReactNode } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '#/components/ui/table'
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+  DataTableSortHead,
+} from '#/components/ui/data-table'
 import { cn } from '#/lib/utils'
 import type { PropertyListSort } from './property-list-search-schema'
 import {
@@ -35,11 +34,11 @@ type Props = Readonly<{
   onSort: (sort: PropertyListSort) => void
 }>
 
-function SortableHead({
+function SortHead({
   column,
   view,
   onSort,
-  align = 'start',
+  align,
   className,
   children,
 }: Readonly<{
@@ -48,32 +47,19 @@ function SortableHead({
   onSort: (sort: PropertyListSort) => void
   align?: 'start' | 'end'
   className?: string
-  children: ReactNode
+  children: string
 }>) {
-  const active = view.sort === column
-  const Icon = active ? (view.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
   return (
-    <TableHead
-      aria-sort={active ? (view.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-      className={cn('h-10 px-4', align === 'end' && 'text-right', className)}
+    <DataTableSortHead
+      direction={view.sort === column ? view.dir : null}
+      onSort={() => onSort(column)}
+      align={align}
+      className={className}
     >
-      <button
-        type="button"
-        onClick={() => onSort(column)}
-        className={cn(
-          '-mx-1 inline-flex h-8 items-center gap-1 rounded-md px-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-ring',
-          active && 'text-foreground',
-          align === 'end' && 'flex-row-reverse',
-        )}
-      >
-        {children}
-        <Icon className={cn('size-3.5', !active && 'opacity-40')} aria-hidden="true" />
-      </button>
-    </TableHead>
+      {children}
+    </DataTableSortHead>
   )
 }
-
-const CELL = 'p-0 @4xl:table-cell @4xl:px-4 @4xl:py-3'
 
 export function PropertyListTable({ rows, view, fleet, setup, onSort }: Props) {
   const figures = fleet !== 'unavailable'
@@ -81,106 +67,93 @@ export function PropertyListTable({ rows, view, fleet, setup, onSort }: Props) {
   const head = { view, onSort }
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-card @container">
-      <Table aria-label="Properties" className="block @4xl:table">
-        <TableHeader className="hidden @4xl:table-header-group">
-          <TableRow className="hover:bg-transparent">
-            <SortableHead column="name" {...head}>
-              Property
-            </SortableHead>
-            {figures ? (
-              <>
-                <SortableHead column="rating" align="end" className="w-24" {...head}>
-                  Rating
-                </SortableHead>
-                <SortableHead column="reviews" align="end" className="w-24" {...head}>
-                  Reviews
-                </SortableHead>
-                <SortableHead column="attention" className="w-56" {...head}>
-                  Needs attention
-                </SortableHead>
-              </>
-            ) : null}
-            {setupShown ? (
-              <SortableHead column="setup" className="w-52" {...head}>
-                Setup
-              </SortableHead>
-            ) : null}
-            <TableHead className="w-14 px-2">
-              <span className="sr-only">Actions</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody className="block @4xl:table-row-group">
-          {rows.map((row) => {
-            const { property, comparison } = row
-            const clear = comparison !== undefined && comparison.attention.total === 0
-            const setUp = row.setup !== undefined && row.setup.nextStep === null
-            return (
-              <TableRow
-                key={property.id}
-                className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 gap-y-1.5 px-4 py-3.5 hover:bg-muted/40 @4xl:table-row @4xl:p-0"
-              >
-                <TableCell className={cn(CELL, 'row-span-2 min-w-0 whitespace-normal')}>
-                  <PropertyNameCell row={row} />
-                </TableCell>
-                {figures ? (
-                  <>
-                    <TableCell className={cn(CELL, 'col-start-2 row-start-1 text-right')}>
-                      <RatingValue comparison={comparison} fleet={fleet} />
-                    </TableCell>
-                    <TableCell
-                      className={cn(
-                        CELL,
-                        'col-start-2 row-start-2 text-right text-xs text-muted-foreground @4xl:text-sm @4xl:text-foreground',
-                      )}
-                    >
-                      <ReviewsValue comparison={comparison} fleet={fleet} />
-                    </TableCell>
-                    <TableCell
-                      className={cn(
-                        CELL,
-                        'col-span-3 whitespace-normal',
-                        // Stacked, a row with nothing waiting says nothing.
-                        clear && '@max-4xl:hidden',
-                      )}
-                    >
-                      <AttentionValue
-                        comparison={comparison}
-                        fleet={fleet}
-                        propertyId={property.id}
-                        propertyName={property.name}
-                      />
-                    </TableCell>
-                  </>
-                ) : null}
-                {setupShown ? (
-                  <TableCell
+    <DataTable label="Properties">
+      <DataTableHeader>
+        <SortHead column="name" {...head}>
+          Property
+        </SortHead>
+        {figures ? (
+          <>
+            <SortHead column="rating" align="end" className="w-24" {...head}>
+              Rating
+            </SortHead>
+            <SortHead column="reviews" align="end" className="w-24" {...head}>
+              Reviews
+            </SortHead>
+            <SortHead column="attention" className="w-56" {...head}>
+              Needs attention
+            </SortHead>
+          </>
+        ) : null}
+        {setupShown ? (
+          <SortHead column="setup" className="w-52" {...head}>
+            Setup
+          </SortHead>
+        ) : null}
+        <DataTableHead actions className="w-14" />
+      </DataTableHeader>
+      <DataTableBody>
+        {rows.map((row) => {
+          const { property, comparison } = row
+          const clear = comparison !== undefined && comparison.attention.total === 0
+          const setUp = row.setup !== undefined && row.setup.nextStep === null
+          return (
+            <DataTableRow key={property.id} tracks={3}>
+              <DataTableCell className="row-span-2 min-w-0 whitespace-normal">
+                <PropertyNameCell row={row} />
+              </DataTableCell>
+              {figures ? (
+                <>
+                  <DataTableCell className="col-start-2 row-start-1 text-right">
+                    <RatingValue comparison={comparison} fleet={fleet} />
+                  </DataTableCell>
+                  <DataTableCell className="col-start-2 row-start-2 text-right text-xs text-muted-foreground @4xl:text-sm @4xl:text-foreground">
+                    <ReviewsValue comparison={comparison} fleet={fleet} />
+                  </DataTableCell>
+                  <DataTableCell
                     className={cn(
-                      CELL,
                       'col-span-3 whitespace-normal',
-                      setUp && '@max-4xl:hidden',
+                      // Stacked, a row with nothing waiting says nothing.
+                      clear && '@max-4xl:hidden',
                     )}
                   >
-                    <SetupValue
-                      setup={row.setup}
-                      state={setup}
+                    <AttentionValue
+                      comparison={comparison}
+                      fleet={fleet}
                       propertyId={property.id}
                       propertyName={property.name}
                     />
-                  </TableCell>
-                ) : null}
-                <TableCell className="col-start-3 row-span-2 row-start-1 -mt-2 -mr-3 self-start p-0 @4xl:table-cell @4xl:mt-0 @4xl:mr-0 @4xl:px-2 @4xl:py-3 @4xl:text-right">
-                  <PropertyRowActions
+                  </DataTableCell>
+                </>
+              ) : null}
+              {setupShown ? (
+                <DataTableCell
+                  className={cn(
+                    'col-span-3 whitespace-normal',
+                    setUp && '@max-4xl:hidden',
+                  )}
+                >
+                  <SetupValue
+                    setup={row.setup}
+                    state={setup}
                     propertyId={property.id}
                     propertyName={property.name}
                   />
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
-    </div>
+                </DataTableCell>
+              ) : null}
+              <DataTableCell
+                actions
+                className="col-start-3 row-span-2 row-start-1 self-start"
+              >
+                <PropertyRowActions
+                  propertyId={property.id}
+                  propertyName={property.name}
+                />
+              </DataTableCell>
+            </DataTableRow>
+          )
+        })}
+      </DataTableBody>
+    </DataTable>
   )
 }

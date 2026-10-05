@@ -1,10 +1,11 @@
-// Resend and Cancel invitation call the route's Actions, which reject on a
-// refusal (the resend rate limit, an invitation already gone). Resend is reported
-// by the route's toast, so the table settles the promise or it escapes the click
-// as an unhandled rejection. Cancelling is confirmed in a dialog that stays open
-// and says the refusal in place, so the table hands it the rejection.
+// Resend and Cancel invitation (the items of a pending invitation's menu) call the
+// route's Actions, which reject on a refusal (the resend rate limit, an invitation
+// already gone). Resend is reported by the route's toast, so the table settles the
+// promise or it escapes the click as an unhandled rejection. Cancelling is confirmed
+// in a dialog that stays open and says the refusal in place, so the table hands it
+// the rejection.
 //
-// There is no DOM here: the table is server-rendered with its button and dialog
+// There is no DOM here: the table is server-rendered with its menu and dialog
 // primitives replaced by recorders, and the recorded handlers are called.
 
 import { createElement, type ReactNode } from 'react'
@@ -14,7 +15,7 @@ import type { Action } from '#/components/hooks/use-action'
 import { unhandledRejectionsDuring } from '#/shared/testing/unhandled-rejections'
 import { InvitationTable } from './invitation-table'
 
-type Recorded = Readonly<{ children?: ReactNode; onClick?: () => unknown }>
+type Recorded = Readonly<{ children?: ReactNode; onSelect?: () => unknown }>
 
 const { recorded } = vi.hoisted(() => ({ recorded: [] as Recorded[] }))
 
@@ -22,11 +23,13 @@ vi.mock('#/shared/hooks/usePermissions', () => ({
   usePermissions: () => ({ can: () => true }),
 }))
 
-vi.mock('#/components/ui/button', () => ({
-  Button: (props: Recorded) => {
+vi.mock('#/components/ui/row-actions-menu', () => ({
+  RowActionsMenu: ({ children }: Readonly<{ children?: ReactNode }>) => children,
+  RowActionsItem: (props: Recorded) => {
     recorded.push(props)
     return null
   },
+  RowActionsSeparator: () => null,
 }))
 
 const { confirmations } = vi.hoisted(() => ({
@@ -38,7 +41,6 @@ vi.mock('#/components/ui/confirmation-dialog', () => ({
     confirmations.push(props)
     return null
   },
-  ConfirmationTrigger: () => null,
 }))
 
 type InvitationInput = { data: { invitationId: string } }
@@ -74,10 +76,10 @@ function renderTable(actions: {
   )
 }
 
-function recordedControl(label: string): Recorded {
-  const control = recorded.find((props) => props.children === label)
-  if (!control?.onClick) throw new Error(`no "${label}" control was rendered`)
-  return control
+function recordedItem(label: string): Recorded {
+  const item = recorded.find((props) => props.children === label)
+  if (!item?.onSelect) throw new Error(`no "${label}" item was rendered`)
+  return item
 }
 
 beforeEach(() => {
@@ -94,7 +96,7 @@ describe('InvitationTable commands', () => {
     })
 
     const unhandled = await unhandledRejectionsDuring(() =>
-      recordedControl('Resend').onClick?.(),
+      recordedItem('Resend invitation').onSelect?.(),
     )
 
     expect(unhandled).toEqual([])

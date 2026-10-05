@@ -1132,8 +1132,11 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       (send) => send.to === inviteEmail,
     )
     expect(invite.subject).toContain('invited you to join')
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
-    await page.getByRole('button', { name: /cancel invitation/i }).click()
+    // A pending invitation's Resend and Cancel live in its row's more-actions
+    // menu (UI consistency S6, RowActionsMenu); Cancel opens a confirmation.
+    await page.getByRole('button', { name: `More actions for ${inviteEmail}` }).click()
+    await page.getByRole('menuitem', { name: 'Cancel invitation…' }).click()
+    await page.getByRole('button', { name: 'Cancel invitation', exact: true }).click()
     await expect(page.getByText(inviteEmail, { exact: true })).toHaveCount(0)
   })
 

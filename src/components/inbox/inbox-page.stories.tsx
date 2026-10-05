@@ -612,8 +612,9 @@ export const MobileRemovingEveryFilter: Story = {
   },
 }
 
-// "Clear all" is one navigation that drops every filter and the sort together.
-export const MobileClearAllFilters: Story = {
+// "Clear filters" is one navigation that drops every filter; the sort is not a
+// filter, so its chip stays.
+export const MobileClearFilters: Story = {
   render: () => (
     <InboxPageHarness
       ctx={orgCtx}
@@ -627,11 +628,34 @@ export const MobileClearAllFilters: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const chips = await canvas.findByRole('group', { name: 'Active filters' })
-    await userEvent.click(within(chips).getByRole('button', { name: 'Clear all' }))
+    await userEvent.click(within(chips).getByRole('button', { name: 'Clear filters' }))
     await waitFor(() =>
-      expect(canvas.queryByRole('group', { name: 'Active filters' })).toBeNull(),
+      expect(
+        within(chips).queryByRole('button', { name: 'Remove filter: Reviews' }),
+      ).toBeNull(),
     )
-    await expect(canvas.getByRole('button', { name: 'Filters' })).toHaveFocus()
+    // The order stays, with its own chip, and focus goes to it.
+    await expect(
+      canvas.getByRole('button', { name: 'Remove filter: Oldest first' }),
+    ).toHaveFocus()
+  },
+}
+
+// A filter that matches nothing offers the way back, as the Properties and
+// Portals lists do: the same Clear control, in the same words.
+export const NoMatchesOfferClearFilters: Story = {
+  render: () => (
+    <InboxPageHarness
+      ctx={orgCtx}
+      inboxFns={makeInboxFns(container)}
+      initialSearch={{ sourceType: 'feedback', ratingMin: 5 }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(await canvas.findByText('No matches')).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Clear filters' }))
+    await waitFor(() => expect(canvas.queryByText('No matches')).toBeNull())
   },
 }
 

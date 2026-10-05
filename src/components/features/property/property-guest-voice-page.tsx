@@ -6,6 +6,8 @@ import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
+import { ROW_FIGURE_LINK } from '#/components/ui/row-link'
+import { cn } from '#/lib/utils'
 import type {
   AiPropertyInsightsRead,
   AiTrendReportView,
@@ -108,7 +110,10 @@ function SupportingReview({
       params={{ propertyId }}
       search={{ itemId: review.inboxItemId }}
       aria-label={`Open supporting review from ${date} in the inbox`}
-      className="inline-flex min-h-11 items-center rounded-md border px-3 text-sm text-link underline-offset-4 hover:bg-muted/40 hover:underline focus-ring"
+      className={cn(
+        ROW_FIGURE_LINK,
+        'inline-flex min-h-11 items-center rounded-md border px-3 text-sm hover:bg-muted/40',
+      )}
     >
       {label}
     </Link>

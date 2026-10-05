@@ -1,4 +1,5 @@
 import { Inbox } from 'lucide-react'
+import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import { EmptyState } from '#/components/ui/empty-state'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -50,7 +51,15 @@ export function InboxListError({
 export function InboxListEmpty({
   queue,
   isFiltered,
-}: Readonly<{ queue: InboxQueue; isFiltered: boolean }>) {
+  searching,
+  onClearFilters,
+}: Readonly<{
+  queue: InboxQueue
+  isFiltered: boolean
+  /** A search is among what narrowed the list, so Clear takes it away too. */
+  searching: boolean
+  onClearFilters: () => void
+}>) {
   const copy = inboxEmptyCopy(queue, isFiltered)
   return (
     <div className="p-4">
@@ -59,6 +68,17 @@ export function InboxListEmpty({
         icon={Inbox}
         title={copy.title}
         description={copy.description}
+        // No match is recoverable: say how, as the Properties and Portals lists do.
+        action={
+          isFiltered ? (
+            <ClearFiltersButton
+              variant="outline"
+              size="sm"
+              searching={searching}
+              onClear={onClearFilters}
+            />
+          ) : undefined
+        }
       />
     </div>
   )

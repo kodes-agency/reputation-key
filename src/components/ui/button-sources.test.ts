@@ -179,7 +179,7 @@ describe('a pending button is the Button', () => {
     'src/components/features/integration/google-import-manager/google-import-progress-items.tsx':
       'the status glyph of a progress row, beside a Retry that is a pending Button',
     'src/components/inbox/composer-mode-row.tsx': 'a status glyph in the mode row',
-    'src/components/features/notification/notification-list-notices.tsx':
+    'src/components/ui/load-more-button.tsx':
       'Load more is aria-disabled while it loads, not disabled, so keyboard focus stays in the popover; a pending Button is natively disabled',
   }
 
@@ -246,10 +246,6 @@ describe('a link set in a sentence is an InlineLink', () => {
     'src/components/ui/inline-link.tsx': 'the primitive itself',
     'src/components/ui/button.tsx': 'the link variant',
     'src/components/ui/badge.tsx': 'the link variant',
-    'src/components/features/property/property-guest-voice-page.tsx':
-      'a bordered figure link with its own touch box (plan stage S6, figure links)',
-    'src/components/features/property/property-insights-aspect-table.tsx':
-      'a count link with its own touch box (plan stage S6, figure links)',
   }
 
   it('is not typed by hand', () => {

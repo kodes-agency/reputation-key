@@ -74,7 +74,7 @@ for (const viewport of VIEWPORTS) {
     // but it keeps its box.
     const rows = await layer.locator('li[data-notification-id]').count()
     const menuButtons = await layer
-      .getByRole('button', { name: /^More actions for:/ })
+      .getByRole('button', { name: /^More actions for/ })
       .all()
     expect(menuButtons).toHaveLength(rows)
     for (const button of menuButtons) {

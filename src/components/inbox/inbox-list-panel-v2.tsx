@@ -7,7 +7,7 @@ import { InboxActiveFilters } from '#/components/inbox/inbox-active-filters'
 import { InboxListHeader } from '#/components/inbox/inbox-list-header'
 import {
   BulkActionBar,
-  LoadMoreButton,
+  InboxLoadMore,
   renderListContent,
   type InboxListPanelProps,
 } from './inbox-list-panel-parts'
@@ -20,6 +20,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
     scopeLabel,
     scopeControl,
     totalCount,
+    queueTotal,
     searchQ,
     filters,
     sort,
@@ -32,7 +33,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
     onSearchChange,
     onFiltersChange,
     onSortChange,
-    onClearAll,
+    onClearFilters,
     onSelectAll,
     onDeselectAll,
     onBulkDone,
@@ -58,6 +59,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
         scopeLabel={scopeLabel}
         scopeControl={scopeControl}
         totalCount={totalCount}
+        queueTotal={queueTotal}
         searchQ={searchQ}
         onSearchChange={onSearchChange}
         filters={filters}
@@ -65,7 +67,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
         sort={sort}
         isLoading={isLoading}
         onSortChange={onSortChange}
-        onClearAll={onClearAll}
+        onClearFilters={onClearFilters}
         onStartSelection={onStartSelection}
         isCompactLayout={isCompactLayout}
         selectionToolbar={
@@ -91,12 +93,13 @@ export function InboxListPanel(props: InboxListPanelProps) {
           sort={sort}
           onFiltersChange={onFiltersChange}
           onSortChange={onSortChange}
-          onClearAll={onClearAll}
+          searching={searchQ !== undefined}
+          onClearFilters={onClearFilters}
         />
       )}
       <div ref={listRef} className="flex-1 overflow-y-auto min-h-0">
         {renderListContent(props)}
-        <LoadMoreButton
+        <InboxLoadMore
           nextCursor={nextCursor}
           loadedCount={items.length}
           totalCount={totalCount}

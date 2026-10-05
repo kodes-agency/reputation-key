@@ -2,7 +2,7 @@
 // properties: nothing made yet, and nothing matching the search.
 import type { ReactNode } from 'react'
 import { Globe, SearchX } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import { EmptyState } from '#/components/ui/empty-state'
 
 export function PortalOverviewEmpty({ action }: Readonly<{ action: ReactNode }>) {
@@ -17,17 +17,26 @@ export function PortalOverviewEmpty({ action }: Readonly<{ action: ReactNode }>)
 }
 
 export function PortalOverviewNoMatch({
-  clearLabel,
+  searching,
+  filters = true,
   onClear,
-}: Readonly<{ clearLabel: string; onClear: () => void }>) {
+}: Readonly<{
+  searching: boolean
+  /** The list offers filters. `false` on All properties, which has only a search. */
+  filters?: boolean
+  onClear: () => void
+}>) {
   return (
     <EmptyState
       icon={SearchX}
       title="No portals match"
       action={
-        <Button variant="outline" onClick={onClear}>
-          {clearLabel}
-        </Button>
+        <ClearFiltersButton
+          variant="outline"
+          searching={searching}
+          filters={filters}
+          onClear={onClear}
+        />
       }
     />
   )

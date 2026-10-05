@@ -10,7 +10,8 @@ and actions supply server state.
 
 - `ui/` holds vendored shadcn primitives plus app-wide presentation primitives
   that no feature owns (Fact, OwnerDisc, MetricStrip, SegmentedControl, Timeline,
-  StarRating, RatingFigure, ConfirmationDialog, EmptyState, RegionError). Every
+  StarRating, RatingFigure, ConfirmationDialog, EmptyState, RegionError,
+  RowActionsMenu, DataTable, DescriptionList, LoadMoreButton). Every
   confirmation goes through `ConfirmationDialog`, never an AlertDialog put together
   by hand (`dialog-sources.test.ts` fails on one). Its `tone` is `destructive` only
   for an action the person cannot take back or that loses data; archive, restore,
@@ -142,6 +143,60 @@ and actions supply server state.
   hand-drawn underline, a toggled-Button view switch, a second range picker and a
   range change that pushes history; `nav-link-sources.test.ts` fails on a router
   `Link` that writes its own `aria-current` and on a `Link` inside a `LinkTab`.
+  A list's search, filter, sort, count and Clear are one set of parts in a
+  `ListToolbar` row: `SearchField`, `ListFilterMenu` (a filter), `ListChoiceMenu` (how the
+  list is shown, as Group by), `ListSortMenu`, and `ResultCount` with `ClearFiltersButton`
+  inside a `ListToolbarStatus` (the two wrap together, so Clear never starts a line); the
+  Properties list, the Portals overview and All properties compose them and write the
+  URL, and the Inbox composes the same parts in its compact header. The field is
+  `type="search"` with the one length limit (`MAX_LIST_SEARCH_LENGTH`, which the URL
+  schemas share: a longer search is dropped from the URL, so the box stops typing
+  there), and a list matches with `searchMatcher` (`property/property-search.ts`),
+  which folds case and accents, never its own `includes`. The count is "N of M" while
+  the list is narrowed. Clear takes away the search and the filters and never the
+  sort, and reads "Clear filters" or, while a search is in force, "Clear search and
+  filters"; a list with a search and no filter (All properties, Google import) passes
+  `filters={false}` and it reads "Clear search", so it never promises a reset that does
+  not exist. An empty result offers the same control (`variant="outline"`), and a list
+  with no match for a search or a filter always does. A removed choice is a
+  `RemovableChip` (one button named "Remove ...", a 32px pill from `md` and a tap
+  target below it: 44px in a form, 36px in the compact Inbox), never a Badge with a
+  button in it. The field's own X is a tap target on a phone too. `SortDirection` lives in `ui/list-sort.ts` and the direction labels are the
+  list's. `list-toolbar-sources.test.ts` fails on a hand-built search input, a second
+  Clear wording, a filter or sort glyph of its own and a second `SortDirection`. Where a
+  form asks "which property?" it is `PropertyPicker` (`property/property-picker.tsx`):
+  its search field appears from eight properties and there is none below that, so a
+  plain `Select` of properties is never the answer; the sidebar's property switcher is
+  navigation, shell chrome with its own menu, and is not a form control.
+
+  The menu of one row, card or block is a `RowActionsMenu`: a ghost `IconButton` with
+  the one three-dots glyph (touch-sized from the Button, `size="small"` for a dense
+  feed row, `variant="outline"` among outline controls), named "More actions for
+  {name}" and with no tooltip, and `RowActionsItem` items (`destructive` for an
+  action that cannot be taken back, like a confirmation's tone; `opensDialog` ends
+  the label in an ellipsis; a link item is `asChild` and spells its own). A row
+  keeps at most two labelled actions inline (Edit and Share, Remove) and puts the rest
+  in the menu (a pending invitation's Resend and Cancel are its menu's items); the
+  dialog an item opens is held outside it. `row-actions-sources.test.ts` fails on a hand-built kebab and an off-pattern
+  name. A list of rows is a `DataTable` (frame, header cells, rows that stack as small
+  grids below the container's own width: `layout="rows"`; `"cards"` for the Portals
+  tables, whose rows are cards; `"scroll"` for a table wide by nature), with an
+  "Actions" column that is `actions` (named for a screen reader, no word on screen; its
+  cells are `<DataTableCell actions>`, which pulls a stacked row's menu trigger to the
+  text edge, in the corner of the first row) and `DataTableSortHead` for a header that
+  orders. The raw `ui/table` stays for a
+  matrix, a wizard step and a chart's data table (`data-table-sources.test.ts` names
+  each and fails on a new one). A row opens things one way (`row-link.ts`): the name
+  is the accent link (`ROW_NAME_LINK`), any other link in the row is a figure or a
+  note in the text's ink (`ROW_FIGURE_LINK`, never the accent), and a row that is a
+  link as a whole wears `ROW_LINK_SURFACE`; a selectable master-detail row (the Inbox)
+  is a button. A number with a caption is a `MetricStrip` (`boxed`, `ruled`,
+  `embedded` in a Card, or wrapping `tiles`), never a local figure; a figure that is a
+  link keeps its link and wears `METRIC_LABEL_CLASS` and `METRIC_TILE_FIGURE_CLASS`.
+  Read-only label and value rows are a `DescriptionList`. A cursor feed's "Load more"
+  is a `LoadMoreButton` (aria-disabled while it loads, so focus stays; "Try again"
+  after a failure); the Portals numbered pager is the only other kind of paging.
+
 - `forms/` contains shared TanStack Form fields, submission, and error UI. A
   failure has one reporter. A form submit reports through `FormErrorBanner`,
   placed directly above that form's actions (the bottom of a card's body, above

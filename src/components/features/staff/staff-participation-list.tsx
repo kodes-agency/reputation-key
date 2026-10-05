@@ -1,7 +1,12 @@
 import { UserRoundPlus } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
 import { EmptyState } from '#/components/ui/empty-state'
-import { Table, TableBody, TableHead, TableHeader, TableRow } from '#/components/ui/table'
+import {
+  DataTable,
+  DataTableBody,
+  DataTableHead,
+  DataTableHeader,
+} from '#/components/ui/data-table'
 import { StaffParticipationRow } from './staff-participation-row'
 import type {
   ArchiveStaffParticipationMutationInput,
@@ -32,29 +37,23 @@ export function StaffParticipationList({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Staff member</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {participations.map((participation) => (
-              <StaffParticipationRow
-                key={participation.id}
-                participation={participation}
-                canManageResponsibilities={canManageResponsibilities}
-                archiveAction={archiveAction}
-                onEditResponsibilities={() => onEditResponsibilities(participation.id)}
-              />
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
+    <DataTable label="Staff participation" from="3xl">
+      <DataTableHeader>
+        <DataTableHead>Staff member</DataTableHead>
+        <DataTableHead>Status</DataTableHead>
+        <DataTableHead actions />
+      </DataTableHeader>
+      <DataTableBody>
+        {participations.map((participation) => (
+          <StaffParticipationRow
+            key={participation.id}
+            participation={participation}
+            canManageResponsibilities={canManageResponsibilities}
+            archiveAction={archiveAction}
+            onEditResponsibilities={() => onEditResponsibilities(participation.id)}
+          />
+        ))}
+      </DataTableBody>
+    </DataTable>
   )
 }

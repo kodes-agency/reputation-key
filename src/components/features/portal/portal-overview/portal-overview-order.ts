@@ -11,7 +11,8 @@ import type {
   OrganizationSortFigures,
   OverviewSortFigures,
 } from './portal-overview-results'
-import type { PortalOverviewSort, SortDirection } from './portal-overview-search-schema'
+import type { SortDirection } from '#/components/ui/list-sort'
+import type { PortalOverviewSort } from './portal-overview-search-schema'
 
 export type Orderable = Readonly<{
   row: Pick<PortalOverviewRow, 'portalId' | 'name' | 'slug' | 'publicationState'>

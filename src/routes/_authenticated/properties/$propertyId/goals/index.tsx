@@ -15,8 +15,18 @@ import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { Button } from '#/components/ui/button'
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+} from '#/components/ui/data-table'
 import { EmptyState } from '#/components/ui/empty-state'
 import { StatusBadge } from '#/components/ui/status-badge'
+import { ROW_NAME_LINK } from '#/components/ui/row-link'
+import { cn } from '#/lib/utils'
 import { GOAL_STATUS } from '#/components/goals/goal-status'
 import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
 import { GoalViewTabs } from '#/components/goals/goal-view-tabs'
@@ -137,35 +147,43 @@ function GoalsRoute() {
             title={view === 'active' ? 'No active goals' : 'No goal history'}
           />
         ) : (
-          <div className="divide-y rounded-lg border">
-            {goals.map(({ program, version, assignments }) => {
-              const currentAssignmentCount = assignments.filter(
-                (assignment) => assignment.programVersionId === version.id,
-              ).length
-              return (
-                <div
-                  key={program.id}
-                  className="flex min-h-16 items-center justify-between gap-4 px-4 py-3"
-                >
-                  <div className="min-w-0">
-                    <Link
-                      className="font-medium hover:underline"
-                      to="/properties/$propertyId/goals/$goalId"
-                      params={{ propertyId, goalId: program.id }}
-                    >
-                      {program.name}
-                    </Link>
-                    <p className="text-sm text-muted-foreground">
-                      {metricLabel(version.metric)} · target {version.targetValue} ·{' '}
-                      {currentAssignmentCount}{' '}
-                      {currentAssignmentCount === 1 ? 'subject' : 'subjects'}
-                    </p>
-                  </div>
-                  <StatusBadge status={program.status} map={GOAL_STATUS} />
-                </div>
-              )
-            })}
-          </div>
+          <DataTable
+            label={view === 'active' ? 'Active goals' : 'Goal history'}
+            from="3xl"
+          >
+            <DataTableHeader>
+              <DataTableHead>Goal</DataTableHead>
+              <DataTableHead className="w-40">Status</DataTableHead>
+            </DataTableHeader>
+            <DataTableBody>
+              {goals.map(({ program, version, assignments }) => {
+                const currentAssignmentCount = assignments.filter(
+                  (assignment) => assignment.programVersionId === version.id,
+                ).length
+                return (
+                  <DataTableRow key={program.id}>
+                    <DataTableCell className="min-w-0 whitespace-normal">
+                      <Link
+                        className={cn('font-medium', ROW_NAME_LINK)}
+                        to="/properties/$propertyId/goals/$goalId"
+                        params={{ propertyId, goalId: program.id }}
+                      >
+                        {program.name}
+                      </Link>
+                      <p className="text-sm text-muted-foreground">
+                        {metricLabel(version.metric)} · target {version.targetValue} ·{' '}
+                        {currentAssignmentCount}{' '}
+                        {currentAssignmentCount === 1 ? 'subject' : 'subjects'}
+                      </p>
+                    </DataTableCell>
+                    <DataTableCell className="col-start-2 row-start-1 justify-self-end">
+                      <StatusBadge status={program.status} map={GOAL_STATUS} />
+                    </DataTableCell>
+                  </DataTableRow>
+                )
+              })}
+            </DataTableBody>
+          </DataTable>
         )}
       </div>
       {canDo('goal.update') ? <GoalResultsMatrix matrix={matrix} /> : null}

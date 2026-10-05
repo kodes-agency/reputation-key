@@ -4,14 +4,16 @@
 import { Link } from '@tanstack/react-router'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { StatusBadge } from '#/components/ui/status-badge'
+import { ROW_NAME_LINK } from '#/components/ui/row-link'
+import { cn } from '#/lib/utils'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '#/components/ui/table'
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+} from '#/components/ui/data-table'
 import {
   PROPERTY_LIFECYCLE_STATUS,
   propertyRestoreWindow,
@@ -21,8 +23,6 @@ import {
   sortPropertyListRows,
   type PropertyListProperty,
 } from './property-list-view'
-
-const CELL = 'p-0 @3xl:table-cell @3xl:px-4 @3xl:py-3'
 
 function RestoreCell({ property }: Readonly<{ property: PropertyListProperty }>) {
   const { can } = usePermissions()
@@ -45,7 +45,7 @@ function RestoreCell({ property }: Readonly<{ property: PropertyListProperty }>)
           to="/properties/$propertyId/settings/danger"
           params={{ propertyId: property.id }}
           aria-label={`Restore ${property.name}`}
-          className="font-medium underline-offset-4 hover:underline"
+          className={ROW_NAME_LINK}
         >
           Restore…
         </Link>
@@ -63,54 +63,41 @@ export function PropertyListRemoved({
     'asc',
   )
   return (
-    <div className="overflow-hidden rounded-lg border bg-card @container">
-      <Table aria-label="Removed properties" className="block @3xl:table">
-        <TableHeader className="hidden @3xl:table-header-group">
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="h-10 px-4 text-xs text-muted-foreground">
-              Property
-            </TableHead>
-            <TableHead className="h-10 w-40 px-4 text-xs text-muted-foreground">
-              State
-            </TableHead>
-            <TableHead className="h-10 w-80 px-4 text-xs text-muted-foreground">
-              Restore
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody className="block @3xl:table-row-group">
-          {rows.map(({ property, country }) => (
-            <TableRow
-              key={property.id}
-              className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 px-4 py-3.5 @3xl:table-row @3xl:p-0"
-            >
-              <TableCell className={`${CELL} min-w-0 whitespace-normal`}>
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <Link
-                    to="/properties/$propertyId"
-                    params={{ propertyId: property.id }}
-                    className="truncate font-medium underline-offset-4 hover:underline"
-                  >
-                    {property.name}
-                  </Link>
-                  {country ? (
-                    <span className="text-xs text-muted-foreground">{country}</span>
-                  ) : null}
-                </span>
-              </TableCell>
-              <TableCell className={`${CELL} col-start-2 row-start-1`}>
-                <StatusBadge
-                  status={property.lifecycleState}
-                  map={PROPERTY_LIFECYCLE_STATUS}
-                />
-              </TableCell>
-              <TableCell className={`${CELL} col-span-2 whitespace-normal`}>
-                <RestoreCell property={property} />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+    <DataTable label="Removed properties" from="3xl">
+      <DataTableHeader>
+        <DataTableHead>Property</DataTableHead>
+        <DataTableHead className="w-40">State</DataTableHead>
+        <DataTableHead className="w-80">Restore</DataTableHead>
+      </DataTableHeader>
+      <DataTableBody>
+        {rows.map(({ property, country }) => (
+          <DataTableRow key={property.id}>
+            <DataTableCell className="min-w-0 whitespace-normal">
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <Link
+                  to="/properties/$propertyId"
+                  params={{ propertyId: property.id }}
+                  className={cn('truncate font-medium', ROW_NAME_LINK)}
+                >
+                  {property.name}
+                </Link>
+                {country ? (
+                  <span className="text-xs text-muted-foreground">{country}</span>
+                ) : null}
+              </span>
+            </DataTableCell>
+            <DataTableCell className="col-start-2 row-start-1">
+              <StatusBadge
+                status={property.lifecycleState}
+                map={PROPERTY_LIFECYCLE_STATUS}
+              />
+            </DataTableCell>
+            <DataTableCell className="col-span-2 whitespace-normal">
+              <RestoreCell property={property} />
+            </DataTableCell>
+          </DataTableRow>
+        ))}
+      </DataTableBody>
+    </DataTable>
   )
 }

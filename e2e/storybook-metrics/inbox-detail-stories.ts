@@ -463,7 +463,7 @@ const REGION_GROUPS: ReadonlyArray<Group> = [
       'arrow-keys-rove-the-group',
       'choose-oldest',
       'modifier-arrows-are-left-to-the-browser',
-      'clear-all',
+      'clear-filters',
       'checked-chip-does-nothing',
       'one-result',
       'loading',

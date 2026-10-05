@@ -10,14 +10,9 @@
 
 import { createElement, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Check, MoreHorizontal, Trash2 } from 'lucide-react'
+import { Check, Trash2 } from 'lucide-react'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
+import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
 import { cn } from '#/lib/utils'
 import {
   isStillWaiting,
@@ -33,7 +28,6 @@ import {
 } from './notification-utils'
 import { notificationStackView } from './notification-stacks'
 import type { NotificationRowActions } from './types'
-import { IconButton } from '#/components/ui/icon-button'
 
 type Props = Readonly<{
   /** Newest first; at least two. */
@@ -117,32 +111,23 @@ export function NotificationStackRow({
         </time>
       </Link>
       <span className="shrink-0 py-2 pr-1.5 pl-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 has-[[data-state=open]]:opacity-100 pointer-coarse:opacity-100">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <IconButton
-              data-row-control="menu"
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground"
-              tooltip={false}
-              label={`More actions for: ${view.accessibleName}`}
+        <RowActionsMenu name={view.accessibleName} size="small" data-row-control="menu">
+          {unreadIds.length > 0 && (
+            <RowActionsItem
+              icon={Check}
+              onSelect={() => actions.onMarkManyRead(unreadIds)}
             >
-              <MoreHorizontal aria-hidden="true" />
-            </IconButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            {unreadIds.length > 0 && (
-              <DropdownMenuItem onSelect={() => actions.onMarkManyRead(unreadIds)}>
-                <Check aria-hidden="true" />
-                Mark all as read
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onSelect={() => setIsConfirmingDismissAll(true)}>
-              <Trash2 aria-hidden="true" />
-              Dismiss all {notifications.length}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              Mark all as read
+            </RowActionsItem>
+          )}
+          <RowActionsItem
+            icon={Trash2}
+            opensDialog
+            onSelect={() => setIsConfirmingDismissAll(true)}
+          >
+            Dismiss all {notifications.length}
+          </RowActionsItem>
+        </RowActionsMenu>
       </span>
       <ConfirmationDialog
         open={isConfirmingDismissAll}

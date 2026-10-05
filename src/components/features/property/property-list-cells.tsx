@@ -8,6 +8,7 @@ import { Check, Link2Off } from 'lucide-react'
 import { RatingFigure } from '#/components/ui/rating-figure'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { Skeleton } from '#/components/ui/skeleton'
+import { ROW_FIGURE_LINK, ROW_NAME_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import { PROPERTY_LIFECYCLE_STATUS } from './property-lifecycle-model'
 import {
@@ -25,8 +26,6 @@ import {
 } from './property-list-view'
 import { formatNumber } from '#/lib/format'
 
-const FOCUS_RING = 'rounded-sm underline-offset-4 hover:underline focus-ring'
-
 function Pending({ className }: Readonly<{ className?: string }>) {
   return <Skeleton className={cn('h-4', className)} aria-hidden="true" />
 }
@@ -40,7 +39,7 @@ export function PropertyNameCell({ row }: Readonly<{ row: PropertyListRow }>) {
         <Link
           to="/properties/$propertyId"
           params={{ propertyId: property.id }}
-          className={cn('truncate font-medium', FOCUS_RING)}
+          className={cn('truncate font-medium', ROW_NAME_LINK)}
         >
           {property.name}
         </Link>
@@ -58,7 +57,7 @@ export function PropertyNameCell({ row }: Readonly<{ row: PropertyListRow }>) {
               aria-label={`${notice} for ${property.name}`}
               className={cn(
                 'inline-flex items-center gap-1 font-medium text-warn',
-                FOCUS_RING,
+                ROW_NAME_LINK,
               )}
             >
               <Link2Off className="size-3" aria-hidden="true" />
@@ -134,10 +133,7 @@ export function AttentionValue({
       ))}
     </>
   )
-  const className = cn(
-    'inline-flex flex-wrap items-baseline gap-x-1.5 text-foreground',
-    FOCUS_RING,
-  )
+  const className = cn('inline-flex flex-wrap items-baseline gap-x-1.5', ROW_FIGURE_LINK)
   // Work the fleet counts without a page to open (a rating drop, on a bounded
   // window): the figure stands, without a link.
   if (target === null) {
@@ -234,7 +230,7 @@ export function SetupValue({
       to={target}
       params={{ propertyId }}
       aria-label={`Setup ${completedCount} of ${stepCount} at ${propertyName}. Next: ${next}`}
-      className={cn('flex flex-col gap-0.5 text-foreground', FOCUS_RING)}
+      className={cn('flex flex-col gap-0.5', ROW_FIGURE_LINK)}
     >
       {progress}
       <span className="text-xs text-muted-foreground">Next: {next}</span>

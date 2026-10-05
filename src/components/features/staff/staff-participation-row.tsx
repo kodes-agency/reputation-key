@@ -4,7 +4,7 @@ import { StatusBadge } from '#/components/ui/status-badge'
 import { formatDate } from '#/lib/format'
 import { Button } from '#/components/ui/button'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
-import { TableCell, TableRow } from '#/components/ui/table'
+import { DataTableCell, DataTableRow } from '#/components/ui/data-table'
 import type {
   ArchiveStaffParticipationMutationInput,
   StaffParticipationView,
@@ -26,8 +26,8 @@ export function StaffParticipationRow({
   const active = participation.status === 'active' && participation.endedAt == null
 
   return (
-    <TableRow>
-      <TableCell>
+    <DataTableRow>
+      <DataTableCell className="col-start-1 row-start-1 min-w-0 whitespace-normal">
         <div className="min-w-40">
           <p className="font-medium">{participation.displayName}</p>
           <p className="text-xs text-muted-foreground">
@@ -35,14 +35,14 @@ export function StaffParticipationRow({
             {participation.endedAt ? formatDate(participation.endedAt) : 'Present'}
           </p>
         </div>
-      </TableCell>
-      <TableCell>
+      </DataTableCell>
+      <DataTableCell className="col-start-2 row-start-1 justify-self-end">
         <StatusBadge
           tone={active ? 'positive' : 'neutral'}
           label={active ? 'Active' : 'Archived'}
         />
-      </TableCell>
-      <TableCell className="text-right">
+      </DataTableCell>
+      <DataTableCell className="col-span-2 @3xl:text-right">
         <div className="flex justify-end gap-1">
           {active && canManageResponsibilities && (
             <Button
@@ -89,7 +89,7 @@ export function StaffParticipationRow({
             />
           )}
         </div>
-      </TableCell>
-    </TableRow>
+      </DataTableCell>
+    </DataTableRow>
   )
 }

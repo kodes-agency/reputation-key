@@ -8,11 +8,11 @@ import type {
   GoogleBindingState,
   PropertyLifecycleState,
 } from './property-lifecycle-model'
+import type { SortDirection } from '#/components/ui/list-sort'
 import type {
   PropertyListSearch,
   PropertyListShow,
   PropertyListSort,
-  SortDirection,
 } from './property-list-search-schema'
 
 /** Whether an enrichment read has arrived, is on its way, or will not come. */

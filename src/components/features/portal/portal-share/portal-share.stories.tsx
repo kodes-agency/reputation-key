@@ -127,7 +127,7 @@ const baseArgs = {
 
 const openMenu = async (canvasElement: HTMLElement) =>
   userEvent.click(
-    within(canvasElement).getByRole('button', { name: /more code actions/i }),
+    within(canvasElement).getByRole('button', { name: /more actions for the code/i }),
   )
 
 export const NoCodeYet: Story = {
@@ -213,7 +213,9 @@ export const ViewerSeesTheCode: Story = {
     await expect(
       canvas.getByText('Made Aug 12, 2026 by Georgi Ivanov'),
     ).toBeInTheDocument()
-    await expect(canvas.queryByRole('button', { name: /more code actions/i })).toBeNull()
+    await expect(
+      canvas.queryByRole('button', { name: /more actions for the code/i }),
+    ).toBeNull()
   },
 }
 
@@ -236,7 +238,9 @@ export const Stopped: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText(/all codes stopped/i)).toBeInTheDocument()
     await expect(canvas.getByRole('button', { name: /make code/i })).toBeInTheDocument()
-    await expect(canvas.queryByRole('button', { name: /more code actions/i })).toBeNull()
+    await expect(
+      canvas.queryByRole('button', { name: /more actions for the code/i }),
+    ).toBeNull()
   },
 }
 
@@ -255,7 +259,7 @@ export const CodeAfterReload: Story = {
     await expect(canvas.queryByRole('button', { name: /download/i })).toBeNull()
     await expect(canvas.queryByRole('button', { name: /make code/i })).toBeNull()
     await expect(
-      canvas.getByRole('button', { name: /more code actions/i }),
+      canvas.getByRole('button', { name: /more actions for the code/i }),
     ).toBeInTheDocument()
   },
 }
@@ -278,7 +282,7 @@ export const DownloadAgainAfterReload: Story = {
     await expect(canvas.queryByText(/save this address now/i)).toBeNull()
     await expect(canvas.queryByText(publicUrl)).toBeNull()
     await expect(
-      canvas.getByRole('button', { name: /more code actions/i }),
+      canvas.getByRole('button', { name: /more actions for the code/i }),
     ).toBeInTheDocument()
   },
 }

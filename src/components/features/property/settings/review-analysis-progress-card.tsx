@@ -1,3 +1,4 @@
+import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { StatusBadge, type StatusMap } from '#/components/ui/status-badge'
 import {
   Card,
@@ -90,32 +91,20 @@ export function ReviewAnalysisProgressCard({ progress }: Props) {
             style={{ transform: `scaleX(${share})` }}
           />
         </div>
-        <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-          <div>
-            <dt className="text-muted-foreground">Analysed</dt>
-            <dd className="text-lg font-medium tabular-nums">
-              {formatNumber(progress.analysed)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Waiting</dt>
-            <dd className="text-lg font-medium tabular-nums">
-              {formatNumber(progress.queued)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Running</dt>
-            <dd className="text-lg font-medium tabular-nums">
-              {formatNumber(progress.inProgress)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Not analysable</dt>
-            <dd className="text-lg font-medium tabular-nums">
-              {formatNumber(progress.notAnalysable)}
-            </dd>
-          </div>
-        </dl>
+        <MetricStrip aria-label="Review analysis counts">
+          <Metric label="Analysed">
+            <MetricValue value={formatNumber(progress.analysed)} />
+          </Metric>
+          <Metric label="Waiting">
+            <MetricValue value={formatNumber(progress.queued)} />
+          </Metric>
+          <Metric label="Running">
+            <MetricValue value={formatNumber(progress.inProgress)} />
+          </Metric>
+          <Metric label="Not analysable">
+            <MetricValue value={formatNumber(progress.notAnalysable)} />
+          </Metric>
+        </MetricStrip>
         {/* `progress` comes from a query the route does not prefetch, so this
             card never renders data on the server and the viewer's clock cannot
             disagree with a server-rendered line. */}

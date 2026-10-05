@@ -43,11 +43,11 @@ export const NoResults: Story = {
   args: {
     icon: SearchX,
     title: 'No properties match',
-    action: <Button variant="outline">Clear search and filter</Button>,
+    action: <Button variant="outline">Clear search and filters</Button>,
   },
   play: async ({ canvasElement }) => {
     expect(
-      within(canvasElement).getByRole('button', { name: 'Clear search and filter' }),
+      within(canvasElement).getByRole('button', { name: 'Clear search and filters' }),
     ).toBeVisible()
   },
 }

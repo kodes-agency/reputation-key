@@ -194,7 +194,7 @@ export function PropertyOverview({
         <h2 id="overview-scorecard" className="text-lg font-semibold tracking-tight">
           How you are doing
         </h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {ratingTile(lifetime, pulse, propertyId)}
           {reviewsTile(lifetime, pulse, propertyId)}
           {replyTile(pulse, propertyId)}

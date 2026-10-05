@@ -8,9 +8,10 @@
 
 import { useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Loader2, LogIn } from 'lucide-react'
+import { LogIn } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
+import { LoadMoreButton } from '#/components/ui/load-more-button'
 import { RegionError, RetryButton } from '#/components/ui/region-error'
 import { httpStatus } from '#/shared/security/expected-refusal'
 
@@ -93,19 +94,6 @@ type LoadMoreProps = Readonly<{
   onLoadMore: () => void
 }>
 
-function LoadMoreLabel({ isLoadingMore, error }: Omit<LoadMoreProps, 'onLoadMore'>) {
-  if (!isLoadingMore) return error ? 'Try again' : 'Load more'
-  return (
-    <>
-      <Loader2
-        aria-hidden="true"
-        className="size-3 animate-spin motion-reduce:animate-none"
-      />
-      Loading…
-    </>
-  )
-}
-
 /**
  * "Load more", and what went wrong with the last attempt, beside it.
  *
@@ -130,18 +118,12 @@ export function NotificationLoadMore({
       {ended ? (
         <SignInAgain />
       ) : (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            if (!isLoadingMore) onLoadMore()
-          }}
-          aria-disabled={isLoadingMore || undefined}
+        <LoadMoreButton
+          loading={isLoadingMore}
+          failed={Boolean(error)}
+          onLoadMore={onLoadMore}
           data-list-control="load-more"
-          className="w-full text-xs text-muted-foreground aria-disabled:cursor-default"
-        >
-          <LoadMoreLabel isLoadingMore={isLoadingMore} error={error} />
-        </Button>
+        />
       )}
     </div>
   )

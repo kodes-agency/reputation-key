@@ -431,7 +431,7 @@ export const EditorWithoutDeletePermission: Story = {
     )
     const menu = within(document.body)
     await expect(menu.getByRole('menuitem', { name: 'Edit' })).toBeVisible()
-    await expect(menu.queryByRole('menuitem', { name: 'Delete link' })).toBeNull()
+    await expect(menu.queryByRole('menuitem', { name: 'Delete link…' })).toBeNull()
   },
 }
 
@@ -442,7 +442,7 @@ async function openDeleteConfirmation(canvasElement: HTMLElement) {
     }),
   )
   await userEvent.click(
-    within(document.body).getByRole('menuitem', { name: 'Delete link' }),
+    within(document.body).getByRole('menuitem', { name: 'Delete link…' }),
   )
   return within(await within(document.body).findByRole('alertdialog'))
 }

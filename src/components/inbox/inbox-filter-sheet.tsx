@@ -1,7 +1,8 @@
 import { useRef } from 'react'
-import { Filter, X } from 'lucide-react'
+import { ListFilter, X } from 'lucide-react'
 import type { InboxSort } from '#/contexts/inbox/application/public-api'
 import { Button } from '#/components/ui/button'
+import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import {
   Sheet,
   SheetClose,
@@ -63,8 +64,8 @@ type Props = Readonly<{
   isLoading: boolean
   onFiltersChange: (patch: Partial<InboxListFilterValues>) => void
   onSortChange: (sort: InboxSort) => void
-  /** Drops every filter and the sort in one navigation. */
-  onClearAll: () => void
+  /** Drops the search and every filter in one navigation; the sort stays. */
+  onClearFilters: () => void
 }>
 
 /**
@@ -78,18 +79,18 @@ export function InboxFilterSheet({
   isLoading,
   onFiltersChange,
   onSortChange,
-  onClearAll,
+  onClearFilters,
 }: Props) {
   const activeCount = countActiveInboxFilters(filters)
-  const canClear = activeCount > 0 || sort !== 'newest'
+  const canClear = activeCount > 0
   const primaryRef = useRef<HTMLButtonElement>(null)
 
-  // Once it has run there is nothing left to clear, so "Clear all" goes
+  // Once it has run there is nothing left to clear, so "Clear filters" goes
   // disabled under the keyboard user's focus. Focus moves to the footer's other
   // button first, so it never lands on a control that cannot take it.
-  function clearAll() {
+  function clearFilters() {
     primaryRef.current?.focus()
-    onClearAll()
+    onClearFilters()
   }
 
   return (
@@ -102,7 +103,7 @@ export function InboxFilterSheet({
           data-inbox-filter-trigger
           label={activeCount > 0 ? `Filters, ${activeCount} active` : 'Filters'}
         >
-          <Filter />
+          <ListFilter />
           {activeCount > 0 && (
             <span
               aria-hidden="true"
@@ -190,9 +191,14 @@ export function InboxFilterSheet({
           />
         </div>
         <div className="flex shrink-0 gap-2 border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <Button variant="outline" size="lg" disabled={!canClear} onClick={clearAll}>
-            Clear all
-          </Button>
+          {/* The sort has its own choice above; no search is in force while the sheet is reachable. */}
+          <ClearFiltersButton
+            variant="outline"
+            size="lg"
+            searching={false}
+            disabled={!canClear}
+            onClear={clearFilters}
+          />
           <SheetClose asChild>
             <Button ref={primaryRef} size="lg" className="flex-1">
               {resultsLabel(totalCount, isLoading)}

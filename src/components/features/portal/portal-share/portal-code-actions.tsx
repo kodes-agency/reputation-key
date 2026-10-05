@@ -5,18 +5,15 @@
 // off the dialog's first field, and the dialog then returns focus to nothing.
 
 import { useRef, useState } from 'react'
-import { Ellipsis, RefreshCw, ShieldX } from 'lucide-react'
+import { RefreshCw, ShieldX } from 'lucide-react'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
+  RowActionsItem,
+  RowActionsMenu,
+  RowActionsSeparator,
+} from '#/components/ui/row-actions-menu'
 import { PortalReplaceCodeDialog } from './portal-replace-code-dialog'
 import { PortalStopCodesDialog } from './portal-stop-codes-dialog'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
-import { IconButton } from '#/components/ui/icon-button'
 
 type OpenDialog = 'replace' | 'stop' | null
 
@@ -38,55 +35,39 @@ export function PortalCodeActions(props: Props) {
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <IconButton
-            variant="outline"
-            label="More code actions"
-            tooltip={false}
-            disabled={props.isPending}
-          >
-            <Ellipsis />
-          </IconButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          className="w-72"
-          onCloseAutoFocus={() => {
-            setOpenDialog(chosen.current)
-            chosen.current = null
+      <RowActionsMenu
+        name="the code"
+        variant="outline"
+        width="wide"
+        disabled={props.isPending}
+        onCloseAutoFocus={() => {
+          setOpenDialog(chosen.current)
+          chosen.current = null
+        }}
+      >
+        <RowActionsItem
+          icon={RefreshCw}
+          opensDialog
+          description="Planned, or at once for security"
+          onSelect={() => {
+            chosen.current = 'replace'
           }}
         >
-          <DropdownMenuItem
-            onSelect={() => {
-              chosen.current = 'replace'
-            }}
-          >
-            <RefreshCw />
-            <span className="flex flex-col">
-              <span>Replace code…</span>
-              <span className="text-xs text-muted-foreground">
-                Planned, or at once for security
-              </span>
-            </span>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            onSelect={() => {
-              chosen.current = 'stop'
-            }}
-          >
-            <ShieldX />
-            <span className="flex flex-col">
-              <span>Stop all codes…</span>
-              <span className="text-xs text-muted-foreground">
-                Turn off the public address at once
-              </span>
-            </span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          Replace code
+        </RowActionsItem>
+        <RowActionsSeparator />
+        <RowActionsItem
+          icon={ShieldX}
+          destructive
+          opensDialog
+          description="Turn off the public address at once"
+          onSelect={() => {
+            chosen.current = 'stop'
+          }}
+        >
+          Stop all codes
+        </RowActionsItem>
+      </RowActionsMenu>
 
       <PortalReplaceCodeDialog
         open={openDialog === 'replace'}

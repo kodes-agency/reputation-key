@@ -2,24 +2,31 @@ import type {
   GoogleReviewTargetAnalytics,
   PrivateFeedbackTargetAnalytics,
 } from '#/contexts/inbox/application/public-api'
-import { StatCard } from '#/components/features/shared/stat-card'
+import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { formatNumber } from '#/lib/format'
 
-function formatAverage(minutes: number | null): string {
-  if (minutes === null) return 'Not enough measured data'
+/** What a measure with no figure says in the figure's place: a note, not a number. */
+const NO_DATA = 'Not enough measured data'
+
+/** The average in hours, or null while there is nothing measured to average. */
+function formatAverage(minutes: number | null): string | null {
+  if (minutes === null) return null
   const hours = minutes / 60
   return `${hours < 10 ? hours.toFixed(1) : Math.round(hours)} hours`
 }
 
 function AnalyticsGrid({
+  name,
   rows,
-}: Readonly<{ rows: ReadonlyArray<readonly [string, string]> }>) {
+}: Readonly<{ name: string; rows: ReadonlyArray<readonly [string, string | null]> }>) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <MetricStrip aria-label={name} variant="tiles" columns={3}>
       {rows.map(([label, value]) => (
-        <StatCard key={label} label={label} value={value} />
+        <Metric key={label} label={label}>
+          <MetricValue value={value} detail={value === null ? NO_DATA : undefined} />
+        </Metric>
       ))}
-    </div>
+    </MetricStrip>
   )
 }
 
@@ -38,7 +45,7 @@ export function PrivateFeedbackTargetSummary({
       formatAverage(analytics.averageTimeToFirstHandlingMinutes),
     ],
   ] as const
-  return <AnalyticsGrid rows={rows} />
+  return <AnalyticsGrid name="Private feedback response targets" rows={rows} />
 }
 
 export function GoogleReviewTargetSummary({
@@ -64,5 +71,5 @@ export function GoogleReviewTargetSummary({
       formatNumber(analytics.legacyUnknownExcludedCount),
     ],
   ] as const
-  return <AnalyticsGrid rows={rows} />
+  return <AnalyticsGrid name="Google review response targets" rows={rows} />
 }

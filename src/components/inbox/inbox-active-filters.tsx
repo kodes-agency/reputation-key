@@ -1,7 +1,7 @@
 import { useEffect, useRef, type RefObject } from 'react'
-import { X } from 'lucide-react'
 import type { InboxSort } from '#/contexts/inbox/application/public-api'
-import { Button } from '#/components/ui/button'
+import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
+import { RemovableChip } from '#/components/ui/removable-chip'
 import { stripFadeStyle } from '#/components/ui/strip-scroll'
 import { useStripOverflow } from '#/components/ui/use-strip-overflow'
 import { activeInboxFilterChips, type InboxFilterChip } from './inbox-filter-options'
@@ -12,8 +12,10 @@ type Props = Readonly<{
   sort: InboxSort
   onFiltersChange: (patch: Partial<InboxListFilterValues>) => void
   onSortChange: (sort: InboxSort) => void
-  /** Drops every filter and the sort in one navigation. */
-  onClearAll: () => void
+  /** A search is in force: Clear takes it away too, and says so. */
+  searching: boolean
+  /** Drops the search and every filter in one navigation; the sort stays. */
+  onClearFilters: () => void
 }>
 
 /**
@@ -36,11 +38,21 @@ function scopeOf(control: HTMLElement): ParentNode {
 type RowProps = Readonly<{
   rowRef: RefObject<HTMLDivElement | null>
   chips: ReadonlyArray<InboxFilterChip>
+  searching: boolean
   onRemove: (chip: InboxFilterChip, index: number, control: HTMLElement) => void
-  onClearAll: (control: HTMLElement) => void
+  onClearFilters: (control: HTMLElement) => void
 }>
 
-function ActiveFiltersRow({ rowRef, chips, onRemove, onClearAll }: RowProps) {
+/** A filter, not the order: Clear takes these away and leaves the sort chip. */
+const isFilterChip = (chip: InboxFilterChip): boolean => chip.clear.filters !== undefined
+
+function ActiveFiltersRow({
+  rowRef,
+  chips,
+  searching,
+  onRemove,
+  onClearFilters,
+}: RowProps) {
   const edges = useStripOverflow(rowRef)
   return (
     <div
@@ -51,29 +63,24 @@ function ActiveFiltersRow({ rowRef, chips, onRemove, onClearAll }: RowProps) {
       className="flex h-11 shrink-0 items-center gap-2 overflow-x-auto border-b px-4 scroll-px-6 [scrollbar-width:none]"
     >
       {chips.map((chip, index) => (
-        <button
+        <RemovableChip
           key={chip.key}
-          type="button"
           data-active-filter-chip
-          aria-label={`Remove filter: ${chip.label}`}
-          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border bg-background pr-2 pl-3 text-xs font-medium focus-ring"
-          onClick={(event) => onRemove(chip, index, event.currentTarget)}
-        >
-          {chip.label}
-          <X aria-hidden="true" className="size-3.5" />
-        </button>
+          label={chip.label}
+          removeLabel={`Remove filter: ${chip.label}`}
+          onRemove={(event) => onRemove(chip, index, event.currentTarget)}
+        />
       ))}
-      {chips.length >= 2 && (
-        <Button
-          variant="ghost"
+      {/* One filter is its own remedy; the search counts as one more thing it takes away. */}
+      {chips.filter(isFilterChip).length + (searching ? 1 : 0) >= 2 && (
+        <ClearFiltersButton
           size="sm"
-          // Chip height (32px) on a phone as well: the row is chips, and this is
-          // the last of them, not a control of its own.
-          className="shrink-0 px-2 text-xs max-md:min-h-0"
-          onClick={(event) => onClearAll(event.currentTarget)}
-        >
-          Clear all
-        </Button>
+          searching={searching}
+          // The chips' height on a phone (36px in the compact Inbox) as well: the
+          // row is chips, and this is the last of them, not a control of its own.
+          className="shrink-0 px-2 text-xs"
+          onClear={(event) => onClearFilters(event.currentTarget)}
+        />
       )}
     </div>
   )
@@ -89,7 +96,8 @@ export function InboxActiveFilters({
   sort,
   onFiltersChange,
   onSortChange,
-  onClearAll,
+  searching,
+  onClearFilters,
 }: Props) {
   const chips = activeInboxFilterChips(filters, sort)
   const rowRef = useRef<HTMLDivElement>(null)
@@ -105,8 +113,12 @@ export function InboxActiveFilters({
     const left =
       rowRef.current?.querySelectorAll<HTMLElement>('[data-active-filter-chip]') ?? []
     const next = left[Math.min(pending.index, left.length - 1)]
+    // The Filters trigger, or the search field while one is open: the header shows one of them.
     const target =
-      next ?? pending.scope.querySelector<HTMLElement>('[data-inbox-filter-trigger]')
+      next ??
+      pending.scope.querySelector<HTMLElement>(
+        '[data-inbox-filter-trigger], [data-inbox-list-header] input[type=search]',
+      )
     target?.focus()
   })
 
@@ -118,21 +130,22 @@ export function InboxActiveFilters({
     if (chip.clear.sort !== undefined) onSortChange(chip.clear.sort)
   }
 
-  function clearAll(control: HTMLElement) {
+  function clearFilters(control: HTMLElement) {
     handoff.current = {
-      removedKeys: chips.map((chip) => chip.key),
+      removedKeys: chips.filter(isFilterChip).map((chip) => chip.key),
       index: 0,
       scope: scopeOf(control),
     }
-    onClearAll()
+    onClearFilters()
   }
 
   return (
     <ActiveFiltersRow
       rowRef={rowRef}
       chips={chips}
+      searching={searching}
       onRemove={remove}
-      onClearAll={clearAll}
+      onClearFilters={clearFilters}
     />
   )
 }

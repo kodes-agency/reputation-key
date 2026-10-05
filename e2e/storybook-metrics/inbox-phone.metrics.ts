@@ -8,8 +8,9 @@
 //
 //   1. a 16 px gutter: every bar, row and chip row starts its content at x=16
 //      and ends it at window - 16;
-//   2. bars are 44 px, the controls inside a bar 36 px, pills and removable
-//      chips 32 px, the filter sheet's choice chips 36 px, list rows 78 px;
+//   2. bars are 44 px, the controls inside a bar 36 px (a removable chip is one,
+//      and the compact density holds it to the touch height), queue pills 32 px,
+//      the filter sheet's choice chips 36 px, list rows 78 px;
 //   3. a ghost icon button at a bar's edge is pulled out so its GLYPH is on the
 //      gutter; a box (outline button, pill, chip) puts its BOX there.
 //
@@ -357,7 +358,7 @@ storyTests(
   [
     'inbox-filter-sheet--open',
     'inbox-filter-sheet--choose-source',
-    'inbox-filter-sheet--clear-all',
+    'inbox-filter-sheet--clear-filters',
     'inbox-filter-sheet--checked-chip-does-nothing',
     'inbox-filter-sheet--one-result',
     'inbox-filter-sheet--loading',
@@ -475,7 +476,7 @@ storyTests('page selecting', PAGE_STORIES, PHONES, async (page, view) => {
 storyTests('page searching', PAGE_STORIES, PHONES, async (page, view) => {
   await waitForRows(page)
   await page.getByRole('button', { name: 'Search' }).click()
-  await page.getByRole('textbox', { name: 'Search reviews' }).waitFor()
+  await page.getByRole('searchbox', { name: 'Search reviews' }).waitFor()
   const header = await measure(page, HEADER)
   return { evidence: { header }, lines: headerLines(header, view) }
 })

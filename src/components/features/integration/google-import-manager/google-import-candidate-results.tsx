@@ -2,6 +2,7 @@ import { SearchX } from 'lucide-react'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
+import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import { EmptyState } from '#/components/ui/empty-state'
 import { GoogleImportCandidateList } from './google-import-candidate-list'
 import { GoogleImportLoadingRows } from './google-import-loading-rows'
@@ -13,6 +14,8 @@ type Props = Readonly<{
   error: string | null
   /** Restart discovery; null when a restart cannot clear the failure. */
   onRecover?: (() => void) | null
+  /** Clears the search that emptied the list; null while there is none to clear. */
+  onClearSearch?: (() => void) | null
   onToggleCandidate: (candidate: ImportCandidateDto, checked: boolean) => void
   onToggleLoaded: (checked: boolean) => void
 }>
@@ -28,6 +31,7 @@ export function GoogleImportCandidateResults({
   isLoading,
   error,
   onRecover = null,
+  onClearSearch = null,
   onToggleCandidate,
   onToggleLoaded,
 }: Props) {
@@ -59,6 +63,17 @@ export function GoogleImportCandidateResults({
         icon={SearchX}
         title="No matching loaded locations"
         description="Clear the search or load another page."
+        action={
+          onClearSearch ? (
+            // The loaded list has a search and no filters: it says what it takes away.
+            <ClearFiltersButton
+              variant="outline"
+              searching
+              filters={false}
+              onClear={onClearSearch}
+            />
+          ) : undefined
+        }
       />
     )
   }

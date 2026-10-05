@@ -1,25 +1,21 @@
 /**
  * InvitationTable — extracted from settings/members.tsx route.
- * Displays pending invitations with resend/cancel actions.
+ * Displays pending invitations; a pending one has a menu to resend or cancel it.
  */
 
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { RoleBadge } from '#/components/features/identity/shared/role-badge'
-import { Button } from '#/components/ui/button'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { INVITATION_STATUS } from './invitation-status'
+import { InvitationRowActions } from './invitation-row-actions'
 import {
-  ConfirmationDialog,
-  ConfirmationTrigger,
-} from '#/components/ui/confirmation-dialog'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '#/components/ui/table'
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+} from '#/components/ui/data-table'
 import { Shield } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
 import type { Role } from '#/shared/domain/roles'
@@ -33,10 +29,8 @@ export interface InvitationRow {
 }
 
 /**
- * Resend reports its own outcome (toasts); a refusal still rejects the call, so
- * the click settles the promise rather than leaking it. Cancelling is confirmed
- * in a dialog, which stays open and says a refusal in place: that Action's
- * rejection goes to the dialog.
+ * What the two Actions do when they refuse is `InvitationRowActions`' to say: the
+ * resend is settled there, and the cancellation's rejection goes to its dialog.
  */
 type Props = Readonly<{
   invitations: ReadonlyArray<InvitationRow>
@@ -54,63 +48,41 @@ export function InvitationTable({ invitations, resendAction, cancelAction }: Pro
         <Shield />
         Pending Invitations
       </h3>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Email</TableHead>
-            <TableHead>Role</TableHead>
-            <TableHead>Status</TableHead>
-            {canManage && <TableHead className="text-right">Actions</TableHead>}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+      <DataTable label="Pending invitations" from="3xl">
+        <DataTableHeader>
+          <DataTableHead>Email</DataTableHead>
+          <DataTableHead>Role</DataTableHead>
+          <DataTableHead>Status</DataTableHead>
+          {canManage ? <DataTableHead actions /> : null}
+        </DataTableHeader>
+        <DataTableBody>
           {invitations.map((inv) => (
-            <TableRow key={inv.id}>
-              <TableCell className="font-medium">{inv.email}</TableCell>
-              <TableCell>
+            <DataTableRow key={inv.id}>
+              <DataTableCell className="col-start-1 row-start-1 min-w-0 self-center font-medium whitespace-normal">
+                {inv.email}
+              </DataTableCell>
+              <DataTableCell className="col-start-1 row-start-2">
                 <RoleBadge role={inv.role} rawRole={inv.rawRole} />
-              </TableCell>
-              <TableCell>
+              </DataTableCell>
+              <DataTableCell className="col-start-2 row-start-2 justify-self-end">
                 <StatusBadge status={inv.status} map={INVITATION_STATUS} />
-              </TableCell>
+              </DataTableCell>
               {canManage ? (
-                <TableCell className="text-right">
+                <DataTableCell actions className="col-start-2 row-start-1">
                   {inv.status === 'pending' ? (
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={resendAction.isPending}
-                        onClick={() =>
-                          void resendAction({ data: { invitationId: inv.id } }).catch(
-                            () => undefined,
-                          )
-                        }
-                      >
-                        Resend
-                      </Button>
-                      <ConfirmationDialog
-                        trigger={
-                          <ConfirmationTrigger tone="destructive" size="sm">
-                            Cancel
-                          </ConfirmationTrigger>
-                        }
-                        tone="destructive"
-                        title={`Cancel invitation to ${inv.email}?`}
-                        description="The invitation link will no longer work. You can always send a new invitation later."
-                        cancelLabel="Keep invitation"
-                        confirmLabel="Cancel invitation"
-                        pendingLabel="Cancelling…"
-                        onConfirm={() => cancelAction({ data: { invitationId: inv.id } })}
-                      />
-                    </div>
+                    <InvitationRowActions
+                      invitationId={inv.id}
+                      email={inv.email}
+                      resendAction={resendAction}
+                      cancelAction={cancelAction}
+                    />
                   ) : null}
-                </TableCell>
+                </DataTableCell>
               ) : null}
-            </TableRow>
+            </DataTableRow>
           ))}
-        </TableBody>
-      </Table>
+        </DataTableBody>
+      </DataTable>
     </div>
   )
 }

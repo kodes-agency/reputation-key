@@ -346,7 +346,7 @@ export const AccountAdminCanDeleteALink: Story = {
   play: async ({ canvasElement }) => {
     await openTileMenu(canvasElement)
     await expect(
-      within(document.body).getByRole('menuitem', { name: 'Delete link' }),
+      within(document.body).getByRole('menuitem', { name: 'Delete link…' }),
     ).toBeVisible()
   },
 }
@@ -363,7 +363,7 @@ export const PropertyManagerCanEditButNotDeleteALink: Story = {
     await openTileMenu(canvasElement)
     const body = within(document.body)
     await expect(body.getByRole('menuitem', { name: 'Edit' })).toBeVisible()
-    await expect(body.queryByRole('menuitem', { name: 'Delete link' })).toBeNull()
+    await expect(body.queryByRole('menuitem', { name: 'Delete link…' })).toBeNull()
   },
 }
 

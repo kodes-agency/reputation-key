@@ -1,33 +1,30 @@
-// Search, filter, group and sort for the Portals overview. Every control writes
-// the URL through `onChange`; nothing here keeps state of its own. The same
-// shape as the Properties list's toolbar: sort lives in a menu at every width,
-// because the stacked layout has no column headers to click. The one filter is
-// a toggle that names what it keeps and how many, and it is left out while no
-// Portal needs attention, as it would keep nothing.
-import { ArrowDownUp, ListFilter, ListTree, Search } from 'lucide-react'
+// Search, filter, group and sort for the Portals overview, built from the same
+// list-toolbar parts as the Properties list's (`#/components/ui`). Every control
+// writes the URL through `onChange`; nothing here keeps state of its own. Sort
+// lives in a menu at every width, because the stacked layout has no column
+// headers to click. The one filter is a toggle that names what it keeps and how
+// many, and it is left out while no Portal needs attention, as it would keep
+// nothing: that, the grouping and the results-dependent scans sort are what this
+// toolbar has that the Properties list has not.
+import { ListFilter, ListTree } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
+import { ListChoiceMenu } from '#/components/ui/list-choice-menu'
+import { ListSortMenu } from '#/components/ui/list-sort-menu'
+import { ListToolbar, ListToolbarStatus } from '#/components/ui/list-toolbar'
+import { ResultCount } from '#/components/ui/result-count'
+import { SearchField } from '#/components/ui/search-field'
+import type { SortDirection } from '#/components/ui/list-sort'
 import { cn } from '#/lib/utils'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '#/components/ui/input-group'
 import {
   DEFAULT_PORTAL_OVERVIEW_GROUP_BY,
   DEFAULT_PORTAL_OVERVIEW_SORT,
-  MAX_SEARCH_LENGTH,
   PORTAL_OVERVIEW_GROUP_BYS,
   PORTAL_OVERVIEW_SORTS,
   defaultSortDirection,
   type PortalOverviewGroupBy,
   type PortalOverviewSearch,
   type PortalOverviewSort,
-  type SortDirection,
 } from './portal-overview-search-schema'
 import { offersAttentionFilter } from './portal-attention'
 
@@ -45,10 +42,12 @@ const DIRECTION_LABEL: Readonly<
   scans: { desc: 'Most first', asc: 'Fewest first' },
 }
 
-const GROUP_BY_LABEL: Readonly<Record<PortalOverviewGroupBy, string>> = {
-  group: 'Portal group',
-  none: 'None',
-}
+const GROUP_BY_OPTIONS: ReadonlyArray<
+  Readonly<{ value: PortalOverviewGroupBy; label: string }>
+> = PORTAL_OVERVIEW_GROUP_BYS.map((value) => ({
+  value,
+  label: value === 'group' ? 'Portal group' : 'None',
+}))
 
 type Props = Readonly<{
   /**
@@ -67,10 +66,6 @@ type Props = Readonly<{
   onChange: (patch: Partial<PortalOverviewSearch>) => void
 }>
 
-/** The sort's natural direction first ("A to Z" before "Z to A"). */
-const directions = (sort: PortalOverviewSort): readonly SortDirection[] =>
-  defaultSortDirection(sort) === 'asc' ? ['asc', 'desc'] : ['desc', 'asc']
-
 export function PortalOverviewToolbar({
   scope = 'property',
   search,
@@ -81,31 +76,20 @@ export function PortalOverviewToolbar({
   onChange,
 }: Props) {
   const sort = search.sort ?? DEFAULT_PORTAL_OVERVIEW_SORT
-  const dir = search.dir ?? defaultSortDirection(sort)
   const groupBy = search.groupBy ?? DEFAULT_PORTAL_OVERVIEW_GROUP_BY
-  const sortOptions = PORTAL_OVERVIEW_SORTS.filter(
-    (option) => option !== 'scans' || canSortByScans,
-  )
-  const narrowed = (search.q ?? '').trim() !== '' || search.show !== undefined
+  const searching = (search.q ?? '').trim() !== ''
+  const narrowed = searching || search.show !== undefined
   const attentionOnly = search.show === 'attention'
   const searchLabel =
     scope === 'organization' ? 'Search portals or properties' : 'Search portals'
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <InputGroup className="w-full sm:w-72">
-        <InputGroupAddon>
-          <Search aria-hidden="true" />
-        </InputGroupAddon>
-        <InputGroupInput
-          type="search"
-          aria-label={searchLabel}
-          placeholder={searchLabel}
-          maxLength={MAX_SEARCH_LENGTH}
-          value={search.q ?? ''}
-          onChange={(event) => onChange({ q: event.target.value })}
-        />
-      </InputGroup>
+    <ListToolbar>
+      <SearchField
+        label={searchLabel}
+        value={search.q ?? ''}
+        onValueChange={(q) => onChange({ q })}
+      />
 
       {scope === 'property' ? (
         <>
@@ -126,78 +110,39 @@ export function PortalOverviewToolbar({
             </Button>
           ) : null}
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <ListTree aria-hidden="true" />
-                Group by: {GROUP_BY_LABEL[groupBy]}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-44">
-              <DropdownMenuRadioGroup
-                value={groupBy}
-                onValueChange={(value) =>
-                  onChange({ groupBy: value as PortalOverviewGroupBy })
-                }
-              >
-                {PORTAL_OVERVIEW_GROUP_BYS.map((option) => (
-                  <DropdownMenuRadioItem key={option} value={option}>
-                    {GROUP_BY_LABEL[option]}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <ListChoiceMenu
+            label="Group by"
+            icon={ListTree}
+            value={groupBy}
+            options={GROUP_BY_OPTIONS}
+            onChange={(next) => onChange({ groupBy: next })}
+          />
         </>
       ) : null}
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline">
-            <ArrowDownUp aria-hidden="true" />
-            Sort: {SORT_LABEL[sort]}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-52">
-          <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={sort}
-            onValueChange={(value) =>
-              onChange({ sort: value as PortalOverviewSort, dir: undefined })
-            }
-          >
-            {sortOptions.map((option) => (
-              <DropdownMenuRadioItem key={option} value={option}>
-                {SORT_LABEL[option]}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuRadioGroup
-            value={dir}
-            onValueChange={(value) => onChange({ sort, dir: value as SortDirection })}
-          >
-            {directions(sort).map((option) => (
-              <DropdownMenuRadioItem key={option} value={option}>
-                {DIRECTION_LABEL[sort][option]}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <ListSortMenu
+        sort={sort}
+        dir={search.dir ?? defaultSortDirection(sort)}
+        options={PORTAL_OVERVIEW_SORTS.filter(
+          (option) => option !== 'scans' || canSortByScans,
+        )}
+        labels={SORT_LABEL}
+        directionLabels={DIRECTION_LABEL}
+        defaultDirection={defaultSortDirection}
+        onChange={onChange}
+      />
 
-      {/* Always mounted, so a screen reader hears the count change as you type. */}
-      <p className="text-sm tabular-nums text-muted-foreground" aria-live="polite">
-        {narrowed ? `${matched} of ${total}` : ''}
-      </p>
-      {narrowed ? (
-        <Button
-          variant="ghost"
-          onClick={() => onChange({ q: undefined, show: undefined })}
-        >
-          Clear
-        </Button>
-      ) : null}
-    </div>
+      <ListToolbarStatus>
+        <ResultCount shown={matched} total={total} active={narrowed} />
+        {narrowed ? (
+          <ClearFiltersButton
+            searching={searching}
+            // All properties has a search and nothing to filter: its Clear is "Clear search".
+            filters={scope === 'property'}
+            onClear={() => onChange({ q: undefined, show: undefined })}
+          />
+        ) : null}
+      </ListToolbarStatus>
+    </ListToolbar>
   )
 }

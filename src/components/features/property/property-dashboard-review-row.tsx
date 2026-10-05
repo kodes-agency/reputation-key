@@ -2,6 +2,8 @@ import { Link } from '@tanstack/react-router'
 import { Stars, ReplyStatusBadge } from './property-dashboard-helpers'
 import type { RecentReview } from '#/contexts/reporting/application/public-api'
 import { formatDate } from '#/lib/format'
+import { ROW_LINK_SURFACE } from '#/components/ui/row-link'
+import { cn } from '#/lib/utils'
 
 /**
  * Format a review date, or render nothing when it is not a real instant.
@@ -30,7 +32,10 @@ export function ReviewRow({
     <Link
       to="/inbox"
       search={{ propertyId, reviewId: review.id }}
-      className="flex min-h-11 items-center gap-4 rounded-lg border p-3 text-foreground transition-colors hover:border-border hover:bg-muted/40 focus-ring"
+      className={cn(
+        'flex min-h-11 items-center gap-4 rounded-lg border p-3',
+        ROW_LINK_SURFACE,
+      )}
     >
       <span className="flex flex-col items-center gap-1">
         <span className="text-lg font-semibold">{review.rating}</span>
