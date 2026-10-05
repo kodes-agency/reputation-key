@@ -178,6 +178,11 @@ describe('the pattern index in src/components/CONTEXT.md', () => {
     )
     const canonical = [
       'PageHeader',
+      'trailCrumbs',
+      'NAV_LABEL',
+      'BackLink',
+      'BackButton',
+      'BackIconButton',
       'PageShell',
       'PageState',
       'EmptyState',
@@ -200,6 +205,8 @@ describe('the pattern index in src/components/CONTEXT.md', () => {
       'Alert',
       'FormErrorBanner',
       'Button',
+      'AddAction',
+      'AddActionLink',
       'IconButton',
       'InlineLink',
       'ConfirmationDialog',
