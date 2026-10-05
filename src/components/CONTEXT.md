@@ -11,7 +11,7 @@ and actions supply server state.
 - `ui/` holds vendored shadcn primitives plus app-wide presentation primitives
   that no feature owns (Fact, OwnerDisc, MetricStrip, SegmentedControl, Timeline,
   StarRating, RatingFigure, ConfirmationDialog, EmptyState, RegionError,
-  RowActionsMenu, DataTable, DescriptionList, LoadMoreButton). Every
+  RowActionsMenu, DataTable, DescriptionList, SectionTitle, LoadMoreButton). Every
   confirmation goes through `ConfirmationDialog`, never an AlertDialog put together
   by hand (`dialog-sources.test.ts` fails on one). Its `tone` is `destructive` only
   for an action the person cannot take back or that loses data; archive, restore,
@@ -193,9 +193,30 @@ and actions supply server state.
   is a button. A number with a caption is a `MetricStrip` (`boxed`, `ruled`,
   `embedded` in a Card, or wrapping `tiles`), never a local figure; a figure that is a
   link keeps its link and wears `METRIC_LABEL_CLASS` and `METRIC_TILE_FIGURE_CLASS`.
-  Read-only label and value rows are a `DescriptionList`. A cursor feed's "Load more"
+  A cursor feed's "Load more"
   is a `LoadMoreButton` (aria-disabled while it loads, so focus stays; "Try again"
   after a failure); the Portals numbered pager is the only other kind of paging.
+
+  A fact the person reads and cannot change is a `DescriptionList`, never a disabled
+  Input, a bare paragraph or a hand-built `<dl>`: a term column from `sm` (`termWidth`
+  `default` 8rem or `wide` 10rem), or `stacked`, the term over the value at every width,
+  where it sits among form fields (the Profile email, a Property's address from
+  Google). A `note` is the quiet line under the value ("From Google"). A glossary, a
+  list of key hints and a chart's readout are other shapes and keep their own
+  `<dl>`; `description-list-sources.test.ts` names each and fails on a new one.
+  A page has one `h1`, drawn by `PageHeader` (or, where the surface is compact, by the
+  Inbox's list header, the Portal workspace's header, or an `AuthCard`'s title, which is
+  the page): a feature never writes its own. The Inbox's queue name stays in the page on
+  a phone, read and not drawn (`max-md:sr-only`), because a heading that is `display:
+none` is not in the outline. Under it a section's title is a `CardTitle as="h2"` (a
+  `CardTitle` is a div until the page gives it a level, and wears the same type at
+  every level) or, for a section that is not a Card, a `SectionTitle` (h2 at
+  `text-base` semibold; `level={3}` for a part of a section, a step smaller). Nobody
+  sets a title's size or writes `role="heading"`; `heading-sources.test.ts` fails on a
+  second `h1`, a Card title with no level and an h2 or h3 of its own in the settings
+  pages. A Property's settings page names the section that is open, as an account
+  settings page does: its header title and the end of its breadcrumb are the section
+  (`propertySettingsHeader`), under "Settings", which links back to the hub.
 
 - `forms/` contains shared TanStack Form fields, submission, and error UI. A
   settings group that saves on a button ends in one `FormActions` row, whatever
@@ -250,6 +271,26 @@ and actions supply server state.
   override keeps showing the override until the save lands. `controls-sources.test.ts`
   fails on a native select, a raw checkbox, a Switch drawn outside the row, a consent
   sentence in a bare Checkbox and a threshold worded anywhere but one place.
+  An avatar or a logo is an `ImageSetting`: the picture, with Upload, or Replace and
+  Remove, as Buttons named for what it is (never a hover or an icon alone), and one line
+  of help printed from the formats and the size the file is checked against. `onUpload`
+  stores the file and saves its address, resolving with the address to show;
+  `onRemove` saves the removal, and a removal that is only drawn is the bug (the
+  avatar's Remove used to clear the page and nothing else; a removal passes `null`
+  to the server, and the update that maps a null to `undefined` saves nothing, because
+  Better Auth skips an undefined field). Pending is a spinner and a word on the Button,
+  with the progress on the picture; a refused upload or removal is a toast in the
+  words every action uses (`Couldn't upload that logo. Try again.`) and the picture
+  stays exactly as it was, so the mutations behind it pass no `errorMessage` and only
+  say what succeeded. The Property look logo is the exception: it crops, sets a focal
+  point and checks a light version, so it keeps its dialog. `image-setting-sources.test.ts`
+  fails on a second image field. One `ConnectGoogleButton`
+  (`features/integration/connect-google-button`) starts every Google authorization:
+  "Connect Google" (`label="Connect another account"` where an account is already
+  connected, `request` and `label` for Reauthorize and Show account email), the one
+  glyph for adding an account, a spinner on the Button with its label kept, and a
+  failure toast; no place redirects to the sign-in address itself
+  (`connect-google-sources.test.ts`).
   A field is a `FormTextField`, `FormTextarea` or `FormNumberField`, or, for a
   control of another kind, a `FormFieldFrame` (a `Field` holding the `FieldLabel`,
   the control, the `FieldDescription` and the error, in that order); never a

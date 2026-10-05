@@ -42,7 +42,8 @@ Every page route that draws a page header names itself in `staticData.page`
 turns that into the tab title, and the router's default pending, error and
 not-found states draw it, so a page does not lose its title, breadcrumbs or width
 while it loads or fails. A route inside a page that already has a header
-(a Property settings section) names nothing.
+(a Property settings section) names nothing: the layout's header names the section
+that is open, so the title and the end of the breadcrumb are the section.
 
 A page the signed-in person cannot use is answered in the shell, not by a
 redirect: throw `roleUnavailable(title, back)` for a role (`back` names a place:
