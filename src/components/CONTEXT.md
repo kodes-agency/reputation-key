@@ -260,13 +260,15 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   `deferred` is one field of a group that saves on its Save, so the group's own button
   carries the pending state and the row says "Unsaved" (`unsaved`, from the field's
   `!isDefaultValue`) while its value is not the saved one; a group with no saved value
-  yet, a wizard step, passes none. `layout="cell"` is the Switch in a table or list that already names it (the
-  label is read, not drawn, and `stateWords` print beside it). A Checkbox is not a
-  setting: it stays for choosing several things from a list and for a statement the
+  yet, a wizard step, passes none. `layout="cell"` is the Switch in a table or list that
+  already names it (the label is read, not drawn, and `stateWords` print beside it). A
+  Checkbox is not a setting: it stays for choosing several things from a list and for a statement the
   person agrees to. That statement ("I have read this notice and agree...", "I have
-  checked these details", "This property owns this photo...", "Select all current
-  portals") is a `ConsentCheckbox`: one frame, the sentence, a line of help and the
-  refusal, once a person has tried to go on without ticking it. "Follow the parent, or
+  checked these details", "This property owns this photo...") is a `ConsentCheckbox`:
+  one frame, the sentence, a line of help and the refusal, once a person has tried to go
+  on without ticking it. So is any one framed yes that stands for a whole list ("Select
+  all current portals": a choice, not an agreement), while the rows of the list keep
+  plain `Checkbox`es. "Follow the parent, or
   set my own" is an `InheritedSetting`: it says what the place follows (pass a link
   where the owner has a page, as the Property's target does) and what that is worth,
   whether the place has a value of its own, and one button that puts the inherited
