@@ -7,32 +7,10 @@
 // should be `#/lib/format` fails here with the file named. The few files that
 // honour a person's or a guest's own locale or zone are listed with the reason.
 
-import { readdirSync, readFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { readUiSources } from '#/shared/testing/source-tree'
 
-const ROOT = join(import.meta.dirname, '..', '..')
-const SOURCES = ['src/components', 'src/routes'] as const
-
-function walk(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name)
-    if (entry.isDirectory()) return walk(path)
-    return /\.tsx?$/u.test(entry.name) && !/\.(stories|test)\./u.test(entry.name)
-      ? [path]
-      : []
-  })
-}
-
-/** The source without its comments, which are free to name the constructors. */
-function code(text: string): string {
-  return text.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/(^|\s)\/\/.*$/gmu, '$1')
-}
-
-const FILES = SOURCES.flatMap((source) => walk(join(ROOT, source))).map((path) => ({
-  path: relative(ROOT, path),
-  text: code(readFileSync(path, 'utf8')),
-}))
+const FILES = readUiSources({ includeTs: true })
 
 /** A date or number formatter built by hand, or a runtime-locale `toLocale*String`. */
 const HAND_FORMATTER =

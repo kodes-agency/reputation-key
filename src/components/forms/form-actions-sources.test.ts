@@ -8,32 +8,10 @@
 // Save, a settings Cancel that navigates, or a hand-spelled "(optional)" fails here with
 // the file named instead of drifting back.
 
-import { readdirSync, readFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { readUiSources } from '#/shared/testing/source-tree'
 
-const ROOT = join(import.meta.dirname, '..', '..', '..')
-const SOURCES = ['src/components', 'src/routes'] as const
-
-function walk(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name)
-    if (entry.isDirectory()) return walk(path)
-    return /\.tsx?$/u.test(entry.name) && !/\.(stories|test)\./u.test(entry.name)
-      ? [path]
-      : []
-  })
-}
-
-/** The source without its comments, which are free to quote the old spellings. */
-function code(text: string): string {
-  return text.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/(^|\s)\/\/.*$/gmu, '$1')
-}
-
-const FILES = SOURCES.flatMap((source) => walk(join(ROOT, source))).map((path) => ({
-  path: relative(ROOT, path),
-  text: code(readFileSync(path, 'utf8')),
-}))
+const FILES = readUiSources({ includeTs: true })
 
 type SourceFile = (typeof FILES)[number]
 
