@@ -67,6 +67,27 @@ describe('FormActions row', () => {
   })
 })
 
+describe('a command of the group', () => {
+  it('leads the row while Reset and the primary stay at its end', () => {
+    const html = renderToStaticMarkup(
+      createElement(FormActions, {
+        dirty: true,
+        onReset: () => undefined,
+        leading: createElement('button', { type: 'button' }, 'Turn off'),
+        children: SAVE,
+      }),
+    )
+
+    expect(html).toContain('mr-auto')
+    expect(html.indexOf('>Turn off<')).toBeLessThan(html.indexOf('>Reset<'))
+    expect(html.indexOf('>Reset<')).toBeLessThan(html.indexOf('>Save changes<'))
+  })
+
+  it('adds nothing to a row without one', () => {
+    expect(manual()).not.toContain('mr-auto')
+  })
+})
+
 describe('Reset', () => {
   it('shows only while the group holds edits', () => {
     expect(manual({ dirty: false, onReset: () => undefined })).not.toContain('Reset')

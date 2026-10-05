@@ -78,7 +78,9 @@ export function PropertyAssignmentSelector({
   return (
     // The label names the group of chips and picker: it labels no single control.
     <Field aria-labelledby={labelId}>
-      <FieldLabel id={labelId}>Assign to properties (optional)</FieldLabel>
+      <FieldLabel id={labelId} optional>
+        Assign to properties
+      </FieldLabel>
 
       {selectedIds.length > 0 && (
         <div ref={chipsRef} className="mb-2 flex flex-wrap gap-1.5">

@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from '#/components/ui/alert'
 import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
 import { Field, FieldError, FieldLabel } from '#/components/ui/field'
+import { FormFieldFrame } from '#/components/forms/form-field-frame'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
@@ -118,8 +119,12 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
         </form.Field>
         <form.Field name="targetValue">
           {(field) => (
-            <Field data-invalid={!field.state.meta.isValid}>
-              <FieldLabel htmlFor="revision-target">Monthly target</FieldLabel>
+            <FormFieldFrame
+              id="revision-target"
+              label="Monthly target"
+              invalid={!field.state.meta.isValid}
+              errors={field.state.meta.errors}
+            >
               <Input
                 id="revision-target"
                 type="number"
@@ -131,8 +136,7 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
                 onChange={(event) => field.handleChange(Number(event.target.value))}
                 aria-invalid={!field.state.meta.isValid}
               />
-              <FieldError errors={field.state.meta.errors} />
-            </Field>
+            </FormFieldFrame>
           )}
         </form.Field>
       </div>

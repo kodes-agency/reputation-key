@@ -246,6 +246,37 @@ export const EnabledSelectiveControls: Story = {
   },
 }
 
+// The capability choice is a group that saves: Reset shows once it differs from
+// the saved one, puts it back and clears the tick given for the edit; Turn off
+// leads the row and Save feature access is last.
+export const EnabledResetPutsTheSavedChoiceBack: Story = {
+  args: { snapshot: enabled },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument()
+
+    await userEvent.click(canvas.getByLabelText(/property trends/i))
+    await userEvent.click(
+      canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
+    )
+    const row = canvas.getByRole('button', { name: 'Reset' }).parentElement!
+    expect([...row.querySelectorAll('button')].map((b) => b.textContent)).toEqual([
+      'Turn off AI features',
+      'Reset',
+      'Save feature access',
+    ])
+    await userEvent.click(canvas.getByRole('button', { name: 'Reset' }))
+
+    await expect(canvas.getByLabelText(/property trends/i)).toBeChecked()
+    await expect(
+      canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
+    ).not.toBeChecked()
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument(),
+    )
+  },
+}
+
 // A re-versioned consent notice must be submittable WITHOUT touching the
 // capability set. Before this was fixed the Save button stayed disabled here, and
 // the only way to re-consent was to drop a capability and re-add it — which

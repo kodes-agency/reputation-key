@@ -27,6 +27,11 @@ import { FormErrorBanner } from './form-error-banner'
 type Shared = Readonly<{
   /** The primary, last: a `SubmitButton` (or a `Button` for a group that is not a form). */
   children: ReactNode
+  /**
+   * A command of the group that is not part of its save (Turn off), at the start of
+   * the row while Reset and the primary stay at the end.
+   */
+  leading?: ReactNode
   /** The failure of the last save, shown directly above the row (a form submit has no toast). */
   error?: unknown
   /** The save is in flight; Reset waits for it. */
@@ -80,6 +85,7 @@ function FormBoundActions({
 
 function ActionsRow({
   children,
+  leading,
   error,
   pending = false,
   dirty = false,
@@ -109,6 +115,9 @@ function ActionsRow({
     >
       <FormErrorBanner error={refusal} />
       <div className="flex flex-wrap items-center justify-end gap-2">
+        {leading ? (
+          <div className="mr-auto flex flex-wrap items-center gap-2">{leading}</div>
+        ) : null}
         {dirty && onReset ? (
           <Button type="button" variant="outline" disabled={pending} onClick={reset}>
             Reset

@@ -13,12 +13,20 @@ import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '#/components/ui/card'
 import { Input } from '#/components/ui/input'
-import { Textarea } from '#/components/ui/textarea'
-import { Field, FieldError, FieldLabel } from '#/components/ui/field'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field'
+import { FormActions } from '#/components/forms/form-actions'
+import { describedByOf, FormFieldFrame } from '#/components/forms/form-field-frame'
 import { submitHandler } from '#/components/forms/form-submit'
+import { FormTextField } from '#/components/forms/form-text-field'
+import { FormTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
 import {
   GoalSubjectPicker,
@@ -133,6 +141,7 @@ function CreateGoalPage() {
   })
   const metric = useStore(form.store, (state) => state.values.metric)
   const selectedMetric = METRICS.find((candidate) => candidate.id === metric)!
+  const targetHelp = `Changes take effect from the next complete month in ${propData.property.name}’s timezone.`
 
   return (
     <PageShell>
@@ -157,36 +166,23 @@ function CreateGoalPage() {
           <CardContent className="space-y-5">
             <form.Field name="name">
               {(field) => (
-                <Field data-invalid={!field.state.meta.isValid}>
-                  <FieldLabel htmlFor="goal-name">Name</FieldLabel>
-                  <Input
-                    id="goal-name"
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    aria-invalid={!field.state.meta.isValid}
-                    maxLength={200}
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
+                <FormTextField
+                  field={field}
+                  id="goal-name"
+                  label="Name"
+                  maxLength={200}
+                />
               )}
             </form.Field>
             <form.Field name="description">
               {(field) => (
-                <Field data-invalid={!field.state.meta.isValid}>
-                  <FieldLabel htmlFor="goal-description">
-                    Description (optional)
-                  </FieldLabel>
-                  <Textarea
-                    id="goal-description"
-                    value={field.state.value ?? ''}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    aria-invalid={!field.state.meta.isValid}
-                    maxLength={2_000}
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
+                <FormTextarea
+                  field={field}
+                  id="goal-description"
+                  label="Description"
+                  optional
+                  maxLength={2_000}
+                />
               )}
             </form.Field>
             <form.Field name="metric">
@@ -211,17 +207,20 @@ function CreateGoalPage() {
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedMetric.description}
-                  </p>
+                  <FieldDescription>{selectedMetric.description}</FieldDescription>
                   <FieldError errors={field.state.meta.errors} />
                 </Field>
               )}
             </form.Field>
             <form.Field name="targetValue">
               {(field) => (
-                <Field data-invalid={!field.state.meta.isValid}>
-                  <FieldLabel htmlFor="goal-target">Monthly target</FieldLabel>
+                <FormFieldFrame
+                  id="goal-target"
+                  label="Monthly target"
+                  description={targetHelp}
+                  invalid={!field.state.meta.isValid}
+                  errors={field.state.meta.errors}
+                >
                   <Input
                     id="goal-target"
                     type="number"
@@ -236,13 +235,9 @@ function CreateGoalPage() {
                       )
                     }
                     aria-invalid={!field.state.meta.isValid}
+                    aria-describedby={describedByOf('goal-target', targetHelp)}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Changes take effect from the next complete month in{' '}
-                    {propData.property.name}’s timezone.
-                  </p>
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
+                </FormFieldFrame>
               )}
             </form.Field>
           </CardContent>
@@ -267,11 +262,14 @@ function CreateGoalPage() {
                 </Field>
               )}
             </form.Field>
-            <FormErrorBanner error={mutation.error} />
-            <SubmitButton mutation={mutation} form={form}>
-              Create goal
-            </SubmitButton>
           </CardContent>
+          <CardFooter>
+            <FormActions error={mutation.error}>
+              <SubmitButton mutation={mutation} form={form}>
+                Create goal
+              </SubmitButton>
+            </FormActions>
+          </CardFooter>
         </Card>
       </form>
     </PageShell>

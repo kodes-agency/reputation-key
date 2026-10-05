@@ -1,7 +1,7 @@
 // New portal — the group. Groups share results and goals; guests never see them.
 // Not drawn at all while the Property has no group: a one-choice select asks
 // nothing of the person.
-import { Field, FieldLabel } from '#/components/ui/field'
+import { describedByOf, FormFieldFrame } from '#/components/forms/form-field-frame'
 import {
   Select,
   SelectContent,
@@ -14,6 +14,8 @@ import type { PortalNewField, PortalNewGroup } from './portal-new-types'
 /** Radix Select cannot hold an empty value, so "no group" has a word of its own. */
 const NO_GROUP = 'none'
 
+const GROUP_HELP = "For shared results and goals. Guests don't see groups."
+
 export function PortalNewGroupField({
   field,
   groups,
@@ -25,14 +27,22 @@ export function PortalNewGroupField({
 }>) {
   if (groups.length === 0) return null
   return (
-    <Field>
-      <FieldLabel htmlFor="portal-new-group">Group</FieldLabel>
+    <FormFieldFrame
+      id="portal-new-group"
+      label="Group"
+      description={GROUP_HELP}
+      invalid={false}
+    >
       <Select
         value={field.state.value === '' ? NO_GROUP : field.state.value}
         onValueChange={(next) => field.handleChange(next === NO_GROUP ? '' : next)}
         disabled={disabled}
       >
-        <SelectTrigger id="portal-new-group" className="w-full">
+        <SelectTrigger
+          id="portal-new-group"
+          className="w-full"
+          aria-describedby={describedByOf('portal-new-group', GROUP_HELP)}
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -44,9 +54,6 @@ export function PortalNewGroupField({
           ))}
         </SelectContent>
       </Select>
-      <p className="text-sm text-muted-foreground">
-        For shared results and goals. Guests don&apos;t see groups.
-      </p>
-    </Field>
+    </FormFieldFrame>
   )
 }

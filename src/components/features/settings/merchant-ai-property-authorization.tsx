@@ -155,8 +155,14 @@ export function MerchantAiPropertyAuthorization({
         (selectionChanged || contractChanged) &&
         selectedCapabilities.length > 0
       }
+      selectionChanged={selectionChanged}
       onToggleCapability={toggleCapability}
       onAcknowledgedChange={setAcknowledged}
+      onResetSelection={() => {
+        setSelectedCapabilities(snapshot.capabilities)
+        // The tick was given for the choice that is now put back.
+        setAcknowledged(false)
+      }}
       onEnable={() => run(() => enable({ data: consentData() }), false)}
       onChange={() =>
         void run(() =>

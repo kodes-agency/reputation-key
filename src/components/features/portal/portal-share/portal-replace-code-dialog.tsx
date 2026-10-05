@@ -4,7 +4,7 @@
 // choice is the dialog's body, and the dialog stays open while the new code is
 // made, closing on the address that is shown right after.
 import { useForm, useStore } from '@tanstack/react-form'
-import { Field, FieldError, FieldLabel } from '#/components/ui/field'
+import { describedByOf, FormFieldFrame } from '#/components/forms/form-field-frame'
 import { Input } from '#/components/ui/input'
 import { RadioGroup } from '#/components/ui/radio-group'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
@@ -17,6 +17,7 @@ import { PortalReplacementChoice } from './portal-replacement-choice'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
 
 const DEFAULT_TRANSITION_DAYS = 30
+const TRANSITION_HELP = '30 days is recommended. You can choose between 1 and 90 days.'
 
 type Kind = PortalCodeReplacementForm['replacementKind']
 
@@ -91,10 +92,18 @@ export function PortalReplaceCodeDialog({
           {(field) => {
             const invalid = field.state.meta.isTouched && !checked.success
             return (
-              <Field className="py-2" data-invalid={invalid}>
-                <FieldLabel htmlFor="portal-replacement-days">
-                  Transition period (days)
-                </FieldLabel>
+              <FormFieldFrame
+                id="portal-replacement-days"
+                label="Transition period (days)"
+                description={TRANSITION_HELP}
+                invalid={invalid}
+                errors={
+                  invalid
+                    ? checked.error?.issues.map(({ message }) => ({ message }))
+                    : undefined
+                }
+                className="py-2"
+              >
                 <Input
                   id="portal-replacement-days"
                   name={field.name}
@@ -109,17 +118,13 @@ export function PortalReplaceCodeDialog({
                     field.handleChange(event.currentTarget.valueAsNumber)
                   }
                   aria-invalid={invalid}
+                  aria-describedby={describedByOf(
+                    'portal-replacement-days',
+                    TRANSITION_HELP,
+                  )}
                   disabled={mutation.isPending}
                 />
-                <p className="text-xs text-muted-foreground">
-                  30 days is recommended. You can choose between 1 and 90 days.
-                </p>
-                {invalid ? (
-                  <FieldError
-                    errors={checked.error?.issues.map(({ message }) => ({ message }))}
-                  />
-                ) : null}
-              </Field>
+              </FormFieldFrame>
             )
           }}
         </form.Field>

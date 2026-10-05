@@ -32,11 +32,13 @@ type Props = Readonly<{
   errorMessage: string | null
   canSubmit: boolean
   canSave: boolean
+  selectionChanged: boolean
   onToggleCapability: (capability: CurrentMerchantAiCapability, checked: boolean) => void
   onAcknowledgedChange: (acknowledged: boolean) => void
   onEnable: () => Promise<unknown>
   onChange: () => void
   onRevoke: () => Promise<unknown>
+  onResetSelection: () => void
 }>
 
 export function MerchantAiAuthorizationCard(props: Props) {
@@ -71,10 +73,12 @@ export function MerchantAiAuthorizationCard(props: Props) {
         isEnabled={props.state === 'enabled'}
         canEnable={props.canSubmit}
         canSave={props.canSave}
+        selectionChanged={props.selectionChanged}
         pending={props.pending}
         onEnable={props.onEnable}
         onChange={props.onChange}
         onRevoke={props.onRevoke}
+        onResetSelection={props.onResetSelection}
       />
     </Card>
   )

@@ -1,4 +1,5 @@
 import { useForm } from '@tanstack/react-form'
+import { FormActions } from '#/components/forms/form-actions'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
@@ -10,7 +11,6 @@ import { propertyPortalBrandContentInputSchema } from '#/contexts/portal/applica
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalExperienceActions } from './portal-experience-settings-types'
 import { useExplicitDraftGuard } from '../portal-editor/use-portal-form-autosave'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 const propertyContentFormSchema = propertyPortalBrandContentInputSchema
   .pick({ title: true, shortDescription: true })
@@ -73,12 +73,11 @@ export function PortalPropertyContentForm({
         </form.Field>
       </FieldGroup>
       {!readOnly ? (
-        <>
-          <FormErrorBanner error={action.error} />
+        <FormActions form={form} error={action.error}>
           <SubmitButton mutation={action} form={form} variant="outline">
             Save property wording
           </SubmitButton>
-        </>
+        </FormActions>
       ) : null}
     </form>
   )

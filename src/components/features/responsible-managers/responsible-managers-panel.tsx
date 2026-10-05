@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { UserRoundCheck } from 'lucide-react'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FormActions } from '#/components/forms/form-actions'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { Checkbox } from '#/components/ui/checkbox'
@@ -146,8 +146,12 @@ export function ResponsibleManagersPanel({
         )}
       </div>
 
-      <FormErrorBanner error={error} />
-      <div className="flex justify-end">
+      <FormActions
+        dirty={dirty}
+        onReset={() => setSelected(serverSelection)}
+        error={error}
+        pending={isPending}
+      >
         <Button
           pending={isPending}
           pendingLabel="Saving…"
@@ -156,7 +160,7 @@ export function ResponsibleManagersPanel({
         >
           Save responsible managers
         </Button>
-      </div>
+      </FormActions>
     </div>
   )
 }

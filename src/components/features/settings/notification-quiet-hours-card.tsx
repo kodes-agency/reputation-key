@@ -85,10 +85,16 @@ export function NotificationQuietHoursCard({
   const pending = updateQuietHours.isPending
   const [overriding, setOverriding] = useState(override !== null)
 
+  // A Save is a form submit: a refusal is the editor's banner, so it is rethrown
+  // to the editor. A switch or a button is an immediate action: its refusal is a
+  // toast.
+  const saveEditor = async (data: QuietHoursUpdate['data'], done: string) => {
+    await updateQuietHours({ data })
+    toast.success(done)
+  }
   const save = async (data: QuietHoursUpdate['data'], done: string) => {
     try {
-      await updateQuietHours({ data })
-      toast.success(done)
+      await saveEditor(data, done)
     } catch (error) {
       toast.error(actionFailureMessage("Couldn't update quiet hours.")(error))
     }
@@ -119,7 +125,7 @@ export function NotificationQuietHoursCard({
             categoryLabel="Your quiet hours"
             disabled={pending}
             onSave={(quietHoursStart, quietHoursEnd) =>
-              void save(
+              saveEditor(
                 {
                   quietHoursStart,
                   quietHoursEnd,
@@ -163,7 +169,7 @@ export function NotificationQuietHoursCard({
                 categoryLabel={property.name}
                 disabled={pending}
                 onSave={(quietHoursStart, quietHoursEnd) =>
-                  void save(
+                  saveEditor(
                     {
                       propertyId: property.id,
                       quietHoursStart,

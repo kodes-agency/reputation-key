@@ -2,6 +2,7 @@
 // display name belongs to Property settings (AI reply drafts read it), so it is
 // shown here and changed there; the wordmark is the look's own. The logo is
 // uploaded here and replaces the wordmark on guest pages once one exists.
+import { descriptionIdOf, FormFieldFrame } from '#/components/forms/form-field-frame'
 import { Input } from '#/components/ui/input'
 import {
   PropertyLookLogoField,
@@ -20,7 +21,8 @@ type Props = Readonly<{
   logo: PropertyLookLogoControls
 }>
 
-const WORDMARK_HINT_ID = 'property-look-wordmark-hint'
+const WORDMARK_HINT = 'Top left of every page, until you add a logo'
+const WORDMARK_HINT_ID = descriptionIdOf('property-look-wordmark')
 
 export function PropertyLookIdentitySection({
   propertyId,
@@ -50,31 +52,27 @@ export function PropertyLookIdentitySection({
             </InlineLink>
           </p>
         </div>
-        <div className="space-y-1.5">
-          <label htmlFor="property-look-wordmark" className="text-sm font-medium">
-            Wordmark
-          </label>
+        <FormFieldFrame
+          id="property-look-wordmark"
+          label="Wordmark"
+          description={tooLong ? undefined : WORDMARK_HINT}
+          invalid={tooLong}
+          errors={
+            tooLong ? [{ message: `At most ${WORDMARK_MAX} characters` }] : undefined
+          }
+          className="gap-1.5"
+        >
           <Input
             id="property-look-wordmark"
             value={wordmark}
             disabled={disabled}
             autoComplete="off"
             aria-invalid={tooLong}
-            aria-describedby={WORDMARK_HINT_ID}
+            aria-describedby={tooLong ? undefined : WORDMARK_HINT_ID}
             className="uppercase tracking-[0.2em]"
             onChange={(event) => onWordmarkChange(event.target.value)}
           />
-          <p
-            id={WORDMARK_HINT_ID}
-            className={
-              tooLong ? 'text-sm text-negative' : 'text-sm text-muted-foreground'
-            }
-          >
-            {tooLong
-              ? `At most ${WORDMARK_MAX} characters`
-              : 'Top left of every page, until you add a logo'}
-          </p>
-        </div>
+        </FormFieldFrame>
       </div>
       <div className="space-y-1.5">
         <p className="text-sm font-medium">

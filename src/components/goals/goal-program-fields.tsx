@@ -3,8 +3,8 @@
 
 import type { ComponentProps } from 'react'
 import type { GoalSubject } from '#/contexts/reporting/application/public-api'
-import { Field, FieldError, FieldLabel } from '#/components/ui/field'
-import { Input } from '#/components/ui/input'
+import { Field, FieldError } from '#/components/ui/field'
+import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import {
   GoalSubjectPicker,
   goalSubjectKey,
@@ -20,12 +20,6 @@ type FieldMeta = Readonly<{
 type SubjectsFieldApi = Readonly<{
   state: Readonly<{ value: readonly GoalSubject[]; meta: FieldMeta }>
   handleChange: (subjects: GoalSubject[]) => void
-}>
-
-type ReasonFieldApi = Readonly<{
-  state: Readonly<{ value: string; meta: FieldMeta }>
-  handleBlur: () => void
-  handleChange: (reason: string) => void
 }>
 
 export function GoalSubjectsField({
@@ -54,19 +48,8 @@ export function GoalSubjectsField({
 export function GoalChangeReasonField({
   field,
   id,
-}: Readonly<{ field: ReasonFieldApi; id: string }>) {
+}: Readonly<{ field: BaseFieldApi; id: string }>) {
   return (
-    <Field data-invalid={!field.state.meta.isValid}>
-      <FieldLabel htmlFor={id}>Reason for the change</FieldLabel>
-      <Input
-        id={id}
-        value={field.state.value}
-        onBlur={field.handleBlur}
-        onChange={(event) => field.handleChange(event.target.value)}
-        aria-invalid={!field.state.meta.isValid}
-        maxLength={500}
-      />
-      <FieldError errors={field.state.meta.errors} />
-    </Field>
+    <FormTextField field={field} id={id} label="Reason for the change" maxLength={500} />
   )
 }

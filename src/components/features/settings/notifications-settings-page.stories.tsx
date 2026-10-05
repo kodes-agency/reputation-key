@@ -414,6 +414,47 @@ export const QuietHoursNeedTwoDifferentTimes: Story = {
   },
 }
 
+/** Reset puts the saved window back, and shows only once a time was edited. */
+export const QuietHoursResetPutsTheSavedWindowBack: Story = {
+  args: {
+    userSettings: { ...userSettings, quietHoursStart: '22:00', quietHoursEnd: '07:00' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const from = canvas.getByLabelText('Your quiet hours: Quiet from')
+    expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
+    await userEvent.clear(from)
+    await userEvent.type(from, '23:30')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    expect(from).toHaveValue('22:00')
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull(),
+    )
+  },
+}
+
+/**
+ * A Save is a form submit, so its refusal is the banner above the editor's
+ * actions and not also a toast.
+ */
+export const QuietHoursRefusalIsABannerNotAToast: Story = {
+  args: { updateQuietHours: asAction(async () => Promise.reject(new Error('refused'))) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText('Your quiet hours: Quiet from'), '22:00')
+    await userEvent.type(
+      canvas.getByLabelText('Your quiet hours: quiet hours until'),
+      '07:00',
+    )
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Save quiet hours for Your quiet hours' }),
+    )
+
+    expect(await canvas.findByText('Unable to complete this action')).toBeVisible()
+    expect(within(document.body).queryByText(/Couldn.t update quiet hours/)).toBeNull()
+  },
+}
+
 const override: NotificationPropertyDeliveryWindow = {
   propertyId: PROPERTY_ID,
   userId: 'user-story',

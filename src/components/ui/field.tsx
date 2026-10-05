@@ -78,17 +78,25 @@ function FieldLabel({
       {...props}
     >
       {children}
-      {optional ? (
-        // Inside the label, so the control's name carries it. The space is for that
-        // name ("Note Optional"): a flex row draws none of it.
-        <>
-          {' '}
-          <span data-slot="field-optional" className="font-normal text-muted-foreground">
-            Optional
-          </span>
-        </>
-      ) : null}
+      {optional ? <FieldOptional /> : null}
     </Label>
+  )
+}
+
+/**
+ * The marker of a field the person may leave empty, for a label that arranges its
+ * own parts (`FieldLabel optional` is the usual way). It belongs inside the label,
+ * so the control's name carries it; the space is for that name ("Note Optional"):
+ * a flex row draws none of it.
+ */
+function FieldOptional() {
+  return (
+    <>
+      {' '}
+      <span data-slot="field-optional" className="font-normal text-muted-foreground">
+        Optional
+      </span>
+    </>
   )
 }
 
@@ -157,4 +165,4 @@ function FieldError({
   )
 }
 
-export { Field, FieldLabel, FieldDescription, FieldError, FieldGroup }
+export { Field, FieldLabel, FieldOptional, FieldDescription, FieldError, FieldGroup }
