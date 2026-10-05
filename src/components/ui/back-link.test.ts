@@ -17,7 +17,6 @@ import {
 } from '@tanstack/react-router'
 import { describe, expect, it } from 'vitest'
 import { BackButton, BackLink } from './back-link'
-import { TooltipProvider } from './tooltip'
 
 function renderLink(props: Readonly<Record<string, unknown>>, at = '/'): string {
   const router = createRouter({
@@ -27,22 +26,14 @@ function renderLink(props: Readonly<Record<string, unknown>>, at = '/'): string 
   return renderToStaticMarkup(
     createElement(RouterContextProvider, {
       router,
-      children: createElement(
-        TooltipProvider,
-        null,
-        createElement(BackLink as never, { to: '/', ...props }),
-      ),
+      children: createElement(BackLink as never, { to: '/', ...props }),
     }),
   )
 }
 
 function renderButton(props: Readonly<Record<string, unknown>>): string {
   return renderToStaticMarkup(
-    createElement(
-      TooltipProvider,
-      null,
-      createElement(BackButton as never, { label: 'Back to questions', ...props }),
-    ),
+    createElement(BackButton as never, { label: 'Back to questions', ...props }),
   )
 }
 
@@ -97,14 +88,6 @@ describe('BackLink', () => {
     expect(html).not.toContain('data-status')
     expect(html).not.toMatch(/\bactive\b/u)
   })
-
-  it('can be only the arrow, named by its label', () => {
-    const html = renderLink({ label: 'Back to list', iconOnly: true })
-
-    expect(html).toContain('aria-label="Back to list"')
-    expect(html).toContain('data-size="icon-sm"')
-    expect(html).not.toContain('>Back to list<')
-  })
 })
 
 describe('BackButton', () => {
@@ -117,15 +100,6 @@ describe('BackButton', () => {
     expect(html).toContain('data-size="sm"')
     expect(html).toMatch(/<svg[^>]*aria-hidden="true"[^>]*>/u)
     expect(html).toContain('>Back to questions<')
-  })
-
-  it('can be only the arrow, named by its label', () => {
-    const html = renderButton({ label: 'Back to list', iconOnly: true, flush: true })
-
-    expect(html).toContain('aria-label="Back to list"')
-    expect(html).toContain('data-size="icon-sm"')
-    // A square button has more margin around its arrow than a text one.
-    expect(html).toContain('-ml-2.5')
   })
 
   it('can be disabled while the step it leaves is saving', () => {

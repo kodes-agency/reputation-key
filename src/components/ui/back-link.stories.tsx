@@ -7,6 +7,7 @@
 // (axe runs on both).
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
+import { BackIconButton } from './back-icon-button'
 import { BackButton, BackLink } from './back-link'
 
 const meta: Meta<typeof BackLink> = {
@@ -36,7 +37,7 @@ function Rows({ onBack }: Readonly<{ onBack: () => void }>) {
         <BackLink to="/portals" label="Back to portals" flush />
       </HeaderRow>
       <HeaderRow>
-        <BackButton label="Back to list" iconOnly flush onClick={onBack} />
+        <BackIconButton label="Back to list" flush onClick={onBack} />
       </HeaderRow>
       <div className="flex items-center justify-between gap-3 border-t pt-4">
         <BackButton label="Back to questions" onClick={onBack} />

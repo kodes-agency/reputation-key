@@ -119,6 +119,8 @@ describe('the way back is BackLink or BackButton', () => {
   const ARROW = /import\s*\{[^}]*\bArrowLeft\b[^}]*\}\s*from\s*['"]lucide-react['"]/u
   const ARROW_ALLOWED: Readonly<Record<string, string>> = {
     'src/components/ui/back-link.tsx': 'the primitive itself',
+    'src/components/ui/back-icon-button.tsx':
+      'the arrow alone, which brings the tooltip with it',
     'src/components/layout/settings-sidebar.tsx':
       'a row of the settings sidebar, which is a menu item and not a Button',
   }

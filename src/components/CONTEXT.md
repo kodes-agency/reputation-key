@@ -453,8 +453,9 @@ full-bleed workspace header, the Inbox's detail pane) and a step that returns to
 step before use the one back control: `BackLink` for an address, `BackButton` for a
 step or a view (`ui/back-link.tsx`), a ghost small Button with the one arrow reading
 "Back to <place>"; `iconBelow` draws the arrow alone on a narrow row and keeps the
-words as the name, `iconOnly` is the Inbox's, and `flush` puts the arrow on the
-content edge. `PageState`'s way out is the same BackLink, and a way back is never
+words as the name, `flush` puts the arrow on the content edge, and a row with no room
+for words at all (the Inbox's detail pane) is `BackIconButton`, the arrow with the
+label as its name and tooltip. `PageState`'s way out is the same BackLink, and a way back is never
 announced as the current page.
 
 The page's own add is `AddAction` (a button) or `AddActionLink` (a router link),

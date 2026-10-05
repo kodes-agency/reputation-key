@@ -2,7 +2,7 @@ import { MessageSquare, X } from 'lucide-react'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import type { InboxDetailState } from './use-inbox-detail'
 import { InboxDetailCopyMenu } from './inbox-detail-copy-menu'
-import { BackButton } from '#/components/ui/back-link'
+import { BackIconButton } from '#/components/ui/back-icon-button'
 import { IconButton } from '#/components/ui/icon-button'
 
 /**
@@ -82,7 +82,7 @@ export function InboxDetailHeader({ item, detail, onClose, dismiss = 'close' }: 
         // is this variant's only caller, and it is the compact layout, which renders
         // up to 1077 px, so tablets keep the 32 px button inside the 20 px gutter;
         // `flush` is not gated by a breakpoint.
-        <BackButton iconOnly flush label="Back to list" onClick={onClose} />
+        <BackIconButton flush label="Back to list" onClick={onClose} />
       )}
 
       {/* Two `max-md:hidden`s, and they were the difference between this
