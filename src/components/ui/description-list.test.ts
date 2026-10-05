@@ -65,6 +65,14 @@ describe('DescriptionList', () => {
     expect(list({ termWidth: 'wide' })).not.toContain('8rem')
   })
 
+  it('stacks the term above the value at every width where it sits among form fields', () => {
+    const html = list({ stacked: true })
+
+    expect(html).not.toContain('sm:grid-cols')
+    expect(html).toMatch(/<dt[^>]*text-muted-foreground/u)
+    expect(html.indexOf('>Status</dt>')).toBeLessThan(html.indexOf('Current'))
+  })
+
   it('lets a long value wrap inside its column instead of widening the list', () => {
     expect(list()).toMatch(/<dd[^>]*min-w-0/u)
   })

@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { ExternalLink } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import {
   Card,
   CardAction,
@@ -88,10 +89,11 @@ export function PropertyGoogleSection({ property }: Props) {
         </CardAction>
       </CardHeader>
       <CardContent>
-        <dl className="grid gap-3 text-sm sm:grid-cols-[10rem_minmax(0,1fr)]">
-          <dt className="text-muted-foreground">Review destination</dt>
-          <dd>{destinationText(property.googleReviewDestination)}</dd>
-        </dl>
+        <DescriptionList termWidth="wide" aria-label="Google review destination">
+          <DescriptionItem term="Review destination">
+            {destinationText(property.googleReviewDestination)}
+          </DescriptionItem>
+        </DescriptionList>
       </CardContent>
       <CardFooter className="flex flex-wrap gap-2 border-t">
         {can('property.import_gbp_v2') ? (

@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
+import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import { FieldGroup } from '#/components/ui/field'
 import { updatePropertyInputSchema } from '#/contexts/property/application/dto/update-property.dto'
 import { PROPERTY_COUNTRY_OPTIONS } from './property-profile-options'
@@ -141,10 +142,11 @@ export function PropertyProfileCard({ property, canEdit, updateProperty }: Props
               </form.Field>
             </div>
           </FieldGroup>
-          <dl className="grid gap-1 text-sm">
-            <dt className="text-muted-foreground">Address · from Google</dt>
-            <dd>{property.address ?? 'No address on the Business Profile'}</dd>
-          </dl>
+          <DescriptionList stacked aria-label="From Google">
+            <DescriptionItem term="Address" note="From Google">
+              {property.address ?? 'No address on the Business Profile'}
+            </DescriptionItem>
+          </DescriptionList>
           {!canEdit ? (
             <p className="text-sm text-muted-foreground">
               Ask an account admin or a manager of this property to change these details.

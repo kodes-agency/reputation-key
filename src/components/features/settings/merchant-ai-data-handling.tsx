@@ -1,4 +1,5 @@
 import { ShieldCheck } from 'lucide-react'
+import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 
 export function MerchantAiDataHandling({
@@ -46,14 +47,13 @@ export function MerchantAiDataHandling({
           ) : null}
         </div>
       ))}
-      <dl className="grid gap-2 text-sm sm:grid-cols-3">
+      <DescriptionList termWidth="wide" aria-label="How long data is kept">
         {payload.retentionAndRevocation.map((row) => (
-          <div key={row.id} className="rounded-md border p-3">
-            <dt className="font-medium">{row.label}</dt>
-            <dd className="mt-1 text-muted-foreground">{row.value}</dd>
-          </div>
+          <DescriptionItem key={row.id} term={row.label}>
+            {row.value}
+          </DescriptionItem>
         ))}
-      </dl>
+      </DescriptionList>
       <div>
         <h3 className="text-sm font-medium">Known risks</h3>
         <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground">

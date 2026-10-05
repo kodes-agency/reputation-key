@@ -3,6 +3,7 @@
 // shown here and changed there; the wordmark is the look's own. The logo is
 // uploaded here and replaces the wordmark on guest pages once one exists.
 import { descriptionIdOf, FormFieldFrame } from '#/components/forms/form-field-frame'
+import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import { FieldOptional } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
 import {
@@ -40,19 +41,24 @@ export function PropertyLookIdentitySection({
       hint="Guests see it at the top of every page."
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <p className="text-sm font-medium">Display name</p>
-          <p className="text-sm">{displayName}</p>
-          <p className="text-sm text-muted-foreground">
-            From{' '}
-            <InlineLink
-              to="/properties/$propertyId/settings/profile"
-              params={{ propertyId }}
-            >
-              Property settings
-            </InlineLink>
-          </p>
-        </div>
+        <DescriptionList stacked aria-label="Display name">
+          <DescriptionItem
+            term="Display name"
+            note={
+              <>
+                From{' '}
+                <InlineLink
+                  to="/properties/$propertyId/settings/profile"
+                  params={{ propertyId }}
+                >
+                  Property settings
+                </InlineLink>
+              </>
+            }
+          >
+            {displayName}
+          </DescriptionItem>
+        </DescriptionList>
         <FormFieldFrame
           id="property-look-wordmark"
           label="Wordmark"
