@@ -123,7 +123,8 @@ function parentCrumbs(under: PageTrail, where: PageWhere): readonly Crumb[] {
     case 'propertySettings':
       return [...base, placeCrumb(NAV_LABEL.propertySettings, 'settings', where)]
     case 'settings':
-      return [{ label: NAV_LABEL.settings, to: '/settings' }]
+      // The first page of the area, not `/settings`, which only redirects there.
+      return [{ label: NAV_LABEL.settings, to: '/settings/profile' }]
   }
 }
 

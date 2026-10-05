@@ -19,7 +19,7 @@ export async function openSeededProperty(page: Page): Promise<string> {
   await expect(page).toHaveURL(new RegExp(`/properties/${seed.propertyId}`), {
     timeout: 20_000,
   })
-  // Dashboard shell uses property name in description / breadcrumbs.
+  // The dashboard header names the property in its meta line and its breadcrumbs.
   await expect(page.getByText(seed.propertyName).first()).toBeVisible({
     timeout: 15_000,
   })

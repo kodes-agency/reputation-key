@@ -130,7 +130,7 @@ describe('resolveCrumbs', () => {
 
   it('puts a Settings page under Settings', () => {
     expect(resolveCrumbs({ title: 'Profile', under: 'settings' }, {})).toEqual([
-      { label: 'Settings', to: '/settings' },
+      { label: 'Settings', to: '/settings/profile' },
       { label: 'Profile' },
     ])
   })
