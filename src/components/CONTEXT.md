@@ -599,8 +599,9 @@ One list of words for what every page repeats.
   dismisses a dialog that only informs (the Version dialog). Done ends a task that
   finished and left a receipt. A settings group has no Cancel: it has Reset.
 - **Try again.** Every retry is "Try again" (`RegionError`, `PageState`,
-  `LoadMoreButton`). A row that offers several recoveries names the one it retries:
-  "Try publishing again", "Check Google again".
+  `LoadMoreButton`), and never "Retry". A control that runs one named action again
+  says which: "Try saving again" (a draft), "Try this property again" (an import
+  step), "Try publishing again", "Check Google again".
 - **Clear.** One meaning: take the search and the filters off a list ("Clear filters",
   "Clear search and filters", "Clear search": `ClearFiltersButton`). Deselecting is
   "Clear selection". Nothing else says Clear.

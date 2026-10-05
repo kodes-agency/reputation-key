@@ -226,6 +226,12 @@ describe('an action has one wording', () => {
     expect(offenders, `say ${instead}`).toEqual([])
   })
 
+  it('says "Try again", or what it tries again, never "Retry" in a label', () => {
+    const offenders = LABELS.filter((label) => /\b(Retry|Retrying)\b/u.test(label.text))
+
+    expect(offenders).toEqual([])
+  })
+
   it('spells no success toast with "successfully" (see feedback-ownership)', () => {
     const offenders = LABELS.filter((label) => /successfully/u.test(label.text))
 

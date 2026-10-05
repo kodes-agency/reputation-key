@@ -41,7 +41,7 @@ describe('reply autosave coordinator — after a failed save', () => {
   // `schedule` runs on every keystroke AND on every language change. After a
   // failed save it used to repaint the head unconditionally, so picking a
   // language replaced `Draft could not be saved` with a bare `Not saved` and
-  // took `Retry save` (gated on `status === 'error'`) with it — while the
+  // took `Try saving again` (gated on `status === 'error'`) with it — while the
   // coordinator still held the unsaved snapshot and Submit still refused.
   it('keeps saying a save failed while the text that failed is still on screen', async () => {
     vi.useFakeTimers()

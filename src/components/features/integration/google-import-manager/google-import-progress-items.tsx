@@ -61,12 +61,12 @@ function RetryButton({
       variant="outline"
       className={mobile ? 'w-full' : undefined}
       pending={isRetrying}
-      pendingLabel="Retrying…"
+      pendingLabel="Trying again…"
       disabled={retryingItemId !== null}
       onClick={() => onRetry(item)}
     >
       <RotateCcw aria-hidden="true" />
-      {mobile ? 'Retry this property' : 'Retry'}
+      {mobile ? 'Try this property again' : 'Try again'}
     </Button>
   )
 }
