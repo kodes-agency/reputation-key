@@ -52,26 +52,12 @@ export function PageHeader({
       {breadcrumbs && breadcrumbs.length > 0 && (
         <Breadcrumb>
           <BreadcrumbList>
-            {breadcrumbs.map((c, i) => {
-              const last = i === breadcrumbs.length - 1
-              return (
-                <Fragment key={i}>
-                  <BreadcrumbItem>
-                    {last ? (
-                      <BreadcrumbPage>{c.label}</BreadcrumbPage>
-                    ) : c.to ? (
-                      <BreadcrumbLink asChild>
-                        <Link to={c.to as never}>{c.label}</Link>
-                      </BreadcrumbLink>
-                    ) : (
-                      // A place with no address yet is not the page: no link, no current mark.
-                      <span>{c.label}</span>
-                    )}
-                  </BreadcrumbItem>
-                  {!last && <BreadcrumbSeparator />}
-                </Fragment>
-              )
-            })}
+            {breadcrumbs.map((c, i) => (
+              <BreadcrumbItem key={i}>
+                {i > 0 && <BreadcrumbSeparator />}
+                <TrailCrumb crumb={c} last={i === breadcrumbs.length - 1} />
+              </BreadcrumbItem>
+            ))}
           </BreadcrumbList>
         </Breadcrumb>
       )}
@@ -85,6 +71,19 @@ export function PageHeader({
       </div>
     </div>
   )
+}
+
+function TrailCrumb({ crumb, last }: Readonly<{ crumb: Crumb; last: boolean }>) {
+  if (last) return <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+  if (crumb.to) {
+    return (
+      <BreadcrumbLink asChild>
+        <Link to={crumb.to as never}>{crumb.label}</Link>
+      </BreadcrumbLink>
+    )
+  }
+  // A place with no address yet is not the page: no link, no current mark.
+  return <span>{crumb.label}</span>
 }
 
 function HeaderMeta({ items }: Readonly<{ items: readonly ReactNode[] | undefined }>) {

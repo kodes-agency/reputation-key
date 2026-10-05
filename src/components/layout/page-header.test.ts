@@ -136,6 +136,22 @@ describe('PageHeader breadcrumbs', () => {
     expect(html).toMatch(/<span[^>]*>Portals<\/span>/u)
   })
 
+  it('carries each separator with the crumb it leads, so a wrapped trail never strands one', () => {
+    const html = render({ title: 'Ratings', breadcrumbs: trail })
+
+    // The first crumb leads nothing; every later one opens with its chevron, inside its own item.
+    expect(html.match(/data-slot="breadcrumb-separator"/gu) ?? []).toHaveLength(2)
+    expect(
+      html.match(
+        /<li[^>]*data-slot="breadcrumb-item"[^>]*><span[^>]*data-slot="breadcrumb-separator"/gu,
+      ) ?? [],
+    ).toHaveLength(2)
+    expect(html).not.toMatch(/<li[^>]*data-slot="breadcrumb-separator"/u)
+    expect(html).toMatch(
+      /<li[^>]*data-slot="breadcrumb-item"[^>]*><a[^>]*href="\/properties"/u,
+    )
+  })
+
   it('has no back link of its own: the way up is the trail', () => {
     // @ts-expect-error `backTo` is gone: a page that has breadcrumbs goes up through them.
     const html = render({ title: 'Ratings', breadcrumbs: trail, backTo: { to: '/' } })

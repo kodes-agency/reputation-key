@@ -106,8 +106,8 @@ function Surface() {
               </a>
             </BreadcrumbLink>
           </BreadcrumbItem>
-          <BreadcrumbSeparator />
           <BreadcrumbItem>
+            <BreadcrumbSeparator />
             <BreadcrumbPage>Harbour View</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
