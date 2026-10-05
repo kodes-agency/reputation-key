@@ -21,3 +21,10 @@ Root-indexed multi-context: root `CONTEXT.md` is the map — read it first, then
 follow its Layer guides and Bounded contexts tables to the relevant nested
 `CONTEXT.md`. ADRs are system-wide in `docs/adr/`, navigated via its `README.md`.
 See `docs/agents/domain.md`.
+
+## UI
+
+Before adding UI, find the family in the "Pattern index" of
+`src/components/CONTEXT.md` and use its canonical component. When that lacks
+something you need, extend the primitive with a variant rather than overriding it
+with `className`.
