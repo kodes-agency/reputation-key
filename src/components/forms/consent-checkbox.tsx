@@ -1,0 +1,82 @@
+// The checkbox of a statement the person agrees to or confirms (UI consistency scan:
+// FORM-11): "I have read this notice and agree...", "I have checked these details",
+// "This property owns this photo...", "Select all current portals". One frame, so the
+// same sentence looks the same on the settings page, in the setup wizard and in an
+// import: a Field holding the checkbox beside its sentence, a line of help under the
+// sentence and the refusal under that. A setting that is simply on or off is a
+// `SettingSwitchRow`, and a list of things to choose from keeps plain `Checkbox` rows.
+import type { ReactNode } from 'react'
+import { Checkbox } from '#/components/ui/checkbox'
+import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field'
+import { cn } from '#/lib/utils'
+
+type Props = Readonly<{
+  id: string
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
+  /** The sentence the person agrees to or confirms: the checkbox's name. */
+  children: ReactNode
+  /** A line under the sentence: what recording the answer means. */
+  description?: ReactNode
+  /** Why the box has to be ticked, once the person has tried to go on without it. */
+  error?: ReactNode
+  disabled?: boolean
+  name?: string
+  onBlur?: () => void
+  className?: string
+}>
+
+/** The id the help line takes, which the checkbox names in `aria-describedby`. */
+const descriptionIdOf = (id: string) => `${id}-description`
+const errorIdOf = (id: string) => `${id}-error`
+
+export function ConsentCheckbox({
+  id,
+  checked,
+  onCheckedChange,
+  children,
+  description,
+  error,
+  disabled = false,
+  name,
+  onBlur,
+  className,
+}: Props) {
+  const invalid = Boolean(error)
+  const describedBy = [
+    description ? descriptionIdOf(id) : null,
+    invalid ? errorIdOf(id) : null,
+  ]
+    .filter((part) => part !== null)
+    .join(' ')
+  return (
+    <Field
+      data-slot="consent-checkbox"
+      orientation="horizontal"
+      data-invalid={invalid}
+      data-disabled={disabled}
+      className={cn('items-start rounded-lg border p-4', className)}
+    >
+      <Checkbox
+        id={id}
+        name={name}
+        checked={checked}
+        disabled={disabled}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy || undefined}
+        className="mt-0.5"
+        onBlur={onBlur}
+        onCheckedChange={(next) => onCheckedChange(next === true)}
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <FieldLabel htmlFor={id} className="min-w-0">
+          {children}
+        </FieldLabel>
+        {description ? (
+          <FieldDescription id={descriptionIdOf(id)}>{description}</FieldDescription>
+        ) : null}
+        {invalid ? <FieldError id={errorIdOf(id)}>{error}</FieldError> : null}
+      </div>
+    </Field>
+  )
+}
