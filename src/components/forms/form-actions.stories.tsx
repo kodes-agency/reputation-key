@@ -79,6 +79,43 @@ function Page({ initial = 'Harborline Suites' }: Readonly<{ initial?: string }>)
   )
 }
 
+/**
+ * A Card whose footer holds the row and no field of its own, outside any form (the AI
+ * access card): the field the row hands the focus to is in the card's body. `withField`
+ * false is the card with nothing to focus but the row's own buttons.
+ */
+function FooterGroup({ withField }: Readonly<{ withField: boolean }>) {
+  const [chosen, setChosen] = useState(true)
+  const dirty = !chosen
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Feature access</CardTitle>
+      </CardHeader>
+      {withField ? (
+        <CardContent>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={chosen}
+              onCheckedChange={(next) => setChosen(next === true)}
+            />
+            Review analysis
+          </label>
+        </CardContent>
+      ) : null}
+      <CardFooter>
+        <FormActions
+          dirty={withField ? dirty : true}
+          onReset={() => setChosen(true)}
+          leading={<Button variant="outline">Turn off</Button>}
+        >
+          <Button disabled>Save feature access</Button>
+        </FormActions>
+      </CardFooter>
+    </Card>
+  )
+}
+
 const meta: Meta<typeof FormActions> = {
   title: 'Patterns/Form actions',
   component: FormActions,
@@ -260,4 +297,36 @@ export const OfAGroupThatKeepsItsOwnState: Story = {
 export const OfAGroupThatKeepsItsOwnStateLight: Story = {
   ...OfAGroupThatKeepsItsOwnState,
   parameters: { theme: 'light' },
+}
+
+/** A row in a Card footer, outside any form: Reset hands the focus to the card's first control, not to the page. */
+export const ResetInACardFooterKeepsTheFocus: Story = {
+  render: () => <FooterGroup withField />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const review = canvas.getByRole('checkbox', { name: 'Review analysis' })
+
+    await userEvent.click(review)
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+
+    expect(review).toBeChecked()
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull(),
+    )
+    expect(review).toHaveFocus()
+  },
+}
+
+/** No field anywhere around the row: the focus goes to another button of the row, and never to the page. */
+export const ResetWithNoFieldHandsTheFocusToTheRow: Story = {
+  render: () => <FooterGroup withField={false} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+
+    await waitFor(() =>
+      expect(canvas.getByRole('button', { name: 'Turn off' })).toHaveFocus(),
+    )
+  },
 }

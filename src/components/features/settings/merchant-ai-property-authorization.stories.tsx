@@ -274,6 +274,10 @@ export const EnabledResetPutsTheSavedChoiceBack: Story = {
     await waitFor(() =>
       expect(canvas.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument(),
     )
+    // The footer that holds Reset has no form and no field of its own: the focus goes to
+    // the first control of the card, not to the page.
+    const [firstCapability] = CAPABILITY_LABELS
+    await expect(canvas.getByRole('checkbox', { name: firstCapability })).toHaveFocus()
   },
 }
 

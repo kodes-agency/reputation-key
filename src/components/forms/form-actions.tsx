@@ -18,6 +18,12 @@
 // - `dirty` and `onReset`, for a group that keeps its own state (the responsible
 //   managers' selection, the quiet hours). No `onReset` means nothing to put back
 //   (a create form): the row is then just the right-aligned primary.
+//
+// Reset leaves with the edits, so it hands the focus on: to the first control of the
+// group (the enclosing form, else the row's parent), else to the first control of the
+// Card or section the row sits in (the AI card's footer holds no field of its own), else
+// to another button of the row, else to the row itself. The focus is never left to fall
+// to the page.
 import { useRef, useState, type ReactNode } from 'react'
 import { useStore, type AnyFormApi } from '@tanstack/react-form'
 import { Button } from '#/components/ui/button'
@@ -47,6 +53,9 @@ type OfState = Shared &
 
 export type FormActionsProps = OfForm | OfState
 
+/** The wider group a row whose own parent holds no field sits in. */
+const WIDER_GROUP = '[data-slot=card], section'
+
 /** The first control a person edits in a group, which Reset hands the focus to. */
 const FIRST_FIELD = [
   'input:not([type=hidden]):not([disabled])',
@@ -59,6 +68,22 @@ const FIRST_FIELD = [
   // value may be inherited (the Property's target).
   '[data-slot=inherited-setting] button:not([disabled])',
 ].join(',')
+
+/** Where the focus goes when `pressed` (the Reset button) leaves: see the header. */
+function handFocusOn(row: HTMLElement | null, pressed: HTMLElement) {
+  if (row === null) return
+  const own = row.closest('form') ?? row.parentElement
+  const wider = row.closest(WIDER_GROUP)
+  const otherButtons = [
+    ...row.querySelectorAll<HTMLElement>('button:not([disabled])'),
+  ].filter((button) => button !== pressed)
+  const target =
+    own?.querySelector<HTMLElement>(FIRST_FIELD) ??
+    wider?.querySelector<HTMLElement>(FIRST_FIELD) ??
+    otherButtons.at(-1) ??
+    row
+  target.focus()
+}
 
 export function FormActions(props: FormActionsProps) {
   return props.form === undefined ? (
@@ -102,19 +127,20 @@ function ActionsRow({
   const [discarded, setDiscarded] = useState<unknown>(null)
   const refusal = error === discarded ? null : error
 
-  const reset = () => {
+  const reset = (pressed: HTMLElement) => {
     onReset?.()
     setDiscarded(error)
     // The pressed button leaves with the edits: keep the focus in the group.
-    const group = root.current?.closest('form') ?? root.current?.parentElement
-    group?.querySelector<HTMLElement>(FIRST_FIELD)?.focus()
+    handFocusOn(root.current, pressed)
   }
 
   return (
     <div
       ref={root}
       data-slot="form-actions"
-      className={cn('flex w-full flex-col gap-4', className)}
+      // The last place Reset can hand the focus to; not a tab stop.
+      tabIndex={-1}
+      className={cn('flex w-full flex-col gap-4 outline-none', className)}
     >
       <FormErrorBanner error={refusal} />
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -124,7 +150,12 @@ function ActionsRow({
           </div>
         ) : null}
         {dirty && onReset ? (
-          <Button type="button" variant="outline" disabled={pending} onClick={reset}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={(event) => reset(event.currentTarget)}
+          >
             Reset
           </Button>
         ) : null}

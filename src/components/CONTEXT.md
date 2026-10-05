@@ -235,9 +235,11 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   must remount it (key the component on the saved values): TanStack keeps a
   touched form's dirtiness from before its defaults moved, so a form that is not
   remounted stays "dirty" after a save. Reset hands the focus to the group's first
-  field (its own button leaves with the edits) and drops the refusal of the save
-  it discarded. Save is not gated on dirty: a group whose empty or default values
-  are a valid save (the reply profile) stays savable. `form-actions-sources.test.ts`
+  field (its own button leaves with the edits; a row in a Card footer outside a form
+  looks in the Card, and with no field at all the focus goes to another button of the
+  row, never to the page) and drops the refusal of the save it discarded. Save is not
+  gated on dirty: a group whose empty or default values are a valid save (the reply
+  profile) stays savable. `form-actions-sources.test.ts`
   fails on a Cancel `Link` in a settings group, a `SubmitButton` outside a
   `FormActions` row or a `DialogFooter`, and a hand-spelled Reset.
   A choice is drawn by the shared controls, never a native one. One of a few named
