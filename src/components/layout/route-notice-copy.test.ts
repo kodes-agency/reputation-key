@@ -46,12 +46,12 @@ describe('a role that cannot open the page', () => {
   it('reads a subject that is not a noun as the sentence’s object', () => {
     const copy = noticeProps({
       cause: 'role',
-      title: 'New Goal',
+      title: 'New goal',
       subject: 'this page',
       back: { to: '/properties/p1/goals', label: 'Back to goals' },
     })
     expect(copy.heading).toBe('You do not have access to this page')
-    expect(copy.title).toBe('New Goal')
+    expect(copy.title).toBe('New goal')
     expect(copy.back).toEqual({ to: '/properties/p1/goals', label: 'Back to goals' })
   })
 })

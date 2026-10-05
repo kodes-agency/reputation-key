@@ -120,6 +120,22 @@ describe('PageHeader breadcrumbs', () => {
     expect(html).toMatch(/aria-current="page"[^>]*>Ratings</u)
   })
 
+  it('never marks a crumb above the page as the page, linked or not', () => {
+    // A trail built before the Property is known has a place with no address.
+    const html = render({
+      title: 'Ratings',
+      breadcrumbs: [
+        { label: 'Properties', to: '/properties' },
+        { label: 'Portals' },
+        { label: 'Ratings' },
+      ],
+    })
+
+    expect(html.match(/aria-current="page"/gu) ?? []).toHaveLength(1)
+    expect(html).toMatch(/aria-current="page"[^>]*>Ratings</u)
+    expect(html).toMatch(/<span[^>]*>Portals<\/span>/u)
+  })
+
   it('has no back link of its own: the way up is the trail', () => {
     // @ts-expect-error `backTo` is gone: a page that has breadcrumbs goes up through them.
     const html = render({ title: 'Ratings', breadcrumbs: trail, backTo: { to: '/' } })

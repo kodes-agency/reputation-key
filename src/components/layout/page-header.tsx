@@ -57,12 +57,15 @@ export function PageHeader({
               return (
                 <Fragment key={i}>
                   <BreadcrumbItem>
-                    {last || !c.to ? (
+                    {last ? (
                       <BreadcrumbPage>{c.label}</BreadcrumbPage>
-                    ) : (
+                    ) : c.to ? (
                       <BreadcrumbLink asChild>
                         <Link to={c.to as never}>{c.label}</Link>
                       </BreadcrumbLink>
+                    ) : (
+                      // A place with no address yet is not the page: no link, no current mark.
+                      <span>{c.label}</span>
                     )}
                   </BreadcrumbItem>
                   {!last && <BreadcrumbSeparator />}

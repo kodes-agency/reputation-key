@@ -29,7 +29,7 @@ describe('roleUnavailable', () => {
     const plain = roleUnavailable('People', 'properties') as { data: object }
     expect(plain.data).not.toHaveProperty('subject')
     const named = roleUnavailable(
-      'New Goal',
+      'New goal',
       { to: '/g', label: 'Back to goals' },
       'this page',
     )

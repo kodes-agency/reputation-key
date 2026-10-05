@@ -109,11 +109,11 @@ describe('resolveCrumbs', () => {
       { label: 'Portals', to: '/properties/p1/portals' },
       { label: 'Property look' },
     ])
-    expect(resolveCrumbs({ title: 'New Goal', under: 'goals' }, where)).toEqual([
+    expect(resolveCrumbs({ title: 'New goal', under: 'goals' }, where)).toEqual([
       { label: 'Properties', to: '/properties' },
       { label: 'Hotel Elegance', to: '/properties/p1' },
       { label: 'Goals', to: '/properties/p1/goals' },
-      { label: 'New Goal' },
+      { label: 'New goal' },
     ])
   })
 
