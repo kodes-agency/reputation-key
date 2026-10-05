@@ -17,7 +17,17 @@ const meta: Meta<typeof OrganizationSettingsForm> = {
   title: 'Organization/OrganizationSettingsForm',
   component: OrganizationSettingsForm,
   tags: ['autodocs'],
-  parameters: { layout: 'centered' },
+  // The form fills the width the page gives it, as it does in Settings, so the story
+  // gives it a column to fill: `centered` shrinks a Card to its content, a phone-wide
+  // sliver whose inputs cut their values off.
+  parameters: { layout: 'padded' },
+  decorators: [
+    (Story) => (
+      <div className="max-w-2xl">
+        <Story />
+      </div>
+    ),
+  ],
 }
 export default meta
 type Story = StoryObj<typeof OrganizationSettingsForm>

@@ -22,7 +22,12 @@ const levels = (canvasElement: HTMLElement) =>
     .getAllByRole('heading')
     .map((heading) => [Number(heading.tagName.slice(1)), heading.textContent])
 
-/** A settings page: the page's h1, a Card titled as an h2, a section that is not a Card. */
+/**
+ * A settings page: the page's h1, a Card titled as an h2, sections that are not a Card.
+ * The spacing is the pages': a title sits close to what it names (`space-y-3`, or
+ * `mb-3`), and one section stands apart from the next by more (`space-y-6` inside a
+ * Card, `gap-8` between a page's sections), so a title is never glued to the block above.
+ */
 export const Outline: Story = {
   render: () => (
     <div className="flex max-w-2xl flex-col gap-6">
@@ -32,19 +37,27 @@ export const Outline: Story = {
           <CardTitle as="h2">Quiet hours</CardTitle>
           <CardDescription>Email waits until quiet hours are over.</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <SectionTitle level={3}>Your quiet hours</SectionTitle>
-          <p className="text-sm text-muted-foreground">22:00 to 07:00</p>
-          <SectionTitle level={3}>Harborline Suites</SectionTitle>
-          <p className="text-sm text-muted-foreground">Follows your quiet hours</p>
+        <CardContent className="space-y-6">
+          <section className="space-y-3">
+            <SectionTitle level={3}>Your quiet hours</SectionTitle>
+            <p className="text-sm text-muted-foreground">22:00 to 07:00</p>
+          </section>
+          <section className="space-y-3 border-t pt-5">
+            <SectionTitle level={3}>Harborline Suites</SectionTitle>
+            <p className="text-sm text-muted-foreground">Follows your quiet hours</p>
+          </section>
         </CardContent>
       </Card>
-      <section className="flex flex-col gap-2">
-        <SectionTitle>Members</SectionTitle>
-        <p className="text-sm text-muted-foreground">Everyone with access.</p>
-        <SectionTitle>Pending invitations</SectionTitle>
-        <p className="text-sm text-muted-foreground">Two people have not joined yet.</p>
-      </section>
+      <div className="flex flex-col gap-8">
+        <section className="space-y-3">
+          <SectionTitle>Members</SectionTitle>
+          <p className="text-sm text-muted-foreground">Everyone with access.</p>
+        </section>
+        <section className="space-y-3">
+          <SectionTitle>Pending invitations</SectionTitle>
+          <p className="text-sm text-muted-foreground">Two people have not joined yet.</p>
+        </section>
+      </div>
     </div>
   ),
   play: ({ canvasElement }) => {

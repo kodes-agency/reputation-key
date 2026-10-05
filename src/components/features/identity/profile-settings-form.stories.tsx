@@ -30,7 +30,16 @@ const meta: Meta<typeof ProfileSettingsForm> = {
   title: 'Identity/ProfileSettingsForm',
   component: ProfileSettingsForm,
   tags: ['autodocs'],
-  parameters: { layout: 'centered' },
+  // The form fills the width the page gives it, so the story gives it a column to fill
+  // (`centered` shrinks its Cards to their content).
+  parameters: { layout: 'padded' },
+  decorators: [
+    (Story) => (
+      <div className="max-w-2xl">
+        <Story />
+      </div>
+    ),
+  ],
 }
 export default meta
 type Story = StoryObj<typeof ProfileSettingsForm>
