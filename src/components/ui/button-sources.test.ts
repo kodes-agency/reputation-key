@@ -9,32 +9,10 @@
 // hand-placed spinner or a new icon-only Button fails here with the file named
 // instead of drifting back.
 
-import { readdirSync, readFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { readUiSources } from '#/shared/testing/source-tree'
 
-const ROOT = join(import.meta.dirname, '..', '..', '..')
-const SOURCES = ['src/components', 'src/routes'] as const
-
-function walk(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name)
-    if (entry.isDirectory()) return walk(path)
-    return /\.tsx?$/u.test(entry.name) && !/\.(stories|test)\./u.test(entry.name)
-      ? [path]
-      : []
-  })
-}
-
-/** The source without its comments, which are free to quote the old spellings. */
-function code(text: string): string {
-  return text.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/(^|\s)\/\/.*$/gmu, '$1')
-}
-
-const FILES = SOURCES.flatMap((source) => walk(join(ROOT, source))).map((path) => ({
-  path: relative(ROOT, path),
-  text: code(readFileSync(path, 'utf8')),
-}))
+const FILES = readUiSources({ includeTs: true })
 
 type SourceFile = (typeof FILES)[number]
 
@@ -114,6 +92,8 @@ describe('the touch token is the primitives', () => {
   const TOKEN_ALLOWED: Readonly<Record<string, string>> = {
     'src/components/inbox/inbox-property-select.tsx':
       "the list header's scope line is a text trigger, not a Button; it sizes itself from the token",
+    'src/components/forms/setting-switch-row.tsx':
+      'the row is the primitive that makes a Switch a tap target below md: the control itself is 18px tall',
   }
 
   it('is `touch` or `iconBelow` on a Button, not `--control-touch` in a class', () => {

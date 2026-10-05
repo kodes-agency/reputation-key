@@ -1,3 +1,4 @@
+import type { Crumb } from '#/components/layout/page-header'
 import type { Permission } from '#/shared/domain/permissions'
 
 export type PropertySettingsSectionKey =
@@ -77,4 +78,40 @@ export function activePropertySettingsSection(
   return PROPERTY_SETTINGS_SECTIONS.some((section) => section.key === key)
     ? (key as PropertySettingsSectionKey)
     : null
+}
+
+/**
+ * The hub's page header, named for the section that is open: its title is the section
+ * and the breadcrumb ends on it, under Settings, which links back to the hub. A page
+ * that sits in a nav names itself, so a slow or failed navigation never leaves it
+ * untitled and a screen reader hears where it is.
+ */
+export function propertySettingsHeader({
+  propertyId,
+  propertyName,
+  active,
+}: Readonly<{
+  propertyId: string
+  propertyName: string
+  active: PropertySettingsSectionKey | null
+}>): Readonly<{ title: string; breadcrumbs: readonly Crumb[] }> {
+  const section = PROPERTY_SETTINGS_SECTIONS.find((candidate) => candidate.key === active)
+  const parents: readonly Crumb[] = [
+    { label: 'Properties', to: '/properties' },
+    { label: propertyName, to: `/properties/${propertyId}` },
+  ]
+  if (!section) {
+    return {
+      title: 'Property settings',
+      breadcrumbs: [...parents, { label: 'Settings' }],
+    }
+  }
+  return {
+    title: section.label,
+    breadcrumbs: [
+      ...parents,
+      { label: 'Settings', to: `/properties/${propertyId}/settings` },
+      { label: section.label },
+    ],
+  }
 }

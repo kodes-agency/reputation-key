@@ -15,13 +15,14 @@ import { goalKeys } from '#/shared/queries/query-keys'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
-import { Field, FieldError, FieldLabel } from '#/components/ui/field'
+import { FormFieldFrame } from '#/components/forms/form-field-frame'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { goalRevisionReceipt, type GoalVersionStart } from './goal-revision-start'
 import { GoalProgramFormDialog } from './goal-program-form-dialog'
 import { GoalChangeReasonField, GoalSubjectsField } from './goal-program-fields'
+import { GoalMetricField } from './goal-metric-field'
 
 type GoalProgramRevisionDialogProps = Readonly<{
   reviseGoalProgramFn: typeof reviseGoalProgram
@@ -37,12 +38,6 @@ type GoalProgramRevisionDialogProps = Readonly<{
   }>[]
   portals: readonly Readonly<{ id: string; name: string }>[]
 }>
-
-const METRICS: readonly Readonly<{ id: GoalMetric; label: string }>[] = [
-  { id: 'qualified_scans', label: 'Qualified scans' },
-  { id: 'portal_rating_count', label: 'Private rating count' },
-  { id: 'portal_rating_average', label: 'Private rating average' },
-]
 
 export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps) {
   const [open, setOpen] = useState(false)
@@ -95,31 +90,16 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <form.Field name="metric">
-          {(field) => (
-            <Field data-invalid={!field.state.meta.isValid}>
-              <FieldLabel htmlFor="revision-metric">Metric</FieldLabel>
-              <select
-                id="revision-metric"
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.value as GoalMetric)}
-                aria-invalid={!field.state.meta.isValid}
-              >
-                {METRICS.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.label}
-                  </option>
-                ))}
-              </select>
-              <FieldError errors={field.state.meta.errors} />
-            </Field>
-          )}
+          {(field) => <GoalMetricField id="revision-metric" field={field} />}
         </form.Field>
         <form.Field name="targetValue">
           {(field) => (
-            <Field data-invalid={!field.state.meta.isValid}>
-              <FieldLabel htmlFor="revision-target">Monthly target</FieldLabel>
+            <FormFieldFrame
+              id="revision-target"
+              label="Monthly target"
+              invalid={!field.state.meta.isValid}
+              errors={field.state.meta.errors}
+            >
               <Input
                 id="revision-target"
                 type="number"
@@ -131,8 +111,7 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
                 onChange={(event) => field.handleChange(Number(event.target.value))}
                 aria-invalid={!field.state.meta.isValid}
               />
-              <FieldError errors={field.state.meta.errors} />
-            </Field>
+            </FormFieldFrame>
           )}
         </form.Field>
       </div>

@@ -70,6 +70,30 @@ export const WideTerms: Story = {
   },
 }
 
+/** Among form fields the term sits over its value at every width, like a field's label. */
+export const Stacked: Story = {
+  args: { stacked: true, 'aria-label': 'Account' },
+  render: (args) => (
+    <DescriptionList {...args}>
+      <DescriptionItem term="Email">anna@harborline.example</DescriptionItem>
+      <DescriptionItem term="Address" note="From Google">
+        12 Harbour Road, Varna 9000, Bulgaria
+      </DescriptionItem>
+    </DescriptionList>
+  ),
+  play: ({ canvasElement }) => {
+    const row = canvasElement.querySelector('dl > div')
+    expect(row?.className).not.toContain('sm:grid-cols')
+    expect(within(canvasElement).getByText('Email').tagName).toBe('DT')
+    expect(within(canvasElement).getByText('From Google')).toBeInTheDocument()
+  },
+}
+
+export const StackedLight: Story = {
+  ...Stacked,
+  parameters: { theme: 'light' },
+}
+
 /** The language of a value that is not the page's is marked on the value. */
 export const MarksTheLanguage: Story = {
   play: ({ canvasElement }) => {

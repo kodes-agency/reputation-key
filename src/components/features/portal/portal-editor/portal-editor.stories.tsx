@@ -583,9 +583,11 @@ export const PrivateNoteThreshold: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await userEvent.selectOptions(
-      canvas.getByLabelText(/private feedback threshold/i),
-      '2',
+    await userEvent.click(
+      canvas.getByRole('combobox', { name: /private feedback threshold/i }),
+    )
+    await userEvent.click(
+      await within(document.body).findByRole('option', { name: '2 stars or lower' }),
     )
     await waitFor(
       () =>

@@ -9,9 +9,8 @@
 
 import { useRef, useState, type ChangeEvent } from 'react'
 import { Button } from '#/components/ui/button'
-import { Checkbox } from '#/components/ui/checkbox'
+import { ConsentCheckbox } from '#/components/forms/consent-checkbox'
 import { DialogDescription, DialogHeader, DialogTitle } from '#/components/ui/dialog'
-import { Field, FieldLabel } from '#/components/ui/field'
 import {
   PORTAL_IMAGE_ACCEPT,
   describePortalImageFile,
@@ -152,17 +151,14 @@ function PhotoDialogBody({
             {file ? describePortalImageFile(file) : 'JPEG, PNG or WebP, up to 10 MB.'}
           </p>
         </div>
-        <Field orientation="horizontal">
-          <Checkbox
-            id="linktree-photo-rights"
-            checked={confirmed}
-            disabled={isUploading}
-            onCheckedChange={(next) => setConfirmed(next === true)}
-          />
-          <FieldLabel htmlFor="linktree-photo-rights" className="font-normal">
-            This property owns this photo or has permission to use it.
-          </FieldLabel>
-        </Field>
+        <ConsentCheckbox
+          id="linktree-photo-rights"
+          checked={confirmed}
+          disabled={isUploading}
+          onCheckedChange={setConfirmed}
+        >
+          This property owns this photo or has permission to use it.
+        </ConsentCheckbox>
       </div>
       <FormErrorBanner error={message} />
       <UploadDialogFooter

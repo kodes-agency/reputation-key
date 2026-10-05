@@ -1,10 +1,10 @@
 // The form fields every Goal Program change asks for: which subjects the goal
 // covers, and why it changes. Each takes the `field` its `form.Field` renders.
 
-import type { ComponentProps } from 'react'
+import { useId, type ComponentProps } from 'react'
 import type { GoalSubject } from '#/contexts/reporting/application/public-api'
-import { Field, FieldError, FieldLabel } from '#/components/ui/field'
-import { Input } from '#/components/ui/input'
+import { Field, FieldError } from '#/components/ui/field'
+import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import {
   GoalSubjectPicker,
   goalSubjectKey,
@@ -22,12 +22,6 @@ type SubjectsFieldApi = Readonly<{
   handleChange: (subjects: GoalSubject[]) => void
 }>
 
-type ReasonFieldApi = Readonly<{
-  state: Readonly<{ value: string; meta: FieldMeta }>
-  handleBlur: () => void
-  handleChange: (reason: string) => void
-}>
-
 export function GoalSubjectsField({
   field,
   property,
@@ -35,8 +29,13 @@ export function GoalSubjectsField({
   portals,
 }: Pick<ComponentProps<typeof GoalSubjectPicker>, 'property' | 'groups' | 'portals'> &
   Readonly<{ field: SubjectsFieldApi }>) {
+  const labelId = useId()
   return (
-    <Field data-invalid={!field.state.meta.isValid}>
+    <Field data-invalid={!field.state.meta.isValid} aria-labelledby={labelId}>
+      {/* The group's name: the rule under it is help for these choices, not for the field above. */}
+      <span id={labelId} className="text-sm leading-none font-medium">
+        Subjects
+      </span>
       <GoalSubjectPicker
         property={property}
         groups={groups}
@@ -54,19 +53,8 @@ export function GoalSubjectsField({
 export function GoalChangeReasonField({
   field,
   id,
-}: Readonly<{ field: ReasonFieldApi; id: string }>) {
+}: Readonly<{ field: BaseFieldApi; id: string }>) {
   return (
-    <Field data-invalid={!field.state.meta.isValid}>
-      <FieldLabel htmlFor={id}>Reason for the change</FieldLabel>
-      <Input
-        id={id}
-        value={field.state.value}
-        onBlur={field.handleBlur}
-        onChange={(event) => field.handleChange(event.target.value)}
-        aria-invalid={!field.state.meta.isValid}
-        maxLength={500}
-      />
-      <FieldError errors={field.state.meta.errors} />
-    </Field>
+    <FormTextField field={field} id={id} label="Reason for the change" maxLength={500} />
   )
 }

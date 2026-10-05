@@ -17,7 +17,17 @@ const meta: Meta<typeof OrganizationSettingsForm> = {
   title: 'Organization/OrganizationSettingsForm',
   component: OrganizationSettingsForm,
   tags: ['autodocs'],
-  parameters: { layout: 'centered' },
+  // The form fills the width the page gives it, as it does in Settings, so the story
+  // gives it a column to fill: `centered` shrinks a Card to its content, a phone-wide
+  // sliver whose inputs cut their values off.
+  parameters: { layout: 'padded' },
+  decorators: [
+    (Story) => (
+      <div className="max-w-2xl">
+        <Story />
+      </div>
+    ),
+  ],
 }
 export default meta
 type Story = StoryObj<typeof OrganizationSettingsForm>
@@ -62,5 +72,26 @@ export const WithError: Story = {
   args: {
     ...Default.args,
     error: new Error('Slug is already taken by another organization.'),
+  },
+}
+
+// The actions are in the identity card, Reset puts the saved identity back, and
+// there is no Cancel link to Profile.
+export const ResetRestoresTheSavedIdentity: Story = {
+  args: { ...Default.args },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('link', { name: 'Cancel' })).not.toBeInTheDocument()
+    expect(canvas.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument()
+    const name = canvas.getByLabelText(/^name$/i)
+    await userEvent.type(name, ' Group')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    expect(name).toHaveValue('Acme Hotels')
+    const save = canvas.getByRole('button', { name: /save changes/i })
+    expect(save.closest('[data-slot="card-footer"]')).not.toBeNull()
+    // The contact email may be left empty, and says so.
+    expect(canvas.getByLabelText(/contact email/i)).toHaveAccessibleName(
+      'Contact email Optional',
+    )
   },
 }

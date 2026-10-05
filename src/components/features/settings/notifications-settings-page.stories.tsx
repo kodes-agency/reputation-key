@@ -242,7 +242,8 @@ export const GoalEmailIsDailyOnly: Story = {
 export const TitleColumnKeepsItsWidth: Story = {
   play: async ({ canvasElement }) => {
     const fieldset = canvasElement.querySelector('fieldset')
-    const heading = fieldset?.querySelector('[role="heading"]')
+    // The row's title is a real h3 now (it was a div with role="heading").
+    const heading = fieldset?.querySelector('h3')
     const description = fieldset?.querySelector('p')
     if (!(heading instanceof HTMLElement) || !(description instanceof HTMLElement)) {
       throw new Error('category row is missing its heading or description')
@@ -414,6 +415,47 @@ export const QuietHoursNeedTwoDifferentTimes: Story = {
   },
 }
 
+/** Reset puts the saved window back, and shows only once a time was edited. */
+export const QuietHoursResetPutsTheSavedWindowBack: Story = {
+  args: {
+    userSettings: { ...userSettings, quietHoursStart: '22:00', quietHoursEnd: '07:00' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const from = canvas.getByLabelText('Your quiet hours: Quiet from')
+    expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
+    await userEvent.clear(from)
+    await userEvent.type(from, '23:30')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    expect(from).toHaveValue('22:00')
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull(),
+    )
+  },
+}
+
+/**
+ * A Save is a form submit, so its refusal is the banner above the editor's
+ * actions and not also a toast.
+ */
+export const QuietHoursRefusalIsABannerNotAToast: Story = {
+  args: { updateQuietHours: asAction(async () => Promise.reject(new Error('refused'))) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText('Your quiet hours: Quiet from'), '22:00')
+    await userEvent.type(
+      canvas.getByLabelText('Your quiet hours: quiet hours until'),
+      '07:00',
+    )
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Save quiet hours for Your quiet hours' }),
+    )
+
+    expect(await canvas.findByText('Unable to complete this action')).toBeVisible()
+    expect(within(document.body).queryByText(/Couldn.t update quiet hours/)).toBeNull()
+  },
+}
+
 const override: NotificationPropertyDeliveryWindow = {
   propertyId: PROPERTY_ID,
   userId: 'user-story',
@@ -446,6 +488,71 @@ export const OnePropertyCanOverrideTheWindow: Story = {
     expect(updateQuietHoursMock).toHaveBeenCalledWith({
       data: { propertyId: PROPERTY_ID, follow: true },
     })
+  },
+}
+
+/**
+ * Following the Property again is saved before the row stops showing the override: a
+ * refusal leaves the override where it was, with its own times, and says so in a toast
+ * (it used to flip to "follows" and show a state the server never stored).
+ */
+export const FollowingAgainIsKeptWhenTheSaveFails: Story = {
+  args: {
+    userSettings: { ...userSettings, quietHoursStart: '22:00', quietHoursEnd: '07:00' },
+    propertyWindows: [override],
+    updateQuietHours: asAction(async () => Promise.reject(new Error('refused'))),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const property = properties[0]!.name
+    const section = within(canvas.getByRole('region', { name: property }))
+    expect(section.getByText(/Set here instead of/)).toBeVisible()
+
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Follow my quiet hours here' }),
+    )
+
+    await expectToast("Couldn't update quiet hours. Try again.")
+    // Still the Property's own answer, with its own times.
+    expect(canvas.getByLabelText(`${property}: Quiet from`)).toHaveValue('00:00')
+    expect(
+      canvas.getByRole('button', { name: 'Follow my quiet hours here' }),
+    ).toBeEnabled()
+    expect(canvas.queryByRole('button', { name: 'Use different hours here' })).toBeNull()
+  },
+}
+
+/** The row says what the Property follows, and what the person's quiet hours are, with a way to them. */
+export const TheQuietHoursRowNamesWhatItFollows: Story = {
+  args: {
+    userSettings: { ...userSettings, quietHoursStart: '22:00', quietHoursEnd: '07:00' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const section = within(canvas.getByRole('region', { name: properties[0]!.name }))
+    const status = section.getByText(/^Follows /)
+
+    expect(status).toHaveTextContent(
+      'Follows your quiet hours, currently 22:00 to 07:00.',
+    )
+    expect(
+      within(status).getByRole('link', { name: 'your quiet hours' }),
+    ).toHaveAttribute('href', expect.stringContaining('#quiet-hours-personal'))
+    expect(section.getByText('The daily digest always does.')).toBeVisible()
+  },
+}
+
+/** A category row says whether the Property follows the person's default or has its own setting. */
+export const EachCategoryRowSaysWhoseSettingItIs: Story = {
+  play: ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const actionNeeded = within(canvas.getByRole('group', { name: 'Action needed' }))
+    const workflow = within(
+      canvas.getByRole('group', { name: 'Workflow and collaboration' }),
+    )
+
+    expect(actionNeeded.getByText('Follows your default.')).toBeVisible()
+    expect(workflow.getByText('Set here instead of your default.')).toBeVisible()
   },
 }
 

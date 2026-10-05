@@ -9,7 +9,9 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
-import { Button } from '#/components/ui/button'
+import { InheritedSetting } from '#/components/forms/inherited-setting'
+import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
+import { SectionTitle } from '#/components/ui/section-title'
 import {
   Card,
   CardContent,
@@ -17,8 +19,6 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import { Label } from '#/components/ui/label'
-import { Switch } from '#/components/ui/switch'
 import type {
   EffectiveNotificationSettings,
   PersonalDeliveryWindow,
@@ -48,30 +48,41 @@ type Props = Readonly<{
   updateQuietHours: Action<QuietHoursUpdate, EffectiveNotificationSettings>
 }>
 
+/** A window in words, for the setting that follows it: "22:00 to 07:00", or no window at all. */
+const quietHoursWords = (start: string | null, end: string | null): string =>
+  start !== null && end !== null ? `${start} to ${end}` : 'no quiet hours'
+
+/** The bypass saves as it is flipped: it says so while the request runs. */
 function UrgentBypassSwitch({
   id,
   checked,
   disabled,
-  label,
+  accessibleName,
   onChange,
 }: Readonly<{
   id: string
   checked: boolean
+  /** Another quiet-hours save is running. */
   disabled: boolean
-  label: string
-  onChange: (value: boolean) => void
+  accessibleName?: string
+  /** Saves and reports its own refusal (a toast): it resolves `false` for one, and never rejects. */
+  onChange: (value: boolean) => Promise<unknown>
 }>) {
+  const [saving, setSaving] = useState(false)
   return (
-    <Label className="flex items-center gap-2">
-      <Switch
-        id={id}
-        checked={checked}
-        disabled={disabled}
-        aria-label={label}
-        onCheckedChange={onChange}
-      />
-      Let urgent email through anyway
-    </Label>
+    <SettingSwitchRow
+      id={id}
+      label="Let urgent email through anyway"
+      accessibleName={accessibleName}
+      commit="immediate"
+      pending={saving}
+      disabled={disabled}
+      checked={checked}
+      onCheckedChange={(value) => {
+        setSaving(true)
+        return onChange(value).finally(() => setSaving(false))
+      }}
+    />
   )
 }
 
@@ -84,20 +95,44 @@ export function NotificationQuietHoursCard({
 }: Props) {
   const pending = updateQuietHours.isPending
   const [overriding, setOverriding] = useState(override !== null)
+  const [following, setFollowing] = useState(false)
 
-  const save = async (data: QuietHoursUpdate['data'], done: string) => {
+  // A Save is a form submit: a refusal is the editor's banner, so it is rethrown
+  // to the editor. A switch or a button is an immediate action: its refusal is a
+  // toast.
+  const saveEditor = async (data: QuietHoursUpdate['data'], done: string) => {
+    await updateQuietHours({ data })
+    toast.success(done)
+  }
+  const save = async (data: QuietHoursUpdate['data'], done: string): Promise<boolean> => {
     try {
-      await updateQuietHours({ data })
-      toast.success(done)
+      await saveEditor(data, done)
+      return true
     } catch (error) {
       toast.error(actionFailureMessage("Couldn't update quiet hours.")(error))
+      return false
     }
+  }
+  // Following again saves the end of the override, and the row shows the override
+  // until that has been saved: a refusal leaves it where it was.
+  const followHere = async () => {
+    if (override === null) {
+      setOverriding(false)
+      return
+    }
+    setFollowing(true)
+    const saved = await save(
+      { propertyId: property.id, follow: true },
+      `${property.name} follows your quiet hours again`,
+    )
+    setFollowing(false)
+    if (saved) setOverriding(false)
   }
 
   return (
     <Card className="min-w-0">
       <CardHeader>
-        <CardTitle>Quiet hours</CardTitle>
+        <CardTitle as="h2">Quiet hours</CardTitle>
         <CardDescription>
           Email waits until quiet hours are over, at every property, on your own clock (
           {clockLabel}, set in{' '}
@@ -109,9 +144,9 @@ export function NotificationQuietHoursCard({
       </CardHeader>
       <CardContent className="space-y-6">
         <section aria-labelledby="quiet-hours-personal" className="space-y-3">
-          <h3 id="quiet-hours-personal" className="text-sm font-medium">
+          <SectionTitle level={3} id="quiet-hours-personal">
             Your quiet hours
-          </h3>
+          </SectionTitle>
           <QuietHoursEditor
             key={`personal:${settings.quietHoursStart}:${settings.quietHoursEnd}`}
             start={settings.quietHoursStart}
@@ -119,7 +154,7 @@ export function NotificationQuietHoursCard({
             categoryLabel="Your quiet hours"
             disabled={pending}
             onSave={(quietHoursStart, quietHoursEnd) =>
-              void save(
+              saveEditor(
                 {
                   quietHoursStart,
                   quietHoursEnd,
@@ -133,9 +168,8 @@ export function NotificationQuietHoursCard({
             id="quiet-hours-urgent-bypass"
             checked={settings.urgentBypassEnabled}
             disabled={pending}
-            label="Let urgent email through your quiet hours"
             onChange={(urgentBypassEnabled) =>
-              void save(
+              save(
                 {
                   quietHoursStart: settings.quietHoursStart,
                   quietHoursEnd: settings.quietHoursEnd,
@@ -151,9 +185,30 @@ export function NotificationQuietHoursCard({
           aria-labelledby="quiet-hours-property"
           className="space-y-3 border-t pt-5"
         >
-          <h3 id="quiet-hours-property" className="text-sm font-medium">
+          <SectionTitle level={3} id="quiet-hours-property">
             {property.name}
-          </h3>
+          </SectionTitle>
+          <InheritedSetting
+            source={
+              <InlineLink
+                to="/settings/notifications"
+                hash="quiet-hours-personal"
+                underline="always"
+              >
+                your quiet hours
+              </InlineLink>
+            }
+            value={quietHoursWords(settings.quietHoursStart, settings.quietHoursEnd)}
+            overridden={overriding}
+            commit="immediate"
+            pending={following}
+            disabled={pending}
+            overrideLabel="Use different hours here"
+            inheritLabel="Follow my quiet hours here"
+            onOverride={() => setOverriding(true)}
+            onInherit={() => void followHere()}
+            note={overriding ? undefined : 'The daily digest always does.'}
+          />
           {overriding ? (
             <>
               <QuietHoursEditor
@@ -163,7 +218,7 @@ export function NotificationQuietHoursCard({
                 categoryLabel={property.name}
                 disabled={pending}
                 onSave={(quietHoursStart, quietHoursEnd) =>
-                  void save(
+                  saveEditor(
                     {
                       propertyId: property.id,
                       quietHoursStart,
@@ -178,9 +233,9 @@ export function NotificationQuietHoursCard({
                 id="quiet-hours-property-urgent-bypass"
                 checked={override?.urgentBypassEnabled ?? false}
                 disabled={pending}
-                label={`Let urgent email through quiet hours at ${property.name}`}
+                accessibleName={`Let urgent email through anyway at ${property.name}`}
                 onChange={(urgentBypassEnabled) =>
-                  void save(
+                  save(
                     {
                       propertyId: property.id,
                       quietHoursStart: override?.quietHoursStart ?? null,
@@ -194,38 +249,8 @@ export function NotificationQuietHoursCard({
               <p className="text-sm text-muted-foreground">
                 Leave both times empty to send this property&apos;s email at any hour.
               </p>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={pending}
-                onClick={() => {
-                  setOverriding(false)
-                  if (override !== null) {
-                    void save(
-                      { propertyId: property.id, follow: true },
-                      `${property.name} follows your quiet hours again`,
-                    )
-                  }
-                }}
-              >
-                Follow my quiet hours here
-              </Button>
             </>
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Follows your quiet hours. The daily digest always does.
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pending}
-                onClick={() => setOverriding(true)}
-              >
-                Use different hours here
-              </Button>
-            </>
-          )}
+          ) : null}
         </section>
       </CardContent>
     </Card>

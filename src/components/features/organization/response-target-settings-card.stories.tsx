@@ -6,7 +6,7 @@
 // constraint validation stop the submit.
 import type { ComponentProps } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
 import { propertyId } from '#/shared/domain/ids'
 import { ResponseTargetSettingsCard } from './response-target-settings-card'
 
@@ -95,4 +95,64 @@ export const Cleared: Story = {
     await expect(hours).toHaveAttribute('aria-invalid', 'true')
     await expect(updatePolicy).not.toHaveBeenCalled()
   },
+}
+
+// Each target is a group of its own: Reset puts that group's saved hours back and
+// leaves the other group as it is.
+export const ResetRestoresTheSavedHours: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
+    const google = canvas.getByLabelText('Hours', {
+      selector: '#google_review_response-hours',
+    })
+    const feedback = canvas.getByLabelText('Hours', {
+      selector: '#private_feedback_handling-hours',
+    })
+    await userEvent.clear(feedback)
+    await userEvent.type(feedback, '48')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    await expect(feedback).toHaveValue(36)
+    await expect(google).toHaveValue(24)
+    // The actions end the group's panel, with the primary last.
+    const save = canvas.getAllByRole('button', { name: 'Save target' })[1]!
+    expect(save.closest('form')).toContainElement(feedback)
+  },
+}
+
+// "Answer low-rated reviews sooner" is one switch of the Google group (it saves with
+// the group's Save), and the rating it names is the shared rating-threshold select,
+// worded "3★ or lower", not a number box.
+export const LowRatingTargetIsASwitchAndARatingSelect: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    mocked(updatePolicy).mockClear()
+    const sooner = canvas.getByRole('switch', { name: 'Answer low-rated reviews sooner' })
+    expect(sooner).not.toBeChecked()
+    expect(canvas.queryByRole('combobox', { name: 'Low rating' })).toBeNull()
+
+    await userEvent.click(sooner)
+    const rating = await canvas.findByRole('combobox', { name: 'Low rating' })
+    expect(rating).toHaveTextContent('2 stars or lower')
+    await userEvent.click(rating)
+    await userEvent.click(
+      await within(document.body).findByRole('option', { name: '3 stars or lower' }),
+    )
+    expect(rating).toHaveTextContent('3 stars or lower')
+
+    await userEvent.click(canvas.getAllByRole('button', { name: 'Save target' })[0]!)
+    await waitFor(() => expect(updatePolicy).toHaveBeenCalledOnce())
+    expect(updatePolicy).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        scope: 'organization',
+        targetKind: 'google_review_response',
+        lowRating: { threshold: 3, durationMinutes: 240 },
+      }),
+    })
+  },
+}
+
+export const LowRatingTargetIsASwitchAndARatingSelectLight: Story = {
+  ...LowRatingTargetIsASwitchAndARatingSelect,
+  parameters: { theme: 'light' },
 }

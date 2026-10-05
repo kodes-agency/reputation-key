@@ -1,4 +1,4 @@
-import { Button } from '#/components/ui/button'
+import { ConnectGoogleButton } from '#/components/features/integration/connect-google-button'
 import {
   ConfirmationDialog,
   ConfirmationTrigger,
@@ -15,13 +15,13 @@ import {
   reauthorizationForConnection,
 } from './google-connection-authorization'
 
-type ReauthorizationRequest = Extract<GoogleAuthUrlInput, { connectionMode: 'reauth' }>
-
 type Props = Readonly<{
   connection: GoogleConnectionDto
+  /** Starts a Google authorization: the page's one request, which every button here uses. */
+  getAuthUrl: (opts: { data: GoogleAuthUrlInput }) => Promise<{ url: string }>
+  /** Another authorization is starting; this row waits for it. */
   authorizationPending: boolean
   disconnectPending: boolean
-  onReauthorize: (request: ReauthorizationRequest) => void
   /** Rejects with the refusal, which the confirmation says in place. */
   onDisconnect: (connectionId: string) => Promise<unknown>
 }>
@@ -38,9 +38,9 @@ const CONNECTION_STATUS: StatusMap<GoogleConnectionStatus> = {
 
 export function GoogleConnectionSettingsRow({
   connection,
+  getAuthUrl,
   authorizationPending,
   disconnectPending,
-  onReauthorize,
   onDisconnect,
 }: Props) {
   const reauthorization = reauthorizationForConnection(connection)
@@ -68,23 +68,23 @@ export function GoogleConnectionSettingsRow({
       </div>
       <div className="flex flex-wrap gap-2">
         {reauthorization ? (
-          <Button
+          <ConnectGoogleButton
+            getAuthUrl={getAuthUrl}
+            request={reauthorization}
+            label="Reauthorize"
             variant="outline"
             size="sm"
-            onClick={() => onReauthorize(reauthorization)}
-            pending={authorizationPending}
-          >
-            Reauthorize
-          </Button>
+            disabled={authorizationPending}
+          />
         ) : accountEmailConsent ? (
-          <Button
+          <ConnectGoogleButton
+            getAuthUrl={getAuthUrl}
+            request={accountEmailConsent}
+            label="Show account email"
             variant="outline"
             size="sm"
-            onClick={() => onReauthorize(accountEmailConsent)}
-            pending={authorizationPending}
-          >
-            Show account email
-          </Button>
+            disabled={authorizationPending}
+          />
         ) : null}
         {/* Revokes Google's access and removes what the account imported, for
             every Property that uses it: higher blast radius than the

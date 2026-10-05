@@ -54,7 +54,8 @@ function PropertyProfileSettings() {
       />
       {portalExperience ? (
         <PropertyPublicDisplayNameCard
-          key={`${propertyId}:display-name`}
+          // Mounted again on the saved name and colours, so the form starts from them (Reset).
+          key={`${propertyId}:display-name:${JSON.stringify(portalExperience.profile)}`}
           propertyId={propertyId}
           profile={portalExperience.profile}
           action={savePublicDisplayName}

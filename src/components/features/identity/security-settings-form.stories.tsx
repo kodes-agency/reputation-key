@@ -111,3 +111,20 @@ export const Success: Story = {
     })
   },
 }
+
+// Reset clears what was typed, and there is no Cancel link to another page.
+export const ResetClearsTheFields: Story = {
+  args: { changePassword: resolvingAction },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('link', { name: 'Cancel' })).not.toBeInTheDocument()
+    expect(canvas.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument()
+    const current = canvas.getByLabelText('Current password')
+    await userEvent.type(current, 'old-password')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    expect(current).toHaveValue('')
+    // The primary is in the card's footer, after Reset.
+    const save = canvas.getByRole('button', { name: /update password/i })
+    expect(save.closest('[data-slot="card-footer"]')).not.toBeNull()
+  },
+}

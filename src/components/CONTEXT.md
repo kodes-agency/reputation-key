@@ -11,7 +11,7 @@ and actions supply server state.
 - `ui/` holds vendored shadcn primitives plus app-wide presentation primitives
   that no feature owns (Fact, OwnerDisc, MetricStrip, SegmentedControl, Timeline,
   StarRating, RatingFigure, ConfirmationDialog, EmptyState, RegionError,
-  RowActionsMenu, DataTable, DescriptionList, LoadMoreButton). Every
+  RowActionsMenu, DataTable, DescriptionList, SectionTitle, LoadMoreButton). Every
   confirmation goes through `ConfirmationDialog`, never an AlertDialog put together
   by hand (`dialog-sources.test.ts` fails on one). Its `tone` is `destructive` only
   for an action the person cannot take back or that loses data; archive, restore,
@@ -193,14 +193,128 @@ and actions supply server state.
   is a button. A number with a caption is a `MetricStrip` (`boxed`, `ruled`,
   `embedded` in a Card, or wrapping `tiles`), never a local figure; a figure that is a
   link keeps its link and wears `METRIC_LABEL_CLASS` and `METRIC_TILE_FIGURE_CLASS`.
-  Read-only label and value rows are a `DescriptionList`. A cursor feed's "Load more"
+  A cursor feed's "Load more"
   is a `LoadMoreButton` (aria-disabled while it loads, so focus stays; "Try again"
   after a failure); the Portals numbered pager is the only other kind of paging.
 
+  A fact the person reads and cannot change is a `DescriptionList`, never a disabled
+  Input, a bare paragraph or a hand-built `<dl>`: a term column from `sm` (`termWidth`
+  `default` 8rem or `wide` 10rem), or `stacked`, the term over the value at every width,
+  where it sits among form fields (the Profile email, a Property's address from
+  Google). A `note` is the quiet line under the value ("From Google"). A glossary, a
+  list of key hints and a chart's readout are other shapes and keep their own
+  `<dl>`; `description-list-sources.test.ts` names each and fails on a new one.
+  A page has one `h1`, drawn by `PageHeader` (or, where the surface is compact, by the
+  Inbox's list header, the Portal workspace's header, or an `AuthCard`'s title, which is
+  the page): a feature never writes its own. The Inbox's queue name stays in the page on
+  a phone, read and not drawn (`max-md:sr-only`), because a heading that is `display:
+none` is not in the outline. Under it a section's title is a `CardTitle as="h2"` (a
+  `CardTitle` is a div until the page gives it a level, and wears the same type at
+  every level) or, for a section that is not a Card, a `SectionTitle` (h2 at
+  `text-base` semibold; `level={3}` for a part of a section, a step smaller). Nobody
+  sets a title's size or writes `role="heading"`; `heading-sources.test.ts` fails on a
+  second `h1`, a Card title with no level and an h2 or h3 of its own in the settings
+  pages. A Property's settings page names the section that is open, as an account
+  settings page does: its header title and the end of its breadcrumb are the section
+  (`propertySettingsHeader`), under "Settings", which links back to the hub.
+
 - `forms/` contains shared TanStack Form fields, submission, and error UI. A
-  failure has one reporter. A form submit reports through `FormErrorBanner`,
-  placed directly above that form's actions (the bottom of a card's body, above
-  its footer), and never also toasts. A row or immediate action (a switch, a menu
+  settings group that saves on a button ends in one `FormActions` row, whatever
+  its container (a `CardFooter`, the end of a card's body, a bordered panel; the
+  section's own look stays): the actions at the end of the group, right-aligned,
+  the primary last (a `SubmitButton`, or a `Button` for a group that is not a
+  `<form>`). `Reset` is the row's and shows only while the group holds edits; it
+  puts back the values the page last saved and never leaves the page, so a
+  settings group has no Cancel (a dialog or a bounded task keeps one, before its
+  primary). Pass `form` for a TanStack group (dirty while a field differs from the
+  form's defaults, Reset is `form.reset()`) or `dirty` and `onReset` for a group
+  that keeps its own state (the responsible managers, the quiet hours); a create
+  form passes neither and gets just the right-aligned primary. A command of the
+  group that is not its save (Turn off AI features) is `leading`. The saved
+  values must reach the form as its `defaultValues` and a save that changes them
+  must remount it (key the component on the saved values): TanStack keeps a
+  touched form's dirtiness from before its defaults moved, so a form that is not
+  remounted stays "dirty" after a save. Reset hands the focus to the group's first
+  field (its own button leaves with the edits; a row in a Card footer outside a form
+  looks in the Card, and with no field at all the focus goes to another button of the
+  row, never to the page) and drops the refusal of the save it discarded. Save is not
+  gated on dirty: a group whose empty or default values are a valid save (the reply
+  profile) stays savable. `form-actions-sources.test.ts`
+  fails on a Cancel `Link` in a settings group, a `SubmitButton` outside a
+  `FormActions` row or a `DialogFooter`, and a hand-spelled Reset.
+  A choice is drawn by the shared controls, never a native one. One of a few named
+  values is `FormSelectField` (the `ui/Select` in the field frame; no browser
+  `<select>`, no raw `<input type="checkbox">`). "How low a rating" is
+  `RatingThresholdField`, worded "3★ or lower" for the eye and "3 stars or lower" for
+  the ear (`rating-threshold.ts`), with `offLabel` where the answer may be Off and
+  `thresholds` where the rule stops short of five stars: the Portal's private note, the
+  notification page's channels and the Organization's low-rating target are all it. A
+  boolean setting is a `SettingSwitchRow`: the label (and its help and note) at the
+  start, the Switch at the end, and `commit`, which is required because the row must
+  say when it saves, and it does: the moment the Switch moves the row says what becomes of
+  it. `immediate` saves as it is flipped, so the caller's mutation reports a refusal in a
+  toast and `onCheckedChange` returns its promise: the row says "Saving…" while it runs
+  and "Saved" when it lands, and nothing more when it was refused (a rejection, or
+  `false`). `pending` also keeps the Switch waiting, and an optimistic row passes none
+  (the notification channels: the Switch has moved and a second flip queues).
+  `deferred` is one field of a group that saves on its Save, so the group's own button
+  carries the pending state and the row says "Unsaved" (`unsaved`, from the field's
+  `!isDefaultValue`) while its value is not the saved one; a group with no saved value
+  yet, a wizard step, passes none. `layout="cell"` is the Switch in a table or list that
+  already names it (the label is read, not drawn, and `stateWords` print beside it). A
+  Checkbox is not a setting: it stays for choosing several things from a list and for a statement the
+  person agrees to. That statement ("I have read this notice and agree...", "I have
+  checked these details", "This property owns this photo...") is a `ConsentCheckbox`:
+  one frame, the sentence, a line of help and the refusal, once a person has tried to go
+  on without ticking it. So is any one framed yes that stands for a whole list ("Select
+  all current portals": a choice, not an agreement), while the rows of the list keep
+  plain `Checkbox`es. "Follow the parent, or
+  set my own" is an `InheritedSetting`: it says what the place follows (pass a link
+  where the owner has a page, as the Property's target does) and what that is worth,
+  whether the place has a value of its own, and one button that puts the inherited
+  value back ("Use inherited value"; the place may word it) or starts one of its own
+  (`onOverride`, left out where editing the value is what overrides it, as on a
+  notification row). It draws no editor: the value is the caller's field beside it,
+  enabled while `overridden`. Its `commit` is the same two modes: `immediate` buttons
+  save at once and show busy while they do, and a row that saves its own end of an
+  override keeps showing the override until the save lands. `controls-sources.test.ts`
+  fails on a native select, a raw checkbox, a Switch drawn outside the row, a consent
+  sentence in a bare Checkbox and a threshold worded anywhere but one place.
+  An avatar or a logo is an `ImageSetting`: the picture, with Upload, or Replace and
+  Remove, as Buttons named for what it is (never a hover or an icon alone), and one line
+  of help printed from the formats and the size the file is checked against. `onUpload`
+  stores the file and saves its address, resolving with the address to show;
+  `onRemove` saves the removal, and a removal that is only drawn is the bug (the
+  avatar's Remove used to clear the page and nothing else; a removal passes `null`
+  to the server, and the update that maps a null to `undefined` saves nothing, because
+  Better Auth skips an undefined field). Pending is a spinner and a word on the Button,
+  with the progress on the picture; a refused upload or removal is a toast in the
+  words every action uses (`Couldn't upload that logo. Try again.`) and the picture
+  stays exactly as it was (a removal that landed takes the Remove button with it, so the
+  focus moves to Upload), so the mutations behind it pass no `errorMessage` and only
+  say what succeeded. The Property look logo is the exception: it crops, sets a focal
+  point and checks a light version, so it keeps its dialog. `image-setting-sources.test.ts`
+  fails on a second image field. One `ConnectGoogleButton`
+  (`features/integration/connect-google-button`) starts every Google authorization:
+  "Connect Google" (`label="Connect another account"` where an account is already
+  connected, `request` and `label` for Reauthorize and Show account email), the one
+  glyph for adding an account, a spinner on the Button with its label kept, and a
+  failure toast; no place redirects to the sign-in address itself
+  (`connect-google-sources.test.ts`).
+  A field is a `FormTextField`, `FormTextarea` or `FormNumberField`, or, for a
+  control of another kind, a `FormFieldFrame` (a `Field` holding the `FieldLabel`,
+  the control, the `FieldDescription` and the error, in that order); never a
+  hand-built label, control and `FieldError`. Help under a control is the
+  `description` prop (a `FieldDescription`, wired to the control by
+  `aria-describedby`, which names the error too while the field is invalid, through
+  `describedByOf`) and a field the person may leave empty is `optional`, which
+  prints "Optional" inside the label so the control's name carries it; no
+  "(optional)" suffix and no `text-xs` hint. The text fields report after the field
+  has been touched; the number field reports as soon as the schema names a fault,
+  because a refused target must show its reason. A failure has one reporter. A
+  form submit reports through `FormErrorBanner`, which `FormActions` draws
+  directly above its row (a form that is not a settings group places it directly
+  above its actions), and never also toasts. A row or immediate action (a switch, a menu
   item, a download) reports through a toast,
   `errorMessage` on its `useActionMutation`, and never also a banner. A toast for
   a failure reads "Couldn't …. Try again." (`actionFailureMessage`), shows the

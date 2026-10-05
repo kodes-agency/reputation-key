@@ -13,13 +13,22 @@ import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '#/components/ui/card'
 import { Input } from '#/components/ui/input'
-import { Textarea } from '#/components/ui/textarea'
-import { Field, FieldError, FieldLabel } from '#/components/ui/field'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { Field, FieldError } from '#/components/ui/field'
+import { FormActions } from '#/components/forms/form-actions'
+import { describedByOf, FormFieldFrame } from '#/components/forms/form-field-frame'
 import { submitHandler } from '#/components/forms/form-submit'
+import { FormTextField } from '#/components/forms/form-text-field'
+import { FormTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
+import { GoalMetricField } from '#/components/goals/goal-metric-field'
 import {
   GoalSubjectPicker,
   goalSubjectKey,
@@ -42,26 +51,6 @@ const subjectsQuery = (propertyId: string) =>
       return { groups: groups.groups, portals: portals.portals }
     },
   })
-
-const METRICS = [
-  {
-    id: 'qualified_scans' as const,
-    label: 'Qualified scans',
-    description:
-      'Counts eligible portal scans. You can configure this now; results remain scheduled until scan attribution is active.',
-  },
-  {
-    id: 'portal_rating_count' as const,
-    label: 'Private rating count',
-    description: 'Counts private 1–5 star ratings submitted through the review gateway.',
-  },
-  {
-    id: 'portal_rating_average' as const,
-    label: 'Private rating average',
-    description:
-      'Average private star rating. A monthly result needs at least 10 eligible ratings.',
-  },
-] as const
 
 // A group's page links here with the group already chosen (`?subject=portal_group:<id>`).
 const newGoalSearchSchema = z.object({
@@ -132,7 +121,7 @@ function CreateGoalPage() {
     },
   })
   const metric = useStore(form.store, (state) => state.values.metric)
-  const selectedMetric = METRICS.find((candidate) => candidate.id === metric)!
+  const targetHelp = `Changes take effect from the next complete month in ${propData.property.name}’s timezone.`
 
   return (
     <PageShell>
@@ -152,76 +141,44 @@ function CreateGoalPage() {
       >
         <Card>
           <CardHeader>
-            <CardTitle>Goal program</CardTitle>
+            <CardTitle as="h2">Goal program</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             <form.Field name="name">
               {(field) => (
-                <Field data-invalid={!field.state.meta.isValid}>
-                  <FieldLabel htmlFor="goal-name">Name</FieldLabel>
-                  <Input
-                    id="goal-name"
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    aria-invalid={!field.state.meta.isValid}
-                    maxLength={200}
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
+                <FormTextField
+                  field={field}
+                  id="goal-name"
+                  label="Name"
+                  maxLength={200}
+                />
               )}
             </form.Field>
             <form.Field name="description">
               {(field) => (
-                <Field data-invalid={!field.state.meta.isValid}>
-                  <FieldLabel htmlFor="goal-description">
-                    Description (optional)
-                  </FieldLabel>
-                  <Textarea
-                    id="goal-description"
-                    value={field.state.value ?? ''}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    aria-invalid={!field.state.meta.isValid}
-                    maxLength={2_000}
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
+                <FormTextarea
+                  field={field}
+                  id="goal-description"
+                  label="Description"
+                  optional
+                  maxLength={2_000}
+                />
               )}
             </form.Field>
             <form.Field name="metric">
               {(field) => (
-                <Field data-invalid={!field.state.meta.isValid}>
-                  <FieldLabel htmlFor="goal-metric">Metric</FieldLabel>
-                  <select
-                    id="goal-metric"
-                    className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(event) =>
-                      field.handleChange(
-                        event.target.value as (typeof METRICS)[number]['id'],
-                      )
-                    }
-                    aria-invalid={!field.state.meta.isValid}
-                  >
-                    {METRICS.map((candidate) => (
-                      <option key={candidate.id} value={candidate.id}>
-                        {candidate.label}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedMetric.description}
-                  </p>
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
+                <GoalMetricField id="goal-metric" field={field} withDescription />
               )}
             </form.Field>
             <form.Field name="targetValue">
               {(field) => (
-                <Field data-invalid={!field.state.meta.isValid}>
-                  <FieldLabel htmlFor="goal-target">Monthly target</FieldLabel>
+                <FormFieldFrame
+                  id="goal-target"
+                  label="Monthly target"
+                  description={targetHelp}
+                  invalid={!field.state.meta.isValid}
+                  errors={field.state.meta.errors}
+                >
                   <Input
                     id="goal-target"
                     type="number"
@@ -236,13 +193,13 @@ function CreateGoalPage() {
                       )
                     }
                     aria-invalid={!field.state.meta.isValid}
+                    aria-describedby={describedByOf(
+                      'goal-target',
+                      targetHelp,
+                      !field.state.meta.isValid,
+                    )}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Changes take effect from the next complete month in{' '}
-                    {propData.property.name}’s timezone.
-                  </p>
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
+                </FormFieldFrame>
               )}
             </form.Field>
           </CardContent>
@@ -250,7 +207,7 @@ function CreateGoalPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Subjects</CardTitle>
+            <CardTitle as="h2">Subjects</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             <form.Field name="subjects">
@@ -267,11 +224,14 @@ function CreateGoalPage() {
                 </Field>
               )}
             </form.Field>
-            <FormErrorBanner error={mutation.error} />
-            <SubmitButton mutation={mutation} form={form}>
-              Create goal
-            </SubmitButton>
           </CardContent>
+          <CardFooter>
+            <FormActions error={mutation.error}>
+              <SubmitButton mutation={mutation} form={form}>
+                Create goal
+              </SubmitButton>
+            </FormActions>
+          </CardFooter>
         </Card>
       </form>
     </PageShell>

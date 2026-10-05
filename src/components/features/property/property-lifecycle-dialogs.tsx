@@ -6,8 +6,11 @@ import {
   ConfirmationTrigger,
 } from '#/components/ui/confirmation-dialog'
 import { Button } from '#/components/ui/button'
-import { Label } from '#/components/ui/label'
+import { describedByOf, FormFieldFrame } from '#/components/forms/form-field-frame'
 import { Textarea } from '#/components/ui/textarea'
+
+const ARCHIVE_NOTE_HELP =
+  'Add a short note (3–500 characters) for your management record.'
 
 export type ArchiveLifecycleAction = Action<{
   data: Readonly<{ propertyId: string; reason: string }>
@@ -82,20 +85,21 @@ export function PropertyArchiveDialog({
       }}
       onConfirm={() => action({ data: { propertyId, reason: normalizedReason } })}
     >
-      <div className="space-y-2">
-        <Label htmlFor="property-archive-reason">Archive note</Label>
+      <FormFieldFrame
+        id="property-archive-reason"
+        label="Archive note"
+        description={ARCHIVE_NOTE_HELP}
+        invalid={false}
+      >
         <Textarea
           id="property-archive-reason"
           value={reason}
           maxLength={500}
           placeholder="For example: Property is temporarily closed"
           onChange={(event) => setReason(event.target.value)}
-          aria-describedby="property-archive-reason-help"
+          aria-describedby={describedByOf('property-archive-reason', ARCHIVE_NOTE_HELP)}
         />
-        <p id="property-archive-reason-help" className="text-xs text-muted-foreground">
-          Add a short note (3–500 characters) for your management record.
-        </p>
-      </div>
+      </FormFieldFrame>
     </ConfirmationDialog>
   )
 }

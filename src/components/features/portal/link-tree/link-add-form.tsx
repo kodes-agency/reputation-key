@@ -3,7 +3,7 @@
 // the tile exists and is open for editing.
 
 import { useForm } from '@tanstack/react-form'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FormActions } from '#/components/forms/form-actions'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
@@ -73,15 +73,16 @@ export function LinkAddForm({ portalId, create, enqueue, onAdded, onCancel }: Pr
           )}
         </form.Field>
       </FieldGroup>
-      <FormErrorBanner error={create.error} />
-      <div className="flex gap-2">
+      {/* An add is a bounded task: it keeps its Cancel, before the primary, and has
+          nothing saved to put back. */}
+      <FormActions error={create.error}>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
         <SubmitButton mutation={create} form={form}>
           Add link
         </SubmitButton>
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
+      </FormActions>
     </form>
   )
 }

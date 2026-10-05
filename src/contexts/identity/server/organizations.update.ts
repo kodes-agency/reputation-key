@@ -10,6 +10,7 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { isIdentityError } from '../domain/errors'
+import { retireReplacedIdentityAsset } from '../application/retire-replaced-identity-asset'
 import { throwIdentityError } from './organizations.errors.server'
 import { updateOrganization as updateOrganizationUseCase } from '../application/use-cases/update-organization'
 
@@ -42,11 +43,20 @@ export const updateOrganization = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'organization.update' })
 
         try {
+          const { getContainer } = await import('#/composition')
+          const { assetStorage, identityAssetReferences, logger } = getContainer()
           const useCase = updateOrganizationUseCase({
             updateOrg: async (data) => {
               const auth = getAuth()
               await auth.api.updateOrganization({ headers, body: { data } })
             },
+            // A removed logo is freed from the store once the removal is saved.
+            currentLogo: () =>
+              identityAssetReferences.currentOrganizationLogo(ctx.organizationId),
+            retireReplaced: retireReplacedIdentityAsset({
+              storage: assetStorage,
+              logger,
+            }),
           })
           await useCase(data, ctx)
         } catch (e) {

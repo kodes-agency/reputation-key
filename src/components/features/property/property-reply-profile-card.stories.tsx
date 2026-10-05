@@ -151,3 +151,63 @@ export const PermissionDenied: Story = {
     ).not.toBeInTheDocument()
   },
 }
+
+// The escalation contact may be left empty, and says so; Reset puts the saved
+// profile back.
+export const ResetRestoresTheSavedProfile: Story = {
+  args: {
+    profile: {
+      greeting: 'Dear {guest_name},',
+      signOffPositive: 'Warm regards',
+      signOffNegative: 'Sincerely',
+      emojiAllowed: false,
+      escalationContact: null,
+      version: 2,
+    },
+    action: populatedSave,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByLabelText(/escalation contact/i)).toHaveAccessibleName(
+      'Escalation contact Optional',
+    )
+    expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
+    const greeting = canvas.getByLabelText('Greeting')
+    await userEvent.type(greeting, ' friend')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    expect(greeting).toHaveValue('Dear {guest_name},')
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull(),
+    )
+  },
+}
+
+// The emoji switch is one field of the card, which saves on its Save: the row says
+// "Unsaved" while the switch differs from the saved profile (FORM-08), and stops
+// saying it when the switch is back where it was.
+export const EmojiSaysUnsavedUntilSaved: Story = {
+  args: {
+    profile: {
+      greeting: 'Dear {guest_name},',
+      signOffPositive: 'Warm regards',
+      signOffNegative: 'Sincerely',
+      emojiAllowed: false,
+      escalationContact: null,
+      version: 2,
+    },
+    action: populatedSave,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const emoji = canvas.getByRole('switch', {
+      name: 'Allow emoji in rendered templates',
+    })
+    expect(canvas.queryByText('Unsaved')).toBeNull()
+
+    await userEvent.click(emoji)
+    expect(await canvas.findByText('Unsaved')).toHaveAttribute('role', 'status')
+
+    await userEvent.click(emoji)
+    await waitFor(() => expect(canvas.queryByText('Unsaved')).toBeNull())
+  },
+}

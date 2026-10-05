@@ -4,6 +4,7 @@
 // dropped during a refactor. All actions are permission-gated; the components
 // also check permissions internally (defense in depth).
 
+import { SectionTitle } from '#/components/ui/section-title'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
@@ -221,7 +222,7 @@ function MembersSettingsRoute() {
 
       <div className="mt-6 flex flex-col gap-8">
         <section>
-          <h2 className="mb-3 text-base font-semibold">Members</h2>
+          <SectionTitle className="mb-3">Members</SectionTitle>
           <MemberTable
             members={members}
             currentUserId={user.id}
@@ -241,9 +242,9 @@ function MembersSettingsRoute() {
         )}
 
         <section aria-labelledby="leave-organization-heading">
-          <h2 id="leave-organization-heading" className="mb-3 text-base font-semibold">
+          <SectionTitle id="leave-organization-heading" className="mb-3">
             Leave this organization
-          </h2>
+          </SectionTitle>
           <LeaveOrganizationDialog
             outstanding={
               outstandingUnavailable ? null : (outstandingResult?.outstanding ?? null)

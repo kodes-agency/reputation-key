@@ -1,11 +1,15 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { createFileRoute, Outlet, useRouterState } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
 import { SectionNavLayout } from '#/components/ui/section-nav-layout'
 import { PropertySettingsNav } from '#/components/features/property/settings/property-settings-nav'
-import { visiblePropertySettingsSections } from '#/components/features/property/settings/property-settings-sections'
+import {
+  activePropertySettingsSection,
+  propertySettingsHeader,
+  visiblePropertySettingsSections,
+} from '#/components/features/property/settings/property-settings-sections'
 import { PropertySetupStrip } from '#/components/features/property/settings/property-setup-strip'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queries'
@@ -31,17 +35,22 @@ function PropertySettingsLayout() {
   const { data } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: setup } = useQuery(propertySetupQuery(propertyId))
   const sections = visiblePropertySettingsSections((permission) => can(role, permission))
+  const active = useRouterState({
+    select: (state) => activePropertySettingsSection(state.location.pathname),
+  })
+  // The header names the section that is open, as every account settings page does.
+  const header = propertySettingsHeader({
+    propertyId,
+    propertyName: data.property.name,
+    active,
+  })
 
   return (
     <PageShell>
       <PageHeader
-        title="Property settings"
+        title={header.title}
         description={data.property.name}
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: data.property.name, to: `/properties/${propertyId}` },
-          { label: 'Settings' },
-        ]}
+        breadcrumbs={header.breadcrumbs}
       />
       <SectionNavLayout frame="inline">
         <PropertySettingsNav propertyId={propertyId} sections={sections} />

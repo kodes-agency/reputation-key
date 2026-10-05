@@ -25,6 +25,38 @@ describe('retireReplacedIdentityAsset', () => {
     expect(deleteObject).toHaveBeenCalledExactlyOnceWith(`avatars/u1/${OLD}`)
   })
 
+  it('deletes the owner’s object when the picture is removed and nothing replaces it', async () => {
+    const { retire, deleteObject } = setup()
+
+    await retire({
+      previous: identityAssetPath(`avatars/u1/${OLD}`),
+      nextKey: null,
+      kind: 'avatar',
+      ownerId: 'u1',
+    })
+
+    expect(deleteObject).toHaveBeenCalledExactlyOnceWith(`avatars/u1/${OLD}`)
+  })
+
+  it('deletes nothing on a removal when the picture was not the owner’s own object', async () => {
+    const { retire, deleteObject } = setup()
+
+    await retire({
+      previous: 'https://cdn.example.com/me.png',
+      nextKey: null,
+      kind: 'avatar',
+      ownerId: 'u1',
+    })
+    await retire({
+      previous: identityAssetPath(`avatars/u2/${OLD}`),
+      nextKey: null,
+      kind: 'avatar',
+      ownerId: 'u1',
+    })
+
+    expect(deleteObject).not.toHaveBeenCalled()
+  })
+
   it('deletes a replaced logo', async () => {
     const { retire, deleteObject } = setup()
 

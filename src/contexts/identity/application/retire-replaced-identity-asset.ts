@@ -1,4 +1,5 @@
-// Identity context — remove the object a replaced avatar or logo leaves behind.
+// Identity context — remove the object a replaced or removed avatar or logo leaves
+// behind.
 //
 // The public route already stops serving it (nothing points at it any more);
 // this frees the bytes. It is the owner's own previous object only: an address
@@ -22,8 +23,8 @@ export type RetireReplacedIdentityAssetDeps = Readonly<{
 export type RetireReplacedIdentityAssetInput = Readonly<{
   /** The address stored before the change (a user's image or an organization's logo). */
   previous: string | null
-  /** The key of the object that replaced it. */
-  nextKey: string
+  /** The key of the object that replaced it, or null when the picture was removed. */
+  nextKey: string | null
   kind: IdentityAssetKey['kind']
   /** The user (avatar) or organization (logo) that owns the picture. */
   ownerId: string

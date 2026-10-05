@@ -22,7 +22,7 @@ export function GoalResultsMatrix({ matrix }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Goal Results Matrix</CardTitle>
+        <CardTitle as="h2">Goal Results Matrix</CardTitle>
         <p className="text-sm text-muted-foreground">
           Monthly evidence for Property, Portal Group, and Portal goals. Each result keeps
           its own measure and target.

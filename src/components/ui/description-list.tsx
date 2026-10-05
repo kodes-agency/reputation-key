@@ -4,30 +4,36 @@
 //
 // Each item is a term and its value in one `div`, which a `dl` allows. From `sm` the
 // term has a column of its own (`termWidth`: 8rem, or 10rem for longer terms); on a
-// phone it sits above the value. The term is muted and the value is the text's own
-// ink, so what is asked and what is answered read apart. A `note` is a quiet line
-// under the value, for where it came from ("From Google").
+// phone it sits above the value. A list that sits among form fields (a read-only
+// email, an address that comes from Google) is `stacked`: the term over the value at
+// every width, the way a field's label sits over its control. The term is muted and
+// the value is the text's own ink, so what is asked and what is answered read apart.
+// A `note` is a quiet line under the value, for where it came from ("From Google").
 import { createContext, use, type ReactNode } from 'react'
 import { cn } from '#/lib/utils'
 
 const TERM_WIDTH = {
-  default: 'sm:grid-cols-[8rem_minmax(0,1fr)]',
-  wide: 'sm:grid-cols-[10rem_minmax(0,1fr)]',
+  default: 'sm:gap-x-4 sm:grid-cols-[8rem_minmax(0,1fr)]',
+  wide: 'sm:gap-x-4 sm:grid-cols-[10rem_minmax(0,1fr)]',
 } as const
 
 type ListProps = Readonly<{
   /** Names the list when its heading does not. */
   'aria-label'?: string
   termWidth?: keyof typeof TERM_WIDTH
+  /** The term over the value at every width, for a list among form fields. */
+  stacked?: boolean
   className?: string
   children: ReactNode
 }>
 
-const TermWidthContext = createContext<keyof typeof TERM_WIDTH>('default')
+/** The classes that arrange one item: its grid, or nothing but the gap when stacked. */
+const ArrangementContext = createContext<string>(TERM_WIDTH.default)
 
 export function DescriptionList({
   'aria-label': ariaLabel,
   termWidth = 'default',
+  stacked = false,
   className,
   children,
 }: ListProps) {
@@ -37,7 +43,9 @@ export function DescriptionList({
       data-slot="description-list"
       className={cn('m-0 flex flex-col gap-3 text-sm', className)}
     >
-      <TermWidthContext value={termWidth}>{children}</TermWidthContext>
+      <ArrangementContext value={stacked ? '' : TERM_WIDTH[termWidth]}>
+        {children}
+      </ArrangementContext>
     </dl>
   )
 }
@@ -52,9 +60,9 @@ type ItemProps = Readonly<{
 }>
 
 export function DescriptionItem({ term, note, lang, children }: ItemProps) {
-  const termWidth = use(TermWidthContext)
+  const arrangement = use(ArrangementContext)
   return (
-    <div className={cn('grid gap-1 sm:gap-x-4', TERM_WIDTH[termWidth])}>
+    <div className={cn('grid gap-1', arrangement)}>
       <dt className="text-muted-foreground">{term}</dt>
       <dd lang={lang} className="m-0 min-w-0 text-pretty">
         {children}

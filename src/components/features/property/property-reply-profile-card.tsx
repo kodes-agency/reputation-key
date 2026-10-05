@@ -1,7 +1,9 @@
 import { useForm } from '@tanstack/react-form'
 import type { Action } from '#/components/hooks/use-action'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FormActions } from '#/components/forms/form-actions'
 import { submitHandler } from '#/components/forms/form-submit'
+import { blankAsNull, FormTextField } from '#/components/forms/form-text-field'
+import { FormTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
 import {
   Card,
@@ -11,10 +13,8 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import { Field, FieldError, FieldGroup, FieldLabel } from '#/components/ui/field'
-import { Input } from '#/components/ui/input'
-import { Switch } from '#/components/ui/switch'
-import { Textarea } from '#/components/ui/textarea'
+import { FieldGroup } from '#/components/ui/field'
+import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
 import {
   REPLY_LIBRARY_FIELD_LIMITS,
   replyProfileValuesSchema,
@@ -54,7 +54,7 @@ export function PropertyReplyProfileCard({ propertyId, profile, action }: Props)
     <form onSubmit={submitHandler(form)}>
       <Card>
         <CardHeader>
-          <CardTitle>Reply profile</CardTitle>
+          <CardTitle as="h2">Reply profile</CardTitle>
           <CardDescription>
             Set the greeting, closing, emoji policy, and escalation contact applied to
             this Property&rsquo;s reply templates.
@@ -63,118 +63,69 @@ export function PropertyReplyProfileCard({ propertyId, profile, action }: Props)
         <CardContent className="flex flex-col gap-4">
           <FieldGroup>
             <form.Field name="greeting">
-              {(field) => {
-                const invalid = field.state.meta.isTouched && !field.state.meta.isValid
-                return (
-                  <Field data-invalid={invalid}>
-                    <FieldLabel htmlFor="reply-profile-greeting">Greeting</FieldLabel>
-                    <Input
-                      id="reply-profile-greeting"
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.value)}
-                      maxLength={REPLY_LIBRARY_FIELD_LIMITS.greeting}
-                      disabled={disabled}
-                      aria-invalid={invalid}
-                      placeholder="Dear {guest_name},"
-                    />
-                    {invalid ? <FieldError errors={field.state.meta.errors} /> : null}
-                  </Field>
-                )
-              }}
+              {(field) => (
+                <FormTextField
+                  field={field}
+                  id="reply-profile-greeting"
+                  label="Greeting"
+                  maxLength={REPLY_LIBRARY_FIELD_LIMITS.greeting}
+                  disabled={disabled}
+                  placeholder="Dear {guest_name},"
+                />
+              )}
             </form.Field>
             <form.Field name="signOffPositive">
-              {(field) => {
-                const invalid = field.state.meta.isTouched && !field.state.meta.isValid
-                return (
-                  <Field data-invalid={invalid}>
-                    <FieldLabel htmlFor="reply-profile-positive-signoff">
-                      Positive sign-off
-                    </FieldLabel>
-                    <Textarea
-                      id="reply-profile-positive-signoff"
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.value)}
-                      maxLength={REPLY_LIBRARY_FIELD_LIMITS.signOff}
-                      disabled={disabled}
-                      aria-invalid={invalid}
-                      rows={2}
-                      placeholder="Warm regards,&#10;The team"
-                    />
-                    {invalid ? <FieldError errors={field.state.meta.errors} /> : null}
-                  </Field>
-                )
-              }}
+              {(field) => (
+                <FormTextarea
+                  field={field}
+                  id="reply-profile-positive-signoff"
+                  label="Positive sign-off"
+                  maxLength={REPLY_LIBRARY_FIELD_LIMITS.signOff}
+                  disabled={disabled}
+                  rows={2}
+                  placeholder="Warm regards,&#10;The team"
+                />
+              )}
             </form.Field>
             <form.Field name="signOffNegative">
-              {(field) => {
-                const invalid = field.state.meta.isTouched && !field.state.meta.isValid
-                return (
-                  <Field data-invalid={invalid}>
-                    <FieldLabel htmlFor="reply-profile-negative-signoff">
-                      Negative sign-off
-                    </FieldLabel>
-                    <Textarea
-                      id="reply-profile-negative-signoff"
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(event) => field.handleChange(event.target.value)}
-                      maxLength={REPLY_LIBRARY_FIELD_LIMITS.signOff}
-                      disabled={disabled}
-                      aria-invalid={invalid}
-                      rows={2}
-                      placeholder="Sincerely,&#10;Guest relations"
-                    />
-                    {invalid ? <FieldError errors={field.state.meta.errors} /> : null}
-                  </Field>
-                )
-              }}
+              {(field) => (
+                <FormTextarea
+                  field={field}
+                  id="reply-profile-negative-signoff"
+                  label="Negative sign-off"
+                  maxLength={REPLY_LIBRARY_FIELD_LIMITS.signOff}
+                  disabled={disabled}
+                  rows={2}
+                  placeholder="Sincerely,&#10;Guest relations"
+                />
+              )}
             </form.Field>
             <form.Field name="escalationContact">
-              {(field) => {
-                const invalid = field.state.meta.isTouched && !field.state.meta.isValid
-                return (
-                  <Field data-invalid={invalid}>
-                    <FieldLabel htmlFor="reply-profile-escalation">
-                      Escalation contact
-                    </FieldLabel>
-                    <Input
-                      id="reply-profile-escalation"
-                      value={field.state.value ?? ''}
-                      onBlur={field.handleBlur}
-                      onChange={(event) =>
-                        field.handleChange(
-                          event.target.value === '' ? null : event.target.value,
-                        )
-                      }
-                      maxLength={REPLY_LIBRARY_FIELD_LIMITS.escalationContact}
-                      disabled={disabled}
-                      aria-invalid={invalid}
-                      placeholder="care@example.com"
-                    />
-                    {invalid ? <FieldError errors={field.state.meta.errors} /> : null}
-                  </Field>
-                )
-              }}
+              {(field) => (
+                <FormTextField
+                  field={blankAsNull(field)}
+                  id="reply-profile-escalation"
+                  label="Escalation contact"
+                  optional
+                  maxLength={REPLY_LIBRARY_FIELD_LIMITS.escalationContact}
+                  disabled={disabled}
+                  placeholder="care@example.com"
+                />
+              )}
             </form.Field>
             <form.Field name="emojiAllowed">
               {(field) => (
-                <Field orientation="horizontal" data-disabled={disabled}>
-                  <FieldLabel
-                    htmlFor="reply-profile-emoji"
-                    className="min-h-11 items-center"
-                  >
-                    Allow emoji in rendered templates
-                  </FieldLabel>
-                  <Switch
-                    id="reply-profile-emoji"
-                    checked={field.state.value}
-                    onCheckedChange={field.handleChange}
-                    disabled={disabled}
-                    aria-label="Allow emoji in rendered templates"
-                  />
-                </Field>
+                // The card around it is the Property settings card shape, as the public display name's is.
+                // fallow-ignore-next-line code-duplication
+                <SettingSwitchRow
+                  id="reply-profile-emoji"
+                  label="Allow emoji in rendered templates"
+                  commit="deferred"
+                  checked={field.state.value}
+                  unsaved={!field.state.meta.isDefaultValue}
+                  onCheckedChange={field.handleChange}
+                  disabled={disabled}
+                />
               )}
             </form.Field>
           </FieldGroup>
@@ -183,13 +134,14 @@ export function PropertyReplyProfileCard({ propertyId, profile, action }: Props)
               Ask a property manager or account admin to manage this reply profile.
             </p>
           ) : null}
-          <FormErrorBanner error={action.error} />
         </CardContent>
         {canManage ? (
-          <CardFooter className="justify-end">
-            <SubmitButton mutation={action} form={form}>
-              Save reply profile
-            </SubmitButton>
+          <CardFooter>
+            <FormActions form={form} error={action.error}>
+              <SubmitButton mutation={action} form={form}>
+                Save reply profile
+              </SubmitButton>
+            </FormActions>
           </CardFooter>
         ) : null}
       </Card>

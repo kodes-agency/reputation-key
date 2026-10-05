@@ -170,7 +170,7 @@ function GoalDetailRoute() {
       />
       <Card>
         <CardHeader className="flex-row items-center justify-between">
-          <CardTitle>Program</CardTitle>
+          <CardTitle as="h2">Program</CardTitle>
           <StatusBadge status={program.status} map={GOAL_STATUS} />
         </CardHeader>
         <CardContent className="grid gap-3 text-sm md:grid-cols-2">
@@ -207,7 +207,7 @@ function GoalDetailRoute() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Monthly results</CardTitle>
+          <CardTitle as="h2">Monthly results</CardTitle>
         </CardHeader>
         <CardContent>
           {results.length === 0 ? (

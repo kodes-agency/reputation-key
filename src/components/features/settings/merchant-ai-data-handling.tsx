@@ -1,4 +1,6 @@
+import { SectionTitle } from '#/components/ui/section-title'
 import { ShieldCheck } from 'lucide-react'
+import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 
 export function MerchantAiDataHandling({
@@ -10,13 +12,13 @@ export function MerchantAiDataHandling({
     <section aria-labelledby="merchant-ai-data-handling" className="flex flex-col gap-5">
       <div className="flex items-center gap-2">
         <ShieldCheck aria-hidden="true" />
-        <h2 id="merchant-ai-data-handling" className="font-semibold">
+        <SectionTitle id="merchant-ai-data-handling">
           Data handling and risks
-        </h2>
+        </SectionTitle>
       </div>
       {payload.sections.map((section) => (
         <div key={section.id} className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium">{section.title}</h3>
+          <SectionTitle level={3}>{section.title}</SectionTitle>
           {section.body.map((paragraph) => (
             <p key={paragraph} className="text-sm text-muted-foreground">
               {paragraph}
@@ -46,16 +48,15 @@ export function MerchantAiDataHandling({
           ) : null}
         </div>
       ))}
-      <dl className="grid gap-2 text-sm sm:grid-cols-3">
+      <DescriptionList termWidth="wide" aria-label="How long data is kept">
         {payload.retentionAndRevocation.map((row) => (
-          <div key={row.id} className="rounded-md border p-3">
-            <dt className="font-medium">{row.label}</dt>
-            <dd className="mt-1 text-muted-foreground">{row.value}</dd>
-          </div>
+          <DescriptionItem key={row.id} term={row.label}>
+            {row.value}
+          </DescriptionItem>
         ))}
-      </dl>
+      </DescriptionList>
       <div>
-        <h3 className="text-sm font-medium">Known risks</h3>
+        <SectionTitle level={3}>Known risks</SectionTitle>
         <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground">
           {payload.risks.map((risk) => (
             <li key={risk}>{risk}</li>

@@ -1,9 +1,14 @@
-import { useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import type { Action } from '#/components/hooks/use-action'
-import { Badge } from '#/components/ui/badge'
-import { ImageUploadField } from '#/components/forms/image-upload-field'
-import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
+import { ImageSetting } from '#/components/forms/image-setting'
+import { putFilePresigned } from '#/components/forms/image-setting/put-file-presigned'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '#/components/ui/card'
 import { OrganizationSettingsForm } from './organization-settings-form'
 import { ResponseTargetSettingsCard } from './response-target-settings-card'
 import type {
@@ -40,58 +45,62 @@ type Props = Readonly<{
   >
   /**
    * Removing the logo is an immediate action, not part of the identity form's
-   * submit, so it has its own mutation: its failure is a toast (its
-   * `errorMessage`) and never the form's banner.
+   * submit, so it has its own mutation. The logo setting says its failure (a
+   * toast), and never the form's banner.
    */
   removeOrganizationLogo: Action<
     Parameters<typeof updateOrganization>[0],
     Awaited<ReturnType<typeof updateOrganization>>
   >
   requestOrgLogoUploadFn: typeof requestOrgLogoUpload
-  finalizeOrgLogoUploadFn: typeof finalizeOrgLogoUpload
+  /** Confirms the upload and saves the logo's address. */
+  finalizeOrgLogo: Action<
+    Parameters<typeof finalizeOrgLogoUpload>[0],
+    Awaited<ReturnType<typeof finalizeOrgLogoUpload>>
+  >
 }>
 
-type LogoEditorProps = Readonly<
-  Pick<
-    Props,
-    'removeOrganizationLogo' | 'requestOrgLogoUploadFn' | 'finalizeOrgLogoUploadFn'
-  > & { logo: string | null }
+type LogoCardProps = Readonly<
+  Pick<Props, 'removeOrganizationLogo' | 'requestOrgLogoUploadFn' | 'finalizeOrgLogo'> & {
+    logo: string | null
+  }
 >
 
-function OrganizationLogoEditor({
+/**
+ * The logo is an image setting, framed like the avatar: a card named for it, and
+ * Upload, Replace and Remove in words. Both are immediate, so the setting says a
+ * refusal and the mutations behind it only say what succeeded.
+ */
+function OrganizationLogoCard({
   logo,
   removeOrganizationLogo,
   requestOrgLogoUploadFn,
-  finalizeOrgLogoUploadFn,
-}: LogoEditorProps) {
-  const [logoUrl, setLogoUrl] = useState(logo)
+  finalizeOrgLogo,
+}: LogoCardProps) {
   const requestUpload = useServerFn(requestOrgLogoUploadFn)
-  const finalizeUpload = useServerFn(finalizeOrgLogoUploadFn)
 
   return (
-    <ImageUploadField
-      imageUrl={logoUrl}
-      onImageUrlChange={(url) => {
-        setLogoUrl(url)
-        // Only persist on remove (null) — upload persistence is handled by finalizeOrgLogoUpload
-        if (url === null) {
-          // The toast is the mutation's; the catch only puts the logo back.
-          removeOrganizationLogo({ data: { logo: null } }).catch(() => setLogoUrl(logo))
-        }
-      }}
-      onUpload={async (file, onProgress) => {
-        const { uploadUrl, key } = await requestUpload({
-          data: { contentType: file.type, fileSize: file.size },
-        })
-        await putFilePresigned(uploadUrl, file, onProgress)
-        const { logoUrl: url } = await finalizeUpload({ data: { key } })
-        return url
-      }}
-      variant="circle"
-      emptyLabel="Upload logo"
-      maxFileSize={5 * 1024 * 1024}
-      disabled={removeOrganizationLogo.isPending}
-    />
+    <Card>
+      <CardHeader>
+        <CardTitle as="h2">Logo</CardTitle>
+        <CardDescription>The picture that stands for your organization.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ImageSetting
+          subject="logo"
+          imageUrl={logo}
+          onUpload={async (file, onProgress) => {
+            const { uploadUrl, key } = await requestUpload({
+              data: { contentType: file.type, fileSize: file.size },
+            })
+            await putFilePresigned(uploadUrl, file, onProgress)
+            const { logoUrl } = await finalizeOrgLogo({ data: { key } })
+            return logoUrl
+          }}
+          onRemove={() => removeOrganizationLogo({ data: { logo: null } })}
+        />
+      </CardContent>
+    </Card>
   )
 }
 
@@ -104,27 +113,16 @@ export function OrganizationSettingsPage({
   updateOrganization,
   removeOrganizationLogo,
   requestOrgLogoUploadFn,
-  finalizeOrgLogoUploadFn,
+  finalizeOrgLogo,
 }: Props) {
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <OrganizationLogoEditor
-          key={organization.logo ?? 'no-logo'}
-          logo={organization.logo}
-          removeOrganizationLogo={removeOrganizationLogo}
-          requestOrgLogoUploadFn={requestOrgLogoUploadFn}
-          finalizeOrgLogoUploadFn={finalizeOrgLogoUploadFn}
-        />
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight display-title">
-            {organization.name}
-          </h1>
-          <Badge variant="secondary" className="mt-1">
-            {organization.slug}
-          </Badge>
-        </div>
-      </div>
+      <OrganizationLogoCard
+        logo={organization.logo}
+        removeOrganizationLogo={removeOrganizationLogo}
+        requestOrgLogoUploadFn={requestOrgLogoUploadFn}
+        finalizeOrgLogo={finalizeOrgLogo}
+      />
 
       <OrganizationSettingsForm
         key={`${organization.name}:${organization.slug}:${organization.contactEmail ?? 'no-contact-email'}`}

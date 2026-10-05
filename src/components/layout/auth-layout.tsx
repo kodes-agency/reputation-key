@@ -22,7 +22,9 @@ export function AuthCard({ title, description, children }: AuthCardProps) {
     <div className="page-wrap flex min-h-[60vh] items-center justify-center px-4 pb-8 pt-14">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">{title}</CardTitle>
+          <CardTitle as="h1" className="text-2xl">
+            {title}
+          </CardTitle>
           <CardDescription>{description}</CardDescription>
         </CardHeader>
         <CardContent>{children}</CardContent>

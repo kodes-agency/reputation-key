@@ -122,7 +122,8 @@ export function PortalResponsibilitiesModal({
             <PortalSelector
               field={supportingField}
               portals={supportingOptions}
-              label="Supporting portals (optional)"
+              label="Supporting portals"
+              optional
             />
           </div>
         )}

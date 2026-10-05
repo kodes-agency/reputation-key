@@ -1,5 +1,5 @@
 import { Checkbox } from '#/components/ui/checkbox'
-import { Field, FieldLabel, FieldError } from '#/components/ui/field'
+import { Field, FieldLabel, FieldError, FieldOptional } from '#/components/ui/field'
 
 export interface PortalOption {
   id: string
@@ -20,16 +20,24 @@ type Props = Readonly<{
   }
   portals: ReadonlyArray<PortalOption>
   label?: string
+  /** The person may choose none: the label says "Optional". */
+  optional?: boolean
 }>
 
-export function PortalSelector({ field, portals, label = 'Portals' }: Props) {
+export function PortalSelector({
+  field,
+  portals,
+  label = 'Portals',
+  optional = false,
+}: Props) {
   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
   const selected = new Set(field.state.value)
 
   return (
     <Field data-invalid={isInvalid}>
       <FieldLabel>
-        {label}{' '}
+        {label}
+        {optional ? <FieldOptional /> : null}{' '}
         {selected.size > 0 && (
           <span className="font-normal text-muted-foreground">
             ({selected.size} selected)

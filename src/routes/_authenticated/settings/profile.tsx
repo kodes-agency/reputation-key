@@ -45,8 +45,13 @@ function ProfileSettings() {
   const updateProfile = useActionMutation(updateProfileFn, {
     successMessage: 'Profile updated',
   })
+  // Both are immediate actions: the avatar setting says a refusal, so neither passes an
+  // `errorMessage`.
   const updateUserImage = useActionMutation(updateUserImageFn, {
     successMessage: 'Avatar updated',
+  })
+  const removeUserImage = useActionMutation(updateUserImageFn, {
+    successMessage: 'Avatar removed',
   })
   const requestUpload = useServerFn(requestAvatarUpload)
   const finalizeUpload = useServerFn(finalizeAvatarUpload)
@@ -71,6 +76,7 @@ function ProfileSettings() {
           user={ctx.user}
           updateProfile={updateProfile}
           updateUserImage={updateUserImage}
+          removeUserImage={removeUserImage}
           requestAvatarUpload={requestUpload}
           finalizeAvatarUpload={finalizeUpload}
         />

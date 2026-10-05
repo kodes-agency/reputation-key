@@ -36,7 +36,7 @@ export function GoogleImportAccountList({
   return (
     <Card className="gap-4 lg:self-start">
       <CardHeader>
-        <CardTitle>Business accounts</CardTitle>
+        <CardTitle as="h2">Business accounts</CardTitle>
         <CardDescription>
           Choose the account that owns the locations you want to import.
         </CardDescription>

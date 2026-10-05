@@ -13,7 +13,7 @@
 import { readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { walk } from '#/shared/testing/source-tree'
+import { stripComments, walk } from '#/shared/testing/source-tree'
 
 const ROOT = join(import.meta.dirname, '..', '..', '..')
 const SOURCES = ['src/components', 'src/routes'] as const
@@ -35,20 +35,18 @@ const FILES = SOURCES.flatMap((source) => walk(join(ROOT, source)))
   )
   .map((path) => ({ path, text: readFileSync(join(ROOT, path), 'utf8') }))
 
-/** The source without its comments, which are free to quote the wrong colours. */
-function code(text: string): string {
-  return text.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/(^|\s)\/\/.*$/gmu, '$1')
-}
-
 function offendersOf(pattern: RegExp, allowed: Readonly<Record<string, string>> = {}) {
-  return FILES.filter((file) => pattern.test(code(file.text)) && !(file.path in allowed))
+  return FILES.filter(
+    (file) => pattern.test(stripComments(file.text)) && !(file.path in allowed),
+  )
     .map((file) => file.path)
     .sort()
 }
 
 function staleIn(pattern: RegExp, allowed: Readonly<Record<string, string>>) {
   return Object.keys(allowed).filter(
-    (path) => !FILES.some((file) => file.path === path && pattern.test(code(file.text))),
+    (path) =>
+      !FILES.some((file) => file.path === path && pattern.test(stripComments(file.text))),
   )
 }
 

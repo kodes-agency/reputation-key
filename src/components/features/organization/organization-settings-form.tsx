@@ -2,14 +2,13 @@
 // Per conventions: receives organization data and onSubmit callback, uses TanStack Form + Zod schema.
 
 import { useForm } from '@tanstack/react-form'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FormActions } from '#/components/forms/form-actions'
 import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { Link } from '@tanstack/react-router'
-import { Button } from '#/components/ui/button'
 import {
   Card,
   CardContent,
+  CardFooter,
   CardHeader,
   CardTitle,
   CardDescription,
@@ -54,11 +53,10 @@ export function OrganizationSettingsForm({
   })
 
   return (
-    <form onSubmit={submitHandler(form)} className="flex flex-col gap-6">
-      {/* Identity Card */}
+    <form onSubmit={submitHandler(form)}>
       <Card>
         <CardHeader>
-          <CardTitle>Identity</CardTitle>
+          <CardTitle as="h2">Identity</CardTitle>
           <CardDescription>
             Organization name, slug, and contact information.
           </CardDescription>
@@ -66,21 +64,14 @@ export function OrganizationSettingsForm({
         <CardContent>
           <OrgIdentityCard form={form} />
         </CardContent>
+        <CardFooter>
+          <FormActions form={form} error={error}>
+            <SubmitButton mutation={{ isPending, error }} form={form}>
+              Save changes
+            </SubmitButton>
+          </FormActions>
+        </CardFooter>
       </Card>
-
-      <FormErrorBanner error={error} />
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <SubmitButton
-          mutation={{ isPending, error }}
-          form={form}
-          className="w-full sm:w-auto"
-        >
-          Save changes
-        </SubmitButton>
-        <Button type="button" variant="outline" asChild className="w-full sm:w-auto">
-          <Link to="/settings/profile">Cancel</Link>
-        </Button>
-      </div>
     </form>
   )
 }

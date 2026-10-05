@@ -1,6 +1,7 @@
 import { useForm } from '@tanstack/react-form'
 import { CountryCombobox } from '#/components/forms/country-combobox'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FormActions } from '#/components/forms/form-actions'
+import { FormFieldFrame } from '#/components/forms/form-field-frame'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
@@ -14,7 +15,8 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import { Field, FieldError, FieldGroup, FieldLabel } from '#/components/ui/field'
+import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
+import { FieldGroup } from '#/components/ui/field'
 import { updatePropertyInputSchema } from '#/contexts/property/application/dto/update-property.dto'
 import { PROPERTY_COUNTRY_OPTIONS } from './property-profile-options'
 
@@ -68,7 +70,7 @@ export function PropertyProfileCard({ property, canEdit, updateProperty }: Props
     <form onSubmit={submitHandler(form)}>
       <Card>
         <CardHeader className="border-b">
-          <CardTitle>Business profile</CardTitle>
+          <CardTitle as="h2">Business profile</CardTitle>
           <CardDescription>
             The name your team sees, and where the business is. Changing the country or
             timezone moves no data.
@@ -92,8 +94,12 @@ export function PropertyProfileCard({ property, canEdit, updateProperty }: Props
                 {(field) => {
                   const invalid = field.state.meta.isTouched && !field.state.meta.isValid
                   return (
-                    <Field data-invalid={invalid}>
-                      <FieldLabel htmlFor="property-profile-country">Country</FieldLabel>
+                    <FormFieldFrame
+                      id="property-profile-country"
+                      label="Country"
+                      invalid={invalid}
+                      errors={invalid ? field.state.meta.errors : undefined}
+                    >
                       <CountryCombobox
                         id="property-profile-country"
                         value={field.state.value}
@@ -103,8 +109,7 @@ export function PropertyProfileCard({ property, canEdit, updateProperty }: Props
                         onBlur={field.handleBlur}
                         onValueChange={field.handleChange}
                       />
-                      {invalid ? <FieldError errors={field.state.meta.errors} /> : null}
-                    </Field>
+                    </FormFieldFrame>
                   )
                 }}
               </form.Field>
@@ -112,10 +117,12 @@ export function PropertyProfileCard({ property, canEdit, updateProperty }: Props
                 {(field) => {
                   const invalid = field.state.meta.isTouched && !field.state.meta.isValid
                   return (
-                    <Field data-invalid={invalid}>
-                      <FieldLabel htmlFor="property-profile-timezone">
-                        Timezone
-                      </FieldLabel>
+                    <FormFieldFrame
+                      id="property-profile-timezone"
+                      label="Timezone"
+                      invalid={invalid}
+                      errors={invalid ? field.state.meta.errors : undefined}
+                    >
                       <form.Subscribe selector={(state) => state.values.countryCode}>
                         {(countryCode) => (
                           <TimezoneCombobox
@@ -129,29 +136,30 @@ export function PropertyProfileCard({ property, canEdit, updateProperty }: Props
                           />
                         )}
                       </form.Subscribe>
-                      {invalid ? <FieldError errors={field.state.meta.errors} /> : null}
-                    </Field>
+                    </FormFieldFrame>
                   )
                 }}
               </form.Field>
             </div>
           </FieldGroup>
-          <dl className="grid gap-1 text-sm">
-            <dt className="text-muted-foreground">Address · from Google</dt>
-            <dd>{property.address ?? 'No address on the Business Profile'}</dd>
-          </dl>
+          <DescriptionList stacked aria-label="From Google">
+            <DescriptionItem term="Address" note="From Google">
+              {property.address ?? 'No address on the Business Profile'}
+            </DescriptionItem>
+          </DescriptionList>
           {!canEdit ? (
             <p className="text-sm text-muted-foreground">
               Ask an account admin or a manager of this property to change these details.
             </p>
           ) : null}
-          <FormErrorBanner error={updateProperty.error} />
         </CardContent>
         {canEdit ? (
-          <CardFooter className="justify-end border-t">
-            <SubmitButton mutation={updateProperty} form={form}>
-              Save profile
-            </SubmitButton>
+          <CardFooter className="border-t">
+            <FormActions form={form} error={updateProperty.error}>
+              <SubmitButton mutation={updateProperty} form={form}>
+                Save profile
+              </SubmitButton>
+            </FormActions>
           </CardFooter>
         ) : null}
       </Card>

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { BookOpenText } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
 import { Badge } from '#/components/ui/badge'
@@ -10,7 +11,7 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { EmptyState } from '#/components/ui/empty-state'
-import { Switch } from '#/components/ui/switch'
+import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
 import {
   DataTable,
   DataTableBody,
@@ -43,6 +44,39 @@ type Props = Readonly<{
   toggleAction: ToggleReplyTemplateAction
 }>
 
+/** One template's switch: it saves as it is flipped and says so while the request runs. */
+function TemplateEnabledSwitch({
+  propertyId,
+  template,
+  toggleAction,
+}: Readonly<{
+  propertyId: string
+  template: PropertyReplyLibraryTemplate
+  toggleAction: ToggleReplyTemplateAction
+}>) {
+  const [saving, setSaving] = useState(false)
+  return (
+    <SettingSwitchRow
+      id={`reply-template-enabled-${template.id}`}
+      layout="cell"
+      label={`Enabled: ${template.title}`}
+      stateWords={['On', 'Off']}
+      commit="immediate"
+      pending={saving}
+      disabled={toggleAction.isPending}
+      checked={template.enabled}
+      onCheckedChange={(enabled) => {
+        setSaving(true)
+        // The action reports a refusal in a toast; the row reads how it went from the
+        // promise, and this ends the busy state.
+        return toggleAction({
+          data: { propertyId, templateId: template.id, enabled },
+        }).finally(() => setSaving(false))
+      }}
+    />
+  )
+}
+
 export function PropertyReplyTemplateLibraryCard({
   propertyId,
   profile,
@@ -57,7 +91,7 @@ export function PropertyReplyTemplateLibraryCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Template library</CardTitle>
+        <CardTitle as="h2">Template library</CardTitle>
         <CardDescription>
           Author Property-specific replies by rating, review type, aspect, and language.
           Disable a template to remove it from the composer without deleting its history.
@@ -119,25 +153,11 @@ export function PropertyReplyTemplateLibraryCard({
                     <code>{template.languageTag}</code>
                   </DataTableCell>
                   <DataTableCell>
-                    <label
-                      htmlFor={`reply-template-enabled-${template.id}`}
-                      className="flex min-h-11 cursor-pointer items-center gap-2"
-                    >
-                      <Switch
-                        id={`reply-template-enabled-${template.id}`}
-                        checked={template.enabled}
-                        onCheckedChange={(enabled) =>
-                          void toggleAction({
-                            data: { propertyId, templateId: template.id, enabled },
-                          })
-                        }
-                        disabled={toggleAction.isPending}
-                        aria-label={`${template.enabled ? 'Disable' : 'Enable'} ${template.title}`}
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        {template.enabled ? 'On' : 'Off'}
-                      </span>
-                    </label>
+                    <TemplateEnabledSwitch
+                      propertyId={propertyId}
+                      template={template}
+                      toggleAction={toggleAction}
+                    />
                   </DataTableCell>
                   <DataTableCell className="text-right">
                     <ReplyTemplateEditor

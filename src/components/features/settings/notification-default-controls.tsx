@@ -3,6 +3,7 @@
 // sits in.
 
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
+import { InheritedSetting } from '#/components/forms/inherited-setting'
 import { Button } from '#/components/ui/button'
 import type { ConfigurableNotificationCategory } from '#/contexts/feed/application/public-api'
 import { namesInBrief, type SetDifferently } from './notification-apply-everywhere'
@@ -52,7 +53,29 @@ export function DefaultControls({
   const count = setDifferently.length
   const includesMute = setDifferently.some((property) => property.muted)
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-3 md:col-span-3 md:col-start-1">
+    <InheritedSetting
+      source="your default"
+      overridden={ownHere}
+      commit="immediate"
+      inheritLabel="Use my default here"
+      inheritAccessibleName={named(categoryLabel, 'Use my default here')}
+      onInherit={() => void resetToDefault(category, [propertyInView])}
+      noteId={noteId}
+      note={
+        <>
+          {inherited}
+          {count > 0 && (
+            <>
+              {' '}
+              {namesInBrief(setDifferently.map((property) => property.name))}{' '}
+              {count === 1 ? 'keeps its' : 'keep their'} own setting
+              {includesMute ? ', including a mute from the notification bell' : ''}.
+            </>
+          )}
+        </>
+      }
+      className="md:col-span-3 md:col-start-1"
+    >
       <Button
         type="button"
         variant="outline"
@@ -63,28 +86,6 @@ export function DefaultControls({
       >
         Make this my default
       </Button>
-      {ownHere && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-label={named(categoryLabel, 'Use my default here')}
-          onClick={() => void resetToDefault(category, [propertyInView])}
-        >
-          Use my default here
-        </Button>
-      )}
-      <p id={noteId} className="basis-full text-sm text-muted-foreground">
-        {inherited}
-        {count > 0 && (
-          <>
-            {' '}
-            {namesInBrief(setDifferently.map((property) => property.name))}{' '}
-            {count === 1 ? 'keeps its' : 'keep their'} own setting
-            {includesMute ? ', including a mute from the notification bell' : ''}.
-          </>
-        )}
-      </p>
       {count > 0 && (
         <ConfirmationDialog
           trigger={
@@ -119,6 +120,6 @@ export function DefaultControls({
           }
         />
       )}
-    </div>
+    </InheritedSetting>
   )
 }

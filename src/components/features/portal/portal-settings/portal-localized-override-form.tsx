@@ -65,7 +65,7 @@ export function PortalLocalizedOverrideForm({
               placeholder={titlePlaceholder}
               maxLength={120}
               disabled={disabled}
-              hint={`The line guests read above ${propertyName ?? 'the property’s name'}, such as Spa reception.`}
+              description={`The line guests read above ${propertyName ?? 'the property’s name'}, such as Spa reception.`}
             />
           )}
         </form.Field>
@@ -79,7 +79,7 @@ export function PortalLocalizedOverrideForm({
               maxLength={500}
               rows={2}
               disabled={disabled}
-              hint="Shown with the page’s link when it is shared in a chat app."
+              description="Shown with the page’s link when it is shared in a chat app."
             />
           )}
         </form.Field>

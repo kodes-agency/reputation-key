@@ -65,7 +65,7 @@ export function GoogleImportDiscoveryPanel(props: Props) {
 
       <Card className="min-w-0 gap-4">
         <CardHeader>
-          <CardTitle>
+          <CardTitle as="h2">
             {selectedAccount ? selectedAccount.displayName : 'Locations'}
           </CardTitle>
           <CardDescription>

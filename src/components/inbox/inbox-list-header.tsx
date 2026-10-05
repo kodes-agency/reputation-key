@@ -148,6 +148,67 @@ function WideControls({
   )
 }
 
+/** The phone's bar or the wide one: `isMobile` is `useIsMobile`'s answer. */
+function HeaderControls({
+  isMobile,
+  totalCount,
+  isLoading,
+  onClearFilters,
+  ...controls
+}: ControlsProps &
+  Readonly<{
+    isMobile: boolean
+    totalCount: number
+    isLoading: boolean
+    onClearFilters: () => void
+  }>) {
+  return isMobile ? (
+    <PhoneControls
+      {...controls}
+      totalCount={totalCount}
+      isLoading={isLoading}
+      onClearFilters={onClearFilters}
+    />
+  ) : (
+    <WideControls {...controls} />
+  )
+}
+
+/**
+ * The queue's name, its count and the scope under it. The name is the page's one h1 at
+ * every width: on a phone the queue strip above draws it, so the heading is read, not
+ * drawn.
+ */
+function QueueHeading({
+  queueLabel,
+  scopeLabel,
+  scopeControl,
+  totalCount,
+}: Readonly<Pick<Props, 'queueLabel' | 'scopeLabel' | 'scopeControl' | 'totalCount'>>) {
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 items-center gap-2">
+        <h1 className="truncate text-sm font-semibold max-md:sr-only">{queueLabel}</h1>
+        <span className="text-xs tabular-nums text-muted-foreground max-md:hidden">
+          {totalCount}
+        </span>
+      </div>
+      {scopeControl ?? (
+        <p className="truncate text-xs text-muted-foreground max-md:text-[13px] max-md:font-medium max-md:text-foreground">
+          {scopeLabel}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Search and the selection toolbar take the whole header over, the drawn heading with
+ * it. The page keeps its one h1 (FRAME-10), read and not drawn.
+ */
+const takesHeaderOver = (selectionToolbar: ReactNode, searchVisible: boolean) =>
+  (selectionToolbar ?? null) !== null || searchVisible
+
 export function InboxListHeader({
   queueLabel,
   scopeLabel,
@@ -178,6 +239,9 @@ export function InboxListHeader({
       data-inbox-list-header
       className="flex h-14 shrink-0 items-center border-b px-3 max-md:h-11 max-md:px-4"
     >
+      {takesHeaderOver(selectionToolbar, searchVisible) ? (
+        <h1 className="sr-only">{queueLabel}</h1>
+      ) : null}
       {selectionToolbar ??
         (searchVisible ? (
           <InboxListSearch
@@ -189,41 +253,24 @@ export function InboxListHeader({
           />
         ) : (
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2 max-md:hidden">
-                <h1 className="truncate text-sm font-semibold">{queueLabel}</h1>
-                <span className="text-xs tabular-nums text-muted-foreground">
-                  {totalCount}
-                </span>
-              </div>
-              {scopeControl ?? (
-                <p className="truncate text-xs text-muted-foreground max-md:text-[13px] max-md:font-medium max-md:text-foreground">
-                  {scopeLabel}
-                </p>
-              )}
-            </div>
-            {isMobile ? (
-              <PhoneControls
-                filters={filters}
-                sort={sort}
-                totalCount={totalCount}
-                isLoading={isLoading}
-                onOpenSearch={openSearch}
-                onFiltersChange={onFiltersChange}
-                onSortChange={onSortChange}
-                onClearFilters={onClearFilters}
-                onStartSelection={startSelection}
-              />
-            ) : (
-              <WideControls
-                filters={filters}
-                sort={sort}
-                onOpenSearch={openSearch}
-                onFiltersChange={onFiltersChange}
-                onSortChange={onSortChange}
-                onStartSelection={startSelection}
-              />
-            )}
+            <QueueHeading
+              queueLabel={queueLabel}
+              scopeLabel={scopeLabel}
+              scopeControl={scopeControl}
+              totalCount={totalCount}
+            />
+            <HeaderControls
+              isMobile={isMobile}
+              filters={filters}
+              sort={sort}
+              totalCount={totalCount}
+              isLoading={isLoading}
+              onOpenSearch={openSearch}
+              onFiltersChange={onFiltersChange}
+              onSortChange={onSortChange}
+              onClearFilters={onClearFilters}
+              onStartSelection={startSelection}
+            />
           </div>
         ))}
     </header>

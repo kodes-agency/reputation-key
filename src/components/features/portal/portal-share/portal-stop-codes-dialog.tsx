@@ -3,7 +3,7 @@
 // as its body; the dialog stays open while the codes stop and says a refusal in
 // place.
 import { useForm, useStore } from '@tanstack/react-form'
-import { Field, FieldError, FieldLabel } from '#/components/ui/field'
+import { FormFieldFrame } from '#/components/forms/form-field-frame'
 import { Input } from '#/components/ui/input'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { revokePortalTokensInputSchema } from '#/contexts/portal/application/dto/portal-token-lifecycle.dto'
@@ -56,8 +56,12 @@ export function PortalStopCodesDialog({
         {(field) => {
           const invalid = field.state.meta.isTouched && !field.state.meta.isValid
           return (
-            <Field data-invalid={invalid}>
-              <FieldLabel htmlFor="portal-revoke-reason">Reason</FieldLabel>
+            <FormFieldFrame
+              id="portal-revoke-reason"
+              label="Reason"
+              invalid={invalid}
+              errors={invalid ? field.state.meta.errors : undefined}
+            >
               <Input
                 id="portal-revoke-reason"
                 name={field.name}
@@ -70,8 +74,7 @@ export function PortalStopCodesDialog({
                 disabled={mutation.isPending}
                 autoFocus
               />
-              {invalid ? <FieldError errors={field.state.meta.errors} /> : null}
-            </Field>
+            </FormFieldFrame>
           )
         }}
       </form.Field>

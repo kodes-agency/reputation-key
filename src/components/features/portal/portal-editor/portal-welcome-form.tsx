@@ -54,7 +54,7 @@ export function PortalWelcomeForm({
             id="edit-portal-name"
             maxLength={100}
             disabled={isDisabled}
-            hint={
+            description={
               propertyHasName
                 ? 'Your team sees it in lists and menus.'
                 : 'Your team sees it in lists and menus. Until the property has a public name, guests read it in large type too.'

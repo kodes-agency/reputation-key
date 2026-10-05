@@ -6,27 +6,10 @@
 // reason. These checks read the sources, so a new table that reaches for the raw
 // primitive fails here with the file named instead of drifting back.
 
-import { readdirSync, readFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { readUiSources } from '#/shared/testing/source-tree'
 
-const ROOT = join(import.meta.dirname, '..', '..', '..')
-const SOURCES = ['src/components', 'src/routes'] as const
-
-function walk(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name)
-    if (entry.isDirectory()) return walk(path)
-    return /\.tsx$/u.test(entry.name) && !/\.(stories|test)\./u.test(entry.name)
-      ? [path]
-      : []
-  })
-}
-
-const FILES = SOURCES.flatMap((source) => walk(join(ROOT, source))).map((path) => ({
-  path: relative(ROOT, path),
-  text: readFileSync(path, 'utf8'),
-}))
+const FILES = readUiSources({ comments: 'kept' })
 
 type SourceFile = (typeof FILES)[number]
 

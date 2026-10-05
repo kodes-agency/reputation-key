@@ -198,7 +198,8 @@ export function ReplyTemplateEditor({
                   <FormTextField
                     field={field as BaseFieldApi}
                     id="reply-template-open-label"
-                    label="Open label (optional)"
+                    label="Open label"
+                    optional
                     maxLength={REPLY_LIBRARY_FIELD_LIMITS.openLabel}
                     disabled={action.isPending}
                   />

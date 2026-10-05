@@ -8,9 +8,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import { Textarea } from '#/components/ui/textarea'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitHandler } from '#/components/forms/form-submit'
+import { FormTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { feedbackHandlingDecisionDto } from '#/contexts/inbox/application/dto/inbox.dto'
 import {
@@ -93,29 +93,17 @@ export function FeedbackHandlingForm(props: Props) {
       </form.Field>
       <form.Field name="internalNote">
         {(field) => (
-          <Field data-invalid={!field.state.meta.isValid}>
-            <FieldLabel htmlFor="feedback-handling-note">
-              Internal note{' '}
-              <span className="font-normal text-muted-foreground">(optional)</span>
-            </FieldLabel>
-            <Textarea
-              id="feedback-handling-note"
-              value={field.state.value}
-              onBlur={field.handleBlur}
-              onChange={(event) => field.handleChange(event.target.value)}
-              maxLength={2_000}
-              rows={4}
-              placeholder="Add context that will help other managers"
-              disabled={props.mutation.isPending}
-            />
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Only managers with access to this property can see this note. It is never
-              shown to the guest.
-            </p>
-            <FieldError
-              errors={field.state.meta.errors as Array<{ message?: string } | undefined>}
-            />
-          </Field>
+          <FormTextarea
+            field={field}
+            id="feedback-handling-note"
+            label="Internal note"
+            optional
+            maxLength={2_000}
+            rows={4}
+            placeholder="Add context that will help other managers"
+            disabled={props.mutation.isPending}
+            description="Only managers with access to this property can see this note. It is never shown to the guest."
+          />
         )}
       </form.Field>
       <DialogErrorBanner error={props.mutation.error} />
