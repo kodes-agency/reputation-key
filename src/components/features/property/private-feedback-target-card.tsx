@@ -2,8 +2,8 @@ import { useForm } from '@tanstack/react-form'
 import { FormActions } from '#/components/forms/form-actions'
 import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { Checkbox } from '#/components/ui/checkbox'
-import { Label } from '#/components/ui/label'
+import { InheritedSetting } from '#/components/forms/inherited-setting'
+import { InlineLink } from '#/components/ui/inline-link'
 import { FormNumberField } from '#/components/forms/form-number-field'
 import {
   Card,
@@ -90,22 +90,25 @@ function PrivateFeedbackTargetFormCard({
         <CardContent className="space-y-4">
           <form.Field name="useOrganizationTarget">
             {(field) => (
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="use-organization-feedback-target"
-                  checked={field.state.value}
-                  onCheckedChange={(checked) => field.handleChange(checked === true)}
-                  onBlur={field.handleBlur}
-                />
-                <div className="grid gap-1">
-                  <Label htmlFor="use-organization-feedback-target">
-                    Use Organization target ({organizationHours} hours)
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    This remains linked to future Organization changes.
-                  </p>
-                </div>
-              </div>
+              <InheritedSetting
+                source={
+                  <InlineLink to="/settings/organization" underline="always">
+                    the Organization target
+                  </InlineLink>
+                }
+                value={`${organizationHours} ${organizationHours === 1 ? 'hour' : 'hours'}`}
+                overridden={!field.state.value}
+                commit="deferred"
+                inheritLabel="Use Organization target"
+                overrideLabel="Set a Property target"
+                onInherit={() => field.handleChange(true)}
+                onOverride={() => field.handleChange(false)}
+                note={
+                  field.state.value
+                    ? 'This remains linked to future Organization changes.'
+                    : undefined
+                }
+              />
             )}
           </form.Field>
           <form.Subscribe selector={(state) => state.values.useOrganizationTarget}>

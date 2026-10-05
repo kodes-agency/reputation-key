@@ -43,12 +43,25 @@ const settings = {
   },
 } as unknown as ComponentProps<typeof PrivateFeedbackTargetCard>['settings']
 
+/** Stands in for the utilities layer, which this runner does not compile: the link to the Organization target stays underlined (axe link-in-text-block). */
+const UTILITY_LAYER = `@layer utilities {
+  .underline { text-decoration-line: underline; }
+}`
+
 const meta: Meta<typeof PrivateFeedbackTargetCard> = {
   title: 'Property/PrivateFeedbackTargetCard',
   component: PrivateFeedbackTargetCard,
   tags: ['autodocs'],
   parameters: { layout: 'padded' },
   args: { settings, updatePolicy },
+  decorators: [
+    (Story) => (
+      <>
+        <style>{UTILITY_LAYER}</style>
+        <Story />
+      </>
+    ),
+  ],
 }
 export default meta
 type Story = StoryObj<typeof PrivateFeedbackTargetCard>
@@ -87,4 +100,50 @@ export const ResetRestoresTheSavedHours: Story = {
       expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull(),
     )
   },
+}
+
+/**
+ * The row says the Property has a target of its own and what it replaced; going back to the
+ * Organization target is a change the group's Save sends (a null duration), and Reset takes it back.
+ */
+export const FollowsTheOrganizationTarget: Story = {
+  play: async ({ canvasElement }) => {
+    updatePolicySpy.mockClear()
+    const canvas = within(canvasElement)
+    expect(canvas.getByText(/Set here instead of/)).toHaveTextContent(
+      'Set here instead of the Organization target (36 hours).',
+    )
+    expect(canvas.getByRole('link', { name: 'the Organization target' })).toHaveAttribute(
+      'href',
+      '/settings/organization',
+    )
+    const hours = canvas.getByLabelText('Property hours')
+    expect(hours).toBeEnabled()
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Use Organization target' }))
+    expect(canvas.getByText(/Follows/)).toHaveTextContent(
+      'Follows the Organization target, currently 36 hours.',
+    )
+    expect(hours).toBeDisabled()
+    expect(
+      canvas.getByText('This remains linked to future Organization changes.'),
+    ).toBeVisible()
+
+    // Reset puts the saved override back.
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    expect(canvas.getByText(/Set here instead of/)).toBeVisible()
+    expect(canvas.getByLabelText('Property hours')).toBeEnabled()
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Use Organization target' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Save Property target' }))
+    await waitFor(() => expect(updatePolicySpy).toHaveBeenCalledOnce())
+    expect(updatePolicySpy).toHaveBeenCalledWith({
+      data: expect.objectContaining({ scope: 'property', durationMinutes: null }),
+    })
+  },
+}
+
+export const FollowsTheOrganizationTargetLight: Story = {
+  ...FollowsTheOrganizationTarget,
+  parameters: { theme: 'light' },
 }

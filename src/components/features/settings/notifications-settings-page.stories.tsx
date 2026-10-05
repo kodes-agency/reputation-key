@@ -491,6 +491,71 @@ export const OnePropertyCanOverrideTheWindow: Story = {
 }
 
 /**
+ * Following the Property again is saved before the row stops showing the override: a
+ * refusal leaves the override where it was, with its own times, and says so in a toast
+ * (it used to flip to "follows" and show a state the server never stored).
+ */
+export const FollowingAgainIsKeptWhenTheSaveFails: Story = {
+  args: {
+    userSettings: { ...userSettings, quietHoursStart: '22:00', quietHoursEnd: '07:00' },
+    propertyWindows: [override],
+    updateQuietHours: asAction(async () => Promise.reject(new Error('refused'))),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const property = properties[0]!.name
+    const section = within(canvas.getByRole('region', { name: property }))
+    expect(section.getByText(/Set here instead of/)).toBeVisible()
+
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Follow my quiet hours here' }),
+    )
+
+    await expectToast("Couldn't update quiet hours. Try again.")
+    // Still the Property's own answer, with its own times.
+    expect(canvas.getByLabelText(`${property}: Quiet from`)).toHaveValue('00:00')
+    expect(
+      canvas.getByRole('button', { name: 'Follow my quiet hours here' }),
+    ).toBeEnabled()
+    expect(canvas.queryByRole('button', { name: 'Use different hours here' })).toBeNull()
+  },
+}
+
+/** The row says what the Property follows, and what the person's quiet hours are, with a way to them. */
+export const TheQuietHoursRowNamesWhatItFollows: Story = {
+  args: {
+    userSettings: { ...userSettings, quietHoursStart: '22:00', quietHoursEnd: '07:00' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const section = within(canvas.getByRole('region', { name: properties[0]!.name }))
+    const status = section.getByText(/^Follows /)
+
+    expect(status).toHaveTextContent(
+      'Follows your quiet hours, currently 22:00 to 07:00.',
+    )
+    expect(
+      within(status).getByRole('link', { name: 'your quiet hours' }),
+    ).toHaveAttribute('href', expect.stringContaining('#quiet-hours-personal'))
+    expect(section.getByText('The daily digest always does.')).toBeVisible()
+  },
+}
+
+/** A category row says whether the Property follows the person's default or has its own setting. */
+export const EachCategoryRowSaysWhoseSettingItIs: Story = {
+  play: ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const actionNeeded = within(canvas.getByRole('group', { name: 'Action needed' }))
+    const workflow = within(
+      canvas.getByRole('group', { name: 'Workflow and collaboration' }),
+    )
+
+    expect(actionNeeded.getByText('Follows your default.')).toBeVisible()
+    expect(workflow.getByText('Set here instead of your default.')).toBeVisible()
+  },
+}
+
+/**
  * Picking another Property shows that Property's own answer. The card used to
  * keep the first Property's mode, so a Property whose override sends email at
  * any hour read "Follows your quiet hours", and saving the bypass on a
