@@ -1,10 +1,10 @@
 // Integrations settings page — Google Business Profile connection management.
 // Lists connected Google accounts with their status and offers connect/disconnect.
-// Connect fetches the OAuth URL from the server (state signed server-side) and
-// redirects to Google; disconnect revokes the connection for this org.
+// Every way of starting the OAuth ceremony is the one `ConnectGoogleButton`, which
+// fetches the URL from the server (state signed server-side) and redirects to Google;
+// disconnect revokes the connection for this org.
 
-import { toast } from 'sonner'
-import { Plug, Plus } from 'lucide-react'
+import { Plug } from 'lucide-react'
 import {
   Card,
   CardContent,
@@ -12,16 +12,14 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
 import type { Action } from '#/components/hooks/use-action'
+import { ConnectGoogleButton } from '#/components/features/integration/connect-google-button'
 import type {
   GoogleAuthUrlInput,
   GoogleConnectionDto,
 } from '#/contexts/integration/application/public-api'
-import { NEW_GOOGLE_CONNECTION_AUTHORIZATION } from './google-connection-authorization'
 import { GoogleConnectionSettingsRow } from './google-connection-settings-row'
-import { actionFailureMessage } from '#/components/hooks/use-action-mutation'
 
 type ConnectInput = Readonly<{ data: GoogleAuthUrlInput }>
 type DisconnectInput = Readonly<{ data: Readonly<{ connectionId: string }> }>
@@ -37,21 +35,6 @@ export function IntegrationsSettingsPage({
   connectGoogle,
   disconnectGoogle,
 }: Props) {
-  const onAuthorize = async (input: GoogleAuthUrlInput) => {
-    try {
-      const { url } = await connectGoogle({ data: input })
-      window.location.href = url
-    } catch (error) {
-      toast.error(
-        actionFailureMessage(
-          input.connectionMode === 'reauth'
-            ? "Couldn't start Google reauthorization."
-            : "Couldn't start the Google connection.",
-        )(error),
-      )
-    }
-  }
-
   return (
     <Card>
       <CardHeader>
@@ -66,16 +49,7 @@ export function IntegrationsSettingsPage({
             icon={Plug}
             title="Not connected"
             description="Connect a Google account to start importing your business profile data."
-            action={
-              <Button
-                onClick={() => void onAuthorize(NEW_GOOGLE_CONNECTION_AUTHORIZATION)}
-                pending={connectGoogle.isPending}
-                pendingLabel="Connecting…"
-              >
-                <Plus />
-                Connect Google
-              </Button>
-            }
+            action={<ConnectGoogleButton getAuthUrl={connectGoogle} />}
           />
         ) : (
           <>
@@ -84,9 +58,9 @@ export function IntegrationsSettingsPage({
                 <GoogleConnectionSettingsRow
                   key={connection.id}
                   connection={connection}
+                  getAuthUrl={connectGoogle}
                   authorizationPending={connectGoogle.isPending}
                   disconnectPending={disconnectGoogle.isPending}
-                  onReauthorize={(request) => void onAuthorize(request)}
                   // The confirmation stays open and says a refusal itself.
                   onDisconnect={(connectionId) =>
                     disconnectGoogle({ data: { connectionId } })
@@ -94,14 +68,11 @@ export function IntegrationsSettingsPage({
                 />
               ))}
             </div>
-            <Button
-              onClick={() => void onAuthorize(NEW_GOOGLE_CONNECTION_AUTHORIZATION)}
-              pending={connectGoogle.isPending}
-              pendingLabel="Connecting…"
-            >
-              <Plus />
-              Connect another account
-            </Button>
+            <ConnectGoogleButton
+              getAuthUrl={connectGoogle}
+              label="Connect another account"
+              disabled={connectGoogle.isPending}
+            />
           </>
         )}
       </CardContent>

@@ -25,9 +25,9 @@ const meta: Meta<typeof GoogleConnectionSettingsRow> = {
   tags: ['autodocs'],
   args: {
     connection,
+    getAuthUrl: fn(async () => ({ url: 'https://accounts.google.test/oauth' })),
     authorizationPending: false,
     disconnectPending: false,
-    onReauthorize: fn(),
     onDisconnect: fn(),
   },
 }

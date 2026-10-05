@@ -112,7 +112,7 @@ export function PropertyGoogleSection({ property }: Props) {
         {can('integration.manage') ? (
           <Button asChild variant="ghost" size="sm">
             <Link to="/settings/integrations">
-              Organization Google connection
+              Open Google integrations
               <ExternalLink aria-hidden="true" />
             </Link>
           </Button>

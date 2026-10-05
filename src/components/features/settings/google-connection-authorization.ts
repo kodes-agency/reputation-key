@@ -10,12 +10,6 @@ type ConnectionAuthorizationState = Readonly<{
 
 type ReauthorizationRequest = Extract<GoogleAuthUrlInput, { connectionMode: 'reauth' }>
 
-export const NEW_GOOGLE_CONNECTION_AUTHORIZATION = {
-  visibility: 'organization',
-  connectionMode: 'new',
-  targetConnectionId: null,
-} as const satisfies GoogleAuthUrlInput
-
 /**
  * An active connection made before RepKey asked for the account's email can be
  * authorized once more, with the same Google account, so it shows which
