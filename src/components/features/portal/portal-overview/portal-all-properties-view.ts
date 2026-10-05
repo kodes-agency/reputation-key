@@ -194,8 +194,8 @@ const plural = (count: number, one: string, many: string): string =>
   `${count} ${count === 1 ? one : many}`
 
 /**
- * The page's one line under its title: "All 3 properties in Avela Hospitality · 11
- * portals". "All" only where the reader's property access is Organization-wide
+ * The page's meta line under its title, as two facts ("All 3 properties in Avela
+ * Hospitality", "11 portals"). "All" only where the reader's property access is Organization-wide
  * and every Property has Portals: a Property Manager assigned some Properties
  * lists only those, so for them "all" would be about an Organization they do
  * not see whole.
@@ -209,12 +209,12 @@ export function describeAllProperties(
     organizationWide: boolean
   }>,
   organizationName: string | undefined,
-): string | undefined {
+): readonly string[] | undefined {
   if (counts.portals === 0) return undefined
   const properties = plural(counts.properties, 'property', 'properties')
   const all =
     counts.organizationWide && counts.properties > 1 && counts.properties === counts.known
   const scope = all ? `All ${properties}` : properties
   const where = organizationName ? ` in ${organizationName}` : ''
-  return `${scope}${where} · ${plural(counts.portals, 'portal', 'portals')}`
+  return [`${scope}${where}`, plural(counts.portals, 'portal', 'portals')]
 }

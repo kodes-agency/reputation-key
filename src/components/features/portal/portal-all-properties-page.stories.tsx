@@ -92,9 +92,11 @@ export const SaysWhatTheOrganizationHolds: Story = {
   args: withResults,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    // Two facts in the header's meta line, which puts the dot between them.
     await expect(
-      canvas.getByText('All 3 properties in Avela Hospitality · 11 portals'),
+      canvas.getByText('All 3 properties in Avela Hospitality'),
     ).toBeInTheDocument()
+    await expect(canvas.getByText('11 portals')).toBeInTheDocument()
   },
 }
 

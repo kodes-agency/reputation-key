@@ -128,7 +128,7 @@ export function ManagerPropertySwitcher({
                 onClick={() => navigate({ to: '/properties/import-google' })}
               >
                 <Plus className="mr-2 size-4" />
-                Import property
+                Import from Google
               </DropdownMenuItem>
             ) : null}
           </DropdownMenuContent>

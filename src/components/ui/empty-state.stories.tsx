@@ -70,14 +70,14 @@ export const DescriptionWithLink: Story = {
       <>
         The look is the Property’s public display name dressed in its colours.{' '}
         <a href="#settings" className="font-medium underline underline-offset-4">
-          Set it in Property settings
+          Set it in property settings
         </a>
       </>
     ),
   },
   play: async ({ canvasElement }) => {
     expect(
-      within(canvasElement).getByRole('link', { name: 'Set it in Property settings' }),
+      within(canvasElement).getByRole('link', { name: 'Set it in property settings' }),
     ).toBeVisible()
   },
 }

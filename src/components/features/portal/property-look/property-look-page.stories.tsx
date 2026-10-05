@@ -346,7 +346,7 @@ export const NoPublicDisplayName: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Set the public display name first')).toBeVisible()
     await expect(
-      canvas.getByRole('link', { name: /Set it in Property settings/ }),
+      canvas.getByRole('link', { name: /Set it in property settings/ }),
     ).toHaveAttribute('href', '/properties/prop-1/settings/profile')
   },
 }

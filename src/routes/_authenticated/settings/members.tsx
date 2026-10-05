@@ -10,18 +10,18 @@ import { toast } from 'sonner'
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { Plus } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { hasRole } from '#/shared/domain/roles'
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import {
   actionErrorMessage,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { Button } from '#/components/ui/button'
+import { AddAction } from '#/components/ui/add-action'
 import {
   Dialog,
   DialogContent,
@@ -188,7 +188,7 @@ function MembersSettingsRoute() {
       <PageHeader
         title="Members"
         description="Invite people to your organization and manage their roles."
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Members' }]}
+        breadcrumbs={trailCrumbs('settings', {}, 'Members')}
         actions={
           canDo('invitation.create') && hasRole(role, 'AccountAdmin') ? (
             <Dialog
@@ -197,10 +197,7 @@ function MembersSettingsRoute() {
               onOpenChange={setInviteOpen}
             >
               <DialogTrigger asChild>
-                <Button>
-                  <Plus />
-                  Invite member
-                </Button>
+                <AddAction>Invite member</AddAction>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>

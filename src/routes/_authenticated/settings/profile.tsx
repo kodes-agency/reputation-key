@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { useServerFn } from '@tanstack/react-start'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
@@ -68,7 +69,7 @@ function ProfileSettings() {
       <PageHeader
         title="Profile"
         description="Manage your name, email, avatar, timezone and date format."
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Profile' }]}
+        breadcrumbs={trailCrumbs('settings', {}, 'Profile')}
       />
       <div className="mt-6 space-y-6">
         <ProfileSettingsPage

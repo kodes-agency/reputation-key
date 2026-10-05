@@ -3,6 +3,8 @@ import { useId } from 'react'
 import type { DashboardData } from '#/contexts/reporting/application/public-api'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { NAV_LABEL } from '#/components/layout/nav-labels'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { DashboardRangeControl } from '#/components/features/dashboard/dashboard-range-control'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { RatingDistributionChart } from '#/components/features/shared/rating-distribution-chart'
@@ -86,11 +88,11 @@ export function PropertyRatingsPage({
       <PageHeader
         title="Ratings"
         description="How you are rated, and whether you are replying."
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: property.name },
-          { label: 'Ratings' },
-        ]}
+        breadcrumbs={trailCrumbs(
+          'property',
+          { propertyId: property.id, propertyName: property.name },
+          NAV_LABEL.ratings,
+        )}
         actions={<DashboardRangeControl range={range} onRangeChange={onRangeChange} />}
       />
 

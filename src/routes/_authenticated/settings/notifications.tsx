@@ -2,6 +2,7 @@ import { createFileRoute, getRouteApi, useNavigate } from '@tanstack/react-route
 import { z } from 'zod/v4'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
   getNotificationPreferencesFn,
@@ -63,7 +64,7 @@ function NotificationsSettings() {
       <PageHeader
         title="Notifications"
         description="Control property-specific in-app and email delivery."
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Notifications' }]}
+        breadcrumbs={trailCrumbs('settings', {}, 'Notifications')}
       />
       <NotificationSettingsPropertyScope
         key={`${organizationId}:${notificationPropertyScopeKey(properties.properties)}`}

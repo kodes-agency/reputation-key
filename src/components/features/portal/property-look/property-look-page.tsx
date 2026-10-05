@@ -14,6 +14,7 @@
 // portal's review and publishes the ones that are ready, in turn.
 import { useState } from 'react'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { EmptyState } from '#/components/ui/empty-state'
@@ -83,13 +84,6 @@ const SETTLING: ReadonlySet<string> = new Set(['pending', 'saving', 'invalid', '
 const LEAVE_COPY =
   'Some changes to the look have not been saved. If you go on, they are discarded.'
 
-const breadcrumbsOf = (propertyId: string, propertyName: string) => [
-  { label: 'Properties', to: '/properties' },
-  { label: propertyName, to: `/properties/${propertyId}` },
-  { label: 'Portals', to: `/properties/${propertyId}/portals` },
-  { label: 'Property look' },
-]
-
 export function PropertyLookPage(props: PropertyLookPageProps) {
   const { propertyId, propertyName, profile } = props
   return (
@@ -97,7 +91,11 @@ export function PropertyLookPage(props: PropertyLookPageProps) {
       <PageHeader
         title="Property look"
         description={`How every portal at ${propertyName} looks. Portal wording and links stay per portal.`}
-        breadcrumbs={breadcrumbsOf(propertyId, propertyName)}
+        breadcrumbs={trailCrumbs(
+          'portals',
+          { propertyId, propertyName },
+          'Property look',
+        )}
       />
       {profile === null ? (
         <EmptyState
@@ -110,7 +108,7 @@ export function PropertyLookPage(props: PropertyLookPageProps) {
                 to="/properties/$propertyId/settings/profile"
                 params={{ propertyId }}
               >
-                Set it in Property settings
+                Set it in property settings
               </InlineLink>
             </>
           }

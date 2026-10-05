@@ -13,6 +13,7 @@ import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import {
   Card,
   CardContent,
@@ -58,13 +59,13 @@ const newGoalSearchSchema = z.object({
 })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/goals/new')({
-  staticData: { page: { title: 'New Goal', under: 'goals' } },
+  staticData: { page: { title: 'New goal', under: 'goals' } },
   validateSearch: newGoalSearchSchema,
   beforeLoad: ({ context, params }) => {
     if (!can((context as AuthRouteContext).role, 'goal.create')) {
       throw roleUnavailable(
-        'New Goal',
-        { to: `/properties/${params.propertyId}/goals`, label: 'Back to Goals' },
+        'New goal',
+        { to: `/properties/${params.propertyId}/goals`, label: 'Back to goals' },
         'this page',
       )
     }
@@ -126,14 +127,13 @@ function CreateGoalPage() {
   return (
     <PageShell>
       <PageHeader
-        title="New Goal"
+        title="New goal"
         description="Set one monthly target for one or more property, portal-group, or portal subjects."
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: propData.property.name, to: `/properties/${propertyId}` },
-          { label: 'Goals', to: `/properties/${propertyId}/goals` },
-          { label: 'New Goal' },
-        ]}
+        breadcrumbs={trailCrumbs(
+          'goals',
+          { propertyId, propertyName: propData.property.name },
+          'New goal',
+        )}
       />
       <form
         className="grid max-w-5xl gap-4 lg:grid-cols-2"

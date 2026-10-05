@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -100,7 +101,7 @@ function OrganizationSettingsRoute() {
       <PageHeader
         title="Organization"
         description="Manage your organization's identity and response settings."
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Organization' }]}
+        breadcrumbs={trailCrumbs('settings', {}, 'Organization')}
       />
       {organization ? (
         <OrganizationSettingsPage

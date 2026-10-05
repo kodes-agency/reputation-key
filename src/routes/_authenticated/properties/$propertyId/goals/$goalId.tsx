@@ -20,6 +20,7 @@ import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { GoalProgramRevisionDialog } from '#/components/goals/goal-program-revision-dialog'
@@ -127,13 +128,13 @@ function GoalDetailRoute() {
     <PageShell key={`${propertyId}:${goalId}`}>
       <PageHeader
         title={program.name}
-        description={program.description ?? 'Monthly Goal Program'}
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: propData.property.name, to: `/properties/${propertyId}` },
-          { label: 'Goals', to: `/properties/${propertyId}/goals` },
-          { label: program.name },
-        ]}
+        meta={[<StatusBadge key="status" status={program.status} map={GOAL_STATUS} />]}
+        description={program.description ?? undefined}
+        breadcrumbs={trailCrumbs(
+          'goals',
+          { propertyId, propertyName: propData.property.name },
+          program.name,
+        )}
         actions={
           canManage && program.status !== 'ended' ? (
             <div className="flex gap-2">
@@ -169,9 +170,8 @@ function GoalDetailRoute() {
         }
       />
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle as="h2">Program</CardTitle>
-          <StatusBadge status={program.status} map={GOAL_STATUS} />
         </CardHeader>
         <CardContent className="grid gap-3 text-sm md:grid-cols-2">
           <p>

@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { changePasswordFn } from '#/contexts/identity/server/auth-settings'
 import { ensureActiveOrg } from '#/shared/auth/auth.functions'
@@ -28,7 +29,7 @@ function SecuritySettings() {
       <PageHeader
         title="Security"
         description="Manage your password and account security."
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Security' }]}
+        breadcrumbs={trailCrumbs('settings', {}, 'Security')}
       />
       <SecuritySettingsForm changePassword={changePassword} />
     </>

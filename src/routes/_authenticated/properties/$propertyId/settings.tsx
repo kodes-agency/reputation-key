@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, useRouterState } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
+import { NAV_LABEL } from '#/components/layout/nav-labels'
 import { PageShell } from '#/components/layout/page-shell'
 import { SectionNavLayout } from '#/components/ui/section-nav-layout'
 import { PropertySettingsNav } from '#/components/features/property/settings/property-settings-nav'
@@ -17,12 +18,12 @@ import { can } from '#/shared/domain/permissions'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/settings')({
   staticData: {
-    page: { title: 'Property settings', crumb: 'Settings', under: 'property' },
+    page: { title: NAV_LABEL.propertySettings, under: 'property' },
   },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'property.read'))
-      throw roleUnavailable('Property settings', 'properties')
+      throw roleUnavailable(NAV_LABEL.propertySettings, 'properties')
   },
   loader: ({ params: { propertyId }, context }) =>
     context.queryClient.ensureQueryData(propertyQuery(propertyId)),
@@ -49,7 +50,7 @@ function PropertySettingsLayout() {
     <PageShell>
       <PageHeader
         title={header.title}
-        description={data.property.name}
+        meta={[data.property.name]}
         breadcrumbs={header.breadcrumbs}
       />
       <SectionNavLayout frame="inline">

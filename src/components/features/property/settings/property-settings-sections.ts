@@ -1,4 +1,6 @@
+import { NAV_LABEL } from '#/components/layout/nav-labels'
 import type { Crumb } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import type { Permission } from '#/shared/domain/permissions'
 
 export type PropertySettingsSectionKey =
@@ -16,18 +18,22 @@ export type PropertySettingsSection = Readonly<{
  * One place for everything configured on a property, in the order a manager
  * sets a property up. Each section is its own route so a link can land on it
  * and its loader fetches only what it shows.
+ *
+ * A section's label says its scope where the same word means another scope
+ * elsewhere (the account's Profile, the sidebar's People and Google), because
+ * it is the nav item, the page's title and the end of the breadcrumb.
  */
 export const PROPERTY_SETTINGS_SECTIONS: ReadonlyArray<PropertySettingsSection> =
   Object.freeze([
     {
       key: 'profile',
-      label: 'Profile',
+      label: 'Property profile',
       description: 'Name, country, timezone and public display name',
       anyOf: ['property.read'],
     },
     {
       key: 'google',
-      label: 'Google',
+      label: 'Google connection',
       description: 'Business Profile link and review source',
       anyOf: ['property.read'],
     },
@@ -39,14 +45,14 @@ export const PROPERTY_SETTINGS_SECTIONS: ReadonlyArray<PropertySettingsSection> 
     },
     {
       key: 'ai',
-      label: 'AI',
+      label: 'AI features',
       description: 'AI features, data use and analysis progress',
       anyOf: ['ai.manage'],
     },
     {
       key: 'people',
-      label: 'People',
-      description: 'Responsible managers',
+      label: 'Responsible managers',
+      description: 'Who receives this property’s operational updates',
       anyOf: ['property.read'],
     },
     {
@@ -82,7 +88,7 @@ export function activePropertySettingsSection(
 
 /**
  * The hub's page header, named for the section that is open: its title is the section
- * and the breadcrumb ends on it, under Settings, which links back to the hub. A page
+ * and the breadcrumb ends on it, under Property settings, which links back to the hub. A page
  * that sits in a nav names itself, so a slow or failed navigation never leaves it
  * untitled and a screen reader hears where it is.
  */
@@ -96,22 +102,15 @@ export function propertySettingsHeader({
   active: PropertySettingsSectionKey | null
 }>): Readonly<{ title: string; breadcrumbs: readonly Crumb[] }> {
   const section = PROPERTY_SETTINGS_SECTIONS.find((candidate) => candidate.key === active)
-  const parents: readonly Crumb[] = [
-    { label: 'Properties', to: '/properties' },
-    { label: propertyName, to: `/properties/${propertyId}` },
-  ]
+  const where = { propertyId, propertyName }
   if (!section) {
     return {
-      title: 'Property settings',
-      breadcrumbs: [...parents, { label: 'Settings' }],
+      title: NAV_LABEL.propertySettings,
+      breadcrumbs: trailCrumbs('property', where, NAV_LABEL.propertySettings),
     }
   }
   return {
     title: section.label,
-    breadcrumbs: [
-      ...parents,
-      { label: 'Settings', to: `/properties/${propertyId}/settings` },
-      { label: section.label },
-    ],
+    breadcrumbs: trailCrumbs('propertySettings', where, section.label),
   }
 }

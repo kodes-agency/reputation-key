@@ -14,11 +14,13 @@
 // nothing and its fallbacks print no second header.
 //
 // Kept free of React so the rules are unit-tested without a router.
+import { NAV_LABEL } from './nav-labels'
 import type { Crumb } from './page-header'
 import type { PageTier } from './page-shell'
 
 /** Where a page sits, as the breadcrumb parents above it. */
-export type PageTrail = 'properties' | 'property' | 'portals' | 'goals' | 'settings'
+export type PageTrail =
+  'properties' | 'property' | 'portals' | 'goals' | 'propertySettings' | 'settings'
 
 export type PageIdentity = Readonly<{
   /** The page header's `h1`, and the tab title. */
@@ -92,21 +94,22 @@ export function fallbackIdentity(
   return deepestPage(matches.slice(index + 1)) ?? null
 }
 
-type Where = Readonly<{ propertyId?: string; propertyName?: string }>
+/** What the address and the cache know about where a page sits. */
+export type PageWhere = Readonly<{ propertyId?: string; propertyName?: string }>
 
-/** The Property crumb, named once the Property is known; generic before that. */
-function propertyCrumb({ propertyId, propertyName }: Where): readonly Crumb[] {
+/** The Property crumb, named once the Property is known; generic before that. Always a link. */
+function propertyCrumb({ propertyId, propertyName }: PageWhere): readonly Crumb[] {
   if (!propertyId) return []
   return [{ label: propertyName ?? 'Property', to: `/properties/${propertyId}` }]
 }
 
-/** A list below the Property (Portals, Goals) that a deeper page links back to. */
-function listCrumb(label: string, segment: string, { propertyId }: Where): Crumb {
+/** A place below the Property (Portals, Goals, its settings) that a deeper page links back to. */
+function placeCrumb(label: string, segment: string, { propertyId }: PageWhere): Crumb {
   return propertyId ? { label, to: `/properties/${propertyId}/${segment}` } : { label }
 }
 
-function parentCrumbs(under: PageTrail, where: Where): readonly Crumb[] {
-  const properties = { label: 'Properties', to: '/properties' }
+function parentCrumbs(under: PageTrail, where: PageWhere): readonly Crumb[] {
+  const properties = { label: NAV_LABEL.properties, to: '/properties' }
   const base = [properties, ...propertyCrumb(where)]
   switch (under) {
     case 'properties':
@@ -114,26 +117,41 @@ function parentCrumbs(under: PageTrail, where: Where): readonly Crumb[] {
     case 'property':
       return base
     case 'portals':
-      return [...base, listCrumb('Portals', 'portals', where)]
+      return [...base, placeCrumb(NAV_LABEL.portals, 'portals', where)]
     case 'goals':
-      return [...base, listCrumb('Goals', 'goals', where)]
+      return [...base, placeCrumb(NAV_LABEL.goals, 'goals', where)]
+    case 'propertySettings':
+      return [...base, placeCrumb(NAV_LABEL.propertySettings, 'settings', where)]
     case 'settings':
-      return [{ label: 'Settings', to: '/settings' }]
+      return [{ label: NAV_LABEL.settings, to: '/settings' }]
   }
 }
 
 /**
- * The breadcrumbs of a page: its parents, then itself. A page at the top of the
- * app has none. `where` is what the route's address and the cache know; the
- * Property crumb is generic until the Property is loaded.
+ * The breadcrumbs of a page: the places above it, each a link, then the page itself.
+ * This is the one place a trail is spelled, so the Property crumb links on every page
+ * below a Property, a loaded page and its fallback draw the same trail, and a
+ * place is named as the sidebar names it (`NAV_LABEL`). A loaded page calls it with
+ * what it knows (`where`) and its own name (`current`: its title, the shorter name
+ * the sidebar gives it, or the entity it shows).
+ */
+export function trailCrumbs(
+  under: PageTrail,
+  where: PageWhere,
+  current: string,
+): readonly Crumb[] {
+  return [...parentCrumbs(under, where), { label: current }]
+}
+
+/**
+ * The breadcrumbs of a page that names itself in `staticData.page`: its parents, then
+ * itself. A page at the top of the app has none. `where` is what the route's address
+ * and the cache know; the Property crumb is generic until the Property is loaded.
  */
 export function resolveCrumbs(
   identity: PageIdentity,
-  where: Where,
+  where: PageWhere,
 ): readonly Crumb[] | undefined {
   if (!identity.under) return undefined
-  return [
-    ...parentCrumbs(identity.under, where),
-    { label: identity.crumb ?? identity.title },
-  ]
+  return trailCrumbs(identity.under, where, identity.crumb ?? identity.title)
 }

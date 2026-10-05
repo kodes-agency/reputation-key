@@ -2,7 +2,7 @@ import { createFileRoute, Link, Navigate } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
-import { Plus, Target } from 'lucide-react'
+import { Target } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
@@ -14,7 +14,9 @@ import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { Button } from '#/components/ui/button'
+import { NAV_LABEL } from '#/components/layout/nav-labels'
+import { trailCrumbs } from '#/components/layout/page-identity'
+import { AddActionLink } from '#/components/ui/add-action'
 import {
   DataTable,
   DataTableBody,
@@ -124,18 +126,16 @@ function GoalsRoute() {
       <PageHeader
         title="Goals"
         description="Monthly targets for this property, its portal groups, and individual portals."
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: propData.property.name, to: `/properties/${propertyId}` },
-          { label: 'Goals' },
-        ]}
+        breadcrumbs={trailCrumbs(
+          'property',
+          { propertyId, propertyName: propData.property.name },
+          NAV_LABEL.goals,
+        )}
         actions={
           canDo('goal.create') ? (
-            <Button asChild>
-              <Link to="/properties/$propertyId/goals/new" params={{ propertyId }}>
-                <Plus /> New Goal
-              </Link>
-            </Button>
+            <AddActionLink to="/properties/$propertyId/goals/new" params={{ propertyId }}>
+              New goal
+            </AddActionLink>
           ) : undefined
         }
       />

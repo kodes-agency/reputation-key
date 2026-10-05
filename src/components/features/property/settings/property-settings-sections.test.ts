@@ -67,15 +67,16 @@ describe('propertySettingsHeader', () => {
   it('is titled with the section that is open, the way an account settings page is', () => {
     const header = propertySettingsHeader({ ...where, active: 'google' })
 
-    expect(header.title).toBe('Google')
+    expect(header.title).toBe('Google connection')
   })
 
-  it('ends the breadcrumb on the section, under Settings, which links back to the hub', () => {
+  it('ends the breadcrumb on the section, under Property settings, which links back to the hub', () => {
+    // The place is named as the sidebar names it, and the section as the nav beside it does.
     expect(propertySettingsHeader({ ...where, active: 'google' }).breadcrumbs).toEqual([
       { label: 'Properties', to: '/properties' },
       { label: 'Harborline Suites', to: '/properties/p-1' },
-      { label: 'Settings', to: '/properties/p-1/settings' },
-      { label: 'Google' },
+      { label: 'Property settings', to: '/properties/p-1/settings' },
+      { label: 'Google connection' },
     ])
   })
 
@@ -91,7 +92,7 @@ describe('propertySettingsHeader', () => {
     const header = propertySettingsHeader({ ...where, active: null })
 
     expect(header.title).toBe('Property settings')
-    expect(header.breadcrumbs.at(-1)).toEqual({ label: 'Settings' })
+    expect(header.breadcrumbs.at(-1)).toEqual({ label: 'Property settings' })
     expect(header.breadcrumbs).toHaveLength(3)
   })
 })
