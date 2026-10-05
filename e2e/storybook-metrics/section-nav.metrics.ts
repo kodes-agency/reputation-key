@@ -88,18 +88,26 @@ for (const [theme, story] of [
       expect(await tokenColour(page, 'sidebar-accent')).toBe(fill)
     })
 
-    test('a keyboard-focused row has the shared ring, not an outline', async ({
+    test('a keyboard-focused row has the shared focus ring, not the browser outline', async ({
       page,
     }) => {
       await page.keyboard.press('Tab')
       await page.keyboard.press('Tab')
       const focused = await page.evaluate(() => {
         const style = getComputedStyle(document.activeElement as Element)
-        return { shadow: style.boxShadow, outline: style.outlineStyle }
+        return {
+          shadow: style.boxShadow,
+          outline: style.outlineStyle,
+          outlineWidth: style.outlineWidth,
+        }
       })
 
+      // The `focus-ring` utility (src/styles.css) draws the 3px ring plus a
+      // 1px solid outline that survives forced-colors mode; the browser's own
+      // `auto` focus outline must not show instead.
       expect(focused.shadow).toContain('3px')
-      expect(focused.outline).toBe('none')
+      expect(focused.outline).toBe('solid')
+      expect(focused.outlineWidth).toBe('1px')
     })
   })
 }
