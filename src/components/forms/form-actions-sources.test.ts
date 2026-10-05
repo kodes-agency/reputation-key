@@ -122,8 +122,12 @@ describe('an explicit-save group saves from FormActions', () => {
 describe('a field is drawn by the shared anatomy', () => {
   it('marks an optional field with the Optional marker, not a "(optional)" suffix', () => {
     const SUFFIX = /(?:label=|>)[^<>{}]*\(optional\)/iu
+    // The muted word as a span of its own, which the Property look drew by hand.
+    const SPAN = />\s*optional\s*<\/span>/iu
     const hasSuffix = (file: SourceFile) =>
-      !file.path.startsWith('src/components/features/guest/') && SUFFIX.test(file.text)
+      !file.path.startsWith('src/components/features/guest/') &&
+      file.path !== 'src/components/ui/field.tsx' &&
+      (SUFFIX.test(file.text) || SPAN.test(file.text))
     const SUFFIX_ALLOWED: Readonly<Record<string, string>> = {
       'src/components/inbox/reply-message-actions.tsx':
         'the Inbox inline Reject keeps its compact reason field, whose name its stories pin',

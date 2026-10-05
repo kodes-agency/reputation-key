@@ -3,6 +3,7 @@
 // shown here and changed there; the wordmark is the look's own. The logo is
 // uploaded here and replaces the wordmark on guest pages once one exists.
 import { descriptionIdOf, FormFieldFrame } from '#/components/forms/form-field-frame'
+import { FieldOptional } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
 import {
   PropertyLookLogoField,
@@ -76,7 +77,8 @@ export function PropertyLookIdentitySection({
       </div>
       <div className="space-y-1.5">
         <p className="text-sm font-medium">
-          Logo <span className="font-normal text-muted-foreground">optional</span>
+          Logo
+          <FieldOptional />
         </p>
         <PropertyLookLogoField logo={logo} />
       </div>
