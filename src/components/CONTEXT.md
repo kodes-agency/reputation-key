@@ -431,6 +431,102 @@ Use `usePermissions()` for presentation affordances rather than threading
 cohesive component over one-caller fragments; extract only independently meaningful
 UI or behavior.
 
+## Page header and the way up
+
+`PageHeader` has four slots with one job each: `title` (what the page is, or the
+entity it is about), `meta` (where you are and what state it is in: the Property a
+page is about, a count, a status Badge; each item is one fact and the header puts
+the dot between them), `description` (one sentence of purpose, help text and nothing
+else: no count, no name, no status, no filler such as "Monthly Goal Program") and
+`actions` (what the page lets you do). A header that has no sentence of purpose
+draws none. `header-sources.test.ts` fails on a dynamic `description`; the two pages
+that print one say why.
+
+A page goes up through its breadcrumbs, and there is no back link above them.
+`trailCrumbs(under, where, current)` (`layout/page-identity.ts`) is the one place a
+trail is spelled: every crumb above the page links, the Property's included (to its
+Overview, on Overview too), a loaded page and its fallback draw the same trail, and a
+place is named as the sidebar names it (`NAV_LABEL`, `layout/nav-labels.ts`), so the
+trail says "Property settings" where the sidebar does and a Property's settings
+section is the label of its nav row. A surface with no room for a trail (the
+full-bleed workspace header, the Inbox's detail pane) and a step that returns to the
+step before use the one back control: `BackLink` for an address, `BackButton` for a
+step or a view (`ui/back-link.tsx`), a ghost small Button with the one arrow reading
+"Back to <place>"; `iconBelow` draws the arrow alone on a narrow row and keeps the
+words as the name, `iconOnly` is the Inbox's, and `flush` puts the arrow on the
+content edge. `PageState`'s way out is the same BackLink, and a way back is never
+announced as the current page.
+
+The page's own add is `AddAction` (a button) or `AddActionLink` (a router link),
+`ui/add-action.tsx`: the default Button, the Plus before a sentence-case label, no
+size or margin on the glyph. It sits in the header's `actions`; a card or a tab that
+owns a list may carry its own (Add staff, Add link). A header's actions are
+default-size Buttons directly in the slot, whose phone height is the Button's.
+Portals alone repeats "New portal" in a fixed bar at the foot of a phone (round-4
+board 11, `PortalPhoneNewPortalBar`): a primary action moves to a bottom bar only for
+a list the person scrolls a long way, with the header's copy hidden below `sm`, and
+everywhere else it stays in the header. Where a word means another scope in another
+nav, the label carries the scope: a Property's settings sections are Property
+profile, Google connection, AI features and Responsible managers, because the
+account has a Profile and an AI overview and the sidebar a People and a Google of
+their own.
+
+## Action copy
+
+One list of words for what every page repeats.
+
+- **Case.** A label (a button, a menu item, a tab, a nav row, a dialog title, a
+  crumb) is sentence case: the first word capitalised, the rest lower case, so a
+  domain noun is a common noun in it ("Archive portal", "New goal", "Back to
+  properties", "Open in goals"). Google, a product role name (Account Admin, Property
+  Manager) and something a person typed keep their capitals. In a button `&` joins two
+  verbs ("Review & publish", "Confirm & publish"); a title or a sentence says "and".
+  Help text and descriptions are prose and follow the glossary, not this list.
+- **Save.** `Save changes` is the save of the form a page is named for (Profile,
+  Organization). Any further group on that page, and every group of a section that
+  holds several (Property settings), names what it saves, lower case after "Save":
+  "Save timezone and format", "Save target", "Save reply language", "Save feature
+  access". A form that runs a command names the command: "Update password", "Send
+  invitation", "Create goal". The pending word is the verb in -ing ("Saving…").
+- **Success.** What a Save saved is "<Thing> saved" ("Profile saved", "Responsible
+  managers saved"); a command is its verb in the past tense ("Password updated",
+  "Invitation sent", "Logo removed"). Say what changed: never "successfully".
+- **Cancel, Keep, Close, Done.** Cancel leaves a dialog or a bounded task, before the
+  primary. A destructive confirmation may name what is kept instead ("Keep property",
+  "Keep invitation"): that is deliberate, it says what "no" leaves in place. Close
+  dismisses a dialog that only informs (the Version dialog). Done ends a task that
+  finished and left a receipt. A settings group has no Cancel: it has Reset.
+- **Try again.** Every retry is "Try again" (`RegionError`, `PageState`,
+  `LoadMoreButton`). A row that offers several recoveries names the one it retries:
+  "Try publishing again", "Check Google again".
+- **Clear.** One meaning: take the search and the filters off a list ("Clear filters",
+  "Clear search and filters", "Clear search": `ClearFiltersButton`). Deselecting is
+  "Clear selection". Nothing else says Clear.
+- **Mark all read** on the page, in the popover and in a stack's menu; never "Mark all
+  as read". **Dismiss** hides a notification; it is not Delete.
+- **Add, New, Create, Invite, Import.** "New <thing>" starts an entity with a page or
+  a life of its own (New portal, New goal, New group). "Add <thing>" puts a row or a
+  part into a list in place (Add staff, Add link, Add language, Add portal to a
+  group). "Create" is the confirm of a make form that is neither ("Create goal" on the
+  New goal page, "Create template"). "Invite" is for a person who has to accept;
+  "Import from Google" brings records in from Google (the header and the sidebar's
+  property menu say it so).
+- **Remove, Delete, Archive, End, Disable, Cancel.** By what happens. Remove takes a
+  thing out of a place and it can come back or still exists (a member, a language, a
+  portal from a group, a property from the workspace for 30 days). Delete erases it
+  (a link, an unsent draft). Archive retires what is kept for history (a portal, a
+  group, a participation, a property). End closes what does not resume (a goal).
+  Disable switches a public surface off and keeps it. Cancel as a verb withdraws
+  something pending that never took effect ("Cancel invitation"). The menu item that
+  opens a confirmation says the same verb as the confirmation's button.
+- **On and off.** A feature turns "on" and "off" ("Turn on AI analysis", "Turn off AI
+  features"). The AI data-use consent is the exception: its call to action is the
+  versioned notice's own sentence ("Enable AI features for ..."), so that dialog says
+  Enable and "Confirm & enable".
+- **Back** is "Back to <place>" (the back control above), and the place is named as
+  the sidebar names it. The Import page is "Import Google properties" in its title and
+  trail; the actions that lead to it say "Import from Google".
+
 ## Verification
 
 Keep behavior-focused unit tests and stories beside components. Verify forms across
