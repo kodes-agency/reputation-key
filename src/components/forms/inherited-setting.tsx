@@ -2,7 +2,7 @@
 // private-feedback target, a Property's quiet hours and a notification category each
 // asked it with a different control (a Checkbox, a pair of buttons, a "Use my default
 // here" button), different words and a different moment of saving, and none pointed at
-// the setting it follows. This row is the one answer: what the place follows (a link to
+// the setting it followed. This row is the one answer: what the place follows (a link to
 // the owner, where there is a page for it) and what that is worth, whether the place has
 // a value of its own, and one button that puts the inherited value back (or starts a
 // value of its own).
@@ -48,26 +48,107 @@ type Props = Readonly<{
   className?: string
 }>
 
+/** What the place does with the inherited value: follows it, or has set its own. */
+function InheritedStatus({
+  source,
+  value,
+  overridden,
+}: Readonly<Pick<Props, 'source' | 'value' | 'overridden'>>) {
+  if (overridden) {
+    return (
+      <>
+        Set here instead of {source}
+        {value ? <> ({value})</> : null}.
+      </>
+    )
+  }
+  return (
+    <>
+      Follows {source}
+      {value ? <>, currently {value}</> : null}.
+    </>
+  )
+}
+
+type Toggle = Readonly<{ label: string; name?: string; onClick: () => void }>
+
+/**
+ * The one button that swaps the state: the way back while overridden, else the way
+ * in, which a row whose editor is what overrides does not offer.
+ */
+function toggleOf({
+  overridden,
+  inheritLabel = 'Use inherited value',
+  inheritAccessibleName,
+  onInherit,
+  overrideLabel = 'Override',
+  overrideAccessibleName,
+  onOverride,
+}: Pick<
+  Props,
+  | 'overridden'
+  | 'inheritLabel'
+  | 'inheritAccessibleName'
+  | 'onInherit'
+  | 'overrideLabel'
+  | 'overrideAccessibleName'
+  | 'onOverride'
+>): Toggle | undefined {
+  if (overridden) {
+    return { label: inheritLabel, name: inheritAccessibleName, onClick: onInherit }
+  }
+  if (!onOverride) return undefined
+  return { label: overrideLabel, name: overrideAccessibleName, onClick: onOverride }
+}
+
+/** The row's commands: its own, then the toggle. */
+function InheritedActions({
+  toggle,
+  overridden,
+  saving,
+  disabled,
+  children,
+}: Readonly<{
+  toggle: Toggle | undefined
+  overridden: boolean
+  saving: boolean
+  disabled: boolean
+  children: ReactNode
+}>) {
+  if (!children && !toggle) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {children}
+      {toggle ? (
+        <Button
+          type="button"
+          variant={overridden ? 'ghost' : 'outline'}
+          size="sm"
+          pending={saving}
+          disabled={disabled}
+          aria-label={toggle.name}
+          onClick={toggle.onClick}
+        >
+          {toggle.label}
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
 export function InheritedSetting({
   source,
   value,
   overridden,
   commit,
-  onInherit,
-  onOverride,
-  inheritLabel = 'Use inherited value',
-  inheritAccessibleName,
-  overrideLabel = 'Override',
-  overrideAccessibleName,
   pending = false,
   disabled = false,
   note,
   noteId,
   children,
   className,
+  ...toggleProps
 }: Props) {
-  const saving = commit === 'immediate' && pending
-  const hasToggle = overridden || onOverride !== undefined
   return (
     <div
       data-slot="inherited-setting"
@@ -76,41 +157,21 @@ export function InheritedSetting({
       className={cn('flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2', className)}
     >
       <p className="basis-full text-sm text-muted-foreground">
-        {overridden ? (
-          <>
-            Set here instead of {source}
-            {value ? <> ({value})</> : null}.
-          </>
-        ) : (
-          <>
-            Follows {source}
-            {value ? <>, currently {value}</> : null}.
-          </>
-        )}
+        <InheritedStatus source={source} value={value} overridden={overridden} />
       </p>
       {note ? (
         <p id={noteId} className="basis-full text-sm text-muted-foreground">
           {note}
         </p>
       ) : null}
-      {children || hasToggle ? (
-        <div className="flex flex-wrap items-center gap-2">
-          {children}
-          {hasToggle ? (
-            <Button
-              type="button"
-              variant={overridden ? 'ghost' : 'outline'}
-              size="sm"
-              pending={saving}
-              disabled={disabled}
-              aria-label={overridden ? inheritAccessibleName : overrideAccessibleName}
-              onClick={overridden ? onInherit : onOverride}
-            >
-              {overridden ? inheritLabel : overrideLabel}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
+      <InheritedActions
+        toggle={toggleOf({ overridden, ...toggleProps })}
+        overridden={overridden}
+        saving={commit === 'immediate' && pending}
+        disabled={disabled}
+      >
+        {children}
+      </InheritedActions>
     </div>
   )
 }

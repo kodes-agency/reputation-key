@@ -52,7 +52,64 @@ type Props = Readonly<{
   className?: string
 }>
 
-const idOf = (id: string, part: 'description' | 'note') => `${id}-${part}`
+type Part = 'description' | 'note'
+
+const idOf = (id: string, part: Part) => `${id}-${part}`
+
+/** The ids of the lines under the label, which the switch names as its description. */
+const describedByOf = (
+  id: string,
+  lines: Readonly<Record<Part, ReactNode>>,
+): string | undefined => {
+  const parts = (['description', 'note'] as const).filter((part) => lines[part])
+  return parts.map((part) => idOf(id, part)).join(' ') || undefined
+}
+
+/** The label, and the lines under it. A `cell` reads the label and draws none of it. */
+function RowText({
+  id,
+  label,
+  description,
+  note,
+  cell,
+}: Readonly<Pick<Props, 'id' | 'label' | 'description' | 'note'> & { cell: boolean }>) {
+  return (
+    <div className={cn('flex min-w-0 flex-col gap-1', cell && 'contents')}>
+      <Label htmlFor={id} className={cn('leading-snug', cell ? 'sr-only' : 'w-fit')}>
+        {label}
+      </Label>
+      {description ? (
+        <FieldDescription id={idOf(id, 'description')}>{description}</FieldDescription>
+      ) : null}
+      {note ? (
+        <p id={idOf(id, 'note')} className="text-sm text-muted-foreground">
+          {note}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+/** What stands beside the switch: "Saving…" while a request runs, else the state in words. */
+function RowStatus({
+  saving,
+  checked,
+  stateWords,
+}: Readonly<Pick<Props, 'checked' | 'stateWords'> & { saving: boolean }>) {
+  if (saving) {
+    return (
+      <span role="status" className="text-sm text-muted-foreground">
+        Saving…
+      </span>
+    )
+  }
+  if (!stateWords) return null
+  return (
+    <span aria-hidden="true" className="text-sm text-muted-foreground">
+      {checked ? stateWords[0] : stateWords[1]}
+    </span>
+  )
+}
 
 export function SettingSwitchRow({
   id,
@@ -70,10 +127,6 @@ export function SettingSwitchRow({
   className,
 }: Props) {
   const saving = commit === 'immediate' && pending
-  const describedBy =
-    [description ? idOf(id, 'description') : null, note ? idOf(id, 'note') : null]
-      .filter((part) => part !== null)
-      .join(' ') || undefined
   const cell = layout === 'cell'
   return (
     <div
@@ -87,35 +140,15 @@ export function SettingSwitchRow({
         className,
       )}
     >
-      <div className={cn('flex min-w-0 flex-col gap-1', cell && 'contents')}>
-        <Label htmlFor={id} className={cn('leading-snug', cell ? 'sr-only' : 'w-fit')}>
-          {label}
-        </Label>
-        {description ? (
-          <FieldDescription id={idOf(id, 'description')}>{description}</FieldDescription>
-        ) : null}
-        {note ? (
-          <p id={idOf(id, 'note')} className="text-sm text-muted-foreground">
-            {note}
-          </p>
-        ) : null}
-      </div>
+      <RowText id={id} label={label} description={description} note={note} cell={cell} />
       <div className="flex shrink-0 items-center gap-2">
-        {saving ? (
-          <span role="status" className="text-sm text-muted-foreground">
-            Saving…
-          </span>
-        ) : stateWords ? (
-          <span aria-hidden="true" className="text-sm text-muted-foreground">
-            {checked ? stateWords[0] : stateWords[1]}
-          </span>
-        ) : null}
+        <RowStatus saving={saving} checked={checked} stateWords={stateWords} />
         <Switch
           id={id}
           checked={checked}
           disabled={disabled || saving}
           aria-label={accessibleName}
-          aria-describedby={describedBy}
+          aria-describedby={describedByOf(id, { description, note })}
           aria-busy={saving || undefined}
           onCheckedChange={onCheckedChange}
         />

@@ -37,6 +37,23 @@ type Props<Value extends string> = Readonly<{
   onBlur?: () => void
 }>
 
+/** The choices of a select, one item per named value. */
+function SelectOptions<Value extends string>({
+  options,
+}: Readonly<{ options: ReadonlyArray<FormSelectOption<Value>> }>) {
+  return (
+    <SelectContent>
+      <SelectGroup>
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectGroup>
+    </SelectContent>
+  )
+}
+
 export function FormSelectField<Value extends string>({
   id,
   label,
@@ -76,15 +93,7 @@ export function FormSelectField<Value extends string>({
         >
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {options.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
+        <SelectOptions options={options} />
       </Select>
     </FormFieldFrame>
   )

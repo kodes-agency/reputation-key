@@ -115,6 +115,8 @@ export function PropertyReplyProfileCard({ propertyId, profile, action }: Props)
             </form.Field>
             <form.Field name="emojiAllowed">
               {(field) => (
+                // The card around it is the Property settings card shape, as the public display name's is.
+                // fallow-ignore-next-line code-duplication
                 <SettingSwitchRow
                   id="reply-profile-emoji"
                   label="Allow emoji in rendered templates"

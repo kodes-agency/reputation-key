@@ -5,7 +5,7 @@
 import type { GoalMetric } from '#/contexts/reporting/application/public-api'
 import { FormSelectField } from '#/components/forms/form-select-field'
 
-export const GOAL_METRICS: ReadonlyArray<
+const GOAL_METRICS: ReadonlyArray<
   Readonly<{ value: GoalMetric; label: string; description: string }>
 > = [
   {
@@ -28,7 +28,7 @@ export const GOAL_METRICS: ReadonlyArray<
 ]
 
 /** The metric's own description, for the help under the select. */
-export const goalMetricDescription = (metric: GoalMetric): string =>
+const goalMetricDescription = (metric: GoalMetric): string =>
   GOAL_METRICS.find((candidate) => candidate.value === metric)?.description ?? ''
 
 type MetricFieldApi = Readonly<{
