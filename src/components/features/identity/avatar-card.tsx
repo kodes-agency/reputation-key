@@ -5,31 +5,30 @@ import {
   CardTitle,
   CardDescription,
 } from '#/components/ui/card'
-import { ImageUploadField } from '#/components/forms/image-upload-field'
+import { ImageSetting } from '#/components/forms/image-setting'
 
 type Props = Readonly<{
   avatarUrl: string | null
-  onAvatarUrlChange: (url: string | null) => void
+  /** Stores the file and saves its address, resolving with the address to show. */
   onUpload: (file: File, onProgress: (percent: number) => void) => Promise<string>
+  /** Saves the removal; a refusal rejects and the avatar stays. */
+  onRemove: () => Promise<unknown>
   disabled: boolean
 }>
 
-export function AvatarCard({ avatarUrl, onAvatarUrlChange, onUpload, disabled }: Props) {
+export function AvatarCard({ avatarUrl, onUpload, onRemove, disabled }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Avatar</CardTitle>
-        <CardDescription>
-          Upload a profile image. JPG, PNG, WebP, and GIF up to 5MB.
-        </CardDescription>
+        <CardTitle as="h2">Avatar</CardTitle>
+        <CardDescription>The picture shown beside your name.</CardDescription>
       </CardHeader>
       <CardContent>
-        <ImageUploadField
+        <ImageSetting
+          subject="avatar"
           imageUrl={avatarUrl}
-          onImageUrlChange={onAvatarUrlChange}
           onUpload={onUpload}
-          variant="circle"
-          maxFileSize={5 * 1024 * 1024}
+          onRemove={onRemove}
           disabled={disabled}
         />
       </CardContent>

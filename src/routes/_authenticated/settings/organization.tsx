@@ -2,10 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
-import {
-  actionErrorMessage,
-  useActionMutation,
-} from '#/components/hooks/use-action-mutation'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
@@ -87,10 +84,14 @@ function OrganizationSettingsRoute() {
   const updateOrganizationAction = useActionMutation(updateOrganization, {
     onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
   })
-  // Removing the logo is an immediate action: it reports by toast, so its
-  // failure never lands in the identity form's banner.
+  // The logo is an image setting, which says a refusal itself (a toast), so neither
+  // of these passes an `errorMessage`; a failure never lands in the identity form's banner.
   const removeOrganizationLogo = useActionMutation(updateOrganization, {
-    errorMessage: actionErrorMessage,
+    successMessage: 'Logo removed',
+    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
+  })
+  const finalizeOrgLogo = useActionMutation(finalizeOrgLogoUpload, {
+    successMessage: 'Logo updated',
     onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
   })
 
@@ -111,7 +112,7 @@ function OrganizationSettingsRoute() {
           updateOrganization={updateOrganizationAction}
           removeOrganizationLogo={removeOrganizationLogo}
           requestOrgLogoUploadFn={requestOrgLogoUpload}
-          finalizeOrgLogoUploadFn={finalizeOrgLogoUpload}
+          finalizeOrgLogo={finalizeOrgLogo}
         />
       ) : (
         <div className="text-center text-sm text-muted-foreground py-12">

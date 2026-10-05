@@ -42,7 +42,6 @@ const DASHED_ALLOWED: Readonly<Record<string, string>> = {
   'src/components/inbox/note-message.tsx': 'the dashed edge that marks a private note',
   'src/components/inbox/composer-mode-row.tsx': 'the private-note dock cue',
   'src/components/inbox/reply-composer.tsx': 'the private-note dock cue',
-  'src/components/forms/image-upload-field/drop-zone.tsx': 'a file drop target',
   'src/components/features/portal/link-tree/linktree-icon-picker.tsx':
     'an upload tile, not a message',
   'src/components/features/portal/link-tree/link-add-form.tsx':

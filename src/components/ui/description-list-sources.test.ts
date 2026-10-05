@@ -93,11 +93,21 @@ describe('a read-only label and value is a DescriptionList', () => {
 
     expect(users).toEqual(
       expect.arrayContaining([
+        'src/components/features/identity/profile-settings-form.tsx',
         'src/components/features/portal/property-look/property-look-identity-section.tsx',
         'src/components/features/property/settings/property-google-section.tsx',
         'src/components/features/property/settings/property-profile-card.tsx',
         'src/components/features/settings/merchant-ai-data-handling.tsx',
       ]),
     )
+  })
+})
+
+describe('a read-only value is not a disabled field or a bare paragraph', () => {
+  it('has no disabled email Input: the address is a fact, not a field to edit', () => {
+    const disabledEmail = (file: SourceFile) =>
+      /<Input\b[^>]*type="email"[^>]*\bdisabled\b/u.test(file.text)
+
+    expect(FILES.filter(disabledEmail).map((file) => file.path)).toEqual([])
   })
 })
