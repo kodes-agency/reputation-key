@@ -91,7 +91,7 @@ function PortalListRoute() {
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
   const restoreMutation = useActionMutation(updatePortal, {
-    successMessage: 'Portal restored as Disabled',
+    successMessage: 'Portal restored as disabled',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
   const disableMutation = useActionMutation(updatePortal, {

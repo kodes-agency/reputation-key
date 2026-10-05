@@ -42,7 +42,7 @@ export const PROPERTY_LIFECYCLE_STATUS: StatusMap<PropertyLifecycleState> = {
 
 /** How the Property's Google link reads as a pill on the lifecycle card. */
 export const GOOGLE_BINDING_STATUS: StatusMap<GoogleBindingState> = {
-  active: { label: 'Google connected for this Property', tone: 'positive' },
+  active: { label: 'Google connected for this property', tone: 'positive' },
   disconnected: { label: 'Google reconnection needed', tone: 'warn' },
   account_confirmation_required: {
     label: 'Google account confirmation needed',

@@ -5,6 +5,7 @@
 // the default theme; the light variant renders the same row on the light surface
 // (axe runs on both).
 import type { Meta, StoryObj } from '@storybook/react'
+import type { MouseEventHandler } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import { AddAction, AddActionLink } from './add-action'
@@ -20,7 +21,7 @@ const meta: Meta<typeof AddAction> = {
 export default meta
 type Story = StoryObj<typeof AddAction>
 
-function Row({ onClick }: Readonly<{ onClick: () => void }>) {
+function Row({ onClick }: Readonly<{ onClick?: MouseEventHandler<HTMLButtonElement> }>) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <AddActionLink to="/properties/import-google">Import from Google</AddActionLink>
@@ -44,7 +45,7 @@ function Row({ onClick }: Readonly<{ onClick: () => void }>) {
 
 /** A page that is made elsewhere is a link; the rest open a dialog or a menu, or run. */
 export const Default: Story = {
-  render: (args) => <Row onClick={args.onClick ?? (() => undefined)} />,
+  render: (args) => <Row onClick={args.onClick} />,
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     const link = canvas.getByRole('link', { name: 'Import from Google' })
@@ -59,7 +60,7 @@ export const Default: Story = {
 
 /** The Plus is the one glyph, before the label, drawn for the eye only and never sized by the caller. */
 export const OnePlus: Story = {
-  render: (args) => <Row onClick={args.onClick ?? (() => undefined)} />,
+  render: (args) => <Row onClick={args.onClick} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     for (const name of ['Invite member', 'Add portal', 'Add link']) {
@@ -75,7 +76,7 @@ export const OnePlus: Story = {
 
 /** A disabled add is a disabled Button; the page says why beside it. */
 export const Disabled: Story = {
-  render: (args) => <Row onClick={args.onClick ?? (() => undefined)} />,
+  render: (args) => <Row onClick={args.onClick} />,
   play: async ({ canvasElement }) => {
     expect(within(canvasElement).getByRole('button', { name: 'New goal' })).toBeDisabled()
   },
@@ -84,7 +85,7 @@ export const Disabled: Story = {
 /** The same row on the light surface. */
 export const DefaultLight: Story = {
   parameters: { theme: 'light' },
-  render: (args) => <Row onClick={args.onClick ?? (() => undefined)} />,
+  render: (args) => <Row onClick={args.onClick} />,
   play: async ({ canvasElement }) => {
     expect(
       within(canvasElement).getByRole('link', { name: 'Import from Google' }),

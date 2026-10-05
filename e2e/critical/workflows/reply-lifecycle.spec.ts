@@ -260,10 +260,10 @@ test.describe('Critical workflow: reply lifecycle', () => {
     // Approve → the publish job runs (worker) → published.
     // Approval is a two-step confirmation now: the trigger opens a dialog that
     // states what publishing does, and the dialog's own action is what commits.
-    await page.getByRole('button', { name: 'Confirm & Publish', exact: true }).click()
+    await page.getByRole('button', { name: 'Confirm & publish', exact: true }).click()
     await page
       .getByRole('alertdialog')
-      .getByRole('button', { name: 'Confirm & Publish', exact: true })
+      .getByRole('button', { name: 'Confirm & publish', exact: true })
       .click()
     // Publication is TWO-PHASE. The publish job writes to Google and stops at
     // "write accepted; awaiting provider observation" -- the attempt sits at

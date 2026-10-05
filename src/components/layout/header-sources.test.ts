@@ -114,3 +114,24 @@ describe('the way up is the trail', () => {
     expect(offendersOf((file) => /\bbackTo(=\{|\?:)/u.test(file.text))).toEqual([])
   })
 })
+
+describe('the way back is BackLink or BackButton', () => {
+  const ARROW = /import\s*\{[^}]*\bArrowLeft\b[^}]*\}\s*from\s*['"]lucide-react['"]/u
+  const ARROW_ALLOWED: Readonly<Record<string, string>> = {
+    'src/components/ui/back-link.tsx': 'the primitive itself',
+    'src/components/layout/settings-sidebar.tsx':
+      'a row of the settings sidebar, which is a menu item and not a Button',
+  }
+  const importsArrow = (file: SourceFile) => ARROW.test(file.text)
+
+  it('draws no back arrow of its own', () => {
+    expect(offendersOf(importsArrow, ARROW_ALLOWED)).toEqual([])
+  })
+
+  it('lists no file that no longer draws one', () => {
+    const stale = Object.keys(ARROW_ALLOWED).filter(
+      (path) => !FILES.some((file) => file.path === path && importsArrow(file)),
+    )
+    expect(stale).toEqual([])
+  })
+})

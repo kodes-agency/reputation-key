@@ -38,7 +38,7 @@ const openDialog = (canvasElement: HTMLElement) => openAlertDialog(canvasElement
 
 /** Presses the cancel and waits for the dialog to go. */
 async function keepProperty(dialog: ReturnType<typeof within>) {
-  await userEvent.click(dialog.getByRole('button', { name: 'Keep Property' }))
+  await userEvent.click(dialog.getByRole('button', { name: 'Keep property' }))
   await waitFor(() => expect(dialog.queryByRole('alertdialog')).not.toBeInTheDocument())
 }
 
@@ -46,8 +46,8 @@ const destructiveArgs = {
   tone: 'destructive',
   title: 'Remove Harborline Suites from your workspace?',
   description: 'It leaves your property list. You can restore it for 30 days.',
-  cancelLabel: 'Keep Property',
-  confirmLabel: 'Remove Property',
+  cancelLabel: 'Keep property',
+  confirmLabel: 'Remove property',
   pendingLabel: 'Removing…',
 } as const
 
@@ -70,7 +70,7 @@ export const Destructive: Story = {
   args: destructiveArgs,
   play: async ({ canvasElement, args }) => {
     const dialog = await openDialog(canvasElement)
-    const confirm = dialog.getByRole('button', { name: 'Remove Property' })
+    const confirm = dialog.getByRole('button', { name: 'Remove property' })
     expect(confirm.className).toContain('bg-destructive')
     expect(confirm.className).not.toContain('bg-primary')
     await userEvent.click(confirm)
@@ -83,7 +83,7 @@ export const DestructiveLight: Story = {
   parameters: { theme: 'light' },
   play: async ({ canvasElement }) => {
     const dialog = await openDialog(canvasElement)
-    expect(dialog.getByRole('button', { name: 'Remove Property' }).className).toContain(
+    expect(dialog.getByRole('button', { name: 'Remove property' }).className).toContain(
       'bg-destructive',
     )
   },
@@ -125,11 +125,11 @@ export const Pending: Story = {
   args: { ...destructiveArgs, onConfirm: slowAction },
   play: async ({ canvasElement }) => {
     const dialog = await openDialog(canvasElement)
-    await userEvent.click(dialog.getByRole('button', { name: 'Remove Property' }))
+    await userEvent.click(dialog.getByRole('button', { name: 'Remove property' }))
     const confirm = await dialog.findByRole('button', { name: 'Removing…' })
     expect(confirm).toBeDisabled()
     expect(confirm).toHaveAttribute('aria-busy', 'true')
-    expect(dialog.getByRole('button', { name: 'Keep Property' })).toBeDisabled()
+    expect(dialog.getByRole('button', { name: 'Keep property' })).toBeDisabled()
     await userEvent.keyboard('{Escape}')
     expect(dialog.getByRole('alertdialog')).toBeVisible()
     releaseSlow()
@@ -155,11 +155,11 @@ export const Refused: Story = {
   args: { ...destructiveArgs, onConfirm: fn(async () => refusal()) },
   play: async ({ canvasElement, args }) => {
     const dialog = await openDialog(canvasElement)
-    await userEvent.click(dialog.getByRole('button', { name: 'Remove Property' }))
+    await userEvent.click(dialog.getByRole('button', { name: 'Remove property' }))
     await dialog.findByText('Unable to complete this action')
     expect(dialog.getAllByRole('alert')).toHaveLength(1)
     expect(dialog.getByRole('alertdialog')).toBeVisible()
-    const confirm = dialog.getByRole('button', { name: 'Remove Property' })
+    const confirm = dialog.getByRole('button', { name: 'Remove property' })
     expect(confirm).toBeEnabled()
     await waitFor(() => expect(confirm).toHaveFocus())
     await userEvent.click(confirm)
@@ -178,7 +178,7 @@ export const ReopenedWithoutTheOldError: Story = {
   args: { ...destructiveArgs, onConfirm: fn(async () => refusal()) },
   play: async ({ canvasElement }) => {
     const dialog = await openDialog(canvasElement)
-    await userEvent.click(dialog.getByRole('button', { name: 'Remove Property' }))
+    await userEvent.click(dialog.getByRole('button', { name: 'Remove property' }))
     await dialog.findByText('Unable to complete this action')
     await keepProperty(dialog)
     const reopened = await openDialog(canvasElement)
@@ -292,7 +292,7 @@ export const OpenedByTheCaller: Story = {
     await keepProperty(dialog)
     expect(args.onConfirm).not.toHaveBeenCalled()
     const reopened = await openDialog(canvasElement)
-    await userEvent.click(reopened.getByRole('button', { name: 'Remove Property' }))
+    await userEvent.click(reopened.getByRole('button', { name: 'Remove property' }))
     expect(args.onConfirm).toHaveBeenCalledTimes(1)
   },
 }

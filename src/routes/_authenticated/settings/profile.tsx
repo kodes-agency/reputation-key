@@ -44,7 +44,7 @@ function ProfileSettings() {
   const ctx = Route.useRouteContext() as AuthRouteContext
   const organizationId = ctx.activeOrganization?.id ?? NO_ACTIVE_ORGANIZATION
   const updateProfile = useActionMutation(updateProfileFn, {
-    successMessage: 'Profile updated',
+    successMessage: 'Profile saved',
   })
   // Both are immediate actions: the avatar setting says a refusal, so neither passes an
   // `errorMessage`.

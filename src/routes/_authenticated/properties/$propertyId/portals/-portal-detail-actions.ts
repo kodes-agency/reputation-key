@@ -175,7 +175,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     invalidateKeys: [portalKeys.detail(portalId)],
   })
   const updateResponsibleManagers = useActionMutation(updatePortalResponsibleManagers, {
-    successMessage: 'Responsible managers updated',
+    successMessage: 'Responsible managers saved',
     invalidateKeys: [
       portalKeys.detail(portalId),
       portalKeys.responsibleManagers(portalId),

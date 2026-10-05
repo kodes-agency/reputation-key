@@ -75,7 +75,7 @@ async function checkTopBar(page: Page, view: PageReport, id: string): Promise<Fi
   const locked = id.endsWith('sidebar-locked')
   const phone = view.innerWidth < 768
   const header = await measure(page, '#storybook-root header')
-  const trigger = named(header, 'Toggle Sidebar')
+  const trigger = named(header, 'Toggle sidebar')
   const bell = named(header, /^Notifications/)
   const account = named(header, 'Account menu')
   const avatar = await measure(page, 'header button[aria-label="Account menu"] > *')

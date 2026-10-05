@@ -21,8 +21,8 @@ export function isRouteNotice(data: unknown): data is RouteNotice {
   return typeof cause === 'string' && CAUSES.includes(cause)
 }
 
-const PROPERTIES: RouteBack = { to: '/properties', label: 'Back to Properties' }
-const PROFILE: RouteBack = { to: '/settings/profile', label: 'Back to Profile' }
+const PROPERTIES: RouteBack = { to: '/properties', label: 'Back to properties' }
+const PROFILE: RouteBack = { to: '/settings/profile', label: 'Back to profile' }
 
 /** What the reader can reach, and where they are, which decide where "back" can lead. */
 export type NoticeAccess = Readonly<{
@@ -61,16 +61,16 @@ function backTo(target: RouteBackTarget, access: NoticeAccess): RouteBack {
     case 'propertySettings':
       return withinProperty(access, (propertyId) => ({
         to: `/properties/${propertyId}/settings/profile`,
-        label: 'Back to Property settings',
+        label: 'Back to property settings',
       }))
     case 'portal':
       return withinProperty(access, (propertyId, portalId) =>
         portalId
           ? {
               to: `/properties/${propertyId}/portals/${portalId}`,
-              label: 'Back to Portal',
+              label: 'Back to portal',
             }
-          : { to: `/properties/${propertyId}/portals`, label: 'Back to Portals' },
+          : { to: `/properties/${propertyId}/portals`, label: 'Back to portals' },
       )
     default:
       return target

@@ -58,7 +58,7 @@ function PropertyAiSettings() {
     invalidateKeys: afterChange,
   })
   const change = useActionMutation(changeMerchantAiCapabilitiesFn, {
-    successMessage: 'AI feature access updated',
+    successMessage: 'Feature access saved',
     invalidateKeys: afterChange,
   })
   const revoke = useActionMutation(revokeMerchantAiFn, {

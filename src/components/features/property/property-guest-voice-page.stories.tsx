@@ -392,7 +392,7 @@ export const AnalysisOff: Story = {
   },
   play: async ({ canvas }) => {
     expect(await canvas.findByText('AI analysis is off for this property')).toBeVisible()
-    expect(canvas.getByRole('link', { name: 'Enable AI analysis' })).toHaveAttribute(
+    expect(canvas.getByRole('link', { name: 'Turn on AI analysis' })).toHaveAttribute(
       'href',
       expect.stringMatching(/\/properties\/[^/]+\/settings\/ai$/),
     )
@@ -405,7 +405,7 @@ export const AnalysisOffForMember: Story = {
   play: async ({ canvas }) => {
     expect(await canvas.findByText(/An account admin can enable it/)).toBeVisible()
     expect(
-      canvas.queryByRole('link', { name: 'Enable AI analysis' }),
+      canvas.queryByRole('link', { name: 'Turn on AI analysis' }),
     ).not.toBeInTheDocument()
   },
 }

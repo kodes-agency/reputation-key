@@ -30,11 +30,11 @@ describe('roleUnavailable', () => {
     expect(plain.data).not.toHaveProperty('subject')
     const named = roleUnavailable(
       'New Goal',
-      { to: '/g', label: 'Back to Goals' },
+      { to: '/g', label: 'Back to goals' },
       'this page',
     )
     expect(named).toMatchObject({
-      data: { subject: 'this page', back: { to: '/g', label: 'Back to Goals' } },
+      data: { subject: 'this page', back: { to: '/g', label: 'Back to goals' } },
     })
   })
 })

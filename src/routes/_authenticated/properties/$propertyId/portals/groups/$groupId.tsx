@@ -97,7 +97,7 @@ function GroupNoLongerAvailable() {
       entity={{
         heading: 'This group is no longer available',
         reason: 'It may have been archived, or it may belong to a different property.',
-        back: { to: `/properties/${propertyId}/portals`, label: 'Back to Portals' },
+        back: { to: `/properties/${propertyId}/portals`, label: 'Back to portals' },
       }}
     />
   )
@@ -135,7 +135,7 @@ function PortalGroupRoute() {
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
   const restoreMutation = useActionMutation(updatePortal, {
-    successMessage: 'Portal restored as Disabled',
+    successMessage: 'Portal restored as disabled',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
   const disableMutation = useActionMutation(updatePortal, {

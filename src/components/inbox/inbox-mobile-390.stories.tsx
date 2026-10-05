@@ -859,7 +859,7 @@ export const ThreadReplyAwaitingApproval: Story = {
     const canvas = pane()
     expectTheMobileFrame(canvas)
     await expect(canvas.getByText('Awaiting approval')).toBeVisible()
-    await expect(canvas.getByRole('button', { name: /Confirm & Publish/i })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: /Confirm & publish/i })).toBeVisible()
     await expect(canvas.getByRole('button', { name: /^Reject$/i })).toBeVisible()
     expectNoRawIds()
   },

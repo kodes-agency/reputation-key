@@ -28,7 +28,7 @@ function PropertyTargetsSettings() {
   const { propertyId } = Route.useParams()
   const { data: settings } = useSuspenseQuery(responseTargetPolicyQuery(propertyId))
   const updatePolicy = useActionMutation(setResponseTargetPolicyFn, {
-    successMessage: 'Property response target updated',
+    successMessage: 'Property target saved',
     invalidateKeys: [inboxKeys.responseTargetPolicies(propertyId)],
   })
 

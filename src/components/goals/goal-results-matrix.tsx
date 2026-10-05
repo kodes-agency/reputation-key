@@ -22,9 +22,9 @@ export function GoalResultsMatrix({ matrix }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle as="h2">Goal Results Matrix</CardTitle>
+        <CardTitle as="h2">Goal results matrix</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Monthly evidence for Property, Portal Group, and Portal goals. Each result keeps
+          Monthly evidence for property, portal group, and portal goals. Each result keeps
           its own measure and target.
         </p>
       </CardHeader>
@@ -76,7 +76,7 @@ export function GoalResultsMatrix({ matrix }: Props) {
                   {portal.groupName ? (
                     <span className="text-muted-foreground"> · {portal.groupName}</span>
                   ) : (
-                    <span className="text-muted-foreground"> · Ungrouped Portal</span>
+                    <span className="text-muted-foreground"> · Ungrouped portal</span>
                   )}
                   <span className="block text-xs text-muted-foreground">
                     {portal.message}
@@ -160,8 +160,8 @@ function evidenceLabel(evidence: GoalResultsMatrixEvidence, metric: string): str
 
 function scopeLabel(row: GoalResultsMatrixRow): string {
   if (row.scope === 'property') return 'Property'
-  if (row.scope === 'portal_group') return 'Portal Group'
-  return row.ungroupedPortal ? 'Ungrouped Portal' : 'Portal'
+  if (row.scope === 'portal_group') return 'Portal group'
+  return row.ungroupedPortal ? 'Ungrouped portal' : 'Portal'
 }
 
 function metricLabel(metric: string): string {

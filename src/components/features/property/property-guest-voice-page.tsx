@@ -179,7 +179,7 @@ function DisabledGuestVoice({ propertyId }: Readonly<{ propertyId: string }>) {
         {can('ai.manage') ? (
           <Button asChild size="sm">
             <Link to="/properties/$propertyId/settings/ai" params={{ propertyId }}>
-              Enable AI analysis
+              Turn on AI analysis
             </Link>
           </Button>
         ) : (

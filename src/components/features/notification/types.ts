@@ -48,7 +48,7 @@ export type NotificationRowActions = Readonly<{
   onDismiss: (notificationId: string) => void
   /** Disables the in-app channel for this row's category on this property. */
   onMuteCategory: (notification: NotificationView) => void
-  /** A stack's "Mark all as read": each of its rows, one announcement. */
+  /** A stack's "Mark all read": each of its rows, one announcement. */
   onMarkManyRead: (notificationIds: ReadonlyArray<string>) => void
   /** A stack's "Dismiss all": each of its rows, one toast with one Undo. */
   onDismissMany: (notificationIds: ReadonlyArray<string>) => void

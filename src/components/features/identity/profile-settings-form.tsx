@@ -114,7 +114,7 @@ export function ProfileSettingsForm({
 
             <FormActions form={form} error={updateProfile.error}>
               <SubmitButton mutation={updateProfile} form={form}>
-                Save Changes
+                Save changes
               </SubmitButton>
             </FormActions>
           </form>

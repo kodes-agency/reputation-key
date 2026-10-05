@@ -1116,7 +1116,7 @@ export const AiRepliesNotEnabled: Story = {
     onGenerateNotAuthorized.mockClear()
 
     await expectDraftRefusedWith(canvas, /AI is off for this property/i)
-    const link = canvas.getByRole('link', { name: /enable ai replies/i })
+    const link = canvas.getByRole('link', { name: /turn on ai replies/i })
     expect(link).toHaveAttribute(
       'href',
       expect.stringContaining(

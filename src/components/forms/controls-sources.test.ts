@@ -87,7 +87,7 @@ describe('a boolean setting is a SettingSwitchRow', () => {
     // target a Checkbox that waits for Save: each is a row of its own now.
     const settingCheckbox = (file: SourceFile) =>
       /<Checkbox\b/u.test(file.text) &&
-      /Answer low-rated reviews sooner|Use Organization target/u.test(file.text)
+      /Answer low-rated reviews sooner|Use organization target/u.test(file.text)
 
     expect(offendersOf(settingCheckbox)).toEqual([])
   })

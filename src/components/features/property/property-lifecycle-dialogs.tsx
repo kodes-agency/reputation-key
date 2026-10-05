@@ -43,8 +43,8 @@ export function PropertyRemoveDialog({
       // while a 30-day restore window is running would be a lie the operator
       // only discovers when they go looking for data they thought was gone.
       description="It leaves your property list and navigation, and its Google connection is disconnected so no further reviews or reports are collected. Nothing is deleted — reviews, settings and history are retained, and you can restore it from the Removed list for 30 days."
-      cancelLabel="Keep Property"
-      confirmLabel="Remove Property"
+      cancelLabel="Keep property"
+      confirmLabel="Remove property"
       pendingLabel="Removing…"
       tone="destructive"
       onConfirm={() => action({ data: { propertyId, reason: 'Removed from workspace' } })}
@@ -71,13 +71,13 @@ export function PropertyArchiveDialog({
       trigger={
         <ConfirmationTrigger tone="neutral" disabled={disabled}>
           <Archive aria-hidden="true" />
-          Archive Property
+          Archive property
         </ConfirmationTrigger>
       }
       title={`Archive ${propertyName}?`}
-      description="Guests and new provider work will pause. Retained settings, reviews, manager work, metrics, and identifiers stay in place, and you have 30 days to restore the Property yourself."
-      cancelLabel="Keep Property active"
-      confirmLabel="Archive Property"
+      description="Guests and new provider work will pause. Retained settings, reviews, manager work, metrics, and identifiers stay in place, and you have 30 days to restore the property yourself."
+      cancelLabel="Keep property active"
+      confirmLabel="Archive property"
       pendingLabel="Archiving…"
       confirmDisabled={!valid}
       onOpenChange={(open) => {
@@ -120,13 +120,13 @@ export function PropertyRestoreDialog({
       trigger={
         <Button disabled={disabled}>
           <RotateCcw aria-hidden="true" />
-          Restore Property
+          Restore property
         </Button>
       }
       title={`Restore ${propertyName}?`}
-      description="Current Responsible Manager, Data Cell, and Google binding readiness will be checked again. If Google needs reconnection, the Property will restore without silently restarting provider work."
+      description="Current Responsible Manager, Data Cell, and Google binding readiness will be checked again. If Google needs reconnection, the property will restore without silently restarting provider work."
       cancelLabel="Keep archived"
-      confirmLabel="Restore Property"
+      confirmLabel="Restore property"
       pendingLabel="Restoring…"
       onConfirm={() => action({ data: { propertyId } })}
     />
@@ -149,13 +149,13 @@ export function PropertyGoogleDisconnectDialog({
       trigger={
         <ConfirmationTrigger tone="destructive" disabled={disabled}>
           <Link2Off aria-hidden="true" />
-          Disconnect this Property from Google
+          Disconnect this property from Google
         </ConfirmationTrigger>
       }
       title={`Disconnect Google from ${propertyName}?`}
-      description="This stops this archived Property from using its current Google profile binding. Your Organization's Google connection stays available to other Properties, and this Property's retained history stays in place."
+      description="This stops this archived property from using its current Google profile binding. Your Organization's Google connection stays available to other properties, and this property's retained history stays in place."
       cancelLabel="Keep connected"
-      confirmLabel="Disconnect this Property"
+      confirmLabel="Disconnect this property"
       pendingLabel="Disconnecting…"
       tone="destructive"
       onConfirm={() => action({ data: { propertyId } })}

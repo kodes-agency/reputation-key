@@ -49,7 +49,7 @@ function PropertyDangerSettings() {
           'Property restored. Reconnect Google before restarting provider work.',
         )
       } else {
-        toast.success('Property restored. Google is ready for this Property.')
+        toast.success('Property restored. Google is ready for this property.')
       }
     },
   })
@@ -68,7 +68,7 @@ function PropertyDangerSettings() {
           )
         } else {
           toast.warning(
-            'Property removed, but its Google connection could not be disconnected. Open the Property to disconnect it.',
+            'Property removed, but its Google connection could not be disconnected. Open the property to disconnect it.',
           )
         }
       },
@@ -76,7 +76,7 @@ function PropertyDangerSettings() {
   )
   const disconnect = useActionMutation(disconnectPropertyGoogleBinding, {
     successMessage:
-      'This Property is disconnected. The Organization Google connection is unchanged.',
+      'This property is disconnected. The organization’s Google connection is unchanged.',
     invalidateKeys,
   })
 

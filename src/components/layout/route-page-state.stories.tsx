@@ -153,7 +153,7 @@ function buildRouter(scenario: Scenario) {
         entity={{
           heading: 'This group is no longer available',
           reason: 'It may have been archived, or it may belong to a different property.',
-          back: { to: '/properties/p1/portals', label: 'Back to Portals' },
+          back: { to: '/properties/p1/portals', label: 'Back to portals' },
         }}
       />
     ),
@@ -254,7 +254,7 @@ export const EntityGone: Story = {
       'href',
       '/properties/p1/portals',
     )
-    expect(canvas.getByRole('link', { name: 'Back to Portals' })).toBeVisible()
+    expect(canvas.getByRole('link', { name: 'Back to portals' })).toBeVisible()
   },
 }
 
@@ -275,7 +275,7 @@ export const Unavailable: Story = {
     expect(await pageHeading(canvasElement, 'People')).toBeVisible()
     expect(canvas.getByTestId('shell')).toBeVisible()
     expect(canvas.getByText('You do not have access to People')).toBeVisible()
-    expect(canvas.getByRole('link', { name: 'Back to Properties' })).toHaveAttribute(
+    expect(canvas.getByRole('link', { name: 'Back to properties' })).toHaveAttribute(
       'href',
       '/properties',
     )
@@ -332,7 +332,7 @@ export const UnknownAddressInShell: Story = {
     const canvas = within(canvasElement)
     expect(await pageHeading(canvasElement, 'Page not found')).toBeVisible()
     expect(canvas.getByTestId('shell')).toBeVisible()
-    expect(canvas.getByRole('link', { name: 'Back to Properties' })).toBeVisible()
+    expect(canvas.getByRole('link', { name: 'Back to properties' })).toBeVisible()
   },
 }
 

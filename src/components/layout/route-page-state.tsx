@@ -122,7 +122,7 @@ export type NotFoundCopy = Readonly<{
 
 const PAGE_NOT_FOUND: NotFoundCopy = {
   heading: "The page you're looking for doesn't exist or may have moved.",
-  back: { to: '/properties', label: 'Back to Properties' },
+  back: { to: '/properties', label: 'Back to properties' },
 }
 
 /**

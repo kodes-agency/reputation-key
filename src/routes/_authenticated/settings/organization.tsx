@@ -79,10 +79,11 @@ function OrganizationSettingsRoute() {
   )
   const organization = orgResult.organization
   const updateResponseTargetPolicy = useActionMutation(setResponseTargetPolicyFn, {
-    successMessage: 'Response target updated',
+    successMessage: 'Response target saved',
     invalidateKeys: [inboxKeys.responseTargetPolicies()],
   })
   const updateOrganizationAction = useActionMutation(updateOrganization, {
+    successMessage: 'Organization saved',
     onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
   })
   // The logo is an image setting, which says a refusal itself (a toast), so neither

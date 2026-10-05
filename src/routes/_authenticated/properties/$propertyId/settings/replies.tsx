@@ -41,7 +41,7 @@ function PropertyRepliesSettings() {
     enabled: canManageReplies,
   })
   const updateReplyLanguage = useActionMutation(updateProperty, {
-    successMessage: 'Property reply language updated',
+    successMessage: 'Reply language saved',
     invalidateKeys: [
       propertyKeys.list(),
       propertyKeys.detail(propertyId),

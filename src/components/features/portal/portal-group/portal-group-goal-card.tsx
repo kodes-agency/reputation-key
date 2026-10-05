@@ -58,7 +58,7 @@ export function PortalGroupGoalCard({ goal, propertyId, context }: Props) {
           to="/properties/$propertyId/goals/$goalId"
           params={{ propertyId, goalId: goal.programId }}
         >
-          Open in Goals
+          Open in goals
           <ArrowRight className="size-3.5" aria-hidden="true" />
         </Link>
       </Button>

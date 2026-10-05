@@ -13,7 +13,7 @@ export const Route = createFileRoute('/_authenticated/settings/security')({
 
 function SecuritySettings() {
   const changePassword = useActionMutation(changePasswordFn, {
-    successMessage: 'Password changed',
+    successMessage: 'Password updated',
     // A password change revokes every other session and ROTATES this one
     // (revokeOtherSessions). The replacement session carries no active
     // organization, so without this the very next organization-scoped read
