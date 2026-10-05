@@ -3,7 +3,7 @@ import { Check } from 'lucide-react'
 import { submitHandler } from '#/components/forms/form-submit'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
-import { Checkbox } from '#/components/ui/checkbox'
+import { ConsentCheckbox } from '#/components/forms/consent-checkbox'
 import { TimezoneCombobox } from '#/components/forms/timezone-combobox'
 import { Field, FieldLabel } from '#/components/ui/field'
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '#/components/ui/table'
@@ -168,47 +168,24 @@ export function GoogleImportReviewForm({
               </section>
 
               <form.Field name="profileAcknowledged">
-                {(field) => {
-                  const missing = submissionAttempts > 0 && !field.state.value
-                  return (
-                    <Field
-                      orientation="horizontal"
-                      data-invalid={missing}
-                      className="items-start rounded-lg border p-4"
-                    >
-                      <Checkbox
-                        id={ACKNOWLEDGEMENT_ID}
-                        name={field.name}
-                        checked={field.state.value}
-                        disabled={isSubmitting}
-                        aria-invalid={missing || undefined}
-                        aria-describedby={`${ACKNOWLEDGEMENT_ID}-description`}
-                        className="mt-0.5"
-                        onBlur={field.handleBlur}
-                        onCheckedChange={(checked) =>
-                          field.handleChange(checked === true)
-                        }
-                      />
-                      <div className="space-y-1">
-                        <FieldLabel htmlFor={ACKNOWLEDGEMENT_ID}>
-                          I have checked these details
-                        </FieldLabel>
-                        <p
-                          id={`${ACKNOWLEDGEMENT_ID}-description`}
-                          className="text-sm text-muted-foreground"
-                        >
-                          RepKey records your confirmation of every name, address, country
-                          and timezone above when the import starts.
-                        </p>
-                        {missing ? (
-                          <p role="alert" className="text-sm text-negative">
-                            Confirm that you have checked these details.
-                          </p>
-                        ) : null}
-                      </div>
-                    </Field>
-                  )
-                }}
+                {(field) => (
+                  <ConsentCheckbox
+                    id={ACKNOWLEDGEMENT_ID}
+                    name={field.name}
+                    checked={field.state.value}
+                    disabled={isSubmitting}
+                    onBlur={field.handleBlur}
+                    onCheckedChange={field.handleChange}
+                    description="RepKey records your confirmation of every name, address, country and timezone above when the import starts."
+                    error={
+                      submissionAttempts > 0 && !field.state.value
+                        ? 'Confirm that you have checked these details.'
+                        : undefined
+                    }
+                  >
+                    I have checked these details
+                  </ConsentCheckbox>
+                )}
               </form.Field>
 
               <div className="flex flex-col-reverse gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">

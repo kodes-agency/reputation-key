@@ -117,8 +117,6 @@ const RED_PARAGRAPH_ALLOWED: Readonly<Record<string, string>> = {
     'a removal that failed, beside the Remove button',
   'src/components/features/portal/property-look/property-look-batch-dialog.tsx':
     'the stop reason of a batch publish, part of its result readout',
-  'src/components/features/integration/google-import-manager/google-import-review-form.tsx':
-    'a field-level error on the acknowledgement checkbox',
   'src/components/inbox/inbox-detail-regions.tsx':
     'a region that failed to load (region states own it)',
 }

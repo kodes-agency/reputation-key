@@ -2,8 +2,7 @@
 // refused without it, so the button stays off until it is ticked. The sentence
 // names the property, as the board does, so it is clear whose permission it is.
 
-import { Checkbox } from '#/components/ui/checkbox'
-import { Field, FieldLabel } from '#/components/ui/field'
+import { ConsentCheckbox } from '#/components/forms/consent-checkbox'
 
 type Props = Readonly<{
   id: string
@@ -24,16 +23,13 @@ export function ImageRightsField({
   disabled = false,
 }: Props) {
   return (
-    <Field orientation="horizontal">
-      <Checkbox
-        id={id}
-        checked={checked}
-        disabled={disabled}
-        onCheckedChange={(next) => onCheckedChange(next === true)}
-      />
-      <FieldLabel htmlFor={id} className="font-normal">
-        {propertyName} owns this {noun} or has permission to use it.
-      </FieldLabel>
-    </Field>
+    <ConsentCheckbox
+      id={id}
+      checked={checked}
+      disabled={disabled}
+      onCheckedChange={onCheckedChange}
+    >
+      {propertyName} owns this {noun} or has permission to use it.
+    </ConsentCheckbox>
   )
 }

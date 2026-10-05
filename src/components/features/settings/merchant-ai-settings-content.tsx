@@ -6,6 +6,7 @@ import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/me
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { CardContent } from '#/components/ui/card'
 import { Checkbox } from '#/components/ui/checkbox'
+import { ConsentCheckbox } from '#/components/forms/consent-checkbox'
 import { Field, FieldGroup, FieldLabel } from '#/components/ui/field'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { MerchantAiDataHandling } from './merchant-ai-data-handling'
@@ -130,29 +131,16 @@ export function MerchantAiSettingsContent({
         })}
       </FieldGroup>
 
-      <div className="flex flex-col gap-2">
-        <Field orientation="horizontal" className="items-start">
-          <Checkbox
-            id="merchant-ai-acknowledgement"
-            className="mt-0.5"
-            checked={acknowledged}
-            disabled={pending}
-            aria-describedby="merchant-ai-acknowledgement-help"
-            onCheckedChange={(next) => onAcknowledgedChange(next === true)}
-          />
-          <FieldLabel htmlFor="merchant-ai-acknowledgement" className="min-w-0">
-            I have read this notice and agree to this data use for {propertyName} on
-            behalf of my organization.
-          </FieldLabel>
-        </Field>
-        <p
-          id="merchant-ai-acknowledgement-help"
-          className="text-sm text-muted-foreground"
-        >
-          Required to enable or change AI features. RepKey records who agreed and the
-          notice version they read. Turning features off does not need it.
-        </p>
-      </div>
+      <ConsentCheckbox
+        id="merchant-ai-acknowledgement"
+        checked={acknowledged}
+        disabled={pending}
+        onCheckedChange={onAcknowledgedChange}
+        description="Required to enable or change AI features. RepKey records who agreed and the notice version they read. Turning features off does not need it."
+      >
+        I have read this notice and agree to this data use for {propertyName} on behalf of
+        my organization.
+      </ConsentCheckbox>
       {/* A refusal of the command, not of the checkbox: it ends the body, directly
           above the actions. */}
       <FormErrorBanner error={errorMessage} />
