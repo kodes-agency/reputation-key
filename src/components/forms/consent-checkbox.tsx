@@ -11,6 +11,7 @@ import type { ReactNode } from 'react'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field'
 import { cn } from '#/lib/utils'
+import { describedByOf, descriptionIdOf, errorIdOf } from './form-field-frame'
 
 type Props = Readonly<{
   id: string
@@ -28,10 +29,6 @@ type Props = Readonly<{
   className?: string
 }>
 
-/** The id the help line takes, which the checkbox names in `aria-describedby`. */
-const descriptionIdOf = (id: string) => `${id}-description`
-const errorIdOf = (id: string) => `${id}-error`
-
 export function ConsentCheckbox({
   id,
   checked,
@@ -45,12 +42,6 @@ export function ConsentCheckbox({
   className,
 }: Props) {
   const invalid = Boolean(error)
-  const describedBy = [
-    description ? descriptionIdOf(id) : null,
-    invalid ? errorIdOf(id) : null,
-  ]
-    .filter((part) => part !== null)
-    .join(' ')
   return (
     <Field
       data-slot="consent-checkbox"
@@ -65,7 +56,7 @@ export function ConsentCheckbox({
         checked={checked}
         disabled={disabled}
         aria-invalid={invalid || undefined}
-        aria-describedby={describedBy || undefined}
+        aria-describedby={describedByOf(id, description, invalid)}
         className="mt-0.5"
         onBlur={onBlur}
         onCheckedChange={(next) => onCheckedChange(next === true)}

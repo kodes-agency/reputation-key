@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 /** How long "Saved" stays beside the switch. */
-export const SAVED_NOTICE_MS = 2500
+const SAVED_NOTICE_MS = 2500
 
 export type SaveStatus = 'idle' | 'saving' | 'saved'
 
