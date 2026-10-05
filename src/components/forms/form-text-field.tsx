@@ -3,8 +3,8 @@
 // Per conventions: shared form building blocks live in components/forms/.
 
 import type { ReactNode } from 'react'
-import { Field, FieldLabel, FieldError } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
+import { describedByOf, FormFieldFrame } from './form-field-frame'
 
 export type BaseFieldApi = {
   name: string
@@ -30,8 +30,10 @@ type Props = Readonly<{
   disabled?: boolean
   maxLength?: number
   className?: string
+  /** The person may leave it empty: the label says "Optional". */
+  optional?: boolean
   /** A line under the field on what it is for; the input names it as its description. */
-  hint?: ReactNode
+  description?: ReactNode
 }>
 
 export function FormTextField({
@@ -44,14 +46,20 @@ export function FormTextField({
   disabled,
   maxLength,
   className,
-  hint,
+  optional,
+  description,
 }: Props) {
   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
-  const hintId = hint === undefined ? undefined : `${id}-hint`
 
   return (
-    <Field data-invalid={isInvalid}>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+    <FormFieldFrame
+      id={id}
+      label={label}
+      optional={optional}
+      description={description}
+      invalid={isInvalid}
+      errors={isInvalid ? field.state.meta.errors : undefined}
+    >
       <Input
         id={id}
         name={field.name}
@@ -60,19 +68,32 @@ export function FormTextField({
         onBlur={field.handleBlur}
         onChange={(e) => field.handleChange(e.target.value)}
         aria-invalid={isInvalid}
-        aria-describedby={hintId}
+        aria-describedby={describedByOf(id, description)}
         placeholder={placeholder}
         autoComplete={autoComplete}
         disabled={disabled}
         maxLength={maxLength}
         className={className}
       />
-      {isInvalid && <FieldError errors={field.state.meta.errors} />}
-      {hint === undefined ? null : (
-        <p id={hintId} className="text-sm text-muted-foreground">
-          {hint}
-        </p>
-      )}
-    </Field>
+    </FormFieldFrame>
   )
+}
+
+/**
+ * A field that holds `string | null` (blank is null) as the string a text field
+ * edits, for a value the schema allows to be absent. The empty control is null
+ * again as soon as it is cleared.
+ */
+export function blankAsNull(field: {
+  name: string
+  state: { value: string | null; meta: BaseFieldApi['state']['meta'] }
+  handleBlur: () => void
+  handleChange: (value: string | null) => void
+}): BaseFieldApi {
+  return {
+    name: field.name,
+    state: { value: field.state.value ?? '', meta: field.state.meta },
+    handleBlur: field.handleBlur,
+    handleChange: (value) => field.handleChange(value === '' ? null : value),
+  }
 }

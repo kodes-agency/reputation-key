@@ -57,7 +57,15 @@ function Field({
   )
 }
 
-function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>) {
+function FieldLabel({
+  className,
+  optional = false,
+  children,
+  ...props
+}: React.ComponentProps<typeof Label> & {
+  /** The person may leave the field empty: "Optional", after the label text. */
+  optional?: boolean
+}) {
   return (
     <Label
       data-slot="field-label"
@@ -67,6 +75,33 @@ function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>)
         'has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5 dark:has-data-[state=checked]:bg-primary/10',
         className,
       )}
+      {...props}
+    >
+      {children}
+      {optional ? (
+        // Inside the label, so the control's name carries it. The space is for that
+        // name ("Note Optional"): a flex row draws none of it.
+        <>
+          {' '}
+          <span data-slot="field-optional" className="font-normal text-muted-foreground">
+            Optional
+          </span>
+        </>
+      ) : null}
+    </Label>
+  )
+}
+
+/**
+ * The line of help under a control: what the field is for, or the rule it follows.
+ * Name it as the control's description (`aria-describedby`); `Form*Field` do. It keeps
+ * the muted ink inside a Field that has turned invalid, so help never reads as an error.
+ */
+function FieldDescription({ className, ...props }: React.ComponentProps<'p'>) {
+  return (
+    <p
+      data-slot="field-description"
+      className={cn('text-sm font-normal text-muted-foreground', className)}
       {...props}
     />
   )
@@ -122,4 +157,4 @@ function FieldError({
   )
 }
 
-export { Field, FieldLabel, FieldError, FieldGroup }
+export { Field, FieldLabel, FieldDescription, FieldError, FieldGroup }

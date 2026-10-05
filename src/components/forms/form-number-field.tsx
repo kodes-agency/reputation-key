@@ -4,11 +4,12 @@
 // Deliberately not FormTextField with type="number": that one reports invalid
 // from `isTouched && !isValid`, which hides a submit-time error on a field the
 // person never focused. A target the server refused must show its reason, so
-// this control reads the errors themselves.
+// this control reads the errors themselves. It is otherwise the same field: the
+// same Field, FieldLabel, help line and optional marker as FormTextField.
 
+import type { ReactNode } from 'react'
 import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
-import { FieldError } from '#/components/ui/field'
+import { describedByOf, FormFieldFrame } from './form-field-frame'
 
 /**
  * Just the surface a number control touches on a TanStack Form field. Named
@@ -36,7 +37,9 @@ export function FormNumberField({
   max,
   field,
   disabled,
-  className = 'grid gap-1.5',
+  className,
+  optional,
+  description,
 }: Readonly<{
   id: string
   label: string
@@ -44,11 +47,24 @@ export function FormNumberField({
   max: number
   field: NumberFieldApi
   disabled?: boolean
+  /** Merged onto the Field: a width a card gives it (`max-w-40`). */
   className?: string
+  /** The person may leave it empty: the label says "Optional". */
+  optional?: boolean
+  /** A line under the field on what it is for; the input names it as its description. */
+  description?: ReactNode
 }>) {
+  const invalid = field.state.meta.errors.length > 0
   return (
-    <div className={className}>
-      <Label htmlFor={id}>{label}</Label>
+    <FormFieldFrame
+      id={id}
+      label={label}
+      optional={optional}
+      description={description}
+      invalid={invalid}
+      errors={invalid ? field.state.meta.errors : undefined}
+      className={className}
+    >
       <Input
         id={id}
         type="number"
@@ -58,11 +74,9 @@ export function FormNumberField({
         value={Number.isNaN(field.state.value) ? '' : field.state.value}
         onBlur={field.handleBlur}
         onChange={(event) => field.handleChange(event.target.valueAsNumber)}
-        aria-invalid={field.state.meta.errors.length > 0}
+        aria-invalid={invalid}
+        aria-describedby={describedByOf(id, description)}
       />
-      {field.state.meta.errors.length > 0 ? (
-        <FieldError errors={field.state.meta.errors} />
-      ) : null}
-    </div>
+    </FormFieldFrame>
   )
 }
