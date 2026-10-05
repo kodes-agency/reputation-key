@@ -1,7 +1,9 @@
 // The Inbox's one h1 (UI consistency scan: FRAME-10). The queue's name was an h1 inside
 // a `max-md:hidden` box, so on a phone the page had no h1 at all (a `display: none`
 // heading is not in the outline). It stays in the page at every width and is only
-// drawn from `md`: the phone's queue strip names the queue on screen.
+// drawn from `md`: the phone's queue strip names the queue on screen. Search and the
+// selection toolbar take the header over and the drawn heading with it, so the h1 is
+// then read and not drawn at every width, and the page still has exactly one.
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -9,7 +11,7 @@ import { TooltipProvider } from '#/components/ui/tooltip'
 import { InboxListHeader } from './inbox-list-header'
 import { CLEARED_INBOX_LIST_FILTERS } from './inbox-filters'
 
-const header = createElement(InboxListHeader, {
+const baseProps = {
   queueLabel: 'Needs reply',
   scopeLabel: 'Hotel Elegance',
   totalCount: 18,
@@ -21,8 +23,19 @@ const header = createElement(InboxListHeader, {
   onFiltersChange: () => undefined,
   onSortChange: () => undefined,
   onClearFilters: () => undefined,
-})
-const markup = renderToStaticMarkup(createElement(TooltipProvider, null, header))
+} as const
+
+const render = (props: Partial<Parameters<typeof InboxListHeader>[0]> = {}) =>
+  renderToStaticMarkup(
+    createElement(
+      TooltipProvider,
+      null,
+      createElement(InboxListHeader, { ...baseProps, ...props }),
+    ),
+  )
+
+const markup = render()
+const headings = (html: string) => html.match(/<h1[\s>]/gu) ?? []
 
 describe('InboxListHeader heading', () => {
   it('has the queue name as its h1', () => {
@@ -45,5 +58,26 @@ describe('InboxListHeader heading', () => {
 
   it('hides only the count on a phone', () => {
     expect(markup).toMatch(/<span[^>]*max-md:hidden[^>]*>18<\/span>/u)
+  })
+})
+
+describe('InboxListHeader heading while the header is taken over', () => {
+  it('keeps exactly one h1 in the default state', () => {
+    expect(headings(markup)).toHaveLength(1)
+  })
+
+  it('keeps one h1, read and not drawn, while search is open', () => {
+    const html = render({ searchQ: 'breakfast' })
+
+    expect(headings(html)).toHaveLength(1)
+    expect(html).toMatch(/<h1[^>]*class="sr-only"[^>]*>Needs reply<\/h1>/u)
+  })
+
+  it('keeps one h1, read and not drawn, while the selection toolbar is shown', () => {
+    const html = render({ selectionToolbar: createElement('div', null, '3 selected') })
+
+    expect(headings(html)).toHaveLength(1)
+    expect(html).toMatch(/<h1[^>]*class="sr-only"[^>]*>Needs reply<\/h1>/u)
+    expect(html).toContain('3 selected')
   })
 })

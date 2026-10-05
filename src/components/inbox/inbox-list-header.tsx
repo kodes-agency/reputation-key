@@ -172,12 +172,16 @@ export function InboxListHeader({
   const openSearch = () => setSearchOpen(true)
   // Only the compact layout offers the Select button.
   const startSelection = isCompactLayout ? onStartSelection : undefined
+  // Search and the selection toolbar take the whole header over, the visible heading
+  // with it. The page keeps its one h1 (FRAME-10): read, not drawn.
+  const takenOver = (selectionToolbar ?? null) !== null || searchVisible
 
   return (
     <header
       data-inbox-list-header
       className="flex h-14 shrink-0 items-center border-b px-3 max-md:h-11 max-md:px-4"
     >
+      {takenOver ? <h1 className="sr-only">{queueLabel}</h1> : null}
       {selectionToolbar ??
         (searchVisible ? (
           <InboxListSearch
