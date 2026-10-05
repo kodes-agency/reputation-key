@@ -9,6 +9,7 @@
 
 import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
+import { expectOneH1 } from '../helpers/page-structure'
 import { openSeededProperty, SEEDED_PROPERTY_NAME } from '../helpers/property'
 import { requireE2eSeedState } from '../helpers/seed-state'
 
@@ -50,6 +51,7 @@ test.describe('Critical: properties shell', () => {
     await page.goto('/properties')
     await expect(page.getByRole('heading', { name: /^properties$/i })).toBeVisible()
     await expect(page.getByText(SEEDED_PROPERTY_NAME)).toBeVisible()
+    await expectOneH1(page)
   })
 
   test('open seeded property detail', async ({ page }) => {
@@ -76,6 +78,7 @@ test.describe('Critical: inbox and members shell', () => {
     await page.goto('/inbox')
     await expect(page).toHaveURL(/\/inbox/)
     await expect(inboxChrome(page)).toBeVisible({ timeout: 15_000 })
+    await expectOneH1(page)
   })
 
   test('settings members page loads', async ({ page }) => {
@@ -85,5 +88,7 @@ test.describe('Critical: inbox and members shell', () => {
     await expect(page.getByRole('heading', { name: /^members$/i }).first()).toBeVisible({
       timeout: 15_000,
     })
+    // The page header's h1 and the section's h2 both say Members.
+    await expectOneH1(page)
   })
 })

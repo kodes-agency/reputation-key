@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
 import { waitForHydration, clickWhenReady } from '../helpers/interaction'
+import { expectOneH1 } from '../helpers/page-structure'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { expectPortalUnavailable } from '../helpers/guest-unavailable'
 import { attachRequestLog } from '../helpers/request-log'
@@ -122,6 +123,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(
       page.getByRole('link', { name: 'E2E Guest Portal P1', exact: true }),
     ).toBeVisible()
+    await expectOneH1(page)
     // The group's name is on its head row in the table and again in the group editor.
     await expect(
       page
