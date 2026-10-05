@@ -82,7 +82,7 @@ function BothRows() {
 
 function LockedRow() {
   return (
-    <div className="max-w-xs">
+    <div className="max-w-xl">
       <SettingSwitchRow
         id="story-in-app"
         label="In-app"
