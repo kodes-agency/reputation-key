@@ -119,6 +119,12 @@ test.describe('Critical workflow: operator console', () => {
     await page.keyboard.press('Tab')
     await expect(adminEmail).toBeFocused()
     await page.keyboard.type(ADMIN_EMAIL)
+    // Every dialog's actions are Cancel then the primary (DialogFooter), so the
+    // keyboard meets Cancel first and the submit one Tab later.
+    await page.keyboard.press('Tab')
+    await expect(
+      dialog.getByRole('button', { name: 'Cancel', exact: true }),
+    ).toBeFocused()
     await page.keyboard.press('Tab')
     const submit = dialog.getByRole('button', { name: /create and send invitation/i })
     await expect(submit).toBeFocused()

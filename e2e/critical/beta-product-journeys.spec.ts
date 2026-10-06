@@ -994,15 +994,26 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN, '/settings/profile')
     // Timezone and date format are the person's clock, set on Profile (D6).
     await expect(page.getByRole('combobox', { name: 'Timezone' })).toBeVisible()
+    await waitForHydration(page)
     const nameInput = page.getByLabel('Name')
     await nameInput.fill(`${seed.managerName} Persisted`)
     await clickWhenReady(page.getByRole('button', { name: 'Save profile' }))
     await expect(page.getByText('Profile saved')).toBeVisible()
     await page.reload()
     await expect(nameInput).toHaveValue(`${seed.managerName} Persisted`)
+    // The reloaded form is server-rendered before React hydrates: a fill in
+    // that window is reset to the loaded name and the restore then saves the
+    // CHANGED name back (or a pre-hydration click submits natively). Either way
+    // the name stays "… Persisted" for every later spec that reads it — the
+    // member invitation's "Invited by" cell among them.
+    await waitForHydration(page)
     await nameInput.fill(seed.managerName)
+    await expect(nameInput).toHaveValue(seed.managerName)
     await clickWhenReady(page.getByRole('button', { name: 'Save profile' }))
     await expect(page.getByText('Profile saved')).toBeVisible()
+    // The restore is shared suite state, so it is proven, not assumed.
+    await page.reload()
+    await expect(nameInput).toHaveValue(seed.managerName)
 
     await page.goto('/settings/notifications')
     // Quiet hours say which clock they run on, and link to where it is set.
