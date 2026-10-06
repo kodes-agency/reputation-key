@@ -115,8 +115,6 @@ const LITERAL_ALLOWED: Readonly<Record<string, string>> = {
     'the print kit is a printed card with its own palette, not app chrome',
   'src/components/features/portal/portal-preview/preview-phone.tsx':
     'the device bezel the portal preview is drawn inside',
-  'src/components/features/property/property-public-display-name-card.tsx':
-    'fallback brand colours of a portal profile that has none: data, not styling',
 }
 
 /** An oklch(), hsl() or hex colour in code. */

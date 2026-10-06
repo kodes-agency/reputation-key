@@ -7,16 +7,16 @@ import { PropertyPublicDisplayNameCard } from './property-public-display-name-ca
 type SaveAction = ComponentProps<typeof PropertyPublicDisplayNameCard>['action']
 type SaveInput = Parameters<SaveAction>[0]
 
-const noProfileSaveSpy = fn(async (_input: SaveInput) => undefined)
-const noProfileSave = Object.assign(noProfileSaveSpy, {
+const noNameSaveSpy = fn(async (_input: SaveInput) => undefined)
+const noNameSave = Object.assign(noNameSaveSpy, {
   isPending: false,
   error: null,
   isSuccess: false,
   data: null,
 }) as unknown as SaveAction
 
-const existingProfileSaveSpy = fn(async (_input: SaveInput) => undefined)
-const existingProfileSave = Object.assign(existingProfileSaveSpy, {
+const savedNameSaveSpy = fn(async (_input: SaveInput) => undefined)
+const savedNameSave = Object.assign(savedNameSaveSpy, {
   isPending: false,
   error: null,
   isSuccess: false,
@@ -35,8 +35,8 @@ const meta = {
   parameters: { layout: 'centered' },
   args: {
     propertyId: '10000000-0000-4000-8000-000000000101',
-    profile: null,
-    action: noProfileSave,
+    displayName: '',
+    action: noNameSave,
   },
 } satisfies Meta<typeof PropertyPublicDisplayNameCard>
 
@@ -45,7 +45,7 @@ type Story = StoryObj<typeof meta>
 
 export const NoPortalRequired: Story = {
   play: async ({ canvasElement }) => {
-    noProfileSaveSpy.mockClear()
+    noNameSaveSpy.mockClear()
     const canvas = within(canvasElement)
     const displayName = canvas.getByLabelText('Public display name')
 
@@ -56,33 +56,29 @@ export const NoPortalRequired: Story = {
     )
 
     await waitFor(() =>
-      expect(noProfileSaveSpy).toHaveBeenCalledWith({
+      expect(noNameSaveSpy).toHaveBeenCalledWith({
         data: {
           propertyId: '10000000-0000-4000-8000-000000000101',
           displayName: 'Harborline Suites',
-          primaryColor: '#2563EB',
-          backgroundColor: '#FFFFFF',
-          textColor: '#111827',
         },
       }),
     )
   },
 }
 
-export const ExistingProfilePreservesPortalTheme: Story = {
+// The name is the only thing this card writes. A save used to carry the colours the
+// page was opened with, so a colour changed in Property look in the meantime came
+// back as the old one; now the command has no colour in it to restore.
+export const SavingTheNameSendsNoColours: Story = {
   args: {
-    profile: {
-      displayName: 'Harborline Hotel',
-      primaryColor: '#123456',
-      backgroundColor: '#FDFCFB',
-      textColor: '#101820',
-    },
-    action: existingProfileSave,
+    displayName: 'Harborline Hotel',
+    action: savedNameSave,
   },
   play: async ({ canvasElement }) => {
-    existingProfileSaveSpy.mockClear()
+    savedNameSaveSpy.mockClear()
     const canvas = within(canvasElement)
     const displayName = canvas.getByLabelText('Public display name')
+    expect(displayName).toHaveValue('Harborline Hotel')
 
     await userEvent.clear(displayName)
     await userEvent.type(displayName, 'Harborline Suites')
@@ -90,29 +86,22 @@ export const ExistingProfilePreservesPortalTheme: Story = {
       canvas.getByRole('button', { name: 'Save public display name' }),
     )
 
-    await waitFor(() =>
-      expect(existingProfileSaveSpy).toHaveBeenCalledWith({
-        data: {
-          propertyId: '10000000-0000-4000-8000-000000000101',
-          displayName: 'Harborline Suites',
-          primaryColor: '#123456',
-          backgroundColor: '#FDFCFB',
-          textColor: '#101820',
-        },
-      }),
-    )
+    await waitFor(() => expect(savedNameSaveSpy).toHaveBeenCalledTimes(1))
+    const [input] = savedNameSaveSpy.mock.calls[0] ?? []
+    expect(Object.keys(input?.data ?? {}).sort()).toEqual(['displayName', 'propertyId'])
+    expect(input).toEqual({
+      data: {
+        propertyId: '10000000-0000-4000-8000-000000000101',
+        displayName: 'Harborline Suites',
+      },
+    })
   },
 }
 
 export const PropertyManagerIsReadOnly: Story = {
   decorators: [withRole('PropertyManager')],
   args: {
-    profile: {
-      displayName: 'Harborline Hotel',
-      primaryColor: '#2563EB',
-      backgroundColor: '#FFFFFF',
-      textColor: '#111827',
-    },
+    displayName: 'Harborline Hotel',
     action: managerSave,
   },
   play: async ({ canvasElement }) => {

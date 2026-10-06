@@ -4,7 +4,7 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { PropertyProfileCard } from '#/components/features/property/settings/property-profile-card'
 import { PropertyPublicDisplayNameCard } from '#/components/features/property/property-public-display-name-card'
 import { updateProperty } from '#/contexts/property/server/properties'
-import { savePropertyPortalBrandProfile } from '#/contexts/portal/server/portals'
+import { savePropertyPublicDisplayName } from '#/contexts/portal/server/portals'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { can } from '#/shared/domain/permissions'
@@ -31,6 +31,7 @@ function PropertyProfileSettings() {
     ...propertyPortalExperienceQuery(propertyId),
     enabled: can(role, 'portal.read'),
   })
+  const displayName = portalExperience?.profile?.displayName ?? ''
   const saveProfile = useActionMutation(updateProperty, {
     successMessage: 'Property profile saved',
     invalidateKeys: [
@@ -39,7 +40,9 @@ function PropertyProfileSettings() {
       inboxKeys.details(),
     ],
   })
-  const savePublicDisplayName = useActionMutation(savePropertyPortalBrandProfile, {
+  // The name alone: the brand writer also sends colours, and this page's copy of them
+  // can be older than a change made in Property look.
+  const savePublicDisplayName = useActionMutation(savePropertyPublicDisplayName, {
     successMessage: 'Public display name saved',
     invalidateKeys: [portalKeys.propertyExperience(propertyId)],
   })
@@ -54,10 +57,10 @@ function PropertyProfileSettings() {
       />
       {portalExperience ? (
         <PropertyPublicDisplayNameCard
-          // Mounted again on the saved name and colours, so the form starts from them (Reset).
-          key={`${propertyId}:display-name:${JSON.stringify(portalExperience.profile)}`}
+          // Mounted again on the saved name, so the form starts from it (Reset).
+          key={`${propertyId}:display-name:${displayName}`}
           propertyId={propertyId}
-          profile={portalExperience.profile}
+          displayName={displayName}
           action={savePublicDisplayName}
         />
       ) : null}
