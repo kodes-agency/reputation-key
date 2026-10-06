@@ -1,14 +1,8 @@
+// The invite form's Role field: a labelled RoleChoice bound to a form field.
+
 import { Field, FieldLabel, FieldError } from '#/components/ui/field'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
-import { roleLabel } from '#/components/features/identity/shared/role-utils'
+import { RoleChoice } from './role-choice'
 
 type Props = Readonly<{
   field: {
@@ -25,29 +19,22 @@ type Props = Readonly<{
   allowedRoles: ReadonlyArray<BetaInteractiveRole>
 }>
 
+const LABEL_ID = 'invite-role-label'
+
 export function RoleSelector({ field, allowedRoles }: Props) {
   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
 
   return (
     <Field data-invalid={isInvalid}>
-      <FieldLabel>Role</FieldLabel>
-      <Select
+      <FieldLabel id={LABEL_ID}>Role</FieldLabel>
+      <RoleChoice
         value={field.state.value}
-        onValueChange={(value) => field.handleChange(value as BetaInteractiveRole)}
-      >
-        <SelectTrigger aria-invalid={isInvalid} aria-label="Role">
-          <SelectValue placeholder="Select a role" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {allowedRoles.map((r) => (
-              <SelectItem key={r} value={r}>
-                {roleLabel(r, 'full')}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+        onValueChange={field.handleChange}
+        allowedRoles={allowedRoles}
+        idPrefix="invite-role"
+        aria-labelledby={LABEL_ID}
+        aria-invalid={isInvalid}
+      />
       {isInvalid && (
         <FieldError
           errors={field.state.meta.errors as Array<{ message?: string } | undefined>}

@@ -26,9 +26,9 @@ describe('the sections of a Property’s settings', () => {
   const labels = PROPERTY_SETTINGS_SECTIONS.map((section) => section.label)
 
   it('name no destination of the sidebar, whose scope is another', () => {
-    // The sidebar's People is who works at the Property, its Google is how the
+    // The sidebar's Staff is who works at the Property, its Google is how the
     // Property performs there; a settings section of the same name is something else.
-    const sidebar = [NAV_LABEL.people, NAV_LABEL.google, NAV_LABEL.overview] as string[]
+    const sidebar = [NAV_LABEL.staff, NAV_LABEL.google, NAV_LABEL.overview] as string[]
     expect(labels.filter((label) => sidebar.includes(label))).toEqual([])
   })
 

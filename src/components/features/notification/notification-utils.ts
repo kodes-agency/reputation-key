@@ -145,6 +145,11 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'account.organization_access_granted': ShieldCheck,
   'account.organization_role_changed': UserCog,
   'account.organization_access_removed': UserMinus,
+  // What the reader may work changed, like their role: the same permissions
+  // icon. A new glyph would add a chunk to first paint, which has no headroom.
+  'account.organization_property_access_changed': UserCog,
+  // Somebody the reader invited arrived.
+  'account.invitation_accepted': UserPlus,
   // The one irreversible account fact in the beta set — it deliberately does
   // not share the neutral shield/user icons of the other account notices.
   'account.organization_purge_pending': Trash2,

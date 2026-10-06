@@ -4,7 +4,7 @@ import { PeoplePage } from './people-page'
 import { seededArgs } from './people-page-stories-data'
 
 const meta: Meta<typeof PeoplePage> = {
-  title: 'Property/PeoplePage',
+  title: 'Property/StaffPage',
   component: PeoplePage,
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
@@ -13,25 +13,15 @@ export default meta
 type Story = StoryObj<typeof PeoplePage>
 
 export const Populated: Story = {
-  args: { ...seededArgs, tab: 'staff' },
+  args: { ...seededArgs },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()
-    // Staff and Directory are views of the route: links, the current one marked,
-    // not a tablist (nothing here swaps a panel in the same document).
-    expect(canvas.queryByRole('tablist')).toBeNull()
-    const views = within(canvas.getByRole('navigation', { name: 'People views' }))
-    expect(views.getByRole('link', { name: 'Staff' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    )
-    expect(views.getByRole('link', { name: 'Directory' })).not.toHaveAttribute(
-      'aria-current',
-    )
-    expect(views.getByRole('link', { name: 'Directory' })).toHaveAttribute(
-      'href',
-      '/properties/prop-1/people?tab=directory',
-    )
+    // One list: no Directory of every member (Settings › Members owns that), so no
+    // views to switch between.
+    expect(canvas.getByRole('heading', { name: 'Staff', level: 1 })).toBeInTheDocument()
+    expect(canvas.queryByRole('navigation', { name: 'People views' })).toBeNull()
+    expect(canvas.queryByText('Directory')).toBeNull()
     // A management list is a dashboard-tier page, like Portals and Properties.
     expect(canvasElement.querySelector('.max-w-\\[1200px\\]')).not.toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: /add staff/i }))
@@ -48,28 +38,6 @@ export const Empty: Story = {
     participations: [],
     responsibilities: [],
     portals: [],
-    tab: 'staff',
-  },
-}
-
-export const Directory: Story = {
-  args: { ...seededArgs, tab: 'directory' },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()
-    await expect(canvas.getByText('bob@acme.com')).toBeInTheDocument()
-    const views = within(canvas.getByRole('navigation', { name: 'People views' }))
-    expect(views.getByRole('link', { name: 'Directory' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    )
-    expect(views.getByRole('link', { name: 'Staff' })).not.toHaveAttribute('aria-current')
-    // Roles read as they do on the Members page (RoleBadge), never as the raw token.
-    await expect(canvas.getByText('Admin')).toBeInTheDocument()
-    await expect(canvas.getByText('Member')).toBeInTheDocument()
-    await expect(canvas.getByText('Manager')).toBeInTheDocument()
-    await expect(canvas.queryByText('AccountAdmin')).toBeNull()
-    await expect(canvas.queryByText('PropertyManager')).toBeNull()
   },
 }
 
@@ -83,7 +51,6 @@ const archiveRefusals: Error[] = []
 export const ArchiveRefused: Story = {
   args: {
     ...seededArgs,
-    tab: 'staff',
     // A plain function, not `fn()`: the spy attaches its own handler to every
     // promise it returns, which would mark the rejection handled.
     archiveParticipationMutation: Object.assign(
@@ -127,7 +94,7 @@ export const ArchiveRefused: Story = {
 }
 
 export const PortalsDenied: Story = {
-  args: { ...seededArgs, portals: [], portalsDenied: true, tab: 'staff' },
+  args: { ...seededArgs, portals: [], portalsDenied: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()

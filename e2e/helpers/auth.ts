@@ -99,6 +99,7 @@ export async function signIn(
  * Create a beta manager account from one exact invitation. Consuming the
  * invitation verifies the address and signs the member in (ADR 0062), so a
  * successful registration lands in the app rather than on a "sign in" card.
+ * The join form shows the invited address locked; `email` must match it.
  */
 export async function registerInvitedAccount(
   page: Page,
@@ -119,7 +120,11 @@ export async function registerInvitedAccount(
   await waitForHydration(page)
   await page.locator('form').first().waitFor({ state: 'visible' })
   await page.getByLabel('Full name').fill('E2E Test User')
-  await page.getByLabel('Email').fill(email)
+  // The invitation decided the address: the field arrives filled and locked,
+  // so the journey checks it instead of typing it.
+  const emailField = page.getByLabel('Email')
+  await expect(emailField).toHaveValue(email)
+  await expect(emailField).toHaveAttribute('readonly', '')
   await page.getByLabel('Password', { exact: true }).fill(password)
   await page.getByLabel('Confirm password').fill(password)
   await clickWhenReady(page.getByRole('button', { name: /create account/i }))

@@ -115,7 +115,7 @@ and actions supply server state.
   link in it is chosen and its rows are the touch height.
   A page's sibling views are underline tabs, drawn from one recipe
   (`tabs-line-styles.ts`): `LinkTabs` / `LinkTab` when each view is a route or a
-  search value of one (People, Properties, Goals, the Portal workspace and the
+  search value of one (Properties, Goals, the Portal workspace and the
   Notifications filters), and `Tabs variant="line"` when the views swap a panel in
   the same document (no page does today). `LinkTabs` is a navigation landmark of
   links, not a tablist, and a `LinkTab` is a `NavLink` in a list item: it takes the
@@ -571,7 +571,7 @@ a list the person scrolls a long way, with the header's copy hidden below `sm`, 
 everywhere else it stays in the header. Where a word means another scope in another
 nav, the label carries the scope: a Property's settings sections are Property
 profile, Google connection, AI features and Responsible managers, because the
-account has a Profile and an AI overview and the sidebar a People and a Google of
+account has a Profile and an AI overview and the sidebar a Staff and a Google of
 their own.
 
 ## Action copy

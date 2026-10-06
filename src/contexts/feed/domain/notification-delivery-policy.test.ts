@@ -308,6 +308,10 @@ describe('notification delivery policy', () => {
     expect(classifyNotification('account.organization_access_granted')).toBe('mandatory')
     expect(classifyNotification('account.organization_role_changed')).toBe('mandatory')
     expect(classifyNotification('account.organization_access_removed')).toBe('mandatory')
+    expect(classifyNotification('account.organization_property_access_changed')).toBe(
+      'mandatory',
+    )
+    expect(classifyNotification('account.invitation_accepted')).toBe('mandatory')
     expect(classifyNotification('reply.publish_failed')).toBe('urgent_operational')
     expect(classifyNotification('feedback.created')).toBe('urgent_operational')
     expect(classifyNotification('review.created')).toBe('arrivals')

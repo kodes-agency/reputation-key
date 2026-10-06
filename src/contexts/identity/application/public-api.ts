@@ -24,6 +24,10 @@ import type { DeleteCustomRole } from './use-cases/delete-custom-role'
 import type { MerchantAiAuthorization } from './use-cases/merchant-ai-authorization'
 import type { MerchantAiDecisionDeferralService } from './use-cases/merchant-ai-decision-deferral'
 import type { ListMerchantAiOverview } from './use-cases/merchant-ai-overview'
+import type {
+  ListMemberPropertyAccess,
+  SetMemberPropertyAccess,
+} from './use-cases/member-property-access'
 
 export type {
   IdentityOrganizationCreated,
@@ -32,6 +36,7 @@ export type {
   IdentityInvitationCanceled,
   IdentityMemberRemoved,
   IdentityMemberRoleChanged,
+  IdentityMemberPropertyAccessChanged,
   IdentityMerchantAiChanged,
   IdentityOrganizationLifecycleChanged,
   IdentityEvent,
@@ -54,6 +59,12 @@ export type {
 
 export type { InvitationPreview } from './use-cases/get-invitation-preview'
 export type { OrganizationInvitation } from './dto/invitation.dto'
+export type {
+  ListMemberPropertyAccessOutput,
+  SetMemberPropertyAccessInput,
+  SetMemberPropertyAccessOutput,
+} from './dto/member-access.dto'
+export type { MemberPropertyAccess } from './ports/member-property-access.port'
 
 export type {
   StaffPublicApi,
@@ -116,6 +127,10 @@ export type IdentityRequestApi = Readonly<{
   updateCustomRole: UpdateCustomRole
   deleteCustomRole: DeleteCustomRole
   merchantAiAuthorization: MerchantAiRequestApi
+  /** AccountAdmins: which Properties each PropertyManager can work. */
+  listMemberPropertyAccess: ListMemberPropertyAccess
+  /** AccountAdmins: grant and revoke a PropertyManager's Properties. */
+  setMemberPropertyAccess: SetMemberPropertyAccess
 }>
 
 /**

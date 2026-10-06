@@ -133,6 +133,44 @@ describe('PropertyAccessGrant administration', () => {
     ).rejects.toThrow(/member/)
   })
 
+  it('grants nothing on a deleted Property but still revokes what it holds', async () => {
+    const grant = {
+      organizationId: ORG,
+      propertyId: PROP,
+      userId: MEMBER,
+      reason: 'covering for holiday',
+      ticketRef: 'OPS-202',
+      actorUserId: ADMIN,
+      now: NOW,
+    }
+    await ops.grantPropertyAccessOp(grant)
+    await db.execute(
+      sql`UPDATE properties SET deleted_at = now() WHERE id = ${PROP}::uuid`,
+    )
+    try {
+      await expect(ops.grantPropertyAccessOp(grant)).rejects.toThrow(/property not found/)
+      await ops.revokePropertyAccessOp({
+        organizationId: ORG,
+        propertyId: PROP,
+        userId: MEMBER,
+        reason: 'property closed',
+        actorUserId: ADMIN,
+      })
+      await expect(
+        hasActiveGrant(db, {
+          organizationId: ORG,
+          propertyId: PROP,
+          userId: MEMBER,
+          at: NOW,
+        }),
+      ).resolves.toBe(false)
+    } finally {
+      await db.execute(
+        sql`UPDATE properties SET deleted_at = NULL WHERE id = ${PROP}::uuid`,
+      )
+    }
+  })
+
   it('explains a decision without exposing identity content', async () => {
     const explanation = await ops.explainPolicyDecision({
       organizationId: ORG,

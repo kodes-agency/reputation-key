@@ -431,6 +431,18 @@
 // NavLink, LinkTabs and RangeControl on main (310,100 B budget) measure
 // 310,212 B (80 js + 1 css) in a fresh production build. The budget moves to
 // 310,300 B.
+//
+// 2026-10-06 (user management part 3, #694, rebased onto main after the UI
+// consistency stages and #741): fresh production builds of main (1f798ee9a) and
+// of this change: 309,122 B (76 js + 1 css) -> 309,716 B (77 js + 1 css), +594 B,
+// inside main's 310,300 B, which does not move. The entry chunk +265 B (the
+// /operator route and the invitation pages' route configs), the shared
+// server-function stub chunk +111 B (the stubs those routes hold), query keys
+// +41 B (platformKeys, the member access key), the notification type tables
+// +37 B (two new account notices) and `ui/sheet` now its own 804 B chunk (+141 B
+// against the 1,220 B `use-property-id` chunk it shared on main), because the
+// Members page's lazy Edit access sheet imports it too. The console, the
+// invitation pages and the Members UI themselves stay in their routes' lazy chunks.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'

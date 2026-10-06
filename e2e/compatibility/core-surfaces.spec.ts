@@ -151,6 +151,17 @@ test.describe('Compatibility: core surfaces', () => {
     await expect(page.getByRole('heading', { name: /^members$/i }).first()).toBeVisible({
       timeout: 15_000,
     })
+    // The Properties column is read from the signed-in Account Admin's own row,
+    // not from its header: the Members DataTable stacks each row below its
+    // container width and hides the header row there (on both phone projects),
+    // and the row says what it can reach at every width. Selected by markup, not
+    // by row role, so a browser that drops table semantics from a stacked table
+    // does not turn a layout choice into a failure.
+    const ownMemberRow = page
+      .locator('table[aria-label="Members"] tr')
+      .filter({ hasText: '(you)' })
+    await expect(ownMemberRow.getByText('All properties', { exact: true })).toBeVisible()
+    // Stacked or tabled, the page itself must still not overflow at any width.
     await expectNoHorizontalOverflow(page)
     await assertNoAxeViolations(page, 'compatibility manager members shell')
   })

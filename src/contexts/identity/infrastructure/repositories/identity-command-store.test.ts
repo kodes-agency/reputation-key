@@ -67,6 +67,11 @@ async function truncateAll(p: Pool) {
   // Triggers disabled: guard_last_owner (deployed last-owner backstop) blocks
   // deleting an org's final owner row, including fixture teardown.
   await withLastOwnerGuardDisabled(p, async (client) => {
+    // First: deleting a member whose Google connection is still active fires
+    // the connector-departure trigger, which records a fact.
+    await client.query('DELETE FROM google_connections WHERE organization_id = $1', [
+      ORG_ID,
+    ])
     await client.query('DELETE FROM session WHERE "userId" IN ($1, $2)', [
       INVITER_ID,
       ACCEPTOR_ID,
@@ -359,12 +364,14 @@ describe.sequential('identityCommandStore (integration)', () => {
           userId: ACCEPTOR_ID,
           invitationId: invitationId('inv-idcmd-accept'),
           propertyIds: accepted.propertyIds,
+          inviterId: accepted.inviterId ?? undefined,
           occurredAt: NOW,
         }),
     })
 
     expect(result.organizationId).toBe(ORG_ID)
     expect(result.propertyIds).toEqual(['prop-a', 'prop-b'])
+    expect(result.inviterId).toBe(INVITER_ID)
     const members = await pool.query(
       'SELECT "userId", role FROM member WHERE "organizationId" = $1',
       [ORG_ID],
@@ -375,11 +382,13 @@ describe.sequential('identityCommandStore (integration)', () => {
     )
     expect(invitations.rows[0].status).toBe('accepted')
     const facts = await pool.query(
-      `SELECT event_type FROM outbox_events
+      `SELECT event_type, payload FROM outbox_events
        WHERE organization_id = $1 AND event_type = 'identity.invitation.accepted'`,
       [ORG_ID],
     )
     expect(facts.rows).toHaveLength(1)
+    // The recorded fact names the inviter, so Feed can tell them.
+    expect(facts.rows[0].payload.inviterId).toBe(INVITER_ID as string)
   })
 
   it('rejects and consumes no authority for a legacy Member invitation', async () => {
@@ -662,5 +671,169 @@ describe.sequential('identityCommandStore (integration)', () => {
     // BQC-3.5 schema fix: the recorded payload keeps the TARGET member id.
     expect(facts.rows[0].payload.memberUserId).toBe(ACCEPTOR_ID as string)
     expect(facts.rows[0].payload.userId).toBe(INVITER_ID as string)
+  })
+
+  // D2: an AccountAdmin may demote another AccountAdmin; the Organization keeps
+  // at least one, and the lock decides a race between two demotions.
+  const demoteOwner = (memberId: string, memberUserId: typeof INVITER_ID) =>
+    createAtomicIdentityCommandStore(db).changeMemberRole({
+      organizationId: ORG_ID,
+      memberId,
+      newRole: 'admin',
+      event: identityMemberRoleChanged({
+        organizationId: ORG_ID,
+        memberUserId,
+        previousRole: 'AccountAdmin',
+        newRole: 'PropertyManager',
+        userId: memberUserId === INVITER_ID ? ACCEPTOR_ID : INVITER_ID,
+        occurredAt: NOW,
+      }),
+    })
+
+  const seedTwoOwners = () =>
+    pool.query(
+      `INSERT INTO member (id, "organizationId", "userId", role, "createdAt")
+       VALUES ('member-idcmd-owner-a', $1, $2, 'owner', NOW()),
+              ('member-idcmd-owner-b', $1, $3, 'owner', NOW())`,
+      [ORG_ID, INVITER_ID, ACCEPTOR_ID],
+    )
+
+  it('changeMemberRole lets one AccountAdmin demote another while an owner remains', async () => {
+    await seedTwoOwners()
+
+    await demoteOwner('member-idcmd-owner-b', ACCEPTOR_ID)
+
+    const members = await pool.query(
+      `SELECT id, role FROM member WHERE "organizationId" = $1 ORDER BY id`,
+      [ORG_ID],
+    )
+    expect(members.rows).toEqual([
+      { id: 'member-idcmd-owner-a', role: 'owner' },
+      { id: 'member-idcmd-owner-b', role: 'admin' },
+    ])
+    const facts = await pool.query(
+      `SELECT payload FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'identity.member.role_changed'`,
+      [ORG_ID],
+    )
+    expect(facts.rows).toHaveLength(1)
+  })
+
+  it('changeMemberRole leaves one AccountAdmin when both are demoted at once', async () => {
+    await seedTwoOwners()
+
+    const outcomes = await Promise.allSettled([
+      demoteOwner('member-idcmd-owner-a', INVITER_ID),
+      demoteOwner('member-idcmd-owner-b', ACCEPTOR_ID),
+    ])
+
+    const refused = outcomes.filter((outcome) => outcome.status === 'rejected')
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1)
+    expect(refused).toHaveLength(1)
+    expect(
+      refused.every(
+        (outcome) =>
+          isIdentityError(outcome.reason) && outcome.reason.code === 'last_owner',
+      ),
+    ).toBe(true)
+    const owners = await pool.query(
+      `SELECT id FROM member WHERE "organizationId" = $1 AND role = 'owner'`,
+      [ORG_ID],
+    )
+    expect(owners.rows).toHaveLength(1)
+    const facts = await pool.query(
+      `SELECT id FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'identity.member.role_changed'`,
+      [ORG_ID],
+    )
+    expect(facts.rows).toHaveLength(1)
+  })
+
+  // The member row's connector-departure trigger fences a demoted
+  // AccountAdmin's Google connection inside the demotion's own transaction, so
+  // updateMemberRole converges the connector only after the store commits.
+  const CONNECTION_A = '00000000-0000-4000-8000-0000000000a1'
+  const CONNECTION_B = '00000000-0000-4000-8000-0000000000b1'
+
+  const seedGoogleConnection = (connectionId: string, connectorUserId: string) =>
+    pool.query(
+      `INSERT INTO google_connections (
+         id, organization_id, google_subject, encrypted_access_token,
+         encrypted_refresh_token, token_expires_at, scopes, connected_by
+       )
+       VALUES (
+         $1::uuid, $2, $3, 'encrypted-access', 'encrypted-refresh',
+         NOW() + interval '1 hour',
+         ARRAY['https://www.googleapis.com/auth/business.manage']::text[], $4
+       )`,
+      [connectionId, ORG_ID, `subject-${connectionId}`, connectorUserId],
+    )
+
+  const connectionStates = async () =>
+    (
+      await pool.query(
+        `SELECT connected_by, status, status_reason FROM google_connections
+         WHERE organization_id = $1 ORDER BY connected_by`,
+        [ORG_ID],
+      )
+    ).rows
+
+  const reauthorizationFacts = async () =>
+    (
+      await pool.query(
+        `SELECT payload FROM outbox_events
+         WHERE organization_id = $1
+           AND event_type = 'integration.google_account.reauthorization_required'`,
+        [ORG_ID],
+      )
+    ).rows
+
+  it("changeMemberRole fences the demoted AccountAdmin's Google connection in the same transaction", async () => {
+    await seedTwoOwners()
+    await seedGoogleConnection(CONNECTION_A, INVITER_ID)
+    await seedGoogleConnection(CONNECTION_B, ACCEPTOR_ID)
+
+    await demoteOwner('member-idcmd-owner-b', ACCEPTOR_ID)
+
+    // Ordered by connector: the acceptor ('user-idcmd-a…') before the inviter.
+    expect(await connectionStates()).toEqual([
+      {
+        connected_by: ACCEPTOR_ID,
+        status: 'reauth_required',
+        status_reason: 'connector_departure_account_admin_role_lost',
+      },
+      { connected_by: INVITER_ID, status: 'active', status_reason: null },
+    ])
+    expect(await reauthorizationFacts()).toEqual([
+      {
+        payload: expect.objectContaining({
+          connectionId: CONNECTION_B,
+          cause: 'account_admin_role_lost',
+        }),
+      },
+    ])
+  })
+
+  it("a refused concurrent demotion leaves the remaining AccountAdmin's Google connection active", async () => {
+    await seedTwoOwners()
+    await seedGoogleConnection(CONNECTION_A, INVITER_ID)
+    await seedGoogleConnection(CONNECTION_B, ACCEPTOR_ID)
+
+    await Promise.allSettled([
+      demoteOwner('member-idcmd-owner-a', INVITER_ID),
+      demoteOwner('member-idcmd-owner-b', ACCEPTOR_ID),
+    ])
+
+    const owner = await pool.query<{ userId: string }>(
+      `SELECT "userId" FROM member WHERE "organizationId" = $1 AND role = 'owner'`,
+      [ORG_ID],
+    )
+    const remainingOwner = owner.rows[0]?.userId
+    const states = await connectionStates()
+    expect(states.filter((row) => row.status === 'active')).toEqual([
+      { connected_by: remainingOwner, status: 'active', status_reason: null },
+    ])
+    expect(states.filter((row) => row.status === 'reauth_required')).toHaveLength(1)
+    expect(await reauthorizationFacts()).toHaveLength(1)
   })
 })

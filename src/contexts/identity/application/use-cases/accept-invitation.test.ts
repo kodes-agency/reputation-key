@@ -68,18 +68,51 @@ describe('acceptInvitation', () => {
     expect(facts[0].invitationId).toBe(invId)
     expect(facts[0].propertyIds).toEqual(['prop-a', 'prop-b'])
     expect(facts[0].occurredAt).toBe(FIXED_TIME)
+    // The inviter travels as an id, so Feed can tell them without a lookup.
+    expect(facts[0]?.inviterId).toBe('user-inviter')
 
-    // Post-commit hook: explicit Property access for the invited properties.
+    // Post-commit hook: explicit Property access for the invited properties,
+    // recorded as granted by the person who sent the invitation.
     expect(identity.acceptInvitationHookCalls).toEqual([
       {
         userId: joiningUserId as string,
         organizationId: orgId as string,
         propertyIds: ['prop-a', 'prop-b'],
+        inviterId: 'user-inviter',
       },
     ])
     // A signed-in acceptance proves nothing about the inbox: only the
     // registration paths may verify the address.
     expect(commandStore.verifiedUserIds).toEqual([])
+  })
+
+  it('leaves the inviter off the fact and the hook when the row names none', async () => {
+    const { useCase, identity, outbox, commandStore } = setup()
+    identity.setSessionUser({ id: 'user-orphan', email: 'orphan@test.com' })
+    commandStore.seedInvitation({
+      id: 'inv-no-inviter',
+      organizationId: 'org-joined',
+      email: 'orphan@test.com',
+      role: 'admin',
+      status: 'pending',
+      expiresAt: new Date(Date.now() + 86_400_000),
+      propertyIds: JSON.stringify(['prop-a']),
+      inviterId: null,
+      createdAt: new Date(),
+    })
+
+    await useCase({
+      invitationId: invitationId('inv-no-inviter'),
+      headers: HEADERS,
+      userId: userId('user-orphan'),
+    })
+
+    const [fact] = outbox.byTag('identity.invitation.accepted')
+    expect(fact).toBeDefined()
+    expect(fact?.inviterId).toBeUndefined()
+    expect(identity.acceptInvitationHookCalls).toEqual([
+      { userId: 'user-orphan', organizationId: 'org-joined', propertyIds: ['prop-a'] },
+    ])
   })
 
   it('rejects when there is no active session', async () => {

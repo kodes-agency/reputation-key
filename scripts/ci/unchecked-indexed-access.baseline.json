@@ -51,7 +51,7 @@
   "src/contexts/identity/application/use-cases/remove-member.test.ts": 4,
   "src/contexts/identity/application/use-cases/staff-participations.test.ts": 11,
   "src/contexts/identity/application/use-cases/update-member-role.test.ts": 7,
-  "src/contexts/identity/application/use-cases/update-organization.test.ts": 2,
+  "src/contexts/identity/application/use-cases/update-organization.test.ts": 1,
   "src/contexts/identity/infrastructure/adapters/auth-identity.adapter.test.ts": 5,
   "src/contexts/identity/infrastructure/adapters/better-auth-schemas.test.ts": 1,
   "src/contexts/identity/infrastructure/adapters/staff-organization-export.adapter.test.ts": 1,

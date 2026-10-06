@@ -8,6 +8,11 @@ export { getActiveOrganization, listMembers } from './organizations.query'
 export { inviteMember, updateMemberRole, removeMember } from './organizations.members'
 
 export {
+  listMemberPropertyAccess,
+  setMemberPropertyAccess,
+} from './organizations.member-access'
+
+export {
   acceptInvitation,
   cancelInvitation,
   resendInvitation,

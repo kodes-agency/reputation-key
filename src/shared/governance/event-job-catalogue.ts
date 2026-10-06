@@ -12,21 +12,17 @@
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import type { SystemAction } from './entry-point-catalogue'
 import { PORTAL_BACKGROUND_JOB_ROWS } from './portal-job-rows'
+import { IDENTITY_ROWS } from './event-job-catalogue-identity'
+import {
+  durable,
+  ev,
+  type EventConsumerRef,
+  type EventFamilyRow,
+} from './event-job-catalogue-rows'
 
 // ── Types ───────────────────────────────────────────────────────────
 
-/** A durable outbox consumer of an event family, pinned to its registration module. */
-export type EventConsumerRef = Readonly<{
-  /** Consumer name, e.g. 'inbox.on-review-created'. */
-  name: string
-  /** Repo-relative file containing the registerConsumer call. */
-  module: string
-}>
-
-export type EventFamilyRow = Readonly<{
-  eventType: string
-  consumers: ReadonlyArray<EventConsumerRef>
-}>
+export type { EventConsumerRef, EventFamilyRow }
 
 /** Registration posture of a job family. */
 export type JobRegistration =
@@ -61,15 +57,6 @@ export type JobFamilyRow = Readonly<{
 }>
 
 // ── Row factories (records of functions — no classes) ───────────────
-
-/** Durable outbox consumer ('<context>.<handler-name>'). */
-const durable = (name: string, module: string): EventConsumerRef => ({ name, module })
-
-/** Event family row used by readiness and dispatcher routing. */
-const ev = (
-  eventType: string,
-  consumers: ReadonlyArray<EventConsumerRef>,
-): EventFamilyRow => ({ eventType, consumers })
 
 type JobBase = Readonly<{
   queue: 'default' | 'background'
@@ -154,8 +141,6 @@ const NOTIFICATION_RESPONSE_TARGET_OUTBOX =
   'src/contexts/feed/infrastructure/response-target-outbox-consumers.ts'
 const NOTIFICATION_GOAL_OUTBOX =
   'src/contexts/feed/infrastructure/goal-outbox-consumers.ts'
-const NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX =
-  'src/contexts/feed/infrastructure/identity-account-outbox-consumers.ts'
 const METRIC_PUBLIC_REPUTATION_OUTBOX =
   'src/contexts/reporting/infrastructure/public-reputation-outbox-consumers.ts'
 const METRIC_CURRENT_GOOGLE_REPUTATION_OUTBOX =
@@ -316,56 +301,6 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
     ),
   ]),
   ev('inbox.response_target.policy_changed', []),
-]
-
-const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
-  ev('identity.organization.created', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-  ]),
-  ev('identity.member.invited', [durable('activity.recent-activity', ACTIVITY_OUTBOX)]),
-  ev('identity.invitation.accepted', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-    durable(
-      'notification.on-identity-invitation-accepted',
-      NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
-    ),
-  ]),
-  ev('identity.invitation.canceled', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-  ]),
-  // ADR 0059: tells the reporter their own beta report reached an outcome.
-  ev('identity.beta_feedback.outcome_reached', [
-    durable(
-      'notification.on-identity-beta-feedback-outcome',
-      NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
-    ),
-  ]),
-  ev('identity.member.removed', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-    durable(
-      'notification.on-identity-member-removed',
-      NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
-    ),
-  ]),
-  ev('identity.member.role_changed', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-    durable('activity.operational-action-history', ACTIVITY_OUTBOX),
-    durable(
-      'notification.on-identity-member-role-changed',
-      NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
-    ),
-  ]),
-  ev('identity.merchant_ai.changed', [
-    durable('ai.enroll-review-analysis', AI_OUTBOX),
-    durable('activity.operational-action-history', ACTIVITY_OUTBOX),
-  ]),
-  ev('identity.organization_lifecycle.changed', [
-    durable(
-      'notification.on-identity-organization-purge-pending',
-      NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
-    ),
-    settles('notification.settle-on-organization-purge-cancelled'),
-  ]),
 ]
 
 const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [

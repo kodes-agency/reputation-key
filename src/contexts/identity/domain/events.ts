@@ -66,6 +66,8 @@ export type IdentityInvitationAccepted = Readonly<{
   organizationId: OrganizationId
   userId: UserId
   propertyIds: ReadonlyArray<string>
+  /** Who sent the invitation. Additive at version 1: older facts lack it. */
+  inviterId?: UserId
   occurredAt: Date
   correlationId: string | null
 }>
@@ -148,6 +150,39 @@ export const identityMemberRoleChanged = (
   )
   return {
     _tag: 'identity.member.role_changed',
+    eventId: newEventId(),
+    ...args,
+    correlationId: args.correlationId ?? null,
+  }
+}
+
+/**
+ * An AccountAdmin changed which Properties a PropertyManager can work.
+ * Identifiers only: the member, the acting AccountAdmin (`userId`), and the
+ * Properties actually granted and revoked — never a no-op.
+ */
+export type IdentityMemberPropertyAccessChanged = Readonly<{
+  _tag: 'identity.member.property_access_changed'
+  eventId: string
+  organizationId: OrganizationId
+  memberUserId: UserId
+  userId: UserId
+  grantedPropertyIds: ReadonlyArray<string>
+  revokedPropertyIds: ReadonlyArray<string>
+  occurredAt: Date
+  correlationId: string | null
+}>
+export const identityMemberPropertyAccessChanged = (
+  args: IdentityEventArgs<IdentityMemberPropertyAccessChanged>,
+): IdentityMemberPropertyAccessChanged => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.memberUserId !== '', 'memberUserId required')
+  assert(
+    args.grantedPropertyIds.length + args.revokedPropertyIds.length > 0,
+    'A property access change must grant or revoke at least one Property',
+  )
+  return {
+    _tag: 'identity.member.property_access_changed',
     eventId: newEventId(),
     ...args,
     correlationId: args.correlationId ?? null,
@@ -299,6 +334,7 @@ export type IdentityEvent =
   | IdentityInvitationCanceled
   | IdentityMemberRemoved
   | IdentityMemberRoleChanged
+  | IdentityMemberPropertyAccessChanged
   | IdentityMerchantAiChanged
   | IdentityOrganizationLifecycleChanged
   | IdentityBetaFeedbackOutcomeReached

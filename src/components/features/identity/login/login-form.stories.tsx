@@ -1,11 +1,14 @@
 // Login form stories.
-// The form receives an `Action` prop (the reactive wrapper returned by
+// The sign-in `mutation` is an `Action` prop (the reactive wrapper returned by
 // `useAction(serverFn)`) — NOT a raw server fn. So stories build mock Actions
 // directly with controllable `isPending`/`error`/`isSuccess`, which is the
-// type-correct way to reach every state without a live server.
+// type-correct way to reach every state without a live server. The resend is
+// the opposite: a bare function, because the notice that calls it owns each
+// resend's state.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type { Action } from '#/components/hooks/use-action'
+import { useAction, type Action } from '#/components/hooks/use-action'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { LoginForm } from './login-form'
 
 type LoginInput = { data: { email: string; password: string } }
@@ -22,11 +25,24 @@ function makeAction(
   })
 }
 
+type ResendInput = { data: { email: string } }
+type ResendVerification = (input: ResendInput) => Promise<unknown>
+
+const resendSpy = fn()
+
+// What the route hands the form: the bare server function. The notice owns the
+// pending/error/success state of each resend, so it starts clean per attempt.
+const sendsALink: ResendVerification = async (input) => {
+  resendSpy(input)
+  return { sent: true }
+}
+
 const meta: Meta<typeof LoginForm> = {
   title: 'Identity/LoginForm',
   component: LoginForm,
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
+  args: { resendVerification: sendsALink },
 }
 export default meta
 type Story = StoryObj<typeof LoginForm>
@@ -95,5 +111,165 @@ export const Success: Story = {
     })
     // No field-level validation alerts render once the form is valid.
     expect(canvas.queryByRole('alert')).not.toBeInTheDocument()
+  },
+}
+
+async function trySigningIn(canvas: ReturnType<typeof within>, email: string) {
+  const emailField = canvas.getByLabelText(/email/i)
+  await userEvent.clear(emailField)
+  await userEvent.type(emailField, email)
+  const password = canvas.getByLabelText(/password/i)
+  await userEvent.clear(password)
+  await userEvent.type(password, 'correct-horse-battery')
+  await userEvent.click(canvas.getByRole('button', { name: /^sign in$/i }))
+}
+
+// The server's rate limit on a resend: a 4xx refusal, whose sentence is shown.
+const rateLimited = new ServerFunctionError(
+  'AuthError',
+  'Too many requests. Try again later.',
+  'rate_limited',
+  429,
+)
+
+// Sign-in found the address unverified (the refusal only comes after the
+// password checked out): the notice offers a new link instead of a bare error.
+const unverifiedRefusal = new ServerFunctionError(
+  'AuthError',
+  'Verify your email before signing in.',
+  'email_not_verified',
+  403,
+)
+
+export const UnverifiedEmail: Story = {
+  args: {
+    mutation: makeAction(
+      async () => {
+        throw unverifiedRefusal
+      },
+      { error: unverifiedRefusal },
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    resendSpy.mockClear()
+    const canvas = within(canvasElement)
+    await trySigningIn(canvas, 'user@example.com')
+
+    await expect(await canvas.findByText('Verify your email first')).toBeInTheDocument()
+    await expect(
+      canvas.getByText(/until user@example\.com is verified/i),
+    ).toBeInTheDocument()
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Send a new link' }))
+    await waitFor(() =>
+      expect(resendSpy).toHaveBeenCalledWith({ data: { email: 'user@example.com' } }),
+    )
+  },
+}
+
+export const UnverifiedEmailLinkSent: Story = {
+  args: {
+    mutation: makeAction(async () => undefined, {
+      error: unverifiedRefusal,
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    resendSpy.mockClear()
+    const canvas = within(canvasElement)
+    await trySigningIn(canvas, 'user@example.com')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Send a new link' }))
+
+    await expect(await canvas.findByRole('status')).toHaveTextContent(
+      /a new link is on its way/i,
+    )
+    await expect(
+      canvas.queryByRole('button', { name: 'Send a new link' }),
+    ).not.toBeInTheDocument()
+  },
+}
+
+export const UnverifiedEmailResendRefused: Story = {
+  args: {
+    mutation: makeAction(async () => undefined, { error: unverifiedRefusal }),
+    resendVerification: async () => {
+      throw rateLimited
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await trySigningIn(canvas, 'user@example.com')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Send a new link' }))
+
+    await expect(
+      await canvas.findByText('Too many requests. Try again later.'),
+    ).toBeInTheDocument()
+    // Nothing was sent, so the way to try again stays.
+    await expect(canvas.getByRole('button', { name: 'Send a new link' })).toBeEnabled()
+  },
+}
+
+// The sign-in mutation keeps its own state across attempts, the way the route's
+// does, and always finds the address unverified.
+function RepeatedUnverifiedSignIn({
+  resendVerification,
+}: Readonly<{ resendVerification: ResendVerification }>) {
+  const signIn = useAction(async (_input: LoginInput) => {
+    throw unverifiedRefusal
+  })
+  return <LoginForm mutation={signIn} resendVerification={resendVerification} />
+}
+
+// A link sent for one address says nothing about the next address tried: the
+// notice is about the attempt it was raised for, so the next attempt starts
+// with the button back and nothing claimed as sent.
+export const UnverifiedEmailAnotherAddress: Story = {
+  render: () => <RepeatedUnverifiedSignIn resendVerification={sendsALink} />,
+  play: async ({ canvasElement }) => {
+    resendSpy.mockClear()
+    const canvas = within(canvasElement)
+
+    await trySigningIn(canvas, 'first@example.com')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Send a new link' }))
+    await expect(await canvas.findByRole('status')).toHaveTextContent(
+      /if first@example\.com still needs verifying/i,
+    )
+
+    await trySigningIn(canvas, 'second@example.com')
+    await expect(
+      await canvas.findByText(/until second@example\.com is verified/i),
+    ).toBeInTheDocument()
+    await expect(canvas.queryByRole('status')).not.toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: 'Send a new link' })).toBeEnabled()
+    await expect(resendSpy).toHaveBeenCalledTimes(1)
+    await expect(resendSpy).toHaveBeenCalledWith({ data: { email: 'first@example.com' } })
+  },
+}
+
+// Same for a refusal: the rate-limit message belongs to the address it was
+// raised for, not the one typed next.
+export const UnverifiedEmailAnotherAddressAfterRefusal: Story = {
+  render: () => (
+    <RepeatedUnverifiedSignIn
+      resendVerification={async () => {
+        throw rateLimited
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+
+    await trySigningIn(canvas, 'first@example.com')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Send a new link' }))
+    await expect(
+      await canvas.findByText('Too many requests. Try again later.'),
+    ).toBeInTheDocument()
+
+    await trySigningIn(canvas, 'second@example.com')
+    await expect(
+      await canvas.findByText(/until second@example\.com is verified/i),
+    ).toBeInTheDocument()
+    await expect(
+      canvas.queryByText('Too many requests. Try again later.'),
+    ).not.toBeInTheDocument()
   },
 }

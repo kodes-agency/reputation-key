@@ -25,6 +25,13 @@ describe('property settings sections', () => {
     ])
   })
 
+  it('calls the responsibility section Responsible managers, not People', () => {
+    const labels = Object.fromEntries(
+      PROPERTY_SETTINGS_SECTIONS.map((section) => [section.key, section.label]),
+    )
+    expect(labels.people).toBe('Responsible managers')
+  })
+
   it('shows a reader only what reading allows', () => {
     expect(
       visiblePropertySettingsSections(granting('property.read')).map((s) => s.key),

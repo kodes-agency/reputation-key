@@ -143,7 +143,7 @@ export const LabelNamesTheGroup: Story = {
   args: { initial: ['p-2'] },
   play: async ({ canvasElement }) => {
     const group = within(canvasElement).getByRole('group', {
-      name: 'Assign to properties Optional',
+      name: 'Properties they can work',
     })
     expect(
       within(group).getByRole('button', { name: 'Remove Harbor View' }),
