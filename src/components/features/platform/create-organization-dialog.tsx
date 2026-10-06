@@ -3,7 +3,7 @@
 // so a second Organization starts from an empty form with no stale error.
 
 import { useState } from 'react'
-import { CheckCircle2, TriangleAlert } from 'lucide-react'
+import { CircleCheck, TriangleAlert } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { AddAction } from '#/components/ui/add-action'
 import { useDialogBusy } from '#/components/ui/dialog-dismissal'
@@ -35,7 +35,7 @@ type CreatedProps = Readonly<{
 }>
 
 function CreatedOrganization({ result, adminEmail }: CreatedProps) {
-  const Icon = result.emailSent ? CheckCircle2 : TriangleAlert
+  const Icon = result.emailSent ? CircleCheck : TriangleAlert
   return (
     <>
       <DialogHeader>
