@@ -532,7 +532,7 @@ export const AiDetectsMissingReviewLanguage: Story = {
       writeIn().getByRole('menuitem', { name: 'Detect automatically' }),
     ).toHaveAttribute('aria-current', 'true')
     // The `Property reply language not set` alert is a row in the menu now
-    // (row 18), carrying the same fix for a manager with `ai.manage`.
+    // (row 18), carrying the fix for a manager who can edit the property.
     const fix = writeIn().getByRole('menuitem', { name: 'Set property language' })
     await expect(fix).toHaveAttribute(
       'href',
@@ -1108,6 +1108,7 @@ const onGenerateNotAuthorized = fn(async (): Promise<ReplySuggestionResult> => (
 })).mockName('onGenerateNotAuthorized')
 
 export const AiRepliesNotEnabled: Story = {
+  decorators: [withRole('AccountAdmin')],
   args: {
     initialText: 'Thank you for sharing your experience.',
     onGenerateSuggestion: onGenerateNotAuthorized,
@@ -1123,6 +1124,25 @@ export const AiRepliesNotEnabled: Story = {
         '/properties/10000000-0000-4000-8000-000000000101/settings/ai',
       ),
     )
+  },
+}
+
+// Whether AI is on is an AccountAdmin's decision (`ai.manage`), so a
+// PropertyManager who is refused is told who can turn it on instead of being
+// sent to a page that only shows the state.
+export const AiRepliesNotEnabledForManager: Story = {
+  args: {
+    initialText: 'Thank you for sharing your experience.',
+    onGenerateSuggestion: onGenerateNotAuthorized,
+  },
+  play: async ({ canvas }) => {
+    onGenerateNotAuthorized.mockClear()
+
+    await expectDraftRefusedWith(canvas, /AI is off for this property/i)
+    expect(
+      canvas.getByText(/ask an account admin to enable ai reply drafting/i),
+    ).toBeVisible()
+    expect(canvas.queryByRole('link', { name: /turn on ai replies/i })).toBeNull()
   },
 }
 

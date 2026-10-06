@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Permission } from '#/shared/domain/permissions'
+import { can, type Permission } from '#/shared/domain/permissions'
+import type { Role } from '#/shared/domain/roles'
 import {
   PROPERTY_SETTINGS_SECTIONS,
   activePropertySettingsSection,
@@ -36,6 +37,31 @@ describe('property settings sections', () => {
     expect(
       visiblePropertySettingsSections(granting('property.read')).map((s) => s.key),
     ).toEqual(['profile', 'google', 'people', 'danger'])
+  })
+
+  // A PropertyManager drafts replies and reads trends, so the page that says whether
+  // AI is on is theirs to read; only an AccountAdmin (`ai.manage`) can change it.
+  it('shows the AI section to a role that uses AI, and not to one that does not', () => {
+    const usesAi = visiblePropertySettingsSections(
+      granting('property.read', 'ai.reply.generate'),
+    ).map((section) => section.key)
+    const doesNot = visiblePropertySettingsSections(
+      granting('property.read', 'reply.manage'),
+    ).map((section) => section.key)
+
+    expect(usesAi).toContain('ai')
+    expect(doesNot).not.toContain('ai')
+  })
+
+  it('follows the real roles: AI is a manager and AccountAdmin section, never a Member one', () => {
+    const forRole = (role: Role) =>
+      visiblePropertySettingsSections((permission) => can(role, permission)).map(
+        (section) => section.key,
+      )
+
+    expect(forRole('AccountAdmin')).toContain('ai')
+    expect(forRole('PropertyManager')).toContain('ai')
+    expect(forRole('Member')).not.toContain('ai')
   })
 
   it('shows AI and targets only with their own permissions', () => {

@@ -97,8 +97,8 @@ export const AnalysisOffWithAction: Story = {
 
 export const AnalysisOffWithoutPermission: Story = {
   args: AnalysisOffWithAction.args,
-  // PropertyManager holds `ai.manage`; Member is the role that does not.
-  decorators: [withRole('Member')],
+  // Only AccountAdmin holds `ai.manage`; a PropertyManager is told who can, like a Member.
+  decorators: [withRole('PropertyManager')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // A manager who cannot turn it on is told who can, not shown a dead button.
