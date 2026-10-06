@@ -1,4 +1,4 @@
-// E2E: Staff participation and Portal responsibility on the promoted P1 People surface.
+// E2E: Staff participation and Portal responsibility on the promoted P1 Staff surface.
 // The beta-local seed includes a durable Staff participation and primary Portal
 // responsibility so the browser can prove the real management read model.
 
@@ -19,11 +19,11 @@ test.describe('Staff Assignment', () => {
     await page.goto(`/properties/${seed.p1PropertyId}/people`)
     await waitForHydration(page)
 
-    const views = page.getByRole('navigation', { name: 'People views' })
-    const staffView = views.getByRole('link', { name: 'Staff' })
-    await expect(staffView).toBeVisible()
-    await expect(views.getByRole('link', { name: 'Directory' })).toBeVisible()
-    await clickWhenReady(staffView)
+    // One Staff list: no Staff / Directory tabs. Every member lives on
+    // Settings > Members, which has the roles and properties.
+    await expect(page.getByRole('heading', { name: 'Staff', level: 1 })).toBeVisible()
+    await expect(page.getByRole('tab')).toHaveCount(0)
+    await expect(page.getByRole('navigation', { name: 'People views' })).toHaveCount(0)
 
     await expect(page.getByText(seed.staffName, { exact: true })).toBeVisible()
     await clickWhenReady(

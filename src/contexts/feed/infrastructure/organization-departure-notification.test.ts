@@ -26,7 +26,12 @@ async function noticeFor(removedBy: typeof MEMBER) {
   const row = toOutboxEvent(fact)
   const fakes = createNotificationConsumerDeps()
   await handleIdentityAccountNotificationEvent(
-    { queue: fakes.queue, receipts: { insertReceipt: vi.fn(async () => {}) } },
+    {
+      queue: fakes.queue,
+      receipts: { insertReceipt: vi.fn(async () => {}) },
+      displayNames: fakes.displayNames,
+      logger: fakes.logger,
+    },
     buildConsumerEvent({
       id: fact.eventId,
       eventType: row.eventType,

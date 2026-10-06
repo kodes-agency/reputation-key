@@ -74,17 +74,19 @@ export function StaffTab({
 
   if (!canManageStaff) {
     return (
-      <Alert variant="info">
-        <AlertTitle>Staff management is unavailable</AlertTitle>
-        <AlertDescription>
-          You do not have permission to manage participation at this property.
-        </AlertDescription>
-      </Alert>
+      <section aria-label="Staff">
+        <Alert variant="info">
+          <AlertTitle>Staff management is unavailable</AlertTitle>
+          <AlertDescription>
+            You do not have permission to manage participation at this property.
+          </AlertDescription>
+        </Alert>
+      </section>
     )
   }
 
   return (
-    <div className="space-y-4">
+    <section aria-label="Staff" className="space-y-4">
       <div className="flex justify-end">
         <Dialog
           open={createOpen}
@@ -143,6 +145,6 @@ export function StaffTab({
           }}
         />
       )}
-    </div>
+    </section>
   )
 }

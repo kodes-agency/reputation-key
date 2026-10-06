@@ -158,6 +158,21 @@ monitored support address in its copy and sets it as the message's reply-to.
 The From address is unchanged — it stays the sending identity SPF/DKIM are
 aligned for. Every other notice is answered in the product and sets none.
 
+The account notices are Organization-scoped and mandatory, and every one names
+the Organization (the payload's `organizationName`); the role-change notice also
+names the role the member now holds (`memberRole`). Two come from Identity's
+access facts: `account.organization_property_access_changed` (to the member, from
+`identity.member.property_access_changed`, audience `affected_organization_user`,
+opening Properties) and `account.invitation_accepted` (to the inviter named by
+the accepted fact's `inviterId`, audience `account_admin`, opening Members; a
+fact recorded before it named its inviter gets an `obsolete` receipt). Neither
+names another person, and neither counts Properties or people in its copy:
+repeats of a type merge into one unread row, which says only that it happened
+again. An inviter who is not an AccountAdmin of the Organization at delivery is
+refused there: a former AccountAdmin, an operator who invited through the
+console, or a PropertyManager who invited before PropertyManagers lost
+invitations (ADR 0033, amended 2026-10-01).
+
 Mandatory notices coalesce in-app like any other: every account notice keys
 on the Organization, so a second role change while the first is unread bumps
 that row. Mandatory mail is not coalesced. The repeat's email is anchored on

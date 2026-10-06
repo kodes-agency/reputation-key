@@ -28,6 +28,7 @@ import {
   portalContentReviewCompletedV1Schema,
   portalContentReviewCompletedV2Schema,
 } from './portal-workflow-event-schemas'
+import { registerIdentityAccessEventSchemas } from './identity-access-event-schemas'
 
 // ── Review event schemas ────────────────────────────────────────────
 
@@ -922,12 +923,7 @@ const memberInvitedV2Schema = z.object({
 })
 
 // Invitation facts are emitted only in their content-minimal v2 shape.
-
-const invitationAcceptedSchema = z.object({
-  organizationId: z.string(),
-  userId: z.string(),
-  invitationId: z.string(),
-})
+// identity.invitation.accepted lives in ./identity-access-event-schemas.ts.
 
 const invitationCanceledSchema = z.object({
   invitationId: z.string(),
@@ -1660,11 +1656,7 @@ export function registerAllEventSchemas(): void {
     version: 2,
     schema: memberInvitedV2Schema,
   })
-  registerEventSchema({
-    type: 'identity.invitation.accepted',
-    version: EVENT_VERSION,
-    schema: invitationAcceptedSchema,
-  })
+  registerIdentityAccessEventSchemas()
   registerEventSchema({
     type: 'identity.invitation.canceled',
     version: EVENT_VERSION,

@@ -37,6 +37,9 @@ export type NotificationGuestRating = 1 | 2 | 3 | 4 | 5
  */
 export type NotificationActorRole = 'account_admin' | 'property_manager' | 'staff'
 
+/** A role a member can hold and a notice names; `staff` is an actor role only. */
+export type NotificationMemberRole = 'account_admin' | 'property_manager'
+
 export type NotificationPlatform = 'google' | 'portal'
 
 export type NotificationPayload = Readonly<{
@@ -87,6 +90,12 @@ export type NotificationPayload = Readonly<{
    * removed them, or the row predates the fact saying so.
    */
   leftOrganization?: boolean
+  /**
+   * The role the member now holds (account.organization_role_changed only):
+   * a closed enum, so the notice can say "You are now a Property Manager"
+   * without a person's name. Absent for a role the copy has no phrase for.
+   */
+  memberRole?: NotificationMemberRole
   /**
    * This notice reached its reader because the review or feedback is at or
    * below their own Low-ratings threshold (ADR 0046, amended 2026-09-30).
@@ -226,6 +235,8 @@ const ACTOR_ROLES: Record<string, true> = {
   property_manager: true,
   staff: true,
 }
+
+const MEMBER_ROLES: Record<string, true> = { account_admin: true, property_manager: true }
 
 const PLATFORMS: Record<string, true> = { google: true, portal: true }
 
@@ -376,6 +387,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   set('moderationReason', takeText(raw.moderationReason, MAX_REASON_LENGTH))
   set('hasModerationReason', takeFlag(raw.hasModerationReason))
   set('leftOrganization', takeFlag(raw.leftOrganization))
+  set('memberRole', takeMember<NotificationMemberRole>(raw.memberRole, MEMBER_ROLES))
   set('lowRating', raw.lowRating === true ? true : undefined)
   set(
     'publishOutcome',

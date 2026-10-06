@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Field, FieldLabel } from '#/components/ui/field'
+import { Field, FieldDescription, FieldLabel } from '#/components/ui/field'
 import { PropertyPicker } from '#/components/property/property-picker'
 import { sortPropertiesByName } from '#/components/property/property-search'
 import { RemovableChip } from '#/components/ui/removable-chip'
@@ -78,9 +78,11 @@ export function PropertyAssignmentSelector({
   return (
     // The label names the group of chips and picker: it labels no single control.
     <Field aria-labelledby={labelId}>
-      <FieldLabel id={labelId} optional>
-        Assign to properties
-      </FieldLabel>
+      <FieldLabel id={labelId}>Properties they can work</FieldLabel>
+      <FieldDescription>
+        Choose the properties this manager can work. You can change this later from
+        Members.
+      </FieldDescription>
 
       {selectedIds.length > 0 && (
         <div ref={chipsRef} className="mb-2 flex flex-wrap gap-1.5">
@@ -126,7 +128,14 @@ export function PropertyAssignmentSelector({
 
       {properties.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          No properties yet. The member can be assigned later.
+          No properties yet. Import one first, then give this manager access from Members.
+        </p>
+      )}
+
+      {properties.length > 0 && selectedIds.length === 0 && (
+        <p className="text-sm text-warn">
+          With no properties chosen, they will sign in to an empty app until you give them
+          access.
         </p>
       )}
     </Field>

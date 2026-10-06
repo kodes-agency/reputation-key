@@ -46,6 +46,7 @@
         "all",
         "activeOrg",
         "members",
+        "memberPropertyAccess",
         "invitations",
         "userInvitations",
         "organizationInvitations",
@@ -56,7 +57,7 @@
         "myBetaFeedback"
       ],
       "owner": "Identity query lifecycle",
-      "policy": "Active-organization reads live under the identity root. Login, sign-out, and successful invitation acceptance clear the complete QueryClient at the confirmed session/tenant transition, so no unscoped identity or sibling context cache crosses tenants. Personal and organization invitation response shapes are disjoint siblings below the invitation prefix. The departing member's outstanding-responsibility worklist is a separate leaf under the same root: it describes the caller's current standing rather than the directory, is read at staleTime 0, and is invalidated by leave mutations alone. The per-property merchant AI consent snapshot is another leaf, keyed by the globally unique propertyId: the import flow's AI-analysis step reads it, a successful enable replaces it locally from the command result, and the AI settings route reads the same snapshot through its loader rather than through this key. The read-only Organization AI overview is a separate sibling leaf, not a parent of the per-property snapshots: it spans every Property the viewer may manage AI for, so any Merchant AI command or decision deferral must invalidate it explicitly alongside the affected property snapshot. The served Merchant AI notice is a third sibling leaf, independent of any Property: the import wizard's setup step reads it to render the consent ceremony, it changes only with a deploy, and a notice mismatch on a consent command is surfaced to the merchant rather than repaired from cache. The reporter's own beta-feedback history is a further leaf under the same root: it is scoped server-side by the caller's actor pseudonym rather than by any key argument, is read only while the dialog's reports panel is open, and is invalidated by a successful submission from that same dialog."
+      "policy": "Active-organization reads live under the identity root. Login, sign-out, and successful invitation acceptance clear the complete QueryClient at the confirmed session/tenant transition, so no unscoped identity or sibling context cache crosses tenants. The AccountAdmin's read of every member's active Property grants is nested below the member list, so every role, removal or access mutation that already invalidates the member list refreshes it without a second key. Personal and organization invitation response shapes are disjoint siblings below the invitation prefix. The departing member's outstanding-responsibility worklist is a separate leaf under the same root: it describes the caller's current standing rather than the directory, is read at staleTime 0, and is invalidated by leave mutations alone. The per-property merchant AI consent snapshot is another leaf, keyed by the globally unique propertyId: the import flow's AI-analysis step reads it, a successful enable replaces it locally from the command result, and the AI settings route reads the same snapshot through its loader rather than through this key. The read-only Organization AI overview is a separate sibling leaf, not a parent of the per-property snapshots: it spans every Property the viewer may manage AI for, so any Merchant AI command or decision deferral must invalidate it explicitly alongside the affected property snapshot. The served Merchant AI notice is a third sibling leaf, independent of any Property: the import wizard's setup step reads it to render the consent ceremony, it changes only with a deploy, and a notice mismatch on a consent command is surfaced to the merchant rather than repaired from cache. The reporter's own beta-feedback history is a further leaf under the same root: it is scoped server-side by the caller's actor pseudonym rather than by any key argument, is read only while the dialog's reports panel is open, and is invalidated by a successful submission from that same dialog."
     },
     {
       "id": "propertyKeys",
@@ -181,6 +182,12 @@
       "members": ["all", "publicPortal"],
       "owner": "Guest public-portal query lifecycle",
       "policy": "Public portal data is keyed by the complete validated route argument object, currently the public token, beneath a Guest-only root; token navigation therefore remounts and reads a distinct cache entry."
+    },
+    {
+      "id": "platformKeys",
+      "members": ["all", "organizations"],
+      "owner": "Platform operator console query lifecycle",
+      "policy": "One cross-tenant Organization list beneath a Platform-only root, apart from every tenant subtree: the operator holds no role in the Organizations it lists, so the key carries no Organization id. Every tenant switch and every session end clears it together with the rest of the cache (queryClient.clear()), which is what keeps a cached cross-tenant list from surviving a sign-out into a later user's session in the same tab. Every console change (create, invite, resend, cancel) invalidates the list, which is the only read the console has."
     }
   ],
   "queryKeyDelegates": [
@@ -302,6 +309,36 @@
       "classification": "server_snapshot",
       "owner": "Guest response journey",
       "policy": "Seed from the loader response, then replace only with confirmed response-mutation results; route-token remount remains the reset boundary."
+    },
+    {
+      "id": "src/components/features/identity/member-directory/change-role-dialog.tsx:useState(chosen)",
+      "classification": "server_draft",
+      "owner": "Members access",
+      "policy": "Seeded once from the member's current role (null when it is not an assignable role) when the dialog body mounts. The body mounts per open and is keyed by member, so a later members refresh never overwrites the choice in progress and the next member starts from their own role; the chosen role reaches the server only through the explicit Change role confirmation."
+    },
+    {
+      "id": "src/components/features/identity/member-directory/member-access-sheet.tsx:useState(baseline)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Members access",
+      "policy": "A snapshot of the route's reads (the member's grants and the properties they are responsible for), set during render the first time the responsibility read has settled and never advanced afterwards: a pending refetch, a failed one or another admin's grant moves the live reads but not the baseline the draft is measured against. The loading skeleton shows only before it is set. The sheet body is keyed by member and unmounts on close, which is the reset boundary, so the next open takes a fresh snapshot."
+    },
+    {
+      "id": "src/components/features/identity/member-directory/member-access-sheet.tsx:useState(selectedIds)",
+      "classification": "server_draft",
+      "owner": "Members access",
+      "policy": "Seeded once from the sheet's baseline (the member's active grants, limited to the properties the checklist lists) when the form mounts. The form mounts per open, keyed by member, only once the baseline exists and never unmounts for a later read, so a members or access refresh, a pending or failed refetch or another admin's grant never overwrites a selection in progress; the diff against the baseline is what Save sends, and a successful save closes the sheet so the next open reseeds from the refreshed grants."
+    },
+    {
+      "id": "src/components/features/identity/member-directory/member-access-sheet.tsx:useState(responsibleIds)",
+      "classification": "server_draft",
+      "owner": "Members access",
+      "policy": "Seeded once from the baseline's responsible properties (those whose Responsible managers already include the member, read per property by the route) when the form mounts. It has the same per-open, per-member mount boundary as the selected properties, a failed refetch later never rewrites the baseline it is measured against, and only a change against the baseline is sent to each property's Responsible managers command."
+    },
+    {
+      "id": "src/components/features/identity/login/login-form.tsx:useState(attempt)",
+      "classification": "local_runtime",
+      "owner": "Login unverified-email notice",
+      "policy": "The sign-in attempt just made (a counter and the address typed), written from the form's own submit handler. Its id keys the unverified-email notice so each attempt starts a fresh one. It is not server state, and nothing copies a server value into it."
     },
     {
       "id": "src/components/features/integration/google-import-manager/google-import-manager.tsx:useState(startError)",

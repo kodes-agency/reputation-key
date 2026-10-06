@@ -1101,7 +1101,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     })
   })
 
-  test('member invitation sends once, persists, and can be cancelled', async ({
+  test('member invitation sends once, persists, renews on resend, and can be cancelled', async ({
     page,
   }) => {
     await mailStubControl.reset()
@@ -1109,13 +1109,29 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await waitForHydration(page)
     const inviteEmail = `beta-invite-${e2eRunId}@example.com`
     await clickWhenReady(page.getByRole('button', { name: /invite member/i }))
-    await page.getByPlaceholder('colleague@example.com').fill(inviteEmail)
+    // The page's own description also says "the properties they can work", so
+    // the form's field is read inside the dialog, by its exact label.
+    const inviteDialog = page.getByRole('dialog', { name: 'Invite a new member' })
+    const propertyField = inviteDialog.getByText('Properties they can work', {
+      exact: true,
+    })
+    await inviteDialog.getByPlaceholder('colleague@example.com').fill(inviteEmail)
     // Only the two manager roles are invitable during the closed beta
-    // (isBetaInteractiveRole) — Member logins are inactive and the selector
-    // does not offer them.
-    await page.getByRole('combobox', { name: 'Role' }).click()
-    await page.getByRole('option', { name: 'Property Manager', exact: true }).click()
-    await clickWhenReady(page.getByRole('button', { name: /send invitation/i }))
+    // (isBetaInteractiveRole) — Member logins are inactive and the form does
+    // not offer them. The invitation starts as a Property Manager, the least
+    // privilege, with the property picker in view.
+    await expect(
+      inviteDialog.getByRole('radio', { name: /property manager/i }),
+    ).toBeChecked()
+    await expect(propertyField).toBeVisible()
+    // An Account Admin reaches every property, so choosing one drops the picker.
+    await inviteDialog.getByRole('radio', { name: /account admin/i }).click()
+    await expect(propertyField).toHaveCount(0)
+    await expect(
+      inviteDialog.getByText('Account Admins can access every property.'),
+    ).toBeVisible()
+    await inviteDialog.getByRole('radio', { name: /property manager/i }).click()
+    await clickWhenReady(inviteDialog.getByRole('button', { name: /send invitation/i }))
     await expect(page.getByText(inviteEmail, { exact: true })).toBeVisible()
     await page.reload()
     await expect(page.getByText(inviteEmail, { exact: true })).toBeVisible()
@@ -1134,9 +1150,44 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       (send) => send.to === inviteEmail,
     )
     expect(invite.subject).toContain('invited you to join')
-    // A pending invitation's Resend and Cancel live in its row's more-actions
-    // menu (UI consistency S6, RowActionsMenu); Cancel opens a confirmation.
-    await page.getByRole('button', { name: `More actions for ${inviteEmail}` }).click()
+
+    // The table says who sent it and when it lapses, not a raw status token.
+    const inviteRow = page.getByRole('row').filter({ hasText: inviteEmail })
+    await expect(inviteRow.getByText('Expired')).toHaveCount(0)
+    await expect(inviteRow.getByText(seed.managerName, { exact: true })).toBeVisible()
+
+    // Resend renews the same invitation's expiry (one row per person) and mails
+    // it again. The Expires column prints a day, so the renewal is read from
+    // the invitation itself.
+    const expiryOf = async () => {
+      const { invitations } = await callServerFnGet<{
+        invitations: ReadonlyArray<{ email: string; expiresAt: string | Date }>
+      }>(page, {
+        file: 'src/contexts/identity/server/organizations.invitations.ts',
+        exportName: 'listInvitations',
+      })
+      const row = invitations.find((candidate) => candidate.email === inviteEmail)
+      if (!row) throw new Error('the invitation is not listed')
+      return new Date(row.expiresAt).getTime()
+    }
+    const expiryBefore = await expiryOf()
+    // An invitation's Resend and Cancel live in its row's more-actions menu (UI
+    // consistency S6, RowActionsMenu); Cancel opens a confirmation.
+    const inviteMenu = inviteRow.getByRole('button', {
+      name: `More actions for ${inviteEmail}`,
+    })
+    await clickWhenReady(inviteMenu)
+    await page.getByRole('menuitem', { name: 'Resend invitation' }).click()
+    await expect(page.getByText('Invitation renewed and sent')).toBeVisible()
+    await expect.poll(expiryOf).toBeGreaterThan(expiryBefore)
+    await expect
+      .poll(async () =>
+        (await mailStubControl.sends()).filter((send) => send.to === inviteEmail),
+      )
+      .toHaveLength(2)
+    await expect(page.getByText(inviteEmail, { exact: true })).toHaveCount(1)
+
+    await clickWhenReady(inviteMenu)
     await page.getByRole('menuitem', { name: 'Cancel invitation…' }).click()
     await page.getByRole('button', { name: 'Cancel invitation', exact: true }).click()
     await expect(page.getByText(inviteEmail, { exact: true })).toHaveCount(0)

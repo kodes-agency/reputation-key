@@ -68,10 +68,27 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['account.organization_access_granted'],
     ['affected_organization_user'],
   ),
+  // The same fact tells the inviter, in a second consumer: the AccountAdmin who
+  // sent the invitation, decided by the role alone (no Property, no person's
+  // name in the notice).
+  route(
+    'identity.invitation.accepted',
+    'notification.on-identity-invitation-accepted-inviter',
+    ['account.invitation_accepted'],
+    ['account_admin'],
+  ),
   route(
     'identity.member.role_changed',
     'notification.on-identity-member-role-changed',
     ['account.organization_role_changed'],
+    ['affected_organization_user'],
+  ),
+  // An AccountAdmin changed which Properties a PropertyManager can work; the
+  // member is told, the AccountAdmin is not.
+  route(
+    'identity.member.property_access_changed',
+    'notification.on-identity-member-property-access-changed',
+    ['account.organization_property_access_changed'],
     ['affected_organization_user'],
   ),
   route(

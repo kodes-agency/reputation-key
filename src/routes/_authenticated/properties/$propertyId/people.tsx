@@ -1,4 +1,4 @@
-// People route — thin wrapper around PeoplePage component
+// Staff route (the URL stays /people) — thin wrapper around PeoplePage component
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
@@ -11,18 +11,12 @@ import {
   listStaffParticipations,
   updatePortalResponsibilities,
 } from '#/contexts/identity/server/staff-participations'
-import { listMembers } from '#/contexts/identity/server/organizations'
 import { listPortals } from '#/contexts/portal/server/portals'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import { PeoplePage } from '#/components/features/property/people/people-page'
 import { peopleSearchSchema } from '#/components/features/property/people/people-search-schema'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
-import {
-  staffKeys,
-  identityKeys,
-  portalKeys,
-  propertyKeys,
-} from '#/shared/queries/query-keys'
+import { staffKeys, portalKeys, propertyKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 
 const participationsQuery = (propertyId: string) =>
@@ -32,17 +26,11 @@ const participationsQuery = (propertyId: string) =>
     staleTime: 30_000,
   })
 
-const membersQuery = queryOptions({
-  queryKey: identityKeys.members(),
-  queryFn: () => listMembers(),
-  staleTime: 30_000,
-})
-
 const portalsQuery = (propertyId: string) =>
   queryOptions({
     queryKey: portalKeys.list(propertyId),
     // F-PEOPLE (BQC-6.7): portal.read is dark in the beta posture, and this
-    // query's denial must not sink the ENABLED Staff/Directory surface
+    // query's denial must not sink the ENABLED Staff surface
     // (Promise.all on the raw query rejected the whole loader → route 500).
     // Degrade to "no portals, portal affordances hidden" on a deliberate
     // dark-capability denial; REAL errors still throw and fail the loader.
@@ -61,24 +49,23 @@ const portalsQuery = (propertyId: string) =>
   })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/people')({
-  staticData: { page: { title: 'People', tier: 'dashboard', under: 'property' } },
+  staticData: { page: { title: 'Staff', tier: 'dashboard', under: 'property' } },
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
       data: {
         capability: 'staff.use',
-        featureLabel: 'People',
+        featureLabel: 'Staff',
         propertyId: params.propertyId,
       },
     })
     const { role } = context as AuthRouteContext
-    if (!can(role, 'staff.read')) throw roleUnavailable('People', 'properties')
+    if (!can(role, 'staff.read')) throw roleUnavailable('Staff', 'properties')
   },
   validateSearch: (search) => peopleSearchSchema.parse(search),
   staleTime: 30_000,
   loader: async ({ params: { propertyId }, context }) => {
     await Promise.all([
       context.queryClient.ensureQueryData(participationsQuery(propertyId)),
-      context.queryClient.ensureQueryData(membersQuery),
       context.queryClient.ensureQueryData(portalsQuery(propertyId)),
     ])
   },
@@ -90,12 +77,9 @@ function PeopleRoute() {
   const { role } = Route.useRouteContext() as AuthRouteContext
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: participationData } = useSuspenseQuery(participationsQuery(propertyId))
-  const { data: membersData } = useSuspenseQuery(membersQuery)
   const { data: portalsData } = useSuspenseQuery(portalsQuery(propertyId))
   const { participations, responsibilities } = participationData
-  const { members } = membersData
   const { portals, portalsDenied } = portalsData
-  const search = Route.useSearch() as { tab?: string }
 
   const invalidateKeys = [
     staffKeys.participations(propertyId),
@@ -120,11 +104,9 @@ function PeopleRoute() {
       propertyName={propData.property.name}
       participations={participations}
       responsibilities={responsibilities}
-      members={members}
       portals={portals}
       portalsDenied={portalsDenied}
       canManageStaff={can(role, 'staff.manage')}
-      tab={search.tab}
       createParticipationMutation={createParticipationMutation}
       archiveParticipationMutation={archiveParticipationMutation}
       updateResponsibilitiesMutation={updateResponsibilitiesMutation}

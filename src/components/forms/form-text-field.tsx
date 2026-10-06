@@ -28,6 +28,8 @@ type Props = Readonly<{
   placeholder?: string
   autoComplete?: string
   disabled?: boolean
+  /** Shown and submitted, never edited (a value the page already decided). */
+  readOnly?: boolean
   maxLength?: number
   className?: string
   /** The person may leave it empty: the label says "Optional". */
@@ -44,6 +46,7 @@ export function FormTextField({
   placeholder,
   autoComplete,
   disabled,
+  readOnly,
   maxLength,
   className,
   optional,
@@ -72,6 +75,7 @@ export function FormTextField({
         placeholder={placeholder}
         autoComplete={autoComplete}
         disabled={disabled}
+        readOnly={readOnly}
         maxLength={maxLength}
         className={className}
       />

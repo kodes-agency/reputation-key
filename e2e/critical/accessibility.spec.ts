@@ -44,7 +44,7 @@ import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { assertNoAxeViolations } from '../helpers/a11y'
-import { waitForHydration } from '../helpers/interaction'
+import { clickWhenReady, waitForHydration } from '../helpers/interaction'
 import {
   e2eRunId,
   cleanupE2eData,
@@ -164,16 +164,16 @@ test.describe('Critical a11y: axe page scans', () => {
     await assertNoAxeViolations(page, 'inbox detail (/inbox?itemId=)')
   })
 
-  test('property people page (/properties/$id/people) is axe-clean', async ({ page }) => {
+  test('property staff page (/properties/$id/people) is axe-clean', async ({ page }) => {
     await signIn(page)
     await page.goto(`/properties/${seed.propertyId}/people`)
     await expect(page).toHaveURL(new RegExp(`/properties/${seed.propertyId}/people`))
     // Wait for real page content (the h1), not just the shell — scanning during
     // the loader pending window would flag the missing h1 spuriously.
-    await expect(page.getByRole('heading', { name: /^people$/i }).first()).toBeVisible({
+    await expect(page.getByRole('heading', { name: /^staff$/i }).first()).toBeVisible({
       timeout: 15_000,
     })
-    await assertNoAxeViolations(page, 'property people (/properties/$id/people)')
+    await assertNoAxeViolations(page, 'property staff (/properties/$id/people)')
   })
 
   test('settings members (/settings/members) is axe-clean', async ({ page }) => {
@@ -183,6 +183,38 @@ test.describe('Critical a11y: axe page scans', () => {
       timeout: 15_000,
     })
     await assertNoAxeViolations(page, 'settings members (/settings/members)')
+  })
+
+  // The two overlays the Members page opens from a row are scanned open: they
+  // render in a portal over the page, where an unlabelled control or a contrast
+  // failure would not show in the scan of the page beneath them.
+  test('settings members with the Manage access sheet open is axe-clean', async ({
+    page,
+  }) => {
+    await signIn(page)
+    await page.goto('/settings/members')
+    await waitForHydration(page)
+    const name = 'E2E Zero Property Manager'
+    await clickWhenReady(page.getByRole('button', { name: `More actions for ${name}` }))
+    await page.getByRole('menuitem', { name: 'Edit access…' }).click()
+    const sheet = page.getByRole('dialog', { name: `Edit access for ${name}` })
+    await expect(sheet).toBeVisible({ timeout: 15_000 })
+    await expect(sheet.getByRole('button', { name: 'Save access' })).toBeVisible()
+    await assertNoAxeViolations(page, 'settings members: Manage access sheet')
+  })
+
+  test('settings members with the Change role dialog open is axe-clean', async ({
+    page,
+  }) => {
+    await signIn(page)
+    await page.goto('/settings/members')
+    await waitForHydration(page)
+    const name = 'E2E Zero Property Manager'
+    await clickWhenReady(page.getByRole('button', { name: `More actions for ${name}` }))
+    await page.getByRole('menuitem', { name: 'Change role…' }).click()
+    const dialog = page.getByRole('alertdialog', { name: `Change role for ${name}` })
+    await expect(dialog).toBeVisible({ timeout: 15_000 })
+    await assertNoAxeViolations(page, 'settings members: Change role dialog')
   })
 })
 

@@ -38,6 +38,17 @@ describe('Organization account notification durable authority', () => {
       payload: { organizationId: ORG, userId: 'removed-user' },
       expected: 'removed-user',
     },
+    {
+      eventType: 'identity.member.property_access_changed' as const,
+      payload: {
+        organizationId: ORG,
+        userId: 'admin-actor',
+        memberUserId: 'manager-user',
+        grantedPropertyIds: ['4d1f0c1e-2b7a-4c55-9a51-000000000001'],
+        revokedPropertyIds: [],
+      },
+      expected: 'manager-user',
+    },
   ])(
     'resolves the affected account from $eventType',
     ({ eventType, payload, expected }) => {
@@ -79,5 +90,41 @@ describe('Organization account notification durable authority', () => {
 
     expect(target).not.toBe(userId('admin-actor'))
     expect(target).toBe(userId('changed-user'))
+  })
+
+  it('uses the property-access target, never the AccountAdmin who changed it', () => {
+    const payload = {
+      organizationId: ORG,
+      userId: 'admin-actor',
+      memberUserId: 'manager-user',
+      grantedPropertyIds: [],
+      revokedPropertyIds: ['4d1f0c1e-2b7a-4c55-9a51-000000000001'],
+    }
+
+    const target = affectedUserFromIdentityFact({
+      eventType: 'identity.member.property_access_changed',
+      eventVersion: 1,
+      organizationId: ORG,
+      payload,
+    })
+
+    expect(target).toBe(userId('manager-user'))
+    expect(target).not.toBe(userId('admin-actor'))
+  })
+
+  it('refuses a property-access fact that names no target', () => {
+    expect(() =>
+      affectedUserFromIdentityFact({
+        eventType: 'identity.member.property_access_changed',
+        eventVersion: 1,
+        organizationId: ORG,
+        payload: {
+          organizationId: ORG,
+          userId: 'admin-actor',
+          grantedPropertyIds: [],
+          revokedPropertyIds: [],
+        },
+      }),
+    ).toThrow(/memberUserId/)
   })
 })

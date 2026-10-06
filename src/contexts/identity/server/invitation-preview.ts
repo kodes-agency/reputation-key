@@ -18,8 +18,15 @@ import {
 import type { InvitationPreview } from '../application/use-cases/get-invitation-preview'
 import { throwIdentityError } from './organizations.errors.server'
 
-/** Enough for a person opening and reopening a link; too few to probe ids. */
-const PREVIEW_LIMIT = Object.freeze({ maxRequests: 30, windowSeconds: 600 })
+/**
+ * Enough for a person opening and reopening a link; too few to probe ids. Each
+ * open of a link reads the preview more than once (the emailed link, then the
+ * page it sends the visitor to: two for a new address or an existing account,
+ * three when someone signed in as another address signs out), so this is 20 to
+ * 30 link opens per 10 minutes for one address, such as a hotel's shared
+ * network.
+ */
+const PREVIEW_LIMIT = Object.freeze({ maxRequests: 60, windowSeconds: 600 })
 
 export const getInvitationPreviewHandler = createServerOnlyFn(
   async ({

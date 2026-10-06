@@ -29,10 +29,7 @@ export const updateOrganization =
   async (input: UpdateOrganizationInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize
     if (!canForContext(ctx, 'organization.update')) {
-      throw identityError(
-        'forbidden',
-        'Only AccountAdmin or PropertyManager can update organization',
-      )
+      throw identityError('forbidden', 'Only AccountAdmin can update organization')
     }
     // 2. Validate slug/name if provided
     if (input.slug !== undefined) {

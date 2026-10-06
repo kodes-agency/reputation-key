@@ -3,8 +3,9 @@
 // `ai.manage` and `integration.manage` each conditionally render a nav
 // entry, so the visible nav changes with the signed-in role:
 //   - AccountAdmin (owner): all beta items render.
-//   - PropertyManager (admin): manager settings render, but Google connection
-//     administration stays AccountAdmin-only.
+//   - PropertyManager (admin): Members (read-only), AI overview and the account
+//     entries render; Organization settings and Google connection
+//     administration are AccountAdmin-only.
 //   - Staff (member): only Profile, Security, Preferences, Notifications — the
 //     four always-on entries.
 // `isManager = hasRole(role, 'PropertyManager')` also flips the "Back to app"
@@ -69,17 +70,16 @@ export const AsAccountAdmin: Story = {
   },
 }
 
-// PropertyManager can update Organization presentation, list Members, and manage
-// AI settings. Google connection administration remains AccountAdmin-only.
-// "Back to app" → /properties.
+// PropertyManager lists Members and manages AI settings, but edits neither the
+// Organization (ADR 0033, amended 2026-10) nor the Google connection: both are
+// AccountAdmin-only. "Back to app" → /properties.
 export const AsPropertyManager: Story = {
   decorators: [withRole('PropertyManager')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(
-      await canvas.findByRole('link', { name: /^organization$/i }),
-    ).toBeInTheDocument()
+    await expectAlwaysOnEntries(canvasElement)
     expectManagerEntries(canvasElement)
+    expect(canvas.queryByRole('link', { name: /^organization$/i })).toBeNull()
     expect(canvas.queryByText(/^integrations$/i)).toBeNull()
   },
 }

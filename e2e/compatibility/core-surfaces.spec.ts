@@ -151,6 +151,9 @@ test.describe('Compatibility: core surfaces', () => {
     await expect(page.getByRole('heading', { name: /^members$/i }).first()).toBeVisible({
       timeout: 15_000,
     })
+    // The Properties column widens the table; it scrolls inside its own
+    // container, so the page itself must still not overflow at any width.
+    await expect(page.getByRole('columnheader', { name: 'Properties' })).toBeVisible()
     await expectNoHorizontalOverflow(page)
     await assertNoAxeViolations(page, 'compatibility manager members shell')
   })

@@ -14,6 +14,22 @@ import {
   RoutePending,
   RouteNotFound,
 } from '#/components/layout/route-page-state'
+import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
+import { isExpectedRefusal } from '#/shared/security/expected-refusal'
+
+/**
+ * Hands a failure to monitoring unless it is an expected refusal (a 4xx): a
+ * refusal is a product or security outcome the page already explains.
+ *
+ * Route UI that reports a failure of its own (the Members access sheet) reads
+ * this from the router context instead of importing the capture and the refusal
+ * rule: the router's error state already holds both in first paint, and a lazy
+ * route chunk that imports them made first paint carry them again as extra
+ * shared chunks (+2.5 KB gzip measured on /settings/members).
+ */
+function reportUnexpectedFailure(error: unknown): void {
+  if (!isExpectedRefusal(error)) captureBrowserException(error)
+}
 
 export function getRouter() {
   // TanStack Query client cache. The ssr-query integration handles per-request
@@ -30,8 +46,8 @@ export function getRouter() {
   const router = createTanStackRouter({
     routeTree,
     // Expose the QueryClient via router context so route loaders can
-    // prefetchQuery / ensureQueryData.
-    context: { queryClient },
+    // prefetchQuery / ensureQueryData, and the failure reporter for route UI.
+    context: { queryClient, reportUnexpectedFailure },
     // The same nonce is applied to framework-generated SSR scripts by
     // TanStack Router and to RootDocument's theme initialization script.
     ssr: cspNonce ? { nonce: cspNonce } : undefined,

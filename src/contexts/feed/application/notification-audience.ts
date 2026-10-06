@@ -136,9 +136,11 @@ export type NotificationAudience =
   | Readonly<{ kind: 'property_operator' }>
   /**
    * Every current AccountAdmin of the Organization, for a notice that belongs
-   * to no Property. `account_admin` cannot serve here: it is Property-scoped
-   * and the authorizer refuses a Property-less job under it, which is how the
-   * Purge Pending notice still reaches nobody.
+   * to no Property and may never name one: the authorizer refuses this kind
+   * when the job carries a Property. `account_admin` is the looser sibling. It
+   * is decided by the role alone, with or without a Property, so a mandatory
+   * Organization notice that reaches one AccountAdmin (the Purge Pending
+   * warning, an accepted invitation told to its inviter) uses that kind.
    */
   | Readonly<{ kind: 'organization_account_admin' }>
 

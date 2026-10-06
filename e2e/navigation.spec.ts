@@ -1,5 +1,5 @@
 // E2E: Navigation between authenticated manager surfaces.
-// The beta-local seed exposes the promoted People, Portal, and Goal
+// The beta-local seed exposes the promoted Staff, Portal, and Goal
 // surfaces only for P1 while preserving ordinary property navigation.
 //
 // The three-route hop this file used to open with was deleted: each of its
@@ -8,7 +8,7 @@
 // 'inbox triage surface loads for manager', 'settings members page loads').
 // It cost a fourth sign-in to re-assert three locators the critical project
 // already gates. What remains is the part nothing else covers: the promoted P1
-// People surface rendering its current management tabs together.
+// Staff surface (the /people URL) rendering as one list, with no Directory tab.
 
 import { test, expect } from './helpers/error-detection'
 import { signIn } from './helpers/auth'
@@ -25,16 +25,20 @@ test.describe('Navigation', () => {
     await openSeededProperty(page)
     await expect(page.getByText(SEEDED_PROPERTY_NAME).first()).toBeVisible()
 
-    // Manager property nav: Reviews + People (not legacy Teams/Staff top-level tabs).
+    // Manager property nav: Reviews + Staff (not legacy Teams top-level tabs).
     await page.goto(`/properties/${seed.propertyId}/reviews`)
     await expect(page).toHaveURL(new RegExp(`/properties/${seed.propertyId}/reviews`))
 
     await page.goto(`/properties/${seed.propertyId}/people`)
     await expect(page).toHaveURL(new RegExp(`/properties/${seed.propertyId}/people`))
-    // Team is quarantined; the People surface exposes Staff and Directory only.
-    // They are views of the route (links with aria-current), not a tablist.
-    const views = page.getByRole('navigation', { name: 'People views' })
-    await expect(views.getByRole('link', { name: 'Staff' })).toBeVisible()
-    await expect(views.getByRole('link', { name: 'Directory' })).toBeVisible()
+    // Team is quarantined; the Staff surface is one list. The Directory of every
+    // member moved to Settings > Members, so there are no tabs here at all.
+    await expect(page.getByRole('heading', { name: 'Staff', level: 1 })).toBeVisible()
+    await expect(
+      page.getByRole('link', { name: 'Staff', exact: true }).first(),
+    ).toBeVisible()
+    await expect(page.getByRole('tab')).toHaveCount(0)
+    await expect(page.getByRole('navigation', { name: 'People views' })).toHaveCount(0)
+    await expect(page.getByRole('tab', { name: /directory/i })).toHaveCount(0)
   })
 })

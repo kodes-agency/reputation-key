@@ -57,18 +57,23 @@ type Props = Readonly<{
   mode: 'register' | 'join'
   mutation: AnyAction
   invitationId?: string
+  /**
+   * Join mode: the address the invitation was sent to. Prefilled and locked —
+   * the server only accepts a sign-up for exactly that address.
+   */
+  lockedEmail?: string
 }>
 
 // ── Component ────────────────────────────────────────────────────────
 
-export function RegisterForm({ mode, mutation, invitationId }: Props) {
+export function RegisterForm({ mode, mutation, invitationId, lockedEmail }: Props) {
   const isJoinMode = mode === 'join'
 
   const form = useForm({
     defaultValues: {
       mode,
       name: '',
-      email: '',
+      email: lockedEmail ?? '',
       password: '',
       confirmPassword: '',
       organizationName: '',
@@ -90,7 +95,11 @@ export function RegisterForm({ mode, mutation, invitationId }: Props) {
 
   return (
     <form method="post" onSubmit={submitHandler(form)} className="space-y-4">
-      <RegisterFormFields form={form} mode={mode} />
+      <RegisterFormFields
+        form={form}
+        mode={mode}
+        emailLocked={lockedEmail !== undefined}
+      />
 
       <FormErrorBanner error={mutation.error} />
       <SubmitButton mutation={mutation} form={form} className="w-full">

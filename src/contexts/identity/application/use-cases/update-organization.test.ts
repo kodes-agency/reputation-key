@@ -41,14 +41,14 @@ describe('updateOrganization', () => {
     })
   })
 
-  it('happy path: PropertyManager can update organization', async () => {
+  it('rejects PropertyManager from updating organization, and updates nothing', async () => {
     const { useCase, updateCalls } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
-    await useCase({ name: 'PM Org Name' }, ctx)
-
-    expect(updateCalls).toHaveLength(1)
-    expect(updateCalls[0].name).toBe('PM Org Name')
+    await expect(useCase({ name: 'PM Org Name' }, ctx)).rejects.toSatisfy(
+      (e: unknown) => isIdentityError(e) && (e as { code: string }).code === 'forbidden',
+    )
+    expect(updateCalls).toHaveLength(0)
   })
 
   it('rejects Member from updating organization → forbidden', async () => {

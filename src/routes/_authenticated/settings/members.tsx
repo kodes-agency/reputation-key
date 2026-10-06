@@ -1,8 +1,8 @@
-// Settings → Members: invite users, change roles, remove members, and manage
-// pending invitations. Restores the member-directory UI (InviteMemberForm,
-// MemberTable, InvitationTable) that was orphaned when the original route was
-// dropped during a refactor. All actions are permission-gated; the components
-// also check permissions internally (defense in depth).
+// Settings → Members: who can sign in to the Organization, what they can do and
+// which properties they work. AccountAdmins invite people, change roles, edit a
+// Property Manager's properties and remove members; a Property Manager only
+// reads the list. Every action is permission-gated here and again inside the
+// components and on the server (defense in depth).
 
 import { SectionTitle } from '#/components/ui/section-title'
 import { useState } from 'react'
@@ -36,22 +36,24 @@ import {
   updateMemberRole,
   removeMember,
   listInvitations,
+  listMemberPropertyAccess,
   resendInvitation,
   cancelInvitation,
 } from '#/contexts/identity/server/organizations'
 import {
+  ChangeRoleDialog,
   InviteMemberForm,
   MemberTable,
   InvitationTable,
+  memberRowsWithProperties,
+  propertyIdsByUser,
 } from '#/components/features/identity'
+import type { MemberRow } from '#/components/features/identity'
 import { identityKeys } from '#/shared/queries/query-keys'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
-import { LeaveOrganizationDialog } from '#/components/features/people/leave-organization-dialog'
-import {
-  getSelfServiceLeaveAvailabilityFn,
-  leaveOrganizationFn,
-} from '#/contexts/identity/server/organization-leave-fns'
-import { outstandingResponsibilitiesQuery } from './-leave-organization-queries'
+import { getSelfServiceLeaveAvailabilityFn } from '#/contexts/identity/server/organization-leave-fns'
+import { LeaveOrganizationSection } from './-leave-organization-section'
+import { MemberAccessContainer } from './-member-access-container'
 
 const authRoute = getRouteApi('/_authenticated')
 const membersQuery = queryOptions({
@@ -66,6 +68,14 @@ const invitationsQuery = queryOptions({
   staleTime: 30_000,
 })
 
+// Every member's active Property grants. Below identityKeys.members(), so any
+// mutation that invalidates the member list refreshes it too.
+const memberPropertyAccessQuery = queryOptions({
+  queryKey: identityKeys.memberPropertyAccess(),
+  queryFn: () => listMemberPropertyAccess(),
+  staleTime: 30_000,
+})
+
 export const Route = createFileRoute('/_authenticated/settings/members')({
   staticData: { page: { title: 'Members', under: 'settings' } },
   beforeLoad: ({ context }) => {
@@ -74,20 +84,26 @@ export const Route = createFileRoute('/_authenticated/settings/members')({
   },
   loader: async ({ context }) => {
     const { role } = context as AuthRouteContext
-    const [memberResult, invitationsResult, leaveAvailability] = await Promise.all([
+    // Each read is issued only for a role the server would answer: a Property
+    // Manager reads the member list and nothing about invitations or grants.
+    const [, leaveAvailability] = await Promise.all([
       context.queryClient.ensureQueryData(membersQuery),
-      context.queryClient.ensureQueryData(invitationsQuery),
       // Whether self-service leave is composed at all. When it is not, the
-      // worklist read is never issued and the page says why.
+      // worklist read is never issued and the section is not drawn.
       getSelfServiceLeaveAvailabilityFn(),
+      can(role, 'invitation.list')
+        ? context.queryClient.ensureQueryData(invitationsQuery)
+        : null,
+      can(role, 'member.update')
+        ? context.queryClient.ensureQueryData(memberPropertyAccessQuery)
+        : null,
     ])
     // An inviter may only assign roles at or below their own privilege level.
+    // The safe role comes first: an invitation starts as a Property Manager.
     const allowedRoles: ReadonlyArray<BetaInteractiveRole> = hasRole(role, 'AccountAdmin')
-      ? ['AccountAdmin', 'PropertyManager']
+      ? ['PropertyManager', 'AccountAdmin']
       : ['PropertyManager']
     return {
-      members: memberResult.members,
-      invitations: invitationsResult.invitations,
       allowedRoles,
       selfServiceLeaveAvailable: leaveAvailability.available,
     }
@@ -105,14 +121,33 @@ const RENEWAL_EMAIL_UNSENT =
 function MembersSettingsRoute() {
   const { allowedRoles, selfServiceLeaveAvailable } = Route.useLoaderData()
   const { data: memberResult } = useSuspenseQuery(membersQuery)
-  const { data: invitationsResult } = useSuspenseQuery(invitationsQuery)
-  const members = memberResult.members
-  const invitations = invitationsResult.invitations
-  const { user, role } = authRoute.useRouteContext()
-  const { data: propsData } = useSuspenseQuery(propertiesQuery)
-  const properties = propsData.properties
+  const { user, role, reportUnexpectedFailure } = authRoute.useRouteContext()
   const { can: canDo } = usePermissions()
+  // Invitations and grants are read only by the roles the server answers; the
+  // loader primed both caches for an AccountAdmin, so these hit without a fetch.
+  const { data: invitationsResult } = useQuery({
+    ...invitationsQuery,
+    enabled: canDo('invitation.list'),
+  })
+  const { data: accessResult } = useQuery({
+    ...memberPropertyAccessQuery,
+    enabled: canDo('member.update'),
+  })
+  const { data: propsData } = useSuspenseQuery(propertiesQuery)
+  const members = memberResult.members
+  const invitations = invitationsResult?.invitations ?? []
+  const propertyOptions = propsData.properties.map((p) => ({
+    id: String(p.id),
+    name: p.name,
+  }))
+  const memberRows = memberRowsWithProperties(
+    members,
+    accessResult?.access,
+    propertyOptions,
+  )
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [roleTarget, setRoleTarget] = useState<MemberRow | null>(null)
+  const [accessTarget, setAccessTarget] = useState<MemberRow | null>(null)
 
   const inviteMutation = useActionMutation(inviteMember, {
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
@@ -123,13 +158,12 @@ function MembersSettingsRoute() {
       setInviteOpen(false)
     },
   })
-  // A role change and a resend have no inline error surface, so they report a
-  // refusal (the resend rate limit, the last Account Admin) by toast. The invite
-  // form, and the Remove and Cancel invitation confirmations, stay open and show
-  // their own banner, so those mutations do not: that would report it twice.
+  // A resend has no inline error surface, so it reports a refusal (the resend
+  // rate limit) by toast. The invite form, and the Change role, Remove and Cancel
+  // invitation confirmations, stay open and show their own banner, so those
+  // mutations do not: that would report it twice.
   const updateRoleMutation = useActionMutation(updateMemberRole, {
     successMessage: 'Role updated',
-    errorMessage: actionErrorMessage,
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
   const removeMemberMutation = useActionMutation(removeMember, {
@@ -140,7 +174,7 @@ function MembersSettingsRoute() {
     errorMessage: actionErrorMessage,
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
     onSuccess: async ({ emailSent }) => {
-      if (emailSent) toast.success('Invitation resent')
+      if (emailSent) toast.success('Invitation renewed and sent')
       else toast.warning(RENEWAL_EMAIL_UNSENT)
     },
   })
@@ -148,46 +182,11 @@ function MembersSettingsRoute() {
     successMessage: 'Invitation cancelled',
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
-  // NOT useSuspenseQuery. The identity container installs a fail-closed
-  // offboarding dependency until the responsibility facts are composed, so
-  // this read THROWS by design. Suspending the route on it meant one deliberately
-  // fenced capability took down the whole members page — the directory,
-  // invitations and role management with it — which is what the accessibility
-  // and shell suites caught on /settings/members. Where nothing is composed it
-  // is not issued at all (`selfServiceLeaveAvailable` is false).
-  //
-  // `undefined` (still loading) and an error both surface as a null worklist,
-  // which the dialog treats as "unknown" and refuses to leave on.
-  const { data: outstandingResult, isError: outstandingUnavailable } = useQuery(
-    outstandingResponsibilitiesQuery(selfServiceLeaveAvailable),
-  )
-  const leaveMutation = useActionMutation(leaveOrganizationFn, {
-    successMessage: 'You have left this organization',
-    invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
-    // Their session is already gone server-side; send them to sign-in rather
-    // than letting the app render a workspace they no longer belong to.
-    navigateTo: { to: '/login' },
-  })
-  // The caller cannot receive their own responsibilities, and the sole
-  // AccountAdmin guard is re-enforced under lock by the command store.
-  const successorCandidates = members
-    .filter((member) => member.userId !== user.id)
-    .map((member) => ({ userId: member.userId, name: member.name }))
-  // `hasRole` rather than a raw role comparison: the governed helper is the
-  // single place that knows how a role token maps to authority.
-  const isSoleAccountAdmin =
-    hasRole(role, 'AccountAdmin') &&
-    members.filter(
-      (member) => member.role !== null && hasRole(member.role, 'AccountAdmin'),
-    ).length <= 1
-
-  const propertyOptions = properties.map((p) => ({ id: String(p.id), name: p.name }))
-
   return (
     <>
       <PageHeader
         title="Members"
-        description="Invite people to your organization and manage their roles."
+        description="Invite people, manage their roles and the properties they can work."
         breadcrumbs={trailCrumbs('settings', {}, 'Members')}
         actions={
           canDo('invitation.create') && hasRole(role, 'AccountAdmin') ? (
@@ -221,9 +220,11 @@ function MembersSettingsRoute() {
         <section>
           <SectionTitle className="mb-3">Members</SectionTitle>
           <MemberTable
-            members={members}
+            members={memberRows}
             currentUserId={user.id}
-            updateRoleAction={updateRoleMutation}
+            showProperties={accessResult !== undefined}
+            onChangeRole={setRoleTarget}
+            onEditAccess={setAccessTarget}
             removeMemberAction={removeMemberMutation}
           />
         </section>
@@ -238,21 +239,30 @@ function MembersSettingsRoute() {
           </section>
         )}
 
-        <section aria-labelledby="leave-organization-heading">
-          <SectionTitle id="leave-organization-heading" className="mb-3">
-            Leave this organization
-          </SectionTitle>
-          <LeaveOrganizationDialog
-            outstanding={
-              outstandingUnavailable ? null : (outstandingResult?.outstanding ?? null)
-            }
-            candidates={successorCandidates}
-            isSoleAccountAdmin={isSoleAccountAdmin}
-            selfServiceLeaveAvailable={selfServiceLeaveAvailable}
-            leaveOrganization={leaveMutation}
+        {selfServiceLeaveAvailable && (
+          <LeaveOrganizationSection
+            members={members}
+            currentUserId={user.id}
+            role={role}
           />
-        </section>
+        )}
       </div>
+
+      <ChangeRoleDialog
+        member={roleTarget}
+        onClose={() => setRoleTarget(null)}
+        allowedRoles={allowedRoles}
+        updateRoleAction={updateRoleMutation}
+      />
+      <MemberAccessContainer
+        member={accessTarget}
+        onClose={() => setAccessTarget(null)}
+        properties={propertyOptions}
+        propertyIdsByUser={propertyIdsByUser(accessResult?.access)}
+        canRemove={canDo('member.delete')}
+        removeMemberAction={removeMemberMutation}
+        reportFailure={reportUnexpectedFailure}
+      />
     </>
   )
 }

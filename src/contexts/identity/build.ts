@@ -34,6 +34,7 @@ import { identityError } from './domain/errors'
 import { updateOrganization } from './application/use-cases/update-organization'
 import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
 import { buildInvitationUseCases, type InvitationUseCaseDeps } from './build-invitations'
+import { buildMemberAccessUseCases } from './build-member-access'
 import { buildCapabilityPolicyHandle } from './infrastructure/policy-store-init'
 import { createPolicyAdminOps } from './application/use-cases/policy-admin'
 import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
@@ -600,6 +601,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     commandStore,
     resolveOrganizationName,
   })
+  const memberAccess = buildMemberAccessUseCases(deps)
 
   // Capability fate and environment controls are process-static. Tenant
   // grants, consent, and the execution kill switch retain their live reads.
@@ -833,6 +835,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     updateCustomRole: useCases.updateCustomRole,
     deleteCustomRole: useCases.deleteCustomRole,
     merchantAiAuthorization: merchantAiRequestApi,
+    ...memberAccess,
   })
   const managerFacts = Object.freeze({
     listActiveManagers: managerMembershipRepo.listActiveManagers,

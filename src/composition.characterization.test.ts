@@ -66,6 +66,9 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   // never on the container.
   'identityBetaFeedback',
   'identityLifecycleRuntime',
+  // The platform operator console (ADR 0065): its server functions reach it
+  // after requirePlatformOperator; no context receives it.
+  'identityPlatform',
   'identityPort',
   'identityPublicApi',
   'identityRequestSecurity',
