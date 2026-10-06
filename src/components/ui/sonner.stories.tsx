@@ -48,7 +48,7 @@ async function settledToast(canvas: ReturnType<typeof within>, text: string) {
 function showEveryTone() {
   toast.dismiss()
   toast('Draft restored', PERSIST)
-  toast.success('Profile updated', PERSIST)
+  toast.success('Profile saved', PERSIST)
   toast.info('Reply drafted for review', PERSIST)
   toast.warning('Invitation created, but the email did not send', PERSIST)
   toast.error('Couldn’t save your changes. Try again.', PERSIST)
@@ -59,7 +59,7 @@ export const EveryTone: Story = {
   play: async ({ canvasElement }) => {
     showEveryTone()
     const canvas = within(canvasElement)
-    const success = await settledToast(canvas, 'Profile updated')
+    const success = await settledToast(canvas, 'Profile saved')
     const failure = await settledToast(canvas, 'Couldn’t save your changes. Try again.')
     const plain = await settledToast(canvas, 'Draft restored')
 
@@ -78,7 +78,7 @@ export const FollowsTheTheme: Story = {
   play: async ({ canvasElement }) => {
     showEveryTone()
     const canvas = within(canvasElement)
-    await settledToast(canvas, 'Profile updated')
+    await settledToast(canvas, 'Profile saved')
     const themed = canvasElement.querySelector('[data-sonner-toaster]')
     const applied = document.documentElement.classList.contains('light')
       ? 'light'

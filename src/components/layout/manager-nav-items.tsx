@@ -20,6 +20,7 @@ import {
 } from './nav-items-shared'
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import { REFUSAL_COPY } from '#/shared/auth/capability-refusal-category'
+import { NAV_LABEL } from './nav-labels'
 
 type Props = Readonly<{
   propertyId: string | undefined
@@ -56,10 +57,10 @@ type ManagerNavItem = Readonly<{
 const dashboardSubItems: ReadonlyArray<
   Readonly<{ key: string; label: string; to: string }>
 > = [
-  { key: 'dashboard', label: 'Overview', to: '/properties/$propertyId' },
-  { key: 'ratings', label: 'Ratings', to: '/properties/$propertyId/ratings' },
-  { key: 'google', label: 'Google', to: '/properties/$propertyId/google' },
-  { key: 'guests', label: 'Guest voice', to: '/properties/$propertyId/guests' },
+  { key: 'dashboard', label: NAV_LABEL.overview, to: '/properties/$propertyId' },
+  { key: 'ratings', label: NAV_LABEL.ratings, to: '/properties/$propertyId/ratings' },
+  { key: 'google', label: NAV_LABEL.google, to: '/properties/$propertyId/google' },
+  { key: 'guests', label: NAV_LABEL.guests, to: '/properties/$propertyId/guests' },
 ]
 
 const DASHBOARD_SECTIONS: ReadonlySet<string> = new Set(
@@ -70,34 +71,34 @@ const DASHBOARD_SECTIONS: ReadonlySet<string> = new Set(
 const navItems: ReadonlyArray<ManagerNavItem> = [
   {
     key: 'reviews',
-    label: 'Reviews',
+    label: NAV_LABEL.reviews,
     icon: MessageSquare,
     to: '/properties/$propertyId/reviews',
   },
   {
     key: 'people',
-    label: 'People',
+    label: NAV_LABEL.people,
     icon: Users,
     to: '/properties/$propertyId/people',
     capability: 'staff.use',
   },
   {
     key: 'portals',
-    label: 'Portals',
+    label: NAV_LABEL.portals,
     icon: Globe,
     to: '/properties/$propertyId/portals',
     capability: 'portal.read',
   },
   {
     key: 'goals',
-    label: 'Goals',
+    label: NAV_LABEL.goals,
     icon: Target,
     to: '/properties/$propertyId/goals',
     capability: 'goal.use',
   },
   {
     key: 'property-settings',
-    label: 'Property settings',
+    label: NAV_LABEL.propertySettings,
     icon: SlidersHorizontal,
     to: '/properties/$propertyId/settings',
   },
@@ -185,13 +186,19 @@ function DashboardCategory({
   activeSection: string
 }>) {
   if (!propertyId) {
-    return <InertNavItem icon={LayoutDashboard} label="Dashboard" tooltip="Dashboard" />
+    return (
+      <InertNavItem
+        icon={LayoutDashboard}
+        label={NAV_LABEL.dashboard}
+        tooltip={NAV_LABEL.dashboard}
+      />
+    )
   }
 
   return (
     <CategoryNavItem
       icon={LayoutDashboard}
-      label="Dashboard"
+      label={NAV_LABEL.dashboard}
       isActive={DASHBOARD_SECTIONS.has(activeSection)}
       link={{ to: '/properties/$propertyId', params: { propertyId } }}
     >

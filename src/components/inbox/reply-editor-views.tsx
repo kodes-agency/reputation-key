@@ -177,7 +177,7 @@ export function ReviewReplyPublishedEditor({
             trigger={
               <Button
                 size="sm"
-                // The same rule the thread message's Confirm & Publish follows:
+                // The same rule the thread message's Confirm & publish follows:
                 // a natively disabled button leaves the tab order and takes its
                 // `aria-describedby` with it, so the one sentence naming the
                 // unfilled placeholder becomes reachable by no keyboard and no
@@ -201,7 +201,7 @@ export function ReviewReplyPublishedEditor({
             title="Confirm and update this Google reply?"
             description="This records your confirmation and starts replacing the current Google reply with the exact text shown here. RepKey keeps the update pending until Google confirms it is live."
             cancelLabel="Keep editing"
-            confirmLabel="Confirm & Update"
+            confirmLabel="Confirm & update"
             pendingLabel="Confirming…"
             confirmDisabled={!canSave}
             // A refused update stays in the dialog (the edit mutation passes no

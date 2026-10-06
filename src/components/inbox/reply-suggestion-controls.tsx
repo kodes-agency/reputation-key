@@ -205,7 +205,7 @@ function SuggestionErrorLine(props: SuggestionErrorLineProps) {
               to="/properties/$propertyId/settings/ai"
               params={{ propertyId: props.propertyId }}
             >
-              Enable AI replies
+              Turn on AI replies
             </Link>
           </Button>
         ) : (

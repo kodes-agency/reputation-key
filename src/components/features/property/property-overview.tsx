@@ -19,6 +19,8 @@ import type {
 import { Button } from '#/components/ui/button'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { NAV_LABEL } from '#/components/layout/nav-labels'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { AttentionBand } from './attention-band'
 import { OverviewTile, PULSE_COMPARISON_LABEL, TileCaption } from './overview-tile'
 import {
@@ -178,12 +180,12 @@ export function PropertyOverview({
     <PageShell tier="dashboard">
       <PageHeader
         title="Overview"
-        description={property.name}
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: property.name },
-          { label: 'Overview' },
-        ]}
+        meta={[property.name]}
+        breadcrumbs={trailCrumbs(
+          'property',
+          { propertyId, propertyName: property.name },
+          NAV_LABEL.overview,
+        )}
       />
 
       {setupStrip}

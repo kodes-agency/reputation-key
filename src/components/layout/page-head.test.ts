@@ -117,7 +117,7 @@ describe('a refused page', () => {
     expect(html).toContain('You do not have access to Goals')
     expect(html).toContain('Ask an account admin if you need it.')
     expect(html).toContain('href="/properties"')
-    expect(html).toContain('Back to Properties')
+    expect(html).toContain('Back to properties')
     expect(html).not.toContain('Goals page')
   })
 
@@ -129,8 +129,8 @@ describe('a refused page', () => {
   it('leads a role that cannot open Properties to its profile instead', async () => {
     const { html } = await load('/goals', 'Member')
     expect(html).toContain('href="/settings/profile"')
-    expect(html).toContain('Back to Profile')
-    expect(html).not.toContain('Back to Properties')
+    expect(html).toContain('Back to profile')
+    expect(html).not.toContain('Back to properties')
   })
 })
 
@@ -145,6 +145,6 @@ describe('an address no page answers', () => {
   it('says so in a page of its own, with a way back', async () => {
     const { html } = await load('/nowhere')
     expect(html).toContain('>Page not found</h1>')
-    expect(html).toContain('Back to Properties')
+    expect(html).toContain('Back to properties')
   })
 })

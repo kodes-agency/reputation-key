@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
 import { waitForHydration, clickWhenReady } from '../helpers/interaction'
+import { expectOneH1 } from '../helpers/page-structure'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { expectPortalUnavailable } from '../helpers/guest-unavailable'
 import { attachRequestLog } from '../helpers/request-log'
@@ -52,7 +53,7 @@ async function expectControlledUnavailable(
     await expect(main.getByRole('link', { name: 'Open property settings' })).toHaveCount(
       0,
     )
-    await expect(main.getByRole('link', { name: 'Back to Properties' })).toBeVisible()
+    await expect(main.getByRole('link', { name: 'Back to properties' })).toBeVisible()
   }
 }
 
@@ -122,6 +123,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(
       page.getByRole('link', { name: 'E2E Guest Portal P1', exact: true }),
     ).toBeVisible()
+    await expectOneH1(page)
     // The group's name is on its head row in the table and again in the group editor.
     await expect(
       page
@@ -994,13 +996,13 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByRole('combobox', { name: 'Timezone' })).toBeVisible()
     const nameInput = page.getByLabel('Name')
     await nameInput.fill(`${seed.managerName} Persisted`)
-    await clickWhenReady(page.getByRole('button', { name: 'Save Changes' }))
-    await expect(page.getByText('Profile updated')).toBeVisible()
+    await clickWhenReady(page.getByRole('button', { name: 'Save profile' }))
+    await expect(page.getByText('Profile saved')).toBeVisible()
     await page.reload()
     await expect(nameInput).toHaveValue(`${seed.managerName} Persisted`)
     await nameInput.fill(seed.managerName)
-    await clickWhenReady(page.getByRole('button', { name: 'Save Changes' }))
-    await expect(page.getByText('Profile updated')).toBeVisible()
+    await clickWhenReady(page.getByRole('button', { name: 'Save profile' }))
+    await expect(page.getByText('Profile saved')).toBeVisible()
 
     await page.goto('/settings/notifications')
     // Quiet hours say which clock they run on, and link to where it is set.
@@ -1059,7 +1061,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       await page.getByLabel('New password', { exact: true }).fill(temporaryPassword)
       await page.getByLabel('Confirm new password').fill(temporaryPassword)
       await clickWhenReady(page.getByRole('button', { name: 'Update password' }))
-      await expect(page.getByText('Password changed')).toBeVisible()
+      await expect(page.getByText('Password updated')).toBeVisible()
       await page.getByLabel('Current password').fill(temporaryPassword)
       await page.getByLabel('New password', { exact: true }).fill(seed.password)
       await page.getByLabel('Confirm new password').fill(seed.password)

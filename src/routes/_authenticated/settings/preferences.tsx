@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { PreferencesSettingsPage } from '#/components/features/settings'
 
 export const Route = createFileRoute('/_authenticated/settings/preferences')({
@@ -13,7 +14,7 @@ function PreferencesSettings() {
       <PageHeader
         title="Preferences"
         description="Customize how the app looks and behaves."
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Preferences' }]}
+        breadcrumbs={trailCrumbs('settings', {}, 'Preferences')}
       />
       <PreferencesSettingsPage />
     </>

@@ -75,7 +75,7 @@ export function MerchantAiSettingsActions({
             title={`${enableCallToAction}?`}
             description="You confirm the data-handling notice above and authorize review analysis, editable reply drafting, and de-identified property trends for this property."
             cancelLabel="Cancel"
-            confirmLabel="Confirm and enable"
+            confirmLabel="Confirm & enable"
             pendingLabel="Enabling…"
             confirmDisabled={!canEnable}
             onConfirm={onEnable}

@@ -117,7 +117,7 @@ export function NotificationStackRow({
               icon={Check}
               onSelect={() => actions.onMarkManyRead(unreadIds)}
             >
-              Mark all as read
+              Mark all read
             </RowActionsItem>
           )}
           <RowActionsItem

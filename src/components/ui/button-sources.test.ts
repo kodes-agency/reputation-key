@@ -157,7 +157,7 @@ describe('a pending button is the Button', () => {
     'src/components/features/integration/google-import-manager/google-import-progress-view.tsx':
       'the refresh icon of a progress heading spins while it reads',
     'src/components/features/integration/google-import-manager/google-import-progress-items.tsx':
-      'the status glyph of a progress row, beside a Retry that is a pending Button',
+      'the status glyph of a progress row, beside a Try again that is a pending Button',
     'src/components/inbox/composer-mode-row.tsx': 'a status glyph in the mode row',
     'src/components/ui/load-more-button.tsx':
       'Load more is aria-disabled while it loads, not disabled, so keyboard focus stays in the popover; a pending Button is natively disabled',

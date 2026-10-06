@@ -19,5 +19,5 @@ export async function consentToAi(canvasElement: HTMLElement): Promise<void> {
   )
   await userEvent.click(enable)
   const page = within(canvasElement.ownerDocument.body)
-  await userEvent.click(page.getByRole('button', { name: /confirm and enable/i }))
+  await userEvent.click(page.getByRole('button', { name: /confirm & enable/i }))
 }

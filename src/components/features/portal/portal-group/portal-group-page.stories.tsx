@@ -74,10 +74,11 @@ export const HeaderSaysWhatAGroupIs: Story = {
     await expect(
       canvas.getByRole('heading', { level: 1, name: 'Pool side' }),
     ).toBeInTheDocument()
+    // Meta says what it is and where; the description says what it is for.
+    await expect(canvas.getByText('Group')).toBeInTheDocument()
+    await expect(canvas.getByText('3 portals at Avela Resort')).toBeInTheDocument()
     await expect(
-      canvas.getByText(
-        'Group · 3 portals at Avela Resort · for shared results and goals',
-      ),
+      canvas.getByText('Shared results and goals for the portals in this group.'),
     ).toBeInTheDocument()
     await expect(canvas.getByRole('button', { name: 'Rename' })).toBeInTheDocument()
     // One in the header, and the quiet one under the table.
@@ -250,11 +251,7 @@ export const EmptyGroup: Story = {
     await expect(
       canvas.getByText('Nothing has happened to this group yet.'),
     ).toBeInTheDocument()
-    await expect(
-      canvas.getByText(
-        'Group · 0 portals at Avela Resort · for shared results and goals',
-      ),
-    ).toBeInTheDocument()
+    await expect(canvas.getByText('0 portals at Avela Resort')).toBeInTheDocument()
   },
 }
 

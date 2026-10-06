@@ -356,9 +356,9 @@ type ComposerInPaneProps = Readonly<{
    *
    * The pane's `onSaveDraft` is a real server round trip and it can fail; every
    * other story here uses one that always resolves, so the footer's `error`
-   * branch — `Draft not saved`, `Retry save`, and the `canSubmit` guard that
+   * branch — `Draft not saved`, `Try saving again`, and the `canSubmit` guard that
    * reads `autosave.status !== 'error'` — needs a story that makes it fail.
-   * A COUNT rather than a flag so `Retry save` has something to recover to.
+   * A COUNT rather than a flag so `Try saving again` has something to recover to.
    */
   saveFailures?: number
   /**
@@ -1772,7 +1772,7 @@ export const TemplateIsTheRecommendedDraftingControl: Story = {
  * Row 16 at the integration level: the REAL composer's autosave, printed in
  * the dock's head. Idle says nothing; typing runs the 700 ms debounce
  * (`Saving…`); a failed save reads `Not saved` in destructive ink with its
- * explanation and `Retry save` in the foot; the retry recovers to `Saved`.
+ * explanation and `Try saving again` in the foot; the retry recovers to `Saved`.
  *
  * `saveFailures: 1` rather than "always fails": Retry has to have something to
  * recover TO, or the assertion stops at "the button exists" and never shows
@@ -1780,7 +1780,7 @@ export const TemplateIsTheRecommendedDraftingControl: Story = {
  *
  * It is also the story that keeps the coordinator's status channel honest: it
  * used to latch shut on the first teardown, which StrictMode runs before the
- * first keystroke, so `unsaved` and `error` — and with them `Retry save` and
+ * first keystroke, so `unsaved` and `error` — and with them `Try saving again` and
  * the `autosave.status !== 'error'` clause in `canSubmit`, which stops a
  * manager submitting words the server never received — were dead in dev and
  * in every story. The channel is a replaceable listener slot now; the path
@@ -1810,7 +1810,7 @@ export const AutosaveStatesAt720: Story = atPane({
     expect(canvas.getByRole('button', { name: 'Submit for approval' })).toBeDisabled()
 
     // The retry affordance is a real, reachable, non-primary control.
-    const retry = canvas.getByRole('button', { name: 'Retry save' })
+    const retry = canvas.getByRole('button', { name: 'Try saving again' })
     expect(retry).toBeEnabled()
     expect(retry).toHaveAttribute('data-variant', 'ghost')
     expectSolePrimary(canvasElement, 'Submit for approval')
@@ -1824,7 +1824,7 @@ export const AutosaveStatesAt720: Story = atPane({
     expect(saveStateOf(canvasElement).className).not.toMatch(/text-negative/)
     expect(onSaveDraft).toHaveBeenCalledTimes(2)
     expect(onSaveDraft).toHaveBeenLastCalledWith(DRAFT_TEXT)
-    expect(canvas.queryByRole('button', { name: 'Retry save' })).toBeNull()
+    expect(canvas.queryByRole('button', { name: 'Try saving again' })).toBeNull()
     expect(canvas.queryByText(AUTOSAVE_ERROR)).toBeNull()
     expect(canvas.getByRole('button', { name: 'Submit for approval' })).toBeEnabled()
   },

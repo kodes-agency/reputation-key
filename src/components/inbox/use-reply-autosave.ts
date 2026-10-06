@@ -28,7 +28,7 @@ type AutosaveLifecycle = Readonly<{
  * → mount against the same instance (the one `useState` keeps), and before this
  * was reversible the teardown latched the channel shut before the first
  * keystroke, so `unsaved` and `error` — and with them `Draft not saved` and
- * `Retry save` — never reached the footer in development or in any story.
+ * `Try saving again` — never reached the footer in development or in any story.
  *
  * Exported because the unit project runs in Node with no renderer: this is the
  * effect body itself, so a test can drive the StrictMode cycle directly.

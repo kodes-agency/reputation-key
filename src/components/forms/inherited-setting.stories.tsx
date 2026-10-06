@@ -33,8 +33,8 @@ function DeferredTarget({
         value="24 hours"
         overridden={overridden}
         commit="deferred"
-        inheritLabel="Use Organization target"
-        overrideLabel="Set a Property target"
+        inheritLabel="Use organization target"
+        overrideLabel="Set a property target"
         onInherit={() => setOverridden(false)}
         onOverride={() => setOverridden(true)}
         note={
@@ -134,14 +134,14 @@ export const DeferredInherited: Story = {
     const hours = canvas.getByRole('spinbutton', { name: 'Property hours' })
     expect(hours).toBeDisabled()
 
-    await userEvent.click(canvas.getByRole('button', { name: 'Set a Property target' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Set a property target' }))
 
     expect(canvas.getByText(/Set here instead of/)).toHaveTextContent(
       'Set here instead of the Organization target (24 hours).',
     )
     expect(hours).toBeEnabled()
     // The same button, now the way back: the focus stays on it.
-    const back = canvas.getByRole('button', { name: 'Use Organization target' })
+    const back = canvas.getByRole('button', { name: 'Use organization target' })
     expect(back).toHaveFocus()
   },
 }
@@ -157,7 +157,7 @@ export const DeferredOverridden: Story = {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('spinbutton', { name: 'Property hours' })).toBeEnabled()
 
-    await userEvent.click(canvas.getByRole('button', { name: 'Use Organization target' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Use organization target' }))
 
     expect(canvas.getByRole('spinbutton', { name: 'Property hours' })).toBeDisabled()
     expect(canvas.getByText(/Follows/)).toBeVisible()

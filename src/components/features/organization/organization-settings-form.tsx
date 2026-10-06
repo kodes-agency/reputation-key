@@ -67,7 +67,7 @@ export function OrganizationSettingsForm({
         <CardFooter>
           <FormActions form={form} error={error}>
             <SubmitButton mutation={{ isPending, error }} form={form}>
-              Save changes
+              Save organization
             </SubmitButton>
           </FormActions>
         </CardFooter>

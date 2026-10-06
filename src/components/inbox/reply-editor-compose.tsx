@@ -282,7 +282,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
         </span>
         {/* `ml-auto` keeps the primary against the trailing edge whether the
             foot fits one line or wraps; the footer brings `Delete draft`,
-            `Retry save`, the blocked reason and the error line with it, and
+            `Try saving again`, the blocked reason and the error line with it, and
             the publication guarantee on `Submit for approval`'s tooltip. */}
         <div className="ml-auto">
           <ReplyComposerFooter

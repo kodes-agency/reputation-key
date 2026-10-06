@@ -22,8 +22,9 @@ import { roleUnavailable } from '#/shared/auth/route-notice'
 import { EMPTY_CLIENT_AUTHZ, type ClientAuthz } from '#/shared/domain/auth-context'
 import type { Role } from '#/shared/domain/roles'
 import { propertyKeys } from '#/shared/queries/query-keys'
+import { Button } from '#/components/ui/button'
 import type { PageIdentity } from './page-identity'
-import { PAGE_GUTTER } from './page-shell'
+import { PAGE_GUTTER, PAGE_GUTTER_X } from './page-shell'
 import {
   RouteError,
   RouteNotFound,
@@ -42,17 +43,24 @@ const NEVER = () => new Promise<void>(() => {})
 const pageHeading = (canvasElement: HTMLElement, name: string) =>
   within(canvasElement).findByRole('heading', { level: 1, name })
 
-/** The sidebar as the shell has it: a collapse control and links to two pages. */
+const SIDEBAR_LINK =
+  'rounded-md px-2 py-1 text-sm text-sidebar-foreground hover:bg-sidebar-accent focus-visible:outline-2 focus-visible:outline-sidebar-ring'
+
+/** The sidebar as the shell has it: a collapse control and links to two pages, drawn as a quiet band. */
 function Sidebar() {
   const [open, setOpen] = useSidebarOpen()
   return (
-    <nav aria-label="Sidebar">
-      <button type="button" onClick={() => setOpen(!open)}>
+    <nav
+      aria-label="Sidebar"
+      className={`flex flex-wrap items-center gap-1 border-b bg-sidebar py-2 ${PAGE_GUTTER_X}`}
+    >
+      <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(!open)}>
         {open ? 'Collapse sidebar' : 'Expand sidebar'}
-      </button>
+      </Button>
       {/* `sidebar-menu-button` is the slot the shell restores focus to. */}
       <Link
         data-slot="sidebar-menu-button"
+        className={SIDEBAR_LINK}
         to="/properties/$propertyId/people"
         params={{ propertyId: 'p1' }}
       >
@@ -60,6 +68,7 @@ function Sidebar() {
       </Link>
       <Link
         data-slot="sidebar-menu-button"
+        className={SIDEBAR_LINK}
         to="/properties/$propertyId/goals"
         params={{ propertyId: 'p1' }}
       >
@@ -153,7 +162,7 @@ function buildRouter(scenario: Scenario) {
         entity={{
           heading: 'This group is no longer available',
           reason: 'It may have been archived, or it may belong to a different property.',
-          back: { to: '/properties/p1/portals', label: 'Back to Portals' },
+          back: { to: '/properties/p1/portals', label: 'Back to portals' },
         }}
       />
     ),
@@ -254,7 +263,7 @@ export const EntityGone: Story = {
       'href',
       '/properties/p1/portals',
     )
-    expect(canvas.getByRole('link', { name: 'Back to Portals' })).toBeVisible()
+    expect(canvas.getByRole('link', { name: 'Back to portals' })).toBeVisible()
   },
 }
 
@@ -275,7 +284,7 @@ export const Unavailable: Story = {
     expect(await pageHeading(canvasElement, 'People')).toBeVisible()
     expect(canvas.getByTestId('shell')).toBeVisible()
     expect(canvas.getByText('You do not have access to People')).toBeVisible()
-    expect(canvas.getByRole('link', { name: 'Back to Properties' })).toHaveAttribute(
+    expect(canvas.getByRole('link', { name: 'Back to properties' })).toHaveAttribute(
       'href',
       '/properties',
     )
@@ -332,7 +341,7 @@ export const UnknownAddressInShell: Story = {
     const canvas = within(canvasElement)
     expect(await pageHeading(canvasElement, 'Page not found')).toBeVisible()
     expect(canvas.getByTestId('shell')).toBeVisible()
-    expect(canvas.getByRole('link', { name: 'Back to Properties' })).toBeVisible()
+    expect(canvas.getByRole('link', { name: 'Back to properties' })).toBeVisible()
   },
 }
 

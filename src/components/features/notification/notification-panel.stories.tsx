@@ -1036,7 +1036,7 @@ export const StackDismissAllOffersUndo: Story = {
       within(row).getByRole('button', { name: /^More actions for 3 new reviews / }),
     )
     const menu = within(document.body)
-    await menu.findByRole('menuitem', { name: 'Mark all as read' })
+    await menu.findByRole('menuitem', { name: 'Mark all read' })
     await userEvent.click(menu.getByRole('menuitem', { name: 'Dismiss all 3…' }))
 
     // It asks first, as the page's "Dismiss all" does. Cancel leaves the stack

@@ -358,6 +358,108 @@ keep concept-specific children internal.
 
 Filename, feature-barrel, dependency, and 300-counted-line limits are enforced by `scripts/check-filenames.mjs` and `eslint.config.js`.
 
+## Pattern index
+
+Before adding UI, find the family here. Each one has a single implementation:
+the UI consistency scan of 2 October 2026
+(`docs/design/ui-system/ui-consistency-scan-2026-10-02.md`) found about a hundred
+places where a second had grown beside the first, and every stage of
+`docs/plan/ui-consistency-implementation.md` folded one family back into one
+primitive. Use the canonical component. When it lacks something you need, extend
+it with a prop or a variant (the owner approves new primitives and variants)
+rather than overriding it with `className`. The paragraphs above say how each one
+behaves; this index says where it lives, what it is for and what keeps it that
+way.
+
+- **Import** is the `#/` alias for `src/`.
+- **Differs on purpose** is a decision, not drift (section 4 of the scan report).
+  Do not "fix" it, and do not copy it into a place it does not belong.
+- **Guard** is a Vitest unit test that reads the sources and fails with the file
+  named (`pnpm exec vitest run --project=unit <path>`), given relative to
+  `src/components/` unless it starts with `src/`. **Review** means nothing enforces
+  the family yet, so a reviewer does. A guard's allowlist grows only with a reason
+  written beside the entry.
+- `pattern-index.test.ts` checks that every path and guard named here exists.
+
+### Page frame and states
+
+<!-- prettier-ignore -->
+| Family | Import | Use it for | Variants | Differs on purpose | Guard |
+| --- | --- | --- | --- | --- | --- |
+| Page header and title | `PageHeader` from `#/components/layout/page-header`<br>`trailCrumbs` from `#/components/layout/page-identity`<br>`NAV_LABEL` from `#/components/layout/nav-labels` | The title, breadcrumbs, state line, purpose and actions of every page, and its one `h1`. A trail is `trailCrumbs`, the places named as the sidebar names them | `breadcrumbs`, `meta` (where you are, what state it is in), `description` (one sentence of purpose, never a count, a name or a status), `actions` (default-size Buttons directly in the slot); the tab title comes from the route's `staticData.page` | The Inbox list header, the Portal workspace header and an `AuthCard` title are compact `h1`s of surfaces that own their frame; two pages print a dynamic `description` and say why | `ui/heading-sources.test.ts`, `layout/header-sources.test.ts` |
+| Back control | `BackLink`, `BackButton` from `#/components/ui/back-link`<br>`BackIconButton` from `#/components/ui/back-icon-button` | The way back where there is no breadcrumb trail: a surface with no room for one, and a step that returns to the step before. A ghost small Button with the one arrow, `Back to <place>` | `BackLink` for an address, `BackButton` for a step or a view; `iconBelow` (the arrow alone on a narrow row), `flush` (the arrow on the content edge) | The Inbox detail pane has no room for words: it is the arrow alone, `BackIconButton`; the settings sidebar keeps its "Back to app" row, a menu item | `layout/header-sources.test.ts` |
+| Top bar, account menu, theme | `AppTopBar` from `#/components/layout/app-top-bar`<br>`ThemeModeControl` from `#/components/layout/theme-mode-control` | The signed-in chrome; the theme as one Light / Dark / System control in the menu and on Preferences | | The public Header and Footer keep the public chrome | Review (`layout/theme-mode-control.test.ts` covers the control) |
+| Page gutter and width | `PageShell`, `FullBleedFrame` from `#/components/layout/page-shell`<br>`isFullBleedRoute` from `#/components/layout/full-bleed-route` | `<main>` owns the gutter. A page picks a width `tier`; a surface that owns its scroll asks `isFullBleedRoute` and takes the gutter back from `FullBleedFrame` | `tier`: `dashboard` 1200, `standard` 1024 (lists, management), `narrow` 768 (forms, settings) | The Inbox, property Reviews and the Portal workspace are full-bleed | `layout/page-shell.test.ts`, `layout/full-bleed-route.test.ts` |
+| Sidebar | `Sidebar` from `#/components/ui/sidebar` | The app and settings sidebars, one collapse mode (the icon rail) | | Account and Organization settings swap the sidebar; a Property's settings keep it beside an in-page nav | `ui/sidebar.test.ts` |
+| Page state | `PageState` from `#/components/layout/page-state`<br>`RoutePending`, `RouteError`, `RouteNotFound` from `#/components/layout/route-page-state` | A page that is loading, failed, missing or unavailable, in the page's own title and tier. A route never writes its own | `kind`: `loading`, `error`, `notFound`, `unavailable` | `/unavailable` is only for an account with no workspace; a missing entity names itself through `RouteNotFound` | `src/routes/route-boundaries.test.ts` |
+| Region state | `EmptyState` from `#/components/ui/empty-state`<br>`RegionError` from `#/components/ui/region-error` | A region with nothing to show, nothing that matches or a failed read, with "Try again" | `size`: `default`, `compact`; `tone`: `neutral`, `error` | A dashed box is kept for a drop zone, a private-note cue, a chart line and a chip | `ui/region-states.test.ts` |
+| Document title | `pageHead` from `#/components/layout/page-identity` | The tab title `<Page> \| Reputation Key`, named once on the route | `staticData.page`: `title`, `tier`, `under` | | Review (`layout/page-identity.test.ts` and `layout/page-head.test.ts` cover the rules) |
+
+### Navigation and views
+
+<!-- prettier-ignore -->
+| Family | Import | Use it for | Variants | Differs on purpose | Guard |
+| --- | --- | --- | --- | --- | --- |
+| Section navigation | `SectionNav` from `#/components/ui/section-nav`<br>`SectionNavLayout` from `#/components/ui/section-nav-layout` | The sections of one place (Property settings, the Portal editor's parts) | Items with icon, summary, count and group; `presentation` `list`, `strip`, `auto` (by container width) | The Inbox queue rail and strip keep their own composition, with the same fill, ring and `NavCount` | `ui/nav-link-sources.test.ts`, `ui/section-nav-styles.test.ts`, `ui/nav-contrast.test.ts` |
+| Navigation link | `NavLink` from `#/components/ui/nav-link` | Any link that says where you are: it sets `aria-current` once, from the `current` the nav passes | | | `ui/nav-link-sources.test.ts` |
+| Page views | `LinkTabs`, `LinkTab` from `#/components/ui/link-tabs`<br>`Tabs`, `TabCount` from `#/components/ui/tabs` | Sibling views of one page (a route or a search value): underline tabs | `Tabs variant="line"` for views that swap a panel; the pill `Tabs` only for a mode inside a component | `LinkTabs` is a navigation landmark of links, an in-page `Tabs` is a tablist | `ui/view-switcher-sources.test.ts` |
+| Value choice and range | `SegmentedControl` from `#/components/ui/segmented-control`<br>`RangeControl` from `#/components/ui/range-control` | A short, always-answered choice (a radio group); a time range, worded from `RANGE_PRESET_LABELS` in `#/shared/dashboard-range` | `touch` | The Portal Results window keeps its own preset list and is remembered per reader | `ui/view-switcher-sources.test.ts` |
+
+### Collections
+
+<!-- prettier-ignore -->
+| Family | Import | Use it for | Variants | Differs on purpose | Guard |
+| --- | --- | --- | --- | --- | --- |
+| List toolbar, search, filter, sort | `ListToolbar`, `ListToolbarStatus` from `#/components/ui/list-toolbar`<br>`SearchField` from `#/components/ui/search-field`<br>`ListFilterMenu`, `ListChoiceMenu` from `#/components/ui/list-choice-menu`<br>`ListSortMenu` from `#/components/ui/list-sort-menu`<br>`ResultCount` from `#/components/ui/result-count`<br>`ClearFiltersButton` from `#/components/ui/clear-filters-button`<br>`RemovableChip` from `#/components/ui/removable-chip`<br>`searchMatcher` from `#/components/property/property-search` | A list's search, filter, sort, count and Clear; a removed choice; matching that folds case and accents | `ClearFiltersButton filters={false}` reads "Clear search" | The Inbox composes the same parts compactly (popover on desktop, sheet on a phone) | `ui/list-toolbar-sources.test.ts`, `ui/list-menus.test.ts` |
+| Property choice | `PropertyPicker` from `#/components/property/property-picker` | A form that asks "which property?" | Search from eight properties | The sidebar's property switcher is shell chrome | Review |
+| Table and rows | `DataTable`, `DataTableCell`, `DataTableSortHead` from `#/components/ui/data-table`<br>`ROW_NAME_LINK`, `ROW_FIGURE_LINK`, `ROW_LINK_SURFACE` from `#/components/ui/row-link` | A list of rows that stacks on a phone, and how a row opens things | `layout`: `rows`, `cards`, `scroll`; an `actions` column | The raw `ui/table` stays for a matrix, a wizard step and a chart's data table; Inbox rows are buttons | `ui/data-table-sources.test.ts` |
+| Row actions | `RowActionsMenu`, `RowActionsItem` from `#/components/ui/row-actions-menu` | The menu of one row, card or block, named "More actions for {name}" | `size="small"`, `variant="outline"`; items `destructive`, `opensDialog` | A notification row reveals its small kebab on hover; removing a Property routes to the danger zone | `ui/row-actions-sources.test.ts` |
+| Load more | `LoadMoreButton` from `#/components/ui/load-more-button` | A cursor feed's "Load more" | | The Portals list pages by number | Review |
+| Metrics | `MetricStrip` from `#/components/ui/metric-strip`<br>`MetricDelta` from `#/components/ui/metric-delta` | A number with a caption; a period-over-period change | `boxed`, `ruled`, `embedded`, `tiles` | | `ui/metric-delta.test.ts` (the delta); the strip is Review |
+| Read-only facts | `DescriptionList` from `#/components/ui/description-list` | A fact the person reads and cannot change | `termWidth` `default`, `wide`; `stacked`; `note` | A glossary, a list of key hints and a chart's readout keep their own `<dl>` | `ui/description-list-sources.test.ts` |
+
+### Status, notices and feedback
+
+<!-- prettier-ignore -->
+| Family | Import | Use it for | Variants | Differs on purpose | Guard |
+| --- | --- | --- | --- | --- | --- |
+| Status and tone | `Badge` from `#/components/ui/badge`<br>`StatusBadge` from `#/components/ui/status-badge`<br>`RoleBadge` from `#/components/features/identity/shared/role-badge`<br>`TONE_ICON` from `#/components/ui/tone` | A status pill: a `Badge` tone, or a `StatusBadge` where a feature maps its domain status to a label and a tone | Tones `positive`, `warn`, `negative`, `neutral` | | `ui/tone-sources.test.ts`, `ui/token-contrast.test.ts` |
+| Notice | `Alert` from `#/components/ui/alert` | A notice on the page, with the tone's one icon | `destructive`, `warning`, `success`, `info`, `default` | | `ui/tone-sources.test.ts` |
+| Feedback ownership | `FormErrorBanner` from `#/components/forms/form-error-banner`<br>`useActionMutation` from `#/components/hooks/use-action-mutation`<br>`Toaster` from `#/components/ui/sonner` | A form's failure is a banner above its actions; a row or immediate action reports in a toast. Never both | `DialogErrorBanner` for a dialog | An autosaved Portal form reports in the editor header | `forms/feedback-ownership.test.ts` |
+| Hints and tooltips | `ExplainTrigger` from `#/components/ui/explain-trigger`<br>`Tooltip` from `#/components/ui/tooltip` | Text that explains itself on request; the name of an icon-only control | | | `ui/button-sources.test.ts` |
+
+### Actions and dialogs
+
+<!-- prettier-ignore -->
+| Family | Import | Use it for | Variants | Differs on purpose | Guard |
+| --- | --- | --- | --- | --- | --- |
+| Button | `Button` from `#/components/ui/button`<br>`SubmitButton` from `#/components/forms/submit-button` | Every action. `pending` and `pendingLabel` own the spinner; the density (44px below `md`) is the primitive's | `variant`, `size`, `touch`, `iconBelow`; `data-density="compact"` on a container | The Inbox and the top bar are compact (36px on a phone) | `ui/button-sources.test.ts` |
+| Add action | `AddAction`, `AddActionLink` from `#/components/ui/add-action` | The control that adds a thing to a list: the Plus, then a sentence-case label, in the default Button. It sits in the header's `actions`; a card or a tab that owns a list may carry its own | `AddAction` opens a dialog or a menu or runs a command, `AddActionLink` goes to a page; `size` `default`, `sm` (in a card header) | Portals repeats "New portal" in a fixed bar at the foot of a phone (`PortalPhoneNewPortalBar`); Add staff sits above its table | `ui/add-action-sources.test.ts` |
+| Icon-only control and link in text | `IconButton` from `#/components/ui/icon-button`<br>`InlineLink` from `#/components/ui/inline-link` | A control with no visible label (a required `label`, which is its name and its tooltip); a link set in a sentence | `tooltip`; `focus-ring` for a control that is not a Button | A control that opens a menu or popover shows no tooltip | `ui/button-sources.test.ts` |
+| Confirmation | `ConfirmationDialog`, `ConfirmationTrigger` from `#/components/ui/confirmation-dialog` | Every confirmation. It stays open and pending until `onConfirm` settles, then says a refusal once | `tone`: `destructive` (cannot be undone, or loses data), `neutral` (reversible) | Leave organisation is a `Dialog` (a transfer form), Inbox Reject is inline (it needs a reason); a draft language, an unsent reply draft and one notification skip it | `ui/dialog-sources.test.ts` |
+| Dialog | `Dialog`, `DialogFooter`, `DialogCancel` from `#/components/ui/dialog`<br>`useDialogBusy` from `#/components/ui/dialog-dismissal` | Any other dialog: its width and height bound come from the primitive | `size`: `sm`, `md`, `lg`, `xl`; `busy` while a mutation runs | The two Inbox dialogs drop the corner close; a popover on desktop is a sheet on a phone | `ui/dialog-sources.test.ts`, `ui/dialog-dismissal.test.ts` |
+
+### Forms and settings
+
+<!-- prettier-ignore -->
+| Family | Import | Use it for | Variants | Differs on purpose | Guard |
+| --- | --- | --- | --- | --- | --- |
+| Save group | `FormActions` from `#/components/forms/form-actions` | The one row an explicit-save group saves from: Reset (only while dirty), Save last, right-aligned | `form`, or `dirty` and `onReset`; `leading` | A dialog or a bounded task keeps Cancel; a settings group has none | `forms/form-actions-sources.test.ts` |
+| Fields | `FormTextField` from `#/components/forms/form-text-field`<br>`FormTextarea` from `#/components/forms/form-textarea`<br>`FormNumberField` from `#/components/forms/form-number-field`<br>`FormFieldFrame` from `#/components/forms/form-field-frame`<br>`FormSelectField` from `#/components/forms/form-select-field` | A labelled control with `description`, `optional` and its error | | The Property look keeps its label-left rows | `forms/form-actions-sources.test.ts` (field anatomy, no "(optional)"), `forms/controls-sources.test.ts` (no native control) |
+| Switches, inherited values, consent | `SettingSwitchRow` from `#/components/forms/setting-switch-row`<br>`InheritedSetting` from `#/components/forms/inherited-setting`<br>`ConsentCheckbox` from `#/components/forms/consent-checkbox`<br>`RatingThresholdField` from `#/components/forms/rating-threshold-field` | A boolean setting; "follow the parent or set my own"; a statement the person agrees to; "how low a rating" | `commit`: `immediate`, `deferred` | A `Checkbox` stays for choosing several things from a list | `forms/controls-sources.test.ts` |
+| Image and Google | `ImageSetting` from `#/components/forms/image-setting`<br>`ConnectGoogleButton` from `#/components/features/integration/connect-google-button` | An avatar or a logo; every Google authorization | `label`, `request` | The Property look logo keeps its crop and focal-point dialog | `forms/image-setting-sources.test.ts`, `features/integration/connect-google-button/connect-google-sources.test.ts` |
+| Section titles | `CardTitle` from `#/components/ui/card`<br>`SectionTitle` from `#/components/ui/section-title` | The title of a section: `CardTitle as="h2"` in a Card, `SectionTitle` outside one | `level` 2 or 3 | | `ui/heading-sources.test.ts` |
+
+### Tokens, links, text and copy
+
+<!-- prettier-ignore -->
+| Family | Import | Use it for | Variants | Differs on purpose | Guard |
+| --- | --- | --- | --- | --- | --- |
+| Colour | The tokens in `src/styles.css` | Every colour: no palette class, no `oklch()` or hex in a component. Red text is `text-negative` | | The guest renderer keeps its own colours | `ui/tone-sources.test.ts`, `ui/token-contrast.test.ts` |
+| Links | `InlineLink` from `#/components/ui/inline-link`<br>`NavLink` from `#/components/ui/nav-link` | A plain `<a>` or `Link` is a content link in the accent ink; a link with its own ink opts out by `data-slot` | | | `ui/link-ink.test.ts` |
+| Dates and numbers | `formatDate`, `formatNumber` from `#/lib/format` | The one place a date or a number becomes text | | Notifications and the guest renderer honour a person's or a guest's own locale | `src/lib/format-usage.test.ts` |
+| Action copy | The Action copy section of this file | The words of a button, a confirmation and a crumb | | Domain verbs (Archive, Remove, Restore) and "Keep X" cancel labels | `ui/copy-sources.test.ts` |
+
 ## Server-function boundary
 
 Routes are the normal runtime import site for context server functions. A route
@@ -430,6 +532,105 @@ Use `usePermissions()` for presentation affordances rather than threading
 `canEdit` flags. These affordances never replace server authorization. Prefer one
 cohesive component over one-caller fragments; extract only independently meaningful
 UI or behavior.
+
+## Page header and the way up
+
+`PageHeader` has four slots with one job each: `title` (what the page is, or the
+entity it is about), `meta` (where you are and what state it is in: the Property a
+page is about, a count, a status Badge; each item is one fact and the header puts
+the dot between them), `description` (one sentence of purpose, help text and nothing
+else: no count, no name, no status, no filler such as "Monthly Goal Program") and
+`actions` (what the page lets you do). A header that has no sentence of purpose
+draws none. `header-sources.test.ts` fails on a dynamic `description`; the two pages
+that print one say why.
+
+A page goes up through its breadcrumbs, and there is no back link above them.
+`trailCrumbs(under, where, current)` (`layout/page-identity.ts`) is the one place a
+trail is spelled: every crumb above the page links, the Property's included (to its
+Overview, on Overview too), a loaded page and its fallback draw the same trail, and a
+place is named as the sidebar names it (`NAV_LABEL`, `layout/nav-labels.ts`), so the
+trail says "Property settings" where the sidebar does and a Property's settings
+section is the label of its nav row. A surface with no room for a trail (the
+full-bleed workspace header, the Inbox's detail pane) and a step that returns to the
+step before use the one back control: `BackLink` for an address, `BackButton` for a
+step or a view (`ui/back-link.tsx`), a ghost small Button with the one arrow reading
+"Back to <place>"; `iconBelow` draws the arrow alone on a narrow row and keeps the
+words as the name, `flush` puts the arrow on the content edge, and a row with no room
+for words at all (the Inbox's detail pane) is `BackIconButton`, the arrow with the
+label as its name and tooltip. `PageState`'s way out is the same BackLink, and a way back is never
+announced as the current page.
+
+The page's own add is `AddAction` (a button) or `AddActionLink` (a router link),
+`ui/add-action.tsx`: the default Button, the Plus before a sentence-case label, no
+size or margin on the glyph. It sits in the header's `actions`; a card or a tab that
+owns a list may carry its own (Add staff, Add link). A header's actions are
+default-size Buttons directly in the slot, whose phone height is the Button's.
+Portals alone repeats "New portal" in a fixed bar at the foot of a phone (round-4
+board 11, `PortalPhoneNewPortalBar`): a primary action moves to a bottom bar only for
+a list the person scrolls a long way, with the header's copy hidden below `sm`, and
+everywhere else it stays in the header. Where a word means another scope in another
+nav, the label carries the scope: a Property's settings sections are Property
+profile, Google connection, AI features and Responsible managers, because the
+account has a Profile and an AI overview and the sidebar a People and a Google of
+their own.
+
+## Action copy
+
+One list of words for what every page repeats.
+
+- **Case.** A label (a button, a menu item, a tab, a nav row, a dialog title, a
+  crumb) is sentence case: the first word capitalised, the rest lower case, so a
+  domain noun is a common noun in it ("Archive portal", "New goal", "Back to
+  properties", "Open in goals"). Google, a product role name (Account Admin, Property
+  Manager) and something a person typed keep their capitals. In a button `&` joins two
+  verbs ("Review & publish", "Confirm & publish"); a title or a sentence says "and".
+  Help text and descriptions are prose and follow the glossary, not this list.
+- **Save.** A page with one form saves it with `Save changes`. A page that holds
+  several independent forms (Profile, Organization), and every group of a section that
+  holds several (Property settings), names what each one saves, lower case after
+  "Save": "Save profile", "Save organization", "Save timezone and format", "Save
+  target", "Save reply language", "Save feature access". A form that runs a command
+  names the command: "Update password", "Send invitation", "Create goal". The pending
+  word is the verb in -ing ("Saving…").
+- **Success.** What a Save saved is "<Thing> saved" ("Profile saved", "Responsible
+  managers saved"); a command is its verb in the past tense ("Password updated",
+  "Invitation sent", "Logo removed"). Say what changed: never "successfully".
+- **Cancel, Keep, Close, Done.** Cancel leaves a dialog or a bounded task, before the
+  primary. A destructive confirmation may name what is kept instead ("Keep property",
+  "Keep invitation"): that is deliberate, it says what "no" leaves in place. Close
+  dismisses a dialog that only informs (the Version dialog). Done ends a task that
+  finished and left a receipt. A settings group has no Cancel: it has Reset.
+- **Try again.** Every retry is "Try again" (`RegionError`, `PageState`,
+  `LoadMoreButton`), and never "Retry". A control that runs one named action again
+  says which: "Try saving again" (a draft), "Try this property again" (an import
+  step), "Try publishing again", "Check Google again".
+- **Clear.** One meaning: take the search and the filters off a list ("Clear filters",
+  "Clear search and filters", "Clear search": `ClearFiltersButton`). Deselecting is
+  "Clear selection". Nothing else says Clear.
+- **Mark all read** on the page, in the popover and in a stack's menu; never "Mark all
+  as read". **Dismiss** hides a notification; it is not Delete.
+- **Add, New, Create, Invite, Import.** "New <thing>" starts an entity with a page or
+  a life of its own (New portal, New goal, New group). "Add <thing>" puts a row or a
+  part into a list in place (Add staff, Add link, Add language, Add portal to a
+  group). "Create" is the confirm of a make form that is neither ("Create goal" on the
+  New goal page, "Create template"). "Invite" is for a person who has to accept;
+  "Import from Google" brings records in from Google (the header and the sidebar's
+  property menu say it so).
+- **Remove, Delete, Archive, End, Disable, Cancel.** By what happens. Remove takes a
+  thing out of a place and it can come back or still exists (a member, a language, a
+  portal from a group, a property from the workspace for 30 days). Delete erases it
+  (a link, an unsent draft). Archive retires what is kept for history (a portal, a
+  group, a participation, a property). End closes what does not resume (a goal).
+  Disable switches a public surface off and keeps it. Cancel as a verb withdraws
+  something pending that never took effect ("Cancel invitation"). The menu item that
+  opens a confirmation says the same verb as the confirmation's button.
+- **On and off.** A feature turns "on" and "off" ("Turn on AI analysis", "Turn off AI
+  features"). The AI data-use consent is the exception: its call to action is the
+  versioned notice's own sentence ("Enable AI features for ..."), so that dialog says
+  Enable and "Confirm & enable".
+- **Back** is "Back to <place>" (the back control above), the place being the
+  sidebar's name for it in lower case ("Back to portals"). The Import page is "Import Google properties" in its title and
+  trail; the actions that lead to it say "Import from Google".
 
 ## Verification
 

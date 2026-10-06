@@ -4,6 +4,8 @@ import type { Role } from '#/shared/domain/roles'
 import { DirectoryTab } from '#/components/features/property/people/directory-tab'
 import { StaffTab } from '#/components/features/property/people/staff-tab'
 import { PageHeader } from '#/components/layout/page-header'
+import { NAV_LABEL } from '#/components/layout/nav-labels'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
 import { LinkTab, LinkTabs } from '#/components/ui/link-tabs'
 import type { PortalOption } from '#/components/features/staff/portal-selector'
@@ -72,12 +74,12 @@ export function PeoplePage({
     <PageShell tier="dashboard">
       <PageHeader
         title="People"
-        description="Manage property participation and Portal responsibility."
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: propertyName, to: `/properties/${propertyId}` },
-          { label: 'People' },
-        ]}
+        description="Manage property participation and portal responsibility."
+        breadcrumbs={trailCrumbs(
+          'property',
+          { propertyId, propertyName },
+          NAV_LABEL.people,
+        )}
       />
 
       <div className="flex flex-col gap-4">

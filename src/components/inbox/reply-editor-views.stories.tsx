@@ -1,7 +1,7 @@
 // The edit-and-republish editor for a reply that already reached Google.
 //
 // Its Review update trigger carries the same two a11y rules the thread
-// message's Confirm & Publish does, and for the same reason: a natively
+// message's Confirm & publish does, and for the same reason: a natively
 // `disabled` button leaves the tab order and takes its `aria-describedby` with
 // it, and a paragraph that mounts with its content announces nothing as a live
 // region. Between them they made the one sentence naming an unfilled template

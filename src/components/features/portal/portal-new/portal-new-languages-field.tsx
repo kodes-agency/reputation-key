@@ -3,7 +3,7 @@
 // added from a menu. The first language chosen is the fallback.
 import { Check, ChevronDown, Plus } from 'lucide-react'
 import { cn } from '#/lib/utils'
-import { Button } from '#/components/ui/button'
+import { AddAction } from '#/components/ui/add-action'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -95,11 +95,10 @@ export function PortalNewLanguagesField({
         {addable.length > 0 ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button type="button" variant="ghost" disabled={disabled}>
-                <Plus aria-hidden="true" />
+              <AddAction variant="ghost" disabled={disabled}>
                 Add language
                 <ChevronDown aria-hidden="true" />
-              </Button>
+              </AddAction>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               {addable.map((locale) => (

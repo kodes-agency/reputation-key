@@ -3,8 +3,8 @@
 // are shown. Under the table: a quiet "Add portal", the one-group rule, and what
 // the group's results count.
 import { useState } from 'react'
-import { Globe, Info, Plus } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { Globe, Info } from 'lucide-react'
+import { AddAction } from '#/components/ui/add-action'
 import { DropdownMenuItem } from '#/components/ui/dropdown-menu'
 import { EmptyState } from '#/components/ui/empty-state'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
@@ -112,10 +112,9 @@ export function PortalGroupPortals({
       )}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         {canEdit ? (
-          <Button variant="ghost" size="sm" onClick={onAdd}>
-            <Plus aria-hidden="true" />
+          <AddAction variant="ghost" size="sm" onClick={onAdd}>
             Add portal
-          </Button>
+          </AddAction>
         ) : null}
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Info className="size-3.5 shrink-0" aria-hidden="true" />A portal can be in one

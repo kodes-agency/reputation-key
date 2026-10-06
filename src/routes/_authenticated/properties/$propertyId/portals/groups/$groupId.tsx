@@ -97,7 +97,7 @@ function GroupNoLongerAvailable() {
       entity={{
         heading: 'This group is no longer available',
         reason: 'It may have been archived, or it may belong to a different property.',
-        back: { to: `/properties/${propertyId}/portals`, label: 'Back to Portals' },
+        back: { to: `/properties/${propertyId}/portals`, label: 'Back to portals' },
       }}
     />
   )

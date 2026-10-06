@@ -209,7 +209,8 @@ export const Default: Story = {
       canvas.getByRole('link', { name: 'Google not linked for Initech Campus' }),
     ).toHaveAttribute('href', '/properties/prop-initech/settings/google')
     expect(canvas.getByText('Paused')).toBeVisible()
-    expect(canvas.getByText('6 properties · 1 paused')).toBeVisible()
+    expect(canvas.getByText('6 properties')).toBeVisible()
+    expect(canvas.getByText('1 paused')).toBeVisible()
     expect(
       canvas.getByText('Ratings and review counts are all-time.', { exact: false }),
     ).toBeVisible()

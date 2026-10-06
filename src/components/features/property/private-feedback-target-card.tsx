@@ -99,8 +99,8 @@ function PrivateFeedbackTargetFormCard({
                 value={`${organizationHours} ${organizationHours === 1 ? 'hour' : 'hours'}`}
                 overridden={!field.state.value}
                 commit="deferred"
-                inheritLabel="Use Organization target"
-                overrideLabel="Set a Property target"
+                inheritLabel="Use organization target"
+                overrideLabel="Set a property target"
                 onInherit={() => field.handleChange(true)}
                 onOverride={() => field.handleChange(false)}
                 note={
@@ -132,7 +132,7 @@ function PrivateFeedbackTargetFormCard({
         <CardFooter>
           <FormActions form={form} error={updatePolicy.error}>
             <SubmitButton mutation={updatePolicy} form={form}>
-              Save Property target
+              Save target
             </SubmitButton>
           </FormActions>
         </CardFooter>

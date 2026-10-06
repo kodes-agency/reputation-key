@@ -1,7 +1,8 @@
-import { ArrowLeft, MessageSquare, X } from 'lucide-react'
+import { MessageSquare, X } from 'lucide-react'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import type { InboxDetailState } from './use-inbox-detail'
 import { InboxDetailCopyMenu } from './inbox-detail-copy-menu'
+import { BackIconButton } from '#/components/ui/back-icon-button'
 import { IconButton } from '#/components/ui/icon-button'
 
 /**
@@ -75,33 +76,13 @@ export function InboxDetailHeader({ item, detail, onClose, dismiss = 'close' }: 
   return (
     <header className="flex h-14 min-w-0 shrink-0 items-center gap-2 border-b px-5 max-md:h-11 max-md:px-4 lg:px-6">
       {dismiss === 'back' && (
-        <IconButton
-          size="icon-sm"
-          variant="ghost"
-          // 36 px below `md` (row 20 — v1's row 15 made it 44), and pulled
-          // back into the header's own padding so its GLYPH, not its box, sits
-          // on the content edge. A ghost button draws no box at rest; the arrow
-          // is the only thing on screen, so the arrow is what has to line up.
-          // The rule is half of (button − 16 px glyph): 10 px for this 36 px
-          // button, so `-ml-2.5`. Keeping the 32 px button's `-ml-2` after the
-          // resize would have left the arrow 2 px right of the line; v1's `-ml-2`
-          // on a 44 px button left it 6 px right.
-          //
-          // The phone gutter is 16 px (`max-md:px-4`), so the arrow's left edge
-          // is x=16: the same x as the list's glyphs and text and as the case
-          // toolbar's first control below it. The sheet draws no `border-l`
-          // below `sm`, so nothing shifts it when the sheet slides over the
-          // list. The sheet is this variant's only caller, and it is the
-          // compact layout, which renders up to 1077 px, not only on phones:
-          // phones get the 36 px back button and the 16 px gutter, tablets keep
-          // the 32 px button inside the 20 px gutter (`px-5`). `-ml-2.5` is not
-          // gated by a breakpoint, so it applies to both.
-          className="-ml-2.5"
-          label="Back to list"
-          onClick={onClose}
-        >
-          <ArrowLeft />
-        </IconButton>
+        // The one back control, the arrow alone (this row has no room for words) and
+        // `flush`: its glyph, not its 36 px box, sits on the 16 px phone gutter, the
+        // same x as the list's glyphs and the case toolbar's first control. The sheet
+        // is this variant's only caller, and it is the compact layout, which renders
+        // up to 1077 px, so tablets keep the 32 px button inside the 20 px gutter;
+        // `flush` is not gated by a breakpoint.
+        <BackIconButton flush label="Back to list" onClick={onClose} />
       )}
 
       {/* Two `max-md:hidden`s, and they were the difference between this

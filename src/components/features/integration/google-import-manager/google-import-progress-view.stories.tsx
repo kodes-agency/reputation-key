@@ -251,7 +251,7 @@ export const Processing: Story = {
     await expect(canvas.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50')
     // The browser has the viewer's clock, so the caption carries the time.
     await expect(canvas.getByText(/50% complete · Last updated/)).toBeVisible()
-    const retries = canvas.getAllByRole('button', { name: /retry/i })
+    const retries = canvas.getAllByRole('button', { name: /try (this property )?again/i })
     await userEvent.click(retries[0]!)
     await expect(canvas.getByRole('status')).toHaveTextContent(/retry requested/i)
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
@@ -344,7 +344,9 @@ export const RejectedProfile: Story = {
       name: /import juniper street café again/i,
     })
     await expect(links[0]).toHaveAttribute('href', '/properties/import-google')
-    await expect(canvas.queryByRole('button', { name: /retry/i })).toBeNull()
+    await expect(
+      canvas.queryByRole('button', { name: /try (this property )?again/i }),
+    ).toBeNull()
   },
 }
 
@@ -420,7 +422,7 @@ export const RetryInFlight: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const retryButtons = canvas.getAllByRole('button', { name: /retrying/i })
+    const retryButtons = canvas.getAllByRole('button', { name: /trying again/i })
     await Promise.all(retryButtons.map((button) => expect(button).toBeDisabled()))
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
   },

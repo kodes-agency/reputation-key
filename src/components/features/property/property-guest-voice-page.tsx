@@ -3,6 +3,8 @@ import { Link } from '@tanstack/react-router'
 import { DashboardRangeControl } from '#/components/features/dashboard/dashboard-range-control'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { PageHeader } from '#/components/layout/page-header'
+import { NAV_LABEL } from '#/components/layout/nav-labels'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
@@ -177,7 +179,7 @@ function DisabledGuestVoice({ propertyId }: Readonly<{ propertyId: string }>) {
         {can('ai.manage') ? (
           <Button asChild size="sm">
             <Link to="/properties/$propertyId/settings/ai" params={{ propertyId }}>
-              Enable AI analysis
+              Turn on AI analysis
             </Link>
           </Button>
         ) : (
@@ -253,11 +255,11 @@ export function PropertyGuestVoicePage({
       <PageHeader
         title="Guest voice"
         description="What guests praise, what needs attention, and how the picture is changing."
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: propertyName },
-          { label: 'Guest voice' },
-        ]}
+        breadcrumbs={trailCrumbs(
+          'property',
+          { propertyId, propertyName },
+          NAV_LABEL.guests,
+        )}
         actions={<DashboardRangeControl range={range} onRangeChange={onRangeChange} />}
       />
 

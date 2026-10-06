@@ -98,7 +98,7 @@ export const ValidationError: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.clear(canvas.getByLabelText(/name/i))
-    await userEvent.click(canvas.getByRole('button', { name: /save changes/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /save profile/i }))
     expect(await canvas.findByText(/name is required/i)).toBeInTheDocument()
   },
 }
@@ -118,7 +118,7 @@ export const Success: Story = {
     const nameField = canvas.getByLabelText(/name/i)
     await userEvent.clear(nameField)
     await userEvent.type(nameField, 'Jane Smith')
-    await userEvent.click(canvas.getByRole('button', { name: /save changes/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /save profile/i }))
     await waitFor(() => {
       expect(submitSpy).toHaveBeenCalledWith({ data: { name: 'Jane Smith' } })
     })
@@ -142,7 +142,7 @@ export const ResetRestoresTheSavedName: Story = {
       expect(canvas.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument(),
     )
     // Save is last in the row, in the card with the fields.
-    const save = canvas.getByRole('button', { name: /save changes/i })
+    const save = canvas.getByRole('button', { name: /save profile/i })
     expect(save.closest('[data-slot="form-actions"]')).not.toBeNull()
     expect(save.closest('[data-slot="card"]')).toContainElement(nameField)
   },

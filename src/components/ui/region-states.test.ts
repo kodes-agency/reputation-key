@@ -68,17 +68,11 @@ describe('dashed panels', () => {
 })
 
 /**
- * The files that may still say "Retry", each for a job that is not the recovery
- * from a region that failed to load. Everything else says "Try again".
+ * The files that may say "Retry", each for a job that is not a recovery: none at
+ * present. A button that saves, publishes or imports again names what it runs again
+ * ("Try saving again"), as the Action copy list says.
  */
-const RETRY_ALLOWED: Readonly<Record<string, string>> = {
-  'src/components/inbox/reply-composer-footer.tsx':
-    '"Retry save" saves the person’s own draft again: an action, not a read',
-  'src/components/features/integration/google-import-manager/google-import-progress-items.tsx':
-    '"Retry this property" runs one failed import step again: an action, not a read',
-  'src/components/features/property/google-performance-section.tsx':
-    '"Retry in 30s" counts down a Google rate limit before Refresh comes back',
-}
+const RETRY_ALLOWED: Readonly<Record<string, string>> = {}
 
 /**
  * A wrong label wherever a person could read it: JSX text on a line of its own,

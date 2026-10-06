@@ -27,7 +27,7 @@ afterEach(() => vi.useRealTimers())
 describe('reply autosave mount lifecycle', () => {
   // The regression: StrictMode runs mount → teardown → mount against the
   // coordinator `useState` keeps, so a teardown that cannot be undone silences
-  // the status before the first keystroke — `Draft not saved` and `Retry save`
+  // the status before the first keystroke — `Draft not saved` and `Try saving again`
   // unreachable in development and in every storybook test.
   it('still reports a failed save after StrictMode mounts, tears down and mounts again', async () => {
     vi.useFakeTimers()

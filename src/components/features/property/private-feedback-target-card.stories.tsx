@@ -77,10 +77,10 @@ export const Saved: Story = {
 
     await userEvent.clear(hours)
     await userEvent.type(hours, '24')
-    await userEvent.click(canvas.getByRole('button', { name: 'Save Property target' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Save target' }))
 
     await waitFor(() => expect(updatePolicySpy).toHaveBeenCalledOnce())
-    const save = canvas.getByRole('button', { name: 'Save Property target' })
+    const save = canvas.getByRole('button', { name: 'Save target' })
     expect(save.closest('[data-slot="card-footer"]')).not.toBeNull()
   },
 }
@@ -120,7 +120,7 @@ export const FollowsTheOrganizationTarget: Story = {
     const hours = canvas.getByLabelText('Property hours')
     expect(hours).toBeEnabled()
 
-    await userEvent.click(canvas.getByRole('button', { name: 'Use Organization target' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Use organization target' }))
     expect(canvas.getByText(/Follows/)).toHaveTextContent(
       'Follows the Organization target, currently 36 hours.',
     )
@@ -132,11 +132,11 @@ export const FollowsTheOrganizationTarget: Story = {
     // Reset puts the saved override back, and the focus stays in the group.
     await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
     expect(canvas.getByText(/Set here instead of/)).toBeVisible()
-    expect(canvas.getByRole('button', { name: 'Use Organization target' })).toHaveFocus()
+    expect(canvas.getByRole('button', { name: 'Use organization target' })).toHaveFocus()
     expect(canvas.getByLabelText('Property hours')).toBeEnabled()
 
-    await userEvent.click(canvas.getByRole('button', { name: 'Use Organization target' }))
-    await userEvent.click(canvas.getByRole('button', { name: 'Save Property target' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Use organization target' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Save target' }))
     await waitFor(() => expect(updatePolicySpy).toHaveBeenCalledOnce())
     expect(updatePolicySpy).toHaveBeenCalledWith({
       data: expect.objectContaining({ scope: 'property', durationMinutes: null }),

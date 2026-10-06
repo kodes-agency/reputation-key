@@ -116,7 +116,7 @@ export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) 
       <DialogFooter>
         <DialogCancel />
         <SubmitButton mutation={mutation} form={form}>
-          Send Invitation
+          Send invitation
         </SubmitButton>
       </DialogFooter>
     </form>

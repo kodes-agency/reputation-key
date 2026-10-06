@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '#/components/ui/tooltip
 import type { ReplyAutosaveStatus } from './use-reply-autosave'
 
 type Props = Readonly<{
-  /** Read for `Retry save` only; the status itself is printed in the dock's head. */
+  /** Read for `Try saving again` only; the status itself is printed in the dock's head. */
   status: ReplyAutosaveStatus
   error: string | null
   canSubmit: boolean
@@ -77,7 +77,7 @@ export function ReplyComposerFooter({
             // the error line below before it rejects.
             onClick={() => void onRetrySave().catch(() => undefined)}
           >
-            Retry save
+            Try saving again
           </Button>
         )}
         {onDelete && (
@@ -181,7 +181,7 @@ export function ReplyComposerFooter({
           it would report one refusal twice. Polite, not an alert: the dock's
           head already announces an autosave failure, and an assertive region
           would repeat and interrupt. Every new attempt to save — a keystroke,
-          `Retry save`, a flush — first emits a status with no error, which
+          `Try saving again`, a flush — first emits a status with no error, which
           empties the line, so a second failure is a fresh change and is
           announced again. Submit points `aria-describedby` at it while it has
           something to say. */}

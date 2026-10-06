@@ -8,6 +8,7 @@ import { importFns, importSetupFns } from './-import-fns'
 import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { requireGoogleImportRole } from './-route-access'
 
@@ -30,7 +31,6 @@ export const Route = createFileRoute('/_authenticated/properties/import-google/'
   staticData: {
     page: {
       title: 'Import Google properties',
-      crumb: 'Import properties',
       under: 'properties',
     },
   },
@@ -62,11 +62,7 @@ function ImportPage() {
       <PageHeader
         title="Import Google properties"
         description="Discover, review, and import locations from Google Business Profile."
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: 'Import properties' },
-        ]}
-        backTo={{ to: '/properties', label: 'Back to properties' }}
+        breadcrumbs={trailCrumbs('properties', {}, 'Import Google properties')}
       />
 
       {search.error ? (

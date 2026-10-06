@@ -127,13 +127,13 @@ export const NotFound: Story = {
     tier: 'dashboard',
     heading: 'This group is no longer available',
     reason: 'It may have been archived, or it may belong to a different property.',
-    back: { to: '/properties/p1/portals', label: 'Back to Portals' },
+    back: { to: '/properties/p1/portals', label: 'Back to portals' },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('heading', { level: 1, name: 'Portal group' })).toBeVisible()
     expect(canvas.getByText('This group is no longer available')).toBeVisible()
-    expect(canvas.getByRole('link', { name: 'Back to Portals' })).toHaveAttribute(
+    expect(canvas.getByRole('link', { name: 'Back to portals' })).toHaveAttribute(
       'href',
       '/properties/p1/portals',
     )
@@ -155,7 +155,7 @@ export const Unavailable: Story = {
     heading: 'Goals is not part of this beta',
     reason:
       'This capability is switched off for the closed beta and cannot be enabled from Settings.',
-    back: { to: '/properties', label: 'Back to Properties' },
+    back: { to: '/properties', label: 'Back to properties' },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -164,7 +164,7 @@ export const Unavailable: Story = {
     expect(
       canvas.getByText(/switched off for the closed beta and cannot be enabled/),
     ).toBeVisible()
-    expect(canvas.getByRole('link', { name: 'Back to Properties' })).toHaveAttribute(
+    expect(canvas.getByRole('link', { name: 'Back to properties' })).toHaveAttribute(
       'href',
       '/properties',
     )

@@ -160,7 +160,7 @@ export function PortalAllPropertiesPage({
     <PageShell tier="dashboard">
       <PageHeader
         title="Portals"
-        description={describeAllProperties(
+        meta={describeAllProperties(
           {
             properties: overview.propertyCount,
             portals: overview.total,

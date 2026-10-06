@@ -192,7 +192,7 @@ export function ReplyMessage({
   if (!view || !reply) return null
 
   // A reject that lands remounts the row as the rejected view and takes the
-  // focused Confirm Reject with it; focus goes to that view's Edit & resubmit.
+  // focused Confirm rejection with it; focus goes to that view's Edit & resubmit.
   // A refused one leaves the panel open, so it asks for nothing.
   const target = reply.id
   const reject = (reason?: string) => {

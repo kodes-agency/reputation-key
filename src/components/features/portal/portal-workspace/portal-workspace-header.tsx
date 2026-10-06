@@ -14,8 +14,8 @@
 // button), which is the order the Tab key and a screen reader follow.
 
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft } from 'lucide-react'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
+import { BackLink } from '#/components/ui/back-link'
 import { Button } from '#/components/ui/button'
 import { cn } from '#/lib/utils'
 import type { ReactNode } from 'react'
@@ -65,27 +65,21 @@ export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
       )}
     >
       {reviewing ? (
-        <Button variant="ghost" size="sm" asChild className="-ml-2">
-          <Link
-            to="/properties/$propertyId/portals/$portalId"
-            params={{ propertyId, portalId }}
-            search={{ tab: props.activeTab, section: props.activeSection }}
-          >
-            <ArrowLeft aria-hidden /> Back to editing
-          </Link>
-        </Button>
+        <BackLink
+          to="/properties/$propertyId/portals/$portalId"
+          params={{ propertyId, portalId }}
+          search={{ tab: props.activeTab, section: props.activeSection }}
+          label="Back to editing"
+          flush
+        />
       ) : (
-        <Button
-          variant="ghost"
-          size="sm"
-          asChild
-          className="-ml-2 min-w-11 px-0 sm:min-w-0 sm:px-3"
-        >
-          <Link to="/properties/$propertyId/portals" params={{ propertyId }}>
-            <ArrowLeft aria-hidden />{' '}
-            <span className="sr-only sm:not-sr-only">Portals</span>
-          </Link>
-        </Button>
+        <BackLink
+          to="/properties/$propertyId/portals"
+          params={{ propertyId }}
+          label="Back to portals"
+          iconBelow="sm"
+          flush
+        />
       )}
       {/* In review the way back keeps its words ("Back to editing" is the only
           way back on a phone), so the title takes a row of its own there. */}

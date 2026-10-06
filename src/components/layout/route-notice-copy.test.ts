@@ -33,26 +33,26 @@ describe('a role that cannot open the page', () => {
       title: 'People',
       heading: 'You do not have access to People',
       reason: 'Ask an account admin if you need it.',
-      back: { to: '/properties', label: 'Back to Properties' },
+      back: { to: '/properties', label: 'Back to properties' },
     })
   })
 
   it('sends a role with no Properties to its profile', () => {
     expect(
       noticeProps({ cause: 'role', title: 'Properties', back: 'profile' }).back,
-    ).toEqual({ to: '/settings/profile', label: 'Back to Profile' })
+    ).toEqual({ to: '/settings/profile', label: 'Back to profile' })
   })
 
   it('reads a subject that is not a noun as the sentence’s object', () => {
     const copy = noticeProps({
       cause: 'role',
-      title: 'New Goal',
+      title: 'New goal',
       subject: 'this page',
-      back: { to: '/properties/p1/goals', label: 'Back to Goals' },
+      back: { to: '/properties/p1/goals', label: 'Back to goals' },
     })
     expect(copy.heading).toBe('You do not have access to this page')
-    expect(copy.title).toBe('New Goal')
-    expect(copy.back).toEqual({ to: '/properties/p1/goals', label: 'Back to Goals' })
+    expect(copy.title).toBe('New goal')
+    expect(copy.back).toEqual({ to: '/properties/p1/goals', label: 'Back to goals' })
   })
 })
 
@@ -87,7 +87,7 @@ describe('a feature that is switched off', () => {
       expect(
         noticeProps({ cause: 'feature', title: 'Portals', category, propertyId: 'p2' })
           .back,
-      ).toEqual({ to: '/properties', label: 'Back to Properties' })
+      ).toEqual({ to: '/properties', label: 'Back to properties' })
     }
   })
 
@@ -98,7 +98,7 @@ describe('a feature that is switched off', () => {
         title: 'Goals',
         category: 'needs_admin_enablement',
       }).back,
-    ).toEqual({ to: '/properties', label: 'Back to Properties' })
+    ).toEqual({ to: '/properties', label: 'Back to properties' })
   })
 })
 
@@ -113,7 +113,7 @@ describe('a way back inside the Property in the address', () => {
       ).back,
     ).toEqual({
       to: '/properties/p1/settings/profile',
-      label: 'Back to Property settings',
+      label: 'Back to property settings',
     })
   })
 
@@ -121,7 +121,7 @@ describe('a way back inside the Property in the address', () => {
     expect(
       noticeProps({ cause: 'role', title: 'Review and publish', back: 'portal' }, where)
         .back,
-    ).toEqual({ to: '/properties/p1/portals/pt1', label: 'Back to Portal' })
+    ).toEqual({ to: '/properties/p1/portals/pt1', label: 'Back to portal' })
   })
 
   it('leads back to the Portals list when the address names no Portal', () => {
@@ -130,7 +130,7 @@ describe('a way back inside the Property in the address', () => {
         { cause: 'role', title: 'Review and publish', back: 'portal' },
         { canOpenProperties: true, propertyId: 'p1' },
       ).back,
-    ).toEqual({ to: '/properties/p1/portals', label: 'Back to Portals' })
+    ).toEqual({ to: '/properties/p1/portals', label: 'Back to portals' })
   })
 
   it('falls back to the way out of the app when the address names no Property', () => {
@@ -139,13 +139,13 @@ describe('a way back inside the Property in the address', () => {
         { cause: 'role', title: 'AI settings', back: 'propertySettings' },
         { canOpenProperties: true },
       ).back,
-    ).toEqual({ to: '/properties', label: 'Back to Properties' })
+    ).toEqual({ to: '/properties', label: 'Back to properties' })
   })
 })
 
 describe('a way back the reader cannot follow', () => {
   const noProperties = { canOpenProperties: false }
-  const profile = { to: '/settings/profile', label: 'Back to Profile' }
+  const profile = { to: '/settings/profile', label: 'Back to profile' }
 
   it('leads a role that cannot open Properties to its profile, not into a second refusal', () => {
     expect(
@@ -162,7 +162,7 @@ describe('a way back the reader cannot follow', () => {
   })
 
   it('keeps a link of the notice’s own, which the reader was already allowed to open', () => {
-    const own = { to: '/properties/p1/goals', label: 'Back to Goals' }
+    const own = { to: '/properties/p1/goals', label: 'Back to goals' }
     expect(
       noticeProps({ cause: 'role', title: 'Goal', back: own }, noProperties).back,
     ).toEqual(own)
@@ -174,6 +174,6 @@ describe('a Property that is not there', () => {
     const copy = noticeProps(PROPERTY_NOT_FOUND)
     expect(copy.kind).toBe('notFound')
     expect(copy.heading).toMatch(/not found/i)
-    expect(copy.back).toEqual({ to: '/properties', label: 'Back to Properties' })
+    expect(copy.back).toEqual({ to: '/properties', label: 'Back to properties' })
   })
 })

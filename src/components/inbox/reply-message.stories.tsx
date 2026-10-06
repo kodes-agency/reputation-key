@@ -10,7 +10,7 @@
 //   · the meta line is a timestamp and nothing else — no actor, ever, because
 //     `ReplyData` carries `createdBy` / `approvedBy` / `rejectedBy` as bare
 //     `UserId` and no name exists anywhere in the payload;
-//   · Confirm & Publish is unreachable without its dialog;
+//   · Confirm & publish is unreachable without its dialog;
 //   · an unfilled template slot blocks publishing AND says why, on the button;
 //   · `Needs a check` never offers a second send;
 //   · a publish failure offers Try again and NOTHING else — no server path
@@ -298,7 +298,7 @@ export const AwaitingApproval: Story = {
     const article = expectMessage(canvasElement, 'Submitted', SUBMITTED_AT)
     const message = within(article)
     expect(message.getByText('Awaiting approval')).toBeVisible()
-    expect(message.getByRole('button', { name: 'Confirm & Publish' })).toBeEnabled()
+    expect(message.getByRole('button', { name: 'Confirm & publish' })).toBeEnabled()
     expect(message.getByRole('button', { name: 'Reject' })).toBeEnabled()
     // Nothing else: publishing and refusing are the only two moves here.
     expect(message.getAllByRole('button')).toHaveLength(2)
@@ -315,7 +315,7 @@ export const ConfirmAndPublishAsksFirst: Story = {
     resetSpies()
     const canvas = within(canvasElement)
 
-    await userEvent.click(canvas.getByRole('button', { name: 'Confirm & Publish' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Confirm & publish' }))
     const dialog = await within(document.body).findByRole('alertdialog')
     // The copy mounts with the dialog's entry animation — wait for it rather
     // than sampling the first frame.
@@ -327,7 +327,7 @@ export const ConfirmAndPublishAsksFirst: Story = {
     expect(onApprove).not.toHaveBeenCalled()
 
     await userEvent.click(
-      within(dialog).getByRole('button', { name: 'Confirm & Publish' }),
+      within(dialog).getByRole('button', { name: 'Confirm & publish' }),
     )
     expect(onApprove).toHaveBeenCalledOnce()
   },
@@ -349,7 +349,7 @@ export const PublishBlockedByTemplateSlot: Story = {
   play: async ({ canvasElement }) => {
     resetSpies()
     const canvas = within(canvasElement)
-    const publish = canvas.getByRole('button', { name: 'Confirm & Publish' })
+    const publish = canvas.getByRole('button', { name: 'Confirm & publish' })
     const reason = canvas.getByText(UNFILLED_SLOT_MESSAGE)
 
     // Blocked, and still a control a keyboard can land on.
@@ -409,7 +409,7 @@ export const RejectRevealsReasonField: Story = {
       REJECTION_REASON,
     )
 
-    await userEvent.click(canvas.getByRole('button', { name: 'Confirm Reject' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Confirm rejection' }))
     expect(onReject).toHaveBeenCalledWith(REJECTION_REASON)
 
     await userEvent.click(canvas.getByRole('button', { name: 'Cancel' }))
@@ -426,7 +426,7 @@ export const RejectRevealsReasonField: Story = {
  * constant `'reply'`, so React reuses that instance when the reply moves on —
  * and a reply that is already rejected has no reject action to open a panel
  * for. Without both halves of the fix the manager is left looking at an open
- * reject box, and a Confirm Reject button, for a reply they just rejected.
+ * reject box, and a Confirm rejection button, for a reply they just rejected.
  */
 export const RejectingClosesThePanel: Story = {
   args: { reply: makeReply() },
@@ -445,7 +445,7 @@ export const RejectingClosesThePanel: Story = {
       await canvas.findByRole('textbox', { name: REJECT_REASON_LABEL }),
       REJECTION_REASON,
     )
-    await userEvent.click(canvas.getByRole('button', { name: 'Confirm Reject' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Confirm rejection' }))
     expect(onReject).toHaveBeenCalledWith(REJECTION_REASON)
 
     // The reply is rejected now, so the panel, its buttons and the action that
@@ -455,7 +455,7 @@ export const RejectingClosesThePanel: Story = {
       expect(canvas.getByRole('button', { name: 'Edit & resubmit' })).toBeVisible(),
     )
     expect(canvas.queryByRole('textbox', { name: REJECT_REASON_LABEL })).toBeNull()
-    expect(canvas.queryByRole('button', { name: 'Confirm Reject' })).toBeNull()
+    expect(canvas.queryByRole('button', { name: 'Confirm rejection' })).toBeNull()
     expect(canvas.queryByRole('button', { name: 'Reject' })).toBeNull()
     expect(canvas.getByText(REJECTION_REASON)).toBeVisible()
     // The row remounted as the rejected view and took the focused Confirm
@@ -509,7 +509,7 @@ export const ADifferentReplyGetsACleanPanel: Story = {
 export const AwaitingApprovalWhileSaving: Story = {
   args: { reply: makeReply(), isSaving: true },
   play: async ({ canvas }) => {
-    expect(canvas.getByRole('button', { name: 'Confirm & Publish' })).toBeDisabled()
+    expect(canvas.getByRole('button', { name: 'Confirm & publish' })).toBeDisabled()
     expect(canvas.getByRole('button', { name: 'Reject' })).toBeDisabled()
   },
 }

@@ -799,7 +799,7 @@ export const FullRail: Story = {
     })
     await expect(within(replyArticle).getByText('Awaiting approval')).toBeVisible()
     await expect(
-      within(replyArticle).getByRole('button', { name: 'Confirm & Publish' }),
+      within(replyArticle).getByRole('button', { name: 'Confirm & publish' }),
     ).toBeVisible()
     await expect(canvas.getAllByText(sentence('Opened from Google'))).toHaveLength(1)
     expectsNoRawIds(canvasElement)
@@ -990,7 +990,7 @@ function replyNodeStory(
 export const ReplyAwaitingApproval = replyNodeStory(
   'awaitingApproval',
   'Awaiting approval',
-  ['Confirm & Publish', 'Reject'],
+  ['Confirm & publish', 'Reject'],
 )
 export const ReplyAwaitingApprovalPhone = onPhone(ReplyAwaitingApproval)
 

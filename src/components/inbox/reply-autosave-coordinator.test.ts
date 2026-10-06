@@ -137,7 +137,7 @@ describe('reply autosave coordinator', () => {
   // StrictMode mounts, tears the mount down and mounts again against the SAME
   // coordinator — the one `useState` keeps — so teardown must be reversible.
   // While it latched the channel shut, `unsaved` and `error` (and with them
-  // `Draft not saved` and `Retry save`) were unreachable in dev and in stories.
+  // `Draft not saved` and `Try saving again`) were unreachable in dev and in stories.
   it('keeps reporting status through a subscribe → unsubscribe → subscribe cycle', async () => {
     vi.useFakeTimers()
     const save = vi

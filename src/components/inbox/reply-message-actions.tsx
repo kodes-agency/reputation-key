@@ -161,7 +161,7 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
    * `<body>` and loses the reader's place in the thread (WCAG 2.4.3), the rule
    * `inbox-thread.tsx` states for the fold's toggle and follows for the same
    * reason. The trigger is mounted whenever Cancel is: both depend on
-   * `canReject`. Confirm Reject does NOT close the panel: a refused reject
+   * `canReject`. Confirm rejection does NOT close the panel: a refused reject
    * leaves it open with the reason still typed, and a successful one remounts
    * this whole row as the rejected view, so `ReplyMessage` — above the row's
    * key — is what returns the focus that remount takes.
@@ -209,13 +209,13 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
                   if (publishBlockedReason !== null) event.preventDefault()
                 }}
               >
-                Confirm &amp; Publish
+                Confirm &amp; publish
               </Button>
             }
             title="Confirm and publish this reply?"
             description="This records your confirmation and starts publishing the exact reply shown here to Google. RepKey keeps it pending until Google confirms that it is live."
             cancelLabel="Keep reviewing"
-            confirmLabel="Confirm & Publish"
+            confirmLabel="Confirm & publish"
             pendingLabel="Confirming…"
             confirmDisabled={isSaving || publishBlockedReason !== null}
             // A refusal stays in the dialog (the approve mutation passes no
@@ -272,7 +272,7 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
                 void onReject(rejectReason || undefined).catch(() => undefined)
               }
             >
-              Confirm Reject
+              Confirm rejection
             </Button>
             <Button
               size="sm"

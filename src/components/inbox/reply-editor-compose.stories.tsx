@@ -810,7 +810,7 @@ export const ShortReviewUsesPropertyTemplate: Story = {
 // The template loads, then the composer's own save of it fails. The load has
 // already written the template server-side, so the box must show it (adopted
 // BEFORE the save, not skipped by the save's failure), the failure is reported
-// where every failed save is — `Retry save` — and nothing claims the LOAD failed.
+// where every failed save is — `Try saving again` — and nothing claims the LOAD failed.
 let refuseTemplateSaves = true
 const onSaveDraftRefused = fn(async () => {
   if (refuseTemplateSaves) throw new Error('offline')
@@ -832,7 +832,7 @@ export const TemplateLoadsEvenWhenItsSaveFails: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Template' }))
 
     await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue(LIBRARY_REPLY))
-    const retry = await canvas.findByRole('button', { name: 'Retry save' })
+    const retry = await canvas.findByRole('button', { name: 'Try saving again' })
     expect(canvas.queryByText(/template could not be loaded/i)).toBeNull()
 
     // The retry lands, and with it every trace of the failure goes. A second,
@@ -841,7 +841,7 @@ export const TemplateLoadsEvenWhenItsSaveFails: Story = {
     refuseTemplateSaves = false
     await userEvent.click(retry)
     await waitFor(() =>
-      expect(canvas.queryByRole('button', { name: 'Retry save' })).toBeNull(),
+      expect(canvas.queryByRole('button', { name: 'Try saving again' })).toBeNull(),
     )
     expect(canvas.queryByText(/could not be saved/i)).toBeNull()
   },
@@ -1010,7 +1010,7 @@ export const TypingDuringGenerationDoesNotLockTheComposer: Story = {
 
 /**
  * The save `Draft with AI` runs before generating fails. That failure is
- * autosave's to report — `Draft could not be saved…` and `Retry save`, as for
+ * autosave's to report — `Draft could not be saved…` and `Try saving again`, as for
  * every failed save — and the AI row says nothing: the request returns before
  * it generates (`use-reply-suggestion.ts`, the flush's own `try`), so the error
  * line no longer claims the draft "could not be generated" beside a head that
@@ -1050,7 +1050,7 @@ export const SaveFailureBeforeDraftingIsNotAGenerationFailure: Story = {
     expect(
       canvas.getByText('Draft could not be saved. Retry before submitting.'),
     ).toBeVisible()
-    expect(canvas.getByRole('button', { name: 'Retry save' })).toBeVisible()
+    expect(canvas.getByRole('button', { name: 'Try saving again' })).toBeVisible()
     expect(canvas.queryByText(/could not be generated/i)).toBeNull()
     expect(onGenerateAfterRefusedSave).not.toHaveBeenCalled()
   },
@@ -1116,7 +1116,7 @@ export const AiRepliesNotEnabled: Story = {
     onGenerateNotAuthorized.mockClear()
 
     await expectDraftRefusedWith(canvas, /AI is off for this property/i)
-    const link = canvas.getByRole('link', { name: /enable ai replies/i })
+    const link = canvas.getByRole('link', { name: /turn on ai replies/i })
     expect(link).toHaveAttribute(
       'href',
       expect.stringContaining(

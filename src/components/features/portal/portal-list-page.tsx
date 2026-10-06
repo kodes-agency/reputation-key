@@ -11,12 +11,15 @@
 // head of a group in the table links there and carries the group's actions.
 import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { FolderPlus, Palette, Plus } from 'lucide-react'
+import { FolderPlus, Palette } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { Button } from '#/components/ui/button'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { NAV_LABEL } from '#/components/layout/nav-labels'
+import { trailCrumbs } from '#/components/layout/page-identity'
+import { AddAction } from '#/components/ui/add-action'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
 import { PortalGroupDialog } from './portal-group/portal-group-dialogs'
 import { PortalNewDialog } from './portal-new/portal-new-dialog'
@@ -72,9 +75,9 @@ export type PortalListPageProps = PortalArchiveMutations &
   }> &
   Pick<PortalGroupMutations, 'createMutation' | 'renameMutation' | 'archiveGroupMutation'>
 
-const describe = (count: number, propertyName: string): string | undefined => {
+const describe = (count: number, propertyName: string): readonly string[] | undefined => {
   if (count === 0) return undefined
-  return `${count === 1 ? '1 portal' : `${count} portals`} at ${propertyName}`
+  return [`${count === 1 ? '1 portal' : `${count} portals`} at ${propertyName}`]
 }
 
 type PortalListBodyProps = Readonly<{
@@ -240,10 +243,7 @@ export function PortalListPage({
   const canCreate = can('portal.create')
   const openNewPortal = () => update({ new: true })
   const newPortalButton = canCreate ? (
-    <Button onClick={openNewPortal}>
-      <Plus />
-      New portal
-    </Button>
+    <AddAction onClick={openNewPortal}>New portal</AddAction>
   ) : undefined
   const isEmpty = rows.length === 0 && groups.length === 0
   // An empty list offers New portal in its own message; a list has the phone bar.
@@ -256,12 +256,12 @@ export function PortalListPage({
     >
       <PageHeader
         title="Portals"
-        description={describe(rows.length, propertyName)}
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: propertyName, to: `/properties/${propertyId}` },
-          { label: 'Portals' },
-        ]}
+        meta={describe(rows.length, propertyName)}
+        breadcrumbs={trailCrumbs(
+          'property',
+          { propertyId, propertyName },
+          NAV_LABEL.portals,
+        )}
         actions={
           <>
             {propertyLookButton}

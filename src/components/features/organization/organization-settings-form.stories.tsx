@@ -63,7 +63,9 @@ export const Submitting: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: /save changes/i })).toBeDisabled()
+    await expect(
+      canvas.getByRole('button', { name: /save organization/i }),
+    ).toBeDisabled()
   },
 }
 
@@ -87,7 +89,7 @@ export const ResetRestoresTheSavedIdentity: Story = {
     await userEvent.type(name, ' Group')
     await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
     expect(name).toHaveValue('Acme Hotels')
-    const save = canvas.getByRole('button', { name: /save changes/i })
+    const save = canvas.getByRole('button', { name: /save organization/i })
     expect(save.closest('[data-slot="card-footer"]')).not.toBeNull()
     // The contact email may be left empty, and says so.
     expect(canvas.getByLabelText(/contact email/i)).toHaveAccessibleName(

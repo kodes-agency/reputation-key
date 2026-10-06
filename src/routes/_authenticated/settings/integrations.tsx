@@ -4,6 +4,7 @@ import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { can } from '#/shared/domain/permissions'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -53,7 +54,7 @@ function IntegrationsSettings() {
       <PageHeader
         title="Integrations"
         description="Connect external accounts and services to your organization."
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Integrations' }]}
+        breadcrumbs={trailCrumbs('settings', {}, 'Integrations')}
       />
       <div className="mt-6">
         <IntegrationsSettingsPage

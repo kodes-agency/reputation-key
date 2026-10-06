@@ -8,6 +8,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
+import { BackButton } from '#/components/ui/back-link'
 import { Button } from '#/components/ui/button'
 import { PortalPreviewFilmstrip } from '../portal-preview/portal-preview-filmstrip'
 import {
@@ -76,15 +77,10 @@ export function ReviewStates({ data, view, onViewChange, languageCount }: Props)
           )}
         />
         {view.kind === 'pair' ? null : (
-          <Button
-            type="button"
-            variant="link"
-            size="sm"
-            className="px-1"
+          <BackButton
+            label="Back to the 1★ and 5★ pair"
             onClick={() => onViewChange({ kind: 'pair' })}
-          >
-            Back to the 1★ and 5★ pair
-          </Button>
+          />
         )}
       </CollapsibleContent>
     </Collapsible>

@@ -66,22 +66,23 @@ export const SectionNavigation: Story = {
     const labelOf = (link: HTMLElement) =>
       link.querySelector('[data-slot="section-nav-label"]')?.textContent
     const links = within(nav).getAllByRole('link')
+    // A section names its scope where the same word means another one elsewhere.
     expect(links.map(labelOf)).toEqual([
-      'Profile',
-      'Google',
+      'Property profile',
+      'Google connection',
       'Replies',
-      'AI',
-      'People',
+      'AI features',
+      'Responsible managers',
       'Targets',
       'Danger zone',
     ])
-    expect(within(nav).getByRole('link', { name: /^AI/ })).toHaveAttribute(
+    expect(within(nav).getByRole('link', { name: /^AI features/ })).toHaveAttribute(
       'href',
       `/properties/${PROPERTY_ID}/settings/ai`,
     )
     // Exactly one row is the page the person is on, and it is Google.
     const current = links.filter((link) => link.getAttribute('aria-current') === 'page')
-    expect(current.map(labelOf)).toEqual(['Google'])
+    expect(current.map(labelOf)).toEqual(['Google connection'])
   },
 }
 
@@ -334,7 +335,7 @@ export const HeaderNamesTheSection: Story = {
       <div className="max-w-3xl space-y-6">
         <PageHeader
           title={header.title}
-          description={property.name}
+          meta={[property.name]}
           breadcrumbs={header.breadcrumbs}
         />
         <PropertyGoogleSection
@@ -346,13 +347,16 @@ export const HeaderNamesTheSection: Story = {
   play: ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getAllByRole('heading', { level: 1 })).toHaveLength(1)
-    expect(canvas.getByRole('heading', { level: 1, name: 'Google' })).toBeVisible()
-    expect(canvas.getByRole('link', { name: 'Settings' })).toHaveAttribute(
+    expect(
+      canvas.getByRole('heading', { level: 1, name: 'Google connection' }),
+    ).toBeVisible()
+    // The place above the section is named as the sidebar names it.
+    expect(canvas.getByRole('link', { name: 'Property settings' })).toHaveAttribute(
       'href',
       `/properties/${PROPERTY_ID}/settings`,
     )
     expect(
-      canvas.getByText('Google', { selector: '[aria-current="page"]' }),
+      canvas.getByText('Google connection', { selector: '[aria-current="page"]' }),
     ).toBeVisible()
     expect(
       canvas.getByRole('heading', { level: 2, name: 'Google Business Profile' }),

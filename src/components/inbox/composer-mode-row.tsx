@@ -305,7 +305,7 @@ const PRIVATE_BAR_CLASS =
  * running) reads as `saving` because to the manager it is the same fact.
  * `unsaved` (ineligible: empty, over-long, no concrete language) and `error`
  * share `Not saved`; the error keeps the destructive ink and the alert glyph,
- * and the footer's `Retry save` and its error sentence say the rest.
+ * and the footer's `Try saving again` and its error sentence say the rest.
  */
 const SAVE_STATE_LABEL: Readonly<Record<ReplyAutosaveStatus, string | null>> = {
   idle: null,

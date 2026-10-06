@@ -105,7 +105,7 @@ function GooglePerformanceRefresh({
   const stateLabel = isFetching
     ? 'Refreshing'
     : retryAfterSeconds > 0
-      ? `Retry in ${retryAfterSeconds}s`
+      ? `Try again in ${retryAfterSeconds}s`
       : null
   const accessibleLabel = stateLabel ?? 'Refresh from Google'
 

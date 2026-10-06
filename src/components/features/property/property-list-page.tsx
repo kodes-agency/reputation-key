@@ -9,8 +9,9 @@
 // Presentational: the route owns the reads and the URL; this page receives the
 // search and reports changes through `onSearchChange`.
 import { Link } from '@tanstack/react-router'
-import { Building2, Plus, SearchX } from 'lucide-react'
+import { Building2, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { AddActionLink } from '#/components/ui/add-action'
 import { Button } from '#/components/ui/button'
 import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import { EmptyState } from '#/components/ui/empty-state'
@@ -94,11 +95,14 @@ function EmptyPropertyList({
   )
 }
 
-function describe(workspace: ReadonlyArray<PropertyListProperty>): string | undefined {
+/** The meta line under the title: how many properties, and how many of them are paused. */
+function describe(
+  workspace: ReadonlyArray<PropertyListProperty>,
+): readonly string[] | undefined {
   if (workspace.length === 0) return undefined
   const count = workspace.length === 1 ? '1 property' : `${workspace.length} properties`
   const paused = workspace.filter((property) => property.lifecycleState === 'suspended')
-  return paused.length > 0 ? `${count} · ${paused.length} paused` : count
+  return paused.length > 0 ? [count, `${paused.length} paused`] : [count]
 }
 
 export function PropertyListPage({
@@ -196,15 +200,12 @@ export function PropertyListPage({
     <PageShell tier="dashboard">
       <PageHeader
         title="Properties"
-        description={describe(workspace)}
+        meta={describe(workspace)}
         actions={
           can('property.import_gbp_v2') ? (
-            <Button asChild>
-              <Link to="/properties/import-google">
-                <Plus />
-                Import from Google
-              </Link>
-            </Button>
+            <AddActionLink to="/properties/import-google">
+              Import from Google
+            </AddActionLink>
           ) : undefined
         }
       />

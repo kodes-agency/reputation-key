@@ -3,6 +3,7 @@ import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQueries, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { OrganizationAiOverviewPage } from '#/components/features/settings/organization-ai-overview-page'
 import { can } from '#/shared/domain/permissions'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -52,7 +53,7 @@ function AiOverviewRoute() {
       <PageHeader
         title="AI overview"
         description="Where AI is on, what it may use, and what it has cost this month. Open a property to change its AI settings."
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'AI overview' }]}
+        breadcrumbs={trailCrumbs('settings', {}, 'AI overview')}
       />
       <div className="mt-6">
         <OrganizationAiOverviewPage

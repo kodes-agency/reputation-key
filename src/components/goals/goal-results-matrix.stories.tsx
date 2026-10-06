@@ -109,7 +109,7 @@ export const AllEvidenceStates: Story = {
   args: { matrix },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Goal Results Matrix')).toBeVisible()
+    await expect(canvas.getByText('Goal results matrix')).toBeVisible()
     for (const label of [
       'Ready',
       'Updating',
@@ -118,7 +118,7 @@ export const AllEvidenceStates: Story = {
     ]) {
       await expect(canvas.getByText(label)).toBeVisible()
     }
-    await expect(canvas.getByText('Ungrouped Portal')).toBeVisible()
+    await expect(canvas.getByText('Ungrouped portal')).toBeVisible()
     await expect(canvas.getByText('No Goal Programs assigned')).toBeVisible()
     await expect(canvas.getAllByText(/Program version 2 · Metric rules/)[0]).toBeVisible()
     await expect(canvas.getAllByText(/Effective Jul 1, 2026/)[0]).toBeVisible()

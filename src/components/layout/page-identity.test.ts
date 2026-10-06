@@ -4,11 +4,13 @@
 // page's; a page below a layout that does draw one prints no second header) and
 // what the tab says, without a router.
 import { describe, expect, it } from 'vitest'
+import { NAV_LABEL } from './nav-labels'
 import {
   documentTitle,
   fallbackIdentity,
   pageHead,
   resolveCrumbs,
+  trailCrumbs,
   type PageIdentity,
 } from './page-identity'
 
@@ -107,17 +109,28 @@ describe('resolveCrumbs', () => {
       { label: 'Portals', to: '/properties/p1/portals' },
       { label: 'Property look' },
     ])
-    expect(resolveCrumbs({ title: 'New Goal', under: 'goals' }, where)).toEqual([
+    expect(resolveCrumbs({ title: 'New goal', under: 'goals' }, where)).toEqual([
       { label: 'Properties', to: '/properties' },
       { label: 'Hotel Elegance', to: '/properties/p1' },
       { label: 'Goals', to: '/properties/p1/goals' },
-      { label: 'New Goal' },
+      { label: 'New goal' },
     ])
+  })
+
+  it('puts a Property settings page under the settings hub, named as the sidebar names it', () => {
+    expect(resolveCrumbs({ title: 'Profile', under: 'propertySettings' }, where)).toEqual(
+      [
+        { label: 'Properties', to: '/properties' },
+        { label: 'Hotel Elegance', to: '/properties/p1' },
+        { label: 'Property settings', to: '/properties/p1/settings' },
+        { label: 'Profile' },
+      ],
+    )
   })
 
   it('puts a Settings page under Settings', () => {
     expect(resolveCrumbs({ title: 'Profile', under: 'settings' }, {})).toEqual([
-      { label: 'Settings', to: '/settings' },
+      { label: 'Settings', to: '/settings/profile' },
       { label: 'Profile' },
     ])
   })
@@ -136,6 +149,70 @@ describe('resolveCrumbs', () => {
       { label: 'Properties', to: '/properties' },
       { label: 'People' },
     ])
+  })
+})
+
+// A loaded page spells its own trail through `trailCrumbs`, so the Property crumb
+// links on Overview, Ratings, Google and Guest voice as it does on the pages whose
+// trail was always a link (People, Goals, Portals), and a fallback draws what the page does.
+describe('trailCrumbs', () => {
+  const where = { propertyId: 'p1', propertyName: 'Hotel Elegance' } as const
+
+  it.each(['Overview', 'Ratings', 'Google', 'Guest voice'])(
+    'links the Property crumb above %s',
+    (current) => {
+      expect(trailCrumbs('property', where, current)).toEqual([
+        { label: 'Properties', to: '/properties' },
+        { label: 'Hotel Elegance', to: '/properties/p1' },
+        { label: current },
+      ])
+    },
+  )
+
+  it('links every crumb above the page, so the page is the only one without an address', () => {
+    for (const under of [
+      'properties',
+      'property',
+      'portals',
+      'goals',
+      'settings',
+    ] as const) {
+      const trail = trailCrumbs(under, where, 'Here')
+      expect(trail.slice(0, -1).every((crumb) => crumb.to !== undefined)).toBe(true)
+      expect(trail.at(-1)).toEqual({ label: 'Here' })
+    }
+  })
+
+  it('is the trail a fallback draws for the same page', () => {
+    const identity = { title: 'Ratings', under: 'property' } as const
+    expect(trailCrumbs('property', where, 'Ratings')).toEqual(
+      resolveCrumbs(identity, where),
+    )
+  })
+
+  it('names the places a trail passes through as the sidebar names them', () => {
+    const labels = (under: Parameters<typeof trailCrumbs>[0]) =>
+      trailCrumbs(under, where, 'Here')
+        .slice(0, -1)
+        .map((crumb) => crumb.label)
+
+    expect(labels('properties')).toEqual([NAV_LABEL.properties])
+    expect(labels('portals')).toEqual([
+      NAV_LABEL.properties,
+      'Hotel Elegance',
+      NAV_LABEL.portals,
+    ])
+    expect(labels('goals')).toEqual([
+      NAV_LABEL.properties,
+      'Hotel Elegance',
+      NAV_LABEL.goals,
+    ])
+    expect(labels('propertySettings')).toEqual([
+      NAV_LABEL.properties,
+      'Hotel Elegance',
+      NAV_LABEL.propertySettings,
+    ])
+    expect(labels('settings')).toEqual([NAV_LABEL.settings])
   })
 })
 

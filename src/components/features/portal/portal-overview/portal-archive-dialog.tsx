@@ -56,7 +56,7 @@ export function PortalArchiveDialog({
           : 'The Portal will become read-only and unavailable to guests. Its public address, saved settings, publication history, metrics, goals, and manager assignments are retained so it can be restored later.'
       }
       cancelLabel="Cancel"
-      confirmLabel={restoring ? 'Restore as Disabled' : 'Archive Portal'}
+      confirmLabel={restoring ? 'Restore as disabled' : 'Archive portal'}
       pendingLabel={restoring ? 'Restoring…' : 'Archiving…'}
       onConfirm={() =>
         restoring
