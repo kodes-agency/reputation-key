@@ -5,6 +5,7 @@ import boundaries from 'eslint-plugin-boundaries'
 import reactHooks from 'eslint-plugin-react-hooks'
 import query from '@tanstack/eslint-plugin-query'
 import security from 'eslint-plugin-security'
+import { builtinRules } from 'eslint/use-at-your-own-risk'
 import crossContextPublicApi from './eslint-rules/cross-context-public-api.mjs'
 import zodV4 from './eslint-rules/zod-v4.mjs'
 
@@ -15,6 +16,64 @@ const local = {
     'zod-v4': zodV4,
   },
 }
+
+// ─── UI consistency rules (docs/design/ui-system, section 6.1) ──────────────
+// ESLint's own `no-restricted-syntax` and `no-restricted-imports`, registered
+// under rule names of their own. Flat config gives a rule one severity and
+// replaces its options in every later block that matches the same file, and
+// src/routes/** already carries `no-restricted-syntax` at `error` for ambient
+// config reads. Under their own names the UI rules stay at `warn` (decision 11:
+// new rules start at warn with a checked-in baseline, and become `error` when a
+// rule's baseline is empty), keep their own file scope and allowlist, and are
+// counted per rule. Each name below is one rule of the pattern index.
+const noRestrictedSyntax = builtinRules.get('no-restricted-syntax')
+const noRestrictedImports = builtinRules.get('no-restricted-imports')
+const uiPattern = {
+  rules: {
+    'important-ink': noRestrictedSyntax,
+    'palette-colour': noRestrictedSyntax,
+    'fill-grade-red-text': noRestrictedSyntax,
+    'destructive-class': noRestrictedSyntax,
+    'control-size': noRestrictedSyntax,
+    'raw-button': noRestrictedSyntax,
+    'load-more-label': noRestrictedSyntax,
+    'gutter-bleed': noRestrictedSyntax,
+    'case-folded-search': noRestrictedSyntax,
+    'route-page-state': noRestrictedSyntax,
+    'unavailable-redirect': noRestrictedSyntax,
+    'role-denial-redirect': noRestrictedSyntax,
+    'alert-glyph-aliases': noRestrictedImports,
+    'strip-scroll-imports': noRestrictedImports,
+  },
+}
+
+// `esquery` regex literals cannot hold a `/`, so a class with a slash (an
+// opacity, a fraction) is written with `\x2f`.
+/** Every string in the file: a class in a variant map, a `cn()` argument, a template. */
+const anyString = (pattern) => [
+  `Literal[value=/${pattern}/]`,
+  `TemplateElement[value.raw=/${pattern}/]`,
+]
+/** Every string in the `className` of the named JSX elements. */
+const classOf = (elements, pattern) =>
+  [`Literal[value=/${pattern}/]`, `TemplateElement[value.raw=/${pattern}/]`].map(
+    (leaf) =>
+      `JSXOpeningElement[name.name=/^(?:${elements})$/] > JSXAttribute[name.name='className'] ${leaf}`,
+  )
+const withMessage = (selectors, message) =>
+  selectors.map((selector) => ({ selector, message }))
+
+// The component and route sources, as the source guards under src/components read them.
+const UI_SOURCES = ['src/components/**/*.{ts,tsx}', 'src/routes/**/*.{ts,tsx}']
+const NOT_A_UI_SOURCE = [
+  '**/*.test.{ts,tsx}',
+  '**/*.stories.{ts,tsx}',
+  '**/__fixtures__/**',
+  '**/*-fixtures.{ts,tsx}',
+]
+// The guest renderer is the owner's reference experience and keeps its own CSS and colours.
+const GUEST_RENDERER = 'src/components/features/guest/**'
+const ROUTE_SOURCES = ['src/routes/**/*.{ts,tsx}']
 
 const elementType = (type) => ({ element: { type } })
 const elementTypes = (...types) => ({ element: { types: { anyOf: types } } })
@@ -909,6 +968,311 @@ export default tseslint.config(
       // caller and no independent meaning — fragmentation that reads as
       // structure. A page past 300 counted lines is genuinely doing too much.
       'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
+    },
+  },
+
+  // ─── UI consistency rules, all at `warn` ────────────────────────────
+  // See the pattern index in src/components/CONTEXT.md for the primitive each
+  // rule points to, and docs/design/ui-system/ui-consistency-scan-2026-10-02.md
+  // (section 6.1) for the finding it would have prevented.
+
+  // FRAME-06, NAV-02, ACT-19. The anchor default moved into @layer base, so a
+  // utility on a link wins and nothing needs an `!`. Replaces the "ink pins" test
+  // in src/components/ui/link-ink.test.ts once the baseline is empty.
+  {
+    files: UI_SOURCES,
+    // The one icon inside a destructive menu item fights a sibling arbitrary-variant rule.
+    ignores: [...NOT_A_UI_SOURCE, 'src/components/ui/dropdown-menu.tsx'],
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/important-ink': [
+        'warn',
+        ...withMessage(
+          anyString(
+            String.raw`(?:^|[\s:])(?:!(?:text|decoration)-[\w()\x2f.%-]+|!(?:no-)?underline\b|(?:text|decoration)-[\w()\x2f.%-]+!|(?:no-)?underline!)(?=\s|$)`,
+          ),
+          'An important modifier on a colour or a decoration. A utility on a link wins on its own (the anchor default is in @layer base); a component with its own ink opts out by data-slot. See "Links" in the pattern index.',
+        ),
+      ],
+    },
+  },
+
+  // SURF-11, COLL-09. The tokens in styles.css are the palette. The same check
+  // runs as src/components/ui/tone-sources.test.ts (raw palette colours); this is
+  // the editor-time form.
+  {
+    files: UI_SOURCES,
+    ignores: [...NOT_A_UI_SOURCE, GUEST_RENDERER],
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/palette-colour': [
+        'warn',
+        ...withMessage(
+          anyString(
+            String.raw`\b(?:text|bg|border|fill|stroke|ring|from|to|via|divide|outline|decoration|shadow|accent|caret)-(?:amber|emerald|red|green|yellow|neutral|gray|grey|slate|zinc|stone|orange|lime|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}\b`,
+          ),
+          'A Tailwind palette colour. Colour comes from the tokens in styles.css (text-positive, text-warn, text-negative, bg-positive-muted ...); a status is an Alert, a Badge tone or a StatusBadge.',
+        ),
+      ],
+    },
+  },
+
+  // SURF-11. Red text is `text-negative`, the text-grade red; `text-destructive`
+  // is the fill a destructive button is painted with (shadcn's default for an
+  // error line, which is why it is typed so often). Also tone-sources.test.ts.
+  {
+    files: UI_SOURCES,
+    ignores: [...NOT_A_UI_SOURCE, GUEST_RENDERER],
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/fill-grade-red-text': [
+        'warn',
+        ...withMessage(
+          anyString(String.raw`(?<![\w-])text-destructive(?![\w-])`),
+          'text-destructive is the fill-grade red. Red text is text-negative; a failure is a FormErrorBanner, an Alert or a toast.',
+        ),
+      ],
+    },
+  },
+
+  // ACT-01, SURF-01, FORM-02, ACT-17. The destructive look is a variant of the
+  // primitive (on-fill ink included), not a colour typed on a button.
+  {
+    files: UI_SOURCES,
+    ignores: [...NOT_A_UI_SOURCE, 'src/components/ui/**'],
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/destructive-class': [
+        'warn',
+        ...withMessage(
+          classOf(
+            'Button|IconButton|SubmitButton|AlertDialogAction|ConfirmationTrigger',
+            String.raw`(?<![\w-])(?:bg-destructive|text-destructive-foreground|text-white)(?![\w-])`,
+          ),
+          'A destructive colour typed on a button. Use variant="destructive" (a ConfirmationTrigger for a confirmation); the primitive owns the fill and the on-fill ink in both themes.',
+        ),
+      ],
+    },
+  },
+
+  // ACT-03, FORM-15, COLL-02, FRAME-12. A control's height is the primitive's
+  // (44px below md, its own desktop height from md, 36px under data-density="compact").
+  // src/components/ui/button-sources.test.ts covers Button only.
+  {
+    files: UI_SOURCES,
+    ignores: [...NOT_A_UI_SOURCE, 'src/components/ui/**'],
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/control-size': [
+        'warn',
+        ...withMessage(
+          classOf(
+            'Button|IconButton|SubmitButton|Input|SelectTrigger|DropdownMenuItem|RowActionsItem|ConfirmationTrigger',
+            String.raw`(?:^|\s)(?:(?:max-)?(?:sm|md|lg|xl):)*(?:min-)?(?:h|size)-(?:\d|\[|\()`,
+          ),
+          'A height or size on a control. The primitive owns it: touch below md, data-density="compact" on a dense container, size="xs" with touch for a small tap target. Add a size or variant to the primitive instead.',
+        ),
+      ],
+    },
+  },
+
+  // ACT-10. A control that acts is a Button (an IconButton, a RowActionsMenu, a
+  // ConfirmationTrigger). A selectable tile or row that is a button by design may
+  // stay: say why in a comment and disable the line.
+  {
+    files: UI_SOURCES,
+    ignores: [...NOT_A_UI_SOURCE, 'src/components/ui/**', GUEST_RENDERER],
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/raw-button': [
+        'warn',
+        {
+          selector: "JSXOpeningElement[name.name='button']",
+          message:
+            'A raw <button>. Use Button or IconButton (RowActionsMenu for a row menu). A selectable tile or row that is a button by design may stay: say why beside it.',
+        },
+      ],
+    },
+  },
+
+  // COLL-16. A cursor feed's "Load more" is a LoadMoreButton (aria-disabled while it
+  // loads so focus stays, "Try again" after a failure).
+  {
+    files: UI_SOURCES,
+    ignores: [...NOT_A_UI_SOURCE, 'src/components/ui/load-more-button.tsx'],
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/load-more-label': [
+        'warn',
+        {
+          selector:
+            "JSXElement[openingElement.name.name='Button'] > JSXText[value=/Load (?:more|earlier)/]",
+          message:
+            'A hand-made "Load more". A cursor feed uses LoadMoreButton (label for what it loads), which keeps focus while it loads and offers "Try again" after a failure.',
+        },
+      ],
+    },
+  },
+
+  // FRAME-01, FORM-04. <main> owns the page gutter. A phone row that bleeds out of it
+  // is PAGE_GUTTER_BLEED_PHONE from layout/page-shell, which agrees with the gutter by
+  // construction (layout/page-shell.test.ts covers the gutter itself, not the bleed).
+  {
+    files: UI_SOURCES,
+    ignores: [...NOT_A_UI_SOURCE, 'src/components/layout/page-shell.tsx'],
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/gutter-bleed': [
+        'warn',
+        ...withMessage(
+          anyString(String.raw`(?:^|\s)(?:(?:max-)?(?:sm|md|lg|xl):)?-mx-[46](?![\w-])`),
+          'A hand-typed gutter bleed (-mx-4, -mx-6). The page gutter has one owner: use PAGE_GUTTER_BLEED_PHONE from #/components/layout/page-shell, or FullBleedFrame.',
+        ),
+      ],
+    },
+  },
+
+  // COLL-07. A list matches with searchMatcher, which folds case and accents:
+  // "cafe" finds "Café".
+  {
+    files: UI_SOURCES,
+    ignores: NOT_A_UI_SOURCE,
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/case-folded-search': [
+        'warn',
+        {
+          selector:
+            "CallExpression[callee.property.name='includes'][callee.object.callee.property.name=/^to(?:Locale)?LowerCase$/]",
+          message:
+            'A case-folded includes() is not a search match. Use searchMatcher from #/components/property/property-search, which folds case and accents.',
+        },
+      ],
+    },
+  },
+
+  // FRAME-02, FRAME-03, FRAME-04, SURF-10. A route file names its page and loads
+  // its data; the states are the router defaults (RoutePending, RouteError,
+  // RouteNotFound, through PageState) and the feature component's regions.
+  // src/routes/route-boundaries.test.ts covers the three route options, not markup.
+  {
+    files: ROUTE_SOURCES,
+    ignores: NOT_A_UI_SOURCE,
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/route-page-state': [
+        'warn',
+        {
+          selector:
+            'JSXOpeningElement[name.name=/^(?:Skeleton|Alert|EmptyState|ErrorState|LoadingState|RegionError)$/]',
+          message:
+            'A route draws no loading, error or empty state of its own. A page state is PageState through the router defaults; a region state belongs in the feature component (EmptyState, RegionError).',
+        },
+      ],
+    },
+  },
+
+  // FRAME-07. /unavailable is for an account with no workspace, decided by the
+  // shell route. A page that cannot be opened throws roleUnavailable,
+  // gateControlledRoute or routeNotice, which draw an in-shell state.
+  {
+    files: ROUTE_SOURCES,
+    ignores: [
+      ...NOT_A_UI_SOURCE,
+      'src/routes/_authenticated.tsx',
+      'src/routes/unavailable.tsx',
+    ],
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/unavailable-redirect': [
+        'warn',
+        {
+          selector: "Property[key.name='to'][value.value='/unavailable']",
+          message:
+            'Only the authenticated shell sends an account with no workspace to /unavailable. A denied or switched-off page throws roleUnavailable, gateControlledRoute or routeNotice (an in-shell state with a way back).',
+        },
+      ],
+    },
+  },
+
+  // FRAME-07. A role denial is a notice, not a silent bounce to another page.
+  {
+    files: ROUTE_SOURCES,
+    ignores: NOT_A_UI_SOURCE,
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/role-denial-redirect': [
+        'warn',
+        ...withMessage(
+          [
+            "IfStatement:has(CallExpression[callee.name='can']) > ThrowStatement > CallExpression[callee.name='redirect']",
+            "IfStatement:has(CallExpression[callee.name='can']) > BlockStatement > ThrowStatement > CallExpression[callee.name='redirect']",
+          ],
+          'A permission check that redirects hides the reason. Throw roleUnavailable(title, back) so the person sees what they cannot open and the way back.',
+        ),
+      ],
+    },
+  },
+
+  // SURF-05, SURF-11. A tone draws its own icon (TONE_ICON in ui/tone.ts); the
+  // older lucide names are the same shapes under other names.
+  {
+    files: UI_SOURCES,
+    ignores: [...NOT_A_UI_SOURCE, 'src/components/ui/tone.ts'],
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/alert-glyph-aliases': [
+        'warn',
+        {
+          paths: [
+            {
+              name: 'lucide-react',
+              importNames: [
+                'AlertCircle',
+                'AlertTriangle',
+                'AlertOctagon',
+                'OctagonAlert',
+                'CheckCircle',
+                'CheckCircle2',
+                'XCircle',
+              ],
+              message:
+                'The product glyphs are CircleAlert, TriangleAlert, CircleCheck and CircleX; a tone wears TONE_ICON from #/components/ui/tone.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // NAV-01, NAV-05. The scrolling-row mechanics belong to the primitives that
+  // draw a strip: a section nav is a SectionNav, a page's views are LinkTabs.
+  {
+    files: UI_SOURCES,
+    ignores: [
+      ...NOT_A_UI_SOURCE,
+      'src/components/ui/**',
+      'src/components/inbox/inbox-queue-strip.tsx',
+      'src/components/inbox/inbox-active-filters.tsx',
+    ],
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/strip-scroll-imports': [
+        'warn',
+        {
+          patterns: [
+            {
+              group: [
+                '**/strip-scroll',
+                '**/use-strip-overflow',
+                '**/use-reveal-current-item',
+              ],
+              message:
+                'A scrolling row of links is a SectionNav (the sections of a place) or LinkTabs (the views of a page), which own the overflow fade, the current item in view and the hidden scrollbar.',
+            },
+          ],
+        },
+      ],
     },
   },
 )
