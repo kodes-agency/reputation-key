@@ -61,9 +61,10 @@ function Switcher({ variants, toggles = [] }: Props) {
     (param: string, value: string) => {
       void navigate({
         to: '.',
+        // A number keeps the URL readable (?props=60, not ?props=%2260%22).
         search: ((previous: Record<string, unknown>) => ({
           ...previous,
-          [param]: value,
+          [param]: /^\d+$/.test(value) ? Number(value) : value,
         })) as never,
         replace: true,
       })
@@ -104,38 +105,40 @@ function Switcher({ variants, toggles = [] }: Props) {
       role="toolbar"
       aria-label="Prototype controls"
       data-prototype-switcher
-      className="fixed bottom-4 left-1/2 z-[100] flex max-w-[calc(100vw-1rem)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-full bg-foreground p-1 text-background shadow-lg"
+      className="fixed bottom-4 left-1/2 z-[100] flex w-max max-w-[calc(100vw-1rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-x-1 gap-y-1 rounded-3xl bg-foreground p-1 text-background shadow-lg sm:rounded-full"
     >
-      <button
-        type="button"
-        aria-label="Previous variant"
-        onClick={() => cycle(-1)}
-        className={`${SEGMENT} hover:bg-background/20`}
-      >
-        <ChevronLeft className="size-4" aria-hidden />
-      </button>
-      <span
-        aria-live="polite"
-        className="min-w-28 px-1 text-center text-sm font-semibold whitespace-nowrap"
-      >
-        {label}
-      </span>
-      <button
-        type="button"
-        aria-label="Next variant"
-        onClick={() => cycle(1)}
-        className={`${SEGMENT} hover:bg-background/20`}
-      >
-        <ChevronRight className="size-4" aria-hidden />
-      </button>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          aria-label="Previous variant"
+          onClick={() => cycle(-1)}
+          className={`${SEGMENT} hover:bg-background/20`}
+        >
+          <ChevronLeft className="size-4" aria-hidden />
+        </button>
+        <span
+          aria-live="polite"
+          className="min-w-28 shrink-0 px-1 text-center text-sm font-semibold whitespace-nowrap"
+        >
+          {label}
+        </span>
+        <button
+          type="button"
+          aria-label="Next variant"
+          onClick={() => cycle(1)}
+          className={`${SEGMENT} hover:bg-background/20`}
+        >
+          <ChevronRight className="size-4" aria-hidden />
+        </button>
+      </div>
       {toggles.map((toggle) => (
         <div
           key={toggle.param}
           role="group"
           aria-label={toggle.label}
-          className="ml-1 flex items-center gap-0.5 border-l border-background/30 pl-2"
+          className="flex items-center gap-0.5 sm:ml-1 sm:border-l sm:border-background/30 sm:pl-2"
         >
-          <span className="pr-1 text-xs whitespace-nowrap opacity-70">
+          <span className="hidden pr-1 text-xs whitespace-nowrap opacity-70 sm:inline">
             {toggle.label}
           </span>
           {toggle.choices.map((choice) => (

@@ -21,8 +21,8 @@ import { Route as UnavailableRouteImport } from './routes/unavailable'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedProgressRouteImport } from './routes/_authenticated/progress'
-import { Route as AuthenticatedSettingsPrototypeRouteImport } from './routes/_authenticated/settings-prototype'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedSettingsPrototypeRouteImport } from './routes/_authenticated/settings-prototype'
 import { Route as ApiPortalMediaRouteImport } from './routes/api/portal-media'
 import { Route as PTokenRouteImport } from './routes/p/$token'
 import { Route as PrivacyBetaAgreementRouteImport } from './routes/privacy_.beta-agreement'
@@ -143,17 +143,17 @@ const AuthenticatedProgressRoute = AuthenticatedProgressRouteImport.update({
   path: '/progress',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedSettingsPrototypeRoute =
   AuthenticatedSettingsPrototypeRouteImport.update({
     id: '/settings-prototype',
     path: '/settings-prototype',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 const ApiPortalMediaRoute = ApiPortalMediaRouteImport.update({
   id: '/api/portal-media',
   path: '/api/portal-media',
@@ -508,8 +508,8 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
-  '/settings-prototype': typeof AuthenticatedSettingsPrototypeRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/settings-prototype': typeof AuthenticatedSettingsPrototypeRoute
   '/api/portal-media': typeof ApiPortalMediaRoute
   '/p/$token': typeof PTokenRoute
   '/privacy/beta-agreement': typeof PrivacyBetaAgreementRoute
@@ -653,8 +653,8 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/progress': typeof AuthenticatedProgressRoute
-  '/_authenticated/settings-prototype': typeof AuthenticatedSettingsPrototypeRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/_authenticated/settings-prototype': typeof AuthenticatedSettingsPrototypeRoute
   '/api/portal-media': typeof ApiPortalMediaRoute
   '/p/$token': typeof PTokenRoute
   '/privacy_/beta-agreement': typeof PrivacyBetaAgreementRoute
@@ -729,8 +729,8 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/notifications'
     | '/progress'
-    | '/settings-prototype'
     | '/settings'
+    | '/settings-prototype'
     | '/api/portal-media'
     | '/p/$token'
     | '/privacy/beta-agreement'
@@ -873,8 +873,8 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/notifications'
     | '/_authenticated/progress'
-    | '/_authenticated/settings-prototype'
     | '/_authenticated/settings'
+    | '/_authenticated/settings-prototype'
     | '/api/portal-media'
     | '/p/$token'
     | '/privacy_/beta-agreement'
@@ -1051,18 +1051,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProgressRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/settings-prototype': {
-      id: '/_authenticated/settings-prototype'
-      path: '/settings-prototype'
-      fullPath: '/settings-prototype'
-      preLoaderRoute: typeof AuthenticatedSettingsPrototypeRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings-prototype': {
+      id: '/_authenticated/settings-prototype'
+      path: '/settings-prototype'
+      fullPath: '/settings-prototype'
+      preLoaderRoute: typeof AuthenticatedSettingsPrototypeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/portal-media': {
@@ -1646,8 +1646,8 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedProgressRoute: typeof AuthenticatedProgressRoute
-  AuthenticatedSettingsPrototypeRoute: typeof AuthenticatedSettingsPrototypeRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
+  AuthenticatedSettingsPrototypeRoute: typeof AuthenticatedSettingsPrototypeRoute
   AuthenticatedPropertiesPropertyIdRoute: typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   AuthenticatedInboxIndexRoute: typeof AuthenticatedInboxIndexRoute
   AuthenticatedPortalsIndexRoute: typeof AuthenticatedPortalsIndexRoute
@@ -1660,8 +1660,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedProgressRoute: AuthenticatedProgressRoute,
-  AuthenticatedSettingsPrototypeRoute: AuthenticatedSettingsPrototypeRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
+  AuthenticatedSettingsPrototypeRoute: AuthenticatedSettingsPrototypeRoute,
   AuthenticatedPropertiesPropertyIdRoute:
     AuthenticatedPropertiesPropertyIdRouteWithChildren,
   AuthenticatedInboxIndexRoute: AuthenticatedInboxIndexRoute,
