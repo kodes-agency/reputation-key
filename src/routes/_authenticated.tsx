@@ -27,6 +27,7 @@ import { PAGE_GUTTER } from '#/components/layout/page-shell'
 import { ShellNoticeBoundary } from '#/components/layout/shell-notice-boundary'
 import { useKeepSidebarFocus, useSidebarOpen } from '#/components/layout/shell-continuity'
 import { ShellPresence } from '#/components/layout/route-page-state'
+import { usePrototypeShellSlots } from '#/components/prototype/prototype-shell-slots'
 import { httpStatus } from '#/shared/security/expected-refusal'
 import { SidebarProvider } from '#/components/ui/sidebar'
 import { ViewportHintContext } from '#/components/hooks/use-viewport-below'
@@ -219,11 +220,13 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
   // restorable from the Properties page, which lists them under "Removed".
   const properties = partitionWorkspaceProperties(propsData.properties).workspace
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const isSettings = pathname.startsWith('/settings')
+  // PROTOTYPE: '/settings-prototype' is not a Settings page; match the path segment.
+  const isSettings = pathname === '/settings' || pathname.startsWith('/settings/')
+  const prototypeShell = usePrototypeShellSlots()
   // A full-bleed surface (Inbox, Property Reviews, the portal workspace): the
   // sidebar collapses to the icon rail and the surface scrolls its own panes.
   // `isFullBleedRoute` is the one place that says which routes those are.
-  const isFullBleed = isFullBleedRoute(pathname)
+  const isFullBleed = isFullBleedRoute(pathname) || prototypeShell.fullBleed
   // Kept outside this component: a refusal replaces the shell with a new one
   // (see `shell-continuity`), and a collapsed sidebar must not open again.
   const [sidebarOpen, setSidebarOpen] = useSidebarOpen()
@@ -238,6 +241,8 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
     >
       {isSettings ? (
         <SettingsSidebar />
+      ) : prototypeShell.sidebar ? (
+        prototypeShell.sidebar
       ) : hasRole(ctx.role, 'PropertyManager') ? (
         <ManagerSidebar
           properties={properties}
