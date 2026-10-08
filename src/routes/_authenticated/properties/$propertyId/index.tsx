@@ -11,6 +11,10 @@ import { PropertyOverview } from '#/components/features/property/property-overvi
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queries'
 import { PropertySetupStrip } from '#/components/features/property/settings/property-setup-strip'
+import { countBlockedPortals } from '#/components/features/portal/portal-overview/portal-attention'
+import { usePermissions } from '#/shared/hooks/usePermissions'
+import { useCapabilities } from '#/shared/hooks/useCapabilities'
+import { portalOverviewQuery } from './portals/-portal-overview-data'
 import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 
 /**
@@ -47,6 +51,7 @@ function PropertyOverviewRoute() {
   const { data: lifetime } = useSuspenseQuery(overviewQuery(propertyId, LIFETIME))
   const { data: pulse } = useSuspenseQuery(overviewQuery(propertyId, PULSE))
   const { data: setup } = useQuery(propertySetupQuery(propertyId))
+  const blockedPortals = useBlockedPortals(propertyId)
 
   return (
     <PropertyOverview
@@ -57,6 +62,7 @@ function PropertyOverviewRoute() {
       // Attention is a standing count, not a windowed one — the all-time read
       // carries the same signals, so the pulse read's copy is redundant.
       signals={lifetime.signals}
+      blockedPortals={blockedPortals}
       setupStrip={<PropertySetupStrip propertyId={propertyId} setup={setup} />}
       guestVoiceFns={{
         getTrend: getPropertyAiTrendFn,
@@ -68,4 +74,21 @@ function PropertyOverviewRoute() {
       }}
     />
   )
+}
+
+/**
+ * How many portals guests cannot use, for the attention band. A side read, never a
+ * reason to hold the page: a reader who may not read portals (or whose portal read is
+ * off) is not asked, and a failed read leaves the chip out rather than the page in an
+ * error. It is the Portals page's own read, so the two share one cache entry.
+ */
+function useBlockedPortals(propertyId: string): number {
+  const { can } = usePermissions()
+  const { has } = useCapabilities()
+  const { data } = useQuery({
+    ...portalOverviewQuery(propertyId),
+    enabled: can('portal.read') && has('portal.read'),
+    retry: false,
+  })
+  return data ? countBlockedPortals(data.portals) : 0
 }
