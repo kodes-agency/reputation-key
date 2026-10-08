@@ -6,6 +6,7 @@
 // `?section=`, and every save goes through the portal's autosave coordinator.
 
 import { useNavigate } from '@tanstack/react-router'
+import { useRef } from 'react'
 import { SectionNavLayout } from '#/components/ui/section-nav-layout'
 import { usePortalEditAccess } from '../portal-detail/use-portal-edit-access'
 import { PortalPreviewPane } from '../portal-preview/portal-preview-pane'
@@ -23,6 +24,7 @@ import {
   summarizePortalEditorSections,
 } from './portal-editor-summary'
 import type { PortalEditorResources } from './portal-editor-types'
+import { revealEditorSection } from './reveal-editor-section'
 
 type Props = Readonly<{
   resources: PortalEditorResources
@@ -32,6 +34,7 @@ type Props = Readonly<{
 
 export function PortalEditor({ resources, requestedSection }: Props) {
   const navigate = useNavigate()
+  const panel = useRef<HTMLDivElement>(null)
   const { portal, propertyId, portalGroups } = resources
   const group = portalGroups ? findPortalGroup(portalGroups, portal.id) : null
   const hasResponsible =
@@ -51,13 +54,15 @@ export function PortalEditor({ resources, requestedSection }: Props) {
   // portal, which is retained exactly as it was. The workspace says why under
   // its header (`PortalReadOnlyNotice`).
   const { canEdit } = usePortalEditAccess(portal.publicationState)
-  // A click on a part of the preview opens its section, as its link in the list does.
+  // A click on a part of the preview opens its section, as its link in the list
+  // does, and brings that section into view: below lg the preview sits under
+  // the form, far from where the section opens.
   const openSection = (next: PreviewPartSection) =>
     void navigate({
       to: '/properties/$propertyId/portals/$portalId',
       params: { propertyId, portalId: portal.id },
       search: { tab: 'page', section: next },
-    })
+    }).then(() => revealEditorSection(panel.current))
 
   return (
     // The form and its preview sit side by side from lg (iPad landscape, a
@@ -74,7 +79,7 @@ export function PortalEditor({ resources, requestedSection }: Props) {
       />
       <div className="flex min-w-0 flex-1 flex-col lg:flex-row">
         <div className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-8">
-          <div className="mx-auto max-w-2xl space-y-6">
+          <div ref={panel} className="mx-auto max-w-2xl space-y-6">
             <PortalEditorSectionPanel
               section={section}
               group={group}

@@ -2,6 +2,7 @@
 // layout normally provides. The story wraps the editor with the header's
 // save-status line so the play tests can watch what a manager would see.
 import type { Meta, StoryObj } from '@storybook/react'
+import { useRouterState } from '@tanstack/react-router'
 import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
 import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
@@ -30,6 +31,15 @@ function EditorWithStatus({ resources, requestedSection }: EditorStoryProps) {
       <PortalEditor resources={resources} requestedSection={requestedSection} />
     </div>
   )
+}
+
+/** The editor on the section its address names, as the route renders it. */
+function EditorFollowingTheAddress({ resources }: EditorStoryProps) {
+  const section = useRouterState({
+    select: (state) =>
+      (state.location.search as Readonly<{ section?: PortalEditorSection }>).section,
+  })
+  return <EditorWithStatus resources={resources} requestedSection={section} />
 }
 
 const meta: Meta<typeof EditorWithStatus> = {
@@ -777,5 +787,29 @@ export const LanguagesOpensTheSheetInThePreview: Story = {
     )
     await expect(languages).toHaveAttribute('aria-current', 'true')
     await expect(preview.getByText('Language', { selector: 'h2' })).toBeVisible()
+  },
+}
+
+// Below lg the preview stacks under the form, so a click on a part happens far
+// from the section it opens: the section is brought into view and focus lands
+// on its heading, not only the outline in the phone moving.
+export const PreviewClickRevealsTheSectionItOpens: Story = {
+  args: { resources: makeResources(action(async () => undefined)) },
+  decorators: [
+    withRole('AccountAdmin', {
+      at: '/properties/prop-1/portals/p-1?tab=page&section=linktree',
+    }),
+  ],
+  render: (args) => <EditorFollowingTheAddress {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const preview = within(
+      await canvas.findByRole('complementary', { name: 'Live preview' }),
+    )
+    await userEvent.click(
+      await preview.findByRole('button', { name: 'Edit Welcome' }, { timeout: 5000 }),
+    )
+    const heading = await canvas.findByRole('heading', { level: 2, name: 'Welcome' })
+    await waitFor(() => expect(heading).toHaveFocus())
   },
 }
