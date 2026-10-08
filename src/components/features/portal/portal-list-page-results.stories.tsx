@@ -241,6 +241,8 @@ export const InboxWaitingLinksToTheInbox: Story = {
     await expect(href.pathname).toBe('/inbox')
     await expect(href.searchParams.get('propertyId')).toBe('prop-1')
     await expect(href.searchParams.get('queue')).toBe('feedback')
+    // A tap target on a phone, by the Button's own minimum.
+    await expect(link.className).toContain('max-md:min-h-(--control-touch)')
     // There is no "Open results": the strip is already the results.
     await expect(strip.queryByRole('link', { name: /open results/i })).toBeNull()
   },

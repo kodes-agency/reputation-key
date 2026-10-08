@@ -7,6 +7,7 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
+import { buttonVariants } from '#/components/ui/button'
 import { RegionError } from '#/components/ui/region-error'
 import { RangeControl } from '#/components/ui/range-control'
 import { cn } from '#/lib/utils'
@@ -89,7 +90,8 @@ function scopeLine(
 /**
  * "3 waiting in Inbox →", the Private notes cell's detail line, into the Inbox's
  * private feedback queue for the Property. The accent link colour and the cell
- * detail's size are the boards'; the padding only grows the touch target.
+ * detail's size are the boards'; on a phone it is a tap target (the Button's own
+ * `touch` minimum), on a desktop the line's own height.
  */
 function InboxWaitingLink({
   propertyId,
@@ -100,9 +102,8 @@ function InboxWaitingLink({
       to="/inbox"
       search={{ propertyId, queue: INBOX_WAITING_QUEUE }}
       className={cn(
-        '-my-1.5 inline-flex items-center gap-1 rounded-sm py-1.5 text-xs leading-4 font-medium',
-        'underline-offset-4 hover:underline',
-        'focus-ring',
+        buttonVariants({ variant: 'link', size: 'inline', touch: true }),
+        'justify-start gap-1 text-xs leading-4',
       )}
     >
       {label}
