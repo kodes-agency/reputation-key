@@ -3,7 +3,7 @@
 // page says while the results load, fail or are not offered to this reader.
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
   PortalAllPropertiesPage,
   type PortalAllPropertiesPageProps,
@@ -123,7 +123,7 @@ export const StripIsTheOrganizationTotal: Story = {
     await expect(canvas.getByText('all properties')).toBeInTheDocument()
     await expect(
       canvas.getByText(
-        'Last 30 days · each property’s local time · an average needs 5 private ratings · collapsed properties stay collapsed for you',
+        /Last 30 days · each property’s local time · an average needs 5 private ratings · collapsed properties stay collapsed for you/,
       ),
     ).toBeInTheDocument()
     // Google's own review average is not part of these totals.
@@ -210,6 +210,76 @@ export const OnlyAPropertyHeadsItsWholeBody: Story = {
   },
 }
 
+// As cards there is no shaded row to tell a Property from a group: the Property's
+// head has a building, its group's head is set in and has a folder.
+export const PropertyAndGroupHeadsAreToldApartAsCards: Story = {
+  args: {
+    ...withResults,
+    rows: allPropertiesRows({ harborGroups: true }),
+    results: controls({
+      status: 'ready',
+      index: indexOverviewResults(allPropertiesResults({ harborGroups: true })),
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const headOfRow = (name: string) =>
+      tableOf(canvas)
+        .getByRole('button', { name: `Portals in ${name}` })
+        .closest('tr')!
+    const property = headOfRow('The Harbor Hotel')
+    await expect(property.querySelector('svg.lucide-building-2')).not.toBeNull()
+    await expect(property.querySelector('svg.lucide-folder')).toBeNull()
+    const group = headOfRow('Front of house')
+    await expect(group.querySelector('svg.lucide-folder')).not.toBeNull()
+    await expect(group.className).toContain('@max-4xl:ml-5')
+    await expect(property.className).not.toContain('@max-4xl:ml-5')
+  },
+}
+
+// The same "Needs attention" as the Portals page of one Property, over every
+// Property: its count says how many, and it keeps only those, under their own head.
+export const NeedsAttentionFilterKeepsOnlyThosePortals: Story = {
+  args: withResults,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const toggle = canvas.getByRole('button', { name: /needs attention/i })
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await userEvent.click(toggle)
+    await waitFor(() =>
+      expect(canvas.queryByRole('link', { name: 'Reception' })).toBeNull(),
+    )
+    await expect(canvas.getByRole('link', { name: 'Pool bar' })).toBeInTheDocument()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    // The count is of the whole Organization, so it does not shrink with the filter.
+    await expect(toggle).toHaveTextContent(/needs attention\s*\d+/i)
+    await userEvent.click(toggle)
+    await expect(
+      await canvas.findByRole('link', { name: 'Reception' }),
+    ).toBeInTheDocument()
+  },
+}
+
+// Spa & thermal pools has an older code: its scans are a dash with a reason, and
+// the Organization's strip says its total leaves them out.
+export const OlderCodeScansAreLeftOutAndSaid: Story = {
+  args: {
+    ...withResults,
+    rows: allPropertiesRows().map((row) =>
+      row.name === 'Spa & thermal pools'
+        ? { ...row, token: { ...row.token, qualifiedScanReady: false } }
+        : row,
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('button', { name: 'Qualified scans: Not counted: older code' }),
+    ).toBeInTheDocument()
+    await expect(canvas.getByText(/aren’t in these figures/)).toBeInTheDocument()
+  },
+}
+
 export const FoldingAPropertyHidesItsPortalsAndIsRemembered: Story = {
   args: withResults,
   play: async ({ canvasElement }) => {
@@ -279,8 +349,8 @@ export const NothingMatches: Story = {
     const panel = within(
       canvasElement.querySelector<HTMLElement>('[data-slot="empty-state"]')!,
     )
-    // All properties has a search and no filter, so Clear names only the search.
-    await userEvent.click(panel.getByRole('button', { name: 'Clear search' }))
+    // Portals need attention here, so there is a filter to clear as well as the search.
+    await userEvent.click(panel.getByRole('button', { name: 'Clear search and filters' }))
     await expect(canvas.getByRole('link', { name: 'Reception' })).toBeInTheDocument()
   },
 }

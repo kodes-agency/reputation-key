@@ -4,6 +4,7 @@
 // group: it has no page and no menu.
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
+import { Folder } from 'lucide-react'
 import { TableCell, TableHead, TableRow } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
 import { useOverviewClasses } from './portal-overview-density'
@@ -48,8 +49,9 @@ export function PortalOverviewGroupHead({
     <TableRow
       className={cn(
         classes.groupRow,
-        // Under a Property's head the group is lighter: no shade of its own.
-        nested && '@4xl:bg-transparent @4xl:hover:bg-transparent',
+        // Under a Property's head the group is lighter: no shade of its own. As a card
+        // it is set in from the Property's head, which the table does with its padding.
+        nested && '@max-4xl:ml-5 @4xl:bg-transparent @4xl:hover:bg-transparent',
       )}
     >
       <TableHead
@@ -60,6 +62,12 @@ export function PortalOverviewGroupHead({
         className={cn(classes.groupName, nested && '@4xl:pl-8')}
       >
         <PortalOverviewToggle name={name} expanded={expanded} onToggle={onToggle} />
+        {nested && section.group ? (
+          <Folder
+            aria-hidden="true"
+            className="mr-1 inline size-4 align-[-3px] text-muted-foreground @4xl:hidden"
+          />
+        ) : null}
         {section.group ? (
           <Link
             to="/properties/$propertyId/portals/groups/$groupId"

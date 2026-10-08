@@ -50,7 +50,11 @@ export function PortalAllPropertiesTable({
         const expanded = !collapsed.includes(property.propertyId)
         const head = groupSlot(results, (index) => index.property(property.propertyId))
         return (
-          <DataTableBody key={property.propertyId}>
+          // As cards, a rule above each Property but the first: where one ends and the next begins.
+          <DataTableBody
+            key={property.propertyId}
+            className="@max-4xl:mt-6 @max-4xl:border-t @max-4xl:pt-4 @max-4xl:first-of-type:mt-0 @max-4xl:first-of-type:border-t-0 @max-4xl:first-of-type:pt-0"
+          >
             <PortalOverviewPropertyHead
               property={property}
               figures={head.slot}

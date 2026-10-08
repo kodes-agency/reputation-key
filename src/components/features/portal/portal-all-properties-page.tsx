@@ -15,6 +15,8 @@ import {
   type NewPortalProperty,
 } from './portal-all-properties-new-portal'
 import type { PortalArchiveMutations } from './portal-overview/portal-archive-dialog'
+import { uncountedScanPortals } from './portal-overview/portal-attention'
+import { PortalChangesOffNote } from './portal-overview/portal-changes-off-note'
 import { PortalAllPropertiesTable } from './portal-overview/portal-all-properties-table'
 import {
   buildAllPropertiesOverview,
@@ -38,6 +40,7 @@ import {
   type AllPropertiesSearch,
 } from './portal-overview/portal-overview-search-schema'
 import { PortalOverviewToolbar } from './portal-overview/portal-overview-toolbar'
+import { sortFiguresWithoutUncounted } from './portal-overview/portal-overview-uncounted'
 import {
   PORTAL_OVERVIEW_PAGE_SIZE,
   type PortalManagerName,
@@ -149,7 +152,10 @@ export function PortalAllPropertiesPage({
     listSearch,
     members,
     PORTAL_OVERVIEW_PAGE_SIZE,
-    resultsState.status === 'ready' ? resultsState.index.sortFigures : undefined,
+    sortFiguresWithoutUncounted(
+      resultsState.status === 'ready' ? resultsState.index.sortFigures : undefined,
+      rows,
+    ),
     collapsed,
   )
   const update = (patch: Partial<AllPropertiesSearch>) =>
@@ -171,6 +177,7 @@ export function PortalAllPropertiesPage({
         )}
         actions={newPortal}
       />
+      <PortalChangesOffNote />
       {rows.length === 0 ? (
         <PortalOverviewEmpty action={newPortal} />
       ) : (
@@ -180,6 +187,7 @@ export function PortalAllPropertiesPage({
               controls={results}
               propertyId={null}
               propertiesListed={overview.propertyCount}
+              uncounted={uncountedScanPortals(rows)}
             />
           ) : null}
           <section aria-label="All portals, by property" className="flex flex-col gap-4">
@@ -188,14 +196,15 @@ export function PortalAllPropertiesPage({
               search={listSearch}
               matched={overview.matched}
               total={overview.total}
+              needingAttention={overview.needingAttention}
               canSortByScans={resultsState.status !== 'off'}
               onChange={update}
             />
             {overview.matched === 0 ? (
               <PortalOverviewNoMatch
                 searching={(listSearch.q ?? '').trim() !== ''}
-                filters={false}
-                onClear={() => update({ q: undefined })}
+                filters={overview.needingAttention > 0 || listSearch.show !== undefined}
+                onClear={() => update({ q: undefined, show: undefined })}
               />
             ) : (
               <PortalAllPropertiesList
