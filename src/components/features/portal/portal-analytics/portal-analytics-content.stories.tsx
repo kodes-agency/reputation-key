@@ -497,7 +497,7 @@ export const QuietWindowOnALivePortal: Story = {
     const strip = within(canvas.getByLabelText('Portal results'))
     await expect(strip.getByText('−40 vs the 30 days before')).toBeVisible()
     expect(canvas.queryByText('No data yet')).toBeNull()
-    const share = canvas.getByRole('link', { name: 'Open Share' })
+    const share = canvas.getByRole('link', { name: 'See the code' })
     expect(share.getAttribute('href')).toContain('tab=share')
   },
 }
@@ -541,7 +541,7 @@ export const NoDataYetOnAllTime: Story = {
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByText('No data yet')).toBeVisible()
-    const share = canvas.getByRole('link', { name: 'Open Share' })
+    const share = canvas.getByRole('link', { name: 'See the code' })
     expect(share.getAttribute('href')).toContain('tab=share')
   },
 }
@@ -550,7 +550,7 @@ export const NoDataYetOnAllTime: Story = {
 export const PrivateNotesLeadToTheInbox: Story = {
   args: { place: PLACE },
   play: async ({ canvas }) => {
-    const link = canvas.getByRole('link', { name: 'Read in Inbox' })
+    const link = canvas.getByRole('link', { name: 'Read in inbox' })
     await expect(link).toBeVisible()
     expect(link.getAttribute('href')).toContain('/inbox')
     // The change against the period before stays above the link.
@@ -561,7 +561,7 @@ export const PrivateNotesLeadToTheInbox: Story = {
 export const NoInboxLinkWithoutTheRightToOpenIt: Story = {
   args: { place: { ...PLACE, canOpenInbox: false } },
   play: async ({ canvas }) => {
-    expect(canvas.queryByRole('link', { name: 'Read in Inbox' })).toBeNull()
+    expect(canvas.queryByRole('link', { name: 'Read in inbox' })).toBeNull()
     await expect(canvas.getByText('+2 vs the 30 days before')).toBeVisible()
   },
 }

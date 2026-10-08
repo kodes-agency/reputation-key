@@ -6,6 +6,7 @@ import { Link } from '@tanstack/react-router'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
+import { InlineLink } from '#/components/ui/inline-link'
 import type { EmptyResults } from './portal-results-empty'
 import type { PortalResultsPlace } from './portal-results-place'
 
@@ -30,7 +31,7 @@ function OpenAction({
         params={params}
         search={{ tab: 'share' }}
       >
-        Open Share
+        See the code
       </Link>
     </Button>
   )
@@ -77,14 +78,14 @@ export function QuietWindowNote({
         {place ? (
           <>
             {' '}
-            <Link
+            <InlineLink
               to="/properties/$propertyId/portals/$portalId"
               params={{ propertyId: place.propertyId, portalId: place.portalId }}
               search={{ tab: 'share' }}
-              className="font-medium text-link underline-offset-4 hover:underline"
+              underline="always"
             >
-              Open Share
-            </Link>
+              See the code
+            </InlineLink>
           </>
         ) : null}
       </AlertDescription>

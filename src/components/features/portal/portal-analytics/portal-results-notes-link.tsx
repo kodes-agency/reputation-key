@@ -29,7 +29,7 @@ export function notesDetailOf(
         // The padding only grows the touch target; the line keeps its place.
         className="-my-1.5 inline-flex items-center gap-1 rounded-sm py-1.5 text-xs leading-4"
       >
-        Read in Inbox
+        Read in inbox
         <ArrowRight className="size-3" aria-hidden="true" />
       </InlineLink>
     </span>
