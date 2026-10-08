@@ -46,7 +46,7 @@ export function PropertyLookLanguagesSection({ locales, onChange, disabled }: Pr
           return (
             <li
               key={locale}
-              className="flex h-9 items-center gap-1 rounded-md border bg-card pl-3 text-sm"
+              className="flex min-h-9 items-center gap-2 rounded-md border bg-card pl-3 text-sm"
             >
               <span lang={locale}>{name.native}</span>
               {disabled ? null : (
@@ -55,6 +55,7 @@ export function PropertyLookLanguagesSection({ locales, onChange, disabled }: Pr
                     type="button"
                     variant="ghost"
                     size="xs"
+                    touch
                     aria-label={`Make ${name.english} the fallback`}
                     onClick={() => apply({ kind: 'make_fallback', locale })}
                   >
@@ -64,6 +65,7 @@ export function PropertyLookLanguagesSection({ locales, onChange, disabled }: Pr
                     type="button"
                     variant="ghost"
                     size="icon-xs"
+                    touch
                     className="mr-1"
                     label={`Remove ${name.english}`}
                     onClick={() => apply({ kind: 'remove', locale })}

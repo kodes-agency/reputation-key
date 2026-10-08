@@ -88,6 +88,38 @@ export const Default: Story = {
   },
 }
 
+const withPending = (counts: Readonly<Record<string, number>>) =>
+  AVELA_PORTALS.map((row) => ({ ...row, pendingChangeCount: counts[row.portalId] ?? 0 }))
+
+/** Coming back later, the bar says the saved look has not reached every live portal. */
+export const SavedLookNotYetLive: Story = {
+  args: { rows: withPending({ 'p-reception': 2, 'p-pool': 1 }) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText('Changes are waiting to go live on 2 of 5 portals'),
+    ).toBeVisible()
+    // The count of live portals still leads the button; the plain "use" line is gone.
+    expect(canvas.queryByText(/live portals use this look/)).toBeNull()
+    await expect(
+      canvas.getByRole('button', { name: 'Review & publish 5 portals' }),
+    ).toBeEnabled()
+  },
+}
+
+/** Nothing waiting: guests already have the saved look, and the button steps back. */
+export const EveryLivePortalShowsTheLook: Story = {
+  args: { rows: withPending({}) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('All 5 live portals show this look')).toBeVisible()
+    const button = canvas.getByRole('button', { name: 'Review & publish 5 portals' })
+    await expect(button).toBeEnabled()
+    // The outline look, not the filled one a waiting change gets.
+    await expect(button).toHaveClass('border')
+  },
+}
+
 /** A new accent is written once, after a pause, as the draft; nothing is published. */
 export const AccentSavesAsADraft: Story = {
   play: async ({ canvasElement, args }) => {
@@ -294,6 +326,22 @@ export const DefaultLanguages: Story = {
       WAIT,
     )
     await expect(args.saveLook).not.toHaveBeenCalled()
+  },
+}
+
+/**
+ * On a phone "Make fallback" and "Remove" are tap targets, not 24px marks side by
+ * side: both carry the Button's touch minimum (44px below md) and a gap apart.
+ */
+export const LanguageControlsAreTouchTargets: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const list = within(canvas.getByRole('list', { name: 'Default languages' }))
+    for (const name of ['Make Bulgarian the fallback', 'Remove Bulgarian']) {
+      await expect(list.getByRole('button', { name })).toHaveClass(
+        'max-md:min-h-(--control-touch)',
+      )
+    }
   },
 }
 

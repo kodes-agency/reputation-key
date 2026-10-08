@@ -209,6 +209,7 @@ function PropertyLookEditor({
               <PropertyLookBatchPublish
                 propertyId={propertyId}
                 live={affected.live}
+                waiting={affected.waiting}
                 canPublish={canPublish}
                 isSettling={SETTLING.has(state.status)}
                 getPortalReview={getPortalReview}

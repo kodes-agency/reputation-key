@@ -13,6 +13,12 @@ type Props = Readonly<{
   propertyId: string
   /** The live portals the look reaches. */
   live: readonly AffectedPortalRow[]
+  /**
+   * How many of them have changes waiting; null when that is not known. At zero
+   * there is nothing to publish, so the button steps back (it still opens the
+   * review, which says so).
+   */
+  waiting: number | null
   /** The viewer holds `portal.update` and Portals writes are switched on. */
   canPublish: boolean
   /** An edit is waiting, in flight or refused: what would be reviewed is not settled. */
@@ -24,6 +30,7 @@ type Props = Readonly<{
 export function PropertyLookBatchPublish({
   propertyId,
   live,
+  waiting,
   canPublish,
   isSettling,
   getPortalReview,
@@ -33,7 +40,12 @@ export function PropertyLookBatchPublish({
   if (!canPublish || live.length === 0) return null
   return (
     <>
-      <Button type="button" disabled={isSettling} onClick={() => setIsOpen(true)}>
+      <Button
+        type="button"
+        variant={waiting === 0 ? 'outline' : 'default'}
+        disabled={isSettling}
+        onClick={() => setIsOpen(true)}
+      >
         Review &amp; publish {live.length === 1 ? '1 portal' : `${live.length} portals`}
       </Button>
       {isOpen ? (
