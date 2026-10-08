@@ -1,5 +1,5 @@
 // Name and logo (board 09): what guests see at the top of every page. The
-// display name belongs to Property settings (AI reply drafts read it), so it is
+// display name belongs to property settings (AI reply drafts read it), so it is
 // shown here and changed there; the wordmark is the look's own. The logo is
 // uploaded here and replaces the wordmark on guest pages once one exists.
 import { describedByOf, FormFieldFrame } from '#/components/forms/form-field-frame'
@@ -52,7 +52,7 @@ export function PropertyLookIdentitySection({
                   to="/properties/$propertyId/settings/profile"
                   params={{ propertyId }}
                 >
-                  Property settings
+                  property settings
                 </InlineLink>
               </>
             }

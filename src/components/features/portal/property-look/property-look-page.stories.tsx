@@ -81,7 +81,7 @@ export const Default: Story = {
       WAIT,
     )
     await expect(within(phone).getByText('How was your experience?')).toBeVisible()
-    await expect(canvas.getByRole('link', { name: 'Property settings' })).toHaveAttribute(
+    await expect(canvas.getByRole('link', { name: 'property settings' })).toHaveAttribute(
       'href',
       '/properties/prop-1/settings/profile',
     )
@@ -321,7 +321,7 @@ export const ReadOnly: Story = {
   args: { canEdit: false },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/An Account Admin manages the look/)).toBeVisible()
+    await expect(canvas.getByText(/An account admin manages the look/)).toBeVisible()
     await expect(canvas.getByLabelText('Accent')).toBeDisabled()
     await expect(canvas.getByLabelText('Wordmark')).toBeDisabled()
     await expect(canvas.queryByRole('button', { name: 'Add language' })).toBeNull()
@@ -340,14 +340,49 @@ export const NoPortalsYet: Story = {
   },
 }
 
+const savingName = () =>
+  Object.assign(
+    fn(
+      async (_input: { data: { propertyId: string; displayName: string } }) => undefined,
+    ),
+    { isPending: false, error: null, isSuccess: false, data: null },
+  )
+
+/** An account admin sets the name on this page; nobody is sent to property settings. */
 export const NoPublicDisplayName: Story = {
-  args: { profile: null },
+  args: { profile: null, saveDisplayName: savingName() as never },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Set the public display name first')).toBeVisible()
+    expect(canvas.queryByRole('link', { name: /Set it in property settings/ })).toBeNull()
+    // The card points to Property look for colours; on Property look it would point at itself.
+    // (The breadcrumb names the page but is not a link.)
+    expect(
+      canvas
+        .queryAllByRole('link', { name: 'Property look' })
+        .filter((link) => link.hasAttribute('href')),
+    ).toHaveLength(0)
+    await userEvent.type(canvas.getByLabelText('Public display name'), 'Avela Resort')
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Save public display name' }),
+    )
+    await waitFor(() =>
+      expect(args.saveDisplayName).toHaveBeenCalledWith({
+        data: { propertyId: 'prop-1', displayName: 'Avela Resort' },
+      }),
+    )
+  },
+}
+
+/** Someone who cannot set the name is told who can, and sees no field. */
+export const NoPublicDisplayNameForAReader: Story = {
+  decorators: [withRole('Member')],
+  args: { profile: null, canEdit: false },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Set the public display name first')).toBeVisible()
-    await expect(
-      canvas.getByRole('link', { name: /Set it in property settings/ }),
-    ).toHaveAttribute('href', '/properties/prop-1/settings/profile')
+    await expect(canvas.getByText(/Ask an account admin to set it/)).toBeVisible()
+    expect(canvas.queryByLabelText('Public display name')).toBeNull()
   },
 }
 
