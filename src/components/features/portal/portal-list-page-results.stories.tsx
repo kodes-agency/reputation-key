@@ -2,7 +2,7 @@
 // measure columns, the group heads' own figures, "Too few", and what the page
 // says while the results load, fail, or are not offered to this reader.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, screen, userEvent, within } from 'storybook/test'
 import { ControlledPage, baseArgs } from './portal-list-page-stories-data'
 import {
   indexOverviewResults,
@@ -79,10 +79,13 @@ export const PortalRowsSayTooFewInsteadOfAnAverage: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const rooms = rowOf(canvas, 'Guest rooms')
-    await expect(rooms.getByText('Too few')).toBeInTheDocument()
+    // The reason is one a keyboard and a finger can ask for, not a title on a span.
+    const tooFew = rooms.getByRole('button', { name: /too few/i })
+    await expect(tooFew).toHaveTextContent('Too few')
+    await userEvent.click(tooFew)
     await expect(
-      rooms.getByText(/4 ratings, needs 5 to show an average/),
-    ).toBeInTheDocument()
+      await screen.findByText(/4 ratings, needs 5 to show an average/),
+    ).toBeVisible()
     // The counts beside it are real.
     await expect(rooms.getByText('38')).toBeInTheDocument()
     await expect(rowOf(canvas, 'Pool & Terrace').getByText('4.4')).toBeInTheDocument()
@@ -166,9 +169,58 @@ export const NamesTheWindowAndTheFloor: Story = {
     ).toBeInTheDocument()
     await expect(
       canvas.getByText(
-        'Last 30 days, Europe/Sofia time · an average needs 5 private ratings',
+        /Last 30 days, Europe\/Sofia time · an average needs 5 private ratings/,
       ),
     ).toBeInTheDocument()
+  },
+}
+
+// The headline term is never defined by the strip's label; it is one tap away from
+// the column that sorts by it and from the line under the table.
+export const QualifiedScansIsExplained: Story = {
+  args: withResults,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'What qualified scans means' }),
+    )
+    await expect(
+      await screen.findByText(/counted once per guest in 24 hours/),
+    ).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'What a qualified scan is' }),
+    )
+    await expect(
+      await screen.findByText(/bots and refreshes are not counted/i),
+    ).toBeVisible()
+  },
+}
+
+// Spa & thermal pools has a code from before scans were counted. Its scans are a
+// dash with the reason, never the zero the read answers with; its card prints no
+// "0 qualified scans"; and the strip says its total leaves that Portal out.
+export const ScansNobodyCountedAreADashNotAZero: Story = {
+  args: withResults,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const spa = rowOf(canvas, 'Spa & thermal pools')
+    const dash = spa.getByRole('button', {
+      name: 'Qualified scans: Not counted: older code',
+    })
+    await expect(dash).toHaveTextContent('—')
+    await expect(spa.queryByText(/qualified scans/)).toBeNull()
+    await userEvent.click(dash)
+    await expect(await screen.findByText('Not counted: older code.')).toBeVisible()
+    // The rest of its row is counted: only scans are missing.
+    await expect(spa.getByText('91')).toBeInTheDocument()
+
+    const note = within(canvas.getByRole('region', { name: 'Results' }))
+    await expect(note.getByText(/aren’t in these figures/)).toBeInTheDocument()
+    const link = note.getByRole('link', { name: 'Open Share for Spa & thermal pools' })
+    const href = new URL(link.getAttribute('href') ?? '', 'http://localhost')
+    await expect(href.pathname).toBe('/properties/prop-1/portals/p-spa')
+    await expect(href.searchParams.get('tab')).toBe('share')
   },
 }
 

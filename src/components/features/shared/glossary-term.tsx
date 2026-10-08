@@ -12,15 +12,17 @@ type Props = Readonly<{
   /** Overrides the rendered word when the sentence needs another form
    *  ("complaints" inside a column header, say). The definition is unchanged. */
   children?: string
+  /** The trigger's name when its words are a question or a sentence rather than the term. */
+  ariaLabel?: string
 }>
 
-export function GlossaryTerm({ term, children }: Props) {
+export function GlossaryTerm({ term, children, ariaLabel }: Props) {
   const entry = DASHBOARD_GLOSSARY[term]
   const label = children ?? entry.term
 
   return (
     <Popover>
-      <ExplainTrigger aria-label={`What ${label.toLowerCase()} means`}>
+      <ExplainTrigger aria-label={ariaLabel ?? `What ${label.toLowerCase()} means`}>
         {label}
       </ExplainTrigger>
       <PopoverContent aria-label={entry.term} className="max-w-xs text-sm">

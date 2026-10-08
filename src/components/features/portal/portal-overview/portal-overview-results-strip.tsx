@@ -6,6 +6,7 @@
 // offered: a lifetime figure comes from the lifetime aggregate, not from readings).
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
+import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { RegionError } from '#/components/ui/region-error'
 import { RangeControl } from '#/components/ui/range-control'
 import { cn } from '#/lib/utils'
@@ -18,6 +19,10 @@ import { PORTAL_OVERVIEW_RANGES } from '../portal-analytics/portal-results-windo
 import { INBOX_WAITING_QUEUE, inboxWaitingLabel } from './portal-overview-inbox'
 import type { PortalOverviewResultsState } from './portal-overview-results'
 import { organizationScopeLine } from './portal-overview-strip-scope'
+import {
+  UncountedScansNote,
+  type UncountedScanPortal,
+} from './portal-overview-uncounted-note'
 
 /** What the route tells the page about the results: where they are, and the window. */
 export type PortalOverviewResultsControls = Readonly<{
@@ -43,6 +48,8 @@ type Props = Readonly<{
    * out; the Organization's and a group's strips never carry it.
    */
   inboxWaiting?: number | null
+  /** Live Portals whose scans nobody counted (an older code): the strip says they are not in it. */
+  uncounted?: readonly UncountedScanPortal[]
 }>
 
 const COLLAPSE_NOTE = 'collapsed properties stay collapsed for you'
@@ -110,6 +117,7 @@ export function PortalOverviewResultsStrip({
   propertiesListed,
   groupId,
   inboxWaiting = null,
+  uncounted = [],
 }: Props) {
   const { state, timeRange, onTimeRangeChange, onRetry, busy = false } = controls
   if (state.status === 'off') return null
@@ -150,6 +158,7 @@ export function PortalOverviewResultsStrip({
           />
         </div>
       ) : null}
+      {strip ? <UncountedScansNote portals={uncounted} /> : null}
     </section>
   )
 }
@@ -167,7 +176,10 @@ export function PortalOverviewResultsFooter({ controls, propertyId, groupId }: P
         busy && 'opacity-60',
       )}
     >
-      {propertyId === null ? `${strip.footer} · ${COLLAPSE_NOTE}` : strip.footer}
+      {propertyId === null ? `${strip.footer} · ${COLLAPSE_NOTE}` : strip.footer} ·{' '}
+      <GlossaryTerm term="qualified-scans" ariaLabel="What a qualified scan is">
+        What is a qualified scan?
+      </GlossaryTerm>
     </p>
   )
 }
