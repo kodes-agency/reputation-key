@@ -14,6 +14,7 @@ import {
   AVELA_PORTALS,
   AVELA_PROFILE,
   blockedReview,
+  editedReview,
   manyLivePortals,
   neverAnswered,
   nothingNewReview,
@@ -152,6 +153,78 @@ export const ReviewListsEachLivePortal: Story = {
     ).toBeEnabled()
     // A draft is not live, so it is not on the list.
     await expect(list.queryByText('Pool bar')).toBeNull()
+  },
+}
+
+/**
+ * Publishing the look publishes the portal's whole saved draft. A row says
+ * whether it carries anything besides the look, links to the changes behind it,
+ * and a portal that does carry other edits is not ticked until the manager says so.
+ */
+export const RowsSayWhatThePublishCarries: Story = {
+  args: {
+    getPortalReview: reviewingPortals({
+      'p-pool': editedReview('p-pool', 2),
+      'p-olive': nothingNewReview('p-olive'),
+      'p-spa': blockedReview('p-spa'),
+    }),
+  },
+  play: async ({ canvasElement, args }) => {
+    const dialog = await openReview(canvasElement)
+    const list = within(within(dialog).getByRole('list', { name: 'Live portals' }))
+    // Reception and Guest rooms: nothing but the look.
+    await expect(
+      list.getAllByText('Publishes as version 4 · the look only'),
+    ).toHaveLength(2)
+    // The portal with other edits waits for a tick, and says why.
+    const pool = list.getByRole('checkbox', { name: /Pool & Terrace/ })
+    await expect(pool).not.toBeChecked()
+    await expect(
+      list.getByText(
+        'Left out · it also has 2 other draft edits · tick it to publish them with the look',
+      ),
+    ).toBeVisible()
+    await expect(
+      within(dialog).getByText(
+        '2 to publish · 1 with other draft edits, unticked · 1 with nothing new · 1 cannot be published',
+      ),
+    ).toBeVisible()
+    await expect(
+      within(dialog).getByRole('button', { name: 'Publish 2 portals' }),
+    ).toBeEnabled()
+
+    // Ticking it is the manager accepting those edits: the row now says what goes live.
+    await userEvent.click(pool)
+    await expect(
+      list.getByText('Publishes as version 4 · also publishes 2 other draft edits'),
+    ).toBeVisible()
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Publish 3 portals' }),
+    )
+    await waitFor(() =>
+      expect(args.publishPortals).toHaveBeenCalledWith({
+        data: { portalIds: ['p-reception', 'p-pool', 'p-rooms'] },
+      }),
+    )
+  },
+}
+
+/** Every ready row links to that portal's Review page, in a new tab so the dialog stays. */
+export const ReadyRowsLinkToTheirChanges: Story = {
+  play: async ({ canvasElement }) => {
+    const dialog = await openReview(canvasElement)
+    const list = within(within(dialog).getByRole('list', { name: 'Live portals' }))
+    const link = list.getByRole('link', { name: 'See the changes waiting on Reception' })
+    await expect(link).toHaveAttribute(
+      'href',
+      '/properties/prop-1/portals/p-reception/review',
+    )
+    await expect(link).toHaveAttribute('target', '_blank')
+    // A portal with nothing to publish has no changes to see.
+    expect(
+      list.queryByRole('link', { name: /See the changes waiting on Olive/ }),
+    ).toBeNull()
+    await expect(within(dialog).getByText(/anything else saved on it/)).toBeVisible()
   },
 }
 

@@ -23,6 +23,13 @@ import {
   describeReviewCheck,
   reviewCheckContext,
 } from '../portal-review/portal-review-checks'
+import {
+  changeMixOf,
+  describeMix,
+  describeOthers,
+  hasOtherEdits,
+  type ChangeMix,
+} from './property-look-batch-changes'
 
 /** One request publishes at most this many portals (`MAX_PORTALS_PER_PUBLISH_BATCH`, pinned by a test). */
 export const PUBLISH_BATCH_SIZE = 50
@@ -44,7 +51,8 @@ export type BatchEntry =
   | Readonly<{
       kind: 'ready'
       version: number
-      changeCount: number
+      /** What the publish carries: this page's look edits, and everything else saved. */
+      mix: ChangeMix
       changesMayBeIncomplete: boolean
     }>
   | Readonly<{ kind: 'nothing' }>
@@ -100,13 +108,6 @@ export function blockedReasons(
   })
 }
 
-const NAMEABLE = new Set([
-  'edit',
-  'unrecorded',
-  'earlier_design',
-  'google_destination_moved',
-])
-
 /** What the batch can do with a portal whose review was read (`null`: it could not be). */
 export function batchEntryOf(review: BatchReviewFacts | null): BatchEntry {
   if (review === null) return { kind: 'unreadable' }
@@ -116,7 +117,7 @@ export function batchEntryOf(review: BatchReviewFacts | null): BatchEntry {
     return {
       kind: 'ready',
       version: review.publishesAsVersion,
-      changeCount: review.changes.filter((change) => NAMEABLE.has(change.type)).length,
+      mix: changeMixOf(review.changes),
       changesMayBeIncomplete: review.changesMayBeIncomplete,
     }
   }
@@ -128,12 +129,8 @@ export function describeEntry(entry: BatchEntry): string {
   switch (entry.kind) {
     case 'ready': {
       const head = `Publishes as version ${entry.version}`
-      if (entry.changeCount === 0) return head
-      const noun = entry.changeCount === 1 ? 'change' : 'changes'
-      const count = entry.changesMayBeIncomplete
-        ? `at least ${entry.changeCount} ${noun}`
-        : `${entry.changeCount} ${noun}`
-      return `${head} · ${count}`
+      const carries = describeMix(entry.mix, entry.changesMayBeIncomplete)
+      return carries === null ? head : `${head} · ${carries}`
     }
     case 'nothing':
       return 'Nothing new to publish'
@@ -148,8 +145,22 @@ export function describeEntry(entry: BatchEntry): string {
   }
 }
 
+/**
+ * The line of a ready portal that is not ticked. One that is unticked because it
+ * carries other draft edits says so, and that ticking it publishes them too.
+ */
+export function describeLeftOut(entry: BatchEntry): string {
+  if (entry.kind !== 'ready' || !startsLeftOut(entry)) {
+    return 'Left out · stays as it is for guests'
+  }
+  const others = describeOthers(entry.mix, entry.changesMayBeIncomplete)
+  return `Left out · it also has ${others ?? 'other draft edits'} · tick it to publish them with the look`
+}
+
 export type BatchTotals = Readonly<{
   ready: number
+  /** Of the ready ones, those that also carry other draft edits and start unticked. */
+  withOtherEdits: number
   nothing: number
   blocked: number
   /** Not allowed, no longer live, or unreadable: nothing the batch can do. */
@@ -162,12 +173,31 @@ export function totalsOf(entries: readonly BatchEntry[]): BatchTotals {
   const ready = count('ready')
   const nothing = count('nothing')
   const blocked = count('blocked')
-  return { ready, nothing, blocked, other: entries.length - ready - nothing - blocked }
+  return {
+    ready,
+    withOtherEdits: entries.filter(startsLeftOut).length,
+    nothing,
+    blocked,
+    other: entries.length - ready - nothing - blocked,
+  }
+}
+
+/**
+ * A ready portal that also carries other draft edits starts unticked: ticking it
+ * is the manager saying those edits may go live too.
+ */
+export function startsLeftOut(entry: BatchEntry): boolean {
+  return entry.kind === 'ready' && hasOtherEdits(entry.mix)
 }
 
 export function describeBatchSummary(totals: BatchTotals): string {
+  // The ready portals that start ticked; the others wait for the manager.
+  const ticked = totals.ready - totals.withOtherEdits
   const parts = [
-    totals.ready > 0 ? `${totals.ready} to publish` : null,
+    ticked > 0 ? `${ticked} to publish` : null,
+    totals.withOtherEdits > 0
+      ? `${totals.withOtherEdits} with other draft edits, unticked`
+      : null,
     totals.nothing > 0 ? `${totals.nothing} with nothing new` : null,
     totals.blocked > 0 ? `${totals.blocked} cannot be published` : null,
     totals.other > 0 ? `${totals.other} not available` : null,

@@ -4,15 +4,12 @@ import { MAX_PORTALS_PER_PUBLISH_BATCH } from '#/contexts/portal/application/dto
 import {
   batchEntryOf,
   blockedReasons,
-  describeBatchSummary,
   describeEntry,
   describeOutcome,
   describeOutcomesSummary,
   describeStop,
   describeUnanswered,
-  idsToPublish,
   PUBLISH_BATCH_SIZE,
-  totalsOf,
   type BatchEntry,
   type BatchReviewFacts,
 } from './property-look-batch-rules'
@@ -55,20 +52,23 @@ const review = (patch: Partial<BatchReviewFacts> = {}): BatchReviewFacts => ({
 })
 
 describe('batchEntryOf — what the batch can do with one live portal', () => {
-  it('is ready when the review lets the viewer publish, with the version and the change count', () => {
+  it('is ready when the review lets the viewer publish, with the version and what it carries', () => {
     expect(batchEntryOf(review())).toEqual({
       kind: 'ready',
       version: 7,
-      changeCount: 2,
+      mix: { look: 2, other: 0, hasUnlisted: false },
       changesMayBeIncomplete: false,
     })
   })
 
-  it('does not count a change that cannot be named', () => {
+  it('counts a change that cannot be named as other edits that cannot be listed', () => {
     const entry = batchEntryOf(
       review({ changes: [{ type: 'unlisted' }, { type: 'no_visible_change' }] }),
     )
-    expect(entry).toMatchObject({ kind: 'ready', changeCount: 0 })
+    expect(entry).toMatchObject({
+      kind: 'ready',
+      mix: { look: 0, other: 0, hasUnlisted: true },
+    })
   })
 
   it('passes on that the ledger page may have left older changes out', () => {
@@ -164,23 +164,39 @@ describe('blockedReasons', () => {
   })
 })
 
+const ready = (
+  mix: Partial<{ look: number; other: number; hasUnlisted: boolean }>,
+  changesMayBeIncomplete = false,
+): BatchEntry => ({
+  kind: 'ready',
+  version: 7,
+  mix: { look: 0, other: 0, hasUnlisted: false, ...mix },
+  changesMayBeIncomplete,
+})
+
 describe('describeEntry — the line under a portal', () => {
   const cases: ReadonlyArray<readonly [BatchEntry, string]> = [
+    [ready({ look: 3 }), 'Publishes as version 7 · the look only'],
     [
-      { kind: 'ready', version: 7, changeCount: 3, changesMayBeIncomplete: false },
-      'Publishes as version 7 · 3 changes',
+      ready({ look: 1, other: 2 }),
+      'Publishes as version 7 · also publishes 2 other draft edits',
     ],
     [
-      { kind: 'ready', version: 7, changeCount: 1, changesMayBeIncomplete: false },
-      'Publishes as version 7 · 1 change',
+      ready({ look: 1, other: 1 }),
+      'Publishes as version 7 · also publishes 1 other draft edit',
+    ],
+    [ready({}), 'Publishes as version 7'],
+    [
+      ready({ look: 1, other: 100 }, true),
+      'Publishes as version 7 · also publishes at least 100 other draft edits',
     ],
     [
-      { kind: 'ready', version: 7, changeCount: 0, changesMayBeIncomplete: false },
-      'Publishes as version 7',
+      ready({ look: 1 }, true),
+      'Publishes as version 7 · the look, and possibly other edits',
     ],
     [
-      { kind: 'ready', version: 7, changeCount: 100, changesMayBeIncomplete: true },
-      'Publishes as version 7 · at least 100 changes',
+      ready({ look: 1, hasUnlisted: true }),
+      'Publishes as version 7 · also publishes other draft edits',
     ],
     [{ kind: 'nothing' }, 'Nothing new to publish'],
     [
@@ -193,55 +209,6 @@ describe('describeEntry — the line under a portal', () => {
   ]
   it.each(cases)('%j reads %s', (entry, text) => {
     expect(describeEntry(entry)).toBe(text)
-  })
-})
-
-describe('totals and the summary line', () => {
-  const entries: readonly BatchEntry[] = [
-    { kind: 'ready', version: 2, changeCount: 1, changesMayBeIncomplete: false },
-    { kind: 'ready', version: 4, changeCount: 1, changesMayBeIncomplete: false },
-    { kind: 'nothing' },
-    { kind: 'blocked', reasons: ['No public address'] },
-    { kind: 'unreadable' },
-    { kind: 'not_allowed' },
-  ]
-
-  it('counts what will be published, what has nothing new, what cannot, and the rest', () => {
-    expect(totalsOf(entries)).toEqual({ ready: 2, nothing: 1, blocked: 1, other: 2 })
-  })
-
-  it('says it all in one line', () => {
-    expect(describeBatchSummary(totalsOf(entries))).toBe(
-      '2 to publish · 1 with nothing new · 1 cannot be published · 2 not available',
-    )
-  })
-
-  it('says only what there is', () => {
-    expect(describeBatchSummary({ ready: 1, nothing: 0, blocked: 0, other: 0 })).toBe(
-      '1 to publish',
-    )
-    expect(describeBatchSummary({ ready: 0, nothing: 0, blocked: 0, other: 0 })).toBe(
-      'No live portals',
-    )
-  })
-})
-
-describe('idsToPublish — what is ticked', () => {
-  const rows = [
-    {
-      portalId: 'a',
-      entry: { kind: 'ready', version: 2, changeCount: 1, changesMayBeIncomplete: false },
-    },
-    {
-      portalId: 'b',
-      entry: { kind: 'ready', version: 3, changeCount: 1, changesMayBeIncomplete: false },
-    },
-    { portalId: 'c', entry: { kind: 'blocked', reasons: [] } },
-  ] as const
-
-  it('takes every ready portal that was not left out, in the order shown', () => {
-    expect(idsToPublish(rows, new Set(['b']))).toEqual(['a'])
-    expect(idsToPublish(rows, new Set())).toEqual(['a', 'b'])
   })
 })
 

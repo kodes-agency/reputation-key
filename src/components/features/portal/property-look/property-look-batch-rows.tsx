@@ -8,6 +8,7 @@ import type { PublishPortalsChangesResult } from '#/contexts/portal/application/
 import type { BatchRow } from './use-property-look-batch'
 import {
   describeEntry,
+  describeLeftOut,
   describeOutcome,
   describeUnanswered,
 } from './property-look-batch-rules'
@@ -42,6 +43,9 @@ function Names({
   )
 }
 
+/** A link at the end of a row: as tall as the row (a tap target on a phone), the words at its end. */
+const ROW_LINK = 'flex shrink-0 items-center self-stretch px-1 text-sm'
+
 function ReviewRow({
   propertyId,
   item,
@@ -57,17 +61,15 @@ function ReviewRow({
 }>) {
   const { row, entry } = item
   const detail = describeEntry(entry)
+  const review = {
+    to: '/properties/$propertyId/portals/$portalId/review',
+    params: { propertyId, portalId: row.portalId },
+  } as const
   if (entry.kind === 'ready') {
     const id = `look-batch-${row.portalId}`
     return (
       <li className="border-t first:border-t-0">
-        <label
-          htmlFor={id}
-          className={cn(
-            ROW,
-            isLocked ? 'cursor-default' : 'cursor-pointer hover:bg-muted/40',
-          )}
-        >
+        <div className={cn(ROW, isLocked ? '' : 'hover:bg-muted/40')}>
           <Checkbox
             id={id}
             className="mt-0.5"
@@ -75,11 +77,26 @@ function ReviewRow({
             disabled={isLocked}
             onCheckedChange={() => onToggle(row.portalId)}
           />
-          <Names
-            row={row}
-            detail={isLeftOut ? 'Left out · stays as it is for guests' : detail}
-          />
-        </label>
+          <label
+            htmlFor={id}
+            className={cn(
+              'min-w-0 flex-1',
+              isLocked ? 'cursor-default' : 'cursor-pointer',
+            )}
+          >
+            <Names row={row} detail={isLeftOut ? describeLeftOut(entry) : detail} />
+          </label>
+          {/* In a new tab, so the dialog and what is ticked in it are still here when the changes have been read. */}
+          <InlineLink
+            {...review}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`See the changes waiting on ${row.name}`}
+            className={ROW_LINK}
+          >
+            See changes
+          </InlineLink>
+        </div>
       </li>
     )
   }
@@ -98,10 +115,9 @@ function ReviewRow({
         <Names row={row} detail={detail} tone={blocked ? 'warn' : 'quiet'} />
         {blocked ? (
           <InlineLink
-            to="/properties/$propertyId/portals/$portalId/review"
-            params={{ propertyId, portalId: row.portalId }}
+            {...review}
             aria-label={`Open ${row.name} to fix it`}
-            className="shrink-0 text-sm"
+            className={ROW_LINK}
           >
             Open
           </InlineLink>
