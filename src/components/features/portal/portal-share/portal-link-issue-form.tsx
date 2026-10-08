@@ -19,7 +19,7 @@ export function PortalLinkIssueForm({
     <div className="flex flex-col gap-4 rounded-lg bg-muted/40 p-4">
       <p className="text-sm text-muted-foreground">
         A portal has one code. It works as a QR code for print and as an NFC tag. Use
-        another portal when you need separate attribution or goals.
+        another portal when you need separate results or goals.
       </p>
       <Button
         type="button"
