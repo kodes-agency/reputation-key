@@ -111,7 +111,7 @@ describe('printKitAvailability', () => {
 describe('printKitPrintAdvice', () => {
   it('sends the table tent to a print shop: its sheet is taller than A4 and Letter', () => {
     expect(printKitPrintAdvice('table_tent')).toBe(
-      'The table tent needs a print shop: its sheet is larger than A4 or Letter. Ask for it at 100% (actual size), then cut on the crop marks.',
+      'The table tent needs a print shop: its sheet is larger than A4 or Letter. Ask them to print it at 100% (actual size) and cut it on the crop marks.',
     )
   })
 

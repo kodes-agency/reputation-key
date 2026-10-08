@@ -135,7 +135,7 @@ export const TableTent: Story = {
     // The tent's sheet is taller than office paper: it goes to a print shop.
     await expect(
       canvas.getByText(
-        /table tent needs a print shop: its sheet is larger than A4 or Letter\. Ask for it at 100% \(actual size\)/i,
+        /table tent needs a print shop: its sheet is larger than A4 or Letter\. Ask them to print it at 100% \(actual size\)/i,
       ),
     ).toBeVisible()
     await expect(canvas.queryByText(/your own printer/i)).toBeNull()

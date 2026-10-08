@@ -80,7 +80,7 @@ export function PortalShare(props: PortalShareProps) {
           notice={
             props.publicationState === undefined
               ? null
-              : describeUnpublishedCode(props.publicationState)
+              : describeUnpublishedCode(props.publicationState, access.canManage)
           }
           review={
             access.canManage && props.propertyId !== undefined

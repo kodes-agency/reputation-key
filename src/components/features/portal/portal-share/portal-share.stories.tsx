@@ -265,6 +265,25 @@ export const DraftPortal: Story = {
   },
 }
 
+// Someone who can only look learns the same fact, but is not sent to publish.
+export const ViewerOfADraftPortal: Story = {
+  args: {
+    ...baseArgs,
+    tokenStatus: activeToken,
+    publicationState: 'draft',
+    propertyId: 'property-1',
+  },
+  decorators: [withRole('Member')],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(/isn’t available right now” until the portal is published\./),
+    ).toBeInTheDocument()
+    await expect(canvas.queryByText(/until you publish/)).toBeNull()
+    await expect(canvas.queryByRole('link', { name: 'Review & publish' })).toBeNull()
+  },
+}
+
 // An archived portal is restored from the Portals list, not published here.
 export const ArchivedPortal: Story = {
   args: {

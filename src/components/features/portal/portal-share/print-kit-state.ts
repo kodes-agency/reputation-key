@@ -118,5 +118,5 @@ export function printKitPrintAdvice(piece: PrintKitPiece): string {
   const { noun } = PRINT_KIT_PIECE_FACTS[piece]
   return fitsOfficePaper(piece)
     ? `Print the ${noun} on A4 or Letter at 100% (actual size), not “fit to page”, then cut on the crop marks.`
-    : `The ${noun} needs a print shop: its sheet is larger than A4 or Letter. Ask for it at 100% (actual size), then cut on the crop marks.`
+    : `The ${noun} needs a print shop: its sheet is larger than A4 or Letter. Ask them to print it at 100% (actual size) and cut it on the crop marks.`
 }

@@ -52,27 +52,43 @@ describe('describeWhoToAsk', () => {
 
 describe('describeUnpublishedCode', () => {
   it('says nothing for a live portal', () => {
-    expect(describeUnpublishedCode('published')).toBeNull()
+    expect(describeUnpublishedCode('published', true)).toBeNull()
+    expect(describeUnpublishedCode('published', false)).toBeNull()
   })
 
   it('tells a draft what a scan shows until it is published, and offers to publish', () => {
-    expect(describeUnpublishedCode('draft')).toEqual({
+    expect(describeUnpublishedCode('draft', true)).toEqual({
       title: 'Not published yet',
-      body: 'Guests who scan this code see “This page isn’t available right now” until you publish the portal. You can still make and print it ahead of the launch.',
+      body: 'Guests who scan this code see “This page isn’t available right now” until you publish the portal. You can still make and print the code ahead of the launch.',
       offersReview: true,
     })
   })
 
+  it('tells someone who can only look the same fact, without sending them to publish', () => {
+    expect(describeUnpublishedCode('draft', false)).toEqual({
+      title: 'Not published yet',
+      body: 'Guests who scan this code see “This page isn’t available right now” until the portal is published.',
+      offersReview: false,
+    })
+    expect(describeUnpublishedCode('disabled', false)).toMatchObject({
+      body: expect.stringMatching(/until the portal is published again/),
+      offersReview: false,
+    })
+    expect(describeUnpublishedCode('archived', false)?.body).not.toMatch(/Restore/)
+  })
+
   it('offers to publish a portal that was turned off again', () => {
-    expect(describeUnpublishedCode('disabled')).toMatchObject({
+    expect(describeUnpublishedCode('disabled', true)).toMatchObject({
       title: 'The portal is turned off',
+      body: expect.stringMatching(/until you publish the portal again/),
       offersReview: true,
     })
   })
 
   it('sends an archived portal to the Portals list, where it is restored', () => {
-    expect(describeUnpublishedCode('archived')).toMatchObject({
+    expect(describeUnpublishedCode('archived', true)).toMatchObject({
       title: 'The portal is archived',
+      body: expect.stringMatching(/Restore it from the Portals list/),
       offersReview: false,
     })
   })

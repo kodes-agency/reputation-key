@@ -62,10 +62,13 @@ const UNAVAILABLE = 'Guests who scan this code see “This page isn’t availabl
 /**
  * A code works only while the portal is live: until then a scan opens the
  * unavailable page. Making and printing ahead of a launch is fine, so this
- * says so rather than stopping it. Null for a live portal.
+ * says so rather than stopping it, to someone who may make the code; someone
+ * who can only look is told the same fact without being sent to publish.
+ * Null for a live portal.
  */
 export function describeUnpublishedCode(
   state: PortalPublicationState,
+  canManage: boolean,
 ): UnpublishedCodeNotice | null {
   switch (state) {
     case 'published':
@@ -73,19 +76,25 @@ export function describeUnpublishedCode(
     case 'draft':
       return {
         title: 'Not published yet',
-        body: `${UNAVAILABLE} until you publish the portal. You can still make and print it ahead of the launch.`,
-        offersReview: true,
+        body: canManage
+          ? `${UNAVAILABLE} until you publish the portal. You can still make and print the code ahead of the launch.`
+          : `${UNAVAILABLE} until the portal is published.`,
+        offersReview: canManage,
       }
     case 'disabled':
       return {
         title: 'The portal is turned off',
-        body: `${UNAVAILABLE} until you publish the portal again. Printed codes work again then.`,
-        offersReview: true,
+        body: canManage
+          ? `${UNAVAILABLE} until you publish the portal again. Printed codes work again then.`
+          : `${UNAVAILABLE} until the portal is published again. Printed codes work again then.`,
+        offersReview: canManage,
       }
     case 'archived':
       return {
         title: 'The portal is archived',
-        body: `${UNAVAILABLE}. Restore it from the Portals list before you share it.`,
+        body: canManage
+          ? `${UNAVAILABLE}. Restore it from the Portals list before you share it.`
+          : `${UNAVAILABLE}.`,
         offersReview: false,
       }
   }
