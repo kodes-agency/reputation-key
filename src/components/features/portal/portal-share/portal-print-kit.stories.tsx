@@ -132,6 +132,13 @@ export const TableTent: Story = {
     await expect(within(front).getByText('app.reputationkey.app')).toBeInTheDocument()
     await expect(within(front).queryByText(/pt_AbCdEfGhIjKl/)).toBeNull()
     await expect(within(front).queryByText(/accessArtifact/i)).toBeNull()
+    // The tent's sheet is taller than office paper: it goes to a print shop.
+    await expect(
+      canvas.getByText(
+        /table tent needs a print shop: its sheet is larger than A4 or Letter\. Ask for it at 100% \(actual size\)/i,
+      ),
+    ).toBeVisible()
+    await expect(canvas.queryByText(/your own printer/i)).toBeNull()
   },
 }
 
@@ -162,6 +169,40 @@ export const CounterCardInOneLanguage: Story = {
     // One language on a counter card is one side: nothing to switch.
     await expect(canvas.queryByRole('radio', { name: 'Back' })).toBeNull()
     await expect(canvas.getByText(/one A6 page per side/i)).toBeVisible()
+    await expect(
+      canvas.getByText(
+        /print the counter card on A4 or Letter at 100% \(actual size\), not “fit to page”/i,
+      ),
+    ).toBeVisible()
+  },
+}
+
+/** Long words shrink in the preview as they do in the file, so it never shows them larger. */
+export const LongCopyShrinksAsInTheFile: Story = {
+  args: {
+    ...baseArgs,
+    printKit: {
+      read: async () =>
+        view({
+          primaryLocale: 'fr',
+          locales: ['fr'],
+          titles: { fr: 'Restaurant panoramique et terrasse du dernier étage' },
+        }),
+      downloadMutation: downloadMutation(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      await canvas.findByRole('radio', {
+        name: /how was your visit\? tell us privately/i,
+      }),
+    )
+    const front = await preview(canvasElement)
+    const headline = within(front).getByText('Comment s’est passée votre visite ?')
+    // The full one-language size, as a share of the card's width (28.5 pt × 1.22 on a 125 mm page).
+    const fullSize = (28.5 * 1.22 * (25.4 / 72) * 100) / 125
+    await expect(Number.parseFloat(headline.style.fontSize)).toBeLessThan(fullSize)
   },
 }
 
@@ -336,5 +377,7 @@ export const ViewerGetsNoPrintKit: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText(/view-only access/i)).toBeInTheDocument()
     await expect(canvas.queryByRole('heading', { name: 'Print kit' })).toBeNull()
+    // The print kit is not silently gone: the viewer is told whom to ask.
+    await expect(canvas.getByText(/for the QR code or print kit\./)).toBeInTheDocument()
   },
 }

@@ -11,11 +11,13 @@ import {
   PRINT_KIT_QR_QUIET_ZONE_MODULES,
   isPrintKitLanguageChoice,
   printKitLanguageChoices,
+  printKitSheets,
   type PrintFace,
   type PrintFaceSide,
   type PrintKitChoice,
   type PrintKitPiece,
 } from '#/shared/domain/portal-print-kit'
+import { printPageMm } from '#/shared/domain/portal-print-kit-layout'
 
 /** A table tent in the first language choice the portal offers, asking for a rating. */
 export function initialPrintKitChoice(locales: readonly GuestLocale[]): PrintKitChoice {
@@ -83,4 +85,38 @@ export function printKitAvailability(
         reason:
           'The print kit needs the code’s address, and this code did not keep it. Replace the code to make one that can be downloaded again.',
       }
+}
+
+/** A4 and US Letter, in millimetres: the paper an office printer holds. */
+const OFFICE_PAPERS_MM = [
+  { widthMm: 210, heightMm: 297 },
+  { widthMm: 215.9, heightMm: 279.4 },
+] as const
+
+/** The PDF's page fits every office paper at full size, either way round. */
+function fitsOfficePaper(piece: PrintKitPiece): boolean {
+  const [sheet] = printKitSheets(piece, 1)
+  if (sheet === undefined) return false
+  const page = printPageMm(sheet.trimWidthMm, sheet.trimHeightMm)
+  const [short, long] = [page.widthMm, page.heightMm].sort((a, b) => a - b)
+  return OFFICE_PAPERS_MM.every(
+    (paper) =>
+      short !== undefined &&
+      long !== undefined &&
+      short <= Math.min(paper.widthMm, paper.heightMm) &&
+      long <= Math.max(paper.widthMm, paper.heightMm),
+  )
+}
+
+/**
+ * How to print the piece. A table tent's sheet (two A6 panels with bleed and
+ * crop marks) is taller than A4 and Letter, so it goes to a print shop; a
+ * counter card's page prints on either. Shrunk to fit, a card is no longer A6
+ * and loses its marks, so both say to print at actual size.
+ */
+export function printKitPrintAdvice(piece: PrintKitPiece): string {
+  const { noun } = PRINT_KIT_PIECE_FACTS[piece]
+  return fitsOfficePaper(piece)
+    ? `Print the ${noun} on A4 or Letter at 100% (actual size), not “fit to page”, then cut on the crop marks.`
+    : `The ${noun} needs a print shop: its sheet is larger than A4 or Letter. Ask for it at 100% (actual size), then cut on the crop marks.`
 }
