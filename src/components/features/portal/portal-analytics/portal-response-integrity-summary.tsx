@@ -17,7 +17,7 @@ export function PortalResponseIntegritySummary({
         Response quality checks
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">
-        Private rating figures use accepted Portal responses, not unique guests. Hiding
+        Private rating figures use accepted portal responses, not unique guests. Hiding
         written feedback does not remove its star rating.
       </p>
       <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
