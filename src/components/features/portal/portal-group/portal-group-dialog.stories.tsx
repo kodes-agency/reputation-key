@@ -55,7 +55,21 @@ export const NewGroup: Story = {
     const d = dialog()
     await expect(d.getByRole('heading', { name: 'New group' })).toBeInTheDocument()
     await expect(d.getByText(/guests never see groups/i)).toBeInTheDocument()
-    await expect(d.getByRole('button', { name: 'Create group' })).toBeDisabled()
+    // Not disabled: like New portal, it is checked when asked, and says what is missing.
+    await expect(d.getByRole('button', { name: 'Create group' })).toBeEnabled()
+  },
+}
+
+// Ticking portals and skipping the name: the reason is under the name, where the
+// person is looking, and not a count beside a button that does nothing.
+export const AMissingNameSaysSoUnderTheName: Story = {
+  play: async () => {
+    const d = dialog()
+    await userEvent.click(d.getByRole('checkbox', { name: /pool & terrace/i }))
+    await expect(d.getByText('1 portal selected')).toBeInTheDocument()
+    await userEvent.click(d.getByRole('button', { name: 'Create group' }))
+    await expect(await d.findByText('Group name is required')).toBeInTheDocument()
+    await expect(d.getByLabelText('Name')).toHaveAttribute('aria-invalid', 'true')
   },
 }
 
@@ -68,7 +82,10 @@ export const ChecklistIsGroupedByWhereEachPortalIsNow: Story = {
       .map((heading) => heading.textContent)
     await expect(sections).toEqual(['Not in a group', 'In Front of house', 'In Wellness'])
     await expect(d.getByText('Draft')).toBeInTheDocument()
-    await expect(d.getByText('No portals selected')).toBeInTheDocument()
+    // None ticked is not a blocker: a group needs only its name.
+    await expect(
+      d.getByText('Portals are optional. You can add them later.'),
+    ).toBeInTheDocument()
   },
 }
 

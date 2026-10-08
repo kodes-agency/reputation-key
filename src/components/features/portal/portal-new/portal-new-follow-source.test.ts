@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { languagesAfterChange } from './portal-new-follow-source'
+import { copiedLanguagesNote, languagesAfterChange } from './portal-new-follow-source'
 import type { PortalNewSource } from './portal-new-types'
 
 const options = { defaultGuestLocales: ['en'] as const }
 const sources: PortalNewSource[] = [
-  { portalId: 'a', name: 'A', primaryGuestLocale: 'bg', additionalGuestLocales: ['en'] },
+  {
+    portalId: 'a',
+    name: 'Pool & Terrace',
+    primaryGuestLocale: 'bg',
+    additionalGuestLocales: ['en'],
+  },
   { portalId: 'b', name: 'B', primaryGuestLocale: 'de', additionalGuestLocales: ['fr'] },
 ]
 
@@ -27,5 +32,25 @@ describe('languagesAfterChange', () => {
 
   it('keeps the Property languages when the copied portal cannot be found', () => {
     expect(languagesAfterChange(options, sources, 'portal', 'missing')).toEqual(['en'])
+  })
+})
+
+describe('copiedLanguagesNote', () => {
+  it('says which languages the copy brought, by name', () => {
+    expect(copiedLanguagesNote(sources, 'portal', 'a', false)).toBe(
+      'Copied from Pool & Terrace: Български, English.',
+    )
+  })
+
+  it('says the person’s own choice stays once they have made one', () => {
+    expect(copiedLanguagesNote(sources, 'portal', 'a', true)).toBe(
+      'Keeps the languages you chose, not Pool & Terrace’s.',
+    )
+  })
+
+  it('says nothing for the Property wording, before a portal is chosen, or for a portal that is gone', () => {
+    expect(copiedLanguagesNote(sources, 'property', 'a', false)).toBeNull()
+    expect(copiedLanguagesNote(sources, 'portal', '', false)).toBeNull()
+    expect(copiedLanguagesNote(sources, 'portal', 'missing', false)).toBeNull()
   })
 })

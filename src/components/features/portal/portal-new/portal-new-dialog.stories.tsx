@@ -88,6 +88,10 @@ export const Default: Story = {
   play: async () => {
     const ui = dialog()
     await expect(ui.getByRole('heading', { name: 'New portal' })).toBeInTheDocument()
+    // It says what guests do on the page, not only that it is a page.
+    await expect(
+      ui.getByText(/to rate their visit, leave a private note/),
+    ).toBeInTheDocument()
     await expect(ui.getByLabelText('Name')).toHaveFocus()
     await expect(ui.getByLabelText('Group')).toBeInTheDocument()
     await expect(ui.getByRole('button', { name: 'English' })).toHaveAttribute(
@@ -135,6 +139,48 @@ export const StartsFromACopy: Story = {
       propertyId: 'property-1',
       name: 'Rooftop pool',
       guestLocales: ['bg', 'en'],
+      startFrom: { kind: 'portal', portalId: 'portal-1' },
+    })
+  },
+}
+
+// A choice that sets the languages comes before the Languages field, and says what it did.
+export const StartFromComesBeforeLanguagesAndSaysWhatACopyDid: Story = {
+  play: async () => {
+    const ui = dialog()
+    const fieldsets = Array.from(document.querySelectorAll('fieldset'))
+    const position = (legend: HTMLElement) =>
+      fieldsets.indexOf(legend.closest('fieldset') as HTMLFieldSetElement)
+    await expect(position(ui.getByText('Start from'))).toBeLessThan(
+      position(ui.getByText('Languages')),
+    )
+    // Nothing to say until a portal is chosen.
+    await expect(ui.queryByText(/^Copied from/)).toBeNull()
+    await nameAndCopy(ui)
+    await userEvent.click(ui.getByRole('combobox', { name: 'Portal to copy' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Pool & Terrace' }))
+    await expect(
+      await ui.findByText('Copied from Pool & Terrace: Български, English.'),
+    ).toBeInTheDocument()
+  },
+}
+
+// Languages the person chose stay, whatever is copied, and the dialog says so
+// rather than leaving a hint that promises the copy's own.
+export const OwnLanguagesStayWhenACopyIsChosenAfterwards: Story = {
+  play: async () => {
+    const ui = dialog()
+    await userEvent.click(ui.getByRole('button', { name: 'Add language' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Deutsch' }))
+    await userEvent.type(ui.getByLabelText('Name'), 'Rooftop pool')
+    await userEvent.click(ui.getByRole('radio', { name: /A copy of another portal/ }))
+    await userEvent.click(ui.getByRole('combobox', { name: 'Portal to copy' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Pool & Terrace' }))
+    await expect(
+      await ui.findByText('Keeps the languages you chose, not Pool & Terrace’s.'),
+    ).toBeInTheDocument()
+    await expect(await submitted(ui)).toMatchObject({
+      guestLocales: ['en', 'de'],
       startFrom: { kind: 'portal', portalId: 'portal-1' },
     })
   },
