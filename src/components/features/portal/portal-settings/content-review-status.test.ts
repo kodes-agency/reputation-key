@@ -35,6 +35,6 @@ describe('liveVersionName', () => {
   })
 
   it('falls back to the live page when no version can be read', () => {
-    expect(liveVersionName(null)).toBe('live page')
+    expect(liveVersionName(null)).toBe('the live page')
   })
 })

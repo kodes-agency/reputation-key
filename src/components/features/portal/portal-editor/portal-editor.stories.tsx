@@ -367,12 +367,12 @@ export const LinkCheckNamesTheLiveVersion: Story = {
     await expect(canvas.getByRole('heading', { name: 'Link check' })).toBeVisible()
     await expect(
       canvas.getByText(
-        /Changes waiting to go live are not covered: the check is of the live version 5/,
+        /This check covers live version 5. Changes waiting to go live are not part of it/,
       ),
     ).toBeVisible()
     await expect(
       canvas.getByRole('checkbox', {
-        name: /every Linktree link on the live version 5, and each one opens the page it should/,
+        name: /every Linktree link on live version 5, and each one opens the page it should/,
       }),
     ).toBeVisible()
     await expect(
@@ -621,7 +621,7 @@ export const LanguageWithoutPropertyWording: Story = {
       within(canvasElement).getByRole('navigation', { name: 'Editor sections' }),
     )
     await expect(nav.getByRole('link', { name: /^Welcome/ })).toHaveTextContent(
-      /1 without wording/,
+      /1 language without wording/,
     )
   },
 }
@@ -880,9 +880,12 @@ export const UnsavedResponsibleTicksAskBeforeLeaving: Story = {
     await userEvent.click(canvas.getByRole('checkbox', { name: /Elena Petrova/ }))
     const nav = within(canvas.getByRole('navigation', { name: 'Editor sections' }))
     await userEvent.click(nav.getByRole('link', { name: /^Welcome/ }))
-    await expect(
-      await body.findByRole('alertdialog', { name: 'Leave without saving?' }),
-    ).toBeVisible()
+    const dialog = await body.findByRole('alertdialog', { name: 'Leave without saving?' })
+    await expect(dialog).toBeVisible()
+    // It names what would be lost, once.
+    await expect(dialog).toHaveTextContent(
+      'Not saved: the responsible managers. If you go on, these changes are discarded.',
+    )
     await userEvent.click(body.getByRole('button', { name: 'Keep editing' }))
     await expect(
       canvas.getByRole('checkbox', { name: /Elena Petrova/ }),

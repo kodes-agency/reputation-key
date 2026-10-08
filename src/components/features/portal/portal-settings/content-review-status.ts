@@ -26,7 +26,7 @@ export function reviewStatusMessage(
   return OUTCOME_MESSAGE[outcome.status]
 }
 
-/** The page the check covers, by name: "live version 5", or "live page" when no version is known. */
+/** The page the check covers, by name: "live version 5", or "the live page" when no version is known. */
 export function liveVersionName(liveVersion: number | null): string {
-  return liveVersion === null ? 'live page' : `live version ${liveVersion}`
+  return liveVersion === null ? 'the live page' : `live version ${liveVersion}`
 }

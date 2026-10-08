@@ -38,9 +38,9 @@ export type PortalWorkspaceHeaderProps = Readonly<{
   portalId: string
   portalName: string
   propertyName: string
-  /** From `describePortalStatus`. */
+  /** `workspaceStatus().line`: "Live · version 5 · up to date". */
   statusLine: string
-  /** What stops guests opening a live portal (`workspaceStatusProblem`); null for nothing. */
+  /** What stops guests opening a live portal (`workspaceStatus().problem`); null for nothing. */
   statusProblem?: WorkspaceStatusProblem | null
   /** From `describePendingChanges`; null when nothing is waiting. */
   pendingNote: string | null

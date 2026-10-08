@@ -28,6 +28,8 @@ import { describeUnsaved, type UnsavedSummary } from './portal-unsaved-parts'
 
 const PORTAL_CHANGES_COPY =
   'Some changes to this portal have not been saved. If you go on, they are discarded.'
+/** After the line that names them, so the question does not say it twice. */
+const NAMED_CHANGES_COPY = 'If you go on, these changes are discarded.'
 
 /** What a retry that did not save everything rejects with, for the dialog's banner. */
 class StillNotSavedError extends Error {}
@@ -106,9 +108,12 @@ export function PortalUnsavedChangesPrompt({
       onOpenChange={close}
       tone="destructive"
       title="Leave without saving?"
-      description={[summary.line, description ?? PORTAL_CHANGES_COPY]
-        .filter(Boolean)
-        .join(' ')}
+      description={
+        description ??
+        (summary.line === null
+          ? PORTAL_CHANGES_COPY
+          : `${summary.line} ${NAMED_CHANGES_COPY}`)
+      }
       cancelLabel="Keep editing"
       confirmLabel="Leave and discard"
       onConfirm={leave}

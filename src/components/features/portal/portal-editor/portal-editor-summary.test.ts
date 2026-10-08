@@ -56,7 +56,15 @@ describe('summarizePortalEditorSections', () => {
   it('flags Welcome while a language has no property wording', () => {
     expect(
       summarizePortalEditorSections({ ...base, languagesWithoutWording: 1 }).welcome,
-    ).toEqual({ text: 'Pool & Terrace', locked: false, attention: '1 without wording' })
+    ).toEqual({
+      text: 'Pool & Terrace',
+      locked: false,
+      attention: '1 language without wording',
+    })
+    expect(
+      summarizePortalEditorSections({ ...base, languagesWithoutWording: 2 }).welcome
+        .attention,
+    ).toBe('2 languages without wording')
     expect(
       summarizePortalEditorSections({ ...base, languagesWithoutWording: 0 }).welcome,
     ).not.toHaveProperty('attention')

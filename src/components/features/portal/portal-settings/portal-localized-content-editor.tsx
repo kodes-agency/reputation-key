@@ -81,6 +81,7 @@ export function PortalLocalizedContentEditor({
 
   const ownLines = (
     <PortalLocalizedOverrideForm
+      key="own"
       locale={locale}
       portalId={portalId}
       propertyName={propertyName}
@@ -94,6 +95,7 @@ export function PortalLocalizedContentEditor({
   )
   const propertyWording = (
     <PropertyWordingFold
+      key="property"
       propertyName={propertyName}
       startsOpen={!hasWording}
       placement={hasWording ? 'below' : 'first'}
@@ -121,25 +123,25 @@ export function PortalLocalizedContentEditor({
       className="space-y-4 rounded-lg border p-4"
     >
       <LanguageHeading locale={locale} headingId={headingId} />
-      {hasWording ? (
-        <>
-          {ownLines}
-          {propertyWording}
-        </>
-      ) : (
-        <>
-          <MissingWordingNote
-            locale={locale}
-            isPrimary={isPrimary}
-            canWriteProperty={canWriteProperty}
-          />
-          {propertyWording}
-          <p className="text-sm text-muted-foreground">
-            This portal&rsquo;s own lines count once the property wording above is saved.
-          </p>
-          {ownLines}
-        </>
-      )}
+      {/* Keyed parts, so turning the order round once the wording is saved
+          moves the forms instead of remounting them: a line of this portal's
+          still on its way to the server is not dropped. */}
+      {hasWording
+        ? [ownLines, propertyWording]
+        : [
+            <MissingWordingNote
+              key="note"
+              locale={locale}
+              isPrimary={isPrimary}
+              canWriteProperty={canWriteProperty}
+            />,
+            propertyWording,
+            <p key="when" className="text-sm text-muted-foreground">
+              This portal&rsquo;s own lines count once the property wording above is
+              saved.
+            </p>,
+            ownLines,
+          ]}
     </div>
   )
 }

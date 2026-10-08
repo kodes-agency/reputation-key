@@ -11,7 +11,6 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
   canReviewAndPublish,
   describePendingChanges,
-  describePortalStatus,
   hasSomethingToPublish,
   type PortalDetailTab,
 } from '#/components/features/portal/portal-detail/portal-detail-rules'
@@ -23,7 +22,7 @@ import {
   workspaceBackTarget,
   type WorkspaceOriginLocation,
 } from '#/components/features/portal/portal-workspace/portal-workspace-origin'
-import { workspaceStatusProblem } from '#/components/features/portal/portal-workspace/portal-workspace-status'
+import { workspaceStatus } from '#/components/features/portal/portal-workspace/portal-workspace-status'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { usePortalOpenPageReveal } from './-portal-detail-actions'
 import {
@@ -86,6 +85,14 @@ export function PortalWorkspaceHeaderSlot({
   }
   const groupName = (groupId: string) =>
     groupsData.groups.find((group) => group.id === groupId)?.name ?? null
+  const status = workspaceStatus({
+    publicationState: portal.publicationState,
+    propertyAvailable: propData.property.lifecycleState === 'active',
+    hasLiveVersion: history.current !== null,
+    token: tokenStatus,
+    liveVersion: history.current?.version ?? null,
+    hasPendingChanges: history.hasPendingChanges,
+  })
   return (
     <PortalWorkspaceHeader
       mode={reviewing ? 'review' : 'edit'}
@@ -93,17 +100,8 @@ export function PortalWorkspaceHeaderSlot({
       portalId={portalId}
       portalName={portal.name}
       propertyName={propData.property.name}
-      statusLine={describePortalStatus(
-        portal.publicationState,
-        history.current?.version ?? null,
-        history.hasPendingChanges,
-      )}
-      statusProblem={workspaceStatusProblem({
-        publicationState: portal.publicationState,
-        propertyAvailable: propData.property.lifecycleState === 'active',
-        hasLiveVersion: history.current !== null,
-        token: tokenStatus,
-      })}
+      statusLine={status.line}
+      statusProblem={status.problem}
       pendingNote={describePendingChanges(history)}
       canReview={canReviewAndPublish(access, portal.publicationState)}
       publishWaiting={hasSomethingToPublish(

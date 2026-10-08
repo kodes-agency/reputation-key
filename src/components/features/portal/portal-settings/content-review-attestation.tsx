@@ -51,8 +51,8 @@ export function ContentReviewAttestation({
         disabled={busy}
         onCheckedChange={onAttestedChange}
       >
-        I opened the Google link and every Linktree link on the {live}, and each one opens
-        the page it should.
+        I opened the Google link and every Linktree link on {live}, and each one opens the
+        page it should.
       </ConsentCheckbox>
       <FormErrorBanner error={mutation.error} />
       <Button variant="outline" disabled={busy || !attested} onClick={record}>

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react'
+import { useMemo, useState } from 'react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
 import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
@@ -164,5 +165,78 @@ export const UnsafeDestinationRejected: Story = {
     await userEvent.click(canvas.getByRole('button', { name: /add destination/i }))
     await expect(await canvas.findByText(/enter a public https address/i)).toBeVisible()
     expect(args.actions.requestDestination).not.toHaveBeenCalled()
+  },
+}
+
+/**
+ * Bulgarian has no property wording until "Save property wording" lands, which
+ * this wrapper answers by adding the row, as the server read would.
+ */
+function WordingArrives() {
+  const [content, setContent] = useState(experience.content)
+  const actions = useMemo<PortalExperienceActions>(() => {
+    const saveContent: PortalExperienceActions['saveContent'] = Object.assign(
+      fn(async ({ data }: Parameters<PortalExperienceActions['saveContent']>[0]) => {
+        setContent((rows) => [...rows, { ...data, version: 1 }])
+      }),
+      { isPending: false, error: null, isSuccess: false, data: null },
+    ) as unknown as PortalExperienceActions['saveContent']
+    return { ...experienceActions(), saveContent }
+  }, [])
+  return (
+    <div className="p-6">
+      <PortalLocalizedContentEditor
+        locale="bg"
+        isPrimary={false}
+        propertyId="property-1"
+        portalId="portal-1"
+        experience={{ ...experience, content }}
+        actions={actions}
+        disabled={false}
+      />
+    </div>
+  )
+}
+
+// Without property wording the card puts that wording first; once it is saved
+// the card turns back to its usual order. The portal's own line moves with it
+// rather than being thrown away and drawn again, so a line still being saved
+// survives the change.
+export const SavedWordingKeepsThePortalsOwnLine: Story = {
+  args: { actions: experienceActions() },
+  render: () => <WordingArrives />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const ownLine = () =>
+      canvas.getByLabelText('This portal’s welcome line', {
+        selector: '#portal-override-title-bg',
+      })
+    const before = ownLine()
+    await userEvent.type(before, 'Басейн')
+    await userEvent.type(
+      canvas.getByLabelText('Welcome line for every portal', {
+        selector: '#portal-content-title-bg',
+      }),
+      'Добре дошли',
+    )
+    await userEvent.type(
+      canvas.getByLabelText('Link preview for every portal', {
+        selector: '#portal-content-description-bg',
+      }),
+      'Разкажете ни за престоя си.',
+    )
+    await userEvent.click(canvas.getByRole('button', { name: 'Save property wording' }))
+    await waitFor(() =>
+      expect(canvas.queryByText(/has no property wording yet/)).not.toBeInTheDocument(),
+    )
+    await expect(ownLine()).toBe(before)
+    await expect(ownLine()).toHaveValue('Басейн')
+    await expect(
+      Boolean(
+        ownLine().compareDocumentPosition(
+          canvas.getByRole('button', { name: /Property wording/ }),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    ).toBe(true)
   },
 }

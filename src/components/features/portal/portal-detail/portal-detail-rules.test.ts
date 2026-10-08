@@ -135,12 +135,13 @@ describe('derivePortalDetailView — which tabs are offered', () => {
 })
 
 describe('describePortalStatus — the quiet line under the portal name', () => {
-  it('names the live version when one is live and changes are waiting', () => {
-    expect(describePortalStatus('published', 5, true)).toBe('Live · version 5')
+  it('names the live version when one is live and it is not up to date', () => {
+    expect(describePortalStatus('published', 5, false)).toBe('Live · version 5')
+    expect(describePortalStatus('published', 5)).toBe('Live · version 5')
   })
 
-  it('says the live version is up to date when nothing is waiting', () => {
-    expect(describePortalStatus('published', 5, false)).toBe(
+  it('says the live version is up to date when the caller says so', () => {
+    expect(describePortalStatus('published', 5, true)).toBe(
       'Live · version 5 · up to date',
     )
   })

@@ -103,20 +103,22 @@ export function derivePortalDetailView(
 /**
  * The one quiet line under the portal name. Status is not the point of this
  * page, so it is a phrase, not a panel: what guests can open right now, which
- * version that is when there is one, and that it is up to date when nothing is
- * waiting to go live (the header then offers no publish step).
+ * version that is when there is one, and "up to date" when `upToDate` says the
+ * live page matches its draft and nothing stops guests opening it (the header
+ * then offers no publish step). A problem that stops guests follows the line
+ * itself (`workspaceStatusProblem`), so it is never "up to date" beside it.
  */
 export function describePortalStatus(
   state: PortalPublicationState,
   liveVersion: number | null,
-  hasPendingChanges = false,
+  upToDate = false,
 ): string {
   switch (state) {
     case 'published':
       if (liveVersion === null) return 'Live'
-      return hasPendingChanges
-        ? `Live · version ${liveVersion}`
-        : `Live · version ${liveVersion} · up to date`
+      return upToDate
+        ? `Live · version ${liveVersion} · up to date`
+        : `Live · version ${liveVersion}`
     case 'draft':
       return 'Draft · not published'
     case 'disabled':

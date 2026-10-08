@@ -49,8 +49,8 @@ export function ContentReviewCard({
       <div className="space-y-1">
         <h3 className="text-sm font-medium">Link check</h3>
         <p className="text-xs text-muted-foreground">
-          Open the {live} and check that the Google link and every Linktree link open the
-          page they should, then record the check here.
+          Open the live page and check that the Google link and every Linktree link open
+          the page they should, then record the check here.
         </p>
       </div>
 
@@ -58,7 +58,7 @@ export function ContentReviewCard({
         <>
           {hasPendingChanges ? (
             <p className="text-xs text-muted-foreground">
-              Changes waiting to go live are not covered: the check is of the {live}.
+              This check covers {live}. Changes waiting to go live are not part of it.
             </p>
           ) : null}
           <ContentReviewAttestation

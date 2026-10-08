@@ -54,7 +54,7 @@ export function summarizePortalEditorSections(
     welcome: {
       ...open(input.portalName.trim() === '' ? 'Untitled portal' : input.portalName),
       ...((input.languagesWithoutWording ?? 0) > 0
-        ? { attention: `${input.languagesWithoutWording} without wording` }
+        ? { attention: languagesWithoutWordingLine(input.languagesWithoutWording ?? 0) }
         : {}),
     },
     rating: fixed('Always included'),
@@ -72,6 +72,11 @@ export function summarizePortalEditorSections(
     group: open(input.groupName ?? 'Not in a group'),
     responsible: open(firstNames(input.responsibleNames)),
   }
+}
+
+/** "1 language without wording": says which kind of thing is missing, under "Welcome". */
+function languagesWithoutWordingLine(count: number): string {
+  return `${count} ${count === 1 ? 'language' : 'languages'} without wording`
 }
 
 /**

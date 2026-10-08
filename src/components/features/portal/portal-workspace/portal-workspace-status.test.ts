@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
-import { workspaceStatusProblem } from './portal-workspace-status'
+import { workspaceStatus, workspaceStatusProblem } from './portal-workspace-status'
 
 const CODE: PortalTokenStatus = {
   hasActiveToken: true,
@@ -60,4 +60,38 @@ describe('workspaceStatusProblem — what stops guests opening a live portal', (
       expect(problem({ publicationState, token: NO_CODE })).toBeNull()
     },
   )
+})
+
+describe('workspaceStatus — the whole quiet line', () => {
+  const status = (over: Partial<Parameters<typeof workspaceStatus>[0]> = {}) =>
+    workspaceStatus({
+      publicationState: 'published',
+      propertyAvailable: true,
+      hasLiveVersion: true,
+      token: CODE,
+      liveVersion: 5,
+      hasPendingChanges: false,
+      ...over,
+    })
+
+  it('says a live page that matches its draft is up to date', () => {
+    expect(status()).toEqual({ line: 'Live · version 5 · up to date', problem: null })
+  })
+
+  it('leaves "up to date" out while changes are waiting', () => {
+    expect(status({ hasPendingChanges: true }).line).toBe('Live · version 5')
+  })
+
+  it('never says "up to date" beside a problem that stops guests', () => {
+    expect(status({ token: NO_CODE })).toEqual({
+      line: 'Live · version 5',
+      problem: { text: 'no working code', fix: 'share' },
+    })
+  })
+
+  it('says a draft is a draft, with nothing added', () => {
+    expect(
+      status({ publicationState: 'draft', liveVersion: null, token: NO_CODE }),
+    ).toEqual({ line: 'Draft · not published', problem: null })
+  })
 })

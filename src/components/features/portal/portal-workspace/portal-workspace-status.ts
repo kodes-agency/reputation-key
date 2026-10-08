@@ -9,6 +9,7 @@
 // code", where the problem is a link to the place that puts it right.
 
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import { describePortalStatus } from '../portal-detail/portal-detail-rules'
 import {
   portalAttention,
   type PortalAttentionInput,
@@ -71,4 +72,27 @@ export function workspaceStatusProblem(
   if (attention.kind !== 'issues') return null
   const first = attention.issues.map((issue) => issue.code).find(isBlocking)
   return first === undefined ? null : BLOCKING[first]
+}
+
+export type WorkspaceStatus = Readonly<{
+  /** `describePortalStatus`'s line: "Live · version 5", "Draft · not published". */
+  line: string
+  problem: WorkspaceStatusProblem | null
+}>
+
+/**
+ * The whole quiet line. It says "up to date" only when the live page matches
+ * its draft and nothing stops guests opening it, so a portal is never "up to
+ * date" beside "no working code".
+ */
+export function workspaceStatus(
+  input: WorkspaceStatusInput &
+    Readonly<{ liveVersion: number | null; hasPendingChanges: boolean }>,
+): WorkspaceStatus {
+  const problem = workspaceStatusProblem(input)
+  const upToDate = !input.hasPendingChanges && problem === null
+  return {
+    line: describePortalStatus(input.publicationState, input.liveVersion, upToDate),
+    problem,
+  }
 }
