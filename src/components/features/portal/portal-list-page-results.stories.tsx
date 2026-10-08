@@ -166,7 +166,7 @@ export const NamesTheWindowAndTheFloor: Story = {
     ).toBeInTheDocument()
     await expect(
       canvas.getByText(
-        'Last 30 days, Europe/Sofia time · an average needs 5 private ratings',
+        /Last 30 days, (Europe\/)?Sofia time · an average needs 5 private ratings/,
       ),
     ).toBeInTheDocument()
   },

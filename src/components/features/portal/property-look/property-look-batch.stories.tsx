@@ -181,7 +181,7 @@ export const RowsSayWhatThePublishCarries: Story = {
     await expect(pool).not.toBeChecked()
     await expect(
       list.getByText(
-        'Left out · it also has 2 other draft edits · tick it to publish them with the look',
+        'Left out · also has 2 other draft edits · ticking it publishes them too',
       ),
     ).toBeVisible()
     await expect(

@@ -3,7 +3,9 @@
 // where the notes are read, not how many of them are this portal's.
 import type { ReactNode } from 'react'
 import { ArrowRight } from 'lucide-react'
+import { buttonVariants } from '#/components/ui/button'
 import { InlineLink } from '#/components/ui/inline-link'
+import { cn } from '#/lib/utils'
 import { INBOX_WAITING_QUEUE } from '../portal-overview/portal-overview-inbox'
 import type { ResultsCell } from './portal-results-cells'
 import type { PortalResultsPlace } from './portal-results-place'
@@ -26,8 +28,11 @@ export function notesDetailOf(
       <InlineLink
         to="/inbox"
         search={{ propertyId: place.propertyId, queue: INBOX_WAITING_QUEUE }}
-        // The padding only grows the touch target; the line keeps its place.
-        className="-my-1.5 inline-flex items-center gap-1 rounded-sm py-1.5 text-xs leading-4"
+        // A tap target on a phone (the Button's own minimum); the line's height on a desktop.
+        className={cn(
+          buttonVariants({ variant: 'link', size: 'inline', touch: true }),
+          'justify-start gap-1 text-xs leading-4',
+        )}
       >
         Read in inbox
         <ArrowRight className="size-3" aria-hidden="true" />

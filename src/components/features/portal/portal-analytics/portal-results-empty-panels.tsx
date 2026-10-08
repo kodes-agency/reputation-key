@@ -4,7 +4,7 @@
 import { BarChart3 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Alert, AlertDescription } from '#/components/ui/alert'
-import { Button } from '#/components/ui/button'
+import { Button, buttonVariants } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
 import { InlineLink } from '#/components/ui/inline-link'
 import type { EmptyResults } from './portal-results-empty'
@@ -83,6 +83,8 @@ export function QuietWindowNote({
               params={{ propertyId: place.propertyId, portalId: place.portalId }}
               search={{ tab: 'share' }}
               underline="always"
+              // A tap target on a phone; the sentence's own line on a desktop.
+              className={buttonVariants({ variant: 'link', size: 'inline', touch: true })}
             >
               See the code
             </InlineLink>

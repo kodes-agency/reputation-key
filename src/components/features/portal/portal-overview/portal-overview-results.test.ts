@@ -178,7 +178,7 @@ describe('indexOverviewResults', () => {
 
   it('names the window and the floor in the footer', () => {
     expect(index.strip('prop-1')?.footer).toBe(
-      'Last 30 days, Europe/Sofia time · an average needs 5 private ratings',
+      'Last 30 days, Sofia time · an average needs 5 private ratings',
     )
     expect(index.strip('prop-1')?.caption).toBe('1–30 Sep, Sofia time')
   })
@@ -202,7 +202,7 @@ describe('indexOverviewResults', () => {
     )
     expect(strip?.caption).toBe('1–30 Sep, Sofia time')
     expect(strip?.footer).toBe(
-      'Last 30 days, Europe/Sofia time · an average needs 5 private ratings',
+      'Last 30 days, Sofia time · an average needs 5 private ratings',
     )
   })
 

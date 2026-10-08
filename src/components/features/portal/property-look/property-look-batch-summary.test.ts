@@ -20,10 +20,10 @@ const ready = (
 describe('describeLeftOut — the line of a portal that is not ticked', () => {
   it('says why a portal with other draft edits waits, and what ticking it does', () => {
     expect(describeLeftOut(ready({ look: 1, other: 2 }))).toBe(
-      'Left out · it also has 2 other draft edits · tick it to publish them with the look',
+      'Left out · also has 2 other draft edits · ticking it publishes them too',
     )
     expect(describeLeftOut(ready({ look: 1, hasUnlisted: true }))).toBe(
-      'Left out · it also has other draft edits · tick it to publish them with the look',
+      'Left out · also has other draft edits · ticking it publishes them too',
     )
   })
 

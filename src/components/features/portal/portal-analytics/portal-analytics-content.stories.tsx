@@ -499,6 +499,8 @@ export const QuietWindowOnALivePortal: Story = {
     expect(canvas.queryByText('No data yet')).toBeNull()
     const share = canvas.getByRole('link', { name: 'See the code' })
     expect(share.getAttribute('href')).toContain('tab=share')
+    // A tap target on a phone, by the Button's own minimum.
+    expect(share.className).toContain('max-md:min-h-(--control-touch)')
   },
 }
 
@@ -553,6 +555,7 @@ export const PrivateNotesLeadToTheInbox: Story = {
     const link = canvas.getByRole('link', { name: 'Read in inbox' })
     await expect(link).toBeVisible()
     expect(link.getAttribute('href')).toContain('/inbox')
+    expect(link.className).toContain('max-md:min-h-(--control-touch)')
     // The change against the period before stays above the link.
     await expect(canvas.getByText('+2 vs the 30 days before')).toBeVisible()
   },

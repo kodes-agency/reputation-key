@@ -154,7 +154,7 @@ export function describeLeftOut(entry: BatchEntry): string {
     return 'Left out · stays as it is for guests'
   }
   const others = describeOthers(entry.mix, entry.changesMayBeIncomplete)
-  return `Left out · it also has ${others ?? 'other draft edits'} · tick it to publish them with the look`
+  return `Left out · also has ${others ?? 'other draft edits'} · ticking it publishes them too`
 }
 
 export type BatchTotals = Readonly<{

@@ -27,7 +27,7 @@ export function PropertyLookNameGate({
         <EmptyState
           icon={Palette}
           title="Set the public display name first"
-          description="The look is the property’s public display name dressed in its colours. Guests see the name at the top of every portal."
+          description="The look is the property’s public display name dressed in its colours. Set the name below to start."
         />
         <PropertyPublicDisplayNameCard
           propertyId={propertyId}
