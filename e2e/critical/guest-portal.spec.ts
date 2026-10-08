@@ -179,6 +179,22 @@ test.describe('Critical: public Portal basics', () => {
     await page.reload()
     await expect(page.getByText('Your response was removed')).toBeVisible()
     await expect(page.getByText('· sent privately')).toHaveCount(0)
+
+    // A removed response is not a dead end: its session cannot rate again, so
+    // the notice offers "Start over", which issues a fresh session. The fresh
+    // page does not claim the removed response remains saved, and a reload
+    // keeps the fresh session.
+    await page.getByRole('button', { name: 'Start over on this device' }).click()
+    await expect(page.getByText('Ready for the next guest.')).toBeVisible()
+    await expect(page.getByText('remains saved')).toHaveCount(0)
+    await expect(
+      page.getByRole('heading', { name: 'How was your experience?' }),
+    ).toBeVisible()
+    await page.reload()
+    await expect(
+      page.getByRole('heading', { name: 'How was your experience?' }),
+    ).toBeVisible()
+    await expect(page.getByText('Your response was removed')).toHaveCount(0)
   })
 
   test('private feedback reaches the manager Inbox and can be marked handled', async ({

@@ -3,7 +3,7 @@ import type { GuestResponseView } from '#/contexts/guest/application/use-cases/g
 import { GlassSurface } from './glass-surface'
 import { ImmersiveAfterRating } from './immersive-after-rating'
 import { ImmersiveRatingCard } from './immersive-rating-card'
-import { ImmersiveRemovedStartOver } from './immersive-removed-start-over'
+import { ImmersiveRemovedResponse } from './immersive-removed-response'
 import type { ImmersiveResponseViewProps } from './immersive-response-types'
 import {
   IMMERSIVE_RESPONSE_CSS,
@@ -105,26 +105,15 @@ function ResponseBody(props: ImmersiveResponseViewProps) {
     )
   }
   if (response?.status === 'deleted' || response?.rating === null) {
-    // A deleted response can start over: its session cannot take another rating,
-    // so a fresh session is the only way on, and without one the page is a dead end.
-    const { yourResponse } = props
     return (
-      <>
-        <GlassSurface variant="card" as="section" role="status" className="ih-notice">
-          <h2 ref={removedHeading} tabIndex={-1} className="ih-display ih-card-title">
-            {pack.copy.responseRemoveAllDoneTitle}
-          </h2>
-          <p className="ih-card-body">{pack.copy.responseRemoveAllDoneBody}</p>
-        </GlassSurface>
-        {response.status === 'deleted' && yourResponse && (
-          <ImmersiveRemovedStartOver
-            pack={pack}
-            pending={props.pending === true}
-            failed={props.failure === 'start-over'}
-            onStartOver={yourResponse.onStartOver}
-          />
-        )}
-      </>
+      <ImmersiveRemovedResponse
+        pack={pack}
+        response={response}
+        pending={props.pending === true}
+        failed={props.failure === 'start-over'}
+        headingRef={removedHeading}
+        onStartOver={props.yourResponse?.onStartOver}
+      />
     )
   }
   if (response === null) {

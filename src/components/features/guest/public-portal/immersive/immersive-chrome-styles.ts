@@ -48,6 +48,9 @@ export const IMMERSIVE_CHROME_CSS = `
   /* The root's overflow-wrap (break-word) breaks a name too long for any size
      inside its word; a brand mark is never hyphenated. */
   hyphens: manual;
+  /* Its size is a function of the room, not an event: it follows a resize or a
+     rotation at once rather than animating towards it. */
+  transition-property: none;
   color: #fff;
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
 }
