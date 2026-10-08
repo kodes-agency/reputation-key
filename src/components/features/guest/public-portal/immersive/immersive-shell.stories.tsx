@@ -108,7 +108,7 @@ export const IgnoresTheAppTheme: Story = {
     expect(tile && getComputedStyle(tile).color).toBe(rootStyle.color)
     expect(tile && getComputedStyle(tile).textDecorationLine).toBe('none')
     // A link that asks for the accent gets it, underlined.
-    const privacy = within(canvasElement).getByRole('link', { name: 'Privacy notice' })
+    const privacy = within(canvasElement).getByRole('link', { name: /^Privacy notice/u })
     expect(getComputedStyle(privacy).textDecorationLine).toBe('underline')
     expect(getComputedStyle(privacy).color).not.toBe(rootStyle.color)
   },
