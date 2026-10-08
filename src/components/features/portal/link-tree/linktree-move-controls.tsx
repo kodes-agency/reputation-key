@@ -4,10 +4,11 @@
 // and also to the Up and Down arrow keys, whichever of the two has focus, the
 // way a list is re-ordered from the keyboard.
 //
-// From `md` up the two stack beside the tile; below it they sit side by side and
-// are a tap target tall (the Button's `touch` option), so a thumb moves the right
-// tile. Each control carries `data-link-move`, so the section can put focus back
-// on the control that was used after the list re-orders.
+// The two stack at the tile's edge at every width. Below `md` each is a tap
+// target (the Button's `touch` option), so a thumb moves the right tile; stacked
+// rather than side by side, they leave the tile's name room to be read on a
+// 320px phone. Each control carries `data-link-move`, so the section can put
+// focus back on the control that was used after the list re-orders.
 
 import type { KeyboardEvent } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
@@ -40,7 +41,7 @@ export function LinktreeMoveControls({
     onMove(direction, control)
   }
   return (
-    <div className="flex shrink-0 flex-row items-center md:flex-col">
+    <div className="flex shrink-0 flex-col items-center">
       <IconButton
         type="button"
         variant="ghost"
