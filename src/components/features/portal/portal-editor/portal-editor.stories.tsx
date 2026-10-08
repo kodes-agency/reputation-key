@@ -6,6 +6,7 @@ import { useRouterState } from '@tanstack/react-router'
 import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
 import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
+import { PortalUnsavedChangesPrompt } from '../portal-detail/portal-unsaved-changes-prompt'
 import { PortalEditor } from './portal-editor'
 import { PortalDraftAutosaveProvider } from './portal-draft-autosave-context'
 import { PortalDraftSaveStatus } from './portal-draft-save-status'
@@ -630,7 +631,7 @@ export const PrivateNoteThreshold: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await userEvent.click(
-      canvas.getByRole('combobox', { name: /private feedback threshold/i }),
+      canvas.getByRole('combobox', { name: 'Offer a private note at' }),
     )
     await userEvent.click(
       await within(document.body).findByRole('option', { name: '2 stars or lower' }),
@@ -811,5 +812,38 @@ export const PreviewClickRevealsTheSectionItOpens: Story = {
     )
     const heading = await canvas.findByRole('heading', { level: 2, name: 'Welcome' })
     await waitFor(() => expect(heading).toHaveFocus())
+  },
+}
+
+// Responsible keeps an explicit Save (every save notifies people), so ticks
+// waiting for it are registered with the leave guard: switching section asks
+// instead of dropping them.
+export const UnsavedResponsibleTicksAskBeforeLeaving: Story = {
+  args: { resources: makeResources(action(async () => undefined)) },
+  decorators: [
+    withRole('AccountAdmin', {
+      at: '/properties/prop-1/portals/p-1?tab=page&section=responsible',
+    }),
+  ],
+  render: (args) => (
+    <>
+      <PortalUnsavedChangesPrompt />
+      <EditorFollowingTheAddress {...args} />
+    </>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const body = within(canvasElement.ownerDocument.body)
+    await expect(canvas.getByText(/Changes apply when you save them/)).toBeVisible()
+    await userEvent.click(canvas.getByRole('checkbox', { name: /Elena Petrova/ }))
+    const nav = within(canvas.getByRole('navigation', { name: 'Editor sections' }))
+    await userEvent.click(nav.getByRole('link', { name: /^Welcome/ }))
+    await expect(
+      await body.findByRole('alertdialog', { name: 'Leave without saving?' }),
+    ).toBeVisible()
+    await userEvent.click(body.getByRole('button', { name: 'Keep editing' }))
+    await expect(
+      canvas.getByRole('checkbox', { name: /Elena Petrova/ }),
+    ).not.toBeChecked()
   },
 }

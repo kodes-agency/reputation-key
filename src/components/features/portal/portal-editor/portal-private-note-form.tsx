@@ -46,14 +46,14 @@ export function PortalPrivateNoteForm({ portal, mutation, disabled = false }: Pr
         {(field) => (
           <RatingThresholdField
             id="edit-private-feedback-threshold"
-            label="Private feedback threshold"
+            label="Offer a private note at"
             value={field.state.value}
             onValueChange={field.handleChange}
             onBlur={field.handleBlur}
             invalid={!field.state.meta.isValid}
             errors={field.state.meta.errors}
             disabled={disabled}
-            description="Controls when optional private feedback appears after the private rating. It never changes access to the Google review action."
+            description="Guests who rate this low are offered a private note to the team. Every guest is still offered a Google review."
           />
         )}
       </form.Field>
