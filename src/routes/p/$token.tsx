@@ -15,7 +15,6 @@ import {
   withdrawGuestResponseFn,
 } from '#/contexts/guest/server/public'
 import { getPublicPortal, recordScanFn } from '#/contexts/guest/server/guest-scans'
-import { getUnavailableGuestLocale } from '#/contexts/guest/server/unavailable-locale'
 import {
   GuestAnalyticsNotice,
   ImmersivePublicPortal,
@@ -24,11 +23,7 @@ import {
 } from '#/components/features/guest'
 import { guestPageHead } from '#/components/features/guest/guest-page-head'
 import { PortalUnavailable } from '#/components/features/guest/portal-unavailable'
-import {
-  PORTAL_UNAVAILABLE_ENGLISH,
-  unavailableCopyOf,
-  type PortalUnavailableCopy,
-} from '#/components/features/guest/portal-unavailable-copy'
+import type { PortalUnavailableCopy } from '#/components/features/guest/portal-unavailable-copy'
 import { PortalUnavailableInBrowserLanguage } from '#/components/features/guest/portal-unavailable-in-browser-language'
 import type { PublicPortalLoaderData } from '#/contexts/guest/server/public'
 import { guestKeys } from '#/shared/queries/query-keys'
@@ -106,28 +101,19 @@ const publicPortalQuery = (token: string, locale?: GuestLocale) =>
 
 /**
  * The words of the unavailable page, in the language the visitor's browser asks
- * for. The server reads `Accept-Language` (the page has no portal to take a
- * language from, and must not take one from the token), and the one copy pack
- * loads here, with the page's data, so the server render and the hydration read
- * the same words. The page is complete in English, so a lookup that fails
- * leaves English rather than failing the page.
+ * for (`loadUnavailableCopy`); null is English. Loaded with the page's data, so
+ * the server renders them, and from a chunk of its own, so the route's
+ * first-paint code carries none of it. A chunk that fails to load leaves the
+ * English page.
  */
 const unavailableCopyQuery = () =>
   queryOptions({
     queryKey: [...guestKeys.all, 'unavailable-copy'] as const,
-    queryFn: async (): Promise<PortalUnavailableCopy> => {
-      try {
-        const { locale } = await getUnavailableGuestLocale()
-        if (locale === 'en') return PORTAL_UNAVAILABLE_ENGLISH
-        // A dynamic import of the loader's own module, for the reason given above.
-        const pack = await (
-          await import('#/components/features/guest/public-portal/language-packs/load-guest-copy-v2')
-        ).loadGuestPortalCopyV2(locale)
-        return unavailableCopyOf(pack)
-      } catch {
-        return PORTAL_UNAVAILABLE_ENGLISH
-      }
-    },
+    queryFn: (): Promise<PortalUnavailableCopy | null> =>
+      import('./-unavailable-copy').then(
+        (module) => module.loadUnavailableCopy(),
+        () => null,
+      ),
     staleTime: 5 * 60 * 1000,
   })
 
@@ -192,7 +178,7 @@ function PublicPortalPage() {
  */
 function UnavailableInVisitorLanguage() {
   const { data: copy } = useSuspenseQuery(unavailableCopyQuery())
-  return <PortalUnavailable copy={copy} />
+  return <PortalUnavailable copy={copy ?? undefined} />
 }
 
 // fallow-ignore-next-line complexity

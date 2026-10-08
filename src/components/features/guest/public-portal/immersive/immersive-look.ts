@@ -27,7 +27,7 @@ import {
   parseHexColour,
   readableForegroundOn,
 } from '#/shared/domain/portal-field-colour'
-import { heroBackgroundsOf } from './immersive-hero-scrim'
+import { heroBackgroundsOf, mix as over, type Rgb } from './immersive-hero-scrim'
 
 export { IMMERSIVE_TEXT_COLOUR, MIN_FIELD_TEXT_CONTRAST }
 
@@ -105,14 +105,6 @@ function resolveField(stored: string, accent: string): string {
 
 /** The share of white in the page's accent text: `--ih-accent-text` in the stylesheet mixes the accent 88% with white. */
 const ACCENT_TEXT_WHITE_SHARE = 0.12
-
-type Rgb = readonly [number, number, number]
-
-const over = (top: Rgb, alpha: number, base: Rgb): Rgb => [
-  alpha * top[0] + (1 - alpha) * base[0],
-  alpha * top[1] + (1 - alpha) * base[1],
-  alpha * top[2] + (1 - alpha) * base[2],
-]
 
 /**
  * The title's kicker over a photo. It is small (11 px), so it needs 4.5:1, and a

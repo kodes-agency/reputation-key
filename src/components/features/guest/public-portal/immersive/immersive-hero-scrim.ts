@@ -17,7 +17,7 @@
 export type ScrimStop = readonly [distance: number, alpha: number]
 
 /** The scrim's ink: the page's near-black, so a scrim darkens without tinting. */
-export const HERO_SCRIM_RGB = [6, 9, 8] as const
+const HERO_SCRIM_RGB = [6, 9, 8] as const
 
 /** The hero's height on a phone, and the least it is anywhere. */
 export const HERO_PHONE_HEIGHT = 236
@@ -119,9 +119,10 @@ export function photoMaskGradient(stops: readonly ScrimStop[] = HERO_PHOTO_MASK)
   return `linear-gradient(0deg, ${parts.join(', ')})`
 }
 
-type Rgb = readonly [number, number, number]
+export type Rgb = readonly [number, number, number]
 
-const mix = (top: Rgb, alpha: number, base: Rgb): Rgb => [
+/** `top` at `alpha` over `base`: sRGB source-over, as the browser paints it. */
+export const mix = (top: Rgb, alpha: number, base: Rgb): Rgb => [
   alpha * top[0] + (1 - alpha) * base[0],
   alpha * top[1] + (1 - alpha) * base[1],
   alpha * top[2] + (1 - alpha) * base[2],

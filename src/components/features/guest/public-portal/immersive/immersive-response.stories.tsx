@@ -190,7 +190,12 @@ function ResponsePage({
         kicker={locale === 'bg' ? 'Басейн и тераса' : 'Pool & Terrace'}
         language={locale === 'bg' ? 'Български' : 'English'}
         linktreeTitle={locale === 'bg' ? 'Около курорта' : 'Around the resort'}
-        privacy={pack.copy.privacyNoticeLink}
+        // As the real footer words it: the notice is English, so another language says so.
+        privacy={
+          locale === 'bg'
+            ? pack.copy.privacyNoticeLinkInEnglish
+            : pack.copy.privacyNoticeLink
+        }
         madeWith={pack.copy.footerMadeWith}
       >
         <ImmersiveResponseView {...props} />
