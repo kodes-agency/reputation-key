@@ -6,6 +6,7 @@ settings:
 
 overrides:
   esbuild: 0.28.2
+  handlebars: 4.7.10
   hono: 4.12.34
   js-yaml: 4.3.2
   kysely: 0.28.17
@@ -5333,8 +5334,8 @@ packages:
       crossws:
         optional: true
 
-  handlebars@4.7.9:
-    resolution: {integrity: sha512-4E71E0rpOaQuJR2A3xDZ+GM1HyWYv1clR58tC8emQNeQe3RH7MAzSbat+V0wG78LQBo6m6bzSG/L4pBuCsgnUQ==}
+  handlebars@4.7.10:
+    resolution: {integrity: sha512-P5VJMVM7qgBn6vjXMw8WG9uVI+ncf2pi72j4de4yz5ZULLj2RGqLYaKOYGsgyrViQ0tePOVlN1tDCCXXtFqXKg==}
     engines: {node: '>=0.4.7'}
     hasBin: true
 
@@ -8065,7 +8066,7 @@ snapshots:
     dependencies:
       eslint-import-resolver-node: 0.3.9
       eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.70.0(eslint@10.11.0(jiti@2.7.0))(typescript@6.0.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@4.4.5(eslint@10.11.0(jiti@2.7.0)))(eslint@10.11.0(jiti@2.7.0))
-      handlebars: 4.7.9
+      handlebars: 4.7.10
       is-core-module: 2.16.1
       micromatch: 4.0.8
     transitivePeerDependencies:
@@ -11991,7 +11992,7 @@ snapshots:
       eslint: 10.11.0(jiti@2.7.0)
       eslint-import-resolver-node: 0.3.9
       eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.70.0(eslint@10.11.0(jiti@2.7.0))(typescript@6.0.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@4.4.5(eslint@10.11.0(jiti@2.7.0)))(eslint@10.11.0(jiti@2.7.0))
-      handlebars: 4.7.9
+      handlebars: 4.7.10
       micromatch: 4.0.8
     transitivePeerDependencies:
       - '@typescript-eslint/parser'
@@ -12405,7 +12406,7 @@ snapshots:
     optionalDependencies:
       crossws: 0.4.5(srvx@0.11.16)
 
-  handlebars@4.7.9:
+  handlebars@4.7.10:
     dependencies:
       minimist: 1.2.8
       neo-async: 2.6.2
