@@ -56,11 +56,7 @@ export function LinktreeTile({
   const [isConfirming, setIsConfirming] = useState(false)
   const { label, line } = linkLabelFor(link, primaryLocale)
   const name = label === '' ? 'Untitled link' : label
-  const Icon = LINK_ICONS[linkIconKeyOrDefault(link.iconKey)]
   const chips = linkLocaleChips(link, locales)
-  const phoneChip = describeMissingLanguages(chips)
-  const hiddenNote = describeHiddenFromGuests(link.destination)
-  const photoUrl = linkPhotoUrl(link)
   const panelId = `linktree-tile-${link.id}`
 
   return (
@@ -75,19 +71,7 @@ export function LinktreeTile({
             onMove={onMove}
           />
         ) : null}
-        {photoUrl === null ? (
-          <span className="grid size-10 shrink-0 place-items-center rounded-md border bg-muted/40 text-muted-foreground">
-            <Icon aria-hidden="true" className="size-5" />
-          </span>
-        ) : (
-          <img
-            src={photoUrl}
-            alt=""
-            width={40}
-            height={40}
-            className="size-10 shrink-0 rounded-md border object-cover"
-          />
-        )}
+        <TileThumbnail link={link} />
         <button
           type="button"
           aria-expanded={isOpen}
@@ -99,25 +83,10 @@ export function LinktreeTile({
           {line === null ? null : (
             <span className="block truncate text-xs text-muted-foreground">{line}</span>
           )}
-          {phoneChip === null && hiddenNote === null ? null : (
-            <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-medium text-warn">
-              {phoneChip === null ? null : (
-                // At phone width the list of languages below does not fit (it is
-                // hidden there), so one chip says which are missing; from `sm` up
-                // the list spells every language out and this chip is hidden.
-                <span className="inline-flex items-center gap-1 sm:hidden">
-                  <CircleAlert aria-hidden="true" className="size-3.5 shrink-0" />
-                  {phoneChip}
-                </span>
-              )}
-              {hiddenNote === null ? null : (
-                <span className="inline-flex items-start gap-1">
-                  <EyeOff aria-hidden="true" className="mt-px size-3.5 shrink-0" />
-                  {hiddenNote}
-                </span>
-              )}
-            </span>
-          )}
+          <TileMarkers
+            phoneChip={describeMissingLanguages(chips)}
+            hiddenNote={describeHiddenFromGuests(link.destination)}
+          />
         </button>
         {locales.length > 1 ? <LanguageChips chips={chips} /> : null}
         {canEdit ? (
@@ -144,6 +113,56 @@ export function LinktreeTile({
         />
       ) : null}
     </li>
+  )
+}
+
+/** The tile's photo, or its icon in a box. */
+function TileThumbnail({ link }: Readonly<{ link: PortalLinktreeLink }>) {
+  const photoUrl = linkPhotoUrl(link)
+  if (photoUrl !== null) {
+    return (
+      <img
+        src={photoUrl}
+        alt=""
+        width={40}
+        height={40}
+        className="size-10 shrink-0 rounded-md border object-cover"
+      />
+    )
+  }
+  const Icon = LINK_ICONS[linkIconKeyOrDefault(link.iconKey)]
+  return (
+    <span className="grid size-10 shrink-0 place-items-center rounded-md border bg-muted/40 text-muted-foreground">
+      <Icon aria-hidden="true" className="size-5" />
+    </span>
+  )
+}
+
+/**
+ * What the collapsed row warns about, in warning ink: the languages missing at
+ * phone width (from `sm` up the list of languages spells every one out, so this
+ * chip is hidden there), and that guests cannot see the tile.
+ */
+function TileMarkers({
+  phoneChip,
+  hiddenNote,
+}: Readonly<{ phoneChip: string | null; hiddenNote: string | null }>) {
+  if (phoneChip === null && hiddenNote === null) return null
+  return (
+    <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-medium text-warn">
+      {phoneChip === null ? null : (
+        <span className="inline-flex items-center gap-1 sm:hidden">
+          <CircleAlert aria-hidden="true" className="size-3.5 shrink-0" />
+          {phoneChip}
+        </span>
+      )}
+      {hiddenNote === null ? null : (
+        <span className="inline-flex items-start gap-1">
+          <EyeOff aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+          {hiddenNote}
+        </span>
+      )}
+    </span>
   )
 }
 

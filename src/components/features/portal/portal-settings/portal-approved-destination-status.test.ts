@@ -3,6 +3,7 @@ import { LINK_APPROVAL_NAMES } from '../link-tree/linktree-approval-names'
 import {
   APPROVED_DESTINATION_STATUS,
   HELD_BACK_EXPLANATION,
+  describeWaitingSites,
 } from './portal-approved-destination-status'
 
 describe('the approval state of a site allowed for links', () => {
@@ -33,5 +34,21 @@ describe('the approval state of a site allowed for links', () => {
   it('says why a held back site is not shown, and where to turn', () => {
     expect(HELD_BACK_EXPLANATION).toMatch(/safety checks/u)
     expect(HELD_BACK_EXPLANATION).toMatch(/support/u)
+  })
+})
+
+describe('describeWaitingSites', () => {
+  const site = (approvalState: 'approved' | 'pending' | 'disabled') => ({ approvalState })
+
+  it('counts the sites waiting for an answer first', () => {
+    expect(
+      describeWaitingSites([site('approved'), site('pending'), site('pending')]),
+    ).toBe('2 waiting for approval')
+  })
+
+  it('counts every site when none waits', () => {
+    expect(describeWaitingSites([])).toBe('0 sites')
+    expect(describeWaitingSites([site('approved')])).toBe('1 site')
+    expect(describeWaitingSites([site('approved'), site('disabled')])).toBe('2 sites')
   })
 })

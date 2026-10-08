@@ -5,7 +5,7 @@
 // on screen before the server answers (use-asked-link-changes.ts). The section's
 // switch sits in its heading (linktree-section.tsx).
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { Link2 } from 'lucide-react'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
@@ -15,7 +15,6 @@ import type {
   PortalLinktreeLink,
   PortalLinktreeView,
 } from '#/contexts/portal/application/public-api'
-import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
 import { LinkAddForm } from './link-add-form'
@@ -23,13 +22,13 @@ import { siteControlsFor, type LinkApprovalControls } from './link-approval-cont
 import { countHiddenLinks } from './linktree-approval-rules'
 import { iconChoiceWrite, photoChoiceWrite } from './linktree-photo-rules'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
-import { LinktreeLocaleSwitch } from './linktree-locale-switch'
 import { LinktreeTileEditor } from './linktree-tile-editor'
 import { useAskedLinkChanges } from './use-asked-link-changes'
 import { useRememberedPhotos } from './use-remembered-photos'
 import { useSerialWrites } from './use-serial-writes'
 import { LinktreeTile } from './linktree-tile'
-import { LinktreeTitleForm } from './linktree-title-form'
+import { LinktreeTitleBlock } from './linktree-title-block'
+import { useMoveRefocus } from './use-move-refocus'
 import {
   describeLinkCap,
   linkLabelFor,
@@ -69,7 +68,6 @@ export function LinkTree({
   const locales = offeredLocales(view.locales)
   const [openId, setOpenId] = useState<string | null>(null)
   const [isAdding, setIsAdding] = useState(false)
-  const [titleChoice, setTitleChoice] = useState<OfferedGuestLocale | null>(null)
   const [announcement, setAnnouncement] = useState('')
   // Moves and icons asked for that the server has not finished with are already
   // in `links`: each is planned from what the person saw, so a quick second one
@@ -80,30 +78,13 @@ export function LinkTree({
   // the end of the photo. Noted while rendering (the supported way to derive
   // state from props), so no frame shows the tile without it.
   const remembered = useRememberedPhotos(view.links)
-  const refocus = useRef<string | null>(null)
-  const order = links.map((link) => link.id).join()
+  // A re-ordered tile keeps the control the keyboard was on.
+  const keepFocusOn = useMoveRefocus(links.map((link) => link.id).join())
   const cap = describeLinkCap(
     view.links.length,
     view.maxLinks,
     countHiddenLinks(view.links),
   )
-  const titleLocale = titleChoice ?? locales[0]
-
-  // A re-ordered tile keeps the control the keyboard was on.
-  useEffect(() => {
-    const wanted = refocus.current
-    if (wanted === null) return
-    refocus.current = null
-    const [linkId] = wanted.split(':')
-    document
-      .querySelector<HTMLElement>(`[data-link-move="${wanted}"]:not(:disabled)`)
-      ?.focus()
-    if (document.activeElement?.getAttribute('data-link-move') === null) {
-      document
-        .querySelector<HTMLElement>(`[data-link-move^="${linkId}:"]:not(:disabled)`)
-        ?.focus()
-    }
-  }, [order])
 
   // Once the queue is empty the cache holds the truth, saved or rolled back.
   const afterPendingText = useSerialWrites(autosave.flush, asked.settled)
@@ -117,7 +98,7 @@ export function LinkTree({
     const plan = planLinkMove(links, linkId, direction)
     if (plan === null) return
     asked.askMove(plan)
-    refocus.current = `${linkId}:${control}`
+    keepFocusOn(`${linkId}:${control}`)
     const position = plan.items.findIndex((item) => item.id === linkId) + 1
     const link = links.find((candidate) => candidate.id === linkId)
     setAnnouncement(
@@ -166,24 +147,12 @@ export function LinkTree({
 
   return (
     <div className="space-y-6">
-      {titleLocale === undefined ? null : (
-        <div className="space-y-2">
-          <LinktreeLocaleSwitch
-            aria-label="Title language"
-            locales={locales}
-            active={titleLocale}
-            onChange={setTitleChoice}
-          />
-          <LinktreeTitleForm
-            portalId={view.portalId}
-            titles={view.titles}
-            locales={locales}
-            locale={titleLocale}
-            save={mutations.saveSettings}
-            disabled={!canEdit}
-          />
-        </div>
-      )}
+      <LinktreeTitleBlock
+        view={view}
+        locales={locales}
+        save={mutations.saveSettings}
+        disabled={!canEdit}
+      />
       {view.enabled ? null : (
         <p className="text-sm text-muted-foreground">
           The Linktree is hidden from the page. Your links are kept.

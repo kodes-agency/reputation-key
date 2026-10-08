@@ -117,11 +117,12 @@ export const EmptyListSaysNoOtherSitesYet: Story = {
 export const ManagerHasNoList: Story = {
   args: { state: { ...destinations, canApprove: false } },
   play: async ({ canvasElement }) => {
+    // No list, and no second field to add an address in.
     const canvas = within(canvasElement)
-    await expect(
-      canvas.queryByRole('button', { name: /Sites allowed for links/ }),
-    ).toBeNull()
-    await expect(canvas.queryByRole('button', { name: 'Add site' })).toBeNull()
+    for (const name of [/Sites allowed for links/, 'Add site']) {
+      await expect(canvas.queryByRole('button', { name })).toBeNull()
+    }
+    await expect(canvas.queryByLabelText('Site address')).toBeNull()
   },
 }
 

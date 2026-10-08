@@ -111,14 +111,20 @@ export const WithGaps: Story = {
   },
 }
 
+/** Opens the missing texts under Bulgarian and returns their list. */
+async function openMissingInBulgarian(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  await userEvent.click(
+    canvas.getByRole('button', { name: 'Show missing texts in Bulgarian' }),
+  )
+  return canvas.getByRole('list', { name: 'Missing in Bulgarian' })
+}
+
 export const ShowMissingNamesEachGap: Story = {
   args: { ...WithGaps.args, update: update() },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Show missing texts in Bulgarian' }),
-    )
-    const list = canvas.getByRole('list', { name: 'Missing in Bulgarian' })
+    const list = await openMissingInBulgarian(canvasElement)
     await expect(within(list).getByText('Link preview')).toBeVisible()
     await expect(within(list).getByText('Label for “Spa”')).toBeVisible()
     await expect(
@@ -140,11 +146,7 @@ export const ManagerIsToldWhoWritesThePropertyWording: Story = {
   args: { ...WithGaps.args, update: update() },
   decorators: [withRole('PropertyManager')],
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Show missing texts in Bulgarian' }),
-    )
-    const list = canvas.getByRole('list', { name: 'Missing in Bulgarian' })
+    const list = await openMissingInBulgarian(canvasElement)
     await expect(
       within(list).getByText('An account admin writes this in Welcome'),
     ).toBeVisible()

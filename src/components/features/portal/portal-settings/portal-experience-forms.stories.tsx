@@ -97,6 +97,14 @@ const meta: Meta<typeof PortalExperienceFormsShowcase> = {
 export default meta
 type Story = StoryObj<typeof PortalExperienceFormsShowcase>
 
+/** Opens the folded list of sites allowed for links and adds `address`. */
+async function addSite(canvasElement: HTMLElement, address: string) {
+  const canvas = within(canvasElement)
+  await userEvent.click(canvas.getByRole('button', { name: /sites allowed for links/i }))
+  await userEvent.type(canvas.getByLabelText('Site address'), address)
+  await userEvent.click(canvas.getByRole('button', { name: /add site/i }))
+}
+
 export const CommandsUseSharedDtos: Story = {
   args: { actions: experienceActions() },
   play: async ({ canvasElement, args }) => {
@@ -139,14 +147,7 @@ export const CommandsUseSharedDtos: Story = {
     )
 
     // The list of sites is folded while nothing waits: open it to add one.
-    await userEvent.click(
-      canvas.getByRole('button', { name: /sites allowed for links/i }),
-    )
-    await userEvent.type(
-      canvas.getByLabelText('Site address'),
-      'https://example.com/reviews',
-    )
-    await userEvent.click(canvas.getByRole('button', { name: /add site/i }))
+    await addSite(canvasElement, 'https://example.com/reviews')
     await waitFor(() =>
       expect(args.actions.requestDestination).toHaveBeenCalledWith({
         data: { portalId: 'portal-1', uri: 'https://example.com/reviews' },
@@ -159,14 +160,7 @@ export const UnsafeDestinationRejected: Story = {
   args: { actions: experienceActions() },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(
-      canvas.getByRole('button', { name: /sites allowed for links/i }),
-    )
-    await userEvent.type(
-      canvas.getByLabelText('Site address'),
-      'http://localhost/reviews',
-    )
-    await userEvent.click(canvas.getByRole('button', { name: /add site/i }))
+    await addSite(canvasElement, 'http://localhost/reviews')
     await expect(await canvas.findByText(/enter a public https address/i)).toBeVisible()
     expect(args.actions.requestDestination).not.toHaveBeenCalled()
   },

@@ -16,6 +16,7 @@ import { DestinationTurnOff, TURN_OFF_REASON } from './destination-turn-off'
 import {
   APPROVED_DESTINATION_STATUS,
   HELD_BACK_EXPLANATION,
+  describeWaitingSites,
 } from './portal-approved-destination-status'
 import { PortalApprovedDestinationRequestForm } from './portal-approved-destination-request-form'
 import type {
@@ -24,14 +25,6 @@ import type {
 } from './portal-experience-settings-types'
 
 type Destination = PortalApprovedDestinationList['destinations'][number]
-
-/** The disclosure's second line: how many sites wait for an answer, if any. */
-export function describeWaitingSites(destinations: readonly Destination[]): string {
-  const waiting = destinations.filter((site) => site.approvalState === 'pending').length
-  if (waiting === 0)
-    return `${destinations.length} ${destinations.length === 1 ? 'site' : 'sites'}`
-  return `${waiting} waiting for approval`
-}
 
 export function PortalApprovedDestinationsEditor({
   portalId,
