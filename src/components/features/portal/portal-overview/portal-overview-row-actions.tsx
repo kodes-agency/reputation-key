@@ -8,6 +8,7 @@ import { Pencil, QrCode } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { Button, buttonVariants } from '#/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '#/components/ui/tooltip'
 import { cn } from '#/lib/utils'
 import {
   RowActionsItem,
@@ -17,6 +18,7 @@ import {
 import { useOverviewClasses } from './portal-overview-density'
 import { PortalArchiveDialog, type PortalArchiveMutations } from './portal-archive-dialog'
 import { PortalDisableDialog } from './portal-disable-dialog'
+import { usePortalAccess } from './use-portal-access'
 import type { PortalOverviewItem } from './portal-overview-view'
 import {
   portalRowMenu,
@@ -28,10 +30,11 @@ type RowProps = Readonly<{ item: PortalOverviewItem; propertyId: string }>
 
 export function PortalRowButtons({ item, propertyId }: RowProps) {
   const classes = useOverviewClasses()
-  const { can } = usePermissions()
+  const { canEdit } = usePortalAccess()
   const { row } = item
   const params = { propertyId, portalId: row.portalId }
-  const verb = can('portal.update') ? 'Edit' : 'View'
+  // The role may update portals only while the organisation's portal writes are on.
+  const verb = canEdit ? 'Edit' : 'View'
   const canShare = row.publicationState !== 'draft' && row.publicationState !== 'archived'
   return (
     <>
@@ -47,17 +50,13 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
         </Link>
       </Button>
       {canShare ? (
-        <Button variant="outline" size="sm" asChild>
-          <Link
-            to="/properties/$propertyId/portals/$portalId"
-            params={params}
-            search={{ tab: 'share' }}
-            aria-label={`Share ${row.name}`}
-          >
-            <QrCode aria-hidden="true" />
-            <span className={classes.shareLabel}>Share</span>
-          </Link>
-        </Button>
+        <ShareButton
+          item={item}
+          propertyId={propertyId}
+          // A density that hides Share's words from its table width on leaves the glyph alone.
+          iconOnly={classes.shareLabel !== ''}
+          labelClass={classes.shareLabel}
+        />
       ) : (
         <span
           aria-hidden="true"
@@ -72,6 +71,38 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
         </span>
       )}
     </>
+  )
+}
+
+const SHARE_HINT = 'Share: QR code, link and print kit'
+
+/** Share, as a button; where the table leaves it only its glyph, the glyph says what it is. */
+function ShareButton({
+  item,
+  propertyId,
+  iconOnly,
+  labelClass,
+}: RowProps & Readonly<{ iconOnly: boolean; labelClass: string }>) {
+  const { row } = item
+  const button = (
+    <Button variant="outline" size="sm" asChild>
+      <Link
+        to="/properties/$propertyId/portals/$portalId"
+        params={{ propertyId, portalId: row.portalId }}
+        search={{ tab: 'share' }}
+        aria-label={`Share ${row.name}`}
+      >
+        <QrCode aria-hidden="true" />
+        <span className={labelClass}>Share</span>
+      </Link>
+    </Button>
+  )
+  if (!iconOnly) return button
+  return (
+    <Tooltip delayDuration={400}>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent>{SHARE_HINT}</TooltipContent>
+    </Tooltip>
   )
 }
 
