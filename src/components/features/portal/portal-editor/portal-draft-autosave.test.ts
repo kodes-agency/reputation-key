@@ -186,3 +186,36 @@ describe('status', () => {
     expect(afterTwoEdits).toBe(1)
   })
 })
+
+describe('attention', () => {
+  it('names what needs the person, by cause', async () => {
+    const { autosave } = harness()
+    autosave.schedule('override-bg', async () => {
+      throw new Error('offline')
+    })
+    autosave.schedule('welcome', async () => 'invalid')
+    autosave.guardExplicit('content-en', () => true)
+    autosave.guardExplicit('content-bg', () => false)
+    await vi.advanceTimersByTimeAsync(800)
+
+    expect(autosave.attention()).toEqual({
+      failed: ['override-bg'],
+      invalid: ['welcome'],
+      explicit: ['content-en'],
+    })
+  })
+
+  it('names nothing once a retry has written the failed save', async () => {
+    const { autosave } = harness()
+    const save = vi
+      .fn<PortalDraftSave>()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue('saved')
+    autosave.schedule('override-bg', save)
+    await vi.advanceTimersByTimeAsync(800)
+
+    await autosave.retry()
+
+    expect(autosave.attention()).toEqual({ failed: [], invalid: [], explicit: [] })
+  })
+})
