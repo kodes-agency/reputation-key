@@ -25,20 +25,23 @@ export function UncountedScansNote({
       </p>
     )
   }
+  // The way out is a control of its own, not a link inside the sentence: a link in a
+  // line of 12 px text that is a phone tap target makes that line as tall as the target.
   return (
-    <p className="text-xs text-muted-foreground">
-      Scans for{' '}
+    <div className="flex flex-col items-start gap-0.5 text-xs text-muted-foreground">
+      <p>
+        Scans for {only.name} aren’t in these figures: its code is older than scan
+        counting.
+      </p>
       <FixLink
         fix="share"
         portalId={only.portalId}
         propertyId={only.propertyId}
         ariaLabel={`Open Share for ${only.name}`}
-        className={portalLineLinkClass()}
+        className={portalLineLinkClass('underline')}
       >
-        {only.name}
-      </FixLink>{' '}
-      aren’t in these figures: its code is older than scan counting. Replacing the code
-      counts them, and the printed code has to be swapped.
-    </p>
+        Replace the code on Share (the printed code has to be swapped)
+      </FixLink>
+    </div>
   )
 }
