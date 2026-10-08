@@ -69,8 +69,16 @@ export type ChartColumn = Readonly<{
   average: number | null
   /** Distance of the average's dot from the top of its plot, percent. */
   averageFromTop: number | null
-  /** Why a bucket with ratings has no average: "4 ratings, too few". Only for a bucket below the floor, never while ratings are not ready. */
-  averageNote: string | null
+  /**
+   * The bucket has ratings but too few for an average, so it has no dot. Only
+   * for a bucket below the floor, never while ratings are not ready.
+   */
+  isBelowFloor: boolean
+  /**
+   * How many columns this bucket's label spans, or null when the label is left
+   * out to keep the row legible (see `labelSpans`).
+   */
+  labelSpan: number | null
 }>
 
 export type ChartMarker = Readonly<{
@@ -88,6 +96,8 @@ export type ChartModel = Readonly<{
   average: AverageDomain
   markers: readonly ChartMarker[]
   hasPrior: boolean
+  /** Some bucket is below the floor: the legend and the caption say what its marker means. */
+  hasBelowFloor: boolean
 }>
 
 const DAYS_PER_BUCKET = 7
@@ -98,8 +108,32 @@ function percentOf(value: number | null, ceiling: number): number | null {
   return value === null ? null : (value / ceiling) * 100
 }
 
-function ratingsNote(count: number): string {
-  return `${count} ${count === 1 ? 'rating' : 'ratings'}, too few`
+/** Up to this many weeks every column keeps its own date label. */
+const LABEL_EVERY_COLUMN_UP_TO = 5
+/** Up to this many, every second one is named; past it, every third. */
+const LABEL_EVERY_SECOND_UP_TO = 9
+
+/** Columns per printed label: a week's date range needs about 70px, and a phone plot gives 24px a week at 13 weeks. */
+function labelStep(count: number): number {
+  if (count <= LABEL_EVERY_COLUMN_UP_TO) return 1
+  return count <= LABEL_EVERY_SECOND_UP_TO ? 2 : 3
+}
+
+/**
+ * Which columns print their date, and across how many columns it may run
+ * (null: not printed). A short block at the end joins the one before it, so the
+ * last label is never squeezed into a single narrow column. The table repeats
+ * every week's full dates.
+ */
+export function labelSpans(count: number): readonly (number | null)[] {
+  const step = labelStep(count)
+  const starts = Array.from({ length: Math.ceil(count / step) }, (_, i) => i * step)
+  if (starts.length > 1 && count - (starts.at(-1) ?? 0) < step) starts.pop()
+  return Array.from({ length: count }, (_, index) => {
+    const at = starts.indexOf(index)
+    if (at === -1) return null
+    return (starts[at + 1] ?? count) - index
+  })
 }
 
 /** "v5 published 22 Sep": the chart's words, also listed under its values. */
@@ -121,7 +155,8 @@ export function chartModel(
   const average = averageDomain(shown)
   const span = average.high - average.low
 
-  const columns = weeks.map((week): ChartColumn => ({
+  const spans = labelSpans(weeks.length)
+  const columns = weeks.map((week, position): ChartColumn => ({
     index: week.index,
     label: formatDayRange(week.startLocalDate, week.endLocalDate),
     scans: week.scans,
@@ -132,10 +167,8 @@ export function chartModel(
     average: week.average,
     averageFromTop:
       week.average === null ? null : ((average.high - week.average) / span) * 100,
-    averageNote:
-      week.averageWithheld === 'below_floor' && (week.ratings ?? 0) > 0
-        ? ratingsNote(week.ratings ?? 0)
-        : null,
+    isBelowFloor: week.averageWithheld === 'below_floor' && (week.ratings ?? 0) > 0,
+    labelSpan: spans[position] ?? null,
   }))
   const markers = versionMarkers.map((marker): ChartMarker => {
     // The last bucket can be shorter than a week: its days are wider.
@@ -155,5 +188,6 @@ export function chartModel(
     average,
     markers,
     hasPrior: weeks.some((week) => week.priorScans !== null),
+    hasBelowFloor: columns.some((column) => column.isBelowFloor),
   }
 }

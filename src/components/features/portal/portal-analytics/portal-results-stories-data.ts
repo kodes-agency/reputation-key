@@ -61,6 +61,33 @@ export const RESULTS_WEEKS: readonly PortalSeriesWeek[] = WEEK_DATES.map(
   }),
 )
 
+const MS_PER_DAY = 86_400_000
+const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10)
+
+/**
+ * A long window cut into whole weeks that end on 30 Sep (13 of them is 90 days):
+ * every third week has too few ratings for an average, the way a small business
+ * sees it.
+ */
+export function resultsWeeksOf(count: number): readonly PortalSeriesWeek[] {
+  const end = Date.UTC(2026, 8, 30)
+  return Array.from({ length: count }, (_, index) => {
+    const last = end - (count - 1 - index) * 7 * MS_PER_DAY
+    const isSmall = index % 3 === 2
+    return {
+      index,
+      startLocalDate: isoDay(last - 6 * MS_PER_DAY),
+      endLocalDate: isoDay(last),
+      days: 7,
+      scans: 40 + ((index * 17) % 30),
+      priorScans: 38 + ((index * 11) % 30),
+      ratings: isSmall ? 3 : 12,
+      average: isSmall ? null : 4.2,
+      averageWithheld: isSmall ? ('below_floor' as const) : null,
+    }
+  })
+}
+
 export const RESULTS_HEALTHY: PortalAnalyticsData = {
   period: {
     startAt: new Date('2026-08-31T21:00:00.000Z'),

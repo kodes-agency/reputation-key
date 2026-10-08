@@ -6,6 +6,7 @@ import {
   RESULTS_WEEKS,
   resultsCount,
   resultsEvidence,
+  resultsWeeksOf,
 } from './portal-results-stories-data'
 
 const meta = {
@@ -392,5 +393,39 @@ export const VersionLiveInTheLastWeekNarrow320: Story = {
     expect(box.right).toBeLessThanOrEqual(plot.right + 1)
     const page = canvasElement.ownerDocument.documentElement
     expect(page.scrollWidth).toBeLessThanOrEqual(page.clientWidth)
+  },
+}
+
+/**
+ * Ninety days on a phone: thirteen weeks in about 24px each. The date labels are
+ * thinned to every third week, each with room for its own range; a week with too
+ * few ratings is a hollow marker, explained once in the legend and the caption,
+ * not a 64px note on top of its neighbours.
+ */
+export const NinetyDaysOnAPhone: Story = {
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+  args: {
+    timeRange: '90d',
+    data: {
+      ...healthy,
+      localDays: {
+        start: '2026-07-03',
+        end: '2026-09-30',
+        compareStart: '2026-04-04',
+        compareEnd: '2026-07-02',
+      },
+      series: { weeks: resultsWeeksOf(13) },
+      versionMarkers: [],
+    },
+  },
+  play: async ({ canvas }) => {
+    const chart = canvas.getByRole('img', { name: 'Over time' })
+    // Thirteen weeks, four labels (every third, the last over four columns).
+    expect(chart.querySelectorAll('[style*="grid-column"]')).toHaveLength(4)
+    expect(within(chart).queryByText(/ratings, too few/)).toBeNull()
+    await expect(canvas.getByText('Too few ratings for an average')).toBeVisible()
+    await expect(
+      canvas.getByText(/Weeks with fewer than 5 ratings show no average\./),
+    ).toBeVisible()
   },
 }
