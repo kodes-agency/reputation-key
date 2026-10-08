@@ -138,11 +138,15 @@ export const CommandsUseSharedDtos: Story = {
       { timeout: 3000 },
     )
 
+    // The list of sites is folded while nothing waits: open it to add one.
+    await userEvent.click(
+      canvas.getByRole('button', { name: /sites allowed for links/i }),
+    )
     await userEvent.type(
-      canvas.getByPlaceholderText('https://example.com/your-page'),
+      canvas.getByLabelText('Site address'),
       'https://example.com/reviews',
     )
-    await userEvent.click(canvas.getByRole('button', { name: /add destination/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /add site/i }))
     await waitFor(() =>
       expect(args.actions.requestDestination).toHaveBeenCalledWith({
         data: { portalId: 'portal-1', uri: 'https://example.com/reviews' },
@@ -155,11 +159,14 @@ export const UnsafeDestinationRejected: Story = {
   args: { actions: experienceActions() },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
+    await userEvent.click(
+      canvas.getByRole('button', { name: /sites allowed for links/i }),
+    )
     await userEvent.type(
-      canvas.getByPlaceholderText('https://example.com/your-page'),
+      canvas.getByLabelText('Site address'),
       'http://localhost/reviews',
     )
-    await userEvent.click(canvas.getByRole('button', { name: /add destination/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /add site/i }))
     await expect(await canvas.findByText(/enter a public https address/i)).toBeVisible()
     expect(args.actions.requestDestination).not.toHaveBeenCalled()
   },
