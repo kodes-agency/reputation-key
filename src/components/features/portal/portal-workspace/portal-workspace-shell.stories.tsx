@@ -6,13 +6,16 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+import { Button } from '#/components/ui/button'
 import { PortalOpenPageButton } from './portal-open-page-button'
+import { PortalReadOnlyNotice } from './portal-read-only-notice'
 import { PortalWorkspaceHeader } from './portal-workspace-header'
 import { PortalWorkspaceShell } from './portal-workspace-shell'
 import { PortalWorkspaceTabs } from './portal-workspace-tabs'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalShareMutations } from '../portal-share/portal-share-types'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
+import type { PortalReadOnlyReason } from '../portal-detail/portal-edit-access'
 import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
 import type { WorkspaceBackTarget } from './portal-workspace-origin'
 import type { WorkspaceStatusProblem } from './portal-workspace-status'
@@ -47,6 +50,8 @@ type FrameProps = Readonly<{
   activeSection?: PortalEditorSection
   hiddenTabs: ReadonlyArray<PortalDetailTab>
   openPageMode: 'reveal' | 'share' | 'hidden'
+  /** Why nothing here can be changed, drawn under the tabs; none by default. */
+  readOnly?: PortalReadOnlyReason
 }>
 
 function Frame({
@@ -61,6 +66,7 @@ function Frame({
   activeSection,
   hiddenTabs,
   openPageMode,
+  readOnly,
 }: FrameProps) {
   return (
     <div className="h-[560px] border">
@@ -100,6 +106,20 @@ function Frame({
               portalId={PORTAL_ID}
               activeTab={activeTab}
               hiddenTabs={hiddenTabs}
+            />
+          )
+        }
+        notice={
+          readOnly === undefined ? undefined : (
+            <PortalReadOnlyNotice
+              reason={readOnly}
+              action={
+                readOnly === 'archived' ? (
+                  <Button variant="outline" size="sm">
+                    Restore
+                  </Button>
+                ) : undefined
+              }
             />
           )
         }
@@ -261,6 +281,44 @@ export const BackToAllPortalsWithItsFilter: Story = {
 // the note it acts on instead of dropping alone under the way back.
 export const TabletKeepsThePublishStepWithItsNote: Story = {
   parameters: { viewport: { defaultViewport: 'tablet' } },
+}
+
+// Every tab says once, under the tabs, why nothing in the portal can be changed.
+export const ViewerIsToldWhyItIsReadOnly: Story = {
+  args: { canReview: false, readOnly: 'role', openPageMode: 'hidden' },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText(/You can view this portal but not change it/),
+    ).toBeVisible()
+  },
+}
+
+// An archived portal says so, and offers the way back right there.
+export const ArchivedOffersRestore: Story = {
+  args: {
+    statusLine: 'Archived',
+    pendingNote: null,
+    canReview: false,
+    publishWaiting: false,
+    readOnly: 'archived',
+    openPageMode: 'hidden',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(/This portal is archived/)).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Restore' })).toBeVisible()
+  },
+}
+
+// Portal changes are switched off for the account: said in plain words, not
+// left to fail as "Not saved".
+export const PortalChangesSwitchedOff: Story = {
+  args: { canReview: false, readOnly: 'capability', openPageMode: 'hidden' },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText(/Portals are read-only for this account/),
+    ).toBeVisible()
+  },
 }
 
 export const ShareTabActive: Story = {

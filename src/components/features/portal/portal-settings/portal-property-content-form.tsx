@@ -55,7 +55,8 @@ export function PortalPropertyContentForm({
               id={`portal-content-title-${locale}`}
               label="Welcome line"
               maxLength={120}
-              disabled={readOnly || action.isPending}
+              readOnly={readOnly}
+              disabled={action.isPending}
             />
           )}
         </form.Field>
@@ -67,7 +68,8 @@ export function PortalPropertyContentForm({
               label="Link preview"
               rows={2}
               maxLength={500}
-              disabled={readOnly || action.isPending}
+              readOnly={readOnly}
+              disabled={action.isPending}
             />
           )}
         </form.Field>

@@ -76,14 +76,24 @@ export function portalEditorNavItems({
 
 export function PortalEditorNav({
   active,
+  canEdit,
   ...input
-}: ItemsInput & Readonly<{ active: PortalEditorSection }>) {
+}: ItemsInput &
+  Readonly<{
+    active: PortalEditorSection
+    /** The note about drafts is for someone who can make edits. */
+    canEdit: boolean
+  }>) {
   return (
     <SectionNav
       aria-label="Editor sections"
       items={portalEditorNavItems(input)}
       current={active}
-      footer="Edits stay in this draft until you publish. Printed codes keep working."
+      footer={
+        canEdit
+          ? 'Edits stay in this draft until you publish. Printed codes keep working.'
+          : undefined
+      }
     />
   )
 }

@@ -505,9 +505,10 @@ export const PropertyManagerReadsThePropertyWording: Story = {
     await expect(
       bulgarian.getByText('Only an account admin can change it.'),
     ).toBeVisible()
+    // Read-only, not disabled: the wording is shown at full contrast.
     await expect(
       bulgarian.getByLabelText('Welcome line', { selector: '#portal-content-title-bg' }),
-    ).toBeDisabled()
+    ).toHaveAttribute('readonly')
     await expect(
       bulgarian.queryByRole('button', { name: 'Save property wording' }),
     ).toBeNull()
@@ -668,11 +669,33 @@ export const UnofferedSectionFallsBackToWelcome: Story = {
   },
 }
 
+// A viewer reads the values at full contrast (read-only, not greyed out), and
+// nothing on the page promises that edits save as they are typed.
 export const MemberSeesTheFieldsReadOnly: Story = {
   args: { resources: makeResources(action(async () => undefined)) },
   decorators: [withRole('Member')],
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByLabelText('Name')).toBeDisabled()
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('Name')).toHaveAttribute('readonly')
+    await expect(canvas.getByLabelText('Name')).toBeEnabled()
+    await expect(
+      canvas.getByLabelText('Welcome line', { selector: '#portal-override-title-en' }),
+    ).toHaveAttribute('readonly')
+    await expect(canvas.queryByText(/save as you type/)).toBeNull()
+    await expect(canvas.queryByText(/Edits stay in this draft/)).toBeNull()
+  },
+}
+
+// An archived portal is read-only for everyone, an account admin included.
+export const ArchivedPortalIsReadOnly: Story = {
+  args: {
+    resources: {
+      ...makeResources(action(async () => undefined)),
+      portal: { ...portal, publicationState: 'archived' as const },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByLabelText('Name')).toHaveAttribute('readonly')
   },
 }
 

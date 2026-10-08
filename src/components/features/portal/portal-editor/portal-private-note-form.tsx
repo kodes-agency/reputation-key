@@ -5,7 +5,6 @@ import { useForm } from '@tanstack/react-form'
 import type { z } from 'zod/v4'
 import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
 import type { Action } from '#/components/hooks/use-action'
-import { usePermissions } from '#/shared/hooks/usePermissions'
 import { RatingThresholdField } from '#/components/forms/rating-threshold-field'
 import { usePortalFormAutosave } from './use-portal-form-autosave'
 import type { PortalData, UpdatePortalVariables } from '../shared/types'
@@ -22,9 +21,6 @@ type Props = Readonly<{
 }>
 
 export function PortalPrivateNoteForm({ portal, mutation, disabled = false }: Props) {
-  const { can } = usePermissions()
-  const isDisabled = disabled || !can('portal.update')
-
   const defaults = {
     privateFeedbackThreshold: portal.privateFeedbackThreshold,
   } satisfies FormValues
@@ -56,7 +52,7 @@ export function PortalPrivateNoteForm({ portal, mutation, disabled = false }: Pr
             onBlur={field.handleBlur}
             invalid={!field.state.meta.isValid}
             errors={field.state.meta.errors}
-            disabled={isDisabled}
+            disabled={disabled}
             description="Controls when optional private feedback appears after the private rating. It never changes access to the Google review action."
           />
         )}

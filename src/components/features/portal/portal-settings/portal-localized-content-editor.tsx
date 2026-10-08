@@ -98,7 +98,7 @@ export function PortalLocalizedContentEditor({
         titlePlaceholder={property.title}
         descriptionPlaceholder={property.shortDescription}
         action={actions.saveOverride}
-        disabled={disabled}
+        readOnly={disabled}
       />
       <PropertyWordingFold
         propertyName={propertyName}

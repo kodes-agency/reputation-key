@@ -28,6 +28,7 @@ import { RouteNotFound } from '#/components/layout/route-page-state'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { membersQuery } from '#/routes/-queries/route-queries'
 import { PortalWorkspaceHeaderSlot } from './-portal-workspace-header-slot'
+import { PortalWorkspaceNoticeSlot } from './-portal-workspace-notice-slot'
 import {
   findAuthorizedPortal,
   portalGroupsQuery,
@@ -173,7 +174,15 @@ function PortalWorkspaceLayout() {
     // edits can never be written into another.
     <PortalLinkIssuanceProvider key={portalId}>
       <PortalDraftAutosaveProvider key={portalId}>
-        <PortalWorkspaceShell header={header} tabs={tabs}>
+        <PortalWorkspaceShell
+          header={header}
+          tabs={tabs}
+          notice={
+            reviewing ? undefined : (
+              <PortalWorkspaceNoticeSlot propertyId={propertyId} portalId={portalId} />
+            )
+          }
+        >
           <Outlet />
         </PortalWorkspaceShell>
       </PortalDraftAutosaveProvider>
