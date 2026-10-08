@@ -169,20 +169,21 @@ export const NamesTheWindowAndTheFloor: Story = {
     ).toBeInTheDocument()
     await expect(
       canvas.getByText(
-        /Last 30 days, Europe\/Sofia time · an average needs 5 private ratings/,
+        /Last 30 days, (Europe\/)?Sofia time · an average needs 5 private ratings/,
       ),
     ).toBeInTheDocument()
   },
 }
 
-// The headline term is never defined by the strip's label; it is one tap away from
-// the column that sorts by it and from the line under the table.
+// The headline term is one tap away from the column that sorts by it and from the
+// line under the table.
 export const QualifiedScansIsExplained: Story = {
   args: withResults,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const table = within(canvas.getByRole('table', { name: /portals at avela resort/i }))
     await userEvent.click(
-      canvas.getByRole('button', { name: 'What qualified scans means' }),
+      table.getByRole('button', { name: 'What qualified scans means' }),
     )
     await expect(
       await screen.findByText(/counted once per guest in 24 hours/),
@@ -218,6 +219,8 @@ export const ScansNobodyCountedAreADashNotAZero: Story = {
     const note = within(canvas.getByRole('region', { name: 'Results' }))
     await expect(note.getByText(/aren’t in these figures/)).toBeInTheDocument()
     const link = note.getByRole('link', { name: 'Open Share for Spa & thermal pools' })
+    // The same cost the row's own line names: a new code means a new print.
+    await expect(link).toHaveTextContent('Replace the code on Share (needs reprinting)')
     const href = new URL(link.getAttribute('href') ?? '', 'http://localhost')
     await expect(href.pathname).toBe('/properties/prop-1/portals/p-spa')
     await expect(href.searchParams.get('tab')).toBe('share')

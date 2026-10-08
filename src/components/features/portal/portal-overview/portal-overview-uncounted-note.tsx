@@ -40,7 +40,7 @@ export function UncountedScansNote({
         ariaLabel={`Open Share for ${only.name}`}
         className={portalLineLinkClass('underline')}
       >
-        Replace the code on Share (the printed code has to be swapped)
+        Replace the code on Share (needs reprinting)
       </FixLink>
     </div>
   )

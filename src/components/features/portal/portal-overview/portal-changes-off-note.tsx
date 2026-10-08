@@ -4,7 +4,7 @@
 import { Info } from 'lucide-react'
 import { usePortalAccess } from './use-portal-access'
 
-export const PORTAL_CHANGES_OFF_LINE =
+const PORTAL_CHANGES_OFF_LINE =
   'You can look at portals here, but changing them isn’t available for your organization right now.'
 
 export function PortalChangesOffNote() {

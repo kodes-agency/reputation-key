@@ -31,7 +31,7 @@ const NOT_COUNTED: MeasureFigure = {
 }
 
 /** The row's figures with its scans as a dash; its card has no summary to print ("0 qualified scans"). */
-export function withScansNotCounted(measures: RowMeasures): RowMeasures {
+function withScansNotCounted(measures: RowMeasures): RowMeasures {
   return { ...measures, scans: NOT_COUNTED, summary: null }
 }
 

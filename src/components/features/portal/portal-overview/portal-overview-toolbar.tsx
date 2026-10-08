@@ -65,8 +65,10 @@ export type PortalOverviewToolbarParts = Readonly<{
 }>
 
 /**
- * Which controls the toolbar draws. A list that is searched or filtered keeps its
- * search and sort whatever its length, so a bookmark can always be undone.
+ * Which controls the toolbar draws. A searched list keeps its search and sort
+ * whatever its length, so a bookmarked search can always be undone. The filter
+ * does not bring them: its own toggle undoes it, and a search field arriving in
+ * front of the toggle would move it out from under the finger that pressed it.
  */
 export function toolbarParts(
   input: Readonly<{
@@ -77,10 +79,10 @@ export function toolbarParts(
     search: PortalOverviewSearch
   }>,
 ): PortalOverviewToolbarParts {
-  const narrowed = (input.search.q ?? '').trim() !== '' || input.search.show !== undefined
+  const searched = (input.search.q ?? '').trim() !== ''
   // The All properties page exists for a reader with several Properties: always long.
   const long =
-    input.scope === 'organization' || input.total >= PORTAL_OVERVIEW_LONG_LIST || narrowed
+    input.scope === 'organization' || input.total >= PORTAL_OVERVIEW_LONG_LIST || searched
   return {
     search: long,
     sort: long,
@@ -109,6 +111,61 @@ type Props = Readonly<{
   onChange: (patch: Partial<PortalOverviewSearch>) => void
 }>
 
+/** "Needs attention N": keeps only the Portals that need attention; pressed while it does. */
+function AttentionToggle({
+  on,
+  count,
+  onChange,
+}: Readonly<{
+  on: boolean
+  count: number
+  onChange: Props['onChange']
+}>) {
+  return (
+    <Button
+      variant="outline"
+      aria-pressed={on}
+      className={cn(on && 'border-primary bg-primary/10 hover:bg-primary/15')}
+      onClick={() => onChange({ show: on ? undefined : 'attention' })}
+    >
+      <ListFilter aria-hidden="true" />
+      Needs attention
+      <span className="text-muted-foreground tabular-nums">{count}</span>
+    </Button>
+  )
+}
+
+/** "Showing 3 of 12", and the way back to the whole list while it is narrowed. */
+function ToolbarStatus({
+  search,
+  matched,
+  total,
+  filterOffered,
+  onChange,
+}: Readonly<{
+  search: PortalOverviewSearch
+  matched: number
+  total: number
+  /** A list with no filter on offer says "Clear search", not a reset it lacks. */
+  filterOffered: boolean
+  onChange: Props['onChange']
+}>) {
+  const searching = (search.q ?? '').trim() !== ''
+  const narrowed = searching || search.show !== undefined
+  return (
+    <ListToolbarStatus>
+      <ResultCount shown={matched} total={total} active={narrowed} />
+      {narrowed ? (
+        <ClearFiltersButton
+          searching={searching}
+          filters={filterOffered || search.show !== undefined}
+          onClear={() => onChange({ q: undefined, show: undefined })}
+        />
+      ) : null}
+    </ListToolbarStatus>
+  )
+}
+
 export function PortalOverviewToolbar({
   scope = 'property',
   hasGroups = true,
@@ -120,45 +177,34 @@ export function PortalOverviewToolbar({
   onChange,
 }: Props) {
   const parts = toolbarParts({ scope, total, hasGroups, needingAttention, search })
-  if (!parts.search && !parts.sort && !parts.groupBy && !parts.attention) return null
+  if (!Object.values(parts).some(Boolean)) return null
   const sort = search.sort ?? DEFAULT_PORTAL_OVERVIEW_SORT
-  const groupBy = search.groupBy ?? DEFAULT_PORTAL_OVERVIEW_GROUP_BY
-  const searching = (search.q ?? '').trim() !== ''
-  const narrowed = searching || search.show !== undefined
-  const attentionOnly = search.show === 'attention'
-  const searchLabel =
-    scope === 'organization' ? 'Search portals or properties' : 'Search portals'
 
   return (
     <ListToolbar>
       {parts.search ? (
         <SearchField
-          label={searchLabel}
+          label={
+            scope === 'organization' ? 'Search portals or properties' : 'Search portals'
+          }
           value={search.q ?? ''}
           onValueChange={(q) => onChange({ q })}
         />
       ) : null}
 
       {parts.attention ? (
-        <Button
-          variant="outline"
-          aria-pressed={attentionOnly}
-          className={cn(
-            attentionOnly && 'border-primary bg-primary/10 hover:bg-primary/15',
-          )}
-          onClick={() => onChange({ show: attentionOnly ? undefined : 'attention' })}
-        >
-          <ListFilter aria-hidden="true" />
-          Needs attention
-          <span className="text-muted-foreground tabular-nums">{needingAttention}</span>
-        </Button>
+        <AttentionToggle
+          on={search.show === 'attention'}
+          count={needingAttention}
+          onChange={onChange}
+        />
       ) : null}
 
       {parts.groupBy ? (
         <ListChoiceMenu
           label="Group by"
           icon={ListTree}
-          value={groupBy}
+          value={search.groupBy ?? DEFAULT_PORTAL_OVERVIEW_GROUP_BY}
           options={GROUP_BY_OPTIONS}
           onChange={(next) => onChange({ groupBy: next })}
         />
@@ -179,17 +225,13 @@ export function PortalOverviewToolbar({
       ) : null}
 
       {parts.search ? (
-        <ListToolbarStatus>
-          <ResultCount shown={matched} total={total} active={narrowed} />
-          {narrowed ? (
-            <ClearFiltersButton
-              searching={searching}
-              // A list with no filter on offer says "Clear search", not a reset it lacks.
-              filters={parts.attention || search.show !== undefined}
-              onClear={() => onChange({ q: undefined, show: undefined })}
-            />
-          ) : null}
-        </ListToolbarStatus>
+        <ToolbarStatus
+          search={search}
+          matched={matched}
+          total={total}
+          filterOffered={parts.attention}
+          onChange={onChange}
+        />
       ) : null}
     </ListToolbar>
   )

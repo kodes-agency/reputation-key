@@ -200,9 +200,12 @@ const RANKS: Readonly<Record<PortalAttention['kind'], number>> = {
   issues: 6,
 }
 
+/** Issues that stop guests come before those that do not (the Overview's chip opens this order). */
+const BLOCKING_RANK = RANKS.issues + 1
+
 /** Higher needs a manager sooner. Archived is last: it is finished, not waiting. */
 export function attentionRank(attention: PortalAttention): number {
-  return RANKS[attention.kind]
+  return isBlocked(attention) ? BLOCKING_RANK : RANKS[attention.kind]
 }
 
 /**

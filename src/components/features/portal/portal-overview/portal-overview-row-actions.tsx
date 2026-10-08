@@ -85,7 +85,9 @@ function ShareButton({
 }: RowProps & Readonly<{ iconOnly: boolean; labelClass: string }>) {
   const { row } = item
   const button = (
-    <Button variant="outline" size="sm" asChild>
+    // `data-slot` is stated here so the tooltip's trigger does not replace it: the
+    // link layer keys on it to leave a link drawn as a Button its own ink (as IconButton).
+    <Button data-slot="button" variant="outline" size="sm" asChild>
       <Link
         to="/properties/$propertyId/portals/$portalId"
         params={{ propertyId, portalId: row.portalId }}

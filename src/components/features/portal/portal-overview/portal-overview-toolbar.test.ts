@@ -39,17 +39,22 @@ describe('toolbarParts', () => {
     expect(toolbarParts({ ...base, search: { show: 'attention' } }).attention).toBe(true)
   })
 
-  it('keeps the search and the sort while the list is searched or filtered, however short', () => {
+  it('keeps the search and the sort while the list is searched, however short', () => {
     expect(toolbarParts({ ...base, search: { q: 'pool' } })).toMatchObject({
-      search: true,
-      sort: true,
-    })
-    expect(toolbarParts({ ...base, search: { show: 'attention' } })).toMatchObject({
       search: true,
       sort: true,
     })
     // A blank search narrows nothing.
     expect(toolbarParts({ ...base, search: { q: '  ' } }).search).toBe(false)
+  })
+
+  it('does not bring a search in front of the filter it was pressed on: the toggle undoes itself', () => {
+    expect(toolbarParts({ ...base, search: { show: 'attention' } })).toEqual({
+      search: false,
+      sort: false,
+      groupBy: false,
+      attention: true,
+    })
   })
 
   it('always offers the search and the sort on All properties, which has no grouping', () => {

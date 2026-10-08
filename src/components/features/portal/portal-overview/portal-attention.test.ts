@@ -282,6 +282,13 @@ describe('ordering by attention', () => {
     expect(new Set(ranks).size).toBe(ranks.length)
   })
 
+  it('puts a Portal guests cannot use before one whose issues do not stop them', () => {
+    const blocked = attentionRank(attentionOf({ token: NO_CODE }))
+    const notice = attentionRank(attentionOf({ responsibleManagerUserIds: [] }))
+    expect(blocked).toBeGreaterThan(notice)
+    expect(notice).toBeGreaterThan(attentionRank({ kind: 'older_code' }))
+  })
+
   it('counts every state except live-and-quiet and archived as needing attention', () => {
     expect(needsAttention({ kind: 'draft' })).toBe(true)
     expect(needsAttention({ kind: 'disabled' })).toBe(true)
