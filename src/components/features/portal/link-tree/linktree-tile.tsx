@@ -1,13 +1,16 @@
 // One tile in the list: its icon, its name and line, the languages it is
-// written in, and a menu. Opening it shows the editor beneath.
+// written in, and a menu. Opening it shows the editor beneath. A tile guests
+// cannot see (its address is not approved) says so on the row itself, in warning
+// ink; an approved tile stays quiet.
 
 import { useState, type ReactNode } from 'react'
-import { CircleAlert } from 'lucide-react'
+import { CircleAlert, EyeOff } from 'lucide-react'
 import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
 import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { DeleteLinkDialog } from './delete-link-dialog'
 import { LINK_ICONS, linkIconKeyOrDefault } from './link-icons'
+import { describeHiddenFromGuests } from './linktree-approval-rules'
 import { LinktreeMoveControls } from './linktree-move-controls'
 import { linkPhotoUrl } from './linktree-photo-rules'
 import {
@@ -56,6 +59,7 @@ export function LinktreeTile({
   const Icon = LINK_ICONS[linkIconKeyOrDefault(link.iconKey)]
   const chips = linkLocaleChips(link, locales)
   const phoneChip = describeMissingLanguages(chips)
+  const hiddenNote = describeHiddenFromGuests(link.destination)
   const photoUrl = linkPhotoUrl(link)
   const panelId = `linktree-tile-${link.id}`
 
@@ -95,16 +99,26 @@ export function LinktreeTile({
           {line === null ? null : (
             <span className="block truncate text-xs text-muted-foreground">{line}</span>
           )}
+          {phoneChip === null && hiddenNote === null ? null : (
+            <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-medium text-warn">
+              {phoneChip === null ? null : (
+                // At phone width the list of languages below does not fit (it is
+                // hidden there), so one chip says which are missing; from `sm` up
+                // the list spells every language out and this chip is hidden.
+                <span className="inline-flex items-center gap-1 sm:hidden">
+                  <CircleAlert aria-hidden="true" className="size-3.5 shrink-0" />
+                  {phoneChip}
+                </span>
+              )}
+              {hiddenNote === null ? null : (
+                <span className="inline-flex items-start gap-1">
+                  <EyeOff aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+                  {hiddenNote}
+                </span>
+              )}
+            </span>
+          )}
         </button>
-        {phoneChip === null ? null : (
-          // At phone width the list below does not fit (it is hidden there), so
-          // one chip says which languages are missing; from `sm` up the list
-          // spells every language out and this chip is hidden.
-          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-warn sm:hidden">
-            <CircleAlert aria-hidden="true" className="size-3.5" />
-            {phoneChip}
-          </span>
-        )}
         {locales.length > 1 ? <LanguageChips chips={chips} /> : null}
         {canEdit ? (
           <LinktreeActionsMenu
@@ -141,8 +155,11 @@ function LanguageChips({
       {chips.map((chip) => (
         <li
           key={chip.locale}
-          className={`text-xs ${chip.isMissing ? 'font-medium text-warn' : 'text-muted-foreground'}`}
+          className={`inline-flex items-center gap-0.5 text-xs ${chip.isMissing ? 'font-medium text-warn' : 'text-muted-foreground'}`}
         >
+          {chip.isMissing ? (
+            <CircleAlert aria-hidden="true" className="size-3 shrink-0" />
+          ) : null}
           {chip.chip}
           {chip.isMissing ? <span className="sr-only"> missing</span> : null}
         </li>

@@ -53,6 +53,24 @@ export function iconChoiceWrite(link: LinkWithPhoto, iconKey: PortalLinkIconKey)
   }
 }
 
+/** The icons asked for and not yet saved, by link id. */
+export type IconChoices = Readonly<Record<string, PortalLinkIconKey>>
+
+/**
+ * The tiles as the person has just left them: an icon asked for is shown at once
+ * (and takes a photo off, as saving it does), before the server has answered.
+ * Returns `links` itself when nothing is asked for.
+ */
+export function applyIconChoices<
+  Link extends Pick<PortalLinktreeLink, 'id' | 'iconKey' | 'imageAssetId'>,
+>(links: ReadonlyArray<Link>, choices: IconChoices): ReadonlyArray<Link> {
+  if (Object.keys(choices).length === 0) return links
+  return links.map((link) => {
+    const iconKey = choices[link.id]
+    return iconKey === undefined ? link : { ...link, iconKey, imageAssetId: null }
+  })
+}
+
 /** The `updateLink` input for putting a photo on the tile: one just uploaded, or one chosen again. The icon stays, for when the photo goes. */
 export function photoChoiceWrite(
   link: Pick<PortalLinktreeLink, 'id'>,
