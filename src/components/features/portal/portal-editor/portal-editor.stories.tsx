@@ -151,6 +151,21 @@ function makeResources(
   return {
     portal,
     propertyId: 'prop-1',
+    // Live version 5, with saved changes waiting to go live.
+    publicationHistory: {
+      current: {
+        activationSequence: 5,
+        version: 5,
+        kind: 'publish' as const,
+        activatedBy: { userId: 'u-1', displayName: 'Georgi Petrov' },
+        activatedAt: '2026-09-20T10:00:00.000Z',
+        deactivatedAt: null,
+        deactivationReason: null,
+      },
+      priorActivations: [],
+      hasPendingChanges: true,
+      nextCursor: null,
+    },
     googleReviewDestination: {
       state: 'verified' as const,
       retrievedAt: new Date('2026-08-20T10:00:00.000Z'),
@@ -339,6 +354,33 @@ function sectionStory(section: PortalEditorSection, heading: string): Story {
 // Every section opens from `?section=` and is the one the list marks current.
 export const LookSection: Story = sectionStory('look', 'Look')
 export const RatingSection: Story = sectionStory('rating', 'Rating & Google')
+
+// The link check names the page it covers, says changes waiting to go live are
+// not covered, and words the checkbox for what is checked.
+export const LinkCheckNamesTheLiveVersion: Story = {
+  args: {
+    resources: makeResources(action(async () => undefined)),
+    requestedSection: 'rating',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('heading', { name: 'Link check' })).toBeVisible()
+    await expect(
+      canvas.getByText(
+        /Changes waiting to go live are not covered: the check is of the live version 5/,
+      ),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('checkbox', {
+        name: /every Linktree link on the live version 5, and each one opens the page it should/,
+      }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('button', { name: 'Record the link check' }),
+    ).toBeDisabled()
+    await expect(canvas.queryByText(/content review/i)).toBeNull()
+  },
+}
 export const LinktreeSection: Story = sectionStory('linktree', 'Linktree')
 
 async function openTileMenu(canvasElement: HTMLElement) {

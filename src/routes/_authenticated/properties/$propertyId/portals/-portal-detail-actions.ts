@@ -171,7 +171,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
   // configuration_completeness / approved_destination_ratio facts. Legacy
   // recognition projections stay inactive; active Goal consumers observe the fact.
   const completeReview = useActionMutation(completeContentReview, {
-    successMessage: 'Content review recorded',
+    successMessage: 'Link check recorded',
     invalidateKeys: [portalKeys.detail(portalId)],
   })
   const updateResponsibleManagers = useActionMutation(updatePortalResponsibleManagers, {
