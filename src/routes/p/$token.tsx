@@ -15,6 +15,7 @@ import {
   withdrawGuestResponseFn,
 } from '#/contexts/guest/server/public'
 import { getPublicPortal, recordScanFn } from '#/contexts/guest/server/guest-scans'
+import { getUnavailableGuestLocale } from '#/contexts/guest/server/unavailable-locale'
 import {
   GuestAnalyticsNotice,
   ImmersivePublicPortal,
@@ -23,6 +24,12 @@ import {
 } from '#/components/features/guest'
 import { guestPageHead } from '#/components/features/guest/guest-page-head'
 import { PortalUnavailable } from '#/components/features/guest/portal-unavailable'
+import {
+  PORTAL_UNAVAILABLE_ENGLISH,
+  unavailableCopyOf,
+  type PortalUnavailableCopy,
+} from '#/components/features/guest/portal-unavailable-copy'
+import { PortalUnavailableInBrowserLanguage } from '#/components/features/guest/portal-unavailable-in-browser-language'
 import type { PublicPortalLoaderData } from '#/contexts/guest/server/public'
 import { guestKeys } from '#/shared/queries/query-keys'
 import { useServerFn } from '@tanstack/react-start'
@@ -98,6 +105,33 @@ const publicPortalQuery = (token: string, locale?: GuestLocale) =>
   })
 
 /**
+ * The words of the unavailable page, in the language the visitor's browser asks
+ * for. The server reads `Accept-Language` (the page has no portal to take a
+ * language from, and must not take one from the token), and the one copy pack
+ * loads here, with the page's data, so the server render and the hydration read
+ * the same words. The page is complete in English, so a lookup that fails
+ * leaves English rather than failing the page.
+ */
+const unavailableCopyQuery = () =>
+  queryOptions({
+    queryKey: [...guestKeys.all, 'unavailable-copy'] as const,
+    queryFn: async (): Promise<PortalUnavailableCopy> => {
+      try {
+        const { locale } = await getUnavailableGuestLocale()
+        if (locale === 'en') return PORTAL_UNAVAILABLE_ENGLISH
+        // A dynamic import of the loader's own module, for the reason given above.
+        const pack = await (
+          await import('#/components/features/guest/public-portal/language-packs/load-guest-copy-v2')
+        ).loadGuestPortalCopyV2(locale)
+        return unavailableCopyOf(pack)
+      } catch {
+        return PORTAL_UNAVAILABLE_ENGLISH
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+
+/**
  * C1: the server resolves the `portal.guest_response` capability decision. The
  * form view has no separate 'unavailable' branch — a
  * tenant-disabled response surface and a transient failure read the same to a
@@ -119,13 +153,17 @@ export const Route = createFileRoute('/p/$token')({
   loaderDeps: ({ search }) => ({ locale: search.locale }),
   staleTime: 5 * 60 * 1000,
   loader: async ({ context, params, deps }): Promise<GuestPageData | null> => {
-    return context.queryClient.ensureQueryData(
+    const data = await context.queryClient.ensureQueryData(
       publicPortalQuery(params.token, deps.locale),
     )
+    // Warm the unavailable page's words, so the server renders them in the
+    // visitor's language rather than suspending on them.
+    if (!data) await context.queryClient.ensureQueryData(unavailableCopyQuery())
+    return data
   },
   head: ({ loaderData }) => guestPageHead(loaderData?.portal ?? null),
-  notFoundComponent: PortalUnavailable,
-  errorComponent: PortalUnavailable,
+  notFoundComponent: PortalUnavailableInBrowserLanguage,
+  errorComponent: PortalUnavailableInBrowserLanguage,
   component: PublicPortalPage,
 })
 
@@ -141,11 +179,20 @@ function PublicPortalPage() {
   const { token } = Route.useParams()
   const { locale } = Route.useSearch()
   const { data } = useSuspenseQuery(publicPortalQuery(token, locale))
-  if (!data) return <PortalUnavailable />
+  if (!data) return <UnavailableInVisitorLanguage />
   // The file-route match is reused when only the token parameter changes.
   // Remount the complete guest journey so a prior Portal's response receipt,
   // CSRF nonce, rating draft, and analytics state cannot cross that boundary.
   return <PublicPortalView key={token} token={token} data={data} />
+}
+
+/**
+ * The unavailable page in the language the server read from the visitor's
+ * request, ready before the first render (`unavailableCopyQuery`).
+ */
+function UnavailableInVisitorLanguage() {
+  const { data: copy } = useSuspenseQuery(unavailableCopyQuery())
+  return <PortalUnavailable copy={copy} />
 }
 
 // fallow-ignore-next-line complexity
@@ -199,7 +246,7 @@ function PublicPortalView({
   if (data.immersive) {
     // Schema version 3: the Immersive Hub. It records the visit from its own
     // footer, where the notice sits inline, so it mounts no overlay.
-    if (!data.pack) return <PortalUnavailable />
+    if (!data.pack) return <PortalUnavailableInBrowserLanguage />
     return (
       <ImmersivePublicPortal
         token={token}
