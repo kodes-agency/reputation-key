@@ -34,7 +34,7 @@ export const BoardSeven: Story = {
     await expect(cells.getByText('Average private rating')).toBeVisible()
     await expect(cells.getByText('from 118 · +0.1')).toBeVisible()
     await expect(cells.getByText('Guests who opened Google')).toBeVisible()
-    await expect(canvas.getByText('1–30 Sep, Europe/Sofia time')).toBeVisible()
+    await expect(canvas.getByText('1–30 Sep, Sofia time')).toBeVisible()
     await expect(
       canvas.getByRole('checkbox', { name: 'Compare with the 30 days before' }),
     ).toBeChecked()
@@ -44,9 +44,7 @@ export const BoardSeven: Story = {
     await expect(canvas.getByText('Български')).toBeVisible()
     // Once on the chart, once in the list under its values.
     await expect(canvas.getAllByText('v5 published 22 Sep')[0]).toBeVisible()
-    await expect(
-      canvas.getByText(/1–30 Sep against 2–31 Aug, Europe\/Sofia time/),
-    ).toBeVisible()
+    await expect(canvas.getByText(/1–30 Sep against 2–31 Aug, Sofia time/)).toBeVisible()
   },
 }
 
@@ -266,7 +264,7 @@ export const AllTime: Story = {
     ).toBeVisible()
     expect(canvas.queryByRole('checkbox')).toBeNull()
     // All Time has no comparison, so the footer states no floor for one.
-    await expect(canvas.getByText('All time, Europe/Sofia time')).toBeVisible()
+    await expect(canvas.getByText('All time, Sofia time')).toBeVisible()
     expect(canvas.queryByText(/Averages compare only/)).toBeNull()
   },
 }

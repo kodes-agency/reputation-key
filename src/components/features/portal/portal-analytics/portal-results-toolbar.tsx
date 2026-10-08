@@ -10,6 +10,7 @@ import {
   PORTAL_RESULTS_RANGES,
   compareLabel,
   windowCaption,
+  zoneTimeLabel,
 } from './portal-results-window'
 
 type Props = Readonly<{
@@ -41,7 +42,7 @@ export function PortalResultsToolbar({
         />
         <p className="text-sm text-muted-foreground">
           {localDays === null
-            ? `Every reading so far, ${timezone} time`
+            ? `Every reading so far, ${zoneTimeLabel(timezone)}`
             : windowCaption(localDays, timezone)}
         </p>
       </div>
