@@ -21,6 +21,7 @@ import {
   PublicPortalContent,
   type GuestPortalCopyV2,
 } from '#/components/features/guest'
+import { guestPageHead } from '#/components/features/guest/guest-page-head'
 import { PortalUnavailable } from '#/components/features/guest/portal-unavailable'
 import type { PublicPortalLoaderData } from '#/contexts/guest/server/public'
 import { guestKeys } from '#/shared/queries/query-keys'
@@ -122,35 +123,7 @@ export const Route = createFileRoute('/p/$token')({
       publicPortalQuery(params.token, deps.locale),
     )
   },
-  head: ({ loaderData }) => {
-    // The opaque token is the entire access control for a guest portal, so the page
-    // must never be indexable — regardless of publication state, and in addition to
-    // the `Disallow: /p/` in robots.txt (the meta tag covers crawlers that fetch the
-    // URL anyway). Deliberately no canonical URL: canonicalising a secret-token URL
-    // would republish the token to every consumer of the page.
-    const robots = { name: 'robots', content: 'noindex, nofollow' }
-    if (!loaderData) return { meta: [{ title: 'Page unavailable' }, robots] }
-    const { portal } = loaderData
-    const description = portal.description ?? ''
-    return {
-      meta: [
-        { title: `${portal.name} — ${portal.organizationName}` },
-        robots,
-        { name: 'description', content: description },
-        { property: 'og:type', content: 'website' },
-        { property: 'og:title', content: portal.name },
-        { property: 'og:description', content: description },
-        // QR portals are shared into WhatsApp/iMessage/Slack far more often than
-        // they are browsed, so the hero image is the preview that matters.
-        ...(portal.heroImageUrl
-          ? [
-              { property: 'og:image', content: portal.heroImageUrl },
-              { name: 'twitter:card', content: 'summary_large_image' },
-            ]
-          : [{ name: 'twitter:card', content: 'summary' }]),
-      ],
-    }
-  },
+  head: ({ loaderData }) => guestPageHead(loaderData?.portal ?? null),
   notFoundComponent: PortalUnavailable,
   errorComponent: PortalUnavailable,
   component: PublicPortalPage,
