@@ -1,0 +1,93 @@
+// The panels for a Results window with no figures (portal-results-empty): the
+// first-run panel, the panel of a portal that is not live yet, and the one line
+// that sits above the strip of a live portal that has gone quiet.
+import { BarChart3 } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { Alert, AlertDescription } from '#/components/ui/alert'
+import { Button } from '#/components/ui/button'
+import { EmptyState } from '#/components/ui/empty-state'
+import type { EmptyResults } from './portal-results-empty'
+import type { PortalResultsPlace } from './portal-results-place'
+
+function OpenAction({
+  place,
+  kind,
+}: Readonly<{ place: PortalResultsPlace; kind: 'draft' | 'nothing' }>) {
+  const params = { propertyId: place.propertyId, portalId: place.portalId }
+  if (kind === 'draft') {
+    return (
+      <Button asChild size="sm" variant="outline">
+        <Link to="/properties/$propertyId/portals/$portalId/review" params={params}>
+          Review &amp; publish
+        </Link>
+      </Button>
+    )
+  }
+  return (
+    <Button asChild size="sm" variant="outline">
+      <Link
+        to="/properties/$propertyId/portals/$portalId"
+        params={params}
+        search={{ tab: 'share' }}
+      >
+        Open Share
+      </Link>
+    </Button>
+  )
+}
+
+/** The panel in place of the figures; `kind: 'quiet'` is not one (see QuietWindowNote). */
+export function EmptyResultsPanel({
+  empty,
+  place,
+}: Readonly<{
+  empty: Exclude<EmptyResults, Readonly<{ kind: 'quiet' }>>
+  place?: PortalResultsPlace
+}>) {
+  const action = place ? <OpenAction place={place} kind={empty.kind} /> : undefined
+  if (empty.kind === 'draft') {
+    return (
+      <EmptyState
+        icon={BarChart3}
+        title="No results yet"
+        description="Results start once this portal is published and its code is shared."
+        action={action}
+      />
+    )
+  }
+  return (
+    <EmptyState
+      icon={BarChart3}
+      title={empty.title}
+      description={empty.description}
+      action={action}
+    />
+  )
+}
+
+/** One sentence above the strip: the zeros are the news, so the strip stays. */
+export function QuietWindowNote({
+  line,
+  place,
+}: Readonly<{ line: string; place?: PortalResultsPlace }>) {
+  return (
+    <Alert variant="info">
+      <AlertDescription>
+        {line}
+        {place ? (
+          <>
+            {' '}
+            <Link
+              to="/properties/$propertyId/portals/$portalId"
+              params={{ propertyId: place.propertyId, portalId: place.portalId }}
+              search={{ tab: 'share' }}
+              className="font-medium text-link underline-offset-4 hover:underline"
+            >
+              Open Share
+            </Link>
+          </>
+        ) : null}
+      </AlertDescription>
+    </Alert>
+  )
+}
