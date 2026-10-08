@@ -13,6 +13,7 @@ import {
   describePortalStatus,
   hasSomethingToPublish,
   normalizePortalWorkspaceSearch,
+  portalWorkspaceTitle,
 } from './portal-detail-rules'
 
 describe('normalizePortalWorkspaceSearch — which tab the URL asks for', () => {
@@ -268,5 +269,19 @@ describe('countPendingChanges — the draft line of the History rail', () => {
     expect(
       countPendingChanges({ ...base, hasPendingChanges: true, pendingChanges: [] }),
     ).toBe(1)
+  })
+})
+
+describe('portalWorkspaceTitle', () => {
+  it('names the portal in its tab, so two open portals can be told apart', () => {
+    expect(portalWorkspaceTitle('Pool bar', 'edit')).toBe('Pool bar · Portal')
+  })
+
+  it('says the review step is a review of that portal', () => {
+    expect(portalWorkspaceTitle('Pool bar', 'review')).toBe('Review: Pool bar')
+  })
+
+  it('never leaves the tab nameless', () => {
+    expect(portalWorkspaceTitle('  ', 'edit')).toBe('Untitled portal · Portal')
   })
 })

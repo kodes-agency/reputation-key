@@ -179,3 +179,18 @@ export function countPendingChanges(history: PortalPublicationHistory): number {
   if (!history.hasPendingChanges) return 0
   return Math.max(1, history.pendingChanges?.length ?? 0)
 }
+
+/**
+ * The browser tab's title for one portal's workspace, before the product name
+ * (`documentTitle`): the portal's own name, so two open portals, and the
+ * history, can be told apart. The review step says it is a review. Here rather
+ * than beside the workspace's route checks because the routes' `head` reads it,
+ * and these rules are already in first paint (`normalizePortalWorkspaceSearch`).
+ */
+export function portalWorkspaceTitle(
+  portalName: string,
+  mode: 'edit' | 'review',
+): string {
+  const name = portalName.trim() === '' ? 'Untitled portal' : portalName.trim()
+  return mode === 'review' ? `Review: ${name}` : `${name} · Portal`
+}

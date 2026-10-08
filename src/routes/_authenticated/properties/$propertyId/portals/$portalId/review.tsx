@@ -15,7 +15,7 @@ import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
 import { PortalReviewPage } from '#/components/features/portal/portal-review/portal-review-page'
 import { publishReview } from '#/components/features/portal/portal-review/portal-review-publish'
 import { resolveFixPeople } from '#/components/features/portal/portal-review/portal-review-checks'
-import { portalWorkspaceTitle } from '#/components/features/portal/portal-workspace/portal-workspace-route'
+import { portalWorkspaceTitle } from '#/components/features/portal/portal-detail/portal-detail-rules'
 import { documentTitle } from '#/components/layout/page-identity'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import {
