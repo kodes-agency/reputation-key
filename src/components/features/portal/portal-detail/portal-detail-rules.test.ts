@@ -11,6 +11,7 @@ import {
   countPendingChanges,
   canReviewAndPublish,
   describePortalStatus,
+  hasSomethingToPublish,
   normalizePortalWorkspaceSearch,
 } from './portal-detail-rules'
 
@@ -134,8 +135,14 @@ describe('derivePortalDetailView — which tabs are offered', () => {
 })
 
 describe('describePortalStatus — the quiet line under the portal name', () => {
-  it('names the live version when one is live', () => {
-    expect(describePortalStatus('published', 5)).toBe('Live · version 5')
+  it('names the live version when one is live and changes are waiting', () => {
+    expect(describePortalStatus('published', 5, true)).toBe('Live · version 5')
+  })
+
+  it('says the live version is up to date when nothing is waiting', () => {
+    expect(describePortalStatus('published', 5, false)).toBe(
+      'Live · version 5 · up to date',
+    )
   })
 
   it('says only Live for a published portal with no readable version', () => {
@@ -176,6 +183,22 @@ describe('canReviewAndPublish — who is offered the publish step', () => {
 
   it('never offers it for an archived portal, which nothing can publish', () => {
     expect(canReviewAndPublish(allowed, 'archived')).toBe(false)
+  })
+})
+
+describe('hasSomethingToPublish — whether the publish step has work', () => {
+  it('has work for a draft and a disabled page, which come back through review', () => {
+    expect(hasSomethingToPublish('draft', false)).toBe(true)
+    expect(hasSomethingToPublish('disabled', false)).toBe(true)
+  })
+
+  it('has work for a live page only while changes are waiting', () => {
+    expect(hasSomethingToPublish('published', true)).toBe(true)
+    expect(hasSomethingToPublish('published', false)).toBe(false)
+  })
+
+  it('has none for an archived portal', () => {
+    expect(hasSomethingToPublish('archived', true)).toBe(false)
   })
 })
 

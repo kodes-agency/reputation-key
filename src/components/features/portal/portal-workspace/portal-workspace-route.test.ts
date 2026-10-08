@@ -3,7 +3,11 @@
 // shell or strips the padding off the portals list and the New portal form.
 
 import { describe, expect, it } from 'vitest'
-import { isWorkspaceReviewRoute, isWorkspaceRoute } from './portal-workspace-route'
+import {
+  isWorkspaceReviewRoute,
+  isWorkspaceRoute,
+  portalWorkspaceTitle,
+} from './portal-workspace-route'
 
 const PROPERTY = '0b6f8a52-4c2e-4d61-9a55-2f1d3c7e9b10'
 const PORTAL = '7c1e5a90-3b44-4f0d-8e21-6a9d0b2c4f33'
@@ -69,5 +73,19 @@ describe('isWorkspaceReviewRoute', () => {
     expect(isWorkspaceReviewRoute(`/properties/${PROPERTY}/portals`)).toBe(false)
     expect(isWorkspaceReviewRoute(`/properties/${PROPERTY}/reviews`)).toBe(false)
     expect(isWorkspaceReviewRoute(undefined)).toBe(false)
+  })
+})
+
+describe('portalWorkspaceTitle', () => {
+  it('names the portal in its tab, so two open portals can be told apart', () => {
+    expect(portalWorkspaceTitle('Pool bar', 'edit')).toBe('Pool bar · Portal')
+  })
+
+  it('says the review step is a review of that portal', () => {
+    expect(portalWorkspaceTitle('Pool bar', 'review')).toBe('Review: Pool bar')
+  })
+
+  it('never leaves the tab nameless', () => {
+    expect(portalWorkspaceTitle('  ', 'edit')).toBe('Untitled portal · Portal')
   })
 })

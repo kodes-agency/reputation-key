@@ -22,3 +22,16 @@ const REVIEW_PATH = /^\/properties\/[^/]+\/portals\/[^/]+\/review\/?$/u
 export function isWorkspaceReviewRoute(pathname: string | undefined): boolean {
   return pathname !== undefined && REVIEW_PATH.test(pathname)
 }
+
+/**
+ * The browser tab's title for one portal's workspace, before the product name
+ * (`documentTitle`): the portal's own name, so two open portals, and the
+ * history, can be told apart. The review step says it is a review.
+ */
+export function portalWorkspaceTitle(
+  portalName: string,
+  mode: 'edit' | 'review',
+): string {
+  const name = portalName.trim() === '' ? 'Untitled portal' : portalName.trim()
+  return mode === 'review' ? `Review: ${name}` : `${name} · Portal`
+}

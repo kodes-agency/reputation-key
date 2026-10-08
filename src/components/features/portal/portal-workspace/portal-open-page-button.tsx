@@ -1,6 +1,8 @@
-// The header's "Open page". When the live page's address can be had again it
-// opens the page in a new tab (the reveal is recorded in History as a "show");
-// otherwise it is a plain link to Share, where the address is shown or made.
+// The header's way to the live page, named for what it does. When the live
+// page's address can be had again it is "Open live page" and opens the page in
+// a new tab (the reveal is recorded in History as a "show"); otherwise it is
+// "Get page link", a plain link to Share, where the address is shown when the
+// code is replaced.
 
 import { Link } from '@tanstack/react-router'
 import { ExternalLink, Share2 } from 'lucide-react'
@@ -49,9 +51,8 @@ export function PortalOpenPageButton(props: PortalOpenPageButtonProps) {
           to="/properties/$propertyId/portals/$portalId"
           params={{ propertyId, portalId }}
           search={{ tab: 'share' }}
-          aria-label="Open page: get its address in Share"
         >
-          <Share2 aria-hidden /> Open page
+          <Share2 aria-hidden /> Get page link
         </Link>
       </Button>
     )
@@ -81,7 +82,7 @@ export function PortalOpenPageButton(props: PortalOpenPageButtonProps) {
       disabled={isOpening}
       onClick={() => void open()}
     >
-      <ExternalLink aria-hidden /> {isOpening ? 'Opening…' : 'Open page'}{' '}
+      <ExternalLink aria-hidden /> {isOpening ? 'Opening…' : 'Open live page'}{' '}
       <span className="sr-only">(opens in a new tab)</span>
     </Button>
   )

@@ -15,6 +15,8 @@ import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
 import { PortalReviewPage } from '#/components/features/portal/portal-review/portal-review-page'
 import { publishReview } from '#/components/features/portal/portal-review/portal-review-publish'
 import { resolveFixPeople } from '#/components/features/portal/portal-review/portal-review-checks'
+import { portalWorkspaceTitle } from '#/components/features/portal/portal-workspace/portal-workspace-route'
+import { documentTitle } from '#/components/layout/page-identity'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import {
   portalQuery,
@@ -49,6 +51,16 @@ export const Route = createFileRoute(
       ...portalReviewQuery(params.portalId),
       staleTime: 0,
     })
+  },
+  // "Review: Pool bar": the layout titles the tab after the portal, and this
+  // step says it is the review of it.
+  head: ({ match, params }) => {
+    const name = match.context.queryClient.getQueryData(
+      portalQuery(params.portalId).queryKey,
+    )?.portal?.name
+    return name === undefined
+      ? {}
+      : { meta: [{ title: documentTitle(portalWorkspaceTitle(name, 'review')) }] }
   },
   component: PortalWorkspaceReview,
 })

@@ -263,6 +263,12 @@
       "policy": "The instant the page was opened, taken once for the goal card's days left and the history's year; it is not server state and is never written back, and a remount of the route is its reset boundary."
     },
     {
+      "id": "src/routes/_authenticated/properties/$propertyId/portals/-portal-workspace-header-slot.tsx:useState(origin)",
+      "classification": "local_runtime",
+      "owner": "Portal workspace header",
+      "policy": "The location the manager was on before the workspace opened, read once from the router (which marks a navigation resolved only after the new page renders) so the way back names the list they came from. It is not server state, never written back, and leaving the workspace (an unmount) is its reset boundary."
+    },
+    {
       "id": "src/components/features/beta-feedback/beta-feedback-dialog-body.tsx:useState(panel)",
       "classification": "synchronized_prop_copy",
       "owner": "Beta feedback reporting",

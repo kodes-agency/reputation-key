@@ -102,16 +102,21 @@ export function derivePortalDetailView(
 
 /**
  * The one quiet line under the portal name. Status is not the point of this
- * page, so it is a phrase, not a panel: what guests can open right now, and
- * which version that is when there is one.
+ * page, so it is a phrase, not a panel: what guests can open right now, which
+ * version that is when there is one, and that it is up to date when nothing is
+ * waiting to go live (the header then offers no publish step).
  */
 export function describePortalStatus(
   state: PortalPublicationState,
   liveVersion: number | null,
+  hasPendingChanges = false,
 ): string {
   switch (state) {
     case 'published':
-      return liveVersion === null ? 'Live' : `Live · version ${liveVersion}`
+      if (liveVersion === null) return 'Live'
+      return hasPendingChanges
+        ? `Live · version ${liveVersion}`
+        : `Live · version ${liveVersion} · up to date`
     case 'draft':
       return 'Draft · not published'
     case 'disabled':
@@ -134,6 +139,21 @@ export function canReviewAndPublish(
   state: PortalPublicationState,
 ): boolean {
   return access.canUpdate && access.portalWriteEnabled && state !== 'archived'
+}
+
+/**
+ * Whether Review & publish has anything to put live: a draft that was never
+ * published, a disabled page (it comes back through review, like a first
+ * publish), or a live page with saved changes waiting. The Portals list's row
+ * menu offers the step by the same rule. A live page that matches its draft has
+ * nothing to publish, so the header does not make the step its loudest control.
+ */
+export function hasSomethingToPublish(
+  state: PortalPublicationState,
+  hasPendingChanges: boolean,
+): boolean {
+  if (state === 'archived') return false
+  return state !== 'published' || hasPendingChanges
 }
 
 /**

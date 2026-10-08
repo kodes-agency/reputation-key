@@ -1,6 +1,7 @@
-// The header's "Open page" slot: decides what to offer (`deriveOpenPageMode`)
-// and reads the address the manager already holds from the workspace's
-// issuance state, so a code made here opens with no reveal. Rendered inside
+// The header's live-page slot ("Open live page" or "Get page link"): decides
+// what to offer (`deriveOpenPageMode`) and reads the address the manager
+// already holds from the workspace's issuance state, so a code made here opens
+// with no reveal. Rendered inside
 // `PortalLinkIssuanceProvider`, which is why the layout hands it over as an
 // element rather than reading the state itself.
 
