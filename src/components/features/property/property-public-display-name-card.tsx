@@ -14,48 +14,38 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { FieldGroup } from '#/components/ui/field'
-import { portalBrandFormInputSchema } from '#/contexts/portal/application/dto/portal-experience.dto'
+import { propertyPublicDisplayNameFormInputSchema } from '#/contexts/portal/application/dto/portal-experience.dto'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 
-type PropertyBrandProfile = Readonly<{
-  displayName: string
-  primaryColor: string
-  backgroundColor: string
-  textColor: string
-}> | null
-
+/**
+ * The name alone. The broader brand writer also sends colours, and a form
+ * opened before the Property look changed would write its old ones back.
+ */
 type SavePublicDisplayNameAction = Action<{
   data: {
     propertyId: string
     displayName: string
-    primaryColor: string
-    backgroundColor: string
-    textColor: string
   }
 }>
 
 export function PropertyPublicDisplayNameCard({
   propertyId,
-  profile,
+  displayName: savedDisplayName,
   action,
 }: Readonly<{
   propertyId: string
-  profile: PropertyBrandProfile
+  /** The name as saved; empty when the Property has none yet. */
+  displayName: string
   action: SavePublicDisplayNameAction
 }>) {
   const { can } = usePermissions()
   const canManage = can('portal.admin')
   const form = useForm({
-    defaultValues: {
-      displayName: profile?.displayName ?? '',
-      primaryColor: profile?.primaryColor ?? '#2563EB',
-      backgroundColor: profile?.backgroundColor ?? '#FFFFFF',
-      textColor: profile?.textColor ?? '#111827',
-    },
-    validators: { onSubmit: portalBrandFormInputSchema },
+    defaultValues: { displayName: savedDisplayName },
+    validators: { onSubmit: propertyPublicDisplayNameFormInputSchema },
     onSubmit: async ({ value }) => {
-      const parsed = portalBrandFormInputSchema.parse(value)
-      await action({ data: { propertyId, ...parsed } })
+      const { displayName } = propertyPublicDisplayNameFormInputSchema.parse(value)
+      await action({ data: { propertyId, displayName } })
     },
   })
 
