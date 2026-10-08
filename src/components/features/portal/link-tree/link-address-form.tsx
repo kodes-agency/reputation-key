@@ -12,7 +12,7 @@ import { submitForm, submitHandler } from '#/components/forms/form-submit'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { updateLinkInputSchema } from '#/contexts/portal/application/dto/portal-link.dto'
 import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
-import { LinktreeCheckingLine } from './linktree-approval-fact'
+import { LinktreeCheckingLine } from './linktree-checking-line'
 import type { LinktreeMutations } from './use-linktree-mutations'
 
 const addressFormSchema = updateLinkInputSchema.pick({ url: true }).required()

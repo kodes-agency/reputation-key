@@ -6,12 +6,13 @@
 // (`LinktreeCheckingLine`), instead of showing the previous address's state.
 
 import { useState } from 'react'
-import { LoaderCircle, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { ShieldCheck, TriangleAlert } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import type { PortalLinktreeDestination } from '#/contexts/portal/application/public-api'
 import { DestinationTurnOff } from '../portal-settings/destination-turn-off'
 import type { LinkSiteControls } from './link-approval-controls'
 import { describeLinkApproval } from './linktree-approval-rules'
+import { LinktreeCheckingLine } from './linktree-checking-line'
 
 type Props = Readonly<{
   destination: PortalLinktreeDestination
@@ -22,19 +23,6 @@ type Props = Readonly<{
   /** Approve and turn-off for an account admin; absent for everyone else. */
   site?: LinkSiteControls
 }>
-
-/** Shown in place of the approval line while the server checks an address. */
-export function LinktreeCheckingLine() {
-  return (
-    <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-      <LoaderCircle
-        aria-hidden="true"
-        className="size-4 shrink-0 animate-spin motion-reduce:animate-none"
-      />
-      Checking address…
-    </p>
-  )
-}
 
 export function LinktreeApprovalFact({
   destination,
