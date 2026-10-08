@@ -129,6 +129,7 @@ describe('resolveImmersiveLook', () => {
         '--ih-accent',
         '--ih-field',
         '--ih-glass-solid',
+        '--ih-kicker-photo',
         '--ih-on-accent',
         '--ih-text',
         '--ih-wash-cool',

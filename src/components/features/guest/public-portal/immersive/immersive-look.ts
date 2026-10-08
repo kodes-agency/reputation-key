@@ -18,6 +18,8 @@
 import {
   IMMERSIVE_TEXT_COLOUR,
   MIN_FIELD_TEXT_CONTRAST,
+  MIN_TEXT_CONTRAST,
+  contrastRatio,
   deriveBackdropTones,
   deriveFieldColour,
   isAccentReadableOnField,
@@ -25,6 +27,7 @@ import {
   parseHexColour,
   readableForegroundOn,
 } from '#/shared/domain/portal-field-colour'
+import { heroBackgroundsOf } from './immersive-hero-scrim'
 
 export { IMMERSIVE_TEXT_COLOUR, MIN_FIELD_TEXT_CONTRAST }
 
@@ -56,6 +59,7 @@ export type ImmersiveLookVariable =
   | '--ih-glass-solid'
   | '--ih-accent'
   | '--ih-on-accent'
+  | '--ih-kicker-photo'
   | '--ih-wash-warm'
   | '--ih-wash-cool'
   | '--ih-wash-deep'
@@ -99,6 +103,51 @@ function resolveField(stored: string, accent: string): string {
   )
 }
 
+/** The share of white in the page's accent text: `--ih-accent-text` in the stylesheet mixes the accent 88% with white. */
+const ACCENT_TEXT_WHITE_SHARE = 0.12
+
+type Rgb = readonly [number, number, number]
+
+const over = (top: Rgb, alpha: number, base: Rgb): Rgb => [
+  alpha * top[0] + (1 - alpha) * base[0],
+  alpha * top[1] + (1 - alpha) * base[1],
+  alpha * top[2] + (1 - alpha) * base[2],
+]
+
+/**
+ * The title's kicker over a photo. It is small (11 px), so it needs 4.5:1, and a
+ * photo is not the field: the worst one a manager can upload is white, and the
+ * hero's scrims (`immersive-hero-scrim.ts`) dim it only so far. The accent
+ * draws the kicker where it clears that on that worst photo, in every place the
+ * wordmark and title can sit (the bare backdrop and under each wash); an accent
+ * that does not, a dark one, gives way to the page's text colour. A page with no
+ * photo draws the kicker on the field in the accent as always.
+ */
+function kickerOnPhoto(
+  accent: string,
+  field: string,
+  tones: Readonly<{ warm: string; cool: string }>,
+): string {
+  const text = liftedFrom(accent, ACCENT_TEXT_WHITE_SHARE)
+  const photo = [255, 255, 255].map((channel) => channel * PHOTO_BACKDROP.brightness)
+  const base = over(
+    parseHexColour(field) as Rgb,
+    PHOTO_BACKDROP.fieldMix,
+    photo as unknown as Rgb,
+  )
+  const backdrops = [
+    base,
+    over(parseHexColour(tones.warm) as Rgb, PHOTO_BACKDROP.warmWash, base),
+    over(parseHexColour(tones.cool) as Rgb, PHOTO_BACKDROP.coolWash, base),
+  ]
+  const isReadable = backdrops.every((backdrop) =>
+    heroBackgroundsOf('kicker', backdrop).every(
+      (background) => (contrastRatio(text, background) ?? 0) >= MIN_TEXT_CONTRAST,
+    ),
+  )
+  return isReadable ? text : IMMERSIVE_TEXT_COLOUR
+}
+
 export function resolveImmersiveLook(brand: ImmersiveBrandColours): ImmersiveLook {
   const accent = normalisedHex(brand.accentColour) ?? DEFAULT_IMMERSIVE_ACCENT
   const field = resolveField(brand.fieldColour, accent)
@@ -120,6 +169,7 @@ export function resolveImmersiveLook(brand: ImmersiveBrandColours): ImmersiveLoo
       '--ih-glass-solid': liftedFrom(field, GLASS_SOLID_WHITE),
       '--ih-accent': drawnAccent,
       '--ih-on-accent': onAccent,
+      '--ih-kicker-photo': kickerOnPhoto(drawnAccent, field, tones),
       '--ih-wash-warm': tones.warm,
       '--ih-wash-cool': tones.cool,
       '--ih-wash-deep': tones.deep,

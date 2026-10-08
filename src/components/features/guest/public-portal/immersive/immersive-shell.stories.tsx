@@ -145,12 +145,76 @@ export const DarkAccentIsReplaced: Story = {
   },
 }
 
-/** A wide viewport keeps the phone-width column and lets the backdrop run full width. */
+/**
+ * A wide viewport keeps the phone-width column and lets the backdrop run full
+ * width. In a frame (the admin preview) the hero stays the phone's 236 px,
+ * however wide the window: only the page asks the viewport.
+ */
 export const WideViewport: Story = {
   parameters: { frameWidth: 1024 },
   play: async ({ canvasElement }) => {
     const column = canvasElement.querySelector<HTMLElement>('.ih-column')
     expect(column?.getBoundingClientRect().width).toBe(480)
     expect(rootOf(canvasElement).getBoundingClientRect().width).toBe(1024)
+    const hero = canvasElement.querySelector<HTMLElement>('.ih-hero')
+    expect(hero?.getBoundingClientRect().height).toBe(236)
+  },
+}
+
+/** The hero's height and where the kicker sits, both measured on the page. */
+function heroMetrics(canvasElement: HTMLElement) {
+  const hero = canvasElement.querySelector<HTMLElement>('.ih-hero')
+  const kicker = canvasElement.querySelector<HTMLElement>('.ih-title__kicker')
+  if (!hero || !kicker) throw new Error('the hero or the kicker is missing')
+  const heroBox = hero.getBoundingClientRect()
+  return {
+    height: heroBox.height,
+    kickerFromBottom: heroBox.bottom - kicker.getBoundingClientRect().top,
+  }
+}
+
+/**
+ * From sm up the hero photo grows with the viewport instead of being cropped to
+ * a thin strip, and the title block follows it down so the kicker keeps the
+ * same distance above the photo's bottom edge. A tablet gets the least it grows.
+ */
+export const HeroGrowsOnATablet: Story = {
+  args: { height: 'page' },
+  parameters: { frameWidth: 820, viewport: { defaultViewport: 'tablet' } },
+  play: async ({ canvasElement }) => {
+    const { height, kickerFromBottom } = heroMetrics(canvasElement)
+    expect(window.innerWidth).toBeGreaterThanOrEqual(640)
+    // 34% of the width, never under 300 px and never over 440 px.
+    const expected = Math.min(440, Math.max(300, window.innerWidth * 0.34))
+    expect(Math.abs(height - expected)).toBeLessThan(1)
+    expect(height).toBeGreaterThan(236)
+    expect(Math.round(kickerFromBottom)).toBe(94)
+  },
+}
+
+/** On a laptop the growth stops at 440 px: bounded, not a full-width poster. */
+export const HeroIsBoundedOnADesktop: Story = {
+  args: { height: 'page' },
+  parameters: { frameWidth: 1440, viewport: { defaultViewport: 'desktopManager' } },
+  play: async ({ canvasElement }) => {
+    const { height, kickerFromBottom } = heroMetrics(canvasElement)
+    expect(window.innerWidth).toBeGreaterThanOrEqual(1200)
+    expect(height).toBe(440)
+    expect(Math.round(kickerFromBottom)).toBe(94)
+  },
+}
+
+/** The no-photo page keeps its arch and its title where the board has them, on any width. */
+export const NoPhotoPageDoesNotGrow: Story = {
+  args: {
+    height: 'page',
+    brand: { ...CHAMPAGNE, hero: null },
+    heroAlt: { value: '' },
+  },
+  parameters: { frameWidth: 1440, viewport: { defaultViewport: 'desktopManager' } },
+  play: async ({ canvasElement }) => {
+    const title = canvasElement.querySelector<HTMLElement>('.ih-title')
+    expect(title && parseFloat(getComputedStyle(title).marginTop)).toBe(78)
+    expect(canvasElement.querySelector('.ih-hero')).toBeNull()
   },
 }

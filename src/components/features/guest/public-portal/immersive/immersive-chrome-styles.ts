@@ -6,32 +6,66 @@
 // Geometry is measured from boards G01 and G02 (390 x 844): a 64 px header, a
 // 44 px chip, the title block 78 px below it, a 26 px sheet title and 60 px rows.
 
+import { HERO_PHONE_HEIGHT, HERO_TITLE_CLEARANCE } from './immersive-hero-scrim'
+
+/**
+ * The wordmark's room beside the chip, from the header's width, for the fit
+ * below: the chip (90 px), the gap (12) and the header's padding (8), with a
+ * little over. Without a chip, nothing but the padding and a little over.
+ */
+const WORDMARK_RESERVE = { withChip: 114, alone: 10 } as const
+/**
+ * How wide one letter of an uppercase wordmark is, in em, before its spacing:
+ * measured on Cormorant Garamond 600 across ordinary names (0.60), and a little
+ * more, so a name of wide letters still fits.
+ */
+const WORDMARK_LETTER_EM = 0.64
+
 export const IMMERSIVE_CHROME_CSS = `
 .ih-header {
   flex-shrink: 0;
   height: 64px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
   padding: 0 2px 0 6px;
+  /* The wordmark sizes itself to the room this leaves it (cqw below). */
+  container-type: inline-size;
 }
+/* The brand mark is never cut off. It is as large and as widely spaced as the
+   room beside the chip allows, and steps down in size and then in spacing as the
+   name gets longer or the phone narrower; only a name too long even for that
+   wraps to a second line. Nothing ends in an ellipsis. */
 .ih-wordmark {
-  margin: 0;
+  --ih-wm-reserve: ${WORDMARK_RESERVE.withChip}px;
+  margin: 0 auto 0 0;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-size: 16px;
+  line-height: 1.15;
   letter-spacing: 0.38em;
   text-transform: uppercase;
+  /* The root's overflow-wrap (break-word) breaks a name too long for any size
+     inside its word; a brand mark is never hyphenated. */
+  hyphens: manual;
   color: #fff;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
+}
+.ih-header:not(:has(.ih-chip)) .ih-wordmark { --ih-wm-reserve: ${WORDMARK_RESERVE.alone}px; }
+@supports (width: 1cqw) {
+  .ih-wordmark {
+    --ih-wm-room: calc((100cqw - var(--ih-wm-reserve)) / var(--ih-wm-n, 1));
+    --ih-wm-size: clamp(11px, calc(var(--ih-wm-room) * 0.95), 16px);
+    font-size: var(--ih-wm-size);
+    letter-spacing: clamp(0.4px, calc(var(--ih-wm-room) - ${WORDMARK_LETTER_EM} * var(--ih-wm-size)), 0.38em);
+  }
 }
 .ih-logo {
   display: block;
   height: 32px;
   width: auto;
   max-width: 55%;
+  margin-right: auto;
   object-fit: contain;
   object-position: left center;
 }
@@ -51,7 +85,8 @@ export const IMMERSIVE_CHROME_CSS = `
 }
 
 .ih-title {
-  margin-top: 78px;
+  /* The hero's height less ${HERO_TITLE_CLEARANCE}px: 78 px on a phone, and the same place on the photo when it grows. */
+  margin-top: calc(var(--ih-hero-h, ${HERO_PHONE_HEIGHT}px) - ${HERO_TITLE_CLEARANCE}px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -67,7 +102,10 @@ export const IMMERSIVE_CHROME_CSS = `
   text-transform: uppercase;
   text-wrap: balance;
   color: var(--ih-accent-text);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
 }
+/* Over a photo the kicker's colour is the accent only where it is readable on the brightest photo (immersive-look.ts). */
+.ih-root[data-ih-surface='photo'] .ih-title__kicker { color: var(--ih-kicker-photo); }
 .ih-title__name {
   margin: 0;
   font-size: clamp(34px, 11.3vw, 44px);
