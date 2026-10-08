@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { GUEST_LOCALES } from '#/shared/domain/guest-locale'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { PortalUnavailable } from './portal-unavailable'
+import { withoutStyleElements } from './public-portal/__fixtures__/markup-walk'
 import {
   PORTAL_UNAVAILABLE_ENGLISH,
   unavailableCopyOf,
@@ -21,7 +22,7 @@ const PACKS = await Promise.all(
 const COPIES = PACKS.map(unavailableCopyOf)
 const GERMAN = COPIES.find((copy) => copy.locale === 'de') as PortalUnavailableCopy
 
-const strip = (markup: string) => markup.replace(/<style[\s\S]*?<\/style>/gu, '')
+const strip = withoutStyleElements
 const render = (copy?: PortalUnavailableCopy) =>
   renderToStaticMarkup(createElement(PortalUnavailable, copy ? { copy } : {}))
 

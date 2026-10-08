@@ -10,6 +10,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import { withoutStyleElements } from '../__fixtures__/markup-walk'
 import { PACKS } from './__fixtures__/immersive-response-fixtures'
 import { immersiveResponseProps } from './immersive-response-preview'
 import {
@@ -18,7 +19,7 @@ import {
 } from './immersive-response-view'
 
 const DISPLAY_NAME = 'Avela Resort'
-const body = (html: string) => html.replace(/<style[\s\S]*?<\/style>/gu, '')
+const body = withoutStyleElements
 
 function rated(pack: (typeof PACKS)[number]) {
   return immersiveResponseProps(
