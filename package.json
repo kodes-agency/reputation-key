@@ -186,6 +186,7 @@
       "playwright-core": "$@playwright/test",
       "postcss": "8.5.23",
       "proxy-addr": "2.0.8",
+      "shell-quote": "1.11.0",
       "source-map-js": "1.2.2"
     },
     "onlyBuiltDependencies": [
