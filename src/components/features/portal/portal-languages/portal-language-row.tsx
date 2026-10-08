@@ -36,6 +36,8 @@ type Props = Readonly<{
   /** Null until the coverage read has caught up with a language just added. */
   coverage: PortalLanguageCoverageRow | null
   canEdit: boolean
+  /** An account admin who may edit: the property's wording is theirs to write. */
+  canWritePropertyWording: boolean
   onChange: (change: PortalLanguageChange) => void
 }>
 
@@ -46,6 +48,7 @@ export function PortalLanguageRow({
   isFallback,
   coverage,
   canEdit,
+  canWritePropertyWording,
   onChange,
 }: Props) {
   const name = languageDisplayName(locale)
@@ -125,6 +128,7 @@ export function PortalLanguageRow({
                     text={text}
                     propertyId={propertyId}
                     portalId={portalId}
+                    canWritePropertyWording={canWritePropertyWording}
                   />
                 </li>
               ))}
@@ -140,11 +144,19 @@ function MissingTextAction({
   text,
   propertyId,
   portalId,
-}: Readonly<{ text: MissingPortalText; propertyId: string; portalId: string }>) {
-  const action = missingTextAction(text)
-  if (action.kind === 'needs_property_wording') {
+  canWritePropertyWording,
+}: Readonly<{
+  text: MissingPortalText
+  propertyId: string
+  portalId: string
+  canWritePropertyWording: boolean
+}>) {
+  const action = missingTextAction(text, canWritePropertyWording)
+  if (action.kind === 'ask_account_admin') {
     return (
-      <span className="text-muted-foreground">Needs the Property&rsquo;s wording</span>
+      <span className="text-muted-foreground">
+        An account admin writes this in Welcome
+      </span>
     )
   }
   return (
