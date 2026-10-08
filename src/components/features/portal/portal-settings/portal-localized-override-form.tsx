@@ -62,7 +62,7 @@ export function PortalLocalizedOverrideForm({
             <FormTextField
               field={field}
               id={`portal-override-title-${locale}`}
-              label="Welcome line"
+              label="This portal’s welcome line"
               placeholder={titlePlaceholder}
               maxLength={120}
               readOnly={readOnly}
@@ -75,7 +75,7 @@ export function PortalLocalizedOverrideForm({
             <FormTextarea
               field={field}
               id={`portal-override-description-${locale}`}
-              label="Link preview"
+              label="This portal’s link preview"
               placeholder={descriptionPlaceholder}
               maxLength={500}
               rows={2}

@@ -19,7 +19,7 @@ import {
 } from './portal-editor-sections'
 import {
   findPortalGroup,
-  responsibleManagerNames,
+  portalEditorSummaryInput,
   summarizePortalEditorSections,
 } from './portal-editor-summary'
 import type { PortalEditorResources } from './portal-editor-types'
@@ -32,7 +32,7 @@ type Props = Readonly<{
 
 export function PortalEditor({ resources, requestedSection }: Props) {
   const navigate = useNavigate()
-  const { portal, propertyId, portalGroups, links } = resources
+  const { portal, propertyId, portalGroups } = resources
   const group = portalGroups ? findPortalGroup(portalGroups, portal.id) : null
   const hasResponsible =
     resources.responsibleManagers !== undefined &&
@@ -43,18 +43,9 @@ export function PortalEditor({ resources, requestedSection }: Props) {
     responsible: hasResponsible,
   })
   const section = resolvePortalEditorSection(requestedSection, available)
-  const summaries = summarizePortalEditorSections({
-    portalName: portal.name,
-    privateFeedbackThreshold: portal.privateFeedbackThreshold,
-    linkCount: links.length,
-    languageCount: 1 + (portal.additionalGuestLocales?.length ?? 0),
-    missingTextCount: resources.languageCoverage?.missingTotal,
-    groupName: group?.name ?? null,
-    responsibleNames: responsibleManagerNames(
-      resources.responsibleManagers?.assignments ?? [],
-      resources.responsibleManagerMembers ?? [],
-    ),
-  })
+  const summaries = summarizePortalEditorSections(
+    portalEditorSummaryInput(resources, group?.name ?? null),
+  )
   // One answer for every section: the role, the organisation's `portal.write`
   // capability (the server refuses every write without it) and an archived
   // portal, which is retained exactly as it was. The workspace says why under

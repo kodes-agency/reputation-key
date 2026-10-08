@@ -7,7 +7,11 @@
 // A language only has wording when the property wrote some for it: publishing
 // reads the property's wording as the base, so without it this portal's own
 // lines do not count yet (and in the primary language the portal cannot be
-// published). Then the fold opens and says so.
+// published). Then the order turns round: the warning, the property's wording
+// (open) right under it, where "write it below" points, and this portal's own
+// lines after, with one line saying they count once that wording is saved. The
+// two pairs carry different labels ("This portal's welcome line", "Welcome line
+// for every portal"), so neither can be typed into for the other.
 //
 // The fold keeps its form mounted while closed (hidden, not removed): an
 // unsaved edit to the property's wording must survive closing it, and so must
@@ -75,6 +79,41 @@ export function PortalLocalizedContentEditor({
   const propertyName = experience.profile?.displayName.trim() || null
   const headingId = `portal-wording-${locale}-heading`
 
+  const ownLines = (
+    <PortalLocalizedOverrideForm
+      locale={locale}
+      portalId={portalId}
+      propertyName={propertyName}
+      initialTitle={own.title}
+      initialDescription={own.shortDescription}
+      titlePlaceholder={property.title}
+      descriptionPlaceholder={property.shortDescription}
+      action={actions.saveOverride}
+      readOnly={disabled}
+    />
+  )
+  const propertyWording = (
+    <PropertyWordingFold
+      propertyName={propertyName}
+      startsOpen={!hasWording}
+      placement={hasWording ? 'below' : 'first'}
+      canManagePropertyBrand={experience.canManagePropertyBrand}
+    >
+      {/* Keyed on the property wording only: it keeps an explicit Save, so
+          it remounts on the saved values. The portal's own lines autosave as
+          they are typed and must NOT remount when a save lands. */}
+      <PortalPropertyContentForm
+        key={portalPropertyContentDraftKey(experience, locale)}
+        locale={locale}
+        propertyId={propertyId}
+        initialTitle={property.title}
+        initialDescription={property.shortDescription}
+        action={actions.saveContent}
+        readOnly={!canWriteProperty}
+      />
+    </PropertyWordingFold>
+  )
+
   return (
     <div
       role="group"
@@ -82,42 +121,25 @@ export function PortalLocalizedContentEditor({
       className="space-y-4 rounded-lg border p-4"
     >
       <LanguageHeading locale={locale} headingId={headingId} />
-      {hasWording ? null : (
-        <MissingWordingNote
-          locale={locale}
-          isPrimary={isPrimary}
-          canWriteProperty={canWriteProperty}
-        />
+      {hasWording ? (
+        <>
+          {ownLines}
+          {propertyWording}
+        </>
+      ) : (
+        <>
+          <MissingWordingNote
+            locale={locale}
+            isPrimary={isPrimary}
+            canWriteProperty={canWriteProperty}
+          />
+          {propertyWording}
+          <p className="text-sm text-muted-foreground">
+            This portal&rsquo;s own lines count once the property wording above is saved.
+          </p>
+          {ownLines}
+        </>
       )}
-      <PortalLocalizedOverrideForm
-        locale={locale}
-        portalId={portalId}
-        propertyName={propertyName}
-        initialTitle={own.title}
-        initialDescription={own.shortDescription}
-        titlePlaceholder={property.title}
-        descriptionPlaceholder={property.shortDescription}
-        action={actions.saveOverride}
-        readOnly={disabled}
-      />
-      <PropertyWordingFold
-        propertyName={propertyName}
-        startsOpen={!hasWording}
-        canManagePropertyBrand={experience.canManagePropertyBrand}
-      >
-        {/* Keyed on the property wording only: it keeps an explicit Save, so
-            it remounts on the saved values. The portal's own lines above
-            autosave as they are typed and must NOT remount when a save lands. */}
-        <PortalPropertyContentForm
-          key={portalPropertyContentDraftKey(experience, locale)}
-          locale={locale}
-          propertyId={propertyId}
-          initialTitle={property.title}
-          initialDescription={property.shortDescription}
-          action={actions.saveContent}
-          readOnly={!canWriteProperty}
-        />
-      </PropertyWordingFold>
     </div>
   )
 }
@@ -174,17 +196,24 @@ function MissingWordingNote({
 function PropertyWordingFold({
   propertyName,
   startsOpen,
+  placement,
   canManagePropertyBrand,
   children,
 }: Readonly<{
   propertyName: string | null
   startsOpen: boolean
+  /** Below this portal's own lines, or first, under the warning that points at it. */
+  placement: 'below' | 'first'
   canManagePropertyBrand: boolean
   children: ReactNode
 }>) {
   const [open, setOpen] = useState(startsOpen)
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="border-t pt-3">
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className={placement === 'below' ? 'border-t pt-3' : 'border-b pb-4'}
+    >
       <CollapsibleTrigger className="group flex min-h-11 w-full items-center gap-2 rounded-md text-left text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring md:min-h-8">
         <ChevronRight
           aria-hidden="true"

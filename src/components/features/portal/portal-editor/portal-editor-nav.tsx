@@ -48,6 +48,19 @@ function SectionSummary({ summary }: Readonly<{ summary: PortalEditorSectionSumm
   )
 }
 
+/**
+ * The strip leaves the summary out, so a section that needs something keeps an
+ * amber dot there, named for assistive technology by what the summary says.
+ */
+function AttentionMarker({ attention }: Readonly<{ attention: string }>) {
+  return (
+    <>
+      <span className="size-2 rounded-full bg-warn" aria-hidden />
+      <span className="sr-only">{`, ${attention}`}</span>
+    </>
+  )
+}
+
 /** The available sections as nav items, grouped as guests meet them. */
 export function portalEditorNavItems({
   propertyId,
@@ -69,6 +82,9 @@ export function portalEditorNavItems({
         label: PORTAL_EDITOR_SECTION_LABELS[section],
         icon: PORTAL_EDITOR_SECTION_ICONS[section],
         summary: <SectionSummary summary={summaries[section]} />,
+        ...(summaries[section].attention
+          ? { marker: <AttentionMarker attention={summaries[section].attention} /> }
+          : {}),
         group: group.heading,
       })),
   )

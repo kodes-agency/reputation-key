@@ -16,6 +16,12 @@ export type SectionNavItem = Readonly<{
    * Drawn in a list, left out of a strip.
    */
   summary?: ReactNode
+  /**
+   * A compact cue for a strip, which leaves the summary out: an item that needs
+   * something (what its summary flags) keeps a mark there. Left out of a list,
+   * where the summary says it in words.
+   */
+  marker?: ReactNode
   /** A trailing figure. Nothing is drawn for 0 or null. */
   count?: number | null
   /** Items next to each other with the same group are drawn together, under its heading. */

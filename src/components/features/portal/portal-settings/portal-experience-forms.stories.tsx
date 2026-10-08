@@ -122,7 +122,9 @@ export const CommandsUseSharedDtos: Story = {
       canvas.queryByRole('button', { name: /save portal override/i }),
     ).not.toBeInTheDocument()
     await userEvent.type(
-      canvas.getByLabelText('Welcome line', { selector: '#portal-override-title-en' }),
+      canvas.getByLabelText('This portal’s welcome line', {
+        selector: '#portal-override-title-en',
+      }),
       'Pool',
     )
     await waitFor(

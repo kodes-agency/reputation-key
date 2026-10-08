@@ -447,16 +447,22 @@ export const WelcomeLinesPerLanguage: Story = {
     const canvas = within(canvasElement)
     const english = languageCard(canvasElement, /English/)
     await expect(
-      english.getByLabelText('Welcome line', { selector: '#portal-override-title-en' }),
+      english.getByLabelText('This portal’s welcome line', {
+        selector: '#portal-override-title-en',
+      }),
     ).toHaveValue('Pool & Terrace')
     await expect(
-      english.getByLabelText('Welcome line', { selector: '#portal-override-title-en' }),
+      english.getByLabelText('This portal’s welcome line', {
+        selector: '#portal-override-title-en',
+      }),
     ).toHaveAttribute('placeholder', 'Welcome to Avela')
     await expect(
-      english.getByLabelText('Welcome line', { selector: '#portal-override-title-en' }),
+      english.getByLabelText('This portal’s welcome line', {
+        selector: '#portal-override-title-en',
+      }),
     ).toHaveAccessibleDescription(/above Avela Resort/)
     await expect(
-      english.getByLabelText('Link preview', {
+      english.getByLabelText('This portal’s link preview', {
         selector: '#portal-override-description-en',
       }),
     ).toBeVisible()
@@ -477,7 +483,7 @@ export const PropertyWordingKeepsAnUnsavedEdit: Story = {
     const english = languageCard(canvasElement, /English/)
     const fold = english.getByRole('button', { name: /Property wording/ })
     await userEvent.click(fold)
-    const field = english.getByLabelText('Welcome line', {
+    const field = english.getByLabelText('Welcome line for every portal', {
       selector: '#portal-content-title-en',
     })
     await userEvent.clear(field)
@@ -486,7 +492,9 @@ export const PropertyWordingKeepsAnUnsavedEdit: Story = {
     await expect(fold).toHaveAttribute('aria-expanded', 'false')
     await userEvent.click(fold)
     await expect(
-      english.getByLabelText('Welcome line', { selector: '#portal-content-title-en' }),
+      english.getByLabelText('Welcome line for every portal', {
+        selector: '#portal-content-title-en',
+      }),
     ).toHaveValue('Welcome to the resort')
   },
 }
@@ -507,21 +515,27 @@ export const PropertyManagerReadsThePropertyWording: Story = {
     ).toBeVisible()
     // Read-only, not disabled: the wording is shown at full contrast.
     await expect(
-      bulgarian.getByLabelText('Welcome line', { selector: '#portal-content-title-bg' }),
+      bulgarian.getByLabelText('Welcome line for every portal', {
+        selector: '#portal-content-title-bg',
+      }),
     ).toHaveAttribute('readonly')
     await expect(
       bulgarian.queryByRole('button', { name: 'Save property wording' }),
     ).toBeNull()
     // This portal's own lines are still the manager's to write.
     await expect(
-      bulgarian.getByLabelText('Welcome line', { selector: '#portal-override-title-bg' }),
+      bulgarian.getByLabelText('This portal’s welcome line', {
+        selector: '#portal-override-title-bg',
+      }),
     ).toBeEnabled()
   },
 }
 
 // Bulgarian is offered but the property has no Bulgarian wording, so this
-// portal's own Bulgarian lines would not count: the card says so and opens the
-// property's wording to be written.
+// portal's own Bulgarian lines would not count: the card says so, and the
+// property's wording comes first, open, right under the warning that points at
+// it; this portal's own lines follow, saying when they will count. Welcome in
+// the section list carries the flag too, not only Languages.
 export const LanguageWithoutPropertyWording: Story = {
   args: {
     resources: withoutBulgarianWording(makeResources(action(async () => undefined))),
@@ -535,6 +549,27 @@ export const LanguageWithoutPropertyWording: Story = {
     await expect(
       bulgarian.getByRole('button', { name: 'Save property wording' }),
     ).toBeVisible()
+    const propertyField = bulgarian.getByLabelText('Welcome line for every portal', {
+      selector: '#portal-content-title-bg',
+    })
+    const ownField = bulgarian.getByLabelText('This portal’s welcome line', {
+      selector: '#portal-override-title-bg',
+    })
+    await expect(
+      Boolean(
+        propertyField.compareDocumentPosition(ownField) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    ).toBe(true)
+    await expect(
+      bulgarian.getByText(/own lines count once the property wording above is saved/),
+    ).toBeVisible()
+    const nav = within(
+      within(canvasElement).getByRole('navigation', { name: 'Editor sections' }),
+    )
+    await expect(nav.getByRole('link', { name: /^Welcome/ })).toHaveTextContent(
+      /1 without wording/,
+    )
   },
 }
 
@@ -679,7 +714,9 @@ export const MemberSeesTheFieldsReadOnly: Story = {
     await expect(canvas.getByLabelText('Name')).toHaveAttribute('readonly')
     await expect(canvas.getByLabelText('Name')).toBeEnabled()
     await expect(
-      canvas.getByLabelText('Welcome line', { selector: '#portal-override-title-en' }),
+      canvas.getByLabelText('This portal’s welcome line', {
+        selector: '#portal-override-title-en',
+      }),
     ).toHaveAttribute('readonly')
     await expect(canvas.queryByText(/save as you type/)).toBeNull()
     await expect(canvas.queryByText(/Edits stay in this draft/)).toBeNull()
