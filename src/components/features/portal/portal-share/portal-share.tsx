@@ -4,6 +4,7 @@
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { FullBleedFrame } from '#/components/layout/page-shell'
 import { cn } from '#/lib/utils'
+import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalCodeBlock } from './portal-code-block'
 import { PortalLinkIssueForm } from './portal-link-issue-form'
@@ -13,8 +14,14 @@ import { PortalLinkReveal } from './portal-link-reveal'
 import {
   PortalRevokedNotice,
   PortalScanGoalReadinessNotice,
+  PortalUnpublishedNotice,
   PortalViewOnlyNotice,
 } from './portal-share-notices'
+import {
+  describeShareAccess,
+  describeUnpublishedCode,
+  describeWhoToAsk,
+} from './portal-share-guidance'
 import {
   derivePortalShareViewFromProps,
   liveStatusMessage,
@@ -29,6 +36,14 @@ export type { IssuedPortalLink } from './portal-share-types'
 
 export function PortalShare(props: PortalShareProps) {
   const { can } = usePermissions()
+  const { has } = useCapabilities()
+  // The same two questions the server asks before it makes, replaces or stops
+  // a code: the role's permission and the portal.write capability.
+  const canUpdate = can('portal.update')
+  const access = describeShareAccess({
+    canUpdate,
+    writeEnabled: has('portal.write'),
+  })
   const addresses = usePortalShareAddresses(props)
   const { publicUrl, directUrl, nfcPublicUrl } = addresses
   const { linkRef, copied, copyFailed, copyLink } = addresses.direct
@@ -38,7 +53,7 @@ export function PortalShare(props: PortalShareProps) {
     copyFailed: nfcCopyFailed,
   } = addresses.nfc
   const { error, isPending } = resolveMutationState(props)
-  const view = derivePortalShareViewFromProps(props, can('portal.update'), publicUrl)
+  const view = derivePortalShareViewFromProps(props, access.canManage, publicUrl)
   const {
     show: showPrintKit,
     printKit,
@@ -56,7 +71,23 @@ export function PortalShare(props: PortalShareProps) {
         )}
         aria-label="Share"
       >
-        <PortalViewOnlyNotice show={view.showViewOnlyNotice} />
+        <PortalViewOnlyNotice
+          reason={access.viewOnlyReason}
+          ask={describeWhoToAsk(canUpdate, props.managerNames ?? [])}
+        />
+
+        <PortalUnpublishedNotice
+          notice={
+            props.publicationState === undefined
+              ? null
+              : describeUnpublishedCode(props.publicationState)
+          }
+          review={
+            access.canManage && props.propertyId !== undefined
+              ? { propertyId: props.propertyId, portalId: props.portalId }
+              : null
+          }
+        />
 
         <FormErrorBanner error={error} />
 

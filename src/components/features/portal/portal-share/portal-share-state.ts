@@ -5,9 +5,9 @@
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
 import type { PortalShareMutations, PortalShareProps } from './portal-share-types'
 import { formatDate } from '#/lib/format'
+import { describeGraceCutoff } from './portal-share-guidance'
 
 export type PortalShareView = Readonly<{
-  showViewOnlyNotice: boolean
   showRevokedNotice: boolean
   /** No code yet (or every code was stopped): offer to make one. */
   showIssueForm: boolean
@@ -39,7 +39,18 @@ export type PortalShareView = Readonly<{
    * made in this session until `tokenStatus` has caught up with it.
    */
   madeBy: string | null
+  /**
+   * When the code before this one stops, in the property's time
+   * ("Nov 7, 2026, 5:23 PM Sofia time, in 30 days"); null when none is working.
+   */
   graceLabel: string | null
+  /**
+   * Under the code, when its picture and addresses are not on screen: that it
+   * can be downloaded again, or for a manager that they are shown only when a
+   * code is made or replaced. Null for someone who can only look, who is told
+   * whom to ask instead.
+   */
+  addressNote: string | null
 }>
 
 type ViewInput = Readonly<{
@@ -59,6 +70,8 @@ type ViewInput = Readonly<{
   issuedVersion?: number | null
   /** The clock; injectable so "made today" is testable. */
   now?: Date
+  /** The property's IANA zone, for the old code's cutoff; UTC without it. */
+  timeZone?: string
 }>
 
 /**
@@ -87,6 +100,7 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
     addressRecoverable = tokenStatus.addressRecoverable,
     issuedVersion = null,
     now = new Date(),
+    timeZone,
   } = input
 
   // The raw URL only exists in memory for the render that issued or rotated it,
@@ -105,13 +119,13 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
     tokenStatus.version >= issuedVersion
   const madeInThisSession =
     !revoked && publicUrl !== null && !addressRevealed && !tokenStatusCaughtUp
+  const showAddress = hasActiveToken && publicUrl !== null
 
   return {
-    showViewOnlyNotice: !canManage,
     showRevokedNotice: revoked && publicUrl === null,
     showIssueForm: canManage && !hasActiveToken,
     showCode: hasActiveToken,
-    showAddress: hasActiveToken && publicUrl !== null,
+    showAddress,
     showAddressRow: hasActiveToken && (publicUrl !== null || canDownloadAgain),
     canDownloadAgain,
     showSaveWarning: hasActiveToken && publicUrl !== null && !addressRecoverable,
@@ -123,8 +137,22 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
       ? formatDate(now.toISOString())
       : formatDate(tokenStatus.issuedAt),
     madeBy: madeInThisSession || revoked ? null : tokenStatus.madeBy,
-    graceLabel: formatDate(tokenStatus.graceExpiresAt),
+    graceLabel: describeGraceCutoff(tokenStatus.graceExpiresAt, now, timeZone),
+    addressNote: describeAddressNote({ showAddress, canDownloadAgain, canManage }),
   }
+}
+
+function describeAddressNote(
+  input: Readonly<{
+    showAddress: boolean
+    canDownloadAgain: boolean
+    canManage: boolean
+  }>,
+): string | null {
+  if (input.showAddress || !input.canManage) return null
+  return input.canDownloadAgain
+    ? 'Download the code again whenever you need it. Each download is recorded in History.'
+    : 'The QR image and the addresses are shown only when a code is made or replaced.'
 }
 
 /** "Made Mar 12, 2026 by Georgi Ivanov"; the date alone when nobody can be named. */
@@ -191,5 +219,6 @@ export function derivePortalShareViewFromProps(
     addressRevealed: props.issuedLink?.revealed ?? false,
     addressRecoverable: props.issuedLink?.addressRecoverable,
     issuedVersion: props.issuedLink?.version ?? null,
+    timeZone: props.timeZone,
   })
 }
