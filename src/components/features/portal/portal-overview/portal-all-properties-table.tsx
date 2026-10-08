@@ -46,17 +46,14 @@ export function PortalAllPropertiesTable({
   return (
     <DataTable label="Portals at all properties" layout="cards" busy={busy}>
       <PortalOverviewTableHead results={results} scansOrder={scansOrder} />
-      {properties.map((property) => {
+      {properties.map((property, position) => {
         const expanded = !collapsed.includes(property.propertyId)
         const head = groupSlot(results, (index) => index.property(property.propertyId))
         return (
-          // As cards, a rule above each Property but the first: where one ends and the next begins.
-          <DataTableBody
-            key={property.propertyId}
-            className="@max-4xl:mt-6 @max-4xl:border-t @max-4xl:pt-4 @max-4xl:first-of-type:mt-0 @max-4xl:first-of-type:border-t-0 @max-4xl:first-of-type:pt-0"
-          >
+          <DataTableBody key={property.propertyId}>
             <PortalOverviewPropertyHead
               property={property}
+              divided={position > 0}
               figures={head.slot}
               readCount={head.memberCount}
               expanded={expanded}

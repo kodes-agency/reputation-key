@@ -50,8 +50,9 @@ export function PortalOverviewGroupHead({
       className={cn(
         classes.groupRow,
         // Under a Property's head the group is lighter: no shade of its own. As a card
-        // it is set in from the Property's head, which the table does with its padding.
-        nested && '@max-4xl:ml-5 @4xl:bg-transparent @4xl:hover:bg-transparent',
+        // it is set in from the Property's head (a table row has no margin, so this is
+        // the card's alone), as the table does with its padding.
+        nested && 'ml-4 @4xl:bg-transparent @4xl:hover:bg-transparent',
       )}
     >
       <TableHead
@@ -65,7 +66,7 @@ export function PortalOverviewGroupHead({
         {nested && section.group ? (
           <Folder
             aria-hidden="true"
-            className="mr-1 inline size-4 align-[-3px] text-muted-foreground @4xl:hidden"
+            className="mr-1 inline size-4 align-middle text-muted-foreground @4xl:hidden"
           />
         ) : null}
         {section.group ? (

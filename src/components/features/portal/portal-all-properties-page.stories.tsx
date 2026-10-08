@@ -232,8 +232,13 @@ export const PropertyAndGroupHeadsAreToldApartAsCards: Story = {
     await expect(property.querySelector('svg.lucide-folder')).toBeNull()
     const group = headOfRow('Front of house')
     await expect(group.querySelector('svg.lucide-folder')).not.toBeNull()
-    await expect(group.className).toContain('@max-4xl:ml-5')
-    await expect(property.className).not.toContain('@max-4xl:ml-5')
+    await expect(group.className).toContain('ml-4')
+    await expect(property.className).not.toMatch(/(^| )ml-4( |$)/)
+    // A rule above a Property that has another above it, and not above the first.
+    const rules = tableOf(canvas)
+      .getAllByRole('button', { name: /^Portals in (Avela|Forma|The Harbor)/ })
+      .map((button) => button.closest('th')!.querySelector(':scope > span.border-t'))
+    await expect(rules.map((rule) => rule !== null)).toEqual([false, true, true])
   },
 }
 

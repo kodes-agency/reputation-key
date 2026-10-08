@@ -24,6 +24,8 @@ type Props = Readonly<{
   readCount: number | null
   expanded: boolean
   onToggle: () => void
+  /** Another Property is above this one: as cards, a rule says where the last one ends. */
+  divided?: boolean
 }>
 
 function PropertyMenu({ property }: Readonly<{ property: PortalPropertySection }>) {
@@ -64,6 +66,7 @@ export function PortalOverviewPropertyHead({
   readCount,
   expanded,
   onToggle,
+  divided = false,
 }: Props) {
   const { name, googleNotice } = property
   const { members, matched } = groupHeadCount(property, readCount)
@@ -79,16 +82,19 @@ export function PortalOverviewPropertyHead({
         scope="rowgroup"
         className="block h-auto p-0 text-left font-normal @4xl:table-cell @4xl:px-2 @4xl:py-2.5"
       >
+        {/* As cards there is no shaded row to tell a Property from a group: a rule above it and a building. */}
+        {divided ? (
+          <span aria-hidden="true" className="mt-4 mb-3 block border-t @4xl:hidden" />
+        ) : null}
         <PortalOverviewToggle name={name} expanded={expanded} onToggle={onToggle} />
-        {/* As cards there is no shaded row to tell a Property from a group: a building, a larger name. */}
         <Building2
           aria-hidden="true"
-          className="mr-1.5 inline size-4 align-[-3px] text-muted-foreground @4xl:hidden"
+          className="mr-1 inline size-4 align-middle text-muted-foreground @4xl:hidden"
         />
         <Link
           to="/properties/$propertyId/portals"
           params={{ propertyId: property.propertyId }}
-          className={cn('font-semibold @max-4xl:text-base', ROW_NAME_LINK)}
+          className={cn('font-semibold', ROW_NAME_LINK)}
         >
           {name}
         </Link>
