@@ -46,7 +46,7 @@ function hasWithheldGoogleOpens(data: PortalAnalyticsData): boolean {
 }
 
 /** What the strip has to show: false only for a window the page would otherwise print as zeros. */
-export function hasResultsToShow(data: PortalAnalyticsData): boolean {
+function hasResultsToShow(data: PortalAnalyticsData): boolean {
   return hasAnyFigure(data) || hasPendingState(data) || hasWithheldGoogleOpens(data)
 }
 
