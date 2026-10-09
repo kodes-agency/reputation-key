@@ -87,7 +87,7 @@
     "cld3-asm": "4.0.0",
     "clsx": "^2.1.1",
     "cmdk": "1.1.1",
-    "dotenv": "^17.4.2",
+    "dotenv": "^18.0.5",
     "drizzle-orm": "0.45.2",
     "fractional-indexing": "^4.0.0",
     "ioredis": "5.11.0",
