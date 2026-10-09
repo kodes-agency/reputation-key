@@ -438,7 +438,9 @@ unnamed placeholder.
 Review & publish reads through `getPortalReview` (`portal.read`, writes nothing). It
 asks the questions `publishPortalChanges` asks, in the same words: the Property is
 active, the Google destination is verified, someone is responsible, the address
-works, and the resolver's blockers and warnings (`portal-review-rules.ts` turns them
+works (any code that resolves, an older code made before access artifacts included:
+guests open the page with it, only its scans are not counted, and Share offers to
+replace it), and the resolver's blockers and warnings (`portal-review-rules.ts` turns them
 into checks; a blocked check is exactly what publishing would refuse, a copied text
 is a warning). The change list is the page-edit ledger since the live version was
 published (the live one, which "Make live again" can make older than the newest; the

@@ -78,7 +78,8 @@ type Options = Readonly<{
   propertyActive?: boolean
   /** `relinked`: Google was disconnected and linked again, so the Property's destination moved on. */
   destination?: 'verified' | 'unavailable' | 'relinked'
-  hasAddress?: boolean
+  /** `older`: a live code made before access artifacts (it works; its scans are not counted). */
+  hasAddress?: boolean | 'older'
   responsibilityNeededSince?: Date | null
 }>
 
@@ -147,7 +148,7 @@ function setup(options: Options = {}) {
               version: 1,
               issuedAt: NOW,
               gracePeriodEnds: null,
-              hasPublishedAccessArtifact: true,
+              hasPublishedAccessArtifact: options.hasAddress !== 'older',
               addressKeyVersion: null,
               issuedBy: null,
             },
@@ -404,6 +405,14 @@ describe('publishPortalChanges', () => {
       await expect(
         harness.useCase({ portalId: harness.portal.id }, manager()),
       ).rejects.toMatchObject({ code: 'token_unavailable' })
+    })
+
+    it('publishes over an older code, which guests still open', async () => {
+      const harness = setup({ openChanges: 1, hasAddress: 'older' })
+
+      await expect(
+        harness.useCase({ portalId: harness.portal.id }, manager()),
+      ).resolves.toMatchObject({ outcome: 'published' })
     })
 
     it('stops at a blocker in the primary language, as a first publication does', async () => {
