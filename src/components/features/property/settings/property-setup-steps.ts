@@ -26,6 +26,17 @@ export function propertySetupStepLabel(step: PropertySetupStep): string {
   return STEP_LABEL[step.key]
 }
 
+/**
+ * Whether AI is on for the property, read from the setup step that tracks it, so
+ * a role that cannot read the AI authorization itself (a PropertyManager) still
+ * sees the state. A deferred, revoked or undecided step is off. `undefined`
+ * until setup is available.
+ */
+export function propertyAiIsOn(setup: PropertySetup | undefined): boolean | undefined {
+  const step = setup?.steps.find((candidate) => candidate.key === 'ai_decision')
+  return step === undefined ? undefined : step.status === 'complete'
+}
+
 /** Steps the viewer should see as open work, in setup order. */
 export function openPropertySetupSteps(
   setup: PropertySetup,

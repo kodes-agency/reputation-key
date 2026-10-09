@@ -310,18 +310,20 @@ describe('Merchant AI decision deferral store', () => {
         now: LATER,
       })
 
-    // A PropertyManager needs a current grant; a non-member never passes.
+    // Deciding AI is an AccountAdmin's alone: a PropertyManager is refused on a
+    // Property they hold a current grant for as well as on one they do not, and
+    // a non-member never passes.
     await expect(attempt(PROPERTY, MANAGER)).resolves.toEqual({
+      outcome: 'authority_denied',
+    })
+    await expect(attempt(GRANTED_PROPERTY, MANAGER)).resolves.toEqual({
       outcome: 'authority_denied',
     })
     await expect(attempt(PROPERTY, OUTSIDER)).resolves.toEqual({
       outcome: 'authority_denied',
     })
-    await expect(attempt(GRANTED_PROPERTY, MANAGER)).resolves.toMatchObject({
-      outcome: 'deferred',
-      deferral: { deferredBy: MANAGER },
-    })
     expect(await deferralRows(PROPERTY)).toBe(0)
+    expect(await deferralRows(GRANTED_PROPERTY)).toBe(0)
   })
 
   it('never reads or writes across Organizations', async () => {

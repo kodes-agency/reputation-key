@@ -47,7 +47,11 @@ export const PROPERTY_SETTINGS_SECTIONS: ReadonlyArray<PropertySettingsSection> 
       key: 'ai',
       label: 'AI features',
       description: 'AI features, data use and analysis progress',
-      anyOf: ['ai.manage'],
+      // Anyone who drafts with AI can read whether it is on; `ai.manage`, an
+      // AccountAdmin's alone, is what lets the page change it. The route guards
+      // itself with the same two (settings/ai.tsx), without importing this module,
+      // which would put it in the first-paint bundle.
+      anyOf: ['ai.manage', 'ai.reply.generate'],
     },
     {
       key: 'people',

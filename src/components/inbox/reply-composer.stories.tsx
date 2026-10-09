@@ -1083,8 +1083,8 @@ export const OverLimit: Story = {
  *
  * Row 18: the `Property reply language not set` alert no longer stands above
  * the box. It is ONE row in each language menu, beside the language choice it
- * explains — `Set property language` for a manager with `ai.manage`, the same
- * link the alert carried — with the readiness sentence as its description.
+ * explains — `Set property language` for a manager who can edit the property
+ * (`property.update`), a link to its Replies settings — with the readiness sentence as its description.
  * Neither the alert's title nor its sentence is printed in the composer.
  *
  * And the dead end the PR 4 review measured in this exact story: with no
