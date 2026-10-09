@@ -71,6 +71,11 @@ export const IMMERSIVE_SECTION_CSS = `
 .ih-yr__confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .ih-yr__device { padding: 12px 2px 0; }
 .ih-yr .ih-yr__start-over { width: 100%; min-height: 44px; margin-top: 10px; font-size: 14px; }
+.ih-removed { margin-top: 14px; padding: 0 4px; text-align: center; }
+.ih-removed > .ih-banner { margin: 0 0 12px; text-align: start; }
+.ih-removed .ih-yr__detail { margin-top: 4px; }
+.ih-removed .ih-removed__start-over { width: 100%; min-height: 44px; margin-top: 12px; font-size: 14px; }
+.ih-removed__start-over:focus-visible { outline: 2px solid var(--ih-accent-text); outline-offset: 3px; }
 .ih-yr__ready { margin: 0; padding: 10px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.08); text-align: center; font-size: 15px; }
 
 @media (prefers-reduced-motion: reduce) {

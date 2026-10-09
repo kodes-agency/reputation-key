@@ -19,6 +19,7 @@ import type { GuestResponseScope } from '../application/ports/guest-response.rep
 import {
   CORRECTION_WINDOW_MS,
   GuestResponseLifecycleError,
+  canStartNewGuestResponse,
   isQualifiedGuestResponse,
   RESPONSE_WITHDRAWAL_WINDOW_MS,
   type GuestResponseInput,
@@ -417,6 +418,9 @@ export const correctGuestResponseFn = createServerFn({ method: 'POST' })
  * End recovery on this shared browser and issue a fresh response identity.
  * The earlier response is deliberately untouched: this is neither withdrawal
  * nor correction, and its independent binding simply expires on schedule.
+ * Allowed once the session holds a durable rating, or once the guest withdrew it
+ * (`canStartNewGuestResponse`): a withdrawn response ends its session's chance
+ * to rate, so a fresh session is the only way on.
  */
 export const startNewGuestResponseFn = createServerFn({ method: 'POST' })
   .validator(guestPublicResponseValidator(guestResponseMutationDto))
@@ -447,7 +451,7 @@ export const startNewGuestResponseFn = createServerFn({ method: 'POST' })
           bound.scope,
           bound.session.sessionId,
         )
-        if (!isQualifiedGuestResponse(response)) return denyWithoutEnumeration()
+        if (!canStartNewGuestResponse(response)) return denyWithoutEnumeration()
         const issued = bound.useCases.guestSessions.issue(bound.scope)
         setResponseHeader('Set-Cookie', [...issued.cookies])
         return { csrfNonce: issued.session.csrfNonce }
