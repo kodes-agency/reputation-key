@@ -4,21 +4,26 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import { TooltipProvider } from '#/components/ui/tooltip'
 import { LinktreeIconPicker } from './linktree-icon-picker'
 
 const PHOTO = '/api/public/portal-media/30000000-0000-4000-8000-000000000001'
 
 const render = (props: Partial<Parameters<typeof LinktreeIconPicker>[0]> = {}) =>
   renderToStaticMarkup(
-    createElement(LinktreeIconPicker, {
-      value: 'utensils',
-      photoUrl: null,
-      isPhotoChosen: false,
-      onChoosePhoto: () => undefined,
-      onChange: () => undefined,
-      onUploadPhoto: () => undefined,
-      ...props,
-    }),
+    createElement(
+      TooltipProvider,
+      null,
+      createElement(LinktreeIconPicker, {
+        value: 'utensils',
+        photoUrl: null,
+        isPhotoChosen: false,
+        onChoosePhoto: () => undefined,
+        onChange: () => undefined,
+        onUploadPhoto: () => undefined,
+        ...props,
+      }),
+    ),
   )
 
 /** The opening tag of the element carrying `aria-label="<name>"`. */
@@ -86,6 +91,21 @@ describe('LinktreeIconPicker', () => {
     expect(tagNamed(html, 'Wifi')).toContain('aria-checked="true"')
     // Nothing is on the tile to replace, so the dashed tile still invites a first photo.
     expect(html).toContain('aria-label="Upload a photo instead of an icon"')
+  })
+
+  it('makes every choice a tap target tall on a phone, the upload tile included', () => {
+    const html = render({ photoUrl: PHOTO })
+
+    for (const name of ['Utensils', 'Your photo', 'Upload a photo instead of an icon']) {
+      expect(tagNamed(html, name)).toContain('max-md:size-(--control-touch)')
+    }
+  })
+
+  it('leaves the checked state of a choice to the radio, not to its tooltip', () => {
+    const html = render({ value: 'wifi' })
+
+    expect(tagNamed(html, 'Wifi')).toContain('data-state="checked"')
+    expect(tagNamed(html, 'Utensils')).toContain('data-state="unchecked"')
   })
 
   it('disables every choice and the upload for someone who may not edit', () => {

@@ -22,6 +22,10 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import { PortalSelector, type PortalOption } from './portal-selector'
+import {
+  describeResponsibilities,
+  offersSupportingPortals,
+} from './portal-responsibilities-rules'
 import type { UpdatePortalResponsibilitiesMutationInput } from '#/components/features/staff/types'
 
 type Props = Readonly<{
@@ -84,10 +88,7 @@ export function PortalResponsibilitiesModal({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Portal responsibilities — {displayName}</DialogTitle>
-          <DialogDescription>
-            Choose one primary portal and any supporting portals. Responsibilities do not
-            grant property access.
-          </DialogDescription>
+          <DialogDescription>{describeResponsibilities(displayName)}</DialogDescription>
         </DialogHeader>
 
         {allPortals.length === 0 ? (
@@ -119,12 +120,14 @@ export function PortalResponsibilitiesModal({
                 </SelectContent>
               </Select>
             </Field>
-            <PortalSelector
-              field={supportingField}
-              portals={supportingOptions}
-              label="Supporting portals"
-              optional
-            />
+            {offersSupportingPortals(allPortals.length) ? (
+              <PortalSelector
+                field={supportingField}
+                portals={supportingOptions}
+                label="Supporting portals"
+                optional
+              />
+            ) : null}
           </div>
         )}
 

@@ -1,10 +1,11 @@
 // The Linktree section's body: the title guests read above the tiles, the tiles
 // themselves (up to four, each opening into its editor), and adding one. Every
 // change is saved as it is made (typed text through the portal's autosave,
-// re-ordering, icons and the address as their own writes); the section's switch
-// sits in its heading (linktree-section.tsx).
+// re-ordering, icons and the address as their own writes); a move or an icon is
+// on screen before the server answers (use-asked-link-changes.ts). The section's
+// switch sits in its heading (linktree-section.tsx).
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { Link2 } from 'lucide-react'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
@@ -14,28 +15,27 @@ import type {
   PortalLinktreeLink,
   PortalLinktreeView,
 } from '#/contexts/portal/application/public-api'
-import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
 import { LinkAddForm } from './link-add-form'
+import { siteControlsFor, type LinkApprovalControls } from './link-approval-controls'
+import { countHiddenLinks } from './linktree-approval-rules'
 import { iconChoiceWrite, photoChoiceWrite } from './linktree-photo-rules'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
-import { LinktreeLocaleSwitch } from './linktree-locale-switch'
-import { LINKTREE_MOVE_HINT_ID } from './linktree-move-controls'
 import { LinktreeTileEditor } from './linktree-tile-editor'
+import { useAskedLinkChanges } from './use-asked-link-changes'
 import { useRememberedPhotos } from './use-remembered-photos'
 import { useSerialWrites } from './use-serial-writes'
 import { LinktreeTile } from './linktree-tile'
-import { LinktreeTitleForm } from './linktree-title-form'
+import { LinktreeTitleBlock } from './linktree-title-block'
+import { useMoveRefocus } from './use-move-refocus'
 import {
-  applyLinkOrder,
   describeLinkCap,
   linkLabelFor,
   offeredLocales,
   planLinkMove,
   type LinkMoveControl,
   type LinkMoveDirection,
-  type LinkOrderPlan,
 } from './linktree-rules'
 import type { LinktreeMutations } from './use-linktree-mutations'
 
@@ -50,6 +50,8 @@ type Props = Readonly<{
   canDelete: boolean
   /** The photo upload; the real one unless a story hands in a stub. */
   uploadPhoto?: PortalImageUploader
+  /** Approve and turn off from a tile; only for someone who may approve addresses. */
+  approval?: LinkApprovalControls
 }>
 
 export function LinkTree({
@@ -60,48 +62,32 @@ export function LinkTree({
   canEdit,
   canDelete,
   uploadPhoto,
+  approval,
 }: Props) {
   const autosave = usePortalDraftAutosave()
   const locales = offeredLocales(view.locales)
   const [openId, setOpenId] = useState<string | null>(null)
   const [isAdding, setIsAdding] = useState(false)
-  const [titleChoice, setTitleChoice] = useState<OfferedGuestLocale | null>(null)
   const [announcement, setAnnouncement] = useState('')
-  // Moves asked for that the server has not finished with. Each one is planned
-  // from the order the person saw, which already holds the moves before it, so a
-  // quick second press never plans from a stale list or undoes the first.
-  const [plans, setPlans] = useState<ReadonlyArray<LinkOrderPlan>>([])
-  const links: ReadonlyArray<PortalLinktreeLink> = plans.reduce(
-    applyLinkOrder,
-    view.links,
-  )
+  // Moves and icons asked for that the server has not finished with are already
+  // in `links`: each is planned from what the person saw, so a quick second one
+  // never builds on a stale list or undoes the first.
+  const asked = useAskedLinkChanges(view.links)
+  const links = asked.links
   // A photo an icon has replaced stays on offer, so choosing an icon is never
   // the end of the photo. Noted while rendering (the supported way to derive
   // state from props), so no frame shows the tile without it.
   const remembered = useRememberedPhotos(view.links)
-  const refocus = useRef<string | null>(null)
-  const order = links.map((link) => link.id).join()
-  const cap = describeLinkCap(view.links.length, view.maxLinks)
-  const titleLocale = titleChoice ?? locales[0]
-
   // A re-ordered tile keeps the control the keyboard was on.
-  useEffect(() => {
-    const wanted = refocus.current
-    if (wanted === null) return
-    refocus.current = null
-    const [linkId] = wanted.split(':')
-    document
-      .querySelector<HTMLElement>(`[data-link-move="${wanted}"]:not(:disabled)`)
-      ?.focus()
-    if (document.activeElement?.getAttribute('data-link-move') === null) {
-      document
-        .querySelector<HTMLElement>(`[data-link-move^="${linkId}:"]:not(:disabled)`)
-        ?.focus()
-    }
-  }, [order])
+  const keepFocusOn = useMoveRefocus(links.map((link) => link.id).join())
+  const cap = describeLinkCap(
+    view.links.length,
+    view.maxLinks,
+    countHiddenLinks(view.links),
+  )
 
   // Once the queue is empty the cache holds the truth, saved or rolled back.
-  const afterPendingText = useSerialWrites(autosave.flush, () => setPlans([]))
+  const afterPendingText = useSerialWrites(autosave.flush, asked.settled)
   const reportFailure = (error: unknown) => toast.error(actionErrorMessage(error))
 
   const move = (
@@ -111,8 +97,8 @@ export function LinkTree({
   ) => {
     const plan = planLinkMove(links, linkId, direction)
     if (plan === null) return
-    setPlans((earlier) => [...earlier, plan])
-    refocus.current = `${linkId}:${control}`
+    asked.askMove(plan)
+    keepFocusOn(`${linkId}:${control}`)
     const position = plan.items.findIndex((item) => item.id === linkId) + 1
     const link = links.find((candidate) => candidate.id === linkId)
     setAnnouncement(
@@ -129,7 +115,9 @@ export function LinkTree({
     ).catch(() => undefined)
   }
 
+  // Shown at once; a refused write puts the saved icon back and says so.
   const changeIcon = (link: PortalLinktreeLink, iconKey: PortalLinkIconKey) => {
+    asked.askIcon(link.id, iconKey)
     void afterPendingText(() =>
       mutations.updateLink({ data: iconChoiceWrite(link, iconKey) }),
     ).catch(reportFailure)
@@ -146,11 +134,9 @@ export function LinkTree({
     void choosePhoto(link, assetId).catch(reportFailure)
   }
 
-  const checkAddress = (linkId: string, url: string) => {
-    void afterPendingText(() => mutations.updateLink({ data: { linkId, url } })).catch(
-      () => undefined,
-    )
-  }
+  // A refusal is shown under the address field, so it is not reported here.
+  const checkAddress = (linkId: string, url: string) =>
+    afterPendingText(() => mutations.updateLink({ data: { linkId, url } }))
 
   // The confirmation dialog waits for this and shows a refusal itself, so it
   // returns the write rather than reporting it (the mutation has no toast).
@@ -161,24 +147,12 @@ export function LinkTree({
 
   return (
     <div className="space-y-6">
-      {titleLocale === undefined ? null : (
-        <div className="space-y-2">
-          <LinktreeLocaleSwitch
-            aria-label="Title language"
-            locales={locales}
-            active={titleLocale}
-            onChange={setTitleChoice}
-          />
-          <LinktreeTitleForm
-            portalId={view.portalId}
-            titles={view.titles}
-            locales={locales}
-            locale={titleLocale}
-            save={mutations.saveSettings}
-            disabled={!canEdit}
-          />
-        </div>
-      )}
+      <LinktreeTitleBlock
+        view={view}
+        locales={locales}
+        save={mutations.saveSettings}
+        disabled={!canEdit}
+      />
       {view.enabled ? null : (
         <p className="text-sm text-muted-foreground">
           The Linktree is hidden from the page. Your links are kept.
@@ -231,6 +205,7 @@ export function LinkTree({
                 propertyId={propertyId}
                 uploadPhoto={uploadPhoto}
                 onCheckAddress={() => checkAddress(link.id, link.url)}
+                site={siteControlsFor(link, approval)}
                 canEdit={canEdit}
               />
             </LinktreeTile>
@@ -261,9 +236,6 @@ export function LinkTree({
         ) : null}
         <p className="text-sm text-muted-foreground">{cap.text}</p>
       </div>
-      <p id={LINKTREE_MOVE_HINT_ID} className="sr-only">
-        Press the up or down arrow key to move this tile.
-      </p>
       <p role="status" aria-live="polite" className="sr-only">
         {announcement}
       </p>
