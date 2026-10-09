@@ -33,15 +33,13 @@ export function PortalApprovedDestinationRequestForm({
   return (
     <form className="flex flex-col gap-2" onSubmit={submitHandler(form)}>
       <FormErrorBanner error={action.error} />
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <form.Field name="uri">
           {(field) => {
             const invalid = field.state.meta.isTouched && !field.state.meta.isValid
             return (
-              <div className="min-w-0 flex-1">
-                <Label className="sr-only" htmlFor="portal-approved-destination-uri">
-                  HTTPS destination
-                </Label>
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <Label htmlFor="portal-approved-destination-uri">Site address</Label>
                 <Input
                   id="portal-approved-destination-uri"
                   name={field.name}
@@ -66,7 +64,7 @@ export function PortalApprovedDestinationRequestForm({
           pendingLabel="Checking…"
           disabled={disabled}
         >
-          Add destination
+          Add site
         </SubmitButton>
       </div>
     </form>
