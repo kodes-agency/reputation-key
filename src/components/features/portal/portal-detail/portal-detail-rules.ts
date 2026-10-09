@@ -102,16 +102,23 @@ export function derivePortalDetailView(
 
 /**
  * The one quiet line under the portal name. Status is not the point of this
- * page, so it is a phrase, not a panel: what guests can open right now, and
- * which version that is when there is one.
+ * page, so it is a phrase, not a panel: what guests can open right now, which
+ * version that is when there is one, and "up to date" when `upToDate` says the
+ * live page matches its draft and nothing stops guests opening it (the header
+ * then offers no publish step). A problem that stops guests follows the line
+ * itself (`workspaceStatusProblem`), so it is never "up to date" beside it.
  */
 export function describePortalStatus(
   state: PortalPublicationState,
   liveVersion: number | null,
+  upToDate = false,
 ): string {
   switch (state) {
     case 'published':
-      return liveVersion === null ? 'Live' : `Live · version ${liveVersion}`
+      if (liveVersion === null) return 'Live'
+      return upToDate
+        ? `Live · version ${liveVersion} · up to date`
+        : `Live · version ${liveVersion}`
     case 'draft':
       return 'Draft · not published'
     case 'disabled':
@@ -137,6 +144,21 @@ export function canReviewAndPublish(
 }
 
 /**
+ * Whether Review & publish has anything to put live: a draft that was never
+ * published, a disabled page (it comes back through review, like a first
+ * publish), or a live page with saved changes waiting. The Portals list's row
+ * menu offers the step by the same rule. A live page that matches its draft has
+ * nothing to publish, so the header does not make the step its loudest control.
+ */
+export function hasSomethingToPublish(
+  state: PortalPublicationState,
+  hasPendingChanges: boolean,
+): boolean {
+  if (state === 'archived') return false
+  return state !== 'published' || hasPendingChanges
+}
+
+/**
  * The header's "N changes not live" note, or null when the saved draft matches
  * what guests see. The count is the read's own list when it gives one; without
  * it the note still says something is waiting, which is all the flag knows.
@@ -156,4 +178,19 @@ export function describePendingChanges(history: PortalPublicationHistory): strin
 export function countPendingChanges(history: PortalPublicationHistory): number {
   if (!history.hasPendingChanges) return 0
   return Math.max(1, history.pendingChanges?.length ?? 0)
+}
+
+/**
+ * The browser tab's title for one portal's workspace, before the product name
+ * (`documentTitle`): the portal's own name, so two open portals, and the
+ * history, can be told apart. The review step says it is a review. Here rather
+ * than beside the workspace's route checks because the routes' `head` reads it,
+ * and these rules are already in first paint (`normalizePortalWorkspaceSearch`).
+ */
+export function portalWorkspaceTitle(
+  portalName: string,
+  mode: 'edit' | 'review',
+): string {
+  const name = portalName.trim() === '' ? 'Untitled portal' : portalName.trim()
+  return mode === 'review' ? `Review: ${name}` : `${name} · Portal`
 }

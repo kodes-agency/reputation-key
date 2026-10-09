@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  countLanguagesWithoutWording,
   findPortalGroup,
   responsibleManagerNames,
   summarizePortalEditorSections,
@@ -48,6 +49,25 @@ describe('summarizePortalEditorSections', () => {
       summarizePortalEditorSections({ ...base, missingTextCount: 0 }).languages,
     ).not.toHaveProperty('attention')
     expect(summarizePortalEditorSections(base).languages).not.toHaveProperty('attention')
+  })
+
+  // Text typed into this portal's own welcome line does not count in a language
+  // the property has no wording in, so Welcome itself says so, not only Languages.
+  it('flags Welcome while a language has no property wording', () => {
+    expect(
+      summarizePortalEditorSections({ ...base, languagesWithoutWording: 1 }).welcome,
+    ).toEqual({
+      text: 'Pool & Terrace',
+      locked: false,
+      attention: '1 language without wording',
+    })
+    expect(
+      summarizePortalEditorSections({ ...base, languagesWithoutWording: 2 }).welcome
+        .attention,
+    ).toBe('2 languages without wording')
+    expect(
+      summarizePortalEditorSections({ ...base, languagesWithoutWording: 0 }).welcome,
+    ).not.toHaveProperty('attention')
   })
 
   it('says "No links yet" rather than "0 links"', () => {
@@ -132,5 +152,28 @@ describe('responsibleManagerNames', () => {
     expect(
       responsibleManagerNames([{ userId: 'u1' }, { userId: 'gone' }], members),
     ).toEqual(['Georgi Petrov'])
+  })
+})
+
+describe('countLanguagesWithoutWording', () => {
+  const row = (locale: string, title: string, shortDescription = '') => ({
+    locale,
+    title,
+    shortDescription,
+  })
+
+  it('counts the languages with no row, or only blank wording', () => {
+    expect(
+      countLanguagesWithoutWording(
+        ['en', 'bg', 'de'],
+        [row('en', 'Welcome to Avela'), row('bg', '  ', ' ')],
+      ),
+    ).toBe(2)
+  })
+
+  it('counts none when every language has wording', () => {
+    expect(countLanguagesWithoutWording(['en'], [row('en', '', 'Rate your visit')])).toBe(
+      0,
+    )
   })
 })

@@ -5,11 +5,11 @@ import type { PortalDetailResources } from '../portal-detail/portal-detail-types
 /**
  * What the editor reads from the route's resources: everything except what the
  * Share, Results and History tabs consume, so the editor cannot come to depend
- * on them (and a story or test need not invent them).
+ * on them (and a story or test need not invent them). The publication history
+ * stays: the link check names the live version it covers.
  */
 export type PortalEditorResources = Omit<
   PortalDetailResources,
-  | 'publicationHistory'
   | 'historyReads'
   | 'makeVersionLiveMutation'
   | 'propertyTimeZone'

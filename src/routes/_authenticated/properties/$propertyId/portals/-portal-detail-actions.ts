@@ -130,9 +130,9 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
 }
 
 /**
- * The workspace header's "Open page": the same reveal as "Download again", for
+ * The workspace header's "Open live page": the same reveal as "Download again", for
  * the purpose "show". It says why it failed itself (a rate limit, a retired
- * key) in Open page's words, because the header has no banner to carry the error.
+ * key) in Open live page's words, because the header has no banner to carry the error.
  * It shares the reveal's budget with "Download again" (ADR 0064).
  */
 export function usePortalOpenPageReveal() {
@@ -174,7 +174,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
   // configuration_completeness / approved_destination_ratio facts. Legacy
   // recognition projections stay inactive; active Goal consumers observe the fact.
   const completeReview = useActionMutation(completeContentReview, {
-    successMessage: 'Content review recorded',
+    successMessage: 'Link check recorded',
     invalidateKeys: [portalKeys.detail(portalId)],
   })
   const updateResponsibleManagers = useActionMutation(updatePortalResponsibleManagers, {
