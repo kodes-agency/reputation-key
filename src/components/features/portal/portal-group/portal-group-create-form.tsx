@@ -2,7 +2,9 @@
 // r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // The body of the "New group" dialog (board 12): a name and the portals to
 // start with. A portal that is in another group moves, and the checklist says
-// so under it. The create call does all of it in one commit.
+// so under it. The create call does all of it in one commit. Like New portal it is
+// checked on submit, and says under the name what is missing: the name is the only
+// thing a group needs, and the note beside the button counts what was ticked.
 import { useForm } from '@tanstack/react-form'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitHandler } from '#/components/forms/form-submit'
@@ -13,7 +15,7 @@ import { Label } from '#/components/ui/label'
 import { createPortalGroupInputSchema } from '#/contexts/portal/application/dto/create-portal-group.dto'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
 import { PortalGroupChecklistField } from './portal-group-checklist-field'
-import { buildPortalChecklist, describeSelection } from './portal-group-checklist'
+import { buildPortalChecklist, describeNewGroupSelection } from './portal-group-checklist'
 import type { PortalGroupMutations } from './portal-group-mutations'
 
 const createGroupFormSchema = createPortalGroupInputSchema
@@ -72,15 +74,13 @@ export function PortalGroupCreateForm({ propertyId, rows, mutation, onDone }: Pr
       <DialogErrorBanner error={mutation.error} />
       <form.Subscribe selector={(state) => state.values.portalIds.length}>
         {(count) => (
-          <DialogFooter note={<span aria-live="polite">{describeSelection(count)}</span>}>
+          <DialogFooter
+            note={<span aria-live="polite">{describeNewGroupSelection(count)}</span>}
+          >
             <DialogCancel />
-            <form.Subscribe selector={(state) => state.values.name.trim()}>
-              {(name) => (
-                <SubmitButton mutation={mutation} form={form} disabled={name === ''}>
-                  Create group
-                </SubmitButton>
-              )}
-            </form.Subscribe>
+            <SubmitButton mutation={mutation} form={form}>
+              Create group
+            </SubmitButton>
           </DialogFooter>
         )}
       </form.Subscribe>

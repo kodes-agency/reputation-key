@@ -3,11 +3,8 @@
 // one Property and the page of the whole Organization, so a group reads the same
 // in both.
 import type { ReactNode } from 'react'
-import {
-  groupSlot,
-  measureSlot,
-  type PortalOverviewResultsState,
-} from './portal-overview-results'
+import { groupSlot, type PortalOverviewResultsState } from './portal-overview-results'
+import { portalMeasureSlot } from './portal-overview-uncounted'
 import type { PortalArchiveMutations } from './portal-archive-dialog'
 import { PortalOverviewGroupHead } from './portal-overview-group-head'
 import { PortalOverviewTableRow } from './portal-overview-table-row'
@@ -68,7 +65,7 @@ export function PortalOverviewSectionRows({
             <PortalOverviewTableRow
               key={item.row.portalId}
               item={item}
-              figures={measureSlot(results, (index) => index.portal(item.row.portalId))}
+              figures={portalMeasureSlot(results, item.row)}
               propertyId={propertyId}
               showGroup={showGroup ?? !headed}
               menuExtra={rowMenuExtra?.(item)}

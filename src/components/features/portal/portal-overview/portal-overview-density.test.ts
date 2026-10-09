@@ -40,4 +40,11 @@ describe('OVERVIEW_CLASSES', () => {
     expect(OVERVIEW_CLASSES.regular.shareLabel).toBe('')
     expect(OVERVIEW_CLASSES.compact.shareLabel).toBe('@2xl:sr-only')
   })
+
+  it('says only the compact table drops the words of Share, which is what gives it a tooltip', () => {
+    // `ShareButton` reads "no label class" as "the words stay"; a density that
+    // hid them some other way would lose its tooltip without this noticing.
+    expect(OVERVIEW_CLASSES.regular.shareLabel === '').toBe(true)
+    expect(OVERVIEW_CLASSES.compact.shareLabel).not.toBe('')
+  })
 })

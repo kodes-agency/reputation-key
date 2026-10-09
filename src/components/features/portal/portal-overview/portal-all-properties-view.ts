@@ -10,7 +10,7 @@
 // across all of them.
 import { searchMatcher } from '#/components/property/property-search'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
-import { attentionRank } from './portal-attention'
+import { attentionRank, needsAttention, portalAttention } from './portal-attention'
 import { compareProperties } from './portal-overview-order'
 import type { OrganizationSortFigures } from './portal-overview-results'
 import {
@@ -52,6 +52,8 @@ export type AllPropertiesPage = Readonly<{
   propertyCount: number
   /** Every Portal, before the search. */
   total: number
+  /** Every Portal that needs attention, before the search: what the filter would keep. */
+  needingAttention: number
   /** The Portals the search keeps, on every page, folded Properties included. */
   matched: number
   /**
@@ -118,6 +120,7 @@ export function buildAllPropertiesOverview(
         sort,
         dir,
         ...(nameMatches ? {} : { q: search.q }),
+        show: search.show,
         groupBy: propertyRows.some((row) => row.group) ? 'group' : 'none',
       },
       members,
@@ -181,6 +184,7 @@ export function buildAllPropertiesOverview(
     properties: shown,
     propertyCount: byProperty.size,
     total: rows.length,
+    needingAttention: rows.filter((row) => needsAttention(portalAttention(row))).length,
     matched: built.reduce((sum, property) => sum + property.matchedCount, 0),
     listed: everyItem.length,
     page,

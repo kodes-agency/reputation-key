@@ -141,8 +141,13 @@ export const DraftRowKeepsTheSharePlace: Story = {
     const live = within(
       table.getByRole('link', { name: 'Pool & Terrace' }).closest('tr')!,
     )
+    const share = live.getByRole('link', { name: 'Share Pool & Terrace' })
+    // Its words give way to the glyph in this table, so a tooltip names it; the
+    // tooltip must not take the Button's slot, or the link layer inks it purple.
+    await expect(share).toHaveAttribute('data-slot', 'button')
+    await userEvent.hover(share)
     await expect(
-      live.getByRole('link', { name: 'Share Pool & Terrace' }),
+      (await screen.findAllByText('Share: QR code, link and print kit'))[0],
     ).toBeInTheDocument()
   },
 }

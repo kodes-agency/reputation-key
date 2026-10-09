@@ -27,11 +27,22 @@ export type PortalIssueCode =
 /** Where a manager goes to put an issue right. */
 export type PortalIssueFix = 'share' | 'responsible' | 'google' | 'page'
 
+/**
+ * `blocking`: guests cannot use the Portal as it is (no working code, no live
+ * version, the Property unavailable, no way to send them to Google). `notice`:
+ * guests are served, but something should be put right.
+ */
+export type PortalIssueSeverity = 'blocking' | 'notice'
+
 export type PortalIssue = Readonly<{
   code: PortalIssueCode
+  /** What the issue is, as the popover heads it. */
   title: string
+  /** The same in a few words, for the row's line when it is the only issue. */
+  short: string
   detail: string
   fix: PortalIssueFix
+  severity: PortalIssueSeverity
 }>
 
 export type PortalAttention =
@@ -46,34 +57,46 @@ export type PortalAttention =
 const ISSUES: Readonly<Record<PortalIssueCode, Omit<PortalIssue, 'code'>>> = {
   property_unavailable: {
     title: 'The property is unavailable',
+    short: 'Property unavailable',
     detail: 'Guests cannot open this portal while its property is paused or removed.',
     fix: 'page',
+    severity: 'blocking',
   },
   no_live_version: {
     title: 'No live version',
+    short: 'No live version',
     detail: 'Guests have nothing to see yet. Review and publish the portal again.',
     fix: 'page',
+    severity: 'blocking',
   },
   no_code: {
     title: 'No working code',
+    short: 'No working code',
     detail: 'Guests cannot reach this portal. Make a code on the Share tab.',
     fix: 'share',
+    severity: 'blocking',
   },
   no_responsible: {
     title: 'No one is responsible',
+    short: 'No one responsible',
     detail: 'Nobody gets this portal’s notices. Choose a manager.',
     fix: 'responsible',
+    severity: 'notice',
   },
   google_refreshing: {
     title: 'The Google link is being refreshed',
+    short: 'Google link updating',
     detail:
       'Guests are still sent to Google once it is ready. This usually clears itself.',
     fix: 'google',
+    severity: 'notice',
   },
   google_unavailable: {
     title: 'The Google link is unavailable',
+    short: 'Google link unavailable',
     detail: 'Guests cannot be sent to Google. Check the property’s Google connection.',
     fix: 'google',
+    severity: 'blocking',
   },
 }
 
@@ -99,8 +122,25 @@ function liveIssues(input: PortalAttentionInput): readonly PortalIssue[] {
 }
 
 /** A live code that predates access artifacts: guests scan it, but scans are not counted. */
-const hasOlderCode = (input: PortalAttentionInput): boolean =>
+const hasOlderCode = (input: Pick<PortalAttentionInput, 'token'>): boolean =>
   input.token.hasActiveToken && !input.token.qualifiedScanReady
+
+/**
+ * Whether a live Portal's scans are not counted, so that no figure of its own is
+ * honest: its code predates scan counting. A zero would be a number nobody counted.
+ */
+export function hasUncountedScans(
+  input: Pick<PortalAttentionInput, 'publicationState' | 'token'>,
+): boolean {
+  return input.publicationState === 'published' && hasOlderCode(input)
+}
+
+/** The Portals whose scans are not counted, for the note under the results strip. */
+export function uncountedScanPortals<
+  T extends Pick<PortalOverviewRow, 'portalId' | 'publicationState' | 'token'>,
+>(rows: readonly T[]): readonly T[] {
+  return rows.filter(hasUncountedScans)
+}
 
 export function portalAttention(input: PortalAttentionInput): PortalAttention {
   switch (input.publicationState) {
@@ -125,6 +165,9 @@ export function portalAttention(input: PortalAttentionInput): PortalAttention {
 const plural = (count: number, one: string, many: string): string =>
   `${count} ${count === 1 ? one : many}`
 
+/** What an older code costs, and what puts it right: replacing means reprinting. */
+const OLDER_CODE_LINE = 'Scans not counted · replace the code (needs reprinting)'
+
 /** The one quiet line, or null when there is nothing to say. */
 export function attentionLine(attention: PortalAttention): string | null {
   switch (attention.kind) {
@@ -139,9 +182,11 @@ export function attentionLine(attention: PortalAttention): string | null {
     case 'pending':
       return `${plural(attention.count, 'change', 'changes')} not live`
     case 'older_code':
-      return 'Older code · scans not counted'
+      return OLDER_CODE_LINE
     case 'issues':
-      return plural(attention.issues.length, 'issue', 'issues')
+      return attention.issues.length === 1
+        ? (attention.issues[0]?.short ?? '1 issue')
+        : plural(attention.issues.length, 'issue', 'issues')
   }
 }
 
@@ -155,9 +200,34 @@ const RANKS: Readonly<Record<PortalAttention['kind'], number>> = {
   issues: 6,
 }
 
+/** Issues that stop guests come before those that do not (the Overview's chip opens this order). */
+const BLOCKING_RANK = RANKS.issues + 1
+
 /** Higher needs a manager sooner. Archived is last: it is finished, not waiting. */
 export function attentionRank(attention: PortalAttention): number {
-  return RANKS[attention.kind]
+  return isBlocked(attention) ? BLOCKING_RANK : RANKS[attention.kind]
+}
+
+/**
+ * Whether guests cannot use the Portal as it is: a live Portal with a blocking
+ * issue. Draft, disabled and archived Portals are not "broken", they are set
+ * aside; this is the one question the Overview asks of the list.
+ */
+export function isBlocked(attention: PortalAttention): boolean {
+  return (
+    attention.kind === 'issues' &&
+    attention.issues.some((issue) => issue.severity === 'blocking')
+  )
+}
+
+/** The worse of a Portal's issues: red when any of them stops guests, amber when none does. */
+export function issuesTone(issues: readonly PortalIssue[]): PortalIssueSeverity {
+  return issues.some((issue) => issue.severity === 'blocking') ? 'blocking' : 'notice'
+}
+
+/** How many of the Portals guests cannot use (the Overview's one portal chip). */
+export function countBlockedPortals(rows: readonly PortalAttentionInput[]): number {
+  return rows.filter((row) => isBlocked(portalAttention(row))).length
 }
 
 /** Whether the "needs attention" filter keeps the Portal. */

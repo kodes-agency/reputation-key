@@ -1,5 +1,5 @@
 // New portal — the dialog (docs/design/portal-experience/round-4-admin, board 3).
-// Asks for a name, a group, languages and what to start from, and creates a
+// Asks for a name, what to start from, a group and languages, and creates a
 // draft. There is no "kind of place": the product serves hotels, restaurants,
 // barbers and salons alike. Presentational: the Portals page owns the open
 // state (the URL), the reads and the create action.
@@ -31,7 +31,8 @@ export function PortalNewDialog({ open, onOpenChange, data, loadError }: Props) 
         <DialogHeader>
           <DialogTitle>New portal</DialogTitle>
           <DialogDescription>
-            A page guests reach from a QR code, an NFC tag or a link.
+            The page guests open from a QR code, an NFC tag or a link to rate their visit,
+            leave a private note and find your Google review page.
           </DialogDescription>
         </DialogHeader>
         {data ? (

@@ -7,8 +7,8 @@ import type { ReactNode } from 'react'
 import { DataTableRow } from '#/components/ui/data-table'
 import { TableCell, TableHead } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
+import { PortalAttentionLine } from './portal-attention-line'
 import {
-  PortalAttentionLine,
   PortalManagersCell,
   PortalMetaLine,
   PortalNameLink,

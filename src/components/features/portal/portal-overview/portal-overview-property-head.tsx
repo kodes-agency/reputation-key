@@ -4,7 +4,7 @@
 // read through the Property's own days. A quiet notice says when its Google link
 // needs attention; nothing is said when it does not.
 import { Link } from '@tanstack/react-router'
-import { TriangleAlert } from 'lucide-react'
+import { Building2, TriangleAlert } from 'lucide-react'
 import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
 import { ROW_NAME_LINK } from '#/components/ui/row-link'
 import { TableCell, TableHead, TableRow } from '#/components/ui/table'
@@ -24,6 +24,8 @@ type Props = Readonly<{
   readCount: number | null
   expanded: boolean
   onToggle: () => void
+  /** Another Property is above this one: as cards, a rule says where the last one ends. */
+  divided?: boolean
 }>
 
 function PropertyMenu({ property }: Readonly<{ property: PortalPropertySection }>) {
@@ -64,6 +66,7 @@ export function PortalOverviewPropertyHead({
   readCount,
   expanded,
   onToggle,
+  divided = false,
 }: Props) {
   const { name, googleNotice } = property
   const { members, matched } = groupHeadCount(property, readCount)
@@ -79,7 +82,15 @@ export function PortalOverviewPropertyHead({
         scope="rowgroup"
         className="block h-auto p-0 text-left font-normal @4xl:table-cell @4xl:px-2 @4xl:py-2.5"
       >
+        {/* As cards there is no shaded row to tell a Property from a group: a rule above it and a building. */}
+        {divided ? (
+          <span aria-hidden="true" className="mt-4 mb-3 block border-t @4xl:hidden" />
+        ) : null}
         <PortalOverviewToggle name={name} expanded={expanded} onToggle={onToggle} />
+        <Building2
+          aria-hidden="true"
+          className="mr-1 inline size-4 align-middle text-muted-foreground @4xl:hidden"
+        />
         <Link
           to="/properties/$propertyId/portals"
           params={{ propertyId: property.propertyId }}
