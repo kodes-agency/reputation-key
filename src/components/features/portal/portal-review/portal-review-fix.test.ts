@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   describeFixLink,
   describeWhoCanFix,
+  joinPeopleNames,
   resolveFixPeople,
 } from './portal-review-checks'
 
@@ -34,6 +35,17 @@ describe('describeWhoCanFix', () => {
 
   it('says nothing when no one is known', () => {
     expect(describeWhoCanFix('me', [])).toBeNull()
+  })
+})
+
+describe('joinPeopleNames', () => {
+  it('joins names with "or", naming three and counting the rest', () => {
+    expect(joinPeopleNames(['Georgi Ivanov'])).toBe('Georgi Ivanov')
+    expect(joinPeopleNames(['Georgi Ivanov', 'Eli Petrova'])).toBe(
+      'Georgi Ivanov or Eli Petrova',
+    )
+    expect(joinPeopleNames(['A', 'B', 'C', 'D'])).toBe('A, B, C or 1 more')
+    expect(joinPeopleNames([])).toBeNull()
   })
 })
 
