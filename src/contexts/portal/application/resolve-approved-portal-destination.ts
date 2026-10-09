@@ -47,7 +47,10 @@ export async function resolveApprovedPortalDestination(
   if (destination.approvalState !== 'approved') {
     throw portalError(
       'destination_not_approved',
-      'This destination was saved for approval. An account admin can approve it in the Settings tab under Approved link destinations.',
+      // Read by whoever entered the address on a tile, who is not an account
+      // admin (an account admin's own address is approved as it is entered), and
+      // who does not see the list of sites the account admin answers it in.
+      'An account admin needs to approve this address first. It is waiting for them under “Sites allowed for links”; once it is approved, enter it here again.',
     )
   }
   return destination

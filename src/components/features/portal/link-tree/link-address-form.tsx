@@ -1,13 +1,18 @@
 // Where a tile opens. The address is checked on the server (it must be https,
 // reachable and approved), so it is saved when the field is left or Enter is
-// pressed, not while it is typed, and a refusal is shown right under it.
+// pressed, not while it is typed, and a refusal is shown right under it. The
+// check can take seconds: while it runs, the line below the field (`status`, the
+// approval of the address) gives way to "Checking address…", because the
+// approval it would show still belongs to the previous address.
 
+import type { ReactNode } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { submitForm, submitHandler } from '#/components/forms/form-submit'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { updateLinkInputSchema } from '#/contexts/portal/application/dto/portal-link.dto'
 import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
+import { LinktreeCheckingLine } from './linktree-checking-line'
 import type { LinktreeMutations } from './use-linktree-mutations'
 
 const addressFormSchema = updateLinkInputSchema.pick({ url: true }).required()
@@ -19,9 +24,18 @@ type Props = Readonly<{
   error: unknown
   onEdit: () => void
   disabled: boolean
+  /** The line under the field: the approval of the saved address. */
+  status: ReactNode
 }>
 
-export function LinkAddressForm({ link, update, error, onEdit, disabled }: Props) {
+export function LinkAddressForm({
+  link,
+  update,
+  error,
+  onEdit,
+  disabled,
+  status,
+}: Props) {
   const form = useForm({
     defaultValues: { url: link.url },
     listeners: {
@@ -38,22 +52,27 @@ export function LinkAddressForm({ link, update, error, onEdit, disabled }: Props
   })
 
   return (
-    <form onSubmit={submitHandler(form)} className="space-y-2">
-      <form.Field name="url">
-        {(field: BaseFieldApi) => (
-          <FormTextField
-            field={field}
-            label="Opens"
-            id={`link-${link.id}-url`}
-            type="url"
-            autoComplete="off"
-            placeholder="https://"
-            maxLength={500}
-            disabled={disabled}
-          />
-        )}
-      </form.Field>
-      <FormErrorBanner error={error} />
-    </form>
+    <>
+      <form onSubmit={submitHandler(form)} className="space-y-2">
+        <form.Field name="url">
+          {(field: BaseFieldApi) => (
+            <FormTextField
+              field={field}
+              label="Opens"
+              id={`link-${link.id}-url`}
+              type="url"
+              autoComplete="off"
+              placeholder="https://"
+              maxLength={500}
+              disabled={disabled}
+            />
+          )}
+        </form.Field>
+        <FormErrorBanner error={error} />
+      </form>
+      <form.Subscribe selector={(state) => state.isSubmitting}>
+        {(isSubmitting) => (isSubmitting ? <LinktreeCheckingLine /> : status)}
+      </form.Subscribe>
+    </>
   )
 }

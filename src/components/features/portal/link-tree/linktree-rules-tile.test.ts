@@ -1,16 +1,16 @@
 // The tile's two small rules: which languages its phone chip names, and which
-// arrow key a reorder handle answers to.
+// arrow key its move buttons answer to.
 
 import { describe, expect, it } from 'vitest'
 import { describeMissingLanguages, moveDirectionForKey } from './linktree-rules'
 
 describe('moveDirectionForKey', () => {
-  it('moves a tile up and down with the arrow keys, as a drag handle would be driven', () => {
+  it('moves a tile up and down with the arrow keys, from either move button', () => {
     expect(moveDirectionForKey('ArrowUp')).toBe('up')
     expect(moveDirectionForKey('ArrowDown')).toBe('down')
   })
 
-  it('leaves every other key alone, so Tab and typing still work on the handle', () => {
+  it('leaves every other key alone, so Tab, Enter and Space still work on the buttons', () => {
     for (const key of ['ArrowLeft', 'ArrowRight', 'Tab', 'Enter', ' ', 'a']) {
       expect(moveDirectionForKey(key)).toBeNull()
     }
