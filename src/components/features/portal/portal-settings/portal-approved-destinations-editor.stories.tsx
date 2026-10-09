@@ -1,6 +1,8 @@
-// Disabling an approved link destination cannot be undone (only a pending
-// destination can be approved), so the Disable button asks first. Approving
-// stays one click: it is the safe direction.
+// Sites allowed for links: the account admin's overview of every site a tile may
+// open, behind a disclosure that opens by itself while a site waits for an
+// answer. Turning off a site cannot be undone (only a waiting site can be
+// approved), so it asks first. Approving stays one click: it is the safe
+// direction. A manager has no list here: addresses are entered on the tiles.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
@@ -62,42 +64,101 @@ const meta: Meta<typeof PortalApprovedDestinationsEditor> = {
 export default meta
 type Story = StoryObj<typeof PortalApprovedDestinationsEditor>
 
-const openDisable = (canvasElement: HTMLElement) =>
-  openAlertDialog(canvasElement, 'Disable')
+const openTurnOff = (canvasElement: HTMLElement) =>
+  openAlertDialog(canvasElement, 'Turn off')
 
-/** Disable asks first, names the site, and runs only on confirm. */
-export const DisableAsksFirst: Story = {
+/** A site waits for an answer, so the list is open and says so on its heading. */
+export const OpensWhileASiteWaits: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('button', { name: /Sites allowed for links/ }),
+    ).toHaveTextContent('1 waiting for approval')
+    await expect(canvas.getByText('www.tripadvisor.com')).toBeVisible()
+    // One name per state, the tile's own words.
+    await expect(canvas.getByText('Approved')).toBeVisible()
+    await expect(canvas.getByText('Waiting for approval')).toBeVisible()
+    // The address field has a visible label, not just a hidden one.
+    await expect(canvas.getByLabelText('Site address')).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Add site' })).toBeVisible()
+  },
+}
+
+/** Nothing waits, so the list stays folded until an admin wants it. */
+export const FoldedWhenNothingWaits: Story = {
+  args: {
+    state: {
+      canApprove: true,
+      destinations: [destinations.destinations[0]!],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const trigger = canvas.getByRole('button', { name: /Sites allowed for links/ })
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    await expect(trigger).toHaveTextContent('1 site')
+    await userEvent.click(trigger)
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    await expect(canvas.getByText('www.tripadvisor.com')).toBeVisible()
+  },
+}
+
+export const EmptyListSaysNoOtherSitesYet: Story = {
+  args: { state: { canApprove: true, destinations: [] } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /Sites allowed for links/ }))
+    await expect(canvas.getByText('No other sites added yet.')).toBeVisible()
+    await expect(canvas.queryByText(/secondary/i)).toBeNull()
+  },
+}
+
+/** A manager enters addresses on the tiles: there is no second place to add one. */
+export const ManagerHasNoList: Story = {
+  args: { state: { ...destinations, canApprove: false } },
+  play: async ({ canvasElement }) => {
+    // No list, and no second field to add an address in.
+    const canvas = within(canvasElement)
+    for (const name of [/Sites allowed for links/, 'Add site']) {
+      await expect(canvas.queryByRole('button', { name })).toBeNull()
+    }
+    await expect(canvas.queryByLabelText('Site address')).toBeNull()
+  },
+}
+
+/** Turning off asks first, names the site, and runs only on confirm. */
+export const TurnOffAsksFirst: Story = {
   play: async ({ canvasElement, args }) => {
-    const dialog = await openDisable(canvasElement)
+    const dialog = await openTurnOff(canvasElement)
     expect(args.actions.disableDestination).not.toHaveBeenCalled()
     expect(
-      dialog.getByRole('heading', { name: 'Disable www.tripadvisor.com?' }),
+      dialog.getByRole('heading', { name: 'Turn off www.tripadvisor.com?' }),
     ).toBeVisible()
-    await userEvent.click(dialog.getByRole('button', { name: 'Disable destination' }))
+    await userEvent.click(dialog.getByRole('button', { name: 'Turn off site' }))
     await waitFor(() =>
       expect(args.actions.disableDestination).toHaveBeenCalledWith({
         data: {
           portalId: 'portal-1',
           destinationId: 'destination-1',
-          reason: 'Disabled by an Account Admin',
+          reason: 'Turned off by an account admin',
         },
       }),
     )
   },
 }
 
-export const DisableAsksFirstLight: Story = {
+export const TurnOffAsksFirstLight: Story = {
   parameters: { theme: 'light' },
   play: async ({ canvasElement, args }) => {
-    await openDisable(canvasElement)
+    await openTurnOff(canvasElement)
     expect(args.actions.disableDestination).not.toHaveBeenCalled()
   },
 }
 
-export const KeepDestination: Story = {
+export const KeepItOn: Story = {
   play: async ({ canvasElement, args }) => {
-    const dialog = await openDisable(canvasElement)
-    await userEvent.click(dialog.getByRole('button', { name: 'Keep destination' }))
+    const dialog = await openTurnOff(canvasElement)
+    await userEvent.click(dialog.getByRole('button', { name: 'Keep it on' }))
     await waitFor(() => expect(dialog.queryByRole('alertdialog')).not.toBeInTheDocument())
     expect(args.actions.disableDestination).not.toHaveBeenCalled()
   },
@@ -112,5 +173,34 @@ export const ApproveActsAtOnce: Story = {
         data: { portalId: 'portal-1', destinationId: 'destination-2' },
       }),
     )
+  },
+}
+
+/** A held back site has no action, so the row says why and where to turn. */
+export const HeldBackSiteIsExplained: Story = {
+  args: {
+    state: {
+      canApprove: true,
+      destinations: [
+        {
+          id: 'destination-3',
+          normalizedUri: 'https://shady.example/menu',
+          hostname: 'shady.example',
+          sourceType: 'custom',
+          approvalState: 'quarantined',
+          lastValidatedAt: '2026-09-03T09:00:00.000Z',
+        },
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /Sites allowed for links/ }))
+    await expect(canvas.getByText('Held back for safety')).toBeVisible()
+    await expect(canvas.queryByText('Quarantined')).toBeNull()
+    await expect(canvas.getByText(/Held back by our safety checks/)).toBeVisible()
+    await expect(canvas.getByText(/Contact support if this is your site/)).toBeVisible()
+    await expect(canvas.queryByRole('button', { name: 'Approve' })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: 'Turn off' })).toBeNull()
   },
 }

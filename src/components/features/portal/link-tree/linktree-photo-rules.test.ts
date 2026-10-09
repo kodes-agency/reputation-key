@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
 import {
+  applyIconChoices,
   iconChoiceWrite,
   linkPhotoUrl,
   photoChoiceWrite,
@@ -110,5 +111,36 @@ describe('photoOnOffer', () => {
 
   it('is nothing for a tile that never had a photo', () => {
     expect(photoOnOffer(link(), null)).toBeNull()
+  })
+})
+
+describe('applyIconChoices', () => {
+  const tile = (id: string, iconKey: string | null, imageAssetId: string | null) => ({
+    id,
+    iconKey,
+    imageAssetId,
+  })
+
+  it('shows an icon asked for at once, and takes the photo off as saving it does', () => {
+    const shown = applyIconChoices(
+      [tile('a', 'link', 'asset-1'), tile('b', 'wifi', null)],
+      {
+        a: 'car',
+      },
+    )
+
+    expect(shown).toEqual([tile('a', 'car', null), tile('b', 'wifi', null)])
+  })
+
+  it('keeps the last icon asked for when a tile is changed twice', () => {
+    expect(applyIconChoices([tile('a', 'link', null)], { a: 'star' })[0]?.iconKey).toBe(
+      'star',
+    )
+  })
+
+  it('returns the list itself when nothing is asked for', () => {
+    const links = [tile('a', 'link', null)]
+
+    expect(applyIconChoices(links, {})).toBe(links)
   })
 })

@@ -94,6 +94,8 @@ describe('the touch token is the primitives', () => {
       "the list header's scope line is a text trigger, not a Button; it sizes itself from the token",
     'src/components/forms/setting-switch-row.tsx':
       'the row is the primitive that makes a Switch a tap target below md: the control itself is 18px tall',
+    'src/components/features/portal/link-tree/linktree-icon-picker.tsx':
+      'the icon choices are radio items in a grid, not Buttons; each sizes its own box from the token below md',
   }
 
   it('is `touch` or `iconBelow` on a Button, not `--control-touch` in a class', () => {
