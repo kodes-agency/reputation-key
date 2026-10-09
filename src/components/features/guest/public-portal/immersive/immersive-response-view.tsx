@@ -3,6 +3,7 @@ import type { GuestResponseView } from '#/contexts/guest/application/use-cases/g
 import { GlassSurface } from './glass-surface'
 import { ImmersiveAfterRating } from './immersive-after-rating'
 import { ImmersiveRatingCard } from './immersive-rating-card'
+import { ImmersiveRemovedResponse } from './immersive-removed-response'
 import type { ImmersiveResponseViewProps } from './immersive-response-types'
 import {
   IMMERSIVE_RESPONSE_CSS,
@@ -98,27 +99,32 @@ function ResponseBody(props: ImmersiveResponseViewProps) {
   if (availability === 'unavailable') {
     return (
       <GlassSurface variant="card" as="section" role="status" className="ih-notice">
-        <h2 className="ih-display ih-card-title">{pack.copy.unavailableTitle}</h2>
-        <p className="ih-card-body">{pack.copy.unavailableBody}</p>
+        <h2 className="ih-display ih-card-title">{pack.copy.ratingUnavailableTitle}</h2>
+        <p className="ih-card-body">{pack.copy.ratingUnavailableBody}</p>
       </GlassSurface>
     )
   }
   if (response?.status === 'deleted' || response?.rating === null) {
     return (
-      <GlassSurface variant="card" as="section" role="status" className="ih-notice">
-        <h2 ref={removedHeading} tabIndex={-1} className="ih-display ih-card-title">
-          {pack.copy.responseRemoveAllDoneTitle}
-        </h2>
-        <p className="ih-card-body">{pack.copy.responseRemoveAllDoneBody}</p>
-      </GlassSurface>
+      <ImmersiveRemovedResponse
+        pack={pack}
+        response={response}
+        pending={props.pending === true}
+        failed={props.failure === 'start-over'}
+        headingRef={removedHeading}
+        onStartOver={props.yourResponse?.onStartOver}
+      />
     )
   }
   if (response === null) {
     return (
       <div className="ih-response" data-ih-response="arrival">
-        {props.notice === 'started-over' && (
+        {(props.notice === 'started-over' ||
+          props.notice === 'started-over-after-removal') && (
           <p role="status" tabIndex={-1} ref={startedOver} className="ih-yr__ready">
-            {pack.copy.startOverDone}
+            {props.notice === 'started-over'
+              ? pack.copy.startOverDone
+              : pack.copy.startOverDoneAfterRemoval}
           </p>
         )}
         <ImmersiveRatingCard

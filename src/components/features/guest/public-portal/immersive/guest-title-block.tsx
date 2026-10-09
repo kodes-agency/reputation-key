@@ -1,3 +1,5 @@
+import { titleRepeatsName } from '../guest-title'
+
 /** A piece of page text; `lang` is set when it was copied from another language than the page's. */
 export type ImmersiveText = Readonly<{ value: string; lang?: string }>
 
@@ -16,8 +18,7 @@ export type GuestTitleBlockProps = Readonly<{
  */
 export function GuestTitleBlock({ title, displayName }: GuestTitleBlockProps) {
   const lang = title.value && title.lang ? title.lang : undefined
-  const repeatsName =
-    title.value.trim().toLocaleLowerCase() === displayName.trim().toLocaleLowerCase()
+  const repeatsName = titleRepeatsName(title.value, displayName)
   return (
     <div className="ih-title">
       {repeatsName ? (

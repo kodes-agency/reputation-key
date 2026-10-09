@@ -50,6 +50,8 @@ export type GuestResponseHandlerInput = GuestResponseSetters &
     /** The nonce of the current signed session; it rotates when a guest starts over. */
     csrfNonce: string
     googleReviewAvailable: boolean
+    /** The response the page shows now: what a start-over starts over from. */
+    currentResponse: GuestResponseView | null
   }>
 
 export type GuestResponseHandlers = Readonly<{
@@ -156,7 +158,12 @@ export function buildGuestResponseHandlers(
           if (next === null) return
           input.setCsrfNonce(next.csrfNonce)
           input.setResponse(null)
-          input.setNotice('started-over')
+          // A removed response is gone, so the fresh page must not say it "remains saved".
+          input.setNotice(
+            input.currentResponse?.status === 'deleted'
+              ? 'started-over-after-removal'
+              : 'started-over',
+          )
         },
       )
     },

@@ -36,6 +36,11 @@ Action; only a rated session may record one, and the page does not call the reco
 action before then. Schema v1/v2 snapshots keep the legacy renderer, where the
 destinations follow the rating.
 
+"Start over" on a shared device issues a fresh signed session. The server allows it to a
+session whose response holds a durable rating and to one whose response the guest withdrew
+(`canStartNewGuestResponse`): a session takes one response, so a withdrawn one can only be
+replaced by a fresh session. Google and link actions still need a rating.
+
 A Qualified Scan is a server-verified QR/NFC Access Artifact observation, accepted
 once per signed session and Portal in a rolling 24-hour window. Its correction path
 is reserved: `GuestObservationStore.retractQualifiedScan` appends

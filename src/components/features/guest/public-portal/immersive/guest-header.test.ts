@@ -44,9 +44,31 @@ describe('GuestHeader', () => {
     expect(html).not.toContain('<img')
   })
 
-  it('falls back to the display name when the property has no wordmark', () => {
-    expect(header({ wordmark: null })).toContain('>Avela Resort</p>')
-    expect(header({ wordmark: '   ' })).toContain('>Avela Resort</p>')
+  it('shows no mark at all when the property has no wordmark and no logo', () => {
+    // The display name is the large line beneath; a small copy of it was cut off.
+    for (const wordmark of [null, '', '   ']) {
+      const html = header({ wordmark })
+      expect(html).not.toContain('ih-wordmark')
+      expect(html).not.toContain('Avela Resort')
+      expect(html).not.toContain('<img')
+    }
+  })
+
+  it('still carries the language switcher when there is no mark', () => {
+    const html = header({ wordmark: null }, 'EN')
+    expect(html).toMatch(/^<header\b/u)
+    expect(html).toContain('<button>EN</button>')
+  })
+
+  it('hands the stylesheet the number of letters it has to fit, never the text', () => {
+    expect(header()).toContain('style="--ih-wm-n:5"')
+    expect(header({ wordmark: '  Hotel Marina Bay ' })).toContain('style="--ih-wm-n:16"')
+    // A letter outside the basic plane is one letter, not two.
+    expect(header({ wordmark: '𝓐𝓥𝓔𝓛𝓐' })).toContain('style="--ih-wm-n:5"')
+  })
+
+  it('does not need the display name, so a caller that leaves it out still draws the mark', () => {
+    expect(header({ displayName: undefined })).toContain('>Avela</p>')
   })
 
   it('shows the logo instead of the wordmark, sized, with its description', () => {

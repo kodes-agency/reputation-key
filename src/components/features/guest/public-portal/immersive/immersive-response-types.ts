@@ -12,8 +12,13 @@ import type {
 export type ImmersiveResponseFailure =
   'rating' | 'google' | 'note' | ResponseSectionFailure
 
-/** What just worked, read out where the guest is looking: in the section, or above a fresh rating card. */
-export type ImmersiveResponseNotice = ResponseSectionNotice | 'started-over'
+/**
+ * What just worked, read out where the guest is looking: in the section, or
+ * above a fresh rating card. Starting over after the guest removed their whole
+ * response is its own notice: nothing earlier "remains saved".
+ */
+export type ImmersiveResponseNotice =
+  ResponseSectionNotice | 'started-over' | 'started-over-after-removal'
 
 /**
  * What "Your response" (board G07) needs from the page. The page binds the
