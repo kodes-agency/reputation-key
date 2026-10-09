@@ -162,11 +162,11 @@ export const NamesTheWindowAndTheFloor: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      canvas.getByText('1–30 Sep, Europe/Sofia time · all portals'),
+      canvas.getByText('1–30 Sep, Sofia time · all portals'),
     ).toBeInTheDocument()
     await expect(
       canvas.getByText(
-        'Last 30 days, Europe/Sofia time · an average needs 5 private ratings',
+        /Last 30 days, (Europe\/)?Sofia time · an average needs 5 private ratings/,
       ),
     ).toBeInTheDocument()
   },

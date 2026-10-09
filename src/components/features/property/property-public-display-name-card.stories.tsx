@@ -98,6 +98,33 @@ export const SavingTheNameSendsNoColours: Story = {
   },
 }
 
+// Guests see it on every portal, and the colours moved to Property look: both are said.
+export const SaysWhereTheNameShowsAndWhereTheColoursAre: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(/Shown to guests at the top of every portal/),
+    ).toBeVisible()
+    expect(canvas.queryByText(/Portal settings continue to own/)).toBeNull()
+    await expect(canvas.getByRole('link', { name: 'Property look' })).toHaveAttribute(
+      'href',
+      '/properties/10000000-0000-4000-8000-000000000101/portals/look',
+    )
+  },
+}
+
+// On Property look itself the pointer to Property look would point at the page.
+export const NoLookLinkOnPropertyLook: Story = {
+  args: { showLookLink: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(/Shown to guests at the top of every portal/),
+    ).toBeVisible()
+    expect(canvas.queryByRole('link', { name: 'Property look' })).toBeNull()
+  },
+}
+
 export const PropertyManagerIsReadOnly: Story = {
   decorators: [withRole('PropertyManager')],
   args: {

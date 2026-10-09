@@ -389,10 +389,10 @@
       "policy": "Seeded once from the form's own default values, which are what the server held when the form mounted, and advanced only by a write the server accepted; it is a comparison baseline for skipping no-op writes, not a second copy of the form's state."
     },
     {
-      "id": "src/components/features/portal/property-look/use-property-look-batch.ts:useState(leftOut)",
+      "id": "src/components/features/portal/property-look/use-property-look-batch.ts:useState(flipped)",
       "classification": "local_runtime",
       "owner": "Property look batch publish",
-      "policy": "The ready portals the manager unticked in the open dialog; a choice that exists only while the dialog is open, never written to the server, and reset by closing it."
+      "policy": "The ready portals whose tick the manager turned from where it started (ticked, or unticked when the portal also carries other draft edits); the ticks themselves are derived from the review reads and this set, so a re-read never keeps a stale choice. A choice that exists only while the dialog is open, never written to the server, and reset by closing it."
     },
     {
       "id": "src/components/features/portal/property-look/use-property-look-batch.ts:useState(run)",

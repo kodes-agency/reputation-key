@@ -18,7 +18,6 @@ import { PropertyLookMediaActions } from './property-look-media-actions'
 import { PropertyLookSection } from './property-look-section'
 import type { PhotoDescriptions } from './property-photo-rules'
 import type { PhotoDialogInput } from './use-photo-dialog'
-import { useRemoveMedia } from './use-remove-media'
 
 export type PropertyLookPhotoControls = Readonly<{
   propertyId: string
@@ -44,11 +43,16 @@ type Props = Readonly<{
   onPreviewWithoutPhoto?: () => void
 }>
 
-const REMOVE_FAILED = 'The photo could not be taken off. Try again.'
+const PHOTO_REMOVAL = {
+  title: 'Remove the photo?',
+  description:
+    'Pages will use the colour field instead. You’ll need the file again to put it back.',
+  confirmLabel: 'Remove photo',
+  cancelLabel: 'Keep photo',
+} as const
 
 export function PropertyLookPhotoSection({ photo, onPreviewWithoutPhoto }: Props) {
   const [isOpen, setIsOpen] = useState(false)
-  const removal = useRemoveMedia(photo.onRemove, REMOVE_FAILED)
   const { hero, canEdit } = photo
   const primaryDescription = photo.locales[0]
     ? photo.descriptions[photo.locales[0]]
@@ -79,10 +83,8 @@ export function PropertyLookPhotoSection({ photo, onPreviewWithoutPhoto }: Props
               <PropertyLookMediaActions
                 replaceLabel="Replace photo"
                 removeLabel="Remove photo"
-                isRemoving={removal.isRemoving}
-                failure={removal.failure}
+                removal={{ ...PHOTO_REMOVAL, run: photo.onRemove }}
                 onReplace={() => setIsOpen(true)}
-                onRemove={() => void removal.remove()}
               />
               <p className="text-sm text-muted-foreground">
                 Drag the circle onto what guests should always see. Every page crops

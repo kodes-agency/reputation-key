@@ -91,8 +91,6 @@ const RED_PARAGRAPH_ALLOWED: Readonly<Record<string, string>> = {
     'the copy fallback: it sits beside the address the person can select instead',
   'src/components/features/portal/portal-new/portal-new-start-from-field.tsx':
     'a field-level error, not an action failure',
-  'src/components/features/portal/property-look/property-look-media-actions.tsx':
-    'a removal that failed, beside the Remove button',
   'src/components/features/portal/property-look/property-look-batch-dialog.tsx':
     'the stop reason of a batch publish, part of its result readout',
   'src/components/inbox/inbox-detail-regions.tsx':

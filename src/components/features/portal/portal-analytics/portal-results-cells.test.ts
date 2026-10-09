@@ -35,14 +35,14 @@ describe('resultsCells on a healthy window', () => {
     })
   })
 
-  it('gives ratings and Google opens as a share of qualified scans', () => {
+  it('gives ratings and Google opens as a share of qualified scans, and the change beside it', () => {
     expect(cell(RESULTS_HEALTHY, 'ratings')).toMatchObject({
       value: '118',
-      detail: '29% of scans',
+      detail: '29% of scans · +15 vs the 30 days before',
     })
     expect(cell(RESULTS_HEALTHY, 'googleOpens')).toMatchObject({
       value: '64',
-      detail: '16% of scans',
+      detail: '16% of scans · +4 vs the 30 days before',
     })
   })
 
@@ -75,6 +75,17 @@ describe('resultsCells: signs and the comparison toggle', () => {
 
     expect(cell(fell, 'scans')?.detail).toBe('−12 vs the 30 days before')
     expect(cell(flat, 'scans')?.detail).toBe('No change vs the 30 days before')
+  })
+
+  it('says a fall in Google opens beside the share, with a true minus sign', () => {
+    const fell = {
+      ...RESULTS_HEALTHY,
+      kpis: { ...RESULTS_HEALTHY.kpis, googleOpens: resultsCount(52, 61) },
+    }
+
+    expect(cell(fell, 'googleOpens')?.detail).toBe(
+      '13% of scans · −9 vs the 30 days before',
+    )
   })
 
   it('drops every comparison when the toggle is off, keeping the shares', () => {
@@ -235,10 +246,17 @@ describe('measureCells: the overview strip, which has no single-Portal payload',
   const find = (cells: ReturnType<typeof measureCells>, key: string) =>
     cells.find((candidate) => candidate.key === key)
 
-  it('reads the same as the Results tab when given the same figures', () => {
-    expect(measureCells(input, { compare: true })).toEqual(
+  it('reads the same as the Results tab when given the same figures and asked for the same lines', () => {
+    expect(measureCells(input, { compare: true, shareAndChange: true })).toEqual(
       resultsCells(RESULTS_HEALTHY, { compare: true }),
     )
+  })
+
+  it('keeps only the share by default: a strip that always compares has no switch to show', () => {
+    const cells = measureCells(input, { compare: true })
+
+    expect(find(cells, 'ratings')?.detail).toBe('29% of scans')
+    expect(find(cells, 'googleOpens')?.detail).toBe('16% of scans')
   })
 
   it('takes the shares of scans from the funnel it is given, not from the counts', () => {

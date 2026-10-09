@@ -4,6 +4,7 @@
 // scripts what the server function answers.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor } from 'storybook/test'
+import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 import { PortalAnalyticsTab } from './portal-analytics-tab'
 import { RESULTS_HEALTHY } from './portal-results-stories-data'
 
@@ -14,6 +15,8 @@ const asRead = (read: () => Promise<unknown>) => fn(read) as unknown as Read
 const meta = {
   title: 'Portal/Analytics/Results tab',
   component: PortalAnalyticsTab,
+  // The tab asks who may open the Inbox, which needs the signed-in route's context.
+  decorators: [AuthedRouterDecorator],
   parameters: { layout: 'padded' },
   args: {
     portalId: '11111111-1111-4111-8111-111111111111',

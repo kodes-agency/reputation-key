@@ -100,7 +100,7 @@ export const ResultsAreTheGroupsOwn: Story = {
     await expect(strip.getByText('17% of scans')).toBeInTheDocument()
     await expect(strip.getByText('13')).toBeInTheDocument()
     await expect(
-      within(canvasElement).getByText(/1–30 Sep, Europe\/Sofia time · this group/),
+      within(canvasElement).getByText(/1–30 Sep, Sofia time · this group/),
     ).toBeInTheDocument()
   },
 }

@@ -1,16 +1,27 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
+import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 import { PortalAnalyticsContent } from './portal-analytics-content'
 import {
   RESULTS_HEALTHY as healthy,
   RESULTS_WEEKS,
   resultsCount,
   resultsEvidence,
+  resultsWeeksOf,
 } from './portal-results-stories-data'
+
+const PLACE = {
+  propertyId: '22222222-2222-4222-8222-222222222222',
+  portalId: '11111111-1111-4111-8111-111111111111',
+  isLive: true,
+  canOpenInbox: true,
+} as const
 
 const meta = {
   title: 'Portal/Analytics/Results',
   component: PortalAnalyticsContent,
+  // The links in the empty states and the Private notes figure are router links.
+  decorators: [AuthedRouterDecorator],
   parameters: { layout: 'padded' },
   args: {
     data: healthy,
@@ -34,7 +45,7 @@ export const BoardSeven: Story = {
     await expect(cells.getByText('Average private rating')).toBeVisible()
     await expect(cells.getByText('from 118 · +0.1')).toBeVisible()
     await expect(cells.getByText('Guests who opened Google')).toBeVisible()
-    await expect(canvas.getByText('1–30 Sep, Europe/Sofia time')).toBeVisible()
+    await expect(canvas.getByText('1–30 Sep, Sofia time')).toBeVisible()
     await expect(
       canvas.getByRole('checkbox', { name: 'Compare with the 30 days before' }),
     ).toBeChecked()
@@ -44,9 +55,7 @@ export const BoardSeven: Story = {
     await expect(canvas.getByText('Български')).toBeVisible()
     // Once on the chart, once in the list under its values.
     await expect(canvas.getAllByText('v5 published 22 Sep')[0]).toBeVisible()
-    await expect(
-      canvas.getByText(/1–30 Sep against 2–31 Aug, Europe\/Sofia time/),
-    ).toBeVisible()
+    await expect(canvas.getByText(/1–30 Sep against 2–31 Aug, Sofia time/)).toBeVisible()
   },
 }
 
@@ -266,13 +275,14 @@ export const AllTime: Story = {
     ).toBeVisible()
     expect(canvas.queryByRole('checkbox')).toBeNull()
     // All Time has no comparison, so the footer states no floor for one.
-    await expect(canvas.getByText('All time, Europe/Sofia time')).toBeVisible()
+    await expect(canvas.getByText('All time, Sofia time')).toBeVisible()
     expect(canvas.queryByText(/Averages compare only/)).toBeNull()
   },
 }
 
 export const NoDataYet: Story = {
   args: {
+    place: PLACE,
     data: {
       ...healthy,
       kpis: {
@@ -301,7 +311,12 @@ export const NoDataYet: Story = {
     },
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('No data yet')).toBeVisible()
+    // Scoped to the window and honest about it: nothing is known of earlier weeks.
+    await expect(canvas.getByText('Nothing recorded in these 30 days')).toBeVisible()
+    expect(
+      canvas.queryByText('Share your portal to start collecting metrics.'),
+    ).toBeNull()
+    expect(canvas.queryByLabelText('Portal results')).toBeNull()
   },
 }
 
@@ -394,5 +409,173 @@ export const VersionLiveInTheLastWeekNarrow320: Story = {
     expect(box.right).toBeLessThanOrEqual(plot.right + 1)
     const page = canvasElement.ownerDocument.documentElement
     expect(page.scrollWidth).toBeLessThanOrEqual(page.clientWidth)
+  },
+}
+
+/**
+ * Ninety days on a phone: thirteen weeks in about 24px each. The date labels are
+ * thinned to every third week, each with room for its own range; a week with too
+ * few ratings is a hollow marker, explained once in the legend and the caption,
+ * not a 64px note on top of its neighbours.
+ */
+export const NinetyDaysOnAPhone: Story = {
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+  args: {
+    timeRange: '90d',
+    data: {
+      ...healthy,
+      localDays: {
+        start: '2026-07-03',
+        end: '2026-09-30',
+        compareStart: '2026-04-04',
+        compareEnd: '2026-07-02',
+      },
+      series: { weeks: resultsWeeksOf(13) },
+      versionMarkers: [],
+    },
+  },
+  play: async ({ canvas }) => {
+    const chart = canvas.getByRole('img', { name: 'Over time' })
+    // Thirteen weeks, four labels (every third, the last over four columns).
+    expect(chart.querySelectorAll('[style*="grid-column"]')).toHaveLength(4)
+    expect(within(chart).queryByText(/ratings, too few/)).toBeNull()
+    await expect(canvas.getByText('Too few ratings for an average')).toBeVisible()
+    await expect(
+      canvas.getByText(/Weeks with fewer than 5 ratings show no average\./),
+    ).toBeVisible()
+  },
+}
+
+const NOTHING_KPIS = {
+  avgRating: {
+    value: null,
+    priorValue: null,
+    comparison: null,
+    sampleCount: 0,
+    priorSampleCount: 0,
+    evidence: resultsEvidence({ state: 'insufficient_data' }),
+  },
+  ratings: resultsCount(0, 0),
+  feedback: resultsCount(0, 0),
+  googleOpens: resultsCount(0, 0),
+} as const
+
+const NO_FIGURES = {
+  engagementFunnel: null,
+  ratingDistribution: [],
+  ratingLanguages: { total: 0, languages: [], unrecorded: 0 },
+  responseIntegrity: { accepted: 0, filteredAutomatically: 0, underReview: 0, total: 0 },
+} as const
+
+/**
+ * A live portal whose scans fell to nothing: the printed code may be gone from
+ * the table. The strip stays so the drop shows, and one line names it.
+ */
+export const QuietWindowOnALivePortal: Story = {
+  args: {
+    place: PLACE,
+    data: {
+      ...healthy,
+      ...NO_FIGURES,
+      kpis: { ...NOTHING_KPIS, scans: resultsCount(0, 40) },
+      series: {
+        weeks: RESULTS_WEEKS.map((week) => ({
+          ...week,
+          scans: 0,
+          ratings: 0,
+          average: null,
+          averageWithheld: null,
+        })),
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByText(/No scans in these 30 days \(40 in the 30 days before\)/),
+    ).toBeVisible()
+    // The strip is still there, with the fall written on it.
+    const strip = within(canvas.getByLabelText('Portal results'))
+    await expect(strip.getByText('−40 vs the 30 days before')).toBeVisible()
+    expect(canvas.queryByText('No data yet')).toBeNull()
+    const share = canvas.getByRole('link', { name: 'See the code' })
+    expect(share.getAttribute('href')).toContain('tab=share')
+    // A tap target on a phone, by the Button's own minimum.
+    expect(share.className).toContain('max-md:min-h-(--control-touch)')
+  },
+}
+
+/** A portal nobody has published has nothing to count; the panel says what to do first. */
+export const DraftHasNoResultsYet: Story = {
+  args: {
+    place: { ...PLACE, isLive: false },
+    data: {
+      ...healthy,
+      ...NO_FIGURES,
+      kpis: { ...NOTHING_KPIS, scans: resultsCount(0, 0) },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('No results yet')).toBeVisible()
+    await expect(
+      canvas.getByText(
+        'Results start once this portal is published and its code is shared.',
+      ),
+    ).toBeVisible()
+    expect(canvas.queryByText(/Share your portal/)).toBeNull()
+    const review = canvas.getByRole('link', { name: 'Review & publish' })
+    expect(review.getAttribute('href')).toContain('/review')
+  },
+}
+
+export const NoDataYetOnAllTime: Story = {
+  args: {
+    place: PLACE,
+    timeRange: 'all',
+    data: {
+      ...healthy,
+      ...NO_FIGURES,
+      localDays: null,
+      comparePeriod: null,
+      series: null,
+      versionMarkers: [],
+      kpis: { ...NOTHING_KPIS, scans: resultsCount(0, null) },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('No data yet')).toBeVisible()
+    const share = canvas.getByRole('link', { name: 'See the code' })
+    expect(share.getAttribute('href')).toContain('tab=share')
+  },
+}
+
+/** The nine notes lead to the Inbox, where they are read and answered. */
+export const PrivateNotesLeadToTheInbox: Story = {
+  args: { place: PLACE },
+  play: async ({ canvas }) => {
+    const link = canvas.getByRole('link', { name: 'Read in inbox' })
+    await expect(link).toBeVisible()
+    expect(link.getAttribute('href')).toContain('/inbox')
+    expect(link.className).toContain('max-md:min-h-(--control-touch)')
+    // The change against the period before stays above the link.
+    await expect(canvas.getByText('+2 vs the 30 days before')).toBeVisible()
+  },
+}
+
+export const NoInboxLinkWithoutTheRightToOpenIt: Story = {
+  args: { place: { ...PLACE, canOpenInbox: false } },
+  play: async ({ canvas }) => {
+    expect(canvas.queryByRole('link', { name: 'Read in inbox' })).toBeNull()
+    await expect(canvas.getByText('+2 vs the 30 days before')).toBeVisible()
+  },
+}
+
+/** The comparison switch changes what these two cells say, not only the scans. */
+export const ShareAndChangeBesideEachOther: Story = {
+  play: async ({ canvas }) => {
+    const strip = within(canvas.getByLabelText('Portal results'))
+    await expect(
+      strip.getByText('29% of scans · +15 vs the 30 days before'),
+    ).toBeVisible()
+    await expect(strip.getByText('16% of scans · +4 vs the 30 days before')).toBeVisible()
   },
 }

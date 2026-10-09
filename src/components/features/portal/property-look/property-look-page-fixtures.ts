@@ -261,6 +261,27 @@ export function readyReview(portalId: string, version = 4): PortalReview {
   }
 }
 
+/** A ready review whose draft also holds `count` edits that are not the look: links someone saved for later. */
+export function editedReview(portalId: string, count: number, version = 4): PortalReview {
+  const ready = readyReview(portalId, version)
+  const links = Array.from({ length: count }, (_, index) => ({
+    type: 'edit' as const,
+    kind: 'portal_links' as const,
+    subject: {
+      area: 'link' as const,
+      linkId: `link-${index}`,
+      change: 'updated' as const,
+    },
+    propertyWide: false,
+    actor: { userId: 'u-2', displayName: 'Marco Bianchi' },
+    occurredAt: '2026-10-02T09:00:00.000Z',
+    previousText: null,
+    newText: null,
+    editCount: 1,
+  }))
+  return { ...ready, changes: [...ready.changes, ...links] }
+}
+
 export const nothingNewReview = (portalId: string): PortalReview => ({
   ...readyReview(portalId),
   nothingToPublish: true,
