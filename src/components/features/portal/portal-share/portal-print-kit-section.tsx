@@ -1,6 +1,8 @@
 // The Print kit section of the Share tab: which piece, in which languages, with
-// which call to action, and the download. What is chosen drives the preview
-// beside it; the PDF is made by the server from the same choice.
+// which call to action, the download, and how to print the piece (a table tent
+// needs a print shop; a counter card prints on A4 or Letter at actual size).
+// What is chosen drives the preview beside it; the PDF is made by the server
+// from the same choice.
 
 import { Download, RectangleVertical, Triangle } from 'lucide-react'
 import type { ComponentType } from 'react'
@@ -20,7 +22,7 @@ import {
   type PrintKitChoice,
   type PrintKitPiece,
 } from '#/shared/domain/portal-print-kit'
-import { languageChoiceLabel } from './print-kit-state'
+import { languageChoiceLabel, printKitPrintAdvice } from './print-kit-state'
 
 const PIECE_ICONS: Readonly<
   Record<PrintKitPiece, ComponentType<{ className?: string }>>
@@ -59,7 +61,7 @@ export function PortalPrintKitSection({
           Print kit
         </h2>
         <p className="text-sm text-muted-foreground">
-          A print-ready PDF with your code on it, for a print shop or your own printer.
+          A print-ready PDF with your code on it, with bleed and crop marks.
         </p>
       </div>
       {isError && (
@@ -86,6 +88,11 @@ export function PortalPrintKitSection({
         >
           <Download /> {isWorking ? 'Making the PDF…' : 'Download print kit (PDF)'}
         </Button>
+        {choice !== null && (
+          <p className="text-sm text-muted-foreground">
+            {printKitPrintAdvice(choice.piece)}
+          </p>
+        )}
         {unavailableReason !== null && (
           <p className="text-sm text-muted-foreground">{unavailableReason}</p>
         )}
