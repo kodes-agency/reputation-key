@@ -1210,12 +1210,16 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN, '/settings/preferences')
     await page.evaluate(() => window.localStorage.setItem('theme', 'auto'))
     await page.reload()
+    // The SSR'd control is clickable before it hydrates; a click in that window
+    // changes nothing and the next assertion reads the old choice.
+    await waitForHydration(page)
     // Preferences draws the choice as one segmented control: Light, Dark, System.
     const theme = page.getByRole('radiogroup', { name: 'Theme' })
     await expect(theme.getByRole('radio', { name: 'System' })).toBeChecked()
     await theme.getByRole('radio', { name: 'Light' }).click()
     await expect(theme.getByRole('radio', { name: 'Light' })).toBeChecked()
     await page.reload()
+    await waitForHydration(page)
     await expect(theme.getByRole('radio', { name: 'Light' })).toBeChecked()
 
     const integrationSubject = `beta-integration-${e2eRunId}`

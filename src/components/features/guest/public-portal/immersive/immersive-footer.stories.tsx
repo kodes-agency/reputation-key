@@ -8,12 +8,15 @@ import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { portalVisitStorageKey } from '../../portal-visit-recording'
 import { VISIT_NOTICE_ACKNOWLEDGED_KEY } from '../../visit-notice-acknowledgement'
 import { bgV2 } from '../language-packs/bg-v2'
+import { deV2 } from '../language-packs/de-v2'
 import { enV2 } from '../language-packs/en-v2'
 import { ImmersiveFooter, ImmersiveFooterView } from './immersive-footer'
 import { immersiveFooterCopy } from './immersive-footer-copy'
 import { ImmersiveShell } from './immersive-shell'
 
 const NAME = 'Avela Resort'
+/** The privacy link's name starts with its text; a screen reader hears that it opens a new tab after it. */
+const PRIVACY_LINK = /^Privacy notice/u
 const SCOPE_KEY = 'footer-story-portal'
 const SESSION_KEY = 'footer-story-session'
 const BRAND = { accentColour: '#EAD6A8', fieldColour: '#15110D', hero: null } as const
@@ -66,15 +69,14 @@ export const G01NoticeShowing: Story = {
     // The footer sits at the end of the page and the notice is inside it.
     const footer = canvasElement.querySelector('footer')
     expect(footer?.contains(notice)).toBe(true)
-    expect(canvas.getByRole('link', { name: 'Privacy notice' })).toHaveAttribute(
-      'href',
-      '/privacy',
-    )
+    const privacy = canvas.getByRole('link', { name: PRIVACY_LINK })
+    expect(privacy).toHaveAttribute('href', '/privacy')
+    // The notice opens in a tab of its own, so a guest keeps their place on the page.
+    expect(privacy).toHaveAttribute('target', '_blank')
+    expect(privacy).toHaveAttribute('rel', 'noopener')
+    expect(privacy).toHaveAccessibleName('Privacy notice (opens in a new tab)')
     // Every target is at least 44 px tall.
-    const targets = [
-      canvas.getByRole('link', { name: 'Privacy notice' }),
-      canvas.getByRole('button', { name: 'Got it' }),
-    ]
+    const targets = [privacy, canvas.getByRole('button', { name: 'Got it' })]
     for (const target of targets) {
       expect(target.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
     }
@@ -89,7 +91,7 @@ export const G04Acknowledged: Story = {
     const canvas = within(canvasElement)
     expect(canvas.queryByRole('region', { name: 'Visit counting' })).toBeNull()
     expect(canvas.queryByRole('button')).toBeNull()
-    const link = canvas.getByRole('link', { name: 'Privacy notice' })
+    const link = canvas.getByRole('link', { name: PRIVACY_LINK })
     const made = canvas.getByText('Made with Reputation Key')
     expect(link.getBoundingClientRect().left).toBeLessThan(
       made.getBoundingClientRect().left,
@@ -110,6 +112,46 @@ export const Bulgarian: Story = {
     const canvas = within(canvasElement)
     const notice = canvas.getByRole('region', { name: bgV2.copy.visitNoticeLabel })
     expect(notice.scrollWidth).toBeLessThanOrEqual(notice.clientWidth)
+  },
+}
+
+/**
+ * A page that is not in English says that the privacy notice is, in its own
+ * language, and still fits the narrowest phone: the label wraps under "Verstanden"
+ * rather than running off the screen.
+ */
+export const GermanSaysTheNoticeIsInEnglish: Story = {
+  args: { copy: immersiveFooterCopy(deV2, NAME) },
+  decorators: [
+    (Story) => (
+      <div data-testid="narrow-phone" style={{ width: 320, margin: '0 auto' }}>
+        <Story />
+      </div>
+    ),
+  ],
+  render: (args) => (
+    <ImmersiveShell brand={BRAND} heroAlt={{ value: '' }} lang="de">
+      <ImmersiveFooterView {...args} />
+    </ImmersiveShell>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const link = canvas.getByRole('link', {
+      name: /^Datenschutzhinweis \(auf Englisch\)/u,
+    })
+    expect(link).toHaveAccessibleName(
+      'Datenschutzhinweis (auf Englisch) (öffnet in neuem Tab)',
+    )
+    expect(link).toHaveAttribute('target', '_blank')
+    const notice = canvas.getByRole('region', { name: deV2.copy.visitNoticeLabel })
+    expect(notice.scrollWidth).toBeLessThanOrEqual(notice.clientWidth)
+    const narrow = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="narrow-phone"]',
+    )
+    expect((narrow as HTMLElement).scrollWidth).toBeLessThanOrEqual(320)
+    for (const target of [link, canvas.getByRole('button', { name: 'Verstanden' })]) {
+      expect(target.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
+    }
   },
 }
 
