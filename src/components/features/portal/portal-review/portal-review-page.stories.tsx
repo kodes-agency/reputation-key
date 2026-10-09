@@ -98,6 +98,24 @@ export const LiveWithChanges: Story = {
   },
 }
 
+/**
+ * Below `lg` the page is one column read top to bottom, so what guests will see
+ * comes before the footer that publishes, and the footer is pinned across the
+ * whole page rather than inside the lists.
+ */
+export const PreviewComesBeforePublish: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const phones = canvas.getByRole('region', { name: 'What guests will see' })
+    const publish = canvas.getByRole('button', { name: 'Publish changes' })
+    await expect(
+      phones.compareDocumentPosition(publish) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    const footer = publish.closest('footer')
+    await expect(footer?.parentElement).toBe(phones.closest('aside')?.parentElement)
+  },
+}
+
 /** 1★ and 5★ draw the same Google card; only the low rating is offered the private note. */
 export const OneStarAndFiveStarPair: Story = {
   play: async ({ canvasElement }) => {
@@ -165,13 +183,21 @@ export const BlockedByAMissingCode: Story = {
   },
 }
 
+/** Nothing waits: the footer says which version is live, and the way back is the action. */
 export const NothingToPublish: Story = {
   args: { review: REVIEW_NOTHING_TO_PUBLISH },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Nothing has changed since version 5.')).toBeVisible()
-    await expect(canvas.getByRole('button', { name: 'Publish changes' })).toBeDisabled()
-    await expect(canvas.getByText('Nothing to publish')).toBeVisible()
+    await expect(canvas.getByText('Version 5 is live · nothing waiting')).toBeVisible()
+    // No version to be, no promise about printed codes, no button that cannot be used.
+    await expect(canvas.queryByText(/Publishes as version/)).toBeNull()
+    await expect(canvas.queryByText('Printed codes keep working')).toBeNull()
+    await expect(canvas.queryByRole('button', { name: 'Publish changes' })).toBeNull()
+    const back = canvas.getAllByRole('link', { name: 'Back to editing' })
+    await expect(back).toHaveLength(1)
+    await expect(back[0]).toHaveAttribute('data-slot', 'button')
+    await expect(back[0]).not.toHaveAttribute('aria-current')
   },
 }
 
@@ -186,7 +212,12 @@ export const FirstPublication: Story = {
     await expect(
       canvas.getByRole('heading', { level: 2, name: 'What guests will see' }),
     ).toBeVisible()
-    await expect(canvas.getByText(/Nothing is public yet/)).toBeVisible()
+    // Words that hold at every width: the preview is beside the lists or under them.
+    await expect(
+      canvas.getByText(/Publishing opens the guest page in the preview/),
+    ).toBeVisible()
+    await expect(canvas.queryByText(/on the right/)).toBeNull()
+    await expect(canvas.getByRole('button', { name: 'See the guest page' })).toBeVisible()
     await expect(canvas.getByText('Publishes as version 1')).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Publish portal' })).toBeEnabled()
     // A page that is not live offers nothing to turn off.

@@ -10,6 +10,7 @@ const facts = (over: Partial<Facts> = {}): Facts => ({
   nothingToPublish: false,
   publishesAsVersion: 6,
   checkCounts: { blocked: 0, warning: 0, passed: 7 },
+  live: { version: 5 },
   ...over,
 })
 
@@ -19,17 +20,21 @@ describe('describeReviewFooter', () => {
       versionLine: 'Publishes as version 6',
       note: 'Printed codes keep working',
       primary: { label: 'Publish changes', pendingLabel: 'Publishing…', disabled: false },
+      backIsPrimary: false,
       hint: null,
     })
   })
 
   it('offers to publish a portal that is not live yet as its first version', () => {
     expect(
-      describeReviewFooter(facts({ action: 'publish', publishesAsVersion: 1 })),
+      describeReviewFooter(
+        facts({ action: 'publish', publishesAsVersion: 1, live: null }),
+      ),
     ).toEqual({
       versionLine: 'Publishes as version 1',
       note: 'Printed codes start working',
       primary: { label: 'Publish portal', pendingLabel: 'Publishing…', disabled: false },
+      backIsPrimary: false,
       hint: null,
     })
   })
@@ -51,25 +56,30 @@ describe('describeReviewFooter', () => {
     ).toBe('Fix 1 thing first')
   })
 
-  it('says there is nothing to publish when the live page already says what the draft says', () => {
-    const view = describeReviewFooter(
-      facts({ canPublish: false, nothingToPublish: true }),
-    )
-
-    expect(view.primary).toMatchObject({ label: 'Publish changes', disabled: true })
-    expect(view.hint).toBe('Nothing to publish')
+  it('says which version is live and that nothing waits, with the way back as the action', () => {
+    expect(
+      describeReviewFooter(facts({ canPublish: false, nothingToPublish: true })),
+    ).toEqual({
+      versionLine: 'Version 5 is live · nothing waiting',
+      note: null,
+      primary: null,
+      backIsPrimary: true,
+      hint: null,
+    })
   })
 
-  it('names a block before saying there is nothing to publish', () => {
-    expect(
-      describeReviewFooter(
-        facts({
-          canPublish: false,
-          nothingToPublish: true,
-          checkCounts: { blocked: 1, warning: 0, passed: 6 },
-        }),
-      ).hint,
-    ).toBe('Fix 1 thing first')
+  it('does not promise a next version while nothing waits, even with a blocked check', () => {
+    const view = describeReviewFooter(
+      facts({
+        canPublish: false,
+        nothingToPublish: true,
+        checkCounts: { blocked: 1, warning: 0, passed: 6 },
+      }),
+    )
+
+    expect(view.versionLine).toBe('Version 5 is live · nothing waiting')
+    expect(view.primary).toBeNull()
+    expect(view.backIsPrimary).toBe(true)
   })
 
   it('does not offer a button the viewer cannot use', () => {
@@ -86,6 +96,7 @@ describe('describeReviewFooter', () => {
       versionLine: null,
       note: null,
       primary: null,
+      backIsPrimary: false,
       hint: 'This portal is archived.',
     })
   })

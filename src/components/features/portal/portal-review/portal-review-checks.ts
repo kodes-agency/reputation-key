@@ -287,6 +287,21 @@ export type FixPerson = Readonly<{ userId: string; name: string }>
 const NAMED_PEOPLE = 3
 
 /**
+ * "Georgi Ivanov, Eli Petrova or Ana Koleva": people to turn to, as one phrase.
+ * A long list names the first few and counts the rest. Null for no one.
+ */
+export function joinPeopleNames(names: readonly string[]): string | null {
+  if (names.length === 0) return null
+  if (names.length <= NAMED_PEOPLE) {
+    const last = names[names.length - 1]
+    return names.length === 1
+      ? (last ?? null)
+      : `${names.slice(0, -1).join(', ')} or ${last}`
+  }
+  return `${names.slice(0, NAMED_PEOPLE).join(', ')} or ${names.length - NAMED_PEOPLE} more`
+}
+
+/**
  * "you or Georgi Ivanov": who can put a check right. The viewer comes first and
  * is "you"; a long list names the first few and counts the rest. Null when no
  * one is known.
@@ -295,17 +310,12 @@ export function describeWhoCanFix(
   viewerId: string,
   people: readonly FixPerson[],
 ): string | null {
-  if (people.length === 0) return null
   const viewer = people.filter((person) => person.userId === viewerId)
   const others = people.filter((person) => person.userId !== viewerId)
-  const names = [...viewer.map(() => 'you'), ...others.map((person) => person.name)]
-  if (names.length <= NAMED_PEOPLE) {
-    const last = names[names.length - 1]
-    return names.length === 1
-      ? (last ?? null)
-      : `${names.slice(0, -1).join(', ')} or ${last}`
-  }
-  return `${names.slice(0, NAMED_PEOPLE).join(', ')} or ${names.length - NAMED_PEOPLE} more`
+  return joinPeopleNames([
+    ...viewer.map(() => 'you'),
+    ...others.map((person) => person.name),
+  ])
 }
 
 /**

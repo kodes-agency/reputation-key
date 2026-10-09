@@ -1,11 +1,15 @@
 // The words of one face: the portal's title in small capitals, the call to
 // action, the line under it, and, with two languages, a rule and the second
-// language smaller beneath. The scale and the type are the PDF's.
+// language smaller beneath. The type, the line heights and the gaps are the
+// PDF's, at the scale the art found for them (`previewStackScale`), so long
+// words shrink here as they do in the file.
 
 import type { CSSProperties } from 'react'
 import type { PrintFace, PrintTextBlock } from '#/shared/domain/portal-print-kit'
 import {
-  SINGLE_LANGUAGE_SCALE,
+  STACK_GAP_MM,
+  STACK_LEADING,
+  STACK_RULE_WIDTH_MM,
   TRACKING_EM,
   TYPE_PT,
 } from '#/shared/domain/portal-print-kit-layout'
@@ -19,11 +23,12 @@ type Props = Readonly<{
   pt: (points: number) => string
   /** Millimetres on the page, as a card-relative length. */
   u: (millimetres: number) => string
+  /** The scale the words fit at (`previewStackScale`). */
+  scale: number
 }>
 
-export function PrintKitStack({ face, palette, pt, u }: Props) {
+export function PrintKitStack({ face, palette, pt, u, scale }: Props) {
   const [first, second] = face.blocks
-  const scale = second ? 1 : SINGLE_LANGUAGE_SCALE
   const text = (style: CSSProperties): CSSProperties => ({ margin: 0, ...style })
   return (
     <>
@@ -36,10 +41,10 @@ export function PrintKitStack({ face, palette, pt, u }: Props) {
             aria-hidden
             style={{
               display: 'block',
-              width: u(8.5),
+              width: u(STACK_RULE_WIDTH_MM * scale),
               height: u(0.25),
-              marginTop: u(3.6),
-              marginBottom: u(3.4),
+              marginTop: u(STACK_GAP_MM.aboveRule * scale),
+              marginBottom: u(STACK_GAP_MM.belowRule * scale),
               background: palette.kicker,
               opacity: 0.55,
             }}
@@ -49,8 +54,8 @@ export function PrintKitStack({ face, palette, pt, u }: Props) {
             style={text({
               fontFamily: 'var(--font-guest-display)',
               fontWeight: 600,
-              fontSize: pt(TYPE_PT.secondHeadline),
-              lineHeight: 1.15,
+              fontSize: pt(TYPE_PT.secondHeadline * scale),
+              lineHeight: STACK_LEADING.secondHeadline,
               color: palette.headline,
               opacity: 0.94,
             })}
@@ -60,9 +65,9 @@ export function PrintKitStack({ face, palette, pt, u }: Props) {
           <p
             lang={second.locale}
             style={text({
-              marginTop: u(0.5),
-              fontSize: pt(TYPE_PT.secondSubline),
-              lineHeight: 1.35,
+              marginTop: u(STACK_GAP_MM.belowSecondHeadline * scale),
+              fontSize: pt(TYPE_PT.secondSubline * scale),
+              lineHeight: STACK_LEADING.subline,
               color: palette.body,
               opacity: 0.72,
             })}
@@ -98,7 +103,7 @@ function FirstBlock({
           paddingLeft: `${TRACKING_EM.kicker}em`,
           fontWeight: 600,
           fontSize: pt(kicker.size),
-          lineHeight: 1.4,
+          lineHeight: STACK_LEADING.kicker,
           letterSpacing: `${TRACKING_EM.kicker}em`,
           textTransform: 'uppercase',
           color: palette.kicker,
@@ -114,11 +119,11 @@ function FirstBlock({
         lang={block.locale}
         style={{
           margin: 0,
-          marginTop: u(1.6 * scale),
+          marginTop: u(STACK_GAP_MM.belowKicker * scale),
           fontFamily: 'var(--font-guest-display)',
           fontWeight: 600,
           fontSize: pt(TYPE_PT.headline * scale),
-          lineHeight: 1.08,
+          lineHeight: STACK_LEADING.headline,
           color: palette.headline,
           textWrap: 'balance',
         }}
@@ -129,9 +134,9 @@ function FirstBlock({
         lang={block.locale}
         style={{
           margin: 0,
-          marginTop: u(1 * scale),
+          marginTop: u(STACK_GAP_MM.belowHeadline * scale),
           fontSize: pt(TYPE_PT.subline * scale),
-          lineHeight: 1.35,
+          lineHeight: STACK_LEADING.subline,
           color: palette.body,
           opacity: 0.84,
         }}

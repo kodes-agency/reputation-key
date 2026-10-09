@@ -76,7 +76,8 @@ type Options = Readonly<{
   pending?: readonly PortalPendingContentChange[]
   propertyActive?: boolean
   destination?: 'verified' | 'unavailable' | 'relinked'
-  hasAddress?: boolean
+  /** `older`: a live code made before access artifacts (it works; its scans are not counted). */
+  hasAddress?: boolean | 'older'
   responsibilityNeededSince?: Date | null
   additionalLocales?: Portal['additionalGuestLocales']
   accessible?: readonly PropertyId[] | null
@@ -225,7 +226,7 @@ function setup(options: Options = {}) {
               version: 1,
               issuedAt: NOW,
               gracePeriodEnds: null,
-              hasPublishedAccessArtifact: true,
+              hasPublishedAccessArtifact: options.hasAddress !== 'older',
               addressKeyVersion: null,
               issuedBy: null,
             },
@@ -550,6 +551,19 @@ describe('getPortalReview', () => {
         occurredAt: minutesAgo(30).toISOString(),
       },
     ])
+  })
+
+  it('passes the address check for an older code, as the publication accepts it', async () => {
+    const harness = setup({
+      hasAddress: 'older',
+      workingCopy: { privateFeedbackThreshold: 4 },
+    })
+
+    const review = await harness.useCase({ portalId: harness.portal.id }, harness.ctx)
+
+    expect(review.checks).toContainEqual(
+      expect.objectContaining({ code: 'public_address', status: 'passed' }),
+    )
   })
 
   it('reports every gate the publish use case would refuse, without throwing', async () => {
