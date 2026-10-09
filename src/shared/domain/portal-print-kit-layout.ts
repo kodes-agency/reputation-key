@@ -68,6 +68,39 @@ export const TRACKING_EM = { wordmark: 0.38, kicker: 0.3 } as const
 /** One language alone is set larger than two: there is room for it. */
 export const SINGLE_LANGUAGE_SCALE = 1.22
 
+/** Line height of each line of the stack of words, as a share of its type size. */
+export const STACK_LEADING = {
+  kicker: 1.4,
+  headline: 1.08,
+  subline: 1.35,
+  secondHeadline: 1.15,
+} as const
+
+/**
+ * The space between the lines of the stack, in millimetres at scale 1: under
+ * the title, under the call to action, around the rule between two languages
+ * and under the second language's call to action. Each grows and shrinks with
+ * the stack's scale.
+ */
+export const STACK_GAP_MM = {
+  belowKicker: 1.6,
+  belowHeadline: 1,
+  aboveRule: 3.6,
+  belowRule: 3.4,
+  belowSecondHeadline: 0.5,
+} as const
+
+/** The rule between two languages, in millimetres at scale 1. */
+export const STACK_RULE_WIDTH_MM = 8.5
+
+/**
+ * How the stack makes room for long words: from its full scale
+ * (`SINGLE_LANGUAGE_SCALE` for one language, 1 for two) down by `step` to
+ * `minScale`, the largest scale at which it fits above the code. The PDF
+ * measures its fonts for this; the preview estimates.
+ */
+export const STACK_FIT = { step: 0.04, minScale: 0.6 } as const
+
 /**
  * How the brand and the title give way to a long name. Each is one line at its
  * size until that line would have to be smaller than `minPt`, then at most
