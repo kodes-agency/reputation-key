@@ -54,6 +54,7 @@ export function useImmersiveGuestResponse(
     token: input.token,
     csrfNonce,
     googleReviewAvailable: input.googleReviewAvailable,
+    currentResponse: response,
     setResponse,
     setCsrfNonce,
     setFailure,

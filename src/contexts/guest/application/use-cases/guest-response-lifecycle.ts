@@ -122,6 +122,23 @@ export function isQualifiedGuestResponse(view: GuestResponseView | null): boolea
   }
 }
 
+/**
+ * Whether the session's response admits "start over" on this device: it holds a
+ * durable private rating (the shared-device case), or the guest withdrew it.
+ *
+ * A withdrawn response is the one a session can never replace: a session takes
+ * one response (`submitResponse` refuses a deleted one), so without a fresh
+ * session the page is a dead end for the next guest, and for the same guest if
+ * they only meant to re-rate. A fresh session costs nothing a rating-holding
+ * session does not already: it is rate limited and network-pressure counted on
+ * the same keys, and what was withdrawn is gone (its facts were retracted), so
+ * the cycle can add no reading. Every other response, including none, stays
+ * refused: with nothing to end there is nothing to start over from.
+ */
+export function canStartNewGuestResponse(view: GuestResponseView | null): boolean {
+  return isQualifiedGuestResponse(view) || view?.status === 'deleted'
+}
+
 export class GuestResponseLifecycleError extends Error {
   constructor(readonly code: string) {
     super(code)
