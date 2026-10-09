@@ -18,7 +18,10 @@ const GOOGLE = 'https://search.google.com/local/writereview?placeid=abc'
 /** Every action succeeds with a recognisable response unless a test replaces it. */
 function harness(
   overrides: Partial<GuestResponseActions> = {},
-  options: Readonly<{ googleReviewAvailable?: boolean }> = {},
+  options: Readonly<{
+    googleReviewAvailable?: boolean
+    currentResponse?: GuestResponseView | null
+  }> = {},
 ) {
   const next: GuestResponseView = { ...RATED, rating: 5 }
   const actions: GuestResponseActions = {
@@ -47,6 +50,7 @@ function harness(
     token: TOKEN,
     csrfNonce: NONCE,
     googleReviewAvailable: options.googleReviewAvailable ?? true,
+    currentResponse: options.currentResponse ?? null,
     setResponse: (response) => seen.responses.push(response),
     setCsrfNonce: (nonce) => seen.nonces.push(nonce),
     setFailure: (failure) => seen.failures.push(failure),
@@ -246,6 +250,28 @@ describe('"Your response"', () => {
     expect(seen.nonces).toEqual([NEXT_NONCE])
     expect(seen.responses).toEqual([null])
     expect(lastOf(seen.notices)).toBe('started-over')
+  })
+
+  it('starts over from a rated response saying the earlier response remains saved', async () => {
+    const { handlers, seen } = harness({}, { currentResponse: RATED })
+
+    handlers.onStartOver()
+    await settle()
+
+    expect(lastOf(seen.notices)).toBe('started-over')
+  })
+
+  it('starts over from a removed response without claiming anything remains saved', async () => {
+    const removed: GuestResponseView = { ...RATED, status: 'deleted', rating: null }
+    const { actions, handlers, seen } = harness({}, { currentResponse: removed })
+
+    handlers.onStartOver()
+    await settle()
+
+    expect(actions.startNewResponse).toHaveBeenCalledWith({ data: SESSION })
+    expect(seen.nonces).toEqual([NEXT_NONCE])
+    expect(seen.responses).toEqual([null])
+    expect(lastOf(seen.notices)).toBe('started-over-after-removal')
   })
 })
 

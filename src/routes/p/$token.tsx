@@ -21,7 +21,10 @@ import {
   PublicPortalContent,
   type GuestPortalCopyV2,
 } from '#/components/features/guest'
+import { guestPageHead } from '#/components/features/guest/guest-page-head'
 import { PortalUnavailable } from '#/components/features/guest/portal-unavailable'
+import type { PortalUnavailableCopy } from '#/components/features/guest/portal-unavailable-copy'
+import { PortalUnavailableInBrowserLanguage } from '#/components/features/guest/portal-unavailable-in-browser-language'
 import type { PublicPortalLoaderData } from '#/contexts/guest/server/public'
 import { guestKeys } from '#/shared/queries/query-keys'
 import { useServerFn } from '@tanstack/react-start'
@@ -97,6 +100,24 @@ const publicPortalQuery = (token: string, locale?: GuestLocale) =>
   })
 
 /**
+ * The words of the unavailable page, in the language the visitor's browser asks
+ * for (`loadUnavailableCopy`); null is English. Loaded with the page's data, so
+ * the server renders them, and from a chunk of its own, so the route's
+ * first-paint code carries none of it. A chunk that fails to load leaves the
+ * English page.
+ */
+const unavailableCopyQuery = () =>
+  queryOptions({
+    queryKey: [...guestKeys.all, 'unavailable-copy'] as const,
+    queryFn: (): Promise<PortalUnavailableCopy | null> =>
+      import('./-unavailable-copy').then(
+        (module) => module.loadUnavailableCopy(),
+        () => null,
+      ),
+    staleTime: 5 * 60 * 1000,
+  })
+
+/**
  * C1: the server resolves the `portal.guest_response` capability decision. The
  * form view has no separate 'unavailable' branch — a
  * tenant-disabled response surface and a transient failure read the same to a
@@ -118,41 +139,17 @@ export const Route = createFileRoute('/p/$token')({
   loaderDeps: ({ search }) => ({ locale: search.locale }),
   staleTime: 5 * 60 * 1000,
   loader: async ({ context, params, deps }): Promise<GuestPageData | null> => {
-    return context.queryClient.ensureQueryData(
+    const data = await context.queryClient.ensureQueryData(
       publicPortalQuery(params.token, deps.locale),
     )
+    // Warm the unavailable page's words, so the server renders them in the
+    // visitor's language rather than suspending on them.
+    if (!data) await context.queryClient.ensureQueryData(unavailableCopyQuery())
+    return data
   },
-  head: ({ loaderData }) => {
-    // The opaque token is the entire access control for a guest portal, so the page
-    // must never be indexable — regardless of publication state, and in addition to
-    // the `Disallow: /p/` in robots.txt (the meta tag covers crawlers that fetch the
-    // URL anyway). Deliberately no canonical URL: canonicalising a secret-token URL
-    // would republish the token to every consumer of the page.
-    const robots = { name: 'robots', content: 'noindex, nofollow' }
-    if (!loaderData) return { meta: [{ title: 'Page unavailable' }, robots] }
-    const { portal } = loaderData
-    const description = portal.description ?? ''
-    return {
-      meta: [
-        { title: `${portal.name} — ${portal.organizationName}` },
-        robots,
-        { name: 'description', content: description },
-        { property: 'og:type', content: 'website' },
-        { property: 'og:title', content: portal.name },
-        { property: 'og:description', content: description },
-        // QR portals are shared into WhatsApp/iMessage/Slack far more often than
-        // they are browsed, so the hero image is the preview that matters.
-        ...(portal.heroImageUrl
-          ? [
-              { property: 'og:image', content: portal.heroImageUrl },
-              { name: 'twitter:card', content: 'summary_large_image' },
-            ]
-          : [{ name: 'twitter:card', content: 'summary' }]),
-      ],
-    }
-  },
-  notFoundComponent: PortalUnavailable,
-  errorComponent: PortalUnavailable,
+  head: ({ loaderData }) => guestPageHead(loaderData?.portal ?? null),
+  notFoundComponent: PortalUnavailableInBrowserLanguage,
+  errorComponent: PortalUnavailableInBrowserLanguage,
   component: PublicPortalPage,
 })
 
@@ -168,11 +165,20 @@ function PublicPortalPage() {
   const { token } = Route.useParams()
   const { locale } = Route.useSearch()
   const { data } = useSuspenseQuery(publicPortalQuery(token, locale))
-  if (!data) return <PortalUnavailable />
+  if (!data) return <UnavailableInVisitorLanguage />
   // The file-route match is reused when only the token parameter changes.
   // Remount the complete guest journey so a prior Portal's response receipt,
   // CSRF nonce, rating draft, and analytics state cannot cross that boundary.
   return <PublicPortalView key={token} token={token} data={data} />
+}
+
+/**
+ * The unavailable page in the language the server read from the visitor's
+ * request, ready before the first render (`unavailableCopyQuery`).
+ */
+function UnavailableInVisitorLanguage() {
+  const { data: copy } = useSuspenseQuery(unavailableCopyQuery())
+  return <PortalUnavailable copy={copy ?? undefined} />
 }
 
 // fallow-ignore-next-line complexity
@@ -226,7 +232,7 @@ function PublicPortalView({
   if (data.immersive) {
     // Schema version 3: the Immersive Hub. It records the visit from its own
     // footer, where the notice sits inline, so it mounts no overlay.
-    if (!data.pack) return <PortalUnavailable />
+    if (!data.pack) return <PortalUnavailableInBrowserLanguage />
     return (
       <ImmersivePublicPortal
         token={token}

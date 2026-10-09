@@ -33,7 +33,13 @@ export function ImmersiveFooterView({
     <FooterLayout
       copy={copy}
       isNoticeVisible={isNoticeVisible}
-      privacyLink={<PrivacyLink href={PRIVACY_HREF} text={copy.privacyLink} />}
+      privacyLink={
+        <PrivacyLink
+          href={PRIVACY_HREF}
+          text={copy.privacyLink}
+          opensNewTab={copy.privacyLinkOpensNewTab}
+        />
+      }
       acknowledge={
         <button type="button" className="ih-footer__ack" onClick={onAcknowledge}>
           <span className="ih-footer__ack-pill">{copy.acknowledge}</span>
@@ -57,7 +63,13 @@ export function InertImmersiveFooterView({
     <FooterLayout
       copy={copy}
       isNoticeVisible={isNoticeVisible}
-      privacyLink={<PrivacyLink href={undefined} text={copy.privacyLink} />}
+      privacyLink={
+        <PrivacyLink
+          href={undefined}
+          text={copy.privacyLink}
+          opensNewTab={copy.privacyLinkOpensNewTab}
+        />
+      }
       acknowledge={
         <span className="ih-footer__ack ih-footer__ack--inert">
           <span className="ih-footer__ack-pill">{copy.acknowledge}</span>
@@ -67,14 +79,27 @@ export function InertImmersiveFooterView({
   )
 }
 
-/** An anchor with no `href` is not a link: it keeps the look and is neither focusable nor announced. */
+/**
+ * An anchor with no `href` is not a link: it keeps the look and is neither
+ * focusable nor announced. A live link opens the notice in a tab of its own, so
+ * a guest who is part-way through a rating or a note keeps their place, and says
+ * so to a screen reader.
+ */
 function PrivacyLink({
   href,
   text,
-}: Readonly<{ href: string | undefined; text: string }>) {
+  opensNewTab,
+}: Readonly<{ href: string | undefined; text: string; opensNewTab: string }>) {
+  const opensTab = href !== undefined
   return (
-    <a href={href} className="ih-link-accent ih-footer__link">
+    <a
+      href={href}
+      target={opensTab ? '_blank' : undefined}
+      rel={opensTab ? 'noopener' : undefined}
+      className="ih-link-accent ih-footer__link"
+    >
       {text}
+      {opensTab && <span className="ih-sr-only"> {opensNewTab}</span>}
     </a>
   )
 }

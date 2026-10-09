@@ -72,10 +72,27 @@ describe('immersiveFooterCopy', () => {
     expect(immersiveFooterCopy(pack, NAME)).toMatchObject({
       noticeLabel: pack.copy.visitNoticeLabel,
       acknowledge: pack.copy.visitNoticeAcknowledge,
-      privacyLink: pack.copy.privacyNoticeLink,
+      privacyLinkOpensNewTab: pack.copy.linkOpensNewTab,
       madeWith: pack.copy.footerMadeWith,
     })
   })
+
+  // The notice is the English closed-beta document (ADR 0044): a page in any
+  // other language says so in that language rather than promising a text the
+  // guest cannot read.
+  it('labels the privacy link plainly on an English page', () => {
+    expect(immersiveFooterCopy(enV2, NAME).privacyLink).toBe('Privacy notice')
+  })
+
+  it.each(PACKS.filter((pack) => pack.locale !== 'en'))(
+    'labels the privacy link as English in $locale, in that language',
+    (pack) => {
+      const { privacyLink } = immersiveFooterCopy(pack, NAME)
+      expect(privacyLink).toBe(pack.copy.privacyNoticeLinkInEnglish)
+      expect(privacyLink).toContain(pack.copy.privacyNoticeLink)
+      expect(privacyLink).not.toBe(pack.copy.privacyNoticeLink)
+    },
+  )
 })
 
 describe('ImmersiveFooterView with the notice', () => {
@@ -104,12 +121,19 @@ describe('ImmersiveFooterView with the notice', () => {
   })
 
   it('has the privacy link and one acknowledge button, and no way to refuse', () => {
-    expect(html).toMatch(/<a [^>]*href="\/privacy"[^>]*>Privacy notice<\/a>/u)
+    expect(html).toMatch(/<a [^>]*href="\/privacy"[^>]*>Privacy notice</u)
     expect(html.match(/<button\b/gu)).toHaveLength(1)
     expect(html).toMatch(
       /<button [^>]*type="button"[^>]*>[\s\S]*Got it[\s\S]*<\/button>/u,
     )
     expect(html).not.toMatch(/reject|decline|refuse/iu)
+  })
+
+  it('opens the privacy notice in a tab of its own and says so to a screen reader', () => {
+    const link = html.match(/<a\b[^>]*href="\/privacy"[^>]*>[\s\S]*?<\/a>/u)?.[0] ?? ''
+    expect(link).toContain('target="_blank"')
+    expect(link).toContain('rel="noopener"')
+    expect(link).toMatch(/<span class="ih-sr-only"> \(opens in a new tab\)<\/span>/u)
   })
 
   it('reads the notice before the privacy link and the acknowledge button', () => {
@@ -125,7 +149,11 @@ describe('ImmersiveFooterView after the notice is acknowledged', () => {
   const html = render({ isNoticeVisible: false })
 
   it('reads "Privacy notice" then "Made with Reputation Key"', () => {
-    expect(textOf(html)).toEqual(['Privacy notice', 'Made with Reputation Key'])
+    expect(textOf(html)).toEqual([
+      'Privacy notice',
+      '(opens in a new tab)',
+      'Made with Reputation Key',
+    ])
   })
 
   it('has no region, no button and none of the notice text', () => {
@@ -145,10 +173,11 @@ describe('ImmersiveFooterView in Bulgarian', () => {
     const html = render({ isNoticeVisible: true }, bgV2)
     expect(html).toContain(guestCopyText(bgV2, 'visitNotice', { name: NAME }))
     expect(html).toContain(`aria-label="${bgV2.copy.visitNoticeLabel}"`)
-    expect(html).toContain(bgV2.copy.privacyNoticeLink)
+    expect(html).toContain(bgV2.copy.privacyNoticeLinkInEnglish)
     expect(html).toContain(bgV2.copy.visitNoticeAcknowledge)
     expect(textOf(render({ isNoticeVisible: false }, bgV2))).toEqual([
-      bgV2.copy.privacyNoticeLink,
+      bgV2.copy.privacyNoticeLinkInEnglish,
+      bgV2.copy.linkOpensNewTab,
       bgV2.copy.footerMadeWith,
     ])
   })
