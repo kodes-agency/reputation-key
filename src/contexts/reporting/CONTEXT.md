@@ -21,12 +21,14 @@ metric authority.
 - **Metric definition/version**: frozen code-reviewed measurement policy.
 - **Metric reading**: immutable, version-pinned fact with event-time attribution.
 - **Metric correction**: append-only retraction, replacement, or adjustment.
-- **Goal Program**: versioned monthly target over an approved metric and subject set.
+- **Goal Program**: versioned monthly target over an approved metric and subject set. A month
+  still running can carry its own target; once its period ends that target is locked.
 - **Goal monthly result**: evaluation head with append-only revision evidence.
 - **Goal progress**: the live month to date of the goals that target one subject (a Portal
   Group's goal card), read through the Program list's own authorisation and visibility and
   the same governed metric the monthly result uses, over the whole calendar month in the
-  Program's time zone. It is never a result: it evaluates nothing, is never stored, and an
+  Program's time zone. Its target is the one the running month is judged against, with who
+  changed it when it is no longer the one the month started with. It is never a result: it evaluates nothing, is never stored, and an
   average under the metric's minimum sample or a reading that cannot be trusted is shown as
   such, never as a zero.
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
@@ -89,9 +91,11 @@ metric authority.
 1. A metric read is eligible only under its immutable definition version and source policy.
 2. Goal evaluation uses half-open property-local monthly periods and approved Goal metrics.
    A goal starts in the current local month or the next one, chosen at creation; the metric
-   counts the whole month either way. A revision starts at the first local month that begins
-   at or after the end of every month still open or reconciling, so that month stays inside
-   its version's window. After the Property's timezone moves east, the next local month
+   counts the whole month either way. A month is judged against its own target when it has
+   one, otherwise its version's. A month's target may change only while the month is open and
+   before its period ends; every change is logged with who, when, old and new value. A
+   revision starts at the first local month that begins at or after the end of every month
+   still open or reconciling, so that month stays inside its version's window. After the Property's timezone moves east, the next local month
    begins before the open month ends, so the revision starts one local month later and the
    skipped local month is not evaluated under either version. The dialogs state the start
    date before a change is saved, and the saved change states its own. A version with no monthly result (a goal that has not started,
@@ -115,6 +119,9 @@ metric authority.
    current one that does carries the `measure_started_mid_period` note.
 6. Every tenant read includes organization and property scope or an explicit global authority.
 7. Clocks, identifiers, logging, storage, and upstream reads are injected by composition.
+8. A version's target is never updated in place. A different target for a month still
+   running is that month's own; a different target for the months after is a new version
+   (ADR 0066).
 
 ## Interfaces and dependencies
 
