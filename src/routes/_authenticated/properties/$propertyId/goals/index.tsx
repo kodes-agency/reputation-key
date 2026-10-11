@@ -191,7 +191,8 @@ function GoalsRoute() {
                   (assignment) => assignment.programVersionId === version.id,
                 ).length
                 // This month's target while a month runs, with its marker when
-                // it was changed; "set on" where the marker does not say when.
+                // it was changed; "set on" ends the row only where the target's
+                // own text does not already say when.
                 const calendar = { timezone: version.propertyTimezone, now }
                 const target = goalListTarget(
                   goal,

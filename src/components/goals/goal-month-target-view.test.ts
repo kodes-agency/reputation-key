@@ -159,6 +159,20 @@ describe('goalTargetLines', () => {
     ])
   })
 
+  it('promises a paused goal its months after only if it is resumed', () => {
+    const changed = changedThisMonthOnly()
+    const paused = {
+      ...changed,
+      program: { ...changed.program, status: 'paused' as const },
+    }
+
+    // A paused goal opens no month until it is resumed.
+    expect(linesOf(paused).map((line) => line.label)).toEqual([
+      'This month',
+      'From Nov 1, if resumed',
+    ])
+  })
+
   it('shows no marker for a month changed back to the target it started with', () => {
     const goal = goalBundle({
       versions: [version('v1', 1)],
@@ -197,10 +211,12 @@ describe('goalListTarget', () => {
   })
 
   it('shows this month’s target, not the one a revision set for next month', () => {
+    // The day sits beside the target it dates: a "set on" at the end of the
+    // row would read as the day the 500 was set.
     expect(listOf(revisedFromNovember())).toEqual({
       metric: 'qualified_scans',
-      text: 'target 400 this month · 500 from Nov 1',
-      setAt: at('2026-09-20T08:00:00.000Z'),
+      text: 'target 400 this month, set on Sep 20 · 500 from Nov 1',
+      setAt: null,
     })
   })
 
@@ -212,7 +228,7 @@ describe('goalListTarget', () => {
     })
 
     expect(listOf(goal).text).toBe(
-      'target 400 this month · Private rating average 4.5 from Nov 1',
+      'target 400 this month, set on Sep 20 · Private rating average 4.5 from Nov 1',
     )
   })
 
@@ -232,6 +248,18 @@ describe('goalListTarget', () => {
       text: 'target 400',
       setAt: at('2026-10-21T08:00:00.000Z'),
     })
+  })
+
+  it('promises a paused goal its months after only if it is resumed', () => {
+    const changed = changedThisMonthOnly()
+    const paused = {
+      ...changed,
+      program: { ...changed.program, status: 'paused' as const },
+    }
+
+    expect(listOf(paused).text).toBe(
+      'target 300 this month · changed Oct 20, started at 400 · 400 from Nov 1 if resumed',
+    )
   })
 
   it('promises no months after for a goal that has ended', () => {

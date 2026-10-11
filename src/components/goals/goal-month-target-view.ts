@@ -44,6 +44,11 @@ type Following = Readonly<{
   from: Date
   /** When a change that still waits for its month was set; null when none waits. */
   setAt: Date | null
+  /**
+   * The goal is paused: it opens no month until it is resumed, and then
+   * opens the months it missed. The day is said with that condition.
+   */
+  ifResumed: boolean
 }>
 
 /**
@@ -53,6 +58,7 @@ type Following = Readonly<{
  */
 function followingOf(goal: Goal, plan: RunningPlan): Following | null {
   if (goal.program.status === 'ended') return null
+  const ifResumed = goal.program.status === 'paused'
   const { pendingHead } = plan
   if (pendingHead === null) {
     return {
@@ -60,6 +66,7 @@ function followingOf(goal: Goal, plan: RunningPlan): Following | null {
       targetValue: plan.inForceVersion.targetValue,
       from: plan.period.end,
       setAt: null,
+      ifResumed,
     }
   }
   return {
@@ -67,6 +74,7 @@ function followingOf(goal: Goal, plan: RunningPlan): Following | null {
     targetValue: pendingHead.targetValue,
     from: pendingHead.effectiveFrom,
     setAt: goalTargetProvenance(goal, pendingHead).setAt,
+    ifResumed,
   }
 }
 
@@ -76,7 +84,8 @@ const present = (note: string | null): note is string => note !== null
  * The Program card's lines about the target: "This month" and "From Nov 1"
  * while a month runs, one "Target" otherwise. A changed month carries its
  * marker; a change waiting for its month says when it was set, and its measure
- * when that is another one.
+ * when that is another one. A paused goal's second line is "From Nov 1, if
+ * resumed".
  */
 export function goalTargetLines(
   goal: Goal,
@@ -104,7 +113,7 @@ export function goalTargetLines(
   return [
     thisMonth,
     {
-      label: `From ${goalDay(following.from, frame)}`,
+      label: `From ${goalDay(following.from, frame)}${following.ifResumed ? ', if resumed' : ''}`,
       value: goalFigure(following.metric, following.targetValue),
       notes: [
         otherMeasure ? goalPageMetricLabel(following.metric) : null,
@@ -121,15 +130,18 @@ export type GoalListTarget = Readonly<{
   /** "target 300 this month · changed Oct 20, started at 400". */
   text: string
   /**
-   * When that target was set, for the row's "set on". Null for a changed
-   * month: its marker already says when, and what it started at.
+   * When that target was set, for the "set on" that ends the row. Null when
+   * the text says it already: a changed month's marker says when and what it
+   * started at, and a row that also names the months after dates this month's
+   * target beside it, so the day is not read as theirs.
    */
   setAt: Date | null
 }>
 
 /**
  * The target a goal's row shows: this month's while a month runs, with its
- * marker when it changed and what the months after are when they differ.
+ * marker when it changed and what the months after are when they differ
+ * ("if resumed" for a paused goal).
  */
 export function goalListTarget(
   goal: Goal,
@@ -153,17 +165,22 @@ export function goalListTarget(
     (following.metric !== metric || following.targetValue !== plan.effectiveTarget)
   const target = `target ${goalFigure(metric, plan.effectiveTarget)}`
   const after = differs
-    ? `${following.metric === metric ? '' : `${goalMetricLabel(following.metric)} `}${goalFigure(following.metric, following.targetValue)} from ${goalDay(following.from, frame)}`
+    ? `${following.metric === metric ? '' : `${goalMetricLabel(following.metric)} `}${goalFigure(following.metric, following.targetValue)} from ${goalDay(following.from, frame)}${following.ifResumed ? ' if resumed' : ''}`
     : null
+  const { setAt } = goalTargetProvenance(goal, plan.inForceVersion)
+  if (marker) {
+    return {
+      metric,
+      text: [`${target} this month`, goalTargetMarkerNote(metric, marker, frame), after]
+        .filter(present)
+        .join(' · '),
+      setAt: null,
+    }
+  }
+  if (after === null) return { metric, text: target, setAt }
   return {
     metric,
-    text: [
-      marker || after ? `${target} this month` : target,
-      marker ? goalTargetMarkerNote(metric, marker, frame) : null,
-      after,
-    ]
-      .filter(present)
-      .join(' · '),
-    setAt: marker ? null : goalTargetProvenance(goal, plan.inForceVersion).setAt,
+    text: `${target} this month, set on ${goalDay(setAt, frame)} · ${after}`,
+    setAt: null,
   }
 }
