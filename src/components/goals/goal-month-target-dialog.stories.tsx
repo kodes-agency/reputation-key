@@ -121,6 +121,9 @@ async function save(dialog: OpenDialog) {
   return changeMock.mock.calls[0]?.[0].data
 }
 
+const noteField = (dialog: OpenDialog) =>
+  dialog.getByRole('textbox', { name: 'Note Optional' })
+
 /**
  * The first checkbox state: nothing waits for the months after, so the box is
  * ticked and its label carries the real first day. The field starts on the
@@ -153,7 +156,8 @@ export const TickedWithTheRealDate: Story = {
       applyToFollowing: true,
       note: undefined,
     })
-    await expect(await dialog.findByRole('status')).toHaveTextContent(
+    const receipt = await dialog.findByRole('status')
+    await expect(receipt).toHaveTextContent(
       `Target saved. It also applies from ${NEXT_DAY}.`,
     )
     // The receipt is the end of it: nothing is left to save or to cancel. The
@@ -161,6 +165,33 @@ export const TickedWithTheRealDate: Story = {
     expect(dialog.getByRole('button', { name: 'Save target' })).toBeDisabled()
     expect(dialog.getByText('Close')).toBeEnabled()
     expect(dialog.queryByRole('button', { name: 'Cancel' })).toBeNull()
+    // What was sent stays as it was sent, and the focus is on the outcome.
+    expect(targetField(dialog)).toBeDisabled()
+    expect(following).toBeDisabled()
+    expect(noteField(dialog)).toBeDisabled()
+    await waitFor(() => expect(receipt).toHaveFocus())
+  },
+}
+
+/**
+ * Nothing to save until the form asks for a change: the month already has the
+ * number in the field, and a note is stored only with a change.
+ */
+export const NothingToSaveUntilSomethingChanges: Story = {
+  play: async ({ canvasElement }) => {
+    changeMock.mockClear()
+    const dialog = await openDialog(canvasElement)
+    const saveButton = dialog.getByRole('button', { name: 'Save target' })
+
+    expect(saveButton).toBeDisabled()
+    await userEvent.type(noteField(dialog), 'The pool bar is closed')
+    expect(saveButton).toBeDisabled()
+
+    await typeTarget(dialog, '300')
+    await waitFor(() => expect(saveButton).toBeEnabled())
+    await typeTarget(dialog, '400')
+    await waitFor(() => expect(saveButton).toBeDisabled())
+    expect(changeMock).not.toHaveBeenCalled()
   },
 }
 
@@ -183,11 +214,16 @@ export const AsksBeforeReplacingAScheduledChange: Story = {
       ),
     )
 
-    // Left unticked, only the month changes.
+    // Left unticked, only the month changes, and the receipt says where the
+    // months after stay.
     const sent = await save(dialog)
 
     expect(sent).toMatchObject({ targetValue: 300, applyToFollowing: false })
-    await expect(await dialog.findByRole('status')).toHaveTextContent(/^Target saved\.$/)
+    await expect(await dialog.findByRole('status')).toHaveTextContent(
+      `Target saved. ${NEXT} stays at 500.`,
+    )
+    // The question was about this save; the receipt has answered it.
+    expect(following).not.toHaveAccessibleDescription()
   },
 }
 
@@ -240,8 +276,8 @@ export const WarnsWhenAMonthWouldBeSkipped: Story = {
 
 /**
  * The months after cannot take the target: the change that waits for them has
- * another measure. The box is unavailable and says why, and nothing about the
- * months after is sent.
+ * another measure. The box is unavailable and says why. The save still asks
+ * for them, so the command answers, and logs, that their own change was kept.
  */
 export const UnavailableWhenTheScheduledChangeHasAnotherMeasure: Story = {
   args: {
@@ -253,6 +289,10 @@ export const UnavailableWhenTheScheduledChangeHasAnotherMeasure: Story = {
   },
   play: async ({ canvasElement }) => {
     const { dialog, following } = await openOnFollowing(canvasElement)
+    changeMock.mockResolvedValueOnce({
+      month: { previous: 400, next: 300 },
+      following: { outcome: 'kept_scheduled_change' },
+    })
 
     expect(following).toBeDisabled()
     expect(following).not.toBeChecked()
@@ -263,7 +303,33 @@ export const UnavailableWhenTheScheduledChangeHasAnotherMeasure: Story = {
     await typeTarget(dialog, '300')
     const sent = await save(dialog)
 
-    expect(sent).toMatchObject({ applyToFollowing: false })
+    expect(sent).toMatchObject({ applyToFollowing: true })
+    await expect(await dialog.findByRole('alert')).toHaveTextContent(
+      `${NEXT} already has its own change scheduled, so only ${MONTH} changed.`,
+    )
+  },
+}
+
+/**
+ * A paused goal opens no month until it is resumed, and the box says so under
+ * the day it names.
+ */
+export const SaysAPausedGoalOpensNoMonth: Story = {
+  args: {
+    goal: goalBundle({
+      status: 'paused',
+      versions: [inForce()],
+      results: [monthRow('lobby', 'v1', THIS_MONTH)],
+    }),
+    soFar: [],
+  },
+  play: async ({ canvasElement }) => {
+    const { following } = await openOnFollowing(canvasElement)
+
+    expect(following).toBeChecked()
+    expect(following).toHaveAccessibleDescription(
+      'This goal is paused. No month opens until it is resumed.',
+    )
   },
 }
 
@@ -380,10 +446,7 @@ export const NoteIsOptional: Story = {
     const dialog = await openDialog(canvasElement)
 
     await typeTarget(dialog, '300')
-    await userEvent.type(
-      dialog.getByRole('textbox', { name: 'Note Optional' }),
-      'The pool bar is closed',
-    )
+    await userEvent.type(noteField(dialog), 'The pool bar is closed')
     const sent = await save(dialog)
 
     expect(sent?.note).toBe('The pool bar is closed')

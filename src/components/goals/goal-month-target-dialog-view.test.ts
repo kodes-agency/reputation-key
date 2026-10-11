@@ -9,7 +9,9 @@ import {
 } from './goal-month-target.stories.fixtures'
 import {
   goalFollowingHelp,
+  goalFollowingStanding,
   goalMonthSoFarLines,
+  goalMonthTargetAsksForChange,
   goalMonthTargetDescription,
   goalMonthTargetWords,
 } from './goal-month-target-dialog-view'
@@ -187,6 +189,94 @@ describe('goalFollowingHelp', () => {
     expect(goalFollowingHelp(planOf(goal), 300, frame)).toBe(
       'November already has its own change scheduled, so only October will change.',
     )
+  })
+
+  it('says a paused goal opens no month until it is resumed', () => {
+    const paused = { ...frame, paused: true }
+
+    expect(goalFollowingHelp(planOf(counting()), 300, paused)).toBe(
+      'This goal is paused. No month opens until it is resumed.',
+    )
+    expect(goalFollowingHelp(planOf(scheduledChange()), 300, paused)).toBe(
+      'November is already set to 500. Replace it with 300? This goal is paused. No month opens until it is resumed.',
+    )
+  })
+})
+
+describe('goalFollowingStanding', () => {
+  const frame = { timezone: FIXTURE_ZONE, now: NOW }
+
+  it('is the target of the version in force while nothing waits for the months after', () => {
+    expect(goalFollowingStanding(planOf(counting()), frame)).toEqual({
+      month: 'November',
+      figure: '400',
+      targetValue: 400,
+    })
+  })
+
+  it('is the target of the change that waits for its month', () => {
+    expect(goalFollowingStanding(planOf(scheduledChange()), frame)).toEqual({
+      month: 'November',
+      figure: '500',
+      targetValue: 500,
+    })
+  })
+
+  it('names the month the months after begin with, also after the Property moved east', () => {
+    // A version could only start with Sofia's December, but the version in
+    // force goes on into November.
+    const sofia = { timezone: 'Europe/Sofia', now: NOW }
+
+    expect(goalFollowingStanding(planOf(counting(), 'Europe/Sofia'), sofia).month).toBe(
+      'November',
+    )
+  })
+})
+
+describe('goalMonthTargetAsksForChange', () => {
+  // October was changed to 300 for October only; the months after are at 400.
+  const changedThisMonthOnly = () =>
+    goalBundle({
+      versions: [version('v1', 1)],
+      results: [monthRow('lobby', 'v1', undefined, { targetValue: 300 })],
+    })
+
+  it('has nothing to save while the month and the months after already have the target', () => {
+    expect(goalMonthTargetAsksForChange(planOf(counting()), 400, true)).toBe(false)
+    expect(goalMonthTargetAsksForChange(planOf(counting()), 400, false)).toBe(false)
+  })
+
+  it('asks for a change once the number is another one', () => {
+    expect(goalMonthTargetAsksForChange(planOf(counting()), 300, false)).toBe(true)
+  })
+
+  it('asks for a change when the box would carry the month’s own target on', () => {
+    const plan = planOf(changedThisMonthOnly())
+
+    expect(goalMonthTargetAsksForChange(plan, 300, true)).toBe(true)
+    // Left unticked there is nothing to save: a note alone is not stored.
+    expect(goalMonthTargetAsksForChange(plan, 300, false)).toBe(false)
+  })
+
+  it('asks for a change when the box would replace a scheduled change', () => {
+    expect(goalMonthTargetAsksForChange(planOf(scheduledChange()), 400, true)).toBe(true)
+    expect(goalMonthTargetAsksForChange(planOf(scheduledChange()), 400, false)).toBe(
+      false,
+    )
+  })
+
+  it('asks for nothing through a box that is unavailable', () => {
+    const goal = scheduledChange({
+      metric: 'portal_rating_average',
+      metricMinimumSample: 10,
+      targetValue: 4.5,
+    })
+
+    expect(goalMonthTargetAsksForChange(planOf(goal), 400, true)).toBe(false)
+  })
+
+  it('lets an empty field through, so the form can name it', () => {
+    expect(goalMonthTargetAsksForChange(planOf(counting()), Number.NaN, false)).toBe(true)
   })
 })
 

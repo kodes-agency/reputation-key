@@ -58,6 +58,21 @@ export function GoalSubjectsField({
 export function GoalChangeReasonField({
   field,
   id,
-}: Readonly<{ field: BaseFieldApiTextarea; id: string }>) {
-  return <FormTextarea field={field} id={id} label="Note" optional maxLength={500} />
+  disabled,
+}: Readonly<{
+  field: BaseFieldApiTextarea
+  id: string
+  /** The change is saved: the note is shown as it was sent. */
+  disabled?: boolean
+}>) {
+  return (
+    <FormTextarea
+      field={field}
+      id={id}
+      label="Note"
+      optional
+      maxLength={500}
+      disabled={disabled}
+    />
+  )
 }

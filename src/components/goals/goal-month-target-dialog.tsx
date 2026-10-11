@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm, useStore } from '@tanstack/react-form'
 import type { changeGoalMonthTarget } from '#/contexts/reporting/server/goal-month-target'
 import { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
@@ -17,7 +17,9 @@ import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import {
   goalFollowingHelp,
+  goalFollowingStanding,
   goalMonthSoFarLines,
+  goalMonthTargetAsksForChange,
   goalMonthTargetDescription,
   goalMonthTargetWords,
   type GoalMonthSoFar,
@@ -128,13 +130,24 @@ function MonthTargetForm({
     onOpenChange: (open: boolean) => void
   }>) {
   const { plan } = opened
-  const frame = { timezone: props.property.timezone, now: opened.at }
+  const frame = {
+    timezone: props.property.timezone,
+    now: opened.at,
+    paused: props.goal.program.status === 'paused',
+  }
   const words = goalMonthTargetWords(plan, frame)
   const { metric } = plan.inForceVersion
   const average = metric === 'portal_rating_average'
   // What the command answered. It stays on screen and is the only word on the
   // success: the months after can be left as they were while the month changes.
   const [receipt, setReceipt] = useState<GoalMonthTargetReceipt | null>(null)
+  const settled = receipt !== null
+  const receiptRef = useRef<HTMLDivElement>(null)
+  // Save is disabled once the receipt is up, which would drop the focus to
+  // <body>. It goes to the receipt: the outcome is read, and Close is next.
+  useEffect(() => {
+    if (settled) receiptRef.current?.focus()
+  }, [settled])
   const mutation = useActionMutation(
     // The dialog knows which month it showed, so it names it.
     withGoalRefusals(props.changeGoalMonthTargetFn, {
@@ -152,6 +165,7 @@ function MonthTargetForm({
             portalsOnly: props.goal.assignments.every(
               (assignment) => assignment.subject.kind === 'portal',
             ),
+            standing: goalFollowingStanding(plan, frame),
           }),
         ),
     },
@@ -174,13 +188,19 @@ function MonthTargetForm({
           expectedTarget: plan.effectiveTarget,
           expectedVersion: opened.version,
           expectedFollowingMonth: plan.followingMonthKey,
-          applyToFollowing: words.following.available && value.applyToFollowing,
+          // A box that is unavailable still asks: the command then answers,
+          // and logs, that the months after kept their own change, which is
+          // what the box said would happen.
+          applyToFollowing: !words.following.available || value.applyToFollowing,
           note: value.note.trim() || undefined,
         },
       })
     },
   })
   const typedTarget = useStore(form.store, (state) => state.values.targetValue)
+  const ticked = useStore(form.store, (state) => state.values.applyToFollowing)
+  // Nothing to save until the form asks for a change: a note alone is not stored.
+  const asksForChange = goalMonthTargetAsksForChange(plan, typedTarget, ticked)
   const soFar = goalMonthSoFarLines(metric, props.soFar)
   // One subject's figure sits under the field as its help; several are a list.
   const oneSubject = props.soFar.length === 1
@@ -204,6 +224,7 @@ function MonthTargetForm({
             max={average ? 5 : undefined}
             step={average ? 0.1 : undefined}
             field={field}
+            disabled={settled}
             description={oneSubject ? soFar[0] : undefined}
           />
         )}
@@ -220,31 +241,47 @@ function MonthTargetForm({
           <ConsentCheckbox
             id="month-target-following"
             checked={words.following.available && field.state.value}
-            disabled={!words.following.available}
+            disabled={settled || !words.following.available}
             onCheckedChange={field.handleChange}
-            description={goalFollowingHelp(plan, typedTarget, frame) ?? undefined}
+            // Its question is about a save still to come: the receipt answers it.
+            description={
+              settled
+                ? undefined
+                : (goalFollowingHelp(plan, typedTarget, frame) ?? undefined)
+            }
           >
             {words.following.label}
           </ConsentCheckbox>
         )}
       </form.Field>
       <form.Field name="note">
-        {(field) => <GoalChangeReasonField field={field} id="month-target-note" />}
+        {(field) => (
+          <GoalChangeReasonField
+            field={field}
+            id="month-target-note"
+            disabled={settled}
+          />
+        )}
       </form.Field>
       {receipt === null ? null : (
-        <Alert variant={receipt.tone}>
+        <Alert
+          ref={receiptRef}
+          tabIndex={-1}
+          variant={receipt.tone}
+          className="outline-none"
+        >
           <AlertDescription>{receipt.text}</AlertDescription>
         </Alert>
       )}
       <DialogErrorBanner error={mutation.error} />
       <DialogFooter>
         {/* The receipt above is the end of it: nothing is left to cancel. */}
-        <DialogCancel>{receipt === null ? 'Cancel' : 'Close'}</DialogCancel>
+        <DialogCancel>{settled ? 'Close' : 'Cancel'}</DialogCancel>
         <SubmitButton
           mutation={mutation}
           form={form}
           pendingLabel="Saving…"
-          disabled={receipt !== null}
+          disabled={settled || !asksForChange}
         >
           Save target
         </SubmitButton>

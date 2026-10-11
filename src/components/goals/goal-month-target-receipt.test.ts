@@ -11,16 +11,48 @@ describe('goalMonthTargetReceipt', () => {
     timezone: FIXTURE_ZONE,
     now: NOW,
     portalsOnly: true,
+    // The months after were at 400 when the dialog opened.
+    standing: { month: 'November', figure: '400', targetValue: 400 },
   }
   const changed = { previous: 400, next: 300 }
 
-  it('says the target was saved when only the month was to change', () => {
+  it('says what the months after stay at when only the month was to change', () => {
     expect(
       goalMonthTargetReceipt(
         { month: changed, following: { outcome: 'not_requested' } },
         facts,
       ),
-    ).toEqual({ tone: 'success', text: 'Target saved.' })
+    ).toEqual({ tone: 'success', text: 'Target saved. November stays at 400.' })
+  })
+
+  it('says what a change that was already scheduled keeps the months after at', () => {
+    // A second correction in one month: 300 from November was set by the
+    // first, the box was left unticked, and only October moved to 350.
+    const receipt = goalMonthTargetReceipt(
+      {
+        month: { previous: 300, next: 350 },
+        following: { outcome: 'not_requested' },
+      },
+      { ...facts, standing: { month: 'November', figure: '300', targetValue: 300 } },
+    )
+
+    expect(receipt).toEqual({
+      tone: 'success',
+      text: 'Target saved. November stays at 300.',
+    })
+  })
+
+  it('says only that the target was saved when the months after have it too', () => {
+    // The month was put back on the target the months after never left.
+    const receipt = goalMonthTargetReceipt(
+      {
+        month: { previous: 300, next: 400 },
+        following: { outcome: 'not_requested' },
+      },
+      facts,
+    )
+
+    expect(receipt).toEqual({ tone: 'success', text: 'Target saved.' })
   })
 
   it('says from when the months after carry the target', () => {

@@ -4,8 +4,9 @@
 // Pure. The command answers the month and the months after separately: the
 // months after can be left as they were while the month changes (a change that
 // was already scheduled for them, a subject or a measure that is no longer
-// usable). The receipt says both halves in sentences, never as the command's
-// codes, and is the only word on the success.
+// usable, or a box left unticked). The receipt says both halves in sentences,
+// never as the command's codes, and is the only word on the success. Where the
+// months after stay on another target than the month now has, it says which.
 import type { changeGoalMonthTarget } from '#/contexts/reporting/server/goal-month-target'
 import { goalDay } from './goal-detail-view'
 
@@ -28,6 +29,11 @@ export type GoalMonthTargetReceiptFacts = Readonly<{
   followingMonth: string
   /** Every subject of the goal is a Portal. */
   portalsOnly: boolean
+  /**
+   * What the months after were set to when the dialog opened: "November", at
+   * "500". Said when the save changed the month and left them there.
+   */
+  standing: Readonly<{ month: string; figure: string; targetValue: number }>
 }>
 
 /**
@@ -109,9 +115,16 @@ export function goalMonthTargetReceipt(
   if (following.outcome === 'not_applied') {
     return { tone: 'warning', text: `${facts.month} changed. ${after}` }
   }
+  // The months after were not asked for and are on another target: the receipt
+  // says where they stay, so a box left unticked is not read as carried on.
+  const stays =
+    following.outcome === 'not_requested' &&
+    result.month.next !== facts.standing.targetValue
+      ? `${facts.standing.month} stays at ${facts.standing.figure}.`
+      : null
   return {
     tone: 'success',
-    text: ['Target saved.', after]
+    text: ['Target saved.', after, stays]
       .filter((part): part is string => part !== null)
       .join(' '),
   }
