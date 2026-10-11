@@ -44,6 +44,24 @@ describe('canonical Goal Program contract', () => {
     ])('rejects %s target %s', (metric, target, reason) => {
       expect(validateGoalTarget(metric, target)).toEqual({ ok: false, reason })
     })
+
+    it.each<GoalMetric>(['qualified_scans', 'portal_rating_count'])(
+      'holds a %s target to a whole number that is stored exactly',
+      (metric) => {
+        // Past this a number no longer holds every whole value, and long before
+        // the target column (numeric(30, 10)) would refuse the write.
+        expect(validateGoalTarget(metric, Number.MAX_SAFE_INTEGER)).toEqual({
+          ok: true,
+          normalizedTarget: Number.MAX_SAFE_INTEGER,
+        })
+        for (const target of [Number.MAX_SAFE_INTEGER + 1, 1e21]) {
+          expect(validateGoalTarget(metric, target)).toEqual({
+            ok: false,
+            reason: 'count_target_not_positive_integer',
+          })
+        }
+      },
+    )
   })
 
   describe('evaluation', () => {
