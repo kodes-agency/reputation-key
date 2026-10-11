@@ -929,12 +929,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     expect(created.program.id).toBeTruthy()
     expect(created.program.status).toBe('scheduled')
 
-    // Revision is not exercised here: a freshly created program already carries
-    // a pending revision, so revising immediately is refused with
-    // revision_conflict -- correctly. Driving it from a browser would mean
-    // waiting out the pending window for no additional signal;
-    // goal-programs.test.ts covers the revision rules directly, including this
-    // conflict.
+    // Revision is not exercised here. A program that has not started can be
+    // revised (the change replaces the version that was waiting and keeps the
+    // start month), and goal-programs.test.ts and the repository suite cover
+    // that and the other revision rules directly.
 
     // A program that starts next month is 'scheduled' until that month begins,
     // and ending it is the transition available from there. 'ended' is terminal, so
