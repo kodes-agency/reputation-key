@@ -802,7 +802,7 @@ describe('Activity durable Recent Activity consumer', () => {
         },
         { propertyId: PROPERTY, ...envelope },
       )
-    const factsOf = (setDuringMonth: boolean) => ({
+    const factsOf = (setDuringMonth: boolean, targetChangedInMonth = false) => ({
       programId: '00000000-0000-4000-8000-000000000342',
       monthlyResultId: RESULT,
       assignmentId: ASSIGNMENT,
@@ -810,6 +810,7 @@ describe('Activity durable Recent Activity consumer', () => {
       periodMonth: '2026-10',
       subject: { kind: 'property' as const, propertyId: PROPERTY },
       setDuringMonth,
+      targetChangedInMonth,
     })
     const projectedPayload = (applyOnce: ReturnType<typeof dependencies>['applyOnce']) =>
       (applyOnce.mock.calls[0] as unknown as [{ entry: { payload: unknown } }])[0].entry
@@ -837,6 +838,24 @@ describe('Activity durable Recent Activity consumer', () => {
       })
       // The marker is a closed token; the goal's name never reaches the row.
       expect(JSON.stringify(applyOnce.mock.calls)).not.toContain('Lobby QR scans')
+    })
+
+    it('marks a met month whose target was changed while it ran, ahead of when the goal was set', async () => {
+      for (const setDuringMonth of [false, true]) {
+        const { deps, applyOnce, findMonthlyResultNotificationFacts } = dependencies()
+        findMonthlyResultNotificationFacts.mockResolvedValue(
+          factsOf(setDuringMonth, true),
+        )
+
+        await handleRecentActivityFact(deps, closed())
+
+        expect(projectedPayload(applyOnce)).toEqual({
+          subject: 'goal_result',
+          from: null,
+          to: 'achieved',
+          detail: 'eligible:target_changed',
+        })
+      }
     })
 
     it('adds nothing for a goal that was in place for the whole month', async () => {

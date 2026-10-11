@@ -265,6 +265,7 @@ function registerRoutes(
         periodMonth: '2026-10',
         subject: { kind: 'property' as const, propertyId: PROPERTY },
         setDuringMonth: false,
+        targetChangedInMonth: false,
       })),
       findMonthlyResultRevisionNotificationFacts: vi.fn(async () => null),
     },
