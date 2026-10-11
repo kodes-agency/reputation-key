@@ -26,6 +26,7 @@ import { cn } from '#/lib/utils'
 import { goalFigure } from './goal-so-far'
 import type { GoalBulkRow } from './goal-bulk-view'
 
+/** The column's name: in the header from the table's width (`4xl`), in a caption below it. */
 const TARGET = 'Monthly target'
 
 /** The id of a row's number: the subject key, with nothing a selector must escape. */

@@ -19,33 +19,35 @@ type Story = StoryObj<typeof GoalNewTabs>
 
 const NEW_GOAL = '/properties/property-1/goals/new'
 
+/** The two links of the landmark, by what they open. */
+function views(canvasElement: HTMLElement) {
+  const nav = within(
+    within(canvasElement).getByRole('navigation', { name: 'New goal views' }),
+  )
+  return {
+    links: nav.getAllByRole('link'),
+    one: nav.getByRole('link', { name: 'One goal' }),
+    several: nav.getByRole('link', { name: 'Several portals' }),
+  }
+}
+
 export const OneGoal: Story = {
   play: async ({ canvasElement }) => {
-    const nav = within(canvasElement).getByRole('navigation', { name: 'New goal views' })
+    const { links, one, several } = views(canvasElement)
     // Route views, not a tablist: nothing here swaps a panel in the same document.
     expect(within(canvasElement).queryByRole('tablist')).toBeNull()
-    expect(within(nav).getAllByRole('link')).toHaveLength(2)
-    expect(within(nav).getByRole('link', { name: 'One goal' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    )
-    expect(
-      within(nav).getByRole('link', { name: 'Several portals' }),
-    ).not.toHaveAttribute('aria-current')
+    expect(links).toEqual([one, several])
+    expect(one).toHaveAttribute('aria-current', 'page')
+    expect(several).not.toHaveAttribute('aria-current')
   },
 }
 
 export const SeveralPortals: Story = {
   args: { view: 'several' },
   play: async ({ canvasElement }) => {
-    const nav = within(canvasElement).getByRole('navigation', { name: 'New goal views' })
-    expect(within(nav).getByRole('link', { name: 'Several portals' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    )
-    expect(within(nav).getByRole('link', { name: 'One goal' })).not.toHaveAttribute(
-      'aria-current',
-    )
+    const { one, several } = views(canvasElement)
+    expect(several).toHaveAttribute('aria-current', 'page')
+    expect(one).not.toHaveAttribute('aria-current')
   },
 }
 
@@ -53,12 +55,9 @@ export const SeveralPortals: Story = {
 export const EachViewHasAnAddress: Story = {
   args: { subject: 'portal:lobby' },
   play: async ({ canvasElement }) => {
-    const nav = within(canvasElement).getByRole('navigation', { name: 'New goal views' })
-    expect(within(nav).getByRole('link', { name: 'One goal' })).toHaveAttribute(
-      'href',
-      `${NEW_GOAL}?subject=portal%3Alobby`,
-    )
-    expect(within(nav).getByRole('link', { name: 'Several portals' })).toHaveAttribute(
+    const { one, several } = views(canvasElement)
+    expect(one).toHaveAttribute('href', `${NEW_GOAL}?subject=portal%3Alobby`)
+    expect(several).toHaveAttribute(
       'href',
       `${NEW_GOAL}?subject=portal%3Alobby&mode=several`,
     )
@@ -68,11 +67,11 @@ export const EachViewHasAnAddress: Story = {
 /** Both links are Tab stops, in order. */
 export const KeyboardOrder: Story = {
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
+    const { one, several } = views(canvasElement)
     await userEvent.tab()
-    expect(canvas.getByRole('link', { name: 'One goal' })).toHaveFocus()
+    expect(one).toHaveFocus()
     await userEvent.tab()
-    expect(canvas.getByRole('link', { name: 'Several portals' })).toHaveFocus()
+    expect(several).toHaveFocus()
   },
 }
 

@@ -17,7 +17,7 @@ export const BULK_PROPERTY = {
 
 export const LOBBY_ID = '30000000-0000-4000-8000-000000000001'
 export const BAR_ID = '30000000-0000-4000-8000-000000000002'
-export const SPA_ID = '30000000-0000-4000-8000-000000000003'
+const SPA_ID = '30000000-0000-4000-8000-000000000003'
 export const FLOOR_ID = '60000000-0000-4000-8000-000000000001'
 
 export const BULK_PORTALS = [
@@ -29,8 +29,8 @@ export const BULK_PORTALS = [
 export const BULK_GROUPS = [{ id: FLOOR_ID, name: 'First floor' }] as const
 
 // The Property's calendar: October starts at 21:00 UTC on 30 September.
-export const OCTOBER = new Date('2026-09-30T21:00:00.000Z')
-export const NOVEMBER = new Date('2026-10-31T22:00:00.000Z')
+const OCTOBER = new Date('2026-09-30T21:00:00.000Z')
+const NOVEMBER = new Date('2026-10-31T22:00:00.000Z')
 /** The 11th: a goal starts this month unless its creator picks the next. */
 export const EARLY_IN_OCTOBER = new Date('2026-10-11T09:00:00.000Z')
 /** The 21st: a goal starts next month unless its creator picks this one. */
@@ -40,7 +40,7 @@ export const LATE_IN_OCTOBER = new Date('2026-10-21T09:00:00.000Z')
  * A goal with one subject, as the goal list returns it. `to` closes the
  * subject's window: a goal ended in October holds its subject until November.
  */
-export function bulkGoal(
+function bulkGoal(
   input: Readonly<{
     id: string
     name: string
