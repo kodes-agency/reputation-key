@@ -271,6 +271,14 @@ Restate the same function in `src/shared/db/db-constructs.sql` and copy that fil
 
 **Risk:** the function in `0001` names a column that 0054 adds. PL/pgSQL binds at execution and no migration between them writes `goal_monthly_results`; the from-scratch migration test confirms it. Fallback: keep the function change in 0054 and `db-constructs.sql` only, if the repo's parity check allows.
 
+**As built, after review.** The migration differs from the sketch above in five ways; the file and its parity test are the authority.
+
+- **Statement order.** The log table and its Program reference come first, then the version key and reference, and only then the column on `goal_monthly_results`. The file runs in one transaction and goal writes lock Programs, versions, then months, so the migration takes its locks in that order.
+- **A log row's month and following version belong to its Program.** Both foreign keys include `program_id` (`organization_id, property_id, program_id, id`). `goal_monthly_results` and `goal_program_versions` each gain the unique index `…_target_change_fk_key` those references need. The Program foreign key stays.
+- **One row per month per command:** `UNIQUE (change_id, monthly_result_id)`.
+- **The lock also covers INSERT.** A new row may bring a target only while it is `open` and its period has not ended. So `target_value IS NOT NULL` always means "set while the month ran". A test fixture that needs an ended or closed month with its own target seeds it with `seedLockedMonthTarget` (`src/contexts/reporting/infrastructure/testing/goal-month-target-seed.ts`).
+- **Export.** `target_value` is the last column of `goal/results.csv`, after the change-log columns, so every column the file already had keeps its position. The payload version stays `goal-organization-export/v1`: the change only adds.
+
 ## Slice 3b — D2 command, log and UI
 
 Merge only after 3a runs on **both** web and worker. Hold PR 5 out of auto-merge until `pnpm ops deploy-ci-images --sha <3a>` has reported both healthy.

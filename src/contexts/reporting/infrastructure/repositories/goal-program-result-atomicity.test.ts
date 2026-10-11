@@ -59,6 +59,7 @@ describe.sequential('Goal Program result CAS and outbox (integration)', () => {
       periodEnd,
       propertyTimezone: 'UTC',
       status: 'reconciling',
+      targetValue: null,
       evaluation: {
         state: 'eligible',
         value: 12,

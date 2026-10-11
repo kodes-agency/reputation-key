@@ -114,6 +114,7 @@ export function mapResult(
     periodEnd: row.periodEnd,
     propertyTimezone: row.propertyTimezone,
     status: row.status as GoalMonthlyResult['status'],
+    targetValue: row.targetValue,
     evaluation,
     sourceCompleteThrough: correction
       ? correction.sourceCompleteThrough
@@ -213,6 +214,10 @@ export const resultValues = (result: GoalMonthlyResult) => ({
   periodEnd: result.periodEnd,
   propertyTimezone: result.propertyTimezone,
   status: result.status,
+  // A month always opens on its version's target. Nothing here sets the
+  // column, and the guard refuses any writer that would give a month its own
+  // target once it is not open or its period has ended.
+  targetValue: null,
   evaluationState: result.evaluation.state,
   value: result.evaluation.value,
   sampleCount: result.evaluation.sampleCount,

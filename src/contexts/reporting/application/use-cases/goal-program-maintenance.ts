@@ -21,6 +21,7 @@ import {
   type GoalMetric,
   type GoalMetricEvaluation,
 } from '../../domain/goal-program'
+import { effectiveMonthTarget } from '../goal-effective-month-target'
 import {
   dueMonthlyPeriods,
   GoalProgramError,
@@ -351,7 +352,7 @@ export async function reconcileResult(
   })
   const evaluation = evaluationFromGovernedRead(
     version.metric,
-    version.targetValue,
+    effectiveMonthTarget(result, version),
     reading,
   )
   const now = deps.now()
@@ -424,9 +425,10 @@ export async function reconcileClosedResult(
   if (reading.state === 'updating') {
     return { status: 'pending' as const, result: head.result }
   }
+  // The closed row is frozen, so the target it closed against is still there.
   const evaluation = evaluationFromGovernedRead(
     version.metric,
-    version.targetValue,
+    effectiveMonthTarget(head.result, version),
     reading,
   )
   if (

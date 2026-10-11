@@ -81,7 +81,7 @@ Written commitments to Google (2026-07-14 response) and to users. Not changeable
 ## 6. Release checklist
 
 - CI green on the `main` SHA being released.
-- `pnpm db:migrate-deploy` applied; `pnpm check:schema-drift` clean.
+- `pnpm db:migrate-deploy` applied; `pnpm check:schema-drift` clean. A database first migrated before `drizzle/0001_db_constructs.sql` last changed reports one `[journal]` line for `0001_db_constructs` (db hash differs from the file on disk): that file stays a byte copy of `db-constructs.sql`, and each migration that changes a function there restates it (0039, 0040, 0054). Any other line is drift.
 - `/api/health/ready` returns 200.
 - One authenticated journey observed end to end: Google review → Inbox → Confirm & Publish → published reply observed.
 - Backup verified within the last 30 days, once a production database exists again.

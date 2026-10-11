@@ -64,6 +64,11 @@ export type GoalMonthlyResult = Readonly<{
   periodEnd: Date
   propertyTimezone: string
   status: GoalMonthlyResultStatus
+  /**
+   * This month's own target. Null means the month uses its version's target.
+   * Opening a month never sets it, and it is locked once the period ends.
+   */
+  targetValue: number | null
   evaluation: GoalMetricEvaluation
   sourceCompleteThrough: Date | null
   evaluationWatermark: Date | null

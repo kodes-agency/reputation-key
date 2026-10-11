@@ -218,6 +218,7 @@ export function openResultFor(
     periodEnd: period.end,
     propertyTimezone: timezone,
     status: 'open',
+    targetValue: null,
     evaluation: {
       state: 'updating',
       value: null,

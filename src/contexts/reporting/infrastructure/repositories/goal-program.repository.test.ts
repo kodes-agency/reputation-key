@@ -73,6 +73,7 @@ describe.sequential('Goal Program repository (integration)', () => {
     periodEnd: end,
     propertyTimezone: timezone,
     status: 'open',
+    targetValue: null,
     evaluation: {
       state: 'updating',
       value: null,
