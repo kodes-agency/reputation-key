@@ -45,18 +45,20 @@ vi.mock('#/shared/auth/execution-policy', () => ({
 
 import { GoalProgramError } from '../application/use-cases/goal-programs'
 import {
+  changeGoalProgramAssignmentsSchema,
+  createGoalProgramSchema,
+  getGoalProgressSchema,
+  previewGoalMonthSchema,
+} from '../application/dto/goal-program.dto'
+import {
   changeGoalProgramAssignments,
   changeGoalProgramStatus,
   createGoalProgram,
-  createGoalProgramSchema,
-  changeGoalProgramAssignmentsSchema,
   getGoalProgram,
   getGoalProgramProgress,
   getGoalProgress,
-  getGoalProgressSchema,
   listGoalPrograms,
   previewGoalMonth,
-  previewGoalMonthSchema,
   reviseGoalProgram,
 } from './goal-programs'
 

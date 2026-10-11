@@ -1,5 +1,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
+// For `.validator(...)` only: do not re-export these. The client build strips
+// the validators and then this import, but an `export … from` is an export, so
+// it stays, and the bundler keeps the whole DTO module in first paint for its
+// top-level zod calls (scripts/check-bundle-budget.mjs, 2026-10-13). Tests and
+// forms import the schemas from the DTO.
 import {
   changeGoalProgramAssignmentsSchema,
   changeGoalProgramStatusSchema,
@@ -11,12 +16,6 @@ import {
   reviseGoalProgramSchema,
 } from '../application/dto/goal-program.dto'
 import { withGoalPrograms } from './goal-program-request.server'
-export {
-  changeGoalProgramAssignmentsSchema,
-  createGoalProgramSchema,
-  getGoalProgressSchema,
-  previewGoalMonthSchema,
-} from '../application/dto/goal-program.dto'
 
 export const createGoalProgram = createServerFn({ method: 'POST' })
   .validator(createGoalProgramSchema)
