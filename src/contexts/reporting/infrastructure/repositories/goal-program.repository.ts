@@ -111,7 +111,20 @@ async function reviseInTx(
 ): Promise<boolean> {
   const [program] = await tx
     .update(goalPrograms)
-    .set({ currentVersion: input.version.version, updatedAt: input.at })
+    .set({
+      currentVersion: input.version.version,
+      updatedAt: input.at,
+      // What a goal that has not started waits for follows its plan. A goal
+      // activated since the caller read it has no such reason any more, so
+      // only a Program still scheduled takes the new one.
+      ...(input.scheduledStatusReason === undefined
+        ? {}
+        : {
+            statusReason: sql`case when ${goalPrograms.status} = 'scheduled'
+              then ${input.scheduledStatusReason}
+              else ${goalPrograms.statusReason} end`,
+          }),
+    })
     .where(
       and(
         eq(goalPrograms.organizationId, input.version.organizationId),

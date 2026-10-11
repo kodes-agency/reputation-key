@@ -3,6 +3,7 @@
 import type {
   GoalProgramBundle,
   GoalProgramVersion,
+  GoalScheduledStatusReason,
   GoalSubjectAssignment,
 } from '../ports/goal-program.repository'
 import {
@@ -72,20 +73,25 @@ type ReviseGoalInput = Readonly<{
 
 /**
  * The bundle as a revision leaves it. The head it follows closes where the new
- * version starts; a head it replaces keeps the empty window [from, from).
+ * version starts; a head it replaces keeps the empty window [from, from). A
+ * goal that has not started takes the reason its new plan waits for.
  */
 function revisedBundle(
   current: GoalProgramBundle,
   version: GoalProgramVersion,
   assignments: readonly GoalSubjectAssignment[],
-  supersedeRowlessHead: boolean,
+  change: Readonly<{
+    supersedeRowlessHead: boolean
+    scheduledStatusReason: GoalScheduledStatusReason | undefined
+  }>,
 ): GoalProgramBundle {
   const closedAt = (window: Readonly<{ effectiveFrom: Date }>) =>
-    supersedeRowlessHead ? window.effectiveFrom : version.effectiveFrom
+    change.supersedeRowlessHead ? window.effectiveFrom : version.effectiveFrom
   return {
     program: {
       ...current.program,
       currentVersion: version.version,
+      statusReason: change.scheduledStatusReason ?? current.program.statusReason,
       updatedAt: version.createdAt,
     },
     version,
@@ -197,18 +203,29 @@ async function reviseGoal(
       at: now,
     }),
   )
-  const supersedeRowlessHead = head !== 'in_force'
+  const change = {
+    supersedeRowlessHead: head !== 'in_force',
+    // What a goal that has not started waits for was decided from the plan it
+    // was created with. This plan may have another measure, so it is decided
+    // again, by the rule creation uses: the source first, else the month.
+    scheduledStatusReason:
+      head !== 'never_started'
+        ? undefined
+        : sourceInactive
+          ? ('metric_source_not_active' as const)
+          : ('awaiting_first_full_month' as const),
+  }
   const revised = await deps.repository.revise({
     expectedVersion: current.version,
     version,
     assignments,
-    supersedeRowlessHead,
+    ...change,
     actorId: actor.userId,
     at: now,
   })
   // The head moved, or a month opened under it, since this command read it.
   if (!revised) throw new GoalProgramError('revision_conflict')
-  return revisedBundle(current, version, assignments, supersedeRowlessHead)
+  return revisedBundle(current, version, assignments, change)
 }
 
 export function createGoalProgramService(deps: GoalProgramDependencies) {

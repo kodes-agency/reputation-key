@@ -1177,6 +1177,126 @@ describe.sequential('Goal Program repository (integration)', () => {
       })
     })
 
+    // What a scheduled goal waits for is decided from its plan, so a
+    // replacement states it again in the same update that moves the head.
+    it('a replacement of a scheduled goal states what it now waits for', async () => {
+      const { repository, targetPropertyId, bundle } = await scheduledForFebruary(
+        'Restated Reason Property',
+      )
+      expect(bundle.program.statusReason).toBe('awaiting_first_full_month')
+      const second = following(bundle.version, february.start, 40)
+      await expect(
+        repository.revise({
+          expectedVersion: bundle.version,
+          ...second,
+          supersedeRowlessHead: true,
+          scheduledStatusReason: 'metric_source_not_active',
+          actorId: 'manager-1',
+          at: editedAt,
+        }),
+      ).resolves.toBe(true)
+      await expect(
+        repository.get(organizationId, targetPropertyId, bundle.program.id),
+      ).resolves.toMatchObject({
+        program: {
+          status: 'scheduled',
+          statusReason: 'metric_source_not_active',
+          currentVersion: 2,
+        },
+      })
+
+      // A change that says nothing about the reason leaves it as it is.
+      const third = following(second.version, february.start, 55)
+      await repository.revise({
+        expectedVersion: second.version,
+        ...third,
+        supersedeRowlessHead: true,
+        actorId: 'manager-1',
+        at: editedAt,
+      })
+      await expect(
+        repository.get(organizationId, targetPropertyId, bundle.program.id),
+      ).resolves.toMatchObject({
+        program: { statusReason: 'metric_source_not_active', currentVersion: 3 },
+      })
+
+      await repository.revise({
+        expectedVersion: third.version,
+        ...following(third.version, february.start, 70),
+        supersedeRowlessHead: true,
+        scheduledStatusReason: 'awaiting_first_full_month',
+        actorId: 'manager-1',
+        at: editedAt,
+      })
+      await expect(
+        repository.get(organizationId, targetPropertyId, bundle.program.id),
+      ).resolves.toMatchObject({
+        program: { statusReason: 'awaiting_first_full_month', currentVersion: 4 },
+      })
+    })
+
+    // The reason of a goal that has started belongs to its status: nothing
+    // when it is active, the manager's note when it was paused. A caller that
+    // read the goal while it was still scheduled must not overwrite either.
+    it('a revision leaves the status reason of a goal that is not scheduled alone', async () => {
+      const repository = createGoalProgramRepository(getDb())
+      const targetPropertyId = await createPropertyFixture('Kept Reason Property')
+      const running = programBundle({
+        propertyId: targetPropertyId,
+        status: 'active',
+        effectiveFrom: january.start,
+        at: january.start,
+        withOpenResult: { end: january.end },
+      })
+      await repository.create({ bundle: running, auditAction: 'goal.program.created' })
+      const pending = following(running.version, february.start, 40)
+      await expect(
+        repository.revise({
+          expectedVersion: running.version,
+          ...pending,
+          supersedeRowlessHead: false,
+          scheduledStatusReason: 'awaiting_first_full_month',
+          actorId: 'manager-1',
+          at: editedAt,
+        }),
+      ).resolves.toBe(true)
+      await expect(
+        repository.get(organizationId, targetPropertyId, running.program.id),
+      ).resolves.toMatchObject({
+        program: { status: 'active', statusReason: null, currentVersion: 2 },
+      })
+
+      await repository.changeStatus({
+        organizationId,
+        propertyId: targetPropertyId,
+        programId: running.program.id,
+        expectedStatus: 'active',
+        status: 'paused',
+        reason: 'Closed for works',
+        actorId: 'manager-1',
+        at: editedAt,
+      })
+      await expect(
+        repository.revise({
+          expectedVersion: pending.version,
+          ...following(pending.version, february.start, 55),
+          supersedeRowlessHead: true,
+          scheduledStatusReason: 'metric_source_not_active',
+          actorId: 'manager-1',
+          at: editedAt,
+        }),
+      ).resolves.toBe(true)
+      await expect(
+        repository.get(organizationId, targetPropertyId, running.program.id),
+      ).resolves.toMatchObject({
+        program: {
+          status: 'paused',
+          statusReason: 'Closed for works',
+          currentVersion: 3,
+        },
+      })
+    })
+
     it('maintenance activates a program whose history holds an empty version', async () => {
       const repository = createGoalProgramRepository(getDb())
       const targetPropertyId = await createPropertyFixture('Maintained Goal Property')

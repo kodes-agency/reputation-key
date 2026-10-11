@@ -101,7 +101,14 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
       return program
     }),
     revise: vi.fn(
-      async ({ expectedVersion, version, assignments, supersedeRowlessHead, at }) => {
+      async ({
+        expectedVersion,
+        version,
+        assignments,
+        supersedeRowlessHead,
+        scheduledStatusReason,
+        at,
+      }) => {
         if (!created) return false
         const previous = created
         const headHasMonths = previous.results.some(
@@ -116,6 +123,12 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
           program: {
             ...previous.program,
             currentVersion: version.version,
+            // The port's contract: only a Program still scheduled takes it.
+            statusReason:
+              scheduledStatusReason !== undefined &&
+              previous.program.status === 'scheduled'
+                ? scheduledStatusReason
+                : previous.program.statusReason,
             updatedAt: at,
           },
           version,
@@ -1194,9 +1207,27 @@ describe('canonical Goal Program service', () => {
     const MID_MARCH = new Date('2026-03-15T12:00:00.000Z')
     const portal = (id: number) => ({ kind: 'portal' as const, portalId: `portal-${id}` })
 
-    /** A scans goal for portal-1. Created on 1 March it is active with March open; mid-March it waits for April. */
-    async function scansGoal(at?: Date) {
+    /** The next read of a measure finds its source not active yet. */
+    const sourceNotActiveOnce = (metrics: GoalMetricReadPort) =>
+      vi.mocked(metrics.queryGoalMetric).mockResolvedValueOnce({
+        definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
+        metricKey: 'portal.qualified_scan',
+        state: 'unavailable',
+        exactValue: null,
+        sampleCount: 0,
+        minimumSample: 0,
+        sourceCompleteThrough: null,
+        reason: 'metric_source_not_active',
+      })
+
+    /**
+     * A scans goal for portal-1. Created on 1 March it is active with March
+     * open; mid-March it waits for April. Planned on a `not_active` source it
+     * is scheduled whenever it is created, and waits for that source.
+     */
+    async function scansGoal(at?: Date, source: 'active' | 'not_active' = 'active') {
       const context = setup(at)
+      if (source === 'not_active') sourceNotActiveOnce(context.metrics)
       const created = await context.service.create(
         {
           propertyId: 'property-1',
@@ -1358,6 +1389,67 @@ describe('canonical Goal Program service', () => {
           ],
         }),
       )
+    })
+
+    // The reason says what a scheduled goal waits for, and the page prints
+    // it. An edit before the start can change the measure, so it is decided
+    // again from the measure the goal now has, as it was at creation.
+    it('an edit before the start onto a ready measure says the goal waits for its month', async () => {
+      const { created, revise, revisions, getCreated } = await scansGoal(
+        MID_MARCH,
+        'not_active',
+      )
+      expect(created.program).toMatchObject({
+        status: 'scheduled',
+        statusReason: 'metric_source_not_active',
+      })
+
+      const revised = await revise({ metric: 'portal_rating_count', targetValue: 25 })
+
+      expect(revised.program).toMatchObject({
+        status: 'scheduled',
+        statusReason: 'awaiting_first_full_month',
+      })
+      expect(revisions()[0]?.[0].scheduledStatusReason).toBe('awaiting_first_full_month')
+      expect(getCreated()?.program.statusReason).toBe('awaiting_first_full_month')
+    })
+
+    it('an edit before the start onto a measure that is not ready says the goal waits for its source', async () => {
+      const { created, metrics, revise, revisions, getCreated } =
+        await scansGoal(MID_MARCH)
+      expect(created.program.statusReason).toBe('awaiting_first_full_month')
+      sourceNotActiveOnce(metrics)
+
+      const revised = await revise()
+
+      expect(revised.program).toMatchObject({
+        status: 'scheduled',
+        statusReason: 'metric_source_not_active',
+      })
+      expect(revisions()[0]?.[0].scheduledStatusReason).toBe('metric_source_not_active')
+      expect(getCreated()?.program.statusReason).toBe('metric_source_not_active')
+    })
+
+    it('revising a goal that has started leaves its status reason alone', async () => {
+      const { service, created, revise, revisions, setNow } = await scansGoal()
+      setNow(MID_MARCH)
+      await service.changeStatus(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          status: 'paused',
+          reason: 'Closed for works',
+        },
+        actor,
+      )
+
+      const revised = await revise()
+
+      expect(revised.program).toMatchObject({
+        status: 'paused',
+        statusReason: 'Closed for works',
+      })
+      expect(revisions()[0]?.[0].scheduledStatusReason).toBeUndefined()
     })
 
     it('revise right after a month begins opens that month first and starts the revision next month', async () => {

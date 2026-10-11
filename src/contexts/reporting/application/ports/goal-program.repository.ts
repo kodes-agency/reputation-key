@@ -148,6 +148,14 @@ export type GoalAssignmentConflict = Readonly<{
   effectiveTo: Date | null
 }>
 
+/**
+ * What a Program that has not started is waiting for: its metric source, or
+ * only its first month. Stored as the Program's status reason while it is
+ * scheduled, and decided from the measure its plan has.
+ */
+export type GoalScheduledStatusReason =
+  'metric_source_not_active' | 'awaiting_first_full_month'
+
 export type GoalProgramRepository = Readonly<{
   /**
    * `subject_has_goal` when a subject already holds the metric inside the new
@@ -197,6 +205,11 @@ export type GoalProgramRepository = Readonly<{
    * expected version ends after the new version starts; or, when replacing,
    * when any month exists under the expected version. Each means a month
    * opened since the caller read the Program: re-read and recompute to retry.
+   *
+   * `scheduledStatusReason` is what the new plan waits for. A Program still
+   * scheduled takes it as its status reason in the same update that moves the
+   * head; a Program in any other status keeps the reason it has. Omitted
+   * leaves the reason alone.
    */
   revise(
     input: Readonly<{
@@ -204,6 +217,7 @@ export type GoalProgramRepository = Readonly<{
       version: GoalProgramVersion
       assignments: readonly GoalSubjectAssignment[]
       supersedeRowlessHead: boolean
+      scheduledStatusReason?: GoalScheduledStatusReason
       actorId: string
       at: Date
     }>,
