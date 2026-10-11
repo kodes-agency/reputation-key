@@ -35,6 +35,8 @@ const base = {
   closedAt: CLOSED_AT,
   createdAt: PERIOD_START,
   updatedAt: CLOSED_AT,
+  // The month closed against its own target, not its version's.
+  targetValue: 9,
 } satisfies typeof goalMonthlyResults.$inferSelect
 
 const head: ClosedGoalResultHead = {
@@ -49,6 +51,7 @@ const head: ClosedGoalResultHead = {
     periodEnd: base.periodEnd,
     propertyTimezone: base.propertyTimezone,
     status: 'closed',
+    targetValue: base.targetValue,
     evaluation: {
       state: 'eligible',
       value: 12,
@@ -156,6 +159,35 @@ describe('Goal Program closed-result revision writer', () => {
       }),
       { recordedAt: at },
     )
+  })
+
+  it('a corrected month keeps the target it closed with', async () => {
+    const fake = database()
+    const at = new Date('2026-08-03T12:00:00.000Z')
+
+    const result = await createGoalProgramRepository(fake.db).appendResultRevision({
+      head,
+      revisionId: '10000000-0000-4000-8000-000000000006',
+      evaluation: {
+        state: 'eligible',
+        value: 8,
+        sampleCount: 8,
+        achieved: false,
+        reason: null,
+      },
+      sourceCompleteThrough: PERIOD_END,
+      evaluationWatermark: at,
+      changeReason: 'metric_correction_reconciliation',
+      createdBy: 'system',
+      at,
+    })
+
+    // The correction overlays the evaluation only; the base row's target stays.
+    expect(result).toMatchObject({
+      status: 'revised',
+      result: { targetValue: 9, evaluation: { value: 8, achieved: false } },
+    })
+    expect(fake.revisionRows[0]).not.toHaveProperty('targetValue')
   })
 
   it('does not expose a successful revision when the durable fact fails', async () => {

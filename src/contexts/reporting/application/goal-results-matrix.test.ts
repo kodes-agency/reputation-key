@@ -84,6 +84,7 @@ function bundle(
         periodEnd,
         propertyTimezone: 'America/New_York',
         status: 'closed',
+        targetValue: null,
         evaluation: input.evaluation,
         sourceCompleteThrough:
           input.sourceCompleteThrough === undefined
