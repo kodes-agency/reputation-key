@@ -30,6 +30,22 @@ describe('data-fate authority', () => {
     expect(misfiled).toEqual([])
   })
 
+  it('retains the goal month target log as history, like the other Goal history tables', () => {
+    const goalFate = (exportName: string) =>
+      DATA_FATE_AUTHORITY.find(
+        (row) => row.schemaFile === 'goal.schema.ts' && row.exportName === exportName,
+      )
+
+    expect(goalFate('goalMonthTargetChanges')).toEqual({
+      ...goalFate('goalResultRevisions'),
+      exportName: 'goalMonthTargetChanges',
+    })
+    expect(goalFate('goalMonthTargetChanges')).toMatchObject({
+      owner: 'reporting',
+      disposition: 'recoverable_archive',
+    })
+  })
+
   it('reaches every table a schema file exports through the schema barrel', () => {
     const barrel = new Set(tableExports(schema))
     const unreachable = Object.entries(SCHEMA_MODULES).flatMap(([file, module]) =>
