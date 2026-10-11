@@ -400,6 +400,54 @@ describe('createGoalProgressReader', () => {
     })
   })
 
+  it('the card shows the superseding target, not the empty one', async () => {
+    // Set at 250 for October, changed to 300 and then to 350 before October
+    // began. Each replaced plan keeps the empty window [October, October).
+    const emptied = (plan: GoalProgramBundle): GoalProgramBundle => ({
+      ...plan,
+      assignments: plan.assignments.map((assignment) => ({
+        ...assignment,
+        effectiveTo: assignment.effectiveTo ?? OCTOBER_START,
+      })),
+    })
+    const first = bundle({ status: 'scheduled', effectiveFrom: OCTOBER_START })
+    const second = withNextVersion(emptied(first), {
+      targetValue: 300,
+      effectiveFrom: OCTOBER_START,
+      createdBy: 'marco',
+      createdAt: new Date('2026-09-10T08:00:00.000Z'),
+    })
+    const third = withNextVersion(
+      emptied(second),
+      {
+        id: 'program-1-v3',
+        version: 3,
+        targetValue: 350,
+        effectiveFrom: OCTOBER_START,
+        createdBy: 'ivana',
+        createdAt: new Date('2026-09-20T08:00:00.000Z'),
+      },
+      { id: 'program-1-a3' },
+    )
+    const { progress, programProgress } = reader([third])
+
+    const [card] = await progress(input, actor)
+    const subjects = await programProgress(
+      { propertyId: PROPERTY_ID, programId: 'program-1' },
+      actor,
+    )
+
+    expect(card).toMatchObject({
+      targetValue: 350,
+      setBy: 'ivana',
+      setAt: new Date('2026-09-20T08:00:00.000Z'),
+      period: { start: OCTOBER_START },
+      reading: { kind: 'not_started' },
+    })
+    // The goal's own page reads the subject once, under the same plan.
+    expect(subjects).toMatchObject([{ subject: group, progress: { targetValue: 350 } }])
+  })
+
   it('shows no card for a subject whose only assignment is an empty window', async () => {
     const scheduled = bundle({ status: 'scheduled', effectiveFrom: OCTOBER_START })
     const cancelledSubject = {

@@ -146,6 +146,32 @@ describe('goalTargetProvenance', () => {
     })
   })
 
+  it('counts from skips a plan that was replaced before it began', () => {
+    // Set for October. Before October began the goal was edited after the
+    // Property changed time zone: the first plan keeps the empty window
+    // [October, October), and the plan in its place starts in November.
+    const replaced = version(1, { effectiveTo: OCTOBER })
+    const inItsPlace = version(2, {
+      effectiveFrom: NOVEMBER,
+      changeReason: 'subjects_changed',
+      createdBy: 'marco',
+      createdAt: new Date('2026-09-20T14:00:00.000Z'),
+    })
+
+    expect(
+      goalTargetProvenance({ versions: [replaced, inItsPlace], results: [] }, inItsPlace),
+    ).toEqual({
+      // Still Elena's target: only the plan around it changed.
+      setAt: new Date('2026-10-11T09:00:00.000Z'),
+      setBy: 'elena',
+      countsFrom: NOVEMBER,
+    })
+    // A goal ended before it began has nothing but its empty plan to report.
+    expect(
+      goalTargetProvenance({ versions: [replaced], results: [] }, replaced).countsFrom,
+    ).toEqual(OCTOBER)
+  })
+
   it('counts from is the first month with a result', () => {
     // Planned for October, but the first month that was opened is November.
     const created = version(1)
