@@ -1,11 +1,18 @@
+import { useState } from 'react'
 import { useForm, useStore } from '@tanstack/react-form'
 import { z } from 'zod/v4'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { createGoalProgram } from '#/contexts/reporting/server/goal-programs'
+import {
+  createGoalProgram,
+  listGoalPrograms,
+  previewGoalMonth,
+} from '#/contexts/reporting/server/goal-programs'
+import type { GoalMetric, GoalSubject } from '#/contexts/reporting/application/public-api'
+import { subjectHolds } from '#/contexts/reporting/application/goal-subject-holds'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -29,7 +36,20 @@ import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import { FormTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
+import { goalAssignmentSubjectLabel } from '#/components/goals/goal-assignment-subject-label'
+import {
+  goalCreateRefusal,
+  goalRefusalCode,
+} from '#/components/goals/goal-create-refusal'
 import { GoalMetricField } from '#/components/goals/goal-metric-field'
+import { goalSoFarLine } from '#/components/goals/goal-so-far'
+import { GoalStartField } from '#/components/goals/goal-start-field'
+import {
+  goalStartChoice,
+  goalStartLabels,
+  offeredStartMonth,
+  type GoalStartChoice,
+} from '#/components/goals/goal-start-view'
 import {
   GoalSubjectPicker,
   goalSubjectKey,
@@ -39,6 +59,7 @@ import { prefilledGoalSubjects } from './-goal-subject-prefill'
 import {
   createGoalProgramFormSchema,
   type CreateGoalProgramFormInput,
+  type CreateGoalProgramInput,
 } from '#/contexts/reporting/application/dto/goal-program.dto'
 
 const subjectsQuery = (propertyId: string) =>
@@ -52,6 +73,104 @@ const subjectsQuery = (propertyId: string) =>
       return { groups: groups.groups, portals: portals.portals }
     },
   })
+
+const SIDE_READ_STALE_MS = 30_000
+
+// The month so far for one subject and measure, before its goal exists: the
+// same governed read a goal's own month to date uses, and never a result.
+const monthPreviewQuery = (
+  propertyId: string,
+  metric: GoalMetric,
+  subject: GoalSubject,
+) =>
+  queryOptions({
+    queryKey: goalKeys.monthPreview(propertyId, metric, goalSubjectKey(subject)),
+    queryFn: () => previewGoalMonth({ data: { propertyId, metric, subject } }),
+    staleTime: SIDE_READ_STALE_MS,
+  })
+
+// The Property's goals, read only once the command has refused a subject, to
+// say which goal holds it. The Goals page shares the key, so it is usually cached.
+const heldGoalsQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: goalKeys.list({ propertyId, model: 'program' }),
+    queryFn: () => listGoalPrograms({ data: { propertyId } }),
+    staleTime: SIDE_READ_STALE_MS,
+  })
+
+/** What the command last refused, kept so its banner speaks of that attempt. */
+type RefusedGoal = Pick<CreateGoalProgramInput, 'metric' | 'subjects' | 'startMonth'>
+
+/**
+ * The month so far for the one subject of a goal that starts this month, in
+ * words. A goal that starts this month counts from its first day, so the form
+ * says what has already counted before the target is saved. A side read: it
+ * never holds the form back, and a failure says nothing.
+ */
+function useMonthSoFar(
+  input: Readonly<{
+    propertyId: string
+    metric: GoalMetric
+    subjects: readonly GoalSubject[]
+    startsThisMonth: boolean
+  }>,
+): string | null {
+  const { propertyId, metric } = input
+  const [onlySubject] = input.subjects.length === 1 ? input.subjects : []
+  const enabled = input.startsThisMonth && onlySubject !== undefined
+  const preview = useQuery({
+    // Never run without exactly one subject; the Property only fills the key.
+    ...monthPreviewQuery(
+      propertyId,
+      metric,
+      onlySubject ?? { kind: 'property', propertyId },
+    ),
+    enabled,
+    retry: false,
+  })
+  return enabled && preview.data
+    ? goalSoFarLine(metric, preview.data.preview.reading)
+    : null
+}
+
+/**
+ * What the banner says about the command's last refusal. A refused subject is
+ * explained from the Property's goals, which are read only then; any failure
+ * the form has no words for is handed on as it is.
+ */
+function useCreateRefusal(
+  input: Readonly<{
+    propertyId: string
+    error: unknown
+    refused: RefusedGoal | null
+    start: GoalStartChoice
+    subjectName: (subject: GoalSubject) => string
+    timezone: string
+    now: Date
+  }>,
+): unknown {
+  const { error, refused, start } = input
+  const heldGoals = useQuery({
+    ...heldGoalsQuery(input.propertyId),
+    enabled: goalRefusalCode(error) === 'subject_has_goal',
+    retry: false,
+  })
+  if (refused === null) return error
+  const refusedStart = [start.current, start.next].find(
+    (option) => option.monthKey === refused.startMonth,
+  )
+  return goalCreateRefusal(error, {
+    subjects: refused.subjects,
+    holds:
+      heldGoals.data && refusedStart
+        ? subjectHolds(heldGoals.data.programs, refused.metric, refusedStart.period.start)
+        : [],
+    startsThisMonth: refused.startMonth === start.current.monthKey,
+    subjectName: input.subjectName,
+    timezone: input.timezone,
+    now: input.now,
+  })
+}
 
 // A group's page links here with the group already chosen (`?subject=portal_group:<id>`).
 const newGoalSearchSchema = z.object({
@@ -82,9 +201,24 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
 function CreateGoalPage() {
   const { propertyId } = Route.useParams()
   const { subject: subjectParam } = Route.useSearch()
+  // The instant this route last loaded, which the router records, sends with
+  // the server render and renews when the loader runs again. The two months a
+  // goal may start in are worked out from it, so the server and the browser
+  // offer the same ones, and reading them again is running the loader again.
+  // The loader itself returns nothing: its code is part of the first-paint
+  // bundle, and the calendar code stays with the page.
+  const loadedAt = Route.useMatch({ select: (match) => match.updatedAt })
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: subjects } = useSuspenseQuery(subjectsQuery(propertyId))
   const navigate = useNavigate()
+  const router = useRouter()
+  const { timezone } = propData.property
+  const now = new Date(loadedAt)
+  const start = goalStartChoice(now, timezone)
+  const [pickedMonth, setPickedMonth] = useState<string | null>(null)
+  const startMonth = offeredStartMonth(start, pickedMonth)
+  const startLabels = goalStartLabels(start, timezone, now)
+  const [refused, setRefused] = useState<RefusedGoal | null>(null)
   const mutation = useActionMutation(createGoalProgram, {
     successMessage: 'Goal created',
     invalidateKeys: [goalKeys.all],
@@ -93,6 +227,13 @@ function CreateGoalPage() {
         to: '/properties/$propertyId/goals/$goalId',
         params: { propertyId, goalId: program.id },
       })
+    },
+    onError: (error, { data }) => {
+      setRefused(data)
+      // The month changed while the form was open: read the two months again.
+      if (goalRefusalCode(error) === 'start_month_changed') {
+        void router.invalidate({ filter: (match) => match.routeId === Route.id })
+      }
     },
   })
   const defaultValues: CreateGoalProgramFormInput = {
@@ -117,12 +258,36 @@ function CreateGoalPage() {
           propertyId,
           ...value,
           description: value.description?.trim() || null,
+          startMonth,
         },
       })
     },
   })
   const metric = useStore(form.store, (state) => state.values.metric)
-  const targetHelp = `Changes take effect from the next complete month in ${propData.property.name}’s timezone.`
+  const chosenSubjects = useStore(form.store, (state) => state.values.subjects)
+  const targetHelp = `Months follow ${propData.property.name}’s time zone.`
+
+  const soFar = useMonthSoFar({
+    propertyId,
+    metric,
+    subjects: chosenSubjects,
+    startsThisMonth: startMonth === start.current.monthKey,
+  })
+  const refusal = useCreateRefusal({
+    propertyId,
+    error: mutation.error,
+    refused,
+    start,
+    subjectName: (subject) =>
+      goalAssignmentSubjectLabel(
+        subject,
+        propData.property.name,
+        subjects.groups,
+        subjects.portals,
+      ),
+    timezone,
+    now,
+  })
 
   return (
     <PageShell>
@@ -202,6 +367,15 @@ function CreateGoalPage() {
                 </FormFieldFrame>
               )}
             </form.Field>
+            <GoalStartField
+              options={[
+                { monthKey: start.current.monthKey, label: startLabels.current },
+                { monthKey: start.next.monthKey, label: startLabels.next },
+              ]}
+              value={startMonth}
+              onValueChange={setPickedMonth}
+              soFar={soFar}
+            />
           </CardContent>
         </Card>
 
@@ -226,7 +400,7 @@ function CreateGoalPage() {
             </form.Field>
           </CardContent>
           <CardFooter>
-            <FormActions error={mutation.error}>
+            <FormActions error={refusal}>
               <SubmitButton mutation={mutation} form={form}>
                 Create goal
               </SubmitButton>
