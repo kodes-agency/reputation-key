@@ -30,6 +30,7 @@ import { GoalProgramRevisionDialog } from '#/components/goals/goal-program-revis
 import { GoalProgramAssignmentsDialog } from '#/components/goals/goal-program-assignments-dialog'
 import { GoalStatusActions } from '#/components/goals/goal-status-actions'
 import { GOAL_STATUS, goalResultStatus } from '#/components/goals/goal-status'
+import { withGoalRefusals } from '#/components/goals/goal-refusal'
 import {
   goalDay,
   goalMonthNotes,
@@ -94,13 +95,14 @@ function GoalDetailRoute() {
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
   // Pause and Resume act at once, so a refusal (an invalid transition) is a
   // toast. End confirms first, in a dialog that stays open and says a refusal
-  // itself, so it is its own mutation with no toast.
-  const mutation = useActionMutation(changeGoalProgramStatus, {
+  // itself, so it is its own mutation with no toast. Both say a refusal as a
+  // sentence, not as the command's code.
+  const mutation = useActionMutation(withGoalRefusals(changeGoalProgramStatus), {
     successMessage: 'Goal status updated',
     errorMessage: actionErrorMessage,
     invalidateKeys: [goalKeys.all],
   })
-  const endMutation = useActionMutation(changeGoalProgramStatus, {
+  const endMutation = useActionMutation(withGoalRefusals(changeGoalProgramStatus), {
     successMessage: 'Goal status updated',
     invalidateKeys: [goalKeys.all],
   })

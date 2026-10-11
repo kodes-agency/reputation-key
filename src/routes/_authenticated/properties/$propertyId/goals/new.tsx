@@ -37,11 +37,9 @@ import { FormTextField } from '#/components/forms/form-text-field'
 import { FormTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { goalAssignmentSubjectLabel } from '#/components/goals/goal-assignment-subject-label'
-import {
-  goalCreateRefusal,
-  goalRefusalCode,
-} from '#/components/goals/goal-create-refusal'
+import { goalCreateRefusal } from '#/components/goals/goal-create-refusal'
 import { GoalMetricField } from '#/components/goals/goal-metric-field'
+import { goalRefusalCode } from '#/components/goals/goal-refusal'
 import { goalSoFarLine } from '#/components/goals/goal-so-far'
 import { GoalStartField } from '#/components/goals/goal-start-field'
 import {
