@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
@@ -10,6 +11,7 @@ import { listGoalPrograms } from '#/contexts/reporting/server/goal-programs'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
 import { buildGoalResultsMatrix } from '#/contexts/reporting/application/public-api'
+import { goalTargetProvenance } from '#/contexts/reporting/application/goal-target-provenance'
 import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
@@ -33,6 +35,7 @@ import { GOAL_STATUS } from '#/components/goals/goal-status'
 import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
 import { GoalViewTabs } from '#/components/goals/goal-view-tabs'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { formatShortDate } from '#/lib/format'
 import { goalForResult } from './-goal-for-result'
 
 const goalsSearchSchema = z.object({
@@ -98,6 +101,7 @@ function GoalsRoute() {
   const { propertyId } = Route.useParams()
   const { view, result } = Route.useSearch()
   const { can: canDo } = usePermissions()
+  const [now] = useState(() => new Date())
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalsQuery(propertyId))
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
@@ -156,10 +160,15 @@ function GoalsRoute() {
               <DataTableHead className="w-40">Status</DataTableHead>
             </DataTableHeader>
             <DataTableBody>
-              {goals.map(({ program, version, assignments }) => {
+              {goals.map(({ program, version, versions, assignments, results }) => {
                 const currentAssignmentCount = assignments.filter(
                   (assignment) => assignment.programVersionId === version.id,
                 ).length
+                const setOn = formatShortDate(
+                  goalTargetProvenance({ versions, results }, version).setAt,
+                  version.propertyTimezone,
+                  now,
+                )
                 return (
                   <DataTableRow key={program.id}>
                     <DataTableCell className="min-w-0 whitespace-normal">
@@ -173,7 +182,8 @@ function GoalsRoute() {
                       <p className="text-sm text-muted-foreground">
                         {metricLabel(version.metric)} · target {version.targetValue} ·{' '}
                         {currentAssignmentCount}{' '}
-                        {currentAssignmentCount === 1 ? 'subject' : 'subjects'}
+                        {currentAssignmentCount === 1 ? 'subject' : 'subjects'} · set on{' '}
+                        {setOn ?? 'an unknown date'}
                       </p>
                     </DataTableCell>
                     <DataTableCell className="col-start-2 row-start-1 justify-self-end">
@@ -186,7 +196,7 @@ function GoalsRoute() {
           </DataTable>
         )}
       </div>
-      {canDo('goal.update') ? <GoalResultsMatrix matrix={matrix} /> : null}
+      {canDo('goal.update') ? <GoalResultsMatrix matrix={matrix} now={now} /> : null}
     </PageShell>
   )
 }

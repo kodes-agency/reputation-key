@@ -271,6 +271,12 @@
       "policy": "The instant the page was opened, taken once for the goal card's days left and the history's year; it is not server state and is never written back, and a remount of the route is its reset boundary."
     },
     {
+      "id": "src/routes/_authenticated/properties/$propertyId/goals/index.tsx:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Goals page",
+      "policy": "The instant the page was opened, taken once so the day a target was set prints its year only when it is not the current one, in the list and in the results matrix; it is not server state and is never written back, and a remount of the route is its reset boundary."
+    },
+    {
       "id": "src/components/features/beta-feedback/beta-feedback-dialog-body.tsx:useState(panel)",
       "classification": "synchronized_prop_copy",
       "owner": "Beta feedback reporting",

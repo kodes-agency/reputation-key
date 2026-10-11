@@ -5,6 +5,7 @@ import type {
   GoalSubject,
 } from '../domain/goal-program'
 import type { GoalProgramBundle } from './ports/goal-program.repository'
+import { goalTargetProvenance } from './goal-target-provenance'
 
 export type GoalResultsMatrixAvailability =
   'ready' | 'updating' | 'insufficient_data' | 'temporarily_unavailable'
@@ -44,6 +45,8 @@ export type GoalResultsMatrixRow = Readonly<{
     metricDefinitionVersionId: string
     targetValue: number
     effectiveFrom: Date
+    /** When this target was set; a later change of subjects alone does not move it. */
+    setAt: Date
   }>
 }>
 
@@ -232,6 +235,7 @@ export function buildGoalResultsMatrix(input: GoalResultsMatrixInput): GoalResul
           metricDefinitionVersionId: version.metricDefinitionVersionId,
           targetValue: version.targetValue,
           effectiveFrom: version.effectiveFrom,
+          setAt: goalTargetProvenance(bundle, version).setAt,
         },
       })
       months.set(key, month)

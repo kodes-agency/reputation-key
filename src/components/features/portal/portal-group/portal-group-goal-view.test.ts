@@ -37,7 +37,7 @@ describe('goalCardView', () => {
       title: 'September · Private ratings',
       figure: '209',
       target: 'of 250',
-      note: 'Set by Elena Petrova · the month ends today',
+      note: 'Set by Elena Petrova on Aug 12 · the month ends today',
       state: 'live',
     })
     expect(view.fraction).toBeCloseTo(209 / 250)
@@ -51,7 +51,7 @@ describe('goalCardView', () => {
   ])('counts the days left in the property time zone (%s)', (now, words) => {
     const view = goalCardView(goal(), { setByName: people, now: at(now) })
 
-    expect(view.note).toBe(`Set by Elena Petrova · ${words}`)
+    expect(view.note).toBe(`Set by Elena Petrova on Aug 12 · ${words}`)
   })
 
   it('counts the last day by the property day, not the UTC day', () => {
@@ -61,7 +61,7 @@ describe('goalCardView', () => {
       now: at('2026-09-30T21:30:00.000Z'),
     })
 
-    expect(view.note).toBe('Set by Elena Petrova')
+    expect(view.note).toBe('Set by Elena Petrova on Aug 12')
   })
 
   it('never fills the bar beyond the target', () => {
@@ -138,7 +138,7 @@ describe('goalCardView', () => {
       state: 'not_started',
       figure: null,
       detail: 'Starts on Oct 1',
-      note: 'Set by Elena Petrova',
+      note: 'Set by Elena Petrova on Aug 12',
     })
   })
 
@@ -157,6 +157,25 @@ describe('goalCardView', () => {
       now: at('2026-09-30T08:00:00.000Z'),
     })
 
-    expect(view.note).toBe('The month ends today')
+    expect(view.note).toBe('Set on Aug 12 · the month ends today')
+  })
+
+  it('prints the year of a target set in an earlier year', () => {
+    const view = goalCardView(goal({ setAt: new Date('2025-11-28T10:00:00.000Z') }), {
+      setByName: people,
+      now: at('2026-09-30T08:00:00.000Z'),
+    })
+
+    expect(view.note).toBe('Set by Elena Petrova on Nov 28, 2025 · the month ends today')
+  })
+
+  it('reads the day a target was set on the property calendar', () => {
+    // 21:30 UTC on 11 Aug is already 12 Aug in Sofia.
+    const view = goalCardView(goal({ setAt: new Date('2026-08-11T21:30:00.000Z') }), {
+      setByName: people,
+      now: at('2026-09-20T08:00:00.000Z'),
+    })
+
+    expect(view.note).toBe('Set by Elena Petrova on Aug 12 · the month ends in 10 days')
   })
 })

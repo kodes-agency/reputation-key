@@ -32,6 +32,7 @@ function row(id: string, overrides: Partial<GoalResultsMatrixRow>): GoalResultsM
       metricDefinitionVersionId: '11111111-1111-4111-8111-111111111301',
       targetValue: 100,
       effectiveFrom: START,
+      setAt: new Date('2026-06-18T15:00:00.000Z'),
     },
     ...overrides,
   }
@@ -105,8 +106,32 @@ const meta: Meta<typeof GoalResultsMatrix> = {
 export default meta
 type Story = StoryObj<typeof GoalResultsMatrix>
 
+// The row of a goal set last year, read in this one: the day prints its year.
+const setLastYear: GoalResultsMatrixModel = {
+  months: [
+    {
+      periodStart: START,
+      periodEnd: END,
+      propertyTimezone: 'America/New_York',
+      rows: [
+        row('carried-over', {
+          targetProvenance: {
+            programName: 'Monthly scans',
+            programVersion: 1,
+            metricDefinitionVersionId: '11111111-1111-4111-8111-111111111301',
+            targetValue: 100,
+            effectiveFrom: new Date('2026-01-01T05:00:00.000Z'),
+            setAt: new Date('2025-12-18T15:00:00.000Z'),
+          },
+        }),
+      ],
+    },
+  ],
+  unassignedPortals: [],
+}
+
 export const AllEvidenceStates: Story = {
-  args: { matrix },
+  args: { matrix, now: new Date('2026-08-05T12:00:00.000Z') },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Goal results matrix')).toBeVisible()
@@ -121,7 +146,20 @@ export const AllEvidenceStates: Story = {
     await expect(canvas.getByText('Ungrouped portal')).toBeVisible()
     await expect(canvas.getByText('No Goal Programs assigned')).toBeVisible()
     await expect(canvas.getAllByText(/Program version 2 · Metric rules/)[0]).toBeVisible()
-    await expect(canvas.getAllByText(/Effective Jul 1, 2026/)[0]).toBeVisible()
+    // The target was set before the month it applies from, and the row says when.
+    await expect(
+      canvas.getAllByText(/Effective Jul 1, 2026 · set on Jun 18/)[0],
+    ).toBeVisible()
     expect(canvas.queryByText(/rank|composite/i)).toBeNull()
+  },
+}
+
+export const TargetSetInAnEarlierYear: Story = {
+  args: { matrix: setLastYear, now: new Date('2026-08-05T12:00:00.000Z') },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(/Effective Jan 1, 2026 · set on Dec 18, 2025/),
+    ).toBeVisible()
   },
 }
