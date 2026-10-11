@@ -29,11 +29,12 @@
 --
 -- Statement order. The whole file runs in one transaction, and every goal write
 -- touches its Program first, then versions, then months. The statements take
--- their locks in that order (Programs, versions, and only then the ACCESS
--- EXCLUSIVE lock on months), so a deploy cannot deadlock with a goal command or
--- the maintenance job. The two keys are unique indexes, not constraints,
--- because building an index blocks writers only; a constraint would lock
--- readers of the versions out for the rest of the migration.
+-- their locks in that order: Programs, versions, and only then the ACCESS
+-- EXCLUSIVE lock on months. Taking months first could deadlock with a goal
+-- command or the maintenance job that had already written its Program. The two
+-- keys are unique indexes, not constraints, because building an index blocks
+-- writers only; a constraint would lock readers of the versions out for the
+-- rest of the migration.
 CREATE TABLE "goal_month_target_changes" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"organization_id" varchar(255) NOT NULL,
