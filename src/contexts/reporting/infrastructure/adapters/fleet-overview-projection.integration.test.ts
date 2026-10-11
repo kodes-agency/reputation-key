@@ -13,6 +13,7 @@ import {
   findMetricVersionById,
 } from '../../domain/metric-registry'
 import { getFleetOverview } from '../../application/use-cases/get-fleet-overview'
+import { seedLockedMonthTarget } from '../testing/goal-month-target-seed'
 import { createFleetOverviewProjectionAdapter } from './fleet-overview-projection.adapter'
 
 const FLEET_TRANSACTION_STATEMENT_BOUND = 4
@@ -359,27 +360,23 @@ async function seedRunningGoalMonth(month: RunningGoalMonth): Promise<void> {
              '2026-08-01T00:00:00Z', 'manager-1', '2026-08-01T00:00:00Z')`,
     [assignment, program, version, ORG, month.property],
   )
+  const result = randomUUID()
   await client.query(
     `INSERT INTO goal_monthly_results
        (id, assignment_id, program_id, program_version_id, organization_id,
         property_id, period_start, period_end, property_timezone, status,
-        target_value, evaluation_state, value, sample_count, achieved,
+        evaluation_state, value, sample_count, achieved,
         source_complete_through, evaluation_watermark, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, '2026-08-01T00:00:00Z',
-             '2026-09-01T00:00:00Z', 'UTC', 'open', $7, 'eligible', $8::numeric,
-             $8::integer, false, $9, $9, '2026-08-01T00:00:00Z', $9)`,
-    [
-      randomUUID(),
-      assignment,
-      program,
-      version,
-      ORG,
-      month.property,
-      month.monthTarget,
-      month.scansSoFar,
-      NOW,
-    ],
+             '2026-09-01T00:00:00Z', 'UTC', 'open', 'eligible', $7::numeric,
+             $7::integer, false, $8, $8, '2026-08-01T00:00:00Z', $8)`,
+    [result, assignment, program, version, ORG, month.property, month.scansSoFar, NOW],
   )
+  // August 2026 is over on the database clock, so the target lock refuses the
+  // target a manager set while the month ran.
+  if (month.monthTarget !== null) {
+    await seedLockedMonthTarget(client, result, month.monthTarget)
+  }
 }
 
 describe('fleet overview projection integration', () => {

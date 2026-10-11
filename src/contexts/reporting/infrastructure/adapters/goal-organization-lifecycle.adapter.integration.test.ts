@@ -15,6 +15,7 @@ import type { Database } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { seedLockedMonthTargetCommitted } from '../testing/goal-month-target-seed'
 import {
   createGoalOrganizationLifecycleAdapter,
   GOAL_PURGE_TABLES,
@@ -120,15 +121,13 @@ async function seedTenantRows(
       VERSION_FROM,
     ],
   )
-  // The month closed against its own target of 8 (the version says 10).
   await lease.pool.query(
     `INSERT INTO goal_monthly_results
        (id, assignment_id, program_id, program_version_id, organization_id, property_id,
-        period_start, period_end, property_timezone, status, target_value,
-        evaluation_state, sample_count, evaluation_watermark, closed_at, created_at,
-        updated_at)
+        period_start, period_end, property_timezone, status, evaluation_state,
+        sample_count, evaluation_watermark, closed_at, created_at, updated_at)
      VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6::uuid, $7, $8, 'UTC',
-             'closed', 8, 'unavailable', 0, $9, $9, $9, $9)`,
+             'closed', 'unavailable', 0, $9, $9, $9, $9)`,
     [
       monthlyResultId,
       assignmentId,
@@ -141,6 +140,9 @@ async function seedTenantRows(
       CLOSED_AT,
     ],
   )
+  // The month closed against its own target of 8 (the version says 10). The
+  // target lock refuses that on a closed month, so it is seeded past the guard.
+  await seedLockedMonthTargetCommitted(lease.pool, monthlyResultId, 8)
   // The log row that recorded that change. It references the month, the
   // Program and a version with ON DELETE RESTRICT, so purge must delete it
   // before any of the three.

@@ -96,18 +96,71 @@ describe('migration 0054 goal month target', () => {
   })
 
   it('ties every log reference to a row of the same Organization and Property', () => {
-    for (const [constraint, target] of [
-      ['goal_month_target_changes_result_fk', 'goal_monthly_results'],
-      ['goal_month_target_changes_program_fk', 'goal_programs'],
-      ['goal_month_target_changes_following_version_fk', 'goal_program_versions'],
+    for (const [constraint, target, columns, referenced] of [
+      [
+        'goal_month_target_changes_result_fk',
+        'goal_monthly_results',
+        '"organization_id","property_id","program_id","monthly_result_id"',
+        '"organization_id","property_id","program_id","id"',
+      ],
+      [
+        'goal_month_target_changes_program_fk',
+        'goal_programs',
+        '"organization_id","property_id","program_id"',
+        '"organization_id","property_id","id"',
+      ],
+      [
+        'goal_month_target_changes_following_version_fk',
+        'goal_program_versions',
+        '"organization_id","property_id","program_id","following_version_id"',
+        '"organization_id","property_id","program_id","id"',
+      ],
     ] as const) {
       const statement = statementContaining(`ADD CONSTRAINT "${constraint}"`)
-      expect(statement).toContain('FOREIGN KEY ("organization_id","property_id",')
-      expect(statement).toContain(
-        `REFERENCES "public"."${target}"("organization_id","property_id","id")`,
-      )
+      expect(statement).toContain(`FOREIGN KEY (${columns})`)
+      expect(statement).toContain(`REFERENCES "public"."${target}"(${referenced})`)
       expect(statement).toContain('ON DELETE restrict')
     }
+  })
+
+  it('gives the month and the version the key that ties a change to its own Program', () => {
+    // The month and the following version a change names must belong to the
+    // Program it names. A foreign key needs a unique key over the columns it
+    // references; a unique index is enough and does not block readers.
+    for (const table of ['goal_monthly_results', 'goal_program_versions']) {
+      expect(
+        statementContaining(`CREATE UNIQUE INDEX "${table}_target_change_fk_key"`),
+      ).toContain(
+        `ON "${table}" USING btree ("organization_id","property_id","program_id","id")`,
+      )
+    }
+  })
+
+  it('logs a month once for each command', () => {
+    expect(statementContaining('CREATE TABLE "goal_month_target_changes"')).toContain(
+      'CONSTRAINT "goal_month_target_changes_change_result_key" UNIQUE("change_id","monthly_result_id")',
+    )
+  })
+
+  it('locks Programs, then versions, then months, as every goal write does', () => {
+    // The whole migration is one transaction. A goal command writes its
+    // Program first and its months last; taking the tables in another order
+    // could deadlock with a command or the maintenance job mid-deploy.
+    const order = [
+      'ADD CONSTRAINT "goal_month_target_changes_program_fk"',
+      'CREATE UNIQUE INDEX "goal_program_versions_target_change_fk_key"',
+      'ADD CONSTRAINT "goal_month_target_changes_following_version_fk"',
+      'ALTER TABLE "goal_monthly_results" ADD COLUMN "target_value"',
+      'ADD CONSTRAINT "goal_monthly_results_target_value_check"',
+      'CREATE UNIQUE INDEX "goal_monthly_results_target_change_fk_key"',
+      'ADD CONSTRAINT "goal_month_target_changes_result_fk"',
+    ].map((fragment) => statements.indexOf(statementContaining(fragment)))
+    expect(order).toEqual([...order].sort((left, right) => left - right))
+    expect(new Set(order).size).toBe(order.length)
+    // Nothing before the Program reference touches a table goal writes use.
+    expect(statements.slice(0, order[0])).toEqual([
+      statementContaining('CREATE TABLE "goal_month_target_changes"'),
+    ])
   })
 
   it('puts no guard trigger on the log', () => {
@@ -128,6 +181,15 @@ describe('guard_goal_monthly_result_v1 after migration 0054', () => {
         `AND (OLD."status" <> 'open' OR clock_timestamp() >= OLD."period_end")`,
       )
       expect(sql).toContain('goal monthly result target is locked once its period ends')
+    }
+  })
+
+  it('refuses a new month that brings a target unless it is open and still running', () => {
+    for (const sql of [restated, CONSTRUCTS]) {
+      expect(sql).toContain(`IF TG_OP = 'INSERT'\n    AND NEW."target_value" IS NOT NULL`)
+      expect(sql).toContain(
+        `AND (NEW."status" <> 'open' OR clock_timestamp() >= NEW."period_end")`,
+      )
     }
   })
 

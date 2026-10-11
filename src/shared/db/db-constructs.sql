@@ -893,6 +893,14 @@ BEGIN
       USING ERRCODE = '55000';
   END IF;
 
+  IF TG_OP = 'INSERT'
+    AND NEW."target_value" IS NOT NULL
+    AND (NEW."status" <> 'open' OR clock_timestamp() >= NEW."period_end")
+  THEN
+    RAISE EXCEPTION 'goal monthly result target is locked once its period ends'
+      USING ERRCODE = '55000';
+  END IF;
+
   IF TG_OP = 'UPDATE' AND NEW."status" <> OLD."status" AND NOT (
     (OLD."status" = 'open' AND NEW."status" = 'reconciling')
     OR (OLD."status" = 'reconciling' AND NEW."status" = 'closed')

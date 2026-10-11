@@ -3,6 +3,7 @@ import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core'
 import {
   goalMonthlyResults,
   goalMonthTargetChanges,
+  goalProgramVersions,
   goalResultRevisions,
   goalSubjectAssignments,
 } from './goal.schema'
@@ -40,6 +41,19 @@ const column = (table: Table, name: string) => {
   const found = getTableConfig(table).columns.find((candidate) => candidate.name === name)
   if (!found) throw new Error(`Missing column ${name}`)
   return found
+}
+
+const indexConfig = (table: Table, name: string) => {
+  const found = getTableConfig(table).indexes.find(
+    (candidate) => candidate.config.name === name,
+  )
+  if (!found) throw new Error(`Missing index ${name}`)
+  return {
+    unique: found.config.unique,
+    columns: found.config.columns.map((indexed) =>
+      'name' in indexed ? indexed.name : null,
+    ),
+  }
 }
 
 describe('Goal governance tenant constraints', () => {
@@ -103,18 +117,52 @@ describe('Goal month target constraints', () => {
     )
   })
 
-  it('binds a target change to its month, Program and following version in one tenant', () => {
-    for (const [name, local] of [
-      ['goal_month_target_changes_result_fk', 'monthly_result_id'],
-      ['goal_month_target_changes_program_fk', 'program_id'],
-      ['goal_month_target_changes_following_version_fk', 'following_version_id'],
+  it('binds a target change to its Program, and to a month and a following version of that Program', () => {
+    for (const [name, local, foreign] of [
+      [
+        'goal_month_target_changes_result_fk',
+        ['organization_id', 'property_id', 'program_id', 'monthly_result_id'],
+        ['organization_id', 'property_id', 'program_id', 'id'],
+      ],
+      [
+        'goal_month_target_changes_program_fk',
+        ['organization_id', 'property_id', 'program_id'],
+        ['organization_id', 'property_id', 'id'],
+      ],
+      [
+        'goal_month_target_changes_following_version_fk',
+        ['organization_id', 'property_id', 'program_id', 'following_version_id'],
+        ['organization_id', 'property_id', 'program_id', 'id'],
+      ],
     ] as const) {
       expect(foreignKeyColumns(goalMonthTargetChanges, name), name).toEqual({
-        local: ['organization_id', 'property_id', local],
-        foreign: ['organization_id', 'property_id', 'id'],
+        local,
+        foreign,
       })
       expect(foreignKeyRule(goalMonthTargetChanges, name), name).toBe('restrict')
     }
+  })
+
+  it('gives the month and the version the unique key those references need', () => {
+    for (const [table, name] of [
+      [goalMonthlyResults, 'goal_monthly_results_target_change_fk_key'],
+      [goalProgramVersions, 'goal_program_versions_target_change_fk_key'],
+    ] as const) {
+      expect(indexConfig(table, name), name).toEqual({
+        unique: true,
+        columns: ['organization_id', 'property_id', 'program_id', 'id'],
+      })
+    }
+  })
+
+  it('logs a month once for each command', () => {
+    const key = getTableConfig(goalMonthTargetChanges).uniqueConstraints.find(
+      (candidate) => candidate.name === 'goal_month_target_changes_change_result_key',
+    )
+    expect(key?.columns.map((keyed) => keyed.name)).toEqual([
+      'change_id',
+      'monthly_result_id',
+    ])
   })
 
   it('requires the tenant, the month, the command and both values on every change', () => {
@@ -160,11 +208,11 @@ describe('Goal month target constraints', () => {
   })
 
   it('reads a Program’s changes in the order they were made', () => {
-    const index = getTableConfig(goalMonthTargetChanges).indexes.find(
-      (candidate) => candidate.config.name === 'goal_month_target_changes_program_idx',
-    )
     expect(
-      index?.config.columns.map((indexed) => ('name' in indexed ? indexed.name : null)),
-    ).toEqual(['organization_id', 'property_id', 'program_id', 'created_at'])
+      indexConfig(goalMonthTargetChanges, 'goal_month_target_changes_program_idx'),
+    ).toEqual({
+      unique: false,
+      columns: ['organization_id', 'property_id', 'program_id', 'created_at'],
+    })
   })
 })

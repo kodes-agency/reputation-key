@@ -6,6 +6,7 @@ import type { Database } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { CLASSIFICATIONS_BY_CONTEXT } from '#/contexts/identity/application/ports/organization-export-contributor.port'
+import { seedLockedMonthTargetCommitted } from '../testing/goal-month-target-seed'
 import { createGoalOrganizationExportAdapter } from './goal-organization-export.adapter'
 
 // Immutable registry ids seeded by migration 0018 (METRIC_VERSION_IDS).
@@ -210,17 +211,17 @@ async function seedFixture(): Promise<Fixture> {
   )
 
   // June closed against its own target of 80 (the version says 100); July
-  // closed with no target of its own.
+  // closed with no target of its own. The target lock refuses a target on a
+  // closed month, so June's is seeded past the guard.
   await lease.pool.query(
     `INSERT INTO goal_monthly_results (
        id, assignment_id, program_id, program_version_id, organization_id,
        property_id, period_start, period_end, property_timezone, status,
-       target_value, evaluation_state, value, sample_count, achieved,
-       source_complete_through, evaluation_watermark, closed_at, created_at,
-       updated_at
+       evaluation_state, value, sample_count, achieved, source_complete_through,
+       evaluation_watermark, closed_at, created_at, updated_at
      ) VALUES ($1, $2, $3, $4, $5, $6,
                TIMESTAMPTZ '2026-06-01T00:00:00Z', TIMESTAMPTZ '2026-07-01T00:00:00Z',
-               'UTC', 'closed', 80, 'eligible', 30, 30, false,
+               'UTC', 'closed', 'eligible', 30, 30, false,
                TIMESTAMPTZ '2026-07-01T00:00:00Z', TIMESTAMPTZ '2026-07-02T00:00:00Z',
                TIMESTAMPTZ '2026-07-02T00:00:00Z', NOW(), NOW())`,
     [
@@ -232,6 +233,7 @@ async function seedFixture(): Promise<Fixture> {
       fixture.propertyId,
     ],
   )
+  await seedLockedMonthTargetCommitted(lease.pool, fixture.monthlyResultId, 80)
   await lease.pool.query(
     `INSERT INTO goal_monthly_results (
        id, assignment_id, program_id, program_version_id, organization_id,

@@ -7,6 +7,7 @@ import {
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
 import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { seedLockedMonthTarget } from '../testing/goal-month-target-seed'
 import { createAttentionSignalsAdapter } from './attention-signals.adapter'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
@@ -230,27 +231,23 @@ async function seedRunningGoalMonth(month: RunningGoalMonth) {
              '2026-08-01T00:00:00Z', 'manager-1', '2026-08-01T00:00:00Z')`,
     [assignment, program, version, ORGANIZATION, property],
   )
+  const result = randomUUID()
   await client.query(
     `INSERT INTO goal_monthly_results
        (id, assignment_id, program_id, program_version_id, organization_id,
         property_id, period_start, period_end, property_timezone, status,
-        target_value, evaluation_state, value, sample_count, achieved,
+        evaluation_state, value, sample_count, achieved,
         source_complete_through, evaluation_watermark, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, '2026-08-01T00:00:00Z',
-             '2026-09-01T00:00:00Z', 'UTC', 'open', $7, 'eligible', $8::numeric,
-             $8::integer, false, $9, $9, '2026-08-01T00:00:00Z', $9)`,
-    [
-      randomUUID(),
-      assignment,
-      program,
-      version,
-      ORGANIZATION,
-      property,
-      month.monthTarget,
-      month.scansSoFar,
-      NOW,
-    ],
+             '2026-09-01T00:00:00Z', 'UTC', 'open', 'eligible', $7::numeric,
+             $7::integer, false, $8, $8, '2026-08-01T00:00:00Z', $8)`,
+    [result, assignment, program, version, ORGANIZATION, property, month.scansSoFar, NOW],
   )
+  // August 2026 is over on the database clock, so the target lock refuses the
+  // target a manager set while the month ran.
+  if (month.monthTarget !== null) {
+    await seedLockedMonthTarget(client, result, month.monthTarget)
+  }
   return property
 }
 

@@ -214,8 +214,9 @@ export const resultValues = (result: GoalMonthlyResult) => ({
   periodEnd: result.periodEnd,
   propertyTimezone: result.propertyTimezone,
   status: result.status,
-  // A month always opens on its version's target. The column is only ever
-  // set by an UPDATE of a month that is still running.
+  // A month always opens on its version's target. Nothing here sets the
+  // column, and the guard refuses any writer that would give a month its own
+  // target once it is not open or its period has ended.
   targetValue: null,
   evaluationState: result.evaluation.state,
   value: result.evaluation.value,

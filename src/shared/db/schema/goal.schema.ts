@@ -13,6 +13,7 @@ import {
   text,
   timestamp,
   index,
+  uniqueIndex,
   unique,
   check,
   foreignKey,
@@ -97,6 +98,14 @@ export const goalProgramVersions = pgTable(
       t.programId,
       t.id,
       t.metricKey,
+    ),
+    // What a month target change references, so its following version is one
+    // of its own Program. An index, as migration 0054 built it.
+    uniqueIndex('goal_program_versions_target_change_fk_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.programId,
+      t.id,
     ),
     index('goal_program_versions_effective_idx').on(
       t.organizationId,
@@ -280,8 +289,9 @@ export const goalMonthlyResults = pgTable(
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     // The target of this one month. NULL means the month uses its version's
-    // target. guard_goal_monthly_result_v1 locks it once the row is not open or
-    // its period has ended, and holds it to the version's measure rule.
+    // target. guard_goal_monthly_result_v1 lets a row take or change one only
+    // while it is open and its period has not ended, on INSERT and on UPDATE,
+    // and holds it to the version's measure rule.
     targetValue: numeric('target_value', { precision: 30, scale: 10, mode: 'number' }),
   },
   (t) => [
@@ -293,6 +303,14 @@ export const goalMonthlyResults = pgTable(
     unique('goal_monthly_results_org_property_id_key').on(
       t.organizationId,
       t.propertyId,
+      t.id,
+    ),
+    // What a month target change references, so the month it names is one of
+    // its own Program. An index, as migration 0054 built it.
+    uniqueIndex('goal_monthly_results_target_change_fk_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.programId,
       t.id,
     ),
     index('goal_monthly_results_due_idx').on(
@@ -422,9 +440,11 @@ export const goalResultRevisions = pgTable(
 
 // Every change to a month's own target: who, when, the old and the new value
 // and an optional note. One command writes one row per month it changed, all
-// sharing `changeId`. `followingOutcome` records what happened to the months
-// after it. Rows are only appended. The table has no guard trigger: it records
-// a value from before the month closed, not closed evidence.
+// sharing `changeId`, and never two for the same month. `followingOutcome`
+// records what happened to the months after it. The month and the following
+// version a row names belong to the Program it names. The application only
+// appends rows; the table has no guard trigger, because it records a value
+// from before the month closed, not closed evidence.
 export const goalMonthTargetChanges = pgTable(
   'goal_month_target_changes',
   {
@@ -452,6 +472,10 @@ export const goalMonthTargetChanges = pgTable(
     createdAt: createdAtColumn(),
   },
   (t) => [
+    unique('goal_month_target_changes_change_result_key').on(
+      t.changeId,
+      t.monthlyResultId,
+    ),
     index('goal_month_target_changes_program_idx').on(
       t.organizationId,
       t.propertyId,
@@ -460,10 +484,11 @@ export const goalMonthTargetChanges = pgTable(
     ),
     foreignKey({
       name: 'goal_month_target_changes_result_fk',
-      columns: [t.organizationId, t.propertyId, t.monthlyResultId],
+      columns: [t.organizationId, t.propertyId, t.programId, t.monthlyResultId],
       foreignColumns: [
         goalMonthlyResults.organizationId,
         goalMonthlyResults.propertyId,
+        goalMonthlyResults.programId,
         goalMonthlyResults.id,
       ],
     }).onDelete('restrict'),
@@ -478,10 +503,11 @@ export const goalMonthTargetChanges = pgTable(
     }).onDelete('restrict'),
     foreignKey({
       name: 'goal_month_target_changes_following_version_fk',
-      columns: [t.organizationId, t.propertyId, t.followingVersionId],
+      columns: [t.organizationId, t.propertyId, t.programId, t.followingVersionId],
       foreignColumns: [
         goalProgramVersions.organizationId,
         goalProgramVersions.propertyId,
+        goalProgramVersions.programId,
         goalProgramVersions.id,
       ],
     }).onDelete('restrict'),

@@ -7,6 +7,7 @@ import {
 } from '#/shared/db/testing/held-transaction'
 import type { GoalMonthlyResult } from '../../application/ports/goal-program.repository'
 import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { seedLockedMonthTarget } from '../testing/goal-month-target-seed'
 import { createGoalProgramRepository } from './goal-program.repository'
 
 type Month = Readonly<{ start: Date; end: Date }>
@@ -64,6 +65,8 @@ describe.sequential('Goal month target guard (integration)', () => {
   let db: Database
   let scans: ProgramFixture
   let average: ProgramFixture
+  /** A second Program on the Property of `scans`. */
+  let sibling: ProgramFixture
   let otherTenant: ProgramFixture
   /** Monthly result ids, named for the state the guard sees them in. */
   let months: Readonly<{
@@ -101,24 +104,28 @@ describe.sequential('Goal month target guard (integration)', () => {
     return result.rows[0] as Month
   }
 
+  /** A Program on a Property of its own, or on `propertyId` when one is given. */
   async function createProgram(
     organizationId: string,
     metric: keyof typeof MEASURES,
+    propertyId?: string,
   ): Promise<ProgramFixture> {
     const measure = MEASURES[metric]
     const fixture: ProgramFixture = {
       organizationId,
-      propertyId: randomUUID(),
+      propertyId: propertyId ?? randomUUID(),
       programId: randomUUID(),
       versionId: randomUUID(),
       assignmentId: randomUUID(),
     }
     const effectiveFrom = (await month(-6)).start
-    await client.query(
-      `INSERT INTO properties (id, organization_id, name, slug, timezone)
-       VALUES ($1, $2, 'Month target Property', $3, 'UTC')`,
-      [fixture.propertyId, organizationId, `month-target-${randomUUID()}`],
-    )
+    if (!propertyId) {
+      await client.query(
+        `INSERT INTO properties (id, organization_id, name, slug, timezone)
+         VALUES ($1, $2, 'Month target Property', $3, 'UTC')`,
+        [fixture.propertyId, organizationId, `month-target-${randomUUID()}`],
+      )
+    }
     await client.query(
       `INSERT INTO goal_programs
          (id, organization_id, property_id, name, status, current_version, created_by)
@@ -248,6 +255,11 @@ describe.sequential('Goal month target guard (integration)', () => {
     const organizationId = `goal-month-target-${randomUUID()}`
     scans = await createProgram(organizationId, 'qualified_scans')
     average = await createProgram(organizationId, 'portal_rating_average')
+    sibling = await createProgram(
+      organizationId,
+      'portal_rating_average',
+      scans.propertyId,
+    )
     otherTenant = await createProgram(
       `goal-month-target-other-${randomUUID()}`,
       'qualified_scans',
@@ -256,11 +268,13 @@ describe.sequential('Goal month target guard (integration)', () => {
       running: await insertMonth(scans, { offset: 0 }),
       runningAverage: await insertMonth(average, { offset: 0 }),
       ended: await insertMonth(scans, { offset: -1 }),
-      endedWithTarget: await insertMonth(average, { offset: -1, targetValue: 4.2 }),
+      endedWithTarget: await insertMonth(average, { offset: -1 }),
       reconciling: await insertMonth(scans, { offset: -2, status: 'reconciling' }),
       closed: await insertMonth(scans, { offset: -3, status: 'closed' }),
       otherTenantRunning: await insertMonth(otherTenant, { offset: 0 }),
     }
+    // Set while that month ran; the lock would refuse it now.
+    await seedLockedMonthTarget(client, months.endedWithTarget, 4.2)
   })
 
   afterAll(async () => {
@@ -362,8 +376,31 @@ describe.sequential('Goal month target guard (integration)', () => {
     ).rejects.toMatchObject(BREAKS_MEASURE_RULE)
   })
 
+  it('the guard refuses a new month that brings a target after its period end', async () => {
+    await expect(
+      insertMonth(scans, { offset: -4, targetValue: 300 }),
+    ).rejects.toMatchObject(LOCKED)
+    // The same month without a target of its own is still accepted.
+    await expect(insertMonth(scans, { offset: -4 })).resolves.toEqual(expect.any(String))
+  })
+
+  it('the guard refuses a new reconciling or closed month that brings a target', async () => {
+    for (const status of ['reconciling', 'closed'] as const) {
+      await expect(
+        insertMonth(sibling, { offset: -2, status, targetValue: 4.2 }),
+        status,
+      ).rejects.toMatchObject(LOCKED)
+    }
+  })
+
+  it('the guard accepts a new month that brings a target while it is open and running', async () => {
+    const running = await insertMonth(sibling, { offset: 0, targetValue: 4.2 })
+    expect(Number(await storedTarget(running))).toBe(4.2)
+  })
+
   it('a month with its own target still reconciles and closes', async () => {
-    const ended = await insertMonth(scans, { offset: -4, targetValue: 300 })
+    const ended = await insertMonth(scans, { offset: -5 })
+    await seedLockedMonthTarget(client, ended, 300)
 
     await expect(
       attempt(`UPDATE goal_monthly_results SET status = 'reconciling' WHERE id = $1`, [
@@ -392,7 +429,7 @@ describe.sequential('Goal month target guard (integration)', () => {
       scans.versionId,
     )
     if (!version) throw new Error('The fixture version is missing')
-    const period = await month(-5)
+    const period = await month(-6)
     const at = new Date()
     const opened: GoalMonthlyResult = {
       id: randomUUID(),
@@ -450,16 +487,13 @@ describe.sequential('Goal month target guard (integration)', () => {
         logChange(scans, months.running, {
           change_id: changeId,
           note: 'Fewer guests in October',
-        }),
-      ).resolves.toMatchObject({ rowCount: 1 })
-      await expect(
-        logChange(scans, months.running, {
-          change_id: changeId,
-          previous_target_value: 300,
-          new_target_value: 350,
           following_outcome: 'applied',
           following_version_id: scans.versionId,
         }),
+      ).resolves.toMatchObject({ rowCount: 1 })
+      // One command logs every month it changed under the same change id.
+      await expect(
+        logChange(scans, months.ended, { change_id: changeId }),
       ).resolves.toMatchObject({ rowCount: 1 })
 
       const stored = await client.query<{ created_at: Date | null }>(
@@ -470,16 +504,62 @@ describe.sequential('Goal month target guard (integration)', () => {
       expect(stored.rows.every((row) => row.created_at instanceof Date)).toBe(true)
     })
 
+    it('refuses a second row for the same month under one change', async () => {
+      const changeId = randomUUID()
+      await logChange(scans, months.running, { change_id: changeId })
+
+      await expect(
+        logChange(scans, months.running, {
+          change_id: changeId,
+          previous_target_value: 300,
+          new_target_value: 350,
+        }),
+      ).rejects.toMatchObject({
+        code: '23505',
+        constraint: 'goal_month_target_changes_change_result_key',
+      })
+      // A later change to the same month is a command of its own.
+      await expect(
+        logChange(scans, months.running, {
+          previous_target_value: 300,
+          new_target_value: 350,
+        }),
+      ).resolves.toMatchObject({ rowCount: 1 })
+    })
+
+    it('refuses a change whose month belongs to another Program of the same Property', async () => {
+      await expect(logChange(sibling, months.running)).rejects.toMatchObject({
+        code: '23503',
+        constraint: 'goal_month_target_changes_result_fk',
+      })
+    })
+
+    it('refuses a following version of another Program of the same Property', async () => {
+      await expect(
+        logChange(scans, months.running, {
+          following_outcome: 'applied',
+          following_version_id: sibling.versionId,
+        }),
+      ).rejects.toMatchObject({
+        code: '23503',
+        constraint: 'goal_month_target_changes_following_version_fk',
+      })
+    })
+
     it('refuses a change that names another tenant’s month, Program or version', async () => {
       await expect(logChange(scans, months.otherTenantRunning)).rejects.toMatchObject({
         code: '23503',
         constraint: 'goal_month_target_changes_result_fk',
       })
+      // Neither the Program nor a month of it exists in this tenant, so either
+      // key may be the one that answers.
       await expect(
         logChange(scans, months.running, { program_id: otherTenant.programId }),
       ).rejects.toMatchObject({
         code: '23503',
-        constraint: 'goal_month_target_changes_program_fk',
+        constraint: expect.stringMatching(
+          /^goal_month_target_changes_(?:program|result)_fk$/u,
+        ),
       })
       await expect(
         logChange(scans, months.running, {
