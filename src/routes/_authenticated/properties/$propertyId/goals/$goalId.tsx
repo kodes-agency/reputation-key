@@ -42,6 +42,7 @@ import {
   goalStartMonthHint,
   statusReasonLabel,
 } from '#/components/goals/goal-detail-view'
+import { goalVersionNumber } from '#/components/goals/goal-version-number'
 import { goalSubjectKey } from '#/components/goals/goal-subject-picker'
 import { formatDate } from '#/lib/format'
 
@@ -255,7 +256,8 @@ function GoalDetailRoute() {
             })}
           </p>
           <p>
-            <span className="text-muted-foreground">Version:</span> {version.version}
+            <span className="text-muted-foreground">Version:</span>{' '}
+            {goalVersionNumber(versions, version)}
           </p>
           {statusNote === null ? null : (
             <p className="md:col-span-2">
