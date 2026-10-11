@@ -5,11 +5,13 @@
 // goal's head version has come, so the rule is stated once here: the revise
 // and change-subjects commands call it to write the version, and the dialogs
 // call it to say "Applies from {date}" before the manager saves.
+import type { GoalProgramStatus } from '../domain/goal-program'
+// From its own module, not through the Program module: the dialogs run this
+// in the browser, and the Program module is part of the first-paint bundle.
 import {
   firstFullMonthlyPeriodAtOrAfter,
-  type GoalProgramStatus,
-} from '../domain/goal-program'
-import type { GoalMonthlyPeriod } from '../domain/goal-start'
+  type GoalMonthlyPeriod,
+} from '../domain/goal-start'
 import type {
   GoalMonthlyResult,
   GoalProgramVersion,

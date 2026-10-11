@@ -1,4 +1,4 @@
-// When a new goal starts.
+// When a new goal starts, and the month a change to a goal starts in.
 //
 // A goal starts in the current month of the Property's calendar or in the next
 // one, chosen when it is created. The choice travels as the month itself
@@ -6,14 +6,14 @@
 // left open across the last midnight of a month.
 //
 // Its own module, apart from the Program's other rules, because the new-goal
-// form runs it in the browser: the Program module is part of the first-paint
-// bundle (the command DTO imports it), and this calendar code must not be.
+// form and the dialogs that change a goal run it in the browser: the Program
+// module is part of the first-paint bundle (the command DTO imports it), and
+// this calendar code must not be.
 import {
   calendarPeriodRange,
   dayKeyInTimezone,
   localDayOfMonth,
 } from '#/shared/domain/period-range'
-import { firstFullMonthlyPeriodAtOrAfter } from './goal-program'
 
 /**
  * The last local day of the month on which a new goal still counts for that
@@ -22,6 +22,21 @@ import { firstFullMonthlyPeriodAtOrAfter } from './goal-program'
 export const GOAL_CURRENT_MONTH_CUTOFF_DAY = 20
 
 export type GoalMonthlyPeriod = Readonly<{ start: Date; end: Date }>
+
+/**
+ * First complete property-local month that does not start before `at`. The
+ * local month containing `at` can start after it: an instant inside a repeated
+ * midnight hour belongs to the new local month, whose first instant is the
+ * midnight's later occurrence.
+ */
+export function firstFullMonthlyPeriodAtOrAfter(
+  at: Date,
+  timezone: string,
+): GoalMonthlyPeriod {
+  const current = calendarPeriodRange(at, timezone, 'monthly')
+  if (at.getTime() <= current.start.getTime()) return current
+  return calendarPeriodRange(current.end, timezone, 'monthly')
+}
 
 /** A month a new goal may start in: its `YYYY-MM` key on the Property's calendar. */
 export type GoalStartOption = Readonly<{
