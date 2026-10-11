@@ -1,10 +1,10 @@
 // Goal Program use cases — the pieces every command module shares.
 //
-// A leaf: it imports no sibling use-case module, so goal-programs.ts and the
-// command modules it composes (goal-program-maintenance.ts,
-// goal-program-assignment-changes.ts) can all depend on it without a cycle.
-// It holds the service's dependency types, its error, and the pure builders
-// and resolvers that more than one command uses.
+// A leaf among the Goal Program modules: it imports none of goal-programs.ts,
+// goal-program-maintenance.ts or goal-program-assignment-changes.ts (only
+// types from query-goal-metric.ts), so all three can depend on it without a
+// cycle. It holds the service's dependency types, its error, and the pure
+// builders and resolvers that more than one command uses.
 import {
   METRIC_VERSION_IDS,
   type GovernedMetricVersion,

@@ -82,10 +82,6 @@
       "exports": ["RECENT_ACTIVITY_REPLAY_SOURCE_KINDS"]
     },
     {
-      "file": "src/contexts/reporting/application/use-cases/goal-program-maintenance.ts",
-      "exports": ["GoalProgramMaintenanceError"]
-    },
-    {
       "file": "src/contexts/identity/domain/organization-lifecycle.ts",
       "exports": ["ORGANIZATION_LIFECYCLE_RECEIPT_PHASES"]
     },

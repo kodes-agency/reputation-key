@@ -51,11 +51,10 @@ export type GoalProgramMaintenanceStats = Readonly<{
  * and quarantine policy can act. The stats are identifier-free and safe to
  * report; individual tenant/program identifiers never cross this boundary.
  */
-// Exported although nothing imports it TODAY: this class is thrown OUT of the
-// module, and BullMQ's retry policy is meant to act on it. A caller that
-// eventually wants to discriminate it should be able to use `instanceof`
-// rather than string-matching `error.name`, which is the only handle an
-// un-exported class leaves behind.
+// Exported because it is thrown OUT of the module: the service re-exports it
+// (goal-programs.ts), and the maintenance job discriminates it with
+// `instanceof` so BullMQ's retry policy can act on it, rather than
+// string-matching `error.name`.
 export class GoalProgramMaintenanceError extends Error {
   constructor(readonly stats: GoalProgramMaintenanceStats) {
     super(`Goal Program maintenance had ${stats.failed} failed operation(s)`)
