@@ -8,6 +8,10 @@ import { z } from 'zod/v4'
 import { MAX_GOAL_BULK_ITEMS } from '../../domain/goal-bulk-create'
 import { createGoalProgramSchema } from './goal-program.dto'
 
+// Routes and components may import application, not domain: the table reads
+// the most rows one save takes, to say so before it sends more.
+export { MAX_GOAL_BULK_ITEMS }
+
 const uuid = z.uuid()
 const { propertyId, metric, startMonth, targetValue } = createGoalProgramSchema.shape
 

@@ -24,7 +24,18 @@ export type GoalCreateRefusalContext = Readonly<{
   now: Date
 }>
 
-function heldSentence(hold: GoalSubjectHold, context: GoalCreateRefusalContext): string {
+/**
+ * Which goal holds a subject, and what frees it: the goal it is part of, or
+ * the day a goal that is ending lets it go. The table that sets several goals
+ * prints the same sentence on the row of a subject that is taken.
+ */
+export function goalHeldSentence(
+  hold: GoalSubjectHold,
+  context: Pick<
+    GoalCreateRefusalContext,
+    'startsThisMonth' | 'subjectName' | 'timezone' | 'now'
+  >,
+): string {
   const name = context.subjectName(hold.subject)
   if (hold.heldUntil === null) {
     // A subject taken out of a goal stays in it until the month ends, so it
@@ -49,7 +60,7 @@ function heldSubjects(context: GoalCreateRefusalContext): string | null {
   const chosen = new Set(context.subjects.map(goalSubjectKey))
   const sentences = context.holds
     .filter((hold) => chosen.has(goalSubjectKey(hold.subject)))
-    .map((hold) => heldSentence(hold, context))
+    .map((hold) => goalHeldSentence(hold, context))
   return sentences.length === 0 ? null : sentences.join(' ')
 }
 
