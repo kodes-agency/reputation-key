@@ -1,14 +1,17 @@
+import { useState } from 'react'
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
   changeGoalProgramAssignments,
   changeGoalProgramStatus,
   getGoalProgram,
+  getGoalProgramProgress,
   reviseGoalProgram,
 } from '#/contexts/reporting/server/goal-programs'
+import { goalTargetProvenance } from '#/contexts/reporting/application/goal-target-provenance'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
 import type { GoalSubject } from '#/contexts/reporting/application/public-api'
@@ -27,6 +30,14 @@ import { GoalProgramRevisionDialog } from '#/components/goals/goal-program-revis
 import { GoalProgramAssignmentsDialog } from '#/components/goals/goal-program-assignments-dialog'
 import { GoalStatusActions } from '#/components/goals/goal-status-actions'
 import { GOAL_STATUS, goalResultStatus } from '#/components/goals/goal-status'
+import {
+  goalDay,
+  goalMonthNotes,
+  goalNoResultsText,
+  goalStartLine,
+  goalStatusNote,
+} from '#/components/goals/goal-detail-view'
+import { goalSubjectKey } from '#/components/goals/goal-subject-picker'
 import { formatDate } from '#/lib/format'
 
 const authRoute = getRouteApi('/_authenticated')
@@ -34,6 +45,14 @@ const goalQuery = (propertyId: string, programId: string) =>
   queryOptions({
     queryKey: goalKeys.detail(propertyId, programId),
     queryFn: () => getGoalProgram({ data: { propertyId, programId } }),
+    staleTime: 30_000,
+  })
+// The live month to date of each current subject, for the row of the month
+// still running: never a result, and a side read that never holds the page back.
+const goalSoFarQuery = (propertyId: string, programId: string) =>
+  queryOptions({
+    queryKey: goalKeys.programProgress(propertyId, programId),
+    queryFn: () => getGoalProgramProgress({ data: { propertyId, programId } }),
     staleTime: 30_000,
   })
 const subjectNamesQuery = (propertyId: string) =>
@@ -69,6 +88,7 @@ export const Route = createFileRoute(
 function GoalDetailRoute() {
   const { propertyId, goalId } = Route.useParams()
   const ctx = authRoute.useRouteContext() as AuthRouteContext
+  const [now] = useState(() => new Date())
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalQuery(propertyId, goalId))
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
@@ -85,6 +105,21 @@ function GoalDetailRoute() {
     invalidateKeys: [goalKeys.all],
   })
   const { program, version, versions, assignments } = data
+  const soFar = useQuery({
+    ...goalSoFarQuery(propertyId, goalId),
+    enabled: program.status !== 'ended',
+    retry: false,
+  })
+  const soFarBySubject = new Map(
+    soFar.data?.subjects.map(({ subject, progress }) => [
+      goalSubjectKey(subject),
+      progress,
+    ]),
+  )
+  const calendar = { timezone: version.propertyTimezone, now }
+  const provenance = goalTargetProvenance(data, version)
+  const scheduled = program.status === 'scheduled'
+  const startsOn = goalDay(provenance.countsFrom, calendar)
   const currentAssignments = assignments.filter(
     (assignment) => assignment.programVersionId === version.id,
   )
@@ -190,8 +225,12 @@ function GoalDetailRoute() {
             {version.propertyTimezone}
           </p>
           <p>
-            <span className="text-muted-foreground">Effective from:</span>{' '}
-            {formatDay(version.effectiveFrom)}
+            {goalStartLine({
+              neverStarted: program.status === 'ended' && results.length === 0,
+              countsFrom: provenance.countsFrom,
+              setAt: provenance.setAt,
+              ...calendar,
+            })}
           </p>
           <p>
             <span className="text-muted-foreground">Version:</span> {version.version}
@@ -199,7 +238,7 @@ function GoalDetailRoute() {
           {program.statusReason ? (
             <p className="md:col-span-2">
               <span className="text-muted-foreground">Status note:</span>{' '}
-              {statusReasonLabel(program.statusReason)}
+              {goalStatusNote(program.statusReason, startsOn)}
             </p>
           ) : null}
         </CardContent>
@@ -212,8 +251,11 @@ function GoalDetailRoute() {
         <CardContent>
           {results.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Results will begin with the first full month after the metric source is
-              ready.
+              {goalNoResultsText({
+                scheduled,
+                statusReason: program.statusReason,
+                startsOn,
+              })}
             </p>
           ) : (
             <div className="divide-y">
@@ -224,6 +266,17 @@ function GoalDetailRoute() {
                 const resultVersion = versions.find(
                   (candidate) => candidate.id === result.programVersionId,
                 )
+                const notes =
+                  assignment && resultVersion
+                    ? goalMonthNotes({
+                        metric: resultVersion.metric,
+                        result,
+                        setAt: goalTargetProvenance(data, resultVersion).setAt,
+                        progress:
+                          soFarBySubject.get(goalSubjectKey(assignment.subject)) ?? null,
+                        ...calendar,
+                      })
+                    : []
                 return (
                   <div
                     key={result.id}
@@ -238,10 +291,17 @@ function GoalDetailRoute() {
                         {formatDay(new Date(result.periodEnd.getTime() - 1))}
                       </p>
                     </div>
-                    <p>
-                      {result.evaluation.value ?? '—'} /{' '}
-                      {resultVersion?.targetValue ?? '—'}
-                    </p>
+                    <div>
+                      <p>
+                        {result.evaluation.value ?? '—'} /{' '}
+                        {resultVersion?.targetValue ?? '—'}
+                      </p>
+                      {notes.map((note) => (
+                        <p key={note} className="text-muted-foreground">
+                          {note}
+                        </p>
+                      ))}
+                    </div>
                     <StatusBadge
                       {...goalResultStatus(result.evaluation, Boolean(result.revision))}
                     />
@@ -267,10 +327,4 @@ function metricLabel(metric: string) {
     default:
       return metric
   }
-}
-
-function statusReasonLabel(reason: string) {
-  if (reason === 'metric_source_not_active') return 'Waiting for the metric source'
-  if (reason === 'awaiting_first_full_month') return 'Starts with the next full month'
-  return reason.replaceAll('_', ' ')
 }
