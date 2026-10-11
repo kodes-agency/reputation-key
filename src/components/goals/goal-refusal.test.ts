@@ -121,4 +121,24 @@ describe('withGoalRefusals', () => {
 
     await expect(command(undefined)).rejects.toBe(failure)
   })
+
+  it('says a caller’s own sentence for a refusal the caller can say more about', async () => {
+    // The month-target dialog knows which month it showed, so it names it.
+    const own = { month_locked: 'October has ended. Its target can’t be changed.' }
+    const locked = withGoalRefusals(async () => {
+      throw refusal('month_locked')
+    }, own)
+    const conflict = withGoalRefusals(async () => {
+      throw refusal('revision_conflict')
+    }, own)
+
+    await expect(locked(undefined)).rejects.toMatchObject({
+      message: 'October has ended. Its target can’t be changed.',
+      code: 'month_locked',
+      status: 409,
+    })
+    await expect(conflict(undefined)).rejects.toMatchObject({
+      message: SENTENCES.revision_conflict,
+    })
+  })
 })
