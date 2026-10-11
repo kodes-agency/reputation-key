@@ -80,6 +80,7 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
         assignmentHistory.set(assignment.id, assignment)
       }
       versionHistory.set(bundle.version.id, bundle.version)
+      return 'created' as const
     }),
     get: vi.fn(async () => created),
     list: vi.fn(async () => (created ? [created] : [])),
@@ -360,6 +361,277 @@ describe('canonical Goal Program service', () => {
     })
     expect(bundle.assignments).toHaveLength(1)
     expect(bundle.results).toEqual([])
+  })
+
+  describe('start month', () => {
+    const MARCH = {
+      start: new Date('2026-03-01T00:00:00.000Z'),
+      end: new Date('2026-04-01T00:00:00.000Z'),
+    }
+    const MID_MARCH = new Date('2026-03-15T12:00:00.000Z')
+    const portalGoal = (startMonth?: string) =>
+      ({
+        propertyId: 'property-1',
+        name: 'Ratings',
+        metric: 'portal_rating_count',
+        targetValue: 25,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        ...(startMonth === undefined ? {} : { startMonth }),
+      }) as const
+    const readinessOf = (
+      patch: Partial<Awaited<ReturnType<GoalMetricReadPort['queryGoalMetric']>>>,
+    ) => ({
+      definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
+      metricKey: 'portal.rating_count' as const,
+      state: 'unavailable' as const,
+      exactValue: null,
+      sampleCount: 0,
+      minimumSample: 0,
+      sourceCompleteThrough: null,
+      reason: null,
+      ...patch,
+    })
+
+    it('create for the current month on 15 Mar is active with an open March row', async () => {
+      const { service, repository, metrics } = setup(MID_MARCH)
+
+      const bundle = await service.create(portalGoal('2026-03'), actor)
+
+      expect(bundle.program).toMatchObject({ status: 'active', statusReason: null })
+      expect(bundle.version).toMatchObject({
+        effectiveFrom: MARCH.start,
+        effectiveTo: null,
+        createdAt: MID_MARCH,
+      })
+      expect(bundle.assignments).toEqual([
+        expect.objectContaining({ effectiveFrom: MARCH.start, effectiveTo: null }),
+      ])
+      expect(bundle.results).toEqual([
+        expect.objectContaining({
+          periodStart: MARCH.start,
+          periodEnd: MARCH.end,
+          status: 'open',
+          createdAt: MID_MARCH,
+        }),
+      ])
+      // Readiness is asked about the month the goal counts, from its first day.
+      expect(metrics.queryGoalMetric).toHaveBeenCalledWith(
+        expect.objectContaining({ periodStart: MARCH.start, periodEnd: MARCH.end }),
+      )
+      expect(repository.create).toHaveBeenCalledWith({
+        bundle,
+        auditAction: 'goal.program.created',
+      })
+      // The hourly run finds March already open and adds nothing to it.
+      await expect(service.maintain()).resolves.toMatchObject({
+        activated: 0,
+        scheduledResults: 0,
+        failed: 0,
+      })
+      expect(repository.activate).not.toHaveBeenCalled()
+      expect(repository.appendResults).not.toHaveBeenCalled()
+    })
+
+    it('create without a start month keeps the next-month schedule', async () => {
+      const { service } = setup(MID_MARCH)
+
+      const omitted = await service.create(portalGoal(), actor)
+
+      expect(omitted.program).toMatchObject({
+        status: 'scheduled',
+        statusReason: 'awaiting_first_full_month',
+      })
+      expect(omitted.version.effectiveFrom).toEqual(MARCH.end)
+      expect(omitted.results).toEqual([])
+    })
+
+    it('create for the next month is scheduled and waits for its first full month', async () => {
+      const { service, metrics } = setup(MID_MARCH)
+
+      const next = await service.create(portalGoal('2026-04'), actor)
+
+      expect(next.program).toMatchObject({
+        status: 'scheduled',
+        statusReason: 'awaiting_first_full_month',
+      })
+      expect(next.version.effectiveFrom).toEqual(MARCH.end)
+      expect(next.assignments[0]?.effectiveFrom).toEqual(MARCH.end)
+      expect(next.results).toEqual([])
+      expect(metrics.queryGoalMetric).toHaveBeenCalledWith(
+        expect.objectContaining({
+          periodStart: MARCH.end,
+          periodEnd: new Date('2026-05-01T00:00:00.000Z'),
+        }),
+      )
+    })
+
+    it('the current month with an inactive source is scheduled and opens March on activation', async () => {
+      const { service, metrics, repository, getCreated } = setup(MID_MARCH)
+      vi.mocked(metrics.queryGoalMetric).mockResolvedValueOnce(
+        readinessOf({ reason: 'metric_source_not_active' }),
+      )
+
+      const bundle = await service.create(portalGoal('2026-03'), actor)
+
+      expect(bundle.program).toMatchObject({
+        status: 'scheduled',
+        statusReason: 'metric_source_not_active',
+      })
+      expect(bundle.version.effectiveFrom).toEqual(MARCH.start)
+      expect(bundle.results).toEqual([])
+
+      // The source is active on the next hourly run: the goal activates and
+      // March opens from its first day, not from the day of activation.
+      await expect(service.maintain()).resolves.toMatchObject({
+        activated: 1,
+        scheduledResults: 1,
+        failed: 0,
+      })
+      expect(repository.activate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          results: [
+            expect.objectContaining({
+              periodStart: MARCH.start,
+              periodEnd: MARCH.end,
+              status: 'open',
+            }),
+          ],
+        }),
+      )
+      expect(getCreated()?.program.status).toBe('active')
+    })
+
+    it('create refuses a subject that already has a live goal for the metric', async () => {
+      const { service, repository } = setup(MID_MARCH)
+      vi.mocked(repository.findAssignmentConflicts).mockResolvedValueOnce([
+        {
+          subject: { kind: 'portal', portalId: 'portal-1' },
+          programId: 'program-live',
+          effectiveTo: null,
+        },
+      ])
+
+      await expect(service.create(portalGoal('2026-03'), actor)).rejects.toMatchObject({
+        code: 'subject_has_goal',
+      } satisfies Partial<GoalProgramError>)
+
+      // Asked from the month the new goal would start, about every Program.
+      expect(repository.findAssignmentConflicts).toHaveBeenCalledWith({
+        organizationId: actor.organizationId,
+        propertyId: 'property-1',
+        metric: 'portal_rating_count',
+        effectiveFrom: MARCH.start,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      })
+      expect(repository.create).not.toHaveBeenCalled()
+    })
+
+    it('reports a conflict found only by the database as the same refusal', async () => {
+      const { service, repository } = setup(MID_MARCH)
+      vi.mocked(repository.create).mockResolvedValueOnce('subject_has_goal')
+
+      await expect(service.create(portalGoal('2026-03'), actor)).rejects.toMatchObject({
+        code: 'subject_has_goal',
+      } satisfies Partial<GoalProgramError>)
+    })
+
+    it('a form opened on the last day and submitted after midnight is refused, not moved', async () => {
+      // Opened on 31 March with "this month" (March) chosen; saved 30 seconds
+      // into April. March is no longer a month a new goal can start in.
+      const { service, repository, metrics } = setup(new Date('2026-04-01T00:00:30.000Z'))
+
+      await expect(service.create(portalGoal('2026-03'), actor)).rejects.toMatchObject({
+        code: 'start_month_changed',
+      } satisfies Partial<GoalProgramError>)
+
+      expect(metrics.queryGoalMetric).not.toHaveBeenCalled()
+      expect(repository.findAssignmentConflicts).not.toHaveBeenCalled()
+      expect(repository.create).not.toHaveBeenCalled()
+    })
+
+    it('reads the start month on the Property calendar, not the UTC one', async () => {
+      // 22:30 UTC on 31 March is 01:30 on 1 April in Sofia.
+      const { service, subjects } = setup(new Date('2026-03-31T22:30:00.000Z'))
+      vi.mocked(subjects.getTimezone).mockResolvedValue('Europe/Sofia')
+
+      await expect(service.create(portalGoal('2026-03'), actor)).rejects.toMatchObject({
+        code: 'start_month_changed',
+      })
+      await expect(service.create(portalGoal('2026-04'), actor)).resolves.toMatchObject({
+        program: { status: 'active' },
+        version: {
+          propertyTimezone: 'Europe/Sofia',
+          effectiveFrom: new Date('2026-03-31T21:00:00.000Z'),
+        },
+      })
+    })
+
+    it('a quarantined source refuses creation with metric_unavailable', async () => {
+      const { service, metrics, repository } = setup(MID_MARCH)
+      vi.mocked(metrics.queryGoalMetric).mockResolvedValueOnce(
+        readinessOf({ state: 'quarantined', reason: 'source_quarantined' }),
+      )
+
+      await expect(service.create(portalGoal('2026-03'), actor)).rejects.toMatchObject({
+        code: 'metric_unavailable',
+      } satisfies Partial<GoalProgramError>)
+      expect(repository.create).not.toHaveBeenCalled()
+    })
+
+    it('a metric version that starts after the month began refuses the current month and allows the next', async () => {
+      const { service, metrics, repository } = setup(MID_MARCH)
+      const versionStart = new Date('2026-03-10T00:00:00.000Z')
+      const ready = vi.mocked(metrics.queryGoalMetric).getMockImplementation()!
+      vi.mocked(metrics.queryGoalMetric).mockImplementation(async (query) =>
+        query.periodStart < versionStart
+          ? readinessOf({ reason: 'metric_version_unavailable' })
+          : ready(query),
+      )
+
+      await expect(service.create(portalGoal('2026-03'), actor)).rejects.toMatchObject({
+        code: 'metric_unavailable',
+      } satisfies Partial<GoalProgramError>)
+      expect(repository.create).not.toHaveBeenCalled()
+
+      await expect(service.create(portalGoal('2026-04'), actor)).resolves.toMatchObject({
+        program: { status: 'scheduled' },
+      })
+    })
+
+    // 04:30Z on 1 November 2026 is 00:30 in Havana, in the first pass of the
+    // repeated midnight hour: local November, which begins at 05:00Z.
+    it('keeps this month scheduled until its first instant in a repeated midnight hour', async () => {
+      const { service, subjects, repository, setNow } = setup(
+        new Date('2026-11-01T04:30:00.000Z'),
+      )
+      vi.mocked(subjects.getTimezone).mockResolvedValue('America/Havana')
+
+      const bundle = await service.create(portalGoal('2026-11'), actor)
+
+      expect(bundle.program).toMatchObject({
+        status: 'scheduled',
+        statusReason: 'awaiting_first_full_month',
+      })
+      expect(bundle.version.effectiveFrom).toEqual(new Date('2026-11-01T05:00:00.000Z'))
+      expect(bundle.results).toEqual([])
+
+      setNow(new Date('2026-11-01T05:00:00.000Z'))
+      await expect(service.maintain()).resolves.toMatchObject({
+        activated: 1,
+        scheduledResults: 1,
+      })
+      expect(repository.activate).toHaveBeenCalledOnce()
+    })
+
+    it('refuses a Property with no time zone before reading anything else', async () => {
+      const { service, subjects, metrics } = setup(MID_MARCH)
+      vi.mocked(subjects.getTimezone).mockResolvedValue(null)
+
+      await expect(service.create(portalGoal('2026-03'), actor)).rejects.toMatchObject({
+        code: 'not_found',
+      })
+      expect(metrics.queryGoalMetric).not.toHaveBeenCalled()
+    })
   })
 
   it('rejects duplicate subjects and policy-denied Member mutation', async () => {
@@ -692,7 +964,11 @@ describe('canonical Goal Program service', () => {
         subject.kind !== 'portal' || subject.portalId !== 'foreign-portal',
     )
     vi.mocked(repository.findAssignmentConflicts).mockResolvedValueOnce([
-      { kind: 'portal', portalId: 'busy-portal' },
+      {
+        subject: { kind: 'portal', portalId: 'busy-portal' },
+        programId: 'program-busy',
+        effectiveTo: null,
+      },
     ])
 
     const changed = await service.changeAssignments(

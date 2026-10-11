@@ -59,6 +59,8 @@ const goalProgramStatus = (error: GoalProgramError): number => {
     case 'invalid_transition':
     case 'revision_conflict':
     case 'metric_unavailable':
+    case 'subject_has_goal':
+    case 'start_month_changed':
       return 409
     case 'invalid_name':
     case 'invalid_target':

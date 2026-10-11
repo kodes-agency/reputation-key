@@ -5,7 +5,22 @@ import {
   validateGoalTarget,
 } from '../../domain/goal-program'
 
+// Routes may import application, not domain: the start-month helpers the goal
+// form and its loader share with the create command.
+export {
+  defaultGoalStartMonth,
+  goalStartOptions,
+  resolveGoalStart,
+} from '../../domain/goal-program'
+
 const uuid = z.uuid()
+
+/**
+ * `YYYY-MM` on the Property's calendar. The command decides whether it is still
+ * a choice. No message of its own: the form offers the two months, so a
+ * malformed key is a client fault, and this module ships in first paint.
+ */
+const goalStartMonthSchema = z.string().regex(/^\d{4}-(?:0[1-9]|1[0-2])$/)
 
 const goalProgramMetricSchema = z.enum(GOAL_METRICS)
 
@@ -55,6 +70,9 @@ export const createGoalProgramSchema = z.object({
   metric: goalProgramMetricSchema,
   targetValue: z.number().finite('Enter a valid monthly target'),
   subjects: goalProgramSubjectSelectionSchema,
+  // Omitted keeps the first full month that has not begun, as before the
+  // month could be chosen.
+  startMonth: goalStartMonthSchema.optional(),
 })
 
 export const reviseGoalProgramSchema = z.object({

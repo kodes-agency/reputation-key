@@ -106,7 +106,9 @@ export class GoalProgramError extends Error {
       | 'invalid_reason'
       | 'metric_unavailable'
       | 'invalid_transition'
-      | 'revision_conflict',
+      | 'revision_conflict'
+      | 'subject_has_goal'
+      | 'start_month_changed',
   ) {
     super(code)
     this.name = 'GoalProgramError'

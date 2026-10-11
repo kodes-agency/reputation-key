@@ -322,7 +322,9 @@ describe.sequential('Goal Program repository (integration)', () => {
         effectiveFrom: nextVersion.effectiveFrom,
         subjects: [{ kind: 'property', propertyId }],
       }),
-    ).resolves.toEqual([{ kind: 'property', propertyId }])
+    ).resolves.toEqual([
+      { subject: { kind: 'property', propertyId }, programId, effectiveTo: null },
+    ])
     await expect(
       repository.findAssignmentConflicts({
         organizationId,
@@ -408,7 +410,159 @@ describe.sequential('Goal Program repository (integration)', () => {
         bundle: replacement,
         auditAction: 'goal.program.created',
       }),
-    ).resolves.toBeUndefined()
+    ).resolves.toBe('created')
+  })
+
+  // A goal ended before its start keeps the empty window [start, start). The
+  // no-overlap constraint ignores an empty range, so the pre-check must too:
+  // counting it refused a goal the database would have accepted.
+  it('a goal cancelled before its start does not block a this-month goal for the same subject and metric', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const targetPropertyId = await createPropertyFixture('Cancelled Goal Property')
+    const january = {
+      start: new Date('2026-01-01T00:00:00.000Z'),
+      end: new Date('2026-02-01T00:00:00.000Z'),
+    }
+    const cancelled = programBundle({
+      propertyId: targetPropertyId,
+      status: 'scheduled',
+      effectiveFrom: january.end,
+      at: new Date('2026-01-15T12:00:00.000Z'),
+    })
+    await repository.create({ bundle: cancelled, auditAction: 'goal.program.created' })
+    await expect(
+      repository.changeStatus({
+        organizationId,
+        propertyId: targetPropertyId,
+        programId: cancelled.program.id,
+        expectedStatus: 'scheduled',
+        status: 'ended',
+        reason: 'cancelled before start',
+        actorId: 'manager-1',
+        at: new Date('2026-01-20T12:00:00.000Z'),
+      }),
+    ).resolves.toMatchObject({ status: 'ended' })
+
+    const subjects = [{ kind: 'property', propertyId: targetPropertyId }] as const
+    await expect(
+      repository.findAssignmentConflicts({
+        organizationId,
+        propertyId: targetPropertyId,
+        metric: 'portal_rating_count',
+        effectiveFrom: january.start,
+        subjects,
+      }),
+    ).resolves.toEqual([])
+
+    // Set on the 21st for January: active from the 1st, with January open.
+    const thisMonth = programBundle({
+      propertyId: targetPropertyId,
+      status: 'active',
+      effectiveFrom: january.start,
+      at: new Date('2026-01-21T12:00:00.000Z'),
+      withOpenResult: { end: january.end },
+    })
+    await expect(
+      repository.create({ bundle: thisMonth, auditAction: 'goal.program.created' }),
+    ).resolves.toBe('created')
+    await expect(
+      repository.get(organizationId, targetPropertyId, thisMonth.program.id),
+    ).resolves.toMatchObject({
+      program: { status: 'active' },
+      version: { effectiveFrom: january.start, effectiveTo: null },
+      results: [{ periodStart: january.start, periodEnd: january.end, status: 'open' }],
+    })
+    // The live goal now holds the subject, and the pre-check says which one.
+    await expect(
+      repository.findAssignmentConflicts({
+        organizationId,
+        propertyId: targetPropertyId,
+        metric: 'portal_rating_count',
+        effectiveFrom: january.start,
+        subjects,
+      }),
+    ).resolves.toEqual([
+      { subject: subjects[0], programId: thisMonth.program.id, effectiveTo: null },
+    ])
+  })
+
+  // Ending a started goal holds its subject until the open month ends. A
+  // replacement for that same month overlaps it; the write is refused as a
+  // conflict the caller can report, and leaves nothing behind.
+  it('a same-month replacement after ending a started goal returns a conflict, not a 500', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const targetPropertyId = await createPropertyFixture('Replaced Goal Property')
+    const january = {
+      start: new Date('2026-01-01T00:00:00.000Z'),
+      end: new Date('2026-02-01T00:00:00.000Z'),
+    }
+    const started = programBundle({
+      propertyId: targetPropertyId,
+      status: 'active',
+      effectiveFrom: january.start,
+      at: january.start,
+      withOpenResult: { end: january.end },
+    })
+    await repository.create({ bundle: started, auditAction: 'goal.program.created' })
+    await expect(
+      repository.changeStatus({
+        organizationId,
+        propertyId: targetPropertyId,
+        programId: started.program.id,
+        expectedStatus: 'active',
+        status: 'ended',
+        reason: 'wrong target',
+        actorId: 'manager-1',
+        at: new Date('2026-01-15T12:00:00.000Z'),
+      }),
+    ).resolves.toMatchObject({ status: 'ended' })
+
+    const subjects = [{ kind: 'property', propertyId: targetPropertyId }] as const
+    await expect(
+      repository.findAssignmentConflicts({
+        organizationId,
+        propertyId: targetPropertyId,
+        metric: 'portal_rating_count',
+        effectiveFrom: january.start,
+        subjects,
+      }),
+    ).resolves.toEqual([
+      { subject: subjects[0], programId: started.program.id, effectiveTo: january.end },
+    ])
+
+    const sameMonth = programBundle({
+      propertyId: targetPropertyId,
+      status: 'active',
+      effectiveFrom: january.start,
+      at: new Date('2026-01-16T12:00:00.000Z'),
+      withOpenResult: { end: january.end },
+    })
+    await expect(
+      repository.create({ bundle: sameMonth, auditAction: 'goal.program.created' }),
+    ).resolves.toBe('subject_has_goal')
+    await expect(
+      repository.get(organizationId, targetPropertyId, sameMonth.program.id),
+    ).resolves.toBeNull()
+
+    // From February the subject is free again.
+    await expect(
+      repository.findAssignmentConflicts({
+        organizationId,
+        propertyId: targetPropertyId,
+        metric: 'portal_rating_count',
+        effectiveFrom: january.end,
+        subjects,
+      }),
+    ).resolves.toEqual([])
+    const nextMonth = programBundle({
+      propertyId: targetPropertyId,
+      status: 'scheduled',
+      effectiveFrom: january.end,
+      at: new Date('2026-01-16T12:00:00.000Z'),
+    })
+    await expect(
+      repository.create({ bundle: nextMonth, auditAction: 'goal.program.created' }),
+    ).resolves.toBe('created')
   })
 
   it('keeps an open month inside the interval when an active Program ends', async () => {
@@ -461,7 +615,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         bundle: replacement,
         auditAction: 'goal.program.created',
       }),
-    ).resolves.toBeUndefined()
+    ).resolves.toBe('created')
   })
 
   it('finds only exact-version closed results inside the half-open impacted month', async () => {
@@ -563,7 +717,7 @@ describe.sequential('Goal Program repository (integration)', () => {
 
     await expect(
       repository.create({ bundle: original, auditAction: 'goal.program.created' }),
-    ).resolves.toBeUndefined()
+    ).resolves.toBe('created')
     await expect(
       repository.appendResults({
         program: original.program,

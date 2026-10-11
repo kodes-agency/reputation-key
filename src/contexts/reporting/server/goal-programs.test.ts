@@ -39,6 +39,7 @@ vi.mock('#/shared/auth/execution-policy', () => ({
   requireExecutionAllowed: mocks.requireExecutionAllowed,
 }))
 
+import { GoalProgramError } from '../application/use-cases/goal-programs'
 import {
   changeGoalProgramAssignments,
   createGoalProgram,
@@ -157,6 +158,47 @@ describe('canonical Goal Program server functions', () => {
 
     expect(mocks.progress).toHaveBeenCalledWith(expect.any(Object), input, actor)
   })
+
+  it('forwards the chosen start month with the goal, and leaves it out when none is sent', async () => {
+    mocks.create.mockResolvedValue({ program: { id: 'program-1' } })
+
+    await withStartContext(() =>
+      createGoalProgram({ data: { ...validInput, startMonth: '2026-10' } }),
+    )
+    await withStartContext(() => createGoalProgram({ data: validInput }))
+
+    expect(mocks.create).toHaveBeenNthCalledWith(
+      1,
+      expect.any(Object),
+      { ...validInput, startMonth: '2026-10' },
+      actor,
+    )
+    expect(mocks.create).toHaveBeenNthCalledWith(2, expect.any(Object), validInput, actor)
+  })
+
+  it('accepts a start month only as a calendar month key', () => {
+    const withStart = (startMonth: unknown) =>
+      createGoalProgramSchema.safeParse({ ...validInput, startMonth }).success
+
+    expect(withStart('2026-10')).toBe(true)
+    expect(withStart('2026-01')).toBe(true)
+    for (const invalid of ['2026-13', '2026-00', '2026-1', '2026_10', 'next', '', 7]) {
+      expect(withStart(invalid)).toBe(false)
+    }
+  })
+
+  it.each(['subject_has_goal', 'start_month_changed'] as const)(
+    'answers %s as a conflict the form can explain',
+    async (code) => {
+      mocks.create.mockRejectedValue(new GoalProgramError(code))
+
+      await expect(
+        withStartContext(() =>
+          createGoalProgram({ data: { ...validInput, startMonth: '2026-10' } }),
+        ),
+      ).rejects.toMatchObject({ name: 'GoalProgramError', code, status: 409 })
+    },
+  )
 
   it('accepts a progress read only for a subject that is an id', () => {
     const subject = { kind: 'portal_group' as const, portalGroupId: 'not-an-id' }
