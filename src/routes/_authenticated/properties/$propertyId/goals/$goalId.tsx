@@ -105,13 +105,16 @@ function GoalDetailRoute() {
     invalidateKeys: [goalKeys.all],
   })
   const { program, version, versions, assignments } = data
+  // Only an active goal is counting. The figure read while it was active stays
+  // in the cache after a pause or an end, so it is used only while that holds.
+  const counting = program.status === 'active'
   const soFar = useQuery({
     ...goalSoFarQuery(propertyId, goalId),
-    enabled: program.status !== 'ended',
+    enabled: counting,
     retry: false,
   })
   const soFarBySubject = new Map(
-    soFar.data?.subjects.map(({ subject, progress }) => [
+    (counting ? soFar.data?.subjects : undefined)?.map(({ subject, progress }) => [
       goalSubjectKey(subject),
       progress,
     ]),
