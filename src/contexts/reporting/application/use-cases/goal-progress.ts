@@ -15,8 +15,6 @@
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import {
   organizationId as toOrganizationId,
-  portalGroupId as toPortalGroupId,
-  portalId as toPortalId,
   propertyId as toPropertyId,
 } from '#/shared/domain/ids'
 import {
@@ -30,16 +28,14 @@ import type {
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from '../ports/goal-program.repository'
+import { metricSubject } from './goal-program-shared'
 import type {
   GoalActor,
   GoalExecutionPolicy,
   GoalMetricReadPort,
   GoalProgramService,
 } from './goal-programs'
-import type {
-  GovernedGoalMetricQuery,
-  GovernedGoalMetricResult,
-} from './query-goal-metric'
+import type { GovernedGoalMetricResult } from './query-goal-metric'
 
 /** What the month so far says about one goal. */
 export type GoalProgressReading =
@@ -95,20 +91,6 @@ export type GoalProgressRequestApi = Readonly<{
 type ShownStatus = GoalProgress['status']
 
 const isShown = (status: GoalProgramStatus): status is ShownStatus => status !== 'ended'
-
-function metricSubject(subject: GoalSubject): GovernedGoalMetricQuery['subject'] {
-  switch (subject.kind) {
-    case 'property':
-      return { kind: 'property', propertyId: toPropertyId(subject.propertyId) }
-    case 'portal_group':
-      return {
-        kind: 'portal_group',
-        portalGroupId: toPortalGroupId(subject.portalGroupId),
-      }
-    case 'portal':
-      return { kind: 'portal', portalId: toPortalId(subject.portalId) }
-  }
-}
 
 /**
  * The assignment of this subject that is in force, else the next one to begin.
