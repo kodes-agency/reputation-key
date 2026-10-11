@@ -11,9 +11,15 @@
 // write. That version is part of the change, so it is told on the change's line
 // and never listed again on its own. A version replaced before its first month
 // keeps a window that ends where it starts (reporting CONTEXT.md, invariant 2):
-// it never applied to a month, so it is not a change of its own, the change
-// after it is read against the plan before it, and a month change that wrote
-// one says its months after never took effect.
+// it never applied to a month, so the change after it is read against the plan
+// that was in force before it.
+//
+// A change of subjects writes a version too, with the measure and target of
+// the one before it. So the versions are read in runs that carry one measure
+// and target: a run is one decision about the target, made by whoever wrote
+// its first version, and it took effect when any of its versions did. A plan
+// for next month that a change of subjects replaced is therefore still its
+// author's change, and a month change that wrote it still applies.
 import type { GoalMetric } from '#/contexts/reporting/application/public-api'
 import type { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
 import { formatMonthName } from '#/lib/format'
@@ -52,6 +58,22 @@ const DEFAULT_REASONS: ReadonlySet<string> = new Set([
 const neverInForce = (version: Version): boolean =>
   version.effectiveTo !== null && version.effectiveTo <= version.effectiveFrom
 
+const sameTarget = (left: Version, right: Version): boolean =>
+  left.metric === right.metric && left.targetValue === right.targetValue
+
+/** A goal's versions, oldest first, in runs that carry one measure and target. */
+function targetRuns(versions: readonly Version[]): readonly (readonly Version[])[] {
+  return [...versions]
+    .sort((left, right) => left.version - right.version)
+    .reduce<readonly (readonly Version[])[]>((runs, version) => {
+      const run = runs.at(-1)
+      const last = run?.at(-1)
+      return run && last && sameTarget(last, version)
+        ? [...runs.slice(0, -1), [...run, version]]
+        : [...runs, [version]]
+    }, [])
+}
+
 const sentenceCase = (text: string): string =>
   text.charAt(0).toUpperCase() + text.slice(1)
 
@@ -69,6 +91,30 @@ const NOT_APPLIED_REASONS: Readonly<
   metric_unavailable: 'the measure was not available',
 }
 
+/**
+ * What became of the version a month change wrote for the months after. It
+ * took effect when it, or a version that carried its target on, has a month to
+ * apply to; the day is that version's start.
+ */
+function writtenFollowing(
+  change: MonthChange,
+  written: Version,
+  versions: readonly Version[],
+  frame: GoalMarkerFrame,
+): string {
+  const run = targetRuns(versions).find((candidate) => candidate.includes(written))
+  const carrying = (run ?? [written])
+    .filter((version) => version.version >= written.version)
+    .find((version) => !neverInForce(version))
+  if (!carrying) {
+    return `Was also set from ${goalDay(written.effectiveFrom, frame)}, but that never took effect.`
+  }
+  const from = goalDay(carrying.effectiveFrom, frame)
+  return change.followingOutcome === 'applied'
+    ? `Also applies from ${from}.`
+    : `Also applies from ${from}, in place of the change that was scheduled.`
+}
+
 /** What a month change did for the months after it. */
 function followingDetail(
   change: MonthChange,
@@ -77,7 +123,6 @@ function followingDetail(
   frame: GoalMarkerFrame,
 ): string {
   const written = versions.find((version) => version.id === change.followingVersionId)
-  const from = written ? goalDay(written.effectiveFrom, frame) : null
   switch (change.followingOutcome) {
     case 'not_requested':
       return `Only ${month} changed.`
@@ -89,13 +134,9 @@ function followingDetail(
       }.`
     case 'applied':
     case 'replaced_scheduled_change':
-      if (!written || from === null) return 'The months after already had this target.'
-      if (neverInForce(written)) {
-        return `Was also set from ${from}, but that never took effect.`
-      }
-      return change.followingOutcome === 'applied'
-        ? `Also applies from ${from}.`
-        : `Also applies from ${from}, in place of the change that was scheduled.`
+      return written
+        ? writtenFollowing(change, written, versions, frame)
+        : 'The months after already had this target.'
   }
 }
 
@@ -137,9 +178,15 @@ function monthChanges(goal: Goal, frame: GoalMarkerFrame): readonly Dated[] {
   })
 }
 
+/**
+ * The line of one run of versions. `version` is the run's first, which says
+ * who set the target, when and with which note; `from` is the day the run
+ * first applies to a month.
+ */
 function versionEntry(
   before: Version,
   version: Version,
+  from: Date,
   frame: GoalMarkerFrame,
 ): GoalTargetChangeEntry {
   const name = frame.personName(version.createdBy)
@@ -159,7 +206,7 @@ function versionEntry(
             'the measure',
             `to ${goalPageMetricLabel(version.metric)}, with a target of ${target}`,
           ),
-    detail: `Applies from ${goalDay(version.effectiveFrom, frame)}.`,
+    detail: `Applies from ${goalDay(from, frame)}.`,
     note: reason === '' || DEFAULT_REASONS.has(reason) ? null : reason,
     dateLabel: goalDay(version.createdAt, frame),
     occurredAt: version.createdAt.toISOString(),
@@ -170,15 +217,28 @@ function versionChanges(goal: Goal, frame: GoalMarkerFrame): readonly Dated[] {
   const writtenByMonthChange = new Set(
     (goal.targetChanges ?? []).map((change) => change.followingVersionId),
   )
-  const plans = [...goal.versions]
-    .sort((left, right) => left.version - right.version)
-    .filter((version) => !neverInForce(version))
-  return plans.flatMap((version, index) => {
-    const before = plans[index - 1]
-    const unchanged =
-      before?.metric === version.metric && before.targetValue === version.targetValue
-    if (!before || unchanged || writtenByMonthChange.has(version.id)) return []
-    return [{ at: version.createdAt, entry: versionEntry(before, version, frame) }]
+  const runs = targetRuns(goal.versions)
+  return runs.flatMap((run, index) => {
+    const [first] = run
+    // The run's first version with a month to apply to: none means the plan
+    // was replaced by another target before it began, which is not a change.
+    const applied = run.find((version) => !neverInForce(version))
+    // The plan in force before the run, whatever was scheduled and replaced
+    // in between.
+    const before = runs
+      .slice(0, index)
+      .flat()
+      .filter((version) => !neverInForce(version))
+      .at(-1)
+    if (!first || !applied || !before || sameTarget(before, first)) return []
+    // Written by a month change: told on that change's line.
+    if (run.some((version) => writtenByMonthChange.has(version.id))) return []
+    return [
+      {
+        at: first.createdAt,
+        entry: versionEntry(before, first, applied.effectiveFrom, frame),
+      },
+    ]
   })
 }
 
