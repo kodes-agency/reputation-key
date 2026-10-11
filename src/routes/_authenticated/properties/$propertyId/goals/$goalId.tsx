@@ -11,6 +11,8 @@ import {
   getGoalProgramProgress,
   reviseGoalProgram,
 } from '#/contexts/reporting/server/goal-programs'
+// Its own module: only this page renames a goal (see the note in that module).
+import { renameGoalProgram } from '#/contexts/reporting/server/goal-program-details'
 import { goalTargetProvenance } from '#/contexts/reporting/application/goal-target-provenance'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
@@ -28,6 +30,7 @@ import { StatusBadge } from '#/components/ui/status-badge'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { GoalProgramRevisionDialog } from '#/components/goals/goal-program-revision-dialog'
 import { GoalProgramAssignmentsDialog } from '#/components/goals/goal-program-assignments-dialog'
+import { GoalProgramRenameDialog } from '#/components/goals/goal-program-rename-dialog'
 import { GoalStatusActions } from '#/components/goals/goal-status-actions'
 import { GOAL_STATUS, goalResultStatus } from '#/components/goals/goal-status'
 import { withGoalRefusals } from '#/components/goals/goal-refusal'
@@ -178,6 +181,13 @@ function GoalDetailRoute() {
         actions={
           canManage && program.status !== 'ended' ? (
             <>
+              <GoalProgramRenameDialog
+                renameGoalProgramFn={renameGoalProgram}
+                propertyId={propertyId}
+                programId={program.id}
+                name={program.name}
+                description={program.description}
+              />
               <GoalProgramAssignmentsDialog
                 changeAssignmentsFn={changeGoalProgramAssignments}
                 property={{ id: propertyId, name: propData.property.name }}
