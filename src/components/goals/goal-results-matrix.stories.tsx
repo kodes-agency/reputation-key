@@ -34,6 +34,7 @@ function row(id: string, overrides: Partial<GoalResultsMatrixRow>): GoalResultsM
       effectiveFrom: START,
       setAt: new Date('2026-06-18T15:00:00.000Z'),
     },
+    monthTarget: null,
     ...overrides,
   }
 }

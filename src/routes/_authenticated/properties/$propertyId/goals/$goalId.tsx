@@ -13,6 +13,7 @@ import {
 } from '#/contexts/reporting/server/goal-programs'
 // Its own module: only this page renames a goal (see the note in that module).
 import { renameGoalProgram } from '#/contexts/reporting/server/goal-program-details'
+import { effectiveMonthTarget } from '#/contexts/reporting/application/goal-effective-month-target'
 import { goalTargetProvenance } from '#/contexts/reporting/application/goal-target-provenance'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
@@ -320,7 +321,9 @@ function GoalDetailRoute() {
                     <div>
                       <p>
                         {result.evaluation.value ?? '—'} /{' '}
-                        {resultVersion?.targetValue ?? '—'}
+                        {resultVersion
+                          ? effectiveMonthTarget(result, resultVersion)
+                          : '—'}
                       </p>
                       {notes.map((note) => (
                         <p key={note} className="text-muted-foreground">

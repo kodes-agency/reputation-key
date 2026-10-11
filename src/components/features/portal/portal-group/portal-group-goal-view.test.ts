@@ -13,6 +13,7 @@ const goal = (overrides: Partial<GoalProgress> = {}): GoalProgress => ({
   name: 'Private ratings',
   metric: 'portal_rating_count',
   targetValue: 250,
+  monthTarget: null,
   setBy: 'elena',
   setAt: new Date('2026-08-12T10:00:00.000Z'),
   status: 'active',

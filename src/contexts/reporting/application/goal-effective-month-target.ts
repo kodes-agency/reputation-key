@@ -6,9 +6,10 @@
 // queries restate the rule in SQL as
 // `coalesce(result.target_value, version.target_value)`.
 //
-// The pages that show a target read the version's directly. That is right only
-// while no month has a target of its own: whatever first lets one be set has to
-// move them here too.
+// Every surface that shows the target of a month reads it through here too:
+// the goal card (goal-progress.ts), the results matrix and the month rows of
+// the goal's page. A surface that shows the goal's target for the months to
+// come reads the head version's, which is a different question.
 //
 // Type-only imports: this module is safe to reach from a route or a component.
 import type {
