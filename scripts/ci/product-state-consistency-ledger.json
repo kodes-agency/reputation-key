@@ -101,9 +101,17 @@
     },
     {
       "id": "goalKeys",
-      "members": ["all", "staff", "list", "detail", "progress"],
+      "members": [
+        "all",
+        "staff",
+        "list",
+        "detail",
+        "progress",
+        "programProgress",
+        "monthPreview"
+      ],
       "owner": "Goal query lifecycle",
-      "policy": "Staff goals include propertyId, governed list callers include property/model filters in the argument object, and a detail includes both propertyId and goalId so a goal id cannot alias another property. Goal writes currently invalidate the family root. The live month-to-date progress of the goals that target one subject (a Portal Group's goal card) nests propertyId and the subject (`portal_group:<id>`) under the root, so a group id cannot alias another property; it is a display read that is never the monthly result, and goes stale on its own short staleTime."
+      "policy": "Staff goals include propertyId, governed list callers include property/model filters in the argument object, and a detail includes both propertyId and goalId so a goal id cannot alias another property. Goal writes currently invalidate the family root. The live month-to-date progress of the goals that target one subject (a Portal Group's goal card) nests propertyId and the subject (`portal_group:<id>`) under the root, so a group id cannot alias another property; it is a display read that is never the monthly result, and goes stale on its own short staleTime. The month to date of every current subject of one goal (the goal page's running month) is a sibling keyed by propertyId and goalId, apart from the detail so a figure refresh never refetches the Program; a goal write invalidates it with the root. The month preview is the same governed read before a goal exists (the new-goal form, one subject, this month chosen): it nests propertyId, the measure and the subject (`portal:<id>`), is never written by the client, and goes stale on its own short staleTime."
     },
     {
       "id": "staffKeys",

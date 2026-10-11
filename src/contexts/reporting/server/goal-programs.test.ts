@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   list: vi.fn(),
   progress: vi.fn(),
+  programProgress: vi.fn(),
+  monthPreview: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
 }))
@@ -25,6 +27,8 @@ vi.mock('#/composition', () => ({
         get: mocks.get,
         list: mocks.list,
         progress: mocks.progress,
+        programProgress: mocks.programProgress,
+        monthPreview: mocks.monthPreview,
       },
     },
   }),
@@ -46,9 +50,12 @@ import {
   createGoalProgramSchema,
   changeGoalProgramAssignmentsSchema,
   getGoalProgram,
+  getGoalProgramProgress,
   getGoalProgress,
   getGoalProgressSchema,
   listGoalPrograms,
+  previewGoalMonth,
+  previewGoalMonthSchema,
 } from './goal-programs'
 
 const ORG_ID = '00000000-0000-4000-8000-000000000001'
@@ -199,6 +206,58 @@ describe('canonical Goal Program server functions', () => {
       ).rejects.toMatchObject({ name: 'GoalProgramError', code, status: 409 })
     },
   )
+
+  it('reads the month so far for every subject of one goal through the request policy', async () => {
+    const progress = [
+      {
+        subject: { kind: 'portal', portalId: PORTAL_ID },
+        progress: { programId: 'program-1', reading: { kind: 'live', value: 412 } },
+      },
+    ]
+    mocks.programProgress.mockResolvedValue(progress)
+    const identity = {
+      propertyId: PROPERTY_ID,
+      programId: '00000000-0000-4000-8000-000000000004',
+    }
+
+    await withStartContext(() => getGoalProgramProgress({ data: identity }))
+
+    expect(mocks.programProgress).toHaveBeenCalledWith(
+      expect.any(Object),
+      identity,
+      actor,
+    )
+  })
+
+  it('reads the month so far for one subject before a goal exists', async () => {
+    const preview = { metric: 'qualified_scans', reading: { kind: 'live', value: 412 } }
+    mocks.monthPreview.mockResolvedValue(preview)
+    const input = {
+      propertyId: PROPERTY_ID,
+      metric: 'qualified_scans' as const,
+      subject: { kind: 'portal' as const, portalId: PORTAL_ID },
+    }
+
+    await withStartContext(() => previewGoalMonth({ data: input }))
+
+    expect(mocks.monthPreview).toHaveBeenCalledWith(expect.any(Object), input, actor)
+  })
+
+  it('accepts a month preview only for a known measure and a subject that is an id', () => {
+    const subject = { kind: 'portal' as const, portalId: PORTAL_ID }
+    const base = { propertyId: PROPERTY_ID, metric: 'qualified_scans', subject }
+
+    expect(previewGoalMonthSchema.safeParse(base).success).toBe(true)
+    expect(
+      previewGoalMonthSchema.safeParse({ ...base, metric: 'google_rating' }).success,
+    ).toBe(false)
+    expect(
+      previewGoalMonthSchema.safeParse({
+        ...base,
+        subject: { kind: 'portal', portalId: 'not-an-id' },
+      }).success,
+    ).toBe(false)
+  })
 
   it('accepts a progress read only for a subject that is an id', () => {
     const subject = { kind: 'portal_group' as const, portalGroupId: 'not-an-id' }

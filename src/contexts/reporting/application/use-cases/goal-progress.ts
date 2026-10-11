@@ -9,8 +9,11 @@
 // Program's time zone, and prints what has counted so far. The month is not over,
 // so nothing here says "achieved" or "missed"; the page words it as "so far".
 //
-// Who may read is the Program list's: it authorizes `goal.read` and scopes the
-// Programs to what the actor may see, exactly as the Goals page does.
+// Who may read is the Program reads': they authorize `goal.read` and scope the
+// Programs to what the actor may see, exactly as the Goals pages do.
+//
+// Two reads share it: the goals that target one subject (a Portal Group's
+// card), and every current subject of one goal (the goal's own page).
 
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import {
@@ -28,6 +31,7 @@ import type {
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from '../ports/goal-program.repository'
+import { goalTargetProvenance } from '../goal-target-provenance'
 import { metricSubject } from './goal-program-shared'
 import type {
   GoalActor,
@@ -55,6 +59,8 @@ export type GoalProgress = Readonly<{
   targetValue: number
   /** The person who set the target now in force. */
   setBy: string
+  /** When that target was set. A later change of subjects alone does not move it. */
+  setAt: Date
   status: Extract<GoalProgramStatus, 'scheduled' | 'active' | 'paused'>
   /** The calendar month the figure is for, in the Program's time zone. */
   period: Readonly<{ start: Date; end: Date }>
@@ -70,7 +76,7 @@ export type GoalProgressInput = Readonly<{
 }>
 
 export type GoalProgressDeps = Readonly<{
-  reads: Pick<GoalProgramService, 'list'>
+  reads: Pick<GoalProgramService, 'list' | 'get'>
   metrics: Pick<GoalMetricReadPort, 'queryGoalMetric'>
   now: () => Date
 }>
@@ -80,17 +86,52 @@ export type GoalProgressReader = (
   actor: GoalActor,
 ) => Promise<readonly GoalProgress[]>
 
+/**
+ * The most subjects one goal's page reads a live figure for. Each is its own
+ * governed read; past this the page shows none rather than some.
+ */
+export const MAX_GOAL_PROGRAM_PROGRESS_SUBJECTS = 25
+
+export type GoalProgramProgressInput = Readonly<{
+  propertyId: string
+  programId: string
+}>
+
+/** The month so far for one subject of a goal. */
+export type GoalSubjectProgress = Readonly<{
+  subject: GoalSubject
+  progress: GoalProgress
+}>
+
+export type GoalProgramProgressReader = (
+  input: GoalProgramProgressInput,
+  actor: GoalActor,
+) => Promise<readonly GoalSubjectProgress[]>
+
 /** Request-facing: each invocation receives its scoped policy, like the Program commands. */
 export type GoalProgressRequestApi = Readonly<{
   progress: (
     policy: GoalExecutionPolicy,
     ...args: Parameters<GoalProgressReader>
   ) => ReturnType<GoalProgressReader>
+  programProgress: (
+    policy: GoalExecutionPolicy,
+    ...args: Parameters<GoalProgramProgressReader>
+  ) => ReturnType<GoalProgramProgressReader>
 }>
 
 type ShownStatus = GoalProgress['status']
 
 const isShown = (status: GoalProgramStatus): status is ShownStatus => status !== 'ended'
+
+/**
+ * True while an assignment is in force or still to begin. One a later version
+ * replaced has ended; one whose window ends where it starts (a plan replaced
+ * or cancelled before it began) never held its subject at all.
+ */
+const isOpenAt = (assignment: GoalSubjectAssignment, now: Date): boolean =>
+  assignment.effectiveTo === null ||
+  (assignment.effectiveTo > now && assignment.effectiveTo > assignment.effectiveFrom)
 
 /**
  * The assignment of this subject that is in force, else the next one to begin.
@@ -105,12 +146,23 @@ function assignmentFor(
   const open = bundle.assignments
     .filter(
       (assignment) =>
-        goalSubjectIdentity(assignment.subject) === identity &&
-        (assignment.effectiveTo === null || assignment.effectiveTo > now),
+        goalSubjectIdentity(assignment.subject) === identity && isOpenAt(assignment, now),
     )
     .sort((left, right) => left.effectiveFrom.getTime() - right.effectiveFrom.getTime())
   const current = open.filter((assignment) => assignment.effectiveFrom <= now)
   return current.at(-1) ?? open[0] ?? null
+}
+
+/** Every subject with an assignment in force or still to begin, once each. */
+function currentSubjects(bundle: GoalProgramBundle, now: Date): readonly GoalSubject[] {
+  const subjects = new Map<string, GoalSubject>()
+  for (const assignment of bundle.assignments) {
+    const identity = goalSubjectIdentity(assignment.subject)
+    if (isOpenAt(assignment, now) && !subjects.has(identity)) {
+      subjects.set(identity, assignment.subject)
+    }
+  }
+  return [...subjects.values()]
 }
 
 function versionOf(
@@ -123,10 +175,11 @@ function versionOf(
   )
 }
 
-function readingOf(
-  version: GoalProgramVersion,
+/** What a governed read of a month still running says, in the card's terms. */
+export function readingOf(
+  version: Pick<GoalProgramVersion, 'metric' | 'metricMinimumSample'>,
   result: GovernedGoalMetricResult,
-): GoalProgressReading {
+): Exclude<GoalProgressReading, Readonly<{ kind: 'not_started' }>> {
   if (result.state === 'unavailable' || result.state === 'quarantined') {
     return { kind: 'unavailable' }
   }
@@ -146,60 +199,89 @@ function readingOf(
   return { kind: 'live', value: result.exactValue, sampleCount: result.sampleCount }
 }
 
-export function createGoalProgressReader(deps: GoalProgressDeps): GoalProgressReader {
-  const progressOf = async (
-    bundle: GoalProgramBundle,
-    subject: GoalSubject,
-    status: ShownStatus,
-    now: Date,
-    actor: GoalActor,
-  ): Promise<GoalProgress | null> => {
-    const assignment = assignmentFor(bundle, subject, now)
-    if (!assignment) return null
-    const version = versionOf(bundle, assignment)
-    const started = status === 'active' && assignment.effectiveFrom <= now
-    const period = calendarPeriodRange(
-      started ? now : assignment.effectiveFrom,
-      version.propertyTimezone,
-      'monthly',
-    )
-    const reading: GoalProgressReading = started
-      ? readingOf(
-          version,
-          await deps.metrics.queryGoalMetric({
-            organizationId: toOrganizationId(actor.organizationId),
-            propertyId: toPropertyId(bundle.program.propertyId),
-            definitionVersionId: version.metricDefinitionVersionId,
-            subject: metricSubject(subject),
-            periodStart: period.start,
-            periodEnd: period.end,
-          }),
-        )
-      : { kind: 'not_started' }
-    return {
-      programId: bundle.program.id,
-      name: bundle.program.name,
-      metric: version.metric,
-      targetValue: version.targetValue,
-      setBy: version.createdBy,
-      status,
-      period,
-      timezone: version.propertyTimezone,
-      asOf: now,
-      reading,
-    }
+async function progressOf(
+  deps: GoalProgressDeps,
+  bundle: GoalProgramBundle,
+  subject: GoalSubject,
+  status: ShownStatus,
+  now: Date,
+  actor: GoalActor,
+): Promise<GoalProgress | null> {
+  const assignment = assignmentFor(bundle, subject, now)
+  if (!assignment) return null
+  const version = versionOf(bundle, assignment)
+  const started = status === 'active' && assignment.effectiveFrom <= now
+  const period = calendarPeriodRange(
+    started ? now : assignment.effectiveFrom,
+    version.propertyTimezone,
+    'monthly',
+  )
+  const reading: GoalProgressReading = started
+    ? readingOf(
+        version,
+        await deps.metrics.queryGoalMetric({
+          organizationId: toOrganizationId(actor.organizationId),
+          propertyId: toPropertyId(bundle.program.propertyId),
+          definitionVersionId: version.metricDefinitionVersionId,
+          subject: metricSubject(subject),
+          periodStart: period.start,
+          periodEnd: period.end,
+        }),
+      )
+    : { kind: 'not_started' }
+  const { setAt, setBy } = goalTargetProvenance(bundle, version)
+  return {
+    programId: bundle.program.id,
+    name: bundle.program.name,
+    metric: version.metric,
+    targetValue: version.targetValue,
+    setBy,
+    setAt,
+    status,
+    period,
+    timezone: version.propertyTimezone,
+    asOf: now,
+    reading,
   }
+}
 
+/** The goals that target one subject, each with its month so far. */
+export function createGoalProgressReader(deps: GoalProgressDeps): GoalProgressReader {
   return async (input, actor) => {
     const programs = await deps.reads.list(input.propertyId, actor)
     const now = deps.now()
     const goals = await Promise.all(
       programs.flatMap((bundle) =>
         isShown(bundle.program.status)
-          ? [progressOf(bundle, input.subject, bundle.program.status, now, actor)]
+          ? [progressOf(deps, bundle, input.subject, bundle.program.status, now, actor)]
           : [],
       ),
     )
     return goals.flatMap((goal) => (goal ? [goal] : []))
+  }
+}
+
+/**
+ * One goal, with the month so far for each of its current subjects. A goal
+ * with more subjects than the page reads figures for returns none, and so does
+ * an ended goal.
+ */
+export function createGoalProgramProgressReader(
+  deps: GoalProgressDeps,
+): GoalProgramProgressReader {
+  return async (input, actor) => {
+    const bundle = await deps.reads.get(input, actor)
+    const { status } = bundle.program
+    if (!isShown(status)) return []
+    const now = deps.now()
+    const subjects = currentSubjects(bundle, now)
+    if (subjects.length > MAX_GOAL_PROGRAM_PROGRESS_SUBJECTS) return []
+    const read = await Promise.all(
+      subjects.map(async (subject) => {
+        const progress = await progressOf(deps, bundle, subject, status, now, actor)
+        return progress ? [{ subject, progress }] : []
+      }),
+    )
+    return read.flat()
   }
 }
