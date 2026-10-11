@@ -343,6 +343,15 @@ describe('changeMonthTarget', () => {
     expect(repository.changeMonthTarget).not.toHaveBeenCalled()
   })
 
+  it('answers not_found for a Property with no time zone on record', async () => {
+    const { createGoal, change, subjects, repository } = setup()
+    await createGoal()
+    subjects.getTimezone.mockResolvedValue(null)
+
+    await expect(change()).rejects.toMatchObject(refusal('not_found'))
+    expect(repository.changeMonthTarget).not.toHaveBeenCalled()
+  })
+
   describe('which month', () => {
     it('refuses after the period end: a form opened in March and saved in April changes neither month', async () => {
       const { createGoal, change, stored, setNow, repository } = setup()
@@ -708,6 +717,28 @@ describe('changeMonthTarget', () => {
           followingVersionId: null,
         }),
       ])
+    })
+
+    it('a scheduled change with another measure is kept even when its number is the same', async () => {
+      const { createGoal, change, service, stored } = setup()
+      const goal = await createGoal()
+      // From April: an average of 4. For March: 4 ratings.
+      await service.revise(
+        {
+          propertyId: 'property-1',
+          programId: goal.program.id,
+          metric: 'portal_rating_average',
+          targetValue: 4,
+          subjects: [LOBBY],
+        },
+        actor,
+      )
+
+      await expect(change({ targetValue: 4, applyToFollowing: true })).resolves.toEqual({
+        month: { previous: 25, next: 4 },
+        following: { outcome: 'kept_scheduled_change' },
+      })
+      expect(stored().versions).toHaveLength(2)
     })
 
     it('an archived Portal subject gives not_applied and the month still changes', async () => {

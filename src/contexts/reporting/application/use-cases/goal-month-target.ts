@@ -102,10 +102,11 @@ function planForMonth(
 ): GoalMonthTargetPlan {
   const plan = monthTargetPlan(current, now, timezone)
   if (plan?.monthKey === month) return plan
+  // The cheap test first: only a month that is over is asked for its key.
   const ended = current.results.some(
     (result) =>
-      monthKeyOf(result.periodStart, result.propertyTimezone) === month &&
-      (result.status !== 'open' || result.periodEnd <= now),
+      (result.status !== 'open' || result.periodEnd <= now) &&
+      monthKeyOf(result.periodStart, result.propertyTimezone) === month,
   )
   throw new GoalProgramError(ended ? 'month_locked' : 'no_open_month')
 }
