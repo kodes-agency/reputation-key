@@ -11,6 +11,7 @@ import {
 import type { Tx } from '#/shared/outbox/commit'
 import type {
   GoalAssignmentConflict,
+  GoalProgram,
   GoalProgramBundle,
   GoalProgramRepository,
 } from '../../application/ports/goal-program.repository'
@@ -122,12 +123,16 @@ async function reviseInTx(
     .returning({ id: goalPrograms.id })
   if (!program) return false
 
-  // The start was computed from a read taken before this transaction,
-  // and maintenance may have opened a month for this version since.
-  // appendResults locks the Program row first, as the update above
-  // does, so this read sees any such month. Closing the version inside
-  // it would leave the month outside its window for good.
-  const [monthPastStart] = await tx
+  // The caller decided from a read taken before this transaction, and
+  // maintenance may have opened a month for the expected version since.
+  // activate and appendResults lock the Program row first, as the update
+  // above does, so this read sees any such month.
+  //  - Following a head in force: a month still open or reconciling past the
+  //    new start refuses the revision. Closing the version inside that month
+  //    would leave the month outside its window for good.
+  //  - Replacing a head that had no month: any month at all refuses it. The
+  //    head is in force now and has to be followed, not replaced.
+  const [blockingMonth] = await tx
     .select({ id: goalMonthlyResults.id })
     .from(goalMonthlyResults)
     .where(
@@ -136,16 +141,27 @@ async function reviseInTx(
         eq(goalMonthlyResults.propertyId, input.version.propertyId),
         eq(goalMonthlyResults.programId, input.version.programId),
         eq(goalMonthlyResults.programVersionId, input.expectedVersion.id),
-        inArray(goalMonthlyResults.status, ['open', 'reconciling']),
-        gt(goalMonthlyResults.periodEnd, input.version.effectiveFrom),
+        input.supersedeRowlessHead
+          ? undefined
+          : and(
+              inArray(goalMonthlyResults.status, ['open', 'reconciling']),
+              gt(goalMonthlyResults.periodEnd, input.version.effectiveFrom),
+            ),
       ),
     )
     .limit(1)
-  if (monthPastStart) throw new GoalProgramRevisionConflict()
+  if (blockingMonth) throw new GoalProgramRevisionConflict()
 
+  // A head in force closes where the new version starts. A replaced head
+  // keeps the empty window [from, from): it stays in the history, overlaps no
+  // other version and holds no subject.
   const [closedVersion] = await tx
     .update(goalProgramVersions)
-    .set({ effectiveTo: input.version.effectiveFrom })
+    .set({
+      effectiveTo: input.supersedeRowlessHead
+        ? sql`${goalProgramVersions.effectiveFrom}`
+        : input.version.effectiveFrom,
+    })
     .where(
       and(
         eq(goalProgramVersions.id, input.expectedVersion.id),
@@ -158,7 +174,11 @@ async function reviseInTx(
   if (!closedVersion) throw new GoalProgramRevisionConflict()
   const closedAssignments = await tx
     .update(goalSubjectAssignments)
-    .set({ effectiveTo: input.version.effectiveFrom })
+    .set({
+      effectiveTo: input.supersedeRowlessHead
+        ? sql`${goalSubjectAssignments.effectiveFrom}`
+        : input.version.effectiveFrom,
+    })
     .where(
       and(
         eq(goalSubjectAssignments.programVersionId, input.expectedVersion.id),
@@ -191,6 +211,23 @@ async function reviseInTx(
 }
 
 export const createGoalProgramRepository = (db: Database): GoalProgramRepository => {
+  /**
+   * Runs a status change in a transaction. Ending a Program that finds its
+   * version history changed under it throws GoalProgramRevisionConflict; the
+   * transaction then wrote nothing, and the caller is told null, as for a
+   * status that had already moved.
+   */
+  const changeStatusOrConflict = async (
+    change: (tx: Tx) => Promise<GoalProgram | null>,
+  ): Promise<GoalProgram | null> => {
+    try {
+      return await db.transaction(change)
+    } catch (error) {
+      if (error instanceof GoalProgramRevisionConflict) return null
+      throw error
+    }
+  }
+
   return {
     async create(input) {
       const { bundle } = input
@@ -273,7 +310,7 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
     },
 
     async changeStatus(input) {
-      return db.transaction(async (tx) => {
+      return changeStatusOrConflict(async (tx) => {
         const [row] = await tx
           .update(goalPrograms)
           .set({
@@ -369,7 +406,8 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
             propertyId: input.propertyId,
             previousStatus: input.expectedStatus,
             status: input.status,
-            reason: input.reason,
+            // A note is recorded only when the manager wrote one.
+            ...(input.reason === null ? {} : { reason: input.reason }),
           },
         })
         return mapProgram(row)

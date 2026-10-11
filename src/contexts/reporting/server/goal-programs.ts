@@ -70,7 +70,6 @@ const goalProgramStatus = (error: GoalProgramError): number => {
     case 'invalid_subject':
     case 'duplicate_subject':
     case 'assignment_limit_exceeded':
-    case 'invalid_reason':
       return 400
   }
 }

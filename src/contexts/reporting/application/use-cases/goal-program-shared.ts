@@ -103,7 +103,6 @@ export class GoalProgramError extends Error {
       | 'invalid_subject'
       | 'duplicate_subject'
       | 'assignment_limit_exceeded'
-      | 'invalid_reason'
       | 'metric_unavailable'
       | 'invalid_transition'
       | 'revision_conflict'
@@ -116,25 +115,11 @@ export class GoalProgramError extends Error {
 }
 
 /**
- * The earliest instant a revision may start: after the request, and never
- * before a month that still has to reconcile ends. That month belongs to the
- * current version's timezone; the next month in a Property timezone further
- * east starts before it ends, and closing the version there would leave the
- * month outside its version window, where the database refuses every update.
+ * A manager's optional note on a change, trimmed. Null when none was given:
+ * the command then stores its own default, or nothing at all.
  */
-export function earliestRevisionStart(
-  results: readonly GoalMonthlyResult[],
-  now: Date,
-): Date {
-  // One millisecond on: a revision never redefines a month already in
-  // progress, even when the request lands exactly on its first instant.
-  const earliest = results
-    .filter((result) => result.status === 'open' || result.status === 'reconciling')
-    .reduce(
-      (latest, result) => Math.max(latest, result.periodEnd.getTime()),
-      now.getTime() + 1,
-    )
-  return new Date(earliest)
+export function noteOf(note: string | undefined): string | null {
+  return note?.trim() || null
 }
 
 /**

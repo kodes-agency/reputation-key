@@ -3,14 +3,15 @@
 import type {
   GoalProgramBundle,
   GoalProgramVersion,
+  GoalSubjectAssignment,
 } from '../ports/goal-program.repository'
 import {
   canTransitionGoalProgram,
-  firstFullMonthlyPeriodAtOrAfter,
   type GoalMetric,
   type GoalProgramStatus,
   type GoalSubject,
 } from '../../domain/goal-program'
+import { nextRevisionStart } from '../goal-revision-start'
 import {
   changeAssignments,
   type GoalAssignmentChangeResult,
@@ -18,6 +19,7 @@ import {
 import { createGoal } from './goal-program-create'
 import {
   GoalProgramMaintenanceError,
+  loadCaughtUpProgram,
   maintain,
   reconcileClosedResult,
   reconcileResult,
@@ -25,10 +27,9 @@ import {
 } from './goal-program-maintenance'
 import {
   assignmentFor,
-  earliestRevisionStart,
   GoalProgramError,
   isMetricSourceInactive,
-  loadChangeableProgram,
+  noteOf,
   resolveGoalDefinition,
   type GoalActor,
   type GoalExecutionPolicy,
@@ -50,6 +51,163 @@ export type {
   GoalProgramDependencies,
   GoalProgramMaintenanceStats,
   GoalProgramSubjectReader,
+}
+
+type ReviseGoalInput = Readonly<{
+  propertyId: string
+  programId: string
+  metric: GoalMetric
+  targetValue: number
+  subjects: readonly GoalSubject[]
+  /** The manager's optional note. Without one the version records `revised`. */
+  reason?: string
+  /**
+   * The version the form was opened on. A form that sends it is refused once
+   * the head has moved, instead of changing a goal it never showed.
+   */
+  expectedVersion?: number
+}>
+
+/**
+ * The bundle as a revision leaves it. The head it follows closes where the new
+ * version starts; a head it replaces keeps the empty window [from, from).
+ */
+function revisedBundle(
+  current: GoalProgramBundle,
+  version: GoalProgramVersion,
+  assignments: readonly GoalSubjectAssignment[],
+  supersedeRowlessHead: boolean,
+): GoalProgramBundle {
+  const closedAt = (window: Readonly<{ effectiveFrom: Date }>) =>
+    supersedeRowlessHead ? window.effectiveFrom : version.effectiveFrom
+  return {
+    program: {
+      ...current.program,
+      currentVersion: version.version,
+      updatedAt: version.createdAt,
+    },
+    version,
+    versions: [
+      ...current.versions.map((known) =>
+        known.id === current.version.id
+          ? { ...known, effectiveTo: closedAt(known) }
+          : known,
+      ),
+      version,
+    ],
+    assignments: [
+      ...current.assignments.map((known) =>
+        known.programVersionId === current.version.id && known.effectiveTo === null
+          ? { ...known, effectiveTo: closedAt(known) }
+          : known,
+      ),
+      ...assignments,
+    ],
+    results: current.results,
+  }
+}
+
+/**
+ * Change a Program's measure, target and subjects from a coming month. A
+ * month already open keeps the version it opened under.
+ */
+async function reviseGoal(
+  deps: GoalProgramDependencies,
+  input: ReviseGoalInput,
+  actor: GoalActor,
+): Promise<GoalProgramBundle> {
+  await deps.policy.authorize({
+    actor,
+    organizationId: actor.organizationId,
+    propertyId: input.propertyId,
+    action: 'goal.update',
+  })
+  const now = deps.now()
+  const current = await loadCaughtUpProgram(deps, actor, input, now)
+  if (
+    input.expectedVersion !== undefined &&
+    current.version.version !== input.expectedVersion
+  ) {
+    throw new GoalProgramError('revision_conflict')
+  }
+  const { target, timezone, governed, readinessSubject } = await resolveGoalDefinition(
+    deps,
+    actor.organizationId,
+    input,
+  )
+  // A head with no month yet (a goal that has not started, or an earlier
+  // change still waiting for its month) is replaced rather than followed.
+  // When the Property's timezone moved east, the next local month begins
+  // before the open month ends, so the revision starts one local month
+  // later and the skipped local month is not evaluated under either
+  // version. The caller shows the returned start date.
+  const { head, period } = nextRevisionStart(current, now, timezone)
+  const conflicts = await deps.repository.findAssignmentConflicts({
+    organizationId: actor.organizationId,
+    propertyId: input.propertyId,
+    excludeProgramId: current.program.id,
+    metric: input.metric,
+    effectiveFrom: period.start,
+    subjects: input.subjects,
+  })
+  if (conflicts.length > 0) throw new GoalProgramError('subject_has_goal')
+  const sourceInactive = await isMetricSourceInactive(deps, {
+    organizationId: actor.organizationId,
+    propertyId: input.propertyId,
+    governed,
+    subject: readinessSubject,
+    period,
+  })
+  if (sourceInactive && current.program.status !== 'scheduled') {
+    throw new GoalProgramError('metric_unavailable')
+  }
+
+  const versionId = deps.id()
+  const version: GoalProgramVersion = {
+    id: versionId,
+    programId: current.program.id,
+    organizationId: current.program.organizationId,
+    propertyId: current.program.propertyId,
+    version: current.version.version + 1,
+    metricDefinitionId: governed.definition.id,
+    metricDefinitionVersionId: governed.version.id,
+    metric: input.metric,
+    metricMinimumSample: governed.version.minimumSample,
+    targetValue: target.normalizedTarget,
+    propertyTimezone: timezone,
+    effectiveFrom: period.start,
+    effectiveTo: null,
+    changeReason: noteOf(input.reason) ?? 'revised',
+    createdBy: actor.userId,
+    createdAt: now,
+  }
+  const assignments = input.subjects.map((subject) =>
+    assignmentFor({
+      id: deps.id(),
+      programId: current.program.id,
+      programVersionId: versionId,
+      organizationId: current.program.organizationId,
+      propertyId: current.program.propertyId,
+      metric: input.metric,
+      subject,
+      effectiveFrom: period.start,
+      effectiveTo: null,
+      actorId: actor.userId,
+      at: now,
+    }),
+  )
+  const supersedeRowlessHead = head !== 'in_force'
+  const revised = await deps.repository.revise({
+    expectedVersion: current.version,
+    version,
+    assignments,
+    supersedeRowlessHead,
+    actorId: actor.userId,
+    at: now,
+  })
+  // The head moved, or a month opened under it, since this command read it.
+  if (!revised) throw new GoalProgramError('revision_conflict')
+  return revisedBundle(current, version, assignments, supersedeRowlessHead)
 }
 
 export function createGoalProgramService(deps: GoalProgramDependencies) {
@@ -86,102 +244,7 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       return deps.repository.list(actor.organizationId, propertyId)
     },
 
-    revise: async (
-      input: Readonly<{
-        propertyId: string
-        programId: string
-        metric: GoalMetric
-        targetValue: number
-        subjects: readonly GoalSubject[]
-        reason: string
-      }>,
-      actor: GoalActor,
-    ): Promise<GoalProgramBundle> => {
-      await deps.policy.authorize({
-        actor,
-        organizationId: actor.organizationId,
-        propertyId: input.propertyId,
-        action: 'goal.update',
-      })
-      const current = await loadChangeableProgram(deps, actor, input)
-      const now = deps.now()
-      // A future Program head is already the one pending revision that the
-      // maintenance runtime will activate. Stacking another future head would
-      // either create a zero-length version or skip the pending version.
-      if (current.version.effectiveFrom > now) {
-        throw new GoalProgramError('revision_conflict')
-      }
-      const { target, timezone, governed, readinessSubject } =
-        await resolveGoalDefinition(deps, actor.organizationId, input)
-      // When the Property's timezone moved east, the next local month begins
-      // before the open month ends, so the revision starts one local month
-      // later and the skipped local month is not evaluated under either
-      // version. The caller shows the returned start date.
-      const period = firstFullMonthlyPeriodAtOrAfter(
-        earliestRevisionStart(current.results, now),
-        timezone,
-      )
-      const sourceInactive = await isMetricSourceInactive(deps, {
-        organizationId: actor.organizationId,
-        propertyId: input.propertyId,
-        governed,
-        subject: readinessSubject,
-        period,
-      })
-      if (sourceInactive && current.program.status !== 'scheduled') {
-        throw new GoalProgramError('metric_unavailable')
-      }
-
-      const versionId = deps.id()
-      const version: GoalProgramVersion = {
-        id: versionId,
-        programId: current.program.id,
-        organizationId: current.program.organizationId,
-        propertyId: current.program.propertyId,
-        version: current.version.version + 1,
-        metricDefinitionId: governed.definition.id,
-        metricDefinitionVersionId: governed.version.id,
-        metric: input.metric,
-        metricMinimumSample: governed.version.minimumSample,
-        targetValue: target.normalizedTarget,
-        propertyTimezone: timezone,
-        effectiveFrom: period.start,
-        effectiveTo: null,
-        changeReason: input.reason.trim() || 'revised',
-        createdBy: actor.userId,
-        createdAt: now,
-      }
-      const assignments = input.subjects.map((subject) =>
-        assignmentFor({
-          id: deps.id(),
-          programId: current.program.id,
-          programVersionId: versionId,
-          organizationId: current.program.organizationId,
-          propertyId: current.program.propertyId,
-          metric: input.metric,
-          subject,
-          effectiveFrom: period.start,
-          effectiveTo: null,
-          actorId: actor.userId,
-          at: now,
-        }),
-      )
-      const revised = await deps.repository.revise({
-        expectedVersion: current.version,
-        version,
-        assignments,
-        actorId: actor.userId,
-        at: now,
-      })
-      if (!revised) throw new GoalProgramError('revision_conflict')
-      return {
-        program: { ...current.program, currentVersion: version.version, updatedAt: now },
-        version,
-        versions: [...current.versions, version],
-        assignments: [...current.assignments, ...assignments],
-        results: current.results,
-      }
-    },
+    revise: (input: ReviseGoalInput, actor: GoalActor) => reviseGoal(deps, input, actor),
 
     changeAssignments: (
       input: Parameters<typeof changeAssignments>[1],
@@ -193,7 +256,8 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         propertyId: string
         programId: string
         status: GoalProgramStatus
-        reason: string
+        /** The manager's optional note. Without one no status reason is stored. */
+        reason?: string
       }>,
       actor: GoalActor,
     ) => {
@@ -225,10 +289,11 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         programId: input.programId,
         expectedStatus: current.program.status,
         status: input.status,
-        reason: input.reason.trim() || 'status_changed',
+        reason: noteOf(input.reason),
         actorId: actor.userId,
         at: deps.now(),
       })
+      // The status moved, or the version history did, since this command read it.
       if (!updated) throw new GoalProgramError('revision_conflict')
       return updated
     },

@@ -167,6 +167,11 @@ export type GoalProgramRepository = Readonly<{
   ): Promise<GoalProgramBundle | null>
   list(organizationId: string, propertyId: string): Promise<readonly GoalProgramBundle[]>
   listOperational(): Promise<readonly GoalProgramBundle[]>
+  /**
+   * Null when the Program is no longer in `expectedStatus`, or when ending it
+   * finds its version history changed under it. Nothing is written then.
+   * `reason` is the manager's note; without one no status reason is stored.
+   */
   changeStatus(
     input: Readonly<{
       organizationId: string
@@ -174,21 +179,31 @@ export type GoalProgramRepository = Readonly<{
       programId: string
       expectedStatus: GoalProgramStatus
       status: GoalProgramStatus
-      reason: string
+      reason: string | null
       actorId: string
       at: Date
     }>,
   ): Promise<GoalProgram | null>
   /**
-   * False when the head moved, or when an open or reconciling month of the
-   * expected version ends after the new version starts (a month opened since
-   * the caller read the Program). Re-read and recompute the start to retry.
+   * Write `version` as the Program's new head.
+   *
+   * `supersedeRowlessHead` says what becomes of the expected version. False:
+   * it is in force, and it and its assignments close where the new version
+   * starts. True: no month has opened under it (a goal that has not started,
+   * or a change still waiting for its month), so it is replaced, and it and
+   * its assignments keep the empty window [from, from), which holds no subject.
+   *
+   * False when the head moved; when an open or reconciling month of the
+   * expected version ends after the new version starts; or, when replacing,
+   * when any month exists under the expected version. Each means a month
+   * opened since the caller read the Program: re-read and recompute to retry.
    */
   revise(
     input: Readonly<{
       expectedVersion: GoalProgramVersion
       version: GoalProgramVersion
       assignments: readonly GoalSubjectAssignment[]
+      supersedeRowlessHead: boolean
       actorId: string
       at: Date
     }>,

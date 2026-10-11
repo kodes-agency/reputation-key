@@ -28,11 +28,15 @@ const goalProgramSubjectSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('portal'), portalId: uuid }),
 ])
 
-const goalProgramReasonSchema = z
-  .string()
-  .trim()
-  .min(1, 'Enter a reason for this change')
-  .max(500, 'Keep the reason under 500 characters')
+// A manager's note on a change, as a form holds it: a text field always has a
+// string, and an empty one means no note.
+const goalProgramNoteFieldSchema = z.string().trim().max(500)
+
+/**
+ * The note on a command: optional. Without one a version records a default
+ * (`revised`, `subjects_changed`) and a status change records nothing.
+ */
+const goalProgramReasonSchema = goalProgramNoteFieldSchema.optional()
 
 const goalProgramSubjectSelectionSchema = z
   .array(goalProgramSubjectSchema)
@@ -80,6 +84,9 @@ export const reviseGoalProgramSchema = z.object({
   targetValue: z.number().finite('Enter a valid monthly target'),
   subjects: goalProgramSubjectSelectionSchema,
   reason: goalProgramReasonSchema,
+  // The version the form was opened on. A form that sends it is refused once
+  // the goal has changed under it.
+  expectedVersion: z.number().int().positive().optional(),
 })
 
 // Interactive forms use the same command fields, with the domain target rule
@@ -96,13 +103,14 @@ export const createGoalProgramFormSchema = z
   .superRefine(addTargetIssue)
 
 export const reviseGoalProgramFormSchema = reviseGoalProgramSchema
-  .omit({ propertyId: true, programId: true })
+  .omit({ propertyId: true, programId: true, expectedVersion: true })
+  .extend({ reason: goalProgramNoteFieldSchema })
   .superRefine(addTargetIssue)
 
 export const goalProgramAssignmentEditorSchema = z.object({
   subjects: z.array(goalProgramSubjectSchema).max(MAX_GOAL_ASSIGNMENT_SELECTIONS),
   selectAllCurrentPortals: z.boolean(),
-  reason: goalProgramReasonSchema,
+  reason: goalProgramNoteFieldSchema,
 })
 
 export const changeGoalProgramAssignmentsSchema = z
