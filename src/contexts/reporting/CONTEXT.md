@@ -87,7 +87,9 @@ metric authority.
    its version's window. After the Property's timezone moves east, the next local month
    begins before the open month ends, so the revision starts one local month later and the
    skipped local month is not evaluated under either version. The start date is shown when
-   the revision is scheduled.
+   the revision is scheduled. A version with no monthly result (a goal that has not started,
+   or a change still waiting for its month) may be replaced by the next change; the replaced
+   version and its assignments keep an empty window, which holds no subject.
 3. Goal assignment changes preserve at least one subject and never rewrite history.
 4. Corrections append; they never mutate the original reading or closed Goal result.
 5. Dashboard values preserve unavailable/updating/insufficient states instead of showing zero.
