@@ -43,6 +43,26 @@ const goalProgramSubjectSelectionSchema = z
   .min(1, 'Select at least one subject')
   .max(MAX_GOAL_ASSIGNMENT_SELECTIONS)
 
+const TARGET_FAULTS = {
+  target_not_finite: 'Enter a valid monthly target',
+  count_target_not_positive_integer: 'Use a positive whole number',
+  average_target_out_of_range: 'Use a rating target from 1 to 5',
+  average_target_precision: 'Use no more than one decimal place',
+} as const
+
+/**
+ * What is wrong with a target for its measure, in the words a form prints
+ * under the field; null when the measure takes it. One spelling for the single
+ * goal form and for each row of the table that sets several goals.
+ */
+export function goalTargetFault(
+  metric: z.infer<typeof goalProgramMetricSchema>,
+  targetValue: number,
+): string | null {
+  const target = validateGoalTarget(metric, targetValue)
+  return target.ok ? null : TARGET_FAULTS[target.reason]
+}
+
 function addTargetIssue(
   input: Readonly<{
     metric: z.infer<typeof goalProgramMetricSchema>
@@ -50,19 +70,10 @@ function addTargetIssue(
   }>,
   context: z.RefinementCtx,
 ): void {
-  const target = validateGoalTarget(input.metric, input.targetValue)
-  if (target.ok) return
-  const messages = {
-    target_not_finite: 'Enter a valid monthly target',
-    count_target_not_positive_integer: 'Use a positive whole number',
-    average_target_out_of_range: 'Use a rating target from 1 to 5',
-    average_target_precision: 'Use no more than one decimal place',
-  } as const
-  context.addIssue({
-    code: 'custom',
-    path: ['targetValue'],
-    message: messages[target.reason],
-  })
+  const message = goalTargetFault(input.metric, input.targetValue)
+  if (message !== null) {
+    context.addIssue({ code: 'custom', path: ['targetValue'], message })
+  }
 }
 
 export const createGoalProgramSchema = z.object({

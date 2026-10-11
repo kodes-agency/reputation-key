@@ -29,6 +29,13 @@ metric authority.
   Program's time zone. It is never a result: it evaluates nothing, is never stored, and an
   average under the metric's minimum sample or a reading that cannot be trusted is shown as
   such, never as a zero.
+- **Goals for several subjects**: one save that creates one Goal Program per row, each for
+  one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
+  rows). It is authorised once and its start month is resolved once, so every goal of a save
+  starts in the same month; each goal is its own transaction and is named after its subject
+  and measure. A row that cannot be saved is reported with its reason and never holds back
+  the others, and a row reached after the chosen month has ended is not written. There is no
+  target that subjects share and no Property total.
 - **Dashboard read model**: content-minimal presentation assembled from governed sources.
 - **Portal lifetime aggregate**: anonymous all-time values with rebuild and seal evidence.
 - **Portal results measures**: the five figures on a Portal's Results view, each named for

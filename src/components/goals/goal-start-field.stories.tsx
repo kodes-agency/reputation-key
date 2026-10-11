@@ -10,7 +10,7 @@ import { goalStartChoice, goalStartLabels, offeredStartMonth } from './goal-star
 
 const ZONE = 'Europe/Sofia'
 
-function StartChoice({ now }: Readonly<{ now: Date }>) {
+function StartChoice({ now, legend }: Readonly<{ now: Date; legend?: string }>) {
   const choice = goalStartChoice(now, ZONE)
   const labels = goalStartLabels(choice, ZONE, now)
   const [picked, setPicked] = useState<string | null>(null)
@@ -25,6 +25,7 @@ function StartChoice({ now }: Readonly<{ now: Date }>) {
         value={startMonth}
         onValueChange={setPicked}
         soFar={startMonth === choice.current.monthKey ? 'So far this month: 412' : null}
+        legend={legend}
       />
       <p>
         Submits <output aria-label="Start month">{startMonth}</output>
@@ -101,5 +102,23 @@ export const NextMonthIsNextYear: Story = {
     await expect(
       canvas.getByRole('radio', { name: 'Next month — starts Jan 1, 2027' }),
     ).toBeInTheDocument()
+  },
+}
+
+/** The table that sets several goals asks about all of them. */
+export const AsksAboutSeveralGoals: Story = {
+  args: {
+    now: new Date('2026-10-11T09:00:00.000Z'),
+    legend: 'When do these goals start?',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const group = within(
+      canvas.getByRole('group', { name: 'When do these goals start?' }),
+    )
+    await expect(
+      group.getByRole('radio', { name: 'This month — counts everything since Oct 1' }),
+    ).toBeChecked()
+    expect(canvas.queryByRole('group', { name: 'When does this goal start?' })).toBeNull()
   },
 }

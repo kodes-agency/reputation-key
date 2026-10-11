@@ -20,17 +20,33 @@ type Props = Readonly<{
   onValueChange: (monthKey: string) => void
   /** "So far this month: 412", once read; null while there is nothing to say. */
   soFar: string | null
+  /** The question, where it is not about one goal: "When do these goals start?" */
+  legend?: string
+  /** Not to be changed now: a save for the month it shows is running. */
+  disabled?: boolean
 }>
 
 const LEGEND_ID = 'goal-start-legend'
 
-export function GoalStartField({ options, value, onValueChange, soFar }: Props) {
+export function GoalStartField({
+  options,
+  value,
+  onValueChange,
+  soFar,
+  legend = 'When does this goal start?',
+  disabled = false,
+}: Props) {
   return (
     <fieldset className="flex min-w-0 flex-col gap-3">
       <legend id={LEGEND_ID} className="mb-2 text-sm leading-snug font-medium">
-        When does this goal start?
+        {legend}
       </legend>
-      <RadioGroup value={value} onValueChange={onValueChange} aria-labelledby={LEGEND_ID}>
+      <RadioGroup
+        value={value}
+        onValueChange={onValueChange}
+        disabled={disabled}
+        aria-labelledby={LEGEND_ID}
+      >
         {options.map((option) => {
           const id = `goal-start-${option.monthKey}`
           return (

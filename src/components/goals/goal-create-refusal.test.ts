@@ -20,7 +20,9 @@ const said = (shown: unknown): unknown => (shown instanceof Error ? shown.messag
 
 const hold = (overrides: Partial<GoalSubjectHold> = {}): GoalSubjectHold => ({
   subject: LOBBY,
+  programId: 'program-1',
   programName: 'Lobby ratings',
+  targetValue: 400,
   heldUntil: null,
   ...overrides,
 })

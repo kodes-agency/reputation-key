@@ -3,7 +3,8 @@
 // One subject carries one goal per measure at a time. This is the rule the
 // database's no-overlap constraint enforces and the create command checks
 // before it writes, stated once for a form that has the goal list in hand: it
-// can say which goal holds a subject, and until when, without another request.
+// can say which goal holds a subject, with what target and until when, without
+// another request.
 import type { GoalMetric } from '../domain/goal-program'
 import { goalSubjectIdentity, type GoalSubject } from '../domain/goal-subject'
 import type {
@@ -13,8 +14,14 @@ import type {
 
 export type GoalSubjectHold = Readonly<{
   subject: GoalSubject
-  /** The name of the goal that holds the subject. */
+  /** The goal that holds the subject. */
+  programId: string
   programName: string
+  /**
+   * That goal's target for the subject at the start asked about: the one in
+   * force then, or the one the goal begins on when it has not begun by then.
+   */
+  targetValue: number
   /** Null while the goal is live; otherwise the instant the subject is free again. */
   heldUntil: Date | null
 }>
@@ -39,9 +46,36 @@ export const holdOutlasts = (candidate: Date | null, known: Date | null): boolea
   known !== null && (candidate === null || candidate > known)
 
 /**
+ * The goal's target for a held subject at `from`. A revision that waits for
+ * next month already holds the subject for good, but the month `from` is in is
+ * still counted against the target before it: the assignment in force at
+ * `from` says which. A goal that has not begun by `from` has none in force,
+ * and shows the target it begins on.
+ */
+function targetAt(
+  bundle: GoalProgramBundle,
+  holding: GoalSubjectAssignment,
+  from: Date,
+): number {
+  const identity = goalSubjectIdentity(holding.subject)
+  const inForce =
+    bundle.assignments.find(
+      (candidate) =>
+        candidate.metric === holding.metric &&
+        goalSubjectIdentity(candidate.subject) === identity &&
+        candidate.effectiveFrom <= from &&
+        assignmentHoldsFrom(candidate, from),
+    ) ?? holding
+  const version =
+    bundle.versions.find((candidate) => candidate.id === inForce.programVersionId) ??
+    bundle.version
+  return version.targetValue
+}
+
+/**
  * The subjects held for `metric` from `from`, one entry per subject: the hold
- * that lasts longest. A goal ended this month still holds its subject until
- * the month it had open ends.
+ * that lasts longest, with that goal's target at `from`. A goal ended this
+ * month still holds its subject until the month it had open ends.
  */
 export function subjectHolds(
   bundles: readonly GoalProgramBundle[],
@@ -57,7 +91,9 @@ export function subjectHolds(
       if (known && !holdOutlasts(assignment.effectiveTo, known.heldUntil)) continue
       holds.set(identity, {
         subject: assignment.subject,
+        programId: bundle.program.id,
         programName: bundle.program.name,
+        targetValue: targetAt(bundle, assignment, from),
         heldUntil: assignment.effectiveTo,
       })
     }

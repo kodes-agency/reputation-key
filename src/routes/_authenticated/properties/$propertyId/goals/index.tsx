@@ -19,6 +19,7 @@ import { PageHeader } from '#/components/layout/page-header'
 import { NAV_LABEL } from '#/components/layout/nav-labels'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { AddActionLink } from '#/components/ui/add-action'
+import { Button } from '#/components/ui/button'
 import {
   DataTable,
   DataTableBody,
@@ -137,9 +138,24 @@ function GoalsRoute() {
         )}
         actions={
           canDo('goal.create') ? (
-            <AddActionLink to="/properties/$propertyId/goals/new" params={{ propertyId }}>
-              New goal
-            </AddActionLink>
+            <>
+              {/* The table on the New goal page: one number per Portal, a goal each. */}
+              <Button asChild variant="outline">
+                <Link
+                  to="/properties/$propertyId/goals/new"
+                  params={{ propertyId }}
+                  search={{ mode: 'several' }}
+                >
+                  Set goals for several portals
+                </Link>
+              </Button>
+              <AddActionLink
+                to="/properties/$propertyId/goals/new"
+                params={{ propertyId }}
+              >
+                New goal
+              </AddActionLink>
+            </>
           ) : undefined
         }
       />

@@ -5,6 +5,7 @@ import {
   createGoalProgramFormSchema,
   createGoalProgramSchema,
   goalProgramAssignmentEditorSchema,
+  goalTargetFault,
   renameGoalProgramSchema,
   reviseGoalProgramFormSchema,
   reviseGoalProgramSchema,
@@ -148,5 +149,50 @@ describe('Goal Program command DTOs', () => {
     for (const name of [' ', 'x'.repeat(201)]) {
       expect(renameGoalProgramSchema.safeParse({ ...identity, name }).success).toBe(false)
     }
+  })
+})
+
+describe('what is wrong with a target for its measure', () => {
+  it('says nothing about a target the measure takes', () => {
+    expect(goalTargetFault('qualified_scans', 12)).toBeNull()
+    expect(goalTargetFault('portal_rating_count', 400)).toBeNull()
+    expect(goalTargetFault('portal_rating_average', 4.5)).toBeNull()
+  })
+
+  it('asks a count for a positive whole number', () => {
+    expect(goalTargetFault('portal_rating_count', 0)).toBe('Use a positive whole number')
+    expect(goalTargetFault('qualified_scans', 4.5)).toBe('Use a positive whole number')
+  })
+
+  it('asks an average for 1 to 5, with one decimal place at most', () => {
+    expect(goalTargetFault('portal_rating_average', 7)).toBe(
+      'Use a rating target from 1 to 5',
+    )
+    expect(goalTargetFault('portal_rating_average', 4.55)).toBe(
+      'Use no more than one decimal place',
+    )
+  })
+
+  it('names a number that is not one', () => {
+    expect(goalTargetFault('portal_rating_count', Number.NaN)).toBe(
+      'Enter a valid monthly target',
+    )
+  })
+
+  it('is the sentence the single goal form prints under its target', () => {
+    const parsed = createGoalProgramFormSchema.safeParse({
+      name: 'Impossible average',
+      description: '',
+      metric: 'portal_rating_average',
+      targetValue: 5.5,
+      subjects: [subject],
+    })
+
+    expect(parsed.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ['targetValue'],
+        message: goalTargetFault('portal_rating_average', 5.5),
+      }),
+    ])
   })
 })

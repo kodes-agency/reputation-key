@@ -1096,6 +1096,177 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     }
   })
 
+  test('set goals for three portals, one already has a goal', async ({
+    page,
+  }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    // Three Portals of their own for every attempt, as in the journey above: a
+    // goal holds its subject, so a second attempt on the same Portals would
+    // find all three taken. The `e2e-rotating-` slugs put them in the afterAll
+    // clean-up, and every goal of the attempt carries the suffix in its name.
+    const suffix = `${e2eRunId.slice(-8)}-${testInfo.retry}`
+    const goalsFile = 'src/contexts/reporting/server/goal-programs.ts'
+    const createPortal = async (label: string) => {
+      const name = `E2E Bulk ${label} ${suffix}`
+      const { portal } = await callServerFn<{ portal: { id: string } }>(page, {
+        file: 'src/contexts/portal/server/portals.ts',
+        exportName: 'createPortal',
+        data: {
+          propertyId: seed.p1PropertyId,
+          name,
+          slug: `e2e-rotating-bulk-${label.toLowerCase()}-${suffix}`,
+          description: 'One row of the table that sets several goals.',
+        },
+      })
+      return { id: portal.id, name }
+    }
+    const taken = await createPortal('Taken')
+    const lobby = await createPortal('Lobby')
+    const bar = await createPortal('Bar')
+
+    try {
+      // One of the three already has a goal for the measure, from next month.
+      // Every goal here starts next month, so ending it frees its Portal at once.
+      const takenGoalName = `E2E Goal Set Before ${suffix}`
+      const before = await callServerFn<{ program: { id: string } }>(page, {
+        file: goalsFile,
+        exportName: 'createGoalProgram',
+        data: {
+          propertyId: seed.p1PropertyId,
+          name: takenGoalName,
+          metric: 'portal_rating_count',
+          targetValue: 7,
+          subjects: [{ kind: 'portal', portalId: taken.id }],
+          startMonth: await nextGoalStartMonth(seed.p1PropertyId),
+        },
+      })
+
+      // The way in is the Goals list.
+      await page.goto(`/properties/${seed.p1PropertyId}/goals`)
+      await waitForHydration(page)
+      await clickWhenReady(
+        page.getByRole('link', { name: 'Set goals for several portals' }),
+      )
+      await expect(page).toHaveURL(
+        new RegExp(`/properties/${seed.p1PropertyId}/goals/new\\?mode=several$`),
+      )
+      await expect(
+        page
+          .getByRole('navigation', { name: 'New goal views' })
+          .getByRole('link', { name: 'Several portals' }),
+      ).toHaveAttribute('aria-current', 'page')
+      await expect(
+        page.getByRole('heading', { level: 2, name: 'Set goals for several portals' }),
+      ).toBeVisible()
+
+      // The start is chosen here, never assumed: which month the form offers
+      // first depends on the day of the month the suite runs. The measure is the
+      // one the form opens on, private ratings, which the goal set before has.
+      const chooseNextMonth = async () => {
+        const nextMonth = page.getByRole('radio', { name: /^Next month — starts / })
+        await nextMonth.click()
+        await expect(nextMonth).toBeChecked()
+      }
+      await chooseNextMonth()
+      const rowOf = (portal: { name: string }) =>
+        page.getByRole('row').filter({ hasText: portal.name })
+      const targetOf = (portal: { name: string }) =>
+        page.getByRole('spinbutton', { name: `Monthly target for ${portal.name}` })
+
+      // The Portal that has a goal takes no number: its row shows that goal's
+      // target, says what frees the Portal and links to the goal.
+      const takenRow = rowOf(taken)
+      await expect(takenRow.getByText('Already has a goal')).toBeVisible()
+      await expect(takenRow.getByText('7', { exact: true })).toBeVisible()
+      await expect(
+        takenRow.getByText(
+          `${taken.name} is part of ${takenGoalName}. Remove it from that goal’s subjects first.`,
+        ),
+      ).toBeVisible()
+      await expect(
+        takenRow.getByRole('link', { name: takenGoalName, exact: true }),
+      ).toHaveAttribute(
+        'href',
+        `/properties/${seed.p1PropertyId}/goals/${before.program.id}`,
+      )
+      await expect(targetOf(taken)).toHaveCount(0)
+
+      await targetOf(lobby).fill('5')
+      await targetOf(bar).fill('8')
+      await clickWhenReady(page.getByRole('button', { name: 'Save goals' }))
+
+      // One goal per filled row, each named for its Portal and its measure.
+      await expect(page.getByText('2 goals saved.', { exact: true })).toBeVisible()
+      for (const [portal, target] of [
+        [lobby, '5'],
+        [bar, '8'],
+      ] as const) {
+        const row = rowOf(portal)
+        await expect(row.getByText('Goal saved')).toBeVisible()
+        await expect(row.getByText(target, { exact: true })).toBeVisible()
+        await expect(
+          row.getByRole('link', {
+            name: `${portal.name} · Private ratings`,
+            exact: true,
+          }),
+        ).toHaveAttribute(
+          'href',
+          new RegExp(`/properties/${seed.p1PropertyId}/goals/[0-9a-f-]{36}$`),
+        )
+        await expect(targetOf(portal)).toHaveCount(0)
+      }
+      // The goal that was there is still the first Portal's.
+      await expect(takenRow.getByText('Already has a goal')).toBeVisible()
+
+      // After a reload the two new goals hold their Portals like any other.
+      await page.reload()
+      await waitForHydration(page)
+      await chooseNextMonth()
+      for (const [portal, target] of [
+        [lobby, '5'],
+        [bar, '8'],
+      ] as const) {
+        const row = rowOf(portal)
+        await expect(row.getByText('Already has a goal')).toBeVisible()
+        await expect(row.getByText(target, { exact: true })).toBeVisible()
+        await expect(targetOf(portal)).toHaveCount(0)
+      }
+
+      // And the Goals list has all three, the two new ones under their names.
+      await page.goto(`/properties/${seed.p1PropertyId}/goals`)
+      for (const name of [
+        takenGoalName,
+        `${lobby.name} · Private ratings`,
+        `${bar.name} · Private ratings`,
+      ]) {
+        await expect(page.getByRole('link', { name, exact: true })).toBeVisible()
+      }
+    } finally {
+      // End every goal of this attempt, whatever happened above: a goal left
+      // open would outlive the Portals the afterAll archives.
+      const listed = await callServerFnGet<{
+        programs: ReadonlyArray<{ program: { id: string; name: string; status: string } }>
+      }>(page, {
+        file: goalsFile,
+        exportName: 'listGoalPrograms',
+        data: { propertyId: seed.p1PropertyId },
+      })
+      for (const { program } of listed.programs) {
+        if (!program.name.includes(suffix) || program.status === 'ended') continue
+        await callServerFn(page, {
+          file: goalsFile,
+          exportName: 'changeGoalProgramStatus',
+          data: {
+            propertyId: seed.p1PropertyId,
+            programId: program.id,
+            status: 'ended',
+            reason: 'E2E end of a goal set for several portals.',
+          },
+        })
+      }
+    }
+  })
+
   // No Member journey. Member is not a beta-interactive role, so the TENANT
   // RESOLVER refuses a Member session before any route or capability is
   // consulted — a Member account cannot obtain tenant context at all, which
