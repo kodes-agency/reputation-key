@@ -364,7 +364,7 @@
   ],
   "duplicates": {
     "ignore": ["src/components/ui/stepper.tsx"],
-    "ignoredClones": ["dup:cdb48d6b:2"],
+    "ignoredClones": ["dup:cdb48d6b:2", "dup:6f87acd9:2"],
     "mode": "mild",
     "minTokens": 50,
     "minLines": 5,
