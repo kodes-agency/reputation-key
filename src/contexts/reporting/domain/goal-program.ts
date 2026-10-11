@@ -1,9 +1,8 @@
-import {
-  calendarPeriodRange,
-  dayKeyInTimezone,
-  localDayOfMonth,
-} from '#/shared/domain/period-range'
+import { calendarPeriodRange } from '#/shared/domain/period-range'
 import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
+import { goalSubjectIdentity, type GoalSubject } from './goal-subject'
+
+export { goalSubjectIdentity, type GoalSubject } from './goal-subject'
 
 export const GOAL_METRICS = [
   'qualified_scans',
@@ -15,11 +14,6 @@ export type GoalMetric = (typeof GOAL_METRICS)[number]
 export type GoalSubjectKind = 'property' | 'portal_group' | 'portal'
 export type GoalProgramStatus = 'scheduled' | 'active' | 'paused' | 'ended'
 export type GoalMonthlyResultStatus = 'open' | 'reconciling' | 'closed'
-
-export type GoalSubject =
-  | Readonly<{ kind: 'property'; propertyId: string }>
-  | Readonly<{ kind: 'portal_group'; portalGroupId: string }>
-  | Readonly<{ kind: 'portal'; portalId: string }>
 
 export type GoalMetricReading = Readonly<{
   dataQuality: 'eligible' | 'updating' | 'unavailable' | 'quarantined'
@@ -163,76 +157,6 @@ export function firstFullMonthlyPeriodAtOrAfter(
   return calendarPeriodRange(current.end, timezone, 'monthly')
 }
 
-/**
- * The last local day of the month on which a new goal still counts for that
- * month by default. From the next day on the default is the following month.
- */
-export const GOAL_CURRENT_MONTH_CUTOFF_DAY = 20
-
-export type GoalMonthlyPeriod = Readonly<{ start: Date; end: Date }>
-
-/** A month a new goal may start in: its `YYYY-MM` key on the Property's calendar. */
-export type GoalStartOption = Readonly<{
-  monthKey: string
-  period: GoalMonthlyPeriod
-}>
-
-/** `YYYY-MM` of the local month that begins at `monthStart`. */
-const monthKeyOf = (monthStart: Date, timezone: string): string =>
-  dayKeyInTimezone(monthStart, timezone).slice(0, 7).replace('_', '-')
-
-/**
- * The two months a new goal may start in: the Property-local month that
- * contains `now`, and the one after it. Each is a complete local month.
- */
-export function goalStartOptions(
-  now: Date,
-  timezone: string,
-): Readonly<{ current: GoalStartOption; next: GoalStartOption }> {
-  const current = calendarPeriodRange(now, timezone, 'monthly')
-  const next = calendarPeriodRange(current.end, timezone, 'monthly')
-  return {
-    current: { monthKey: monthKeyOf(current.start, timezone), period: current },
-    next: { monthKey: monthKeyOf(next.start, timezone), period: next },
-  }
-}
-
-/**
- * The month key a new goal starts in unless its creator picks the other one:
- * the current local month up to and including the cut-off day, then the next.
- */
-export function defaultGoalStartMonth(now: Date, timezone: string): string {
-  const options = goalStartOptions(now, timezone)
-  return localDayOfMonth(now, timezone) <= GOAL_CURRENT_MONTH_CUTOFF_DAY
-    ? options.current.monthKey
-    : options.next.monthKey
-}
-
-export type GoalStartResolution =
-  | Readonly<{ ok: true; period: GoalMonthlyPeriod }>
-  | Readonly<{ ok: false; reason: 'start_month_changed' }>
-
-/**
- * The month a new goal starts in. A month key must name the current or the
- * next Property-local month as of `now`; any other key is refused rather than
- * moved, because the month changed after the choice was made. With no key the
- * goal keeps the first full month that does not start before `now`.
- */
-export function resolveGoalStart(
-  now: Date,
-  timezone: string,
-  startMonth?: string,
-): GoalStartResolution {
-  if (startMonth === undefined) {
-    return { ok: true, period: firstFullMonthlyPeriodAtOrAfter(now, timezone) }
-  }
-  const { current, next } = goalStartOptions(now, timezone)
-  const chosen = [current, next].find((option) => option.monthKey === startMonth)
-  return chosen
-    ? { ok: true, period: chosen.period }
-    : { ok: false, reason: 'start_month_changed' }
-}
-
 export function isCompleteMonthlyPeriod(
   period: Readonly<{ start: Date; end: Date }>,
   timezone: string,
@@ -288,17 +212,6 @@ export function parseGoalSubject(
   if (kind === 'portal_group') return { kind, portalGroupId: subjectId }
   if (kind === 'portal') return { kind, portalId: subjectId }
   return null
-}
-
-export function goalSubjectIdentity(subject: GoalSubject): string {
-  switch (subject.kind) {
-    case 'property':
-      return `property:${subject.propertyId}`
-    case 'portal_group':
-      return `portal_group:${subject.portalGroupId}`
-    case 'portal':
-      return `portal:${subject.portalId}`
-  }
 }
 
 /** Half-open effective windows conflict only for the same subject and metric. */

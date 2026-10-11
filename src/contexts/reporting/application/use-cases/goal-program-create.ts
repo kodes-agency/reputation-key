@@ -13,12 +13,11 @@ import type {
 } from '../ports/goal-program.repository'
 import {
   isCompleteMonthlyPeriod,
-  resolveGoalStart,
   type GoalMetric,
-  type GoalMonthlyPeriod,
   type GoalProgramStatus,
   type GoalSubject,
 } from '../../domain/goal-program'
+import { resolveGoalStart, type GoalMonthlyPeriod } from '../../domain/goal-start'
 import {
   assignmentFor,
   GoalProgramError,

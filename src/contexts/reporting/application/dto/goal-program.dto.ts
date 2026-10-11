@@ -5,13 +5,11 @@ import {
   validateGoalTarget,
 } from '../../domain/goal-program'
 
-// Routes may import application, not domain: the start-month helpers the goal
-// form and its loader share with the create command.
-export {
-  defaultGoalStartMonth,
-  goalStartOptions,
-  resolveGoalStart,
-} from '../../domain/goal-program'
+// Routes and components may import application, not domain: the start-month
+// helpers the new-goal form shares with the create command. They are
+// re-exported, not used here, so their calendar code loads with the form and
+// stays out of the first-paint bundle this module is part of.
+export { defaultGoalStartMonth, goalStartOptions } from '../../domain/goal-start'
 
 const uuid = z.uuid()
 

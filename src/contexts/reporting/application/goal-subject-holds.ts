@@ -4,11 +4,8 @@
 // database's no-overlap constraint enforces and the create command checks
 // before it writes, stated once for a form that has the goal list in hand: it
 // can say which goal holds a subject, and until when, without another request.
-import {
-  goalSubjectIdentity,
-  type GoalMetric,
-  type GoalSubject,
-} from '../domain/goal-program'
+import type { GoalMetric } from '../domain/goal-program'
+import { goalSubjectIdentity, type GoalSubject } from '../domain/goal-subject'
 import type {
   GoalProgramBundle,
   GoalSubjectAssignment,
