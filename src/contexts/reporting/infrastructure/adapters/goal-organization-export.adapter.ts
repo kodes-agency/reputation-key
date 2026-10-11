@@ -114,6 +114,22 @@ const MONTHLY_RESULT_COLUMNS = [
   'updated_at',
 ] as const
 
+const MONTH_TARGET_CHANGE_COLUMNS = [
+  'id',
+  'monthly_result_id',
+  'program_id',
+  'property_id',
+  'change_id',
+  'previous_target_value',
+  'new_target_value',
+  'following_outcome',
+  'following_reason',
+  'following_version_id',
+  'note',
+  'created_by',
+  'created_at',
+] as const
+
 const RESULT_REVISION_COLUMNS = [
   'id',
   'monthly_result_id',
@@ -128,22 +144,6 @@ const RESULT_REVISION_COLUMNS = [
   'source_complete_through',
   'evaluation_watermark',
   'change_reason',
-  'created_by',
-  'created_at',
-] as const
-
-const MONTH_TARGET_CHANGE_COLUMNS = [
-  'id',
-  'monthly_result_id',
-  'program_id',
-  'property_id',
-  'change_id',
-  'previous_target_value',
-  'new_target_value',
-  'following_outcome',
-  'following_reason',
-  'following_version_id',
-  'note',
   'created_by',
   'created_at',
 ] as const
