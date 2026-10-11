@@ -17,7 +17,10 @@ export type GoalSubjectHold = Readonly<{
   /** The goal that holds the subject. */
   programId: string
   programName: string
-  /** The target of the version the holding assignment belongs to. */
+  /**
+   * That goal's target for the subject at the start asked about: the one in
+   * force then, or the one the goal begins on when it has not begun by then.
+   */
   targetValue: number
   /** Null while the goal is live; otherwise the instant the subject is free again. */
   heldUntil: Date | null
@@ -43,9 +46,36 @@ export const holdOutlasts = (candidate: Date | null, known: Date | null): boolea
   known !== null && (candidate === null || candidate > known)
 
 /**
+ * The goal's target for a held subject at `from`. A revision that waits for
+ * next month already holds the subject for good, but the month `from` is in is
+ * still counted against the target before it: the assignment in force at
+ * `from` says which. A goal that has not begun by `from` has none in force,
+ * and shows the target it begins on.
+ */
+function targetAt(
+  bundle: GoalProgramBundle,
+  holding: GoalSubjectAssignment,
+  from: Date,
+): number {
+  const identity = goalSubjectIdentity(holding.subject)
+  const inForce =
+    bundle.assignments.find(
+      (candidate) =>
+        candidate.metric === holding.metric &&
+        goalSubjectIdentity(candidate.subject) === identity &&
+        candidate.effectiveFrom <= from &&
+        assignmentHoldsFrom(candidate, from),
+    ) ?? holding
+  const version =
+    bundle.versions.find((candidate) => candidate.id === inForce.programVersionId) ??
+    bundle.version
+  return version.targetValue
+}
+
+/**
  * The subjects held for `metric` from `from`, one entry per subject: the hold
- * that lasts longest. A goal ended this month still holds its subject until
- * the month it had open ends.
+ * that lasts longest, with that goal's target at `from`. A goal ended this
+ * month still holds its subject until the month it had open ends.
  */
 export function subjectHolds(
   bundles: readonly GoalProgramBundle[],
@@ -59,15 +89,11 @@ export function subjectHolds(
       const identity = goalSubjectIdentity(assignment.subject)
       const known = holds.get(identity)
       if (known && !holdOutlasts(assignment.effectiveTo, known.heldUntil)) continue
-      const version =
-        bundle.versions.find(
-          (candidate) => candidate.id === assignment.programVersionId,
-        ) ?? bundle.version
       holds.set(identity, {
         subject: assignment.subject,
         programId: bundle.program.id,
         programName: bundle.program.name,
-        targetValue: version.targetValue,
+        targetValue: targetAt(bundle, assignment, from),
         heldUntil: assignment.effectiveTo,
       })
     }

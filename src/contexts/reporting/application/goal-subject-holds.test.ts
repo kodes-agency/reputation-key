@@ -183,10 +183,11 @@ describe('subjectHolds', () => {
     ])
   })
 
-  // A revised goal keeps its subject under a new version. The bulk table shows
-  // an occupied row with the target that governs from `from` on: the one of the
-  // version whose assignment holds the subject longest, not the one it replaced.
-  it('uses the target of the version the holding assignment belongs to', () => {
+  // A revised goal keeps its subject under a new version. An occupied row of
+  // the bulk table shows the target in force when the new goals would start:
+  // this month's while the revision still waits, the revised one from the
+  // month it applies.
+  it('uses the target in force at the start, not the one a later revision brings', () => {
     const revised = program('revised', [{ subject: lobby, from: OCTOBER, to: NOVEMBER }])
     const first = revised.assignments[0]
     if (!first) throw new Error('the fixture has one assignment')
@@ -212,15 +213,43 @@ describe('subjectHolds', () => {
         },
       ],
     }
+    const held = { subject: lobby, programId: 'revised', programName: 'Goal revised' }
 
+    // October is still counted against 400; the goal holds the Lobby for good.
     expect(subjectHolds([bundle], 'portal_rating_count', OCTOBER)).toEqual([
-      {
-        subject: lobby,
-        programId: 'revised',
-        programName: 'Goal revised',
-        targetValue: 550,
-        heldUntil: null,
-      },
+      { ...held, targetValue: 400, heldUntil: null },
+    ])
+    expect(subjectHolds([bundle], 'portal_rating_count', NOVEMBER)).toEqual([
+      { ...held, targetValue: 550, heldUntil: null },
+    ])
+  })
+
+  it('a goal that has not begun by the start is shown with the target it begins on', () => {
+    const scheduled = program(
+      'scheduled',
+      [{ subject: lobby, from: NOVEMBER, to: null }],
+      250,
+    )
+
+    expect(subjectHolds([scheduled], 'portal_rating_count', OCTOBER)).toEqual([
+      expect.objectContaining({ programId: 'scheduled', targetValue: 250 }),
+    ])
+  })
+
+  it('the target is the holding goal’s own, never the one of a goal it follows', () => {
+    const ending = program(
+      'ending',
+      [{ subject: lobby, from: OCTOBER, to: NOVEMBER }],
+      320,
+    )
+    const successor = program(
+      'successor',
+      [{ subject: lobby, from: NOVEMBER, to: null }],
+      700,
+    )
+
+    expect(subjectHolds([ending, successor], 'portal_rating_count', OCTOBER)).toEqual([
+      expect.objectContaining({ programId: 'successor', targetValue: 700 }),
     ])
   })
 
