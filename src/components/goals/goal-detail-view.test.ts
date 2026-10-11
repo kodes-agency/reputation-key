@@ -194,9 +194,24 @@ describe('statusReasonLabel', () => {
   })
 
   it('prints a manager’s note as it was written', () => {
-    expect(statusReasonLabel('Ended by manager', 'Nov 1')).toBe('Ended by manager')
+    expect(statusReasonLabel('Closed for works', 'Nov 1')).toBe('Closed for works')
     expect(statusReasonLabel('Renovation, see plan_2027 (rooms 1-40)', 'Nov 1')).toBe(
       'Renovation, see plan_2027 (rooms 1-40)',
+    )
+  })
+
+  // Before the note became optional the page sent one of these with every
+  // status change. No manager wrote them and they repeat the status badge, so
+  // a goal changed back then must not read "Status note: Goal active".
+  it('says nothing for the reasons the page used to send by default', () => {
+    expect(statusReasonLabel('Goal paused', 'Nov 1')).toBeNull()
+    expect(statusReasonLabel('Goal active', 'Nov 1')).toBeNull()
+    expect(statusReasonLabel('Ended by manager', 'Nov 1')).toBeNull()
+  })
+
+  it('prints a note that only resembles one of those defaults', () => {
+    expect(statusReasonLabel('Goal paused until the lobby reopens', 'Nov 1')).toBe(
+      'Goal paused until the lobby reopens',
     )
   })
 

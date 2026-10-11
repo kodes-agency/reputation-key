@@ -59,6 +59,17 @@ const isSystemCode = (note: string): boolean =>
   note.includes('_') && /^[a-z_]+$/u.test(note)
 
 /**
+ * The reasons this page sent with every status change before the note became
+ * optional. No manager wrote them and each only repeats the status badge, so a
+ * goal changed back then prints no line for one.
+ */
+const FORMER_DEFAULT_REASONS: ReadonlySet<string> = new Set([
+  'Goal paused',
+  'Goal active',
+  'Ended by manager',
+])
+
+/**
  * Why a Program has the status it has, in words. The system writes a code, and
  * each one it writes today has a sentence here; a code without one still reads
  * as words, never as a code. A manager's note is printed as it was written.
@@ -69,7 +80,7 @@ export function statusReasonLabel(
   startsOn: string,
 ): string | null {
   const note = reason?.trim()
-  if (!note) return null
+  if (!note || FORMER_DEFAULT_REASONS.has(note)) return null
   if (note === 'metric_source_not_active') return 'Waiting for the metric source'
   if (note === 'awaiting_first_full_month') return `Starts on ${startsOn}`
   if (note === 'organization_closure_fence') {
