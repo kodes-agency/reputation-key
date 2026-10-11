@@ -144,6 +144,7 @@ describe('monthTargetPlan', () => {
       changeCount: 0,
       pendingHead: null,
       followingStart: APRIL,
+      followingMonthKey: '2026-04',
       skipsMonth: false,
       canApplyFollowing: true,
       followingBlockedReason: null,
@@ -262,6 +263,7 @@ describe('monthTargetPlan', () => {
 
     expect(monthTargetPlan(running, MID_MARCH, 'Europe/Sofia')).toMatchObject({
       followingStart: SOFIA_MAY,
+      followingMonthKey: '2026-05',
       skipsMonth: true,
     })
   })
@@ -296,8 +298,10 @@ describe('monthTargetPlan', () => {
       results: [month('lobby', 'v1')],
     })
 
+    // The same local month as before the move: what a form said still holds.
     expect(monthTargetPlan(running, MID_MARCH, 'America/New_York')).toMatchObject({
       followingStart: NEW_YORK_APRIL,
+      followingMonthKey: '2026-04',
       skipsMonth: false,
     })
   })

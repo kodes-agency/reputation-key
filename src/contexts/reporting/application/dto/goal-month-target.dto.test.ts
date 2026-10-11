@@ -76,6 +76,7 @@ describe('the form of a month target change', () => {
       month: '2026-10',
       expectedTarget: 400,
       expectedVersion: 1,
+      expectedFollowingMonth: '2026-11',
       ...form,
     })
 

@@ -40,6 +40,7 @@ const input = {
   targetValue: 300,
   expectedTarget: 400,
   expectedVersion: 2,
+  expectedFollowingMonth: '2026-11',
   applyToFollowing: true,
 }
 
@@ -121,6 +122,11 @@ describe('changeGoalMonthTargetSchema', () => {
       { expectedTarget: Number.POSITIVE_INFINITY },
     ],
     ['a version that is not a positive whole number', { expectedVersion: 0 }],
+    [
+      'a first month of the months after that is not a month key',
+      { expectedFollowingMonth: 'Nov 1' },
+    ],
+    ['no first month of the months after', { expectedFollowingMonth: undefined }],
     ['a missing answer about the months after', { applyToFollowing: undefined }],
     ['a note over 500 characters', { note: 'x'.repeat(501) }],
     ['a goal id that is not an id', { programId: 'goal-1' }],

@@ -26,6 +26,9 @@ const MONTH = formatMonthName(THIS_MONTH.start, FIXTURE_ZONE) ?? ''
 const NEXT = formatMonthName(NEXT_MONTH.start, FIXTURE_ZONE) ?? ''
 const NEXT_DAY = formatShortDate(NEXT_MONTH.start, FIXTURE_ZONE, NOW) ?? ''
 const TRIGGER = 'Change this month’s target'
+/** `YYYY-MM` of a fixture month, which is cut on a UTC calendar. */
+const monthKeyOfFixture = (month: typeof THIS_MONTH) =>
+  `${month.start.getUTCFullYear()}-${String(month.start.getUTCMonth() + 1).padStart(2, '0')}`
 const FOLLOWING = `Also use this target from ${NEXT_DAY}`
 
 const inForce = (patch: Parameters<typeof version>[2] = {}) =>
@@ -140,10 +143,13 @@ export const TickedWithTheRealDate: Story = {
     expect(sent).toEqual({
       propertyId: PROPERTY_ID,
       programId: PROGRAM_ID,
-      month: `${THIS_MONTH.start.getUTCFullYear()}-${String(THIS_MONTH.start.getUTCMonth() + 1).padStart(2, '0')}`,
+      month: monthKeyOfFixture(THIS_MONTH),
       targetValue: 300,
       expectedTarget: 400,
       expectedVersion: 1,
+      // The month whose first day the box named: a version that would start
+      // with another is refused.
+      expectedFollowingMonth: monthKeyOfFixture(NEXT_MONTH),
       applyToFollowing: true,
       note: undefined,
     })

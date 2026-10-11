@@ -48,7 +48,8 @@ type GoalMonthTargetDialogProps = Readonly<{
 /**
  * What the dialog was opened on: the instant, the running month as the command
  * would plan it then (null when none runs), and the version the goal had. The
- * save sends these back, so a goal that moved on while the dialog was open
+ * save sends back the month, the target, the version and the month it named
+ * for the months after, so a goal that moved on while the dialog was open
  * refuses it, also when the page behind has read the goal again meanwhile.
  */
 type Opened = Readonly<{
@@ -172,6 +173,7 @@ function MonthTargetForm({
           targetValue: value.targetValue,
           expectedTarget: plan.effectiveTarget,
           expectedVersion: opened.version,
+          expectedFollowingMonth: plan.followingMonthKey,
           applyToFollowing: words.following.available && value.applyToFollowing,
           note: value.note.trim() || undefined,
         },

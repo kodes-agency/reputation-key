@@ -50,6 +50,12 @@ export type GoalMonthTargetPlan = Readonly<{
   /** The first instant a version for the months after could start. */
   followingStart: Date
   /**
+   * The Property-local month that start opens, as `YYYY-MM`: the day the
+   * dialog names on its checkbox. The dialog sends it back with the change, so
+   * a version is never cut from another month than the form said.
+   */
+  followingMonthKey: string
+  /**
    * True when that start leaves a local month with no result: after the
    * Property moved east, its next month begins before the running one ends.
    */
@@ -112,6 +118,7 @@ export function monthTargetPlan(
   const pendingHead = head === 'pending' ? bundle.version : null
   const blocked = pendingHead !== null && pendingHead.metric !== running.version.metric
   const monthKey = monthKeyOf(month.periodStart, month.propertyTimezone)
+  const followingMonthKey = monthKeyOf(period.start, propertyTimezone)
   return {
     monthKey,
     period: { start: month.periodStart, end: month.periodEnd },
@@ -122,10 +129,10 @@ export function monthTargetPlan(
     changeCount: history.changeCount,
     pendingHead,
     followingStart: period.start,
+    followingMonthKey,
     // The month right after the running one is the next on the calendar. A
     // start further on than that leaves a local month no version covers.
-    skipsMonth:
-      monthIndex(monthKeyOf(period.start, propertyTimezone)) > monthIndex(monthKey) + 1,
+    skipsMonth: monthIndex(followingMonthKey) > monthIndex(monthKey) + 1,
     canApplyFollowing: !blocked,
     followingBlockedReason: blocked ? 'scheduled_change_has_other_measure' : null,
   }

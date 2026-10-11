@@ -1025,6 +1025,8 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         targetValue: 1,
         expectedTarget: 12,
         expectedVersion: 1,
+        // A well-formed month: the refusal is the tenant's, not the schema's.
+        expectedFollowingMonth: nextMonth,
         applyToFollowing: false,
       },
     })

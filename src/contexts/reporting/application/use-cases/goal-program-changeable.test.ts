@@ -137,6 +137,7 @@ const COMMANDS: ReadonlyArray<
           targetValue: 30,
           expectedTarget: 20,
           expectedVersion: 1,
+          expectedFollowingMonth: '2026-04',
           applyToFollowing: true,
         },
         actor,

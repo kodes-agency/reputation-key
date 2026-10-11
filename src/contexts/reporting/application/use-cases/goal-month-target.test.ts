@@ -260,6 +260,7 @@ function setup(initialNow = MARCH_15) {
         targetValue: 20,
         expectedTarget: 25,
         expectedVersion: must().program.currentVersion,
+        expectedFollowingMonth: '2026-04',
         applyToFollowing: false,
         ...patch,
       },
@@ -557,6 +558,37 @@ describe('changeMonthTarget', () => {
       repository.changeMonthTarget.mockResolvedValueOnce('revision_conflict')
 
       await expect(change()).rejects.toMatchObject(refusal('revision_conflict'))
+      // The goal is read again, but a month that is not as asked is not written twice.
+      expect(repository.changeMonthTarget).toHaveBeenCalledOnce()
+    })
+
+    it('refuses when the months after would start with another month than the form showed', async () => {
+      const { createGoal, change, stored, subjects, repository } = setup()
+      await createGoal()
+      // The form was opened while the Property was on UTC and showed "from
+      // Apr 1". The Property has since moved to Sofia, where a version can
+      // only start with May: April would have no goal result, and the form
+      // never said so.
+      subjects.getTimezone.mockResolvedValue('Europe/Sofia')
+
+      await expect(change({ applyToFollowing: true })).rejects.toMatchObject(
+        refusal('revision_conflict'),
+      )
+      expect(stored().results[0]).toMatchObject({ targetValue: null })
+      expect(stored().versions).toHaveLength(1)
+      expect(repository.changeMonthTarget).not.toHaveBeenCalled()
+    })
+
+    it('changes the month alone whatever the form showed for the months after', async () => {
+      const { createGoal, change, subjects } = setup()
+      await createGoal()
+      subjects.getTimezone.mockResolvedValue('Europe/Sofia')
+
+      // No version is cut, so the month one would start with decides nothing.
+      await expect(change()).resolves.toEqual({
+        month: { previous: 25, next: 20 },
+        following: { outcome: 'not_requested' },
+      })
     })
   })
 
@@ -566,7 +598,9 @@ describe('changeMonthTarget', () => {
       const goal = await createGoal([LOBBY, POOL])
       setNow(MARCH_20)
 
-      await expect(change({ applyToFollowing: true })).resolves.toEqual({
+      await expect(
+        change({ applyToFollowing: true, note: 'Fewer guests' }),
+      ).resolves.toEqual({
         month: { previous: 25, next: 20 },
         following: { outcome: 'applied', startsAt: APRIL },
       })
@@ -601,14 +635,18 @@ describe('changeMonthTarget', () => {
         [LOBBY, APRIL],
         [POOL, APRIL],
       ])
+      // The note is the change's: the log carries it, and the version records
+      // only what kind of change it was.
       expect(stored().targetChanges).toEqual([
         expect.objectContaining({
           followingOutcome: 'applied',
           followingVersionId: second?.id,
+          note: 'Fewer guests',
         }),
         expect.objectContaining({
           followingOutcome: 'applied',
           followingVersionId: second?.id,
+          note: 'Fewer guests',
         }),
       ])
       // March keeps its version; only its own target moved.
@@ -847,13 +885,32 @@ describe('changeMonthTarget', () => {
 
       // Sofia's April begins before the UTC March ends.
       const sofiaMay = new Date('2026-04-30T21:00:00.000Z')
-      await expect(change({ applyToFollowing: true })).resolves.toMatchObject({
+      await expect(
+        change({ applyToFollowing: true, expectedFollowingMonth: '2026-05' }),
+      ).resolves.toMatchObject({
         following: { outcome: 'applied', startsAt: sofiaMay },
       })
       expect(stored().version).toMatchObject({
         propertyTimezone: 'Europe/Sofia',
         effectiveFrom: sofiaMay,
       })
+    })
+  })
+
+  it('carries the target on after the Property moved west: the months after still start with the month the form named', async () => {
+    const { createGoal, change, stored, subjects } = setup()
+    await createGoal()
+    // The form said "from Apr 1" on a UTC calendar. New York's April begins
+    // four hours after the UTC March ends: the same month, and none is skipped.
+    subjects.getTimezone.mockResolvedValue('America/New_York')
+    const newYorkApril = new Date('2026-04-01T04:00:00.000Z')
+
+    await expect(change({ applyToFollowing: true })).resolves.toMatchObject({
+      following: { outcome: 'applied', startsAt: newYorkApril },
+    })
+    expect(stored().version).toMatchObject({
+      propertyTimezone: 'America/New_York',
+      effectiveFrom: newYorkApril,
     })
   })
 
@@ -916,6 +973,106 @@ describe('changeMonthTarget', () => {
       })
       // The month did not change again, so the log has only the first change.
       expect(stored().targetChanges).toHaveLength(1)
+    })
+
+    it('the same target with the months after newly asked for keeps the note on the version', async () => {
+      const { createGoal, change, stored } = setup()
+      await createGoal()
+      await change()
+
+      await change({
+        expectedTarget: 20,
+        applyToFollowing: true,
+        note: '  Agreed with the GM for spring  ',
+      })
+
+      // No month changed, so no log row can carry the note: the version does,
+      // as the version of an ordinary revision would.
+      expect(stored().version).toMatchObject({
+        version: 2,
+        targetValue: 20,
+        changeReason: 'Agreed with the GM for spring',
+      })
+      expect(stored().targetChanges).toEqual([expect.objectContaining({ note: null })])
+    })
+
+    it('a repeated save whose months after could not be changed answers the same again', async () => {
+      const { createGoal, change, stored, subjects, repository } = setup()
+      await createGoal([LOBBY, POOL])
+      // The pool's Portal was archived after the goal was set.
+      subjects.subjectBelongsToProperty.mockImplementation(
+        async (_organizationId, _propertyId, subject) =>
+          !(subject.kind === 'portal' && subject.portalId === 'portal-pool'),
+      )
+      const form = { expectedVersion: 1, expectedTarget: 25, applyToFollowing: true }
+      await change(form)
+      const afterFirst = stored()
+      repository.changeMonthTarget.mockClear()
+
+      // The month has the target now, and the months after still cannot take it.
+      await expect(change(form)).resolves.toEqual({
+        month: 'unchanged',
+        following: { outcome: 'not_applied', reason: 'subject_unavailable' },
+      })
+
+      expect(stored()).toBe(afterFirst)
+      expect(repository.changeMonthTarget).not.toHaveBeenCalled()
+      expect(repository.revise).not.toHaveBeenCalled()
+    })
+
+    it('carries the target on when someone else already set the month to it', async () => {
+      const { createGoal, change, stored } = setup()
+      await createGoal()
+      // Another manager changed March to 20, for March only, while this form
+      // still showed 25. The head is the one this form was opened on.
+      await change()
+
+      await expect(
+        change({ expectedTarget: 25, applyToFollowing: true }),
+      ).resolves.toEqual({
+        month: 'unchanged',
+        following: { outcome: 'applied', startsAt: APRIL },
+      })
+
+      expect(stored().version).toMatchObject({ version: 2, targetValue: 20 })
+      expect(stored().targetChanges).toHaveLength(1)
+    })
+
+    it('a save that lost to the same save sent at the same moment answers unchanged', async () => {
+      const { createGoal, change, stored, repository } = setup()
+      await createGoal()
+      const write = repository.changeMonthTarget.getMockImplementation()
+      // Both requests read the goal before either wrote. The other one
+      // commits first, so this one finds the month no longer as it read it.
+      repository.changeMonthTarget.mockImplementationOnce(async (input) => {
+        await write?.(input)
+        return 'revision_conflict'
+      })
+
+      await expect(change({ applyToFollowing: true })).resolves.toEqual({
+        month: 'unchanged',
+        following: { outcome: 'applied', startsAt: APRIL },
+      })
+
+      expect(stored().results[0]).toMatchObject({ targetValue: 20 })
+      expect(stored().targetChanges).toHaveLength(1)
+      expect(stored().versions).toHaveLength(2)
+      expect(repository.changeMonthTarget).toHaveBeenCalledOnce()
+    })
+
+    it('a save that lost to another change of the month is refused', async () => {
+      const { createGoal, change, stored, repository } = setup()
+      await createGoal()
+      const write = repository.changeMonthTarget.getMockImplementation()
+      // Someone else's 22 lands between this save's read and its write.
+      repository.changeMonthTarget.mockImplementationOnce(async (input) => {
+        await write?.({ ...input, targetValue: 22, storedTargetValue: 22 })
+        return 'revision_conflict'
+      })
+
+      await expect(change()).rejects.toMatchObject(refusal('revision_conflict'))
+      expect(stored().results[0]).toMatchObject({ targetValue: 22 })
+      expect(repository.changeMonthTarget).toHaveBeenCalledOnce()
     })
 
     it('a stale form cannot replace a scheduled change through a repeated save', async () => {

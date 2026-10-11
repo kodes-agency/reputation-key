@@ -22,6 +22,7 @@ import type { GovernedMetricVersion } from '../../domain/metric-registry'
 import { effectiveMonthTarget } from '../goal-effective-month-target'
 import { monthTargetPlan, type GoalMonthTargetPlan } from '../goal-month-target-plan'
 import type {
+  GoalMonthlyResult,
   GoalMonthTargetFollowingOutcome,
   GoalMonthTargetFollowingReason,
   GoalProgramBundle,
@@ -53,14 +54,28 @@ export type ChangeMonthTargetInput = Readonly<{
   expectedTarget: number
   /** The version the form was opened on. */
   expectedVersion: number
+  /**
+   * The month the form said a version for the months after would start with,
+   * `YYYY-MM` in the Property's zone (the plan's `followingMonthKey`). A
+   * version that would start with another month is refused: after the
+   * Property changed time zone it can leave a month with no result, which the
+   * form never said.
+   */
+  expectedFollowingMonth: string
   /** Whether the months after are to take the new target too. */
   applyToFollowing: boolean
-  /** The manager's optional note, stored with the change. */
+  /**
+   * The manager's optional note, stored with the change: in the log when the
+   * month changes, on the version when only the months after do.
+   */
   note?: string
 }>
 
 export type GoalMonthTargetChangeResult = Readonly<{
-  /** `unchanged` when the month already had the target: a save sent twice. */
+  /**
+   * `unchanged` when the month already had the target: a save sent twice, or
+   * one that only set the months after.
+   */
   month: Readonly<{ previous: number; next: number }> | 'unchanged'
   following: Readonly<{
     outcome: GoalMonthTargetFollowingOutcome
@@ -142,12 +157,17 @@ function followingIntent(
   }
 }
 
+/** What a version records when its change left no note of its own on it. */
+const TARGET_CHANGED = 'target_changed'
+
 type RevisionFacts = Readonly<{
   current: GoalProgramBundle
   plan: GoalMonthTargetPlan
   basis: GoalProgramVersion
   supersedeRowlessHead: boolean
   target: number
+  /** What the version records as its reason: the kind of change, or the manager's note. */
+  changeReason: string
   timezone: string
   now: Date
 }>
@@ -209,7 +229,7 @@ async function followingRevision(
     propertyTimezone: timezone,
     effectiveFrom: period.start,
     effectiveTo: null,
-    changeReason: 'target_changed',
+    changeReason: facts.changeReason,
     createdBy: actor.userId,
     createdAt: now,
   }
@@ -289,27 +309,26 @@ async function decideFollowing(
   }
 }
 
-/**
- * Change the target of the month that is running, and, when asked, of the
- * months after it. Paused goals may; ended goals may not.
- *
- * The form says which month, which target and which version it showed. A goal
- * that moved on under the form is refused with `revision_conflict`, except for
- * a save sent twice: when the month already has the target and nothing else
- * would be written, the command answers `unchanged` and writes nothing.
- */
-export async function changeMonthTarget(
+/** The month the form named, as the command reads it. */
+type MonthRead = Readonly<{
+  current: GoalProgramBundle
+  plan: GoalMonthTargetPlan
+  timezone: string
+  /** The target asked for, as the month's measure stores it. */
+  next: number
+  /** The running months, each with the target it is judged against now. */
+  months: readonly Readonly<{ row: GoalMonthlyResult; previous: number }>[]
+  /** Every running month already has the target asked for. */
+  alreadySet: boolean
+  intent: FollowingIntent
+}>
+
+async function readMonth(
   deps: GoalProgramDependencies,
   input: ChangeMonthTargetInput,
   actor: GoalActor,
-): Promise<GoalMonthTargetChangeResult> {
-  await deps.policy.authorize({
-    actor,
-    organizationId: actor.organizationId,
-    propertyId: input.propertyId,
-    action: 'goal.update',
-  })
-  const now = deps.now()
+  now: Date,
+): Promise<MonthRead> {
   const current = await loadCaughtUpProgram(deps, actor, input, now)
   const timezone = await deps.subjects.getTimezone(actor.organizationId, input.propertyId)
   if (!timezone) throw new GoalProgramError('not_found')
@@ -318,25 +337,73 @@ export async function changeMonthTarget(
   const target = validateGoalTarget(plan.inForceVersion.metric, input.targetValue)
   if (!target.ok) throw new GoalProgramError('invalid_target')
   const next = target.normalizedTarget
-
   const months = plan.runningRows.map((row) => ({
     row,
     previous: effectiveMonthTarget(row, plan.inForceVersion),
   }))
-  const alreadySet = months.every((month) => month.previous === next)
-  const stale =
-    input.expectedVersion !== current.program.currentVersion ||
-    months.some((month) => month.previous !== input.expectedTarget)
-  const intent = followingIntent(plan, next, input.applyToFollowing)
+  return {
+    current,
+    plan,
+    timezone,
+    next,
+    months,
+    alreadySet: months.every((month) => month.previous === next),
+    intent: followingIntent(plan, next, input.applyToFollowing),
+  }
+}
+
+/**
+ * True when the goal is no longer what the form showed, in a way this save
+ * would write over. Each thing the form showed guards one write:
+ * - the version guards every write, so a change scheduled since the form
+ *   opened is never replaced unseen;
+ * - the month's target guards the month, and only while the month would
+ *   change: a month that already has the target asked for is not written;
+ * - the month the months after start with guards the version that would be
+ *   cut for them, and only when one would be.
+ */
+function movedOn(read: MonthRead, input: ChangeMonthTargetInput): boolean {
+  const { current, plan, months, alreadySet, intent } = read
+  if (input.expectedVersion !== current.program.currentVersion) return true
+  if (!alreadySet && months.some((month) => month.previous !== input.expectedTarget)) {
+    return true
+  }
+  return intent.write && plan.followingMonthKey !== input.expectedFollowingMonth
+}
+
+/**
+ * One reading of the goal and, when it allows, one write. `lostRace` marks the
+ * second reading, made after a write that the repository refused because the
+ * goal changed between the read and the write. It answers what a save sent
+ * again would be answered, and writes no month.
+ */
+async function changeOnce(
+  deps: GoalProgramDependencies,
+  input: ChangeMonthTargetInput,
+  actor: GoalActor,
+  now: Date,
+  lostRace: boolean,
+): Promise<GoalMonthTargetChangeResult> {
+  const read = await readMonth(deps, input, actor, now)
+  const { current, plan, timezone, next, months, alreadySet, intent } = read
   if (alreadySet && !intent.write) {
     return { month: 'unchanged', following: intent.following }
   }
-  if (stale) throw new GoalProgramError('revision_conflict')
+  // After a lost race the month is never written a second time: either it now
+  // has the target asked for (the same save, sent twice), or the save is refused.
+  if (movedOn(read, input) || (lostRace && !alreadySet)) {
+    throw new GoalProgramError('revision_conflict')
+  }
 
+  const note = noteOf(input.note)
   const { following, revision } = await decideFollowing(deps, actor, intent, {
     current,
     plan,
     target: next,
+    // A month that changes logs the note with its change. When only the months
+    // after change there is no log row, so the version carries the note, as
+    // the version of an ordinary revision does.
+    changeReason: alreadySet ? (note ?? TARGET_CHANGED) : TARGET_CHANGED,
     timezone,
     now,
   })
@@ -374,10 +441,38 @@ export async function changeMonthTarget(
       reason: following.reason ?? null,
       revision,
     },
-    note: noteOf(input.note),
+    note,
     actorId: actor.userId,
     at: now,
   })
+  if (answer === 'revision_conflict' && !lostRace) {
+    return changeOnce(deps, input, actor, now, true)
+  }
   if (answer !== 'changed') throw new GoalProgramError(answer)
   return { month: { previous: input.expectedTarget, next }, following }
+}
+
+/**
+ * Change the target of the month that is running, and, when asked, of the
+ * months after it. Paused goals may; ended goals may not.
+ *
+ * The form says which month, which target and which version it showed, and
+ * which month it named for the months after. A goal that moved on under the
+ * form is refused with `revision_conflict` (`movedOn`). A save sent twice is
+ * not a conflict: when the month already has the target and nothing else would
+ * be written, the command answers `unchanged` and writes nothing, also when
+ * the two arrive at the same moment and one of them loses the write.
+ */
+export async function changeMonthTarget(
+  deps: GoalProgramDependencies,
+  input: ChangeMonthTargetInput,
+  actor: GoalActor,
+): Promise<GoalMonthTargetChangeResult> {
+  await deps.policy.authorize({
+    actor,
+    organizationId: actor.organizationId,
+    propertyId: input.propertyId,
+    action: 'goal.update',
+  })
+  return changeOnce(deps, input, actor, deps.now(), false)
 }
