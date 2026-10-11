@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi, type Mock } from 'vitest'
 import {
   holdTransaction,
   type HeldTransaction,
@@ -36,7 +36,7 @@ const UTC_MARCH = {
 describe.sequential('Goals for several subjects (integration)', () => {
   let held: HeldTransaction | undefined
   let deps: GoalBulkCreateDependencies
-  let logged: ReturnType<typeof vi.fn>
+  let logged: Mock<(...args: unknown[]) => void>
   const organizationId = `goal-bulk-${randomUUID()}`
   const propertyId = randomUUID()
   const actor: GoalActor = { organizationId, userId: 'manager-1', role: 'AccountAdmin' }
@@ -69,7 +69,7 @@ describe.sequential('Goals for several subjects (integration)', () => {
         [subject.portalGroupId, organizationId, propertyId, names.get(subject)],
       )
     }
-    logged = vi.fn()
+    logged = vi.fn<(...args: unknown[]) => void>()
     deps = {
       repository: createGoalProgramRepository(db),
       policy: { authorize: async () => undefined },
