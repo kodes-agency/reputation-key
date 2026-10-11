@@ -185,6 +185,24 @@ describe('the number field', () => {
   it('takes the width a card gives it', () => {
     expect(numberField({ className: 'max-w-40' })).toContain('max-w-40')
   })
+
+  it('is a whole number unless it is given a step', () => {
+    expect(numberField()).not.toContain('step=')
+    expect(numberField({ step: 0.1 })).toContain('step="0.1"')
+  })
+
+  it('has no upper bound unless it is given one', () => {
+    expect(numberField()).toContain('max="720"')
+    expect(numberField({ max: undefined })).not.toContain('max=')
+  })
+
+  it('keeps its label for a screen reader where a column header already shows it', () => {
+    // A row of a table: the header names the column, the label still names the control.
+    const html = numberField({ labelClassName: 'sr-only' })
+
+    expect(html).toMatch(/<label[^>]*class="[^"]*\bsr-only\b[^"]*"[^>]*for="hours"/u)
+    expect(html).toContain('>Hours</label>')
+  })
 })
 
 describe('blankAsNull', () => {

@@ -1,4 +1,6 @@
-// Whole-number field for forms — the control the Response Target cards share.
+// Number field for forms — the control the Response Target cards and the rows
+// of the table that sets several goals share. A whole number unless it is given
+// a `step` (a rating average takes one decimal place).
 // Per conventions: shared form building blocks live in components/forms/.
 //
 // Deliberately not FormTextField with type="number": that one reports invalid
@@ -26,29 +28,36 @@ export type NumberFieldApi = Readonly<{
 }>
 
 /**
- * A whole-number control bound to one form field. Every target input is this
- * control with a different label and range; a cleared or non-numeric control
- * reads as NaN, which the schema names and the input must not show.
+ * A number control bound to one form field. Every target input is this control
+ * with a different label and range; a cleared or non-numeric control reads as
+ * NaN, which the schema names and the input must not show.
  */
 export function FormNumberField({
   id,
   label,
   min,
   max,
+  step,
   field,
   disabled,
   className,
+  labelClassName,
   optional,
   description,
 }: Readonly<{
   id: string
   label: string
   min: number
-  max: number
+  /** Left out for a number with no upper bound (a count). */
+  max?: number
+  /** The grain of the number: left out, a whole number. */
+  step?: number
   field: NumberFieldApi
   disabled?: boolean
   /** Merged onto the Field: a width a card gives it (`max-w-40`). */
   className?: string
+  /** Merged onto the label: `sr-only` where a column header already shows it. */
+  labelClassName?: string
   /** The person may leave it empty: the label says "Optional". */
   optional?: boolean
   /** A line under the field on what it is for; the input names it as its description. */
@@ -64,12 +73,14 @@ export function FormNumberField({
       invalid={invalid}
       errors={invalid ? field.state.meta.errors : undefined}
       className={className}
+      labelClassName={labelClassName}
     >
       <Input
         id={id}
         type="number"
         min={min}
         max={max}
+        step={step}
         disabled={disabled}
         value={Number.isNaN(field.state.value) ? '' : field.state.value}
         onBlur={field.handleBlur}
