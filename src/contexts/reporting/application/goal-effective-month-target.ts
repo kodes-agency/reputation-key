@@ -1,8 +1,14 @@
 // The target a goal month is judged against.
 //
 // A month can carry its own target; when it does not, it uses the target of the
-// Program version it belongs to. Everything that evaluates a month or shows its
-// target reads it through here, so the two can never disagree.
+// Program version it belongs to. Evaluation reads the target through here, when
+// a month is reconciled and when a closed one is corrected. The two behind-pace
+// queries restate the rule in SQL as
+// `coalesce(result.target_value, version.target_value)`.
+//
+// The pages that show a target read the version's directly. That is right only
+// while no month has a target of its own: whatever first lets one be set has to
+// move them here too.
 //
 // Type-only imports: this module is safe to reach from a route or a component.
 import type {
