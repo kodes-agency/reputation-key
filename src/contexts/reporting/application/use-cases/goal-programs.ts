@@ -1,5 +1,5 @@
 // Goal Program use cases — read, revise and change the status of a Program,
-// composed with the create, assignment-change and maintenance commands.
+// composed with the create, rename, assignment-change and maintenance commands.
 import type {
   GoalProgramBundle,
   GoalProgramVersion,
@@ -17,6 +17,7 @@ import {
   type GoalAssignmentChangeResult,
 } from './goal-program-assignment-changes'
 import { createGoal } from './goal-program-create'
+import { renameGoal } from './goal-program-details'
 import {
   GoalProgramMaintenanceError,
   loadCaughtUpProgram,
@@ -246,6 +247,9 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
 
     revise: (input: ReviseGoalInput, actor: GoalActor) => reviseGoal(deps, input, actor),
 
+    rename: (input: Parameters<typeof renameGoal>[1], actor: GoalActor) =>
+      renameGoal(deps, input, actor),
+
     changeAssignments: (
       input: Parameters<typeof changeAssignments>[1],
       actor: GoalActor,
@@ -328,6 +332,10 @@ export type GoalProgramRequestApi = Readonly<{
     policy: GoalExecutionPolicy,
     ...args: Parameters<GoalProgramService['changeStatus']>
   ) => ReturnType<GoalProgramService['changeStatus']>
+  rename: (
+    policy: GoalExecutionPolicy,
+    ...args: Parameters<GoalProgramService['rename']>
+  ) => ReturnType<GoalProgramService['rename']>
   get: (
     policy: GoalExecutionPolicy,
     ...args: Parameters<GoalProgramService['get']>

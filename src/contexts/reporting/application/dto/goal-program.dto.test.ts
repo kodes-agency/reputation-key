@@ -5,6 +5,7 @@ import {
   createGoalProgramFormSchema,
   createGoalProgramSchema,
   goalProgramAssignmentEditorSchema,
+  renameGoalProgramSchema,
   reviseGoalProgramFormSchema,
   reviseGoalProgramSchema,
 } from './goal-program.dto'
@@ -129,5 +130,23 @@ describe('Goal Program command DTOs', () => {
       ).toBe(false)
     }
     expect(reviseGoalProgramFormSchema.shape).not.toHaveProperty('expectedVersion')
+  })
+
+  it('a rename needs a name and may leave the description out', () => {
+    const identity = { propertyId: PROPERTY_ID, programId: PROGRAM_ID }
+
+    expect(
+      renameGoalProgramSchema.parse({ ...identity, name: '  Lobby ratings  ' }),
+    ).toEqual({ ...identity, name: 'Lobby ratings' })
+    expect(
+      renameGoalProgramSchema.safeParse({
+        ...identity,
+        name: 'Lobby ratings',
+        description: null,
+      }).success,
+    ).toBe(true)
+    for (const name of [' ', 'x'.repeat(201)]) {
+      expect(renameGoalProgramSchema.safeParse({ ...identity, name }).success).toBe(false)
+    }
   })
 })

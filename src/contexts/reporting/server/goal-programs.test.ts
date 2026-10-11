@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   revise: vi.fn(),
   changeAssignments: vi.fn(),
   changeStatus: vi.fn(),
+  rename: vi.fn(),
   get: vi.fn(),
   list: vi.fn(),
   progress: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('#/composition', () => ({
         revise: mocks.revise,
         changeAssignments: mocks.changeAssignments,
         changeStatus: mocks.changeStatus,
+        rename: mocks.rename,
         get: mocks.get,
         list: mocks.list,
         progress: mocks.progress,
@@ -57,6 +59,7 @@ import {
   listGoalPrograms,
   previewGoalMonth,
   previewGoalMonthSchema,
+  renameGoalProgram,
   reviseGoalProgram,
 } from './goal-programs'
 
@@ -324,6 +327,19 @@ describe('canonical Goal Program server functions', () => {
     expect(mocks.changeStatus).toHaveBeenCalledWith(expect.any(Object), pause, actor)
   })
 
+  it('forwards a rename to Reporting through the request policy', async () => {
+    const input = {
+      propertyId: PROPERTY_ID,
+      programId: '00000000-0000-4000-8000-000000000004',
+      name: 'Lobby scans',
+    }
+    mocks.rename.mockResolvedValue({ id: input.programId, name: 'Lobby scans' })
+
+    await withStartContext(() => renameGoalProgram({ data: input }))
+
+    expect(mocks.rename).toHaveBeenCalledWith(expect.any(Object), input, actor)
+  })
+
   describe('a change that is refused', () => {
     const identity = {
       propertyId: PROPERTY_ID,
@@ -340,10 +356,14 @@ describe('canonical Goal Program server functions', () => {
       })
     const end = (): Promise<unknown> =>
       changeGoalProgramStatus({ data: { ...identity, status: 'ended' } })
+    const rename = (): Promise<unknown> =>
+      renameGoalProgram({ data: { ...identity, name: 'Lobby scans' } })
+
     it.each([
       ['a revision', 'revision_conflict', mocks.revise, revise],
       ['a revision', 'subject_has_goal', mocks.revise, revise],
       ['a status change', 'revision_conflict', mocks.changeStatus, end],
+      ['a rename', 'invalid_transition', mocks.rename, rename],
     ] as const)(
       'answers %s refused with %s as a conflict',
       async (_name, code, mock, run) => {

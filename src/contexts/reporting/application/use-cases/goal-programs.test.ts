@@ -144,6 +144,17 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
         return true
       },
     ),
+    rename: vi.fn(async (input) => {
+      if (!created || created.program.status === 'ended') return null
+      const program = {
+        ...created.program,
+        name: input.name,
+        description: input.description,
+        updatedAt: input.at,
+      }
+      created = { ...created, program }
+      return program
+    }),
     findAssignmentConflicts: vi.fn(async () => []),
     activate: vi.fn(async ({ bundle, results: newResults, at }) => {
       const program = {
@@ -1603,6 +1614,87 @@ describe('canonical Goal Program service', () => {
       await expect(
         revise({ expectedVersion: 2, subjects: [portal(1), portal(2)] }),
       ).resolves.toMatchObject({ version: { version: 3 } })
+    })
+
+    it('rename changes name only and leaves the version untouched', async () => {
+      const { service, repository, policy, created } = await scansGoal()
+
+      await expect(
+        service.rename(
+          {
+            propertyId: 'property-1',
+            programId: created.program.id,
+            name: '  Lobby scans  ',
+          },
+          actor,
+        ),
+      ).resolves.toMatchObject({ name: 'Lobby scans', description: null })
+
+      expect(policy.authorize).toHaveBeenLastCalledWith(
+        expect.objectContaining({ action: 'goal.update', propertyId: 'property-1' }),
+      )
+      expect(repository.rename).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        propertyId: 'property-1',
+        programId: created.program.id,
+        name: 'Lobby scans',
+        description: null,
+        previousName: 'Portal scans',
+        actorId: 'manager-1',
+        at: MARCH,
+      })
+      expect(repository.revise).not.toHaveBeenCalled()
+      await expect(
+        service.get({ propertyId: 'property-1', programId: created.program.id }, actor),
+      ).resolves.toMatchObject({
+        program: { name: 'Lobby scans', currentVersion: 1 },
+        version: { id: created.version.id, version: 1, changeReason: 'created' },
+        versions: [{ id: created.version.id }],
+      })
+    })
+
+    it('rename keeps a description that is not sent and clears an empty one', async () => {
+      const { service, created } = await scansGoal()
+      const rename = (name: string, description?: string | null) =>
+        service.rename(
+          { propertyId: 'property-1', programId: created.program.id, name, description },
+          actor,
+        )
+
+      await expect(rename('Lobby scans', ' Counted at the desk ')).resolves.toMatchObject(
+        { description: 'Counted at the desk' },
+      )
+      await expect(rename('Front desk scans')).resolves.toMatchObject({
+        name: 'Front desk scans',
+        description: 'Counted at the desk',
+      })
+      await expect(rename('Front desk scans', '  ')).resolves.toMatchObject({
+        description: null,
+      })
+    })
+
+    it('rename refuses a blank or overlong name and writes nothing for an unchanged one', async () => {
+      const { service, repository, created } = await scansGoal()
+      const rename = (name: string) =>
+        service.rename(
+          { propertyId: 'property-1', programId: created.program.id, name },
+          actor,
+        )
+
+      await expect(rename('   ')).rejects.toMatchObject({ code: 'invalid_name' })
+      await expect(rename('x'.repeat(201))).rejects.toMatchObject({
+        code: 'invalid_name',
+      })
+      await expect(rename(' Portal scans ')).resolves.toMatchObject({
+        name: 'Portal scans',
+      })
+      expect(repository.rename).not.toHaveBeenCalled()
+
+      // The goal ended between the read and the write.
+      vi.mocked(repository.rename).mockResolvedValueOnce(null)
+      await expect(rename('Lobby scans')).rejects.toMatchObject({
+        code: 'revision_conflict',
+      })
     })
   })
 

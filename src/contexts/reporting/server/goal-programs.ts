@@ -21,6 +21,7 @@ import {
   goalProgramIdentitySchema,
   listGoalProgramsSchema,
   previewGoalMonthSchema,
+  renameGoalProgramSchema,
   reviseGoalProgramSchema,
 } from '../application/dto/goal-program.dto'
 export {
@@ -143,6 +144,20 @@ export const changeGoalProgramStatus = createServerFn({ method: 'POST' })
         ),
       'POST',
       'goal.changeGoalProgramStatus',
+    ),
+  )
+
+/** A goal's name and description, changed in place: no version, no month moves. */
+export const renameGoalProgram = createServerFn({ method: 'POST' })
+  .validator(renameGoalProgramSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms((programs, policy, actor) =>
+          programs.rename(policy, data, actor),
+        ),
+      'POST',
+      'goal.renameGoalProgram',
     ),
   )
 

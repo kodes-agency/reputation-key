@@ -209,6 +209,23 @@ export type GoalProgramRepository = Readonly<{
     }>,
   ): Promise<boolean>
   /**
+   * Set a Program's name and description in place; no version is written.
+   * Null when the Program does not exist for the tenant or has ended.
+   * `previousName` is what the command read, kept for the audit row.
+   */
+  rename(
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      programId: string
+      name: string
+      description: string | null
+      previousName: string
+      actorId: string
+      at: Date
+    }>,
+  ): Promise<GoalProgram | null>
+  /**
    * The requested subjects another Program holds for the metric from
    * `effectiveFrom`, one entry per subject (the hold that lasts longest).
    * `excludeProgramId` leaves a Program's own assignments out.

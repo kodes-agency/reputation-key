@@ -21,6 +21,7 @@ const SERVICE_METHODS = [
   'maintain',
   'reconcileClosedResult',
   'reconcileResult',
+  'rename',
   'revise',
 ]
 

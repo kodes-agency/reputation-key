@@ -428,6 +428,41 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
       }
     },
 
+    async rename(input) {
+      return db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(goalPrograms)
+          .set({
+            name: input.name,
+            description: input.description,
+            updatedAt: input.at,
+          })
+          .where(
+            and(
+              eq(goalPrograms.organizationId, input.organizationId),
+              eq(goalPrograms.propertyId, input.propertyId),
+              eq(goalPrograms.id, input.programId),
+              ne(goalPrograms.status, 'ended'),
+            ),
+          )
+          .returning()
+        if (!row) return null
+        await tx.insert(auditLogs).values({
+          organizationId: input.organizationId,
+          userId: input.actorId,
+          action: 'goal.program.renamed',
+          resourceType: 'goal_program',
+          resourceId: input.programId,
+          details: {
+            propertyId: input.propertyId,
+            previousName: input.previousName,
+            name: input.name,
+          },
+        })
+        return mapProgram(row)
+      })
+    },
+
     async findAssignmentConflicts(input) {
       if (input.subjects.length === 0) return []
       const propertySubjectIds = input.subjects.flatMap((subject) =>

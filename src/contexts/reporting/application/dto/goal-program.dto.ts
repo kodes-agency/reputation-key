@@ -160,6 +160,15 @@ export const changeGoalProgramStatusSchema = z.object({
   reason: goalProgramReasonSchema,
 })
 
+/** A goal's name and description, changed in place. No version is written. */
+export const renameGoalProgramSchema = z.object({
+  propertyId: uuid,
+  programId: uuid,
+  name: createGoalProgramSchema.shape.name,
+  // Omitted keeps the description the goal has; null or empty clears it.
+  description: createGoalProgramSchema.shape.description,
+})
+
 export const goalProgramIdentitySchema = z.object({
   propertyId: uuid,
   programId: uuid,

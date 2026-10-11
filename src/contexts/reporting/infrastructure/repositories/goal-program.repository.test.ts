@@ -1313,6 +1313,85 @@ describe.sequential('Goal Program repository (integration)', () => {
       return rows.map(({ details }) => details)
     }
 
+    it('renames a Program with an audit row and leaves its version alone', async () => {
+      const { repository, targetPropertyId, bundle } = await scheduledGoal(
+        'Renamed Goal Property',
+      )
+      const renamedAt = new Date('2026-01-16T09:00:00.000Z')
+      const rename = (tenant: string) =>
+        repository.rename({
+          organizationId: tenant,
+          propertyId: targetPropertyId,
+          programId: bundle.program.id,
+          name: 'Lobby ratings',
+          description: 'Counted at the desk',
+          previousName: bundle.program.name,
+          actorId: 'manager-2',
+          at: renamedAt,
+        })
+
+      // Another organization cannot reach the Program by its id.
+      await expect(rename(`other-${randomUUID()}`)).resolves.toBeNull()
+      await expect(rename(organizationId)).resolves.toMatchObject({
+        id: bundle.program.id,
+        name: 'Lobby ratings',
+        description: 'Counted at the desk',
+        updatedAt: renamedAt,
+      })
+
+      await expect(
+        repository.get(organizationId, targetPropertyId, bundle.program.id),
+      ).resolves.toEqual({
+        ...bundle,
+        program: {
+          ...bundle.program,
+          name: 'Lobby ratings',
+          description: 'Counted at the desk',
+          updatedAt: renamedAt,
+        },
+      })
+      await expect(
+        auditDetails(bundle.program.id, 'goal.program.renamed'),
+      ).resolves.toEqual([
+        {
+          propertyId: targetPropertyId,
+          previousName: bundle.program.name,
+          name: 'Lobby ratings',
+        },
+      ])
+    })
+
+    it('does not rename an ended Program', async () => {
+      const { repository, targetPropertyId, bundle } =
+        await scheduledGoal('Ended Goal Property')
+      await repository.changeStatus({
+        organizationId,
+        propertyId: targetPropertyId,
+        programId: bundle.program.id,
+        expectedStatus: 'scheduled',
+        status: 'ended',
+        reason: null,
+        actorId: 'manager-1',
+        at,
+      })
+
+      await expect(
+        repository.rename({
+          organizationId,
+          propertyId: targetPropertyId,
+          programId: bundle.program.id,
+          name: 'Too late',
+          description: null,
+          previousName: bundle.program.name,
+          actorId: 'manager-1',
+          at,
+        }),
+      ).resolves.toBeNull()
+      await expect(
+        auditDetails(bundle.program.id, 'goal.program.renamed'),
+      ).resolves.toEqual([])
+    })
+
     it('a status change without a note stores no status reason', async () => {
       const { repository, targetPropertyId, bundle } = await scheduledGoal(
         'Unexplained Goal Property',
