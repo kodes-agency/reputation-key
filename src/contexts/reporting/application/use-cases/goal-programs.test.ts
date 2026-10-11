@@ -1520,6 +1520,120 @@ describe('canonical Goal Program service', () => {
     expect(repository.updateResult).toHaveBeenCalledTimes(2)
   })
 
+  describe('which target a month is judged against', () => {
+    const PROPERTY = 'property-1'
+    const DUE = new Date('2026-04-02T01:00:00.000Z')
+
+    /** A March ratings goal with a version target of 25, read after March ends. */
+    async function marchRatingsGoal(monthTarget: number | null) {
+      const context = setup()
+      const bundle = await context.service.create(
+        {
+          propertyId: PROPERTY,
+          name: 'March ratings',
+          metric: 'portal_rating_count',
+          targetValue: 25,
+          subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        },
+        actor,
+      )
+      const opened = bundle.results[0]
+      if (!opened) throw new Error('expected monthly result')
+      // Nothing in the service sets a month's own target yet, so the stored row
+      // is given one directly, as the database row would carry it.
+      context.results.set(opened.id, { ...opened, targetValue: monthTarget })
+      context.setNow(DUE)
+      const reference = {
+        organizationId: actor.organizationId,
+        propertyId: PROPERTY,
+        resultId: opened.id,
+      }
+      const countIs = (count: number) =>
+        vi.mocked(context.metrics.queryGoalMetric).mockResolvedValue({
+          definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
+          metricKey: 'portal.rating_count',
+          state: 'eligible',
+          exactValue: count,
+          sampleCount: count,
+          minimumSample: 0,
+          sourceCompleteThrough: opened.periodEnd,
+          reason: null,
+        })
+      return { ...context, reference, countIs }
+    }
+
+    it("a month with its own target is judged against it, not the version's", async () => {
+      const { service, reference, countIs } = await marchRatingsGoal(30)
+      // 26 ratings meet the version's 25 but not the month's own 30.
+      countIs(26)
+
+      const reconciling = await service.reconcileResult(reference)
+
+      expect(reconciling).toMatchObject({
+        status: 'reconciling',
+        targetValue: 30,
+        evaluation: { state: 'eligible', value: 26, achieved: false },
+      })
+    })
+
+    it('a row with its own target closes against it', async () => {
+      const { service, reference, countIs } = await marchRatingsGoal(20)
+      // 22 ratings miss the version's 25 but meet the month's own 20.
+      countIs(22)
+
+      await service.reconcileResult(reference)
+      const closed = await service.reconcileResult(reference)
+
+      expect(closed).toMatchObject({
+        status: 'closed',
+        targetValue: 20,
+        evaluation: { state: 'eligible', value: 22, achieved: true },
+      })
+    })
+
+    it("a closed-month correction keeps using the month's own target", async () => {
+      const { service, reference, countIs } = await marchRatingsGoal(20)
+      countIs(22)
+      await service.reconcileResult(reference)
+      await service.reconcileResult(reference)
+      // One rating is retracted after the month closed: 21 still meets the
+      // month's own 20, and would miss the version's 25.
+      countIs(21)
+
+      const corrected = await service.reconcileClosedResult(reference)
+
+      expect(corrected).toMatchObject({
+        status: 'revised',
+        result: {
+          status: 'closed',
+          targetValue: 20,
+          evaluation: { state: 'eligible', value: 21, achieved: true },
+        },
+        outcomeChanged: false,
+      })
+    })
+
+    it("a month without its own target uses the version's", async () => {
+      const { service, reference, countIs } = await marchRatingsGoal(null)
+      countIs(22)
+
+      await service.reconcileResult(reference)
+      const closed = await service.reconcileResult(reference)
+
+      expect(closed).toMatchObject({
+        status: 'closed',
+        targetValue: null,
+        evaluation: { state: 'eligible', value: 22, achieved: false },
+      })
+      countIs(26)
+      await expect(service.reconcileClosedResult(reference)).resolves.toMatchObject({
+        status: 'revised',
+        result: { evaluation: { value: 26, achieved: true } },
+        outcomeChanged: true,
+      })
+    })
+  })
+
   it('preserves the last closed result while a late correction is still updating', async () => {
     const setupResult = setup()
     const { service, metrics, repository, setNow } = setupResult
