@@ -47,11 +47,24 @@ describe('goalCreateRefusal', () => {
   it('names the goal that holds a subject and how to free it', () => {
     const message = goalCreateRefusal(
       refusal('subject_has_goal'),
-      context({ holds: [hold()] }),
+      context({ startsThisMonth: false, holds: [hold()] }),
     )
 
     expect(message).toBe(
       'Lobby is part of Lobby ratings. Remove it from that goal’s subjects first.',
+    )
+  })
+
+  it('says a subject taken out of a live goal is free from next month, not this one', () => {
+    // A subject change takes effect at the next full month, so the subject
+    // stays held for the month the new goal was to start in.
+    const message = goalCreateRefusal(
+      refusal('subject_has_goal'),
+      context({ startsThisMonth: true, holds: [hold()] }),
+    )
+
+    expect(message).toBe(
+      'Lobby is part of Lobby ratings. Remove it from that goal’s subjects, then start the new goal next month.',
     )
   })
 
@@ -96,7 +109,7 @@ describe('goalCreateRefusal', () => {
     )
 
     expect(message).toBe(
-      'Lobby is part of Lobby ratings. Remove it from that goal’s subjects first. Pool bar has a goal for this measure that ends Oct 31. Start the new goal next month.',
+      'Lobby is part of Lobby ratings. Remove it from that goal’s subjects, then start the new goal next month. Pool bar has a goal for this measure that ends Oct 31. Start the new goal next month.',
     )
   })
 

@@ -34,7 +34,12 @@ export function goalRefusalCode(error: unknown): string | null {
 function heldSentence(hold: GoalSubjectHold, context: GoalCreateRefusalContext): string {
   const name = context.subjectName(hold.subject)
   if (hold.heldUntil === null) {
-    return `${name} is part of ${hold.programName}. Remove it from that goal’s subjects first.`
+    // A subject taken out of a goal stays in it until the month ends, so it
+    // frees next month, never the one that is running.
+    const partOf = `${name} is part of ${hold.programName}.`
+    return context.startsThisMonth
+      ? `${partOf} Remove it from that goal’s subjects, then start the new goal next month.`
+      : `${partOf} Remove it from that goal’s subjects first.`
   }
   // The hold ends where the next month begins, so its last day is the day before.
   const lastDay = formatShortDate(
