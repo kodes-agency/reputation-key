@@ -121,3 +121,17 @@ export const LOBBY_RATINGS_ENDED = bulkGoal({
   targetValue: 400,
   to: NOVEMBER,
 })
+
+/** A goal each for the Bar and the first floor: with the Lobby's, no row is left open. */
+export const BAR_RATINGS = bulkGoal({
+  id: '20000000-0000-4000-8000-000000000003',
+  name: 'Bar ratings',
+  subject: { kind: 'portal', portalId: BAR_ID },
+  targetValue: 120,
+})
+export const FLOOR_RATINGS = bulkGoal({
+  id: '20000000-0000-4000-8000-000000000004',
+  name: 'First floor ratings',
+  subject: { kind: 'portal_group', portalGroupId: FLOOR_ID },
+  targetValue: 900,
+})

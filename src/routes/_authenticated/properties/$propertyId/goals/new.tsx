@@ -292,7 +292,7 @@ function SeveralGoals({ propertyId }: Readonly<{ propertyId: string }>) {
       goalsRead={{
         failed: hasFailed(goals),
         retrying: isRetrying(goals),
-        onRetry: () => void goals.refetch(),
+        readAgain: () => void goals.refetch(),
       }}
       start={start}
       now={now}

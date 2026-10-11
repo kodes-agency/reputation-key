@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GoalSubjectHold } from '#/contexts/reporting/application/goal-subject-holds'
 import {
+  goalBulkNothingLeft,
   goalBulkRows,
   goalBulkSubjects,
   goalBulkTooFew,
@@ -107,6 +108,7 @@ describe('goalBulkRows', () => {
     expect(rowOf(BAR)).toMatchObject({
       name: 'Bar QR',
       goal: null,
+      open: true,
       status: null,
       note: null,
       fault: null,
@@ -118,6 +120,7 @@ describe('goalBulkRows', () => {
     const row = rowOf(LOBBY, rows({ holds: [hold()], startsThisMonth: false }))
 
     expect(row.goal).toEqual({ id: 'program-1', name: 'Lobby ratings', targetValue: 400 })
+    expect(row.open).toBe(false)
     expect(row.status).toEqual({ label: 'Already has a goal', tone: 'neutral' })
     expect(row.note).toBe(
       'Lobby QR is part of Lobby ratings. Remove it from that goal’s subjects first.',
@@ -145,6 +148,7 @@ describe('goalBulkRows', () => {
 
     expect(rowOf(LOBBY, rows({ report, holds: [known] }))).toMatchObject({
       goal: { id: 'program-9', name: 'Lobby QR · Private ratings', targetValue: 40 },
+      open: false,
       status: { label: 'Goal saved', tone: 'positive' },
       note: null,
       failed: false,
@@ -170,6 +174,7 @@ describe('goalBulkRows', () => {
 
     expect(rowOf(LOBBY, all)).toMatchObject({
       goal: null,
+      open: true,
       status: { label: 'Measure not available', tone: 'warn' },
       failed: true,
     })
@@ -194,6 +199,19 @@ describe('goalBulkRows', () => {
     expect(label('start_month_changed')).toBe('Not saved, try again')
   })
 
+  // The Portal was archived, or left the Property, while the table was open.
+  // No number can give it a goal, so the row closes and is never sent again.
+  it('a row whose Portal is no longer available takes no number any more', () => {
+    const row = rowOf(LOBBY, rows({ report: { [LOBBY]: { code: 'invalid_subject' } } }))
+
+    expect(row).toMatchObject({
+      goal: null,
+      open: false,
+      status: { label: 'No longer available', tone: 'warn' },
+      failed: true,
+    })
+  })
+
   it('a refused row whose goal is now known is occupied, and still counts as failed', () => {
     const row = rowOf(
       LOBBY,
@@ -205,5 +223,35 @@ describe('goalBulkRows', () => {
       status: { label: 'Already has a goal', tone: 'warn' },
       failed: true,
     })
+  })
+})
+
+describe('goalBulkNothingLeft', () => {
+  const floor = hold({
+    subject: { kind: 'portal_group', portalGroupId: 'floor' },
+    programId: 'program-3',
+  })
+  const bar = hold({
+    subject: { kind: 'portal', portalId: 'bar' },
+    programId: 'program-2',
+  })
+
+  it('says nothing while a row takes a number', () => {
+    expect(goalBulkNothingLeft(rows())).toBeNull()
+    expect(goalBulkNothingLeft(rows({ holds: [hold(), bar] }))).toBeNull()
+  })
+
+  it('says that every row has its goal, where a Save button would have nothing to send', () => {
+    expect(goalBulkNothingLeft(rows({ holds: [hold(), bar, floor] }))).toBe(
+      'Every portal and group has a goal for this measure.',
+    )
+  })
+
+  it('does not claim a goal for a Portal that is gone', () => {
+    const report: GoalBulkReport = { [LOBBY]: { code: 'invalid_subject' } }
+
+    expect(goalBulkNothingLeft(rows({ holds: [bar, floor], report }))).toBe(
+      'Nothing is left to set for this measure.',
+    )
   })
 })

@@ -8,9 +8,11 @@
 // A row whose subject already has a goal for the measure is read from the
 // Property's goals before any row is drawn, so it takes no number. After a
 // save every row that was sent says what became of it, a polite live region
-// says the whole result, and the focus goes to the first row that got no goal.
-// Those rows stay open: saving again sends them again, and a row that got its
-// goal the first time is no longer sent.
+// says the whole result, and the focus goes to the first row that got no goal,
+// or stays with the row the person was in. Rows without a goal stay open:
+// saving again sends them again, and a row that got its goal the first time is
+// no longer sent. A number belongs to the measure it was typed for
+// (goal-bulk-entries.ts), so another measure never inherits it.
 import { useEffect, useRef, useState } from 'react'
 import { Target } from 'lucide-react'
 import type { createGoalsForSubjects } from '#/contexts/reporting/server/goal-bulk-create'
@@ -25,29 +27,39 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
+import { BackLink } from '#/components/ui/back-link'
 import { EmptyState } from '#/components/ui/empty-state'
 import { RegionError } from '#/components/ui/region-error'
 import { FormActions } from '#/components/forms/form-actions'
 import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
+import {
+  GOAL_BULK_NO_ENTRIES,
+  goalBulkAnswered,
+  goalBulkEdited,
+  goalBulkHeldBack,
+  goalBulkReportIn,
+  goalBulkTargetsOf,
+} from './goal-bulk-entries'
 import { GoalBulkPending } from './goal-bulk-pending'
 import { GoalBulkRows } from './goal-bulk-rows'
 import {
   goalBulkFirstFailed,
+  goalBulkMayHaveSaved,
+  goalBulkRefusal,
   goalBulkReportOf,
-  goalBulkReportOnEdit,
   goalBulkSubmission,
   goalBulkSummary,
 } from './goal-bulk-save'
 import {
+  goalBulkNothingLeft,
   goalBulkRows,
   goalBulkSubjects,
   goalBulkTooFew,
-  type GoalBulkReport,
   type GoalBulkSubjectRow,
 } from './goal-bulk-view'
-import { GOAL_MONTH_CHANGED, goalRefusalCode } from './goal-create-refusal'
 import { GoalMetricField } from './goal-metric-field'
+import { goalRefusalCode } from './goal-refusal'
 import { GoalStartField } from './goal-start-field'
 import {
   goalStartLabels,
@@ -65,8 +77,12 @@ export type GoalBulkTableProps = Readonly<{
   portals: readonly Readonly<{ id: string; name: string; publicationState: string }>[]
   /** The Property's goals; undefined until they have been read. */
   programs: GoalBundles | undefined
-  /** How that read is going, for what stands in the table's place without it. */
-  goalsRead: Readonly<{ failed: boolean; retrying: boolean; onRetry: () => void }>
+  /**
+   * How that read is going, for what stands in the table's place without it,
+   * and how to read the goals again: after a read that failed, and after a
+   * save that may have gone through without its answer arriving.
+   */
+  goalsRead: Readonly<{ failed: boolean; retrying: boolean; readAgain: () => void }>
   /** The two months a goal may start in, as the page last read them. */
   start: GoalStartChoice
   now: Date
@@ -74,7 +90,24 @@ export type GoalBulkTableProps = Readonly<{
   onMonthChanged: () => void
 }>
 
-const NO_REPORT: GoalBulkReport = {}
+type RowElements = ReadonlyMap<string, HTMLElement>
+
+/** The row the focus is in, if any: where it stays when that row's field is gone after a save. */
+function rowInFocus(rows: RowElements): string | null {
+  const active = document.activeElement
+  for (const [key, element] of rows) if (element.contains(active)) return key
+  return null
+}
+
+/**
+ * The rows whose field holds text it cannot read as a number ("4,5" where the
+ * browser wants "4.5"). Such a field reports no value, so only it can tell the
+ * row from an empty one.
+ */
+const unreadableRows = (rows: RowElements): readonly string[] =>
+  [...rows]
+    .filter(([, element]) => element.querySelector('input')?.validity.badInput === true)
+    .map(([key]) => key)
 
 export function GoalBulkTable(props: GoalBulkTableProps) {
   const subjects = goalBulkSubjects(props.groups, props.portals)
@@ -91,38 +124,53 @@ export function GoalBulkTable(props: GoalBulkTableProps) {
       <RegionError
         message="The goals couldn’t be loaded."
         description="The table needs them to know which portals already have a goal."
-        onRetry={props.goalsRead.onRetry}
+        onRetry={props.goalsRead.readAgain}
         retrying={props.goalsRead.retrying}
       />
     ) : (
       <GoalBulkPending />
     )
   }
-  return <GoalBulkForm {...props} subjects={subjects} programs={props.programs} />
+  return (
+    <GoalBulkForm
+      {...props}
+      subjects={subjects}
+      programs={props.programs}
+      onGoalsStale={props.goalsRead.readAgain}
+    />
+  )
 }
 
 type FormProps = Omit<GoalBulkTableProps, 'groups' | 'portals' | 'goalsRead'> &
-  Readonly<{ subjects: readonly GoalBulkSubjectRow[]; programs: GoalBundles }>
+  Readonly<{
+    subjects: readonly GoalBulkSubjectRow[]
+    programs: GoalBundles
+    /** The goals in hand may be behind what was saved: read them again. */
+    onGoalsStale: () => void
+  }>
 
 function GoalBulkForm({
   createGoalsForSubjectsFn,
   property,
   subjects,
   programs,
+  onGoalsStale,
   start,
   now,
   onMonthChanged,
 }: FormProps) {
   const [metric, setMetric] = useState<GoalMetric>('portal_rating_count')
   const [pickedMonth, setPickedMonth] = useState<string | null>(null)
-  const [targets, setTargets] = useState<Readonly<Record<string, number>>>({})
-  // What the saves left on the rows, kept per measure and month: a goal saved
-  // for one measure says nothing about the same row under another.
-  const [reports, setReports] = useState<Readonly<Record<string, GoalBulkReport>>>({})
+  // The numbers typed and what the saves left, for every measure and month
+  // the person has looked at: neither is carried from one table into another.
+  const [entries, setEntries] = useState(GOAL_BULK_NO_ENTRIES)
   const [summary, setSummary] = useState('')
   // What the last attempt was refused with as a whole: a sentence, or the failure.
   const [refusal, setRefusal] = useState<unknown>(null)
-  const [focusOn, setFocusOn] = useState<Readonly<{ key: string }> | null>(null)
+  // Where the focus goes once the rows are drawn again; no row is `key: null`.
+  const [focusOn, setFocusOn] = useState<Readonly<{ key: string | null }> | null>(null)
+  const form = useRef<HTMLFormElement>(null)
+  const end = useRef<HTMLDivElement>(null)
   const rowElements = useRef(new Map<string, HTMLElement>())
   // No toast: the rows and the live region say what was saved, and a save
   // refused as a whole is the banner above the button.
@@ -130,20 +178,26 @@ function GoalBulkForm({
     invalidateKeys: [goalKeys.all],
   })
 
-  // After the rows have been drawn again: a row that got no goal has its
-  // number field, or the link to the goal that holds its subject.
+  // After the rows have been drawn again. A row has its number field, or the
+  // link to the goal its subject has. With no row to go to, the focus is only
+  // moved when what had it is gone (the field of a row that got its goal, or
+  // the Save button once no row is open): then the way on takes it, so it never
+  // falls to the top of the page.
   useEffect(() => {
     if (focusOn === null) return
-    rowElements.current
-      .get(focusOn.key)
-      ?.querySelector<HTMLElement>('input, a[href]')
-      ?.focus()
+    const row = focusOn.key === null ? undefined : rowElements.current.get(focusOn.key)
+    const inRow = row?.querySelector<HTMLElement>('input, a[href]')
+    if (inRow) inRow.focus()
+    else if (!form.current?.contains(document.activeElement)) {
+      end.current?.querySelector<HTMLElement>('a[href]')?.focus()
+    }
   }, [focusOn])
 
   const startMonth = offeredStartMonth(start, pickedMonth)
   const startsThisMonth = startMonth === start.current.monthKey
   const startLabels = goalStartLabels(start, property.timezone, now)
-  const scope = `${metric} ${startMonth}`
+  const scope = { metric, startMonth }
+  const targets = goalBulkTargetsOf(entries, metric)
   const rows = goalBulkRows({
     subjects,
     holds: subjectHolds(
@@ -151,58 +205,67 @@ function GoalBulkForm({
       metric,
       (startsThisMonth ? start.current : start.next).period.start,
     ),
-    report: reports[scope] ?? NO_REPORT,
+    report: goalBulkReportIn(entries, scope),
     startsThisMonth,
     timezone: property.timezone,
     now,
   })
+  const nothingLeft = goalBulkNothingLeft(rows)
+  // The way on, once a save has left no row without its goal.
+  const backToGoals = (
+    <BackLink
+      to="/properties/$propertyId/goals"
+      params={{ propertyId: property.id }}
+      label="Back to goals"
+    />
+  )
 
   /** A new measure or month is another table: what the last save said is not about it. */
   const forgetLastSave = () => {
     setSummary('')
     setRefusal(null)
   }
-  /** Lays what an attempt left over the rows and sends the focus to the first without a goal. */
-  const layOver = (left: GoalBulkReport) => {
-    setReports((all) => ({ ...all, [scope]: { ...all[scope], ...left } }))
-    const failed = goalBulkFirstFailed(left, rows)
-    if (failed !== null) setFocusOn({ key: failed })
-  }
 
   const submit = async () => {
     forgetLastSave()
-    const submission = goalBulkSubmission(rows, targets, metric)
+    const from = rowInFocus(rowElements.current)
+    const submission = goalBulkSubmission(
+      rows,
+      targets,
+      metric,
+      unreadableRows(rowElements.current),
+    )
     if (!submission.ok) {
-      layOver(submission.report)
+      setEntries((all) => goalBulkHeldBack(all, scope, submission.report))
       setRefusal(submission.message)
+      const wrong = goalBulkFirstFailed(submission.report, rows)
+      if (wrong !== null) setFocusOn({ key: wrong })
       return
     }
     try {
       const { outcomes } = await save({
-        data: {
-          propertyId: property.id,
-          metric,
-          startMonth,
-          items: [...submission.items],
-        },
+        data: { propertyId: property.id, ...scope, items: [...submission.items] },
       })
-      layOver(goalBulkReportOf(outcomes, { metric, targets }))
+      const left = goalBulkReportOf(outcomes, { metric, targets })
+      setEntries((all) => goalBulkAnswered(all, scope, left))
       setSummary(goalBulkSummary(outcomes))
+      setFocusOn({ key: goalBulkFirstFailed(left, rows) ?? from })
     } catch (error) {
-      if (goalRefusalCode(error) !== 'start_month_changed') {
-        setRefusal(error)
-        return
-      }
-      setRefusal(GOAL_MONTH_CHANGED)
-      onMonthChanged()
+      setRefusal(goalBulkRefusal(error))
+      // Each row is written on its own, so a save that failed on the way may
+      // have left goals behind: the rows must show them before the next try.
+      if (goalBulkMayHaveSaved(error)) onGoalsStale()
+      if (goalRefusalCode(error) === 'start_month_changed') onMonthChanged()
     }
   }
 
   return (
     <form
+      ref={form}
       noValidate
       className="flex flex-col gap-4"
-      onSubmit={submitHandler({ handleSubmit: submit })}
+      // Built when the form is submitted: `submit` reads the rows' elements.
+      onSubmit={(event) => submitHandler({ handleSubmit: submit })(event)}
     >
       <Card>
         <CardHeader>
@@ -211,10 +274,12 @@ function GoalBulkForm({
             One number per portal. Each becomes its own goal.
           </CardDescription>
         </CardHeader>
+        {/* Neither changes while a save runs: its answer is about the table it was sent from. */}
         <CardContent className="grid gap-5 lg:grid-cols-2">
           <GoalMetricField
             id="goal-bulk-metric"
             withDescription
+            disabled={save.isPending}
             field={{
               state: { value: metric, meta: { isValid: true, errors: [] } },
               handleBlur: () => undefined,
@@ -236,6 +301,7 @@ function GoalBulkForm({
               forgetLastSave()
             }}
             soFar={null}
+            disabled={save.isPending}
           />
         </CardContent>
       </Card>
@@ -245,13 +311,9 @@ function GoalBulkForm({
           metric={metric}
           rows={rows}
           targets={targets}
-          onTargetChange={(key, value) => {
-            setTargets((all) => ({ ...all, [key]: value }))
-            setReports((all) => ({
-              ...all,
-              [scope]: goalBulkReportOnEdit(all[scope] ?? NO_REPORT, key),
-            }))
-          }}
+          onTargetChange={(key, value) =>
+            setEntries((all) => goalBulkEdited(all, metric, key, value))
+          }
           rowRef={(key, element) => {
             if (element === null) rowElements.current.delete(key)
             else rowElements.current.set(key, element)
@@ -262,11 +324,26 @@ function GoalBulkForm({
           {summary}
         </p>
       </div>
-      <FormActions error={refusal}>
-        <SubmitButton mutation={save} pendingLabel="Saving…">
-          Save goals
-        </SubmitButton>
-      </FormActions>
+      <div ref={end}>
+        {nothingLeft === null ? (
+          <FormActions
+            error={refusal}
+            leading={
+              summary !== '' && rows.every((row) => !row.failed) ? backToGoals : undefined
+            }
+          >
+            <SubmitButton mutation={save} pendingLabel="Saving…">
+              Save goals
+            </SubmitButton>
+          </FormActions>
+        ) : (
+          // No row takes a number, so there is nothing to save: no button to press in vain.
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">{nothingLeft}</p>
+            {backToGoals}
+          </div>
+        )}
+      </div>
     </form>
   )
 }

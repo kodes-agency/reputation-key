@@ -4,8 +4,9 @@
 // number. A row whose subject already has a goal for the measure takes no
 // number: it shows that goal's target and says what frees the subject. After a
 // save every row that was sent says what became of it, and a row that got no
-// goal stays open for another try. What a save sends and what it leaves on the
-// rows is goal-bulk-save.ts.
+// goal stays open for another try, unless its Portal is gone. What a save
+// sends and what it leaves on the rows is goal-bulk-save.ts; what is kept
+// between saves is goal-bulk-entries.ts.
 import type { createGoalsForSubjects } from '#/contexts/reporting/server/goal-bulk-create'
 import type { GoalSubjectHold } from '#/contexts/reporting/application/goal-subject-holds'
 import type { StatusPresentation } from '#/components/ui/status-badge'
@@ -47,6 +48,11 @@ export type GoalBulkRow = GoalBulkSubjectRow &
      * whose name has not been read yet.
      */
     goal: Readonly<{ id: string; name: string | null; targetValue: number }> | null
+    /**
+     * The row takes a number: its subject has no goal for the measure and can
+     * still get one. Only an open row is sent.
+     */
+    open: boolean
     /** The pill: what the last save, or the goals already set, say about the row. */
     status: StatusPresentation | null
     /** Why the subject is taken and what frees it, under the pill. */
@@ -139,32 +145,37 @@ function bulkRow(subject: GoalBulkSubjectRow, context: RowContext): GoalBulkRow 
   const hold = context.holds.find(
     (candidate) => goalSubjectKey(candidate.subject) === subject.key,
   )
-  const open = { ...subject, goal: null, status: null, note: null, fault: null }
+  const blank = { ...subject, goal: null, status: null, note: null, fault: null }
   if (report?.code === 'created') {
     return {
-      ...open,
+      ...blank,
       goal: {
         id: report.programId,
         name: hold?.programId === report.programId ? hold.programName : null,
         targetValue: report.targetValue,
       },
+      open: false,
       status: SAVED,
       failed: false,
     }
   }
   if (hold) {
     return {
-      ...open,
+      ...blank,
       goal: { id: hold.programId, name: hold.programName, targetValue: hold.targetValue },
+      open: false,
       // Quiet for a goal that was simply there; a warning once a save ran into it.
       status: { label: 'Already has a goal', tone: report ? 'warn' : 'neutral' },
       note: goalHeldSentence(hold, { ...context, subjectName: () => subject.name }),
       failed: report !== undefined,
     }
   }
-  if (report === undefined) return { ...open, failed: false }
+  if (report === undefined) return { ...blank, open: true, failed: false }
   return {
-    ...open,
+    ...blank,
+    // A Portal that was archived or left the Property cannot get a goal by
+    // another number, so its row closes; every other refusal is worth a retry.
+    open: report.code !== 'invalid_subject',
     status: REFUSED[report.code],
     fault: report.code === 'invalid_target' ? report.fault : null,
     failed: true,
@@ -176,4 +187,16 @@ export function goalBulkRows(
   input: RowContext & Readonly<{ subjects: readonly GoalBulkSubjectRow[] }>,
 ): readonly GoalBulkRow[] {
   return input.subjects.map((subject) => bulkRow(subject, input))
+}
+
+/**
+ * What stands in place of the Save button when no row takes a number: there is
+ * nothing to save, and a button that could only answer "enter a target" would
+ * mislead. Null while a row is open.
+ */
+export function goalBulkNothingLeft(rows: readonly GoalBulkRow[]): string | null {
+  if (rows.some((row) => row.open)) return null
+  return rows.every((row) => row.goal !== null)
+    ? 'Every portal and group has a goal for this measure.'
+    : 'Nothing is left to set for this measure.'
 }

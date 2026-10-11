@@ -3,11 +3,14 @@
 // A save sends every open row that has a number, as one goal each. Nothing is
 // sent while a number does not suit the measure. What comes back is one outcome
 // per row; the table keeps it as that row's report (goal-bulk-view.ts draws
-// it), says the whole result in a sentence and moves the focus to the first
-// row that got no goal.
+// it, goal-bulk-entries.ts keeps it), says the whole result in a sentence and
+// moves the focus to the first row that got no goal. A save refused as a whole
+// is one sentence above the button.
 import type { GoalMetric } from '#/contexts/reporting/application/public-api'
 import { MAX_GOAL_BULK_ITEMS } from '#/contexts/reporting/application/dto/goal-bulk-create.dto'
 import { goalTargetFault } from '#/contexts/reporting/application/dto/goal-program.dto'
+import { isServerFunctionError } from '#/shared/auth/server-function-error'
+import { goalRefusal, goalRefusalCode } from './goal-refusal'
 import { goalSubjectKey } from './goal-subject-picker'
 import type {
   GoalBulkOutcome,
@@ -16,6 +19,8 @@ import type {
   GoalBulkRowReport,
   GoalBulkSubject,
 } from './goal-bulk-view'
+
+const TOO_MANY = `Set goals for up to ${MAX_GOAL_BULK_ITEMS} portals at a time.`
 
 export type GoalBulkSubmission =
   | Readonly<{
@@ -33,17 +38,24 @@ export type GoalBulkSubmission =
 /**
  * What a save sends: every open row that has a number. Nothing is sent while a
  * number does not suit the measure, so a wrong row is put right first. A row
- * left empty (`NaN`) is skipped, and so is a row whose subject has a goal.
+ * left empty (`NaN`) is skipped. `unreadable` names the rows whose field holds
+ * text it cannot read as a number: the table sees those as empty too, and only
+ * the field can tell, so they are a fault and not a row to skip in silence.
  */
 export function goalBulkSubmission(
   rows: readonly GoalBulkRow[],
   targets: Readonly<Record<string, number>>,
   metric: GoalMetric,
+  unreadable: readonly string[] = [],
 ): GoalBulkSubmission {
   const filled = rows
-    .filter((row) => row.goal === null)
-    .map((row) => ({ row, targetValue: targets[row.key] ?? Number.NaN }))
-    .filter(({ targetValue }) => !Number.isNaN(targetValue))
+    .filter((row) => row.open)
+    .flatMap((row) => {
+      // `NaN` is no number for any measure, which is what the fault below says.
+      if (unreadable.includes(row.key)) return [{ row, targetValue: Number.NaN }]
+      const targetValue = targets[row.key] ?? Number.NaN
+      return Number.isNaN(targetValue) ? [] : [{ row, targetValue }]
+    })
   const report: GoalBulkReport = Object.fromEntries(
     filled.flatMap(({ row, targetValue }) => {
       const fault = goalTargetFault(metric, targetValue)
@@ -54,30 +66,11 @@ export function goalBulkSubmission(
   if (filled.length === 0) {
     return { ok: false, report, message: 'Enter a target for at least one portal.' }
   }
-  if (filled.length > MAX_GOAL_BULK_ITEMS) {
-    return {
-      ok: false,
-      report,
-      message: `Set goals for up to ${MAX_GOAL_BULK_ITEMS} portals at a time.`,
-    }
-  }
+  if (filled.length > MAX_GOAL_BULK_ITEMS) return { ok: false, report, message: TOO_MANY }
   return {
     ok: true,
     items: filled.map(({ row, targetValue }) => ({ subject: row.subject, targetValue })),
   }
-}
-
-/**
- * The reports once a row's number changes. A fault was about the number the
- * row had, so it leaves with that number; any other reason a row got no goal
- * stays until the next save says otherwise.
- */
-export function goalBulkReportOnEdit(
-  report: GoalBulkReport,
-  key: string,
-): GoalBulkReport {
-  if (report[key]?.code !== 'invalid_target') return report
-  return Object.fromEntries(Object.entries(report).filter(([other]) => other !== key))
 }
 
 /** The first row the last save left without a goal: where the focus goes. */
@@ -123,4 +116,31 @@ export function goalBulkSummary(outcomes: readonly GoalBulkOutcome[]): string {
   const refused = outcomes.length - saved
   const goals = saved === 1 ? '1 goal' : `${saved === 0 ? 'No' : saved} goals`
   return refused === 0 ? `${goals} saved.` : `${goals} saved. ${refused} not saved.`
+}
+
+/**
+ * What the banner above the button says when the command refuses the whole
+ * save. Each code has its sentence (goal-refusal.ts); two of them speak of one
+ * goal there and are said here in the table's own words. A failure that is not
+ * a refusal is handed on, and the banner applies its own rule to it.
+ */
+export function goalBulkRefusal(error: unknown): unknown {
+  switch (goalRefusalCode(error)) {
+    case 'not_found':
+      return 'This property can’t be found.'
+    case 'assignment_limit_exceeded':
+      return TOO_MANY
+    default:
+      return goalRefusal(error)
+  }
+}
+
+/**
+ * Whether a save that threw may still have written goals. The command refuses
+ * a whole save before it writes a row (a 4xx), but it writes each row on its
+ * own, so a fault or a lost connection can come after some were saved. The
+ * table then reads the goals again before the person saves a second time.
+ */
+export function goalBulkMayHaveSaved(error: unknown): boolean {
+  return !isServerFunctionError(error) || error.status < 400 || error.status >= 500
 }

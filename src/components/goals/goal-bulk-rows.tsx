@@ -4,7 +4,8 @@
 // it shows that goal's target and links to the goal.
 //
 // The number is the shared number field. Its label names the row for a screen
-// reader ("Monthly target for Lobby QR") and is never drawn: from the width the
+// reader ("Monthly target for Lobby QR", and "… for First floor (portal group)",
+// since a group may share a Portal's name) and is never drawn: from the width the
 // table has a header, the header shows the column; below it, where the rows
 // stack and the header is gone, a caption does. The label itself cannot be the
 // one that hides from a width: a field gives its children the full width, which
@@ -31,6 +32,16 @@ const TARGET = 'Monthly target'
 
 /** The id of a row's number: the subject key, with nothing a selector must escape. */
 const fieldIdOf = (row: GoalBulkRow): string => `goal-target-${row.key.replace(':', '-')}`
+
+/**
+ * The name of a row's number. A Portal Group says that it is one: a group and
+ * a Portal may have the same name and then sort next to each other, and the
+ * kind is otherwise only the grey line in another cell.
+ */
+const fieldLabelOf = (row: GoalBulkRow): string =>
+  row.kind === 'Portal group'
+    ? `${TARGET} for ${row.name} (portal group)`
+    : `${TARGET} for ${row.name}`
 
 type Props = Readonly<{
   propertyId: string
@@ -62,6 +73,8 @@ function TargetCell({
       </>
     )
   }
+  // No goal and no way to one (the Portal is gone): the status says why.
+  if (!row.open) return null
   const average = metric === 'portal_rating_average'
   return (
     <>
@@ -71,7 +84,7 @@ function TargetCell({
       </p>
       <FormNumberField
         id={fieldIdOf(row)}
-        label={`${TARGET} for ${row.name}`}
+        label={fieldLabelOf(row)}
         labelClassName="sr-only"
         className="max-w-40"
         min={1}

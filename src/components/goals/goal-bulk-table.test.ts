@@ -19,11 +19,13 @@ import { goalBulkRows, goalBulkSubjects } from './goal-bulk-view'
 import { goalStartChoice } from './goal-start-view'
 import {
   BAR_ID,
+  BAR_RATINGS,
   BULK_GROUPS,
   BULK_PORTALS,
   BULK_PROPERTY,
   EARLY_IN_OCTOBER,
   FLOOR_ID,
+  FLOOR_RATINGS,
   LATE_IN_OCTOBER,
   LOBBY_ID,
   LOBBY_RATINGS,
@@ -58,7 +60,7 @@ function table(over: Partial<GoalBulkTableProps> = {}): string {
       groups: BULK_GROUPS,
       portals: BULK_PORTALS,
       programs: [],
-      goalsRead: { failed: false, retrying: false, onRetry: () => undefined },
+      goalsRead: { failed: false, retrying: false, readAgain: () => undefined },
       start: goalStartChoice(now, BULK_PROPERTY.timezone),
       now,
       onMonthChanged: () => undefined,
@@ -86,7 +88,7 @@ describe('GoalBulkTable', () => {
       [...html.matchAll(/<label[^>]*>(Monthly target for [^<]+)</gu)].map((m) => m[1]),
     ).toEqual([
       'Monthly target for Bar QR',
-      'Monthly target for First floor',
+      'Monthly target for First floor (portal group)',
       'Monthly target for Lobby QR',
     ])
     expect(html).not.toContain('Old spa desk')
@@ -109,6 +111,22 @@ describe('GoalBulkTable', () => {
     // A count is a whole number with no upper bound.
     expect(fieldIn(row)).not.toContain('max=')
     expect(fieldIn(row)).not.toContain('step=')
+  })
+
+  // The kind is otherwise only the grey line in the first cell, which a
+  // screen reader does not hear with the field.
+  it('tells the number of a Portal Group from that of a Portal with the same name', () => {
+    const html = table({
+      groups: [{ id: FLOOR_ID, name: 'Restaurant' }],
+      portals: [{ id: BAR_ID, name: 'Restaurant', publicationState: 'published' }],
+    })
+    const labelFor = (id: string) =>
+      html.match(new RegExp(`<label[^>]*for="${id}"[^>]*>([^<]+)<`, 'u'))?.[1]
+
+    expect(labelFor(`goal-target-portal-${BAR_ID}`)).toBe('Monthly target for Restaurant')
+    expect(labelFor(`goal-target-portal_group-${FLOOR_ID}`)).toBe(
+      'Monthly target for Restaurant (portal group)',
+    )
   })
 
   it('a subject in a live goal takes no number: its row shows the target and links to that goal', () => {
@@ -161,6 +179,29 @@ describe('GoalBulkTable', () => {
     expect(fieldIn(rowOf(table({ programs: [scans] }), 'Lobby QR'))).toBeDefined()
   })
 
+  // The usual return visit. A Save button here could only answer "Enter a
+  // target for at least one portal", which no row would take.
+  it('has no Save button when no row takes a number: it says so and links back to Goals', () => {
+    const html = table({ programs: [LOBBY_RATINGS, BAR_RATINGS, FLOOR_RATINGS] })
+
+    expect(html).not.toContain('type="number"')
+    expect(html).not.toContain('Save goals')
+    expect(html).toContain('Every portal and group has a goal for this measure.')
+    expect(html).toMatch(
+      new RegExp(
+        `<a [^>]*href="/properties/${BULK_PROPERTY.id}/goals"[^>]*>.*Back to goals</a>`,
+        'u',
+      ),
+    )
+  })
+
+  it('offers no way back beside the button before anything was saved', () => {
+    const html = table({ programs: [LOBBY_RATINGS] })
+
+    expect(html).toContain('>Save goals</button>')
+    expect(html).not.toContain('Back to goals')
+  })
+
   it('says so when the Property has fewer than two Portals or groups', () => {
     const html = table({ groups: [], portals: [BULK_PORTALS[0], BULK_PORTALS[2]] })
 
@@ -181,7 +222,7 @@ describe('GoalBulkTable', () => {
   it('says the goals could not be read, with Try again, and draws no row', () => {
     const html = table({
       programs: undefined,
-      goalsRead: { failed: true, retrying: false, onRetry: () => undefined },
+      goalsRead: { failed: true, retrying: false, readAgain: () => undefined },
     })
 
     expect(html).toContain('The goals couldn’t be loaded.')
@@ -192,7 +233,7 @@ describe('GoalBulkTable', () => {
   it('keeps the table when a later read of the goals fails', () => {
     const html = table({
       programs: [LOBBY_RATINGS],
-      goalsRead: { failed: true, retrying: false, onRetry: () => undefined },
+      goalsRead: { failed: true, retrying: false, readAgain: () => undefined },
     })
 
     expect(html).not.toContain('The goals couldn’t be loaded.')
@@ -240,6 +281,24 @@ describe('GoalBulkRows', () => {
     )
     // The other rows are not in question.
     expect(fieldIn(rowOf(html, 'Bar QR'))).not.toContain('aria-invalid="true"')
+  })
+
+  it('a row whose Portal is no longer available has no field and says why', () => {
+    const html = render(
+      createElement(GoalBulkRows, {
+        propertyId: BULK_PROPERTY.id,
+        metric: 'portal_rating_count',
+        rows: rowsWith({ [lobby]: { code: 'invalid_subject' } }),
+        targets: { [lobby]: 40 },
+        onTargetChange: () => undefined,
+        rowRef: () => undefined,
+      }),
+    )
+    const row = rowOf(html, 'Lobby QR')
+
+    expect(fieldIn(row)).toBeUndefined()
+    expect(row).toContain('No longer available')
+    expect(fieldIn(rowOf(html, 'Bar QR'))).toBeDefined()
   })
 
   it('a saved row shows the number it was saved with and a link to its goal', () => {
