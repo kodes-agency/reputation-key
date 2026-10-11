@@ -90,6 +90,30 @@ async function endOpenGoalPrograms(page: Page, propertyId: string) {
   }
 }
 
+/**
+ * The month after the current one on a Property's own calendar, as the
+ * `YYYY-MM` key the create command takes.
+ *
+ * Read on the database clock in the Property's time zone, which is how the
+ * command reads the month. Every journey names the month it means: left out,
+ * the command still starts next month, but which month a form would choose
+ * depends on the day the suite runs, and a journey must not.
+ */
+async function nextGoalStartMonth(propertyId: string): Promise<string> {
+  const [months] = await dbQuery<{ next_month: string }>(
+    `SELECT
+       to_char(
+         date_trunc('month', now() AT TIME ZONE timezone) + interval '1 month',
+         'YYYY-MM'
+       ) AS next_month
+     FROM properties
+     WHERE organization_id = $1 AND id = $2::uuid`,
+    [seed.organizationId, propertyId],
+  )
+  if (!months) throw new Error('The seeded Property has no timezone')
+  return months.next_month
+}
+
 test.describe('Critical: beta-local-1 product journeys', () => {
   // The rotation journey creates a Portal per run. Without this the Property's
   // paginated Portal list eventually stops showing the newest one.
@@ -683,6 +707,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
     await endOpenGoalPrograms(page, seed.p1PropertyId)
+    // Next month, named: the program is then scheduled with no month open, which
+    // is the head the SQL below replaces with a completed one.
+    const nextMonth = await nextGoalStartMonth(seed.p1PropertyId)
     const created = await callServerFn<{ program: { id: string; status: string } }>(
       page,
       {
@@ -695,6 +722,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
           metric: 'qualified_scans',
           targetValue: 20,
           subjects: [{ kind: 'portal_group', portalGroupId: portal.groupId }],
+          startMonth: nextMonth,
         },
       },
     )
@@ -878,6 +906,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // per (subject, metric), and ending that one here would pull the ground out
     // from under the Member journey that reads it.
     const subjects = [{ kind: 'property', propertyId: seed.p1PropertyId }]
+    // Every create below names next month. A goal that starts this month opens
+    // the month at once and, once ended, keeps the Property as its subject
+    // until that month is over, which would refuse the next run of this journey.
+    const nextMonth = await nextGoalStartMonth(seed.p1PropertyId)
     const created = await callServerFn<{ program: { id: string; status: string } }>(
       page,
       {
@@ -890,10 +922,12 @@ test.describe('Critical: beta-local-1 product journeys', () => {
           metric: 'qualified_scans',
           targetValue: 12,
           subjects,
+          startMonth: nextMonth,
         },
       },
     )
     expect(created.program.id).toBeTruthy()
+    expect(created.program.status).toBe('scheduled')
 
     // Revision is not exercised here: a freshly created program already carries
     // a pending revision, so revising immediately is refused with
@@ -902,8 +936,8 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // goal-programs.test.ts covers the revision rules directly, including this
     // conflict.
 
-    // A new program starts 'scheduled' (awaiting its first full month), and
-    // ending it is the transition available from there. 'ended' is terminal, so
+    // A program that starts next month is 'scheduled' until that month begins,
+    // and ending it is the transition available from there. 'ended' is terminal, so
     // the second attempt must be refused — that is the half worth asserting,
     // because a status machine that silently accepts a repeat would let an
     // ended program be resurrected.
@@ -953,6 +987,8 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         metric: 'qualified_scans',
         targetValue: 1,
         subjects: [{ kind: 'property', propertyId: seed.p3PropertyId }],
+        // P1's month: the refusal comes before the command reads any calendar.
+        startMonth: nextMonth,
       },
     })
     expect(denied.message ?? denied.code ?? '').toMatch(
@@ -969,11 +1005,97 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         metric: 'qualified_scans',
         targetValue: 4.5,
         subjects,
+        startMonth: nextMonth,
       },
     })
     expect(invalidTarget.message ?? invalidTarget.code ?? '').toMatch(
       /error|invalid|target/i,
     )
+  })
+
+  test("a Portal goal set mid-month shows this month's count", async ({
+    page,
+  }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    // A Portal of its own for every attempt. A goal that starts this month
+    // opens the month at once, and ending the goal keeps its subject held until
+    // that month is over, so a second attempt on the same Portal would be
+    // refused with subject_has_goal. The `e2e-rotating-` slug puts the Portal
+    // in the afterAll clean-up above.
+    const suffix = `${e2eRunId.slice(-8)}-${testInfo.retry}`
+    const portalName = `E2E Goal Portal ${suffix}`
+    const goalName = `E2E Mid-month Goal ${suffix}`
+    const { portal } = await callServerFn<{ portal: { id: string } }>(page, {
+      file: 'src/contexts/portal/server/portals.ts',
+      exportName: 'createPortal',
+      data: {
+        propertyId: seed.p1PropertyId,
+        name: portalName,
+        slug: `e2e-rotating-goal-${suffix}`,
+        description: 'The subject of a goal set during its month.',
+      },
+    })
+
+    let goalId: string | undefined
+    try {
+      await page.goto(
+        `/properties/${seed.p1PropertyId}/goals/new?subject=portal:${portal.id}`,
+      )
+      await waitForHydration(page)
+      // The link names the subject, so the goal is for this one Portal.
+      await expect(page.getByRole('checkbox', { name: portalName })).toBeChecked()
+      await page.getByRole('textbox', { name: 'Name', exact: true }).fill(goalName)
+      await page.getByRole('spinbutton', { name: 'Monthly target' }).fill('5')
+      // The start is chosen here, never assumed: which month the form offers
+      // first depends on the day of the month the suite runs.
+      const thisMonth = page.getByRole('radio', {
+        name: /^This month — counts everything since /,
+      })
+      await thisMonth.click()
+      await expect(thisMonth).toBeChecked()
+      // One subject and this month: the form says what the month already holds.
+      // A Portal created a moment ago has no ratings, and a verified zero is a
+      // figure, not a gap.
+      await expect(page.getByText('So far this month: 0', { exact: true })).toBeVisible()
+      await clickWhenReady(page.getByRole('button', { name: 'Create goal' }))
+
+      await expect(page).toHaveURL(
+        new RegExp(`/properties/${seed.p1PropertyId}/goals/[0-9a-f-]{36}$`),
+      )
+      goalId = new URL(page.url()).pathname.split('/').at(-1)
+      await expect(page.getByRole('heading', { level: 1, name: goalName })).toBeVisible()
+      // The goal counts the whole month it was set in, and says when it was set.
+      await expect(
+        page.getByText(/^Counts from [A-Z][a-z]{2} 1 · set on [A-Z][a-z]{2} \d{1,2}$/),
+      ).toBeVisible()
+      // The month still running has its open result, with the count so far and
+      // the day the target arrived beside it.
+      await expect(page.getByText('0 so far', { exact: true })).toBeVisible()
+      await expect(page.getByText(/^Set on [A-Z][a-z]{2} \d{1,2}$/)).toBeVisible()
+
+      // The list says when the target was set too, and survives a reload. The
+      // goal's name is a link only there: the results matrix prints it as text.
+      await page.goto(`/properties/${seed.p1PropertyId}/goals`)
+      const listed = page.getByRole('link', { name: goalName, exact: true }).locator('..')
+      await expect(listed).toContainText(/· set on [A-Z][a-z]{2} \d{1,2}/)
+      await page.reload()
+      await expect(listed).toContainText(/· set on [A-Z][a-z]{2} \d{1,2}/)
+    } finally {
+      // End the goal whatever happened above, as an operator would: a goal left
+      // active here would outlive the Portal the afterAll archives.
+      if (goalId) {
+        await callServerFn(page, {
+          file: 'src/contexts/reporting/server/goal-programs.ts',
+          exportName: 'changeGoalProgramStatus',
+          data: {
+            propertyId: seed.p1PropertyId,
+            programId: goalId,
+            status: 'ended',
+            reason: 'E2E end of the mid-month goal.',
+          },
+        })
+      }
+    }
   })
 
   // No Member journey. Member is not a beta-interactive role, so the TENANT

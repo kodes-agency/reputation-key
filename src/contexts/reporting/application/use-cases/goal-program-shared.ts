@@ -106,7 +106,9 @@ export class GoalProgramError extends Error {
       | 'invalid_reason'
       | 'metric_unavailable'
       | 'invalid_transition'
-      | 'revision_conflict',
+      | 'revision_conflict'
+      | 'subject_has_goal'
+      | 'start_month_changed',
   ) {
     super(code)
     this.name = 'GoalProgramError'
@@ -298,7 +300,14 @@ async function validateSubjects(
   if (ownership.some((owned) => !owned)) throw new GoalProgramError('invalid_subject')
 }
 
-async function resolveMetricVersion(deps: GoalProgramDependencies, metric: GoalMetric) {
+/**
+ * The governed version a measure is read under, or `metric_unavailable` when
+ * it is not the approved Goal version with the measure's own minimum sample.
+ */
+export async function resolveMetricVersion(
+  deps: Pick<GoalProgramDependencies, 'metrics'>,
+  metric: GoalMetric,
+) {
   const versionId = GOAL_METRIC_VERSION_IDS[metric]
   const governed = await deps.metrics.getApprovedGoalVersion?.(versionId)
   if (

@@ -10,10 +10,12 @@ import {
 } from '#/shared/db/schema/goal.schema'
 import type { Tx } from '#/shared/outbox/commit'
 import type {
+  GoalAssignmentConflict,
   GoalProgramBundle,
   GoalProgramRepository,
-  GoalSubjectAssignment,
 } from '../../application/ports/goal-program.repository'
+import { holdOutlasts } from '../../application/goal-subject-holds'
+import { goalSubjectIdentity } from '../../domain/goal-program'
 import { createGoalMonthlyResultRepository } from './goal-monthly-result.repository'
 import {
   assignmentValues,
@@ -192,31 +194,40 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
   return {
     async create(input) {
       const { bundle } = input
-      await db.transaction(async (tx) => {
-        await tx.insert(goalPrograms).values(programValues(bundle.program))
-        await tx.insert(goalProgramVersions).values(versionValues(bundle.version))
-        if (bundle.assignments.length > 0) {
-          await tx
-            .insert(goalSubjectAssignments)
-            .values(bundle.assignments.map(assignmentValues))
-        }
-        if (bundle.results.length > 0) {
-          await tx.insert(goalMonthlyResults).values(bundle.results.map(resultValues))
-        }
-        await tx.insert(auditLogs).values({
-          organizationId: bundle.program.organizationId,
-          userId: bundle.program.createdBy,
-          action: input.auditAction,
-          resourceType: 'goal_program',
-          resourceId: bundle.program.id,
-          details: {
-            propertyId: bundle.program.propertyId,
-            programVersionId: bundle.version.id,
-            metric: bundle.version.metric,
-            assignmentCount: bundle.assignments.length,
-          },
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(goalPrograms).values(programValues(bundle.program))
+          await tx.insert(goalProgramVersions).values(versionValues(bundle.version))
+          if (bundle.assignments.length > 0) {
+            await tx
+              .insert(goalSubjectAssignments)
+              .values(bundle.assignments.map(assignmentValues))
+          }
+          if (bundle.results.length > 0) {
+            await tx.insert(goalMonthlyResults).values(bundle.results.map(resultValues))
+          }
+          await tx.insert(auditLogs).values({
+            organizationId: bundle.program.organizationId,
+            userId: bundle.program.createdBy,
+            action: input.auditAction,
+            resourceType: 'goal_program',
+            resourceId: bundle.program.id,
+            details: {
+              propertyId: bundle.program.propertyId,
+              programVersionId: bundle.version.id,
+              metric: bundle.version.metric,
+              assignmentCount: bundle.assignments.length,
+            },
+          })
         })
-      })
+      } catch (error) {
+        // A new Program has one version, so the only no-overlap constraint it
+        // can meet is the subject's: another goal took the subject and metric
+        // after the caller checked. The transaction wrote nothing.
+        if (hasPostgresErrorCode(error, '23P01')) return 'subject_has_goal'
+        throw error
+      }
+      return 'created'
     },
 
     async get(organizationId, propertyId, programId) {
@@ -411,18 +422,7 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
           : undefined,
       )
       if (!requestedSubjects) return []
-      const requested = new Set(
-        input.subjects.map((subject) => {
-          switch (subject.kind) {
-            case 'property':
-              return `property:${subject.propertyId}`
-            case 'portal_group':
-              return `portal_group:${subject.portalGroupId}`
-            case 'portal':
-              return `portal:${subject.portalId}`
-          }
-        }),
-      )
+      const requested = new Set(input.subjects.map(goalSubjectIdentity))
       const rows = await db
         .select()
         .from(goalSubjectAssignments)
@@ -430,25 +430,38 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
           and(
             eq(goalSubjectAssignments.organizationId, input.organizationId),
             eq(goalSubjectAssignments.propertyId, input.propertyId),
-            ne(goalSubjectAssignments.programId, input.excludeProgramId),
+            input.excludeProgramId === undefined
+              ? undefined
+              : ne(goalSubjectAssignments.programId, input.excludeProgramId),
             eq(goalSubjectAssignments.metricKey, input.metric),
+            // What the no-overlap constraint counts against a window open from
+            // `effectiveFrom`: an open-ended assignment, or one that ends after
+            // it. A window that ends where it starts is empty and holds nothing.
             or(
               isNull(goalSubjectAssignments.effectiveTo),
-              gt(goalSubjectAssignments.effectiveTo, input.effectiveFrom),
+              and(
+                gt(goalSubjectAssignments.effectiveTo, input.effectiveFrom),
+                gt(
+                  goalSubjectAssignments.effectiveTo,
+                  goalSubjectAssignments.effectiveFrom,
+                ),
+              ),
             ),
             requestedSubjects,
           ),
         )
-      const conflicts = new Map<string, GoalSubjectAssignment['subject']>()
+      const conflicts = new Map<string, GoalAssignmentConflict>()
       for (const row of rows) {
-        const subject = mapAssignment(row).subject
-        const identity =
-          subject.kind === 'property'
-            ? `property:${subject.propertyId}`
-            : subject.kind === 'portal_group'
-              ? `portal_group:${subject.portalGroupId}`
-              : `portal:${subject.portalId}`
-        if (requested.has(identity)) conflicts.set(identity, subject)
+        const assignment = mapAssignment(row)
+        const identity = goalSubjectIdentity(assignment.subject)
+        if (!requested.has(identity)) continue
+        const known = conflicts.get(identity)
+        if (known && !holdOutlasts(assignment.effectiveTo, known.effectiveTo)) continue
+        conflicts.set(identity, {
+          subject: assignment.subject,
+          programId: assignment.programId,
+          effectiveTo: assignment.effectiveTo,
+        })
       }
       return [...conflicts.values()]
     },

@@ -69,6 +69,7 @@ export const RATINGS_GOAL: GoalProgress = {
   metric: 'portal_rating_count',
   targetValue: 250,
   setBy: 'u-elena',
+  setAt: new Date('2026-08-12T10:00:00.000Z'),
   status: 'active',
   period: SEPTEMBER,
   timezone: ZONE,

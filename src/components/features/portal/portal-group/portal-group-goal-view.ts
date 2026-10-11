@@ -7,7 +7,13 @@
 // read is not a zero, and an average too thin to show says why instead.
 import type { GoalProgress } from '#/contexts/reporting/application/public-api'
 import { goalMetricLabel } from '#/components/goals/goal-metric-label'
-import { formatNumber, formatDayKey, formatMonthDay, formatMonthName } from '#/lib/format'
+import {
+  formatNumber,
+  formatDayKey,
+  formatMonthDay,
+  formatMonthName,
+  formatShortDate,
+} from '#/lib/format'
 
 export type GoalCardState = 'live' | 'too_few' | 'unavailable' | 'not_started'
 
@@ -23,7 +29,7 @@ export type GoalCardView = Readonly<{
   fraction: number | null
   /** Why there is no figure, or what the goal is waiting for. */
   detail: string | null
-  /** "Set by Elena Petrova · the month ends today". */
+  /** "Set by Elena Petrova on Aug 12 · the month ends today". */
   note: string
   /** What the bar says to a screen reader. */
   progressLabel: string
@@ -63,15 +69,18 @@ function formatValue(goal: GoalProgress, value: number): string {
   return goal.metric === 'portal_rating_average' ? value.toFixed(1) : formatNumber(value)
 }
 
+/**
+ * Who set the target and on which day, then how long the month has left. The
+ * day is always there, because a goal can be set during the month it counts.
+ */
 function noteOf(goal: GoalProgress, context: GoalCardContext): string {
   const name = context.setByName(goal.setBy)
+  const setOn = `on ${formatShortDate(goal.setAt, goal.timezone, context.now) ?? 'an unknown date'}`
   const ends =
     goal.status === 'active' ? monthEnds(daysLeftInMonth(goal, context.now)) : null
-  const parts = [name === null ? null : `Set by ${name}`, ends].filter(
-    (part): part is string => part !== null,
-  )
-  const note = parts.join(' · ')
-  return name === null ? note.charAt(0).toUpperCase() + note.slice(1) : note
+  return [name === null ? `Set ${setOn}` : `Set by ${name} ${setOn}`, ends]
+    .filter((part): part is string => part !== null)
+    .join(' · ')
 }
 
 type Outcome = Readonly<{

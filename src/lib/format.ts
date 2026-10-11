@@ -98,6 +98,21 @@ export function formatMonthDay(
   return formatShape('monthDay', value, zone)
 }
 
+/**
+ * "Sep 12", or "Sep 12, 2025" for a day outside the year `now` falls in, both
+ * read in `zone`. A day in the reader's own year reads short, and one from
+ * another year is never taken for this year's.
+ */
+export function formatShortDate(
+  value: InstantInput | null | undefined,
+  zone: DisplayZone,
+  now: InstantInput,
+): string | null {
+  const sameYear =
+    formatDayKey(value, zone)?.slice(0, 4) === formatDayKey(now, zone)?.slice(0, 4)
+  return sameYear ? formatMonthDay(value, zone) : formatDate(value, zone)
+}
+
 /** "September" */
 export function formatMonthName(
   value: InstantInput | null | undefined,

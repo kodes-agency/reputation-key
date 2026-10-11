@@ -58,6 +58,11 @@ import {
 } from './application/use-cases/goal-programs'
 import { withGoalProgramVisibility } from './application/use-cases/goal-program-visibility'
 import {
+  readGoalMonthPreview,
+  type GoalMonthPreviewRequestApi,
+} from './application/use-cases/goal-month-preview'
+import {
+  createGoalProgramProgressReader,
   createGoalProgressReader,
   type GoalProgressRequestApi,
 } from './application/use-cases/goal-progress'
@@ -301,13 +306,18 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
       }),
     )
   }
+  const goalProgressDeps = (policy: GoalExecutionPolicy) => ({
+    reads: readGoalPrograms(policy),
+    metrics: metricApi,
+    now: input.clock,
+  })
   const readGoalProgress = (policy: GoalExecutionPolicy) =>
-    createGoalProgressReader({
-      reads: readGoalPrograms(policy),
-      metrics: metricApi,
-      now: input.clock,
-    })
-  const programs: GoalProgramRequestApi & GoalProgressRequestApi = Object.freeze({
+    createGoalProgressReader(goalProgressDeps(policy))
+  const readGoalProgramProgress = (policy: GoalExecutionPolicy) =>
+    createGoalProgramProgressReader(goalProgressDeps(policy))
+  const programs: GoalProgramRequestApi &
+    GoalProgressRequestApi &
+    GoalMonthPreviewRequestApi = Object.freeze({
     create: (policy, ...args) => buildGoalPrograms(policy).create(...args),
     revise: (policy, ...args) => buildGoalPrograms(policy).revise(...args),
     changeAssignments: (policy, ...args) =>
@@ -316,6 +326,17 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     get: (policy, ...args) => readGoalPrograms(policy).get(...args),
     list: (policy, ...args) => readGoalPrograms(policy).list(...args),
     progress: (policy, ...args) => readGoalProgress(policy)(...args),
+    programProgress: (policy, ...args) => readGoalProgramProgress(policy)(...args),
+    monthPreview: (policy, ...args) =>
+      readGoalMonthPreview(
+        {
+          policy,
+          subjects: goalProgramSubjects,
+          metrics: metricApi,
+          now: input.clock,
+        },
+        ...args,
+      ),
   })
 
   return {

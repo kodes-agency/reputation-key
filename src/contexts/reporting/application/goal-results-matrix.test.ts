@@ -201,8 +201,48 @@ describe('Goal Results Matrix', () => {
       metricDefinitionVersionId: 'metric-version-rating-average',
       targetValue: 4.3,
       effectiveFrom: periodStart,
+      setAt: new Date('2026-08-02T05:00:00.000Z'),
     })
     expect(JSON.stringify(matrix)).not.toMatch(/rank|composite|progressPercent|ring/i)
+  })
+
+  it('dates a target from when it was set, not from a later change of subjects', () => {
+    const base = bundle({
+      id: 'ratings',
+      name: 'Front desk ratings',
+      metric: 'portal_rating_count',
+      target: 20,
+      subject: { kind: 'portal_group', portalGroupId: 'group-1' },
+      evaluation: {
+        state: 'eligible',
+        value: 24,
+        sampleCount: 24,
+        achieved: true,
+        reason: null,
+      },
+    })
+    const setAt = new Date('2026-06-12T09:00:00.000Z')
+    // The version the result is pinned to only changed the subjects: it carries
+    // the measure and the target of the version before it.
+    const targetSet = {
+      ...base.version,
+      id: 'version-target-set',
+      version: 2,
+      effectiveFrom: new Date('2026-06-01T04:00:00.000Z'),
+      effectiveTo: periodStart,
+      createdAt: setAt,
+    }
+
+    const matrix = buildGoalResultsMatrix({
+      ...catalogue,
+      programs: [{ ...base, versions: [targetSet, base.version] }],
+    })
+
+    expect(matrix.months[0]?.rows[0]?.targetProvenance).toMatchObject({
+      programVersion: 3,
+      effectiveFrom: periodStart,
+      setAt,
+    })
   })
 
   it('keeps readiness, evidence, and data-through semantics honest', () => {

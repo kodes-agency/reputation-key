@@ -183,7 +183,12 @@ async function enqueueGoalNotices(
   deps: GoalNotificationConsumerDeps,
   event: ConsumerEvent,
   result: Pick<Parsed, 'organizationId' | 'propertyId' | 'monthlyResultId'>,
-  facts: Readonly<{ subject: GoalSubject; programName: string; periodMonth: string }>,
+  facts: Readonly<{
+    subject: GoalSubject
+    programName: string
+    periodMonth: string
+    setDuringMonth: boolean
+  }>,
   notice: Readonly<{
     type: 'goal.completed' | 'goal.result_revised'
     /**
@@ -223,6 +228,9 @@ async function enqueueGoalNotices(
             goalMonth: facts.periodMonth,
             goalSubjectKind: facts.subject.kind,
             goalOutcome: notice.outcome,
+            // The one marker a Goal notice may carry (ADR 0046): the goal was
+            // set after its month began. Absent when it stood all month.
+            ...(facts.setDuringMonth ? { goalMarker: 'set_in_month' as const } : {}),
           },
           audience: notice.audience,
         },

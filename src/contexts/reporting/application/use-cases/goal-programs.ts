@@ -1,5 +1,5 @@
-// Goal Program use cases — create, read, revise and change the status of a
-// Program, composed with the assignment-change and maintenance commands.
+// Goal Program use cases — read, revise and change the status of a Program,
+// composed with the create, assignment-change and maintenance commands.
 import type {
   GoalProgramBundle,
   GoalProgramVersion,
@@ -15,6 +15,7 @@ import {
   changeAssignments,
   type GoalAssignmentChangeResult,
 } from './goal-program-assignment-changes'
+import { createGoal } from './goal-program-create'
 import {
   GoalProgramMaintenanceError,
   maintain,
@@ -28,7 +29,6 @@ import {
   GoalProgramError,
   isMetricSourceInactive,
   loadChangeableProgram,
-  openResultFor,
   resolveGoalDefinition,
   type GoalActor,
   type GoalExecutionPolicy,
@@ -54,110 +54,8 @@ export type {
 
 export function createGoalProgramService(deps: GoalProgramDependencies) {
   return {
-    create: async (
-      input: Readonly<{
-        propertyId: string
-        name: string
-        description?: string | null
-        metric: GoalMetric
-        targetValue: number
-        subjects: readonly GoalSubject[]
-      }>,
-      actor: GoalActor,
-    ): Promise<GoalProgramBundle> => {
-      await deps.policy.authorize({
-        actor,
-        organizationId: actor.organizationId,
-        propertyId: input.propertyId,
-        action: 'goal.create',
-      })
-      const name = input.name.trim()
-      if (!name) throw new GoalProgramError('invalid_name')
-      const { target, timezone, governed, readinessSubject } =
-        await resolveGoalDefinition(deps, actor.organizationId, input)
-
-      const now = deps.now()
-      const period = firstFullMonthlyPeriodAtOrAfter(now, timezone)
-      const sourceInactive = await isMetricSourceInactive(deps, {
-        organizationId: actor.organizationId,
-        propertyId: input.propertyId,
-        governed,
-        subject: readinessSubject,
-        period,
-      })
-      const programId = deps.id()
-      const versionId = deps.id()
-      const status: GoalProgramStatus =
-        sourceInactive || period.start > now ? 'scheduled' : 'active'
-      const program = {
-        id: programId,
-        organizationId: actor.organizationId,
-        propertyId: input.propertyId,
-        name,
-        description: input.description?.trim() || null,
-        status,
-        statusReason: sourceInactive
-          ? 'metric_source_not_active'
-          : status === 'scheduled'
-            ? 'awaiting_first_full_month'
-            : null,
-        currentVersion: 1,
-        createdBy: actor.userId,
-        createdAt: now,
-        updatedAt: now,
-      } as const
-      const version: GoalProgramVersion = {
-        id: versionId,
-        programId,
-        organizationId: actor.organizationId,
-        propertyId: input.propertyId,
-        version: 1,
-        metricDefinitionId: governed.definition.id,
-        metricDefinitionVersionId: governed.version.id,
-        metric: input.metric,
-        metricMinimumSample: governed.version.minimumSample,
-        targetValue: target.normalizedTarget,
-        propertyTimezone: timezone,
-        effectiveFrom: period.start,
-        effectiveTo: null,
-        changeReason: 'created',
-        createdBy: actor.userId,
-        createdAt: now,
-      }
-      const assignments = input.subjects.map((subject) =>
-        assignmentFor({
-          id: deps.id(),
-          programId,
-          programVersionId: versionId,
-          organizationId: actor.organizationId,
-          propertyId: input.propertyId,
-          metric: input.metric,
-          subject,
-          effectiveFrom: period.start,
-          effectiveTo: null,
-          actorId: actor.userId,
-          at: now,
-        }),
-      )
-      const results =
-        status === 'active'
-          ? assignments.map((assignment) =>
-              openResultFor(assignment, period, timezone, deps.id(), now),
-            )
-          : []
-      const bundle: GoalProgramBundle = {
-        program,
-        version,
-        versions: [version],
-        assignments,
-        results,
-      }
-      await deps.repository.create({
-        bundle,
-        auditAction: 'goal.program.created',
-      })
-      return bundle
-    },
+    create: (input: Parameters<typeof createGoal>[1], actor: GoalActor) =>
+      createGoal(deps, input, actor),
 
     get: async (
       input: Readonly<{ propertyId: string; programId: string }>,

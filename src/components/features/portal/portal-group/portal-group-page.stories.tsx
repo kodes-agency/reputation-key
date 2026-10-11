@@ -160,7 +160,7 @@ export const GoalCardIsLiveAndNeutral: Story = {
       }),
     ).toHaveAttribute('aria-valuenow', '84')
     await expect(
-      card.getByText('Set by Elena Petrova · the month ends today'),
+      card.getByText('Set by Elena Petrova on Aug 12 · the month ends today'),
     ).toBeInTheDocument()
     await expect(card.getByRole('link', { name: /open in goals/i })).toBeInTheDocument()
   },

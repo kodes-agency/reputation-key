@@ -14,6 +14,16 @@ import { parseGoalSubject } from '../../domain/goal-program'
 /** The correction a notice was raised for; the head is joined separately. */
 const requestedRevision = alias(goalResultRevisions, 'requested_revision')
 
+/**
+ * True when the version a month was judged under was written after the month
+ * began. Both reads join that exact version, so the comparison needs no
+ * timezone: it is between two instants.
+ */
+const setDuringMonth =
+  sql<boolean>`${goalProgramVersions.createdAt} > ${goalMonthlyResults.periodStart}`.as(
+    'set_during_month',
+  )
+
 export const createMonthlyResultNotificationFactsLookup = (
   db: Database,
 ): MonthlyResultNotificationFactsLookup => {
@@ -36,6 +46,7 @@ export const createMonthlyResultNotificationFactsLookup = (
           closedAchieved: goalMonthlyResults.achieved,
           headRevisionId: goalResultRevisions.id,
           headAchieved: goalResultRevisions.achieved,
+          setDuringMonth,
         })
         .from(goalMonthlyResults)
         .leftJoin(
@@ -104,6 +115,7 @@ export const createMonthlyResultNotificationFactsLookup = (
         programName: row.programName,
         periodMonth: row.periodMonth,
         subject,
+        setDuringMonth: row.setDuringMonth,
       }
     },
 
@@ -123,6 +135,7 @@ export const createMonthlyResultNotificationFactsLookup = (
           revision: goalResultRevisions.revision,
           evaluationState: goalResultRevisions.evaluationState,
           achieved: goalResultRevisions.achieved,
+          setDuringMonth,
           periodMonth:
             sql<string>`to_char(${goalMonthlyResults.periodStart} AT TIME ZONE ${goalMonthlyResults.propertyTimezone}, 'YYYY-MM')`.as(
               'period_month',
@@ -213,6 +226,7 @@ export const createMonthlyResultNotificationFactsLookup = (
         programName: row.programName,
         periodMonth: row.periodMonth,
         subject,
+        setDuringMonth: row.setDuringMonth,
         revisionId: row.revisionId,
         revision: row.revision,
         evaluationState,

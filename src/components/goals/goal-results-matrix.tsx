@@ -14,11 +14,15 @@ import {
   TableRow,
 } from '#/components/ui/table'
 import { AvailabilityLine } from '#/components/features/dashboard/availability-line'
-import { formatDate, formatMonthYear } from '#/lib/format'
+import { formatDate, formatMonthYear, formatShortDate } from '#/lib/format'
 
-type Props = Readonly<{ matrix: GoalResultsMatrixModel }>
+type Props = Readonly<{
+  matrix: GoalResultsMatrixModel
+  /** The instant the page was opened, which decides whether a day prints its year. */
+  now: Date
+}>
 
-export function GoalResultsMatrix({ matrix }: Props) {
+export function GoalResultsMatrix({ matrix, now }: Props) {
   return (
     <Card>
       <CardHeader>
@@ -57,6 +61,7 @@ export function GoalResultsMatrix({ matrix }: Props) {
                       key={row.resultId}
                       row={row}
                       timezone={month.propertyTimezone}
+                      now={now}
                     />
                   ))}
                 </TableBody>
@@ -94,7 +99,8 @@ export function GoalResultsMatrix({ matrix }: Props) {
 function MatrixRow({
   row,
   timezone,
-}: Readonly<{ row: GoalResultsMatrixRow; timezone: string }>) {
+  now,
+}: Readonly<{ row: GoalResultsMatrixRow; timezone: string; now: Date }>) {
   return (
     <TableRow>
       <TableCell>
@@ -139,7 +145,9 @@ function MatrixRow({
           {shortVersion(row.targetProvenance.metricDefinitionVersionId)}
         </span>
         <span className="block text-xs text-muted-foreground">
-          Effective {formatDate(row.targetProvenance.effectiveFrom, timezone)}
+          Effective {formatDate(row.targetProvenance.effectiveFrom, timezone)} · set on{' '}
+          {formatShortDate(row.targetProvenance.setAt, timezone, now) ??
+            'an unknown date'}
         </span>
       </TableCell>
     </TableRow>

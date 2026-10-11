@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest'
 import {
   calendarPeriodRange,
   dayKeyInTimezone,
+  localDayOfMonth,
   PERIOD_PRESETS,
   periodToRange,
 } from './period-range'
@@ -105,6 +106,17 @@ describe('dayKeyInTimezone', () => {
   it('shifts day backward in negative timezone', () => {
     const key = dayKeyInTimezone(new Date('2026-06-15T02:00:00Z'), 'America/Los_Angeles')
     expect(key).toBe('2026_06_14')
+  })
+})
+
+describe('localDayOfMonth', () => {
+  it('reads the day of the month on the local calendar, not the UTC one', () => {
+    const lateEvening = new Date('2026-10-20T22:30:00.000Z')
+    expect(localDayOfMonth(lateEvening, 'UTC')).toBe(20)
+    expect(localDayOfMonth(lateEvening, 'Europe/Sofia')).toBe(21)
+    expect(
+      localDayOfMonth(new Date('2026-11-01T02:00:00.000Z'), 'America/New_York'),
+    ).toBe(31)
   })
 })
 

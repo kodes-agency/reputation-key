@@ -264,6 +264,7 @@ function registerRoutes(
         programName: 'Monthly rating goal',
         periodMonth: '2026-10',
         subject: { kind: 'property' as const, propertyId: PROPERTY },
+        setDuringMonth: false,
       })),
       findMonthlyResultRevisionNotificationFacts: vi.fn(async () => null),
     },

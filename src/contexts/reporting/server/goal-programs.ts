@@ -11,6 +11,7 @@ import {
   type GoalExecutionPolicy,
   type GoalProgramRequestApi,
 } from '../application/use-cases/goal-programs'
+import type { GoalMonthPreviewRequestApi } from '../application/use-cases/goal-month-preview'
 import type { GoalProgressRequestApi } from '../application/use-cases/goal-progress'
 import {
   changeGoalProgramAssignmentsSchema,
@@ -19,12 +20,14 @@ import {
   getGoalProgressSchema,
   goalProgramIdentitySchema,
   listGoalProgramsSchema,
+  previewGoalMonthSchema,
   reviseGoalProgramSchema,
 } from '../application/dto/goal-program.dto'
 export {
   changeGoalProgramAssignmentsSchema,
   createGoalProgramSchema,
   getGoalProgressSchema,
+  previewGoalMonthSchema,
 } from '../application/dto/goal-program.dto'
 
 const requestActor = (ctx: Awaited<ReturnType<typeof resolveTenantContext>>): GoalActor =>
@@ -59,6 +62,8 @@ const goalProgramStatus = (error: GoalProgramError): number => {
     case 'invalid_transition':
     case 'revision_conflict':
     case 'metric_unavailable':
+    case 'subject_has_goal':
+    case 'start_month_changed':
       return 409
     case 'invalid_name':
     case 'invalid_target':
@@ -72,7 +77,7 @@ const goalProgramStatus = (error: GoalProgramError): number => {
 
 async function withGoalPrograms<T>(
   run: (
-    programs: GoalProgramRequestApi & GoalProgressRequestApi,
+    programs: GoalProgramRequestApi & GoalProgressRequestApi & GoalMonthPreviewRequestApi,
     policy: GoalExecutionPolicy,
     actor: GoalActor,
   ) => Promise<T>,
@@ -176,5 +181,33 @@ export const getGoalProgress = createServerFn({ method: 'GET' })
         })),
       'GET',
       'goal.getGoalProgress',
+    ),
+  )
+
+/** The month so far for every current subject of one goal (the goal's page). */
+export const getGoalProgramProgress = createServerFn({ method: 'GET' })
+  .validator(goalProgramIdentitySchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms(async (programs, policy, actor) => ({
+          subjects: await programs.programProgress(policy, data, actor),
+        })),
+      'GET',
+      'goal.getGoalProgramProgress',
+    ),
+  )
+
+/** The month so far for one subject and measure, before its goal is saved. */
+export const previewGoalMonth = createServerFn({ method: 'GET' })
+  .validator(previewGoalMonthSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms(async (programs, policy, actor) => ({
+          preview: await programs.monthPreview(policy, data, actor),
+        })),
+      'GET',
+      'goal.previewGoalMonth',
     ),
   )

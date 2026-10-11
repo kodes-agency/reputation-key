@@ -136,13 +136,30 @@ export type GoalProgramBundle = Readonly<{
   results: readonly GoalMonthlyResult[]
 }>
 
+/**
+ * An assignment of another Program that holds a subject for a metric from the
+ * instant asked about: open-ended, or ending after that instant. A window that
+ * ends where it starts holds nothing and is never reported.
+ */
+export type GoalAssignmentConflict = Readonly<{
+  subject: GoalSubject
+  programId: string
+  /** Null while the holding goal is live; otherwise the instant the subject is free. */
+  effectiveTo: Date | null
+}>
+
 export type GoalProgramRepository = Readonly<{
+  /**
+   * `subject_has_goal` when a subject already holds the metric inside the new
+   * Program's window: the database's no-overlap constraint, for a conflict that
+   * appeared after the caller's own check. Nothing is written then.
+   */
   create(
     input: Readonly<{
       bundle: GoalProgramBundle
       auditAction: string
     }>,
-  ): Promise<void>
+  ): Promise<'created' | 'subject_has_goal'>
   get(
     organizationId: string,
     propertyId: string,
@@ -176,16 +193,21 @@ export type GoalProgramRepository = Readonly<{
       at: Date
     }>,
   ): Promise<boolean>
+  /**
+   * The requested subjects another Program holds for the metric from
+   * `effectiveFrom`, one entry per subject (the hold that lasts longest).
+   * `excludeProgramId` leaves a Program's own assignments out.
+   */
   findAssignmentConflicts(
     input: Readonly<{
       organizationId: string
       propertyId: string
-      excludeProgramId: string
+      excludeProgramId?: string
       metric: GoalMetric
       effectiveFrom: Date
       subjects: readonly GoalSubject[]
     }>,
-  ): Promise<readonly GoalSubject[]>
+  ): Promise<readonly GoalAssignmentConflict[]>
   activate(
     input: Readonly<{
       bundle: GoalProgramBundle

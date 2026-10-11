@@ -143,7 +143,9 @@ export async function changeAssignments(
           effectiveFrom,
           subjects: additionsToCheck,
         })
-  const overlapping = new Set(conflictingSubjects.map(goalSubjectIdentity))
+  const overlapping = new Set(
+    conflictingSubjects.map((conflict) => goalSubjectIdentity(conflict.subject)),
+  )
   const { outcomes, nextByIdentity, changed } = resolveAssignmentOutcomes({
     selections: preliminary,
     ownership,

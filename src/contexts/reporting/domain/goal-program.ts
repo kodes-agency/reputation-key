@@ -1,5 +1,8 @@
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
+import { goalSubjectIdentity, type GoalSubject } from './goal-subject'
+
+export { goalSubjectIdentity, type GoalSubject } from './goal-subject'
 
 export const GOAL_METRICS = [
   'qualified_scans',
@@ -11,11 +14,6 @@ export type GoalMetric = (typeof GOAL_METRICS)[number]
 export type GoalSubjectKind = 'property' | 'portal_group' | 'portal'
 export type GoalProgramStatus = 'scheduled' | 'active' | 'paused' | 'ended'
 export type GoalMonthlyResultStatus = 'open' | 'reconciling' | 'closed'
-
-export type GoalSubject =
-  | Readonly<{ kind: 'property'; propertyId: string }>
-  | Readonly<{ kind: 'portal_group'; portalGroupId: string }>
-  | Readonly<{ kind: 'portal'; portalId: string }>
 
 export type GoalMetricReading = Readonly<{
   dataQuality: 'eligible' | 'updating' | 'unavailable' | 'quarantined'
@@ -214,17 +212,6 @@ export function parseGoalSubject(
   if (kind === 'portal_group') return { kind, portalGroupId: subjectId }
   if (kind === 'portal') return { kind, portalId: subjectId }
   return null
-}
-
-export function goalSubjectIdentity(subject: GoalSubject): string {
-  switch (subject.kind) {
-    case 'property':
-      return `property:${subject.propertyId}`
-    case 'portal_group':
-      return `portal_group:${subject.portalGroupId}`
-    case 'portal':
-      return `portal:${subject.portalId}`
-  }
 }
 
 /** Half-open effective windows conflict only for the same subject and metric. */

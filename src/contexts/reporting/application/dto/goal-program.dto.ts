@@ -5,7 +5,20 @@ import {
   validateGoalTarget,
 } from '../../domain/goal-program'
 
+// Routes and components may import application, not domain: the start-month
+// helpers the new-goal form shares with the create command. They are
+// re-exported, not used here, so their calendar code loads with the form and
+// stays out of the first-paint bundle this module is part of.
+export { defaultGoalStartMonth, goalStartOptions } from '../../domain/goal-start'
+
 const uuid = z.uuid()
+
+/**
+ * `YYYY-MM` on the Property's calendar. The command decides whether it is still
+ * a choice. No message of its own: the form offers the two months, so a
+ * malformed key is a client fault, and this module ships in first paint.
+ */
+const goalStartMonthSchema = z.string().regex(/^\d{4}-(?:0[1-9]|1[0-2])$/)
 
 const goalProgramMetricSchema = z.enum(GOAL_METRICS)
 
@@ -55,6 +68,9 @@ export const createGoalProgramSchema = z.object({
   metric: goalProgramMetricSchema,
   targetValue: z.number().finite('Enter a valid monthly target'),
   subjects: goalProgramSubjectSelectionSchema,
+  // Omitted keeps the first full month that has not begun, as before the
+  // month could be chosen.
+  startMonth: goalStartMonthSchema.optional(),
 })
 
 export const reviseGoalProgramSchema = z.object({
@@ -146,6 +162,13 @@ export const listGoalProgramsSchema = z.object({ propertyId: uuid })
 /** The goals that target one subject, read live for the month so far. */
 export const getGoalProgressSchema = z.object({
   propertyId: uuid,
+  subject: goalProgramSubjectSchema,
+})
+
+/** The month so far for one subject and measure, read before a goal exists. */
+export const previewGoalMonthSchema = z.object({
+  propertyId: uuid,
+  metric: goalProgramMetricSchema,
   subject: goalProgramSubjectSchema,
 })
 
