@@ -30,6 +30,16 @@ import {
   type OperationalActionResourceType,
 } from '../domain/operational-action-history'
 import type { OperationalActionHistoryDeliveryStore } from '../ports/operational-action-history-store.port'
+import {
+  optionalString,
+  stringValue,
+  type ActivityFactPayload as Payload,
+} from './activity-fact-fields'
+import {
+  goalPayloadWithEnvelopeScope,
+  goalResultActivity,
+  type GoalResultFactsLookup,
+} from './activity-goal-facts'
 
 export { ACTIVITY_RECENT_ACTIVITY_CONSUMER }
 
@@ -93,6 +103,7 @@ export type ActivityOutboxConsumerDeps = Readonly<{
   deliveryStore: ActivityDeliveryStore
   userLookup: UserLookupPort
   inboxItemLookup: InboxItemLookupPort
+  monthlyResultFacts: GoalResultFactsLookup
   clock: () => Date
   logger: LoggerPort
   idGen: () => RecentActivityEntryId
@@ -100,25 +111,10 @@ export type ActivityOutboxConsumerDeps = Readonly<{
   operationalHistoryIdGen: () => OperationalActionHistoryRecordId
 }>
 
-type Payload = Readonly<Record<string, unknown>>
-
 /** The fact's actor when an operator (`ops:<handle>`) did it, not a person. */
 const operatorActorOf = (payload: Payload): string | null => {
   const value = optionalString(payload, 'userId')
   return value !== null && isOperatorActorId(value) ? value : null
-}
-
-const stringValue = (payload: Payload, key: string): string => {
-  const value = payload[key]
-  if (typeof value !== 'string' || value.length === 0) {
-    throw new Error(`Recent Activity fact ${key} is invalid`)
-  }
-  return value
-}
-
-const optionalString = (payload: Payload, key: string): string | null => {
-  const value = payload[key]
-  return typeof value === 'string' && value.length > 0 ? value : null
 }
 
 const occurrenceTime = (event: ConsumerEvent, payload: Payload): Date => {
@@ -146,38 +142,6 @@ const scope = (event: ConsumerEvent, payload: Payload) => {
     organizationId: organizationId(org),
     propertyId: payloadProperty ? propertyId(payloadProperty) : null,
   }
-}
-
-const goalPayloadWithEnvelopeScope = (
-  event: ConsumerEvent,
-  payload: Payload,
-): Payload => {
-  if (!event.propertyId) {
-    throw new Error('Recent Activity Goal fact has no Property attribution')
-  }
-  return {
-    ...payload,
-    organizationId: optionalString(payload, 'organizationId') ?? event.organizationId,
-    propertyId: optionalString(payload, 'propertyId') ?? event.propertyId,
-  }
-}
-
-const goalOutcome = (payload: Payload): string => {
-  const achieved = payload.achieved
-  if (achieved === true) return 'achieved'
-  if (achieved === false) return 'not_achieved'
-  return stringValue(payload, 'evaluationState')
-}
-
-const goalRevisionDetail = (payload: Payload): string => {
-  const outcomeChanged = payload.outcomeChanged === true
-  const availabilityChanged = payload.availabilityChanged === true
-  if (outcomeChanged && availabilityChanged) {
-    return 'outcome_and_availability_changed'
-  }
-  if (outcomeChanged) return 'outcome_changed'
-  if (availabilityChanged) return 'availability_changed'
-  return 'revision_recorded'
 }
 
 const activityInput = (
@@ -491,53 +455,18 @@ const mapRecentActivityFact = async (
           detail: null,
         },
       })
-    case 'goal.monthly_result.closed': {
-      const goalPayload = goalPayloadWithEnvelopeScope(event, payload)
-      return activityInput(event, goalPayload, {
-        action: 'changed',
-        resourceType: 'goal',
-        resourceId: stringValue(goalPayload, 'monthlyResultId'),
-        userId: null,
-        source: 'web',
-        payload: {
-          subject: 'goal_result',
-          from: null,
-          to: goalOutcome(goalPayload),
-          detail: stringValue(goalPayload, 'evaluationState'),
-        },
-      })
-    }
-    case 'goal.monthly_result.reconciled': {
-      const goalPayload = goalPayloadWithEnvelopeScope(event, payload)
-      return activityInput(event, goalPayload, {
-        action: 'changed',
-        resourceType: 'goal',
-        resourceId: stringValue(goalPayload, 'monthlyResultId'),
-        userId: null,
-        source: 'web',
-        payload: {
-          subject: 'goal_result',
-          from: null,
-          to: 'reconciling',
-          detail: stringValue(goalPayload, 'evaluationState'),
-        },
-      })
-    }
+    case 'goal.monthly_result.closed':
+    case 'goal.monthly_result.reconciled':
     case 'goal.monthly_result.revised': {
       const goalPayload = goalPayloadWithEnvelopeScope(event, payload)
-      return activityInput(event, goalPayload, {
-        action: 'changed',
-        resourceType: 'goal',
-        resourceId: stringValue(goalPayload, 'monthlyResultId'),
-        userId: null,
-        source: 'web',
-        payload: {
-          subject: 'goal_result',
-          from: null,
-          to: goalOutcome(goalPayload),
-          detail: goalRevisionDetail(goalPayload),
-        },
-      })
+      // The attribution fence comes before the closed month's read, as it
+      // does for replies.
+      scope(event, goalPayload)
+      return activityInput(
+        event,
+        goalPayload,
+        await goalResultActivity(deps.monthlyResultFacts, event.eventType, goalPayload),
+      )
     }
     case 'inbox.inbox_item.created':
       return inbox('created', 'inbox_item', {

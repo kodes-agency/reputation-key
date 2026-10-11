@@ -1158,6 +1158,75 @@ describe('notificationLink', () => {
     })
   })
 
+  it('the goal-met notice says when a goal was set during its month', () => {
+    const payload = {
+      goalName: 'Lobby QR scans',
+      propertyName: 'Riverside Hotel',
+      goalMonth: '2026-10',
+      goalSubjectKind: 'portal',
+      goalOutcome: 'met',
+    } as const
+
+    expect(
+      renderNotification('goal.completed', { ...payload, goalMarker: 'set_in_month' }),
+    ).toEqual({
+      title: 'October goal met: Lobby QR scans at Riverside Hotel',
+      body: 'This Portal goal hit its target. The goal was set during the month. Open the goal to see the numbers.',
+      // The row under the title carries it too: "met" alone would overstate it.
+      detail: 'This Portal goal hit its target. The goal was set during the month.',
+      actionLabel: 'View progress',
+      summary: 'Riverside Hotel · Lobby QR scans · Portal',
+    })
+    // A goal in place for the whole month says nothing more than before.
+    expect(renderNotification('goal.completed', payload).body).toBe(
+      'This Portal goal hit its target. Open the goal to see the numbers.',
+    )
+  })
+
+  it('keeps the marker when the subject of the goal did not resolve', () => {
+    expect(
+      renderNotification('goal.completed', { goalMarker: 'set_in_month' }),
+    ).toMatchObject({
+      body: 'This goal hit its target. The goal was set during the month. Open the goal to see the numbers.',
+      detail: 'The goal was set during the month.',
+    })
+  })
+
+  it.each([
+    ['met', 'This Portal goal now meets its target.'],
+    ['not_met', 'This Portal goal no longer meets its target.'],
+    ['unavailable', 'This Portal goal has no usable result for the month.'],
+  ] as const)(
+    'a corrected result (%s) says when the goal was set during its month',
+    (goalOutcome, outcomeSentence) => {
+      const rendered = renderNotification('goal.result_revised', {
+        goalName: 'Lobby QR scans',
+        goalMonth: '2026-10',
+        goalSubjectKind: 'portal',
+        goalOutcome,
+        goalMarker: 'set_in_month',
+      })
+
+      expect(rendered.body).toBe(
+        `${outcomeSentence} The goal was set during the month. Open the goal to see the current metrics.`,
+      )
+      expect(rendered.detail).toBe(
+        `${outcomeSentence} The goal was set during the month.`,
+      )
+    },
+  )
+
+  it('says a changed target in its own words, apart from a late start', () => {
+    expect(
+      renderNotification('goal.completed', {
+        goalSubjectKind: 'portal',
+        goalMarker: 'target_changed',
+      }).body,
+    ).toBe(
+      'This Portal goal hit its target. The target was changed during the month. Open the goal to see the numbers.',
+    )
+  })
+
   it.each([
     ['not_met', 'October goal no longer met: Lobby QR scans'],
     ['met', 'October goal met: Lobby QR scans'],
