@@ -12,8 +12,28 @@ const VERSION_ID = '40000000-0000-4000-8000-000000000001'
 
 type ChangeInput = Parameters<typeof changeGoalProgramAssignments>[0]
 
-// The change starts with the next full month in Sofia: 1 September 00:00 there,
-// which is still 31 August in UTC and in any browser further west.
+// The goal the dialog is opened on: August is open under its current version.
+const counting = {
+  program: { status: 'active' as const },
+  version: { id: VERSION_ID, effectiveFrom: new Date('2026-07-31T21:00:00.000Z') },
+  results: [
+    {
+      programVersionId: VERSION_ID,
+      status: 'open' as const,
+      periodEnd: new Date('2026-08-31T21:00:00.000Z'),
+    },
+  ],
+}
+
+// A goal set to start with Sofia's December, with no month opened yet.
+const notStarted = {
+  program: { status: 'scheduled' as const },
+  version: { id: VERSION_ID, effectiveFrom: new Date('2026-11-30T22:00:00.000Z') },
+  results: [],
+}
+
+// The command answers the start it saved the change with: 1 September 00:00 in
+// Sofia, which is still 31 August in UTC and in any browser further west.
 const changeAssignmentsMock = fn(async (input: ChangeInput) => ({
   programId: input.data.programId,
   previousVersion: input.data.expectedVersion,
@@ -54,6 +74,7 @@ const meta: Meta<typeof GoalProgramAssignmentsDialog> = {
     programId: PROGRAM_ID,
     currentVersion: 3,
     propertyTimezone: 'Europe/Sofia',
+    goal: counting,
     assignments: [
       {
         id: '50000000-0000-4000-8000-000000000001',
@@ -93,7 +114,7 @@ export const PointInTimeBulkChange: Story = {
       dialog.getByRole('checkbox', { name: /Select all current portals/i }),
     )
     await userEvent.type(
-      dialog.getByLabelText('Reason for the change'),
+      dialog.getByRole('textbox', { name: 'Note Optional' }),
       'Include every Portal operating today',
     )
     await userEvent.click(dialog.getByRole('button', { name: 'Review and schedule' }))
@@ -107,6 +128,7 @@ export const PointInTimeBulkChange: Story = {
           add: [{ kind: 'portal', portalId: NEW_PORTAL_ID }],
           remove: [],
           selectAllCurrentPortals: true,
+          reason: 'Include every Portal operating today',
         }),
       }),
     )
@@ -114,5 +136,28 @@ export const PointInTimeBulkChange: Story = {
     await expect(
       dialog.getByText('Scheduled from Sep 1, 2026 (Europe/Sofia).'),
     ).toBeVisible()
+  },
+}
+
+/**
+ * The dialog says the day the changes apply from before they are saved. A goal
+ * that has not started keeps its own start month, and the note can be left out.
+ */
+export const SaysWhenTheChangesApply: Story = {
+  args: { goal: notStarted },
+  play: async ({ canvasElement }) => {
+    changeAssignmentsMock.mockClear()
+    const dialog = await openGoalProgramDialog(
+      canvasElement,
+      'Manage assignments',
+      /^Changes apply from Dec 1(?:, 2026)?\.$/,
+    )
+    expect(dialog.queryByText(/next full month/i)).toBeNull()
+
+    await userEvent.click(dialog.getByRole('checkbox', { name: /Lobby QR/i }))
+    await userEvent.click(dialog.getByRole('button', { name: 'Review and schedule' }))
+
+    await waitFor(() => expect(changeAssignmentsMock).toHaveBeenCalledOnce())
+    expect(changeAssignmentsMock.mock.calls[0]?.[0].data.reason).toBeUndefined()
   },
 }

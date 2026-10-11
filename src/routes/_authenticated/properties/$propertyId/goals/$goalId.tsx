@@ -184,14 +184,21 @@ function GoalDetailRoute() {
                 programId={program.id}
                 currentVersion={version.version}
                 propertyTimezone={version.propertyTimezone}
+                goal={data}
                 assignments={currentAssignments}
                 groups={subjectNames.groups}
                 portals={subjectNames.portals}
               />
               <GoalProgramRevisionDialog
                 reviseGoalProgramFn={reviseGoalProgram}
-                property={{ id: propertyId, name: propData.property.name }}
+                property={{
+                  id: propertyId,
+                  name: propData.property.name,
+                  timezone: propData.property.timezone,
+                }}
                 programId={program.id}
+                currentVersion={version.version}
+                goal={data}
                 metric={version.metric}
                 targetValue={version.targetValue}
                 assignments={currentAssignments}

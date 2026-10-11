@@ -1,8 +1,9 @@
-// An assignment change starts with the next full month in the Property's
-// timezone: `effectiveFrom` is that month's first instant, which is still the
-// previous day in UTC and further west. Printed in the viewer's own zone, a
-// manager in New York read "Sep 30" for a Sofia Property whose change starts on
-// 1 October — the date the Goal Program actually uses.
+// A change of subjects starts with a whole month in the zone its version was
+// cut in (the month after the one still counting, or the goal's own start month
+// while it has not started): `effectiveFrom` is that month's first instant,
+// which is still the previous day in UTC and further west. Printed in the
+// viewer's own zone, a manager in New York read "Sep 30" for a Sofia Property
+// whose change starts on 1 October, the date the Goal Program actually uses.
 
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
