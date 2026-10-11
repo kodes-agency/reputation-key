@@ -89,7 +89,12 @@ metric authority.
    skipped local month is not evaluated under either version. The dialogs state the start
    date before a change is saved, and the saved change states its own. A version with no monthly result (a goal that has not started,
    or a change still waiting for its month) may be replaced by the next change; the replaced
-   version and its assignments keep an empty window, which holds no subject.
+   version and its assignments keep an empty window, which holds no subject. A goal that has
+   not started is one still scheduled with no month, even after its planned start has passed.
+   Ended in that state it keeps the same empty window, so its subject is free at once; ended
+   after it started, it holds its subject until the month still open ends. While a goal is
+   scheduled its status reason says what its plan waits for (its metric source, or only its
+   first month), and a revision before the start states it again for the measure it now has.
 3. Goal assignment changes preserve at least one subject and never rewrite history.
 4. Corrections append; they never mutate the original reading or closed Goal result.
 5. Dashboard values preserve unavailable/updating/insufficient states instead of showing zero.

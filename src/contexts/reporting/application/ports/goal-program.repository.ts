@@ -179,6 +179,12 @@ export type GoalProgramRepository = Readonly<{
    * Null when the Program is no longer in `expectedStatus`, or when ending it
    * finds its version history changed under it. Nothing is written then.
    * `reason` is the manager's note; without one no status reason is stored.
+   *
+   * Ending closes the open version and its assignments. A Program that never
+   * started (still scheduled, with no month) keeps the empty window
+   * [from, from) whenever it is ended, so its subjects are free at once. A
+   * Program that has started closes at the latest of the command time and the
+   * end of a month still open or reconciling, which stays inside its window.
    */
   changeStatus(
     input: Readonly<{

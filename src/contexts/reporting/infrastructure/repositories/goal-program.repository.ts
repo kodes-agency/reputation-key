@@ -223,6 +223,53 @@ async function reviseInTx(
   return true
 }
 
+/**
+ * Where an ending Program's open version and its assignments close, given the
+ * open version's start. The caller has locked the Program row, and the writers
+ * that open a month take that lock first, so no month appears after this read.
+ *
+ * - A Program that never started (still scheduled, with no month) closes where
+ *   it starts: the empty window [from, from), whatever the clock says. Its
+ *   start may already have passed while it waited for its metric source or for
+ *   the hourly job; it still counted nothing and must not hold its subjects.
+ * - A Program that has started closes at the latest of the command time, the
+ *   open version's start (a change still waiting for its month) and the end
+ *   of a month still open or reconciling. Ending must not strand such a month
+ *   outside its window; [from, to) then frees the subject for the next month.
+ */
+async function endingBoundary(
+  tx: Tx,
+  input: Parameters<GoalProgramRepository['changeStatus']>[0],
+  openVersionStart: Date,
+): Promise<Date> {
+  const ofProgram = and(
+    eq(goalMonthlyResults.organizationId, input.organizationId),
+    eq(goalMonthlyResults.propertyId, input.propertyId),
+    eq(goalMonthlyResults.programId, input.programId),
+  )
+  if (input.expectedStatus === 'scheduled') {
+    const [month] = await tx
+      .select({ id: goalMonthlyResults.id })
+      .from(goalMonthlyResults)
+      .where(ofProgram)
+      .limit(1)
+    if (!month) return openVersionStart
+  }
+  const [openResult] = await tx
+    .select({ periodEnd: goalMonthlyResults.periodEnd })
+    .from(goalMonthlyResults)
+    .where(and(ofProgram, inArray(goalMonthlyResults.status, ['open', 'reconciling'])))
+    .orderBy(desc(goalMonthlyResults.periodEnd))
+    .limit(1)
+  return new Date(
+    Math.max(
+      input.at.getTime(),
+      openVersionStart.getTime(),
+      openResult?.periodEnd?.getTime() ?? Number.NEGATIVE_INFINITY,
+    ),
+  )
+}
+
 export const createGoalProgramRepository = (db: Database): GoalProgramRepository => {
   /**
    * Runs a status change in a transaction. Ending a Program that finds its
@@ -342,11 +389,8 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
           .returning()
         if (!row) return null
         if (input.status === 'ended') {
-          // Ending stops future materialization but must not strand an already
-          // opened monthly result outside its immutable assignment/version
-          // window. Close at the latest of: command time, the planned start
-          // (an empty interval when cancelled before start), or an open result's
-          // month end. [from, to) then releases the subject for the next month.
+          // Ending stops future materialization and closes the open version
+          // and its assignments at one boundary (see endingBoundary).
           const [openVersion] = await tx
             .select({ effectiveFrom: goalProgramVersions.effectiveFrom })
             .from(goalProgramVersions)
@@ -360,26 +404,7 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
             )
             .limit(1)
           if (!openVersion) throw new GoalProgramRevisionConflict()
-          const [openResult] = await tx
-            .select({ periodEnd: goalMonthlyResults.periodEnd })
-            .from(goalMonthlyResults)
-            .where(
-              and(
-                eq(goalMonthlyResults.organizationId, input.organizationId),
-                eq(goalMonthlyResults.propertyId, input.propertyId),
-                eq(goalMonthlyResults.programId, input.programId),
-                inArray(goalMonthlyResults.status, ['open', 'reconciling']),
-              ),
-            )
-            .orderBy(desc(goalMonthlyResults.periodEnd))
-            .limit(1)
-          const boundary = new Date(
-            Math.max(
-              input.at.getTime(),
-              openVersion.effectiveFrom.getTime(),
-              openResult?.periodEnd?.getTime() ?? Number.NEGATIVE_INFINITY,
-            ),
-          )
+          const boundary = await endingBoundary(tx, input, openVersion.effectiveFrom)
           await tx
             .update(goalSubjectAssignments)
             .set({

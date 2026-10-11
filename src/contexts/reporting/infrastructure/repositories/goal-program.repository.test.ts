@@ -423,6 +423,74 @@ describe.sequential('Goal Program repository (integration)', () => {
     ).resolves.toBe('created')
   })
 
+  // A goal can wait past its planned start: its metric source is not active,
+  // or the hourly job has not activated it yet. It has still never started, so
+  // ending it leaves the same empty window and its subject is free for the
+  // month that is running, not only from the moment it was ended.
+  it('ends a scheduled Program whose start has passed as an empty interval too', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const targetPropertyId = await createPropertyFixture('Overdue Goal Property')
+    const january = {
+      start: new Date('2026-01-01T00:00:00.000Z'),
+      end: new Date('2026-02-01T00:00:00.000Z'),
+    }
+    const overdue = programBundle({
+      propertyId: targetPropertyId,
+      status: 'scheduled',
+      effectiveFrom: january.start,
+      at: new Date('2025-12-15T12:00:00.000Z'),
+    })
+    await repository.create({ bundle: overdue, auditAction: 'goal.program.created' })
+
+    await expect(
+      repository.changeStatus({
+        organizationId,
+        propertyId: targetPropertyId,
+        programId: overdue.program.id,
+        expectedStatus: 'scheduled',
+        status: 'ended',
+        reason: null,
+        actorId: 'manager-1',
+        at: new Date('2026-01-12T09:00:00.000Z'),
+      }),
+    ).resolves.toMatchObject({ status: 'ended' })
+
+    const ended = await repository.get(
+      organizationId,
+      targetPropertyId,
+      overdue.program.id,
+    )
+    expect(ended?.version).toMatchObject({
+      effectiveFrom: january.start,
+      effectiveTo: january.start,
+    })
+    expect(ended?.assignments).toMatchObject([
+      { effectiveFrom: january.start, effectiveTo: january.start },
+    ])
+    expect(ended?.results).toEqual([])
+
+    // Set again the same day, for January.
+    await expect(
+      repository.findAssignmentConflicts({
+        organizationId,
+        propertyId: targetPropertyId,
+        metric: 'portal_rating_count',
+        effectiveFrom: january.start,
+        subjects: [{ kind: 'property', propertyId: targetPropertyId }],
+      }),
+    ).resolves.toEqual([])
+    const setAgain = programBundle({
+      propertyId: targetPropertyId,
+      status: 'active',
+      effectiveFrom: january.start,
+      at: new Date('2026-01-12T09:05:00.000Z'),
+      withOpenResult: { end: january.end },
+    })
+    await expect(
+      repository.create({ bundle: setAgain, auditAction: 'goal.program.created' }),
+    ).resolves.toBe('created')
+  })
+
   // A goal ended before its start keeps the empty window [start, start). The
   // no-overlap constraint ignores an empty range, so the pre-check must too:
   // counting it refused a goal the database would have accepted.
