@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  GOAL_BULK_NO_ENTRIES,
   goalBulkAnswered,
   goalBulkEdited,
   goalBulkHeldBack,
@@ -9,6 +8,8 @@ import {
   type GoalBulkEntries,
 } from './goal-bulk-entries'
 
+/** The table as it opens: nothing typed, nothing saved. */
+const NOTHING_YET: GoalBulkEntries = {}
 const LOBBY = 'portal:lobby'
 const BAR = 'portal:bar'
 const SPA = 'portal:spa'
@@ -35,7 +36,7 @@ const typed = (
 
 describe('the numbers of the table that sets several goals', () => {
   it('belong to their measure: another measure starts with empty rows', () => {
-    const entries = typed(GOAL_BULK_NO_ENTRIES, 'portal_rating_count', {
+    const entries = typed(NOTHING_YET, 'portal_rating_count', {
       [LOBBY]: 20,
       [BAR]: 30,
     })
@@ -49,7 +50,7 @@ describe('the numbers of the table that sets several goals', () => {
   })
 
   it('come back when the person returns to their measure', () => {
-    const ratings = typed(GOAL_BULK_NO_ENTRIES, 'portal_rating_count', { [LOBBY]: 20 })
+    const ratings = typed(NOTHING_YET, 'portal_rating_count', { [LOBBY]: 20 })
     const both = typed(ratings, 'qualified_scans', { [LOBBY]: 900 })
 
     expect(goalBulkTargetsOf(both, 'portal_rating_count')).toEqual({ [LOBBY]: 20 })
@@ -57,7 +58,7 @@ describe('the numbers of the table that sets several goals', () => {
   })
 
   it('leave a row once its goal is created, so no later save can send them again', () => {
-    const entries = typed(GOAL_BULK_NO_ENTRIES, 'portal_rating_count', {
+    const entries = typed(NOTHING_YET, 'portal_rating_count', {
       [LOBBY]: 20,
       [BAR]: 30,
       [SPA]: 40,
@@ -78,7 +79,7 @@ describe('the numbers of the table that sets several goals', () => {
 
 describe('what the saves left on the rows', () => {
   it('is kept under the measure and the month it was saved for', () => {
-    const answered = goalBulkAnswered(GOAL_BULK_NO_ENTRIES, RATINGS_OCTOBER, {
+    const answered = goalBulkAnswered(NOTHING_YET, RATINGS_OCTOBER, {
       [LOBBY]: { code: 'created', programId: 'program-1', targetValue: 20 },
     })
 
@@ -95,7 +96,7 @@ describe('what the saves left on the rows', () => {
       fault: 'Use a rating target from 1 to 5',
     } as const
     const failed = { code: 'failed' } as const
-    const october = goalBulkHeldBack(GOAL_BULK_NO_ENTRIES, AVERAGE_OCTOBER, {
+    const october = goalBulkHeldBack(NOTHING_YET, AVERAGE_OCTOBER, {
       [LOBBY]: fault,
     })
     const both = goalBulkAnswered(october, AVERAGE_NOVEMBER, {
@@ -111,7 +112,7 @@ describe('what the saves left on the rows', () => {
   })
 
   it('an attempt that is not sent replaces the faults of the one before', () => {
-    const first = goalBulkHeldBack(GOAL_BULK_NO_ENTRIES, RATINGS_OCTOBER, {
+    const first = goalBulkHeldBack(NOTHING_YET, RATINGS_OCTOBER, {
       [LOBBY]: { code: 'invalid_target', fault: 'Use a positive whole number' },
     })
     const answered = goalBulkAnswered(first, RATINGS_OCTOBER, {
@@ -130,7 +131,7 @@ describe('what the saves left on the rows', () => {
   })
 
   it('a save answers for the rows it was sent and clears the rows it was not', () => {
-    const first = goalBulkAnswered(GOAL_BULK_NO_ENTRIES, RATINGS_OCTOBER, {
+    const first = goalBulkAnswered(NOTHING_YET, RATINGS_OCTOBER, {
       [LOBBY]: { code: 'created', programId: 'program-1', targetValue: 20 },
       [BAR]: { code: 'failed' },
       [SPA]: { code: 'invalid_subject' },

@@ -34,12 +34,12 @@ import { FormActions } from '#/components/forms/form-actions'
 import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import {
-  GOAL_BULK_NO_ENTRIES,
   goalBulkAnswered,
   goalBulkEdited,
   goalBulkHeldBack,
   goalBulkReportIn,
   goalBulkTargetsOf,
+  type GoalBulkEntries,
 } from './goal-bulk-entries'
 import { GoalBulkPending } from './goal-bulk-pending'
 import { GoalBulkRows } from './goal-bulk-rows'
@@ -163,7 +163,7 @@ function GoalBulkForm({
   const [pickedMonth, setPickedMonth] = useState<string | null>(null)
   // The numbers typed and what the saves left, for every measure and month
   // the person has looked at: neither is carried from one table into another.
-  const [entries, setEntries] = useState(GOAL_BULK_NO_ENTRIES)
+  const [entries, setEntries] = useState<GoalBulkEntries>({})
   const [summary, setSummary] = useState('')
   // What the last attempt was refused with as a whole: a sentence, or the failure.
   const [refusal, setRefusal] = useState<unknown>(null)

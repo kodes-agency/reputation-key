@@ -19,14 +19,13 @@ export type GoalBulkScope = Readonly<{
 
 type ByMeasure<Value> = Readonly<Partial<Record<GoalMetric, Value>>>
 
+/** Nothing typed and nothing saved is the empty object: the table starts from `{}`. */
 export type GoalBulkEntries = Readonly<{
   /** The number on each open row, by measure, then subject key; none or `NaN` is empty. */
-  targets: ByMeasure<Readonly<Record<string, number>>>
+  targets?: ByMeasure<Readonly<Record<string, number>>>
   /** What the saves left on the rows, by measure, then start month. */
-  reports: ByMeasure<Readonly<Record<string, GoalBulkReport>>>
+  reports?: ByMeasure<Readonly<Record<string, GoalBulkReport>>>
 }>
-
-export const GOAL_BULK_NO_ENTRIES: GoalBulkEntries = { targets: {}, reports: {} }
 
 const NOTHING: Readonly<Record<string, never>> = {}
 
@@ -34,13 +33,13 @@ const NOTHING: Readonly<Record<string, never>> = {}
 export const goalBulkTargetsOf = (
   entries: GoalBulkEntries,
   metric: GoalMetric,
-): Readonly<Record<string, number>> => entries.targets[metric] ?? NOTHING
+): Readonly<Record<string, number>> => entries.targets?.[metric] ?? NOTHING
 
 /** What the saves of one table left on its rows. */
 export const goalBulkReportIn = (
   entries: GoalBulkEntries,
   scope: GoalBulkScope,
-): GoalBulkReport => entries.reports[scope.metric]?.[scope.startMonth] ?? NOTHING
+): GoalBulkReport => entries.reports?.[scope.metric]?.[scope.startMonth] ?? NOTHING
 
 const keep = <Value>(
   record: Readonly<Record<string, Value>>,
@@ -56,7 +55,7 @@ const withReport = (
   ...entries,
   reports: {
     ...entries.reports,
-    [scope.metric]: { ...entries.reports[scope.metric], [scope.startMonth]: report },
+    [scope.metric]: { ...entries.reports?.[scope.metric], [scope.startMonth]: report },
   },
 })
 
@@ -72,7 +71,7 @@ export function goalBulkEdited(
   key: string,
   value: number,
 ): GoalBulkEntries {
-  const months = Object.entries(entries.reports[metric] ?? NOTHING).map(
+  const months = Object.entries(entries.reports?.[metric] ?? NOTHING).map(
     ([month, report]) =>
       [
         month,
@@ -82,7 +81,7 @@ export function goalBulkEdited(
   return {
     targets: {
       ...entries.targets,
-      [metric]: { ...entries.targets[metric], [key]: value },
+      [metric]: { ...goalBulkTargetsOf(entries, metric), [key]: value },
     },
     reports: { ...entries.reports, [metric]: Object.fromEntries(months) },
   }
