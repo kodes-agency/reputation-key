@@ -9,10 +9,9 @@ import { createGoalsForSubjectsSchema } from '../application/dto/goal-bulk-creat
 import { withGoalPrograms } from './goal-program-request.server'
 
 /**
- * One goal per row, each its own goal. A save refused as a whole throws (its
- * month is no longer offered, its rows are not a valid set); otherwise the
- * answer says what happened to each row, and a row that got no goal is an
- * outcome, not an error.
+ * One goal per row. A save refused as a whole throws (its month is no longer
+ * offered, its rows are not a valid set); otherwise the answer says what
+ * happened to each row, and a row that got no goal is an outcome, not an error.
  */
 export const createGoalsForSubjects = createServerFn({ method: 'POST' })
   .validator(createGoalsForSubjectsSchema)

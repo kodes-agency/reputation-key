@@ -55,8 +55,8 @@ type GoalBulkCreateRefusal =
   | 'failed'
 
 export type GoalBulkCreateOutcome =
-  | Readonly<{ subject: GoalSubject; code: 'created'; programId: string }>
-  | Readonly<{ subject: GoalSubject; code: GoalBulkCreateRefusal }>
+  | Readonly<{ subject: GoalBulkSubject; code: 'created'; programId: string }>
+  | Readonly<{ subject: GoalBulkSubject; code: GoalBulkCreateRefusal }>
 
 /** One outcome per row, in the order the rows were sent. */
 export type GoalBulkCreateResult = Readonly<{
