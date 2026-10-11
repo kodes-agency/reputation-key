@@ -1365,6 +1365,177 @@ describe.sequential('Goal Program repository (integration)', () => {
       })
     })
 
+    // A replacement is decided from a read, and maintenance can open a month
+    // under the same head at that moment. Both writers take the Program row
+    // first, so whichever comes second sees what the first one wrote: the
+    // cases above run them one after the other, these run them together.
+    const RACES = 20
+    const RACE_TIMEOUT_MS = 60_000
+
+    it(
+      'an activation and a replacement racing for one head never both win',
+      async () => {
+        for (let attempt = 0; attempt < RACES; attempt += 1) {
+          const { repository, targetPropertyId, bundle } = await scheduledForFebruary(
+            `Raced Activation Property ${attempt}`,
+          )
+          const replacement = following(bundle.version, february.start, 40)
+
+          const [activated, replaced] = await Promise.all([
+            repository.activate({
+              bundle,
+              results: [
+                result(
+                  bundle.assignments[0]!,
+                  february.start,
+                  february.end,
+                  february.start,
+                ),
+              ],
+              at: february.start,
+            }),
+            repository.revise({
+              expectedVersion: bundle.version,
+              ...replacement,
+              supersedeRowlessHead: true,
+              actorId: 'manager-1',
+              at: editedAt,
+            }),
+          ])
+
+          const settled = await repository.get(
+            organizationId,
+            targetPropertyId,
+            bundle.program.id,
+          )
+          const outcome = {
+            activated: activated !== null,
+            replaced,
+            status: settled?.program.status,
+            currentVersion: settled?.program.currentVersion,
+            openVersions: settled?.versions
+              .filter((version) => version.effectiveTo === null)
+              .map((version) => version.id),
+            monthsUnder: settled?.results.map((monthly) => monthly.programVersionId),
+          }
+          expect([
+            // The activation won: the head is in force and was not replaced.
+            {
+              activated: true,
+              replaced: false,
+              status: 'active',
+              currentVersion: 1,
+              openVersions: [bundle.version.id],
+              monthsUnder: [bundle.version.id],
+            },
+            // The replacement won: the goal still waits, with no month at all.
+            {
+              activated: false,
+              replaced: true,
+              status: 'scheduled',
+              currentVersion: 2,
+              openVersions: [replacement.version.id],
+              monthsUnder: [],
+            },
+          ]).toContainEqual(outcome)
+        }
+      },
+      RACE_TIMEOUT_MS,
+    )
+
+    it(
+      'opening a month under a pending change and replacing that change never both win',
+      async () => {
+        for (let attempt = 0; attempt < RACES; attempt += 1) {
+          const repository = createGoalProgramRepository(getDb())
+          const targetPropertyId = await createPropertyFixture(
+            `Raced Pending Property ${attempt}`,
+          )
+          const running = programBundle({
+            propertyId: targetPropertyId,
+            status: 'active',
+            effectiveFrom: january.start,
+            at: january.start,
+            withOpenResult: { end: january.end },
+          })
+          await repository.create({
+            bundle: running,
+            auditAction: 'goal.program.created',
+          })
+          const pending = following(running.version, february.start, 40)
+          await repository.revise({
+            expectedVersion: running.version,
+            ...pending,
+            supersedeRowlessHead: false,
+            actorId: 'manager-1',
+            at: editedAt,
+          })
+          const replacement = following(pending.version, february.start, 55)
+
+          const [opened, replaced] = await Promise.all([
+            repository.appendResults({
+              program: { ...running.program, currentVersion: pending.version.version },
+              version: pending.version,
+              results: [
+                result(
+                  pending.assignments[0]!,
+                  february.start,
+                  february.end,
+                  february.start,
+                ),
+              ],
+              at: february.start,
+            }),
+            repository.revise({
+              expectedVersion: pending.version,
+              ...replacement,
+              supersedeRowlessHead: true,
+              actorId: 'manager-1',
+              at: editedAt,
+            }),
+          ])
+
+          const settled = await repository.get(
+            organizationId,
+            targetPropertyId,
+            running.program.id,
+          )
+          const outcome = {
+            opened,
+            replaced,
+            currentVersion: settled?.program.currentVersion,
+            pendingWindowEnds: settled?.versions.find(
+              (version) => version.id === pending.version.id,
+            )?.effectiveTo,
+            februaryUnder: settled?.results
+              .filter(
+                (monthly) => monthly.periodStart.getTime() === february.start.getTime(),
+              )
+              .map((monthly) => monthly.programVersionId),
+          }
+          expect([
+            // February opened under the pending change, which is now in force.
+            {
+              opened: 1,
+              replaced: false,
+              currentVersion: 2,
+              pendingWindowEnds: null,
+              februaryUnder: [pending.version.id],
+            },
+            // The change was replaced first: no month sits under its empty window.
+            {
+              opened: 0,
+              replaced: true,
+              currentVersion: 3,
+              pendingWindowEnds: february.start,
+              februaryUnder: [],
+            },
+          ]).toContainEqual(outcome)
+        }
+      },
+      RACE_TIMEOUT_MS,
+    )
+
     it('maintenance activates a program whose history holds an empty version', async () => {
       const repository = createGoalProgramRepository(getDb())
       const targetPropertyId = await createPropertyFixture('Maintained Goal Property')
