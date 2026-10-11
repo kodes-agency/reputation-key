@@ -17,6 +17,10 @@ import type {
 } from '../../application/ports/goal-program.repository'
 import { holdOutlasts } from '../../application/goal-subject-holds'
 import { goalSubjectIdentity } from '../../domain/goal-program'
+import {
+  createGoalMonthTargetRepository,
+  listTargetChanges,
+} from './goal-month-target.repository'
 import { createGoalMonthlyResultRepository } from './goal-monthly-result.repository'
 import {
   assignmentValues,
@@ -98,6 +102,29 @@ async function hydrateBundles(
       },
     ]
   })
+}
+
+/**
+ * The bundles a page or a command reads, each with the log of its months'
+ * target changes. The log is read here, for one tenant's Property, and not in
+ * the hydration above: that one loads children by parent id alone.
+ */
+async function withTargetChanges(
+  db: Database,
+  organizationId: string,
+  propertyId: string,
+  bundles: readonly GoalProgramBundle[],
+): Promise<readonly GoalProgramBundle[]> {
+  const changes = await listTargetChanges(
+    db,
+    organizationId,
+    propertyId,
+    bundles.map((bundle) => bundle.program.id),
+  )
+  return bundles.map((bundle) => ({
+    ...bundle,
+    targetChanges: changes.filter((change) => change.programId === bundle.program.id),
+  }))
 }
 
 /**
@@ -339,7 +366,8 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
           ),
         )
         .limit(1)
-      return (await hydrateBundles(db, rows))[0] ?? null
+      const bundles = await hydrateBundles(db, rows)
+      return (await withTargetChanges(db, organizationId, propertyId, bundles))[0] ?? null
     },
 
     async list(organizationId, propertyId) {
@@ -353,7 +381,8 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
           ),
         )
         .orderBy(asc(goalPrograms.name), asc(goalPrograms.id))
-      return hydrateBundles(db, rows)
+      const bundles = await hydrateBundles(db, rows)
+      return withTargetChanges(db, organizationId, propertyId, bundles)
     },
 
     async listOperational() {
@@ -626,5 +655,6 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
     },
 
     ...createGoalMonthlyResultRepository(db),
+    ...createGoalMonthTargetRepository(db, reviseInTx),
   }
 }

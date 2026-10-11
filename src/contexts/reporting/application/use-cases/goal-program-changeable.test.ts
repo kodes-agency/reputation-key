@@ -1,5 +1,5 @@
-// Revising a Program, changing its subjects and renaming it start from one
-// shared step, loadChangeableProgram: the Program must exist for the actor's
+// Revising a Program, changing its subjects, renaming it and changing its
+// running month's target start from one shared step, loadChangeableProgram: the Program must exist for the actor's
 // organization and Property, and an ended Program takes no further change.
 // goal-programs.test.ts pins only the ended refusal of changeAssignments; these
 // cases pin the refusal of each command on each of the two paths, so a later
@@ -123,6 +123,22 @@ const COMMANDS: ReadonlyArray<
     (service, programId) =>
       service.rename(
         { propertyId: 'property-1', programId, name: 'April ratings' },
+        actor,
+      ),
+  ],
+  [
+    'changeMonthTarget',
+    (service, programId) =>
+      service.changeMonthTarget(
+        {
+          propertyId: 'property-1',
+          programId,
+          month: '2026-03',
+          targetValue: 30,
+          expectedTarget: 20,
+          expectedVersion: 1,
+          applyToFollowing: true,
+        },
         actor,
       ),
   ],

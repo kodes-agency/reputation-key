@@ -1,5 +1,6 @@
 // Goal Program use cases — read, revise and change the status of a Program,
-// composed with the create, rename, assignment-change and maintenance commands.
+// composed with the create, rename, assignment-change, month-target and
+// maintenance commands.
 import type {
   GoalProgramBundle,
   GoalProgramVersion,
@@ -17,6 +18,7 @@ import {
   changeAssignments,
   type GoalAssignmentChangeResult,
 } from './goal-program-assignment-changes'
+import { changeMonthTarget } from './goal-month-target'
 import { createGoal } from './goal-program-create'
 import { renameGoal } from './goal-program-details'
 import {
@@ -112,6 +114,8 @@ function revisedBundle(
       ...assignments,
     ],
     results: current.results,
+    // A revision changes no month's own target: the log stays as it was read.
+    ...(current.targetChanges ? { targetChanges: current.targetChanges } : {}),
   }
 }
 
@@ -272,6 +276,11 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       actor: GoalActor,
     ) => changeAssignments(deps, input, actor),
 
+    changeMonthTarget: (
+      input: Parameters<typeof changeMonthTarget>[1],
+      actor: GoalActor,
+    ) => changeMonthTarget(deps, input, actor),
+
     changeStatus: async (
       input: Readonly<{
         propertyId: string
@@ -353,6 +362,10 @@ export type GoalProgramRequestApi = Readonly<{
     policy: GoalExecutionPolicy,
     ...args: Parameters<GoalProgramService['rename']>
   ) => ReturnType<GoalProgramService['rename']>
+  changeMonthTarget: (
+    policy: GoalExecutionPolicy,
+    ...args: Parameters<GoalProgramService['changeMonthTarget']>
+  ) => ReturnType<GoalProgramService['changeMonthTarget']>
   get: (
     policy: GoalExecutionPolicy,
     ...args: Parameters<GoalProgramService['get']>

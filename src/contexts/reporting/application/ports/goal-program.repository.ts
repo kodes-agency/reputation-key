@@ -124,6 +124,54 @@ export type FindClosedGoalResultIdsForMetricImpactInput = Readonly<{
   eventAt: Date
 }>
 
+/**
+ * What a change to a month's target did for the months after it:
+ * - `applied`: they carry the new target, through a version this change wrote
+ *   or because the plan for them already had it;
+ * - `replaced_scheduled_change`: a change that was waiting for its month had
+ *   the same measure and was replaced by one with the new target;
+ * - `kept_scheduled_change`: a change that was waiting had another measure and
+ *   was left as it was;
+ * - `not_applied`: asked for, and not done; `followingReason` says why;
+ * - `not_requested`: only the month was to change.
+ */
+export type GoalMonthTargetFollowingOutcome =
+  | 'applied'
+  | 'replaced_scheduled_change'
+  | 'kept_scheduled_change'
+  | 'not_applied'
+  | 'not_requested'
+
+/** Why the months after a changed one did not take the new target. */
+export type GoalMonthTargetFollowingReason = 'subject_unavailable' | 'metric_unavailable'
+
+/**
+ * One month's target, changed while the month ran: who, when, the old and the
+ * new value and an optional note. A command writes one of these per month it
+ * changed, all sharing `changeId`.
+ */
+export type GoalMonthTargetChange = Readonly<{
+  id: string
+  organizationId: string
+  propertyId: string
+  programId: string
+  monthlyResultId: string
+  changeId: string
+  previousTargetValue: number
+  newTargetValue: number
+  followingOutcome: GoalMonthTargetFollowingOutcome
+  followingReason: GoalMonthTargetFollowingReason | null
+  /**
+   * The version this change wrote for the months after it; null when it wrote
+   * none. A later change can replace that version before its month begins, and
+   * the version then keeps an empty window.
+   */
+  followingVersionId: string | null
+  note: string | null
+  createdBy: string
+  createdAt: Date
+}>
+
 export type GoalProgramBundle = Readonly<{
   program: GoalProgram
   /** Current definition head; historical versions stay addressable by result pins. */
@@ -134,6 +182,12 @@ export type GoalProgramBundle = Readonly<{
   assignments: readonly GoalSubjectAssignment[]
   /** Append-only monthly result history across every version of the Program. */
   results: readonly GoalMonthlyResult[]
+  /**
+   * Every change to a month's own target, oldest first. Read with the Program
+   * by `get` and `list`, the reads a page or a command works from; absent on
+   * the maintenance read, which never asks how a target came about.
+   */
+  targetChanges?: readonly GoalMonthTargetChange[]
 }>
 
 /**
@@ -249,6 +303,56 @@ export type GoalProgramRepository = Readonly<{
       at: Date
     }>,
   ): Promise<GoalProgram | null>
+  /**
+   * Give the months of a Program that are running at `at` their own target, in
+   * one transaction with the log of the change and, when `following.revision`
+   * is given, the version that carries the target into the months after.
+   *
+   * `months` are the running months the command read, each with the target it
+   * had stored then. The write applies only while the Program is not ended,
+   * `expectedVersion` is still its head, and exactly those months are open and
+   * running at `at` with those targets. Otherwise nothing is written:
+   * - `revision_conflict`: the head moved, the Program ended, another month
+   *   opened, a month's target changed, or the version could not be written;
+   * - `month_locked`: a month is no longer open, or the database refused its
+   *   new target because the period has ended on its clock.
+   */
+  changeMonthTarget(
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      programId: string
+      expectedVersion: GoalProgramVersion
+      /** Shared by every log row of this command. */
+      changeId: string
+      months: readonly Readonly<{
+        monthlyResultId: string
+        /** The id of the log row for this month. */
+        changeRowId: string
+        /** What the month had stored when it was read: null for its version's target. */
+        storedTargetValue: number | null
+        /** The target the month was judged against until now. */
+        previousTargetValue: number
+      }>[]
+      /** The target the months are judged against from now on. */
+      targetValue: number
+      /** What the months store for it: null when it is their version's own target. */
+      storedTargetValue: number | null
+      following: Readonly<{
+        outcome: GoalMonthTargetFollowingOutcome
+        reason: GoalMonthTargetFollowingReason | null
+        /** The version to write for the months after, with what becomes of the head. */
+        revision: Readonly<{
+          version: GoalProgramVersion
+          assignments: readonly GoalSubjectAssignment[]
+          supersedeRowlessHead: boolean
+        }> | null
+      }>
+      note: string | null
+      actorId: string
+      at: Date
+    }>,
+  ): Promise<'changed' | 'revision_conflict' | 'month_locked'>
   /**
    * The requested subjects another Program holds for the metric from
    * `effectiveFrom`, one entry per subject (the hold that lasts longest).

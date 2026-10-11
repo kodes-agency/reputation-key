@@ -27,6 +27,8 @@ const SENTENCES: Readonly<Record<string, string>> = {
     'This goal changed while you were working on it. Reload the page and try again.',
   subject_has_goal: 'A subject you chose already has a goal for this measure.',
   start_month_changed: 'The month has changed. Check the start and save again.',
+  month_locked: 'This month has ended. Its target can’t be changed.',
+  no_open_month: 'This month’s result isn’t open yet. Try again in a few minutes.',
 }
 
 describe('goalRefusal', () => {

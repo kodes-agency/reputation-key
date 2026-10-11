@@ -176,6 +176,8 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
       return program
     }),
     findAssignmentConflicts: vi.fn(async () => []),
+    // Its cases have a suite and a stand-in of their own (goal-month-target.test.ts).
+    changeMonthTarget: vi.fn(async () => 'changed' as const),
     activate: vi.fn(async ({ bundle, results: newResults, at }) => {
       const program = {
         ...bundle.program,

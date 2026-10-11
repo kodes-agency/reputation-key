@@ -107,7 +107,11 @@ export class GoalProgramError extends Error {
       | 'invalid_transition'
       | 'revision_conflict'
       | 'subject_has_goal'
-      | 'start_month_changed',
+      | 'start_month_changed'
+      // The month has ended: its target can no longer change.
+      | 'month_locked'
+      // The goal has no month running yet.
+      | 'no_open_month',
   ) {
     super(code)
     this.name = 'GoalProgramError'
