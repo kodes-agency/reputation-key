@@ -24,6 +24,13 @@ export type GoalSubjectHold = Readonly<{
   targetValue: number
   /** Null while the goal is live; otherwise the instant the subject is free again. */
   heldUntil: Date | null
+  /**
+   * The goal that holds the subject has ended. It holds its subject until the
+   * month it had open is over and takes no further change, a change to that
+   * month's target included. A subject taken out of a goal that goes on is held
+   * until the month ends too, by a goal that can still be changed.
+   */
+  goalEnded: boolean
 }>
 
 /**
@@ -95,6 +102,7 @@ export function subjectHolds(
         programName: bundle.program.name,
         targetValue: targetAt(bundle, assignment, from),
         heldUntil: assignment.effectiveTo,
+        goalEnded: bundle.program.status === 'ended',
       })
     }
   }

@@ -24,6 +24,7 @@ function program(
   id: string,
   windows: readonly Window[],
   target = 400,
+  status: GoalProgramBundle['program']['status'] = 'active',
 ): GoalProgramBundle {
   const version: GoalProgramVersion = {
     id: `${id}-v1`,
@@ -63,7 +64,7 @@ function program(
       propertyId: 'property-1',
       name: `Goal ${id}`,
       description: null,
-      status: 'active',
+      status,
       statusReason: null,
       currentVersion: 1,
       createdBy: 'elena',
@@ -122,12 +123,18 @@ describe('subjectHolds', () => {
         programName: 'Goal ratings',
         targetValue: 300,
         heldUntil: null,
+        goalEnded: false,
       },
     ])
   })
 
   it('a goal ended this month holds its subject until the month ends', () => {
-    const ended = program('ended', [{ subject: lobby, from: OCTOBER, to: NOVEMBER }])
+    const ended = program(
+      'ended',
+      [{ subject: lobby, from: OCTOBER, to: NOVEMBER }],
+      400,
+      'ended',
+    )
 
     expect(subjectHolds([ended], 'portal_rating_count', OCTOBER)).toEqual([
       {
@@ -136,9 +143,30 @@ describe('subjectHolds', () => {
         programName: 'Goal ended',
         targetValue: 400,
         heldUntil: NOVEMBER,
+        goalEnded: true,
       },
     ])
     expect(subjectHolds([ended], 'portal_rating_count', NOVEMBER)).toEqual([])
+  })
+
+  it('a subject taken out of a live goal is held by a goal that has not ended', () => {
+    // The goal goes on for its other subjects, so its running month can still
+    // take a change; an ended goal takes none.
+    const live = program('live', [
+      { subject: lobby, from: OCTOBER, to: NOVEMBER },
+      { subject: bar, from: OCTOBER, to: null },
+    ])
+
+    const holds = subjectHolds([live], 'portal_rating_count', OCTOBER)
+
+    expect(holds.find((hold) => hold.subject === lobby)).toEqual({
+      subject: lobby,
+      programId: 'live',
+      programName: 'Goal live',
+      targetValue: 400,
+      heldUntil: NOVEMBER,
+      goalEnded: false,
+    })
   })
 
   it('a goal cancelled before its start holds nothing', () => {
@@ -173,12 +201,14 @@ describe('subjectHolds', () => {
         programId: 'successor',
         programName: 'Goal successor',
         heldUntil: null,
+        goalEnded: false,
       }),
       expect.objectContaining({
         subject: bar,
         programId: 'successor',
         programName: 'Goal successor',
         heldUntil: DECEMBER,
+        goalEnded: false,
       }),
     ])
   })
@@ -213,7 +243,12 @@ describe('subjectHolds', () => {
         },
       ],
     }
-    const held = { subject: lobby, programId: 'revised', programName: 'Goal revised' }
+    const held = {
+      subject: lobby,
+      programId: 'revised',
+      programName: 'Goal revised',
+      goalEnded: false,
+    }
 
     // October is still counted against 400; the goal holds the Lobby for good.
     expect(subjectHolds([bundle], 'portal_rating_count', OCTOBER)).toEqual([

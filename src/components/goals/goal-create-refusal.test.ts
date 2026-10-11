@@ -24,6 +24,7 @@ const hold = (overrides: Partial<GoalSubjectHold> = {}): GoalSubjectHold => ({
   programName: 'Lobby ratings',
   targetValue: 400,
   heldUntil: null,
+  goalEnded: false,
   ...overrides,
 })
 
@@ -71,15 +72,33 @@ describe('goalCreateRefusal', () => {
     )
   })
 
-  it('says when a goal that is ending frees its subject, and offers next month', () => {
-    // An ended goal holds its subject until the month it had open is over.
+  it('says when a goal that has ended frees its subject, and offers next month', () => {
+    // An ended goal holds its subject until the month it had open is over, and
+    // takes no further change: its month's target cannot be changed either.
+    const message = goalCreateRefusal(
+      refusal('subject_has_goal'),
+      context({
+        holds: [
+          hold({ heldUntil: new Date('2026-10-31T22:00:00.000Z'), goalEnded: true }),
+        ],
+      }),
+    )
+
+    expect(message).toBe(
+      'Lobby has a goal for this measure that ends Oct 31. Start the new goal next month.',
+    )
+  })
+
+  it('also offers this month’s target when the goal that holds the subject goes on', () => {
+    // The subject was taken out of a goal that is still live: it stays in that
+    // goal until the month ends, and that goal's running month can be changed.
     const message = goalCreateRefusal(
       refusal('subject_has_goal'),
       context({ holds: [hold({ heldUntil: new Date('2026-10-31T22:00:00.000Z') })] }),
     )
 
     expect(message).toBe(
-      'Lobby has a goal for this measure that ends Oct 31. Start the new goal next month.',
+      'Lobby has a goal for this measure that ends Oct 31. Start the new goal next month, or change this month’s target.',
     )
   })
 
@@ -106,6 +125,7 @@ describe('goalCreateRefusal', () => {
             subject: POOL,
             programName: 'Pool ratings',
             heldUntil: new Date('2026-10-31T22:00:00.000Z'),
+            goalEnded: true,
           }),
         ],
       }),
