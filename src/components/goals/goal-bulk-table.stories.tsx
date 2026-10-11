@@ -120,6 +120,19 @@ const rowOf = (canvas: Canvas, name: string) =>
   within(canvas.getByRole('row', { name: (rowName: string) => rowName.startsWith(name) }))
 const saveGoals = (canvas: Canvas) =>
   userEvent.click(canvas.getByRole('button', { name: 'Save goals' }))
+/** The two open rows of the default table, filled: 12 for the Bar, 30 for the first floor. */
+async function fillBarAndFloor(canvas: Canvas, floor = '30') {
+  await userEvent.type(targetOf(canvas, 'Bar QR'), '12')
+  await userEvent.type(targetOf(canvas, FLOOR_FIELD), floor)
+}
+/** No row takes a number: the table says so, and there is no button to press in vain. */
+async function expectNothingLeftToSave(canvas: Canvas) {
+  expect(canvas.queryAllByRole('spinbutton')).toHaveLength(0)
+  expect(canvas.queryByRole('button', { name: 'Save goals' })).toBeNull()
+  await expect(
+    canvas.getByText('Every portal and group has a goal for this measure.'),
+  ).toBeVisible()
+}
 
 /** Picks a measure from the select above the table. */
 async function chooseMeasure(canvas: Canvas, label: string) {
@@ -175,8 +188,7 @@ export const SetsAGoalPerFilledRow: Story = {
     // Nothing has been saved yet, and the region that will say so is already there.
     await expect(canvas.getByRole('status')).toBeEmptyDOMElement()
 
-    await userEvent.type(targetOf(canvas, 'Bar QR'), '12')
-    await userEvent.type(targetOf(canvas, FLOOR_FIELD), '30')
+    await fillBarAndFloor(canvas)
     // Nothing has been saved, so there is no way on beside the button yet.
     expect(canvas.queryByRole('link', { name: 'Back to goals' })).toBeNull()
     await saveGoals(canvas)
@@ -203,11 +215,7 @@ export const SetsAGoalPerFilledRow: Story = {
     // Every row has its goal: none takes a number any more, so there is
     // nothing to save. The button that was pressed is gone, and the focus goes
     // to the way on instead of falling to the top of the page.
-    expect(canvas.queryAllByRole('spinbutton')).toHaveLength(0)
-    expect(canvas.queryByRole('button', { name: 'Save goals' })).toBeNull()
-    await expect(
-      canvas.getByText('Every portal and group has a goal for this measure.'),
-    ).toBeVisible()
+    await expectNothingLeftToSave(canvas)
     const back = canvas.getByRole('link', { name: 'Back to goals' })
     expect(back).toHaveAttribute('href', `/properties/${BULK_PROPERTY.id}/goals`)
     await waitFor(() => expect(back).toHaveFocus())
@@ -223,8 +231,7 @@ export const SavingWithEnterKeepsTheFocusInTheRow: Story = {
   play: async ({ canvasElement }) => {
     savesAll.mockClear()
     const canvas = within(canvasElement)
-    await userEvent.type(targetOf(canvas, 'Bar QR'), '12')
-    await userEvent.type(targetOf(canvas, FLOOR_FIELD), '30{Enter}')
+    await fillBarAndFloor(canvas, '30{Enter}')
 
     await expect(await canvas.findByText('2 goals saved.')).toBeVisible()
     expect(savesAll).toHaveBeenCalledOnce()
@@ -244,8 +251,7 @@ export const ANumberStaysWithItsMeasure: Story = {
   play: async ({ canvasElement }) => {
     savesAll.mockClear()
     const canvas = within(canvasElement)
-    await userEvent.type(targetOf(canvas, 'Bar QR'), '12')
-    await userEvent.type(targetOf(canvas, FLOOR_FIELD), '30')
+    await fillBarAndFloor(canvas)
     await saveGoals(canvas)
     await expect(await canvas.findByText('2 goals saved.')).toBeVisible()
 
@@ -295,8 +301,7 @@ export const ARefusedRowStaysOpen: Story = {
   play: async ({ canvasElement }) => {
     refusesTheGroup.mockClear()
     const canvas = within(canvasElement)
-    await userEvent.type(targetOf(canvas, 'Bar QR'), '12')
-    await userEvent.type(targetOf(canvas, FLOOR_FIELD), '30')
+    await fillBarAndFloor(canvas)
     await saveGoals(canvas)
 
     await expect(await canvas.findByText('1 goal saved. 1 not saved.')).toBeVisible()
@@ -502,11 +507,7 @@ export const EveryRowHasItsGoal: Story = {
   args: { programs: [LOBBY_RATINGS, BAR_RATINGS, FLOOR_RATINGS] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.queryAllByRole('spinbutton')).toHaveLength(0)
-    expect(canvas.queryByRole('button', { name: 'Save goals' })).toBeNull()
-    await expect(
-      canvas.getByText('Every portal and group has a goal for this measure.'),
-    ).toBeVisible()
+    await expectNothingLeftToSave(canvas)
     await expect(canvas.getByRole('link', { name: 'Back to goals' })).toBeVisible()
   },
 }
