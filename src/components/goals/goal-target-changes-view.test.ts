@@ -23,6 +23,17 @@ const entriesOf = (goal: Goal, names = personName) =>
 const said = (goal: Goal) =>
   entriesOf(goal).map(({ text, detail }) => [text, detail] as const)
 
+/** October at 400, changed to 300 on the 20th; `change` says what else the change did. */
+const changedOctober = (
+  change: Parameters<typeof targetChange>[4] = {},
+  versions: readonly ReturnType<typeof version>[] = [version('v1', 1)],
+) =>
+  goalBundle({
+    versions,
+    results: [monthRow('lobby', 'v1', OCTOBER, { targetValue: 300 })],
+    targetChanges: [targetChange('lobby', 400, 300, OCT_20, change)],
+  })
+
 /** The version a month change wrote for the months after: 300 from November. */
 const followingVersion = (patch: Parameters<typeof version>[2] = {}) =>
   version('v2', 2, {
@@ -45,13 +56,7 @@ describe('buildGoalTargetChanges', () => {
   })
 
   it('lists a month change with who, when, old and new value and the note', () => {
-    const goal = goalBundle({
-      versions: [version('v1', 1)],
-      results: [monthRow('lobby', 'v1', OCTOBER, { targetValue: 300 })],
-      targetChanges: [
-        targetChange('lobby', 400, 300, OCT_20, { note: 'The pool bar is closed.' }),
-      ],
-    })
+    const goal = changedOctober({ note: 'The pool bar is closed.' })
 
     expect(entriesOf(goal)).toEqual([
       {
@@ -66,16 +71,10 @@ describe('buildGoalTargetChanges', () => {
   })
 
   it('folds the version a month change wrote into that change, and lists it once', () => {
-    const goal = goalBundle({
-      versions: [version('v1', 1, { effectiveTo: NOVEMBER.start }), followingVersion()],
-      results: [monthRow('lobby', 'v1', OCTOBER, { targetValue: 300 })],
-      targetChanges: [
-        targetChange('lobby', 400, 300, OCT_20, {
-          followingOutcome: 'applied',
-          followingVersionId: 'v2',
-        }),
-      ],
-    })
+    const goal = changedOctober(
+      { followingOutcome: 'applied', followingVersionId: 'v2' },
+      [version('v1', 1, { effectiveTo: NOVEMBER.start }), followingVersion()],
+    )
 
     expect(said(goal)).toEqual([
       [
@@ -173,8 +172,9 @@ describe('buildGoalTargetChanges', () => {
     // The change of the 20th also set 300 from November. On the 21st a
     // revision set 350 from November instead: the log still says "applied",
     // and the version it names kept an empty window.
-    const goal = goalBundle({
-      versions: [
+    const goal = changedOctober(
+      { followingOutcome: 'applied', followingVersionId: 'v2' },
+      [
         version('v1', 1, { effectiveTo: NOVEMBER.start }),
         followingVersion({ effectiveTo: NOVEMBER.start }),
         version('v3', 3, {
@@ -184,14 +184,7 @@ describe('buildGoalTargetChanges', () => {
           createdAt: at('2026-10-21T08:00:00.000Z'),
         }),
       ],
-      results: [monthRow('lobby', 'v1', OCTOBER, { targetValue: 300 })],
-      targetChanges: [
-        targetChange('lobby', 400, 300, OCT_20, {
-          followingOutcome: 'applied',
-          followingVersionId: 'v2',
-        }),
-      ],
-    })
+    )
 
     expect(said(goal)).toEqual([
       ['Elena Petrova changed the target from 400 to 350', 'Applies from Nov 1.'],
@@ -224,11 +217,10 @@ describe('buildGoalTargetChanges', () => {
       'The months after were not changed: the measure was not available.',
     ],
   ] as const)('says what became of the months after (%o)', (outcome, detail) => {
-    const goal = goalBundle({
-      versions: [version('v1', 1, { effectiveTo: NOVEMBER.start }), followingVersion()],
-      results: [monthRow('lobby', 'v1', OCTOBER, { targetValue: 300 })],
-      targetChanges: [targetChange('lobby', 400, 300, OCT_20, outcome)],
-    })
+    const goal = changedOctober(outcome, [
+      version('v1', 1, { effectiveTo: NOVEMBER.start }),
+      followingVersion(),
+    ])
 
     const [entry] = entriesOf(goal).filter((candidate) =>
       candidate.id.startsWith('month:'),
@@ -300,26 +292,16 @@ describe('buildGoalTargetChanges', () => {
   })
 
   it('calls someone the directory no longer lists a former member', () => {
-    const goal = goalBundle({
-      versions: [version('v1', 1)],
-      results: [monthRow('lobby', 'v1', OCTOBER, { targetValue: 300 })],
-      targetChanges: [targetChange('lobby', 400, 300, OCT_20)],
-    })
-
-    const [entry] = entriesOf(goal, () => 'a former member')
+    const [entry] = entriesOf(changedOctober(), () => 'a former member')
 
     expect(entry?.text).toBe('A former member changed October’s target from 400 to 300')
   })
 
   it('names nobody while the directory has not been read', () => {
-    const goal = goalBundle({
-      versions: [
-        version('v1', 1, { effectiveTo: NOVEMBER.start }),
-        version('v2', 2, { targetValue: 500, effectiveFrom: NOVEMBER.start }),
-      ],
-      results: [monthRow('lobby', 'v1', OCTOBER, { targetValue: 300 })],
-      targetChanges: [targetChange('lobby', 400, 300, OCT_20)],
-    })
+    const goal = changedOctober({}, [
+      version('v1', 1, { effectiveTo: NOVEMBER.start }),
+      version('v2', 2, { targetValue: 500, effectiveFrom: NOVEMBER.start }),
+    ])
 
     expect(entriesOf(goal, () => null).map((entry) => entry.text)).toEqual([
       'October’s target was changed from 400 to 300',
