@@ -148,6 +148,14 @@ export type GoalAssignmentConflict = Readonly<{
   effectiveTo: Date | null
 }>
 
+/**
+ * What a Program that has not started is waiting for: its metric source, or
+ * only its first month. Stored as the Program's status reason while it is
+ * scheduled, and decided from the measure its plan has.
+ */
+export type GoalScheduledStatusReason =
+  'metric_source_not_active' | 'awaiting_first_full_month'
+
 export type GoalProgramRepository = Readonly<{
   /**
    * `subject_has_goal` when a subject already holds the metric inside the new
@@ -167,6 +175,17 @@ export type GoalProgramRepository = Readonly<{
   ): Promise<GoalProgramBundle | null>
   list(organizationId: string, propertyId: string): Promise<readonly GoalProgramBundle[]>
   listOperational(): Promise<readonly GoalProgramBundle[]>
+  /**
+   * Null when the Program is no longer in `expectedStatus`, or when ending it
+   * finds its version history changed under it. Nothing is written then.
+   * `reason` is the manager's note; without one no status reason is stored.
+   *
+   * Ending closes the open version and its assignments. A Program that never
+   * started (still scheduled, with no month) keeps the empty window
+   * [from, from) whenever it is ended, so its subjects are free at once. A
+   * Program that has started closes at the latest of the command time and the
+   * end of a month still open or reconciling, which stays inside its window.
+   */
   changeStatus(
     input: Readonly<{
       organizationId: string
@@ -174,25 +193,62 @@ export type GoalProgramRepository = Readonly<{
       programId: string
       expectedStatus: GoalProgramStatus
       status: GoalProgramStatus
-      reason: string
+      reason: string | null
       actorId: string
       at: Date
     }>,
   ): Promise<GoalProgram | null>
   /**
-   * False when the head moved, or when an open or reconciling month of the
-   * expected version ends after the new version starts (a month opened since
-   * the caller read the Program). Re-read and recompute the start to retry.
+   * Write `version` as the Program's new head.
+   *
+   * `supersedeRowlessHead` says what becomes of the expected version. False:
+   * it is in force, and it and its assignments close where the new version
+   * starts. True: no month has opened under it (a goal that has not started,
+   * or a change still waiting for its month), so it is replaced, and it and
+   * its assignments keep the empty window [from, from), which holds no subject.
+   *
+   * False when the head moved; when an open or reconciling month of the
+   * expected version ends after the new version starts; or, when replacing,
+   * when any month exists under the expected version. Each means a month
+   * opened since the caller read the Program: re-read and recompute to retry.
+   *
+   * `scheduledStatusReason` is what the new plan waits for. A Program still
+   * scheduled takes it as its status reason in the same update that moves the
+   * head; a Program in any other status keeps the reason it has. Omitted
+   * leaves the reason alone.
    */
   revise(
     input: Readonly<{
       expectedVersion: GoalProgramVersion
       version: GoalProgramVersion
       assignments: readonly GoalSubjectAssignment[]
+      supersedeRowlessHead: boolean
+      scheduledStatusReason?: GoalScheduledStatusReason
       actorId: string
       at: Date
     }>,
   ): Promise<boolean>
+  /**
+   * Set a Program's name and description in place; no version is written.
+   * `previousName` and `previousDescription` are what the command read. The
+   * update applies only while the Program still says both, so a rename never
+   * undoes another one it did not see, and the audit row names exactly what
+   * was replaced. Null when the Program does not exist for the tenant, has
+   * ended, or no longer has that name and description.
+   */
+  rename(
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      programId: string
+      name: string
+      description: string | null
+      previousName: string
+      previousDescription: string | null
+      actorId: string
+      at: Date
+    }>,
+  ): Promise<GoalProgram | null>
   /**
    * The requested subjects another Program holds for the metric from
    * `effectiveFrom`, one entry per subject (the hold that lasts longest).

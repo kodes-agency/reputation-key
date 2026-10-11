@@ -4,7 +4,8 @@ import {
   goalMonthNotes,
   goalNoResultsText,
   goalStartLine,
-  goalStatusNote,
+  goalStartMonthHint,
+  statusReasonLabel,
 } from './goal-detail-view'
 
 const ZONE = 'Europe/Sofia'
@@ -173,20 +174,71 @@ describe('goalStartLine', () => {
   })
 })
 
-describe('goalStatusNote', () => {
+describe('statusReasonLabel', () => {
   it('says when a goal waiting for its month starts', () => {
-    expect(goalStatusNote('awaiting_first_full_month', 'Nov 1')).toBe('Starts on Nov 1')
+    expect(statusReasonLabel('awaiting_first_full_month', 'Nov 1')).toBe(
+      'Starts on Nov 1',
+    )
   })
 
   it('says a goal is waiting for its metric source', () => {
-    expect(goalStatusNote('metric_source_not_active', 'Nov 1')).toBe(
+    expect(statusReasonLabel('metric_source_not_active', 'Nov 1')).toBe(
       'Waiting for the metric source',
     )
   })
 
-  it('prints a note it has no wording for as words, never as a code', () => {
-    expect(goalStatusNote('Ended by manager', 'Nov 1')).toBe('Ended by manager')
-    expect(goalStatusNote('some_new_reason', 'Nov 1')).toBe('some new reason')
+  it('says a goal was paused because its organization is closing', () => {
+    expect(statusReasonLabel('organization_closure_fence', 'Nov 1')).toBe(
+      'Paused while the organization is being closed',
+    )
+  })
+
+  it('prints a manager’s note as it was written', () => {
+    expect(statusReasonLabel('Closed for works', 'Nov 1')).toBe('Closed for works')
+    expect(statusReasonLabel('Renovation, see plan_2027 (rooms 1-40)', 'Nov 1')).toBe(
+      'Renovation, see plan_2027 (rooms 1-40)',
+    )
+  })
+
+  // Before the note became optional the page sent one of these with every
+  // status change. No manager wrote them and they repeat the status badge, so
+  // a goal changed back then must not read "Status note: Goal active".
+  it('says nothing for the reasons the page used to send by default', () => {
+    expect(statusReasonLabel('Goal paused', 'Nov 1')).toBeNull()
+    expect(statusReasonLabel('Goal active', 'Nov 1')).toBeNull()
+    expect(statusReasonLabel('Ended by manager', 'Nov 1')).toBeNull()
+  })
+
+  it('prints a note that only resembles one of those defaults', () => {
+    expect(statusReasonLabel('Goal paused until the lobby reopens', 'Nov 1')).toBe(
+      'Goal paused until the lobby reopens',
+    )
+  })
+
+  it('prints a code it has no sentence for as words, never as a code', () => {
+    expect(statusReasonLabel('some_new_reason', 'Nov 1')).toBe('some new reason')
+  })
+
+  it('says nothing when there is no reason', () => {
+    expect(statusReasonLabel(null, 'Nov 1')).toBeNull()
+    expect(statusReasonLabel('   ', 'Nov 1')).toBeNull()
+  })
+})
+
+describe('goalStartMonthHint', () => {
+  const HINT = 'To change the start month, end this goal and set it again.'
+
+  it('tells the manager of a goal that has not started how to move its start', () => {
+    expect(goalStartMonthHint({ status: 'scheduled', resultCount: 0 })).toBe(HINT)
+  })
+
+  it('says nothing once a month has opened', () => {
+    expect(goalStartMonthHint({ status: 'active', resultCount: 1 })).toBeNull()
+    expect(goalStartMonthHint({ status: 'paused', resultCount: 2 })).toBeNull()
+  })
+
+  it('says nothing for a goal that ended before it started', () => {
+    expect(goalStartMonthHint({ status: 'ended', resultCount: 0 })).toBeNull()
   })
 })
 

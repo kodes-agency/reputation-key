@@ -1,10 +1,10 @@
 // Goal Program use cases — changing the subjects of a Program.
 //
-// One command: it adds and removes subjects and writes a new version that
-// starts at the next full local month. The service composes it
-// (goal-programs.ts) and re-exports its result type.
+// One command: it adds and removes subjects and writes a new version. The
+// version starts with the next full local month, or, while the goal's head has
+// no month yet, replaces that head from the month it was waiting for. The
+// service composes it (goal-programs.ts) and re-exports its result type.
 import {
-  firstFullMonthlyPeriodAtOrAfter,
   goalSubjectIdentity,
   MAX_GOAL_ASSIGNMENT_SELECTIONS,
   type GoalSubject,
@@ -15,10 +15,12 @@ import {
   resolveAssignmentOutcomes,
   type GoalAssignmentChangeOutcome,
 } from '../goal-assignment-selection'
+import { nextRevisionStart } from '../goal-revision-start'
+import { loadCaughtUpProgram } from './goal-program-maintenance'
 import {
   assignmentFor,
   GoalProgramError,
-  loadChangeableProgram,
+  noteOf,
   type GoalActor,
   type GoalProgramDependencies,
 } from './goal-program-shared'
@@ -42,7 +44,8 @@ export async function changeAssignments(
     add: readonly GoalSubject[]
     remove: readonly GoalSubject[]
     selectAllCurrentPortals: boolean
-    reason: string
+    /** The manager's optional note. Without one the version records `subjects_changed`. */
+    reason?: string
   }>,
   actor: GoalActor,
 ): Promise<GoalAssignmentChangeResult> {
@@ -62,16 +65,10 @@ export async function changeAssignments(
   ) {
     throw new GoalProgramError('invalid_subject')
   }
-  const reason = input.reason.trim()
-  if (!reason || reason.length > 500) throw new GoalProgramError('invalid_reason')
-
-  const current = await loadChangeableProgram(deps, actor, input)
-  if (current.version.version !== input.expectedVersion) {
-    throw new GoalProgramError('revision_conflict')
-  }
 
   const selectedAt = deps.now()
-  if (current.version.effectiveFrom > selectedAt) {
+  const current = await loadCaughtUpProgram(deps, actor, input, selectedAt)
+  if (current.version.version !== input.expectedVersion) {
     throw new GoalProgramError('revision_conflict')
   }
   const currentPortalIds = input.selectAllCurrentPortals
@@ -117,10 +114,14 @@ export async function changeAssignments(
       assignment.subject,
     ]),
   )
-  const effectiveFrom = firstFullMonthlyPeriodAtOrAfter(
-    new Date(selectedAt.getTime() + 1),
+  // The new version keeps the head's time zone, so its month is read there.
+  // A head with no month yet is replaced; its subjects are the plan so far.
+  const { head, period } = nextRevisionStart(
+    current,
+    selectedAt,
     current.version.propertyTimezone,
-  ).start
+  )
+  const effectiveFrom = period.start
   const additionsToCheck = preliminary.flatMap((selection, index) => {
     if (
       selection.outcome ||
@@ -174,7 +175,7 @@ export async function changeAssignments(
     version: current.version.version + 1,
     effectiveFrom,
     effectiveTo: null,
-    changeReason: reason,
+    changeReason: noteOf(input.reason) ?? 'subjects_changed',
     createdBy: actor.userId,
     createdAt: selectedAt,
   }
@@ -197,6 +198,7 @@ export async function changeAssignments(
     expectedVersion: current.version,
     version,
     assignments,
+    supersedeRowlessHead: head !== 'in_force',
     actorId: actor.userId,
     at: selectedAt,
   })

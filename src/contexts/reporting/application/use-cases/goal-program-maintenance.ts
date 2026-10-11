@@ -4,6 +4,8 @@
 // These commands run from the hourly maintenance job and the correction
 // consumer, not from a request. The service composes them (goal-programs.ts)
 // and re-exports the maintenance error so its importers stay where they were.
+// The one piece a request uses is `loadCaughtUpProgram`: the change commands
+// open a Program's due months with it before they read its head.
 import type { GovernedGoalMetricResult } from './query-goal-metric'
 import {
   organizationId as toOrganizationId,
@@ -25,8 +27,10 @@ import { effectiveMonthTarget } from '../goal-effective-month-target'
 import {
   dueMonthlyPeriods,
   GoalProgramError,
+  loadChangeableProgram,
   metricSubject,
   openResultsForPeriods,
+  type GoalActor,
   type GoalProgramDependencies,
 } from './goal-program-shared'
 
@@ -214,13 +218,20 @@ async function activateScheduledProgram(
   }
 }
 
+type DueResultsOutcome = Readonly<{
+  /** Monthly results that had come due and were missing from the bundle. */
+  due: number
+  /** How many of them this call wrote; fewer when another writer got there first. */
+  opened: number
+}>
+
 /** Opens the monthly results that have come due since the latest one, if any. */
 async function appendDueResults(
   deps: GoalProgramDependencies,
   bundle: GoalProgramBundle,
   now: Date,
-): Promise<number> {
-  if (bundle.program.status !== 'active') return 0
+): Promise<DueResultsOutcome> {
+  if (bundle.program.status !== 'active') return { due: 0, opened: 0 }
   const currentResults = bundle.results.filter(
     (result) => result.programVersionId === bundle.version.id,
   )
@@ -233,13 +244,38 @@ async function appendDueResults(
         )
   const periods = dueMonthlyPeriods(bundle.version, latestPeriodEnd, now)
   const nextResults = openResultsForPeriods(bundle, periods, deps.id, now)
-  if (nextResults.length === 0) return 0
-  return deps.repository.appendResults({
+  if (nextResults.length === 0) return { due: 0, opened: 0 }
+  const opened = await deps.repository.appendResults({
     program: bundle.program,
     version: bundle.version,
     results: nextResults,
     at: now,
   })
+  return { due: nextResults.length, opened }
+}
+
+/**
+ * The Program a change command works on, caught up first. The hourly job opens
+ * a month's results some time after the month begins, and only for the head
+ * version. A change that lands in between would plan from a head that looks a
+ * month behind: the version it wrote would close the head before that month
+ * ever opened, and the month would have no result. So an active Program gets
+ * its due months opened here, as the job would, and is read again.
+ *
+ * Refuses a missing or ended Program before it writes anything. A scheduled
+ * Program is not activated here; it is still a goal that has not started.
+ */
+export async function loadCaughtUpProgram(
+  deps: GoalProgramDependencies,
+  actor: GoalActor,
+  input: Readonly<{ propertyId: string; programId: string }>,
+  now: Date,
+): Promise<GoalProgramBundle> {
+  const loaded = await loadChangeableProgram(deps, actor, input)
+  const { due } = await appendDueResults(deps, loaded, now)
+  // Read again whenever a month was due, even if this call wrote none of it:
+  // then the job wrote it in between, and the bundle in hand is still behind.
+  return due === 0 ? loaded : loadChangeableProgram(deps, actor, input)
 }
 
 type ProgramMaintenanceTally = Readonly<{
@@ -274,7 +310,7 @@ async function maintainProgram(
       activated = 1
       scheduledResults = activation.scheduledResults
     }
-    scheduledResults += await appendDueResults(deps, bundle, now)
+    scheduledResults += (await appendDueResults(deps, bundle, now)).opened
     return { activated, scheduledResults, unavailable: 0, failed: 0 }
   } catch {
     return { activated, scheduledResults, unavailable: 0, failed: 1 }

@@ -11,6 +11,8 @@ import {
   getGoalProgramProgress,
   reviseGoalProgram,
 } from '#/contexts/reporting/server/goal-programs'
+// Its own module: only this page renames a goal (see the note in that module).
+import { renameGoalProgram } from '#/contexts/reporting/server/goal-program-details'
 import { goalTargetProvenance } from '#/contexts/reporting/application/goal-target-provenance'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
@@ -28,15 +30,19 @@ import { StatusBadge } from '#/components/ui/status-badge'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { GoalProgramRevisionDialog } from '#/components/goals/goal-program-revision-dialog'
 import { GoalProgramAssignmentsDialog } from '#/components/goals/goal-program-assignments-dialog'
+import { GoalProgramRenameDialog } from '#/components/goals/goal-program-rename-dialog'
 import { GoalStatusActions } from '#/components/goals/goal-status-actions'
 import { GOAL_STATUS, goalResultStatus } from '#/components/goals/goal-status'
+import { withGoalRefusals } from '#/components/goals/goal-refusal'
 import {
   goalDay,
   goalMonthNotes,
   goalNoResultsText,
   goalStartLine,
-  goalStatusNote,
+  goalStartMonthHint,
+  statusReasonLabel,
 } from '#/components/goals/goal-detail-view'
+import { goalVersionNumber } from '#/components/goals/goal-version-number'
 import { goalSubjectKey } from '#/components/goals/goal-subject-picker'
 import { formatDate } from '#/lib/format'
 
@@ -94,13 +100,14 @@ function GoalDetailRoute() {
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
   // Pause and Resume act at once, so a refusal (an invalid transition) is a
   // toast. End confirms first, in a dialog that stays open and says a refusal
-  // itself, so it is its own mutation with no toast.
-  const mutation = useActionMutation(changeGoalProgramStatus, {
+  // itself, so it is its own mutation with no toast. Both say a refusal as a
+  // sentence, not as the command's code.
+  const mutation = useActionMutation(withGoalRefusals(changeGoalProgramStatus), {
     successMessage: 'Goal status updated',
     errorMessage: actionErrorMessage,
     invalidateKeys: [goalKeys.all],
   })
-  const endMutation = useActionMutation(changeGoalProgramStatus, {
+  const endMutation = useActionMutation(withGoalRefusals(changeGoalProgramStatus), {
     successMessage: 'Goal status updated',
     invalidateKeys: [goalKeys.all],
   })
@@ -130,22 +137,20 @@ function GoalDetailRoute() {
     (left, right) => right.periodStart.getTime() - left.periodStart.getTime(),
   )
   const canManage = can(ctx.role, 'goal.update')
-  // The toast above reports a refusal; settling here keeps it from escaping the
-  // click as an unhandled rejection.
+  const statusNote = statusReasonLabel(program.statusReason, startsOn)
+  const startMonthHint = canManage
+    ? goalStartMonthHint({ status: program.status, resultCount: results.length })
+    : null
+  // A status change carries no note from here, so none is stored: the badge
+  // says the status. The toast above reports a refusal; settling here keeps it
+  // from escaping the click as an unhandled rejection.
   const updateStatus = (status: 'active' | 'paused') => {
-    void mutation({
-      data: { propertyId, programId: goalId, status, reason: `Goal ${status}` },
-    }).catch(() => undefined)
+    void mutation({ data: { propertyId, programId: goalId, status } }).catch(
+      () => undefined,
+    )
   }
   const endGoal = () =>
-    endMutation({
-      data: {
-        propertyId,
-        programId: goalId,
-        status: 'ended',
-        reason: 'Ended by manager',
-      },
-    })
+    endMutation({ data: { propertyId, programId: goalId, status: 'ended' } })
   const formatDay = (date: Date): string =>
     formatDate(date, version.propertyTimezone) ?? ''
   const subjectLabel = (subject: GoalSubject) => {
@@ -176,20 +181,34 @@ function GoalDetailRoute() {
         actions={
           canManage && program.status !== 'ended' ? (
             <>
+              <GoalProgramRenameDialog
+                renameGoalProgramFn={renameGoalProgram}
+                propertyId={propertyId}
+                programId={program.id}
+                name={program.name}
+                description={program.description}
+              />
               <GoalProgramAssignmentsDialog
                 changeAssignmentsFn={changeGoalProgramAssignments}
                 property={{ id: propertyId, name: propData.property.name }}
                 programId={program.id}
                 currentVersion={version.version}
                 propertyTimezone={version.propertyTimezone}
+                goal={data}
                 assignments={currentAssignments}
                 groups={subjectNames.groups}
                 portals={subjectNames.portals}
               />
               <GoalProgramRevisionDialog
                 reviseGoalProgramFn={reviseGoalProgram}
-                property={{ id: propertyId, name: propData.property.name }}
+                property={{
+                  id: propertyId,
+                  name: propData.property.name,
+                  timezone: propData.property.timezone,
+                }}
                 programId={program.id}
+                currentVersion={version.version}
+                goal={data}
                 metric={version.metric}
                 targetValue={version.targetValue}
                 assignments={currentAssignments}
@@ -237,14 +256,17 @@ function GoalDetailRoute() {
             })}
           </p>
           <p>
-            <span className="text-muted-foreground">Version:</span> {version.version}
+            <span className="text-muted-foreground">Version:</span>{' '}
+            {goalVersionNumber(versions, version)}
           </p>
-          {program.statusReason ? (
+          {statusNote === null ? null : (
             <p className="md:col-span-2">
-              <span className="text-muted-foreground">Status note:</span>{' '}
-              {goalStatusNote(program.statusReason, startsOn)}
+              <span className="text-muted-foreground">Status note:</span> {statusNote}
             </p>
-          ) : null}
+          )}
+          {startMonthHint === null ? null : (
+            <p className="text-muted-foreground md:col-span-2">{startMonthHint}</p>
+          )}
         </CardContent>
       </Card>
 

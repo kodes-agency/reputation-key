@@ -100,25 +100,80 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
       created = { ...created, program }
       return program
     }),
-    revise: vi.fn(async ({ version, assignments, at }) => {
-      if (!created) return false
-      const previous = created
-      created = {
-        program: {
-          ...previous.program,
-          currentVersion: version.version,
-          updatedAt: at,
-        },
+    revise: vi.fn(
+      async ({
+        expectedVersion,
         version,
-        versions: [...previous.versions, version],
-        assignments: [...previous.assignments, ...assignments],
-        results: previous.results,
+        assignments,
+        supersedeRowlessHead,
+        scheduledStatusReason,
+        at,
+      }) => {
+        if (!created) return false
+        const previous = created
+        const headHasMonths = previous.results.some(
+          (result) => result.programVersionId === expectedVersion.id,
+        )
+        if (supersedeRowlessHead && headHasMonths) return false
+        // The port's contract: a replaced head keeps the empty window
+        // [from, from); a head in force closes where the new version starts.
+        const closedAt = (window: Readonly<{ effectiveFrom: Date }>) =>
+          supersedeRowlessHead ? window.effectiveFrom : version.effectiveFrom
+        created = {
+          program: {
+            ...previous.program,
+            currentVersion: version.version,
+            // The port's contract: only a Program still scheduled takes it.
+            statusReason:
+              scheduledStatusReason !== undefined &&
+              previous.program.status === 'scheduled'
+                ? scheduledStatusReason
+                : previous.program.statusReason,
+            updatedAt: at,
+          },
+          version,
+          versions: [
+            ...previous.versions.map((known) =>
+              known.id === expectedVersion.id
+                ? { ...known, effectiveTo: closedAt(known) }
+                : known,
+            ),
+            version,
+          ],
+          assignments: [
+            ...previous.assignments.map((known) =>
+              known.programVersionId === expectedVersion.id
+                ? { ...known, effectiveTo: closedAt(known) }
+                : known,
+            ),
+            ...assignments,
+          ],
+          results: previous.results,
+        }
+        for (const assignment of created.assignments) {
+          assignmentHistory.set(assignment.id, assignment)
+        }
+        for (const known of created.versions) versionHistory.set(known.id, known)
+        return true
+      },
+    ),
+    rename: vi.fn(async (input) => {
+      if (!created || created.program.status === 'ended') return null
+      // The port's contract: only while the goal still says what was read.
+      if (
+        created.program.name !== input.previousName ||
+        created.program.description !== input.previousDescription
+      ) {
+        return null
       }
-      for (const assignment of assignments) {
-        assignmentHistory.set(assignment.id, assignment)
+      const program = {
+        ...created.program,
+        name: input.name,
+        description: input.description,
+        updatedAt: input.at,
       }
-      versionHistory.set(version.id, version)
-      return true
+      created = { ...created, program }
+      return program
     }),
     findAssignmentConflicts: vi.fn(async () => []),
     activate: vi.fn(async ({ bundle, results: newResults, at }) => {
@@ -1103,7 +1158,7 @@ describe('canonical Goal Program service', () => {
     expect(repository.get).not.toHaveBeenCalled()
   })
 
-  it('bounds the resulting assignment set and the audited reason', async () => {
+  it('bounds the resulting assignment set', async () => {
     const { service, repository, setNow } = setup()
     const currentSubjects = Array.from(
       { length: MAX_GOAL_ASSIGNMENT_SELECTIONS },
@@ -1142,20 +1197,6 @@ describe('canonical Goal Program service', () => {
           programId: created.program.id,
           expectedVersion: 1,
           add: [],
-          remove: [{ kind: 'portal', portalId: 'portal-0' }],
-          selectAllCurrentPortals: false,
-          reason: 'x'.repeat(501),
-        },
-        actor,
-      ),
-    ).rejects.toMatchObject({ code: 'invalid_reason' })
-    await expect(
-      service.changeAssignments(
-        {
-          propertyId: 'property-1',
-          programId: created.program.id,
-          expectedVersion: 1,
-          add: [],
           remove: [],
           selectAllCurrentPortals: false,
           reason: 'No selections',
@@ -1166,60 +1207,616 @@ describe('canonical Goal Program service', () => {
     expect(repository.revise).not.toHaveBeenCalled()
   })
 
-  it('does not stack a second future revision before the pending month starts', async () => {
-    const { service, repository, setNow } = setup()
-    const created = await service.create(
-      {
+  describe('changing a goal', () => {
+    const MARCH = new Date('2026-03-01T00:00:00.000Z')
+    const APRIL = new Date('2026-04-01T00:00:00.000Z')
+    const MAY = new Date('2026-05-01T00:00:00.000Z')
+    const MID_MARCH = new Date('2026-03-15T12:00:00.000Z')
+    const portal = (id: number) => ({ kind: 'portal' as const, portalId: `portal-${id}` })
+
+    /** The next read of a measure finds its source not active yet. */
+    const sourceNotActiveOnce = (metrics: GoalMetricReadPort) =>
+      vi.mocked(metrics.queryGoalMetric).mockResolvedValueOnce({
+        definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
+        metricKey: 'portal.qualified_scan',
+        state: 'unavailable',
+        exactValue: null,
+        sampleCount: 0,
+        minimumSample: 0,
+        sourceCompleteThrough: null,
+        reason: 'metric_source_not_active',
+      })
+
+    /**
+     * A scans goal for portal-1. Created on 1 March it is active with March
+     * open; mid-March it waits for April. Planned on a `not_active` source it
+     * is scheduled whenever it is created, and waits for that source.
+     */
+    async function scansGoal(at?: Date, source: 'active' | 'not_active' = 'active') {
+      const context = setup(at)
+      if (source === 'not_active') sourceNotActiveOnce(context.metrics)
+      const created = await context.service.create(
+        {
+          propertyId: 'property-1',
+          name: 'Portal scans',
+          metric: 'qualified_scans',
+          targetValue: 100,
+          subjects: [portal(1)],
+        },
+        actor,
+      )
+      const revise = (
+        patch: Partial<Parameters<typeof context.service.revise>[0]> = {},
+      ) =>
+        context.service.revise(
+          {
+            propertyId: 'property-1',
+            programId: created.program.id,
+            metric: 'qualified_scans',
+            targetValue: 120,
+            subjects: [portal(1)],
+            ...patch,
+          },
+          actor,
+        )
+      const addPortal = (
+        id: number,
+        expectedVersion: number,
+        reason?: string,
+      ): ReturnType<typeof context.service.changeAssignments> =>
+        context.service.changeAssignments(
+          {
+            propertyId: 'property-1',
+            programId: created.program.id,
+            expectedVersion,
+            add: [portal(id)],
+            remove: [],
+            selectAllCurrentPortals: false,
+            reason,
+          },
+          actor,
+        )
+      const revisions = () => vi.mocked(context.repository.revise).mock.calls
+      return { ...context, created, revise, addPortal, revisions }
+    }
+
+    it('revising a goal that has not started replaces the pending version and keeps its start month', async () => {
+      const { created, revise, repository } = await scansGoal(MID_MARCH)
+      expect(created).toMatchObject({
+        program: { status: 'scheduled' },
+        version: { effectiveFrom: APRIL },
+        results: [],
+      })
+
+      const revised = await revise()
+
+      expect(revised.program).toMatchObject({ status: 'scheduled', currentVersion: 2 })
+      expect(revised.version).toMatchObject({
+        version: 2,
+        targetValue: 120,
+        effectiveFrom: APRIL,
+        effectiveTo: null,
+      })
+      expect(repository.revise).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expectedVersion: expect.objectContaining({ id: created.version.id }),
+          supersedeRowlessHead: true,
+        }),
+      )
+      // The replaced plan keeps an empty window: it never held the subject.
+      expect(revised.versions[0]).toMatchObject({
+        id: created.version.id,
+        effectiveFrom: APRIL,
+        effectiveTo: APRIL,
+      })
+      expect(revised.assignments).toMatchObject([
+        { programVersionId: created.version.id, effectiveTo: APRIL },
+        { programVersionId: revised.version.id, effectiveFrom: APRIL, effectiveTo: null },
+      ])
+    })
+
+    it('a second pending change supersedes the first', async () => {
+      const { created, revise, addPortal, revisions, setNow } = await scansGoal()
+      setNow(MID_MARCH)
+
+      await expect(addPortal(2, 1)).resolves.toMatchObject({
+        currentVersion: 2,
+        effectiveFrom: APRIL,
+      })
+      await expect(addPortal(3, 2)).resolves.toMatchObject({
+        previousVersion: 2,
+        currentVersion: 3,
+        effectiveFrom: APRIL,
+      })
+      const revised = await revise({ subjects: [portal(1), portal(2), portal(3)] })
+
+      // The version in force is closed where the change starts. Each change
+      // after it replaces a plan that has no month yet.
+      expect(
+        revisions().map(([input]) => [
+          input.expectedVersion.version,
+          input.supersedeRowlessHead,
+        ]),
+      ).toEqual([
+        [1, false],
+        [2, true],
+        [3, true],
+      ])
+      // The second change builds on the first pending plan, not on March's.
+      expect(revisions()[1]?.[0].assignments.map(({ subject }) => subject)).toEqual([
+        portal(1),
+        portal(2),
+        portal(3),
+      ])
+      expect(
+        revised.versions.map((known) => [
+          known.version,
+          known.effectiveFrom,
+          known.effectiveTo,
+        ]),
+      ).toEqual([
+        [1, MARCH, APRIL],
+        [2, APRIL, APRIL],
+        [3, APRIL, APRIL],
+        [4, APRIL, null],
+      ])
+      // March stays with the version it opened under.
+      expect(revised.results).toMatchObject([
+        { programVersionId: created.version.id, periodStart: MARCH },
+      ])
+    })
+
+    it('a scheduled goal whose start has passed is still edited as never started', async () => {
+      const { service, repository, revise, setNow } = await scansGoal(MID_MARCH)
+      // April has begun and the hourly job has not activated the goal yet.
+      setNow(new Date('2026-04-01T00:30:00.000Z'))
+
+      const revised = await revise()
+
+      expect(revised.version).toMatchObject({ version: 2, effectiveFrom: APRIL })
+      expect(repository.revise).toHaveBeenCalledWith(
+        expect.objectContaining({ supersedeRowlessHead: true }),
+      )
+      expect(repository.appendResults).not.toHaveBeenCalled()
+
+      // The next pass activates the new head and opens April under it.
+      await expect(service.maintain()).resolves.toMatchObject({
+        activated: 1,
+        scheduledResults: 1,
+        failed: 0,
+      })
+      expect(repository.activate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          results: [
+            expect.objectContaining({
+              programVersionId: revised.version.id,
+              periodStart: APRIL,
+              periodEnd: MAY,
+            }),
+          ],
+        }),
+      )
+    })
+
+    // The reason says what a scheduled goal waits for, and the page prints
+    // it. An edit before the start can change the measure, so it is decided
+    // again from the measure the goal now has, as it was at creation.
+    it('an edit before the start onto a ready measure says the goal waits for its month', async () => {
+      const { created, revise, revisions, getCreated } = await scansGoal(
+        MID_MARCH,
+        'not_active',
+      )
+      expect(created.program).toMatchObject({
+        status: 'scheduled',
+        statusReason: 'metric_source_not_active',
+      })
+
+      const revised = await revise({ metric: 'portal_rating_count', targetValue: 25 })
+
+      expect(revised.program).toMatchObject({
+        status: 'scheduled',
+        statusReason: 'awaiting_first_full_month',
+      })
+      expect(revisions()[0]?.[0].scheduledStatusReason).toBe('awaiting_first_full_month')
+      expect(getCreated()?.program.statusReason).toBe('awaiting_first_full_month')
+    })
+
+    it('an edit before the start onto a measure that is not ready says the goal waits for its source', async () => {
+      const { created, metrics, revise, revisions, getCreated } =
+        await scansGoal(MID_MARCH)
+      expect(created.program.statusReason).toBe('awaiting_first_full_month')
+      sourceNotActiveOnce(metrics)
+
+      const revised = await revise()
+
+      expect(revised.program).toMatchObject({
+        status: 'scheduled',
+        statusReason: 'metric_source_not_active',
+      })
+      expect(revisions()[0]?.[0].scheduledStatusReason).toBe('metric_source_not_active')
+      expect(getCreated()?.program.statusReason).toBe('metric_source_not_active')
+    })
+
+    it('revising a goal that has started leaves its status reason alone', async () => {
+      const { service, created, revise, revisions, setNow } = await scansGoal()
+      setNow(MID_MARCH)
+      await service.changeStatus(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          status: 'paused',
+          reason: 'Closed for works',
+        },
+        actor,
+      )
+
+      const revised = await revise()
+
+      expect(revised.program).toMatchObject({
+        status: 'paused',
+        statusReason: 'Closed for works',
+      })
+      expect(revisions()[0]?.[0].scheduledStatusReason).toBeUndefined()
+    })
+
+    it('revise right after a month begins opens that month first and starts the revision next month', async () => {
+      const { created, repository, revise, setNow } = await scansGoal()
+      // April has begun and the hourly job has not opened it yet.
+      setNow(new Date('2026-04-01T00:10:00.000Z'))
+
+      const revised = await revise()
+
+      expect(repository.appendResults).toHaveBeenCalledOnce()
+      expect(repository.appendResults).toHaveBeenCalledWith(
+        expect.objectContaining({
+          version: expect.objectContaining({ id: created.version.id }),
+          results: [
+            expect.objectContaining({
+              programVersionId: created.version.id,
+              periodStart: APRIL,
+              periodEnd: MAY,
+            }),
+          ],
+        }),
+      )
+      expect(revised.results.map(({ periodStart }) => periodStart)).toEqual([
+        MARCH,
+        APRIL,
+      ])
+      expect(revised.version).toMatchObject({ version: 2, effectiveFrom: MAY })
+      expect(repository.revise).toHaveBeenCalledWith(
+        expect.objectContaining({ supersedeRowlessHead: false }),
+      )
+    })
+
+    it('reads the goal again when the hourly job opened the due month first', async () => {
+      const { created, repository, revise, setNow } = await scansGoal()
+      setNow(new Date('2026-04-01T00:10:00.000Z'))
+      // The job's write lands between this command's read and its own attempt:
+      // nothing is left to insert, and the bundle in hand is a month behind.
+      const aprilByTheJob = {
+        ...created.results[0]!,
+        id: 'april-by-the-job',
+        periodStart: APRIL,
+        periodEnd: MAY,
+      }
+      vi.mocked(repository.appendResults).mockResolvedValueOnce(0)
+      vi.mocked(repository.get)
+        .mockResolvedValueOnce(created)
+        .mockResolvedValueOnce({
+          ...created,
+          results: [...created.results, aprilByTheJob],
+        })
+
+      const revised = await revise()
+
+      expect(revised.results.map(({ periodStart }) => periodStart)).toEqual([
+        MARCH,
+        APRIL,
+      ])
+      expect(revised.version).toMatchObject({ version: 2, effectiveFrom: MAY })
+    })
+
+    it('changing subjects right after a month begins opens that month first', async () => {
+      const { created, repository, addPortal, setNow } = await scansGoal()
+      setNow(new Date('2026-04-01T00:10:00.000Z'))
+
+      await expect(addPortal(2, 1)).resolves.toMatchObject({
+        currentVersion: 2,
+        effectiveFrom: MAY,
+      })
+
+      expect(repository.appendResults).toHaveBeenCalledWith(
+        expect.objectContaining({
+          results: [
+            expect.objectContaining({
+              programVersionId: created.version.id,
+              periodStart: APRIL,
+            }),
+          ],
+        }),
+      )
+      expect(repository.revise).toHaveBeenCalledWith(
+        expect.objectContaining({ supersedeRowlessHead: false }),
+      )
+    })
+
+    it('a pending change whose month has begun is opened, not replaced', async () => {
+      const { repository, revise, setNow } = await scansGoal()
+      setNow(MID_MARCH)
+      const pending = await revise()
+      expect(pending.version).toMatchObject({ version: 2, effectiveFrom: APRIL })
+      setNow(new Date('2026-04-01T00:10:00.000Z'))
+
+      const next = await revise({ targetValue: 140 })
+
+      // April opens under the change that was waiting for it, and the new
+      // change follows it in May.
+      expect(repository.appendResults).toHaveBeenCalledWith(
+        expect.objectContaining({
+          results: [
+            expect.objectContaining({
+              programVersionId: pending.version.id,
+              periodStart: APRIL,
+            }),
+          ],
+        }),
+      )
+      expect(next.version).toMatchObject({ version: 3, effectiveFrom: MAY })
+      expect(repository.revise).toHaveBeenLastCalledWith(
+        expect.objectContaining({ supersedeRowlessHead: false }),
+      )
+    })
+
+    it('reports a month opened under the pending change since the read as a conflict', async () => {
+      const { repository, revise, setNow } = await scansGoal()
+      setNow(MID_MARCH)
+      await revise()
+      // The repository finds a month under the head it was told to replace.
+      vi.mocked(repository.revise).mockResolvedValueOnce(false)
+
+      await expect(revise({ targetValue: 140 })).rejects.toMatchObject({
+        code: 'revision_conflict',
+      })
+    })
+
+    it('a supersede after a time-zone change starts at a real local month start', async () => {
+      const { created, repository, subjects, revise } = await scansGoal(MID_MARCH)
+      expect(created.version).toMatchObject({
+        propertyTimezone: 'UTC',
+        effectiveFrom: APRIL,
+      })
+      vi.mocked(subjects.getTimezone).mockResolvedValue('Europe/Sofia')
+
+      const revised = await revise()
+
+      // 1 April 00:00 UTC is 03:00 in Sofia: that local month has begun, so
+      // the goal now starts with Sofia's May. The start is never copied.
+      expect(revised.version).toMatchObject({
+        propertyTimezone: 'Europe/Sofia',
+        effectiveFrom: new Date('2026-04-30T21:00:00.000Z'),
+      })
+      expect(repository.revise).toHaveBeenCalledWith(
+        expect.objectContaining({ supersedeRowlessHead: true }),
+      )
+      expect(revised.versions[0]).toMatchObject({
+        effectiveFrom: APRIL,
+        effectiveTo: APRIL,
+      })
+    })
+
+    it('a change of subjects before the start keeps the version time zone and its month', async () => {
+      const { created, subjects, addPortal, revisions } = await scansGoal(MID_MARCH)
+      vi.mocked(subjects.getTimezone).mockResolvedValue('Europe/Sofia')
+
+      await expect(addPortal(2, 1)).resolves.toMatchObject({
+        currentVersion: 2,
+        effectiveFrom: APRIL,
+      })
+
+      expect(revisions()[0]?.[0]).toMatchObject({
+        supersedeRowlessHead: true,
+        expectedVersion: { id: created.version.id },
+        version: { propertyTimezone: 'UTC', effectiveFrom: APRIL },
+      })
+    })
+
+    it('revise without a note stores the default reason', async () => {
+      const { revise, addPortal, revisions, setNow } = await scansGoal()
+      setNow(MID_MARCH)
+
+      await revise()
+      await addPortal(2, 2)
+      await revise({ reason: '  Agreed with the owner  ', targetValue: 140 })
+      await addPortal(3, 4, '   ')
+      await addPortal(4, 5, ' Seasonal portal ')
+
+      expect(revisions().map(([input]) => input.version.changeReason)).toEqual([
+        'revised',
+        'subjects_changed',
+        'Agreed with the owner',
+        'subjects_changed',
+        'Seasonal portal',
+      ])
+    })
+
+    it('a status change without a note stores no status reason', async () => {
+      const { service, repository, created } = await scansGoal()
+      const changeStatus = (status: 'paused' | 'active', reason?: string) =>
+        service.changeStatus(
+          { propertyId: 'property-1', programId: created.program.id, status, reason },
+          actor,
+        )
+
+      await expect(changeStatus('paused')).resolves.toMatchObject({
+        status: 'paused',
+        statusReason: null,
+      })
+      await expect(changeStatus('active', '   ')).resolves.toMatchObject({
+        status: 'active',
+        statusReason: null,
+      })
+      await expect(changeStatus('paused', ' Closed for works ')).resolves.toMatchObject({
+        statusReason: 'Closed for works',
+      })
+      expect(
+        vi.mocked(repository.changeStatus).mock.calls.map(([input]) => input.reason),
+      ).toEqual([null, null, 'Closed for works'])
+    })
+
+    it('reports a status change the repository could not apply as a conflict', async () => {
+      const { service, repository, created } = await scansGoal()
+      vi.mocked(repository.changeStatus).mockResolvedValueOnce(null)
+
+      await expect(
+        service.changeStatus(
+          { propertyId: 'property-1', programId: created.program.id, status: 'ended' },
+          actor,
+        ),
+      ).rejects.toMatchObject({ code: 'revision_conflict' })
+    })
+
+    it('revise refuses a subject another goal holds for the measure', async () => {
+      const { created, repository, revise, setNow } = await scansGoal()
+      setNow(MID_MARCH)
+      vi.mocked(repository.findAssignmentConflicts).mockResolvedValueOnce([
+        { subject: portal(2), programId: 'program-busy', effectiveTo: null },
+      ])
+
+      await expect(
+        revise({ metric: 'portal_rating_count', subjects: [portal(1), portal(2)] }),
+      ).rejects.toMatchObject({ code: 'subject_has_goal' })
+
+      // Asked for the measure and month the change would take, without the
+      // goal's own assignments.
+      expect(repository.findAssignmentConflicts).toHaveBeenLastCalledWith({
+        organizationId: 'org-1',
         propertyId: 'property-1',
-        name: 'Portal scans',
-        metric: 'qualified_scans',
-        targetValue: 100,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
-      },
-      actor,
-    )
-    setNow(new Date('2026-03-15T12:00:00.000Z'))
-    await service.changeAssignments(
-      {
+        excludeProgramId: created.program.id,
+        metric: 'portal_rating_count',
+        effectiveFrom: APRIL,
+        subjects: [portal(1), portal(2)],
+      })
+      expect(repository.revise).not.toHaveBeenCalled()
+    })
+
+    it('revise refuses a form opened on a version that has since changed', async () => {
+      const { repository, revise, addPortal, setNow } = await scansGoal()
+      setNow(MID_MARCH)
+      await addPortal(2, 1)
+
+      await expect(revise({ expectedVersion: 1 })).rejects.toMatchObject({
+        code: 'revision_conflict',
+      })
+      expect(repository.revise).toHaveBeenCalledOnce()
+
+      await expect(
+        revise({ expectedVersion: 2, subjects: [portal(1), portal(2)] }),
+      ).resolves.toMatchObject({ version: { version: 3 } })
+    })
+
+    it('rename changes name only and leaves the version untouched', async () => {
+      const { service, repository, policy, created } = await scansGoal()
+
+      await expect(
+        service.rename(
+          {
+            propertyId: 'property-1',
+            programId: created.program.id,
+            name: '  Lobby scans  ',
+          },
+          actor,
+        ),
+      ).resolves.toMatchObject({ name: 'Lobby scans', description: null })
+
+      expect(policy.authorize).toHaveBeenLastCalledWith(
+        expect.objectContaining({ action: 'goal.update', propertyId: 'property-1' }),
+      )
+      expect(repository.rename).toHaveBeenCalledWith({
+        organizationId: 'org-1',
         propertyId: 'property-1',
         programId: created.program.id,
-        expectedVersion: 1,
-        add: [{ kind: 'portal', portalId: 'portal-2' }],
-        remove: [],
-        selectAllCurrentPortals: false,
-        reason: 'First pending revision',
-      },
-      actor,
-    )
+        name: 'Lobby scans',
+        description: null,
+        previousName: 'Portal scans',
+        previousDescription: null,
+        actorId: 'manager-1',
+        at: MARCH,
+      })
+      expect(repository.revise).not.toHaveBeenCalled()
+      await expect(
+        service.get({ propertyId: 'property-1', programId: created.program.id }, actor),
+      ).resolves.toMatchObject({
+        program: { name: 'Lobby scans', currentVersion: 1 },
+        version: { id: created.version.id, version: 1, changeReason: 'created' },
+        versions: [{ id: created.version.id }],
+      })
+    })
 
-    await expect(
-      service.changeAssignments(
-        {
-          propertyId: 'property-1',
-          programId: created.program.id,
-          expectedVersion: 2,
-          add: [{ kind: 'portal', portalId: 'portal-3' }],
-          remove: [],
-          selectAllCurrentPortals: false,
-          reason: 'Would skip the pending revision',
-        },
-        actor,
-      ),
-    ).rejects.toMatchObject({ code: 'revision_conflict' })
-    await expect(
-      service.revise(
-        {
-          propertyId: 'property-1',
-          programId: created.program.id,
-          metric: 'qualified_scans',
-          targetValue: 120,
-          subjects: [{ kind: 'portal', portalId: 'portal-1' }],
-          reason: 'Would also skip the pending revision',
-        },
-        actor,
-      ),
-    ).rejects.toMatchObject({ code: 'revision_conflict' })
-    expect(repository.revise).toHaveBeenCalledOnce()
+    it('rename keeps a description that is not sent and clears an empty one', async () => {
+      const { service, created } = await scansGoal()
+      const rename = (name: string, description?: string | null) =>
+        service.rename(
+          { propertyId: 'property-1', programId: created.program.id, name, description },
+          actor,
+        )
+
+      await expect(rename('Lobby scans', ' Counted at the desk ')).resolves.toMatchObject(
+        { description: 'Counted at the desk' },
+      )
+      await expect(rename('Front desk scans')).resolves.toMatchObject({
+        name: 'Front desk scans',
+        description: 'Counted at the desk',
+      })
+      await expect(rename('Front desk scans', '  ')).resolves.toMatchObject({
+        description: null,
+      })
+    })
+
+    it('rename hands over the name and description it read, so the write applies only to them', async () => {
+      const { service, repository, created } = await scansGoal()
+      const rename = (name: string, description?: string | null) =>
+        service.rename(
+          { propertyId: 'property-1', programId: created.program.id, name, description },
+          actor,
+        )
+      await rename('Lobby scans', 'Counted at the desk')
+
+      await rename('Lobby scans', 'Counted at the front desk')
+
+      expect(repository.rename).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          name: 'Lobby scans',
+          description: 'Counted at the front desk',
+          previousName: 'Lobby scans',
+          previousDescription: 'Counted at the desk',
+        }),
+      )
+    })
+
+    it('rename refuses a blank or overlong name and writes nothing for an unchanged one', async () => {
+      const { service, repository, created } = await scansGoal()
+      const rename = (name: string) =>
+        service.rename(
+          { propertyId: 'property-1', programId: created.program.id, name },
+          actor,
+        )
+
+      await expect(rename('   ')).rejects.toMatchObject({ code: 'invalid_name' })
+      await expect(rename('x'.repeat(201))).rejects.toMatchObject({
+        code: 'invalid_name',
+      })
+      await expect(rename(' Portal scans ')).resolves.toMatchObject({
+        name: 'Portal scans',
+      })
+      expect(repository.rename).not.toHaveBeenCalled()
+
+      // The goal ended, or was renamed, between the read and the write.
+      vi.mocked(repository.rename).mockResolvedValueOnce(null)
+      await expect(rename('Lobby scans')).rejects.toMatchObject({
+        code: 'revision_conflict',
+      })
+    })
   })
 
   it('surfaces repository CAS loss as a revision conflict', async () => {

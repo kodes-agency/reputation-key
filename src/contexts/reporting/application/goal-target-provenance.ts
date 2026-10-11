@@ -16,7 +16,8 @@ export type GoalTargetProvenance = Readonly<{
   setBy: string
   /**
    * The first month counted against them: the first month with a result, or
-   * the planned start while no month has opened yet.
+   * the planned start while no month has opened yet. A plan replaced before
+   * it began is not a start.
    */
   countsFrom: Date
 }>
@@ -50,12 +51,22 @@ function unchangedRun(
   return run
 }
 
+/**
+ * True for a plan replaced or ended before any month opened under it: its
+ * window ends where it starts, so it never counted for a month.
+ */
+const neverInForce = (candidate: GoalProgramVersion): boolean =>
+  candidate.effectiveTo !== null && candidate.effectiveTo <= candidate.effectiveFrom
+
 export function goalTargetProvenance(
   bundle: ProvenanceSource,
   version: GoalProgramVersion,
 ): GoalTargetProvenance {
   const run = unchangedRun(bundle.versions, version)
   const first = run.at(0) ?? version
+  // The plan the run first counts under. A replaced plan still says who set
+  // the target and when, but its start is not a month anything counted from.
+  const planned = run.find((candidate) => !neverInForce(candidate)) ?? version
   const runIds = new Set(run.map((candidate) => candidate.id))
   const firstMonth = bundle.results
     .filter((result) => runIds.has(result.programVersionId))
@@ -69,6 +80,6 @@ export function goalTargetProvenance(
   return {
     setAt: first.createdAt,
     setBy: first.createdBy,
-    countsFrom: firstMonth ?? first.effectiveFrom,
+    countsFrom: firstMonth ?? planned.effectiveFrom,
   }
 }
