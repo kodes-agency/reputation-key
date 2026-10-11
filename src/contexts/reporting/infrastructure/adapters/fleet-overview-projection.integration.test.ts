@@ -307,6 +307,81 @@ afterAll(async () => {
   await fixture?.rollBack()
 })
 
+type RunningGoalMonth = Readonly<{
+  property: PropertyId
+  versionTarget: number
+  /** The month's own target; null when the month uses its version's. */
+  monthTarget: number | null
+  scansSoFar: number
+}>
+
+/**
+ * An active scans goal on one fleet Property, with August 2026 open and
+ * counted so far. At NOW about 27% of the month has passed.
+ */
+async function seedRunningGoalMonth(month: RunningGoalMonth): Promise<void> {
+  const program = randomUUID()
+  const version = randomUUID()
+  const assignment = randomUUID()
+  await client.query(
+    `INSERT INTO goal_programs
+       (id, organization_id, property_id, name, status, current_version,
+        created_by, created_at, updated_at)
+     VALUES ($1, $2, $3, 'Month target Goal', 'active', 1,
+             'manager-1', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z')`,
+    [program, ORG, month.property],
+  )
+  await client.query(
+    `INSERT INTO goal_program_versions
+       (id, program_id, organization_id, property_id, version,
+        metric_definition_id, metric_definition_version_id, metric_key,
+        metric_minimum_sample, target_value, property_timezone, effective_from,
+        change_reason, created_by, created_at)
+     VALUES ($1, $2, $3, $4, 1, $5, $6, 'qualified_scans',
+       0, $7, 'UTC', '2026-08-01T00:00:00Z', 'created', 'manager-1',
+       '2026-08-01T00:00:00Z')`,
+    [
+      version,
+      program,
+      ORG,
+      month.property,
+      METRIC_DEFINITION_IDS.qualifiedScan,
+      METRIC_VERSION_IDS.qualifiedScanGoal,
+      month.versionTarget,
+    ],
+  )
+  await client.query(
+    `INSERT INTO goal_subject_assignments
+       (id, program_id, program_version_id, organization_id, property_id,
+        metric_key, subject_kind, property_subject_id, effective_from,
+        created_by, created_at)
+     VALUES ($1, $2, $3, $4, $5, 'qualified_scans', 'property', $5,
+             '2026-08-01T00:00:00Z', 'manager-1', '2026-08-01T00:00:00Z')`,
+    [assignment, program, version, ORG, month.property],
+  )
+  await client.query(
+    `INSERT INTO goal_monthly_results
+       (id, assignment_id, program_id, program_version_id, organization_id,
+        property_id, period_start, period_end, property_timezone, status,
+        target_value, evaluation_state, value, sample_count, achieved,
+        source_complete_through, evaluation_watermark, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, '2026-08-01T00:00:00Z',
+             '2026-09-01T00:00:00Z', 'UTC', 'open', $7, 'eligible', $8::numeric,
+             $8::integer, false, $9, $9, '2026-08-01T00:00:00Z', $9)`,
+    [
+      randomUUID(),
+      assignment,
+      program,
+      version,
+      ORG,
+      month.property,
+      month.monthTarget,
+      month.scansSoFar,
+      NOW,
+    ],
+  )
+}
+
 describe('fleet overview projection integration', () => {
   it('pages the real getFleetOverview projection at constant query count for 5,000 properties', async () => {
     const observed: unknown[] = []
@@ -530,5 +605,63 @@ describe('fleet overview projection integration', () => {
         [[removed.propertyId, paused.propertyId]],
       )
     }
+  })
+
+  // Last on purpose: its goal months stay in the held transaction, and no
+  // earlier case should count them.
+  it("counts a goal behind pace against the month's own target, else the version's", async () => {
+    const raised = properties[2]!.propertyId
+    const lowered = properties[3]!.propertyId
+    const versionOnly = properties[4]!.propertyId
+    // 50 scans keep pace with a target of 100 and fall behind one of 400.
+    await seedRunningGoalMonth({
+      property: raised,
+      versionTarget: 100,
+      monthTarget: 400,
+      scansSoFar: 50,
+    })
+    await seedRunningGoalMonth({
+      property: lowered,
+      versionTarget: 400,
+      monthTarget: 100,
+      scansSoFar: 50,
+    })
+    await seedRunningGoalMonth({
+      property: versionOnly,
+      versionTarget: 400,
+      monthTarget: null,
+      scansSoFar: 50,
+    })
+    const getFleet = getFleetOverview({
+      projection: createFleetOverviewProjectionAdapter(db),
+      resolveAccessiblePropertyIds: async () => [raised, lowered, versionOnly],
+      clock: () => NOW,
+      inboxTargets,
+    })
+
+    const result = await getFleet({
+      organizationId: ORG,
+      scope: {
+        userId: userId('fleet-projection-month-target-reader'),
+        organizationWide: false,
+      },
+      portalReadEnabled: true,
+      goalReadEnabled: true,
+      timeRange: '30d',
+    })
+
+    const behindPace = new Map(
+      result.entries.map((entry) => [
+        entry.propertyId,
+        entry.attentionSignals.goalsBehindPace,
+      ]),
+    )
+    expect(behindPace).toEqual(
+      new Map([
+        [raised, 1],
+        [lowered, 0],
+        [versionOnly, 1],
+      ]),
+    )
   })
 })

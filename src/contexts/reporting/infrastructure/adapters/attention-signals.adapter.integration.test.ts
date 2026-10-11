@@ -173,6 +173,87 @@ afterAll(async () => {
   await fixture?.rollBack()
 })
 
+type RunningGoalMonth = Readonly<{
+  versionTarget: number
+  /** The month's own target; null when the month uses its version's. */
+  monthTarget: number | null
+  scansSoFar: number
+}>
+
+/**
+ * An active scans goal on a Property of its own, with August 2026 open and
+ * counted so far. At NOW about 79% of the month has passed.
+ */
+async function seedRunningGoalMonth(month: RunningGoalMonth) {
+  const property = propertyId(randomUUID())
+  const program = randomUUID()
+  const version = randomUUID()
+  const assignment = randomUUID()
+  await client.query(
+    `INSERT INTO properties (id, organization_id, name, slug, timezone)
+     VALUES ($1::uuid, $2, 'Month target Property', $1::text, 'UTC')`,
+    [property, ORGANIZATION],
+  )
+  await client.query(
+    `INSERT INTO goal_programs
+       (id, organization_id, property_id, name, status, current_version,
+        created_by, created_at, updated_at)
+     VALUES ($1, $2, $3, 'Month target Goal', 'active', 1,
+             'manager-1', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z')`,
+    [program, ORGANIZATION, property],
+  )
+  await client.query(
+    `INSERT INTO goal_program_versions
+       (id, program_id, organization_id, property_id, version,
+        metric_definition_id, metric_definition_version_id, metric_key,
+        metric_minimum_sample, target_value, property_timezone, effective_from,
+        change_reason, created_by, created_at)
+     VALUES ($1, $2, $3, $4, 1, $5, $6, 'qualified_scans',
+       0, $7, 'UTC', '2026-08-01T00:00:00Z', 'created', 'manager-1',
+       '2026-08-01T00:00:00Z')`,
+    [
+      version,
+      program,
+      ORGANIZATION,
+      property,
+      METRIC_DEFINITION_IDS.qualifiedScan,
+      METRIC_VERSION_IDS.qualifiedScanGoal,
+      month.versionTarget,
+    ],
+  )
+  await client.query(
+    `INSERT INTO goal_subject_assignments
+       (id, program_id, program_version_id, organization_id, property_id,
+        metric_key, subject_kind, property_subject_id, effective_from,
+        created_by, created_at)
+     VALUES ($1, $2, $3, $4, $5, 'qualified_scans', 'property', $5,
+             '2026-08-01T00:00:00Z', 'manager-1', '2026-08-01T00:00:00Z')`,
+    [assignment, program, version, ORGANIZATION, property],
+  )
+  await client.query(
+    `INSERT INTO goal_monthly_results
+       (id, assignment_id, program_id, program_version_id, organization_id,
+        property_id, period_start, period_end, property_timezone, status,
+        target_value, evaluation_state, value, sample_count, achieved,
+        source_complete_through, evaluation_watermark, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, '2026-08-01T00:00:00Z',
+             '2026-09-01T00:00:00Z', 'UTC', 'open', $7, 'eligible', $8::numeric,
+             $8::integer, false, $9, $9, '2026-08-01T00:00:00Z', $9)`,
+    [
+      randomUUID(),
+      assignment,
+      program,
+      version,
+      ORGANIZATION,
+      property,
+      month.monthTarget,
+      month.scansSoFar,
+      NOW,
+    ],
+  )
+  return property
+}
+
 describe('attention signal work-set union', () => {
   it('counts Dashboard-owned work anchors while leaving overdue targets to Inbox', async () => {
     const adapter = createAttentionSignalsAdapter(db, () => NOW)
@@ -184,5 +265,39 @@ describe('attention signal work-set union', () => {
       goalsBehindPace: 1,
       attentionWork: 4,
     })
+  })
+})
+
+describe('goals behind pace and a month with its own target', () => {
+  const behindPace = async (month: RunningGoalMonth) => {
+    const property = await seedRunningGoalMonth(month)
+    const counts = await createAttentionSignalsAdapter(db, () => NOW).getAttentionCounts(
+      ORGANIZATION,
+      property,
+    )
+    return counts.goalsBehindPace
+  }
+
+  it("is behind pace against the month's own higher target", async () => {
+    // 90 scans keep pace with the version's 100, not with the month's own 400.
+    await expect(
+      behindPace({ versionTarget: 100, monthTarget: 400, scansSoFar: 90 }),
+    ).resolves.toBe(1)
+  })
+
+  it("keeps pace against the month's own lower target", async () => {
+    // 90 scans keep pace with the month's own 100, not with the version's 400.
+    await expect(
+      behindPace({ versionTarget: 400, monthTarget: 100, scansSoFar: 90 }),
+    ).resolves.toBe(0)
+  })
+
+  it("uses the version's target for a month without its own", async () => {
+    await expect(
+      behindPace({ versionTarget: 400, monthTarget: null, scansSoFar: 90 }),
+    ).resolves.toBe(1)
+    await expect(
+      behindPace({ versionTarget: 100, monthTarget: null, scansSoFar: 90 }),
+    ).resolves.toBe(0)
   })
 })
