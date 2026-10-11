@@ -7,8 +7,10 @@
 // start. The rule is stated once here: the command calls it to decide what to
 // write, and the dialog calls it to say so before the manager saves, so what is
 // shown is what is written.
-// From its own module, not through the Program module: the dialog runs this in
-// the browser, and the Program module is part of the first-paint bundle.
+
+// The month key comes from its own module, not through the Program module: the
+// dialog runs this in the browser, and the Program module is part of the
+// first-paint bundle.
 import { monthKeyOf } from '../domain/goal-start'
 import { monthTargetHistory } from './goal-month-target-marker'
 import { nextRevisionStart } from './goal-revision-start'
