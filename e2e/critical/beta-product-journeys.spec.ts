@@ -91,20 +91,17 @@ async function endOpenGoalPrograms(page: Page, propertyId: string) {
 }
 
 /**
- * The two months a goal may start in on a Property's own calendar, as the
- * `YYYY-MM` keys the create command takes.
+ * The month after the current one on a Property's own calendar, as the
+ * `YYYY-MM` key the create command takes.
  *
  * Read on the database clock in the Property's time zone, which is how the
  * command reads the month. Every journey names the month it means: left out,
  * the command still starts next month, but which month a form would choose
  * depends on the day the suite runs, and a journey must not.
  */
-async function goalStartMonths(
-  propertyId: string,
-): Promise<Readonly<{ thisMonth: string; nextMonth: string }>> {
-  const [months] = await dbQuery<{ this_month: string; next_month: string }>(
+async function nextGoalStartMonth(propertyId: string): Promise<string> {
+  const [months] = await dbQuery<{ next_month: string }>(
     `SELECT
-       to_char(date_trunc('month', now() AT TIME ZONE timezone), 'YYYY-MM') AS this_month,
        to_char(
          date_trunc('month', now() AT TIME ZONE timezone) + interval '1 month',
          'YYYY-MM'
@@ -114,7 +111,7 @@ async function goalStartMonths(
     [seed.organizationId, propertyId],
   )
   if (!months) throw new Error('The seeded Property has no timezone')
-  return { thisMonth: months.this_month, nextMonth: months.next_month }
+  return months.next_month
 }
 
 test.describe('Critical: beta-local-1 product journeys', () => {
@@ -712,7 +709,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await endOpenGoalPrograms(page, seed.p1PropertyId)
     // Next month, named: the program is then scheduled with no month open, which
     // is the head the SQL below replaces with a completed one.
-    const { nextMonth } = await goalStartMonths(seed.p1PropertyId)
+    const nextMonth = await nextGoalStartMonth(seed.p1PropertyId)
     const created = await callServerFn<{ program: { id: string; status: string } }>(
       page,
       {
@@ -912,7 +909,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // Every create below names next month. A goal that starts this month opens
     // the month at once and, once ended, keeps the Property as its subject
     // until that month is over, which would refuse the next run of this journey.
-    const { nextMonth } = await goalStartMonths(seed.p1PropertyId)
+    const nextMonth = await nextGoalStartMonth(seed.p1PropertyId)
     const created = await callServerFn<{ program: { id: string; status: string } }>(
       page,
       {
