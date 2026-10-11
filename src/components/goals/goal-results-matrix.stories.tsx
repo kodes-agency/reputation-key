@@ -103,6 +103,7 @@ const meta: Meta<typeof GoalResultsMatrix> = {
   title: 'Goals/GoalResultsMatrix',
   component: GoalResultsMatrix,
   tags: ['autodocs'],
+  args: { personName: (userId) => (userId === 'marco' ? 'Marco Rossi' : null) },
 }
 export default meta
 type Story = StoryObj<typeof GoalResultsMatrix>
@@ -162,5 +163,53 @@ export const TargetSetInAnEarlierYear: Story = {
     await expect(
       canvas.getByText(/Effective Jan 1, 2026 · set on Dec 18, 2025/),
     ).toBeVisible()
+  },
+}
+
+// July was set at 150 in June. On the 20th of July its target was changed to
+// 100, the number the row is judged against and prints.
+const changedInJuly: GoalResultsMatrixModel = {
+  months: [
+    {
+      periodStart: START,
+      periodEnd: END,
+      propertyTimezone: 'America/New_York',
+      rows: [
+        row('changed', {
+          monthTarget: {
+            changedAt: new Date('2026-07-20T15:00:00.000Z'),
+            changedBy: 'marco',
+            startTarget: 150,
+            changeCount: 2,
+          },
+        }),
+        row('unchanged', {
+          scope: 'portal',
+          subject: { kind: 'portal', portalId: 'portal-1' },
+          subjectName: 'Breakfast cards',
+        }),
+      ],
+    },
+  ],
+  unassignedPortals: [],
+}
+
+/**
+ * A changed month names the person who changed it, the day, how many times it
+ * changed and the target it started at, beside the target the row is judged
+ * against. A month nobody changed carries no such line.
+ */
+export const AChangedMonthNamesWhoChangedIt: Story = {
+  args: { matrix: changedInJuly, now: new Date('2026-08-05T12:00:00.000Z') },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const changed = canvas.getByText(
+      'Changed by Marco Rossi on Jul 20 (2 changes), started at 150',
+    )
+
+    await expect(changed).toBeVisible()
+    // It sits in the row's own "Target source" cell, under the target it explains.
+    expect(changed.closest('td')).toHaveTextContent(/Monthly scans · target 100/)
+    expect(canvas.getAllByText(/^Changed /)).toHaveLength(1)
   },
 }

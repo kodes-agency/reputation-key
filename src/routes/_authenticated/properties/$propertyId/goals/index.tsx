@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { Target } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -11,9 +11,9 @@ import { listGoalPrograms } from '#/contexts/reporting/server/goal-programs'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
 import { buildGoalResultsMatrix } from '#/contexts/reporting/application/public-api'
-import { goalTargetProvenance } from '#/contexts/reporting/application/goal-target-provenance'
+import { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
 import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
-import { propertyQuery } from '#/routes/-queries/route-queries'
+import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { NAV_LABEL } from '#/components/layout/nav-labels'
@@ -33,7 +33,9 @@ import { StatusBadge } from '#/components/ui/status-badge'
 import { ROW_NAME_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import { GOAL_STATUS } from '#/components/goals/goal-status'
+import { goalListTarget } from '#/components/goals/goal-month-target-view'
 import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
+import { goalPersonNames } from '#/components/goals/goal-target-marker'
 import { GoalViewTabs } from '#/components/goals/goal-view-tabs'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { formatShortDate } from '#/lib/format'
@@ -106,6 +108,13 @@ function GoalsRoute() {
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalsQuery(propertyId))
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
+  // Who changed a month's target, by name, for the matrix. A side read that
+  // never holds the page back: until it is read, the change is told without one.
+  const members = useQuery({
+    ...membersQuery,
+    enabled: canDo('member.list'),
+    retry: false,
+  })
   const goalId = result === undefined ? null : goalForResult(data.programs, result)
   if (goalId !== null) {
     return (
@@ -176,15 +185,23 @@ function GoalsRoute() {
               <DataTableHead className="w-40">Status</DataTableHead>
             </DataTableHeader>
             <DataTableBody>
-              {goals.map(({ program, version, versions, assignments, results }) => {
+              {goals.map((goal) => {
+                const { program, version, assignments } = goal
                 const currentAssignmentCount = assignments.filter(
                   (assignment) => assignment.programVersionId === version.id,
                 ).length
-                const setOn = formatShortDate(
-                  goalTargetProvenance({ versions, results }, version).setAt,
-                  version.propertyTimezone,
-                  now,
+                // This month's target while a month runs, with its marker when
+                // it was changed; "set on" where the marker does not say when.
+                const calendar = { timezone: version.propertyTimezone, now }
+                const target = goalListTarget(
+                  goal,
+                  monthTargetPlan(goal, now, propData.property.timezone),
+                  calendar,
                 )
+                const setOn =
+                  target.setAt === null
+                    ? ''
+                    : ` · set on ${formatShortDate(target.setAt, calendar.timezone, now) ?? 'an unknown date'}`
                 return (
                   <DataTableRow key={program.id}>
                     <DataTableCell className="min-w-0 whitespace-normal">
@@ -196,10 +213,10 @@ function GoalsRoute() {
                         {program.name}
                       </Link>
                       <p className="text-sm text-muted-foreground">
-                        {metricLabel(version.metric)} · target {version.targetValue} ·{' '}
+                        {metricLabel(target.metric)} · {target.text} ·{' '}
                         {currentAssignmentCount}{' '}
-                        {currentAssignmentCount === 1 ? 'subject' : 'subjects'} · set on{' '}
-                        {setOn ?? 'an unknown date'}
+                        {currentAssignmentCount === 1 ? 'subject' : 'subjects'}
+                        {setOn}
                       </p>
                     </DataTableCell>
                     <DataTableCell className="col-start-2 row-start-1 justify-self-end">
@@ -212,7 +229,13 @@ function GoalsRoute() {
           </DataTable>
         )}
       </div>
-      {canDo('goal.update') ? <GoalResultsMatrix matrix={matrix} now={now} /> : null}
+      {canDo('goal.update') ? (
+        <GoalResultsMatrix
+          matrix={matrix}
+          now={now}
+          personName={goalPersonNames(members.data?.members)}
+        />
+      ) : null}
     </PageShell>
   )
 }
