@@ -82,7 +82,7 @@
       "exports": ["RECENT_ACTIVITY_REPLAY_SOURCE_KINDS"]
     },
     {
-      "file": "src/contexts/reporting/application/use-cases/goal-programs.ts",
+      "file": "src/contexts/reporting/application/use-cases/goal-program-maintenance.ts",
       "exports": ["GoalProgramMaintenanceError"]
     },
     {
