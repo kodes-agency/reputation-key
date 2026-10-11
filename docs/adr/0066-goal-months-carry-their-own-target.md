@@ -50,16 +50,24 @@ default the new target also applies to the months after.
 4. **One command, decided before it writes.** `changeMonthTarget` needs
    `goal.update`. It opens an active goal's due months first, as the other
    change commands do. Paused goals may change their running month; ended goals
-   may not. The form sends the month it showed (`YYYY-MM`), the target it showed
-   and the version it was opened on:
+   may not. The form sends the month it showed (`YYYY-MM`), the target it
+   showed, the version it was opened on and the month it named for the months
+   after (`YYYY-MM` in the Property's zone):
    - a month that has ended answers `month_locked`, and a form left open over
      the end of a month never changes the month that began meanwhile;
    - a goal with no running month answers `no_open_month`;
    - the target is validated against the measure of the version the month
      belongs to, not of a change still waiting for its month;
-   - a goal that moved on under the form answers `revision_conflict`. The one
-     exception is a save sent twice: when the month already has the target and
-     nothing else would be written, the command answers `unchanged`.
+   - a goal that moved on under the form answers `revision_conflict`. Each
+     thing the form showed guards the write it would be written over by: the
+     version guards every write; the month's target guards the month, and only
+     while the month would change; the month named for the months after guards
+     the version that would be cut for them, so a Property that changed time
+     zone meanwhile cannot leave a month with no result unannounced;
+   - a save sent twice is not a conflict: when the month already has the target
+     and nothing else would be written, the command answers `unchanged` and
+     writes nothing. A write that loses a race reads the goal once more and is
+     answered the same way; it never writes the month a second time.
 5. **The months after have an outcome, and it is stored.** Not asked:
    `not_requested`. The version that will govern them already has the target:
    `applied`, and no version is written. No change is waiting: a new version
@@ -71,6 +79,9 @@ default the new target also applies to the months after.
    read, gives `not_applied` with `subject_unavailable` or `metric_unavailable`;
    no subject is dropped from the goal to make the version fit. In the last two
    cases the month still changes and the answer says the months after did not.
+   When the month already has the target and only the months after change, the
+   version is an ordinary revision and no month is logged; the manager's note is
+   then stored on that version, where a revision's note is.
 6. **One transaction.** The repository takes the Program row with a
    compare-and-set on its head (the lock every writer of versions takes first)
    and refuses an ended Program; writes the following version through the same
@@ -122,7 +133,10 @@ default the new target also applies to the months after.
   `month_locked`, not as a failure.
 - A log row's following version can later be replaced before its month begins.
   The row still says `applied`, which was true when it was written; the version
-  then has an empty window, and a reader of the history has to look at it.
+  then has an empty window, and a reader of the history has to look at it and
+  at the versions after it. A change of subjects replaces it with a version
+  that carries the same target on, so the change still applies; a revision to
+  another target does not.
 - The Organization export gains the column and the log; its payload version is
   unchanged because the change only adds.
 
