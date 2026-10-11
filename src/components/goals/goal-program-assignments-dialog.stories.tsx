@@ -133,8 +133,11 @@ export const PointInTimeBulkChange: Story = {
       }),
     )
     await expect(await dialog.findByText('Lobby QR — will be added')).toBeVisible()
+    // The receipt the revision dialog prints, with the start the command answered.
     await expect(
-      dialog.getByText('Scheduled from Sep 1, 2026 (Europe/Sofia).'),
+      dialog.getByText(
+        /^Change saved\. Applies from Sep 1(?:, 2026)? \(Europe\/Sofia\)\.$/,
+      ),
     ).toBeVisible()
   },
 }

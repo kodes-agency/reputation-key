@@ -131,11 +131,12 @@ export function GoalProgramAssignmentsDialog(props: Props) {
       <form.Field name="reason">
         {(field) => <GoalChangeReasonField field={field} id="assignment-change-reason" />}
       </form.Field>
-      {mutation.data ? (
+      {mutation.data && openedAt !== null ? (
         <GoalAssignmentOutcomes
           outcomes={mutation.data.outcomes}
           effectiveFrom={mutation.data.effectiveFrom}
           propertyTimezone={props.propertyTimezone}
+          now={openedAt}
           subjectLabel={(subject) =>
             goalAssignmentSubjectLabel(
               subject,

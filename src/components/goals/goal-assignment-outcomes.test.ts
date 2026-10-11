@@ -15,18 +15,37 @@ afterEach(() => {
 })
 
 describe('GoalAssignmentOutcomes', () => {
-  it('dates the scheduled change in the Property timezone, wherever the viewer is', () => {
-    vi.stubEnv('TZ', 'America/New_York')
-
-    const markup = renderToStaticMarkup(
+  const render = (now: Date, effectiveFrom: Date | null) =>
+    renderToStaticMarkup(
       createElement(GoalAssignmentOutcomes, {
         outcomes: [],
-        effectiveFrom: new Date('2026-09-30T21:00:00.000Z'),
+        effectiveFrom,
         propertyTimezone: 'Europe/Sofia',
+        now,
         subjectLabel: () => 'Front desk QR',
       }),
     )
+  const SOFIA_OCTOBER = new Date('2026-09-30T21:00:00.000Z')
 
-    expect(markup).toContain('Scheduled from Oct 1, 2026 (Europe/Sofia).')
+  it('dates the saved change in the Property timezone, wherever the viewer is', () => {
+    vi.stubEnv('TZ', 'America/New_York')
+
+    const markup = render(new Date('2026-09-12T10:00:00.000Z'), SOFIA_OCTOBER)
+
+    // The same receipt, and the same date rule, as the revision dialog.
+    expect(markup).toContain('Change saved. Applies from Oct 1 (Europe/Sofia).')
+    expect(markup).not.toContain('Scheduled from')
+  })
+
+  it('prints the year of a start outside the current one', () => {
+    const markup = render(new Date('2027-01-05T10:00:00.000Z'), SOFIA_OCTOBER)
+
+    expect(markup).toContain('Change saved. Applies from Oct 1, 2026 (Europe/Sofia).')
+  })
+
+  it('says nothing about a start when no change was saved', () => {
+    const markup = render(new Date('2026-09-12T10:00:00.000Z'), null)
+
+    expect(markup).not.toContain('Change saved')
   })
 })

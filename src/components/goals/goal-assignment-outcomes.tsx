@@ -3,26 +3,32 @@ import type {
   GoalSubject,
 } from '#/contexts/reporting/application/public-api'
 import { goalSubjectKey } from './goal-subject-picker'
-import { goalRevisionStartDate } from './goal-revision-start'
+import { goalRevisionReceipt } from './goal-revision-start'
 
 export function GoalAssignmentOutcomes({
   outcomes,
   effectiveFrom,
   propertyTimezone,
+  now,
   subjectLabel,
 }: Readonly<{
   outcomes: readonly GoalAssignmentChangeOutcome[]
+  /** The start the command answered; null when nothing was changed. */
   effectiveFrom: Date | null
   /** The zone the version was cut in: `effectiveFrom` starts a month there. */
   propertyTimezone: string
+  /** The reader's clock: the start prints its year once it is another one. */
+  now: Date
   subjectLabel: (subject: GoalSubject) => string
 }>) {
   return (
     <section className="space-y-2 rounded-md bg-muted/50 p-3" aria-live="polite">
       <h3 className="text-sm font-medium">Assignment results</h3>
       {effectiveFrom ? (
+        // The receipt the revision dialog prints: one sentence and one date
+        // rule for a saved change, whichever dialog saved it.
         <p className="text-xs text-muted-foreground">
-          {`Scheduled from ${goalRevisionStartDate({ effectiveFrom, propertyTimezone })} (${propertyTimezone}).`}
+          {goalRevisionReceipt({ effectiveFrom, propertyTimezone }, now)}
         </p>
       ) : null}
       <ul className="space-y-1 text-sm">

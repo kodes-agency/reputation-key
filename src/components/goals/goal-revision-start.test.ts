@@ -3,7 +3,6 @@ import {
   goalAssignmentsDescription,
   goalRevisionDescription,
   goalRevisionReceipt,
-  goalRevisionStartDate,
   type GoalChangeSource,
 } from './goal-revision-start'
 
@@ -112,11 +111,5 @@ describe('the receipt of a saved revision', () => {
     expect(goalRevisionReceipt(sofiaMay, at('2025-12-20T12:00:00.000Z'))).toBe(
       'Change saved. Applies from May 1, 2026 (Europe/Sofia).',
     )
-  })
-})
-
-describe('goalRevisionStartDate', () => {
-  it('dates the start in the Property timezone the version was cut in', () => {
-    expect(goalRevisionStartDate(sofiaMay)).toBe('May 1, 2026')
   })
 })

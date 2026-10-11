@@ -9,7 +9,7 @@
 // before saving is the one the change is saved with, and the receipt states
 // the start the command answered.
 import { nextRevisionStart } from '#/contexts/reporting/application/goal-revision-start'
-import { formatDate, formatShortDate } from '#/lib/format'
+import { formatShortDate } from '#/lib/format'
 
 /** The part of a Goal Program version that says when it starts. */
 export type GoalVersionStart = Readonly<{ effectiveFrom: Date; propertyTimezone: string }>
@@ -18,17 +18,12 @@ export type GoalVersionStart = Readonly<{ effectiveFrom: Date; propertyTimezone:
 export type GoalChangeSource = Parameters<typeof nextRevisionStart>[0]
 
 /**
- * A change's start date, with its year, in the Property timezone its version
- * was cut in. After the Property's timezone moves east a change can start a
- * month later than the next one, and the month in between is not evaluated
- * (reporting CONTEXT.md, invariant 2), so the date is always stated, never
- * implied.
+ * "Nov 1", with its year once it is not the year the reader is in, in the
+ * Property timezone the version was cut in. After the Property's timezone
+ * moves east a change can start a month later than the next one, and the
+ * month in between is not evaluated (reporting CONTEXT.md, invariant 2), so
+ * the date is always stated, never implied.
  */
-export function goalRevisionStartDate(version: GoalVersionStart): string {
-  return formatDate(version.effectiveFrom, version.propertyTimezone) ?? 'a later date'
-}
-
-/** "Nov 1", with its year once it is not the year the reader is in. */
 const startDay = (start: Date, timezone: string, now: Date): string =>
   formatShortDate(start, timezone, now) ?? 'a later date'
 
@@ -61,10 +56,11 @@ export function goalAssignmentsDescription(
 }
 
 /**
- * The receipt the revision dialog keeps on screen once the change is saved,
- * with the start the command answered. It is the only word on the success: the
- * dialog stays open on it, so a toast saying the same thing again would be a
- * second channel for one event.
+ * The receipt a change dialog keeps on screen once the change is saved, with
+ * the start the command answered: the revision dialog under its fields, the
+ * subjects dialog above what became of each subject. In the revision dialog it
+ * is the only word on the success: the dialog stays open on it, so a toast
+ * saying the same thing again would be a second channel for one event.
  */
 export function goalRevisionReceipt(version: GoalVersionStart, now: Date): string {
   const day = startDay(version.effectiveFrom, version.propertyTimezone, now)
