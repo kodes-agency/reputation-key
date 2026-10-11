@@ -7,9 +7,9 @@
 // call it to say "Applies from {date}" before the manager saves.
 import {
   firstFullMonthlyPeriodAtOrAfter,
-  type GoalMonthlyPeriod,
   type GoalProgramStatus,
 } from '../domain/goal-program'
+import type { GoalMonthlyPeriod } from '../domain/goal-start'
 import type {
   GoalMonthlyResult,
   GoalProgramVersion,
