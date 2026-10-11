@@ -434,6 +434,29 @@ Strictly linear.
 - Bulk: title "Set goals for several portals"; description "One number per portal. Each becomes its own goal."; row states "Goal saved", "Already has a goal", "Not saved, try again", "Measure not available", plus the DTO's per-measure target messages; button "Save goals".
 - `G/new.tsx:125` → "Months follow {property}'s time zone."
 
+## Amended during implementation
+
+Each amends the slice named; the code is the reference.
+
+### Slice 1 (screens)
+
+1. **The start helpers have their own domain module**, `src/contexts/reporting/domain/goal-start.ts`, and the subject type and its identity have `domain/goal-subject.ts` (DOM re-exports both names). DOM is part of the first-paint bundle because the command DTO imports it, and a module is never split across chunks. With the helpers in DOM, using them in the new-goal form put them and the PR-RANGE calendar code into first paint: +877 B in the DTO chunk, measured. DTO re-exports `goalStartOptions` and `defaultGoalStartMonth` only; nothing outside the use case reads `resolveGoalStart`.
+2. **The loader does not compute the options.** `G/new.tsx` reads the instant its route last loaded from the router (`match.updatedAt`: the server render sends it and a loader run renews it) and works the two months out from it in the page, so the server and the browser still offer the same ones. Computing them in the loader measured +1,999 B of first paint against 21 B of headroom, and returning `Date.now()` from the loader still cost 24 B more than reading the match. On `start_month_changed` the page invalidates its own route, which renews the instant.
+3. **The start month is not a form field.** The page keeps the person's pick beside the form and submits it while it is still offered, otherwise the default (`offeredStartMonth` in `C/goals/goal-start-view.ts`). There is no form-side schema for it: both keys come from the page and the command checks them.
+4. **"Starts on" follows the date, not the status.** The goal page reads "Starts on {date} · set on {date}" while the first month is still ahead and "Counts from {date} · set on {date}" from its first instant, so a goal waiting for its metric source in a month that has begun does not say it starts in the past. A goal ended before its first month reads "Never started · set on {date}". The empty results card reads "Results start on {date}." or "Results start when the metric source is ready."
+5. **The conflict copy stops before "or change this month's target"** until Slice 3b builds that command: "{Portal} has a goal for this measure that ends Oct 31. Start the new goal next month." Before the Property's goals have been read it says "A subject you chose already has a goal for this measure."
+6. **`metric_unavailable`** reads "This measure can’t be read for this month right now. Start the goal next month, or try again later." when the goal was to start this month, otherwise "This measure can’t be read right now. Try again later."
+7. **One formatter for the year rule:** `formatShortDate(value, zone, now)` in `src/lib/format.ts` prints the year when the day is not in the current year of the Property's calendar.
+8. **Group card note:** "Set by {name} on {date} · the month ends …"; without a name, "Set on {date} · …".
+9. **Bundle:** a fresh production build of the screens measured 310,294 B against 310,279 B before them, of 310,300 B. The +15 B are the two server-function stubs the pages now import (+6 B) and renamed chunk references. The budget was not raised. Two things would free room: `goalKeys.staff` has no reader, and the goal command DTO (1,148 B) is in first paint only because the server-function stubs keep a side-effect import of it after their validators are stripped.
+
+### Slice 1 (server), as built
+
+1. `createGoalCore` and `createGoal` live in `goal-program-create.ts`, beside UC, so Slice 4's sibling can import the core without a cycle. `REPO.create` answers `'created' | 'subject_has_goal'`.
+2. The notices say "The goal was set during the month.": the lookup fact is a boolean and the payload field an enum, so no date reaches the template. The Recent Activity row carries the marker as `detail: 'eligible:set_in_month'`, on a met month only.
+3. The month key is `dayKeyInTimezone(...)` with its separator replaced: that function returns `yyyy_MM_dd`.
+4. The read behind `previewGoalMonth` is `readGoalMonthPreview` in `goal-month-preview.ts`.
+
 ## Out of scope, noted
 
 - The "behind pace" signal cannot fire: open rows are inserted as `updating` and nothing produces an open and eligible row. Only its target expression is touched.
