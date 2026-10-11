@@ -3,7 +3,8 @@
 // One subject carries one goal per measure at a time. This is the rule the
 // database's no-overlap constraint enforces and the create command checks
 // before it writes, stated once for a form that has the goal list in hand: it
-// can say which goal holds a subject, and until when, without another request.
+// can say which goal holds a subject, with what target and until when, without
+// another request.
 import type { GoalMetric } from '../domain/goal-program'
 import { goalSubjectIdentity, type GoalSubject } from '../domain/goal-subject'
 import type {
@@ -13,8 +14,11 @@ import type {
 
 export type GoalSubjectHold = Readonly<{
   subject: GoalSubject
-  /** The name of the goal that holds the subject. */
+  /** The goal that holds the subject. */
+  programId: string
   programName: string
+  /** The target of the version the holding assignment belongs to. */
+  targetValue: number
   /** Null while the goal is live; otherwise the instant the subject is free again. */
   heldUntil: Date | null
 }>
@@ -55,9 +59,15 @@ export function subjectHolds(
       const identity = goalSubjectIdentity(assignment.subject)
       const known = holds.get(identity)
       if (known && !holdOutlasts(assignment.effectiveTo, known.heldUntil)) continue
+      const version =
+        bundle.versions.find(
+          (candidate) => candidate.id === assignment.programVersionId,
+        ) ?? bundle.version
       holds.set(identity, {
         subject: assignment.subject,
+        programId: bundle.program.id,
         programName: bundle.program.name,
+        targetValue: version.targetValue,
         heldUntil: assignment.effectiveTo,
       })
     }

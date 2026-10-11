@@ -20,7 +20,11 @@ type Window = Readonly<{
   metric?: GoalMetric
 }>
 
-function program(id: string, windows: readonly Window[]): GoalProgramBundle {
+function program(
+  id: string,
+  windows: readonly Window[],
+  target = 400,
+): GoalProgramBundle {
   const version: GoalProgramVersion = {
     id: `${id}-v1`,
     programId: id,
@@ -31,7 +35,7 @@ function program(id: string, windows: readonly Window[]): GoalProgramBundle {
     metricDefinitionVersionId: 'definition-version-1',
     metric: 'portal_rating_count',
     metricMinimumSample: 0,
-    targetValue: 400,
+    targetValue: target,
     propertyTimezone: 'UTC',
     effectiveFrom: OCTOBER,
     effectiveTo: null,
@@ -104,15 +108,21 @@ describe('holdOutlasts', () => {
 })
 
 describe('subjectHolds', () => {
-  it('names the live goal that holds a subject', () => {
+  it('names the live goal that holds a subject, and that goal’s target', () => {
     const holds = subjectHolds(
-      [program('ratings', [{ subject: lobby, from: OCTOBER, to: null }])],
+      [program('ratings', [{ subject: lobby, from: OCTOBER, to: null }], 300)],
       'portal_rating_count',
       OCTOBER,
     )
 
     expect(holds).toEqual([
-      { subject: lobby, programName: 'Goal ratings', heldUntil: null },
+      {
+        subject: lobby,
+        programId: 'ratings',
+        programName: 'Goal ratings',
+        targetValue: 300,
+        heldUntil: null,
+      },
     ])
   })
 
@@ -120,7 +130,13 @@ describe('subjectHolds', () => {
     const ended = program('ended', [{ subject: lobby, from: OCTOBER, to: NOVEMBER }])
 
     expect(subjectHolds([ended], 'portal_rating_count', OCTOBER)).toEqual([
-      { subject: lobby, programName: 'Goal ended', heldUntil: NOVEMBER },
+      {
+        subject: lobby,
+        programId: 'ended',
+        programName: 'Goal ended',
+        targetValue: 400,
+        heldUntil: NOVEMBER,
+      },
     ])
     expect(subjectHolds([ended], 'portal_rating_count', NOVEMBER)).toEqual([])
   })
@@ -152,8 +168,86 @@ describe('subjectHolds', () => {
     const holds = subjectHolds([ending, successor], 'portal_rating_count', OCTOBER)
 
     expect(holds).toEqual([
-      { subject: lobby, programName: 'Goal successor', heldUntil: null },
-      { subject: bar, programName: 'Goal successor', heldUntil: DECEMBER },
+      expect.objectContaining({
+        subject: lobby,
+        programId: 'successor',
+        programName: 'Goal successor',
+        heldUntil: null,
+      }),
+      expect.objectContaining({
+        subject: bar,
+        programId: 'successor',
+        programName: 'Goal successor',
+        heldUntil: DECEMBER,
+      }),
+    ])
+  })
+
+  // A revised goal keeps its subject under a new version. The bulk table shows
+  // an occupied row with the target that governs from `from` on: the one of the
+  // version whose assignment holds the subject longest, not the one it replaced.
+  it('uses the target of the version the holding assignment belongs to', () => {
+    const revised = program('revised', [{ subject: lobby, from: OCTOBER, to: NOVEMBER }])
+    const first = revised.assignments[0]
+    if (!first) throw new Error('the fixture has one assignment')
+    const next: GoalProgramVersion = {
+      ...revised.version,
+      id: 'revised-v2',
+      version: 2,
+      targetValue: 550,
+      effectiveFrom: NOVEMBER,
+    }
+    const bundle: GoalProgramBundle = {
+      ...revised,
+      version: next,
+      versions: [{ ...revised.version, effectiveTo: NOVEMBER }, next],
+      assignments: [
+        first,
+        {
+          ...first,
+          id: 'revised-a2',
+          programVersionId: next.id,
+          effectiveFrom: NOVEMBER,
+          effectiveTo: null,
+        },
+      ],
+    }
+
+    expect(subjectHolds([bundle], 'portal_rating_count', OCTOBER)).toEqual([
+      {
+        subject: lobby,
+        programId: 'revised',
+        programName: 'Goal revised',
+        targetValue: 550,
+        heldUntil: null,
+      },
+    ])
+  })
+
+  it('a goal ending this month is shown with the target it ends on', () => {
+    const revised = program(
+      'ending',
+      [{ subject: lobby, from: OCTOBER, to: NOVEMBER }],
+      320,
+    )
+    const head: GoalProgramVersion = {
+      ...revised.version,
+      id: 'ending-v2',
+      version: 2,
+      targetValue: 900,
+      effectiveFrom: NOVEMBER,
+      effectiveTo: NOVEMBER,
+    }
+    // The head was superseded before it began: it holds no subject, so its
+    // target is not the one the occupied row shows.
+    const bundle: GoalProgramBundle = {
+      ...revised,
+      version: head,
+      versions: [{ ...revised.version, effectiveTo: NOVEMBER }, head],
+    }
+
+    expect(subjectHolds([bundle], 'portal_rating_count', OCTOBER)).toEqual([
+      expect.objectContaining({ programId: 'ending', targetValue: 320 }),
     ])
   })
 })
