@@ -448,7 +448,7 @@ Each amends the slice named; the code is the reference.
 6. **`metric_unavailable`** reads "This measure can’t be read for this month right now. Start the goal next month, or try again later." when the goal was to start this month, otherwise "This measure can’t be read right now. Try again later."
 7. **One formatter for the year rule:** `formatShortDate(value, zone, now)` in `src/lib/format.ts` prints the year when the day is not in the current year of the Property's calendar.
 8. **Group card note:** "Set by {name} on {date} · the month ends …"; without a name, "Set on {date} · …".
-9. **Bundle:** a fresh production build of the screens measured 310,294 B against 310,279 B before them, of 310,300 B. The +15 B are the two server-function stubs the pages now import (+6 B) and renamed chunk references. The budget was not raised. Two things would free room: `goalKeys.staff` has no reader, and the goal command DTO (1,148 B) is in first paint only because the server-function stubs keep a side-effect import of it after their validators are stripped.
+9. **Bundle:** a fresh production build of the screens measured 310,285 B against 310,279 B before them, of 310,300 B (entry 49,506 B). The pages now import two server-function stubs (+6 B). The rest is noise: the entry lists every chunk by its hashed name, so a change to a lazy chunk alone moves the total by about 10 B (the commit before the last measured 310,294 B with the same first-paint code). The budget was not raised. Two things would free room: `goalKeys.staff` has no reader, and the goal command DTO (1,148 B) is in first paint only because the server-function stubs keep a side-effect import of it after their validators are stripped.
 
 ### Slice 1 (server), as built
 
