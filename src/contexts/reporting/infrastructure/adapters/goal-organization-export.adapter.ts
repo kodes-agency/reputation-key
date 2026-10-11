@@ -100,6 +100,8 @@ const MONTHLY_RESULT_COLUMNS = [
   'period_end',
   'property_timezone',
   'status',
+  // The month's own target; empty when the month used its version's target.
+  'target_value',
   'evaluation_state',
   'value',
   'sample_count',
@@ -126,6 +128,22 @@ const RESULT_REVISION_COLUMNS = [
   'source_complete_through',
   'evaluation_watermark',
   'change_reason',
+  'created_by',
+  'created_at',
+] as const
+
+const MONTH_TARGET_CHANGE_COLUMNS = [
+  'id',
+  'monthly_result_id',
+  'program_id',
+  'property_id',
+  'change_id',
+  'previous_target_value',
+  'new_target_value',
+  'following_outcome',
+  'following_reason',
+  'following_version_id',
+  'note',
   'created_by',
   'created_at',
 ] as const
@@ -336,6 +354,7 @@ async function readFamilies(
               to_char(period_end AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS period_end,
               property_timezone,
               status,
+              target_value,
               evaluation_state,
               value,
               sample_count,
@@ -372,6 +391,28 @@ async function readFamilies(
             WHERE organization_id = ${organizationId}
             ORDER BY monthly_result_id, revision`,
       )
+      // Every change to a month's own target: who, when, the old and the new
+      // value, the optional note, and what happened to the months after it.
+      const monthTargetChanges = await readRows(
+        snapshot,
+        sql`SELECT
+              id,
+              monthly_result_id,
+              program_id,
+              property_id,
+              change_id,
+              previous_target_value,
+              new_target_value,
+              following_outcome,
+              following_reason,
+              following_version_id,
+              note,
+              created_by,
+              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
+            FROM goal_month_target_changes
+            WHERE organization_id = ${organizationId}
+            ORDER BY program_id, monthly_result_id, created_at, id`,
+      )
 
       // Declared in ascending path order so the emitted entries already agree
       // with the archive's UTF-8 byte ordering.
@@ -404,6 +445,11 @@ async function readFamilies(
               columns: RESULT_REVISION_COLUMNS,
               records: projectRows(resultRevisions, RESULT_REVISION_COLUMNS),
             },
+            {
+              recordType: 'goal_month_target_change',
+              columns: MONTH_TARGET_CHANGE_COLUMNS,
+              records: projectRows(monthTargetChanges, MONTH_TARGET_CHANGE_COLUMNS),
+            },
           ],
         },
         {
@@ -427,7 +473,8 @@ async function readFamilies(
  *
  * Exports each Goal Program and its immutable version intervals, Property,
  * Portal Group, and Portal subject assignments, and every monthly result with
- * its revision chain.
+ * its own target (when it has one), its revision chain, and the log of changes
+ * to its target.
  *
  * It reads no metric table: a Goal result carries its own value, sample count,
  * state, and completeness evidence, while Metric stays the single owner of

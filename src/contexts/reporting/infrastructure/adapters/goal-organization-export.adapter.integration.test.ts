@@ -39,7 +39,11 @@ type Fixture = Readonly<{
   ratingCountProgram: ProgramFixture
   ratingAverageProgram: ProgramFixture
   monthlyResultId: string
+  /** A closed month that used its version's target. */
+  versionTargetMonthId: string
   revisionId: string
+  targetChangeId: string
+  targetChangeGroupId: string
 }>
 
 async function seedOrganization(prefix: string): Promise<string> {
@@ -141,7 +145,10 @@ async function seedFixture(): Promise<Fixture> {
     ratingCountProgram: programFixture(),
     ratingAverageProgram: programFixture(),
     monthlyResultId: randomUUID(),
+    versionTargetMonthId: randomUUID(),
     revisionId: randomUUID(),
+    targetChangeId: randomUUID(),
+    targetChangeGroupId: randomUUID(),
   }
 
   await lease.pool.query(
@@ -202,15 +209,18 @@ async function seedFixture(): Promise<Fixture> {
     { kind: 'property', portalId: null, groupId: null },
   )
 
+  // June closed against its own target of 80 (the version says 100); July
+  // closed with no target of its own.
   await lease.pool.query(
     `INSERT INTO goal_monthly_results (
        id, assignment_id, program_id, program_version_id, organization_id,
        property_id, period_start, period_end, property_timezone, status,
-       evaluation_state, value, sample_count, achieved, source_complete_through,
-       evaluation_watermark, closed_at, created_at, updated_at
+       target_value, evaluation_state, value, sample_count, achieved,
+       source_complete_through, evaluation_watermark, closed_at, created_at,
+       updated_at
      ) VALUES ($1, $2, $3, $4, $5, $6,
                TIMESTAMPTZ '2026-06-01T00:00:00Z', TIMESTAMPTZ '2026-07-01T00:00:00Z',
-               'UTC', 'closed', 'eligible', 30, 30, false,
+               'UTC', 'closed', 80, 'eligible', 30, 30, false,
                TIMESTAMPTZ '2026-07-01T00:00:00Z', TIMESTAMPTZ '2026-07-02T00:00:00Z',
                TIMESTAMPTZ '2026-07-02T00:00:00Z', NOW(), NOW())`,
     [
@@ -220,6 +230,43 @@ async function seedFixture(): Promise<Fixture> {
       fixture.scanProgram.versionId,
       organizationId,
       fixture.propertyId,
+    ],
+  )
+  await lease.pool.query(
+    `INSERT INTO goal_monthly_results (
+       id, assignment_id, program_id, program_version_id, organization_id,
+       property_id, period_start, period_end, property_timezone, status,
+       evaluation_state, value, sample_count, achieved, source_complete_through,
+       evaluation_watermark, closed_at, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, $5, $6,
+               TIMESTAMPTZ '2026-07-01T00:00:00Z', TIMESTAMPTZ '2026-08-01T00:00:00Z',
+               'UTC', 'closed', 'eligible', 40, 40, false,
+               TIMESTAMPTZ '2026-08-01T00:00:00Z', TIMESTAMPTZ '2026-08-02T00:00:00Z',
+               TIMESTAMPTZ '2026-08-02T00:00:00Z', NOW(), NOW())`,
+    [
+      fixture.versionTargetMonthId,
+      fixture.scanProgram.assignmentId,
+      fixture.scanProgram.programId,
+      fixture.scanProgram.versionId,
+      organizationId,
+      fixture.propertyId,
+    ],
+  )
+  await lease.pool.query(
+    `INSERT INTO goal_month_target_changes (
+       id, organization_id, property_id, program_id, monthly_result_id, change_id,
+       previous_target_value, new_target_value, following_outcome, note,
+       created_by, created_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, 100, 80, 'not_requested',
+               'Terrace closed for two weeks', 'user-goal-export',
+               TIMESTAMPTZ '2026-06-20T10:00:00Z')`,
+    [
+      fixture.targetChangeId,
+      organizationId,
+      fixture.propertyId,
+      fixture.scanProgram.programId,
+      fixture.monthlyResultId,
+      fixture.targetChangeGroupId,
     ],
   )
   await lease.pool.query(
@@ -268,6 +315,7 @@ describe.sequential('Goal Organization Export contributor', () => {
       await lease.pool.query(`ALTER TABLE ${guard.table} DISABLE TRIGGER ${guard.name}`)
     }
     for (const table of [
+      'goal_month_target_changes',
       'goal_result_revisions',
       'goal_monthly_results',
       'goal_subject_assignments',
@@ -379,15 +427,59 @@ describe.sequential('Goal Organization Export contributor', () => {
       evaluation_state: 'eligible',
       period_start: '2026-06-01T00:00:00.000000Z',
       period_end: '2026-07-01T00:00:00.000000Z',
+      target_value: '80.0000000000',
       value: '30.0000000000',
       sample_count: 30,
       achieved: false,
+    })
+    // A month that used its version's target says so with no target of its own.
+    expect(results[1]).toMatchObject({
+      id: fixture.versionTargetMonthId,
+      target_value: null,
     })
     expect(
       records(contribution.entries, 'goal/results.json', 'goal_result_revision').map(
         ({ id, revision }) => ({ id, revision }),
       ),
     ).toEqual([{ id: fixture.revisionId, revision: 1 }])
+  })
+
+  it("exports this Organization's month target changes and no other's", async () => {
+    const fixture = await seedFixture()
+    const other = await seedFixture()
+    const contribution = await createGoalOrganizationExportAdapter(db).contribute({
+      organizationId: fixture.organizationId,
+      requestId: randomUUID(),
+      asOf: new Date(Date.now() - 1000),
+    })
+
+    const changes = records(
+      contribution.entries,
+      'goal/results.json',
+      'goal_month_target_change',
+    )
+    expect(changes).toEqual([
+      {
+        id: fixture.targetChangeId,
+        monthly_result_id: fixture.monthlyResultId,
+        program_id: fixture.scanProgram.programId,
+        property_id: fixture.propertyId,
+        change_id: fixture.targetChangeGroupId,
+        previous_target_value: '100.0000000000',
+        new_target_value: '80.0000000000',
+        following_outcome: 'not_requested',
+        following_reason: null,
+        following_version_id: null,
+        note: 'Terrace closed for two weeks',
+        created_by: 'user-goal-export',
+        created_at: '2026-06-20T10:00:00.000000Z',
+      },
+    ])
+    expect(changes.map(({ id }) => id)).not.toContain(other.targetChangeId)
+    const csv = decode(
+      contribution.entries.find((entry) => entry.path === 'goal/results.csv')!.bytes,
+    )
+    expect(csv).toContain(`goal_month_target_change,${fixture.targetChangeId},`)
   })
 
   it('answers no_data for an Organization that configured no goal', async () => {
