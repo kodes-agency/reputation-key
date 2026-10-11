@@ -120,13 +120,15 @@ async function seedTenantRows(
       VERSION_FROM,
     ],
   )
+  // The month closed against its own target of 8 (the version says 10).
   await lease.pool.query(
     `INSERT INTO goal_monthly_results
        (id, assignment_id, program_id, program_version_id, organization_id, property_id,
-        period_start, period_end, property_timezone, status, evaluation_state,
-        sample_count, evaluation_watermark, closed_at, created_at, updated_at)
+        period_start, period_end, property_timezone, status, target_value,
+        evaluation_state, sample_count, evaluation_watermark, closed_at, created_at,
+        updated_at)
      VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6::uuid, $7, $8, 'UTC',
-             'closed', 'unavailable', 0, $9, $9, $9, $9)`,
+             'closed', 8, 'unavailable', 0, $9, $9, $9, $9)`,
     [
       monthlyResultId,
       assignmentId,
@@ -137,6 +139,27 @@ async function seedTenantRows(
       PERIOD_START,
       PERIOD_END,
       CLOSED_AT,
+    ],
+  )
+  // The log row that recorded that change. It references the month, the
+  // Program and a version with ON DELETE RESTRICT, so purge must delete it
+  // before any of the three.
+  await lease.pool.query(
+    `INSERT INTO goal_month_target_changes
+       (id, organization_id, property_id, program_id, monthly_result_id, change_id,
+        previous_target_value, new_target_value, following_outcome,
+        following_version_id, created_by, created_at)
+     VALUES ($1::uuid, $2, $3::uuid, $4::uuid, $5::uuid, $6::uuid, 10, 8, 'applied',
+             $7::uuid, 'user:test', $8)`,
+    [
+      randomUUID(),
+      organizationId,
+      fixture.propertyId,
+      fixture.programId,
+      monthlyResultId,
+      randomUUID(),
+      programVersionId,
+      PERIOD_START,
     ],
   )
   // A two-link revision lineage: `supersedes_revision_id` is ON DELETE
