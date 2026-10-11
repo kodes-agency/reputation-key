@@ -16,12 +16,6 @@ type ExportRecord = Readonly<Record<string, ExportScalar>>
 type ExportCollection = Readonly<{
   recordType: string
   columns: readonly string[]
-  /**
-   * Columns this record type gained after its file first shipped. They are
-   * exported like the others; the CSV heading lists them after every column
-   * the file already had, so none of those changes position.
-   */
-  addedColumns?: readonly string[]
   records: readonly ExportRecord[]
 }>
 
@@ -38,8 +32,6 @@ type ExportFamily = Readonly<{
  */
 const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
 
-// Still v1 after the results file gained a month's own target and the log of
-// its changes: both only add columns and records, and nothing parses this id.
 const EXPORT_PAYLOAD_VERSION = 'goal-organization-export/v1' as const
 const SNAPSHOT_BOUND = 'repeatable_read_within_15m_of_request' as const
 
@@ -120,8 +112,16 @@ const MONTHLY_RESULT_COLUMNS = [
   'updated_at',
 ] as const
 
-/** The month's own target; empty when the month used its version's target. */
-const MONTHLY_RESULT_ADDED_COLUMNS = ['target_value'] as const
+/**
+ * What a monthly result gained after goal/results.csv first shipped: the
+ * month's own target, empty when the month used its version's target. It is
+ * exported like every other column but named at the end of the file's heading
+ * (see the results family below), so no earlier column changes position.
+ *
+ * The payload version stays v1 with this column and the change log in the
+ * file: both only add columns and records, and nothing parses the version.
+ */
+const MONTHLY_RESULT_LATE_COLUMNS = ['target_value'] as const
 
 const MONTH_TARGET_CHANGE_COLUMNS = [
   'id',
@@ -201,13 +201,13 @@ async function readRows(
 }
 
 function csvEntry(family: ExportFamily): OrganizationExportEntry {
-  const header = [
-    ...new Set([
-      'record_type',
-      ...family.collections.flatMap((collection) => collection.columns),
-      ...family.collections.flatMap((collection) => collection.addedColumns ?? []),
-    ]),
-  ]
+  const header = family.collections.reduce<readonly string[]>(
+    (columns, collection) => [
+      ...columns,
+      ...collection.columns.filter((column) => !columns.includes(column)),
+    ],
+    ['record_type'],
+  )
   const lines = [
     header.join(','),
     ...family.collections.flatMap((collection) =>
@@ -447,10 +447,9 @@ async function readFamilies(
             {
               recordType: 'goal_monthly_result',
               columns: MONTHLY_RESULT_COLUMNS,
-              addedColumns: MONTHLY_RESULT_ADDED_COLUMNS,
               records: projectRows(monthlyResults, [
                 ...MONTHLY_RESULT_COLUMNS,
-                ...MONTHLY_RESULT_ADDED_COLUMNS,
+                ...MONTHLY_RESULT_LATE_COLUMNS,
               ]),
             },
             {
@@ -460,7 +459,10 @@ async function readFamilies(
             },
             {
               recordType: 'goal_month_target_change',
-              columns: MONTH_TARGET_CHANGE_COLUMNS,
+              // `columns` only orders the CSV heading, which names each record
+              // type's columns in turn. Naming the month's late column after
+              // this last record type's own puts it at the end of the file.
+              columns: [...MONTH_TARGET_CHANGE_COLUMNS, ...MONTHLY_RESULT_LATE_COLUMNS],
               records: projectRows(monthTargetChanges, MONTH_TARGET_CHANGE_COLUMNS),
             },
           ],
