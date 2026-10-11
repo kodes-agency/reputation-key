@@ -14,6 +14,12 @@ const ORGANIZATION_ID = organizationId('ai-trend-workflow-test')
 const PROPERTY_ID = propertyId('71000000-0000-4000-8000-000000000201')
 const SCHEDULE_ID = '71000000-0000-4000-8000-000000000202'
 const SHA = 'a'.repeat(64)
+/** The job's payload: the schedule and the scope the gate authorized it for. */
+const RUN = {
+  scheduleId: SCHEDULE_ID,
+  organizationId: ORGANIZATION_ID,
+  propertyId: PROPERTY_ID,
+} as const
 
 function aggregateDay(localDate: string, reviewCount: number): AiPropertyDailyAggregate {
   return {
@@ -227,6 +233,25 @@ function createHarness(
 }
 
 describe('generate property trend', () => {
+  // The delayed-execution gate decides the job for the scope in its payload;
+  // the work below runs for the schedule's. One must never stand in for the other.
+  it.each([
+    ['Organization', { ...RUN, organizationId: organizationId('another-organization') }],
+    [
+      'Property',
+      { ...RUN, propertyId: propertyId('71000000-0000-4000-8000-000000000299') },
+    ],
+  ])('refuses a run authorized for another %s than its schedule', async (_, run) => {
+    const harness = createHarness([trendDay('2024-02-01', 2)])
+
+    await expect(harness.generate(run)).rejects.toThrow(
+      'AI property trend job scope does not match its schedule',
+    )
+    expect(harness.readWindow).not.toHaveBeenCalled()
+    expect(harness.recordProviderFreeOutcome).not.toHaveBeenCalled()
+    expect(harness.recordDeterministicReport).not.toHaveBeenCalled()
+  })
+
   it('retries instead of generating a trend from provisional aggregate coverage', async () => {
     const harness = createHarness([trendDay('2024-02-01', 2)], defaultEvidence(), {
       settledAnalysisCount: 39,
@@ -234,7 +259,7 @@ describe('generate property trend', () => {
       awaitingAnalysisCount: 1,
     })
 
-    await expect(harness.generate({ scheduleId: SCHEDULE_ID })).resolves.toEqual({
+    await expect(harness.generate(RUN)).resolves.toEqual({
       status: 'retry',
       retryAtEpochMillis: NOW + 60_000,
       code: 'trend_sequence_or_aggregate_gap',
@@ -252,7 +277,7 @@ describe('generate property trend', () => {
       evidence,
     )
 
-    await expect(harness.generate({ scheduleId: SCHEDULE_ID })).resolves.toEqual({
+    await expect(harness.generate(RUN)).resolves.toEqual({
       status: 'no_data',
     })
     expect(harness.readWindow).toHaveBeenCalledWith(
@@ -288,7 +313,7 @@ describe('generate property trend', () => {
       aggregateDay('2024-03-01', 20),
     ])
 
-    await expect(harness.generate({ scheduleId: SCHEDULE_ID })).resolves.toEqual({
+    await expect(harness.generate(RUN)).resolves.toEqual({
       status: 'no_data',
     })
     expect(harness.recordProviderFreeOutcome).toHaveBeenCalledWith({
@@ -305,7 +330,7 @@ describe('generate property trend', () => {
   it('commits the deterministically ranked report without calling inference', async () => {
     const harness = createHarness([trendDay('2024-02-01', 2), trendDay('2024-03-01', 8)])
 
-    await expect(harness.generate({ scheduleId: SCHEDULE_ID })).resolves.toEqual({
+    await expect(harness.generate(RUN)).resolves.toEqual({
       status: 'completed',
     })
     expect(harness.recordDeterministicReport).toHaveBeenCalledWith(
@@ -374,7 +399,7 @@ describe('generate property trend', () => {
       evidence,
     )
 
-    await expect(harness.generate({ scheduleId: SCHEDULE_ID })).resolves.toEqual({
+    await expect(harness.generate(RUN)).resolves.toEqual({
       status: 'no_data',
     })
     expect(harness.recordProviderFreeOutcome).toHaveBeenCalledWith(
@@ -402,7 +427,7 @@ describe('generate property trend', () => {
       evidence,
     )
 
-    await harness.generate({ scheduleId: SCHEDULE_ID })
+    await harness.generate(RUN)
 
     expect(harness.recordDeterministicReport).toHaveBeenCalledWith(
       expect.objectContaining({
