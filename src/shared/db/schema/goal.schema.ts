@@ -423,7 +423,8 @@ export const goalResultRevisions = pgTable(
 // Every change to a month's own target: who, when, the old and the new value
 // and an optional note. One command writes one row per month it changed, all
 // sharing `changeId`. `followingOutcome` records what happened to the months
-// after it. Append-only through its repository write surface; no trigger.
+// after it. Rows are only appended. The table has no guard trigger: it records
+// a value from before the month closed, not closed evidence.
 export const goalMonthTargetChanges = pgTable(
   'goal_month_target_changes',
   {

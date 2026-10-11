@@ -214,8 +214,8 @@ export const resultValues = (result: GoalMonthlyResult) => ({
   periodEnd: result.periodEnd,
   propertyTimezone: result.propertyTimezone,
   status: result.status,
-  // A month always opens on its version's target. Only the month-target
-  // command sets this column, with an UPDATE of the running month.
+  // A month always opens on its version's target. The column is only ever
+  // set by an UPDATE of a month that is still running.
   targetValue: null,
   evaluationState: result.evaluation.state,
   value: result.evaluation.value,
