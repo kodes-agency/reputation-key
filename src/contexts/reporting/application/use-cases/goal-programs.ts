@@ -27,6 +27,7 @@ import {
   type GoalProgramMaintenanceStats,
 } from './goal-program-maintenance'
 import {
+  assertSubjectsAreFree,
   assignmentFor,
   GoalProgramError,
   isMetricSourceInactive,
@@ -143,7 +144,7 @@ async function reviseGoal(
   // later and the skipped local month is not evaluated under either
   // version. The caller shows the returned start date.
   const { head, period } = nextRevisionStart(current, now, timezone)
-  const conflicts = await deps.repository.findAssignmentConflicts({
+  await assertSubjectsAreFree(deps, {
     organizationId: actor.organizationId,
     propertyId: input.propertyId,
     excludeProgramId: current.program.id,
@@ -151,7 +152,6 @@ async function reviseGoal(
     effectiveFrom: period.start,
     subjects: input.subjects,
   })
-  if (conflicts.length > 0) throw new GoalProgramError('subject_has_goal')
   const sourceInactive = await isMetricSourceInactive(deps, {
     organizationId: actor.organizationId,
     propertyId: input.propertyId,

@@ -143,6 +143,20 @@ export async function loadChangeableProgram(
   return current
 }
 
+/**
+ * Refuses with `subject_has_goal` when another Program holds one of the
+ * subjects for the metric from `effectiveFrom`: one subject carries one goal
+ * per measure at a time. A Program being changed leaves its own assignments
+ * out with `excludeProgramId`.
+ */
+export async function assertSubjectsAreFree(
+  deps: Pick<GoalProgramDependencies, 'repository'>,
+  query: Parameters<GoalProgramRepository['findAssignmentConflicts']>[0],
+): Promise<void> {
+  const conflicts = await deps.repository.findAssignmentConflicts(query)
+  if (conflicts.length > 0) throw new GoalProgramError('subject_has_goal')
+}
+
 export function assignmentFor(
   input: Readonly<{
     id: string
