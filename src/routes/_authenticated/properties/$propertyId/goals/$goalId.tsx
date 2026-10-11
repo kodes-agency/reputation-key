@@ -229,7 +229,8 @@ function GoalDetailRoute() {
           </p>
           <p>
             {goalStartLine({
-              neverStarted: program.status === 'ended' && results.length === 0,
+              ended: program.status === 'ended',
+              months: results,
               countsFrom: provenance.countsFrom,
               setAt: provenance.setAt,
               ...calendar,

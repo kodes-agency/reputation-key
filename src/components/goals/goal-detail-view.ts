@@ -20,9 +20,11 @@ export const goalDay = (date: Date, { timezone, now }: Calendar): string =>
 
 export type GoalStartFacts = Calendar &
   Readonly<{
-    /** Ended with no month ever opened. */
-    neverStarted: boolean
-    /** The first month counted against the target, or the planned start. */
+    /** The goal has ended: no further month will open. */
+    ended: boolean
+    /** The months the goal has opened so far, under any target. */
+    months: readonly Readonly<{ periodStart: Date }>[]
+    /** The first month counted against the target, or the month planned for it. */
     countsFrom: Date
     /** When the target now in force was set. */
     setAt: Date
@@ -30,15 +32,25 @@ export type GoalStartFacts = Calendar &
 
 /**
  * "Counts from Oct 1 · set on Oct 11", or "Starts on Nov 1 · set on Oct 21"
- * while that month is still ahead. A goal ended before its first month says so.
+ * while the goal's first month is still ahead.
+ *
+ * A target changed while a month is running waits for the next one, and the
+ * goal goes on counting under the target before it: that reads "Target applies
+ * from Nov 1 · set on Oct 12", never "Starts on". A goal that ended first says
+ * the target never applied, and one ended before its first month says so.
  */
 export function goalStartLine(facts: GoalStartFacts): string {
   const set = `set on ${goalDay(facts.setAt, facts)}`
-  if (facts.neverStarted) return `Never started · ${set}`
+  const started = facts.months.length > 0
+  if (facts.ended && !started) return `Never started · ${set}`
+  // No month has opened under this target yet: every month so far began
+  // before the one it counts from.
+  const waiting =
+    started && facts.months.every((month) => month.periodStart < facts.countsFrom)
+  if (waiting && facts.ended) return `Target never applied · ${set}`
   const from = goalDay(facts.countsFrom, facts)
-  return facts.countsFrom > facts.now
-    ? `Starts on ${from} · ${set}`
-    : `Counts from ${from} · ${set}`
+  if (facts.countsFrom <= facts.now) return `Counts from ${from} · ${set}`
+  return started ? `Target applies from ${from} · ${set}` : `Starts on ${from} · ${set}`
 }
 
 /** A Program's status note in words; a note with no wording here is never shown as a code. */

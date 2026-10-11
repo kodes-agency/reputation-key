@@ -32,9 +32,13 @@ describe('goalDay', () => {
 })
 
 describe('goalStartLine', () => {
+  const SEPTEMBER_START = at('2026-08-31T21:00:00.000Z')
+  const month = (periodStart: Date) => ({ periodStart })
+
   it('says which month a started goal counts from and when it was set', () => {
     const line = goalStartLine({
-      neverStarted: false,
+      ended: false,
+      months: [month(OCTOBER.start)],
       countsFrom: OCTOBER.start,
       setAt: at('2026-10-11T08:00:00.000Z'),
       timezone: ZONE,
@@ -46,7 +50,8 @@ describe('goalStartLine', () => {
 
   it('says when a goal whose first month is still ahead will start', () => {
     const line = goalStartLine({
-      neverStarted: false,
+      ended: false,
+      months: [],
       countsFrom: NOVEMBER_START,
       setAt: at('2026-10-21T08:00:00.000Z'),
       timezone: ZONE,
@@ -58,7 +63,8 @@ describe('goalStartLine', () => {
 
   it('counts from the first instant of the month, not after it', () => {
     const line = goalStartLine({
-      neverStarted: false,
+      ended: false,
+      months: [],
       countsFrom: NOVEMBER_START,
       setAt: at('2026-10-21T08:00:00.000Z'),
       timezone: ZONE,
@@ -70,7 +76,8 @@ describe('goalStartLine', () => {
 
   it('never says a goal ended before its first month counts from it', () => {
     const line = goalStartLine({
-      neverStarted: true,
+      ended: true,
+      months: [],
       countsFrom: NOVEMBER_START,
       setAt: at('2026-10-21T08:00:00.000Z'),
       timezone: ZONE,
@@ -80,9 +87,82 @@ describe('goalStartLine', () => {
     expect(line).toBe('Never started · set on Oct 21')
   })
 
+  it('never says a goal that is counting starts later because its target changes', () => {
+    // September and October counted against 400. On the 12th the target was
+    // changed to 500 from November: October is still running under 400.
+    const line = goalStartLine({
+      ended: false,
+      months: [month(SEPTEMBER_START), month(OCTOBER.start)],
+      countsFrom: NOVEMBER_START,
+      setAt: at('2026-10-12T08:00:00.000Z'),
+      timezone: ZONE,
+      now: at('2026-10-12T09:00:00.000Z'),
+    })
+
+    expect(line).toBe('Target applies from Nov 1 · set on Oct 12')
+  })
+
+  it('counts from the month a changed target applies to once that month begins', () => {
+    const facts = {
+      ended: false,
+      countsFrom: NOVEMBER_START,
+      setAt: at('2026-10-12T08:00:00.000Z'),
+      timezone: ZONE,
+    }
+
+    // The first instant of November, before its result has been opened.
+    expect(
+      goalStartLine({
+        ...facts,
+        months: [month(SEPTEMBER_START), month(OCTOBER.start)],
+        now: NOVEMBER_START,
+      }),
+    ).toBe('Counts from Nov 1 · set on Oct 12')
+    expect(
+      goalStartLine({
+        ...facts,
+        months: [month(SEPTEMBER_START), month(OCTOBER.start), month(NOVEMBER_START)],
+        now: at('2026-11-15T09:00:00.000Z'),
+      }),
+    ).toBe('Counts from Nov 1 · set on Oct 12')
+  })
+
+  it('says a target changed on a goal that ended before it applied never did', () => {
+    // Ending closes the goal with the month it had open, so November never opens.
+    const facts = {
+      ended: true,
+      months: [month(SEPTEMBER_START), month(OCTOBER.start)],
+      countsFrom: NOVEMBER_START,
+      setAt: at('2026-10-12T08:00:00.000Z'),
+      timezone: ZONE,
+    }
+
+    expect(goalStartLine({ ...facts, now: at('2026-10-20T09:00:00.000Z') })).toBe(
+      'Target never applied · set on Oct 12',
+    )
+    // Not "Counts from Nov 1" once the month it was planned for has come.
+    expect(goalStartLine({ ...facts, now: at('2026-11-15T09:00:00.000Z') })).toBe(
+      'Target never applied · set on Oct 12',
+    )
+  })
+
+  it('keeps what an ended goal counted from when its target stood', () => {
+    const line = goalStartLine({
+      ended: true,
+      months: [month(SEPTEMBER_START), month(OCTOBER.start)],
+      countsFrom: SEPTEMBER_START,
+      setAt: at('2026-08-20T08:00:00.000Z'),
+      timezone: ZONE,
+      now: at('2026-11-15T09:00:00.000Z'),
+    })
+
+    expect(line).toBe('Counts from Sep 1 · set on Aug 20')
+  })
+
   it('prints the year of a goal set in an earlier year', () => {
     const line = goalStartLine({
-      neverStarted: false,
+      ended: false,
+      months: [month(at('2025-11-30T22:00:00.000Z'))],
       countsFrom: at('2025-11-30T22:00:00.000Z'),
       setAt: at('2025-11-28T08:00:00.000Z'),
       timezone: ZONE,
