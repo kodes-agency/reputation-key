@@ -16,6 +16,12 @@ type ExportRecord = Readonly<Record<string, ExportScalar>>
 type ExportCollection = Readonly<{
   recordType: string
   columns: readonly string[]
+  /**
+   * Columns this record type gained after its file first shipped. They are
+   * exported like the others; the CSV heading lists them after every column
+   * the file already had, so none of those changes position.
+   */
+  addedColumns?: readonly string[]
   records: readonly ExportRecord[]
 }>
 
@@ -32,6 +38,8 @@ type ExportFamily = Readonly<{
  */
 const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
 
+// Still v1 after the results file gained a month's own target and the log of
+// its changes: both only add columns and records, and nothing parses this id.
 const EXPORT_PAYLOAD_VERSION = 'goal-organization-export/v1' as const
 const SNAPSHOT_BOUND = 'repeatable_read_within_15m_of_request' as const
 
@@ -100,8 +108,6 @@ const MONTHLY_RESULT_COLUMNS = [
   'period_end',
   'property_timezone',
   'status',
-  // The month's own target; empty when the month used its version's target.
-  'target_value',
   'evaluation_state',
   'value',
   'sample_count',
@@ -113,6 +119,9 @@ const MONTHLY_RESULT_COLUMNS = [
   'created_at',
   'updated_at',
 ] as const
+
+/** The month's own target; empty when the month used its version's target. */
+const MONTHLY_RESULT_ADDED_COLUMNS = ['target_value'] as const
 
 const MONTH_TARGET_CHANGE_COLUMNS = [
   'id',
@@ -192,13 +201,13 @@ async function readRows(
 }
 
 function csvEntry(family: ExportFamily): OrganizationExportEntry {
-  const header = family.collections.reduce<readonly string[]>(
-    (columns, collection) => [
-      ...columns,
-      ...collection.columns.filter((column) => !columns.includes(column)),
-    ],
-    ['record_type'],
-  )
+  const header = [
+    ...new Set([
+      'record_type',
+      ...family.collections.flatMap((collection) => collection.columns),
+      ...family.collections.flatMap((collection) => collection.addedColumns ?? []),
+    ]),
+  ]
   const lines = [
     header.join(','),
     ...family.collections.flatMap((collection) =>
@@ -354,7 +363,6 @@ async function readFamilies(
               to_char(period_end AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS period_end,
               property_timezone,
               status,
-              target_value,
               evaluation_state,
               value,
               sample_count,
@@ -364,7 +372,8 @@ async function readFamilies(
               to_char(evaluation_watermark AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS evaluation_watermark,
               to_char(closed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS closed_at,
               to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
-              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
+              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at,
+              target_value
             FROM goal_monthly_results
             WHERE organization_id = ${organizationId}
             ORDER BY program_id, assignment_id, period_start, id`,
@@ -438,7 +447,11 @@ async function readFamilies(
             {
               recordType: 'goal_monthly_result',
               columns: MONTHLY_RESULT_COLUMNS,
-              records: projectRows(monthlyResults, MONTHLY_RESULT_COLUMNS),
+              addedColumns: MONTHLY_RESULT_ADDED_COLUMNS,
+              records: projectRows(monthlyResults, [
+                ...MONTHLY_RESULT_COLUMNS,
+                ...MONTHLY_RESULT_ADDED_COLUMNS,
+              ]),
             },
             {
               recordType: 'goal_result_revision',

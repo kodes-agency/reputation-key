@@ -127,6 +127,35 @@ function monthlyResultRow(id: string, target: string | null): Row {
   }
 }
 
+/** The heading of goal/results.csv before a month could carry its own target. */
+const RESULTS_HEADER_BEFORE_MONTH_TARGETS = [
+  'record_type',
+  'id',
+  'assignment_id',
+  'program_id',
+  'program_version_id',
+  'property_id',
+  'period_start',
+  'period_end',
+  'property_timezone',
+  'status',
+  'evaluation_state',
+  'value',
+  'sample_count',
+  'achieved',
+  'reason',
+  'source_complete_through',
+  'evaluation_watermark',
+  'closed_at',
+  'created_at',
+  'updated_at',
+  'monthly_result_id',
+  'revision',
+  'supersedes_revision_id',
+  'change_reason',
+  'created_by',
+]
+
 const OWN_TARGET_MONTH = '90000000-0000-4000-8000-000000000001'
 const VERSION_TARGET_MONTH = '90000000-0000-4000-8000-000000000002'
 
@@ -297,14 +326,57 @@ describe('Goal Organization Export contributor', () => {
       expect(csv).toContain('goal_month_target_change,')
     })
 
+    it('keeps every column the results file already had where it was', async () => {
+      const { csv } = await exportResults(WITH_MONTH_TARGETS)
+
+      const header = csv.split('\n')[0]!.split(',')
+      expect(header.slice(0, RESULTS_HEADER_BEFORE_MONTH_TARGETS.length)).toEqual(
+        RESULTS_HEADER_BEFORE_MONTH_TARGETS,
+      )
+      // What the month target brought: the change log's columns, then the
+      // column a month gained.
+      expect(header.slice(RESULTS_HEADER_BEFORE_MONTH_TARGETS.length)).toEqual([
+        'change_id',
+        'previous_target_value',
+        'new_target_value',
+        'following_outcome',
+        'following_reason',
+        'following_version_id',
+        'note',
+        'target_value',
+      ])
+    })
+
+    it('writes each month target under its own heading', async () => {
+      const { csv } = await exportResults(WITH_MONTH_TARGETS)
+
+      const [headerLine, ...lines] = csv.trimEnd().split('\n')
+      const header = headerLine!.split(',')
+      const cell = (line: string, column: string) =>
+        line.split(',')[header.indexOf(column)]
+      const months = lines.filter((line) => line.startsWith('goal_monthly_result,'))
+      expect(months.map((line) => cell(line, 'id'))).toEqual([
+        OWN_TARGET_MONTH,
+        VERSION_TARGET_MONTH,
+      ])
+      expect(months.map((line) => cell(line, 'target_value'))).toEqual([
+        '80.0000000000',
+        '',
+      ])
+      expect(months.map((line) => cell(line, 'updated_at'))).toEqual([
+        '2026-08-02T00:00:00.000000Z',
+        '2026-08-02T00:00:00.000000Z',
+      ])
+    })
+
     it('opens a formula-shaped note as text', async () => {
       const { csv, records } = await exportResults({
         ...WITH_MONTH_TARGETS,
         goal_month_target_changes: [{ ...TARGET_CHANGE_ROW, note: '=1+1' }],
       })
 
-      // The note is the last column of the results file, so it ends its line.
-      expect(csv).toContain(",'=1+1\n")
+      // A change has no month target of its own, so that last cell is empty.
+      expect(csv).toContain(",'=1+1,\n")
       expect(csv).not.toContain(',=1+1')
       expect(records.goal_month_target_change![0]).toMatchObject({ note: '=1+1' })
     })
