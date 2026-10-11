@@ -203,6 +203,20 @@ describe('the number field', () => {
     expect(html).toMatch(/<label[^>]*class="[^"]*\bsr-only\b[^"]*"[^>]*for="hours"/u)
     expect(html).toContain('>Hours</label>')
   })
+
+  it('counts in whole numbers unless the field is given a step', () => {
+    // A rating average is set to one decimal.
+    expect(numberField()).not.toContain('step=')
+    expect(numberField({ max: 5, step: 0.1 })).toContain('step="0.1"')
+  })
+
+  it('has no upper bound when its value has none', () => {
+    // A monthly count: nothing says how many scans are too many.
+    const unbounded = numberField({ max: undefined })
+
+    expect(unbounded).toContain('min="1"')
+    expect(unbounded).not.toContain('max=')
+  })
 })
 
 describe('blankAsNull', () => {

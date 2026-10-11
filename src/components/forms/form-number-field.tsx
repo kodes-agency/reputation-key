@@ -1,6 +1,6 @@
-// Number field for forms — the control the Response Target cards and the rows
-// of the table that sets several goals share. A whole number unless it is given
-// a `step` (a rating average takes one decimal place).
+// Number field for forms — the control the Response Target cards, the rows of
+// the table that sets several goals and the month target dialog share. A whole
+// number unless it is given a `step` (a rating average takes one decimal place).
 // Per conventions: shared form building blocks live in components/forms/.
 //
 // Deliberately not FormTextField with type="number": that one reports invalid
@@ -48,9 +48,9 @@ export function FormNumberField({
   id: string
   label: string
   min: number
-  /** Left out for a number with no upper bound (a count). */
+  /** Left out for a number with no upper bound (a monthly count). */
   max?: number
-  /** The grain of the number: left out, a whole number. */
+  /** The grain of the number: left out, a whole number. `0.1` for a rating average. */
   step?: number
   field: NumberFieldApi
   disabled?: boolean
