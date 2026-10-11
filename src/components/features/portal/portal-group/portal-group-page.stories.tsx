@@ -197,6 +197,39 @@ export const NoGoalYet: Story = {
   },
 }
 
+/**
+ * A month whose target a manager changed shows the changed target, and names
+ * the person who changed it and what it started at in place of who set the goal.
+ */
+export const GoalCardNamesWhoChangedTheMonth: Story = {
+  args: {
+    goals: ready([
+      {
+        ...RATINGS_GOAL,
+        targetValue: 220,
+        monthTarget: {
+          changedAt: new Date('2026-09-20T09:00:00.000Z'),
+          changedBy: 'u-georgi',
+          startTarget: 250,
+          changeCount: 1,
+        },
+      },
+    ]),
+  },
+  play: async ({ canvasElement }) => {
+    const card = within(
+      within(canvasElement).getByRole('article', { name: 'September · Private ratings' }),
+    )
+    await expect(card.getByText('of 220 so far')).toBeInTheDocument()
+    await expect(
+      card.getByText(
+        'Changed by Georgi Ivanov on Sep 20, started at 250 · the month ends today',
+      ),
+    ).toBeInTheDocument()
+    await expect(card.queryByText(/Set by/)).toBeNull()
+  },
+}
+
 export const AverageTooThinToShow: Story = {
   args: {
     goals: ready([
