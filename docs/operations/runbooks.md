@@ -211,6 +211,8 @@ definitions and security controls live in
 
 **What it means:** the quarantine is a dead-letter queue with **no consumer** — nothing drains it, and the daily `quarantine-ttl-sweep` DELETES entries after `QUARANTINE_TTL_DAYS` (default 30d). A job that lands there is lost work that no retry will ever pick up. If it was a review sync, a notification fan-out, or a reply publication, that unit of work simply never happened and nobody was told. Fifteen minutes is three health-check evaluation cadences: long enough that an operator actively redriving right now does not trip it, short enough that the loss is still recoverable.
 
+Only on-demand work lands here. A schedule firing is never dead-lettered: every schedule is enumeration-only, so its next firing repeats the whole pass and nothing is lost, and there is no unit of work to redrive. A firing that fails past its retry budget is logged (`terminal schedule firing failure — not dead-lettered, the next firing repeats the pass`, then `job failed`), captured in error monitoring, and shown as `repair_required` on its family's job-runtime row until a later firing succeeds (§17).
+
 **First three things to check:**
 
 1. `ops:quarantine list` — what is in there (the oldest 100 entries, oldest first, so the entry the age alerts page about is always listed; redrive and discard look their target up by id, so any entry is reachable, listed or not), how many distinct job names, and is each entry `confirmed_failed`? One entry is a poison payload; a growing pile of one job name is a systemic handler failure. `pending_failure` means the worker staged evidence before rejecting but did not observe BullMQ's completed failed transition; redrive requires fresh proof that the original remains failed, so a recovered/completed original cannot be duplicated.
@@ -532,7 +534,13 @@ without retrying, but nothing ran: it is recorded as a denial (`lastDeniedAt`),
 never as a success, so it cannot keep a dead family fresh. `jobs.gateDenials`
 and each row's `deniedCount` count gate-denied jobs among the retained completed
 jobs; they never page, because a denied on-demand job (a suspended
-organization, a disabled capability) is routine. The report retains the
+organization, a disabled capability) is routine. `repair_required` means the
+family's latest terminal failure has not been answered. For on-demand work the
+only answer is a successful quarantine redrive of the dead letter. An active
+scheduled family's firings are never dead-lettered (§14), so it has nothing to
+redrive: its next successful firing is the answer, the same rule
+`schedule_denied` follows, and the reason clears by itself once the cause is
+gone. The report retains the
 observed cell, owner, processor, action, capability, queue policy, cadence,
 timeout, concurrency, freshness objectives, runbook, and repair command for
 each family. It contains no tenant or payload content.
@@ -556,13 +564,20 @@ each family. It contains no tenant or payload content.
 3. For missed objectives, stalled work, repair-required state, or dead letters,
    inspect the original queue and run `pnpm ops quarantine list --operator
 <registered-operator>` before applying the row's exact repair command.
+   An active scheduled row (`posture` is `active`, `schedule` is not `none`)
+   that shows `repair_required` has no quarantine entry for the failed firing,
+   and its redrive command does not apply: read the worker's `job failed` error
+   and the error-monitoring event for that job name. If the reason outlives one
+   cadence, the firings are still failing.
 
 **Remediate:** repair configuration/handler/scheduler drift by promoting a
 reviewed immutable release; never register an ad-hoc handler or repeat entry in
 Redis. Remove forbidden dark/quarantined schedules through normal scheduler
 reconciliation and discard their queued work without executing it. For an
 active poison item, fix the handler cause first, review the quarantine report,
-then execute the row's report-linked redrive command. A domain-specific
+then execute the row's report-linked redrive command. An active scheduled
+family needs no command: fix the cause and its next successful firing clears
+`repair_required`. A domain-specific
 reconciliation or rebuild remains authoritative when its runbook says replaying
 one queue item cannot reconstruct the projection.
 

@@ -9,6 +9,7 @@
 // redriveMetadata in the payload.
 
 import { describe, it, expect, vi } from 'vitest'
+import { Job as BullmqJob } from 'bullmq'
 import type { Job, JobProgress, JobsOptions, Queue } from 'bullmq'
 import {
   confirmQuarantineFailure,
@@ -89,6 +90,31 @@ function fakeJob(over: Record<string, unknown> = {}): Job {
 
 function envelopeOf(entry: { data: unknown }): QuarantineEnvelope {
   return entry.data as QuarantineEnvelope
+}
+
+/** A BullMQ Job Scheduler firing on its last attempt, as the worker receives it. */
+function scheduleFiring(over: Record<string, unknown> = {}): Job {
+  return fakeJob({
+    id: 'repeat:schedule-property-ai-trends-recurring:1791090138172',
+    name: 'schedule-property-ai-trends',
+    queueName: 'background',
+    repeatJobKey: 'schedule-property-ai-trends-recurring',
+    data: {},
+    attemptsMade: 2,
+    opts: { attempts: 3 },
+    ...over,
+  })
+}
+
+/**
+ * BullMQ's own add-time rule for a custom job id, run without Redis. The
+ * fakes above accept any id, so only the library can say an id is storable.
+ */
+function assertBullmqAcceptsJobId(jobId: string): void {
+  const queue = { opts: {}, keys: {}, toKey: () => '', name: QUARANTINE_QUEUE_NAME }
+  const job = new BullmqJob(queue as never, 'probe', {}, { jobId }, jobId)
+  const validator = job as unknown as { validateOptions(json: unknown): void }
+  validator.validateOptions(job.asJSON())
 }
 
 // ── quarantineExhaustedJob ──────────────────────────────────────────
@@ -296,6 +322,127 @@ describe('terminal-failure publication barrier', () => {
       ),
     ).resolves.toEqual({ quarantined: false })
     expect(quarantine.add).not.toHaveBeenCalled()
+  })
+})
+
+// ── Schedule firings ────────────────────────────────────────────────
+
+// A schedule is enumeration-only: its next firing repeats the whole pass, so
+// a failed firing is neither lost work nor a unit an operator could redrive.
+describe('schedule firings', () => {
+  it('does not dead-letter a terminally failed schedule firing', async () => {
+    const quarantine = fakeQueue()
+    const failure = new Error('lock timeout')
+
+    await expect(
+      quarantineFinalAttemptJob(quarantine, scheduleFiring(), failure),
+    ).resolves.toEqual({ quarantined: false, skipped: 'schedule_firing' })
+    await expect(
+      quarantineExhaustedJob(quarantine, scheduleFiring({ attemptsMade: 3 }), failure),
+    ).resolves.toEqual({ quarantined: false, skipped: 'schedule_firing' })
+    expect(quarantine.add).not.toHaveBeenCalled()
+  })
+
+  it('reports no skip while a schedule firing still has attempts left', async () => {
+    const quarantine = fakeQueue()
+
+    await expect(
+      quarantineFinalAttemptJob(
+        quarantine,
+        scheduleFiring({ attemptsMade: 0 }),
+        new Error('transient'),
+      ),
+    ).resolves.toEqual({ quarantined: false })
+  })
+
+  it('has no staged copy to confirm for a schedule firing', async () => {
+    const quarantine = fakeQueue()
+
+    await expect(
+      confirmQuarantineFailure(quarantine, scheduleFiring({ attemptsMade: 3 })),
+    ).resolves.toBe(false)
+    expect(quarantine.getJob).not.toHaveBeenCalled()
+  })
+
+  it('still dead-letters on-demand work on the background queue', async () => {
+    const quarantine = fakeQueue()
+
+    await expect(
+      quarantineFinalAttemptJob(
+        quarantine,
+        fakeJob({ queueName: 'background', attemptsMade: 2 }),
+        new Error('terminal'),
+      ),
+    ).resolves.toEqual({
+      quarantined: true,
+      quarantineJobId: 'quarantine:background:orig-1',
+    })
+  })
+})
+
+// ── Dead-letter ids ─────────────────────────────────────────────────
+
+// BullMQ refuses a custom id containing ':' unless it has exactly three
+// segments, and a refused add is a dead letter that is never written.
+describe('dead-letter id', () => {
+  it('is refused by BullMQ in the shape a colon-carrying original id used to give', () => {
+    expect(() => assertBullmqAcceptsJobId('quarantine:default:orig-1')).not.toThrow()
+    expect(() => assertBullmqAcceptsJobId('quarantine:default:a:b:c')).toThrow(
+      'Custom Id cannot contain :',
+    )
+  })
+
+  it('stays storable for an original id that carries colons', async () => {
+    const quarantine = fakeQueue()
+
+    const outcome = await quarantineExhaustedJob(
+      quarantine,
+      fakeJob({ id: 'a:b:c' }),
+      new Error('boom'),
+    )
+
+    expect(outcome.quarantineJobId).toBe('quarantine:default:a%3Ab%3Ac')
+    expect(() => assertBullmqAcceptsJobId(outcome.quarantineJobId!)).not.toThrow()
+    // The envelope keeps the real id: redrive proves the original by it.
+    expect(envelopeOf(quarantine.added[0]!).originalJobId).toBe('a:b:c')
+  })
+
+  it('never gives two original ids the same dead-letter id', async () => {
+    const quarantine = fakeQueue()
+
+    const escaped = await quarantineExhaustedJob(
+      quarantine,
+      fakeJob({ id: 'a:b' }),
+      new Error('boom'),
+    )
+    const literal = await quarantineExhaustedJob(
+      quarantine,
+      fakeJob({ id: 'a%3Ab' }),
+      new Error('boom'),
+    )
+
+    expect(escaped.quarantineJobId).not.toBe(literal.quarantineJobId)
+    expect(quarantine.jobs.size).toBe(2)
+  })
+
+  it('confirms and redrives a staged copy under the id it was staged with', async () => {
+    const quarantine = fakeQueue()
+    const target = fakeQueue()
+    const original = fakeJob({ id: 'a:b:c', attemptsMade: 2 })
+
+    const staged = await quarantineFinalAttemptJob(
+      quarantine,
+      original,
+      new Error('terminal'),
+    )
+    await expect(confirmQuarantineFailure(quarantine, original)).resolves.toBe(true)
+
+    expect(quarantine.getJob).toHaveBeenLastCalledWith(staged.quarantineJobId)
+    const redrive = createRedriveJob(quarantine, () => target)
+    await expect(redrive(staged.quarantineJobId!)).resolves.toMatchObject({
+      redriven: true,
+      targetQueue: 'default',
+    })
   })
 })
 

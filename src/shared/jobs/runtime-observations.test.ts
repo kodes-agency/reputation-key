@@ -294,6 +294,62 @@ describe('durable job runtime observations', () => {
     expect(repaired.rows[0]).toMatchObject({ ready: true, reasons: [] })
   })
 
+  it('lets a later firing clear a failed schedule, but not failed on-demand work', async () => {
+    // What the closed beta held: a firing that failed terminally days ago, no
+    // dead letter to redrive, and the same schedule completing every minute.
+    const redis = new MemoryRedis()
+    const store = createJobRuntimeObservationStore({ redis })
+    const contracts = [
+      contract(),
+      contract({
+        jobName: 'sync-property-reviews',
+        queue: 'default',
+        schedule: 'none',
+        lastSuccessObjectiveMs: null,
+      }),
+    ]
+    await store.recordBoot({
+      contracts,
+      registeredHandlers: new Set(['health-check', 'sync-property-reviews']),
+      registeredSchedulers: new Set(['health-check']),
+      runtimeStartedAt: new Date('2026-08-27T05:50:00.000Z'),
+    })
+    for (const jobName of ['health-check', 'sync-property-reviews']) {
+      await store.recordTerminalFailure({
+        queue: 'background',
+        jobName,
+        jobId: `${jobName}-failed`,
+        at: new Date('2026-08-20T05:03:00.000Z'),
+      })
+      await store.recordSucceeded({
+        queue: 'background',
+        jobName,
+        jobId: `${jobName}-later`,
+        at: new Date('2026-08-27T05:59:00.000Z'),
+        repair: false,
+      })
+    }
+
+    const report = await createJobRuntimeReportReader({
+      contracts,
+      store,
+      queues: {
+        background: queue({
+          schedulers: [{ key: 'health-check-recurring', name: 'health-check' }],
+        }),
+        default: null,
+      },
+      quarantine: null,
+      clock: () => NOW,
+    }).read()
+
+    expect(report.rows).toMatchObject([
+      { jobName: 'health-check', ready: true, reasons: [] },
+      { jobName: 'sync-property-reviews', ready: false, reasons: ['repair_required'] },
+    ])
+    expect(report).toMatchObject({ failing: 1, repairRequired: 1, deadLetters: 0 })
+  })
+
   describe('terminal gate denials', () => {
     const scheduled = [{ key: 'health-check-recurring', name: 'health-check' }]
     const deniedFiring = {
