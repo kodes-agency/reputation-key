@@ -5,7 +5,11 @@ import {
   holdTransaction,
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
-import type { GoalMonthlyResult } from '../../application/ports/goal-program.repository'
+import type {
+  GoalMonthlyResult,
+  GoalProgramVersion,
+  GoalSubjectAssignment,
+} from '../../application/ports/goal-program.repository'
 import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
 import { seedLockedMonthTarget } from '../testing/goal-month-target-seed'
 import { createGoalProgramRepository } from './goal-program.repository'
@@ -49,6 +53,10 @@ const LOCKED = {
 const BREAKS_MEASURE_RULE = {
   code: '23514',
   message: 'goal monthly result target breaks its measure rule',
+}
+const OUTSIDE_WINDOW = {
+  code: '23514',
+  message: 'goal monthly result falls outside its assignment or version window',
 }
 
 /**
@@ -478,6 +486,72 @@ describe.sequential('Goal month target guard (integration)', () => {
       }),
     ).resolves.toBe(1)
     expect(await storedTarget(opened.id)).toBeNull()
+  })
+
+  it('a version replaced before it began takes no month, with or without a target', async () => {
+    const repository = createGoalProgramRepository(db)
+    const replaced = await createProgram(scans.organizationId, 'qualified_scans')
+    const head = await repository.getVersion(
+      replaced.organizationId,
+      replaced.propertyId,
+      replaced.versionId,
+    )
+    if (!head) throw new Error('The fixture version is missing')
+    const running = await month(0)
+    const at = new Date()
+    const next: GoalProgramVersion = {
+      ...head,
+      id: randomUUID(),
+      version: head.version + 1,
+      effectiveFrom: running.start,
+      effectiveTo: null,
+      changeReason: 'revised',
+      createdAt: at,
+    }
+    const nextAssignment: GoalSubjectAssignment = {
+      id: randomUUID(),
+      programId: replaced.programId,
+      programVersionId: next.id,
+      organizationId: replaced.organizationId,
+      propertyId: replaced.propertyId,
+      metric: 'qualified_scans',
+      subject: { kind: 'property', propertyId: replaced.propertyId },
+      effectiveFrom: running.start,
+      effectiveTo: null,
+      createdBy: 'manager-1',
+      createdAt: at,
+    }
+    // The replacement the revise command makes: the head had no month, so it
+    // and its assignment keep the empty window [from, from).
+    await expect(
+      repository.revise({
+        expectedVersion: head,
+        version: next,
+        assignments: [nextAssignment],
+        supersedeRowlessHead: true,
+        actorId: 'manager-1',
+        at,
+      }),
+    ).resolves.toBe(true)
+
+    // The running month is open, so the target lock admits a new row that
+    // brings a target. The window refuses it under the replaced version all
+    // the same, as it refuses the month that version was to start in.
+    for (const targetValue of [null, 300]) {
+      await expect(
+        insertMonth(replaced, { offset: 0, targetValue }),
+        `the running month, target ${targetValue}`,
+      ).rejects.toMatchObject(OUTSIDE_WINDOW)
+    }
+    await expect(insertMonth(replaced, { offset: -6 })).rejects.toMatchObject(
+      OUTSIDE_WINDOW,
+    )
+    // The month belongs to the version that took over.
+    const takenOver = await insertMonth(
+      { ...replaced, versionId: next.id, assignmentId: nextAssignment.id },
+      { offset: 0, targetValue: 300 },
+    )
+    expect(Number(await storedTarget(takenOver))).toBe(300)
   })
 
   describe('change log', () => {
