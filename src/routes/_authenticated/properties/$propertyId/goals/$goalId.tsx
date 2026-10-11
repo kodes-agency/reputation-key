@@ -39,7 +39,8 @@ import {
   goalMonthNotes,
   goalNoResultsText,
   goalStartLine,
-  goalStatusNote,
+  goalStartMonthHint,
+  statusReasonLabel,
 } from '#/components/goals/goal-detail-view'
 import { goalSubjectKey } from '#/components/goals/goal-subject-picker'
 import { formatDate } from '#/lib/format'
@@ -135,22 +136,20 @@ function GoalDetailRoute() {
     (left, right) => right.periodStart.getTime() - left.periodStart.getTime(),
   )
   const canManage = can(ctx.role, 'goal.update')
-  // The toast above reports a refusal; settling here keeps it from escaping the
-  // click as an unhandled rejection.
+  const statusNote = statusReasonLabel(program.statusReason, startsOn)
+  const startMonthHint = canManage
+    ? goalStartMonthHint({ status: program.status, resultCount: results.length })
+    : null
+  // A status change carries no note from here, so none is stored: the badge
+  // says the status. The toast above reports a refusal; settling here keeps it
+  // from escaping the click as an unhandled rejection.
   const updateStatus = (status: 'active' | 'paused') => {
-    void mutation({
-      data: { propertyId, programId: goalId, status, reason: `Goal ${status}` },
-    }).catch(() => undefined)
+    void mutation({ data: { propertyId, programId: goalId, status } }).catch(
+      () => undefined,
+    )
   }
   const endGoal = () =>
-    endMutation({
-      data: {
-        propertyId,
-        programId: goalId,
-        status: 'ended',
-        reason: 'Ended by manager',
-      },
-    })
+    endMutation({ data: { propertyId, programId: goalId, status: 'ended' } })
   const formatDay = (date: Date): string =>
     formatDate(date, version.propertyTimezone) ?? ''
   const subjectLabel = (subject: GoalSubject) => {
@@ -258,12 +257,14 @@ function GoalDetailRoute() {
           <p>
             <span className="text-muted-foreground">Version:</span> {version.version}
           </p>
-          {program.statusReason ? (
+          {statusNote === null ? null : (
             <p className="md:col-span-2">
-              <span className="text-muted-foreground">Status note:</span>{' '}
-              {goalStatusNote(program.statusReason, startsOn)}
+              <span className="text-muted-foreground">Status note:</span> {statusNote}
             </p>
-          ) : null}
+          )}
+          {startMonthHint === null ? null : (
+            <p className="text-muted-foreground md:col-span-2">{startMonthHint}</p>
+          )}
         </CardContent>
       </Card>
 
