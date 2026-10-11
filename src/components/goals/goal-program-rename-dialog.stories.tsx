@@ -85,6 +85,28 @@ export const SavesTheNewName: Story = {
   },
 }
 
+/**
+ * An edit of the name alone leaves the description out, so the goal keeps the
+ * one it has now: another manager may have changed it since the dialog opened.
+ */
+export const ANameOnlyEditLeavesTheDescriptionOut: Story = {
+  play: async ({ canvasElement }) => {
+    renameMock.mockClear()
+    const dialog = await open(canvasElement)
+    const name = dialog.getByRole('textbox', { name: 'Name' })
+
+    await userEvent.clear(name)
+    await userEvent.type(name, 'Lobby ratings')
+    await userEvent.click(dialog.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() =>
+      expect(renameMock).toHaveBeenCalledWith({
+        data: { propertyId: PROPERTY_ID, programId: PROGRAM_ID, name: 'Lobby ratings' },
+      }),
+    )
+  },
+}
+
 /** Saving what the goal already says writes nothing and closes. */
 export const AnUnchangedSaveSendsNothing: Story = {
   play: async ({ canvasElement }) => {

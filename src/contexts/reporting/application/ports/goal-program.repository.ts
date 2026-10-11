@@ -230,8 +230,11 @@ export type GoalProgramRepository = Readonly<{
   ): Promise<boolean>
   /**
    * Set a Program's name and description in place; no version is written.
-   * Null when the Program does not exist for the tenant or has ended.
-   * `previousName` is what the command read, kept for the audit row.
+   * `previousName` and `previousDescription` are what the command read. The
+   * update applies only while the Program still says both, so a rename never
+   * undoes another one it did not see, and the audit row names exactly what
+   * was replaced. Null when the Program does not exist for the tenant, has
+   * ended, or no longer has that name and description.
    */
   rename(
     input: Readonly<{
@@ -241,6 +244,7 @@ export type GoalProgramRepository = Readonly<{
       name: string
       description: string | null
       previousName: string
+      previousDescription: string | null
       actorId: string
       at: Date
     }>,

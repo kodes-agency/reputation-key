@@ -159,6 +159,13 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
     ),
     rename: vi.fn(async (input) => {
       if (!created || created.program.status === 'ended') return null
+      // The port's contract: only while the goal still says what was read.
+      if (
+        created.program.name !== input.previousName ||
+        created.program.description !== input.previousDescription
+      ) {
+        return null
+      }
       const program = {
         ...created.program,
         name: input.name,
@@ -1732,6 +1739,7 @@ describe('canonical Goal Program service', () => {
         name: 'Lobby scans',
         description: null,
         previousName: 'Portal scans',
+        previousDescription: null,
         actorId: 'manager-1',
         at: MARCH,
       })
@@ -1765,6 +1773,27 @@ describe('canonical Goal Program service', () => {
       })
     })
 
+    it('rename hands over the name and description it read, so the write applies only to them', async () => {
+      const { service, repository, created } = await scansGoal()
+      const rename = (name: string, description?: string | null) =>
+        service.rename(
+          { propertyId: 'property-1', programId: created.program.id, name, description },
+          actor,
+        )
+      await rename('Lobby scans', 'Counted at the desk')
+
+      await rename('Lobby scans', 'Counted at the front desk')
+
+      expect(repository.rename).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          name: 'Lobby scans',
+          description: 'Counted at the front desk',
+          previousName: 'Lobby scans',
+          previousDescription: 'Counted at the desk',
+        }),
+      )
+    })
+
     it('rename refuses a blank or overlong name and writes nothing for an unchanged one', async () => {
       const { service, repository, created } = await scansGoal()
       const rename = (name: string) =>
@@ -1782,7 +1811,7 @@ describe('canonical Goal Program service', () => {
       })
       expect(repository.rename).not.toHaveBeenCalled()
 
-      // The goal ended between the read and the write.
+      // The goal ended, or was renamed, between the read and the write.
       vi.mocked(repository.rename).mockResolvedValueOnce(null)
       await expect(rename('Lobby scans')).rejects.toMatchObject({
         code: 'revision_conflict',

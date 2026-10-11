@@ -56,7 +56,10 @@ export function GoalProgramRenameDialog(props: GoalProgramRenameDialogProps) {
             propertyId: props.propertyId,
             programId: props.programId,
             name,
-            description,
+            // Sent only when it was edited. Left out, the goal keeps the
+            // description it has now, which another manager may have changed
+            // since this dialog opened.
+            ...(description === props.description ? {} : { description }),
           },
         })
       }

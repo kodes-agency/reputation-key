@@ -481,6 +481,13 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
               eq(goalPrograms.propertyId, input.propertyId),
               eq(goalPrograms.id, input.programId),
               ne(goalPrograms.status, 'ended'),
+              // Only while the goal still says what the command read: a
+              // rename that landed in between is not undone, and the audit
+              // row below names the name this one really replaced.
+              eq(goalPrograms.name, input.previousName),
+              input.previousDescription === null
+                ? isNull(goalPrograms.description)
+                : eq(goalPrograms.description, input.previousDescription),
             ),
           )
           .returning()
@@ -495,6 +502,9 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
             propertyId: input.propertyId,
             previousName: input.previousName,
             name: input.name,
+            // The text of a description is not kept here; that it changed is,
+            // so an edit of the description alone does not read as no change.
+            descriptionChanged: input.description !== input.previousDescription,
           },
         })
         return mapProgram(row)

@@ -56,10 +56,11 @@ export async function renameGoal(
     name,
     description,
     previousName: program.name,
+    previousDescription: program.description,
     actorId: actor.userId,
     at: deps.now(),
   })
-  // The Program ended between the read and the write.
+  // The Program ended, or was renamed, between the read and the write.
   if (!renamed) throw new GoalProgramError('revision_conflict')
   return renamed
 }

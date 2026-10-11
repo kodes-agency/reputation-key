@@ -1495,7 +1495,8 @@ describe.sequential('Goal Program repository (integration)', () => {
     const auditDetails = async (programId: string, action: string) => {
       const { rows } = await lease.pool.query<{ details: Record<string, unknown> }>(
         `SELECT details FROM audit_logs
-          WHERE organization_id = $1 AND resource_id = $2 AND action = $3`,
+          WHERE organization_id = $1 AND resource_id = $2 AND action = $3
+          ORDER BY created_at`,
         [organizationId, programId, action],
       )
       return rows.map(({ details }) => details)
@@ -1514,6 +1515,7 @@ describe.sequential('Goal Program repository (integration)', () => {
           name: 'Lobby ratings',
           description: 'Counted at the desk',
           previousName: bundle.program.name,
+          previousDescription: bundle.program.description,
           actorId: 'manager-2',
           at: renamedAt,
         })
@@ -1545,8 +1547,123 @@ describe.sequential('Goal Program repository (integration)', () => {
           propertyId: targetPropertyId,
           previousName: bundle.program.name,
           name: 'Lobby ratings',
+          descriptionChanged: true,
         },
       ])
+    })
+
+    // The audit row keeps no description text, so it says whether the
+    // description is what changed: an edit of the description alone would
+    // otherwise record the same name twice and nothing else.
+    it('says in the audit row whether a rename changed the description', async () => {
+      const { repository, targetPropertyId, bundle } = await scheduledGoal(
+        'Described Goal Property',
+      )
+      const edit = (
+        change: Readonly<{
+          name: string
+          description: string | null
+          previousName: string
+          previousDescription: string | null
+        }>,
+      ) =>
+        repository.rename({
+          organizationId,
+          propertyId: targetPropertyId,
+          programId: bundle.program.id,
+          ...change,
+          actorId: 'manager-1',
+          at,
+        })
+      const original = bundle.program.name
+
+      await edit({
+        name: original,
+        description: 'Counted at the desk',
+        previousName: original,
+        previousDescription: null,
+      })
+      await edit({
+        name: 'Lobby ratings',
+        description: 'Counted at the desk',
+        previousName: original,
+        previousDescription: 'Counted at the desk',
+      })
+      await edit({
+        name: 'Lobby ratings',
+        description: null,
+        previousName: 'Lobby ratings',
+        previousDescription: 'Counted at the desk',
+      })
+
+      await expect(
+        auditDetails(bundle.program.id, 'goal.program.renamed'),
+      ).resolves.toEqual([
+        {
+          propertyId: targetPropertyId,
+          previousName: original,
+          name: original,
+          descriptionChanged: true,
+        },
+        {
+          propertyId: targetPropertyId,
+          previousName: original,
+          name: 'Lobby ratings',
+          descriptionChanged: false,
+        },
+        {
+          propertyId: targetPropertyId,
+          previousName: 'Lobby ratings',
+          name: 'Lobby ratings',
+          descriptionChanged: true,
+        },
+      ])
+    })
+
+    // The command decides from a read. When another rename lands between that
+    // read and the write, the goal no longer says what the command read:
+    // writing anyway would undo the other rename and record a previous name
+    // the goal did not have.
+    it('refuses a rename decided on a name or description that has since changed', async () => {
+      const { repository, targetPropertyId, bundle } = await scheduledGoal(
+        'Twice Renamed Goal Property',
+      )
+      const rename = (
+        name: string,
+        read: Readonly<{ name: string; description: string | null }>,
+      ) =>
+        repository.rename({
+          organizationId,
+          propertyId: targetPropertyId,
+          programId: bundle.program.id,
+          name,
+          description: 'Counted at the desk',
+          previousName: read.name,
+          previousDescription: read.description,
+          actorId: 'manager-1',
+          at,
+        })
+      const asCreated = { name: bundle.program.name, description: null }
+
+      await expect(rename('Lobby ratings', asCreated)).resolves.toMatchObject({
+        name: 'Lobby ratings',
+        description: 'Counted at the desk',
+      })
+      // Decided on the name the goal had before the rename above.
+      await expect(rename('Front desk ratings', asCreated)).resolves.toBeNull()
+      // Decided on the right name and a description it no longer has.
+      await expect(
+        rename('Front desk ratings', { name: 'Lobby ratings', description: null }),
+      ).resolves.toBeNull()
+
+      await expect(
+        repository.get(organizationId, targetPropertyId, bundle.program.id),
+      ).resolves.toMatchObject({
+        program: { name: 'Lobby ratings', description: 'Counted at the desk' },
+      })
+      await expect(
+        auditDetails(bundle.program.id, 'goal.program.renamed'),
+      ).resolves.toHaveLength(1)
     })
 
     it('does not rename an ended Program', async () => {
@@ -1571,6 +1688,7 @@ describe.sequential('Goal Program repository (integration)', () => {
           name: 'Too late',
           description: null,
           previousName: bundle.program.name,
+          previousDescription: bundle.program.description,
           actorId: 'manager-1',
           at,
         }),
