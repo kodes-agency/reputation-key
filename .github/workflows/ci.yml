@@ -217,6 +217,12 @@ jobs:
           NODE_ENV: test
           DATABASE_URL: postgresql://test:test@localhost:5432/test
           REDIS_URL: redis://localhost:6379
+          # This job has the Redis service above, so the Redis-backed suites
+          # must run. Without this an unanswered probe makes them return before
+          # their first assertion and report green
+          # (src/shared/testing/redis-test-lease.ts). Only a job with a Redis
+          # service may set it; redis-test-lease.test.ts pins both halves.
+          REQUIRE_TEST_REDIS: '1'
           BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
           BETTER_AUTH_URL: http://localhost:3000
           RESEND_API_KEY: re_ci_test_key_placeholder
