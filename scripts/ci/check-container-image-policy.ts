@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, posix, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { validateGrypeExceptionExpiry } from './grype-exception-expiry'
 
 export const CONTAINER_IMAGE_CLASSIFICATIONS = [
   'production-runtime',
@@ -700,9 +701,36 @@ export function validateContainerImagePolicy(root: string): readonly string[] {
   }
 }
 
-export function runContainerImagePolicyCli(args: readonly string[]): number {
+/**
+ * Every image scan reads `.grype.yaml` (`-c .grype.yaml`, required by
+ * ciEvidenceViolations), so an exception there suppresses a finding in all five
+ * images. It stops counting the day after its `expiresAt`.
+ */
+function validateScanExceptionExpiry(root: string, today: string): readonly string[] {
+  try {
+    return validateGrypeExceptionExpiry(
+      readFileSync(join(root, '.grype.yaml'), 'utf8'),
+      today,
+    )
+  } catch (error) {
+    return [error instanceof Error ? error.message : String(error)]
+  }
+}
+
+/** The run date in UTC, as the audit and license gates read it. */
+function utcToday(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+export function runContainerImagePolicyCli(
+  args: readonly string[],
+  today: string = utcToday(),
+): number {
   const root = resolve(args[0] ?? join(dirname(fileURLToPath(import.meta.url)), '../..'))
-  const violations = validateContainerImagePolicy(root)
+  const violations = [
+    ...validateContainerImagePolicy(root),
+    ...validateScanExceptionExpiry(root, today),
+  ]
   if (violations.length > 0) {
     process.stderr.write(
       `[container-images] FAILED — ${violations.length} violation(s):\n${violations
@@ -716,7 +744,7 @@ export function runContainerImagePolicyCli(args: readonly string[]): number {
     ({ promotion }) => promotion === 'release-candidate',
   )
   process.stdout.write(
-    `[container-images] OK — ${policy.images.length} images: ${promoted.length} promoted, ${policy.images.length - promoted.length} CI-only; every image built, smoke-tested, SBOMed, scanned, and dependency-monitored\n`,
+    `[container-images] OK — ${policy.images.length} images: ${promoted.length} promoted, ${policy.images.length - promoted.length} CI-only; every image built, smoke-tested, SBOMed, scanned, and dependency-monitored; no scan exception past its expiry on ${today}\n`,
   )
   return 0
 }

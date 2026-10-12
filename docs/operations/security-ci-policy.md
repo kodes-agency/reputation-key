@@ -47,6 +47,7 @@ and do not read them as a review verdict.
 | SBOM — source                            | `check` job, steps "Generate SBOM" + "Upload SBOM"                 | `anchore/sbom-action` (SPDX-JSON, source scope) — BQC-7.1                    | generation failure                                                                                                | `sbom-spdx` artifact, 30d                        |
 | SBOM — images                            | two-row `docker-images` matrix + `docker` aggregate                | pinned Syft CLI (`image:`, SPDX-JSON; one inventory/image)                   | generation failure                                                                                                | merged `sbom-images-spdx` artifact, 30d          |
 | Container/image + artifact-content scan  | `docker-images` matrix, step "Vulnerability scan grouped images"   | pinned Grype CLI (`sbom:`, `.grype.yaml`, hard fail)                         | **high+critical** (`--fail-on high`)                                                                              | per-group SARIF files; step log table            |
+| Scan exception expiry                    | `check` job, step "Container image inventory and coverage policy"  | `pnpm check:container-images` → `scripts/ci/grype-exception-expiry.ts`       | any `.grype.yaml` rule past its `expiresAt` date, or with no readable date                                        | Step log                                         |
 | Production dependency/prune verification | `docker-images` matrix, step "Smoke images"                        | per-image inline shell inside each bounded group                             | any runtime-contract failure or sentinel devDependency in `/app/node_modules`                                     | Step log                                         |
 | Migration artifact consistency           | `check` job, steps "Predeploy migration parity" + "Schema drift …" | `pnpm db:migrate-deploy` (BQC-7.1) + `pnpm check:schema-drift`               | parity divergence / model↔catalog drift                                                                           | Step log                                         |
 
@@ -104,13 +105,20 @@ Machine-readable exception files live in `security/`:
   `{ package (exact or trailing "*"), license, scope ("prod"|"dev"|"both"), owner, reason, expiresAt }`
 - `.grype.yaml` — grype ignore rules; every entry carries
   `# owner / reason / expiresAt` comments directly above it (grype has no
-  native expiry field).
+  native expiry field). A comment block governs the rules that follow it up to
+  the next blank line or comment block, and must name exactly one
+  `expiresAt: YYYY-MM-DD`.
 
 Rules, enforced by the gates themselves:
 
-1. **Expired exceptions FAIL the gate** (audit + license scripts compare
-   `expiresAt` to the run date; grype expiries are reviewed at the cadence
-   below — the gate cannot read comments).
+1. **Expired exceptions FAIL the gate.** The audit and license scripts compare
+   `expiresAt` to the run date, and `pnpm check:container-images` does the
+   same for `.grype.yaml` (`scripts/ci/grype-exception-expiry.ts`): it reads
+   the date from the comment above each rule and fails the day after it, or
+   when a rule has no readable date. An exception is valid through its
+   `expiresAt` day in UTC. The check runs with no commit, so a date that
+   passes turns the `check` job red on `main` and on every open pull request
+   until the exception is removed or renewed.
 2. **Stale audit exceptions FAIL** (an exception matching no firing advisory
    must be deleted with the fix). Stale license exceptions WARN only, because
    os/cpu-conditional packages legitimately appear per-platform.
