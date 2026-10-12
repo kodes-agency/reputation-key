@@ -75,6 +75,18 @@ the full model in both directions: columns, types, defaults, keys, checks, forei
 keys/actions, indexes, predicates, enums, registered constructs, and journal
 continuity. `pnpm check:schema-drift` exposes the same comparator for operators.
 
+The journal is appended by hand, so the comparator checks the file before it
+looks at a database (`migration-journal-order.ts`): each entry's `idx` is its
+position, its `when` is above the entry before it, a tag is journalled once, and
+every entry has its SQL file and every SQL file its entry. drizzle applies an
+entry only when its `when` is greater than the newest applied row, so an entry
+that does not rise is applied on CI's empty database and skipped on a migrated
+one. The last `when` is dated ahead of the calendar: step a new entry from the
+previous one (100,000,000 ms) instead of stamping real time.
+`migration-journal-order.test.ts` runs the file check with no database. It
+cannot see an entry placed before ones a deployed database already applied; the
+deploy runner's count check refuses that deploy.
+
 Never run `pnpm db:push` against a shared database; it bypasses the journal.
 
 ## Seed and auth mirror

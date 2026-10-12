@@ -8,7 +8,8 @@
 //   - foreign keys incl. ON DELETE / ON UPDATE actions
 //   - indexes: ordered key columns, direction, expressions, partial predicates
 //   - pg enum labels for enum columns
-//   - migration journal continuity (drizzle.__drizzle_migrations vs
+//   - migration journal order and continuity (./migration-journal-order.ts:
+//     the journal file's own order, then drizzle.__drizzle_migrations vs
 //     drizzle/meta/_journal.json, incl. per-file SQL hashes)
 //   - registered DB-only constructs (schema/db-only-constructs.ts) exist in
 //     pg_catalog, and no UNREGISTERED triggers/functions/indexes/checks/
@@ -17,15 +18,12 @@
 // Consumed by the integration test (migration-verification.test.ts) and by
 // scripts/check-schema-drift.ts. Shared/db may import drizzle-orm + pg.
 
-import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import { join } from 'node:path'
 import { getTableName, isTable, SQL } from 'drizzle-orm'
 import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core'
 import type { Index, PgColumn } from 'drizzle-orm/pg-core'
 import * as schema from './schema'
 import { DB_ONLY_CONSTRUCTS } from './schema/db-only-constructs'
+import { collectMigrationJournalFaults } from './migration-journal-order'
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -1055,59 +1053,12 @@ function compareUnregistered(model: readonly ModelTable[], catalog: Catalog): Dr
   return drifts
 }
 
-// ─── Journal continuity ─────────────────────────────────────────────
-
-const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
-
-type JournalEntry = Readonly<{ idx: number; tag: string; when: number }>
-
-function readJournal(): readonly JournalEntry[] {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- BQC-7.7 (owner: platform): repo-constant path (REPO_ROOT/drizzle/meta), no request input; CI/operator tool
-  const raw = readFileSync(join(REPO_ROOT, 'drizzle', 'meta', '_journal.json'), 'utf8')
-  return (JSON.parse(raw) as { entries: JournalEntry[] }).entries
-}
-
-function sqlFileHash(tag: string): string {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- BQC-7.7 (owner: platform): tag comes from the committed drizzle journal, not request input; CI/operator tool
-  const sql = readFileSync(join(REPO_ROOT, 'drizzle', `${tag}.sql`), 'utf8')
-  return createHash('sha256').update(sql).digest('hex')
-}
+// ─── Journal order and continuity ───────────────────────────────────
 
 function compareJournal(catalog: Catalog): Drift[] {
-  const entries = readJournal()
-  const drifts: Drift[] = []
-  if (catalog.journal.length !== entries.length) {
-    drifts.push(
-      drift(
-        'journal',
-        'drizzle.__drizzle_migrations',
-        `row count ${catalog.journal.length} vs journal entries ${entries.length}`,
-      ),
-    )
-    return drifts
-  }
-  entries.forEach((entry, i) => {
-    const row = catalog.journal[i]!
-    if (row.createdAt !== entry.when) {
-      drifts.push(
-        drift(
-          'journal',
-          `migration ${entry.tag}`,
-          `created_at ${row.createdAt} vs journal when ${entry.when}`,
-        ),
-      )
-    }
-    if (row.hash !== sqlFileHash(entry.tag)) {
-      drifts.push(
-        drift(
-          'journal',
-          `migration ${entry.tag}`,
-          'db hash differs from sha256 of the SQL file on disk',
-        ),
-      )
-    }
-  })
-  return drifts
+  return collectMigrationJournalFaults(catalog.journal).map(({ object, detail }) =>
+    drift('journal', object, detail),
+  )
 }
 
 // ─── Entry point ────────────────────────────────────────────────────
