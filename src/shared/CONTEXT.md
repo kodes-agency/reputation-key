@@ -69,6 +69,13 @@ cross-context edges without treating them as production dependencies.
 
 The production/test import fence is enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
 
+Redis-backed integration suites take their client from `testing/redis-test-lease.ts`.
+On a machine with no Redis the lease reports unavailable and those tests return
+without asserting, so a green local run does not prove they ran. With
+`REQUIRE_TEST_REDIS=1` an unanswered probe throws and the suite fails; CI's
+`test-integration` job sets it, and `testing/redis-test-lease.test.ts` pins that the
+job running the integration project has a Redis service and requires it.
+
 ## Verification
 
 Keep unit tests beside each shared contract. Use PostgreSQL/Redis integration tests
