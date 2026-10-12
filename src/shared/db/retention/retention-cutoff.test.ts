@@ -30,9 +30,13 @@ function calendarMonthsAfter(from: Date, months: number): Date {
   )
 }
 
-/** One row timestamp per hour across two years that include 29 February 2028. */
+/**
+ * One row timestamp per hour across three years. They include both ends of the
+ * leap day: a row stamped on 29 February 2028, and the rows of February and
+ * March 2026, whose 24 months end around a run on 29 February 2028.
+ */
 function hourlyRowTimestamps(): ReadonlyArray<Date> {
-  const start = Date.parse('2027-01-01T00:00:00.000Z')
+  const start = Date.parse('2026-01-01T00:00:00.000Z')
   const end = Date.parse('2029-01-01T00:00:00.000Z')
   const rows: Date[] = []
   for (let instant = start; instant < end; instant += HOUR_MS) {
@@ -70,6 +74,11 @@ describe('retention rule cutoff', () => {
     // rule stated in months has no milliseconds to subtract: were the field 0
     // the cutoff would be "now" and the rule would reach every row. So the
     // type gives such a rule no olderThanMs at all, and the sum does not compile.
+    //
+    // The proof is the `@ts-expect-error` below, which `pnpm typecheck` checks
+    // and this run does not: if the field came back, that directive would have
+    // no error to expect and the type check would fail. The expectation after
+    // it only shows what the sum would have produced.
     const now = new Date('2028-09-05T03:00:00.000Z')
     const visitFacts: RetentionRuleAge = { olderThanMonths: 24 }
 
@@ -97,14 +106,39 @@ describe('retention rule cutoff', () => {
     expect(reachedEarly).toEqual([])
   })
 
-  it('reaches every row within a day of its 24 calendar months', () => {
-    // A row stamped on 29 February is the slow case: its months end on
-    // 28 February two years on, and the cutoff passes it at the next midnight.
-    const stillKeptADayLater = hourlyRowTimestamps().filter((row) => {
-      const aDayAfter = new Date(calendarMonthsAfter(row, 24).getTime() + DAY_MS)
-      return retentionRuleCutoff(TWENTY_FOUR_MONTHS, aDayAfter) <= row
+  it('reaches every row once more than a day has passed since its 24 calendar months', () => {
+    // Two slow cases, both from the clamp. A row stamped on 29 February: its
+    // months end on 28 February two years on, and the cutoff passes it at the
+    // next midnight. A row stamped on 28 February two years before a leap day:
+    // a run on that 29 February counts back to 28 February at its own time of
+    // day, so a full day after the row's months ended the cutoff is the row's
+    // own instant, and passes it in the next millisecond.
+    const stillKeptAfterADay = hourlyRowTimestamps().filter((row) => {
+      const justOverADayAfter = new Date(
+        calendarMonthsAfter(row, 24).getTime() + DAY_MS + 1,
+      )
+      return retentionRuleCutoff(TWENTY_FOUR_MONTHS, justOverADayAfter) <= row
     })
 
-    expect(stillKeptADayLater).toEqual([])
+    expect(stillKeptAfterADay).toEqual([])
+  })
+
+  it('makes a visit of 28 February wait for the run after 29 February', () => {
+    // The daily sweep runs at one time of day. This visit's 24 months ended on
+    // 28 February 2028 at 10:00, after that day's run. The run on the leap day
+    // counts back to 28 February 2026 at 03:00, before the visit, so it is the
+    // run of 1 March that deletes the row: late by a second day, never early.
+    const visit = new Date('2026-02-28T10:00:00.000Z')
+    const cutoffAt = (run: string) =>
+      retentionRuleCutoff(TWENTY_FOUR_MONTHS, new Date(run))
+
+    expect(cutoffAt('2028-02-28T03:00:00.000Z')).toEqual(
+      new Date('2026-02-28T03:00:00.000Z'),
+    )
+    expect(cutoffAt('2028-02-29T03:00:00.000Z')).toEqual(
+      new Date('2026-02-28T03:00:00.000Z'),
+    )
+    expect(cutoffAt('2028-02-29T03:00:00.000Z') > visit).toBe(false)
+    expect(cutoffAt('2028-03-01T03:00:00.000Z') > visit).toBe(true)
   })
 })

@@ -532,7 +532,7 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       horizon: { kind: 'days', days: 30 },
       predicate: 'the outbox event the receipt belongs to has been deleted',
       query:
-        'No query of its own. A receipt is deleted with its outbox event, 30 days after that event was published, through the event_id foreign key (ON DELETE CASCADE). It is never deleted first: redelivery replays a published event that lacks a receipt.',
+        "No query of its own. A receipt is deleted with its outbox event, 30 days after that event was published, through the event_id foreign key (ON DELETE CASCADE). It is never deleted first: redelivery replays a published event that lacks a receipt. The registry report counts this entry by the receipt's own created_at, which approximates the rule and is not it: a receipt whose event is still stored is counted and stays.",
       implementedBoundary:
         'Live through the scheduled outbox_events.published subject. The receipts of an event that is still stored, published or not, are kept with it.',
     },

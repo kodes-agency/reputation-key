@@ -189,10 +189,16 @@ The registry report is content-free — rule id, class, owner, source, cutoff, a
 integer count and apply status — and is safe to attach to a counsel review or an
 operational ticket.
 
-Rules with a `counsel_undecided` horizon, an object-store source or an external
+Rules with a `counsel_undecided`, `accepted_unexecuted` or
+`retained_no_age_expiry` horizon, an object-store source or an external
 processor source report `eligibleRows: null` with a stated
 `notCountableReason`. They are never silently omitted: a class that cannot be
 counted is itself a finding.
+
+One counted entry is an approximation. `platform.event_consumer_receipts` has no
+rule of its own (a receipt leaves with its outbox event), and the report counts
+it by the receipt's own `created_at`. A receipt whose event is still stored is
+in that count and stays.
 
 `ops:report-retention` is registered as a read-only operator command. Its
 builder is callable and covered by the report-only integration path.
