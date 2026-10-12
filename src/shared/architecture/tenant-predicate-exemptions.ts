@@ -601,7 +601,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     file: 'src/contexts/portal/infrastructure/repositories/portal-token.repository.ts',
     symbol: 'listAccessArtifactReadinessGaps',
     reason:
-      'The readiness gauge lists resolvable tokens that have no published access artifact across tenants unless it is given Organization ids, and returns each gap with its tenant identifiers.',
+      'No production code calls this port method; only its repository test does, with an Organization. It inventories resolvable tokens that have no published access artifact and returns identifiers, versions and instants, no content. The Organization filter is optional, so without one it lists the gaps of every tenant.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
@@ -615,7 +615,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     file: 'src/contexts/property/infrastructure/repositories/property.repository.ts',
     symbol: 'findByGbpLocationId',
     reason:
-      'A verified Google notification names a location before any tenant is known, and the lookup answers with one Property bound to it; the Organization filter is optional and that caller, the only one, omits it.',
+      'A verified Google notification names a location before any tenant is known, and the lookup answers with one Property bound to it; the Organization filter is optional and that caller, the only one, omits it. A location is unique only within an Organization, so when two Organizations bind the same one the lookup answers with either: an open question for the owner, not settled here.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
