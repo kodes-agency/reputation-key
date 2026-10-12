@@ -102,7 +102,7 @@
   "src/contexts/review/infrastructure/repositories/serving-stats-eligibility.test.ts": 1,
   "src/shared/ai-property-trend-contract.ts": 1,
   "src/shared/ai-runtime-capability-contract.ts": 3,
-  "src/shared/architecture/browser-reachability.test.ts": 6,
+  "src/shared/architecture/browser-reachability.test.ts": 4,
   "src/shared/architecture/content-free-facts.test.ts": 2,
   "src/shared/architecture/cross-context-public-api.test.ts": 1,
   "src/shared/architecture/observability-schema.test.ts": 3,
