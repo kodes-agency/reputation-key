@@ -50,6 +50,7 @@ import {
   REPLY_CHECK_COPY,
   replyCheckMutationOptions,
 } from './reply-check-feedback'
+import { openConfirmation } from './reply-editor.stories.play'
 import { ReplyMessage } from './reply-message'
 import { REPLY_CHIP_WORDS } from './reply-state-copy'
 import type { ReplyData } from './reply-status-view'
@@ -308,6 +309,14 @@ function expectConfirmedStatus(
   return message
 }
 
+/** Presses Confirm & publish and resolves the confirmation it opens. */
+const openPublishConfirmation = (canvasElement: HTMLElement): Promise<HTMLElement> =>
+  openConfirmation(
+    canvasElement,
+    'Confirm & publish',
+    /keeps it pending until google confirms/i,
+  )
+
 const meta: Meta<typeof ReplyMessage> = {
   title: 'Inbox/ReplyMessage',
   component: ReplyMessage,
@@ -351,17 +360,7 @@ export const ConfirmAndPublishAsksFirst: Story = {
   args: { reply: makeReply() },
   play: async ({ canvasElement }) => {
     resetSpies()
-    const canvas = within(canvasElement)
-
-    await userEvent.click(canvas.getByRole('button', { name: 'Confirm & publish' }))
-    const dialog = await within(document.body).findByRole('alertdialog')
-    // The copy mounts with the dialog's entry animation — wait for it rather
-    // than sampling the first frame.
-    await waitFor(() =>
-      expect(
-        within(dialog).getByText(/keeps it pending until google confirms/i),
-      ).toBeVisible(),
-    )
+    const dialog = await openPublishConfirmation(canvasElement)
     expect(onApprove).not.toHaveBeenCalled()
 
     await userEvent.click(
@@ -391,13 +390,7 @@ export const ConfirmNamesTheReplyTheDialogOpenedOn: Story = {
     resetSpies()
     const canvas = within(canvasElement)
 
-    await userEvent.click(canvas.getByRole('button', { name: 'Confirm & publish' }))
-    const dialog = await within(document.body).findByRole('alertdialog')
-    await waitFor(() =>
-      expect(
-        within(dialog).getByText(/keeps it pending until google confirms/i),
-      ).toBeVisible(),
-    )
+    const dialog = await openPublishConfirmation(canvasElement)
 
     // The pane re-reads the reply while the dialog stands open over it.
     window.dispatchEvent(new Event('focus'))
