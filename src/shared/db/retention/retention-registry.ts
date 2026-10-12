@@ -278,9 +278,9 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       horizon: { kind: 'days', days: 7 },
       predicate: null,
       query:
-        'SELECT response_id FROM guest_response_session_bindings WHERE expires_at < now(). expires_at is an absolute deadline stamped at submission; reopening the Portal in the same browser does not move it.',
+        'SELECT response_id FROM guest_response_session_bindings WHERE expires_at < now(). expires_at is an absolute deadline stamped when the rating is submitted and stamped again when private feedback is; reopening the Portal in the same browser does not move it.',
       implementedBoundary:
-        'Stricter than the §3.3.10 seven-day default: the binding expires 24 hours after submission, and the mirror session_id redactions run at 24 hours. Counsel approves the seven-day default; operators are held to the 24-hour boundary for these sources. It does not cover every copy of the identifier: the guest_qualified_scan and guest_destination_action idempotency receipts carry it in their key and payload and follow platform.idempotency_receipts, 30 days.',
+        'Stricter than the §3.3.10 seven-day default: the binding expires 24 hours after the rating or, if later, the private feedback, and the mirror session_id redactions run at 24 hours. Counsel approves the seven-day default; operators are held to the 24-hour boundary for these sources. It does not cover every copy of the identifier: the guest_qualified_scan and guest_destination_action idempotency receipts carry it in their key and payload and follow platform.idempotency_receipts, 30 days.',
     },
     evidenceSubject: 'guest_response_session_bindings.expired',
     restoreImplication: RESTORE_REPLAYS_DELETION,

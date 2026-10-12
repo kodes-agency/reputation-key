@@ -231,16 +231,19 @@ A Guest response session has a random session identifier. It contains no name,
 contact detail, or network address. The session ends no more than 24 hours
 after the Guest opens the Portal or, if later, 24 hours after the Guest submits
 a rating or private feedback. When the session has ended, its record is deleted
-by a daily clean-up.
+by a daily clean-up. The copy of the identifier stored with the record of the
+visit, called the Guest session diagnostic pseudonym in the table above, is
+removed by the same clean-up once the visit is 24 hours old.
 
 When a Guest's visit is counted, and when a Guest first selects the Google
 Review action or another link, the Service also stores a receipt so that the
 same visit or selection is not counted twice. Each receipt holds the session
-identifier, the Portal, the time, and a reference to the counted visit or the
-selected link. A receipt has no effect once the session has ended, but it is
-kept for 30 days from the visit or selection and is then deleted by a daily
-clean-up. During those 30 days the receipts still connect that visit and that
-selection to the same session identifier.
+identifier, the Organization, Property and Portal, the time, and a reference to
+the counted visit or the selected link; the receipt for a selection also holds
+the time the session ends. A receipt has no effect once the session has ended,
+but it is kept for 30 days from the visit or selection and is then deleted by a
+daily clean-up. During those 30 days the receipts still connect that visit and
+that selection to the same session identifier.
 
 Reading, viewing, moderating, or archiving content does not extend its content
 deadline.
