@@ -95,6 +95,7 @@ Internal engineering objectives, never a customer SLA. ADR 0038 is accepted, and
 - Zero data loss from a committed source and zero duplicate externally visible replies, both proven by fault injection.
 - Seven stop conditions — any one triggers an immediate stop of all external effects with data preserved: tenant isolation breach; unauthorized Google action; unexplained loss of committed data; duplicate externally visible reply or email; leaked token or secret in logs or responses; inability to restore within RTO; privacy or policy violation.
 - Stop procedure: set `BETA_CAPABILITIES_OFF` (`1|true|all` kills everything, a comma list kills exactly those), stop schedulers, preserve canonical data, drain or quarantine queues, follow the incident runbook.
+- **Recovery is forward-only** (owner decision 2026-10-12, ADR 0038 amendment). A bad release is contained with the stop procedure above and repaired by deploying a fix forward; an earlier image is never a containment or recovery step. An image older than the migrations already applied is refused on purpose: web's predeploy runner (`scripts/migrate-deploy.ts`) and `/api/health/ready` both require the applied migration count to equal the image's journal, and the runner says `This image is older than the database` rather than promising that a rerun converges (`src/shared/db/migration-journal-state.test.ts`, `src/shared/health/readiness-migration-journal.test.ts`, and the real runner against a database one migration ahead in `src/composition/declared-capability-posture.deploy.integration.test.ts`). Point-in-time restore stays reserved for data loss. Operator steps: `docs/operations/runbooks.md` §28.
 - Every deviation needs a signed exception naming reachability, mitigation, owner, expiry and remediation issue. Exceptions auto-expire.
 
 ## 8. Deferred capabilities
@@ -116,6 +117,7 @@ External obligations (§2) → this page → ADRs → `docs/standards.md` → co
 ## 10. Change log
 
 - 2026-09: replaces the 42-package program as authority.
+- **2026-10-12:** Recovery is forward-only: an image older than the migrations already applied is refused on purpose, and a bad release is repaired by a fix deployed forward, never by an earlier image (§7, ADR 0038, runbooks §28).
 - **2026-10-01:** `portal.upload` moves from `safety_blocked` to `controlled_beta`; the owner removed the SAFE-01 completion ceremony on 2026-09-30 and the technical safeguards remain (§8, ADR 0032, ADR 0063).
 - **2026-09-30:** Accounts: consuming an invitation verifies the email address and signs the member in; Resend renews an invitation's expiry; a password reset verifies the address (ADR 0062).
 - **2026-09-15:** Merchant AI notice `merchant-ai-notice-2026-09-15.v1`: AI consent is an explicit acknowledgement of the served notice, the password step-up is removed, and one consent ceremony may cover several Properties (§2).

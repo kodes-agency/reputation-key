@@ -51,6 +51,15 @@ The signed web image runs that sequence under a deployment advisory lock only
 after proving its exact cell/project/environment/service identity. Recovery is
 fix-forward-and-rerun—never hand-roll partial schema state.
 
+Recovery is also forward-only (ADR 0038, amended 2026-10-12). The deploy runner
+and the readiness probe require the applied migration count to equal the image's
+journal, and `migration-journal-state.ts` names the direction of a mismatch for
+both. Fewer applied than the journal is an incomplete deploy: a rerun converges.
+More applied than the journal means the image is older than the database: it is
+refused by design, no rerun converges, and the repair is a fix deployed forward
+(`docs/operations/runbooks.md` §28). `migration-journal-state.test.ts` pins both
+messages.
+
 `migration-verification.test.ts` compares the migrated PostgreSQL catalogue with
 the full model in both directions: columns, types, defaults, keys, checks, foreign
 keys/actions, indexes, predicates, enums, registered constructs, and journal

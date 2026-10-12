@@ -122,7 +122,9 @@ default the new target also applies to the months after.
   If it is not zero, do not go below the floor: an older worker would close that
   month against the version's target, and a closed row cannot be corrected in
   place. An older web image shows the version's target for such a month but
-  writes nothing wrong.
+  writes nothing wrong. Amended 2026-10-12 (ADR 0038, recovery is forward-only):
+  no worker or web image is rolled back, so this floor is a reason for that rule
+  and no longer a step before a rollback.
 - If a deploy stops after web and before worker, finish the worker step before
   anyone uses "Change this month's target".
 - A target can be lowered on the last day of a month, and the month then closes

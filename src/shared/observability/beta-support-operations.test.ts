@@ -82,11 +82,12 @@ describe('OBS-01 beta support operations authority', () => {
       'security_confirmed',
       'critical_journey_unavailable',
     ])
+    // Recovery is forward-only (ADR 0038, amended 2026-10-12): an earlier
+    // release is not a containment control, after hours or at any other time.
     expect(BETA_SUPPORT_POLICY.afterHoursContainment).toEqual([
       'disable_affected_non_core_capability',
       'suspend_affected_property_processing',
       'pause_affected_queue_without_deleting_work',
-      'roll_back_to_last_signed_release',
     ])
   })
 
@@ -117,5 +118,9 @@ describe('OBS-01 beta support operations authority', () => {
     expect(runbook).toMatch(/next business day is an\s+expectation, not a guarantee/u)
     expect(runbook).toContain('ordinary screenshot or Replay payload')
     expect(runbook).toContain('external evidence required')
+    expect(runbook).toMatch(
+      /Deploying an earlier release\s+is not one of them: recovery is forward-only/u,
+    )
+    expect(runbook).not.toMatch(/roll(?:ed|ing)?\s+back\s+to\s+the\s+last\s+signed/iu)
   })
 })

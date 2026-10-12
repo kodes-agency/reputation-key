@@ -59,8 +59,9 @@ Published outbox rows remain on their separate 30-day policy.
 
 Disabling the feed reader does not delete source facts or Operational Action
 History. Do not extend either Activity table's retention to preserve an audit
-claim. A rollback may stop projection consumption, but readiness must remain
-Unavailable until the durable backlog is repaired.
+claim. Whatever stops projection consumption, readiness must remain Unavailable
+until the durable backlog is repaired. An earlier image is not one of those
+steps: recovery is forward-only ([runbooks.md](runbooks.md) §28).
 
 ## Runtime registration and operator reachability
 

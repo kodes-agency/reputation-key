@@ -129,7 +129,7 @@ definitions and security controls live in
 **Prerequisites:** Name both operating roles and record the exact cell, release manifest, migration head, failed phase, source database service, last known good digest/config, and backup/PITR observations. Do not start a restore until the exact sibling target and independent Review lifecycle approval path are available.
 **Diagnostics:** Check `pg_stat_activity` for connection count. Check the Railway console (Postgres service metrics) for compute/storage. Check migration logs.
 **Containment:** Reduce worker concurrency. Pause non-critical jobs. If the predeploy migration failed: the deploy is already blocked (Railway `preDeployCommand` exited non-zero) — the previous containers keep serving; do NOT hand-roll partial schema state.
-**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: `scripts/migrate-deploy.ts` is advisory-locked and idempotent, so fix the failing migration or registered deploy SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. Restore → follow [backup-and-lifecycle.md](backup-and-lifecycle.md) §1 exactly: contain the deployment → Railway PITR to its generated sibling service → exact-target preflight through a Railway tunnel → migration parity → dry-run inventory → destructive retention/recovery fence → isolated signed-image read verification → fresh Redis and controlled connection cutover only after independent approval of that exact target/report/generation. A database rebuilt from empty comes back with every Google content and AI capability dark until web's next deploy applies the declared posture (§25).
+**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: `scripts/migrate-deploy.ts` is advisory-locked and idempotent, so fix the failing migration or registered deploy SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. A predeploy that fails with `This image is older than the database` is not a failed migration: the database has applied migrations that image does not carry, no rerun converges, and the repair is a newer release (§28). Restore → follow [backup-and-lifecycle.md](backup-and-lifecycle.md) §1 exactly: contain the deployment → Railway PITR to its generated sibling service → exact-target preflight through a Railway tunnel → migration parity → dry-run inventory → destructive retention/recovery fence → isolated signed-image read verification → fresh Redis and controlled connection cutover only after independent approval of that exact target/report/generation. A database rebuilt from empty comes back with every Google content and AI capability dark until web's next deploy applies the declared posture (§25).
 **Verification:** Connection count under budget. Migration journal consistent. Restore has one replayable `recovery_runs` generation, zero overdue retention/Google-import backlog, zero unfenced restored authority, no claimable fenced outbox rows, critical reads/tenant isolation green, fresh empty queues, and no duplicate external effect before cutover.
 **Escalation:** P0 — page Bozhidar Denev for migration/restore. Railway support if platform issue.
 **Evidence:** Retain migration/backup heads, failure class, forward-fix or restore decision, signed recovery report/bundle identifiers, source/sibling and fresh-Redis identities, cutover/rollback read-backs, RPO/RTO, and alert receipts. Local tests are not this evidence.
@@ -165,7 +165,7 @@ definitions and security controls live in
 **Trigger:** Any P0 stop condition from ADR 0038 (tenant isolation breach, data loss, duplicate effect, token leak, policy violation).
 **Impact:** P0 — all external effects must stop immediately.
 **Containment:** Full stop → set `BETA_CAPABILITIES_OFF=all` and restart web + worker. Targeted stop → set a comma list, e.g. `BETA_CAPABILITIES_OFF=property.connect_gbp,property.publish_reply` stops Google sync/import/publish (interactive gates deny; the sync/import/publish job handlers re-check capability before side effects and skip cleanly — enqueued jobs are preserved, not deleted). Worker startup logs the effective capability manifest (kill switch, disabled list, blocked set).
-**Recovery:** Investigate root cause. Fix. Re-enable capabilities one at a time with monitoring (remove list entries, restart). A stop made in the database-held controls (Google content capability rows, AI capability heads) is kept by every later deploy — the declared posture only lifts untouched seed defaults — so re-open it deliberately (§25).
+**Recovery:** Investigate root cause. Fix, and deploy the fix forward: an earlier image is never the repair (§28). Re-enable capabilities one at a time with monitoring (remove list entries, restart). A stop made in the database-held controls (Google content capability rows, AI capability heads) is kept by every later deploy — the declared posture only lifts untouched seed defaults — so re-open it deliberately (§25).
 **Verification:** No new external effects after kill switch. Canonical data preserved.
 **Escalation:** Bozhidar Denev decides on restart. All P0 conditions require written sign-off before re-enabling.
 
@@ -350,9 +350,11 @@ or chat transcript.
    cookies, user/extra data, exception messages, breadcrumb content, local
    variables, and source context.
 
-**Containment:** Do not disable monitoring. If a newly pinned SDK causes
-resource or startup instability, roll back to the last signed image digest;
-runtime SDK/transport exceptions already fail open. Treat any prohibited
+**Containment:** Do not disable monitoring, and do not deploy an earlier image:
+recovery is forward-only (§28). Runtime SDK/transport exceptions already fail
+open. If a newly pinned SDK causes resource or startup instability, stop what
+the instability endangers with the stop controls (§11) and repair it with a
+release that fixes or reverts the pin, deployed forward. Treat any prohibited
 content found in an event as a tenant-data incident and follow §9 immediately.
 
 **Recovery:** Correct the shared Sentry DSN or transport/project state and
@@ -486,9 +488,11 @@ expectation, not a guarantee. P0 status updates are hourly until containment,
 P1 updates occur each business day, and P2/P3 updates follow material triage
 state changes. After hours, use only the existing bounded containment controls:
 disable an affected non-core capability, suspend affected Property processing,
-pause the affected queue without deleting work, or roll back to the last signed
-release. A core journey outage uses the incident commander and §11; it is not
-silently hidden by a capability toggle.
+or pause the affected queue without deleting work. Deploying an earlier release
+is not one of them: recovery is forward-only (§28), so a bad release is
+contained with these controls and repaired by a fix deployed forward. A core
+journey outage uses the incident commander and §11; it is not silently hidden
+by a capability toggle.
 
 The exact one-cell journey-monitoring and support contract lives in
 `src/shared/observability/beta-support-operations.ts`. Google sync and ambiguous
@@ -1033,25 +1037,18 @@ that is the cost of the compromise, not of the rotation.
 and the page stops offering it for them. The codes themselves keep working.
 Replace a code to get a new sealed copy under the current keyring.
 
-**Rolling back below this release.** Do this before deploying any image from
-before the sealed-address release (ADR 0064). Migration 0046 added the CHECK
-`portal_tokens_sealed_address_active_only` and migrations only go forward, so an
-older image that replaces, stops or deletes a sealed code would be refused by the
-database: "Stop all codes" for a leaked code would fail with a 500. Skipping this
-step breaks replace, stop and delete for every sealed code.
-
-1. Unset `PORTAL_ADDRESS_ENCRYPTION_KEYS` on web and worker and redeploy both, so
-   nothing seals a new code while you work.
-2. Clear every sealed copy:
-
-   ```sql
-   UPDATE portal_tokens
-   SET encrypted_raw_token = NULL, address_encryption_key_version = NULL
-   WHERE encrypted_raw_token IS NOT NULL;
-   ```
-
-3. Deploy the older image. Codes keep working; they can no longer be downloaded
-   again, and the address is shown once when a code is made, as before.
+**No rollback below this release.** Recovery is forward-only (§28): an image
+from before the sealed-address release (ADR 0064) is older than the applied
+migrations, so web's predeploy refuses it. The refusal also protects the codes.
+Migration 0047 added the CHECK `portal_tokens_sealed_address_active_only` and
+migrations only go forward, so such an image, which replaces, stops and deletes
+codes without clearing the sealed copy, would have those statements refused by
+the database for every sealed code: "Stop all codes" for a leaked code would fail
+with a 500. To take "Download again" away without an older image, unset
+`PORTAL_ADDRESS_ENCRYPTION_KEYS` on web and worker, staged with `--skip-deploys`,
+and redeploy both: nothing seals a new code, sealed codes stop offering it (as
+under "Losing the keyring"), and every code keeps working. Anything else wrong
+with the feature is repaired by a fix deployed forward.
 
 **Verification.** Make a code on a test Portal, reload, and confirm "Download
 again" is offered; download it, then read the Portal's History and confirm a
@@ -1106,3 +1103,77 @@ keeps the time but not the person. When the function did it, the actor is in the
 web log line `Portal media taken down` (`actorUserId`), and logs are kept for less
 time than the row: copy it into the incident record at once. The SQL path leaves
 no actor at all, so the operator who ran it must be named in the incident record.
+
+---
+
+## 28. Bad Release (Recovery Is Forward-Only)
+
+**The rule.** Recovery is forward-only (owner decision 2026-10-12; ADR 0038,
+amended; `docs/BETA.md` §7). A bad release is contained with the stop controls
+and repaired by deploying a fix forward. An earlier image is never a containment
+or recovery step, and once a migration has been applied since an image was built
+that image is refused on purpose: web's predeploy runner
+(`scripts/migrate-deploy.ts`) and the readiness probe (`/api/health/ready`) both
+require the applied migration count to equal the journal the image carries.
+Older code is not tested against a newer schema; §26 and ADR 0061, 0064 and 0066
+each record a release below which an older image would refuse or corrupt real
+work. Where no migration landed in between, the gate has nothing to compare and
+does not fire; the rule is the same.
+
+**Trigger/Symptoms:** A release that reached production misbehaves. Or a deploy
+fails in web's predeploy with `This image is older than the database`. Or a web
+container answers 503 with `"migrations":false` on `/api/health/ready` and logs
+`[health] this image is older than the database`.
+
+**Impact:** Whatever the release breaks until the stop controls take effect;
+after that, the stopped capabilities stay unavailable until the fix is deployed.
+A refused deploy changes nothing that serves: the previous web container keeps
+running, and `deploy-ci-images` moves the worker and provider Redis only after
+web settles healthy.
+
+**Prerequisites:** Name both operating roles. Record the release SHA that
+misbehaves, the SHA that ran before it, and the time and symptom. No tenant
+content.
+
+**Diagnostics:** In web's deploy log read the `[migrate-deploy] migration state`
+line. `journalApplied` greater than `journalExpected` is an image older than the
+database, and the failure reads `This image is older than the database: N
+migrations are applied and this image's journal holds M`. An image built before
+this message existed prints `Migration state incomplete … the rerun converges`
+for the same state; it does not converge. `journalApplied` lower than
+`journalExpected`, or a failing migration, is §8. The readiness line above is
+also logged by the outgoing container while a newer release deploys, because the
+new release's migrations land before that container is replaced; there it is
+expected and ends with the deploy.
+
+**Containment:** The stop procedure of `docs/BETA.md` §7, carried out as §11:
+set `BETA_CAPABILITIES_OFF` to `all`, or to the affected capabilities, on web and
+worker and restart both; stop schedulers; preserve canonical data; drain or
+quarantine queued work. For one Organization or one Google connection use the
+scoped controls in §1 and §10. Do not try an earlier image first. `pnpm ops
+deploy-ci-images` sets web's `RELEASE_SHA` and points the service at the image
+before the deployment is attempted, so a refused attempt leaves web configured
+for an image it cannot run, and web's next deployment is built from that
+configuration. If that has happened, deploy the release that is serving again
+with `pnpm ops deploy-ci-images --sha <serving sha> --apply` before changing
+anything else on web.
+
+**Recovery:** Fix forward. The fix is a new commit on `main`, either a correction
+or a revert of the offending commit; both carry the full migration journal. CI
+proves it and `pnpm ops deploy-ci-images --sha <fix sha> --apply` deploys it. A
+revert that must undo an applied migration does so with a new migration, and
+rows are never deleted from `drizzle.__drizzle_migrations` to get an image past
+the gate. Re-enable stopped capabilities one at a time (§11). Point-in-time
+restore is for data loss only and is not a release rollback (§8,
+[backup-and-lifecycle.md](backup-and-lifecycle.md) §1).
+
+**Verification:** Web's deploy log shows `[migrate-deploy] OK — deploy migration
+state reached`, `/api/health/ready` returns 200, every service reports the fix's
+`RELEASE_SHA`, and the symptom that opened the incident is gone on the journey
+that showed it.
+
+**Escalation:** Bozhidar Denev.
+
+**Evidence:** Retain the misbehaving and fixing release SHAs, the stop time and
+the controls used, the refused-deploy log line if an earlier image was tried,
+and the restart decision.
