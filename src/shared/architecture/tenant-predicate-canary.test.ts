@@ -347,6 +347,76 @@ describe('canary: every tenant-owned repository query carries a tenant predicate
     ).toEqual(['listTargetChanges'])
   })
 
+  // What the registry says the canary checks by machine for three categories.
+  it('reports whether a callable compares two tenant values (TENANT-CHECKED)', () => {
+    const loadReply = (afterRead: string): string =>
+      `const loadReply = async (input: { organizationId: string; id: string }) => {
+        const rows = await db.select().from(replies).where(eq(replies.id, input.id))
+        const row = rows[0]
+        ${afterRead}
+      }`
+
+    expect(inspectSynthetic(loadReply('return row ?? null'))).toEqual([
+      expect.objectContaining({ restrictedStatements: 0, comparesTenantValues: false }),
+    ])
+    // Comparing the row's tenant with anything but a tenant value proves nothing.
+    expect(
+      inspectSynthetic(loadReply('return row?.organizationId === null ? null : row')),
+    ).toEqual([
+      expect.objectContaining({ restrictedStatements: 0, comparesTenantValues: false }),
+    ])
+    expect(
+      inspectSynthetic(
+        loadReply('return row?.organizationId === input.organizationId ? row : null'),
+      ),
+    ).toEqual([
+      expect.objectContaining({ restrictedStatements: 0, comparesTenantValues: true }),
+    ])
+  })
+
+  it.each([
+    [
+      'a raw fragment',
+      (predicate: string) =>
+        `const hasReply = () => sql\`EXISTS (
+          SELECT 1 FROM replies AS reply WHERE ${predicate})\``,
+      'reply.organization_id = review.organization_id AND reply.review_id = review.id',
+      'reply.review_id = review.id',
+    ],
+    [
+      'a subquery',
+      (predicate: string) =>
+        `const hasReply = () => db.select().from(replies).where(${predicate})`,
+      'eq(replies.organizationId, reviews.organizationId)',
+      'eq(replies.reviewId, reviews.id)',
+    ],
+  ])(
+    'reports whether %s ties two rows on the tenant column (TENANT-CORRELATED)',
+    (_form, source, tie, noTie) => {
+      expect(inspectSynthetic(source(tie))).toEqual([
+        expect.objectContaining({ restrictedStatements: 0, tiesTenantColumns: true }),
+      ])
+      expect(inspectSynthetic(source(noTie))).toEqual([
+        expect.objectContaining({ restrictedStatements: 0, tiesTenantColumns: false }),
+      ])
+    },
+  )
+
+  it('reports whether a lookup names the tenant column (OWNER-LOOKUP)', () => {
+    const resolveReply = (projection: string): string =>
+      `const resolveReply = async (replyId: string) =>
+        db.select({ ${projection} }).from(replies).where(eq(replies.id, replyId))`
+
+    expect(
+      inspectSynthetic(resolveReply('organizationId: replies.organizationId')),
+    ).toEqual([
+      expect.objectContaining({ restrictedStatements: 0, mentionsTenant: true }),
+    ])
+    expect(inspectSynthetic(resolveReply('propertyId: replies.propertyId'))).toEqual([
+      expect.objectContaining({ restrictedStatements: 0, mentionsTenant: false }),
+    ])
+  })
+
   it('matches every detected tenant-free query exactly to the reviewed registry', () => {
     const reports = inspectTenantStatements(infrastructureSources(), tenantTables())
     const tenantFree = new Set(
