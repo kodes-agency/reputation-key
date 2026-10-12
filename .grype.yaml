@@ -17,8 +17,11 @@
 # (scripts/ci/grype-exception-expiry.ts): each rule takes the one
 # `expiresAt: YYYY-MM-DD` in the comment block directly above it — no blank
 # line between — and the gate fails the day after that date, or when a rule
-# has no such date. A new entry needs the finding named (package, CVE, grype's
-# own identity line).
+# has no such date. The gate reads lines while grype reads YAML, so keep the
+# one shape below: this plain `ignore:` key, then one `- ` item per rule on
+# its own line. A flow list, an alias, a quoted key or a line that belongs to
+# no rule fails the gate. A new entry needs the finding named (package, CVE,
+# grype's own identity line).
 
 ignore:
   # ── Debian trixie base packages, perl-base 5.40.1-6 (13 CVEs) ─────────

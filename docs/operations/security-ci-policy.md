@@ -47,7 +47,7 @@ and do not read them as a review verdict.
 | SBOM — source                            | `check` job, steps "Generate SBOM" + "Upload SBOM"                 | `anchore/sbom-action` (SPDX-JSON, source scope) — BQC-7.1                    | generation failure                                                                                                | `sbom-spdx` artifact, 30d                        |
 | SBOM — images                            | two-row `docker-images` matrix + `docker` aggregate                | pinned Syft CLI (`image:`, SPDX-JSON; one inventory/image)                   | generation failure                                                                                                | merged `sbom-images-spdx` artifact, 30d          |
 | Container/image + artifact-content scan  | `docker-images` matrix, step "Vulnerability scan grouped images"   | pinned Grype CLI (`sbom:`, `.grype.yaml`, hard fail)                         | **high+critical** (`--fail-on high`)                                                                              | per-group SARIF files; step log table            |
-| Scan exception expiry                    | `check` job, step "Container image inventory and coverage policy"  | `pnpm check:container-images` → `scripts/ci/grype-exception-expiry.ts`       | any `.grype.yaml` rule past its `expiresAt` date, or with no readable date                                        | Step log                                         |
+| Scan exception expiry                    | `check` job, step "Container image inventory and coverage policy"  | `pnpm check:container-images` → `scripts/ci/grype-exception-expiry.ts`       | any `.grype.yaml` rule past its `expiresAt` date or with no readable date, and any line the reader cannot place   | Step log                                         |
 | Production dependency/prune verification | `docker-images` matrix, step "Smoke images"                        | per-image inline shell inside each bounded group                             | any runtime-contract failure or sentinel devDependency in `/app/node_modules`                                     | Step log                                         |
 | Migration artifact consistency           | `check` job, steps "Predeploy migration parity" + "Schema drift …" | `pnpm db:migrate-deploy` (BQC-7.1) + `pnpm check:schema-drift`               | parity divergence / model↔catalog drift / journal entry out of order                                              | Step log                                         |
 
@@ -107,7 +107,9 @@ Machine-readable exception files live in `security/`:
   `# owner / reason / expiresAt` comments directly above it (grype has no
   native expiry field). A comment block governs the rules that follow it up to
   the next blank line or comment block, and must name exactly one
-  `expiresAt: YYYY-MM-DD`.
+  `expiresAt: YYYY-MM-DD`. The file has one accepted shape: a plain top-level
+  `ignore:` key with nothing after it, then one `- ` item per rule on its own
+  line.
 
 Rules, enforced by the gates themselves:
 
@@ -115,7 +117,11 @@ Rules, enforced by the gates themselves:
    `expiresAt` to the run date, and `pnpm check:container-images` does the
    same for `.grype.yaml` (`scripts/ci/grype-exception-expiry.ts`): it reads
    the date from the comment above each rule and fails the day after it, or
-   when a rule has no readable date. An exception is valid through its
+   when a rule has no readable date. It reads lines, not YAML, while grype
+   honours a rule in any shape YAML allows, so it fails closed: a flow list
+   (`ignore: [...]`), an alias, a quoted or otherwise unusual top-level key,
+   and any line inside the list that is neither a `- ` item nor indented under
+   one are violations, not "no rule here". An exception is valid through its
    `expiresAt` day in UTC. The check runs with no commit, so a date that
    passes turns the `check` job red on `main` and on every open pull request
    until the exception is removed or renewed.
@@ -152,9 +158,10 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
   CVE-2026-72897 / -84782 / -84784 — failed every image scan once grype's
   database listed them). The same three are fixed in the provider Redis by
   installing Alpine's `libssl3`/`libcrypto3` 3.3.7-r2 over the pinned
-  upstream build until upstream rebuilds on it. One more entry,
-  CVE-2026-102010 (gcc-14 runtime libraries), has no fix in any Debian
-  release yet. The families Debian
+  upstream build until upstream rebuilds on it. Two more entries,
+  CVE-2026-102010 and CVE-2026-95619 (gcc-14 runtime libraries), have no fix
+  in any Debian release yet; the second is scoped to version 14.2.0-19 and is
+  the first to lapse (2026-10-17), which makes 33 rules in all. The families Debian
   marks won't-fix (perl-base, glibc, util-linux, zlib, gzip, ncurses, libacl,
   sqlite, pcre2) are the same on trixie as they were on bookworm; their
   reachable surface stays removed (npm CLI stripped, setuid/setgid bits

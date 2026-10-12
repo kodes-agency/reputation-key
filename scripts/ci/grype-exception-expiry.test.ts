@@ -106,6 +106,91 @@ describe('grype exception expiry', () => {
     expect(validateGrypeExceptionExpiry('ignore: []\n', '2026-10-01')).toEqual([])
   })
 
+  // grype parses the file as YAML and honours a rule in any shape YAML allows.
+  // The gate reads lines, so a shape it does not recognise must fail, never
+  // pass as "no rules": each case below read zero rules and printed OK.
+  describe('a rule the line reader cannot date', () => {
+    const HOW = 'write each rule as a "- …" item on its own line under a dated comment'
+    const ON_KEY_LINE = `"ignore:" is followed by a value on the same line, where no expiry comment governs a rule — ${HOW}`
+    const STRAY = `is inside the ignore list but is neither a rule ("- …") nor part of one, so grype may honour it with no expiry — ${HOW}`
+    const NOT_A_KEY =
+      'is a top-level line the expiry gate cannot read, so an ignore list could sit behind it — write a plain, unquoted "key:"'
+
+    it('fails a flow list on the ignore line itself', () => {
+      const inline = 'ignore: [{ vulnerability: CVE-2026-0001 }]\n'
+
+      expect(validateGrypeExceptionExpiry(inline, '2026-10-01')).toEqual([
+        `.grype.yaml:1 ${ON_KEY_LINE}`,
+      ])
+    })
+
+    it('fails a flow list on the lines after the ignore key', () => {
+      const flow = 'ignore:\n  [\n    { vulnerability: CVE-2026-0001 },\n  ]\n'
+
+      expect(validateGrypeExceptionExpiry(flow, '2026-10-01')).toEqual([
+        `.grype.yaml:2 ${STRAY}`,
+      ])
+    })
+
+    it('reads a dash alone on its line as a rule, with the date above it', () => {
+      const bareDash =
+        'ignore:\n  # expiresAt: 2026-09-01\n  -\n    vulnerability: CVE-2026-0001\n'
+
+      expect(parseGrypeExceptions(bareDash)).toEqual([
+        {
+          rule: 'CVE-2026-0001',
+          line: 3,
+          commentLine: 2,
+          expiresAt: '2026-09-01',
+          ambiguous: false,
+        },
+      ])
+      expect(validateGrypeExceptionExpiry(bareDash, '2026-10-01')).toEqual([
+        '.grype.yaml:3 exception(s) for CVE-2026-0001 EXPIRED on 2026-09-01 — remove them with the fix, or renew them with a fresh reason and date',
+      ])
+    })
+
+    it('fails a quoted ignore key', () => {
+      const quoted =
+        '"ignore":\n  # expiresAt: 2026-09-01\n  - vulnerability: CVE-2026-0001\n'
+
+      expect(validateGrypeExceptionExpiry(quoted, '2026-10-01')).toEqual([
+        `.grype.yaml:1 ${NOT_A_KEY}`,
+      ])
+    })
+
+    it('fails an ignore list given as an alias', () => {
+      const alias = 'x-rules: &rules\n  - vulnerability: CVE-2026-0001\nignore: *rules\n'
+
+      expect(validateGrypeExceptionExpiry(alias, '2026-10-01')).toEqual([
+        `.grype.yaml:3 ${ON_KEY_LINE}`,
+      ])
+    })
+
+    it('fails a line that drops out of an open rule without starting another', () => {
+      const stray = SAMPLE.replace(
+        '      type: deb\n',
+        '      type: deb\n  vulnerability: CVE-2026-0006\n',
+      )
+
+      expect(validateGrypeExceptionExpiry(stray, '2026-10-01')).toEqual([
+        `.grype.yaml:18 ${STRAY}`,
+      ])
+    })
+
+    it('reads a list written at the key column, and an empty list with a comment', () => {
+      const flush =
+        'ignore:\n# expiresAt: 2026-09-01\n- vulnerability: CVE-2026-0001\n  package:\n    type: deb\n'
+
+      expect(validateGrypeExceptionExpiry(flush, '2026-10-01')).toEqual([
+        '.grype.yaml:3 exception(s) for CVE-2026-0001 EXPIRED on 2026-09-01 — remove them with the fix, or renew them with a fresh reason and date',
+      ])
+      expect(
+        validateGrypeExceptionExpiry('ignore: [] # zero exceptions\r\n', '2026-10-01'),
+      ).toEqual([])
+    })
+  })
+
   it('finds a dated comment above every rule in the committed .grype.yaml', () => {
     const exceptions = parseGrypeExceptions(COMMITTED)
 
