@@ -35,8 +35,9 @@ default the new target also applies to the months after.
    (`effectiveMonthTarget`). Evaluation reads it when a month is reconciled,
    when it closes and when a closed month is corrected; the two behind-pace
    queries restate it as `coalesce`. Every surface that shows the target of a
-   month reads it the same way: the goal card, the results matrix and the month
-   rows of the goal page.
+   month reads it the same way: the goal card, the results matrix, the month
+   rows of the goal page, and the row of a subject that already has a goal in
+   the table that sets several goals.
 2. **A version's target is never updated in place.** A different target for the
    running month is that month's own. A different target for the months after is
    a new version. Months that closed under a version keep the target they closed
