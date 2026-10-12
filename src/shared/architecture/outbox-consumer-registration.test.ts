@@ -8,6 +8,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
 import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
+import { EVENT_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
 import { walk } from '#/shared/testing/source-tree'
 import {
   claimProcessContainer,
@@ -99,6 +100,39 @@ function discoverRegistrations(): ReadonlyArray<DiscoveredRegistration> {
 const CATALOGUE_CONSUMER_MODULES: ReadonlySet<string> = new Set(
   ENTRY_POINT_CATALOGUE.filter((r) => r.kind === 'consumer').map((r) => r.name),
 )
+
+/**
+ * The catalogue module namespaces each context registers its consumers under.
+ * Most contexts use their own name; Feed owns notifications and Recent
+ * Activity, and Reporting owns metrics and goals (root CONTEXT.md, "Bounded
+ * contexts").
+ */
+const CONTEXT_MODULE_NAMESPACES: Readonly<Record<string, ReadonlyArray<string>>> = {
+  ai: ['ai'],
+  feed: ['activity', 'notification'],
+  inbox: ['inbox'],
+  integration: ['integration'],
+  portal: ['portal'],
+  property: ['property'],
+  reporting: ['goal', 'metric'],
+  review: ['review'],
+}
+
+/**
+ * True when a context registers a consumer under another context's catalogue
+ * module: the dispatcher gate would then authorize it under that context's
+ * action. A context this table does not know is reported, never waved through.
+ */
+function isMisattributed(registration: DiscoveredRegistration): boolean {
+  const context = /^src\/contexts\/([^/]+)\//.exec(registration.file)?.[1]
+  if (context === undefined || registration.module === undefined) return false
+  const namespace = registration.module.split('.')[0] ?? ''
+  return !(CONTEXT_MODULE_NAMESPACES[context] ?? []).includes(namespace)
+}
+
+function describeRegistration(registration: DiscoveredRegistration): string {
+  return `${registration.file}: ${registration.consumerName} → ${registration.module}`
+}
 
 beforeEach(clearTestContainerEnv)
 
@@ -257,19 +291,40 @@ describe('BQR-2.2: outbox consumer registration', () => {
       expect(unresolved).toEqual([])
     })
 
-    it('each context registration names a live catalogue consumer module', () => {
-      const misattributed = discoverRegistrations()
-        .filter((registration) => registration.file.startsWith('src/contexts/'))
-        .filter((registration) => registration.module !== undefined)
-        .filter(
-          (registration) =>
-            !CATALOGUE_CONSUMER_MODULES.has(registration.module as string),
-        )
-        .map(
-          (registration) =>
-            `${registration.file}: ${registration.consumerName} → ${registration.module as string}`,
-        )
-      expect(misattributed).toEqual([])
+    // R5D-02: the row has to be the registering context's own, not merely a row.
+    it('each context registers consumers only under its own catalogue modules', () => {
+      const contexts = new Set(
+        discoverRegistrations().flatMap((registration) => {
+          const context = /^src\/contexts\/([^/]+)\//.exec(registration.file)?.[1]
+          return context === undefined ? [] : [context]
+        }),
+      )
+
+      expect([...contexts].sort()).toEqual(Object.keys(CONTEXT_MODULE_NAMESPACES).sort())
+      expect(
+        discoverRegistrations().filter(isMisattributed).map(describeRegistration),
+      ).toEqual([])
+    })
+
+    it('refuses a consumer registered under another context\u2019s catalogue module', () => {
+      const src = [
+        'registerConsumer({',
+        "  eventType: 'integration.google.account.disconnected',",
+        "  consumerName: 'review.on-google-account-disconnected',",
+        "  module: 'inbox.outbox-consumers',",
+        '  handler: async () => ({ status: "applied" }),',
+        '})',
+      ].join('\n')
+      const registrations = parseRegistrations(
+        src,
+        'src/contexts/review/infrastructure/outbox-consumers.ts',
+      )
+
+      // The module is a real consumer row, so the row check alone accepts it.
+      expect(CATALOGUE_CONSUMER_MODULES.has('inbox.outbox-consumers')).toBe(true)
+      expect(registrations.filter(isMisattributed).map(describeRegistration)).toEqual([
+        'src/contexts/review/infrastructure/outbox-consumers.ts: review.on-google-account-disconnected → inbox.outbox-consumers',
+      ])
     })
   })
 })
@@ -324,6 +379,33 @@ describe('ARC-03-T7: container-scoped consumer registry', () => {
 
     await containerA.shutdown.run()
     await containerB.shutdown.run()
+  })
+
+  // R5D-02: readiness makes this comparison at worker boot, and its own unit
+  // test hands it the catalogue as the registered set. Here the registered set
+  // is what a real container registers.
+  it('registers exactly the durable consumers the catalogue names', async () => {
+    const container = build()
+    container.registerOutboxConsumers()
+    const registered = new Set(
+      container.consumerRegistry
+        .list()
+        .map(({ eventType, consumerName }) => `${eventType}::${consumerName}`),
+    )
+    const catalogued = new Set(
+      EVENT_FAMILY_ROWS.flatMap((row) =>
+        row.consumers.map((consumer) => `${row.eventType}::${consumer.name}`),
+      ),
+    )
+    await container.shutdown.run()
+
+    expect(catalogued.size).toBeGreaterThan(0)
+    expect({
+      // A fact with no reader: the worker would refuse to boot.
+      catalogued_but_unregistered: [...catalogued].filter((key) => !registered.has(key)),
+      // A reader the catalogue does not know: redelivery would never reach it.
+      registered_but_uncatalogued: [...registered].filter((key) => !catalogued.has(key)),
+    }).toEqual({ catalogued_but_unregistered: [], registered_but_uncatalogued: [] })
   })
 
   it('registers deterministic consumer keys across worker rebuilds', async () => {
