@@ -323,9 +323,11 @@ const renderReplyPublishFailed = (p: NotificationPayload): RendererCopy => {
  *
  * `ai_draft_withdrawn` is the one cause that leaves no draft behind: the AI
  * draft purge removed an unedited AI reply that was awaiting approval or
- * confirmed but not dispatched. So it says the draft is gone, not "returned",
- * and it names every reason the purge runs for, because the fact does not say
- * which one it was.
+ * confirmed but not dispatched. So it says the draft is gone, not "returned".
+ * The fact does not say why the purge ran, so the copy states the rule every
+ * reason falls under: such a draft is publishable only for a few minutes, and
+ * only while what it was written from stays the same. Naming the changes alone
+ * would be false for a draft whose time simply ran out.
  */
 const PUBLICATION_CANCELLATION_BODIES = {
   disconnect:
@@ -337,7 +339,7 @@ const PUBLICATION_CANCELLATION_BODIES = {
   provider_truth:
     'A different reply is live on Google, so this one is not. Open it to check.',
   ai_draft_withdrawn:
-    'This was an AI draft nobody had edited, and the review, the property or its AI settings changed after it was written. RepKey sent nothing to Google and removed the draft. Write a new reply.',
+    'An AI draft nobody edited can only be published within minutes of being written, and only while the review, the property and its AI settings stay the same. That window closed, so nothing was posted to Google and RepKey removed the draft. Write a new reply.',
 } as const
 
 const renderReplyPublicationCancelled = (p: NotificationPayload): RendererCopy => {

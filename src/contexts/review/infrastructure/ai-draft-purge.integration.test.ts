@@ -11,6 +11,10 @@
 //   - every re-observation of a Review ran the purge, so an AI-assisted draft
 //     or a reply awaiting approval vanished the next time sync listed the
 //     unchanged Review.
+// The fix for the second must not strand a reply: the binding also ends by
+// time alone, and the next observation is the only thing that withdraws a
+// reply whose time has run out. That, and what a guest edit leaves of a reply
+// the worker had already claimed, are pinned here too.
 //
 // Every reply here is adopted through the real AI draft store and confirmed
 // through the real reply command store, so the rows are the ones production
@@ -521,6 +525,52 @@ async function adoptionDisposition(operationId: string) {
   return row?.disposition
 }
 
+/**
+ * Let the reply's AI draft binding run out of time, as it does when the
+ * adoption window closes ten minutes after the suggestion was issued. Nothing
+ * about the Review, the Property or the AI settings changes.
+ */
+async function expireAiDraft(seeded: SeededReply): Promise<void> {
+  await db.execute(sql`
+    UPDATE replies
+    SET ai_draft_expires_at = transaction_timestamp() - interval '1 second'
+    WHERE id = ${seeded.reply.id}::uuid AND organization_id = ${ORG}
+  `)
+}
+
+/** Sync lists the Review again with nothing about it changed. */
+async function observeUnchanged(
+  seeded: SeededReply,
+  provider: Partial<Pick<Review, 'sourceUpdatedAt'>> = {},
+): Promise<void> {
+  const observedAt = new Date()
+  await reviewRepository.upsert(
+    { ...seeded.review, ...provider, lastFetchedAt: observedAt },
+    observedAt,
+    observationKey(`again:${seeded.review.id}`),
+  )
+}
+
+async function attemptRows(reply: Reply) {
+  const result = await db.execute(sql`
+    SELECT attempt_number, outcome
+    FROM reply_publication_attempts
+    WHERE reply_id = ${reply.id}::uuid AND organization_id = ${ORG}
+  `)
+  return result.rows
+}
+
+/** The publish worker's claim, with the fences the reply was confirmed under. */
+function claimForDispatch(seeded: SeededReply): Promise<Reply | null> {
+  return replyCommandStore.markPublicationSending(seeded.reply, {
+    propertyId: seeded.property,
+    sourceEpoch: SOURCE_EPOCH,
+    materialReviewRevision: 1,
+    baseObservationRevision: 0,
+    providerOperationKey: `ai-draft-purge:${seeded.reply.id}:1`,
+  })
+}
+
 /** Sync sees the guest's edit: a new Material Review Revision is recorded. */
 async function observeGuestEdit(seeded: SeededReply): Promise<Review> {
   const observedAt = new Date()
@@ -740,13 +790,7 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
     // cancellation does, and deletes nothing.
     it('supersedes the attempt of a cycle that was waiting to be retried', async () => {
       const seeded = await seedAiReply('authorized')
-      const sending = await replyCommandStore.markPublicationSending(seeded.reply, {
-        propertyId: seeded.property,
-        sourceEpoch: SOURCE_EPOCH,
-        materialReviewRevision: 1,
-        baseObservationRevision: 0,
-        providerOperationKey: `ai-draft-purge:${seeded.reply.id}:1`,
-      })
+      const sending = await claimForDispatch(seeded)
       if (!sending) throw new Error('The publish worker could not claim the cycle')
       const requeued = await replyCommandStore.markPublicationRetryQueued(sending)
       expect(requeued).toMatchObject({
@@ -762,12 +806,55 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
       )
 
       await expectWithdrawnWithEvidence(seeded)
-      const attempts = await db.execute(sql`
-        SELECT attempt_number, outcome
-        FROM reply_publication_attempts
-        WHERE reply_id = ${seeded.reply.id}::uuid AND organization_id = ${ORG}
-      `)
-      expect(attempts.rows).toEqual([{ attempt_number: 1, outcome: 'superseded' }])
+      expect(await attemptRows(seeded.reply)).toEqual([
+        { attempt_number: 1, outcome: 'superseded' },
+      ])
+    })
+
+    // What is left is an ordinary empty draft, so the Review can be answered
+    // from RepKey again: a Review holds one internal reply, and this is it.
+    it('leaves a draft a manager can write a new reply into', async () => {
+      const seeded = await seedAiReply('authorized')
+      await db.transaction((tx) =>
+        purgeAiDraftsForProperty(tx, {
+          organizationId: ORG,
+          propertyId: seeded.property,
+        }),
+      )
+
+      const rewritten = await replyRepository.conditionalUpdate(
+        seeded.reply.id,
+        ORG,
+        ['draft'],
+        { status: 'draft', text: 'A reply written by hand' },
+        new Date(),
+      )
+
+      expect(rewritten).toMatchObject({
+        status: 'draft',
+        text: 'A reply written by hand',
+        aiGenerated: false,
+      })
+      expect(await authorizationCount(seeded.reply)).toBe(1)
+    })
+
+    // The publish job reads the reply before it claims it. A purge that commits
+    // in between must leave that copy unclaimable: the withdrawn row no longer
+    // claims AI authorship, so the binding check alone would let it through.
+    it('cannot be claimed by a publish job that read it before the purge', async () => {
+      const seeded = await seedAiReply('authorized')
+      await db.transaction((tx) =>
+        purgeAiDraftsForProperty(tx, {
+          organizationId: ORG,
+          propertyId: seeded.property,
+        }),
+      )
+
+      const claimed = await claimForDispatch(seeded)
+
+      expect(claimed).toBeNull()
+      expect(await attemptRows(seeded.reply)).toEqual([])
+      expect(await replyRows(seeded.review.id)).toEqual([WITHDRAWN])
     })
 
     it('lets a guest edit be observed, and withdraws it once', async () => {
@@ -781,18 +868,66 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
 
     it('stays confirmed when the unchanged Review is observed again', async () => {
       const seeded = await seedAiReply('authorized')
-      const observedAt = new Date()
 
-      await reviewRepository.upsert(
-        { ...seeded.review, lastFetchedAt: observedAt },
-        observedAt,
-        observationKey(`again:${seeded.review.id}`),
-      )
+      await observeUnchanged(seeded)
 
       expect(await replyRows(seeded.review.id)).toMatchObject([
         {
           status: 'approved',
           publication_state: 'authorized',
+          text: SUGGESTION,
+          authorship: 'ai_assisted',
+        },
+      ])
+      expect(await cancellationFacts()).toEqual([])
+    })
+
+    // The publish worker refuses to claim a reply whose binding ran out, so
+    // without this it would wait in `authorized` for good.
+    it('is withdrawn by the next observation once its time has run out', async () => {
+      const seeded = await seedAiReply('authorized')
+      await expireAiDraft(seeded)
+
+      await observeUnchanged(seeded)
+
+      await expectWithdrawnWithEvidence(seeded)
+    })
+  })
+
+  // The worker has claimed these, so the purge itself never touches them: the
+  // text may be on Google. A guest edit stops the cycle and returns the reply
+  // to draft, and that draft still holds AI text written for the old revision.
+  describe('an AI-assisted reply that was dispatched', () => {
+    it('is emptied when a guest edit stops its publication, with one notice', async () => {
+      const seeded = await seedAiReply('authorized')
+      const sending = await claimForDispatch(seeded)
+      expect(sending).toMatchObject({ publicationState: 'sending' })
+
+      const saved = await observeGuestEdit(seeded)
+
+      expect(saved).toMatchObject({ sourceRevision: 2 })
+      expect(await replyRows(seeded.review.id)).toEqual([WITHDRAWN])
+      expect(await authorizationCount(seeded.reply)).toBe(1)
+      expect(await attemptRows(seeded.reply)).toEqual([
+        { attempt_number: 1, outcome: 'superseded' },
+      ])
+      expect(await cancellationFacts()).toEqual([
+        { ...withdrawalFact(seeded), cause: 'source_changed' },
+      ])
+    })
+
+    it('keeps its text when the unchanged Review is observed after its time ran out', async () => {
+      const seeded = await seedAiReply('authorized')
+      const sending = await claimForDispatch(seeded)
+      expect(sending).toMatchObject({ publicationState: 'sending' })
+      await expireAiDraft(seeded)
+
+      await observeUnchanged(seeded)
+
+      expect(await replyRows(seeded.review.id)).toMatchObject([
+        {
+          status: 'approved',
+          publication_state: 'sending',
           text: SUGGESTION,
           authorship: 'ai_assisted',
         },
@@ -806,13 +941,8 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
       'survives another observation of the unchanged Review (%s)',
       async (stage) => {
         const seeded = await seedAiReply(stage)
-        const observedAt = new Date()
 
-        await reviewRepository.upsert(
-          { ...seeded.review, lastFetchedAt: observedAt },
-          observedAt,
-          observationKey(`again:${seeded.review.id}`),
-        )
+        await observeUnchanged(seeded)
 
         expect(await replyRows(seeded.review.id)).toMatchObject([
           { status: stage, text: SUGGESTION, authorship: 'ai_assisted' },
@@ -826,6 +956,57 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
         ).resolves.toBe('current')
       },
     )
+
+    // The binding also ends by time alone, and no transaction marks that
+    // moment. Once it has, nobody can approve, reject or rewrite the reply, and
+    // a Review holds one internal reply, so the Review could not be answered
+    // from RepKey. The next observation is what takes it away.
+    it.each([
+      ['draft', 0],
+      ['pending_approval', 1],
+    ] as const)(
+      'is withdrawn by the next observation once its time has run out (%s)',
+      async (stage, expectedFacts) => {
+        const seeded = await seedAiReply(stage)
+        await expireAiDraft(seeded)
+        await expect(
+          draftStore.assertCurrentBinding({
+            organizationId: ORG,
+            replyId: seeded.reply.id,
+          }),
+        ).resolves.toBe('stale')
+
+        await observeUnchanged(seeded)
+
+        expect(await replyRows(seeded.review.id)).toEqual([])
+        expect(await cancellationFacts()).toEqual(
+          Array.from({ length: expectedFacts }, () => withdrawalFact(seeded)),
+        )
+      },
+    )
+
+    // Older provider evidence is recorded and never applied, but it is still
+    // sync seeing the Review, and a Review Google keeps answering with an old
+    // version would otherwise never release the reply.
+    it('is withdrawn once its time has run out even by an out-of-order observation', async () => {
+      const seeded = await seedAiReply('pending_approval')
+      await expireAiDraft(seeded)
+
+      await observeUnchanged(seeded, {
+        sourceUpdatedAt: new Date(seeded.review.sourceUpdatedAt!.getTime() - DAY_MS),
+      })
+
+      const latest = await db.execute(sql`
+        SELECT comparison_result
+        FROM review_source_observations
+        WHERE review_id = ${seeded.review.id}::uuid AND organization_id = ${ORG}
+        ORDER BY observation_sequence DESC
+        LIMIT 1
+      `)
+      expect(latest.rows).toEqual([{ comparison_result: 'out_of_order_ignored' }])
+      expect(await replyRows(seeded.review.id)).toEqual([])
+      expect(await cancellationFacts()).toEqual([withdrawalFact(seeded)])
+    })
 
     // The edit is its own record: `review.updated` carries the new revision and
     // reopens the Inbox item. Only a reply someone was waiting on needs a fact

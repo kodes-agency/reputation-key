@@ -100,8 +100,10 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
   // left to retry, and "Reply returned to draft" says what happened instead.
   // The AI draft purge also withdraws a reply that was still awaiting approval
   // (cause `ai_draft_withdrawn`), so the approval request goes with it: there
-  // is no reply left to decide on. No other cause can meet an open request,
-  // because they only cancel a reply somebody already approved.
+  // is no reply left to decide on. The other causes only cancel a reply
+  // somebody already approved, so they meet no open request, and one handled
+  // late cannot retire a request made again since: the settling consumer asks
+  // the work state first, and that reply is awaiting approval again.
   'reply.returned_to_draft': ['reply.publish_failed', 'reply.pending_approval'],
   'escalation.resolved': ['inbox.escalated'],
   // A closed cycle is a handled item: its arrival, the reopen that asked for

@@ -15,7 +15,8 @@
 
 import { z } from 'zod/v4'
 
-const databaseUuidSchema = z
+/** A PostgreSQL uuid as the outbox carries it; shared with ./schema-registrations.ts. */
+export const databaseUuidSchema = z
   .string()
   .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu)
 

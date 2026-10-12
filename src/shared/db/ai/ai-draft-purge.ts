@@ -13,9 +13,23 @@
 //   property       a Property archive or a Google binding change (one Property)
 //   organization   an Organization closing
 //   review         a new Material Review Revision or source epoch, or erased
-//                  source content (one Review). An observation that leaves the
-//                  revision where it was changes nothing the Reply was written
-//                  from, so the observation path must not call the purge for it.
+//                  source content (one Review). When a guest edit also stops a
+//                  cycle the worker had claimed, Review calls the purge again
+//                  after that stop, so the Reply it returned to draft is
+//                  emptied in the same transaction.
+//
+// One input changes without a transaction: time. The binding ends when
+// `ai_draft_expires_at` passes (the adoption window,
+// AI_REPLY_ADOPTION_WINDOW_MILLIS after the suggestion was issued), and from
+// then on the Reply can never be approved or published, while it still holds
+// the Review's one internal Reply. Nothing runs at that instant, so the next
+// observation of the Review does the work:
+//
+//   expiry         every observation of a known Review that is not a replay
+//                  and does not move the revision withdraws that Review's
+//                  AI-assisted Replies whose time has run out, and only those.
+//                  A Reply whose binding is still current is not touched: the
+//                  observation changed nothing it was written from.
 //
 // What happens to a Reply depends on how far it got (docs/BETA.md section 3 "AI",
 // ADR 0031, ADR 0055 decision 6):
@@ -25,29 +39,45 @@
 //       rejected one that no manager ever confirmed. Nothing references the
 //       row, so it is deleted.
 //   confirmed, not dispatched
-//       `requested` or `authorized`, and a Reply back in draft (or resubmitted,
-//       or rejected) after a `cancelled` cycle. The publication authorization,
-//       and any attempt, reference the row with ON DELETE RESTRICT and are
-//       evidence that must survive, so the row stays. An open cycle is
-//       cancelled the way a policy stop cancels one (the Reply returns to
-//       `draft`, `publication_state = 'cancelled'`, the current attempt
+//       `requested` or `authorized` (a cycle requeued after a retryable
+//       failure included: nothing was posted), and a Reply back in draft (or
+//       resubmitted, or rejected) after a `cancelled` cycle. The publication
+//       authorization, and any attempt, reference the row with ON DELETE
+//       RESTRICT and are evidence that must survive, so the row stays. An open
+//       cycle is cancelled the way a policy stop cancels one (the Reply returns
+//       to `draft`, `publication_state = 'cancelled'`, the current attempt
 //       `superseded`), so no worker can claim it. The AI-derived text is
 //       emptied: the erased shape the Organization purge leaves a Reply it has
-//       to keep. With no AI text left, the row stops claiming AI authorship.
+//       to keep. With no AI text left, the row stops claiming AI authorship,
+//       and a manager can write a new reply into it.
 //   dispatched or ended
 //       `approved` with `sending`, `pending_observation` or `ambiguous`, and
-//       `published` and `publish_failed` Replies. Left alone: the text may
-//       already be on Google, and the publish worker, the reconciliation sweep
-//       and Review's own cancellation paths own these rows.
+//       `published` and `publish_failed` Replies. Left alone. A dispatched
+//       cycle's text may already be on Google, and the publish worker, the
+//       reconciliation sweep and Review's own cancellation paths own the row;
+//       once one of them returns it to draft it is the shape above. A
+//       `publish_failed` Reply is a cycle that ran to its end: the failure
+//       notice and the attempt evidence describe that text, and an unconfirmed
+//       one may be live. The binding check still refuses its Retry.
 //
 // A Reply somebody was waiting on does not vanish silently. For each Reply that
 // was awaiting approval, or confirmed and waiting to be sent, the purge records
 // one `review.reply.publication_cancelled` fact (cause `ai_draft_withdrawn`) in
-// the caller's transaction. A draft nobody was asked about goes without one.
+// the caller's transaction. A draft nobody was asked about goes without one,
+// and so does a Reply another cancellation already announced.
 //
-// A confirmation that commits while the purge runs can slip past both
-// statements. The publish worker's claim repeats the AI draft binding check, so
-// such a Reply still cannot reach Google.
+// A withdrawn Reply cannot be claimed. A publish job that read the row before
+// the purge holds a copy the binding check no longer recognises as AI-assisted,
+// so what stops it is the claim's compare-and-set on status, publication state
+// and state revision, all of which the purge moves. A confirmation that commits
+// while the purge runs can slip past both statements; that Reply is still
+// AI-assisted, and the claim's binding check refuses it.
+//
+// Lock order: the purge locks Reply rows and then, through the Reply revision
+// trigger, their Review rows. Approve and the worker's claim lock the Review
+// first. A purge that meets one of them on the same Reply can therefore be
+// chosen as the deadlock victim; its caller's transaction fails as a whole and
+// is safe to run again.
 //
 // The fact is built here, not by Review's constructor: the purge runs inside
 // other contexts' transactions, and shared/db may not import a context. Its
@@ -70,6 +100,11 @@ type PropertyDraftScope = Readonly<{
   propertyId: string
 }>
 
+type ReviewDraftScope = Readonly<{
+  organizationId: string
+  reviewId: string
+}>
+
 /** A withdrawn Reply as its cancellation fact names it: identifiers only. */
 type WithdrawnReplyRow = {
   id: string
@@ -85,6 +120,11 @@ const EVERY_ORGANIZATION = sql`TRUE`
 const inProperty = (input: PropertyDraftScope): SQL => sql`
   review.property_id = ${input.propertyId}::uuid
   AND review.organization_id = ${input.organizationId}
+`
+
+const inReview = (input: ReviewDraftScope): SQL => sql`
+  reply.review_id = ${input.reviewId}::uuid
+  AND reply.organization_id = ${input.organizationId}
 `
 
 async function recordWithdrawal(tx: AiBudgetTx, row: WithdrawnReplyRow): Promise<void> {
@@ -231,11 +271,24 @@ export function purgeAiDraftsForOrganization(
 
 export function purgeAiDraftsForReview(
   tx: AiBudgetTx,
-  input: Readonly<{ organizationId: string; reviewId: string }>,
+  input: ReviewDraftScope,
+): Promise<void> {
+  return withdrawAiDrafts(tx, inReview(input))
+}
+
+/**
+ * The `expiry` scope: only the Review's AI-assisted Replies whose binding has
+ * run out of time. The comparison is the complement of the binding check's
+ * (`ai_draft_expires_at > transaction_timestamp()`), so a Reply is withdrawn
+ * here exactly when that check would call it stale for its age.
+ */
+export function purgeExpiredAiDraftsForReview(
+  tx: AiBudgetTx,
+  input: ReviewDraftScope,
 ): Promise<void> {
   return withdrawAiDrafts(
     tx,
-    sql`reply.review_id = ${input.reviewId}::uuid
-      AND reply.organization_id = ${input.organizationId}`,
+    sql`${inReview(input)}
+      AND reply.ai_draft_expires_at <= transaction_timestamp()`,
   )
 }

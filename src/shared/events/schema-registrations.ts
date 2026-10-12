@@ -29,7 +29,10 @@ import {
   portalContentReviewCompletedV2Schema,
 } from './portal-workflow-event-schemas'
 import { registerIdentityAccessEventSchemas } from './identity-access-event-schemas'
-import { replyPublicationCancelledSchema } from './reply-publication-cancelled-schema'
+import {
+  databaseUuidSchema,
+  replyPublicationCancelledSchema,
+} from './reply-publication-cancelled-schema'
 
 // ── Review event schemas ────────────────────────────────────────────
 
@@ -71,10 +74,6 @@ const reviewSourceTransitionedSchema = z.object({
   change: z.enum(['source_expired', 'provider_deleted']),
   occurredAt: z.string().optional(),
 })
-
-const databaseUuidSchema = z
-  .string()
-  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu)
 
 /** The Property source-epoch scope both provider-snapshot run facts are keyed by. */
 const reviewSnapshotRunScope = {

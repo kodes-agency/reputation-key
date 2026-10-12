@@ -980,11 +980,13 @@ ADR 0059 did.
 ## Amended 2026-10-12 — a withdrawn AI draft tells the people waiting on it
 
 The AI draft purge (`src/shared/db/ai/ai-draft-purge.ts`) withdraws an
-unedited AI-assisted reply when something it was generated from changes: the
-review, the Property, the AI Authorization, the processing profile or an AI
-execution control. It used to do so silently. A reply awaiting approval
-disappeared and its approval request stayed in the bell, pointing at an item
-with no reply.
+unedited AI-assisted reply when it can no longer be published: something it
+was generated from changed (the review, the Property, the AI Authorization,
+the processing profile or an AI execution control), or its time ran out. An
+unedited AI draft is publishable for ten minutes after the suggestion was
+issued; once that has passed, the next sync that sees the review withdraws it.
+The purge used to work silently. A reply awaiting approval disappeared and its
+approval request stayed in the bell, pointing at an item with no reply.
 
 `review.reply.publication_cancelled` gains a fifth closed cause,
 `ai_draft_withdrawn`, recorded by the purge for each reply that was awaiting
@@ -992,16 +994,25 @@ approval, or confirmed and not yet dispatched. It goes to the same audience as
 the other causes: the author, and the people who can approve. Its copy differs
 in the one way that matters. Every other cause leaves a draft to approve again;
 this one leaves none, because the purge removes the AI-derived text. So the
-notice is titled "AI draft removed", says nothing was sent to Google, and asks
-for a new reply. It names every reason the purge runs for, because the fact
-does not record which one applied. The purge only withdraws replies that were
-never dispatched, so the notice may say nothing was sent.
+notice is titled "AI draft removed", says nothing was posted to Google, and
+asks for a new reply. The fact does not record why the purge ran, so the body
+states the rule every reason falls under and asserts none of them: an AI draft
+nobody edited can only be published within minutes of being written, and only
+while the review, the property and its AI settings stay the same. Copy that
+named only the changes would be false for a draft whose time simply ran out.
+The purge withdraws a reply only while no attempt of its current request is
+out (never claimed by the worker, or requeued after an attempt that posted
+nothing), so the notice may say so.
 
 The same fact now also settles `reply.pending_approval`: the reply the request
-asked about is gone. No other cause can meet an open approval request, because
-the other four only cancel a reply somebody already approved.
+asked about is gone. The other four causes cancel a reply somebody already
+approved, so they meet no open request; if one is handled late, after the reply
+was submitted again, the work-state check keeps the new request because the
+reply is awaiting approval again (`application/notification-work-state.ts`).
 
 A plain AI draft nobody was asked about is removed without a fact or a notice.
+A dispatched AI-assisted reply that a guest edit returns to draft is emptied
+too, under the `source_changed` notice that cancellation already sends.
 
 ## Consequences
 

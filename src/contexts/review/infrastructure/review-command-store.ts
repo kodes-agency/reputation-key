@@ -7,6 +7,7 @@ import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow } from '#/shared/outbox/commit'
+import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
 import {
   replies,
   replyPublicationAttempts,
@@ -44,7 +45,15 @@ const SOURCE_ACTIVE_PUBLICATION_STATES = [
 
 /** Settle publication work whose immutable authorization names an older
  * Review source. The attempt remains append-only evidence but can no longer
- * be confirmed or resent. */
+ * be confirmed or resent.
+ *
+ * A Reply this returns to draft may be AI-assisted: the worker had claimed it
+ * (`sending`, `pending_observation`, `ambiguous`), so the AI draft purge that
+ * ran with the observation left it alone. Its text answered the revision the
+ * guest replaced and its binding is stale for good, so as it stands it could
+ * never be submitted again. The purge therefore runs once more, now that the
+ * row is one it empties (`src/shared/db/ai/ai-draft-purge.ts`). It records no
+ * second fact: the `source_changed` one below already told the people waiting. */
 async function supersedeStaleReviewPublications(
   tx: Tx,
   review: Review,
@@ -90,6 +99,7 @@ async function supersedeStaleReviewPublications(
     )
     .for('update', { of: replies })
 
+  let returnedToDraft = 0
   for (const stale of staleRows) {
     if (stale.publicationAttempts > 0) {
       await tx
@@ -128,6 +138,7 @@ async function supersedeStaleReviewPublications(
       )
       .returning({ id: replies.id })
     if (!cancelled[0]) continue
+    returnedToDraft += 1
     await insertOutboxRow(
       tx,
       reviewReplyPublicationCancelled({
@@ -140,6 +151,12 @@ async function supersedeStaleReviewPublications(
         occurredAt,
       }),
     )
+  }
+  if (returnedToDraft > 0) {
+    await purgeAiDraftsForReview(tx, {
+      organizationId: review.organizationId,
+      reviewId: review.id,
+    })
   }
 }
 

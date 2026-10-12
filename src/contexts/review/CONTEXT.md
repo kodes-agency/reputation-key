@@ -94,13 +94,18 @@ An AI-assisted Reply is the unedited output of one AI operation; the first
 manager edit makes it human-authored. It is bound to what it was generated from
 (`infrastructure/ai-draft-binding.ts`): the Review's source epoch and Material
 Review Revision, the Property's processing profile, the Merchant AI
-Authorization and the AI execution controls. Submit, approve and the publish
-worker's claim refuse it once any of them has moved, and the transaction that
-moves one runs the AI draft purge (`src/shared/db/ai/ai-draft-purge.ts`) for
-the scope it changed: a control transition, an Authorization or profile change,
-a Property archive or Google binding change, an Organization closing, a new
-Material Review Revision or source epoch, or source-content erasure. The purge
-withdraws the AI-assisted Replies whose text has not gone to Google:
+Authorization and the AI execution controls. The binding also ends by time
+alone, when `ai_draft_expires_at` passes: the adoption window
+(`AI_REPLY_ADOPTION_WINDOW_MILLIS`, ten minutes) after the suggestion was
+issued. Submit, approve and the publish worker's claim refuse it once the
+binding is stale, and the transaction that moves an input runs the AI draft
+purge (`src/shared/db/ai/ai-draft-purge.ts`) for the scope it changed: a
+control transition, an Authorization or profile change, a Property archive or
+Google binding change, an Organization closing, a new Material Review Revision
+or source epoch, or source-content erasure. No transaction marks the moment the
+time runs out, so the next observation of the Review withdraws the Replies
+whose time has passed, and only those. The purge withdraws the AI-assisted
+Replies whose text has not gone to Google:
 
 - one no manager ever confirmed (a draft, awaiting approval, rejected) is
   deleted;
@@ -108,15 +113,19 @@ withdraws the AI-assisted Replies whose text has not gone to Google:
   is back in draft after a cancelled cycle, is kept, because its authorization
   and attempts reference it and must survive. An open cycle is cancelled as a
   policy stop cancels one, its AI-derived text is emptied, and the row stops
-  claiming AI authorship;
+  claiming AI authorship, so a manager can write a new reply into it;
 - one that was dispatched, published or ended as `publish_failed` is left to the
   publish worker, the reconciliation sweep and the cancellation paths above.
+  When a guest edit stops a dispatched cycle (`source_changed`), the Reply it
+  returns to draft is emptied in the same transaction: its text answered the
+  revision the guest replaced.
 
 Each Reply that was awaiting approval or confirmed and waiting to be sent
 records one `review.reply.publication_cancelled` fact with cause
 `ai_draft_withdrawn`, so its author and approvers are told and the approval
 request is retired (ADR 0046, amended 2026-10-12). A draft nobody was asked
-about goes without one.
+about goes without one, and so does a Reply whose cancellation already
+recorded a fact of its own.
 
 A guest edit does not inherit the answer to the revision it replaced. A live
 Google reply whose text equals the previous head's, recorded in the same source
@@ -220,9 +229,11 @@ creates a separate row and never overwrites the renamed template.
     versioned, attributed to the acting user, and leave version and attribution
     unchanged when the persisted value is unchanged.
 15. Observing a Review again at the same source epoch and Material Review
-    Revision never removes or changes a Reply. Only an observation that moves
-    one of them, or source-content erasure, runs the AI draft purge for that
-    Review, and the purge never deletes a Reply that publication evidence
+    Revision never withdraws an AI-assisted Reply whose binding is still
+    current. That observation runs the AI draft purge only for the Review's
+    AI-assisted Replies whose `ai_draft_expires_at` has passed; an observation
+    that moves the epoch or the revision, and source-content erasure, run it
+    for all of them. The purge never deletes a Reply that publication evidence
     references (`infrastructure/ai-draft-purge.integration.test.ts`).
 
 ## Verification

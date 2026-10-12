@@ -6,7 +6,9 @@
 // Review's revision or source epoch, a profile, an authorization or a control
 // changes; what is left to check here is the state those purges cannot see
 // coming: the two expiries, the operation's settled receipt, and a
-// confirmation that commits while a purge is running.
+// confirmation that commits while a purge is running. A draft whose own expiry
+// has passed stays refused here until the next observation of its Review
+// withdraws it.
 
 import { and, eq, sql } from 'drizzle-orm'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
