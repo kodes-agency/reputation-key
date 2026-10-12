@@ -293,6 +293,38 @@ describe('retention registry — compatibility mirrors', () => {
       { id: 'guest.deidentified_visit_record_facts', operation: 'delete' },
     ])
   })
+
+  it('promises to keep every row only for a table no rule deletes from', () => {
+    const deletedFrom = new Set(
+      RETENTION_REGISTRY.filter((rule) => (rule.operation ?? 'delete') === 'delete').map(
+        ({ source }) => source,
+      ),
+    )
+    const promisesToKeepEveryRow = RETENTION_REGISTRY.filter(({ eligibility }) =>
+      /retain every/i.test(eligibility.query),
+    )
+
+    expect(promisesToKeepEveryRow.map(({ id }) => id)).toEqual([
+      'guest.legacy_ratings.abuse_pseudonym',
+      'guest.legacy_ratings.session_pseudonym',
+      'guest.legacy_feedback.abuse_pseudonym',
+      'guest.legacy_feedback.session_pseudonym',
+    ])
+    expect(
+      promisesToKeepEveryRow.filter(({ source }) => deletedFrom.has(source)),
+    ).toEqual([])
+  })
+
+  it('says of each scan_events redaction which rule later deletes the row', () => {
+    for (const id of [
+      'guest.legacy_scan_events.abuse_pseudonym',
+      'guest.legacy_scan_events.session_pseudonym',
+    ]) {
+      expect(ruleById(id).eligibility.query, id).toContain(
+        'guest.deidentified_visit_record_facts',
+      )
+    }
+  })
 })
 
 describe('retention registry — reading never extends a content deadline', () => {

@@ -88,6 +88,19 @@ const RESTORE_REPLAYS_REDACTION =
 const RESTORE_EXTERNAL =
   'The external processor holds its own copy on its own clock. A RepKey restore does not restore or re-delete it, and a RepKey deletion does not reach it; the boundary must be stated in the notice rather than implied.'
 
+/**
+ * What becomes of a row once a pseudonym redaction has cleared its column.
+ * `ratings` and `feedback` keep every row. A `scan_events` row outlives the
+ * redaction and is deleted later, as a visit fact, by its own rule.
+ */
+const KEEPS_EVERY_ROW = 'retain every compatibility row for contraction inventory'
+const ROW_FATE_AFTER_REDACTION = Object.freeze({
+  scan_events:
+    'the redaction keeps the row, and guest.deidentified_visit_record_facts deletes it 24 months after the visit',
+  ratings: KEEPS_EVERY_ROW,
+  feedback: KEEPS_EVERY_ROW,
+} as const)
+
 export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.freeze([
   rule({
     id: 'google.source_content',
@@ -211,7 +224,7 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       query:
         'SELECT id FROM guest_network_pressure_records WHERE expires_at < now(). The canonical model has NO per-fact abuse pseudonym: one content-free, Portal-scoped authority replaced the per-row network hash, so this row IS the abuse pseudonym.',
       implementedBoundary:
-        'Live at exactly seven days. The only remaining per-fact abuse pseudonyms are the ip_hash columns on the pre-beta mirrors; those are redacted at seven days without deleting a row — see LEGACY_MIRROR_PSEUDONYM_REDACTIONS.',
+        'Live at exactly seven days. The only remaining per-fact abuse pseudonyms are the ip_hash columns on scan_events, ratings and feedback; the redaction at seven days clears them without deleting a row — see LEGACY_MIRROR_PSEUDONYM_REDACTIONS.',
     },
     evidenceSubject: 'guest_network_pressure_records.expired',
     restoreImplication: RESTORE_REPLAYS_REDACTION,
@@ -249,7 +262,7 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
         anchorColumn: 'created_at',
         horizon: { kind: 'days', days: 7 },
         predicate: 'ip_hash IS NOT NULL',
-        query: `Redact ip_hash from ${source} rows created more than seven days ago; retain every compatibility row for contraction inventory.`,
+        query: `Redact ip_hash from ${source} rows created more than seven days ago; ${ROW_FATE_AFTER_REDACTION[source]}.`,
         implementedBoundary:
           'Live as a row-preserving scheduled redaction at exactly seven days.',
       },
@@ -269,7 +282,7 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
         anchorColumn: 'created_at',
         horizon: { kind: 'days', days: 7 },
         predicate: 'session_id IS NOT NULL',
-        query: `Redact session_id from ${source} rows created more than 24 hours ago; retain every compatibility row for contraction inventory.`,
+        query: `Redact session_id from ${source} rows created more than 24 hours ago; ${ROW_FATE_AFTER_REDACTION[source]}.`,
         implementedBoundary:
           'Stricter than the seven-day counsel-facing horizon: live as a row-preserving scheduled redaction after 24 hours.',
       },
@@ -703,10 +716,14 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
 ] satisfies ReadonlyArray<RetentionRegistryRule>)
 
 /**
- * Row-preserving pseudonym redactions against the pre-beta Guest mirrors.
+ * Row-preserving pseudonym redactions against the three Guest tables that
+ * carry `ip_hash` and `session_id` columns.
  *
  * These entries align the executable sweep subjects with their counsel-facing
- * registry rules. The pseudonyms disappear while every source row remains.
+ * registry rules. A redaction clears the pseudonym and leaves the row. For
+ * `ratings` and `feedback`, which the beta no longer writes, that is all that
+ * ever happens to a row. A `scan_events` row is a current visit fact and is
+ * deleted later, at 24 months, by `guest.deidentified_visit_record_facts`.
  */
 export const LEGACY_MIRROR_PSEUDONYM_REDACTIONS = Object.freeze(
   (['scan_events', 'ratings', 'feedback'] as const).flatMap((table) => [

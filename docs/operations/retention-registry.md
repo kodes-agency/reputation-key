@@ -87,13 +87,22 @@ does the same for the counted visit. Neither table stamps a deadline, so both
 rules count the months back from the run; the rating fact keeps its own stamped
 `retention_deadline`.
 
+The persisted-model lifecycle authority
+(`src/shared/governance/data-fate-authority.ts`) files the three tables the same
+way: `ratings` and `feedback` are `compatibility_read`, kept read-only;
+`scan_events` is a live Guest table whose exit criteria name its three sweep
+subjects. `data-fate-authority.test.ts` fails if a table the sweep deletes from
+is filed as kept read-only.
+
 ### The declared redactions
 
-Six sweep rules touch the three mirrors: the `ip_hash` and `session_id`
-pseudonym redactions on each table. They are `redact`, never `delete`. Every row
+Six sweep rules redact on the three tables: the `ip_hash` and `session_id`
+pseudonym redactions on each. They are `redact`, never `delete`. Every row
 survives them, while the §3.3.10 seven-day pseudonym default still reaches the
-mirrors. `LEGACY_MIRROR_PSEUDONYM_REDACTIONS` aligns those executable sweep
-subjects with the counsel-facing registry horizons.
+tables. For `ratings` and `feedback` that is all that happens to a row; a
+`scan_events` row is deleted later by the rule above, and its two redaction
+entries in the registry say so. `LEGACY_MIRROR_PSEUDONYM_REDACTIONS` aligns
+those executable sweep subjects with the counsel-facing registry horizons.
 
 ---
 
