@@ -58,7 +58,12 @@
 //       once one of them returns it to draft it is the shape above. A
 //       `publish_failed` Reply is a cycle that ran to its end: the failure
 //       notice and the attempt evidence describe that text, and an unconfirmed
-//       one may be live. The binding check still refuses its Retry.
+//       one may be live. Its Retry authorizes a new cycle without reading the
+//       binding (a failed Reply has no other command), and the claim of that
+//       cycle withdraws the Reply unless the binding is current, or its text
+//       was claimed once before and only the adoption window has passed since
+//       (reply-write-guards.ts, `aiTextMayBeClaimed`). So after any change
+//       this purge runs for, a failed Reply's AI text is not sent again.
 //
 // A Reply somebody was waiting on does not vanish silently. For each Reply that
 // was awaiting approval, or confirmed and waiting to be sent, the purge records
@@ -71,7 +76,17 @@
 // so what stops it is the claim's compare-and-set on status, publication state
 // and state revision, all of which the purge moves. A confirmation that commits
 // while the purge runs can slip past both statements; that Reply is still
-// AI-assisted, and the claim's binding check refuses it.
+// AI-assisted, and the claim's binding check refuses it. A claim that refuses
+// AI text withdraws the Reply itself, through `purgeAiDraftsForReview`, with
+// this module's cause (review/infrastructure/unclaimable-publication.ts): the
+// purge and the claim leave one shape, whichever reaches the Reply first.
+//
+// The purge empties a draft in place. A draft whose cycle was cancelled has
+// the same status, publication state and cycle afterwards, so a reply command
+// that puts text forward (submit, approve, retry, edit) also compares the
+// state revision, which the emptying advances (reply-write-guards.ts). A draft
+// save that lands on the emptied row writes the manager's text into it, which
+// is what the empty draft is for.
 //
 // Lock order: the purge locks Reply rows and then, through the Reply revision
 // trigger, their Review rows. Approve and the worker's claim lock the Review

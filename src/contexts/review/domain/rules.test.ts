@@ -209,8 +209,18 @@ describe('canTransitionReply', () => {
     expect(canTransitionReply('rejected', 'pending_approval')).toBe(false)
   })
 
-  it('allows approved → draft (BQC-3.8 publication cancellation returns the reply for re-approval)', () => {
-    expect(canTransitionReply('approved', 'draft')).toBe(true)
+  it('blocks approved → draft: only a cancellation makes that move, through cancelledPublication', () => {
+    expect(canTransitionReply('approved', 'draft')).toBe(false)
+  })
+
+  it('blocks every status move that would publish or approve without its step', () => {
+    expect(canTransitionReply('draft', 'published')).toBe(false)
+    expect(canTransitionReply('pending_approval', 'published')).toBe(false)
+    expect(canTransitionReply('pending_approval', 'draft')).toBe(false)
+    expect(canTransitionReply('rejected', 'approved')).toBe(false)
+    expect(canTransitionReply('rejected', 'published')).toBe(false)
+    expect(canTransitionReply('approved', 'approved')).toBe(false)
+    expect(canTransitionReply('publish_failed', 'draft')).toBe(false)
   })
 
   it('rejects a transition from an unknown status (defensive `?? false` fallback)', () => {

@@ -189,4 +189,19 @@ describe('inboxCachePolicy reply changes', () => {
     expect(qc.getQueryState(inboxKeys.detail('item-a'))?.isInvalidated).toBe(true)
     expect(qc.getQueryState(inboxKeys.detail('item-b'))?.isInvalidated).toBe(false)
   })
+
+  it('re-reads the reply after a refused confirmation, so the pane shows the reply that is stored', () => {
+    const { qc, invalidated } = realQc()
+    qc.setQueryData(inboxKeys.detail('item-a'), detailOf('item-a', 'review-a'))
+    qc.setQueryData(inboxKeys.detail('item-b'), detailOf('item-b', 'review-b'))
+
+    inboxCachePolicy.onReplyConfirmationRefused(qc, 'review-a')
+
+    expect(invalidated).toEqual([
+      inboxKeys.detail('item-a'),
+      inboxKeys.lists(),
+      inboxKeys.counts(),
+    ])
+    expect(qc.getQueryState(inboxKeys.detail('item-b'))?.isInvalidated).toBe(false)
+  })
 })

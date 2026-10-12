@@ -68,6 +68,7 @@ import {
   reviewReplyApproved,
   reviewReplyPublicationCancelled,
   reviewReplyPublicationRequested,
+  reviewReplySubmitted,
   reviewUpdated,
 } from '../domain/events'
 import type { Reply, Review } from '../domain/types'
@@ -385,6 +386,34 @@ async function authorizationLineage(property: PropertyId): Promise<string> {
   return row.lineage
 }
 
+/** The reply as it is stored now: a guarded write names the row it read. */
+async function storedReply(seeded: Pick<SeededReply, 'reply'>): Promise<Reply> {
+  const reply = await replyRepository.findById(seeded.reply.id, ORG)
+  if (!reply) throw new Error('The reply is gone')
+  return reply
+}
+
+/** Submit a draft for approval through the reply command store. */
+function submitForApproval(
+  draft: Reply,
+  property: PropertyId,
+  now: Date,
+): Promise<Reply | null> {
+  return replyCommandStore.submitReply(
+    draft,
+    { status: 'pending_approval', submittedAt: now, submittedBy: SUBMITTER },
+    reviewReplySubmitted({
+      replyId: draft.id,
+      reviewId: draft.reviewId,
+      propertyId: property,
+      organizationId: ORG,
+      userId: SUBMITTER,
+      occurredAt: now,
+    }),
+    now,
+  )
+}
+
 /**
  * Adopt an AI suggestion for a fresh Review and take it as far as `stage`:
  * a draft, submitted for approval, or confirmed and waiting for the worker.
@@ -443,13 +472,7 @@ async function seedAiReply(stage: Stage, inProperty?: PropertyId): Promise<Seede
   }
   if (stage === 'draft') return { property, review, reply: accepted.reply, operationId }
 
-  const pending = await replyRepository.conditionalUpdate(
-    accepted.reply.id,
-    ORG,
-    ['draft'],
-    { status: 'pending_approval', submittedAt: now, submittedBy: SUBMITTER },
-    now,
-  )
+  const pending = await submitForApproval(accepted.reply, property, now)
   if (!pending) throw new Error('AI-assisted draft could not be submitted')
   if (stage === 'pending_approval')
     return { property, review, reply: pending, operationId }
@@ -822,11 +845,9 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
         }),
       )
 
-      const rewritten = await replyRepository.conditionalUpdate(
-        seeded.reply.id,
-        ORG,
-        ['draft'],
-        { status: 'draft', text: 'A reply written by hand' },
+      const rewritten = await replyRepository.saveDraft(
+        await storedReply(seeded),
+        { text: 'A reply written by hand' },
         new Date(),
       )
 
@@ -1107,14 +1128,32 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
       expect(await cancellationFacts()).toEqual([policyFact(seeded)])
     })
 
+    // The emptying leaves the draft a draft, in the same cancelled cycle. A
+    // Submit that read the AI text before the purge names the reply it read,
+    // state revision included, so it does not hand an approver a reply with
+    // no text.
+    it('is not submitted, blank, by a Submit that read it before the purge', async () => {
+      const seeded = await seedCancelledAiReply()
+      const readBySubmit = await storedReply(seeded)
+      await db.transaction((tx) =>
+        purgeAiDraftsForProperty(tx, {
+          organizationId: ORG,
+          propertyId: seeded.property,
+        }),
+      )
+
+      const submitted = await submitForApproval(readBySubmit, seeded.property, new Date())
+
+      expect(submitted).toBeNull()
+      expect(await replyRows(seeded.review.id)).toEqual([WITHDRAWN])
+    })
+
     it('tells the people waiting on it when it had been submitted again', async () => {
       const seeded = await seedCancelledAiReply()
       const now = new Date()
-      const resubmitted = await replyRepository.conditionalUpdate(
-        seeded.reply.id,
-        ORG,
-        ['draft'],
-        { status: 'pending_approval', submittedAt: now, submittedBy: SUBMITTER },
+      const resubmitted = await submitForApproval(
+        await storedReply(seeded),
+        seeded.property,
         now,
       )
       expect(resubmitted).toMatchObject({ status: 'pending_approval' })
@@ -1139,13 +1178,14 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
       const edited = await seedAiReply('draft')
       const elsewhere = await seedAiReply('draft')
       const dispatched = await seedAiReply('authorized', edited.property)
-      await replyRepository.conditionalUpdate(
-        edited.reply.id,
-        ORG,
-        ['draft'],
-        { status: 'draft', text: 'Rewritten by a manager', aiGenerated: false },
+      // A draft save is a manager writing the text: the store records the
+      // reply as human-authored.
+      const typedOver = await replyRepository.saveDraft(
+        edited.reply,
+        { text: 'Rewritten by a manager' },
         new Date(),
       )
+      if (!typedOver) throw new Error('The AI-assisted draft could not be typed over')
       await db.execute(sql`
         UPDATE replies SET publication_state = 'sending'
         WHERE id = ${dispatched.reply.id}::uuid AND organization_id = ${ORG}

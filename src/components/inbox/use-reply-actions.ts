@@ -27,6 +27,7 @@ import type { ReplyTemplateListResult } from '#/contexts/review/application/use-
 import { inboxCachePolicy, type InboxReplyCacheChange } from './inbox-cache-policy'
 import { replyCheckMutationOptions } from './reply-check-feedback'
 import type { ReplyLanguageTarget } from './reply-language-options'
+import type { ReplyOnScreen } from './reply-message-actions'
 import type { LoadedReplyTemplateDraft } from './reply-suggestion-contract'
 
 export type ReplyActions = Readonly<{
@@ -38,7 +39,12 @@ export type ReplyActions = Readonly<{
   ) => Promise<unknown>
   submitReply: () => Promise<unknown>
   deleteDraft: () => Promise<unknown>
-  approve: () => Promise<unknown>
+  /**
+   * Confirm & publish `expectedReply`: the reply the pane showed when the
+   * manager opened the confirmation, and its state revision. The server
+   * refuses when the stored reply is another one, or has moved past it.
+   */
+  approve: (expectedReply: ReplyOnScreen) => Promise<unknown>
   reject: (reason?: string) => Promise<unknown>
   /** Resolves what the check found; rejects (after its toast) only on an error. */
   check: () => Promise<ReplyPublicationCheckResult>
@@ -99,9 +105,13 @@ export function useReplyActions(input: Input): ReplyActions {
   })
   // Approve and edit are confirmed in a dialog that stays open and says a refusal
   // itself, so they pass no `errorMessage`: a toast as well would tell it twice.
+  // A refused approval re-reads the reply: the pane was behind, and the dialog's
+  // "the exact reply shown here" must be true of what is behind it.
   const approve = useActionMutation(approveReplyFn, {
     successMessage: 'Confirmation recorded. Waiting for Google',
     onSuccess: changed('state_changed'),
+    onError: (_refusal, command) =>
+      inboxCachePolicy.onReplyConfirmationRefused(qc, command.data.reviewId),
   })
   const reject = useActionMutation(rejectReplyFn, {
     successMessage: 'Reply rejected',
@@ -152,7 +162,7 @@ export function useReplyActions(input: Input): ReplyActions {
       }),
     submitReply: () => submit({ data: { reviewId } }),
     deleteDraft: () => del({ data: { reviewId } }),
-    approve: () => approve({ data: { reviewId } }),
+    approve: (expectedReply) => approve({ data: { reviewId, expectedReply } }),
     reject: (reason) => reject({ data: { reviewId, reason } }),
     check: () => check({ data: { reviewId } }),
     retry: () => retry({ data: { reviewId } }),

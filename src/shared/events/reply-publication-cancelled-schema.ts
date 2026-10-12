@@ -11,7 +11,8 @@
 // records the first four when it stops a cycle. `ai_draft_withdrawn` is
 // recorded by the AI draft purge (src/shared/db/ai/ai-draft-purge.ts), which
 // runs inside other contexts' transactions: this schema is what checks the
-// fact it builds.
+// fact it builds. Review's publish claim records the same cause when it
+// withdraws a reply whose AI text it refuses to send.
 
 import { z } from 'zod/v4'
 

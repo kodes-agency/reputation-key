@@ -32,6 +32,7 @@ import {
 } from '#/shared/domain/ids'
 import type { Reply, Review } from '../../domain/types'
 import {
+  reviewReplyApproved,
   reviewReplyPublicationCancelled,
   reviewReplyPublicationRequested,
   reviewReplyPublishFailed,
@@ -467,7 +468,15 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       pending,
       { status: 'approved', approvedBy: USER_A, approvedAt: NOW },
       {
-        lifecycleEvent: null,
+        lifecycleEvent: reviewReplyApproved({
+          replyId: REPLY_A,
+          reviewId: REVIEW_A,
+          propertyId: PROP_A,
+          organizationId: ORG_A,
+          userId: USER_A,
+          authorId: USER_A,
+          occurredAt: NOW,
+        }),
         publicationIntent: reviewReplyPublicationRequested({
           replyId: REPLY_A,
           reviewId: REVIEW_A,
@@ -608,7 +617,11 @@ describe.sequential('publication state machine (integration, migration 0015)', (
       [ORG_A],
     )
     expect(outbox.rows.map((r) => r.event_type).sort()).toEqual(
-      ['review.reply.publication_requested', 'review.reply.publish_failed'].sort(),
+      [
+        'review.reply.approved',
+        'review.reply.publication_requested',
+        'review.reply.publish_failed',
+      ].sort(),
     )
   })
 

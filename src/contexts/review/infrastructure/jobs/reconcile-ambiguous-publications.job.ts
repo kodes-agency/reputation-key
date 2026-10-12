@@ -1,7 +1,10 @@
 // Review context — recurring liveness owner for reply publication states.
 //
 // Every reachable non-terminal row carries reconcile_due_at. The sweep:
-//   requested/authorized → terminal retryable failure (no provider write began)
+//   requested/authorized → terminal retryable failure (no provider write began),
+//                          only while still unclaimed: the store compares the
+//                          exact state and attempt count of the row read here,
+//                          so a row a worker claimed since is left untouched
 //   sending              → D4 evidence, then one provider read; an absent,
 //                          unreadable or failed read inside the 15-minute
 //                          propagation grace stays sending, due in one minute
@@ -197,7 +200,9 @@ async function settleNonConfirmingRow(
       reply.publicationState === 'requested' ||
       reply.publicationState === 'authorized'
     ) {
-      // Never claimed for sending, so nothing reached Google.
+      // Never claimed for sending, so nothing reached Google. That is true of
+      // the row as this batch read it; the store's guard holds the write to
+      // it, and a row claimed since comes back null (`superseded`).
       const event = await publishFailedEvent(deps, reply, now, 'not_sent')
       const terminal = await deps.replyCommandStore.markPublicationTerminal(
         reply,

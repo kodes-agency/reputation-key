@@ -550,8 +550,8 @@ function buildContainer(
       //
       // `review.lookups.reply` is typed `ReplyRepository`, and the repository
       // is built as an object literal, so every method is own-enumerable and
-      // `{ ...review.lookups.reply }` handed Inbox `upsert`, `conditionalUpdate`,
-      // `deleteById` and `deleteByReviewIdAndSource` as well. The declared
+      // `{ ...review.lookups.reply }` handed Inbox `upsert`, the draft writes
+      // and `deleteByReviewIdAndSource` as well. The declared
       // `ReplyLookupSource` narrows the TYPE, so typed Inbox code cannot call
       // them — but the object still carried them at runtime, reachable through
       // any cast, a structural widening of the port, or anything that iterates
