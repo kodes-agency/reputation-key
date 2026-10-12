@@ -7,7 +7,7 @@ export type GoogleReviewDestinationStatus = Readonly<{
 }>
 
 export type GoogleReviewDestinationPresentation = Readonly<{
-  label: 'Ready' | 'Refreshing' | 'Needs connection'
+  label: 'Ready' | 'On hold' | 'Needs connection'
   tone: StatusTone
   description: string
   confirmedAt: string | null
@@ -35,11 +35,16 @@ export function presentGoogleReviewDestination(
     }
   }
   if (destination.state === 'awaiting_refresh') {
+    // Nothing refreshes the link in the background. The Property holds it
+    // fenced while archived, and after Google was disconnected from it; this
+    // card is told the state only, so it names what lifts the fence in each.
+    // The hold closes the Google action alone (an archived Property closes the
+    // whole Portal by itself), hence "not affected" rather than "available".
     return {
-      label: 'Refreshing',
+      label: 'On hold',
       tone: 'neutral',
       description:
-        'The property connection is being refreshed. Private ratings and feedback remain available.',
+        'The property’s Google review link is on hold, so guests cannot continue to Google and publishing is blocked. Private ratings and feedback are not affected. Restoring an archived property that is still linked to Google brings the link back; a property disconnected from Google has to be relinked, and this portal published again.',
       confirmedAt: formatConfirmedAt(destination.retrievedAt),
     }
   }

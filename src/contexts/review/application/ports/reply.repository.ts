@@ -71,6 +71,15 @@ export type ConditionalReplyUpdate = Readonly<{
   reconcileDueAt?: Date | null
 }>
 
+/** What a manager's draft save may change. Status, rejection and authorship
+ * are the store's to set. */
+export type DraftReplyContent = Readonly<{
+  text: string
+  replyLanguageTag?: string | null
+  templateId?: string | null
+  templateVersion?: number | null
+}>
+
 export type ReplyRepository = Readonly<{
   findById(id: ReplyId, organizationId: OrganizationId): Promise<Reply | null>
   findByReviewId(
@@ -162,18 +171,31 @@ export type ReplyRepository = Readonly<{
   ): Promise<ReadonlyArray<Reply>>
   upsert(reply: Omit<Reply, 'createdAt' | 'updatedAt'>, now?: Date): Promise<Reply>
   /**
-   * Atomic conditional update — only succeeds if the reply's current status
-   * matches one of `expectedStatuses`. Returns null if the status has changed
-   * concurrently (TOCTOU guard).
+   * Insert a review's first internal reply as a draft. Null when the review
+   * already has one (it was created after the caller looked): the insert never
+   * rewrites an existing reply, whatever its status.
    */
-  conditionalUpdate(
-    id: ReplyId,
-    organizationId: OrganizationId,
-    expectedStatuses: readonly ReplyStatus[],
-    updates: ConditionalReplyUpdate,
-    now?: Date,
-  ): Promise<Reply | null>
-  deleteById(id: ReplyId, organizationId: OrganizationId): Promise<void>
+  createDraft(reply: Omit<Reply, 'createdAt' | 'updatedAt'>): Promise<Reply | null>
+  /**
+   * Rewrite a draft or a rejected reply as a human-authored draft. The write
+   * is a compare-and-set on the `save_draft` precondition
+   * (domain/reply-command-preconditions.ts): `reply` must be a draft or a
+   * rejected reply with no open publication, and the row must still have its
+   * status, publication state and cycle. Null otherwise, with nothing written.
+   *
+   * An AI-assisted reply is saved over like any other, whether or not its AI
+   * draft binding is still current: a manager typing over AI text makes the
+   * reply theirs, and the save clears its AI provenance
+   * (domain/reply-ai-text.ts).
+   */
+  saveDraft(reply: Reply, content: DraftReplyContent, now?: Date): Promise<Reply | null>
+  /**
+   * Delete a draft or a rejected reply that was never authorized for
+   * publication. False, with nothing deleted, when `reply` is anything else or
+   * the row changed since it was read. A reply with a publication cycle keeps
+   * its authorization and attempt rows and is never deleted.
+   */
+  deleteDraft(reply: Reply): Promise<boolean>
   deleteByReviewIdAndSource(
     reviewId: ReviewId,
     source: ReplySource,

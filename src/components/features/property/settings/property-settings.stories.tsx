@@ -145,8 +145,9 @@ export const GoogleLinked: Story = {
       <PropertyGoogleSection
         property={{
           id: PROPERTY_ID,
+          lifecycleState: 'active',
           googleBindingState: 'active',
-          googleReviewDestination: { state: 'verified', retrievedAt: null },
+          googleReviewDestination: { state: 'verified' },
         }}
       />
     </div>
@@ -161,11 +162,39 @@ export const GoogleLinked: Story = {
   },
 }
 
+/** Archived but still linked: the review link is held, and Restore brings it back. */
+export const GoogleLinkedWhileArchived: Story = {
+  render: () => (
+    <div className="max-w-2xl">
+      <PropertyGoogleSection
+        property={{
+          id: PROPERTY_ID,
+          lifecycleState: 'archived',
+          googleBindingState: 'active',
+          googleReviewDestination: { state: 'awaiting_refresh' },
+        }}
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByText(
+        'On hold while this property is archived — restoring it brings the review link back',
+      ),
+    ).toBeVisible()
+  },
+}
+
 export const GoogleDisconnected: Story = {
   render: () => (
     <div className="max-w-2xl">
       <PropertyGoogleSection
-        property={{ id: PROPERTY_ID, googleBindingState: 'disconnected' }}
+        property={{
+          id: PROPERTY_ID,
+          lifecycleState: 'active',
+          googleBindingState: 'disconnected',
+        }}
       />
     </div>
   ),
@@ -339,7 +368,11 @@ export const HeaderNamesTheSection: Story = {
           breadcrumbs={header.breadcrumbs}
         />
         <PropertyGoogleSection
-          property={{ id: PROPERTY_ID, googleBindingState: 'active' }}
+          property={{
+            id: PROPERTY_ID,
+            lifecycleState: 'active',
+            googleBindingState: 'active',
+          }}
         />
       </div>
     )

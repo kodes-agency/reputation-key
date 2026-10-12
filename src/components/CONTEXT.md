@@ -501,6 +501,45 @@ work. `use-hydrated` provides an SSR-safe client signal;
 `use-page-visible` pauses sensitive polling while the page is hidden (focus is deliberately not part of it); `use-property-id` reads
 Property route scope; `use-theme-mode` owns persisted theme state.
 
+Four rules keep a cached page in step with the server it sends commands to.
+
+- **A revision lives wherever the entity is cached.** A command result that
+  advances a revision other commands are fenced on is written into every cached
+  copy, not only the one the command was issued from. An Inbox item's command
+  revision is in its detail and in its row in each cached list, and the bulk
+  commands read the row: a note that advanced only the detail made the next bulk
+  assign fail (`inbox/inbox-cache-policy.ts`, `advanceListRowFence`).
+- **A write into a cached read leaves it as stale as it was.** `setQueryData`
+  dates the read "just now" and clears a pending invalidation, and a read that is
+  cached but not on screen is re-read only when it is shown again and only if it
+  is stale. A write that is not followed by an invalidation therefore writes only
+  the reads that hold the entity, passes `updatedAt` (the date the read already
+  had) and marks an invalidated read invalidated again
+  (`invalidateQueries` on the family's factory key, with a `predicate` for that
+  one read and `refetchType: 'none'`). Otherwise one note made every cached Inbox
+  queue look fresh, and a queue was shown without the item a status command had
+  just moved into it (`advanceListRowFence`).
+- **A refused command re-reads what it was refused about.** A refusal usually
+  means the page is behind, and often nothing else will bring it forward (no
+  poll, no refetch until the window is refocused). Give the mutation an
+  `onError` that invalidates the entity it named, read from the command's own
+  input because neither the Inbox pane nor a route is remounted when the entity
+  on screen changes (`inboxCachePolicy.onReplyCommandFailed`,
+  `onFeedbackHandlingFailed`, the responsible-managers saves of the Property
+  people tab and the Portal editor), and re-read the list when a bulk command
+  changed nothing. The refusal must outlive that read: a toast does, and a
+  sentence held inside what the read replaces is gone with it. A confirmation
+  drawn inside what it asks about therefore keeps the page as it was while it
+  is open, and stays a confirmation: the Inbox pane shows the detail a reply
+  confirmation was opened on until the dialog closes, when it shows the detail
+  as read (`inbox/use-reply-confirmation-hold.ts`). The cache is re-read at
+  once either way.
+- **A draft kept across a refetch keeps the revision it was started from.** Save
+  it with that revision, never the refetched one: the fence exists so a change
+  the person has not seen is refused, and a kept draft has not seen the refetch
+  (`features/responsible-managers/selection.ts`). A form that remounts on its
+  version drops the draft instead, which is also sound.
+
 Viewport breakpoints go through `useViewportBelow` (`useIsMobile`,
 `useInboxCompactLayout`). It reads `matchMedia` in the browser, and on the
 server, and during the hydration that must match it, it answers from the

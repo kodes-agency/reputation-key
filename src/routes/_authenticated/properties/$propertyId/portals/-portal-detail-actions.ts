@@ -145,6 +145,7 @@ export function usePortalOpenPageReveal() {
  * same way the individual hooks were.
  */
 export function usePortalDetailActions(propertyId: string, portalId: string) {
+  const queryClient = useQueryClient()
   const update = usePortalUpdateAction(propertyId, portalId, true)
   const autosaveUpdate = usePortalUpdateAction(propertyId, portalId, false)
   // Refetch the detail so `tokenStatus` (when the code was made, its transition
@@ -183,6 +184,15 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
       portalKeys.detail(portalId),
       portalKeys.responsibleManagers(portalId),
     ],
+    // A refused save means another admin changed the managers since this page
+    // read them. The card keeps the refused edit, and its Reset shows that
+    // change only once the page has read it (the read is fresh for 30
+    // seconds). So the managers are re-read: those of the Portal the command
+    // named, because this route is not remounted when its params change.
+    onError: (_error, input) =>
+      void queryClient.invalidateQueries({
+        queryKey: portalKeys.responsibleManagers(input.data.portalId),
+      }),
   })
   // "Make live again": moves the live activation to another version. The
   // Portal's detail holds the History reads and the header's status, and the

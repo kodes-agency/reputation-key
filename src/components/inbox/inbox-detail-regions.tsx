@@ -89,7 +89,6 @@ type DetailComposerSharedProps = Readonly<{
   replyActions: ReplyActions
   noteDraft: NoteDraft
   setNoteDraft: Dispatch<SetStateAction<NoteDraft>>
-  onNoteAdded: (resultingCommandRevision: number) => void
   addInboxNote: ComponentProps<typeof InboxNotesThread>['addInboxNote']
   canAddNotes: boolean
   handlingAction: 'mark' | 'correct' | null
@@ -125,7 +124,6 @@ function detailReplySlot(
 function detailNoteSlot(props: DetailComposerSharedProps): ReactNode {
   const {
     currentItem,
-    onNoteAdded,
     addInboxNote,
     canAddNotes,
     noteDraft,
@@ -138,7 +136,6 @@ function detailNoteSlot(props: DetailComposerSharedProps): ReactNode {
       key={currentItem.id}
       inboxItemId={currentItem.id}
       expectedCommandRevision={currentItem.commandRevision}
-      onNoteAdded={onNoteAdded}
       addInboxNote={addInboxNote}
       canAdd={canAddNotes}
       draftText={noteDraft.itemId === currentItem.id ? noteDraft.text : ''}
@@ -168,7 +165,6 @@ export function DetailComposerRegion({
   replyActions,
   noteDraft,
   setNoteDraft,
-  onNoteAdded,
   addInboxNote,
   canAddNotes,
   handlingAction,
@@ -196,7 +192,6 @@ export function DetailComposerRegion({
     replyActions,
     noteDraft,
     setNoteDraft,
-    onNoteAdded,
     addInboxNote,
     canAddNotes,
     handlingAction,

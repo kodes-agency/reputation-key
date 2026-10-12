@@ -139,7 +139,6 @@ export type InboxDetailState = Readonly<{
     Parameters<typeof correctFeedbackHandlingOutcomeFn>[0],
     FeedbackHandlingCommandResult
   >
-  onNoteAdded: (resultingCommandRevision: number) => void
   onReplyMutated: (change: InboxReplyCacheChange) => void
   error: string | null
   lastMarkedId: string | null
@@ -298,8 +297,6 @@ export function useInboxDetail(
     correctFeedbackHandlingOutcome: feedbackMutations.correctFeedbackHandlingOutcome,
     refetch: queries.refetch,
     retrying: queries.retrying,
-    onNoteAdded: (resultingCommandRevision) =>
-      inboxCachePolicy.onNoteAdded(qc, id, resultingCommandRevision),
     onReplyMutated,
     error: queries.error,
     lastMarkedId: null,

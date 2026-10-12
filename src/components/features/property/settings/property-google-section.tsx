@@ -13,19 +13,14 @@ import {
 } from '#/components/ui/card'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-
-type GoogleBindingState =
-  'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
+import type { GoogleBindingState } from '../property-lifecycle-model'
+import {
+  googleReviewDestinationText,
+  type GoogleReviewDestinationSubject,
+} from './property-google-destination'
 
 type Props = Readonly<{
-  property: Readonly<{
-    id: string
-    googleBindingState: GoogleBindingState
-    googleReviewDestination?: Readonly<{
-      state: 'verified' | 'awaiting_refresh' | 'unavailable' | string
-      retrievedAt: Date | string | null
-    }>
-  }>
+  property: GoogleReviewDestinationSubject & Readonly<{ id: string }>
 }>
 
 const BINDING: Readonly<
@@ -57,16 +52,6 @@ const BINDING: Readonly<
   },
 }
 
-function destinationText(
-  destination: Props['property']['googleReviewDestination'],
-): string {
-  if (!destination) return 'Not checked yet'
-  if (destination.state === 'verified')
-    return 'Verified — guests can leave a Google review'
-  if (destination.state === 'awaiting_refresh') return 'Refreshing from Google'
-  return 'Unavailable — portals offer private feedback only'
-}
-
 /**
  * Where this property's reviews come from. Linking is done through the import
  * flow and the Organization's Google connection; disconnecting is destructive,
@@ -91,7 +76,7 @@ export function PropertyGoogleSection({ property }: Props) {
       <CardContent>
         <DescriptionList termWidth="wide" aria-label="Google review destination">
           <DescriptionItem term="Review destination">
-            {destinationText(property.googleReviewDestination)}
+            {googleReviewDestinationText(property)}
           </DescriptionItem>
         </DescriptionList>
       </CardContent>

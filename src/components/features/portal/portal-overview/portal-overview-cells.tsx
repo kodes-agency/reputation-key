@@ -1,18 +1,16 @@
-// The Portals overview's cells: the name with its one quiet line, the code and
-// languages under it, and the responsible managers. Each is a small answer to
-// one question, so the table and the phone card can place the same parts.
+// The Portals overview's cells: the name, the code and languages under it, and the
+// responsible managers (the one quiet line under the name is `portal-attention-line`).
+// Each is a small answer to one question, so the table and the phone card can place
+// the same parts.
 //
 // Only the Portal's name keeps the link accent: it is the row's one way in. Any
 // other link names its ink (`text-foreground`) to stay out of the accent
 // (figures and notes must not turn purple).
 import { Link } from '@tanstack/react-router'
-import { CircleDashed, History, PencilLine, TriangleAlert } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { OwnerDisc } from '#/components/ui/owner-disc'
-import { ROW_FIGURE_LINK, ROW_NAME_LINK } from '#/components/ui/row-link'
+import { ROW_NAME_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
-import { attentionLine } from './portal-attention'
-import { PortalIssuesPopover } from './portal-issues-popover'
 import type {
   PortalLocalesView,
   PortalManagersView,
@@ -32,76 +30,6 @@ export function PortalNameLink({ row }: Readonly<{ row: RowRef }>) {
       {row.name}
     </Link>
   )
-}
-
-/**
- * The one line under a Portal's name, or nothing: status is shown only by
- * exception (round-4 owner decision). A live Portal that needs nothing has no line.
- */
-export function PortalAttentionLine({
-  item,
-  propertyId,
-}: Readonly<{ item: PortalOverviewItem; propertyId: string }>) {
-  const { attention, row } = item
-  const line = attentionLine(attention)
-  if (line === null) return null
-  switch (attention.kind) {
-    case 'issues':
-      return (
-        <PortalIssuesPopover
-          portalName={row.name}
-          portalId={row.portalId}
-          propertyId={propertyId}
-          issues={attention.issues}
-          label={line}
-        >
-          <TriangleAlert className="size-3.5" aria-hidden="true" />
-          {line}
-        </PortalIssuesPopover>
-      )
-    case 'draft':
-      return (
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <CircleDashed className="size-3.5 shrink-0" aria-hidden="true" />
-          <span>
-            {line} ·{' '}
-            <Link
-              to="/properties/$propertyId/portals/$portalId"
-              params={{ propertyId, portalId: row.portalId }}
-              search={{ tab: 'page' }}
-              aria-label={`Continue setup for ${row.name}`}
-              className={cn('font-medium whitespace-nowrap', ROW_FIGURE_LINK)}
-            >
-              Continue setup
-            </Link>
-          </span>
-        </p>
-      )
-    case 'older_code':
-      return (
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <History className="size-3.5 shrink-0" aria-hidden="true" />
-          <Link
-            to="/properties/$propertyId/portals/$portalId"
-            params={{ propertyId, portalId: row.portalId }}
-            search={{ tab: 'share' }}
-            aria-label={`${line}: open Share for ${row.name}`}
-            className={ROW_FIGURE_LINK}
-          >
-            {line}
-          </Link>
-        </p>
-      )
-    case 'pending':
-      return (
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <PencilLine className="size-3.5 shrink-0" aria-hidden="true" />
-          {line}
-        </p>
-      )
-    default:
-      return <p className="text-xs text-muted-foreground">{line}</p>
-  }
 }
 
 /** `EN BG ES DE`, with the full names for a screen reader. */

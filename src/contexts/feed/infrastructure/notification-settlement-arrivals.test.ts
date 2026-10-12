@@ -141,7 +141,7 @@ describe('a publication cancelled back to draft', () => {
     expect(deps.inboxItemLookup.findInboxItemByReviewId).toHaveBeenCalledWith(REVIEW, ORG)
     expect(deps.notifications.settleUnreadForResource).toHaveBeenCalledWith({
       organizationId: ORG,
-      types: ['reply.publish_failed'],
+      types: ['reply.publish_failed', 'reply.pending_approval'],
       resourceId: ITEM,
       resolvedAt: NOW,
     })

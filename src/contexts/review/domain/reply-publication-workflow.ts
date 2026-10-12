@@ -253,7 +253,12 @@ export const PERSISTED_PUBLICATION_TRANSITIONS: Readonly<
   // publish from terminal/ambiguous is the reconciliation heal: the provider
   // shows the reply, so the honest local state is published (never a new send).
   terminal: { authorize: 'authorized', publish: 'published' },
-  ambiguous: { authorize: 'authorized', publish: 'published', fail_terminal: 'terminal' },
+  // No `authorize`: an attempt of unknown outcome is never sent again as it
+  // stands. Proof that it never left RepKey settles it as `terminal` first
+  // (Review CONTEXT, Invariant 9), and a retry authorizes from there. Terminal
+  // ambiguity is `terminal` too, so the retry command also reads the last
+  // error class (reply-command-preconditions.ts).
+  ambiguous: { publish: 'published', fail_terminal: 'terminal' },
   // A cancelled reply returns to draft; a fresh approval cycle re-authorizes.
   cancelled: { authorize: 'authorized' },
 }
