@@ -31,6 +31,7 @@ const LOBBY_HOLD: GoalSubjectHold = {
   programName: 'Lobby ratings',
   targetValue: 400,
   heldUntil: null,
+  goalEnded: false,
 }
 
 const rows = (

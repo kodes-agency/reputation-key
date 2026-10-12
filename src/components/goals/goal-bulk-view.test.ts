@@ -32,6 +32,7 @@ const hold = (overrides: Partial<GoalSubjectHold> = {}): GoalSubjectHold => ({
   programName: 'Lobby ratings',
   targetValue: 400,
   heldUntil: null,
+  goalEnded: false,
   ...overrides,
 })
 
@@ -129,11 +130,23 @@ describe('goalBulkRows', () => {
   })
 
   it('a subject whose goal ends with the month says when it is free', () => {
-    const row = rowOf(LOBBY, rows({ holds: [hold({ heldUntil: NOVEMBER })] }))
+    const row = rowOf(
+      LOBBY,
+      rows({ holds: [hold({ heldUntil: NOVEMBER, goalEnded: true })] }),
+    )
 
     expect(row.goal?.targetValue).toBe(400)
     expect(row.note).toBe(
       'Lobby QR has a goal for this measure that ends Oct 31. Start the new goal next month.',
+    )
+  })
+
+  it('a subject taken out of a goal that goes on is pointed at this month’s target too', () => {
+    // The goal still runs for its other subjects, so its month can take a change.
+    const row = rowOf(LOBBY, rows({ holds: [hold({ heldUntil: NOVEMBER })] }))
+
+    expect(row.note).toBe(
+      'Lobby QR has a goal for this measure that ends Oct 31. Start the new goal next month, or change this month’s target.',
     )
   })
 
