@@ -501,7 +501,7 @@ work. `use-hydrated` provides an SSR-safe client signal;
 `use-page-visible` pauses sensitive polling while the page is hidden (focus is deliberately not part of it); `use-property-id` reads
 Property route scope; `use-theme-mode` owns persisted theme state.
 
-Two rules keep a cached page in step with the server it sends commands to.
+Three rules keep a cached page in step with the server it sends commands to.
 
 - **A revision lives wherever the entity is cached.** A command result that
   advances a revision other commands are fenced on is written into every cached
@@ -515,6 +515,11 @@ Two rules keep a cached page in step with the server it sends commands to.
   `onError` that invalidates the entity it named, read from the command's own
   input (`inboxCachePolicy.onReplyCommandFailed`, `onFeedbackHandlingFailed`),
   and re-read the list when a bulk command changed nothing.
+- **A draft kept across a refetch keeps the revision it was started from.** Save
+  it with that revision, never the refetched one: the fence exists so a change
+  the person has not seen is refused, and a kept draft has not seen the refetch
+  (`features/responsible-managers/selection.ts`). A form that remounts on its
+  version drops the draft instead, which is also sound.
 
 Viewport breakpoints go through `useViewportBelow` (`useIsMobile`,
 `useInboxCompactLayout`). It reads `matchMedia` in the browser, and on the

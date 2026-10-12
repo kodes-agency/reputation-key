@@ -4,9 +4,14 @@
 // removable while blocked from re-adding, and the Save button's dirty gate —
 // so a regression here is caught once instead of twice.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
-import { ResponsibleManagersPanel } from './responsible-managers-panel'
+import {
+  ResponsibleManagersPanel,
+  type ResponsibleManagersPanelState,
+} from './responsible-managers-panel'
 
 const MEMBERS = [
   { userId: 'user-1', name: 'Avery Morgan', email: 'avery@example.com' },
@@ -222,6 +227,175 @@ export const ResetPutsTheSavedManagersBack: Story = {
       canvas.getByRole('checkbox', { name: /Jordan Blake/i }),
     ).not.toBeChecked()
     await expect(canvas.getByRole('checkbox', { name: /Avery Morgan/i })).toBeChecked()
+    await expect(
+      canvas.getByRole('button', { name: /save responsible managers/i }),
+    ).toBeDisabled()
+  },
+}
+
+// ── A selection edited across a refresh ─────────────────────────────────
+//
+// The stories above hand the panel one fixed `state`. This one puts it where the
+// Property people tab and the Portal editor put it: under a query that can
+// re-read, with a save that is a real `useActionMutation`. The server is the
+// revision fence of `property-responsible-manager.repository.ts`: a save names
+// the revision it was made against and is refused once another save has landed.
+
+type ManagersSave = Readonly<{
+  managerUserIds: readonly string[]
+  expectedRevision: number
+}>
+
+const MANAGERS_KEY = ['story', 'responsible-managers'] as const
+const CHANGED_SINCE = 'responsible managers changed; reload them'
+
+function makeManagersServer() {
+  const held = { managerUserIds: ['user-1'], revision: 5 }
+  const received: ManagersSave[] = []
+  return {
+    held,
+    received,
+    read: async (): Promise<ResponsibleManagersPanelState> => ({
+      assignments: held.managerUserIds.map((userId) => ({ userId })),
+      eligibleManagers: MEMBERS.map(({ userId }) => ({ userId })),
+      revision: held.revision,
+      responsibilityNeeded: false,
+    }),
+    save: async (save: ManagersSave): Promise<void> => {
+      received.push(save)
+      if (save.expectedRevision !== held.revision) {
+        throw new ServerFunctionError(
+          'PropertyError',
+          CHANGED_SINCE,
+          'revision_conflict',
+          409,
+        )
+      }
+      held.managerUserIds = [...save.managerUserIds]
+      held.revision += 1
+    },
+    /** Another admin's save, from another browser. */
+    saveFromElsewhere: (managerUserIds: string[]) => {
+      held.managerUserIds = managerUserIds
+      held.revision += 1
+    },
+  }
+}
+
+let managersServer = makeManagersServer()
+
+/**
+ * The page's wiring around the panel, as `settings/people.tsx` has it. The
+ * button stands in for what the play cannot cause through the panel: another
+ * admin's save (Avery and Riley, whoever was there before), then the re-read a
+ * window refocus triggers once the read is 30 seconds old.
+ */
+function RefreshedUnderAnEdit() {
+  const queryClient = useQueryClient()
+  const { data } = useQuery({
+    queryKey: MANAGERS_KEY,
+    queryFn: () => managersServer.read(),
+  })
+  const update = useActionMutation((save: ManagersSave) => managersServer.save(save), {
+    invalidateKeys: [[...MANAGERS_KEY]],
+  })
+  if (!data) return null
+  return (
+    <>
+      <ResponsibleManagersPanel
+        state={data}
+        members={MEMBERS}
+        disabled={false}
+        isPending={update.isPending}
+        error={update.error}
+        headingLevel="h3"
+        idPrefix="responsible-manager"
+        copy={COPY}
+        onSave={(managerUserIds, expectedRevision) =>
+          update({ managerUserIds, expectedRevision })
+        }
+      />
+      <p>Read at revision {data.revision}</p>
+      <button
+        type="button"
+        onClick={() => {
+          managersServer.saveFromElsewhere(['user-1', 'user-3'])
+          void queryClient.invalidateQueries({ queryKey: MANAGERS_KEY })
+        }}
+      >
+        Another admin saves Avery and Riley
+      </button>
+    </>
+  )
+}
+
+/**
+ * An admin ticks Jordan; meanwhile another admin adds Riley, and the page
+ * re-reads. The edit is kept (Riley's row shows unticked), so saving it as it
+ * stands would take Riley off again. It is therefore saved with the revision it
+ * was started from: the server refuses it, the admin is told, and Reset shows
+ * what the other admin did. It used to be saved with the re-read revision, which
+ * the server accepted, and Riley was removed with nothing said.
+ */
+export const AnEditKeptAcrossARefreshIsRefused: Story = {
+  render: () => <RefreshedUnderAnEdit />,
+  beforeEach: () => {
+    managersServer = makeManagersServer()
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('checkbox', { name: /Jordan Blake/i }))
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Another admin saves Avery and Riley' }),
+    )
+    await canvas.findByText('Read at revision 6')
+    // The edit survived the re-read: Jordan ticked, Riley as the admin left her.
+    await expect(canvas.getByRole('checkbox', { name: /Jordan Blake/i })).toBeChecked()
+    await expect(canvas.getByRole('checkbox', { name: /Riley Chen/i })).not.toBeChecked()
+
+    await userEvent.click(
+      canvas.getByRole('button', { name: /save responsible managers/i }),
+    )
+
+    await waitFor(() =>
+      expect(managersServer.received).toEqual([
+        { managerUserIds: ['user-1', 'user-2'], expectedRevision: 5 },
+      ]),
+    )
+    await expect(await canvas.findByText(CHANGED_SINCE)).toBeVisible()
+    // Riley is still a responsible manager.
+    await expect(managersServer.held).toEqual({
+      managerUserIds: ['user-1', 'user-3'],
+      revision: 6,
+    })
+
+    // Reset shows the other admin's change, and the next edit is made on top of it.
+    await userEvent.click(canvas.getByRole('button', { name: 'Reset' }))
+    await expect(canvas.getByRole('checkbox', { name: /Riley Chen/i })).toBeChecked()
+    await userEvent.click(canvas.getByRole('checkbox', { name: /Jordan Blake/i }))
+    await userEvent.click(
+      canvas.getByRole('button', { name: /save responsible managers/i }),
+    )
+
+    await canvas.findByText('Read at revision 7')
+    await expect(managersServer.held).toEqual({
+      managerUserIds: ['user-1', 'user-2', 'user-3'],
+      revision: 7,
+    })
+    await expect(
+      canvas.getByRole('button', { name: /save responsible managers/i }),
+    ).toBeDisabled()
+
+    // The saved edit is spent. When someone else changes the managers later,
+    // the panel shows their change; it does not bring the old edit back as an
+    // unsaved one.
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Another admin saves Avery and Riley' }),
+    )
+    await canvas.findByText('Read at revision 8')
+    await expect(
+      canvas.getByRole('checkbox', { name: /Jordan Blake/i }),
+    ).not.toBeChecked()
     await expect(
       canvas.getByRole('button', { name: /save responsible managers/i }),
     ).toBeDisabled()
