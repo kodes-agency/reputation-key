@@ -1,7 +1,7 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiPropertyProcessingProfiles, properties } from '#/shared/db/schema'
-import { deleteAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
+import { purgeAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import type { AiPropertyProfileResult } from '../../domain/types'
 import { resolveAiProcessingCell } from '../../domain/rules'
@@ -217,7 +217,7 @@ export const createPropertyProcessingProfileAdapter = (
               updatedAt,
             },
           })
-        await deleteAiDraftsForProfile(tx, {
+        await purgeAiDraftsForProfile(tx, {
           organizationId: input.organizationId,
           propertyId: input.propertyId,
         })

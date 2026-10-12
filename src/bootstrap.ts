@@ -406,12 +406,19 @@ export async function bootstrap(
   // ── AI Review Analysis backlog (ADR 0058) ───────────────────────────
   // History waits in a durable backlog and drains at the background lane's
   // pace; a review a manager opens is analysed ahead of it on the interactive
-  // lane. Both re-check authorization and controls inside the use case.
+  // lane. The analysis use case checks the merchant's authorization and the AI
+  // controls, not platform policy. The on-demand job is Property-scoped, so
+  // the dispatch gate decides policy for it. The drain's schedule is
+  // tenant-cross and only enumerates: it decides each claimed entry's own
+  // Organization and Property under current policy before any provider call.
   registerCapabilityGatedJob(
     DRAIN_REVIEW_ANALYSIS_BACKLOG_JOB_NAME,
     'ai.analyze',
     createDrainReviewAnalysisBacklogJobHandler({
       drain: container.aiWorkerRuntime.drainReviewAnalysisBacklog.drain,
+      authorizeScope: createScheduledScopeAuthorizer(
+        'system:ai.review_analysis_backlog_drain',
+      ),
       logger,
     }),
   )

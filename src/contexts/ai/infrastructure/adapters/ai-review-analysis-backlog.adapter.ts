@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiReviewAnalysisBacklog } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
@@ -80,6 +80,35 @@ const NEWEST_FIRST = sql`
   backlog.analysis_sequence DESC,
   backlog.event_envelope_id
 `
+
+/**
+ * Put a claimed entry back in the queue until its next attempt time. `change`
+ * is what tells a tried attempt (`reschedule`) from a claim that did no work
+ * (`release`).
+ */
+async function requeue(
+  db: Database,
+  input: Parameters<AiReviewAnalysisBacklogPort['reschedule']>[0],
+  change: Readonly<{ attempts: SQL } | { firstStartedAt: null }>,
+): Promise<void> {
+  await db
+    .update(aiReviewAnalysisBacklog)
+    .set({
+      state: 'queued',
+      claimedUntil: null,
+      nextAttemptAt: new Date(
+        Math.max(input.nextAttemptAtEpochMillis, input.nowEpochMillis),
+      ),
+      updatedAt: new Date(input.nowEpochMillis),
+      ...change,
+    })
+    .where(
+      and(
+        eq(aiReviewAnalysisBacklog.eventEnvelopeId, input.eventEnvelopeId),
+        eq(aiReviewAnalysisBacklog.organizationId, input.organizationId),
+      ),
+    )
+}
 
 export const createAiReviewAnalysisBacklogAdapter = (
   db: Database,
@@ -214,24 +243,13 @@ export const createAiReviewAnalysisBacklogAdapter = (
     },
 
     async reschedule(input) {
-      const now = new Date(input.nowEpochMillis)
-      await db
-        .update(aiReviewAnalysisBacklog)
-        .set({
-          state: 'queued',
-          claimedUntil: null,
-          nextAttemptAt: new Date(
-            Math.max(input.nextAttemptAtEpochMillis, input.nowEpochMillis),
-          ),
-          attempts: sql`LEAST(${aiReviewAnalysisBacklog.attempts} + 1, 2147483647)`,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(aiReviewAnalysisBacklog.eventEnvelopeId, input.eventEnvelopeId),
-            eq(aiReviewAnalysisBacklog.organizationId, input.organizationId),
-          ),
-        )
+      await requeue(db, input, {
+        attempts: sql`LEAST(${aiReviewAnalysisBacklog.attempts} + 1, 2147483647)`,
+      })
+    },
+
+    async release(input) {
+      await requeue(db, input, { firstStartedAt: null })
     },
 
     async readProgress(input) {

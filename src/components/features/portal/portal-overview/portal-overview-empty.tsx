@@ -10,7 +10,7 @@ export function PortalOverviewEmpty({ action }: Readonly<{ action: ReactNode }>)
     <EmptyState
       icon={Globe}
       title="No portals yet"
-      description="Create a portal to set up a guest-facing page with links."
+      description="Guests open a portal from a QR code or an NFC tag to rate their visit, leave you a private note and find your Google review page."
       action={action}
     />
   )

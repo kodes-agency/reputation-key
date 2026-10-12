@@ -17,6 +17,8 @@ import type {
 } from '#/contexts/portal/application/public-api'
 import type { GoalProgress } from '#/contexts/reporting/application/public-api'
 import type { PortalArchiveMutations } from '../portal-overview/portal-archive-dialog'
+import { uncountedScanPortals } from '../portal-overview/portal-attention'
+import { PortalChangesOffNote } from '../portal-overview/portal-changes-off-note'
 import {
   PortalOverviewResultsStrip,
   type PortalOverviewResultsControls,
@@ -111,11 +113,13 @@ export function PortalGroupPage(props: PortalGroupPageProps) {
           </>
         }
       />
+      <PortalChangesOffNote />
       {results ? (
         <PortalOverviewResultsStrip
           controls={results}
           propertyId={propertyId}
           groupId={group.id}
+          uncounted={uncountedScanPortals(inGroup)}
         />
       ) : null}
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22.5rem]">

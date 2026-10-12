@@ -903,7 +903,12 @@ describe('durable workflow notification consumers', () => {
     } as const
 
     const cancelled = (
-      cause: 'disconnect' | 'policy' | 'source_changed' | 'provider_truth',
+      cause:
+        | 'disconnect'
+        | 'policy'
+        | 'source_changed'
+        | 'provider_truth'
+        | 'ai_draft_withdrawn',
       authorId: string | null = unbrand(NOTIF_TEST_IDS.authorId),
     ) =>
       event(
@@ -1039,6 +1044,25 @@ describe('durable workflow notification consumers', () => {
       ).toMatchObject({
         title: 'Reply returned to draft at Riverside Hotel',
         body,
+      })
+    })
+
+    // The AI draft purge's cause has to survive the payload allowlist, or the
+    // notice falls back to "Reply returned to draft" for a draft that is gone.
+    it('says an AI draft was removed when the purge withdrew it', async () => {
+      const deps = adminFallbackDeps()
+
+      await handleWorkflowNotificationEvent(deps, cancelled('ai_draft_withdrawn'))
+
+      const data = deps.fakes.jobs[0]!.data as InsertNotificationJobData
+      expect(
+        renderNotification(
+          'reply.publication_cancelled',
+          parseNotificationPayload(data.payload),
+        ),
+      ).toMatchObject({
+        title: 'AI draft removed at Riverside Hotel',
+        actionLabel: 'Open review',
       })
     })
   })

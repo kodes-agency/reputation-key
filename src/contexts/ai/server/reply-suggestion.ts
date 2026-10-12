@@ -51,13 +51,15 @@ export const generateReplySuggestionFn = createServerFn({ method: 'POST' })
               404,
             )
           }
-          if (!data.templateOnly) {
-            await requireExecutionAllowed({
-              actor: ctx,
-              action: 'ai.reply.generate',
-              propertyId: current.source.propertyId,
-            })
-          }
+          // A local template needs no AI capability, so the AI permission is
+          // not asked for it. It is still a reply for one Property's Review,
+          // chosen from that review's rating: either path is decided at the
+          // stored review's Property, never skipped.
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: data.templateOnly ? 'reply.manage' : 'ai.reply.generate',
+            propertyId: current.source.propertyId,
+          })
           const baseReplyStateRevision =
             await container.reviewPublicApi.aiReviewSource.readReplyStateRevision({
               organizationId: ctx.organizationId,

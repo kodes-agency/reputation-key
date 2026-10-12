@@ -388,12 +388,20 @@ people who can approve it again — the Property's responsible managers who may
 approve (`reply_approver`), AccountAdmins only when none can, the author
 removed before that fallback — with the copy its closed cause asks for. Only
 `disconnect` and `policy`, which cancel cycles never dispatched, may say the
-reply never went out. Under the `policy` cause — a Property Archive, a lost
-publishing authority — an approver who is no longer eligible for the Property
-is left out: that cause is what taking their authority away looks like. Every
-other cause keeps them. On a Property that is no longer active the
-cancellation tells nobody, the author included. The fact names no actor, so an
-admin who disconnected Google is still told about their own disconnect.
+reply never went out. `ai_draft_withdrawn` is the AI draft purge's cause
+(ADR 0046, amended 2026-10-12): an unedited AI reply that was awaiting approval
+or confirmed and not yet posted is gone, so its notice says "AI draft removed",
+that nothing was posted, and to write a new reply, and the fact also retires
+the open approval request. It asserts no reason, because the fact carries none:
+the draft may only have run out of time. Review's publish claim records the
+same cause when it refuses to send AI text and withdraws the reply (ADR 0046,
+amended 2026-10-13). Under the `policy` cause — a Property
+Archive, a lost publishing authority — an approver who is no longer eligible
+for the Property is left out: that cause is what taking their authority away
+looks like. Every other cause keeps them. On a Property that is no longer
+active the cancellation tells nobody, the author included. The fact names no
+actor, so an admin who disconnected Google is still told about their own
+disconnect.
 
 The signed List-Unsubscribe URL accepts an RFC 8058 one-click POST in either
 form encoding and answers 204. Its token names only the queue row or digest

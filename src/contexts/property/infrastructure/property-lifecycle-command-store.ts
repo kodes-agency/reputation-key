@@ -3,8 +3,9 @@ import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
-import { deleteAiDraftsForProperty } from '#/shared/db/ai/ai-draft-purge'
+import { purgeAiDraftsForProperty } from '#/shared/db/ai/ai-draft-purge'
 import { propertyError } from '../domain/errors'
+import { googleReviewDestinationStateAfterLifecycleTransition } from '../domain/google-review-destination'
 import { assertValidTransition } from '../domain/property-lifecycle'
 import type {
   PropertyLifecycleCommandStore,
@@ -78,11 +79,13 @@ export const createPropertyLifecycleCommandStore = (
           )
         }
 
-        const nextDestinationState =
-          current.googleReviewDestinationState === 'verified' ||
-          current.googleReviewDestinationState === 'awaiting_refresh'
-            ? 'awaiting_refresh'
-            : 'unavailable'
+        const held = propertyFromRow(current)
+        const googleReviewDestinationState =
+          googleReviewDestinationStateAfterLifecycleTransition({
+            held: held.googleReviewDestination?.state ?? 'unavailable',
+            to: command.to,
+            googleBindingState: held.googleBindingState,
+          })
         const [row] = await tx
           .update(properties)
           .set({
@@ -92,7 +95,7 @@ export const createPropertyLifecycleCommandStore = (
             purgeScheduledFor: command.recoveryDeadline,
             lifecycleInitiatedBy: command.initiatedBy,
             sourceEpoch: command.nextSourceEpoch,
-            googleReviewDestinationState: nextDestinationState,
+            googleReviewDestinationState,
             updatedAt: command.occurredAt,
           })
           .where(
@@ -112,7 +115,7 @@ export const createPropertyLifecycleCommandStore = (
             'Property changed while its lifecycle transition was being committed',
           )
         }
-        await deleteAiDraftsForProperty(tx, {
+        await purgeAiDraftsForProperty(tx, {
           organizationId: command.organizationId,
           propertyId: command.propertyId,
         })

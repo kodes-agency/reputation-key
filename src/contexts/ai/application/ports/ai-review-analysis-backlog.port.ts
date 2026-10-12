@@ -89,6 +89,21 @@ export type AiReviewAnalysisBacklogPort = Readonly<{
       nowEpochMillis: number
     }>,
   ): Promise<void>
+  /**
+   * Return a claimed entry to the queue until `nextAttemptAtEpochMillis`
+   * without its work having been tried. Unlike `reschedule` it counts no
+   * attempt, and it clears the entry's first start, so the operation horizon
+   * begins when a drainer next takes it: time spent refused is not a stuck
+   * attempt.
+   */
+  release(
+    input: Readonly<{
+      eventEnvelopeId: string
+      organizationId: OrganizationId
+      nextAttemptAtEpochMillis: number
+      nowEpochMillis: number
+    }>,
+  ): Promise<void>
   readProgress(
     input: Readonly<{
       organizationId: OrganizationId

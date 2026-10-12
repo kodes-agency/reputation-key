@@ -18,20 +18,35 @@ describe('presentGoogleReviewDestination', () => {
     expect(JSON.stringify(result)).not.toContain('http')
   })
 
-  it('keeps private-response availability clear while refresh is pending', () => {
-    expect(
-      presentGoogleReviewDestination({
-        state: 'awaiting_refresh',
-        retrievedAt: '2026-08-19T10:00:00.000Z',
-      }),
-    ).toMatchObject({
-      label: 'Refreshing',
+  it('says a held destination is on hold, what that blocks and what brings it back', () => {
+    const result = presentGoogleReviewDestination({
+      state: 'awaiting_refresh',
+      retrievedAt: '2026-08-19T10:00:00.000Z',
+    })
+
+    expect(result).toEqual({
+      label: 'On hold',
       tone: 'neutral',
-      description: expect.stringContaining(
-        'Private ratings and feedback remain available',
-      ),
+      description:
+        'The property’s Google review link is on hold, so guests cannot continue to Google and publishing is blocked. Private ratings and feedback are not affected. Restoring an archived property that is still linked to Google brings the link back; a property disconnected from Google has to be relinked, and this portal published again.',
       confirmedAt: 'Aug 19, 2026',
     })
+  })
+
+  it('never claims a refresh is under way, because nothing performs one', () => {
+    const presentations = (['verified', 'awaiting_refresh', 'unavailable'] as const).map(
+      (state) =>
+        presentGoogleReviewDestination({
+          state,
+          retrievedAt: state === 'unavailable' ? null : '2026-08-19T10:00:00.000Z',
+        }),
+    )
+
+    expect(
+      presentations.filter(({ label, description }) =>
+        /refresh/i.test(`${label} ${description}`),
+      ),
+    ).toEqual([])
   })
 
   it('explains the guest and publication impact when no destination is available', () => {

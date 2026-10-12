@@ -1,6 +1,7 @@
 // E2E auth helpers — shared login/registration utilities
 
 import { expect, type Page } from '@playwright/test'
+import { serverFnUrl } from './fixtures'
 import { clickWhenReady, waitForHydration } from './interaction'
 import { readE2eSeedState } from './seed-state'
 
@@ -19,8 +20,14 @@ export const TEST_PASSWORD =
 
 /**
  * Sign in via better-auth HTTP API (Set-Cookie on the browser context), then
- * set the first organization active. Server-fn UI login historically left
- * sessions without cookies / without active org, which made e2e hang ~18m.
+ * make the account's Organization active through the app-owned ensureActiveOrg
+ * server function, which is what the login page calls after signing in.
+ * Server-fn UI login historically left sessions without cookies / without
+ * active org, which made e2e hang ~18m.
+ *
+ * The provider's own organization routes (`/organization/list`,
+ * `/organization/set-active`) used to do the second step. They are no longer
+ * served: /api/auth/* is an allow list (src/routes/api/auth/-provider-routes.ts).
  *
  * `origin` overrides the CSRF origin/referer headers for non-default servers
  * (BQC-6.5's locked server on :3001); relative request URLs already follow
@@ -28,13 +35,63 @@ export const TEST_PASSWORD =
  */
 const ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 
+/** What a same-origin browser request carries; both CSRF checks read these. */
+function sameOriginHeaders(origin: string = ORIGIN) {
+  return { origin, referer: `${origin}/` }
+}
+
 function apiHeaders(extra: Record<string, string> = {}, origin: string = ORIGIN) {
-  // better-auth CSRF/origin checks require Origin on mutating org routes
+  // better-auth CSRF/origin checks require Origin on its mutating routes
   return {
     'content-type': 'application/json',
-    origin,
-    referer: `${origin}/`,
+    ...sameOriginHeaders(origin),
     ...extra,
+  }
+}
+
+/**
+ * Call the app-owned ensureActiveOrg for the session in this browser context.
+ * It takes no input, so the request has no body (and no JSON content type,
+ * which the server-function handler would try to parse). Server functions
+ * accept only same-origin requests (src/start.ts); a browser states that with
+ * Fetch Metadata, and this client states the same thing.
+ */
+async function ensureActiveOrganization(page: Page, origin?: string): Promise<void> {
+  const ensured = await page.request.post(
+    serverFnUrl('src/shared/auth/auth.functions.ts', 'ensureActiveOrg'),
+    {
+      headers: {
+        ...sameOriginHeaders(origin),
+        'sec-fetch-site': 'same-origin',
+        'x-tsr-serverFn': 'true',
+      },
+    },
+  )
+  if (!ensured.ok()) {
+    const body = await ensured.text()
+    throw new Error(
+      `E2E ensureActiveOrg failed (${ensured.status()}): ${body.slice(0, 300)}`,
+    )
+  }
+
+  // ensureActiveOrg answers nothing and leaves an account alone unless it has
+  // exactly one Organization, so read the outcome from the session itself.
+  const sessionRes = await page.request.get('/api/auth/get-session', {
+    headers: sameOriginHeaders(origin),
+  })
+  if (!sessionRes.ok()) {
+    const body = await sessionRes.text()
+    throw new Error(
+      `E2E session read failed (${sessionRes.status()}): ${body.slice(0, 300)}`,
+    )
+  }
+  const current = (await sessionRes.json()) as {
+    session?: { activeOrganizationId?: string | null }
+  } | null
+  if (!current?.session?.activeOrganizationId) {
+    throw new Error(
+      'E2E signed-in user has no active Organization: it needs exactly one organization membership',
+    )
   }
 }
 
@@ -57,31 +114,7 @@ export async function signIn(
     )
   }
 
-  const orgsRes = await page.request.get('/api/auth/organization/list', {
-    headers: apiHeaders({}, origin),
-  })
-  if (!orgsRes.ok()) {
-    const body = await orgsRes.text()
-    throw new Error(
-      `E2E organization list failed (${orgsRes.status()}): ${body.slice(0, 300)}`,
-    )
-  }
-  const orgs = (await orgsRes.json()) as unknown
-  const list = Array.isArray(orgs) ? orgs : []
-  const first = list[0] as { id?: string } | undefined
-  if (!first?.id) {
-    throw new Error('E2E seeded user has no organization membership')
-  }
-  const active = await page.request.post('/api/auth/organization/set-active', {
-    data: { organizationId: first.id },
-    headers: apiHeaders({}, origin),
-  })
-  if (!active.ok()) {
-    const body = await active.text()
-    throw new Error(
-      `E2E set-active org failed (${active.status()}): ${body.slice(0, 300)}`,
-    )
-  }
+  await ensureActiveOrganization(page, origin)
 
   // Wait for the clean authenticated landing (or the explicit unavailable
   // state when this helper is used with a non-interactive beta role).

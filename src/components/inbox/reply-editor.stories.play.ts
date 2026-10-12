@@ -1,4 +1,4 @@
-import { expect, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 
 type Canvas = ReturnType<typeof within>
 
@@ -23,4 +23,23 @@ export function expectNeutralCounterAtTheByteLimit(canvas: Canvas): void {
   const counter = canvas.getByText('4096/4096')
   expect(counter).toHaveClass('text-muted-foreground')
   expect(counter).not.toHaveClass('text-negative')
+}
+
+/**
+ * Presses the control named `trigger` and resolves the confirmation it opens,
+ * once the dialog shows `copy`. Shared by the thread message's Confirm &
+ * publish stories and the published-edit story: each then asserts that nothing
+ * was sent before its own confirm button is pressed.
+ */
+export async function openConfirmation(
+  canvasElement: HTMLElement,
+  trigger: RegExp | string,
+  copy: RegExp,
+): Promise<HTMLElement> {
+  await userEvent.click(within(canvasElement).getByRole('button', { name: trigger }))
+  const dialog = await within(document.body).findByRole('alertdialog')
+  // The copy mounts with the dialog's entry animation — wait for it rather
+  // than sampling the first frame.
+  await waitFor(() => expect(within(dialog).getByText(copy)).toBeVisible())
+  return dialog
 }
