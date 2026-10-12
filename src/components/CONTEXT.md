@@ -515,9 +515,10 @@ Four rules keep a cached page in step with the server it sends commands to.
   is stale. A write that is not followed by an invalidation therefore writes only
   the reads that hold the entity, passes `updatedAt` (the date the read already
   had) and marks an invalidated read invalidated again
-  (`invalidateQueries` with `exact` and `refetchType: 'none'`). Otherwise one
-  note made every cached Inbox queue look fresh, and a queue was shown without
-  the item a status command had just moved into it (`advanceListRowFence`).
+  (`invalidateQueries` on the family's factory key, with a `predicate` for that
+  one read and `refetchType: 'none'`). Otherwise one note made every cached Inbox
+  queue look fresh, and a queue was shown without the item a status command had
+  just moved into it (`advanceListRowFence`).
 - **A refused command re-reads what it was refused about.** A refusal usually
   means the page is behind, and often nothing else will bring it forward (no
   poll, no refetch until the window is refocused). Give the mutation an

@@ -24,6 +24,7 @@ import {
   QueryObserver,
   environmentManager,
   type InfiniteData,
+  type QueryObserverOptions,
 } from '@tanstack/react-query'
 import { afterEach, beforeEach, vi } from 'vitest'
 import type {
@@ -89,13 +90,14 @@ export function installInboxCacheHarness() {
       .getQueryData<InfiniteData<ListPage>>(inboxKeys.list(filters))
       ?.pages.flatMap((page) => page.items) ?? []
 
-  /** Keep a read on screen: mounted, so an invalidation re-reads it. */
-  const mount = (
-    queryKey: readonly unknown[],
-    read: () => unknown,
-    staleTime?: number,
-  ): void => {
-    const observer = new QueryObserver(client, { queryKey, queryFn: read, staleTime })
+  /**
+   * Keep a read on screen: mounted, so an invalidation re-reads it. The caller
+   * builds the read, and so its key, from `inboxKeys`. The stale time is passed
+   * on even when the read names none: such a read is stale at once, and does
+   * not take the client's default.
+   */
+  const mount = ({ staleTime, ...read }: QueryObserverOptions): void => {
+    const observer = new QueryObserver(client, { ...read, staleTime })
     mounted.push(observer.subscribe(() => {}))
   }
 
@@ -119,11 +121,11 @@ export function installInboxCacheHarness() {
       client.fetchInfiniteQuery(listOptions(fns, filters)),
     /** The detail read of the open item, as `useInboxDetailQueries` issues it. */
     openItem: (fns: InboxServerFns, id: string) =>
-      mount(
-        inboxKeys.detail(id),
-        () => fns.getInboxItemDetail({ data: { inboxItemId: id } }),
-        0,
-      ),
+      mount({
+        queryKey: inboxKeys.detail(id),
+        queryFn: () => fns.getInboxItemDetail({ data: { inboxItemId: id } }),
+        staleTime: 0,
+      }),
     rows,
     rowRevision: (filters: ListFilters, id: string) =>
       rows(filters).find((row) => row.id === id)?.commandRevision,

@@ -367,7 +367,8 @@ const withCommandRevision =
  * status command had just ordered: escalate, add a note, open Escalated, and
  * the item was missing. So only a list that holds the row behind the revision
  * is written, with the date it already had, and a list that was invalidated is
- * marked so again (`refetchType: 'none'`: marked, not fetched).
+ * marked so again (`refetchType: 'none'`: marked, not fetched; the `predicate`
+ * picks that one list out of `lists()`).
  *
  * A list read already in flight when the command lands (the reply poll, "Load
  * more") can put the older revision back on the row. A bulk assign refused for
@@ -376,22 +377,20 @@ const withCommandRevision =
 function advanceListRowFence(qc: QueryClient, id: string, commandRevision: number): void {
   const advance = withCommandRevision(id, commandRevision)
   for (const query of qc.getQueryCache().findAll({ queryKey: inboxKeys.lists() })) {
-    const { data, dataUpdatedAt, isInvalidated } = query.state
+    const { data, dataUpdatedAt: updatedAt, isInvalidated } = query.state
     const list = data as InboxListCache | undefined
     const isBehind = list?.pages.some((page) =>
       page.items.some((item) => item.id === id && item.commandRevision < commandRevision),
     )
     if (!list || !isBehind) continue
-    qc.setQueryData<InboxListCache>(
-      query.queryKey,
-      {
-        ...list,
-        pages: list.pages.map((page) => ({ ...page, items: page.items.map(advance) })),
-      },
-      { updatedAt: dataUpdatedAt },
-    )
+    const pages = list.pages.map((page) => ({ ...page, items: page.items.map(advance) }))
+    qc.setQueryData<InboxListCache>(query.queryKey, { ...list, pages }, { updatedAt })
     if (isInvalidated) {
-      qc.invalidateQueries({ queryKey: query.queryKey, exact: true, refetchType: 'none' })
+      qc.invalidateQueries({
+        queryKey: inboxKeys.lists(),
+        predicate: (cached) => cached === query,
+        refetchType: 'none',
+      })
     }
   }
 }

@@ -78,15 +78,19 @@ function mountPane(readDetail: () => InboxItemDetailResult): Requests {
     return answer()
   }
   // `staleTime: 0`, as `useInboxDetailQueries` reads the open item.
-  pane.mount(inboxKeys.detail(ITEM_ID), counted('detail', readDetail), 0)
-  pane.mount(
-    inboxKeys.list({ queue: 'approval', sort: 'newest' }),
-    counted('list', () => ({ pages: [], pageParams: [] })),
-  )
-  pane.mount(
-    inboxKeys.countsFor(),
-    counted('counts', () => ({})),
-  )
+  pane.mount({
+    queryKey: inboxKeys.detail(ITEM_ID),
+    queryFn: counted('detail', readDetail),
+    staleTime: 0,
+  })
+  pane.mount({
+    queryKey: inboxKeys.list({ queue: 'approval', sort: 'newest' }),
+    queryFn: counted('list', () => ({ pages: [], pageParams: [] })),
+  })
+  pane.mount({
+    queryKey: inboxKeys.countsFor(),
+    queryFn: counted('counts', () => ({})),
+  })
   return requests
 }
 
