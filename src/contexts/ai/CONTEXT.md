@@ -48,7 +48,12 @@ buckets. Historical and backfill analysis events queue their provider work in
 `ai_review_analysis_backlog`, which a 5-second drain empties newest review
 first, eight analyses at a time, and records an enrollment caught up as soon as
 its last review settles; a review opened in the Inbox is analysed ahead of the
-queue. The sweep also reopens a text review whose analysis settled without a
+queue. The drain's schedule is tenant-cross, so it asks current platform policy
+about each claimed entry's own Organization and Property before analysing it
+(ADR 0032): an entry refused by the kill switch, a suspension or the allowlist
+goes back to the queue untried, with no attempt counted and nothing settled,
+and is analysed once the stop is lifted. The sweep also reopens a text review
+whose analysis settled without a
 result because its operation gave up on a transient failure (ADR 0058,
 2026-09-29): a fresh analysis sequence and a backfill event, at most three times
 per revision. An enrollment is not caught up while one of its replayed reviews
