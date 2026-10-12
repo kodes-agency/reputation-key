@@ -13,6 +13,7 @@ import { Label } from '#/components/ui/label'
 import { Textarea } from '#/components/ui/textarea'
 import { unfilledReplySlotsMessage } from '#/contexts/review/application/public-api'
 import type { ReplyMessageAction } from './reply-message-view'
+import { useReplyConfirmationHold } from './use-reply-confirmation-hold'
 import type { ReactNode } from 'react'
 
 /**
@@ -167,8 +168,14 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
    * new text the manager has not read. Sending the reply and revision they
    * opened the dialog on makes the server refuse that confirmation; reopening
    * it confirms the reply that is on the screen then.
+   *
+   * The Inbox pane also keeps the reply it shows while this dialog is open
+   * (`holdReply` below), so there nothing re-renders under it. That is about
+   * what is SHOWN, and it is the pane's to give or not; this is about what is
+   * SENT, and holds under any host.
    */
   const confirming = useRef<ReplyOnScreen | null>(null)
+  const holdReply = useReplyConfirmationHold()
   const approvable = actions.includes('approve') ? shown : null
   const canApprove = approvable !== null
   const canReject = actions.includes('reject')
@@ -245,9 +252,13 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
             confirmDisabled={isSaving || publishBlockedReason !== null}
             onOpenChange={(open) => {
               confirming.current = open ? approvable : null
+              holdReply(open)
             }}
             // A refusal stays in the dialog (the approve mutation passes no
             // toast), so the manager reads it where they pressed the button.
+            // The refusal re-reads the reply, and that read would remount this
+            // row under the reply's new status: `holdReply` is what keeps the
+            // dialog, and the sentence in it, there until it is dismissed.
             onConfirm={() => onApprove(confirming.current ?? approvable)}
           />
         )}

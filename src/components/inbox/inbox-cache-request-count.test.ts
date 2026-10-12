@@ -131,7 +131,7 @@ describe('Inbox property section counts', () => {
     observe('properties', inboxKeys.propertyCountsFor('reply'))
     await vi.advanceTimersByTimeAsync(0)
 
-    inboxCachePolicy.onBulkReopened(client)
+    inboxCachePolicy.onBulkCommandSettled(client)
     await vi.advanceTimersByTimeAsync(0)
 
     expect(Object.fromEntries(requests)).toEqual({ queues: 2, properties: 2 })

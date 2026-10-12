@@ -133,7 +133,6 @@ function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetail
     correctFeedbackHandlingOutcome: unusedFeedbackAction,
     refetch: () => {},
     retrying: false,
-    onNoteAdded: () => {},
     onReplyMutated: () => {},
     error: null,
     lastMarkedId: null,

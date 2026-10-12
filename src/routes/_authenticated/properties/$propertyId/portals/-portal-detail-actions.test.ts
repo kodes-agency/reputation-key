@@ -98,6 +98,23 @@ describe('portal detail actions and the language coverage read', () => {
     expect(keys).toContainEqual(portalKeys.overview(PROPERTY_ID))
   })
 
+  // A refused save means another admin changed the managers, and the card's
+  // Reset can only show that once the page has read it. The Portal is the one
+  // the command named: this hook's render may be for another Portal by then.
+  it('re-reads the responsible managers of the Portal a refused save named', () => {
+    const options = captured.get('updatePortalResponsibleManagers')
+
+    options?.onError?.(new Error('responsible managers changed; reload them'), {
+      data: { portalId: 'portal-2', managerUserIds: [], expectedRevision: 5 },
+    })
+
+    expect(invalidated).toEqual([portalKeys.responsibleManagers('portal-2')])
+    expect(options?.invalidateKeys).toEqual([
+      portalKeys.detail(PORTAL_ID),
+      portalKeys.responsibleManagers(PORTAL_ID),
+    ])
+  })
+
   it('keeps the History reads under the detail key, so one refresh reaches them', () => {
     const detail = portalKeys.detail(PORTAL_ID)
 

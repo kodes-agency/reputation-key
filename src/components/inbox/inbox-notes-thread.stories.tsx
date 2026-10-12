@@ -40,7 +40,6 @@ export const WithoutWritePermission: Story = {
   args: {
     inboxItemId: 'inbox-1',
     expectedCommandRevision: 1,
-    onNoteAdded: fn(),
     addInboxNote: addNoteFn,
     canAdd: false,
   },
@@ -57,7 +56,6 @@ export const Empty: Story = {
   args: {
     inboxItemId: 'inbox-1',
     expectedCommandRevision: 1,
-    onNoteAdded: fn(),
     addInboxNote: addNoteFn,
   },
   play: async ({ canvasElement }) => {
@@ -68,22 +66,22 @@ export const Empty: Story = {
 }
 
 // Submitting a note: typing then clicking Add Note invokes addInboxNote with the
-// text, fires onNoteAdded on success, and clears the textarea. Module-level
-// spies + mockClear keep assertions stable across play re-runs.
+// text and clears the textarea once it has landed. What the note does to the
+// cached item (its command revision, in the detail and in every list row) is
+// the hook's own business, `use-add-inbox-note.ts`, and is tested with a real
+// query cache in `inbox-command-fence.test.ts`. Module-level spies + mockClear
+// keep assertions stable across play re-runs.
 const submitSpy = fn(async (_input: AddNoteInput) => ({ ok: true }))
 const addNoteForSubmit = mockServerFn(submitSpy) as unknown as typeof addInboxNoteFn
-const onNoteAddedSpy = fn()
 
 export const AddNote: Story = {
   args: {
     inboxItemId: 'inbox-1',
     expectedCommandRevision: 1,
-    onNoteAdded: onNoteAddedSpy,
     addInboxNote: addNoteForSubmit,
   },
   play: async ({ canvasElement }) => {
     submitSpy.mockClear()
-    onNoteAddedSpy.mockClear()
     const canvas = within(canvasElement)
     const textarea = canvas.getByPlaceholderText('Add a note…')
     await userEvent.type(textarea, '  Follow up tomorrow  ')
@@ -98,9 +96,8 @@ export const AddNote: Story = {
         }),
       )
     })
-    // onSuccess fires onNoteAdded + clears the field once the mutation settles.
+    // The field clears once the mutation settles.
     await waitFor(() => {
-      expect(onNoteAddedSpy).toHaveBeenCalledWith(2)
       expect(textarea).toHaveValue('')
     })
   },

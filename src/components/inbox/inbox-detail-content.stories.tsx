@@ -9,12 +9,17 @@
 // inbox-case-toolbar.stories.tsx; here it only has to mount, so every story
 // needs the Actions it reads on first render.
 import type { Meta, StoryObj } from '@storybook/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { expect, fireEvent, userEvent, waitFor, within } from 'storybook/test'
+import { Toaster } from '#/components/ui/sonner'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
 import { InboxDetailContent } from './inbox-detail-content'
+import { openConfirmation } from './reply-editor.stories.play'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
+import { scriptReplyCommand } from '../../../.storybook/stubs/review-reply-server'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { ComposerFocusBox, DetailContentProps } from './inbox-detail-content'
 import type {
@@ -246,7 +251,6 @@ const BASE_DETAIL_STATE: InboxDetailState = {
   currentItem: reviewItem,
   refetch: () => {},
   retrying: false,
-  onNoteAdded: () => {},
   onReplyMutated: () => {},
   error: null,
   lastMarkedId: null,
@@ -1078,5 +1082,224 @@ export const SelectingAnotherItemCarriesNothingOver: Story = {
     await userEvent.click(canvas.getByRole('tab', { name: 'Internal note' }))
     await expect(canvas.getByRole('textbox', { name: 'Add a note' })).toHaveValue('')
     await expect(canvas.getByRole('button', { name: 'Add note' })).toBeDisabled()
+  },
+}
+
+/** The same reply while it still waits for a manager's confirmation. */
+const awaitingApprovalReply: NonNullable<InboxItemDetailResult['reply']> = {
+  ...publishedReply,
+  status: 'pending_approval',
+  approvedBy: null,
+  approvedAt: null,
+  publishedAt: null,
+  publicationState: null,
+  publicationAttempts: 0,
+  publicationCycle: 0,
+  stateRevision: 2,
+}
+
+const REJECTION_REASON = 'Please name the colleague at the front desk.'
+
+/** And after a colleague rejected it. */
+const rejectedReply: NonNullable<InboxItemDetailResult['reply']> = {
+  ...awaitingApprovalReply,
+  status: 'rejected',
+  rejectedBy: userId('99999999-9999-4999-8999-999999999999'),
+  rejectionReason: REJECTION_REASON,
+  stateRevision: 3,
+}
+
+/** What `reply-commit.ts` answers a confirmation whose reply has moved on. */
+const REPLY_MOVED_ON = 'Reply status changed concurrently'
+
+/** What the pane is given at one moment: the open item, and its detail as read. */
+type PaneRead = Readonly<{
+  /** Printed above the pane, so a story can wait for this read to be rendered. */
+  label: string
+  item: InboxItem
+  detail: InboxItemDetailResult
+}>
+
+/**
+ * The story's own signal for "the pane is given its next read". Not the
+ * window's `focus`, which is what makes the real detail query read again: a
+ * click in a window that did not have the focus fires that too, and the story
+ * decides when.
+ */
+const NEXT_READ_EVENT = 'inbox-detail-story:next-read'
+const giveThePaneItsNextRead = () => window.dispatchEvent(new Event(NEXT_READ_EVENT))
+
+/**
+ * ONE mounted pane given a scripted sequence of reads: its detail read again,
+ * or another item selected. The pane is not remounted for either, which is the
+ * whole reason it has to hold and release by itself. The line above the pane
+ * names the read that is rendered, because the pane must not show it while a
+ * confirmation holds an earlier one.
+ */
+function PaneAcrossReads({
+  reads,
+  ...args
+}: DetailContentProps & Readonly<{ reads: readonly [PaneRead, ...PaneRead[]] }>) {
+  const [step, setStep] = useState(0)
+  useEffect(() => {
+    const next = () => setStep((current) => current + 1)
+    window.addEventListener(NEXT_READ_EVENT, next)
+    return () => window.removeEventListener(NEXT_READ_EVENT, next)
+  }, [])
+  const read = reads[Math.min(step, reads.length - 1)] ?? reads[0]
+  return (
+    <>
+      <p>{read.label}</p>
+      <InboxDetailContent
+        {...args}
+        currentItem={read.item}
+        detailState={{ ...args.detailState, detail: read.detail }}
+      />
+      <Toaster />
+    </>
+  )
+}
+
+const WAITING_FOR_APPROVAL: PaneRead = {
+  label: 'First read: the reply waits for approval',
+  item: reviewItem,
+  detail: { ...reviewDetail, reply: awaitingApprovalReply },
+}
+
+/** The colleague who rejected it deleted it: the whole thread message goes. */
+const REPLY_DELETED: PaneRead = {
+  label: 'Read again: the reply is gone',
+  item: reviewItem,
+  detail: reviewDetail,
+}
+
+const ANOTHER_ITEM: PaneRead = {
+  label: 'Another review is open',
+  item: nextReviewItem,
+  detail: { ...reviewDetail, item: nextReviewItem },
+}
+
+const REPLY_REJECTED: PaneRead = {
+  label: 'The first review again: the reply was rejected',
+  item: reviewItem,
+  detail: { ...reviewDetail, reply: rejectedReply },
+}
+
+const openPublishConfirmation = (canvasElement: HTMLElement): Promise<HTMLElement> =>
+  openConfirmation(
+    canvasElement,
+    'Confirm & publish',
+    /keeps it pending until google confirms/i,
+  )
+
+/**
+ * A confirmation is drawn inside the reply it asks about, so the pane keeps
+ * the reply it shows for as long as one is open (`use-reply-confirmation-hold.ts`).
+ *
+ * Here a colleague deletes the reply while Confirm & publish stands open. The
+ * re-read is rendered and the dialog is still there, over the reply it was
+ * opened on. Confirming is refused, and the refusal is said in the dialog,
+ * once, with no toast. Only when the manager dismisses it does the pane show
+ * what the read found: no reply, and the box to write one. Without the hold
+ * the re-read unmounted the message with the dialog in it, and a refusal that
+ * followed had nowhere to be read.
+ */
+export const AnOpenConfirmationHoldsThePaneItWasOpenedOn: Story = {
+  decorators: [withRole('PropertyManager')],
+  args: {
+    currentItem: reviewItem,
+    detailFns,
+    detailState: mkDetailState({ notes }),
+  },
+  render: (args) => (
+    <PaneAcrossReads {...args} reads={[WAITING_FOR_APPROVAL, REPLY_DELETED]} />
+  ),
+  beforeEach: () => {
+    // Sonner's store outlives a story: start with no toast showing.
+    toast.dismiss()
+    return scriptReplyCommand('approveReplyFn', async () => {
+      throw new ServerFunctionError(
+        'ReviewError',
+        REPLY_MOVED_ON,
+        'invalid_transition',
+        400,
+      )
+    })
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText(WAITING_FOR_APPROVAL.label)).toBeVisible()
+    const dialog = await openPublishConfirmation(canvasElement)
+
+    // The pane is given the re-read, and renders...
+    giveThePaneItsNextRead()
+    expect(await canvas.findByText(REPLY_DELETED.label)).toBeVisible()
+    // ...under a dialog that is still open over the reply it was opened on.
+    expect(dialog).toBeVisible()
+    expect(canvas.getByText(awaitingApprovalReply.text)).toBeVisible()
+
+    // The server refuses the reply the dialog names. Said in the dialog, once.
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Confirm & publish' }),
+    )
+    expect(await within(dialog).findByText(REPLY_MOVED_ON)).toBeVisible()
+    expect(dialog).toBeVisible()
+    expect(within(document.body).getAllByText(REPLY_MOVED_ON)).toHaveLength(1)
+    expect(document.querySelectorAll('[data-sonner-toast]')).toHaveLength(0)
+
+    // Dismissed, the pane shows what the read found: no reply, and the box to
+    // write one.
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Keep reviewing' }))
+    await waitFor(() =>
+      expect(within(document.body).queryByRole('alertdialog')).toBeNull(),
+    )
+    await waitFor(() =>
+      expect(canvas.queryByText(awaitingApprovalReply.text)).not.toBeInTheDocument(),
+    )
+    expect(canvas.getByRole('textbox', { name: 'Public reply' })).toHaveValue('')
+  },
+}
+
+/**
+ * The hold ends with its dialog, however the dialog ends. The browser's Back
+ * button selects another item under an open confirmation, which takes the
+ * dialog away without closing it, and the pane is not remounted. When the
+ * manager comes back to the first review, the pane must show its reply as it
+ * is now, not the copy a dialog that no longer exists was opened on: a reply
+ * nobody can confirm any more, with a live Confirm & publish under it.
+ */
+export const AHoldDoesNotOutliveItsDialog: Story = {
+  decorators: [withRole('PropertyManager')],
+  args: {
+    currentItem: reviewItem,
+    detailFns,
+    detailState: mkDetailState({ notes }),
+  },
+  render: (args) => (
+    <PaneAcrossReads
+      {...args}
+      reads={[WAITING_FOR_APPROVAL, ANOTHER_ITEM, REPLY_REJECTED]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await openPublishConfirmation(canvasElement)
+
+    // Another review is selected under the open dialog. Its pane shows no
+    // reply of the first one's, and the dialog went with the message.
+    giveThePaneItsNextRead()
+    expect(await canvas.findByText(ANOTHER_ITEM.label)).toBeVisible()
+    await waitFor(() =>
+      expect(within(document.body).queryByRole('alertdialog')).toBeNull(),
+    )
+    expect(canvas.queryByText(awaitingApprovalReply.text)).not.toBeInTheDocument()
+
+    // Back on the first review: the reply as it is now.
+    giveThePaneItsNextRead()
+    expect(await canvas.findByText(REPLY_REJECTED.label)).toBeVisible()
+    const message = within(await canvas.findByRole('article', { name: /^Reply from/ }))
+    expect(message.getByText('Rejected')).toBeVisible()
+    expect(message.getByText(REJECTION_REASON)).toBeVisible()
+    expect(message.queryByRole('button', { name: 'Confirm & publish' })).toBeNull()
   },
 }

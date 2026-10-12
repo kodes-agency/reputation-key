@@ -2,14 +2,10 @@ import { RotateCcw, X } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { ButtonGroup } from '#/components/ui/button-group'
 import { Checkbox } from '#/components/ui/checkbox'
-import {
-  useActionMutation,
-  actionErrorMessage,
-} from '#/components/hooks/use-action-mutation'
 import { INBOX_BULK_LIMIT, type InboxItem } from '#/contexts/inbox/application/public-api'
 import type { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
-import { toast } from 'sonner'
-import { buildBulkReopenCommands, bulkReopenNotice } from './inbox-bulk-policy'
+import { buildBulkReopenCommands } from './inbox-bulk-policy'
+import { useInboxBulkCommands } from './use-inbox-bulk-commands'
 import { InboxReopenDialog } from './inbox-reopen-dialog'
 import type { InboxAssignmentOption } from './inbox-owner-view'
 import { InboxBulkAssignMenu } from './inbox-bulk-assign-menu'
@@ -41,29 +37,10 @@ export function InboxBulkActions({
   const { can } = usePermissions()
   const selectedSet = new Set(selectedIds)
   const selected = items.filter((item) => selectedSet.has(item.id))
-  // Bulk commands are immediate actions: a refusal is a toast. They used to
-  // print an error banner into a screen-reader-only region, so a sighted manager
-  // saw nothing at all.
-  const bulkMutation = useActionMutation(bulkUpdateFn, {
-    errorMessage: actionErrorMessage,
-    onSuccess: (result) => {
-      const notice = bulkReopenNotice(result)
-      toast[notice.tone](notice.message)
-      onDone()
-    },
-  })
-  const assignmentMutation = useActionMutation(bulkAssignFn, {
-    errorMessage: actionErrorMessage,
-    onSuccess: (result) => {
-      if (result.updated === 0) {
-        toast.error('No assignments changed. Reload the list and check access.')
-        return
-      }
-      toast.success(
-        `${result.updated} ${result.updated === 1 ? 'assignment' : 'assignments'} updated`,
-      )
-      onDone()
-    },
+  const { reopen: bulkMutation, assign: assignmentMutation } = useInboxBulkCommands({
+    bulkUpdateFn,
+    bulkAssignFn,
+    onDone,
   })
   const selectable = items.slice(0, INBOX_BULK_LIMIT)
   const allSelectableSelected =
