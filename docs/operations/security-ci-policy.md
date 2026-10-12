@@ -50,6 +50,7 @@ and do not read them as a review verdict.
 | Scan exception expiry                    | `check` job, step "Container image inventory and coverage policy"  | `pnpm check:container-images` → `scripts/ci/grype-exception-expiry.ts`       | any `.grype.yaml` rule past its `expiresAt` date or with no readable date, and any line the reader cannot place   | Step log                                         |
 | Production dependency/prune verification | `docker-images` matrix, step "Smoke images"                        | per-image inline shell inside each bounded group                             | any runtime-contract failure or sentinel devDependency in `/app/node_modules`                                     | Step log                                         |
 | Migration artifact consistency           | `check` job, steps "Predeploy migration parity" + "Schema drift …" | `pnpm db:migrate-deploy` (BQC-7.1) + `pnpm check:schema-drift`               | parity divergence / model↔catalog drift / journal entry out of order                                              | Step log                                         |
+| Migration journal append-only            | `check` job, step "Lint"                                           | `pnpm check:migration-journal` → `scripts/check-migration-journal.ts`        | a journal entry already on `main` moved, changed or gone; an entry out of order                                   | Step log                                         |
 
 **Artifact-content scanning — interpretation:** each classified descriptor is
 an artifact that actually runs or supports acceptance. The promoted web and
@@ -444,6 +445,16 @@ parity" (BQC-7.1 — deploy runner converges instantly against the manually
 migrated DB) and "Schema drift (model ↔ migrated catalog)"
 (`pnpm check:schema-drift` — the semantic comparator against the same
 migrated database). Drift or divergence fails the job.
+
+Both migrate an empty database, where the journal's array order is all that
+counts. A deployed database is not empty: it applies an entry only when its
+`when` is above the newest applied row. `pnpm check:migration-journal`, run by
+the "Lint" step with no database, covers that side. It checks the file's own
+order, then compares it with the journal at the merge base with `main`: an
+entry already there must be unchanged and at the same position, so a new
+migration can only be appended. Without the comparison, a rebase that keeps the
+new entry before the one `main` gained passes every gate above and, at deploy,
+runs `main`'s migration twice and skips the new one.
 
 ## Alert wiring (`security.scan`)
 

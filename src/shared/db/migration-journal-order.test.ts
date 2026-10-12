@@ -12,6 +12,13 @@
 // passed every gate on a fresh database while `pnpm db:migrate` reported
 // success and applied nothing on a database at the previous head. Two branches
 // that each step the same last entry by the same amount produce exactly that.
+//
+// One file cannot tell a new entry from an applied one. A rebase that keeps the
+// branch's entry BEFORE the one main gained, and raises main's `when` so the
+// file still rises, passes every check above; the deployed database then runs
+// main's migration a second time and skips the new one, and its row count
+// equals the journal's, so the deploy runner passes too. Only the journal the
+// base branch holds shows it: its entries must still be here, unchanged.
 
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
@@ -21,6 +28,7 @@ import {
   collectMigrationJournalFaults,
   listMigrationSqlTags,
   readMigrationJournal,
+  validateJournalIsAppendOnly,
   validateMigrationJournal,
   type MigrationJournalEntry,
 } from './migration-journal-order'
@@ -34,6 +42,9 @@ const tagsOf = (entries: readonly MigrationJournalEntry[]) =>
   entries.map(({ tag }) => tag)
 const faults = (entries: readonly MigrationJournalEntry[], sqlTags = tagsOf(entries)) =>
   validateMigrationJournal(entries, sqlTags).map(({ detail }) => detail)
+const NEW_ENTRY_GOES_LAST =
+  'an entry already on main stays as it is; the new entry goes last, with a when above the entry before it ' +
+  `(the journal steps by ${JOURNAL_WHEN_STEP_MS})`
 
 describe('migration journal order', () => {
   it('accepts a journal whose entries rise in position, idx and when', () => {
@@ -49,7 +60,7 @@ describe('migration journal order', () => {
         object: 'migration 0003_parallel_branch',
         detail:
           'when 3000 is not above 3000 of 0002_first_change, so a database that already applied 0002_first_change skips it; ' +
-          `set when above the previous entry (the journal steps by ${JOURNAL_WHEN_STEP_MS})`,
+          NEW_ENTRY_GOES_LAST,
       },
     ])
   })
@@ -59,7 +70,7 @@ describe('migration journal order', () => {
 
     expect(faults(journal)).toEqual([
       'when 2500 is not above 3000 of 0002_first_change, so a database that already applied 0002_first_change skips it; ' +
-        `set when above the previous entry (the journal steps by ${JOURNAL_WHEN_STEP_MS})`,
+        NEW_ENTRY_GOES_LAST,
     ])
   })
 
@@ -97,6 +108,88 @@ describe('migration journal order', () => {
 
     expect(entries.length).toBeGreaterThan(HEAD.length)
     expect(validateMigrationJournal(entries, listMigrationSqlTags())).toEqual([])
+  })
+})
+
+describe('migration journal against the journal on main', () => {
+  const KEEP =
+    'an entry already on main keeps its position, idx and when, because a deployed database has applied it as main states it'
+  const appendOnly = (entries: readonly MigrationJournalEntry[]) =>
+    validateJournalIsAppendOnly(entries, HEAD)
+
+  it('accepts the same journal, and one with a new entry after the last', () => {
+    expect(appendOnly(HEAD)).toEqual([])
+    expect(appendOnly([...HEAD, { idx: 3, tag: '0003_next', when: 4_000 }])).toEqual([])
+  })
+
+  it('rejects an entry placed before one main already holds, however its when reads', () => {
+    const [baseline, constructs, firstChange] = HEAD
+    const inserted = [
+      baseline,
+      constructs,
+      { idx: 2, tag: '0002_squeezed_in', when: 2_500 },
+      { ...firstChange, idx: 3 },
+    ] as readonly MigrationJournalEntry[]
+
+    // The file on its own is in order: only the base journal shows the fault.
+    expect(faults(inserted)).toEqual([])
+    expect(appendOnly(inserted)).toEqual([
+      {
+        object: 'migration 0002_first_change',
+        detail: `is entry 2 on main, and 0002_squeezed_in holds that position here; ${KEEP} — put the new entry after it, last`,
+      },
+    ])
+  })
+
+  it('rejects a rebase that keeps the new entry first and raises the when of the one from main', () => {
+    const [baseline, constructs] = HEAD
+    const rebased = [
+      baseline,
+      constructs,
+      { idx: 2, tag: '0002_from_this_branch', when: 3_000 },
+      { idx: 3, tag: '0002_first_change', when: 4_000 },
+    ] as readonly MigrationJournalEntry[]
+
+    expect(faults(rebased)).toEqual([])
+    expect(appendOnly(rebased).map(({ object }) => object)).toEqual([
+      'migration 0002_first_change',
+    ])
+  })
+
+  it('rejects a changed when on an entry main already holds', () => {
+    const raised = HEAD.map((entry) =>
+      entry.tag === '0001_db_constructs' ? { ...entry, when: 2_500 } : entry,
+    )
+
+    expect(faults(raised)).toEqual([])
+    expect(appendOnly(raised)).toEqual([
+      {
+        object: 'migration 0001_db_constructs',
+        detail: `when is 2500 here and 2000 on main; ${KEEP} — restore it`,
+      },
+    ])
+  })
+
+  it('rejects a journal that no longer holds an entry from main', () => {
+    expect(appendOnly(HEAD.slice(0, -1))).toEqual([
+      {
+        object: 'migration 0002_first_change',
+        detail: `is entry 2 on main and is gone from this journal; ${KEEP} — restore it`,
+      },
+    ])
+  })
+
+  it('reports the first entry that moved once, not every entry after it', () => {
+    const [baseline, ...rest] = HEAD
+    const prepended = [
+      { idx: 0, tag: '0000_before_everything', when: 500 },
+      baseline,
+      ...rest,
+    ] as readonly MigrationJournalEntry[]
+
+    expect(appendOnly(prepended).map(({ object }) => object)).toEqual([
+      'migration 0000_baseline',
+    ])
   })
 })
 

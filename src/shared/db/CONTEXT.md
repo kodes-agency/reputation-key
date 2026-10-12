@@ -83,9 +83,19 @@ entry only when its `when` is greater than the newest applied row, so an entry
 that does not rise is applied on CI's empty database and skipped on a migrated
 one. The last `when` is dated ahead of the calendar: step a new entry from the
 previous one (100,000,000 ms) instead of stamping real time.
-`migration-journal-order.test.ts` runs the file check with no database. It
-cannot see an entry placed before ones a deployed database already applied; the
-deploy runner's count check refuses that deploy.
+`migration-journal-order.test.ts` runs the file check with no database.
+
+The journal is append-only: an entry already on `main` keeps its position, `idx`
+and `when`, and a new entry goes after them, last. The file alone cannot show a
+breach, because it cannot tell a new entry from one a deployed database has
+applied. `pnpm check:migration-journal` (`scripts/check-migration-journal.ts`,
+run by `lint:ci`) reads the journal at the merge base with `main` and fails when
+one of its entries moved, changed or is gone. The case it exists for is a rebase
+that keeps the branch's entry before the one `main` gained and raises that
+entry's `when` so the file still rises: the deployed database would run `main`'s
+migration a second time and skip the new one, and its row count would equal the
+journal's, so the deploy runner's count check passes. After a journal conflict,
+take `main`'s entries as they are and re-step only your own.
 
 Functions and triggers are compared by definition, not by name
 (`construct-definitions.ts`): signature, attributes and body of every function,

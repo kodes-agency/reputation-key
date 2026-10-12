@@ -9,8 +9,13 @@
 // before it, or the entry is applied in CI (which migrates an empty database)
 // and silently skipped on the deployed one.
 //
+// The file alone cannot say which entries a deployed database has applied. The
+// journal the base branch holds can: every entry there must still be here,
+// unchanged and at the same position (validateJournalIsAppendOnly).
+//
 // Shared/db only: consumed by ./schema-drift.ts, which backs
-// `pnpm check:schema-drift` and migration-verification.test.ts.
+// `pnpm check:schema-drift` and migration-verification.test.ts, and by
+// scripts/check-migration-journal.ts, which reads the base journal from git.
 
 import { createHash } from 'node:crypto'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -32,10 +37,15 @@ export const JOURNAL_WHEN_STEP_MS = 100_000_000
 const MIGRATIONS_DIR = fileURLToPath(new URL('../../../drizzle', import.meta.url))
 const SQL_SUFFIX = '.sql'
 
+/** The entries of a `_journal.json`, from its text. */
+export function parseMigrationJournal(raw: string): readonly MigrationJournalEntry[] {
+  return (JSON.parse(raw) as { entries: MigrationJournalEntry[] }).entries
+}
+
 export function readMigrationJournal(): readonly MigrationJournalEntry[] {
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- BQC-7.7 (owner: platform): repo-constant path (drizzle/), no request input; CI/operator tool
   const raw = readFileSync(join(MIGRATIONS_DIR, 'meta', '_journal.json'), 'utf8')
-  return (JSON.parse(raw) as { entries: MigrationJournalEntry[] }).entries
+  return parseMigrationJournal(raw)
 }
 
 /** Tags of the migration SQL files on disk, sorted. */
@@ -80,7 +90,8 @@ function orderFaults(
     fault(
       entry.tag,
       `when ${entry.when} is not above ${previous.when} of ${previous.tag}, so a database that already applied ${previous.tag} skips it; ` +
-        `set when above the previous entry (the journal steps by ${JOURNAL_WHEN_STEP_MS})`,
+        'an entry already on main stays as it is; the new entry goes last, with a when above the entry before it ' +
+        `(the journal steps by ${JOURNAL_WHEN_STEP_MS})`,
     ),
   ]
 }
@@ -121,6 +132,67 @@ export function validateMigrationJournal(
       : [fault(entry.tag, 'tag is journalled more than once')]),
   ])
   return [...perEntry, ...fileFaults(entries, sqlTags)]
+}
+
+const ENTRY_ON_MAIN_IS_FIXED =
+  'an entry already on main keeps its position, idx and when, because a deployed database has applied it as main states it'
+
+const FIXED_FIELDS = ['idx', 'when'] as const
+
+/** An entry still at its base position: its `idx` and `when` must not differ. */
+function changedFaults(
+  base: MigrationJournalEntry,
+  current: MigrationJournalEntry | undefined,
+): readonly MigrationJournalFault[] {
+  if (!current) return []
+  return FIXED_FIELDS.filter((field) => current[field] !== base[field]).map((field) =>
+    fault(
+      base.tag,
+      `${field} is ${current[field]} here and ${base[field]} on main; ${ENTRY_ON_MAIN_IS_FIXED} — restore it`,
+    ),
+  )
+}
+
+/** The base entry whose position holds another tag, or nothing. */
+function displacedFault(
+  base: MigrationJournalEntry,
+  position: number,
+  entries: readonly MigrationJournalEntry[],
+): MigrationJournalFault {
+  const holder = entries[position]
+  const stillJournalled = entries.some(({ tag }) => tag === base.tag)
+  return fault(
+    base.tag,
+    holder && stillJournalled
+      ? `is entry ${position} on main, and ${holder.tag} holds that position here; ${ENTRY_ON_MAIN_IS_FIXED} — put the new entry after it, last`
+      : `is entry ${position} on main and is gone from this journal; ${ENTRY_ON_MAIN_IS_FIXED} — restore it`,
+  )
+}
+
+/**
+ * Faults against the journal the base branch holds (`baseEntries`). A deployed
+ * database has applied those entries, and drizzle decides what to run from the
+ * newest applied `when` alone. So an entry placed before them is skipped there
+ * however its `when` reads, and one whose `when` is raised runs a second time.
+ * Neither shows in the file on its own, nor in CI's empty database, nor in the
+ * deploy runner's row count when one entry is skipped and another re-run.
+ *
+ * The first base entry that moved or is gone is reported once: every entry
+ * after it is displaced by the same edit.
+ */
+export function validateJournalIsAppendOnly(
+  entries: readonly MigrationJournalEntry[],
+  baseEntries: readonly MigrationJournalEntry[],
+): readonly MigrationJournalFault[] {
+  const firstMoved = baseEntries.findIndex(
+    (base, position) => entries[position]?.tag !== base.tag,
+  )
+  const inPlace = firstMoved === -1 ? baseEntries : baseEntries.slice(0, firstMoved)
+  const moved = baseEntries[firstMoved]
+  return [
+    ...inPlace.flatMap((base, position) => changedFaults(base, entries[position])),
+    ...(moved ? [displacedFault(moved, firstMoved, entries)] : []),
+  ]
 }
 
 /** A row of `drizzle.__drizzle_migrations`, in the order the database sorts them. */
