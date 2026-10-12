@@ -2,11 +2,20 @@ import { describe, expect, it } from 'vitest'
 import {
   attentionLine,
   attentionRank,
+  countBlockedPortals,
+  hasUncountedScans,
+  isBlocked,
   needsAttention,
   portalAttention,
   offersAttentionFilter,
+  uncountedScanPortals,
 } from './portal-attention'
 import { NO_CODE, OLDER_CODE, overviewRow } from './portal-overview-fixtures'
+
+/** A live Portal whose Property was disconnected from Google: the link is on hold. */
+const GOOGLE_ON_HOLD = {
+  health: { status: 'degraded', reason: 'google_destination_awaiting_refresh' },
+} as const
 
 const attentionOf = (overrides: Parameters<typeof overviewRow>[1]) =>
   portalAttention(overviewRow('p', overrides))
@@ -50,7 +59,8 @@ describe('portalAttention', () => {
     expect(attention.kind).toBe('issues')
     if (attention.kind !== 'issues') return
     expect(attention.issues.map((issue) => issue.code)).toEqual(['no_responsible'])
-    expect(attentionLine(attention)).toBe('1 issue')
+    // One issue is named in the row, so a reader can triage without opening it.
+    expect(attentionLine(attention)).toBe('No one responsible')
   })
 
   it('reports a live Portal no guest can reach', () => {
@@ -62,7 +72,10 @@ describe('portalAttention', () => {
   it('flags a live Portal whose code predates access artifacts, as its own line', () => {
     const attention = attentionOf({ token: OLDER_CODE })
     expect(attention).toEqual({ kind: 'older_code' })
-    expect(attentionLine(attention)).toBe('Older code · scans not counted')
+    // The line says what is missing and what puts it right, and that it costs a reprint.
+    expect(attentionLine(attention)).toBe(
+      'Scans not counted · replace the code (needs reprinting)',
+    )
     expect(needsAttention(attention)).toBe(true)
   })
 
@@ -110,11 +123,7 @@ describe('portalAttention', () => {
         health: { status: 'unavailable', reason: 'publication_snapshot_unavailable' },
       }),
     ).toEqual(['no_live_version'])
-    expect(
-      code({
-        health: { status: 'degraded', reason: 'google_destination_awaiting_refresh' },
-      }),
-    ).toEqual(['google_on_hold'])
+    expect(code(GOOGLE_ON_HOLD)).toEqual(['google_on_hold'])
     expect(
       code({
         health: { status: 'degraded', reason: 'google_destination_unavailable' },
@@ -125,9 +134,7 @@ describe('portalAttention', () => {
   it('says a Google link on hold needs a relink and a republish, not that it clears by itself', () => {
     // Nothing refreshes the link: a live Portal of an available Property is in
     // this state only after Google was disconnected from the Property.
-    const attention = attentionOf({
-      health: { status: 'degraded', reason: 'google_destination_awaiting_refresh' },
-    })
+    const attention = attentionOf(GOOGLE_ON_HOLD)
 
     expect(attention).toEqual({
       kind: 'issues',
@@ -135,9 +142,11 @@ describe('portalAttention', () => {
         {
           code: 'google_on_hold',
           title: 'The Google link is on hold',
+          short: 'Google link on hold',
           detail:
             'Guests are not sent to Google. Relink the property to Google, then publish this portal again.',
           fix: 'google',
+          severity: 'blocking',
         },
       ],
     })
@@ -160,6 +169,15 @@ describe('portalAttention', () => {
     expect(attentionLine(attention)).toBe('2 issues')
   })
 
+  it('names the one issue in a few words, and counts two or more', () => {
+    const one = attentionOf({ token: NO_CODE })
+    expect(attentionLine(one)).toBe('No working code')
+    const google = attentionOf({
+      health: { status: 'degraded', reason: 'google_destination_unavailable' },
+    })
+    expect(attentionLine(google)).toBe('Google link unavailable')
+  })
+
   it('has no Health yet: issues come from the row alone', () => {
     expect(attentionOf({ health: null })).toEqual({ kind: 'none' })
   })
@@ -180,6 +198,84 @@ describe('portalAttention', () => {
       expect(issue.detail.length).toBeGreaterThan(0)
     }
     expect(attention.issues.map((issue) => issue.fix)).toEqual(['share', 'responsible'])
+  })
+})
+
+describe('blocking issues', () => {
+  const blocked = (overrides: Parameters<typeof overviewRow>[1]) =>
+    isBlocked(attentionOf(overrides))
+
+  it('treats no code, no live version, an unavailable property and no Google link as blocking', () => {
+    expect(blocked({ token: NO_CODE })).toBe(true)
+    expect(
+      blocked({
+        health: { status: 'unavailable', reason: 'publication_snapshot_unavailable' },
+      }),
+    ).toBe(true)
+    expect(
+      blocked({ health: { status: 'unavailable', reason: 'property_unavailable' } }),
+    ).toBe(true)
+    expect(
+      blocked({
+        health: { status: 'degraded', reason: 'google_destination_unavailable' },
+      }),
+    ).toBe(true)
+    // On hold is not "refreshing": nothing clears it but a relink and a republish,
+    // and until then guests are not sent to Google.
+    expect(blocked(GOOGLE_ON_HOLD)).toBe(true)
+  })
+
+  it('does not treat a missing manager, a draft or an older code as blocking', () => {
+    expect(blocked({ responsibleManagerUserIds: [] })).toBe(false)
+    expect(blocked({ publicationState: 'draft', token: NO_CODE })).toBe(false)
+    expect(blocked({ token: OLDER_CODE })).toBe(false)
+    expect(blocked({ pendingChangeCount: 2 })).toBe(false)
+  })
+
+  it('is blocking when one of several issues is', () => {
+    expect(blocked({ token: NO_CODE, responsibleManagerUserIds: [] })).toBe(true)
+  })
+
+  it('counts the Portals guests cannot use, once each', () => {
+    const rows = [
+      overviewRow('a', { token: NO_CODE }),
+      overviewRow('b', { token: NO_CODE, responsibleManagerUserIds: [] }),
+      overviewRow('c', { responsibleManagerUserIds: [] }),
+      overviewRow('d', { publicationState: 'draft', token: NO_CODE }),
+      overviewRow('e'),
+    ]
+    expect(countBlockedPortals(rows)).toBe(2)
+    expect(countBlockedPortals([])).toBe(0)
+  })
+})
+
+describe('uncounted scans', () => {
+  it('belongs to a live Portal whose code predates scan counting, and to no other', () => {
+    expect(hasUncountedScans(overviewRow('a', { token: OLDER_CODE }))).toBe(true)
+    expect(hasUncountedScans(overviewRow('b'))).toBe(false)
+    expect(hasUncountedScans(overviewRow('c', { token: NO_CODE }))).toBe(false)
+    expect(
+      hasUncountedScans(
+        overviewRow('d', { token: OLDER_CODE, publicationState: 'draft' }),
+      ),
+    ).toBe(false)
+  })
+
+  it('still holds when the Portal also has an issue, which hides the older-code line', () => {
+    const row = overviewRow('a', { token: OLDER_CODE, responsibleManagerUserIds: [] })
+    expect(attentionOf({ token: OLDER_CODE, responsibleManagerUserIds: [] }).kind).toBe(
+      'issues',
+    )
+    expect(hasUncountedScans(row)).toBe(true)
+  })
+
+  it('lists them for the note under the strip', () => {
+    const rows = [
+      overviewRow('a', { token: OLDER_CODE }),
+      overviewRow('b'),
+      overviewRow('c', { token: OLDER_CODE }),
+    ]
+    expect(uncountedScanPortals(rows).map((row) => row.portalId)).toEqual(['a', 'c'])
   })
 })
 
@@ -207,6 +303,13 @@ describe('ordering by attention', () => {
     ).map(attentionRank)
     expect(ranks).toEqual([...ranks].sort((a, b) => a - b))
     expect(new Set(ranks).size).toBe(ranks.length)
+  })
+
+  it('puts a Portal guests cannot use before one whose issues do not stop them', () => {
+    const blocked = attentionRank(attentionOf({ token: NO_CODE }))
+    const notice = attentionRank(attentionOf({ responsibleManagerUserIds: [] }))
+    expect(blocked).toBeGreaterThan(notice)
+    expect(notice).toBeGreaterThan(attentionRank({ kind: 'older_code' }))
   })
 
   it('counts every state except live-and-quiet and archived as needing attention', () => {
