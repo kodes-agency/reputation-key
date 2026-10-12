@@ -11,29 +11,39 @@
 // The binding is a gate on AI text moving toward Google. It is not a lock on
 // the Reply. When it guarded every write, a Reply ten minutes old could not be
 // typed over, rejected, retried or edited, and stayed where it was for good.
+//
+// The gate stands until the text has been claimed for sending once. Submit and
+// Confirm & Publish need a current binding, and so does the publish worker's
+// claim, the last step before a request leaves RepKey. A claim that passes
+// writes an attempt for that text; from then on the text has gone through
+// every gate while it was current, and a later attempt for it, in the same
+// cycle or in the cycle of a retry, is claimed without asking again. A claim
+// that is refused cancels its cycle: the Reply is a draft again, holding AI
+// text a manager has to make their own before it can be put forward.
+//
 // Each command therefore states which of three things it does with AI text:
 //
 //   - it moves the unedited text toward Google, so the binding must be current
-//     (submit, Confirm & Publish; the publish worker's claim reads the same
-//     binding for as long as the Reply is still AI-assisted);
-//   - it is a manager acting on the text as their own, which ends the adoption:
-//     the Reply is recorded as human-authored and its AI provenance is cleared
-//     (a draft save, Try publishing again, edit-and-republish);
+//     (submit, Confirm & Publish);
+//   - it is a manager writing the text, which ends the adoption: the Reply is
+//     recorded as human-authored and its AI provenance is cleared (a draft
+//     save, edit-and-republish);
 //   - it does neither, and never reads the binding (reject, delete, recording
-//     a provider confirmation).
+//     a provider confirmation, and Try publishing again, which changes no text
+//     and leaves the decision to the claim of the cycle it authorizes).
 //
-// Authorship is the durable record of this. `ai_assisted` means "still held by
-// the binding": the schema requires an expiry on every such row, and the AI
-// draft purge and the worker's claim both act on that label. So a Reply that
-// leaves the binding leaves the label, through the one mechanism that already
-// did it for a typed-over draft (reply-set-clause.ts, `aiGenerated: false`).
+// Authorship is the durable record of where the text came from, and the
+// Organization export carries it. It changes only when the text does: a Reply
+// whose words are still the suggestion's stays `ai_assisted` through approval,
+// failure, a retry and publication, and becomes `human` through the one
+// mechanism a typed-over draft uses (reply-set-clause.ts, `aiGenerated: false`).
 
 import type { ReplyCommand } from './reply-command-preconditions'
 
 export type AiTextRule =
   /** Moves unedited AI text toward Google: refused while its binding is stale. */
   | 'needs_current_binding'
-  /** A manager's own act on the text: the Reply becomes human-authored. */
+  /** A manager writes the text: the Reply becomes human-authored. */
   | 'ends_adoption'
   /** Neither: the binding is not read and the authorship does not change. */
   | 'unaffected'
@@ -45,10 +55,11 @@ const REPLY_COMMAND_AI_TEXT_RULES: Readonly<Record<ReplyCommand, AiTextRule>> = 
   approve: 'needs_current_binding',
   // An approver must always be able to send a reply back.
   reject: 'unaffected',
-  // The text was confirmed by a manager once already. Sending it again is
-  // that manager's, or another's, own command; it is not the AI's text moving
-  // forward by itself, and it must not wait on a window that closed long ago.
-  retry_publication: 'ends_adoption',
+  // A retry changes no text, so it changes no authorship, and it authorizes a
+  // cycle without sending anything. Whether the text may still go is decided
+  // where it would leave: at the claim of that cycle, which passes text that
+  // was claimed once before and asks the binding for text that never was.
+  retry_publication: 'unaffected',
   // The manager typed the new text.
   edit_published: 'ends_adoption',
   delete: 'unaffected',

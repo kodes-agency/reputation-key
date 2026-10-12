@@ -12,11 +12,15 @@
 //      event the workflow has, and authorizes or claims from nowhere else;
 //   4. the AI text rule of each command (reply-ai-text.ts) reads the AI draft
 //      binding exactly where the workflow moves AI text toward Google, and ends
-//      the adoption exactly where a manager makes the text their own.
+//      the adoption exactly where a manager writes the text.
 //
-// Then generated sequences of commands and publication events are run through
-// the production rules and the oracle side by side, and the invariants the
-// Review CONTEXT states are checked on every history.
+// Then generated sequences of commands and publication events walk the
+// workflow. At every step the production preconditions and AI text rules are
+// asked the same question as the oracle and must give the same answer. The
+// invariants checked along the way are checked on the workflow as it is
+// written here: they hold the oracle to the Review CONTEXT. What production
+// does with a whole history is the PostgreSQL model test's to show
+// (infrastructure/reply-workflow.model.integration.test.ts).
 
 import { describe, expect, it } from 'vitest'
 import * as fc from 'fast-check'
@@ -39,6 +43,7 @@ import {
   isLegalReplyState,
   LEGAL_REPLY_STATES,
   managerVerdict,
+  mayBeClaimed,
   PUBLICATION_EVENTS,
   type CommandEvidence,
   type ManagerCommand,
@@ -48,6 +53,7 @@ import {
   type OracleReply,
   type OracleState,
   type PublicationEvent,
+  type ReplyOnScreen,
 } from './__fixtures__/reply-workflow-oracle'
 
 const STATUSES: ReadonlyArray<ReplyStatus> = [
@@ -78,8 +84,16 @@ const FAILURES: ReadonlyArray<OracleFailure> = [
 
 const AUTHORSHIPS: ReadonlyArray<OracleAuthorship> = ['human', 'ai_assisted']
 
-const NEVER_SENT: CommandEvidence = { provablyNeverSent: true, aiBindingCurrent: true }
-const MAYBE_SENT: CommandEvidence = { provablyNeverSent: false, aiBindingCurrent: true }
+/** The reply the tables below are asked about, as an up-to-date screen shows it. */
+const THIS_REPLY: ReplyOnScreen = { id: 'reply-1', revision: 2 }
+
+const NEVER_SENT: CommandEvidence = {
+  provablyNeverSent: true,
+  aiBindingCurrent: true,
+  textClaimedBefore: false,
+  stored: THIS_REPLY,
+}
+const MAYBE_SENT: CommandEvidence = { ...NEVER_SENT, provablyNeverSent: false }
 /** The same two, ten minutes after an AI suggestion was generated. */
 const STALE_AI: ReadonlyArray<CommandEvidence> = [
   { ...NEVER_SENT, aiBindingCurrent: false },
@@ -116,9 +130,13 @@ const COMMAND_KINDS = Object.keys(PRODUCTION_COMMAND) as ReadonlyArray<ReplyComm
 type ReplyManagerCommand = Extract<ManagerCommand, { kind: ReplyCommandKind }>
 
 /** The command as the Inbox sends it: an approval names the reply on screen. */
-const commandOf = (kind: ReplyCommandKind, text = 'Rewritten'): ReplyManagerCommand => {
+const commandOf = (
+  kind: ReplyCommandKind,
+  text = 'Rewritten',
+  onScreen: ReplyOnScreen = THIS_REPLY,
+): ReplyManagerCommand => {
   if (kind === 'draft' || kind === 'edit') return { kind, text }
-  return kind === 'approve' ? { kind, onScreen: 'this_reply' } : { kind }
+  return kind === 'approve' ? { kind, onScreen } : { kind }
 }
 
 /**
@@ -262,7 +280,7 @@ describe('the AI text rule of each command against the hand-written workflow', (
     ).toEqual(['approve', 'submit'])
   })
 
-  it('ends the adoption exactly where a manager makes the text their own', () => {
+  it('ends the adoption exactly where a manager writes the text', () => {
     const endsAdoption = new Set<ReplyCommandKind>()
     for (const reply of aiReplies) {
       for (const kind of COMMAND_KINDS) {
@@ -275,7 +293,8 @@ describe('the AI text rule of each command against the hand-written workflow', (
         if (becameHuman) endsAdoption.add(kind)
       }
     }
-    expect([...endsAdoption].sort()).toEqual(['draft', 'edit', 'retry'])
+    // Not a retry: it changes no text, so the text stays the suggestion's.
+    expect([...endsAdoption].sort()).toEqual(['draft', 'edit'])
   })
 
   it('leaves no AI-assisted reply without a command it can take once its binding is stale', () => {
@@ -429,6 +448,21 @@ describe('the publication table against the hand-written workflow', () => {
 
 // ── Generated histories ───────────────────────────────────────────────
 
+/** Which reply the screen of an approving manager shows. */
+type Screen =
+  /** The stored reply, as it is. */
+  | 'this_reply'
+  /** The stored reply, before its last change. */
+  | 'an_earlier_revision'
+  /** A reply that was deleted since, and replaced by the stored one. */
+  | 'a_replaced_reply'
+
+/** A manager command as it is generated: which screen an approval comes from
+ * is decided when the step runs, against the replies the history has seen. */
+type GeneratedCommand =
+  | Exclude<ManagerCommand, { kind: 'approve' }>
+  | Readonly<{ kind: 'approve'; screen: Screen }>
+
 type Move =
   | Readonly<{ by: 'manager'; command: ManagerCommand }>
   | Readonly<{ by: 'system'; event: PublicationEvent }>
@@ -441,21 +475,23 @@ type Move =
  */
 type Step = Readonly<{
   pick: number
-  wild: ManagerCommand | null
+  wild: GeneratedCommand | null
   text: string
-  evidence: CommandEvidence
+  provablyNeverSent: boolean
+  aiBindingCurrent: boolean
 }>
 
 const TEXTS = ['Thank you!', 'We are sorry.', 'See you again.'] as const
 const arbText = fc.constantFrom(...TEXTS)
-const arbManagerCommand: fc.Arbitrary<ManagerCommand> = fc.oneof(
+const arbManagerCommand: fc.Arbitrary<GeneratedCommand> = fc.oneof(
   arbText.map((text) => ({ kind: 'draft' as const, text })),
   arbText.map((text) => ({ kind: 'adopt_ai' as const, text })),
   arbText.map((text) => ({ kind: 'edit' as const, text })),
   fc.constantFrom(
     { kind: 'submit' as const },
-    { kind: 'approve' as const, onScreen: 'this_reply' as const },
-    { kind: 'approve' as const, onScreen: 'an_earlier_reply' as const },
+    { kind: 'approve' as const, screen: 'this_reply' as const },
+    { kind: 'approve' as const, screen: 'an_earlier_revision' as const },
+    { kind: 'approve' as const, screen: 'a_replaced_reply' as const },
     { kind: 'reject' as const },
     { kind: 'retry' as const },
     { kind: 'delete' as const },
@@ -468,29 +504,120 @@ const arbStep: fc.Arbitrary<Step> = fc.record({
     { weight: 1, arbitrary: arbManagerCommand },
   ),
   text: arbText,
-  evidence: fc.record({
-    provablyNeverSent: fc.boolean(),
-    // Mostly current, or AI text would rarely get as far as Google.
-    aiBindingCurrent: fc.oneof(
-      { weight: 3, arbitrary: fc.constant(true) },
-      { weight: 1, arbitrary: fc.constant(false) },
-    ),
-  }),
+  provablyNeverSent: fc.boolean(),
+  // Mostly current, or AI text would rarely get as far as Google.
+  aiBindingCurrent: fc.oneof(
+    { weight: 3, arbitrary: fc.constant(true) },
+    { weight: 1, arbitrary: fc.constant(false) },
+  ),
 })
 
-function allowedMoves(state: OracleState, step: Step): Move[] {
+const does = (command: GeneratedCommand): Step => ({
+  pick: 0,
+  wild: command,
+  text: TEXTS[0],
+  provablyNeverSent: false,
+  aiBindingCurrent: true,
+})
+
+/**
+ * Always run: a second manager rejects the pending reply, deletes it, writes
+ * another and submits it, while a first still has the confirmation of the old
+ * one open. The new reply is pending at the revision the old one was pending
+ * at (created, then submitted), and it is another reply.
+ */
+const REPLACED_UNDER_AN_OPEN_CONFIRMATION: Step[] = [
+  does({ kind: 'draft', text: TEXTS[0] }),
+  does({ kind: 'submit' }),
+  does({ kind: 'reject' }),
+  does({ kind: 'delete' }),
+  does({ kind: 'draft', text: TEXTS[1] }),
+  does({ kind: 'submit' }),
+  does({ kind: 'approve', screen: 'a_replaced_reply' }),
+]
+
+/**
+ * The store's side of a history, kept by hand beside the workflow state: which
+ * reply is stored and at which revision, every reply a screen could still be
+ * showing, and which words a worker claimed for the stored reply.
+ */
+function createStoreLedger() {
+  let replies = 0
+  let stored: ReplyOnScreen | null = null
+  let claimedTexts = new Set<string>()
+  const shown: ReplyOnScreen[] = []
+
+  /** A screen that never showed any reply of this history. */
+  const nothing: ReplyOnScreen = { id: 'reply-0', revision: 1 }
+
+  return {
+    stored: () => stored,
+    evidence: (step: Step, state: OracleState): CommandEvidence => ({
+      provablyNeverSent: step.provablyNeverSent,
+      aiBindingCurrent: step.aiBindingCurrent,
+      textClaimedBefore: state !== null && claimedTexts.has(state.text),
+      stored,
+    }),
+    /** The reply a screen of that kind shows. A replaced reply at the stored
+     * reply's own revision is preferred: it is the one a number cannot tell
+     * apart. */
+    screen(kind: Screen): ReplyOnScreen {
+      if (stored === null) return nothing
+      const current = stored
+      if (kind === 'this_reply') return current
+      if (kind === 'an_earlier_revision') {
+        return { id: current.id, revision: current.revision - 1 }
+      }
+      const replaced = shown.filter((reply) => reply.id !== current.id)
+      return (
+        replaced.find((reply) => reply.revision === current.revision) ??
+        replaced.at(-1) ??
+        nothing
+      )
+    },
+    /** A new reply counts from 1. One whose text, status or authorship moved
+     * is at its next revision; a claim, or any other step inside a publication
+     * cycle, changes none of the three. */
+    record(before: OracleState, after: OracleState, claimed: boolean): void {
+      if (after === null) {
+        stored = null
+        claimedTexts = new Set()
+        return
+      }
+      if (before === null || stored === null) {
+        replies += 1
+        stored = { id: `reply-${replies}`, revision: 1 }
+      } else if (
+        before.status !== after.status ||
+        before.text !== after.text ||
+        before.authorship !== after.authorship
+      ) {
+        stored = { id: stored.id, revision: stored.revision + 1 }
+      }
+      if (claimed) claimedTexts.add(after.text)
+      shown.push(stored)
+    },
+  }
+}
+
+function allowedMoves(state: OracleState, step: Step, evidence: CommandEvidence): Move[] {
   const moves: Move[] = []
   const commands: ManagerCommand[] = [
-    ...COMMAND_KINDS.map((kind) => commandOf(kind, step.text)),
+    ...COMMAND_KINDS.map((kind) =>
+      commandOf(kind, step.text, evidence.stored ?? THIS_REPLY),
+    ),
     { kind: 'adopt_ai', text: step.text },
   ]
   for (const command of commands) {
-    if (managerVerdict(state, command, step.evidence).accepted) {
+    if (managerVerdict(state, command, evidence).accepted) {
       moves.push({ by: 'manager', command })
     }
   }
   if (state !== null) {
     for (const event of PUBLICATION_EVENTS) {
+      // A worker claims only what it may: stale AI text that was never claimed
+      // is left to `cancel`, the one move a worker has for it.
+      if (event === 'claim' && !mayBeClaimed(state, evidence)) continue
       if (afterPublicationEvent(state, event) !== null)
         moves.push({ by: 'system', event })
     }
@@ -525,6 +652,12 @@ function assertManagerMoveKeepsTheInvariants(
       before.text,
     )
   }
+  // A label follows the words: it changes only when a manager writes them.
+  if (after.text === before.text && command.kind === 'retry') {
+    expect(after.authorship, 'a retry relabelled text it did not change').toBe(
+      before.authorship,
+    )
+  }
   // Unedited AI text moves toward Google only while its binding is current.
   const movedTowardGoogle =
     (before.status === 'draft' && after.status === 'pending_approval') ||
@@ -539,9 +672,11 @@ function assertManagerMoveKeepsTheInvariants(
   // A new cycle is a new authority to write to Google.
   expect(after.cycle).toBe(before.cycle + 1)
   expect(after).toMatchObject({ status: 'approved', publication: 'authorized' })
-  // AI text is authorized by an approval alone; a retry or an edit is a
-  // manager's own text by then.
-  if (after.authorship === 'ai_assisted') expect(command.kind).toBe('approve')
+  // AI text is authorized by an approval, or again by a retry of it. An edit
+  // is the manager's own text.
+  if (after.authorship === 'ai_assisted') {
+    expect(['approve', 'retry']).toContain(command.kind)
+  }
   // BETA §5: only an approval takes a reply out of pending_approval; a failed
   // reply is retried, a published one edited.
   expect(command.kind).toBe(
@@ -551,6 +686,8 @@ function assertManagerMoveKeepsTheInvariants(
         ? 'retry'
         : 'edit',
   )
+  // The approval named the reply that was stored, as it was stored.
+  if (command.kind === 'approve') expect(command.onScreen).toEqual(evidence.stored)
   // Invariant 9: an attempt of unknown outcome is sent again only on positive
   // evidence that it never left RepKey.
   if (outcomeUnknown(before)) {
@@ -559,38 +696,57 @@ function assertManagerMoveKeepsTheInvariants(
 }
 
 describe('generated reply histories', () => {
-  it('production rules and the hand-written workflow agree on every step, and every history keeps the invariants', () => {
+  it('production rules and the hand-written workflow agree on every step, and the workflow keeps its invariants', () => {
     const reached = new Set<string>()
     const reachedAsAiText = new Set<string>()
     let refusals = 0
     let staleAiRefusals = 0
+    let replacedRepliesRefused = 0
+    let staleAiClaimsWithheld = 0
     fc.assert(
       // `size: 'max'`: by default fast-check keeps arrays near ten items, and
       // AI text needs most of that just to be adopted, confirmed and sent.
       fc.property(fc.array(arbStep, { maxLength: 40, size: 'max' }), (steps) => {
         let state: OracleState = null
+        const ledger = createStoreLedger()
         for (const step of steps) {
-          const moves = allowedMoves(state, step)
+          const before: OracleState = state
+          const evidence = ledger.evidence(step, state)
+          const moves = allowedMoves(state, step, evidence)
+          const wild: ManagerCommand | null =
+            step.wild === null
+              ? null
+              : step.wild.kind === 'approve'
+                ? { kind: 'approve', onScreen: ledger.screen(step.wild.screen) }
+                : step.wild
           const move: Move =
-            step.wild !== null
-              ? { by: 'manager', command: step.wild }
+            wild !== null
+              ? { by: 'manager', command: wild }
               : moves[step.pick % moves.length]!
+          let claimed = false
 
           if (move.by === 'system') {
             // Chosen from the moves that apply, so the event has a result.
             state = afterPublicationEvent(state!, move.event)
+            claimed = move.event === 'claim'
+            if (claimed && before?.authorship === 'ai_assisted') {
+              // The last gate: current, or these words went through before.
+              expect(evidence.aiBindingCurrent || evidence.textClaimedBefore).toBe(true)
+            }
           } else {
-            const verdict = managerVerdict(state, move.command, step.evidence)
+            const verdict = managerVerdict(state, move.command, evidence)
             // What production can be asked here: a reply command, sent from a
             // screen that shows the reply (see `productionAccepts`).
             const { command } = move
-            if (
-              state !== null &&
-              command.kind !== 'adopt_ai' &&
-              !(command.kind === 'approve' && command.onScreen === 'an_earlier_reply')
-            ) {
+            const fromAnotherScreen =
+              command.kind === 'approve' &&
+              !(
+                command.onScreen.id === evidence.stored?.id &&
+                command.onScreen.revision === evidence.stored.revision
+              )
+            if (state !== null && command.kind !== 'adopt_ai' && !fromAnotherScreen) {
               expect(
-                productionAccepts(state, command, step.evidence),
+                productionAccepts(state, command, evidence),
                 `${command.kind} from ${state.authorship} ${state.status}/${String(state.publication)}`,
               ).toBe(verdict.accepted)
             }
@@ -599,22 +755,39 @@ describe('generated reply histories', () => {
                 state,
                 verdict.next,
                 move.command,
-                step.evidence,
+                evidence,
               )
               state = verdict.next
             } else {
               refusals += 1
               if (verdict.code === 'ai_suggestion_stale') staleAiRefusals += 1
+              // The reply a number alone could not tell apart: pending, at the
+              // revision the screen shows, and another reply.
+              if (
+                command.kind === 'approve' &&
+                state?.status === 'pending_approval' &&
+                command.onScreen.revision === evidence.stored?.revision &&
+                command.onScreen.id !== evidence.stored.id
+              ) {
+                replacedRepliesRefused += 1
+              }
             }
           }
+          ledger.record(before, state, claimed)
           if (state !== null) {
             expect(isLegalReplyState(state), JSON.stringify(state)).toBe(true)
             reached.add(`${state.status}/${String(state.publication)}`)
             if (state.authorship === 'ai_assisted') reachedAsAiText.add(state.status)
+            if (
+              state.publication === 'authorized' &&
+              !mayBeClaimed(state, ledger.evidence(step, state))
+            ) {
+              staleAiClaimsWithheld += 1
+            }
           }
         }
       }),
-      { numRuns: 2000 },
+      { numRuns: 2000, examples: [[REPLACED_UNDER_AN_OPEN_CONFIRMATION]] },
     )
     // The generator is only worth its runs if it reaches the whole workflow
     // and also asks for what the workflow refuses.
@@ -624,8 +797,13 @@ describe('generated reply histories', () => {
       ).sort(),
     )
     expect(refusals).toBeGreaterThan(1000)
-    // AI text went the whole way, and its binding was refused along it.
+    // AI text went the whole way, and its binding was refused along it: at
+    // submit and approval, and at the claim of text that was never claimed.
     expect([...reachedAsAiText].sort()).toEqual([...STATUSES].sort())
     expect(staleAiRefusals).toBeGreaterThan(100)
+    expect(staleAiClaimsWithheld).toBeGreaterThan(20)
+    // A confirmation met another reply at the revision its screen showed: the
+    // scripted history at least, and whichever generated ones got there.
+    expect(replacedRepliesRefused).toBeGreaterThan(0)
   })
 })

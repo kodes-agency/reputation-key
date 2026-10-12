@@ -10,11 +10,13 @@
 // store and binding, observation store, worker and sweep
 // (testing/reply-workflow-harness.ts).
 //
-// Two dimensions sit across the workflow. Authorship: a reply is the manager's
-// text or the unedited text of an AI suggestion, and the commands by which a
-// manager makes it their own change which. Freshness: an AI-assisted reply's
-// binding is current or stale, and an approval names the reply the manager's
-// screen showed or an earlier one.
+// Three dimensions sit across the workflow. Authorship: a reply is the
+// manager's text or the unedited text of an AI suggestion, and the commands by
+// which a manager writes it change which. Freshness: an AI-assisted reply's
+// binding is current or stale, and its words were claimed for sending before
+// or never were. Identity: an approval names the reply the manager's screen
+// showed, which is the stored reply, an earlier revision of it, or a reply
+// that was deleted and replaced since.
 //
 // The oracle is the workflow written out by hand
 // (domain/__fixtures__/reply-workflow-oracle.ts), never the production
@@ -31,6 +33,7 @@ import * as fc from 'fast-check'
 import { Pool } from 'pg'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { getEnv } from '#/shared/config/env'
+import { replyId } from '#/shared/domain/ids'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -50,6 +53,7 @@ import {
   type OracleReply,
   type OracleState,
   type PublicationEvent,
+  type ReplyOnScreen,
 } from '../domain/__fixtures__/reply-workflow-oracle'
 import {
   createReplyWorkflowHarness,
@@ -86,11 +90,26 @@ const WRITE_OUTCOMES: ReadonlyArray<GoogleWriteOutcome> = [
   'timeout_lost',
 ]
 
+/** Which reply the screen of an approving manager shows. */
+type Screen =
+  /** The stored reply, as it is. */
+  | 'this_reply'
+  /** The stored reply, before its last change. */
+  | 'an_earlier_revision'
+  /** A reply that was deleted since, and replaced by the stored one. */
+  | 'a_replaced_reply'
+
+/** A manager command as it is generated. Which reply an approval names is
+ * decided when the step runs, against the replies the history has shown. */
+type GeneratedCommand =
+  | Exclude<ManagerCommand, { kind: 'approve' }>
+  | Readonly<{ kind: 'approve'; screen: Screen }>
+
 type Step =
   | Readonly<{
       act: 'manager'
       pick: number
-      wild: ManagerCommand | null
+      wild: GeneratedCommand | null
       text: (typeof TEXTS)[number]
     }>
   | Readonly<{ act: 'job'; job: number; outcome: GoogleWriteOutcome; final: boolean }>
@@ -103,15 +122,17 @@ type Step =
 
 const arbText = fc.constantFrom(...TEXTS)
 const arbOutcome = fc.constantFrom(...WRITE_OUTCOMES)
-const arbManagerCommand: fc.Arbitrary<ManagerCommand> = fc.oneof(
+const arbManagerCommand: fc.Arbitrary<GeneratedCommand> = fc.oneof(
   arbText.map((text) => ({ kind: 'draft' as const, text })),
   arbText.map((text) => ({ kind: 'adopt_ai' as const, text })),
   arbText.map((text) => ({ kind: 'edit' as const, text })),
   fc.constantFrom(
     { kind: 'submit' as const },
-    { kind: 'approve' as const, onScreen: 'this_reply' as const },
-    // A confirmation left open while the reply was replaced beneath it.
-    { kind: 'approve' as const, onScreen: 'an_earlier_reply' as const },
+    { kind: 'approve' as const, screen: 'this_reply' as const },
+    // A confirmation left open while the reply was rewritten beneath it, or
+    // deleted and replaced by another.
+    { kind: 'approve' as const, screen: 'an_earlier_revision' as const },
+    { kind: 'approve' as const, screen: 'a_replaced_reply' as const },
     { kind: 'reject' as const },
     { kind: 'retry' as const },
     { kind: 'delete' as const },
@@ -167,14 +188,15 @@ const arbStep: fc.Arbitrary<Step> = fc.oneof(
 
 // ── Histories that are always run ─────────────────────────────────────
 //
-// A random walk reaches a stale AI reply at each of its three gates only now
-// and then. These histories go there on purpose, through the same steps, the
-// same oracle and the same invariants as the generated ones.
+// A random walk reaches a stale AI reply at each of its three gates, or a
+// confirmation that names a replaced reply, only now and then. These histories
+// go there on purpose, through the same steps, the same oracle and the same
+// invariants as the generated ones.
 
 const AI_TEXT = TEXTS[0]
 const TYPED_TEXT = TEXTS[1]
 
-const does = (command: ManagerCommand): Step => ({
+const does = (command: GeneratedCommand): Step => ({
   act: 'manager',
   pick: 0,
   wild: command,
@@ -190,12 +212,14 @@ const LAPSE: Step = { act: 'lapse' }
 const OBSERVE: Step = { act: 'observe' }
 const ADOPT = does({ kind: 'adopt_ai', text: AI_TEXT })
 const SUBMIT = does({ kind: 'submit' })
-const APPROVE = does({ kind: 'approve', onScreen: 'this_reply' })
+const APPROVE = does({ kind: 'approve', screen: 'this_reply' })
 const RETRY = does({ kind: 'retry' })
+const TYPE_OVER = does({ kind: 'draft', text: TYPED_TEXT })
+const RECOVERY_DEADLINE_PASSES: Step = { act: 'sweep', waitMinutes: 30, racing: null }
 
 const SCRIPTED_HISTORIES: ReadonlyArray<ReadonlyArray<Step>> = [
   // The window passes on a draft: submit is refused, typing over it is not.
-  [ADOPT, LAPSE, SUBMIT, does({ kind: 'draft', text: TYPED_TEXT }), SUBMIT, APPROVE],
+  [ADOPT, LAPSE, SUBMIT, TYPE_OVER, SUBMIT, APPROVE],
   // It passes on a pending reply: approval is refused, a reject is not, and
   // the author reworks the rejected reply.
   [
@@ -210,20 +234,39 @@ const SCRIPTED_HISTORIES: ReadonlyArray<ReadonlyArray<Step>> = [
     worker('accepted'),
     OBSERVE,
   ],
-  // It passes between Confirm & Publish and the claim: nothing is sent, the
-  // sweep ends the cycle as not sent, and a manager sends the text again.
+  // It passes between Confirm & Publish and the claim: nothing is sent and
+  // the reply is a draft again, which goes nowhere until a manager types it.
   [
     ADOPT,
     SUBMIT,
     APPROVE,
     LAPSE,
     worker('accepted'),
-    { act: 'sweep', waitMinutes: 30, racing: null },
-    RETRY,
+    SUBMIT,
+    TYPE_OVER,
+    SUBMIT,
+    APPROVE,
     worker('accepted', 1),
     OBSERVE,
   ],
-  // It passes after Google refused the first attempt: the retry still goes.
+  // The same, when no worker ran in time: the sweep ends the cycle as not
+  // sent, a manager tries again, and the claim of that cycle is the gate.
+  [
+    ADOPT,
+    SUBMIT,
+    APPROVE,
+    LAPSE,
+    RECOVERY_DEADLINE_PASSES,
+    RETRY,
+    worker('accepted', 1),
+    TYPE_OVER,
+    SUBMIT,
+    APPROVE,
+    worker('accepted', 2),
+    OBSERVE,
+  ],
+  // It passes after Google refused the first attempt: the words were claimed
+  // while they were current, so the retry goes, and the text stays the AI's.
   [
     ADOPT,
     SUBMIT,
@@ -234,6 +277,8 @@ const SCRIPTED_HISTORIES: ReadonlyArray<ReadonlyArray<Step>> = [
     worker('accepted', 1),
     OBSERVE,
   ],
+  // It passes between two executions of the same cycle: the second one sends.
+  [ADOPT, SUBMIT, APPROVE, worker('not_sent'), LAPSE, worker('accepted'), OBSERVE],
   // It passes after publication: the reply can still be edited.
   [
     ADOPT,
@@ -247,14 +292,26 @@ const SCRIPTED_HISTORIES: ReadonlyArray<ReadonlyArray<Step>> = [
     OBSERVE,
   ],
   // A confirmation left open while the reply was rejected, rewritten and
-  // submitted again names a reply that is no longer there.
+  // submitted again names a revision the reply has moved past.
   [
     does({ kind: 'draft', text: AI_TEXT }),
     SUBMIT,
     does({ kind: 'reject' }),
-    does({ kind: 'draft', text: TYPED_TEXT }),
+    TYPE_OVER,
     SUBMIT,
-    does({ kind: 'approve', onScreen: 'an_earlier_reply' }),
+    does({ kind: 'approve', screen: 'an_earlier_revision' }),
+    APPROVE,
+  ],
+  // One left open while the reply was rejected, deleted and written anew
+  // names a reply that is gone. The new one is pending at the same revision.
+  [
+    does({ kind: 'draft', text: AI_TEXT }),
+    SUBMIT,
+    does({ kind: 'reject' }),
+    does({ kind: 'delete' }),
+    TYPE_OVER,
+    SUBMIT,
+    does({ kind: 'approve', screen: 'a_replaced_reply' }),
     APPROVE,
   ],
 ]
@@ -272,13 +329,20 @@ const toOracle = (reply: Reply | null): OracleState =>
         authorship: reply.aiGenerated ? 'ai_assisted' : 'human',
       }
 
-/** The command as a manager's screen sends it. */
+/** A screen that never showed any reply of this history. */
+const NO_REPLY_ON_SCREEN: ReplyOnScreen = {
+  id: '4f000000-0000-4000-8000-000000000000',
+  revision: 1,
+}
+
+/** The command as a manager's up-to-date screen sends it. */
 const commandOf = (
   kind: (typeof COMMAND_KINDS)[number],
   text: (typeof TEXTS)[number],
+  stored: ReplyOnScreen | null,
 ): ManagerCommand => {
   if (kind === 'draft' || kind === 'edit' || kind === 'adopt_ai') return { kind, text }
-  return kind === 'approve' ? { kind, onScreen: 'this_reply' } : { kind }
+  return kind === 'approve' ? { kind, onScreen: stored ?? NO_REPLY_ON_SCREEN } : { kind }
 }
 
 /** The events one execution of the publish job makes once it has called Google. */
@@ -345,6 +409,10 @@ function createRun() {
   let approvals = 0
   let evidenceRows = 0
   const covered = new Set<string>()
+  /** Every reply a screen could still be showing, oldest first. */
+  const shown: ReplyOnScreen[] = []
+  /** What each of them said: a reply at a revision is one text in one status. */
+  const saidOnScreen = new Map<string, string>()
 
   const say = (line: string): void => {
     trace.push(line)
@@ -377,17 +445,39 @@ function createRun() {
 
   // ── Steps ──────────────────────────────────────────────────────────
 
-  /** Whether the real binding still holds the reply's AI text as current. */
+  /** What the verdicts depend on beyond the reply's state: what the real
+   * binding says of its AI text, what the stand-in Google was asked for
+   * before, and which reply is stored. */
   async function evidenceOf(before: ReplyEvidence): Promise<CommandEvidence> {
-    const binding =
-      before.reply === null ? 'not_ai' : await harness.ai.bindingOf(before.reply.id)
+    const reply = before.reply
+    const binding = reply === null ? 'not_ai' : await harness.ai.bindingOf(reply.id)
     return {
       provablyNeverSent: provablyNeverSent(before),
       aiBindingCurrent: binding !== 'stale',
+      textClaimedBefore:
+        reply !== null &&
+        harness.wasClaimedBefore({ replyId: reply.id, text: reply.text }),
+      stored: reply === null ? null : { id: reply.id, revision: reply.stateRevision },
     }
   }
 
-  function execute(command: ManagerCommand, before: ReplyEvidence): Promise<unknown> {
+  /** The reply a screen of that kind shows. A replaced reply at the stored
+   * reply's own revision is preferred: a number cannot tell the two apart. */
+  function screenOf(kind: Screen, stored: ReplyOnScreen | null): ReplyOnScreen {
+    if (stored === null) return NO_REPLY_ON_SCREEN
+    if (kind === 'this_reply') return stored
+    if (kind === 'an_earlier_revision') {
+      return { id: stored.id, revision: stored.revision - 1 }
+    }
+    const replaced = shown.filter((reply) => reply.id !== stored.id)
+    return (
+      replaced.find((reply) => reply.revision === stored.revision) ??
+      replaced.at(-1) ??
+      NO_REPLY_ON_SCREEN
+    )
+  }
+
+  function execute(command: ManagerCommand): Promise<unknown> {
     switch (command.kind) {
       case 'draft':
         return harness.commands.draft(command.text)
@@ -395,13 +485,12 @@ function createRun() {
         return harness.commands.adoptAiSuggestion(command.text)
       case 'edit':
         return harness.commands.editPublished(command.text)
-      case 'approve': {
-        // What the manager's screen showed: this reply, or the one before it.
-        const revision = before.reply?.stateRevision ?? 1
-        return harness.commands.approve(
-          command.onScreen === 'this_reply' ? revision : revision - 1,
-        )
-      }
+      case 'approve':
+        // What the Inbox sends: the reply its screen showed, and its revision.
+        return harness.commands.approve({
+          id: replyId(command.onScreen.id),
+          stateRevision: command.onScreen.revision,
+        })
       default:
         return harness.commands[command.kind]()
     }
@@ -413,18 +502,31 @@ function createRun() {
     evidence: CommandEvidence,
   ): Promise<void> {
     const state = toOracle(before.reply)
-    const allowed = COMMAND_KINDS.map((kind) => commandOf(kind, step.text)).filter(
-      (command) => managerVerdict(state, command, evidence).accepted,
-    )
-    const command: ManagerCommand = step.wild ??
+    const { stored } = evidence
+    const allowed = COMMAND_KINDS.map((kind) =>
+      commandOf(kind, step.text, stored),
+    ).filter((command) => managerVerdict(state, command, evidence).accepted)
+    const wild: ManagerCommand | null =
+      step.wild === null
+        ? null
+        : step.wild.kind === 'approve'
+          ? { kind: 'approve', onScreen: screenOf(step.wild.screen, stored) }
+          : step.wild
+    const command: ManagerCommand = wild ??
       allowed[step.pick % Math.max(allowed.length, 1)] ?? { kind: 'submit' }
     const verdict = managerVerdict(state, command, evidence)
     const staleAi = state?.authorship === 'ai_assisted' && !evidence.aiBindingCurrent
+    const otherScreen =
+      command.kind !== 'approve' || stored === null
+        ? null
+        : command.onScreen.id !== stored.id
+          ? 'another reply'
+          : command.onScreen.revision !== stored.revision
+            ? 'an earlier revision'
+            : null
     say(
       `${command.kind}${'text' in command ? ` "${command.text}"` : ''}${
-        'onScreen' in command && command.onScreen === 'an_earlier_reply'
-          ? ' (screen shows an earlier reply)'
-          : ''
+        otherScreen ? ` (screen shows ${otherScreen})` : ''
       }${staleAi ? ' [AI text, binding stale]' : ''} → expect ${
         verdict.accepted ? 'accepted' : verdict.code
       }`,
@@ -432,7 +534,7 @@ function createRun() {
 
     let failure: unknown = null
     try {
-      await execute(command, before)
+      await execute(command)
     } catch (error) {
       failure = error
     }
@@ -450,8 +552,15 @@ function createRun() {
     if (verdict.code === 'ai_suggestion_stale' && command.kind !== 'adopt_ai') {
       covered.add(`stale AI text refused: ${command.kind}`)
     }
-    if ('onScreen' in command && state?.status === 'pending_approval') {
-      if (command.onScreen === 'an_earlier_reply') covered.add('stale screen refused')
+    if (command.kind === 'approve' && state?.status === 'pending_approval' && stored) {
+      if (otherScreen === 'an earlier revision') covered.add('earlier revision refused')
+      // The case a revision alone cannot see: another reply, at this revision.
+      if (
+        otherScreen === 'another reply' &&
+        command.onScreen.revision === stored.revision
+      ) {
+        covered.add('replaced reply refused at the same revision')
+      }
     }
     // A refusal is a tagged error the Inbox can show, never a database error,
     // and it leaves the reply and its evidence exactly as they were.
@@ -481,14 +590,24 @@ function createRun() {
     if (pre === null) return expect(post, context()).toBeNull()
     expect(post, context()).not.toBeNull()
     if (pre.publication === 'authorized' && !mayBeClaimed(pre, evidence)) {
-      // The claim is the last gate for AI text: a stale one is not sent, and
-      // its cycle is left for the sweep to end as not sent.
+      // The claim is the last gate for AI text: text that is stale and was
+      // never claimed is not sent. An execution that got as far as the claim
+      // (this cycle's job, with an execution left) cancels the cycle, and the
+      // reply is a draft again; any other execution leaves it alone.
       expect(called, `stale AI text was claimed${context()}`).toBe(false)
-      expect(sameReplyState(post, pre), context()).toBe(true)
-      covered.add('stale AI text: not claimed')
+      const reachedTheClaim =
+        ran &&
+        harness.jobs[index]?.data.publicationCycle === before.reply?.publicationCycle
+      const expected = reachedTheClaim ? afterPublicationEvent(pre, 'cancel') : pre
+      expect(sameReplyState(post, expected), context()).toBe(true)
+      if (reachedTheClaim) covered.add('stale AI text: returned to draft at the claim')
       return
     }
     if (called) {
+      // Stale by now, and sent all the same: these words were claimed before.
+      if (pre.authorship === 'ai_assisted' && !evidence.aiBindingCurrent) {
+        covered.add('stale AI text: claimed again')
+      }
       // A write was attempted: the row went exactly where that outcome leads.
       let expected: OracleReply | null = pre
       for (const event of jobEvents(step.outcome, step.final)) {
@@ -507,6 +626,7 @@ function createRun() {
   async function sweep(
     step: Extract<Step, { act: 'sweep' }>,
     before: ReplyEvidence,
+    evidence: CommandEvidence,
   ): Promise<void> {
     harness.advance(step.waitMinutes * MINUTE_MS)
     const now = harness.clock()
@@ -541,12 +661,13 @@ function createRun() {
       }
       return
     }
-    // The worker's moves, then at most one of the sweep's.
-    const workerAndSweep = [
-      ...jobEvents(racing, false),
-      ...READBACK_EVENTS,
-      ...SWEEP_EVENTS,
-    ]
+    // The worker's moves, then at most one of the sweep's. A worker that may
+    // not claim the cycle (stale AI text, never claimed) cancels it instead.
+    const workerMoves: PublicationEvent[] =
+      pre.publication === 'authorized' && !mayBeClaimed(pre, evidence)
+        ? ['cancel']
+        : jobEvents(racing, false)
+    const workerAndSweep = [...workerMoves, ...READBACK_EVENTS, ...SWEEP_EVENTS]
     expect(reachableBy(pre, post!, workerAndSweep, 3), context()).toBe(true)
   }
 
@@ -620,6 +741,16 @@ function createRun() {
     covered.add(`${state.status}/${String(state.publication)}`)
     if (state.authorship === 'ai_assisted') covered.add(`AI text: ${state.status}`)
 
+    // What a confirmation names, a reply at a revision, is one text in one
+    // status for as long as the history runs. A revision alone is not: every
+    // new reply counts from 1 again.
+    const screen: ReplyOnScreen = { id: reply.id, revision: reply.stateRevision }
+    const key = `${screen.id}@${screen.revision}`
+    const says = `${reply.status}: ${reply.text}`
+    expect(saidOnScreen.get(key) ?? says, at).toBe(says)
+    if (!saidOnScreen.has(key)) shown.push(screen)
+    saidOnScreen.set(key, says)
+
     // Invariant 7: every cycle commits its authorization and its intent.
     expect(
       authorizations.map((row) => row.publicationCycle),
@@ -664,7 +795,7 @@ function createRun() {
       const before = await harness.evidence()
       if (step.act === 'manager') await manager(step, before, await evidenceOf(before))
       else if (step.act === 'job') await job(step, before, await evidenceOf(before))
-      else if (step.act === 'sweep') await sweep(step, before)
+      else if (step.act === 'sweep') await sweep(step, before, await evidenceOf(before))
       else if (step.act === 'observe') await observe(before)
       else if (step.act === 'cancel') await cancel(before)
       else if (step.act === 'lapse') {
@@ -709,8 +840,9 @@ describe.sequential('reply workflow model (PostgreSQL)', () => {
     )
     // The histories are only evidence if they went through publication, its
     // failures and its cancellation, not just through drafts; if AI text went
-    // the same way; and if its stale binding was both refused where it gates
-    // and passed where it must not.
+    // the same way; if its stale binding was both refused where it gates and
+    // passed where it must not; and if a confirmation met both a rewritten
+    // reply and a replaced one.
     expect([...covered].sort()).toEqual(
       expect.arrayContaining([
         'approved/authorized',
@@ -727,12 +859,14 @@ describe.sequential('reply workflow model (PostgreSQL)', () => {
         'AI text: publish_failed',
         'stale AI text refused: submit',
         'stale AI text refused: approve',
-        'stale AI text: not claimed',
+        'stale AI text: returned to draft at the claim',
+        'stale AI text: claimed again',
         'stale AI text: draft',
         'stale AI text: reject',
         'stale AI text: retry',
         'stale AI text: edit',
-        'stale screen refused',
+        'earlier revision refused',
+        'replaced reply refused at the same revision',
       ]),
     )
   }, 300_000)

@@ -35,6 +35,8 @@ import {
 const APPROVED_TEXT = 'Thank you for staying with us.'
 const LATER_TEXT = 'A different reply nobody approved.'
 const MINUTE_MS = 60_000
+/** Past the last rung of the 72-hour read ladder of an uncertain attempt. */
+const LADDER_END_MINUTES = 4_800
 const REFUSED = { _tag: 'ReviewError', code: 'invalid_transition' }
 
 let pool: Pool
@@ -74,6 +76,9 @@ async function storedReply(): Promise<Reply> {
   if (!reply) throw new Error('The reply is gone')
   return reply
 }
+
+/** What a manager's screen shows of a reply: which one, at which revision. */
+const screenOf = (reply: Reply) => ({ id: reply.id, stateRevision: reply.stateRevision })
 
 const nextIntent = (reply: Reply) =>
   reviewReplyPublicationRequested({
@@ -237,9 +242,7 @@ describe.sequential('reply command preconditions (PostgreSQL)', () => {
       })
 
       // The confirm dialog still shows APPROVED_TEXT.
-      await expect(
-        harness.commands.approve(onScreen.stateRevision),
-      ).rejects.toMatchObject({
+      await expect(harness.commands.approve(screenOf(onScreen))).rejects.toMatchObject({
         ...REFUSED,
         message: 'Reply status changed concurrently',
       })
@@ -249,14 +252,57 @@ describe.sequential('reply command preconditions (PostgreSQL)', () => {
       expect((await harness.evidence()).authorizations).toEqual([])
     })
 
+    it('refuses a new reply that replaced a deleted one and stands at the same state revision', async () => {
+      await harness.commands.draft(APPROVED_TEXT)
+      await harness.commands.submit()
+      const onScreen = await storedReply()
+
+      // A second manager rejects it, deletes it, writes another and submits it.
+      // A new reply row starts its revisions again: created, then submitted.
+      await harness.commands.reject()
+      await harness.commands.delete()
+      await harness.commands.draft(LATER_TEXT)
+      await harness.commands.submit()
+      const replacement = await storedReply()
+      expect(replacement.id).not.toBe(onScreen.id)
+      expect(replacement).toMatchObject({
+        status: 'pending_approval',
+        stateRevision: onScreen.stateRevision,
+        text: LATER_TEXT,
+      })
+
+      // The confirm dialog still shows APPROVED_TEXT.
+      await expect(harness.commands.approve(screenOf(onScreen))).rejects.toMatchObject({
+        ...REFUSED,
+        message: 'Reply status changed concurrently',
+      })
+      // A second entry point that decided on the reply it read loses as well:
+      // that reply is gone, and the write names it.
+      await expect(
+        harness.commandStore.markPublicationAuthorized(
+          onScreen,
+          { status: 'approved' },
+          {
+            lifecycleEvent: approvedFact(onScreen),
+            publicationIntent: nextIntent(onScreen),
+          },
+        ),
+      ).resolves.toBeNull()
+
+      expect(await storedReply()).toEqual(replacement)
+      expect(harness.jobs).toHaveLength(0)
+      expect((await harness.evidence()).authorizations).toEqual([])
+    })
+
     it('confirms the reply the screen shows, and a caller with no screen confirms the stored one', async () => {
       await harness.commands.draft(APPROVED_TEXT)
       await harness.commands.submit()
       const onScreen = await storedReply()
 
-      await expect(
-        harness.commands.approve(onScreen.stateRevision),
-      ).resolves.toMatchObject({ status: 'approved', text: APPROVED_TEXT })
+      await expect(harness.commands.approve(screenOf(onScreen))).resolves.toMatchObject({
+        status: 'approved',
+        text: APPROVED_TEXT,
+      })
 
       await harness.reset()
       await harness.commands.draft(APPROVED_TEXT)
@@ -313,6 +359,51 @@ describe.sequential('reply command preconditions (PostgreSQL)', () => {
       ).resolves.toBeNull()
 
       expect(await storedReply()).toEqual(pending)
+    })
+
+    it('loses a direct store retry whose snapshot calls an uncertain reply settled', async () => {
+      await confirmReply()
+      // The request left and no answer came back; no read found the reply, and
+      // the 72-hour ladder of automatic checks ended without learning more.
+      await harness.runPublishJob(0, 'timeout_lost', true)
+      harness.advance(LADDER_END_MINUTES * MINUTE_MS)
+      await harness.runSweep()
+      const uncertain = await storedReply()
+      expect(uncertain).toMatchObject({
+        status: 'publish_failed',
+        publicationState: 'terminal',
+        publicationLastErrorClass: 'ambiguous',
+      })
+
+      // A second entry point that read "retryable" where the row says
+      // "ambiguous" would pass the retry's own rule on its snapshot. Its
+      // intent is otherwise in order: it names the Google reads the sweep made.
+      const calledSettled: Reply = {
+        ...uncertain,
+        publicationLastErrorClass: 'retryable',
+      }
+      const head = await pool.query<{ observation_revision: number }>(
+        `SELECT observation_revision::int AS observation_revision
+           FROM google_reply_observation_heads WHERE review_id = $1`,
+        [WORKFLOW_REVIEW],
+      )
+      expect(head.rows[0]?.observation_revision).toBeGreaterThan(0)
+      await expect(
+        harness.commandStore.markPublicationAuthorized(
+          calledSettled,
+          { status: 'approved' },
+          {
+            lifecycleEvent: null,
+            publicationIntent: {
+              ...nextIntent(calledSettled),
+              baseObservationRevision: head.rows[0]!.observation_revision,
+            },
+          },
+        ),
+      ).resolves.toBeNull()
+
+      expect(await storedReply()).toEqual(uncertain)
+      expect((await harness.evidence()).authorizations).toHaveLength(1)
     })
 
     it('still sends a reply again after a failure that reached nobody', async () => {

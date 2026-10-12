@@ -8,9 +8,10 @@
 //
 // The binding gates AI text on its way to Google and nothing else: submit,
 // Confirm & Publish and the publish worker's claim read it
-// (reply-write-guards.ts, `aiTextMayAdvance`). Reject, delete and a draft save
-// do not, and a retry or an edit of a reply a manager already confirmed is that
-// manager's own act on the text (domain/reply-ai-text.ts).
+// (reply-write-guards.ts), the claim only until the text has been claimed for
+// sending once. Reject, delete, a retry and a draft save do not, and a draft
+// save or an edit of a published reply makes the text the manager's own
+// (domain/reply-ai-text.ts).
 
 import { and, eq, sql } from 'drizzle-orm'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'

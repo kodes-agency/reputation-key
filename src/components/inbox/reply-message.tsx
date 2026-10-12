@@ -13,7 +13,7 @@ import { MESSAGE_PROSE_CLASS } from './guest-message'
 import { INBOX_CHIP_STATIC_CLASS } from './inbox-chip'
 import { personInitials } from './person-initials'
 import { ReplyCheckStatus } from './reply-check-status'
-import { ReplyMessageActions } from './reply-message-actions'
+import { ReplyMessageActions, type ReplyOnScreen } from './reply-message-actions'
 import { presentReplyMessage, type ReplyMessageTone } from './reply-message-view'
 import { resolveReplyView, type ReplyData } from './reply-status-view'
 import { useReplyCheckRun, useReplyFocusReturn } from './use-reply-check-run'
@@ -117,8 +117,8 @@ type Props = Readonly<{
   isSaving: boolean
   /** Whether the pane's published-reply editor is open — see `ReplyMessageActions`. */
   isEditing: boolean
-  /** Confirms the reply at the state revision this message shows. */
-  onApprove: (expectedStateRevision: number) => Promise<unknown>
+  /** Confirms the reply this message shows, at the state revision it shows. */
+  onApprove: (expectedReply: ReplyOnScreen) => Promise<unknown>
   onReject: (reason?: string) => Promise<unknown>
   /** Resolves what the check found; see `useReplyCheckRun`. */
   onCheck: () => Promise<ReplyPublicationCheckResult>
@@ -279,7 +279,11 @@ export function ReplyMessage({
             actions={view.actions}
             text={reply.text}
             // A reply Google shows has no revision and offers no confirmation.
-            stateRevision={'stateRevision' in reply ? reply.stateRevision : null}
+            shown={
+              'stateRevision' in reply
+                ? { id: reply.id, stateRevision: reply.stateRevision }
+                : null
+            }
             isSaving={isSaving}
             isChecking={checkRun.isChecking}
             isEditing={isEditing}

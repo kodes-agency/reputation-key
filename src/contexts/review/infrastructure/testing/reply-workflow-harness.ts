@@ -47,6 +47,7 @@ import {
   retryPublish,
   submitReply,
   type ReplyDeps,
+  type ReplyOnScreen,
 } from '../../application/use-cases/reply-operations'
 import { reconcileReplyPublication } from '../../application/use-cases/reconcile-reply-publication'
 import { createReviewRepository } from '../repositories/review.repository'
@@ -229,6 +230,9 @@ export async function createReplyWorkflowHarness(
     live: null as Readonly<{ text: string; updatedAt: Date }> | null,
     /** Reply writes the worker asked for, whether or not a request left. */
     calls: 0,
+    /** The text of each of those writes. A worker asks only for a reply it has
+     * claimed, so this is the witness of what was ever claimed for sending. */
+    asked: [] as Array<Readonly<{ replyId: string; text: string }>>,
     sent: [] as SentReply[],
     /** Rules a reply write broke at the moment it left RepKey. */
     violations: [] as string[],
@@ -266,14 +270,23 @@ export async function createReplyWorkflowHarness(
     )
   }
 
+  /** Whether a worker asked Google for this text of this reply before. */
+  const wasClaimedBefore = (reply: Readonly<{ replyId: string; text: string }>) =>
+    google.asked.some(
+      (asked) => asked.replyId === reply.replyId && asked.text === reply.text,
+    )
+
   /** The rules a write must satisfy as it leaves: it carries the text that was
    * authorized for its cycle, no earlier request for this reply is still of
    * unknown outcome (Review CONTEXT, Invariant 9), and it is not unedited AI
-   * text whose binding has gone stale. */
-  async function checkWriteAsItLeaves(input: GoogleReplyPublicationRequest) {
-    if ((await ai.bindingOf(replyId(input.replyId))) === 'stale') {
+   * text whose binding went stale before it was ever claimed for sending. */
+  async function checkWriteAsItLeaves(
+    input: GoogleReplyPublicationRequest,
+    claimedBefore: boolean,
+  ) {
+    if (!claimedBefore && (await ai.bindingOf(replyId(input.replyId))) === 'stale') {
       google.violations.push(
-        `cycle ${input.publicationCycle} sent AI text whose binding was stale`,
+        `cycle ${input.publicationCycle} sent AI text that was stale before any claim`,
       )
     }
     const authorization = await pool.query<{ expected_reply_digest: string }>(
@@ -334,11 +347,13 @@ export async function createReplyWorkflowHarness(
     }),
     replyToReview: async (input) => {
       const outcome = google.next
+      const claimedBefore = wasClaimedBefore(input)
       google.calls += 1
+      google.asked.push({ replyId: input.replyId, text: input.text })
       if (outcome === 'not_sent') throw providerError('not_sent', null)
       if (outcome === 'crashed') throw abortError()
 
-      await checkWriteAsItLeaves(input)
+      await checkWriteAsItLeaves(input, claimedBefore)
       await insertPermit(input)
       const landed = outcome === 'accepted' || outcome === 'timeout_landed'
       google.sent.push({
@@ -449,6 +464,7 @@ export async function createReplyWorkflowHarness(
     nowMs = STARTED_AT.getTime()
     google.live = null
     google.calls = 0
+    google.asked = []
     google.sent = []
     google.violations = []
     google.next = 'accepted'
@@ -667,6 +683,7 @@ export async function createReplyWorkflowHarness(
       nowMs += ms
     },
     google,
+    wasClaimedBefore,
     jobs: jobs as ReadonlyArray<QueuedPublishJob>,
     replyRepo,
     commandStore,
@@ -706,12 +723,10 @@ export async function createReplyWorkflowHarness(
           MANAGER_CTX,
         ),
       submit: () => useCases.submit(reviewInput, MANAGER_CTX),
-      /** `expectedStateRevision`: the reply revision the manager's screen showed. */
-      approve: (expectedStateRevision?: number) =>
+      /** `expectedReply`: the reply the manager's screen showed, and its revision. */
+      approve: (expectedReply?: ReplyOnScreen) =>
         useCases.approve(
-          expectedStateRevision === undefined
-            ? reviewInput
-            : { ...reviewInput, expectedStateRevision },
+          expectedReply === undefined ? reviewInput : { ...reviewInput, expectedReply },
           MANAGER_CTX,
         ),
       reject: () => useCases.reject(reviewInput, MANAGER_CTX),

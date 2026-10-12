@@ -3,7 +3,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { reviewId } from '#/shared/domain/ids'
+import { replyId, reviewId } from '#/shared/domain/ids'
 import { approveReplyDto, reviewIdDto, draftReplyDto } from './reply-read'
 import { runReplyCommand } from './reply-command'
 
@@ -60,9 +60,14 @@ export const approveReplyFn = createServerFn({ method: 'POST' })
           reply.approve(
             {
               reviewId: reviewId(data.reviewId),
-              ...(data.expectedStateRevision === undefined
+              ...(data.expectedReply === undefined
                 ? {}
-                : { expectedStateRevision: data.expectedStateRevision }),
+                : {
+                    expectedReply: {
+                      id: replyId(data.expectedReply.id),
+                      stateRevision: data.expectedReply.stateRevision,
+                    },
+                  }),
             },
             ctx,
           ),

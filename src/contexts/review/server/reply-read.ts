@@ -44,17 +44,19 @@ export const reviewErrorStatus = (code: ReviewErrorCode): number =>
 export const reviewIdDto = z.object({ reviewId: z.uuid() })
 
 /**
- * Confirm & Publish names the reply it confirms: the state revision of the
- * reply the manager's screen showed. Optional, because a caller with no screen
- * has read nothing to bind to; the Inbox always sends it.
+ * Confirm & Publish names the reply it confirms: the reply the manager's
+ * screen showed, and its state revision. The two travel together, because a
+ * revision means nothing without the reply it counts for. Optional as a pair:
+ * a caller with no screen has read nothing to bind to; the Inbox always sends
+ * it.
  */
 export const approveReplyDto = z.object({
   reviewId: z.uuid(),
-  expectedStateRevision: z
-    .number()
-    .int()
-    .positive()
-    .max(Number.MAX_SAFE_INTEGER)
+  expectedReply: z
+    .object({
+      id: z.uuid(),
+      stateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+    })
     .optional(),
 })
 

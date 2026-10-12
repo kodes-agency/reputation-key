@@ -118,6 +118,7 @@ import {
 } from './reply'
 
 const REVIEW_ID = '550e8400-e29b-41d4-a716-446655440010'
+const REPLY_ON_SCREEN_ID = '550e8400-e29b-41d4-a716-446655440011'
 const ACTOR = {
   organizationId: '550e8400-e29b-41d4-a716-446655440011',
   userId: 'reply-command-manager',
@@ -147,9 +148,15 @@ const COMMANDS = [
     name: 'approveReplyFn',
     fn: approveReplyFn,
     method: 'approve',
-    // The reply revision the manager's screen showed rides along.
-    data: { reviewId: REVIEW_ID, expectedStateRevision: 7 },
-    forwarded: { reviewId: REVIEW_ID, expectedStateRevision: 7 },
+    // The reply the manager's screen showed, and its revision, ride along.
+    data: {
+      reviewId: REVIEW_ID,
+      expectedReply: { id: REPLY_ON_SCREEN_ID, stateRevision: 7 },
+    },
+    forwarded: {
+      reviewId: REVIEW_ID,
+      expectedReply: { id: REPLY_ON_SCREEN_ID, stateRevision: 7 },
+    },
   },
   {
     name: 'editPublishedReplyFn',

@@ -27,6 +27,7 @@ import type { ReplyTemplateListResult } from '#/contexts/review/application/use-
 import { inboxCachePolicy, type InboxReplyCacheChange } from './inbox-cache-policy'
 import { replyCheckMutationOptions } from './reply-check-feedback'
 import type { ReplyLanguageTarget } from './reply-language-options'
+import type { ReplyOnScreen } from './reply-message-actions'
 import type { LoadedReplyTemplateDraft } from './reply-suggestion-contract'
 
 export type ReplyActions = Readonly<{
@@ -39,11 +40,11 @@ export type ReplyActions = Readonly<{
   submitReply: () => Promise<unknown>
   deleteDraft: () => Promise<unknown>
   /**
-   * Confirm & publish the reply at `expectedStateRevision`: the revision of
-   * the reply the pane showed when the manager opened the confirmation. The
-   * server refuses when the stored reply has moved past it.
+   * Confirm & publish `expectedReply`: the reply the pane showed when the
+   * manager opened the confirmation, and its state revision. The server
+   * refuses when the stored reply is another one, or has moved past it.
    */
-  approve: (expectedStateRevision: number) => Promise<unknown>
+  approve: (expectedReply: ReplyOnScreen) => Promise<unknown>
   reject: (reason?: string) => Promise<unknown>
   /** Resolves what the check found; rejects (after its toast) only on an error. */
   check: () => Promise<ReplyPublicationCheckResult>
@@ -161,8 +162,7 @@ export function useReplyActions(input: Input): ReplyActions {
       }),
     submitReply: () => submit({ data: { reviewId } }),
     deleteDraft: () => del({ data: { reviewId } }),
-    approve: (expectedStateRevision) =>
-      approve({ data: { reviewId, expectedStateRevision } }),
+    approve: (expectedReply) => approve({ data: { reviewId, expectedReply } }),
     reject: (reason) => reject({ data: { reviewId, reason } }),
     check: () => check({ data: { reviewId } }),
     retry: () => retry({ data: { reviewId } }),

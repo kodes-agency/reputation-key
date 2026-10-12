@@ -10,8 +10,9 @@
 // use case to have checked, so a second entry point cannot skip the rule. The
 // same guard carries what the command means for AI-assisted text
 // (domain/reply-ai-text.ts): submit and approval need a current AI draft
-// binding, reject never reads it, a retry or an edit makes the Reply
-// human-authored.
+// binding, reject and retry never read it, an edit makes the Reply
+// human-authored. The claim is the last gate for AI text that was never
+// claimed before, and a claim it refuses cancels the cycle.
 //
 // BQC-3.8: the publication state machine is persisted here. Publication
 // transitions guard on BOTH status and publication_state; the target state
@@ -46,7 +47,7 @@ import {
 } from '../domain/reply-publication-workflow'
 import { replyFromRow, replyToRow } from './mappers/reply.mapper'
 import {
-  aiTextMayAdvance,
+  aiTextMayBeClaimed,
   guardedPublicationUpdate,
   guardedReplyUpdate,
 } from './reply-write-guards'
@@ -456,17 +457,19 @@ async function readCurrentPublicationAuthorization(
 }
 
 /** The cycle can no longer be claimed — its named manager lost current
- * authority, or its Property is no longer active at its source epoch: move it
- * to cancelled and commit the durable policy cancellation fact when the row is
- * still claimable. */
+ * authority, its Property is no longer active at its source epoch, or it holds
+ * AI text whose binding went stale before any claim: move it to cancelled and
+ * commit the durable policy cancellation fact when the row is still
+ * claimable. Resolves null, the claim's own answer for a cycle it did not
+ * take. */
 async function cancelUnclaimablePublication(
   tx: Tx,
   reply: Reply,
   attempt: PublicationAttemptStart,
   at: Date,
-): Promise<void> {
+): Promise<null> {
   const cancellation = cancelledPublication(reply)
-  if (!cancellation) return
+  if (!cancellation) return null
   // Only the cycle this claim read as unclaimed: a row another worker has
   // since claimed is that worker's to settle.
   const cancelled = await guardedPublicationUpdate(
@@ -479,7 +482,7 @@ async function cancelUnclaimablePublication(
       updatedAt: at,
     },
   )
-  if (!cancelled) return
+  if (!cancelled) return null
   if (cancelled.publicationAttempts > 0) {
     await updateCurrentAttempt(tx, cancelled, {
       outcome: 'superseded',
@@ -497,6 +500,7 @@ async function cancelUnclaimablePublication(
     occurredAt: at,
   })
   await insertOutboxRow(tx, fact)
+  return null
 }
 
 export const createAtomicReplyCommandStore = (
@@ -759,11 +763,14 @@ export const createAtomicReplyCommandStore = (
             propertyId: attempt.propertyId,
           })
           if (!scope) return null
-          // The last gate for AI text: a Reply still AI-assisted here is in
-          // the cycle its Confirm & Publish authorized, and is sent only while
-          // its binding is current. A retried or edited Reply is human-authored
-          // by then (domain/reply-ai-text.ts) and passes.
-          if (!(await aiTextMayAdvance(tx, reply))) return null
+          // The last gate for AI text (domain/reply-ai-text.ts): it is claimed
+          // while its binding is current, or once it was claimed before. Text
+          // that never was and is stale now is not sent, by this cycle or by a
+          // retry of it: the cycle is cancelled and the Reply returns to
+          // draft, where a manager makes the text their own.
+          if (!(await aiTextMayBeClaimed(tx, reply))) {
+            return cancelUnclaimablePublication(tx, reply, attempt, at)
+          }
           const authorization = await readCurrentPublicationAuthorization(
             tx,
             reply,
@@ -772,8 +779,7 @@ export const createAtomicReplyCommandStore = (
           )
           if (!authorization) return null
           if (!propertyAdmitsCycle(property, authorization)) {
-            await cancelUnclaimablePublication(tx, reply, attempt, at)
-            return null
+            return cancelUnclaimablePublication(tx, reply, attempt, at)
           }
           const actorAllowed = await publicationActorAuthority(tx, {
             organizationId: authorization.organizationId,
@@ -781,10 +787,7 @@ export const createAtomicReplyCommandStore = (
             userId: authorization.authorizedByUserId,
             at,
           })
-          if (!actorAllowed) {
-            await cancelUnclaimablePublication(tx, reply, attempt, at)
-            return null
-          }
+          if (!actorAllowed) return cancelUnclaimablePublication(tx, reply, attempt, at)
           const duplicate = await tx
             .select({ id: replyPublicationAttempts.id })
             .from(replyPublicationAttempts)

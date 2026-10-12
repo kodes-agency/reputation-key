@@ -18,11 +18,12 @@
 // not rely on the use case having checked.
 //
 // The same holds for AI-assisted text (domain/reply-ai-text.ts). Submit and an
-// approval return null while the reply's AI draft binding is stale, and so does
-// the claim; a rejection never reads the binding; a retry and an edit record
-// the reply as human-authored. An authorization (approval, retry, edit) also
-// compares the reply's state revision, so the text it authorizes is the text
-// of the reply it was given.
+// approval return null while the reply's AI draft binding is stale. So does
+// the claim, until the text has been claimed once, and it cancels the cycle it
+// refuses. A rejection and a retry never read the binding and change no
+// authorship; an edit records the reply as human-authored. An authorization
+// (approval, retry, edit) also compares the reply's state revision, so the
+// text it authorizes is the text of the reply it was given.
 
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { Reply } from '../../domain/types'
@@ -150,7 +151,9 @@ export type ReplyCommandStore = Readonly<{
    * when the guard misses. A cycle whose named manager lost current authority,
    * or whose Property is not active at the cycle's source epoch, is instead
    * cancelled in the same transaction (publication_cancelled, cause 'policy')
-   * and null is returned: the provider authorizer would refuse its write.
+   * and null is returned: the provider authorizer would refuse its write. So
+   * is a cycle of AI-assisted text whose binding is stale and that no worker
+   * claimed before: the text is not sent, and the reply returns to draft.
    */
   markPublicationSending(
     reply: Reply,
@@ -266,7 +269,7 @@ export type ReplyCommandStore = Readonly<{
   /**
    * BQC-3.8: disconnect/policy cancellation — per command, the reply's open
    * publication cycle → 'cancelled' + status → 'draft'
-   * (domain `cancelledPublication`, the only way back from approved to draft)
+   * (domain `cancelledPublication`: a cancellation, never a reply command)
    * + the publication_cancelled fact, ALL in one transaction for the batch.
    * Returns the number of cancelled rows; rows whose state moved on
    * (published/failed/cancelled/purged) are skipped, and so is a row that left

@@ -19,6 +19,7 @@ import { HistoryEventNode } from './history-event-node'
 import { buildThread, foldEarlierEvents } from './inbox-thread-model'
 import { NoteIndicator, NoteMessage } from './note-message'
 import { ReplyMessage } from './reply-message'
+import type { ReplyOnScreen } from './reply-message-actions'
 import type {
   FoldedEventsEntry,
   InboxHistoryEntry,
@@ -62,8 +63,8 @@ export type ThreadReplyActions = Readonly<{
   isSaving: boolean
   /** Whether the pane's published-reply editor is currently open. */
   isEditing: boolean
-  /** Confirms the reply at the state revision the message showed. */
-  onApprove: (expectedStateRevision: number) => Promise<unknown>
+  /** Confirms the reply the message showed, at the state revision it showed. */
+  onApprove: (expectedReply: ReplyOnScreen) => Promise<unknown>
   onReject: (reason?: string) => Promise<unknown>
   /** Resolves what "Check Google again" found (`ReplyPublicationCheckResult`). */
   onCheck: () => Promise<ReplyPublicationCheckResult>

@@ -11,11 +11,13 @@
 // The same write carries what its command means for AI-assisted text
 // (domain/reply-ai-text.ts): a command that moves unedited AI text toward
 // Google is refused while the AI draft binding is stale, and a command by
-// which a manager makes the text their own records the reply as human-authored.
+// which a manager writes the text records the reply as human-authored. The
+// worker's claim, the last gate before a request leaves, asks here too
+// (`aiTextMayBeClaimed`).
 
 import { and, eq, isNull, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { replies } from '#/shared/db/schema/review.schema'
+import { replies, replyPublicationAttempts } from '#/shared/db/schema/review.schema'
 import type { Tx } from '#/shared/outbox/commit'
 import type { Reply } from '../domain/types'
 import {
@@ -23,6 +25,7 @@ import {
   type ReplyCommand,
 } from '../domain/reply-command-preconditions'
 import { aiTextRuleOf } from '../domain/reply-ai-text'
+import { googleReplyTextDigest } from '../domain/google-reply-observation'
 import type { PersistedPublicationState } from '../domain/reply-publication-workflow'
 import type { ConditionalReplyUpdate } from '../application/ports/reply.repository'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding'
@@ -45,9 +48,18 @@ const AUTHORIZES_TEXT: ReadonlySet<ReplyCommand> = new Set([
   'edit_published',
 ])
 
+/** A retry's precondition reads how the last cycle failed: a failure of
+ * unknown outcome is never sent again. The row must still say what the caller
+ * read, so a snapshot that calls an uncertain reply settled matches no row. */
+function sameFailureWhere(reply: Reply): SQL {
+  return reply.publicationLastErrorClass === null
+    ? isNull(replies.publicationLastErrorClass)
+    : eq(replies.publicationLastErrorClass, reply.publicationLastErrorClass)
+}
+
 /** The row is still the reply the caller read: same status, same publication
  * state (NULL included), same cycle; for a command that authorizes its text,
- * the same state revision too. */
+ * the same state revision too; for a retry, the same failure. */
 function replySnapshotWhere(reply: Reply, command: ReplyCommand): SQL | undefined {
   return and(
     eq(replies.id, reply.id),
@@ -60,6 +72,7 @@ function replySnapshotWhere(reply: Reply, command: ReplyCommand): SQL | undefine
     AUTHORIZES_TEXT.has(command)
       ? eq(replies.stateRevision, reply.stateRevision)
       : undefined,
+    command === 'retry_publication' ? sameFailureWhere(reply) : undefined,
   )
 }
 
@@ -68,13 +81,42 @@ function replySnapshotWhere(reply: Reply, command: ReplyCommand): SQL | undefine
  * human authored, and for an AI-assisted one whose binding is current. Locks
  * the reply row, so the answer holds for the write that follows it in `tx`.
  */
-export async function aiTextMayAdvance(tx: Tx, reply: Reply): Promise<boolean> {
+async function aiTextMayAdvance(tx: Tx, reply: Reply): Promise<boolean> {
   if (!reply.aiGenerated) return true
   const binding = await assertCurrentAiDraftBinding(tx, {
     organizationId: reply.organizationId,
     replyId: reply.id,
   })
   return binding !== 'stale'
+}
+
+/**
+ * Whether a worker may claim the reply's text for sending now. The claim is
+ * the last gate for unedited AI text: it needs a current binding until the
+ * text has been claimed once. An attempt row is written only by a claim that
+ * passed this gate, and it carries the digest of the text it was for. So an
+ * attempt for the text the reply holds now is the evidence that these words
+ * went through while they were current, and a later attempt for them, in the
+ * same cycle or in the cycle of a retry, does not wait on a window that has
+ * closed since. An attempt for other text proves nothing about this one.
+ */
+export async function aiTextMayBeClaimed(tx: Tx, reply: Reply): Promise<boolean> {
+  if (await aiTextMayAdvance(tx, reply)) return true
+  const claimedBefore = await tx
+    .select({ id: replyPublicationAttempts.id })
+    .from(replyPublicationAttempts)
+    .where(
+      and(
+        eq(replyPublicationAttempts.organizationId, reply.organizationId),
+        eq(replyPublicationAttempts.replyId, reply.id),
+        eq(
+          replyPublicationAttempts.expectedReplyDigest,
+          googleReplyTextDigest(reply.text),
+        ),
+      ),
+    )
+    .limit(1)
+  return claimedBefore[0] !== undefined
 }
 
 /**

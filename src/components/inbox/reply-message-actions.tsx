@@ -15,15 +15,23 @@ import { unfilledReplySlotsMessage } from '#/contexts/review/application/public-
 import type { ReplyMessageAction } from './reply-message-view'
 import type { ReactNode } from 'react'
 
+/**
+ * Which reply a confirmation is for: the reply, and the state revision of the
+ * copy the manager read. Both, because the revision is counted per reply and
+ * starts again for a new one: a reply that was deleted and written anew can
+ * stand at the revision the first one stood at, with other text.
+ */
+export type ReplyOnScreen = Readonly<{ id: string; stateRevision: number }>
+
 export type ReplyMessageActionsProps = Readonly<{
   actions: readonly ReplyMessageAction[]
   /** The SERVER copy of the reply — the same text the publish fence reads. */
   text: string
   /**
-   * The state revision of that copy: which reply `text` is. Null for a reply
+   * Which reply `text` is, and at which state revision. Null for a reply
    * Google shows, which is never confirmed here.
    */
-  stateRevision: number | null
+  shown: ReplyOnScreen | null
   isSaving: boolean
   /**
    * This reply's check is in flight. Separate from `isSaving`, which is true
@@ -38,8 +46,8 @@ export type ReplyMessageActionsProps = Readonly<{
    * that opens it, so nothing local to this row can see it.
    */
   isEditing: boolean
-  /** Confirms the reply at the revision the manager read; see `stateRevision`. */
-  onApprove: (expectedStateRevision: number) => Promise<unknown>
+  /** Confirms the reply the manager read; see `shown`. */
+  onApprove: (expectedReply: ReplyOnScreen) => Promise<unknown>
   onReject: (reason?: string) => Promise<unknown>
   /** Starts the check; its answer is reported by `ReplyMessage`, not here. */
   onCheck: () => void
@@ -148,21 +156,21 @@ function SimpleAction({
  * the rejection it performed, and across a change of item.
  */
 export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode {
-  const { actions, text, stateRevision, isSaving, onApprove, onReject } = props
+  const { actions, text, shown, isSaving, onApprove, onReject } = props
   const [showRejectInput, setShowRejectInput] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   /**
-   * The reply the manager is confirming: the revision this row showed when the
+   * The reply the manager is confirming: the one this row showed when the
    * confirmation OPENED, not when its button is pressed. The row is keyed by
    * reply and status, so a reply that was rejected, rewritten and submitted
    * again re-renders here in place, under a dialog that is still open, with
-   * new text the manager has not read. Sending the revision they opened the
-   * dialog on makes the server refuse that confirmation; reopening it confirms
-   * the reply that is on the screen then.
+   * new text the manager has not read. Sending the reply and revision they
+   * opened the dialog on makes the server refuse that confirmation; reopening
+   * it confirms the reply that is on the screen then.
    */
-  const confirmingRevision = useRef<number | null>(null)
-  const approvableRevision = actions.includes('approve') ? stateRevision : null
-  const canApprove = approvableRevision !== null
+  const confirming = useRef<ReplyOnScreen | null>(null)
+  const approvable = actions.includes('approve') ? shown : null
+  const canApprove = approvable !== null
   const canReject = actions.includes('reject')
   // The fence reads the reply as the SERVER holds it, not any local text: this
   // message never owns an editor, and `approveReply` re-runs the same check.
@@ -236,11 +244,11 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
             pendingLabel="Confirming…"
             confirmDisabled={isSaving || publishBlockedReason !== null}
             onOpenChange={(open) => {
-              confirmingRevision.current = open ? approvableRevision : null
+              confirming.current = open ? approvable : null
             }}
             // A refusal stays in the dialog (the approve mutation passes no
             // toast), so the manager reads it where they pressed the button.
-            onConfirm={() => onApprove(confirmingRevision.current ?? approvableRevision)}
+            onConfirm={() => onApprove(confirming.current ?? approvable)}
           />
         )}
         {canReject && (

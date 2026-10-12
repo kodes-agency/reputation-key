@@ -984,7 +984,10 @@ describe('approveReply', () => {
     const deps = makeDeps({ replyRepo: replyRepoWith(pending) })
 
     await expect(
-      approveReply(deps)({ reviewId: REVIEW_ID, expectedStateRevision: 3 }, MANAGER_CTX),
+      approveReply(deps)(
+        { reviewId: REVIEW_ID, expectedReply: { id: REPLY_ID, stateRevision: 3 } },
+        MANAGER_CTX,
+      ),
     ).rejects.toMatchObject({
       _tag: 'ReviewError',
       code: 'invalid_transition',
@@ -995,12 +998,42 @@ describe('approveReply', () => {
     expect(deps.outbox.facts).toHaveLength(0)
   })
 
-  it('confirms the reply at the state revision the screen showed', async () => {
+  it('refuses another reply that stands at the same state revision as the one the screen showed', async () => {
+    // The reply on the screen was rejected and deleted, and a new one was
+    // written and submitted: another row, whose revision counter started again
+    // and stands where the first one stood.
+    const replacement = makeReply({
+      id: replyId('51000000-0000-4000-8000-000000000021'),
+      status: 'pending_approval',
+      stateRevision: 2,
+      text: 'A reply nobody at this screen read',
+    })
+    const deps = makeDeps({ replyRepo: replyRepoWith(replacement) })
+
+    await expect(
+      approveReply(deps)(
+        { reviewId: REVIEW_ID, expectedReply: { id: REPLY_ID, stateRevision: 2 } },
+        MANAGER_CTX,
+      ),
+    ).rejects.toMatchObject({
+      _tag: 'ReviewError',
+      code: 'invalid_transition',
+      message: 'Reply status changed concurrently',
+    })
+    expect(deps.propertyPublicationScope.getPublicationScope).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
+  })
+
+  it('confirms the reply the screen showed, at the state revision it showed', async () => {
     const pending = makeReply({ status: 'pending_approval', stateRevision: 6 })
     const deps = makeDeps({ replyRepo: replyRepoWith(pending) })
 
     await expect(
-      approveReply(deps)({ reviewId: REVIEW_ID, expectedStateRevision: 6 }, MANAGER_CTX),
+      approveReply(deps)(
+        { reviewId: REVIEW_ID, expectedReply: { id: REPLY_ID, stateRevision: 6 } },
+        MANAGER_CTX,
+      ),
     ).resolves.toMatchObject({ status: 'approved', approvedBy: USER_ID })
     expect(deps.outbox.byTag('review.reply.approved')).toHaveLength(1)
     expect(deps.queue.addPublishJob).toHaveBeenCalledOnce()
@@ -1581,6 +1614,30 @@ describe('retryPublish', () => {
       message: 'Only a reply that failed to publish can be sent again',
     })
     expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
+  })
+
+  it('refuses to send a failed reply again while a template slot remains, reserving no cycle', async () => {
+    const failed = makeReply({
+      status: 'publish_failed',
+      text: 'Dear {guest_name}, thank you.',
+      approvedBy: ADMIN_ID,
+      approvedAt: NOW,
+      publicationState: 'terminal',
+      publicationLastErrorClass: 'retryable',
+      publicationCycle: 1,
+      publicationAttempts: 1,
+    })
+    const deps = makeDeps({ replyRepo: replyRepoWith(failed) })
+
+    await expect(
+      retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({
+      _tag: 'ReviewError',
+      code: 'invalid_reply',
+      message: 'Fill every template placeholder before publishing: {guest_name}.',
+    })
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
     expect(deps.outbox.facts).toHaveLength(0)
   })

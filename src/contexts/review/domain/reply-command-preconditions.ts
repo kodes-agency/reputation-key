@@ -140,11 +140,13 @@ export type CancelledPublication = Readonly<{
 }>
 
 /**
- * The one way a reply goes from `approved` back to `draft`: its open
+ * How a cancellation takes a reply from `approved` back to `draft`: its open
  * publication cycle is cancelled (a Google disconnect, a Property that left the
- * workspace, a manager who lost access). Null when the reply has no cycle a
- * cancellation can end. No reply command makes this move; `save_draft` in
- * particular refuses an approved reply.
+ * workspace, a manager who lost access, a claim refused for stale AI text).
+ * Null when the reply has no cycle a cancellation can end. No reply command
+ * makes this move; `save_draft` in particular refuses an approved reply. The
+ * observation and Review stores make the same move, by their own guarded
+ * writes, when Google shows another reply or the Review changed.
  */
 export function cancelledPublication(
   reply: Pick<Reply, 'publicationState'>,

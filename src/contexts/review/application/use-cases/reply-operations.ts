@@ -485,14 +485,22 @@ export const submitReply =
 
 // ── Approve reply ─────────────────────────────────────────────────────
 
+/**
+ * The reply a manager's screen showed: which reply, and at which state
+ * revision. Both, because a revision is counted per reply and starts again at
+ * 1 for every new one. A reply that was deleted and written anew is another
+ * reply that can stand at the very revision the first one stood at.
+ */
+export type ReplyOnScreen = Readonly<{ id: ReplyId; stateRevision: number }>
+
 export type ApproveReplyInput = Readonly<{
   reviewId: ReviewId
   /**
-   * The reply state revision the manager's screen showed when they opened the
-   * confirmation. The Inbox always sends it. A caller with no screen (a seed, a
-   * script) leaves it out and confirms the reply as it is stored.
+   * The reply the manager's screen showed when they opened the confirmation.
+   * The Inbox always sends it. A caller with no screen (a seed, a script)
+   * leaves it out and confirms the reply as it is stored.
    */
-  expectedStateRevision?: number
+  expectedReply?: ReplyOnScreen
 }>
 
 export const approveReply =
@@ -507,12 +515,16 @@ export const approveReply =
     assertReplyCommandMayStart('approve', reply)
     // The manager confirms the reply they read, not whatever is stored by now.
     // A reply that was rejected, rewritten and submitted again while the
-    // confirmation was open is pending again in the same cycle; only its state
-    // revision tells it apart. The store carries the revision read here as the
-    // compare-and-set of its write, so a rewrite after this line loses too.
+    // confirmation was open is pending again in the same cycle, at a later
+    // state revision. One that was deleted and written anew is another reply,
+    // which can be pending at the same revision. So the confirmation names
+    // both, and either difference refuses it. The store carries the reply read
+    // here, id and revision, as the compare-and-set of its write, so a rewrite
+    // or a replacement after this line loses too.
     if (
-      input.expectedStateRevision !== undefined &&
-      input.expectedStateRevision !== reply.stateRevision
+      input.expectedReply !== undefined &&
+      (input.expectedReply.id !== reply.id ||
+        input.expectedReply.stateRevision !== reply.stateRevision)
     ) {
       throw replyChangedConcurrently()
     }
@@ -727,6 +739,11 @@ export const retryPublish =
     // approval would otherwise be published here with no approver and no
     // approved fact: approval is approveReply's move.
     assertReplyCommandMayStart('retry_publication', retryable)
+    // Stored text is checked again, as submit and approval check it: a retry
+    // authorizes the text as it stands, and must not reserve a cycle for text
+    // the worker cannot send or that still holds an unfilled slot.
+    assertReplyTextSendable(retryable.text)
+    assertReplySlotsFilled(retryable.text)
 
     return authorizeAndEnqueuePublication(
       deps,
