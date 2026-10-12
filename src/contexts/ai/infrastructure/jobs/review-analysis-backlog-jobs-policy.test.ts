@@ -63,6 +63,8 @@ vi.mock('#/shared/observability/logger', () => ({
 }))
 
 const NOW = Date.parse('2026-10-12T09:00:00.000Z')
+/** How long the drain holds an entry it was refused (its DENIED_RETRY_DELAY_MILLIS). */
+const REFUSAL_HOLD_MILLIS = 60_000
 const SHA = 'a'.repeat(64)
 const STOPPED_ORGANIZATION = organizationId('drain-policy-stopped-org')
 const STOPPED_PROPERTY = propertyId('7d000000-0000-4000-8000-000000000001')
@@ -173,7 +175,7 @@ function inMemoryBacklog(rows: QueuedEntry[]) {
  * here is therefore the platform policy and nothing else. The provider answers
  * "unavailable", which is all the path after the call needs.
  */
-function analysisWithOpenGates() {
+function analysisWithOpenGates(clock: Readonly<{ now: number }>) {
   const analyzeReview = vi.fn(
     async (
       _request: Readonly<{
@@ -265,7 +267,7 @@ function analysisWithOpenGates() {
       acquire: async () => ({
         ok: true as const,
         admissionId: 'admission-1',
-        expiresAtEpochMillis: NOW + 90_000,
+        expiresAtEpochMillis: clock.now + 90_000,
       }),
       release: async () => {},
     },
@@ -301,7 +303,7 @@ function analysisWithOpenGates() {
           rating: 1,
           languageCode: 'en-US',
           reviewedAtEpochMillis: NOW - 1_000,
-          contentExpiresAtEpochMillis: NOW + 60_000,
+          contentExpiresAtEpochMillis: NOW + 3_600_000,
           sourceEpoch: 2,
           sourceRevision: 5,
           analysisSequence: 7,
@@ -327,7 +329,7 @@ function analysisWithOpenGates() {
       }),
     },
     subjectHmac: { sign: () => ({ digest: SHA, keyVersion: 'ai-subject-hmac-v1' }) },
-    nowEpochMillis: () => NOW,
+    nowEpochMillis: () => clock.now,
   } as unknown as AnalyzeReviewEventDependencies
   return {
     analyzeReviewEvent: createAnalyzeReviewEvent(dependencies),
@@ -338,15 +340,19 @@ function analysisWithOpenGates() {
 
 /** The worker's dispatch of both backlog jobs, under `env` as policy. */
 function worker(env: Readonly<Record<string, string>>, rows: QueuedEntry[]) {
-  initCapabilityPolicyStore(createEnvCapabilityPolicyStore(env))
+  /** The environment policy store is read at boot: a change is a restart. */
+  const restartUnder = (policy: Readonly<Record<string, string>>) =>
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore(policy))
+  restartUnder(env)
   initDelayedExecutionPolicy(
     createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
   )
-  const analysis = analysisWithOpenGates()
+  const clock = { now: NOW }
+  const analysis = analysisWithOpenGates(clock)
   const drainer = createDrainReviewAnalysisBacklog({
     backlog: inMemoryBacklog(rows),
     analyzeReviewEvent: analysis.analyzeReviewEvent,
-    nowEpochMillis: () => NOW,
+    nowEpochMillis: () => clock.now,
   })
   const registry = createJobRegistry()
   // As bootstrap registers it.
@@ -384,7 +390,10 @@ function worker(env: Readonly<Record<string, string>>, rows: QueuedEntry[]) {
       },
       opts: { jobId: `ai-analysis-now-${row.reviewId}` },
     } as unknown as Job)
-  return { fire, analyzeNow, ...analysis }
+  const advance = (millis: number) => {
+    clock.now += millis
+  }
+  return { fire, analyzeNow, restartUnder, advance, ...analysis }
 }
 
 const ACTUAL_VERSIONS = process.versions
@@ -491,6 +500,34 @@ describe('Review Analysis backlog jobs under platform policy', () => {
     expect(rows.find((row) => row.organizationId === STOPPED_ORGANIZATION)).toMatchObject(
       { state: 'queued', attempts: 0, firstStartedAtEpochMillis: null },
     )
+  })
+
+  it('analyses a refused review once the stop is lifted and its hold has passed', async () => {
+    const rows = [queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY })]
+    const run = worker(
+      { BETA_ALLOWLIST_ORGS: '*', BETA_SUSPENDED_ORGS: STOPPED_ORGANIZATION },
+      rows,
+    )
+    await run.fire()
+    const callsWhileStopped = run.analyzeReview.mock.calls.length
+
+    run.restartUnder({ BETA_ALLOWLIST_ORGS: '*' })
+    run.advance(REFUSAL_HOLD_MILLIS - 1)
+    await run.fire()
+    const callsWhileHeld = run.analyzeReview.mock.calls.length
+    run.advance(1)
+    await run.fire()
+
+    expect({ callsWhileStopped, callsWhileHeld }).toEqual({
+      callsWhileStopped: 0,
+      callsWhileHeld: 0,
+    })
+    expect(run.analyzeReview).toHaveBeenCalledTimes(1)
+    expect(run.analyzeReview.mock.calls[0]?.[0]).toMatchObject({
+      organizationId: STOPPED_ORGANIZATION,
+      propertyId: STOPPED_PROPERTY,
+      internalSubjectId: '7f000000-0000-4000-8000-000000000001',
+    })
   })
 
   // The other way into the same backlog. Its job is Property-scoped, so the

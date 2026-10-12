@@ -188,9 +188,17 @@ retry and a repeated click reuse it, and any finished answer rotates it.
      is counted, nothing is settled, its first start is cleared so the
      operation horizon begins when a drain next takes it, and it is asked about
      again after a minute. It is analysed once the stop is lifted. The drain
-     reports the count as `denied`.
+     reports the count as `denied`. That is exact for an entry no drain had
+     tried before the stop. One that had been tried keeps its pending
+     operation, whose 24-hour window from its first claim does not pause: in a
+     longer stop the execution reaper, which holds no capability, abandons it
+     and settles the review `operation_abandoned`, and the review is then owed
+     to the reopen pass (2026-09-29), not to this entry. A reopen raised while
+     the stop still holds is refused at the gated consumer, like any review
+     event that arrives during a stop.
   3. A refused Property still takes one of a round's three Property slots when
      the claim picks it, and its entries go back untried. Other Properties keep
      draining; with many refused Properties holding large backlogs they are
-     picked less often. Leaving refused Properties out of the claim is the
-     follow-up if that is ever seen.
+     picked less often. The follow-up is to park every ready entry of a
+     refused Organization and Property in one statement, so that a refused
+     Property costs one slot a minute.

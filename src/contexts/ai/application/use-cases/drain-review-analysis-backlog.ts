@@ -294,7 +294,8 @@ export function createDrainReviewAnalysisBacklog(
     let completed = 0
     await forEachConcurrently(entries, AI_BACKLOG_DRAIN_CONCURRENCY, async (entry) => {
       // Asked outside `run`, so a policy that cannot be read fails the drain
-      // instead of being recorded as this entry's failed attempt.
+      // instead of being recorded as this entry's failed attempt. The round's
+      // entries not yet reached then stay claimed until their lease lapses.
       if (!(await input.authorizeScope(entry.organizationId, entry.propertyId))) {
         // The analysis use case checks the merchant's consent and the AI
         // controls, not platform policy, and it settles what it refuses. So a
