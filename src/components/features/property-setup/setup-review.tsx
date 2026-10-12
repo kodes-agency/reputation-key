@@ -1,10 +1,9 @@
-import { Loader2 } from 'lucide-react'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import { MerchantAiDataHandling } from '#/components/features/settings/merchant-ai-data-handling'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
+import { BackButton } from '#/components/ui/back-link'
 import { Button } from '#/components/ui/button'
-import { Checkbox } from '#/components/ui/checkbox'
-import { Field, FieldLabel } from '#/components/ui/field'
+import { ConsentCheckbox } from '#/components/forms/consent-checkbox'
 import {
   Table,
   TableBody,
@@ -158,10 +157,7 @@ export function SetupReview({
       </div>
 
       {consentNeeded ? (
-        <section
-          aria-labelledby="setup-ai-notice-title"
-          className="flex flex-col gap-5 rounded-xl border p-4 sm:p-6"
-        >
+        <section aria-labelledby="setup-ai-notice-title" className="flex flex-col gap-5">
           <div>
             <h4 id="setup-ai-notice-title" className="font-semibold">
               {notice.payload.title}
@@ -169,24 +165,21 @@ export function SetupReview({
             <p className="mt-1 text-sm text-muted-foreground">{notice.payload.summary}</p>
           </div>
           <MerchantAiDataHandling notice={notice} />
-          <Field orientation="horizontal" className="items-start">
-            <Checkbox
-              id="setup-ai-acknowledgement"
-              className="mt-0.5"
-              checked={acknowledged}
-              disabled={saving}
-              onCheckedChange={(checked) => onAcknowledgedChange(checked === true)}
-            />
-            <FieldLabel htmlFor="setup-ai-acknowledgement" className="min-w-0">
-              I have read this notice and agree to this data use for{' '}
-              {formatMerchantAiPropertyNames(aiNames)} on behalf of my organization.
-            </FieldLabel>
-          </Field>
+          <ConsentCheckbox
+            id="setup-ai-acknowledgement"
+            checked={acknowledged}
+            disabled={saving}
+            onCheckedChange={onAcknowledgedChange}
+            description="Required to enable AI features. RepKey records who agreed and the notice version they read."
+          >
+            I have read this notice and agree to this data use for{' '}
+            {formatMerchantAiPropertyNames(aiNames)} on behalf of my organization.
+          </ConsentCheckbox>
         </section>
       ) : null}
 
       {nothingToSave ? (
-        <Alert>
+        <Alert variant="info">
           <AlertTitle>Nothing to save</AlertTitle>
           <AlertDescription>
             Every question was skipped. Go back to answer them, or finish later from each
@@ -196,16 +189,14 @@ export function SetupReview({
       ) : null}
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-        <Button type="button" variant="outline" disabled={saving} onClick={onBack}>
-          Back to questions
-        </Button>
+        <BackButton label="Back to questions" disabled={saving} onClick={onBack} />
         <Button
           type="button"
           className="h-auto min-h-9 whitespace-normal text-balance"
-          disabled={saving || nothingToSave || (consentNeeded && !acknowledged)}
+          pending={saving}
+          disabled={nothingToSave || (consentNeeded && !acknowledged)}
           onClick={onSave}
         >
-          {saving ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}
           {consentNeeded
             ? renderMerchantAiNoticeCta(notice.payload, aiNames)
             : 'Save setup'}

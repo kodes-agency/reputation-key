@@ -114,17 +114,21 @@ export const Populated90d: Story = {
     for (const heading of ['Rating over time', 'Rating mix', 'Responding']) {
       expect(canvas.getByRole('heading', { name: heading, level: 2 })).toBeVisible()
     }
+    // The reply figures carry their heading's name, so a screen reader hears what is on screen.
+    expect(
+      canvasElement.querySelector('[data-slot="metric-strip"][aria-label="Responding"]'),
+    ).not.toBeNull()
 
-    const range = canvas.getByRole('group', { name: 'Time range' })
-    expect(within(range).getByRole('button', { name: '90 days' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    const range = canvas.getByRole('radiogroup', { name: 'Time range' })
+    expect(within(range).getByRole('radio', { name: '90 days' })).toBeChecked()
 
     const summary = within(canvas.getByLabelText('Ratings summary'))
-    expect(summary.getByText('4.3 ★')).toBeVisible()
-    expect(summary.getByText('↑ 0.2 vs the previous 90 days')).toBeVisible()
-    expect(summary.getByText('↑ 12.5% vs the previous 90 days')).toBeVisible()
+    expect(summary.getByText('4.3')).toBeVisible()
+    // Each change is the shared MetricDelta: the figure and baseline in one
+    // run, the direction said again in words for a screen reader.
+    expect(summary.getByText('0.2 vs the previous 90 days')).toBeVisible()
+    expect(summary.getByText('12.5% vs the previous 90 days')).toBeVisible()
+    expect(summary.getAllByText('Up', { exact: false })).toHaveLength(2)
 
     const trend = canvas.getByTestId('reputation-trend-chart')
     expect(trend).toHaveAttribute('data-series', 'review-volume,average-rating')
@@ -139,11 +143,8 @@ export const AllTime: Story = {
   args: { dashboard: allTimeDashboard, range: 'all' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const range = canvas.getByRole('group', { name: 'Time range' })
-    expect(within(range).getByRole('button', { name: 'All time' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    const range = canvas.getByRole('radiogroup', { name: 'Time range' })
+    expect(within(range).getByRole('radio', { name: 'All time' })).toBeChecked()
     expect(canvas.queryByText(/vs the previous/i)).toBeNull()
     expect(canvas.queryByText(/ratings in each period to compare/i)).toBeNull()
     expect(canvas.getByTestId('reputation-trend-chart')).toHaveAttribute(
@@ -177,20 +178,13 @@ export const NoRatingsAtAll: Story = {
   },
 }
 
-export const NoProperty: Story = {
-  args: { property: null },
-  play: async ({ canvasElement }) => {
-    expect(within(canvasElement).queryByText('Ratings')).toBeNull()
-  },
-}
-
 export const Compact390: Story = {
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('combobox', { name: 'Time range' })).toBeVisible()
     expect(
-      within(canvas.getByLabelText('Ratings summary')).getByText('4.3 ★'),
+      within(canvas.getByLabelText('Ratings summary')).getByText('4.3'),
     ).toBeVisible()
     expect(canvas.getByRole('img', { name: 'Rating over time' })).toBeVisible()
     expect(canvas.getByRole('figure', { name: 'Rating mix' })).toBeVisible()

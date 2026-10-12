@@ -25,7 +25,7 @@ function BreadcrumbItem({ className, ...props }: React.ComponentProps<'li'>) {
   return (
     <li
       data-slot="breadcrumb-item"
-      className={cn('inline-flex items-center gap-1.5', className)}
+      className={cn('inline-flex items-center gap-1.5 sm:gap-2.5', className)}
       {...props}
     />
   )
@@ -62,21 +62,26 @@ function BreadcrumbPage({ className, ...props }: React.ComponentProps<'span'>) {
   )
 }
 
+/**
+ * The chevron before a crumb. It is the first thing inside the item it leads (not a
+ * sibling `li`), so a trail that wraps carries the chevron onto the new line with its
+ * crumb instead of stranding it at the end of the one above.
+ */
 function BreadcrumbSeparator({
   children,
   className,
   ...props
-}: React.ComponentProps<'li'>) {
+}: React.ComponentProps<'span'>) {
   return (
-    <li
+    <span
       data-slot="breadcrumb-separator"
       role="presentation"
       aria-hidden="true"
-      className={cn('[&>svg]:size-3.5', className)}
+      className={cn('inline-flex [&>svg]:size-3.5', className)}
       {...props}
     >
       {children ?? <ChevronRight />}
-    </li>
+    </span>
   )
 }
 

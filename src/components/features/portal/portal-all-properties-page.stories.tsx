@@ -22,6 +22,7 @@ import {
 import type { AllPropertiesSearch } from './portal-overview/portal-overview-search-schema'
 import type { Action } from '#/components/hooks/use-action'
 import { AuthedRouterDecorator } from '../../../../.storybook/AuthedRouterDecorator'
+import { PageGutterDecorator } from '../../../../.storybook/PageGutterDecorator'
 
 const action = <TInput,>(): Action<TInput> =>
   Object.assign(async (_input: TInput) => undefined, {
@@ -44,7 +45,8 @@ const meta: Meta<typeof ControlledPage> = {
   title: 'Portal/PortalAllPropertiesPage',
   component: ControlledPage,
   parameters: { layout: 'fullscreen' },
-  decorators: [AuthedRouterDecorator],
+  // The route sits in the shell's padded `<main>`; the page pads nothing of its own.
+  decorators: [AuthedRouterDecorator, PageGutterDecorator],
 }
 export default meta
 type Story = StoryObj<typeof ControlledPage>
@@ -70,6 +72,7 @@ const baseArgs = {
   organizationWide: true,
   archiveMutation: action<{ data: { portalId: string; publicationState: 'archived' } }>(),
   restoreMutation: action<{ data: { portalId: string; publicationState: 'disabled' } }>(),
+  disableMutation: action<{ data: { portalId: string; publicationState: 'disabled' } }>(),
 }
 const withResults = { ...baseArgs, results: controls(READY) }
 
@@ -91,9 +94,11 @@ export const SaysWhatTheOrganizationHolds: Story = {
   args: withResults,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    // Two facts in the header's meta line, which puts the dot between them.
     await expect(
-      canvas.getByText('All 3 properties in Avela Hospitality · 11 portals'),
+      canvas.getByText('All 3 properties in Avela Hospitality'),
     ).toBeInTheDocument()
+    await expect(canvas.getByText('11 portals')).toBeInTheDocument()
   },
 }
 
@@ -271,7 +276,11 @@ export const NothingMatches: Story = {
       'zzz',
     )
     await expect(canvas.getByText('No portals match')).toBeInTheDocument()
-    await userEvent.click(canvas.getByRole('button', { name: 'Clear search' }))
+    const panel = within(
+      canvasElement.querySelector<HTMLElement>('[data-slot="empty-state"]')!,
+    )
+    // All properties has a search and no filter, so Clear names only the search.
+    await userEvent.click(panel.getByRole('button', { name: 'Clear search' }))
     await expect(canvas.getByRole('link', { name: 'Reception' })).toBeInTheDocument()
   },
 }

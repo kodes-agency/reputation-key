@@ -22,12 +22,11 @@ export const esV2 = defineGuestCopyV2({
     languageNameFr: 'Francés',
     languageNameDe: 'Alemán',
     privacyNoticeLink: 'Aviso de privacidad',
+    privacyNoticeLinkInEnglish: 'Aviso de privacidad (en inglés)',
     footerMadeWith: 'Creado con Reputation Key',
     logoAlt: 'Logotipo de {name}',
     visitNotice:
-      'Esta página cuenta las visitas de {name}. Sin publicidad ni rastreadores de terceros.',
-    visitNoticeDetail:
-      'Una cookie de sesión esencial protege su respuesta. Por separado, contamos esta visita para {name} con un marcador de red de corta duración que protege su privacidad. Sin publicidad ni rastreadores de terceros.',
+      '{name} cuenta las visitas con una cookie esencial y un marcador que protege su privacidad. Sin publicidad ni rastreadores de terceros.',
     visitNoticeLabel: 'Recuento de visitas',
     visitNoticeAcknowledge: 'Entendido',
 
@@ -112,12 +111,16 @@ export const esV2 = defineGuestCopyV2({
     startOverAction: 'Empezar de nuevo en este dispositivo',
     startOverDone:
       'Listo para el siguiente huésped. Su respuesta anterior sigue guardada.',
+    startOverDoneAfterRemoval: 'Listo para el siguiente huésped.',
     startOverFailed: 'No se pudo empezar de nuevo. Inténtelo de nuevo.',
 
     linktreeDefaultTitle: 'Enlaces útiles',
     linkOpensNewTab: '(se abre en una pestaña nueva)',
     unavailableTitle: 'Esta página no está disponible en este momento.',
     unavailableBody: 'Vuelva a intentarlo más tarde.',
+    unavailableRetry: 'Intentarlo de nuevo',
+    ratingUnavailableTitle: 'Ahora mismo no se pueden enviar valoraciones desde aquí.',
+    ratingUnavailableBody: 'Inténtelo de nuevo más tarde.',
   },
   plurals: {
     ratingStars: { one: '{count} estrella', other: '{count} estrellas' },
@@ -134,7 +137,7 @@ export const esV2 = defineGuestCopyV2({
     'Europe/Bucharest': 'Bucarest',
     'Europe/Belgrade': 'Belgrado',
     'Europe/Istanbul': 'Estambul',
-    'Europe/Kyiv': 'Kiev',
-    'Europe/Kiev': 'Kiev',
+    'Europe/Kyiv': 'Kyiv',
+    'Europe/Kiev': 'Kyiv',
   },
 })

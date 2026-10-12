@@ -160,7 +160,7 @@ export function restoreSnapshot(
  * and settles both, so the footer's `void onSubmit()` never leaks an unhandled
  * rejection. Neither failure is the composer's to print. A failed SAVE is
  * autosave's own `error` line (`reply-autosave-coordinator.ts`), which also
- * turns Submit off and offers `Retry save`. A sentence of the composer's own
+ * turns Submit off and offers `Try saving again`. A sentence of the composer's own
  * used to wait behind that line and outlive it, surfacing — under a head
  * reading `Saved` — once a retry or a keystroke had moved autosave out of
  * `error`. A refused SUBMIT is toasted

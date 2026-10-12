@@ -6,6 +6,7 @@ import {
 import { recentActivityEntryId } from '#/shared/domain/ids'
 import { operationalActionHistoryRecordId } from '../domain/operational-action-history'
 import type { ConsumerEvent } from '#/shared/outbox'
+import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
@@ -49,8 +50,13 @@ const dependencies = () => {
   const applyOnce = vi.fn(async () => 'applied' as const)
   const recordObsolete = vi.fn(async () => 'obsolete' as const)
   const appendOperationalHistoryOnce = vi.fn(async () => 'applied' as const)
+  const findMonthlyResultNotificationFacts = vi.fn<
+    MonthlyResultNotificationFactsLookup['findMonthlyResultNotificationFacts']
+  >(async () => null)
   return {
+    findMonthlyResultNotificationFacts,
     deps: {
+      monthlyResultFacts: { findMonthlyResultNotificationFacts },
       deliveryStore: { applyOnce, recordObsolete },
       userLookup: {
         lookup: vi.fn(async () => ({
@@ -769,6 +775,126 @@ describe('Activity durable Recent Activity consumer', () => {
       expect(JSON.stringify(applyOnce.mock.calls)).not.toContain('must-not-be-retained')
     },
   )
+
+  describe('a Goal month that closed', () => {
+    const PROPERTY = '00000000-0000-4000-8000-000000000341'
+    const RESULT = '00000000-0000-4000-8000-000000000345'
+    const ASSIGNMENT = '00000000-0000-4000-8000-000000000344'
+    const closed = (
+      patch: Record<string, unknown> = {},
+      envelope: Partial<ConsumerEvent> = {},
+    ) =>
+      event(
+        'goal.monthly_result.closed',
+        {
+          organizationId: 'org-1',
+          propertyId: PROPERTY,
+          programId: '00000000-0000-4000-8000-000000000342',
+          programVersionId: '00000000-0000-4000-8000-000000000343',
+          assignmentId: ASSIGNMENT,
+          monthlyResultId: RESULT,
+          periodStart: '2026-10-01T00:00:00.000Z',
+          periodEnd: '2026-11-01T00:00:00.000Z',
+          status: 'closed',
+          evaluationState: 'eligible',
+          achieved: true,
+          ...patch,
+        },
+        { propertyId: PROPERTY, ...envelope },
+      )
+    const factsOf = (setDuringMonth: boolean, targetChangedInMonth = false) => ({
+      programId: '00000000-0000-4000-8000-000000000342',
+      monthlyResultId: RESULT,
+      assignmentId: ASSIGNMENT,
+      programName: 'Lobby QR scans',
+      periodMonth: '2026-10',
+      subject: { kind: 'property' as const, propertyId: PROPERTY },
+      setDuringMonth,
+      targetChangedInMonth,
+    })
+    const projectedPayload = (applyOnce: ReturnType<typeof dependencies>['applyOnce']) =>
+      (applyOnce.mock.calls[0] as unknown as [{ entry: { payload: unknown } }])[0].entry
+        .payload
+
+    it('marks a met month whose goal was set after the month began', async () => {
+      const { deps, applyOnce, findMonthlyResultNotificationFacts } = dependencies()
+      findMonthlyResultNotificationFacts.mockResolvedValue(factsOf(true))
+
+      await expect(handleRecentActivityFact(deps, closed())).resolves.toEqual({
+        status: 'applied',
+      })
+
+      expect(findMonthlyResultNotificationFacts).toHaveBeenCalledExactlyOnceWith({
+        organizationId: 'org-1',
+        propertyId: PROPERTY,
+        assignmentId: ASSIGNMENT,
+        monthlyResultId: RESULT,
+      })
+      expect(projectedPayload(applyOnce)).toEqual({
+        subject: 'goal_result',
+        from: null,
+        to: 'achieved',
+        detail: 'eligible:set_in_month',
+      })
+      // The marker is a closed token; the goal's name never reaches the row.
+      expect(JSON.stringify(applyOnce.mock.calls)).not.toContain('Lobby QR scans')
+    })
+
+    it('marks a met month whose target was changed while it ran, ahead of when the goal was set', async () => {
+      for (const setDuringMonth of [false, true]) {
+        const { deps, applyOnce, findMonthlyResultNotificationFacts } = dependencies()
+        findMonthlyResultNotificationFacts.mockResolvedValue(
+          factsOf(setDuringMonth, true),
+        )
+
+        await handleRecentActivityFact(deps, closed())
+
+        expect(projectedPayload(applyOnce)).toEqual({
+          subject: 'goal_result',
+          from: null,
+          to: 'achieved',
+          detail: 'eligible:target_changed',
+        })
+      }
+    })
+
+    it('adds nothing for a goal that was in place for the whole month', async () => {
+      const { deps, applyOnce, findMonthlyResultNotificationFacts } = dependencies()
+      findMonthlyResultNotificationFacts.mockResolvedValue(factsOf(false))
+
+      await handleRecentActivityFact(deps, closed())
+
+      expect(projectedPayload(applyOnce)).toMatchObject({
+        to: 'achieved',
+        detail: 'eligible',
+      })
+    })
+
+    it('asks only about a month that closed as met', async () => {
+      const { deps, applyOnce, findMonthlyResultNotificationFacts } = dependencies()
+      findMonthlyResultNotificationFacts.mockResolvedValue(factsOf(true))
+
+      await handleRecentActivityFact(deps, closed({ achieved: false }))
+
+      expect(findMonthlyResultNotificationFacts).not.toHaveBeenCalled()
+      expect(projectedPayload(applyOnce)).toMatchObject({
+        to: 'not_achieved',
+        detail: 'eligible',
+      })
+    })
+
+    it('checks the Property attribution before it reads anything', async () => {
+      const { deps, findMonthlyResultNotificationFacts } = dependencies()
+
+      await expect(
+        handleRecentActivityFact(
+          deps,
+          closed({}, { propertyId: '00000000-0000-4000-8000-000000000399' }),
+        ),
+      ).rejects.toThrow('Recent Activity fact Property attribution mismatch')
+      expect(findMonthlyResultNotificationFacts).not.toHaveBeenCalled()
+    })
+  })
 
   it('registers the exact retained durable source-fact matrix', () => {
     const { deps } = dependencies()

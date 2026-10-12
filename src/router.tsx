@@ -1,95 +1,34 @@
-import { useEffect } from 'react'
 import { getGlobalStartContext } from '@tanstack/react-start'
 import { QueryClient } from '@tanstack/react-query'
-import {
-  createRouter as createTanStackRouter,
-  Navigate,
-  useRouter,
-} from '@tanstack/react-router'
-import type { ErrorComponentProps } from '@tanstack/react-router'
+import { createRouter as createTanStackRouter } from '@tanstack/react-router'
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
 import { routeTree } from './routeTree.gen'
 
-import { Skeleton } from '#/components/ui/skeleton'
-import { Alert, AlertDescription } from '#/components/ui/alert'
-import { AlertCircle } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import { publicErrorMessage } from '#/shared/security/error-display'
+// The router's defaults are `PageState` in the frame of the page that is pending,
+// failed or missing: the page's title, breadcrumbs and tier come from its route
+// (`staticData.page`), and a failure is sanitised, reported, retryable and sends a
+// 401 to sign-in (see `useGuardedRouteError`). They stay in first paint on
+// purpose: a failure must be able to draw while the network is gone.
+import {
+  RouteError,
+  RoutePending,
+  RouteNotFound,
+} from '#/components/layout/route-page-state'
 import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
-import { httpStatus, isExpectedRefusal } from '#/shared/security/expected-refusal'
-
-/** Default pending component — shown while route loaders are resolving. */
-function DefaultPendingComponent() {
-  return (
-    <div className="page-wrap px-4 pb-8 pt-14">
-      <div className="flex flex-col gap-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-4 w-64" />
-        <Skeleton className="h-32 w-full" />
-      </div>
-    </div>
-  )
-}
+import { isExpectedRefusal } from '#/shared/security/expected-refusal'
 
 /**
- * Default error component — shown when route loaders throw.
+ * Hands a failure to monitoring unless it is an expected refusal (a 4xx): a
+ * refusal is a product or security outcome the page already explains.
  *
- * A 401 here means the session ended under an open page (sign-out elsewhere,
- * expiry) and a query or loader refused: that is the login page's job, not a
- * failure. Expected refusals (4xx) are never reported; `beforeSend` drops
- * them too, this keeps the boundary honest about what it captures.
+ * Route UI that reports a failure of its own (the Members access sheet) reads
+ * this from the router context instead of importing the capture and the refusal
+ * rule: the router's error state already holds both in first paint, and a lazy
+ * route chunk that imports them made first paint carry them again as extra
+ * shared chunks (+2.5 KB gzip measured on /settings/members).
  */
-function DefaultErrorComponent({ error }: ErrorComponentProps) {
-  const router = useRouter()
-  const signedOut = httpStatus(error) === 401
-
-  useEffect(() => {
-    if (!isExpectedRefusal(error)) captureBrowserException(error)
-  }, [error])
-
-  if (signedOut) {
-    return (
-      <Navigate to="/login" search={{ redirect: router.state.location.href }} replace />
-    )
-  }
-
-  return (
-    <div className="page-wrap px-4 pb-8 pt-14">
-      <Alert variant="destructive">
-        <AlertCircle />
-        <AlertDescription>
-          {/* BQC-7.6: production never renders raw error text (SQL/stack/
-              secret leakage); development keeps it for debuggability. */}
-          {publicErrorMessage(error, import.meta.env.PROD)}
-        </AlertDescription>
-      </Alert>
-      <Button variant="outline" className="mt-4" onClick={() => router.invalidate()}>
-        Try again
-      </Button>
-    </div>
-  )
-}
-/** Default 404 component — shown when no route matches or a loader throws notFound(). */
-function DefaultNotFoundComponent() {
-  const router = useRouter()
-
-  return (
-    <div className="page-wrap px-4 pb-8 pt-14">
-      <Alert>
-        <AlertCircle />
-        <AlertDescription>
-          The page you&apos;re looking for doesn&apos;t exist or may have moved.
-        </AlertDescription>
-      </Alert>
-      <Button
-        variant="outline"
-        className="mt-4"
-        onClick={() => router.navigate({ to: '/' })}
-      >
-        Go home
-      </Button>
-    </div>
-  )
+function reportUnexpectedFailure(error: unknown): void {
+  if (!isExpectedRefusal(error)) captureBrowserException(error)
 }
 
 export function getRouter() {
@@ -107,8 +46,8 @@ export function getRouter() {
   const router = createTanStackRouter({
     routeTree,
     // Expose the QueryClient via router context so route loaders can
-    // prefetchQuery / ensureQueryData.
-    context: { queryClient },
+    // prefetchQuery / ensureQueryData, and the failure reporter for route UI.
+    context: { queryClient, reportUnexpectedFailure },
     // The same nonce is applied to framework-generated SSR scripts by
     // TanStack Router and to RootDocument's theme initialization script.
     ssr: cspNonce ? { nonce: cspNonce } : undefined,
@@ -127,9 +66,9 @@ export function getRouter() {
     defaultPendingMs: 0,
     // Don't enforce a minimum display time for the skeleton.
     defaultPendingMinMs: 0,
-    defaultPendingComponent: DefaultPendingComponent,
-    defaultErrorComponent: DefaultErrorComponent,
-    defaultNotFoundComponent: DefaultNotFoundComponent,
+    defaultPendingComponent: RoutePending,
+    defaultErrorComponent: RouteError,
+    defaultNotFoundComponent: RouteNotFound,
   })
 
   // Wire SSR dehydration/hydration + streaming between Router and Query.

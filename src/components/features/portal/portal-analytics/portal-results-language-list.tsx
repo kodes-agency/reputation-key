@@ -1,6 +1,6 @@
 // "Guests by language" (board 07): private ratings by the language of the page
-// the guest saw. A new measure, so the board tags it.
-import { Badge } from '#/components/ui/badge'
+// the guest saw. The board's "New measure" tag was a note for the owner, not
+// for the page, so it is not drawn.
 import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
 import { languageRows, languagesAreHeldBack } from './portal-results-languages'
 
@@ -18,11 +18,8 @@ export function PortalResultsLanguages({
   const { rows, caption } = languageRows(breakdown)
   return (
     <div className="space-y-3">
-      <h3 id={headingId} className="flex items-center gap-2 text-base font-semibold">
+      <h3 id={headingId} className="text-base font-semibold">
         Guests by language
-        <Badge variant="secondary" className="font-normal">
-          New measure
-        </Badge>
       </h3>
       {heldBack || rows.length === 0 ? null : (
         <ol aria-labelledby={headingId} className="space-y-2.5">

@@ -7,6 +7,7 @@
 import { Button } from '#/components/ui/button'
 import {
   Dialog,
+  DialogCancel,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -64,18 +65,16 @@ export function PropertyLookBatchDialog({
     <Dialog
       open
       // Closing in the middle of a publish would hide what it did.
-      onOpenChange={(open) => (open || isPublishing ? undefined : onClose())}
+      busy={isPublishing}
+      onOpenChange={(open) => (open ? undefined : onClose())}
     >
-      <DialogContent
-        className="sm:max-w-xl"
-        aria-busy={batch.rows === null || isPublishing}
-      >
+      <DialogContent size="lg" aria-busy={batch.rows === null || isPublishing}>
         <DialogHeader>
           <DialogTitle>Review &amp; publish {portalsOf(live.length)}</DialogTitle>
           <DialogDescription>
             {shown !== null
               ? 'Here is what happened to each portal.'
-              : 'Each live portal gets its saved draft, with the new look, as a new version. Printed codes keep working.'}
+              : 'Publishing sends a portal’s whole saved draft live as a new version: the new look, and anything else saved on it. Portals with other draft edits start unticked. Printed codes keep working.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -129,12 +128,11 @@ export function PropertyLookBatchDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={isPublishing}
+                  pending={isPublishing}
+                  pendingLabel="Publishing…"
                   onClick={() => void batch.retry()}
                 >
-                  {isPublishing
-                    ? 'Publishing…'
-                    : `Try ${batch.retryable.length === 1 ? 'it' : 'them'} again`}
+                  {`Try ${batch.retryable.length === 1 ? 'it' : 'them'} again`}
                 </Button>
               ) : null}
               <Button type="button" disabled={isPublishing} onClick={onClose}>
@@ -143,24 +141,17 @@ export function PropertyLookBatchDialog({
             </>
           ) : (
             <>
+              <DialogCancel />
               <Button
                 type="button"
-                variant="outline"
-                disabled={isPublishing}
-                onClick={onClose}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                disabled={isPublishing || batch.publishable.length === 0}
+                pending={isPublishing}
+                pendingLabel="Publishing…"
+                disabled={batch.publishable.length === 0}
                 onClick={() => void batch.publish()}
               >
-                {isPublishing
-                  ? 'Publishing…'
-                  : batch.publishable.length === 0
-                    ? 'Nothing to publish'
-                    : `Publish ${portalsOf(batch.publishable.length)}`}
+                {batch.publishable.length === 0
+                  ? 'Nothing to publish'
+                  : `Publish ${portalsOf(batch.publishable.length)}`}
               </Button>
             </>
           )}

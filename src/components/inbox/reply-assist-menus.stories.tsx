@@ -589,7 +589,7 @@ export const UndoAndError: Story = {
     const status = canvas.getByRole('status')
     await expect(status).toHaveTextContent('AI is off for this property.')
     await expect(
-      within(status).getByRole('link', { name: 'Enable AI replies' }),
+      within(status).getByRole('link', { name: 'Turn on AI replies' }),
     ).toBeVisible()
   },
 }

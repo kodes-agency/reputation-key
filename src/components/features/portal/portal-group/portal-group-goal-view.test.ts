@@ -13,7 +13,9 @@ const goal = (overrides: Partial<GoalProgress> = {}): GoalProgress => ({
   name: 'Private ratings',
   metric: 'portal_rating_count',
   targetValue: 250,
+  monthTarget: null,
   setBy: 'elena',
+  setAt: new Date('2026-08-12T10:00:00.000Z'),
   status: 'active',
   period: SEPTEMBER,
   timezone: ZONE,
@@ -23,7 +25,11 @@ const goal = (overrides: Partial<GoalProgress> = {}): GoalProgress => ({
 })
 
 const at = (iso: string) => new Date(iso)
-const people = (id: string) => (id === 'elena' ? 'Elena Petrova' : null)
+const NAMES: Readonly<Record<string, string>> = {
+  elena: 'Elena Petrova',
+  marco: 'Marco Rossi',
+}
+const people = (id: string) => NAMES[id] ?? null
 
 describe('goalCardView', () => {
   it('prints the board: month and metric, the figure against the target, who set it', () => {
@@ -36,7 +42,7 @@ describe('goalCardView', () => {
       title: 'September · Private ratings',
       figure: '209',
       target: 'of 250',
-      note: 'Set by Elena Petrova · the month ends today',
+      note: 'Set by Elena Petrova on Aug 12 · the month ends today',
       state: 'live',
     })
     expect(view.fraction).toBeCloseTo(209 / 250)
@@ -50,7 +56,7 @@ describe('goalCardView', () => {
   ])('counts the days left in the property time zone (%s)', (now, words) => {
     const view = goalCardView(goal(), { setByName: people, now: at(now) })
 
-    expect(view.note).toBe(`Set by Elena Petrova · ${words}`)
+    expect(view.note).toBe(`Set by Elena Petrova on Aug 12 · ${words}`)
   })
 
   it('counts the last day by the property day, not the UTC day', () => {
@@ -60,7 +66,7 @@ describe('goalCardView', () => {
       now: at('2026-09-30T21:30:00.000Z'),
     })
 
-    expect(view.note).toBe('Set by Elena Petrova')
+    expect(view.note).toBe('Set by Elena Petrova on Aug 12')
   })
 
   it('never fills the bar beyond the target', () => {
@@ -136,8 +142,8 @@ describe('goalCardView', () => {
       title: 'October · Private ratings',
       state: 'not_started',
       figure: null,
-      detail: 'Starts on 1 Oct',
-      note: 'Set by Elena Petrova',
+      detail: 'Starts on Oct 1',
+      note: 'Set by Elena Petrova on Aug 12',
     })
   })
 
@@ -156,6 +162,64 @@ describe('goalCardView', () => {
       now: at('2026-09-30T08:00:00.000Z'),
     })
 
-    expect(view.note).toBe('The month ends today')
+    expect(view.note).toBe('Set on Aug 12 · the month ends today')
+  })
+
+  it('prints the year of a target set in an earlier year', () => {
+    const view = goalCardView(goal({ setAt: new Date('2025-11-28T10:00:00.000Z') }), {
+      setByName: people,
+      now: at('2026-09-30T08:00:00.000Z'),
+    })
+
+    expect(view.note).toBe('Set by Elena Petrova on Nov 28, 2025 · the month ends today')
+  })
+
+  it('reads the day a target was set on the property calendar', () => {
+    // 21:30 UTC on 11 Aug is already 12 Aug in Sofia.
+    const view = goalCardView(goal({ setAt: new Date('2026-08-11T21:30:00.000Z') }), {
+      setByName: people,
+      now: at('2026-09-20T08:00:00.000Z'),
+    })
+
+    expect(view.note).toBe('Set by Elena Petrova on Aug 12 · the month ends in 10 days')
+  })
+
+  it('a changed month names the person who changed it, not the person who set the goal', () => {
+    // Elena set 300 in August. On 20 September Marco changed September to 250:
+    // the card shows 250, so it must not credit that number to Elena.
+    const view = goalCardView(
+      goal({
+        targetValue: 250,
+        monthTarget: {
+          changedAt: new Date('2026-09-20T07:00:00.000Z'),
+          changedBy: 'marco',
+          startTarget: 300,
+          changeCount: 1,
+        },
+      }),
+      { setByName: people, now: at('2026-09-29T08:00:00.000Z') },
+    )
+
+    expect(view.target).toBe('of 250')
+    expect(view.note).toBe(
+      'Changed by Marco Rossi on Sep 20, started at 300 · the month ends tomorrow',
+    )
+  })
+
+  it('says how many times a month changed, and leaves out a person it cannot name', () => {
+    const view = goalCardView(
+      goal({
+        targetValue: 200,
+        monthTarget: {
+          changedAt: new Date('2026-09-25T07:00:00.000Z'),
+          changedBy: 'someone-else',
+          startTarget: 300,
+          changeCount: 2,
+        },
+      }),
+      { setByName: people, now: at('2026-09-30T21:30:00.000Z') },
+    )
+
+    expect(view.note).toBe('Changed on Sep 25 (2 changes), started at 300')
   })
 })

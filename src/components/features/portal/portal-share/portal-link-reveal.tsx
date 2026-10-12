@@ -6,7 +6,7 @@
 // cannot be fetched again (ADR 0064).
 
 import { useEffect, useState } from 'react'
-import { Copy, Eye, Link2 } from 'lucide-react'
+import { Copy, Eye } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { COPY_FAILED_MESSAGE } from './use-copy-link'
@@ -56,11 +56,11 @@ export function PortalLinkReveal({
         <Button
           type="button"
           variant="outline"
-          className="min-h-11 self-start sm:min-h-9"
+          className="self-start"
           disabled={disabled}
           onClick={() => void onShowAddress?.().then(setFetchedHere)}
         >
-          <Eye data-icon="inline-start" /> Show address
+          <Eye /> Show address
         </Button>
       ) : (
         <AddressRow
@@ -72,7 +72,7 @@ export function PortalLinkReveal({
         />
       )}
       {copyFailed && (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="text-sm text-negative" role="alert">
           {COPY_FAILED_MESSAGE}
         </p>
       )}
@@ -106,13 +106,8 @@ function AddressRow({
       >
         {publicUrl}
       </code>
-      <Button
-        type="button"
-        variant="outline"
-        className="min-h-11 sm:min-h-9"
-        onClick={() => void onCopy()}
-      >
-        <Copy data-icon="inline-start" /> {copied ? 'Copied' : 'Copy'}
+      <Button type="button" variant="outline" onClick={() => void onCopy()}>
+        <Copy /> {copied ? 'Copied' : 'Copy'}
       </Button>
     </div>
   )
@@ -120,8 +115,7 @@ function AddressRow({
 
 function SaveAddressWarning() {
   return (
-    <Alert>
-      <Link2 />
+    <Alert variant="warning">
       <AlertTitle>Save this address now</AlertTitle>
       <AlertDescription>
         For security, the full address and the QR image are not shown again after this

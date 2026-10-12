@@ -2,6 +2,7 @@
 // list says how many; this says what each is and where to put it right.
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
+import { EXPLAIN_UNDERLINE } from '#/components/ui/explain-trigger'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
 import { cn } from '#/lib/utils'
 import type { PortalIssue, PortalIssueFix } from './portal-attention'
@@ -24,7 +25,7 @@ const FIX_LABEL: Readonly<Record<PortalIssueFix, string>> = {
   page: 'Open the portal',
 }
 
-const LINK = 'text-xs font-medium underline underline-offset-4 text-foreground!'
+const LINK = 'text-xs font-medium text-foreground underline underline-offset-4'
 
 function FixLink({
   fix,
@@ -77,8 +78,9 @@ export function PortalIssuesPopover({
           aria-label={`${portalName}: ${label}`}
           className={cn(
             'inline-flex w-fit items-center gap-1.5 rounded-sm text-xs font-medium text-warn',
-            'underline decoration-dotted underline-offset-4 hover:decoration-solid',
-            'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+            EXPLAIN_UNDERLINE,
+            'hover:decoration-solid',
+            'focus-ring',
           )}
         >
           {children}

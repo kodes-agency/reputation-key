@@ -1,4 +1,4 @@
-// "What guests will see change": every change since the live version, in plain
+// "Changes guests will see": every change since the live version, in plain
 // words, each with who made it and when, and "Show" to bring it into view in
 // the phones. A portal that is not live has no list: nothing is public yet, so
 // the heading says what publishing does instead.
@@ -31,11 +31,20 @@ type Props = Readonly<{
   /** The change "Show" last brought into view. */
   shownId: string | null
   onShow: (line: ReviewChangeLine) => void
+  /** Brings the guest page into view; below `lg` it is under the lists. */
+  onSeeGuestPage: () => void
 }>
 
-export function ReviewChanges({ review, now, timeZone, shownId, onShow }: Props) {
+export function ReviewChanges({
+  review,
+  now,
+  timeZone,
+  shownId,
+  onShow,
+  onSeeGuestPage,
+}: Props) {
   const { changes, live } = review
-  if (live === null) return <NotLive />
+  if (live === null) return <NotLive onSeeGuestPage={onSeeGuestPage} />
   const lines = changes.map(describeReviewChange)
   return (
     <section aria-labelledby="review-changes-heading" className="space-y-3">
@@ -43,7 +52,7 @@ export function ReviewChanges({ review, now, timeZone, shownId, onShow }: Props)
         id="review-changes-heading"
         className="flex items-baseline gap-2 text-lg font-semibold"
       >
-        What guests will see change
+        Changes guests will see
         {lines.length === 0 ? null : (
           <span className="text-sm font-normal text-muted-foreground">
             {lines.length}
@@ -77,16 +86,27 @@ export function ReviewChanges({ review, now, timeZone, shownId, onShow }: Props)
   )
 }
 
-function NotLive() {
+function NotLive({ onSeeGuestPage }: Readonly<{ onSeeGuestPage: () => void }>) {
   return (
     <section aria-labelledby="review-changes-heading" className="space-y-2">
       <h2 id="review-changes-heading" className="text-lg font-semibold">
         What guests will see
       </h2>
       <p className="text-sm text-muted-foreground">
-        Nothing is public yet. Publishing opens the page on the right to guests who use
-        this portal’s code.
+        Nothing is public yet. Publishing opens the guest page in the preview to guests
+        who use this portal’s code.
       </p>
+      {/* Beside the lists from `lg`; under them on a smaller screen. */}
+      <Button
+        type="button"
+        variant="link"
+        size="inline"
+        touch
+        className="lg:hidden"
+        onClick={onSeeGuestPage}
+      >
+        See the guest page
+      </Button>
     </section>
   )
 }
@@ -128,7 +148,11 @@ function ChangeRow({
             {line.actor}
             {line.actor !== null && time !== null ? ' · ' : null}
             {time === null ? null : (
-              <time dateTime={time.dateTime} title={time.title}>
+              <time
+                dateTime={time.dateTime}
+                title={time.title}
+                className="whitespace-nowrap"
+              >
                 {time.label}
               </time>
             )}

@@ -27,7 +27,7 @@ describe('Guest voice route', () => {
     permissions.can.mockReturnValue(true)
   })
 
-  it('uses the CORE dashboard permission and redirects when it is denied', async () => {
+  it('uses the CORE dashboard permission and answers in the shell when it is denied', async () => {
     const beforeLoad = Route.options.beforeLoad
     if (!beforeLoad) throw new Error('Guest voice route must define beforeLoad')
 
@@ -37,9 +37,10 @@ describe('Guest voice route', () => {
         beforeLoad({ context: { role: 'PropertyManager' } } as never),
       ),
     ).rejects.toMatchObject({
-      // `/dashboard` is gone (redesign row 3); a denial lands on the properties
-      // list, which every role that reaches this route can read.
-      options: { to: '/properties' },
+      // The denial is explained in the app shell, with the properties list (which
+      // every role that reaches this route can read) as the way back.
+      routeId: '/_authenticated',
+      data: { cause: 'role', title: 'Guest voice', back: 'properties' },
     })
     expect(permissions.can).toHaveBeenCalledWith('PropertyManager', 'dashboard.read')
   })

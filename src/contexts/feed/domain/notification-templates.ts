@@ -24,8 +24,17 @@
 //      shorten the sentence, never produce "undefined" or an empty title.
 //
 import { SUPPORT_EMAIL } from '#/shared/domain/support-contact'
+import {
+  renderInvitationAccepted,
+  renderOrganizationAccessGranted,
+  renderOrganizationAccessRemoved,
+  renderOrganizationPropertyAccessChanged,
+  renderOrganizationPurgePending,
+  renderOrganizationRoleChanged,
+} from './notification-templates-account'
 import type {
   NotificationActorRole,
+  NotificationGoalMarker,
   NotificationGoalOutcome,
   NotificationGoalSubjectKind,
   NotificationPayload,
@@ -145,86 +154,6 @@ const ratedNoun = (p: NotificationPayload): string =>
 // ── Per-type renderers ──────────────────────────────────────────────
 // Each returns copy that reads correctly with an EMPTY payload and gets
 // sharper as metadata arrives.
-
-/**
- * An account notice: its summary is its title, in the facts line's case.
- * Renderers call it rather than being built by it at module load, which would
- * make this module side-effectful and pull it into every chunk that imports
- * the Feed public API.
- */
-const accountNotice = (
-  title: string,
-  body: string,
-  whyReceived: string,
-  detail = '',
-): RendererCopy => ({
-  title,
-  body,
-  detail,
-  actionLabel: 'Review account',
-  summary: title.toLowerCase(),
-  whyReceived,
-})
-
-const renderOrganizationAccessGranted = (): RendererCopy =>
-  accountNotice(
-    'Organization access added',
-    'Your account can now access this organization.',
-    'You received this because your account was given access to an organization on Reputation Key.',
-  )
-
-const renderOrganizationRoleChanged = (): RendererCopy =>
-  accountNotice(
-    'Organization role updated',
-    'Your account permissions for this organization were updated.',
-    'You received this because what your account may do in an organization on Reputation Key changed.',
-  )
-
-/** A member who left is told they left, not that an administrator acted. */
-/** Access removal says what to do about it, so the row shows its body. */
-const informativeAccountNotice = (
-  title: string,
-  body: string,
-  whyReceived: string,
-): RendererCopy => accountNotice(title, body, whyReceived, body)
-
-const renderOrganizationAccessRemoved = (p: NotificationPayload): RendererCopy =>
-  p.leftOrganization === true
-    ? informativeAccountNotice(
-        'You left the organization',
-        'Your account no longer has access to this organization. To come back, ask an account administrator to invite you again.',
-        'You received this because you left an organization on Reputation Key.',
-      )
-    : informativeAccountNotice(
-        'Organization access removed',
-        'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
-        'You received this because your access to an organization on Reputation Key ended.',
-      )
-
-/**
- * LIF-01 program bullet 5. Purge Pending has no timer: support begins the
- * irreversible purge, so deletion can start at any time and only support can
- * cancel it first. The subject leads with "deletion" so a 60-character clip
- * keeps it. No shipped page exposes pending-purge actions; the generic
- * Organization link still opens the profile, and the label says so.
- *
- * "Contact support" is only useful with a channel attached, so the body names
- * the monitored address and the email sets it as its reply-to
- * (`notificationReplyTo`). A reader in a mail client can then answer where
- * they are standing.
- */
-const renderOrganizationPurgePending = (p: NotificationPayload): RendererCopy => {
-  const body = `The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only Reputation Key support can stop it, before it starts. To stop it, answer this email or write to ${SUPPORT_EMAIL} now.`
-  return {
-    title: `Final notice: permanent deletion of ${p.organizationName ?? 'this organization'}`,
-    body,
-    detail: body,
-    actionLabel: 'Open profile',
-    summary: facts(p.organizationName ?? '', 'permanent deletion pending'),
-    whyReceived:
-      'You received this because you administer an organization that is scheduled for permanent deletion. It cannot be turned off.',
-  }
-}
 
 // A Low ratings notice says so, and why — the reader's own threshold — but
 // never how many stars: a Google review's rating stays in Review's cache
@@ -832,11 +761,31 @@ const goalOutcomeTitle = (p: NotificationPayload, outcome: string): string => {
   return month === '' ? `Goal ${outcome}` : `${month} goal ${outcome}`
 }
 
+/**
+ * What a reader should know about a month whose target did not stand for all
+ * of it. "Met" against a goal set on the 20th is true and still needs saying.
+ */
+const GOAL_MARKER_CLAUSES: Record<NotificationGoalMarker, string> = {
+  set_in_month: 'The goal was set during the month.',
+  target_changed: 'The target was changed during the month.',
+}
+
+/** The marker's sentence, or nothing for a goal in place the whole month. */
+const goalMarkerClause = (p: NotificationPayload): string =>
+  p.goalMarker === undefined ? '' : GOAL_MARKER_CLAUSES[p.goalMarker]
+
 const renderGoalCompleted = (p: NotificationPayload): RendererCopy => ({
   title: goalTitle(goalOutcomeTitle(p, 'met'), p),
-  body: sentence(`${thisGoal(p)} hit its target.`, 'Open the goal to see the numbers.'),
+  body: sentence(
+    `${thisGoal(p)} hit its target.`,
+    goalMarkerClause(p),
+    'Open the goal to see the numbers.',
+  ),
   // Which of ten sibling results it is: the title says only "goal".
-  detail: p.goalSubjectKind === undefined ? '' : `${thisGoal(p)} hit its target.`,
+  detail: sentence(
+    p.goalSubjectKind === undefined ? '' : `${thisGoal(p)} hit its target.`,
+    goalMarkerClause(p),
+  ),
   actionLabel: 'View progress',
   summary: factsAt(
     p,
@@ -874,12 +823,15 @@ const renderGoalResultRevised = (p: NotificationPayload): RendererCopy => {
       outcome === undefined
         ? 'A monthly result changed.'
         : `${thisGoal(p)} ${GOAL_OUTCOME_CLAUSES[outcome]}.`,
+      goalMarkerClause(p),
       'Open the goal to see the current metrics.',
     ),
-    detail:
+    detail: sentence(
       outcome === undefined || p.goalSubjectKind === undefined
         ? ''
         : `${thisGoal(p)} ${GOAL_OUTCOME_CLAUSES[outcome]}.`,
+      goalMarkerClause(p),
+    ),
     actionLabel: 'View result',
     summary: factsAt(
       p,
@@ -921,6 +873,8 @@ const RENDERERS: Record<
   'account.organization_access_granted': renderOrganizationAccessGranted,
   'account.organization_role_changed': renderOrganizationRoleChanged,
   'account.organization_access_removed': renderOrganizationAccessRemoved,
+  'account.organization_property_access_changed': renderOrganizationPropertyAccessChanged,
+  'account.invitation_accepted': renderInvitationAccepted,
   'account.organization_purge_pending': renderOrganizationPurgePending,
   'review.created': renderReviewCreated,
   'review.updated': renderReviewUpdated,
@@ -1035,6 +989,16 @@ const GROUPED_INBOX_QUEUES: Partial<Record<NotificationType, string>> = {
 }
 
 /**
+ * Where an Organization notice opens when it is about one place: a member whose
+ * access changed lands where their Properties are, an inviter where their
+ * invitations are. The rest open the Organization profile.
+ */
+const ORGANIZATION_NOTICE_PATHS: Partial<Record<NotificationType, string>> = {
+  'account.organization_property_access_changed': '/properties',
+  'account.invitation_accepted': '/settings/members',
+}
+
+/**
  * Deep link for a notification. Every action-oriented type is inbox-item keyed
  * (CONTEXT.md decision log), so the honest target is the inbox detail pane.
  * A grouped notice is the exception: it opens a queue at that Property, which
@@ -1057,7 +1021,10 @@ export const notificationLink = (
 ): NotificationLink => {
   switch (resourceType) {
     case 'organization':
-      return { path: '/settings/profile', search: {} }
+      return {
+        path: (type && ORGANIZATION_NOTICE_PATHS[type]) ?? '/settings/profile',
+        search: {},
+      }
     case 'inbox_item': {
       const queue = type && GROUPED_INBOX_QUEUES[type]
       return queue === undefined

@@ -1,5 +1,8 @@
 import { z } from 'zod/v4'
 
-export const peopleSearchSchema = z.object({
-  tab: z.enum(['staff', 'directory']).optional(),
-})
+/**
+ * The Staff page has no search params. Links from when it had a Staff and a
+ * Directory tab still carry `?tab=`, so the schema accepts and drops it rather
+ * than failing the route.
+ */
+export const peopleSearchSchema = z.object({})

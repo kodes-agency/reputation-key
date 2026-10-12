@@ -37,18 +37,18 @@ describe('formatHistoryTime', () => {
   })
 
   it('gives a short date for anything older, with the year only when it is another year', () => {
-    expect(formatHistoryTime('2026-09-22T11:20:00.000Z', NOW, SOFIA).label).toBe('22 Sep')
+    expect(formatHistoryTime('2026-09-22T11:20:00.000Z', NOW, SOFIA).label).toBe('Sep 22')
     expect(formatHistoryTime('2025-12-01T11:20:00.000Z', NOW, SOFIA).label).toBe(
-      '1 Dec 2025',
+      'Dec 1, 2025',
     )
   })
 
   it('keeps the full instant in the title, in the property time zone', () => {
     const time = formatHistoryTime('2026-09-30T08:05:00.000Z', NOW, SOFIA)
 
-    expect(time.title).toBe('30 Sep 2026 11:05')
+    expect(time.title).toBe('Sep 30, 2026, 11:05 AM')
     expect(time.dateTime).toBe('2026-09-30T08:05:00.000Z')
-    expect(time.date).toBe('30 Sep')
+    expect(time.date).toBe('Sep 30')
   })
 
   it('does not throw on a date it cannot read', () => {

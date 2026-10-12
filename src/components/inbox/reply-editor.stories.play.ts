@@ -22,5 +22,5 @@ export const LOCAL_SAFE_TEMPLATE_REQUEST = [
 export function expectNeutralCounterAtTheByteLimit(canvas: Canvas): void {
   const counter = canvas.getByText('4096/4096')
   expect(counter).toHaveClass('text-muted-foreground')
-  expect(counter).not.toHaveClass('text-destructive')
+  expect(counter).not.toHaveClass('text-negative')
 }

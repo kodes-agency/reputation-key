@@ -1,5 +1,9 @@
-import { Badge } from '#/components/ui/badge'
-import { Button } from '#/components/ui/button'
+import { ConnectGoogleButton } from '#/components/features/integration/connect-google-button'
+import {
+  ConfirmationDialog,
+  ConfirmationTrigger,
+} from '#/components/ui/confirmation-dialog'
+import { StatusBadge, type StatusMap } from '#/components/ui/status-badge'
 import type {
   GoogleAuthUrlInput,
   GoogleConnectionDto,
@@ -11,37 +15,34 @@ import {
   reauthorizationForConnection,
 } from './google-connection-authorization'
 
-type ReauthorizationRequest = Extract<GoogleAuthUrlInput, { connectionMode: 'reauth' }>
-
 type Props = Readonly<{
   connection: GoogleConnectionDto
+  /** Starts a Google authorization: the page's one request, which every button here uses. */
+  getAuthUrl: (opts: { data: GoogleAuthUrlInput }) => Promise<{ url: string }>
+  /** Another authorization is starting; this row waits for it. */
   authorizationPending: boolean
   disconnectPending: boolean
-  onReauthorize: (request: ReauthorizationRequest) => void
-  onDisconnect: (connectionId: string) => void
+  /** Rejects with the refusal, which the confirmation says in place. */
+  onDisconnect: (connectionId: string) => Promise<unknown>
 }>
 
-const STATUS_META: Record<
-  GoogleConnectionStatus,
-  { label: string; variant: 'default' | 'secondary' | 'destructive' }
-> = {
-  pending: { label: 'Connecting…', variant: 'secondary' },
-  active: { label: 'Connected', variant: 'default' },
-  degraded: { label: 'Temporarily unavailable', variant: 'secondary' },
-  reauth_required: { label: 'Needs attention', variant: 'secondary' },
-  disconnecting: { label: 'Disconnecting…', variant: 'secondary' },
-  disconnected: { label: 'Disconnected', variant: 'secondary' },
-  failed: { label: 'Connection unavailable', variant: 'destructive' },
+const CONNECTION_STATUS: StatusMap<GoogleConnectionStatus> = {
+  pending: { label: 'Connecting…', tone: 'neutral' },
+  active: { label: 'Connected', tone: 'positive' },
+  degraded: { label: 'Temporarily unavailable', tone: 'warn' },
+  reauth_required: { label: 'Needs attention', tone: 'warn' },
+  disconnecting: { label: 'Disconnecting…', tone: 'neutral' },
+  disconnected: { label: 'Disconnected', tone: 'neutral' },
+  failed: { label: 'Connection unavailable', tone: 'negative' },
 }
 
 export function GoogleConnectionSettingsRow({
   connection,
+  getAuthUrl,
   authorizationPending,
   disconnectPending,
-  onReauthorize,
   onDisconnect,
 }: Props) {
-  const status = STATUS_META[connection.status]
   const reauthorization = reauthorizationForConnection(connection)
   const accountEmailConsent = accountEmailConsentForConnection(connection)
 
@@ -50,7 +51,7 @@ export function GoogleConnectionSettingsRow({
       <div>
         <div className="flex items-center gap-2">
           <p className="text-sm font-medium">Google Business Profile</p>
-          <Badge variant={status.variant}>{status.label}</Badge>
+          <StatusBadge status={connection.status} map={CONNECTION_STATUS} />
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {googleConnectionLabel(connection)}
@@ -67,34 +68,45 @@ export function GoogleConnectionSettingsRow({
       </div>
       <div className="flex flex-wrap gap-2">
         {reauthorization ? (
-          <Button
+          <ConnectGoogleButton
+            getAuthUrl={getAuthUrl}
+            request={reauthorization}
+            label="Reauthorize"
             variant="outline"
             size="sm"
-            onClick={() => onReauthorize(reauthorization)}
             disabled={authorizationPending}
-            aria-busy={authorizationPending}
-          >
-            Reauthorize
-          </Button>
+          />
         ) : accountEmailConsent ? (
-          <Button
+          <ConnectGoogleButton
+            getAuthUrl={getAuthUrl}
+            request={accountEmailConsent}
+            label="Show account email"
             variant="outline"
             size="sm"
-            onClick={() => onReauthorize(accountEmailConsent)}
             disabled={authorizationPending}
-            aria-busy={authorizationPending}
-          >
-            Show account email
-          </Button>
+          />
         ) : null}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onDisconnect(connection.id)}
-          disabled={disconnectPending}
-        >
-          Disconnect
-        </Button>
+        {/* Revokes Google's access and removes what the account imported, for
+            every Property that uses it: higher blast radius than the
+            Property-level disconnect, which already confirms. */}
+        <ConfirmationDialog
+          trigger={
+            <ConfirmationTrigger
+              tone="destructive"
+              size="sm"
+              disabled={disconnectPending}
+            >
+              Disconnect
+            </ConfirmationTrigger>
+          }
+          title="Disconnect this Google account?"
+          description="RepKey stops syncing and replying through this account for every property that uses it, revokes its access, and removes the reviews and replies it imported. Nothing is deleted on Google."
+          cancelLabel="Keep connected"
+          confirmLabel="Disconnect account"
+          pendingLabel="Disconnecting…"
+          tone="destructive"
+          onConfirm={() => onDisconnect(connection.id)}
+        />
       </div>
     </div>
   )

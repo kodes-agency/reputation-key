@@ -6,6 +6,7 @@ import {
   portalLocalizedOverrideInputSchema,
   propertyPortalBrandContentInputSchema,
   propertyPortalBrandProfileInputSchema,
+  propertyPublicDisplayNameFormInputSchema,
 } from './portal-experience.dto'
 import {
   portalCodeReplacementFormSchema,
@@ -69,6 +70,32 @@ describe('Portal form DTO contracts', () => {
       title: 'Welcome',
       shortDescription: 'Tell us about your stay.',
     })
+  })
+
+  // The Property profile's Public display name card saves the name alone. If its form
+  // carried colours too, a save would write them back from a snapshot the page loaded
+  // earlier, over a newer Property look; the form's contract has no colour to carry.
+  it('validates the public display name on its own, with no colours to write back', () => {
+    expect(
+      propertyPublicDisplayNameFormInputSchema.parse({
+        displayName: '  Seaside Retreat  ',
+      }),
+    ).toEqual({ displayName: 'Seaside Retreat' })
+    expect(
+      propertyPublicDisplayNameFormInputSchema.parse({
+        displayName: 'Seaside Retreat',
+        primaryColor: '#123456',
+        backgroundColor: '#FFFFFF',
+        textColor: '#111827',
+      }),
+    ).toEqual({ displayName: 'Seaside Retreat' })
+    expect(
+      propertyPublicDisplayNameFormInputSchema.safeParse({ displayName: '  ' }).success,
+    ).toBe(false)
+    expect(
+      propertyPublicDisplayNameFormInputSchema.safeParse({ displayName: 'x'.repeat(121) })
+        .success,
+    ).toBe(false)
   })
 
   it('maps empty Portal overrides to inheritance at the shared boundary', () => {

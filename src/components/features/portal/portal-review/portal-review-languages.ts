@@ -6,6 +6,7 @@ import type { ReviewLanguageRow } from '#/contexts/portal/application/public-api
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import {
   describeCoverage,
+  englishNameBeside,
   languageDisplayName,
   type CoverageDescription,
 } from '../portal-languages/portal-languages-rules'
@@ -14,7 +15,8 @@ export type ReviewLanguageLine = Readonly<{
   locale: GuestLocale
   chip: string
   native: string
-  english: string
+  /** The English name beside the language's own; null when the two are the same. */
+  english: string | null
   /** "Fallback" for the language that stands in where another has a gap. */
   tag: string | null
   coverage: CoverageDescription
@@ -28,7 +30,7 @@ export function describeReviewLanguage(row: ReviewLanguageRow): ReviewLanguageLi
     locale: row.locale,
     chip: name.chip,
     native: name.native,
-    english: name.english,
+    english: englishNameBeside(row.locale),
     tag: row.isFallback ? 'Fallback' : null,
     coverage: describeCoverage(row),
     aiDrafts:

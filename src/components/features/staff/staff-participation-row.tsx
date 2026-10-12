@@ -1,19 +1,10 @@
 import { Pencil, UserRoundX } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge } from '#/components/ui/status-badge'
+import { formatDate } from '#/lib/format'
 import { Button } from '#/components/ui/button'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
-import { TableCell, TableRow } from '#/components/ui/table'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
+import { DataTableCell, DataTableRow } from '#/components/ui/data-table'
 import type {
   ArchiveStaffParticipationMutationInput,
   StaffParticipationView,
@@ -26,24 +17,6 @@ type Props = Readonly<{
   onEditResponsibilities: () => void
 }>
 
-// Pinned, because the page is server-rendered in the container's zone and
-// hydrated in the viewer's: the runtime's own zone and locale printed two
-// different days, which React rejects as a hydration mismatch (#418).
-const participationDateFormat = new Intl.DateTimeFormat('en-US', {
-  dateStyle: 'medium',
-  timeZone: 'UTC',
-})
-
-/**
- * A participation boundary as a calendar date, or nothing when it is not a real
- * instant: `format` throws on an Invalid Date, and one bad row must not take the
- * People page down (the guard `formatReviewedAt` uses for the same reason).
- */
-function formatParticipationDate(value: string | Date): string | null {
-  const date = value instanceof Date ? value : new Date(value)
-  return Number.isFinite(date.getTime()) ? participationDateFormat.format(date) : null
-}
-
 export function StaffParticipationRow({
   participation,
   canManageResponsibilities,
@@ -53,24 +26,23 @@ export function StaffParticipationRow({
   const active = participation.status === 'active' && participation.endedAt == null
 
   return (
-    <TableRow>
-      <TableCell>
+    <DataTableRow>
+      <DataTableCell className="col-start-1 row-start-1 min-w-0 whitespace-normal">
         <div className="min-w-40">
           <p className="font-medium">{participation.displayName}</p>
           <p className="text-xs text-muted-foreground">
-            {formatParticipationDate(participation.startedAt)} –{' '}
-            {participation.endedAt
-              ? formatParticipationDate(participation.endedAt)
-              : 'Present'}
+            {formatDate(participation.startedAt)} –{' '}
+            {participation.endedAt ? formatDate(participation.endedAt) : 'Present'}
           </p>
         </div>
-      </TableCell>
-      <TableCell>
-        <Badge variant={active ? 'secondary' : 'outline'}>
-          {active ? 'Active' : 'Archived'}
-        </Badge>
-      </TableCell>
-      <TableCell className="text-right">
+      </DataTableCell>
+      <DataTableCell className="col-start-2 row-start-1 justify-self-end">
+        <StatusBadge
+          tone={active ? 'positive' : 'neutral'}
+          label={active ? 'Active' : 'Archived'}
+        />
+      </DataTableCell>
+      <DataTableCell className="col-span-2 @3xl:text-right">
         <div className="flex justify-end gap-1">
           {active && canManageResponsibilities && (
             <Button
@@ -85,51 +57,39 @@ export function StaffParticipationRow({
             </Button>
           )}
           {active && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
+            <ConfirmationDialog
+              trigger={
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-destructive"
+                  className="text-muted-foreground"
                   aria-label={`Archive staff participation for ${participation.displayName}`}
                 >
                   <UserRoundX aria-hidden="true" />
                   <span className="hidden sm:inline">Archive</span>
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Archive staff participation?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {participation.displayName} will no longer be available for new Portal
-                    responsibilities. Their effective history is preserved.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    disabled={archiveAction.isPending}
-                    // The list's banner shows a refusal from the Action's error;
-                    // settling here keeps it from escaping as an unhandled one.
-                    onClick={() =>
-                      void archiveAction({
-                        data: {
-                          staffParticipationId: participation.id,
-                          reason: 'Archived from property People page',
-                          expectedRevision: participation.revision,
-                        },
-                      }).catch(() => undefined)
-                    }
-                  >
-                    {archiveAction.isPending ? 'Archiving…' : 'Archive participation'}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+              }
+              title="Archive staff participation?"
+              description={`${participation.displayName} will no longer be available for new Portal responsibilities. Their effective history is preserved.`}
+              cancelLabel="Cancel"
+              confirmLabel="Archive participation"
+              pendingLabel="Archiving…"
+              // The confirmation stays open and says a refusal (a stale
+              // revision) itself.
+              onConfirm={() =>
+                archiveAction({
+                  data: {
+                    staffParticipationId: participation.id,
+                    reason: 'Archived from property Staff page',
+                    expectedRevision: participation.revision,
+                  },
+                })
+              }
+            />
           )}
         </div>
-      </TableCell>
-    </TableRow>
+      </DataTableCell>
+    </DataTableRow>
   )
 }

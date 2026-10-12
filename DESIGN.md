@@ -106,7 +106,7 @@ components:
 
 **Creative North Star: "The Precision Instrument"**
 
-Reputation Key's interface is built like a well-made tool — every element earns its place, every surface is purposeful. The dark-first palette uses tinted violet-graphite neutrals with a single Spectral Violet accent, eliminating visual noise so users focus on the task. No glass, no gradients, no decorative textures. Hierarchy is communicated through type scale, weight contrast, and spacing rhythm alone.
+Reputation Key's interface is built like a well-made tool — every element earns its place, every surface is purposeful. The dark-first palette uses tinted violet-graphite neutrals with a single Spectral Violet accent, eliminating visual noise so users focus on the task. No glass, no decorative textures, and no gradients (the one exception is the 8px brand dot in the public header's logo link, a two-stop violet fill). Hierarchy is communicated through type scale, weight contrast, and spacing rhythm alone.
 
 The system is designed for three distinct contexts: property managers working in focused evening sessions on desktop, managers checking the Inbox on mobile between tasks, and clients leaving reviews in brief mobile visits. Each context gets the same level of craft — responsive is not a fallback, it's the design.
 
@@ -219,31 +219,59 @@ In light mode, the same tonal stack inverts: near-white backgrounds step from pa
 - **Ghost:** Transparent background, Ink Secondary text. Hover fills with Graphite Surface and switches to Ink Primary.
 - **Outline:** Transparent background, Graphite Border ring, Ink Primary text. Hover fills with accent-muted background. Used for secondary actions that need more presence than ghost.
 - **Destructive:** Signal Red background, white text. Hover darkens slightly.
-- **All buttons:** `font-weight: 500`, `font-size: 0.875rem` (14px). Focus-visible ring at Spectral Violet with 3px offset. Disabled state at 50% opacity. Sizes: default (h-9), sm (h-8), lg (h-10), xs (h-6), plus icon-only sizes at matching heights.
+- **All buttons:** `font-weight: 500`, `font-size: 0.875rem` (14px). Focus-visible ring at Spectral Violet with 3px offset. Disabled and `aria-disabled` state at 50% opacity. Sizes: default (h-9), sm (h-8), lg (h-10), xs (h-6), plus icon-only sizes at matching heights, and `inline` (a link in a line of text: no height, no padding) and `wrap` (default height, label may wrap).
+- **Touch density:** below `md` a default, sm, lg or icon control is a tap target, 44px, read from one token (`--control-touch`). A dense workspace (the Inbox, the top bar) says `data-density="compact"` on its container and its controls are 36px there. From `md` the desktop heights above apply. A control never spells either number; Input, Select and menu items follow the same rule.
+- **Pending:** `pending` draws a spinner (stopped for reduced motion), sets `aria-busy` and disables the button; `pendingLabel` swaps the label when a word says more than the spinner. `SubmitButton` is a Button wired to a mutation.
+- **Icon-only:** `IconButton` takes a required `label` (the accessible name) and shows it as a tooltip on hover and focus; the app mounts one `TooltipProvider`. Row-action triggers go without a tooltip.
+- **Inline links:** a link set in a sentence is `InlineLink` (accent ink, medium weight, underlined on hover; always underlined inside a sentence). A control that is not a Button wears the Button's ring through `focus-ring`: the 3px halo at 50% with the 1px full-strength edge a Button's border gives it, which is what makes it 3:1 against the page in both themes (the halo alone is 1.65:1 in dark).
 
 ### Cards
 
 - **Shape:** Rounded at 12px (`--radius-xl`). The only component with a larger radius, justified by its role as a visual container.
-- **Background:** Graphite Surface. No shadow (the tonal step from Obsidian provides separation). 1px border at Graphite Border.
+- **Background:** Graphite Surface. A `shadow-sm` ambient hint (the shadcn default, within the Flat-By-Default blur limit) with a 1px border at Graphite Border; the tonal step from Obsidian carries the separation, the shadow does not.
 - **Internal padding:** 24px (`px-6 py-6`). Header, content, and footer sections each get horizontal padding; the card itself carries vertical.
 - **Hover:** Transitions to Graphite Elevated with Graphite Border Strong border. 150ms ease-out.
 
 ### Inputs
 
-- **Shape:** Rounded at 6px, 36px height. Transparent background lets the parent surface color show through; in dark mode, a 30% opacity Graphite Border backing provides subtle fill (Tailwind `bg-input/30`).
+- **Shape:** Rounded at 6px, 36px height (44px below `md`, 36px in a compact workspace, like a Button). Transparent background lets the parent surface color show through; in dark mode, a 30% opacity Graphite Border backing provides subtle fill (Tailwind `bg-input/30`).
 - **Border:** 1px Graphite Border. Focus shifts to Spectral Violet ring (3px, 50% opacity).
 - **Placeholder:** Ink Tertiary, matching the 4.5:1 contrast requirement.
 - **Error:** Border shifts to Signal Red with a matching red ring.
 - **Disabled:** 50% opacity, `cursor: not-allowed`.
 
+### View switchers
+
+- **Page views are underline tabs.** A page's sibling views (Staff / Directory, Workspace / Removed, Active / History, a Portal's Page / Share / Results / History) are one muted row on a baseline, the chosen view in foreground ink and medium weight with a 2px primary underline, 36px tall from `md` and `--control-touch` tall (44px, 36px in a compact workspace) below it, like every control. When each view is a route or a search value of one (People, Properties, Goals, a Portal's tabs, the Notifications filters) it is a `LinkTabs` navigation landmark of links with `aria-current`, each tab a `NavLink` that is current only when the page says so; when the views swap a panel in the same document it is `Tabs variant="line"`. The look is the same. The row is one line that scrolls sideways when the tabs do not fit, with its scrollbar hidden, a fade on the side that continues and the current tab scrolled into view. Its focus outline is inset, because a row that scrolls clips an outer ring where a tab sits flush against the baseline. The first label sits 12px in from the content edge (the tab's own padding, which is also its hit area) and the underline spans the label; the row is not pulled out to the edge with a negative margin, because the scrolling row would clip the first tab.
+- **Pills are for modes.** The grey pill `Tabs` belongs inside a component (a composer's Reply / Note, a dialog's choice).
+- **Choices are segmented.** A short value or range choice is a `SegmentedControl`; a time range is a `RangeControl`, which becomes a Select below `sm`. Segments are a tap target below `md` and 26px from `md`.
+
+### List toolbars
+
+- **One row, one set of parts.** A list's search, filter, sort, count and Clear sit in a `ListToolbar` row that wraps (the search on a line of its own on a phone). The Properties list, the Portals overview and the All properties page draw the same parts: `SearchField`, `ListFilterMenu`, `ListSortMenu`, `ResultCount` and `ClearFiltersButton`.
+- **Search is one field.** `type="search"` in an `InputGroup` with a Search glyph, the shared 100-character limit (the URL schemas drop a longer search, so the box stops typing there) and an X that appears with text and keeps the focus in the field. Matching folds case and accents (`searchMatcher`).
+- **Menus read "Label: value".** An outline button with a glyph: `Show: Needs attention`, `Sort: Name`, `Group by: None`. The filter glyph is `ListFilter` and the sort glyph `ArrowDownUp`, in every list.
+- **The count is "N of M"** and only while the list is narrowed, in a live region that is always mounted.
+- **Clear is one control with one meaning.** It takes away the search and the filters and never the sort. It reads "Clear filters", or "Clear search and filters" while a search is in force, as a ghost button beside the toolbar, an outline button in an empty result, and a small one in a popover header. A list with a search and no filter (All properties, Google import) reads "Clear search": it names only what it takes away.
+- **Removable chips** are one button with the label and an X (`RemovableChip`): a 32px pill from `md`, and below it a tap target like every control (`--control-touch`, so 44px in a form and 36px in the compact Inbox). The search field's X is a tap target below `md` too. A choice between exclusive options (the Inbox sheet's radio pills) is not a chip.
+- **The Inbox keeps its compact composition** (an icon that opens the search, a popover on desktop and a bottom sheet on a phone) and wears the same field internals, glyphs, count and Clear words.
+
 ### Navigation (Sidebar)
 
-- **Width:** 256px expanded, 48px collapsed. Collapses to sheet drawer below 1024px (lg breakpoint).
+- **Width:** 256px expanded, 48px collapsed (the icon rail). Below 768px (`md`) the sidebar is a sheet drawer; from 768px up it docks beside the content.
+- **One collapse mode:** the app sidebar and the Settings sidebar both collapse to the icon rail and share one open state, so collapsing on any page never leaves the other sidebar off-screen.
 - **Background:** Same as page (Graphite Obsidian). No distinction between sidebar and content area — they share the same foundation.
-- **Active item:** Spectral Violet Muted background with Spectral Violet text, font-weight 600. The muted purple fills the row, creating the Linear-style indent signal.
-- **Inactive item:** Ink Secondary text, no background. Hovered: subtle Graphite Surface background.
+- **Active item:** Spectral Violet Muted background with Ink Primary text (`sidebar-accent-foreground`), font-weight 600. The muted purple fills the row, creating the Linear-style indent signal; the text stays primary ink so the label keeps its contrast on the fill.
+- **Inactive item:** `sidebar-foreground` ink (Ink Primary), no background. Hovered: subtle Graphite Surface background.
 - **Icons:** Spectral Violet color in both themes. Lucide icon set, 16px, 1.5px stroke width. The consistent purple icon treatment anchors the navigation hierarchy.
 - **Section groups:** Separated by 1px Graphite Border lines. Group labels use the overline style (12px, 600 weight, uppercase, wide tracking).
+
+### Page frame
+
+- **One gutter owner:** `<main>` in the authenticated layout is the only element that pads a page: 16px on the sides on a phone and 24px from `md`, 20px above and below on a phone and 32px from `md`. A Property page, a Settings page and the Properties list all sit on that edge; nothing below `<main>` adds a second gutter.
+- **Width tiers:** `PageShell` sets the content width. Dashboard 1200px for data and management lists (Properties, Portals, People, Goals, the Property dashboards), standard 1024px for other lists and flows, narrow 768px for settings and forms.
+- **Full-bleed surfaces:** the Inbox, a Property's Reviews and the portal workspace own their viewport and scroll their own panes, so `<main>` pads nothing there and the sidebar holds at the icon rail. They are named in one place (`isFullBleedRoute`). A padded body inside one (a fallback, a tab of cards) wears `FullBleedFrame`, which gives back the same gutter.
+- **Theme:** one segmented Light / Dark / System control, in that order, in Preferences and in the account menu. The public header, which has no room for three segments on a phone, keeps a single icon button that steps through the same list.
 
 ### Tables
 

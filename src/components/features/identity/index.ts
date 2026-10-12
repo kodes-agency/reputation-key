@@ -5,8 +5,30 @@
 export { LoginForm } from './login/login-form'
 export { RegisterForm } from './registration/register-form'
 export { AcceptInvitationPage } from './registration/accept-invitation-page'
+export { InvitationLinkPage } from './registration/invitation-link-page'
+export { InvitationLinkStateCard } from './registration/invitation-state-card'
+export { InvitationSummary } from './registration/invitation-summary'
+export type {
+  InvitationLink,
+  UnusableInvitationLink,
+} from './registration/invitation-link'
 export { MemberTable } from './member-directory/member-table'
-export type { MemberRow } from './member-directory/member-table'
+export type { MemberRow, PropertyRef } from './member-directory/member-table'
+export { ChangeRoleDialog } from './member-directory/change-role-dialog'
+export { MemberAccessSheet } from './member-directory/member-access-sheet'
+export type {
+  MemberAccessTarget,
+  ResponsibilityState,
+  SaveMemberAccessInput,
+} from './member-directory/member-access-sheet'
+export {
+  grantsOnListedProperties,
+  joinNames,
+} from './member-directory/member-access-diff'
+export {
+  memberRowsWithProperties,
+  propertyIdsByUser,
+} from './member-directory/member-rows'
 export { InviteMemberForm } from './member-directory/invite-member-form'
 export { InvitationTable } from './member-directory/invitation-table'
 export type { InvitationRow } from './member-directory/invitation-table'

@@ -3,6 +3,7 @@
 // (#rgb) commits when the field is left, and anything else goes back to the
 // colour that stands.
 import { useId, useState } from 'react'
+import { FormFieldFrame } from '#/components/forms/form-field-frame'
 import { Input } from '#/components/ui/input'
 import { parseColourInput } from './property-look-rules'
 
@@ -33,10 +34,7 @@ export function PropertyLookColourField({
     onCommit(colour)
   }
   return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </label>
+    <FormFieldFrame id={id} label={label} invalid={invalid} className="gap-1.5">
       <div className="flex items-center gap-2">
         <input
           type="color"
@@ -71,6 +69,6 @@ export function PropertyLookColourField({
           }}
         />
       </div>
-    </div>
+    </FormFieldFrame>
   )
 }

@@ -264,8 +264,8 @@ function railEntries(
  * `px-3`, so its words start on the content column like every event sentence;
  * the hover fill then reaches back into the 12 px gap, as the canvas draws it.
  * `h-8` sits on the 32 px band an event's first line centres on. Below `md` it
- * is 36 px (`max-md:h-9`) — row 20's control height on the phone sheet,
- * applied here rather than left for PR 5's sweep because the control is new.
+ * takes the Inbox's compact 36 px from the Button (row 20's control height on
+ * the phone sheet).
  */
 function EarlierEventsNode({
   count,
@@ -284,7 +284,7 @@ function EarlierEventsNode({
           type="button"
           variant="ghost"
           size="sm"
-          className="-ml-3 text-[13px] font-medium text-muted-foreground max-md:h-9"
+          className="-ml-3 text-[13px] font-medium text-muted-foreground"
           aria-expanded={expanded}
           onClick={onToggle}
         >

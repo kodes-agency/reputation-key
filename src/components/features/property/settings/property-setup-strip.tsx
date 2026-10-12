@@ -46,7 +46,7 @@ function StepLink({
       params={{ propertyId }}
       className={cn(
         chip,
-        'bg-background font-medium hover:border-primary/40 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+        'bg-background font-medium hover:border-primary/40 hover:bg-primary/5 focus-ring',
       )}
     >
       {label}

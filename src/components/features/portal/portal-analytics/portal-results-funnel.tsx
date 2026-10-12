@@ -6,6 +6,7 @@
 import { Lock } from 'lucide-react'
 import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
 import { portalFunnelPresentation } from './portal-funnel-presentation'
+import { formatNumber } from '#/lib/format'
 
 type Props = Readonly<{
   funnel: NonNullable<PortalAnalyticsData['engagementFunnel']> | null
@@ -71,9 +72,7 @@ export function PortalResultsFunnel({
                 <div className="flex items-baseline justify-between gap-3 text-sm">
                   <span>{stage.name}</span>
                   <span className="tabular-nums">
-                    <span className="font-medium">
-                      {stage.actual.toLocaleString('en-US')}
-                    </span>
+                    <span className="font-medium">{formatNumber(stage.actual)}</span>
                     {share === null ? null : (
                       <span className="text-muted-foreground"> · {share}% of scans</span>
                     )}
@@ -98,7 +97,7 @@ export function PortalResultsFunnel({
               Private notes
             </p>
             <p className="mt-1 text-2xl leading-8 font-bold tabular-nums">
-              {privateNotes.toLocaleString('en-US')}
+              {formatNumber(privateNotes)}
             </p>
             <p className="mt-0.5 max-w-44 text-xs text-muted-foreground">
               Notes guests left for the team, not on Google.

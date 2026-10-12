@@ -72,9 +72,9 @@ export function useLinktreeMutations(propertyId: string, portalId: string) {
     /** The refusal of the last link change, to show beside the tile it came from. */
     updateFailure,
     clearUpdateFailure: () => setUpdateFailure(null),
+    // The confirmation dialog shows a refusal itself, so no error toast.
     deleteLink: useActionMutation(deleteLink, {
       successMessage: 'Link deleted',
-      errorMessage: actionErrorMessage,
       invalidateKeys,
     }),
     reorderLinks: useActionMutation(reorderLinks, {

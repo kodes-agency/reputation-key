@@ -66,12 +66,11 @@ type Input = Readonly<{
  * deliberately excludes the draft, template-list and template-load mutations so
  * an autosave in flight never disables the action row.
  *
- * Every command a manager clicks opts into `errorMessage`. `Action` is
- * `mutateAsync`, so the call sites guard the promise against an unhandled
- * rejection, and before this nothing else reported a refusal: a failed
- * approve, reject, retry, update or check left the pane exactly as it was. The
- * draft and template mutations stay silent — autosave reports its own state in
- * the composer.
+ * Every command a manager clicks reports its refusal: submit, reject, retry and
+ * delete by `errorMessage`, approve and update by the confirmation they sit in,
+ * which stays open and says it. `Action` is `mutateAsync`, so the call sites
+ * guard the promise against an unhandled rejection. The draft and template
+ * mutations stay silent — autosave reports its own state in the composer.
  */
 export function useReplyActions(input: Input): ReplyActions {
   const { reviewId, onReplyChanged } = input
@@ -98,9 +97,10 @@ export function useReplyActions(input: Input): ReplyActions {
     errorMessage: actionErrorMessage,
     onSuccess: changed('state_changed'),
   })
+  // Approve and edit are confirmed in a dialog that stays open and says a refusal
+  // itself, so they pass no `errorMessage`: a toast as well would tell it twice.
   const approve = useActionMutation(approveReplyFn, {
     successMessage: 'Confirmation recorded. Waiting for Google',
-    errorMessage: actionErrorMessage,
     onSuccess: changed('state_changed'),
   })
   const reject = useActionMutation(rejectReplyFn, {
@@ -129,7 +129,6 @@ export function useReplyActions(input: Input): ReplyActions {
   })
   const edit = useActionMutation(editPublishedReplyFn, {
     successMessage: 'Update confirmed. Waiting for Google',
-    errorMessage: actionErrorMessage,
     onSuccess: changed('state_changed'),
   })
   const listTemplates = useActionMutation(listReplyTemplatesFn)

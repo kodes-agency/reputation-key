@@ -4,7 +4,7 @@ import { PeoplePage } from './people-page'
 import { seededArgs } from './people-page-stories-data'
 
 const meta: Meta<typeof PeoplePage> = {
-  title: 'Property/PeoplePage',
+  title: 'Property/StaffPage',
   component: PeoplePage,
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
@@ -13,10 +13,17 @@ export default meta
 type Story = StoryObj<typeof PeoplePage>
 
 export const Populated: Story = {
-  args: { ...seededArgs, tab: 'staff' },
+  args: { ...seededArgs },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()
+    // One list: no Directory of every member (Settings › Members owns that), so no
+    // views to switch between.
+    expect(canvas.getByRole('heading', { name: 'Staff', level: 1 })).toBeInTheDocument()
+    expect(canvas.queryByRole('navigation', { name: 'People views' })).toBeNull()
+    expect(canvas.queryByText('Directory')).toBeNull()
+    // A management list is a dashboard-tier page, like Portals and Properties.
+    expect(canvasElement.querySelector('.max-w-\\[1200px\\]')).not.toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: /add staff/i }))
     const dialog = await within(document.body).findByRole('dialog')
     await expect(
@@ -31,42 +38,6 @@ export const Empty: Story = {
     participations: [],
     responsibilities: [],
     portals: [],
-    tab: 'staff',
-  },
-}
-
-export const Loading: Story = {
-  args: { ...seededArgs, state: 'loading' },
-}
-
-export const Error: Story = {
-  args: {
-    ...seededArgs,
-    state: 'error',
-    errorMessage: 'People are temporarily unavailable.',
-  },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByText('People are temporarily unavailable.'),
-    ).toBeInTheDocument()
-  },
-}
-
-export const PermissionDenied: Story = {
-  args: { ...seededArgs, state: 'forbidden' },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByText(/do not have permission to view people/i),
-    ).toBeInTheDocument()
-  },
-}
-
-export const Directory: Story = {
-  args: { ...seededArgs, tab: 'directory' },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()
-    await expect(canvas.getByText('bob@acme.com')).toBeInTheDocument()
   },
 }
 
@@ -80,15 +51,11 @@ const archiveRefusals: Error[] = []
 export const ArchiveRefused: Story = {
   args: {
     ...seededArgs,
-    tab: 'staff',
     // A plain function, not `fn()`: the spy attaches its own handler to every
     // promise it returns, which would mark the rejection handled.
     archiveParticipationMutation: Object.assign(
       async () => {
-        // globalThis: in this file `Error` is the error-state story.
-        const refusal = new globalThis.Error(
-          'This participation changed. Reload and try again.',
-        )
+        const refusal = new Error('This participation changed. Reload and try again.')
         archiveRefusals.push(refusal)
         throw refusal
       },
@@ -127,7 +94,7 @@ export const ArchiveRefused: Story = {
 }
 
 export const PortalsDenied: Story = {
-  args: { ...seededArgs, portals: [], portalsDenied: true, tab: 'staff' },
+  args: { ...seededArgs, portals: [], portalsDenied: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()

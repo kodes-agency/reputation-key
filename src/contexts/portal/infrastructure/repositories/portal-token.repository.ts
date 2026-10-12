@@ -159,6 +159,7 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
           issuedAt: portalTokens.issuedAt,
           gracePeriodEnds: portalTokens.gracePeriodEnds,
           addressKeyVersion: portalTokens.addressEncryptionKeyVersion,
+          issuedBy: portalTokens.issuedBy,
           accessArtifactId: portalAccessArtifacts.id,
         })
         .from(portalTokens)
@@ -191,6 +192,7 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
           (await outgoingGraceEnd(db, organizationId, portalId, row.version, asOf)),
         hasPublishedAccessArtifact: row.accessArtifactId !== null,
         addressKeyVersion: row.addressKeyVersion,
+        issuedBy: row.issuedBy,
       }
     }),
 
@@ -206,6 +208,7 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
           issuedAt: portalTokens.issuedAt,
           gracePeriodEnds: portalTokens.gracePeriodEnds,
           addressKeyVersion: portalTokens.addressEncryptionKeyVersion,
+          issuedBy: portalTokens.issuedBy,
           accessArtifactId: portalAccessArtifacts.id,
         })
         .from(portalTokens)
@@ -246,6 +249,7 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
         gracePeriodEnds: row.gracePeriodEnds ?? outgoing.get(row.portalId) ?? null,
         hasPublishedAccessArtifact: row.accessArtifactId !== null,
         addressKeyVersion: row.addressKeyVersion,
+        issuedBy: row.issuedBy,
       }))
     }),
 

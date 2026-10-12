@@ -1,5 +1,6 @@
 import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 import type { RatingComparisonWithheld } from '#/contexts/reporting/application/public-api'
+import { formatNumber } from '#/lib/format'
 
 export type RatingPresentationInput = Readonly<{
   value: number | null
@@ -44,7 +45,7 @@ export function ratingPresentation(
     comparison === null
       ? '—'
       : `${comparison > 0 ? '+' : comparison < 0 ? '−' : ''}${Math.abs(comparison).toFixed(1)}`
-  const sample = `${rating.sampleCount.toLocaleString('en-US')} eligible ${rating.sampleCount === 1 ? 'rating' : 'ratings'}.`
+  const sample = `${formatNumber(rating.sampleCount)} eligible ${rating.sampleCount === 1 ? 'rating' : 'ratings'}.`
   const explanation =
     timeRange === 'all'
       ? 'All-time view has no prior-period comparison.'
@@ -53,7 +54,7 @@ export function ratingPresentation(
         : `${comparisonText} stars vs prior period`
 
   return {
-    label: `Average private rating (n = ${rating.sampleCount.toLocaleString('en-US')})`,
+    label: `Average private rating (n = ${formatNumber(rating.sampleCount)})`,
     value: rating.value === null ? '—' : `${rating.value.toFixed(1)} / 5`,
     comparison: comparisonText,
     direction,

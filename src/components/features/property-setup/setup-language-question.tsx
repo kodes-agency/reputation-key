@@ -51,7 +51,7 @@ function LanguageSelect({
 }>) {
   return (
     <Select value={value} onValueChange={onValueChange} disabled={disabled}>
-      <SelectTrigger id={id} aria-label={label} className="min-h-11 w-full sm:min-h-9">
+      <SelectTrigger id={id} aria-label={label} className="w-full">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

@@ -1,11 +1,12 @@
 import { useForm } from '@tanstack/react-form'
 import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { submitForm } from '#/components/forms/form-submit'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
+import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { Field, FieldError, FieldGroup, FieldLabel } from '#/components/ui/field'
-import { Input } from '#/components/ui/input'
+import { FieldGroup } from '#/components/ui/field'
+import { FormTextField } from '#/components/forms/form-text-field'
+import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import type { CreateStaffParticipationMutationInput } from '#/components/features/staff/types'
 import { createStaffParticipationInputSchema } from '#/contexts/identity/application/dto/staff-participation.dto'
 
@@ -30,41 +31,27 @@ export function StaffParticipationForm({ propertyId, mutation, onSuccess }: Prop
   })
 
   return (
-    <form
-      className="space-y-4"
-      onSubmit={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        void submitForm(form)
-      }}
-    >
-      <FormErrorBanner error={mutation.error} />
+    <form className="space-y-4" onSubmit={submitHandler(form)}>
       <FieldGroup>
         <form.Field name="displayName">
           {(field) => (
-            <Field data-invalid={!field.state.meta.isValid}>
-              <FieldLabel htmlFor="staff-display-name">Name</FieldLabel>
-              <Input
-                id="staff-display-name"
-                autoComplete="name"
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.value)}
-                placeholder="e.g. Alex Morgan"
-                aria-invalid={!field.state.meta.isValid}
-              />
-              <FieldError
-                errors={
-                  field.state.meta.errors as Array<{ message?: string } | undefined>
-                }
-              />
-            </Field>
+            <FormTextField
+              field={field}
+              id="staff-display-name"
+              label="Name"
+              autoComplete="name"
+              placeholder="e.g. Alex Morgan"
+            />
           )}
         </form.Field>
       </FieldGroup>
-      <SubmitButton mutation={mutation} form={form}>
-        Add staff
-      </SubmitButton>
+      <DialogErrorBanner error={mutation.error} />
+      <DialogFooter>
+        <DialogCancel />
+        <SubmitButton mutation={mutation} form={form}>
+          Add staff
+        </SubmitButton>
+      </DialogFooter>
     </form>
   )
 }

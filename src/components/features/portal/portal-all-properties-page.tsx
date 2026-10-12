@@ -7,10 +7,6 @@
 // Presentational, like `PortalListPage`: the route owns the reads and the URL.
 // The results arrive as a separate read and are optional: a role that may not
 // read results gets the list without them.
-import { Globe, SearchX } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import { EmptyState } from '#/components/ui/empty-state'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
@@ -25,6 +21,10 @@ import {
   describeAllProperties,
   type PortalPropertyInfo,
 } from './portal-overview/portal-all-properties-view'
+import {
+  PortalOverviewEmpty,
+  PortalOverviewNoMatch,
+} from './portal-overview/portal-overview-empty'
 import { PortalOverviewPager } from './portal-overview/portal-overview-pager'
 import {
   PortalOverviewResultsFooter,
@@ -72,16 +72,6 @@ function searchWithoutScansSort(
     : search
 }
 
-function NoPortalsMatch({ onClear }: Readonly<{ onClear: () => void }>) {
-  return (
-    <EmptyState icon={SearchX} title="No portals match">
-      <Button variant="outline" onClick={onClear}>
-        Clear search
-      </Button>
-    </EmptyState>
-  )
-}
-
 function scansOrderOf(search: AllPropertiesSearch) {
   return search.sort === 'scans'
     ? (search.dir ?? defaultSortDirection('scans'))
@@ -109,6 +99,7 @@ function PortalAllPropertiesList({
   onPage,
   archiveMutation,
   restoreMutation,
+  disableMutation,
 }: ListProps) {
   return (
     <>
@@ -121,6 +112,7 @@ function PortalAllPropertiesList({
         onToggleProperty={onToggleProperty}
         archiveMutation={archiveMutation}
         restoreMutation={restoreMutation}
+        disableMutation={disableMutation}
       />
       {/* A folded Property's Portals are not on any page: count what is. */}
       <PortalOverviewPager
@@ -146,6 +138,7 @@ export function PortalAllPropertiesPage({
   onSearchChange,
   archiveMutation,
   restoreMutation,
+  disableMutation,
 }: PortalAllPropertiesPageProps) {
   const { collapsed, toggle } = useCollapsedProperties()
   const resultsState: PortalOverviewResultsState = results?.state ?? { status: 'off' }
@@ -167,7 +160,7 @@ export function PortalAllPropertiesPage({
     <PageShell tier="dashboard">
       <PageHeader
         title="Portals"
-        description={describeAllProperties(
+        meta={describeAllProperties(
           {
             properties: overview.propertyCount,
             portals: overview.total,
@@ -178,15 +171,8 @@ export function PortalAllPropertiesPage({
         )}
         actions={newPortal}
       />
-      <FormErrorBanner error={archiveMutation.error ?? restoreMutation.error} />
-
       {rows.length === 0 ? (
-        <EmptyState icon={Globe} title="No portals yet">
-          <p className="text-sm text-muted-foreground">
-            Create a portal to set up a guest-facing page with links.
-          </p>
-          {newPortal}
-        </EmptyState>
+        <PortalOverviewEmpty action={newPortal} />
       ) : (
         <>
           {results ? (
@@ -206,7 +192,11 @@ export function PortalAllPropertiesPage({
               onChange={update}
             />
             {overview.matched === 0 ? (
-              <NoPortalsMatch onClear={() => update({ q: undefined })} />
+              <PortalOverviewNoMatch
+                searching={(listSearch.q ?? '').trim() !== ''}
+                filters={false}
+                onClear={() => update({ q: undefined })}
+              />
             ) : (
               <PortalAllPropertiesList
                 overview={overview}
@@ -218,6 +208,7 @@ export function PortalAllPropertiesPage({
                 onPage={(page) => update({ page })}
                 archiveMutation={archiveMutation}
                 restoreMutation={restoreMutation}
+                disableMutation={disableMutation}
               />
             )}
           </section>

@@ -31,19 +31,38 @@ export function offersPropertySearch(propertyCount: number): boolean {
   return propertyCount >= SEARCH_MIN_PROPERTIES
 }
 
-const folded = (text: string) =>
-  text
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLocaleLowerCase()
+/**
+ * Text as a search sees it: case and accents gone, compatibility forms (full
+ * width, ligatures) flattened. Both sides of every comparison go through this,
+ * so "cafe" finds "Café", "СТАРА" finds "Стара" and "CAFÉ" finds "Cafe".
+ */
+export function foldSearchText(text: string): string {
+  return text.normalize('NFKD').replace(/\p{M}/gu, '').toLocaleLowerCase()
+}
 
 /**
- * Whether a property name answers a search: part of the name, ignoring case and
- * accents, so "rila" finds "Rila Grand Hotel" and "cafe" finds "Café Plaza".
+ * The one text matcher for every client-side list search (Properties, the
+ * property picker, Portals, All properties, Google import candidates). Fold the
+ * query once, then test as many strings as the row has. A blank query matches
+ * everything.
+ *
  * Deliberately not fuzzy: property ids are UUIDs, and a scorer that matched
  * letters in order would find almost every property for almost any word.
  */
+export function searchMatcher(search: string): (text: string) => boolean {
+  const query = foldSearchText(search.trim())
+  return (text) => query === '' || foldSearchText(text).includes(query)
+}
+
+/** Whether `text` answers `search`: part of it, ignoring case and accents. */
+export function matchesSearchText(text: string, search: string): boolean {
+  return searchMatcher(search)(text)
+}
+
+/**
+ * Whether a property name answers a search: "rila" finds "Rila Grand Hotel" and
+ * "cafe" finds "Café Plaza".
+ */
 export function matchesPropertySearch(name: string, search: string): boolean {
-  const query = folded(search.trim())
-  return query === '' || folded(name).includes(query)
+  return matchesSearchText(name, search)
 }

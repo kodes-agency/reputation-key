@@ -12,12 +12,22 @@ const ids = (row: Parameters<typeof portalRowMenu>[0], access = manager) =>
   portalRowMenu(row, access).map((item) => item.id)
 
 describe('portalRowMenu', () => {
-  it('offers results and history for a live Portal, and archiving last', () => {
-    expect(ids(overviewRow('a'))).toEqual(['results', 'history', 'archive'])
+  it('offers results and history for a live Portal, then disabling and archiving', () => {
+    expect(ids(overviewRow('a'))).toEqual(['results', 'history', 'disable', 'archive'])
   })
 
   it('offers review only when something is waiting to go live', () => {
     expect(ids(overviewRow('a', { pendingChangeCount: 2 }))).toEqual([
+      'results',
+      'history',
+      'review',
+      'disable',
+      'archive',
+    ])
+  })
+
+  it('offers review to bring a disabled Portal back, and nothing to disable', () => {
+    expect(ids(overviewRow('a', { publicationState: 'disabled' }))).toEqual([
       'results',
       'history',
       'review',
@@ -62,6 +72,7 @@ describe('portalRowMenu', () => {
       'results',
       'history',
       'review',
+      'disable',
     ])
     expect(
       ids(overviewRow('a', { publicationState: 'archived' }), {
@@ -77,9 +88,11 @@ describe('portalRowMenu', () => {
     ).toEqual(['results', 'history'])
   })
 
-  it('marks archiving as the destructive choice', () => {
+  it('offers disabling and archiving as neutral entries: both are undone', () => {
     const items = portalRowMenu(overviewRow('a'), manager)
-    expect(items.find((item) => item.id === 'archive')?.destructive).toBe(true)
-    expect(items.find((item) => item.id === 'results')?.destructive).toBe(false)
+    expect(items.map((item) => item.id)).toEqual(
+      expect.arrayContaining(['disable', 'archive']),
+    )
+    expect(items.some((item) => 'destructive' in item)).toBe(false)
   })
 })

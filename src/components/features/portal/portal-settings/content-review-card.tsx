@@ -3,7 +3,6 @@
 // `portal.approved_destination_ratio` facts produced from the saved gateway.
 
 import { useState } from 'react'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import type { Action } from '#/components/hooks/use-action'
 import { ContentReviewAttestation } from './content-review-attestation'
 import { reviewStatusMessage } from './content-review-status'
@@ -33,13 +32,11 @@ export function ContentReviewCard({ portal, mutation, disabled }: Props) {
       <div className="space-y-1">
         <h3 className="text-sm font-medium">Content review</h3>
         <p className="text-xs text-muted-foreground">
-          Review the saved gateway details — name, description, appearance, categories and
-          destinations — and confirm every destination opens the intended review page.
+          Check the saved page — the welcome lines, the look and the Linktree — and
+          confirm the Google link and every Linktree link open the page they should.
           Changes to this portal save as you make them.
         </p>
       </div>
-
-      <FormErrorBanner error={mutation.error} />
 
       {isPublished ? (
         <ContentReviewAttestation

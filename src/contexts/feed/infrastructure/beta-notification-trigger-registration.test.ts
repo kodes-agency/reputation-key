@@ -42,6 +42,8 @@ describe('registered durable notification matrix', () => {
 
     registerIdentityAccountNotificationConsumers(consumerRegistry, {
       queue: fakes.queue,
+      displayNames: fakes.displayNames,
+      logger: fakes.logger,
       receipts,
     })
     // LIF-01 bullet 5 — the mandatory Purge Pending final notice.

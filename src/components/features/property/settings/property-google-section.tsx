@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { ExternalLink } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
+import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import {
   Card,
   CardAction,
@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 
 type GoogleBindingState =
@@ -78,19 +79,21 @@ export function PropertyGoogleSection({ property }: Props) {
   return (
     <Card>
       <CardHeader className="border-b">
-        <CardTitle>Google Business Profile</CardTitle>
+        <CardTitle as="h2">Google Business Profile</CardTitle>
         <CardDescription>{binding.detail}</CardDescription>
         <CardAction>
-          <Badge variant={binding.tone === 'ok' ? 'secondary' : 'outline'}>
-            {binding.label}
-          </Badge>
+          <StatusBadge
+            tone={binding.tone === 'ok' ? 'positive' : 'warn'}
+            label={binding.label}
+          />
         </CardAction>
       </CardHeader>
       <CardContent>
-        <dl className="grid gap-3 text-sm sm:grid-cols-[10rem_minmax(0,1fr)]">
-          <dt className="text-muted-foreground">Review destination</dt>
-          <dd>{destinationText(property.googleReviewDestination)}</dd>
-        </dl>
+        <DescriptionList termWidth="wide" aria-label="Google review destination">
+          <DescriptionItem term="Review destination">
+            {destinationText(property.googleReviewDestination)}
+          </DescriptionItem>
+        </DescriptionList>
       </CardContent>
       <CardFooter className="flex flex-wrap gap-2 border-t">
         {can('property.import_gbp_v2') ? (
@@ -109,8 +112,8 @@ export function PropertyGoogleSection({ property }: Props) {
         {can('integration.manage') ? (
           <Button asChild variant="ghost" size="sm">
             <Link to="/settings/integrations">
-              Organization Google connection
-              <ExternalLink data-icon="inline-end" aria-hidden="true" />
+              Open Google integrations
+              <ExternalLink aria-hidden="true" />
             </Link>
           </Button>
         ) : null}

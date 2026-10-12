@@ -7,6 +7,7 @@ import {
   GUEST_LOCALES,
   GUEST_LOCALE_METADATA,
   OFFERED_GUEST_LOCALES,
+  adminLanguageCode,
   type GuestLocale,
   type OfferedGuestLocale,
 } from '#/shared/domain/guest-locale'
@@ -134,6 +135,17 @@ export function applyLanguageChange(
   return next === null ? null : asOfferedSet(next)
 }
 
+/** The English name to show beside a language's own; none for English, which would repeat it. */
+export function englishNameBeside(locale: GuestLocale): string | null {
+  const { nativeName, englishName } = GUEST_LOCALE_METADATA[locale]
+  return englishName === nativeName ? null : englishName
+}
+
+/** The line under a language's name in the list: what the fallback does, or the English name. */
+export function languageSubline(locale: GuestLocale, isFallback: boolean): string | null {
+  return isFallback ? 'Used when a text is missing' : englishNameBeside(locale)
+}
+
 export function languageDisplayName(locale: GuestLocale): {
   native: string
   english: string
@@ -143,7 +155,7 @@ export function languageDisplayName(locale: GuestLocale): {
   return {
     native: metadata.nativeName,
     english: metadata.englishName,
-    chip: metadata.chipLabel,
+    chip: adminLanguageCode(locale),
   }
 }
 
@@ -168,9 +180,9 @@ export function describeCoverage(row: PortalLanguageCoverageRow): CoverageDescri
 export function describeMissingText(text: MissingPortalText): string {
   switch (text.kind) {
     case 'title':
-      return 'Title'
+      return 'Welcome line'
     case 'description':
-      return 'Description'
+      return 'Link preview'
     case 'link_label':
       return text.linkLabel === null ? 'Link label' : `Label for “${text.linkLabel}”`
   }
@@ -182,19 +194,25 @@ export function missingTextSection(text: MissingPortalText): 'welcome' | 'linktr
 }
 
 /**
- * What a manager does about a missing text. A title or description is missing
- * because the Property has no wording for the language (an override alone does
- * not count), which an account admin writes; a link label is written in the
- * Linktree section. Where the gap is does not change who fixes it.
+ * What a person does about a missing text. A link label is written in the
+ * Linktree section. A title or description is missing because the property has
+ * no wording for the language (an override alone does not count), which only an
+ * account admin writes, in Welcome, where the property's wording opens for that
+ * language: for them the gap is a link there. Anyone else is told who writes it.
+ * Where the gap is does not change who fixes it.
  */
 export type MissingTextAction =
   | Readonly<{ kind: 'write'; section: 'welcome' | 'linktree' }>
-  | Readonly<{ kind: 'needs_property_wording' }>
+  | Readonly<{ kind: 'ask_account_admin'; section: 'welcome' }>
 
-export function missingTextAction(text: MissingPortalText): MissingTextAction {
-  return text.kind === 'link_label'
-    ? { kind: 'write', section: missingTextSection(text) }
-    : { kind: 'needs_property_wording' }
+export function missingTextAction(
+  text: MissingPortalText,
+  canWritePropertyWording: boolean,
+): MissingTextAction {
+  if (text.kind === 'link_label') return { kind: 'write', section: 'linktree' }
+  return canWritePropertyWording
+    ? { kind: 'write', section: 'welcome' }
+    : { kind: 'ask_account_admin', section: 'welcome' }
 }
 
 const joinParts = (parts: readonly string[]): string =>
@@ -206,8 +224,8 @@ const joinParts = (parts: readonly string[]): string =>
 function describeReadInFallback(texts: readonly MissingPortalText[]): string {
   const labels = texts.filter((text) => text.kind === 'link_label').length
   return joinParts([
-    ...(texts.some((text) => text.kind === 'title') ? ['the title'] : []),
-    ...(texts.some((text) => text.kind === 'description') ? ['the description'] : []),
+    ...(texts.some((text) => text.kind === 'title') ? ['the welcome line'] : []),
+    ...(texts.some((text) => text.kind === 'description') ? ['the link preview'] : []),
     ...(labels > 0 ? [plural(labels, 'link label', 'link labels')] : []),
   ])
 }

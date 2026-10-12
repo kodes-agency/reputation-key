@@ -4,7 +4,7 @@
 // posture: portal.read, goal.use, … deny with `org_not_allowlisted`), server
 // functions throw a ServerFunctionError with the capability deny reason as
 // `.code` (see execution-policy.ts requireExecutionAllowed). An ENABLED
-// surface that embeds one dark query (the People page's portals query) must
+// surface that embeds one dark query (the Staff page's portals query) must
 // degrade on exactly these deliberate postures — while REAL errors (DB down,
 // internal_error, validation) still fail.
 //

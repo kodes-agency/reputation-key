@@ -5,6 +5,9 @@ import type {
   GoalSubject,
 } from '../domain/goal-program'
 import type { GoalProgramBundle } from './ports/goal-program.repository'
+import { effectiveMonthTarget } from './goal-effective-month-target'
+import { monthTargetMarker, type GoalMonthTargetMarker } from './goal-month-target-marker'
+import { goalTargetProvenance } from './goal-target-provenance'
 
 export type GoalResultsMatrixAvailability =
   'ready' | 'updating' | 'insufficient_data' | 'temporarily_unavailable'
@@ -42,9 +45,17 @@ export type GoalResultsMatrixRow = Readonly<{
     programName: string
     programVersion: number
     metricDefinitionVersionId: string
+    /** The target the month is judged against: its own when it has one, else its version's. */
     targetValue: number
     effectiveFrom: Date
+    /** When the version's target was set; a later change of subjects alone does not move it. */
+    setAt: Date
   }>
+  /**
+   * Who changed this month's target last, when, what it started at and how
+   * many times it changed. Null for a month on the target it started with.
+   */
+  monthTarget: GoalMonthTargetMarker | null
 }>
 
 export type GoalResultsMatrix = Readonly<{
@@ -182,6 +193,7 @@ export function buildGoalResultsMatrix(input: GoalResultsMatrixInput): GoalResul
         (candidate) => candidate.id === result.programVersionId,
       )
       if (!assignment || !version) continue
+      const targetValue = effectiveMonthTarget(result, version)
       const key = `${result.periodStart.toISOString()}:${result.periodEnd.toISOString()}`
       const month = months.get(key) ?? {
         periodStart: result.periodStart,
@@ -214,7 +226,7 @@ export function buildGoalResultsMatrix(input: GoalResultsMatrixInput): GoalResul
         ),
         explanation: resultExplanation(
           version.metric,
-          version.targetValue,
+          targetValue,
           version.metricMinimumSample,
           result.evaluation,
         ),
@@ -230,9 +242,11 @@ export function buildGoalResultsMatrix(input: GoalResultsMatrixInput): GoalResul
           programName: bundle.program.name,
           programVersion: version.version,
           metricDefinitionVersionId: version.metricDefinitionVersionId,
-          targetValue: version.targetValue,
+          targetValue,
           effectiveFrom: version.effectiveFrom,
+          setAt: goalTargetProvenance(bundle, version).setAt,
         },
+        monthTarget: monthTargetMarker(bundle, result, version),
       })
       months.set(key, month)
     }

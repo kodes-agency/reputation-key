@@ -3,6 +3,7 @@
 // Per architecture: "Zod at HTTP boundaries (server function inputs)"
 
 import { z } from 'zod/v4'
+import { INVITATION_ID_MAX_LENGTH } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 
 export const inviteMemberInputSchema = z.object({
@@ -58,7 +59,10 @@ export type SetActiveOrgInput = z.infer<typeof setActiveOrgInputSchema>
  * are not UUIDs, so only the length is bounded.
  */
 export const invitationPreviewInputSchema = z.object({
-  invitationId: z.string().min(1, 'Invitation ID is required').max(128),
+  invitationId: z
+    .string()
+    .min(1, 'Invitation ID is required')
+    .max(INVITATION_ID_MAX_LENGTH),
 })
 export type InvitationPreviewInput = z.infer<typeof invitationPreviewInputSchema>
 

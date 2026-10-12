@@ -12,6 +12,7 @@ import {
   goalSubjectScope,
   resolveResponsibleRecipients,
 } from '../application/responsible-recipients'
+import { goalMonthMarker } from './goal-month-marker'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
 import {
@@ -183,7 +184,13 @@ async function enqueueGoalNotices(
   deps: GoalNotificationConsumerDeps,
   event: ConsumerEvent,
   result: Pick<Parsed, 'organizationId' | 'propertyId' | 'monthlyResultId'>,
-  facts: Readonly<{ subject: GoalSubject; programName: string; periodMonth: string }>,
+  facts: Readonly<{
+    subject: GoalSubject
+    programName: string
+    periodMonth: string
+    setDuringMonth: boolean
+    targetChangedInMonth: boolean
+  }>,
   notice: Readonly<{
     type: 'goal.completed' | 'goal.result_revised'
     /**
@@ -202,6 +209,10 @@ async function enqueueGoalNotices(
   const recipients = await resolveResponsibleRecipients(deps, organization, scope)
   // A Goal subject sits inside one Property, the one this fact is filed under.
   const where = await buildPropertyPayload(deps, organization, property)
+  // The one marker a Goal notice may carry (ADR 0046): the month's target was
+  // changed while it ran, or the goal was set after the month began. Absent
+  // when the target stood all month.
+  const goalMarker = goalMonthMarker(facts)
 
   await Promise.all(
     recipients.map((recipient) =>
@@ -223,6 +234,7 @@ async function enqueueGoalNotices(
             goalMonth: facts.periodMonth,
             goalSubjectKind: facts.subject.kind,
             goalOutcome: notice.outcome,
+            ...(goalMarker === null ? {} : { goalMarker }),
           },
           audience: notice.audience,
         },

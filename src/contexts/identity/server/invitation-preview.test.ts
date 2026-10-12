@@ -41,7 +41,7 @@ describe('getInvitationPreview server function', () => {
 
     expect(mocks.rateLimitCheck).toHaveBeenCalledWith(
       'identity:invitation-preview:198.51.100.7',
-      { maxRequests: 30, windowSeconds: 600 },
+      { maxRequests: 60, windowSeconds: 600 },
     )
     expect(mocks.getInvitationPreview).toHaveBeenCalledWith('inv-link-1')
   })

@@ -228,7 +228,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'goal.schema.ts',
-    exportNames: ['goalProgramVersions', 'goalResultRevisions'],
+    exportNames: ['goalMonthTargetChanges', 'goalProgramVersions', 'goalResultRevisions'],
     owner: 'reporting',
     disposition: 'recoverable_archive',
     authority: 'GOA-01',

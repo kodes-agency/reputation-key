@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { PortalShare } from './portal-share'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
 import {
@@ -42,6 +43,7 @@ const noActiveToken: PortalTokenStatus = {
   issuedAt: null,
   graceExpiresAt: null,
   addressRecoverable: false,
+  madeBy: null,
 }
 
 // What the Share tab sees after a reload: a live token whose URL is gone.
@@ -52,6 +54,7 @@ const activeToken: PortalTokenStatus = {
   issuedAt: '2026-08-12T09:30:00.000Z',
   graceExpiresAt: null,
   addressRecoverable: false,
+  madeBy: 'Georgi Ivanov',
 }
 
 const issueAction = (
@@ -124,7 +127,7 @@ const baseArgs = {
 
 const openMenu = async (canvasElement: HTMLElement) =>
   userEvent.click(
-    within(canvasElement).getByRole('button', { name: /more code actions/i }),
+    within(canvasElement).getByRole('button', { name: /more actions for the code/i }),
   )
 
 export const NoCodeYet: Story = {
@@ -153,9 +156,11 @@ export const NewlyMade: Story = {
       await canvas.findByRole('img', { name: /qr code for guest services/i }),
     ).toBeInTheDocument()
     await expect(canvas.getByRole('button', { name: /download/i })).toBeEnabled()
-    await expect(
-      canvas.getByRole('button', { name: /copy nfc address/i }),
-    ).toBeInTheDocument()
+    // The NFC address says what it is for and how to check a tag.
+    const nfc = canvas.getByRole('button', { name: /copy nfc address/i })
+    await expect(nfc).toHaveAccessibleDescription(
+      /write this address to an nfc tag with any tag-writing app.*counted as nfc/i,
+    )
   },
 }
 
@@ -176,7 +181,12 @@ export const MutationError: Story = {
     ...baseArgs,
     issueMutation: issueAction(
       null,
-      new globalThis.Error('A public link could not be generated.'),
+      new ServerFunctionError(
+        'PortalError',
+        'A public link could not be generated.',
+        'link_unavailable',
+        409,
+      ),
     ),
   },
   play: async ({ canvasElement }) => {
@@ -197,13 +207,116 @@ export const PermissionDenied: Story = {
 }
 
 // A viewer sees that a code exists and when it was made, and gets no controls.
+// They are told whom to ask for the QR code or print kit, not about making one.
 export const ViewerSeesTheCode: Story = {
-  args: { ...baseArgs, tokenStatus: activeToken },
+  args: {
+    ...baseArgs,
+    tokenStatus: activeToken,
+    managerNames: ['Georgi Ivanov', 'Eli Petrova'],
+  },
   decorators: [withRole('Member')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/made 12 aug 2026/i)).toBeInTheDocument()
-    await expect(canvas.queryByRole('button', { name: /more code actions/i })).toBeNull()
+    await expect(
+      canvas.getByText('Made Aug 12, 2026 by Georgi Ivanov'),
+    ).toBeInTheDocument()
+    await expect(
+      canvas.queryByRole('button', { name: /more actions for the code/i }),
+    ).toBeNull()
+    await expect(
+      canvas.getByText('Ask Georgi Ivanov or Eli Petrova for the QR code or print kit.'),
+    ).toBeInTheDocument()
+    await expect(canvas.queryByText(/shown only when a code is made/i)).toBeNull()
+  },
+}
+
+// Without the managers' names a viewer is still told to ask, in general terms.
+export const ViewerWithoutKnownManagers: Story = {
+  args: { ...baseArgs, tokenStatus: activeToken },
+  decorators: [withRole('Member')],
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText(
+        'Ask a manager of this portal for the QR code or print kit.',
+      ),
+    ).toBeInTheDocument()
+  },
+}
+
+// A draft's code opens the unavailable page until the portal is published.
+// Making and printing it ahead of a launch is still allowed.
+export const DraftPortal: Story = {
+  args: {
+    ...baseArgs,
+    publicationState: 'draft',
+    propertyId: 'property-1',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Not published yet')).toBeInTheDocument()
+    await expect(
+      canvas.getByText(/see “This page isn’t available right now” until you publish/),
+    ).toBeInTheDocument()
+    await expect(canvas.getByRole('link', { name: 'Review & publish' })).toHaveAttribute(
+      'href',
+      '/properties/property-1/portals/portal-1/review?tab=share',
+    )
+    await expect(canvas.getByRole('button', { name: /make code/i })).toBeEnabled()
+  },
+}
+
+// Someone who can only look learns the same fact, but is not sent to publish.
+export const ViewerOfADraftPortal: Story = {
+  args: {
+    ...baseArgs,
+    tokenStatus: activeToken,
+    publicationState: 'draft',
+    propertyId: 'property-1',
+  },
+  decorators: [withRole('Member')],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(/isn’t available right now” until the portal is published\./),
+    ).toBeInTheDocument()
+    await expect(canvas.queryByText(/until you publish/)).toBeNull()
+    await expect(canvas.queryByRole('link', { name: 'Review & publish' })).toBeNull()
+  },
+}
+
+// An archived portal is restored from the Portals list, not published here.
+export const ArchivedPortal: Story = {
+  args: {
+    ...baseArgs,
+    tokenStatus: activeToken,
+    publicationState: 'archived',
+    propertyId: 'property-1',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('The portal is archived')).toBeInTheDocument()
+    await expect(canvas.queryByRole('link', { name: 'Review & publish' })).toBeNull()
+  },
+}
+
+// A live portal gets no such notice.
+export const LivePortalHasNoPublishNotice: Story = {
+  args: { ...baseArgs, tokenStatus: activeToken, publicationState: 'published' },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).queryByText(/isn’t available right now/),
+    ).toBeNull()
+  },
+}
+
+// A code that recorded no maker (or one the directory cannot name) says only
+// when it was made, never a placeholder after "by".
+export const MadeWithoutAKnownMaker: Story = {
+  args: { ...baseArgs, tokenStatus: { ...activeToken, madeBy: null } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Made Aug 12, 2026')).toBeInTheDocument()
+    await expect(canvas.queryByText(/ by /)).toBeNull()
   },
 }
 
@@ -215,7 +328,9 @@ export const Stopped: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText(/all codes stopped/i)).toBeInTheDocument()
     await expect(canvas.getByRole('button', { name: /make code/i })).toBeInTheDocument()
-    await expect(canvas.queryByRole('button', { name: /more code actions/i })).toBeNull()
+    await expect(
+      canvas.queryByRole('button', { name: /more actions for the code/i }),
+    ).toBeNull()
   },
 }
 
@@ -227,14 +342,14 @@ export const CodeAfterReload: Story = {
   args: { ...baseArgs, tokenStatus: activeToken },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/made 12 aug 2026/i)).toBeInTheDocument()
+    await expect(canvas.getByText(/made aug 12, 2026/i)).toBeInTheDocument()
     await expect(canvas.getByText(/shown only when a code is made/i)).toBeInTheDocument()
     await expect(canvas.queryByText(publicUrl)).toBeNull()
     await expect(canvas.queryByRole('img', { name: /qr code/i })).toBeNull()
     await expect(canvas.queryByRole('button', { name: /download/i })).toBeNull()
     await expect(canvas.queryByRole('button', { name: /make code/i })).toBeNull()
     await expect(
-      canvas.getByRole('button', { name: /more code actions/i }),
+      canvas.getByRole('button', { name: /more actions for the code/i }),
     ).toBeInTheDocument()
   },
 }
@@ -257,7 +372,7 @@ export const DownloadAgainAfterReload: Story = {
     await expect(canvas.queryByText(/save this address now/i)).toBeNull()
     await expect(canvas.queryByText(publicUrl)).toBeNull()
     await expect(
-      canvas.getByRole('button', { name: /more code actions/i }),
+      canvas.getByRole('button', { name: /more actions for the code/i }),
     ).toBeInTheDocument()
   },
 }
@@ -362,7 +477,9 @@ export const FetchedAddressKeepsTheMadeDate: Story = {
     tokenStatus: recoverableToken,
   },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByText(/made 12 aug 2026/i)).toBeInTheDocument()
+    await expect(
+      within(canvasElement).getByText(/made aug 12, 2026/i),
+    ).toBeInTheDocument()
   },
 }
 
@@ -371,8 +488,11 @@ export const DownloadAgainRefused: Story = {
     ...baseArgs,
     tokenStatus: recoverableToken,
     revealMutation: revealAction(
-      new globalThis.Error(
+      new ServerFunctionError(
+        'PortalError',
         'This code cannot be downloaded again. Replace the code to get a new set.',
+        'not_recoverable',
+        409,
       ),
     ),
   },
@@ -405,9 +525,11 @@ export const LegacyAddressNeedsQrReplacement: Story = {
   },
 }
 
+// The old code's cutoff is a moment in the property's time, as History shows times.
 export const ReplacedWithinTransition: Story = {
   args: {
     ...baseArgs,
+    timeZone: 'Europe/Sofia',
     tokenStatus: {
       ...activeToken,
       version: 4,
@@ -415,9 +537,11 @@ export const ReplacedWithinTransition: Story = {
     },
   },
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
     await expect(
-      within(canvasElement).getByText(/keeps working until 19 aug 2026/i),
+      canvas.getByText(/keeps working until aug 19, 2026, 12:30 pm sofia time/i),
     ).toBeInTheDocument()
+    await expect(canvas.queryByText(/\(UTC\)/)).toBeNull()
   },
 }
 
@@ -427,8 +551,8 @@ export const ReplacedInSessionWithOldStatus: Story = {
   args: { ...baseArgs, issuedLink, tokenStatus: activeToken },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/^made \d+ \w+ \d{4}$/i)).toBeInTheDocument()
-    await expect(canvas.queryByText(/made 12 aug 2026/i)).toBeNull()
+    await expect(canvas.getByText(/^made \w+ \d+, \d{4}$/i)).toBeInTheDocument()
+    await expect(canvas.queryByText(/made aug 12, 2026/i)).toBeNull()
   },
 }
 

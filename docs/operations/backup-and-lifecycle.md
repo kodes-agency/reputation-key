@@ -198,7 +198,8 @@ server-side ingest (`POST /api/portal-media`, ADR 0063): the bytes are decoded
 and re-encoded to WebP on the web process and stored under `portal-media/<id>.webp`
 with a `portal_media_assets` row; there is no presigned browser upload and no
 issuance table. A guest's browser reads an image through the app, from
-`GET /api/public/portal-media/:assetId`; the bucket is never public.
+`GET /api/public/portal-media/:assetId`; the bucket is never public (the app
+reads objects and serves two kinds of them, see the avatar and logo notes below).
 `portal.upload` is `controlled_beta` (the owner removed the SAFE-01 ceremony on
 2026-09-30; ADR 0032 and 0063).
 
@@ -215,6 +216,74 @@ region, and endpoint variables are incomplete.
 The target Railway topology binds those variables to one private, cell-local
 `object-store` bucket; the variable names retain their `AWS_S3_*` compatibility
 prefix and do not identify the live storage provider.
+
+**Live bucket (beta, recorded 2026-10-01).** Railway bucket `object-store`
+(region `sjc`, private; Railway has no public buckets), wired on web and worker as
+`AWS_S3_ACCESS_KEY`, `AWS_S3_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME` (the
+generated S3 name, display name plus a short hash), `AWS_S3_REGION=auto`,
+`S3_INTERNAL_ENDPOINT=S3_PRESIGN_ENDPOINT=https://t3.storageapi.dev` and
+`S3_FORCE_PATH_STYLE=false`. Railway addresses a bucket by virtual-host URL, so a
+signed URL is `https://<bucket>.t3.storageapi.dev/<key>`.
+
+How each path works against it:
+
+- **Portal images** are written and read by the server (`putObject`,
+  `getObject`) and served from `/api/public/portal-media/:assetId`. No browser
+  ever talks to the bucket and no CORS rule is involved.
+- **Avatars and organization logos** are uploaded by the browser with a presigned
+  `PUT` (`avatars/<user>/<uuid>`, `organizations/<org>/logo/<uuid>`), confirmed by
+  the server (`confirmUpload` is a `HEAD`; it returns no URL), and stored as a
+  root-relative path on the app, `/api/public/identity-assets/<key>`. No provider
+  or AWS URL and no host is stored, so the value survives a change of endpoint,
+  region, provider or domain. The route reads the object back and serves it, for
+  the two key shapes above and only for `image/jpeg|png|webp|gif`, with an ETag
+  (the object id) and `304` support. **It serves an object only while something
+  still points at it:** the user in the key has it as their `image`, or the
+  organization in the key has it as its `logo` and is not `purging` or `closed`.
+  A replaced picture, an upload that was never saved, a removed user's photo and a
+  purged organization's logo are 404. A cache that already holds an image may
+  keep showing it for up to its `max-age` (one hour). Saving a new avatar or logo
+  deletes the object it replaced (best effort, logged on failure).
+  **What stays in the bucket:** unreachable objects of a never-saved upload, of a
+  purged organization and of a removed user (the Organization purge and user
+  removal hold no storage and delete none). Set a bucket lifecycle rule that
+  expires `avatars/` and `organizations/` objects nothing refers to, or sweep
+  them by key, when the storage policy is decided.
+  Values stored before this change (an `s3.<region>.amazonaws.com` address) never
+  loaded; migration 0053 clears them so the UI shows initials, and the person
+  uploads again (detection query in `docs/operations/operator-commands.md`).
+- **Content Security Policy.** `connect-src` carries the origin the upload is
+  signed for, derived from `S3_PRESIGN_ENDPOINT` (else `S3_INTERNAL_ENDPOINT`),
+  `AWS_S3_BUCKET_NAME` and `S3_FORCE_PATH_STYLE`: here
+  `https://<bucket>.t3.storageapi.dev`. `img-src` needs nothing for the bucket,
+  because images are same-origin.
+- **Signatures.** The clients send checksums only when the protocol requires
+  them (`requestChecksumCalculation: WHEN_REQUIRED`). The SDK default signs the
+  checksum of an empty body into a presigned `PUT`, which a store that checks it
+  rejects for any real file.
+
+**Bucket CORS, set by `pnpm ops storage-cors`.** A browser `PUT` to the bucket is
+cross-origin. Without a CORS rule the avatar and logo uploads fail in the browser
+even though the signature is right, and nothing in the app can see that. The
+command reads the web service's `AWS_S3_*`, `S3_PRESIGN_ENDPOINT` (else
+`S3_INTERNAL_ENDPOINT`) and `BETTER_AUTH_URL` from Railway, and through the
+repository-pinned S3 SDK:
+
+- report mode (the default) reads the bucket's rules and exits 1 unless one lets
+  the app origin `PUT`;
+- `--apply` adds `{AllowedOrigins: [<BETTER_AUTH_URL origin>], AllowedMethods:
+[PUT], AllowedHeaders: [*], MaxAgeSeconds: 3000}` when no rule does, keeps every
+  rule the bucket already has, reads the bucket back and exits 1 unless the rule
+  is there. Idempotent; the credentials never leave the process.
+
+`pnpm ops deploy-ci-images` runs it after every deploy (applying on `--apply`,
+reporting otherwise) and fails the command if the rule is not in place, so the
+beta does not ship with uploads blocked unnoticed. Drill after the first deploy
+that carries it: sign in on the beta, upload one avatar and one organization
+logo, check that the browser's `PUT` returns 2xx and that the picture then loads
+from `/api/public/identity-assets/...`, then replace it and check the old path
+answers 404. Record the date and result here. **Not yet done:** the live drill
+(it needs the deployed beta; the code and tests ran against an in-process store).
 
 Bucket lifecycle remains external platform configuration. Before changing the
 live storage surface, record the exact provider/cell, provider lifecycle rules,

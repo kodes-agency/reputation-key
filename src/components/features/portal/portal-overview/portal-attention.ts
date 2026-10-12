@@ -40,6 +40,7 @@ export type PortalAttention =
   | Readonly<{ kind: 'disabled' }>
   | Readonly<{ kind: 'draft' }>
   | Readonly<{ kind: 'pending'; count: number }>
+  | Readonly<{ kind: 'older_code' }>
   | Readonly<{ kind: 'issues'; issues: readonly PortalIssue[] }>
 
 const ISSUES: Readonly<Record<PortalIssueCode, Omit<PortalIssue, 'code'>>> = {
@@ -88,14 +89,18 @@ function liveIssues(input: PortalAttentionInput): readonly PortalIssue[] {
   const codes: PortalIssueCode[] = []
   if (reason === 'property_unavailable') codes.push('property_unavailable')
   if (reason === 'publication_snapshot_unavailable') codes.push('no_live_version')
-  // An older code still works; the Share tab alone says its scans are left out
-  // of scan-based goals, so the overview does not turn it into an issue.
+  // An older code still works, so it is not an issue; `olderCode` below gives it
+  // its own line, which links to Share, where the code is replaced.
   if (!input.token.hasActiveToken) codes.push('no_code')
   if (input.responsibleManagerUserIds.length === 0) codes.push('no_responsible')
   if (reason === 'google_destination_awaiting_refresh') codes.push('google_refreshing')
   if (reason === 'google_destination_unavailable') codes.push('google_unavailable')
   return codes.map(issue)
 }
+
+/** A live code that predates access artifacts: guests scan it, but scans are not counted. */
+const hasOlderCode = (input: PortalAttentionInput): boolean =>
+  input.token.hasActiveToken && !input.token.qualifiedScanReady
 
 export function portalAttention(input: PortalAttentionInput): PortalAttention {
   switch (input.publicationState) {
@@ -108,6 +113,7 @@ export function portalAttention(input: PortalAttentionInput): PortalAttention {
     case 'published': {
       const issues = liveIssues(input)
       if (issues.length > 0) return { kind: 'issues', issues }
+      if (hasOlderCode(input)) return { kind: 'older_code' }
       if (input.pendingChangeCount > 0) {
         return { kind: 'pending', count: input.pendingChangeCount }
       }
@@ -132,6 +138,8 @@ export function attentionLine(attention: PortalAttention): string | null {
       return 'Draft · not published'
     case 'pending':
       return `${plural(attention.count, 'change', 'changes')} not live`
+    case 'older_code':
+      return 'Older code · scans not counted'
     case 'issues':
       return plural(attention.issues.length, 'issue', 'issues')
   }
@@ -143,7 +151,8 @@ const RANKS: Readonly<Record<PortalAttention['kind'], number>> = {
   disabled: 2,
   draft: 3,
   pending: 4,
-  issues: 5,
+  older_code: 5,
+  issues: 6,
 }
 
 /** Higher needs a manager sooner. Archived is last: it is finished, not waiting. */
@@ -154,4 +163,16 @@ export function attentionRank(attention: PortalAttention): number {
 /** Whether the "needs attention" filter keeps the Portal. */
 export function needsAttention(attention: PortalAttention): boolean {
   return attention.kind !== 'none' && attention.kind !== 'archived'
+}
+
+/**
+ * Whether the overview's toolbar offers its "Needs attention" toggle: while a
+ * Portal needs attention, and while the filter is on, so it can be turned off
+ * again. With nothing to keep it is left out.
+ */
+export function offersAttentionFilter(
+  needingAttention: number,
+  search: Readonly<{ show?: 'attention' }>,
+): boolean {
+  return needingAttention > 0 || search.show === 'attention'
 }

@@ -4,8 +4,9 @@
 // The workspace is full-bleed, like the Inbox: the authenticated layout drops
 // its page padding and collapses the sidebar to the icon rail, and the property
 // layout gives it the whole height, so the workspace scrolls its own panes.
-// Both layout routes ask this one question so they cannot disagree. The portals
-// list, the New portal form and the group pages stay in the padded page shell.
+// Both layout routes ask `isFullBleedRoute` (components/layout), which asks this
+// for the workspace half, so they cannot disagree. The portals list, the New
+// portal form and the group pages stay in the padded page shell.
 
 /** `new` and `look` are static siblings of `$portalId`; the router picks them first. */
 const WORKSPACE_PATH =

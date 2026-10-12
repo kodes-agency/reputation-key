@@ -32,6 +32,7 @@ import {
   buildIdentityContext,
   createInvitationPropertyAccessProvisioner,
 } from '#/contexts/identity/build'
+import { buildPlatformConsole } from '#/contexts/identity/build-platform'
 import { INVITATION_EXPIRY_SECONDS } from '#/shared/auth/auth'
 import { sendInvitationEmail } from '#/shared/auth/emails'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
@@ -71,7 +72,7 @@ import {
 } from './composition/provider-runtime'
 import { buildInfrastructure } from './composition/infrastructure'
 import { notificationEmailWebConfigProblems } from '#/contexts/feed/application/notification-email-web-config'
-import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
+import { isCapabilityJobEnabled, isOrgInAllowlist } from '#/shared/auth/beta-capabilities'
 import {
   buildReadAndNotifyContexts,
   notificationEmailAddressKeys,
@@ -716,6 +717,8 @@ function buildContainer(
     /** Shared issued-object capability used by Identity profile assets and
      * Portal media. The name exposes the port's purpose, not its adapter. */
     assetStorage: portal.uploads.storage,
+    /** What still points at an uploaded avatar or logo; the public image route asks it. */
+    identityAssetReferences: identity.assetReferences,
     portalWorkerRuntime: Object.freeze({
       revalidateApprovedDestinations: portal.worker.revalidateApprovedDestinations,
       sweepPortalMedia: portal.worker.sweepPortalMedia,
@@ -787,6 +790,19 @@ function buildContainer(
       betaFeedbackHmacSecret: env.BETTER_AUTH_SECRET,
     }),
     identityBetaFeedback: identity.betaFeedback,
+    // ADR 0065: the platform operator console. Off identityPublicApi — no
+    // context receives it; only its server functions, after
+    // requirePlatformOperator.
+    identityPlatform: buildPlatformConsole({
+      db,
+      clock,
+      idGen: randomUUID,
+      logger,
+      sendEmail: options?.email ?? sendInvitationEmail,
+      baseUrl: env.BETTER_AUTH_URL,
+      invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,
+      isControlledBetaEnabled: (id) => isOrgInAllowlist(env, id),
+    }),
     // BQC-2.7: least-privilege policy administration operations.
     policyAdmin: identity.policy.admin,
     portalPublicApi: portal.publicApi,

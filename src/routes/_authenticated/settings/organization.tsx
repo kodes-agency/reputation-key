@@ -1,6 +1,8 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -45,10 +47,11 @@ const googleReviewTargetAnalyticsQuery = queryOptions({
 })
 
 export const Route = createFileRoute('/_authenticated/settings/organization')({
+  staticData: { page: { title: 'Organization', under: 'settings' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'organization.update')) {
-      throw redirect({ to: '/settings/profile' })
+      throw roleUnavailable('Organization', 'profile')
     }
   },
   loader: async ({ context }) => {
@@ -76,10 +79,21 @@ function OrganizationSettingsRoute() {
   )
   const organization = orgResult.organization
   const updateResponseTargetPolicy = useActionMutation(setResponseTargetPolicyFn, {
-    successMessage: 'Response target updated',
+    successMessage: 'Response target saved',
     invalidateKeys: [inboxKeys.responseTargetPolicies()],
   })
   const updateOrganizationAction = useActionMutation(updateOrganization, {
+    successMessage: 'Organization saved',
+    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
+  })
+  // The logo is an image setting, which says a refusal itself (a toast), so neither
+  // of these passes an `errorMessage`; a failure never lands in the identity form's banner.
+  const removeOrganizationLogo = useActionMutation(updateOrganization, {
+    successMessage: 'Logo removed',
+    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
+  })
+  const finalizeOrgLogo = useActionMutation(finalizeOrgLogoUpload, {
+    successMessage: 'Logo updated',
     onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
   })
 
@@ -88,7 +102,7 @@ function OrganizationSettingsRoute() {
       <PageHeader
         title="Organization"
         description="Manage your organization's identity and response settings."
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Organization' }]}
+        breadcrumbs={trailCrumbs('settings', {}, 'Organization')}
       />
       {organization ? (
         <OrganizationSettingsPage
@@ -98,8 +112,9 @@ function OrganizationSettingsRoute() {
           googleReviewTargetAnalytics={googleReviewTargetAnalytics}
           updateResponseTargetPolicy={updateResponseTargetPolicy}
           updateOrganization={updateOrganizationAction}
+          removeOrganizationLogo={removeOrganizationLogo}
           requestOrgLogoUploadFn={requestOrgLogoUpload}
-          finalizeOrgLogoUploadFn={finalizeOrgLogoUpload}
+          finalizeOrgLogo={finalizeOrgLogo}
         />
       ) : (
         <div className="text-center text-sm text-muted-foreground py-12">

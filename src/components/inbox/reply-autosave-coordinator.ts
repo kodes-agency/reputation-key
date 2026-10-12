@@ -145,7 +145,7 @@ export function createReplyAutosaveCoordinator(
       // on every keystroke AND on every language change, and it repainted the
       // head unconditionally — so picking a language after a failure replaced
       // `Draft could not be saved` with a bare `Not saved` and took
-      // `Retry save` (gated on `status === 'error'`) with it, while the
+      // `Try saving again` (gated on `status === 'error'`) with it, while the
       // coordinator still held the unsaved snapshot and `flush` still refused.
       //
       // Once the text moves on, the failed snapshot is no longer what anyone
@@ -239,7 +239,7 @@ export function createReplyAutosaveCoordinator(
      * provenance token saves through `enqueue` before the composer adopts it,
      * so when that save fails `failed` holds words the manager never took; and
      * a save failing after `Delete draft` would put the deleted reply back.
-     * The failure was reported (`Not saved`, `Retry save`) while the composer
+     * The failure was reported (`Not saved`, `Try saving again`) while the composer
      * was open.
      *
      * Unmounting is not abandoning. The unmounts this covers — the sheet

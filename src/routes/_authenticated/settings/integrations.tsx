@@ -1,8 +1,10 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { can } from '#/shared/domain/permissions'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -21,10 +23,11 @@ const connectionsQuery = queryOptions({
 })
 
 export const Route = createFileRoute('/_authenticated/settings/integrations')({
+  staticData: { page: { title: 'Integrations', under: 'settings' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'integration.manage')) {
-      throw redirect({ to: '/settings/profile' })
+      throw roleUnavailable('Integrations', 'profile')
     }
   },
   loader: async ({ context }) => {
@@ -40,6 +43,7 @@ function IntegrationsSettings() {
   // getGoogleAuthUrl is a GET (generates a signed OAuth URL) — treat as an action
   // since it has a side effect (CSRF state) and the result drives a redirect.
   const connectGoogle = useAction(useServerFn(getGoogleAuthUrl))
+  // Confirmed in a dialog that stays open and says a refusal itself.
   const disconnectAction = useActionMutation(disconnectGoogle, {
     successMessage: 'Google account disconnected',
     invalidateKeys: [integrationKeys.connections()],
@@ -50,7 +54,7 @@ function IntegrationsSettings() {
       <PageHeader
         title="Integrations"
         description="Connect external accounts and services to your organization."
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Integrations' }]}
+        breadcrumbs={trailCrumbs('settings', {}, 'Integrations')}
       />
       <div className="mt-6">
         <IntegrationsSettingsPage

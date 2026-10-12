@@ -3,41 +3,10 @@ import type {
   InboxQueue,
   InboxQueueCounts,
 } from '#/contexts/inbox/application/public-api'
-import { cn } from '#/lib/utils'
-import {
-  STRIP_FADE_PX,
-  stripFadeStyle,
-  stripScrollLeftFor,
-} from './inbox-queue-strip-scroll'
+import { NavCount } from '#/components/ui/nav-count'
+import { revealCurrentItem, stripFadeStyle } from '#/components/ui/strip-scroll'
+import { useStripOverflow } from '#/components/ui/use-strip-overflow'
 import { CLOSED_INBOX_QUEUE, queueCount, queuesForViewer } from './inbox-queues'
-import { useStripOverflow } from './use-strip-overflow'
-
-/**
- * Scroll the strip so the active pill sits on its start edge. Sets scrollLeft
- * on the strip itself: scrollIntoView could also scroll the page around it.
- *
- * The breathing room is the strip's scroll padding, never less than the edge
- * fade's width, so the revealed pill clears the 24px fade instead of sitting
- * half under it. The strip's `scroll-px-6` is that same width, which makes this
- * position one the snap keeps rather than pulls to the nearest pill.
- */
-function revealActivePill(nav: HTMLElement) {
-  const pill = nav.querySelector<HTMLElement>('[aria-current="page"]')
-  if (!pill) return
-  const navRect = nav.getBoundingClientRect()
-  const pillRect = pill.getBoundingClientRect()
-  const next = stripScrollLeftFor({
-    pillLeft: pillRect.left - navRect.left - nav.clientLeft + nav.scrollLeft,
-    pillWidth: pillRect.width,
-    scrollLeft: nav.scrollLeft,
-    clientWidth: nav.clientWidth,
-    padding: Math.max(
-      Number.parseFloat(getComputedStyle(nav).scrollPaddingLeft) || 0,
-      STRIP_FADE_PX,
-    ),
-  })
-  if (next !== null) nav.scrollLeft = next
-}
 
 export function InboxQueueStrip({
   queue,
@@ -54,7 +23,7 @@ export function InboxQueueStrip({
   const navRef = useRef<HTMLElement>(null)
 
   useLayoutEffect(() => {
-    if (navRef.current) revealActivePill(navRef.current)
+    if (navRef.current) revealCurrentItem(navRef.current)
   }, [queue])
 
   const edges = useStripOverflow(navRef)
@@ -78,16 +47,18 @@ export function InboxQueueStrip({
             key={item.key}
             type="button"
             aria-current={queue === item.key ? 'page' : undefined}
-            className={cn(
-              'h-8 shrink-0 snap-start rounded-full px-3 text-xs font-medium',
-              queue === item.key
-                ? 'bg-accent text-(--accent)'
-                : 'bg-muted text-muted-foreground',
-            )}
+            className="h-8 shrink-0 snap-start rounded-full bg-muted px-3 text-xs font-medium text-muted-foreground focus-ring aria-[current=page]:bg-accent aria-[current=page]:text-(--accent)"
             onClick={() => onQueueChange(item.key)}
           >
             {item.label}
-            {count !== null && count > 0 ? ` ${count}` : ''}
+            {count !== null && count > 0 ? (
+              <>
+                {' '}
+                <NavCount tone={item.key === 'escalated' ? 'negative' : 'default'}>
+                  {count}
+                </NavCount>
+              </>
+            ) : null}
           </button>
         )
       })}

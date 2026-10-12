@@ -113,6 +113,7 @@ function harness(input: {
       minimumSample: 1,
     }),
     queryGoalAggregate,
+    hasReading: async () => false,
   }
   const inspect = vi.fn(async () => input.source ?? source())
   const useCase = queryGoalMetric({

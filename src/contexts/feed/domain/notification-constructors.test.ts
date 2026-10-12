@@ -151,6 +151,50 @@ describe('notification constructors', () => {
     }
   })
 
+  it.each([
+    'account.organization_property_access_changed',
+    'account.invitation_accepted',
+  ] as const)('creates the %s notice at Organization scope, mandatory', (type) => {
+    const result = createNotification(
+      {
+        ...base,
+        propertyId: null,
+        type,
+        resourceType: 'organization',
+        resourceId: ORG,
+        payload: { organizationName: 'Riverside Group', memberRole: 'property_manager' },
+      },
+      () => NOW,
+    )
+
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value).toMatchObject({
+        propertyId: null,
+        category: 'mandatory',
+        priority: 'normal',
+        payload: { organizationName: 'Riverside Group', memberRole: 'property_manager' },
+      })
+    }
+  })
+
+  it.each([
+    'account.organization_property_access_changed',
+    'account.invitation_accepted',
+  ] as const)('rejects a Property on the %s notice', (type) => {
+    const result = createNotification(
+      { ...base, type, resourceType: 'organization', resourceId: ORG },
+      () => NOW,
+    )
+
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error).toMatchObject({
+        message: 'Mandatory notifications must use Organization scope',
+      })
+    }
+  })
+
   it('rejects a property scope for mandatory account notifications', () => {
     const result = createNotification(
       {

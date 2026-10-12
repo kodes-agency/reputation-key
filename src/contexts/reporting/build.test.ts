@@ -26,6 +26,7 @@ describe('buildReportingContext', () => {
 
     expect(typeof context.publicApi.queryGoalMetric).toBe('function')
     expect(typeof context.publicApi.programs.create).toBe('function')
+    expect(typeof context.publicApi.programs.createForSubjects).toBe('function')
     expect(typeof context.publicApi.findMonthlyResultNotificationFacts).toBe('function')
     expect(typeof context.publicApi.getDashboardData).toBe('function')
     expect(typeof context.publicApi.getFleetOverview).toBe('function')

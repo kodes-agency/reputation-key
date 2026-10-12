@@ -7,6 +7,7 @@ import type {
 } from '#/contexts/reporting/application/public-api'
 import { markerLabel } from './portal-results-chart-model'
 import { formatDayRange } from './portal-results-window'
+import { formatNumber } from '#/lib/format'
 
 function averageText(week: PortalResultsSeries['weeks'][number]): string {
   if (week.average !== null) return week.average.toFixed(1)
@@ -15,8 +16,7 @@ function averageText(week: PortalResultsSeries['weeks'][number]): string {
     : '—'
 }
 
-const count = (value: number | null) =>
-  value === null ? '—' : value.toLocaleString('en-US')
+const count = (value: number | null) => (value === null ? '—' : formatNumber(value))
 
 export function PortalResultsSeriesTable({
   series,

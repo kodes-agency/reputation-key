@@ -82,10 +82,6 @@
       "exports": ["RECENT_ACTIVITY_REPLAY_SOURCE_KINDS"]
     },
     {
-      "file": "src/contexts/reporting/application/use-cases/goal-programs.ts",
-      "exports": ["GoalProgramMaintenanceError"]
-    },
-    {
       "file": "src/contexts/identity/domain/organization-lifecycle.ts",
       "exports": ["ORGANIZATION_LIFECYCLE_RECEIPT_PHASES"]
     },
@@ -161,15 +157,7 @@
     },
     {
       "file": "src/contexts/identity/server/organizations.registration.ts",
-      "exports": ["setActiveOrganization", "resendVerificationEmail"]
-    },
-    {
-      "file": "src/contexts/identity/server/invitation-preview.ts",
-      "exports": ["getInvitationPreview"]
-    },
-    {
-      "file": "src/contexts/identity/server/organizations.ts",
-      "exports": ["resendVerificationEmail", "getInvitationPreview"]
+      "exports": ["setActiveOrganization"]
     },
     {
       "file": "src/contexts/inbox/domain/handling-history.ts",
@@ -372,7 +360,7 @@
   ],
   "duplicates": {
     "ignore": ["src/components/ui/stepper.tsx"],
-    "ignoredClones": ["dup:cdb48d6b:2"],
+    "ignoredClones": ["dup:cdb48d6b:2", "dup:6f87acd9:2"],
     "mode": "mild",
     "minTokens": 50,
     "minLines": 5,

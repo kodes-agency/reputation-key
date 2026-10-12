@@ -2,10 +2,14 @@ import type { ComponentProps } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { withRole } from '../../../../../.storybook/AuthedRouterDecorator'
+import { PageHeader } from '#/components/layout/page-header'
 import { PropertyGoogleSection } from './property-google-section'
 import { PropertyProfileCard } from './property-profile-card'
 import { PropertySettingsNav } from './property-settings-nav'
-import { visiblePropertySettingsSections } from './property-settings-sections'
+import {
+  propertySettingsHeader,
+  visiblePropertySettingsSections,
+} from './property-settings-sections'
 import { ReviewAnalysisProgressCard } from './review-analysis-progress-card'
 import { PropertySetupStrip } from './property-setup-strip'
 import type { PropertySetup } from '#/contexts/reporting/application/public-api'
@@ -39,7 +43,14 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+/**
+ * The hub's sections, on Google: the router answers the address the nav reads, so
+ * the one `aria-current` row is the current section and wears the accent-muted fill.
+ */
 export const SectionNavigation: Story = {
+  decorators: [
+    withRole('AccountAdmin', { at: `/properties/${PROPERTY_ID}/settings/google` }),
+  ],
   render: () => (
     <div className="max-w-xs">
       <PropertySettingsNav
@@ -52,22 +63,26 @@ export const SectionNavigation: Story = {
     const nav = within(canvasElement).getByRole('navigation', {
       name: 'Property settings sections',
     })
-    const labels = within(nav)
-      .getAllByRole('link')
-      .map((link) => link.querySelector('span')?.textContent)
-    expect(labels).toEqual([
-      'Profile',
-      'Google',
+    const labelOf = (link: HTMLElement) =>
+      link.querySelector('[data-slot="section-nav-label"]')?.textContent
+    const links = within(nav).getAllByRole('link')
+    // A section names its scope where the same word means another one elsewhere.
+    expect(links.map(labelOf)).toEqual([
+      'Property profile',
+      'Google connection',
       'Replies',
-      'AI',
-      'People',
+      'AI features',
+      'Responsible managers',
       'Targets',
       'Danger zone',
     ])
-    expect(within(nav).getByRole('link', { name: /^AI/ })).toHaveAttribute(
+    expect(within(nav).getByRole('link', { name: /^AI features/ })).toHaveAttribute(
       'href',
       `/properties/${PROPERTY_ID}/settings/ai`,
     )
+    // Exactly one row is the page the person is on, and it is Google.
+    const current = links.filter((link) => link.getAttribute('aria-current') === 'page')
+    expect(current.map(labelOf)).toEqual(['Google connection'])
   },
 }
 
@@ -283,4 +298,73 @@ export const SetupStripHiddenWhenDone: Story = {
   play: async ({ canvasElement }) => {
     expect(within(canvasElement).getByTestId('strip-host')).toBeEmptyDOMElement()
   },
+}
+
+export const ProfileResetRestoresTheSavedName: Story = {
+  render: () => (
+    <div className="max-w-2xl">
+      <PropertyProfileCard property={property} canEdit updateProperty={saveProfile} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
+    const name = canvas.getByLabelText('Workspace name')
+    await userEvent.type(name, ' Varna')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    expect(name).toHaveValue('Harborline Suites')
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull(),
+    )
+  },
+}
+
+/**
+ * The header names the section that is open, as an account settings page does: its title
+ * and the end of its breadcrumb are the section, under "Settings", which links back to the
+ * hub. The page has one h1, and the section's cards are h2s beneath it.
+ */
+export const HeaderNamesTheSection: Story = {
+  render: () => {
+    const header = propertySettingsHeader({
+      propertyId: PROPERTY_ID,
+      propertyName: property.name,
+      active: 'google',
+    })
+    return (
+      <div className="max-w-3xl space-y-6">
+        <PageHeader
+          title={header.title}
+          meta={[property.name]}
+          breadcrumbs={header.breadcrumbs}
+        />
+        <PropertyGoogleSection
+          property={{ id: PROPERTY_ID, googleBindingState: 'active' }}
+        />
+      </div>
+    )
+  },
+  play: ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(
+      canvas.getByRole('heading', { level: 1, name: 'Google connection' }),
+    ).toBeVisible()
+    // The place above the section is named as the sidebar names it.
+    expect(canvas.getByRole('link', { name: 'Property settings' })).toHaveAttribute(
+      'href',
+      `/properties/${PROPERTY_ID}/settings`,
+    )
+    expect(
+      canvas.getByText('Google connection', { selector: '[aria-current="page"]' }),
+    ).toBeVisible()
+    expect(
+      canvas.getByRole('heading', { level: 2, name: 'Google Business Profile' }),
+    ).toBeVisible()
+  },
+}
+
+export const HeaderNamesTheSectionLight: Story = {
+  ...HeaderNamesTheSection,
+  parameters: { theme: 'light' },
 }

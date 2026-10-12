@@ -155,6 +155,8 @@ export function isOrgInAllowlist(
  * - BETA_ALLOWLIST_ORGS — comma-separated Organization IDs (not slugs) allowed to
  *   use controlled-beta capabilities, or `*` for every Organization in this
  *   environment. Absent/empty admits none. See parseOrgAllowlist.
+ * - BETA_SUSPENDED_ORGS — comma-separated Organization IDs (not slugs) whose every
+ *   capability check is denied with `org_suspended`. Absent/empty suspends none.
  * - BETA_E2E_GLOBAL_CAPABILITIES — comma-separated non-core capabilities forced ON
  *   globally for E2E/CI only (never blocked capabilities). Used so Playwright
  *   can exercise register/login without changing production beta posture.

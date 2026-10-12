@@ -1,0 +1,189 @@
+// One Organization in the operator console (ADR 0065). Each state is a
+// different answer to "what can the operator do here": act on an ownerless
+// Organization, or read an administered one.
+import type { Meta, StoryObj } from '@storybook/react'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import {
+  administered,
+  awaitingFirstAdmin,
+  closing,
+  competingInvitations,
+  lapsedInvitation,
+  makeAction,
+  makeActions,
+  noInvitationOut,
+} from './platform-console-stories-data'
+import { PlatformOrganizationRow } from './platform-organization-row'
+
+const actions = makeActions()
+
+const meta: Meta<typeof PlatformOrganizationRow> = {
+  title: 'Platform/PlatformOrganizationRow',
+  component: PlatformOrganizationRow,
+  tags: ['autodocs'],
+  parameters: { layout: 'padded' },
+  args: {
+    organization: awaitingFirstAdmin,
+    inviteAdmin: actions.inviteAdmin,
+    resend: actions.resend,
+    cancel: actions.cancel,
+  },
+  decorators: [
+    (Story) => (
+      <ul className="max-w-3xl divide-y rounded-lg border bg-card">
+        <Story />
+      </ul>
+    ),
+  ],
+}
+export default meta
+type Story = StoryObj<typeof PlatformOrganizationRow>
+
+/** Opens an invitation's menu, reads its items and closes it again. */
+async function menuItemsFor(canvasElement: HTMLElement, email: string) {
+  const canvas = within(canvasElement)
+  const page = within(canvasElement.ownerDocument.body)
+  await userEvent.click(canvas.getByRole('button', { name: `More actions for ${email}` }))
+  const items = await page.findAllByRole('menuitem')
+  const labels = items.map((item) => item.textContent ?? '')
+  await userEvent.keyboard('{Escape}')
+  await waitFor(() => expect(page.queryByRole('menu')).toBeNull())
+  return labels
+}
+
+export const AwaitingFirstAdmin: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByRole('heading', { name: 'Riviera Hotels', level: 3 }),
+    ).toBeVisible()
+    expect(canvas.getByText('Needs an Account Admin')).toBeVisible()
+    expect(canvas.getByText('owner@rivierahotels.example')).toBeVisible()
+    expect(canvas.getByText('Expires Oct 7, 2026, 9:05 AM UTC')).toBeVisible()
+    const items = await menuItemsFor(canvasElement, 'owner@rivierahotels.example')
+    expect(items).toEqual(['Resend invitation', 'Cancel invitation…'])
+    expect(
+      canvas.getByRole('form', { name: /invite an account admin to riviera/i }),
+    ).toBeVisible()
+  },
+}
+
+export const AwaitingFirstAdminLight: Story = {
+  parameters: { theme: 'light' },
+}
+
+export const LapsedInvitation: Story = {
+  args: { organization: lapsedInvitation },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Expired')).toBeVisible()
+    expect(canvas.getByText('Expired Sep 19, 2026, 2:40 PM UTC')).toBeVisible()
+    const menus = canvas.getAllByRole('button', { name: /^more actions for/i })
+    expect(menus).toHaveLength(2)
+    for (const menu of menus) {
+      const email =
+        menu.getAttribute('aria-label')?.replace('More actions for ', '') ?? ''
+      expect(await menuItemsFor(canvasElement, email)).toContain('Resend invitation')
+    }
+    // One live invitation and one lapsed one do not compete.
+    expect(canvas.queryByText(/more than one invitation is live/i)).toBeNull()
+  },
+}
+
+export const CompetingInvitations: Story = {
+  args: { organization: competingInvitations },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // Each live invitation can still be accepted after the first, and the
+    // console stops acting once an Account Admin joins: say so while it can.
+    expect(canvas.getByText(/more than one invitation is live/i)).toBeVisible()
+    expect(canvas.getAllByRole('button', { name: /^more actions for/i })).toHaveLength(2)
+  },
+}
+
+export const NoInvitationOut: Story = {
+  args: { organization: noInvitationOut },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('No open invitation.')).toBeVisible()
+    expect(canvas.getByLabelText("Account Admin's email")).toBeVisible()
+  },
+}
+
+export const Administered: Story = {
+  args: { organization: administered },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // Least privilege: no invitee addresses, no invite form, nothing to resend.
+    expect(canvas.getByText(/its admins manage invitations/i)).toBeVisible()
+    expect(canvas.queryByRole('form')).toBeNull()
+    expect(canvas.queryByRole('button')).toBeNull()
+    // Dark for controlled beta: the row names the id the allowlist needs.
+    expect(canvas.getByText('Controlled beta off')).toBeVisible()
+    expect(canvas.getByText('org-alpine')).toBeVisible()
+  },
+}
+
+export const Closing: Story = {
+  args: { organization: closing },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Closure requested')).toBeVisible()
+    // Cancelling is allowed; resending and inviting need an active Organization.
+    const [menu] = canvas.getAllByRole('button', { name: /^more actions for/i })
+    const email = menu?.getAttribute('aria-label')?.replace('More actions for ', '') ?? ''
+    expect(await menuItemsFor(canvasElement, email)).toEqual(['Cancel invitation…'])
+    expect(canvas.queryByRole('form')).toBeNull()
+    expect(canvas.getByText(/cannot take a new invitation/i)).toBeVisible()
+  },
+}
+
+const resendSpy = fn(async () => ({
+  expiresAt: '2026-10-08T09:05:00.000Z',
+  emailSent: true,
+}))
+const cancelSpy = fn(async () => undefined)
+
+export const ResendAndCancel: Story = {
+  args: { resend: makeAction(resendSpy), cancel: makeAction(cancelSpy) },
+  play: async ({ canvasElement }) => {
+    resendSpy.mockClear()
+    cancelSpy.mockClear()
+    const canvas = within(canvasElement)
+
+    const page = within(canvasElement.ownerDocument.body)
+    const menu = canvas.getByRole('button', {
+      name: 'More actions for owner@rivierahotels.example',
+    })
+    await userEvent.click(menu)
+    await userEvent.click(
+      await page.findByRole('menuitem', { name: 'Resend invitation' }),
+    )
+    await waitFor(() =>
+      expect(resendSpy).toHaveBeenCalledWith({
+        data: { organizationId: 'org-riviera', invitationId: 'inv-live' },
+      }),
+    )
+
+    // Cancel asks first; keeping the invitation sends nothing.
+    await userEvent.click(menu)
+    await userEvent.click(
+      await page.findByRole('menuitem', { name: 'Cancel invitation…' }),
+    )
+    const dialog = within(await within(document.body).findByRole('alertdialog'))
+    await userEvent.click(dialog.getByRole('button', { name: 'Keep invitation' }))
+    expect(cancelSpy).not.toHaveBeenCalled()
+
+    await userEvent.click(menu)
+    await userEvent.click(
+      await page.findByRole('menuitem', { name: 'Cancel invitation…' }),
+    )
+    const confirm = within(await within(document.body).findByRole('alertdialog'))
+    await userEvent.click(confirm.getByRole('button', { name: 'Cancel invitation' }))
+    await waitFor(() =>
+      expect(cancelSpy).toHaveBeenCalledWith({
+        data: { organizationId: 'org-riviera', invitationId: 'inv-live' },
+      }),
+    )
+  },
+}

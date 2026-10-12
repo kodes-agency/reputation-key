@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
 import { waitForHydration, clickWhenReady } from '../helpers/interaction'
+import { expectOneH1 } from '../helpers/page-structure'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { expectPortalUnavailable } from '../helpers/guest-unavailable'
 import { attachRequestLog } from '../helpers/request-log'
@@ -39,18 +40,20 @@ async function expectControlledUnavailable(
   feature: string,
   category: CapabilityRefusalCategory,
 ) {
-  await expect(page).toHaveURL(/\/unavailable/)
-  const search = new URL(page.url()).searchParams
-  expect(search.get('feature')).toBe(feature)
-  expect(search.get('category')).toBe(category)
+  // The refusal is drawn in the app shell, at the address that was asked for:
+  // the page keeps its name, says what is wrong and why, and offers the way back.
+  await expect(page).not.toHaveURL(/\/unavailable/)
+  const main = page.getByRole('main')
+  await expect(main.getByRole('heading', { level: 1, name: feature })).toBeVisible()
   const copy = REFUSAL_COPY[category]
-  await expect(page.getByText(copy.title(feature))).toBeVisible()
-  await expect(page.getByText(copy.description)).toBeVisible()
+  await expect(main.getByText(copy.title(feature))).toBeVisible()
+  await expect(main.getByText(copy.description)).toBeVisible()
   if (copy.next === null) {
     // No setting can lift this refusal, so none may be offered.
-    await expect(page.getByRole('link', { name: 'Open property settings' })).toHaveCount(
+    await expect(main.getByRole('link', { name: 'Open property settings' })).toHaveCount(
       0,
     )
+    await expect(main.getByRole('link', { name: 'Back to properties' })).toBeVisible()
   }
 }
 
@@ -87,6 +90,47 @@ async function endOpenGoalPrograms(page: Page, propertyId: string) {
   }
 }
 
+/**
+ * The month after the current one on a Property's own calendar, as the
+ * `YYYY-MM` key the create command takes.
+ *
+ * Read on the database clock in the Property's time zone, which is how the
+ * command reads the month. Every journey names the month it means: left out,
+ * the command still starts next month, but which month a form would choose
+ * depends on the day the suite runs, and a journey must not.
+ */
+async function nextGoalStartMonth(propertyId: string): Promise<string> {
+  return (await goalStartMonths(propertyId)).next
+}
+
+/**
+ * The month that is running on a Property's own calendar, as the `YYYY-MM`
+ * key. A goal created with it opens that month at once, which is the month
+ * "Change this month's target" changes.
+ */
+async function currentGoalStartMonth(propertyId: string): Promise<string> {
+  return (await goalStartMonths(propertyId)).current
+}
+
+async function goalStartMonths(
+  propertyId: string,
+): Promise<Readonly<{ current: string; next: string }>> {
+  const [months] = await dbQuery<{ current_month: string; next_month: string }>(
+    `SELECT
+       to_char(date_trunc('month', now() AT TIME ZONE timezone), 'YYYY-MM')
+         AS current_month,
+       to_char(
+         date_trunc('month', now() AT TIME ZONE timezone) + interval '1 month',
+         'YYYY-MM'
+       ) AS next_month
+     FROM properties
+     WHERE organization_id = $1 AND id = $2::uuid`,
+    [seed.organizationId, propertyId],
+  )
+  if (!months) throw new Error('The seeded Property has no timezone')
+  return { current: months.current_month, next: months.next_month }
+}
+
 test.describe('Critical: beta-local-1 product journeys', () => {
   // The rotation journey creates a Portal per run. Without this the Property's
   // paginated Portal list eventually stops showing the newest one.
@@ -120,6 +164,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(
       page.getByRole('link', { name: 'E2E Guest Portal P1', exact: true }),
     ).toBeVisible()
+    await expectOneH1(page)
     // The group's name is on its head row in the table and again in the group editor.
     await expect(
       page
@@ -136,10 +181,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(
       page.getByRole('heading', { name: 'E2E Guest Portal P1' }).first(),
     ).toBeVisible()
-    // By id, not by label: the localized content editor also renders a field
-    // whose accessible name is exactly "Description", so getByLabel resolves
-    // three elements. This is the one the autosave writes.
-    const description = page.locator('#edit-portal-description')
+    // This portal's own English link preview, which the autosave writes. By id,
+    // not by label: every language has a "Link preview" field, and so does the
+    // property's wording.
+    const description = page.locator('#portal-override-description-en')
     await description.fill('Persisted Portal manager change.')
     await expect(page.getByText('Draft saved')).toBeVisible()
     await page.reload()
@@ -679,6 +724,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
     await endOpenGoalPrograms(page, seed.p1PropertyId)
+    // Next month, named: the program is then scheduled with no month open, which
+    // is the head the SQL below replaces with a completed one.
+    const nextMonth = await nextGoalStartMonth(seed.p1PropertyId)
     const created = await callServerFn<{ program: { id: string; status: string } }>(
       page,
       {
@@ -691,6 +739,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
           metric: 'qualified_scans',
           targetValue: 20,
           subjects: [{ kind: 'portal_group', portalGroupId: portal.groupId }],
+          startMonth: nextMonth,
         },
       },
     )
@@ -874,6 +923,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // per (subject, metric), and ending that one here would pull the ground out
     // from under the Member journey that reads it.
     const subjects = [{ kind: 'property', propertyId: seed.p1PropertyId }]
+    // Every create below names next month. A goal that starts this month opens
+    // the month at once and, once ended, keeps the Property as its subject
+    // until that month is over, which would refuse the next run of this journey.
+    const nextMonth = await nextGoalStartMonth(seed.p1PropertyId)
     const created = await callServerFn<{ program: { id: string; status: string } }>(
       page,
       {
@@ -886,20 +939,20 @@ test.describe('Critical: beta-local-1 product journeys', () => {
           metric: 'qualified_scans',
           targetValue: 12,
           subjects,
+          startMonth: nextMonth,
         },
       },
     )
     expect(created.program.id).toBeTruthy()
+    expect(created.program.status).toBe('scheduled')
 
-    // Revision is not exercised here: a freshly created program already carries
-    // a pending revision, so revising immediately is refused with
-    // revision_conflict -- correctly. Driving it from a browser would mean
-    // waiting out the pending window for no additional signal;
-    // goal-programs.test.ts covers the revision rules directly, including this
-    // conflict.
+    // Revision is not exercised here. A program that has not started can be
+    // revised (the change replaces the version that was waiting and keeps the
+    // start month), and goal-programs.test.ts and the repository suite cover
+    // that and the other revision rules directly.
 
-    // A new program starts 'scheduled' (awaiting its first full month), and
-    // ending it is the transition available from there. 'ended' is terminal, so
+    // A program that starts next month is 'scheduled' until that month begins,
+    // and ending it is the transition available from there. 'ended' is terminal, so
     // the second attempt must be refused — that is the half worth asserting,
     // because a status machine that silently accepts a repeat would let an
     // ended program be resurrected.
@@ -949,9 +1002,35 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         metric: 'qualified_scans',
         targetValue: 1,
         subjects: [{ kind: 'property', propertyId: seed.p3PropertyId }],
+        // P1's month: the refusal comes before the command reads any calendar.
+        startMonth: nextMonth,
       },
     })
     expect(denied.message ?? denied.code ?? '').toMatch(
+      /error|denied|forbidden|not.?found/i,
+    )
+
+    // Changing a month's target is refused across the same boundary: P3 is
+    // not this organization's Property, and this organization's goal cannot be
+    // reached through it. A refusal the command gives inside the tenant (a
+    // month that is not open, an ended goal) is a code that matches none of
+    // these words, so this is the tenant's answer and not the command's.
+    const deniedMonthTarget = await callServerFnExpectError(page, {
+      file: 'src/contexts/reporting/server/goal-month-target.ts',
+      exportName: 'changeGoalMonthTarget',
+      data: {
+        propertyId: seed.p3PropertyId,
+        programId: created.program.id,
+        month: nextMonth,
+        targetValue: 1,
+        expectedTarget: 12,
+        expectedVersion: 1,
+        // A well-formed month: the refusal is the tenant's, not the schema's.
+        expectedFollowingMonth: nextMonth,
+        applyToFollowing: false,
+      },
+    })
+    expect(deniedMonthTarget.message ?? deniedMonthTarget.code ?? '').toMatch(
       /error|denied|forbidden|not.?found/i,
     )
 
@@ -965,11 +1044,443 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         metric: 'qualified_scans',
         targetValue: 4.5,
         subjects,
+        startMonth: nextMonth,
       },
     })
     expect(invalidTarget.message ?? invalidTarget.code ?? '').toMatch(
       /error|invalid|target/i,
     )
+  })
+
+  test("a Portal goal set mid-month shows this month's count", async ({
+    page,
+  }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    // A Portal of its own for every attempt. A goal that starts this month
+    // opens the month at once, and ending the goal keeps its subject held until
+    // that month is over, so a second attempt on the same Portal would be
+    // refused with subject_has_goal. The `e2e-rotating-` slug puts the Portal
+    // in the afterAll clean-up above.
+    const suffix = `${e2eRunId.slice(-8)}-${testInfo.retry}`
+    const portalName = `E2E Goal Portal ${suffix}`
+    const goalName = `E2E Mid-month Goal ${suffix}`
+    const { portal } = await callServerFn<{ portal: { id: string } }>(page, {
+      file: 'src/contexts/portal/server/portals.ts',
+      exportName: 'createPortal',
+      data: {
+        propertyId: seed.p1PropertyId,
+        name: portalName,
+        slug: `e2e-rotating-goal-${suffix}`,
+        description: 'The subject of a goal set during its month.',
+      },
+    })
+
+    let goalId: string | undefined
+    try {
+      await page.goto(
+        `/properties/${seed.p1PropertyId}/goals/new?subject=portal:${portal.id}`,
+      )
+      await waitForHydration(page)
+      // The link names the subject, so the goal is for this one Portal.
+      await expect(page.getByRole('checkbox', { name: portalName })).toBeChecked()
+      await page.getByRole('textbox', { name: 'Name', exact: true }).fill(goalName)
+      await page.getByRole('spinbutton', { name: 'Monthly target' }).fill('5')
+      // The start is chosen here, never assumed: which month the form offers
+      // first depends on the day of the month the suite runs.
+      const thisMonth = page.getByRole('radio', {
+        name: /^This month — counts everything since /,
+      })
+      await thisMonth.click()
+      await expect(thisMonth).toBeChecked()
+      // One subject and this month: the form says what the month already holds.
+      // A Portal created a moment ago has no ratings, and a verified zero is a
+      // figure, not a gap.
+      await expect(page.getByText('So far this month: 0', { exact: true })).toBeVisible()
+      await clickWhenReady(page.getByRole('button', { name: 'Create goal' }))
+
+      await expect(page).toHaveURL(
+        new RegExp(`/properties/${seed.p1PropertyId}/goals/[0-9a-f-]{36}$`),
+      )
+      goalId = new URL(page.url()).pathname.split('/').at(-1)
+      await expect(page.getByRole('heading', { level: 1, name: goalName })).toBeVisible()
+      // The goal counts the whole month it was set in, and says when it was set.
+      await expect(
+        page.getByText(/^Counts from [A-Z][a-z]{2} 1 · set on [A-Z][a-z]{2} \d{1,2}$/),
+      ).toBeVisible()
+      // The month still running has its open result, with the count so far and
+      // the day the target arrived beside it.
+      await expect(page.getByText('0 so far', { exact: true })).toBeVisible()
+      await expect(page.getByText(/^Set on [A-Z][a-z]{2} \d{1,2}$/)).toBeVisible()
+
+      // The list says when the target was set too, and survives a reload. The
+      // goal's name is a link only there: the results matrix prints it as text.
+      await page.goto(`/properties/${seed.p1PropertyId}/goals`)
+      const listed = page.getByRole('link', { name: goalName, exact: true }).locator('..')
+      await expect(listed).toContainText(/· set on [A-Z][a-z]{2} \d{1,2}/)
+      await page.reload()
+      await expect(listed).toContainText(/· set on [A-Z][a-z]{2} \d{1,2}/)
+    } finally {
+      // End the goal whatever happened above, as an operator would: a goal left
+      // active here would outlive the Portal the afterAll archives.
+      if (goalId) {
+        await callServerFn(page, {
+          file: 'src/contexts/reporting/server/goal-programs.ts',
+          exportName: 'changeGoalProgramStatus',
+          data: {
+            propertyId: seed.p1PropertyId,
+            programId: goalId,
+            status: 'ended',
+            reason: 'E2E end of the mid-month goal.',
+          },
+        })
+      }
+    }
+  })
+
+  test('set goals for three portals, one already has a goal', async ({
+    page,
+  }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    // Three Portals of their own for every attempt, as in the journey above: a
+    // goal holds its subject, so a second attempt on the same Portals would
+    // find all three taken. The `e2e-rotating-` slugs put them in the afterAll
+    // clean-up, and every goal of the attempt carries the suffix in its name.
+    const suffix = `${e2eRunId.slice(-8)}-${testInfo.retry}`
+    const goalsFile = 'src/contexts/reporting/server/goal-programs.ts'
+    const createPortal = async (label: string) => {
+      const name = `E2E Bulk ${label} ${suffix}`
+      const { portal } = await callServerFn<{ portal: { id: string } }>(page, {
+        file: 'src/contexts/portal/server/portals.ts',
+        exportName: 'createPortal',
+        data: {
+          propertyId: seed.p1PropertyId,
+          name,
+          slug: `e2e-rotating-bulk-${label.toLowerCase()}-${suffix}`,
+          description: 'One row of the table that sets several goals.',
+        },
+      })
+      return { id: portal.id, name }
+    }
+    const taken = await createPortal('Taken')
+    const lobby = await createPortal('Lobby')
+    const bar = await createPortal('Bar')
+
+    try {
+      // One of the three already has a goal for the measure, from next month.
+      // Every goal here starts next month, so ending it frees its Portal at once.
+      const takenGoalName = `E2E Goal Set Before ${suffix}`
+      const before = await callServerFn<{ program: { id: string } }>(page, {
+        file: goalsFile,
+        exportName: 'createGoalProgram',
+        data: {
+          propertyId: seed.p1PropertyId,
+          name: takenGoalName,
+          metric: 'portal_rating_count',
+          targetValue: 7,
+          subjects: [{ kind: 'portal', portalId: taken.id }],
+          startMonth: await nextGoalStartMonth(seed.p1PropertyId),
+        },
+      })
+
+      // The way in is the Goals list.
+      await page.goto(`/properties/${seed.p1PropertyId}/goals`)
+      await waitForHydration(page)
+      await clickWhenReady(
+        page.getByRole('link', { name: 'Set goals for several portals' }),
+      )
+      await expect(page).toHaveURL(
+        new RegExp(`/properties/${seed.p1PropertyId}/goals/new\\?mode=several$`),
+      )
+      await expect(
+        page
+          .getByRole('navigation', { name: 'New goal views' })
+          .getByRole('link', { name: 'Several portals' }),
+      ).toHaveAttribute('aria-current', 'page')
+      await expect(
+        page.getByRole('heading', { level: 2, name: 'Set goals for several portals' }),
+      ).toBeVisible()
+
+      // The start is chosen here, never assumed: which month the form offers
+      // first depends on the day of the month the suite runs. The measure is the
+      // one the form opens on, private ratings, which the goal set before has.
+      const chooseNextMonth = async () => {
+        const nextMonth = page.getByRole('radio', { name: /^Next month — starts / })
+        await nextMonth.click()
+        await expect(nextMonth).toBeChecked()
+      }
+      await chooseNextMonth()
+      const rowOf = (portal: { name: string }) =>
+        page.getByRole('row').filter({ hasText: portal.name })
+      const targetOf = (portal: { name: string }) =>
+        page.getByRole('spinbutton', { name: `Monthly target for ${portal.name}` })
+
+      // The Portal that has a goal takes no number: its row shows that goal's
+      // target, says what frees the Portal and links to the goal.
+      const takenRow = rowOf(taken)
+      await expect(takenRow.getByText('Already has a goal')).toBeVisible()
+      await expect(takenRow.getByText('7', { exact: true })).toBeVisible()
+      await expect(
+        takenRow.getByText(
+          `${taken.name} is part of ${takenGoalName}. Remove it from that goal’s subjects first.`,
+        ),
+      ).toBeVisible()
+      await expect(
+        takenRow.getByRole('link', { name: takenGoalName, exact: true }),
+      ).toHaveAttribute(
+        'href',
+        `/properties/${seed.p1PropertyId}/goals/${before.program.id}`,
+      )
+      await expect(targetOf(taken)).toHaveCount(0)
+
+      await targetOf(lobby).fill('5')
+      await targetOf(bar).fill('8')
+      await clickWhenReady(page.getByRole('button', { name: 'Save goals' }))
+
+      // One goal per filled row, each named for its Portal and its measure.
+      await expect(page.getByText('2 goals saved.', { exact: true })).toBeVisible()
+      for (const [portal, target] of [
+        [lobby, '5'],
+        [bar, '8'],
+      ] as const) {
+        const row = rowOf(portal)
+        await expect(row.getByText('Goal saved')).toBeVisible()
+        await expect(row.getByText(target, { exact: true })).toBeVisible()
+        await expect(
+          row.getByRole('link', {
+            name: `${portal.name} · Private ratings`,
+            exact: true,
+          }),
+        ).toHaveAttribute(
+          'href',
+          new RegExp(`/properties/${seed.p1PropertyId}/goals/[0-9a-f-]{36}$`),
+        )
+        await expect(targetOf(portal)).toHaveCount(0)
+      }
+      // The goal that was there is still the first Portal's.
+      await expect(takenRow.getByText('Already has a goal')).toBeVisible()
+
+      // After a reload the two new goals hold their Portals like any other.
+      await page.reload()
+      await waitForHydration(page)
+      await chooseNextMonth()
+      for (const [portal, target] of [
+        [lobby, '5'],
+        [bar, '8'],
+      ] as const) {
+        const row = rowOf(portal)
+        await expect(row.getByText('Already has a goal')).toBeVisible()
+        await expect(row.getByText(target, { exact: true })).toBeVisible()
+        await expect(targetOf(portal)).toHaveCount(0)
+      }
+
+      // And the Goals list has all three, the two new ones under their names.
+      await page.goto(`/properties/${seed.p1PropertyId}/goals`)
+      for (const name of [
+        takenGoalName,
+        `${lobby.name} · Private ratings`,
+        `${bar.name} · Private ratings`,
+      ]) {
+        await expect(page.getByRole('link', { name, exact: true })).toBeVisible()
+      }
+    } finally {
+      // End every goal of this attempt, whatever happened above: a goal left
+      // open would outlive the Portals the afterAll archives.
+      const listed = await callServerFnGet<{
+        programs: ReadonlyArray<{ program: { id: string; name: string; status: string } }>
+      }>(page, {
+        file: goalsFile,
+        exportName: 'listGoalPrograms',
+        data: { propertyId: seed.p1PropertyId },
+      })
+      for (const { program } of listed.programs) {
+        if (!program.name.includes(suffix) || program.status === 'ended') continue
+        await callServerFn(page, {
+          file: goalsFile,
+          exportName: 'changeGoalProgramStatus',
+          data: {
+            propertyId: seed.p1PropertyId,
+            programId: program.id,
+            status: 'ended',
+            reason: 'E2E end of a goal set for several portals.',
+          },
+        })
+      }
+    }
+  })
+
+  test("changing this month's target shows the old value and applies next month", async ({
+    page,
+  }, testInfo) => {
+    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
+    // A Portal of its own for every attempt, as in the journey above: the goal
+    // starts this month, and once ended it holds its subject until the month
+    // is over. The `e2e-rotating-` slug puts the Portal in the afterAll clean-up.
+    const suffix = `${e2eRunId.slice(-8)}-${testInfo.retry}`
+    const goalName = `E2E Month Target Goal ${suffix}`
+    const { portal } = await callServerFn<{ portal: { id: string } }>(page, {
+      file: 'src/contexts/portal/server/portals.ts',
+      exportName: 'createPortal',
+      data: {
+        propertyId: seed.p1PropertyId,
+        name: `E2E Target Portal ${suffix}`,
+        slug: `e2e-rotating-target-${suffix}`,
+        description: 'The subject of a goal whose running month is retargeted.',
+      },
+    })
+    // The month is named, never assumed: a goal that starts in the month that
+    // is running has that month open from the moment it is created.
+    const created = await callServerFn<{ program: { id: string; status: string } }>(
+      page,
+      {
+        file: 'src/contexts/reporting/server/goal-programs.ts',
+        exportName: 'createGoalProgram',
+        data: {
+          propertyId: seed.p1PropertyId,
+          name: goalName,
+          metric: 'portal_rating_count',
+          targetValue: 5,
+          subjects: [{ kind: 'portal', portalId: portal.id }],
+          startMonth: await currentGoalStartMonth(seed.p1PropertyId),
+        },
+      },
+    )
+    const goalId = created.program.id
+
+    try {
+      expect(created.program.status).toBe('active')
+      await page.goto(`/properties/${seed.p1PropertyId}/goals/${goalId}`)
+      await waitForHydration(page)
+      await expect(page.getByRole('heading', { level: 1, name: goalName })).toBeVisible()
+      const card = (title: string) =>
+        page.locator('[data-slot="card"]').filter({
+          has: page.getByRole('heading', { level: 2, name: title, exact: true }),
+        })
+      const thisMonth = card('Program').getByText('This month:', { exact: true })
+      const monthsAfter = card('Program').getByText(
+        /^From [A-Z][a-z]{2} 1(?:, \d\d\d\d)?:$/,
+      )
+      // Before the change the month and the months after share the target the
+      // goal was set with, and nothing is listed as changed.
+      await expect(thisMonth.locator('..')).toHaveText('This month: 5')
+      await expect(monthsAfter.locator('..')).toHaveText(
+        /^From [A-Z][a-z]{2} 1(?:, \d\d\d\d)?: 5$/,
+      )
+      await expect(
+        card('Target changes').getByText('This goal’s target has not been changed.'),
+      ).toBeVisible()
+
+      await clickWhenReady(
+        page.getByRole('button', { name: 'Change this month’s target' }),
+      )
+      const dialog = page.getByRole('dialog', { name: 'Change this month’s target' })
+      const target = dialog.getByRole('spinbutton', { name: /^Target for [A-Z][a-z]+$/ })
+      await expect(target).toHaveValue('5')
+      // Nothing waits for next month, so the months after take the target
+      // too: the box is ticked and its name carries the real first day.
+      await expect(
+        dialog.getByRole('checkbox', {
+          name: /^Also use this target from [A-Z][a-z]{2} 1(?:, \d\d\d\d)?$/,
+        }),
+      ).toBeChecked()
+      await target.fill('3')
+      await dialog
+        .getByRole('textbox', { name: /^Note/ })
+        .fill('E2E: fewer guests this month.')
+      await clickWhenReady(dialog.getByRole('button', { name: 'Save target' }))
+      // The dialog stays open on its receipt, which says both halves.
+      await expect(
+        dialog.getByText(
+          /^Target saved\. It also applies from [A-Z][a-z]{2} 1(?:, \d\d\d\d)?\.$/,
+        ),
+      ).toBeVisible()
+      // The footer's own Close: the corner control carries the same name.
+      await dialog.getByText('Close', { exact: true }).click()
+      await expect(dialog).toBeHidden()
+
+      // The month shows its new target with the old value beside it and who
+      // changed it; the months after carry the target from the first of the
+      // next month. Both survive a reload.
+      const changedBy = `Changed by ${seed.managerName} on `
+      for (const attempt of ['after saving', 'after a reload']) {
+        if (attempt === 'after a reload') await page.reload()
+        await expect(thisMonth.locator('..')).toContainText('This month: 3')
+        await expect(thisMonth.locator('..')).toContainText(changedBy)
+        await expect(thisMonth.locator('..')).toContainText(', started at 5')
+        await expect(monthsAfter.locator('..')).toContainText(': 3')
+      }
+      // The month's own row under Monthly results says the same.
+      await expect(
+        card('Monthly results').getByText(
+          /^Changed by .+ on [A-Z][a-z]{2} \d{1,2}, started at 5$/,
+        ),
+      ).toBeVisible()
+      // The change is on the record with who, old and new value, what it did
+      // for the months after, and the note.
+      const changes = card('Target changes')
+      const changeLine = changes.getByText(/ changed [A-Z][a-z]+’s target from 5 to 3/)
+      await expect(changeLine).toBeVisible()
+      await expect(changeLine).toContainText(`${seed.managerName} changed `)
+      await expect(
+        changes.getByText(/^Also applies from [A-Z][a-z]{2} 1(?:, \d\d\d\d)?\.$/),
+      ).toBeVisible()
+      await expect(
+        changes.getByText('Note: E2E: fewer guests this month.', { exact: true }),
+      ).toBeVisible()
+
+      // What was written: the month carries its own target, one change is
+      // logged with the old and the new value, and a version with the new
+      // target waits for next month.
+      const after = await callServerFnGet<{
+        version: { targetValue: number; changeReason: string; effectiveFrom: Date }
+        results: ReadonlyArray<{ status: string; targetValue: number | null }>
+        targetChanges: ReadonlyArray<{
+          previousTargetValue: number
+          newTargetValue: number
+          followingOutcome: string
+          followingVersionId: string | null
+        }>
+      }>(page, {
+        file: 'src/contexts/reporting/server/goal-programs.ts',
+        exportName: 'getGoalProgram',
+        data: { propertyId: seed.p1PropertyId, programId: goalId },
+      })
+      expect(after.results).toEqual([
+        expect.objectContaining({ status: 'open', targetValue: 3 }),
+      ])
+      expect(after.targetChanges).toEqual([
+        expect.objectContaining({
+          previousTargetValue: 5,
+          newTargetValue: 3,
+          followingOutcome: 'applied',
+        }),
+      ])
+      expect(after.targetChanges[0]?.followingVersionId).toBeTruthy()
+      expect(after.version).toMatchObject({
+        targetValue: 3,
+        changeReason: 'target_changed',
+      })
+      expect(new Date(after.version.effectiveFrom).getTime()).toBeGreaterThan(Date.now())
+
+      // The goals list says this month's target and that it was changed.
+      await page.goto(`/properties/${seed.p1PropertyId}/goals`)
+      const listed = page.getByRole('link', { name: goalName, exact: true }).locator('..')
+      await expect(listed).toContainText(
+        /target 3 this month · changed [A-Z][a-z]{2} \d{1,2}, started at 5/,
+      )
+    } finally {
+      // End the goal whatever happened above, as an operator would: a goal left
+      // active here would outlive the Portal the afterAll archives.
+      await callServerFn(page, {
+        file: 'src/contexts/reporting/server/goal-programs.ts',
+        exportName: 'changeGoalProgramStatus',
+        data: {
+          propertyId: seed.p1PropertyId,
+          programId: goalId,
+          status: 'ended',
+          reason: 'E2E end of the month target goal.',
+        },
+      })
+    }
   })
 
   // No Member journey. Member is not a beta-interactive role, so the TENANT
@@ -990,15 +1501,26 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN, '/settings/profile')
     // Timezone and date format are the person's clock, set on Profile (D6).
     await expect(page.getByRole('combobox', { name: 'Timezone' })).toBeVisible()
+    await waitForHydration(page)
     const nameInput = page.getByLabel('Name')
     await nameInput.fill(`${seed.managerName} Persisted`)
-    await clickWhenReady(page.getByRole('button', { name: 'Save Changes' }))
-    await expect(page.getByText('Profile updated successfully')).toBeVisible()
+    await clickWhenReady(page.getByRole('button', { name: 'Save profile' }))
+    await expect(page.getByText('Profile saved')).toBeVisible()
     await page.reload()
     await expect(nameInput).toHaveValue(`${seed.managerName} Persisted`)
+    // The reloaded form is server-rendered before React hydrates: a fill in
+    // that window is reset to the loaded name and the restore then saves the
+    // CHANGED name back (or a pre-hydration click submits natively). Either way
+    // the name stays "… Persisted" for every later spec that reads it — the
+    // member invitation's "Invited by" cell among them.
+    await waitForHydration(page)
     await nameInput.fill(seed.managerName)
-    await clickWhenReady(page.getByRole('button', { name: 'Save Changes' }))
-    await expect(page.getByText('Profile updated successfully')).toBeVisible()
+    await expect(nameInput).toHaveValue(seed.managerName)
+    await clickWhenReady(page.getByRole('button', { name: 'Save profile' }))
+    await expect(page.getByText('Profile saved')).toBeVisible()
+    // The restore is shared suite state, so it is proven, not assumed.
+    await page.reload()
+    await expect(nameInput).toHaveValue(seed.managerName)
 
     await page.goto('/settings/notifications')
     // Quiet hours say which clock they run on, and link to where it is set.
@@ -1057,7 +1579,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       await page.getByLabel('New password', { exact: true }).fill(temporaryPassword)
       await page.getByLabel('Confirm new password').fill(temporaryPassword)
       await clickWhenReady(page.getByRole('button', { name: 'Update password' }))
-      await expect(page.getByText('Password changed successfully')).toBeVisible()
+      await expect(page.getByText('Password updated')).toBeVisible()
       await page.getByLabel('Current password').fill(temporaryPassword)
       await page.getByLabel('New password', { exact: true }).fill(seed.password)
       await page.getByLabel('Confirm new password').fill(seed.password)
@@ -1097,7 +1619,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     })
   })
 
-  test('member invitation sends once, persists, and can be cancelled', async ({
+  test('member invitation sends once, persists, renews on resend, and can be cancelled', async ({
     page,
   }) => {
     await mailStubControl.reset()
@@ -1105,13 +1627,29 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await waitForHydration(page)
     const inviteEmail = `beta-invite-${e2eRunId}@example.com`
     await clickWhenReady(page.getByRole('button', { name: /invite member/i }))
-    await page.getByPlaceholder('colleague@example.com').fill(inviteEmail)
+    // The page's own description also says "the properties they can work", so
+    // the form's field is read inside the dialog, by its exact label.
+    const inviteDialog = page.getByRole('dialog', { name: 'Invite a new member' })
+    const propertyField = inviteDialog.getByText('Properties they can work', {
+      exact: true,
+    })
+    await inviteDialog.getByPlaceholder('colleague@example.com').fill(inviteEmail)
     // Only the two manager roles are invitable during the closed beta
-    // (isBetaInteractiveRole) — Member logins are inactive and the selector
-    // does not offer them.
-    await page.getByRole('combobox', { name: 'Role' }).click()
-    await page.getByRole('option', { name: 'Property Manager', exact: true }).click()
-    await clickWhenReady(page.getByRole('button', { name: /send invitation/i }))
+    // (isBetaInteractiveRole) — Member logins are inactive and the form does
+    // not offer them. The invitation starts as a Property Manager, the least
+    // privilege, with the property picker in view.
+    await expect(
+      inviteDialog.getByRole('radio', { name: /property manager/i }),
+    ).toBeChecked()
+    await expect(propertyField).toBeVisible()
+    // An Account Admin reaches every property, so choosing one drops the picker.
+    await inviteDialog.getByRole('radio', { name: /account admin/i }).click()
+    await expect(propertyField).toHaveCount(0)
+    await expect(
+      inviteDialog.getByText('Account Admins can access every property.'),
+    ).toBeVisible()
+    await inviteDialog.getByRole('radio', { name: /property manager/i }).click()
+    await clickWhenReady(inviteDialog.getByRole('button', { name: /send invitation/i }))
     await expect(page.getByText(inviteEmail, { exact: true })).toBeVisible()
     await page.reload()
     await expect(page.getByText(inviteEmail, { exact: true })).toBeVisible()
@@ -1130,8 +1668,46 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       (send) => send.to === inviteEmail,
     )
     expect(invite.subject).toContain('invited you to join')
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
-    await page.getByRole('button', { name: /cancel invitation/i }).click()
+
+    // The table says who sent it and when it lapses, not a raw status token.
+    const inviteRow = page.getByRole('row').filter({ hasText: inviteEmail })
+    await expect(inviteRow.getByText('Expired')).toHaveCount(0)
+    await expect(inviteRow.getByText(seed.managerName, { exact: true })).toBeVisible()
+
+    // Resend renews the same invitation's expiry (one row per person) and mails
+    // it again. The Expires column prints a day, so the renewal is read from
+    // the invitation itself.
+    const expiryOf = async () => {
+      const { invitations } = await callServerFnGet<{
+        invitations: ReadonlyArray<{ email: string; expiresAt: string | Date }>
+      }>(page, {
+        file: 'src/contexts/identity/server/organizations.invitations.ts',
+        exportName: 'listInvitations',
+      })
+      const row = invitations.find((candidate) => candidate.email === inviteEmail)
+      if (!row) throw new Error('the invitation is not listed')
+      return new Date(row.expiresAt).getTime()
+    }
+    const expiryBefore = await expiryOf()
+    // An invitation's Resend and Cancel live in its row's more-actions menu (UI
+    // consistency S6, RowActionsMenu); Cancel opens a confirmation.
+    const inviteMenu = inviteRow.getByRole('button', {
+      name: `More actions for ${inviteEmail}`,
+    })
+    await clickWhenReady(inviteMenu)
+    await page.getByRole('menuitem', { name: 'Resend invitation' }).click()
+    await expect(page.getByText('Invitation renewed and sent')).toBeVisible()
+    await expect.poll(expiryOf).toBeGreaterThan(expiryBefore)
+    await expect
+      .poll(async () =>
+        (await mailStubControl.sends()).filter((send) => send.to === inviteEmail),
+      )
+      .toHaveLength(2)
+    await expect(page.getByText(inviteEmail, { exact: true })).toHaveCount(1)
+
+    await clickWhenReady(inviteMenu)
+    await page.getByRole('menuitem', { name: 'Cancel invitation…' }).click()
+    await page.getByRole('button', { name: 'Cancel invitation', exact: true }).click()
     await expect(page.getByText(inviteEmail, { exact: true })).toHaveCount(0)
   })
 
@@ -1141,10 +1717,17 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN, '/settings/preferences')
     await page.evaluate(() => window.localStorage.setItem('theme', 'auto'))
     await page.reload()
-    await page.getByRole('button', { name: /Theme mode: auto/i }).click()
-    await expect(page.getByRole('button', { name: /Theme mode: light/i })).toBeVisible()
+    // The SSR'd control is clickable before it hydrates; a click in that window
+    // changes nothing and the next assertion reads the old choice.
+    await waitForHydration(page)
+    // Preferences draws the choice as one segmented control: Light, Dark, System.
+    const theme = page.getByRole('radiogroup', { name: 'Theme' })
+    await expect(theme.getByRole('radio', { name: 'System' })).toBeChecked()
+    await theme.getByRole('radio', { name: 'Light' }).click()
+    await expect(theme.getByRole('radio', { name: 'Light' })).toBeChecked()
     await page.reload()
-    await expect(page.getByRole('button', { name: /Theme mode: light/i })).toBeVisible()
+    await waitForHydration(page)
+    await expect(theme.getByRole('radio', { name: 'Light' })).toBeChecked()
 
     const integrationSubject = `beta-integration-${e2eRunId}`
     const { connectionId } = await seedGoogleConnection({

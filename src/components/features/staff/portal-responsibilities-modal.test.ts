@@ -33,6 +33,7 @@ vi.mock('#/components/ui/dialog', async () => {
     h(Fragment, null, children)
   return {
     Dialog: Passthrough,
+    DialogCancel: Passthrough,
     DialogContent: Passthrough,
     DialogDescription: Passthrough,
     DialogFooter: Passthrough,

@@ -9,11 +9,10 @@ import type {
 } from '#/contexts/inbox/application/public-api'
 import { InboxListV2 } from '#/components/inbox/inbox-list-v2'
 import { InboxBulkActions } from '#/components/inbox/inbox-bulk-actions'
-import { Button } from '#/components/ui/button'
+import { LoadMoreButton } from '#/components/ui/load-more-button'
 import type { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import type { bulkAssignInboxItemsFn } from '#/contexts/inbox/server/inbox'
 import type { InboxAssignmentOption } from './inbox-owner-view'
-import { Loader2 } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import type { InboxListFilterValues } from './inbox-filters'
 import { InboxListEmpty, InboxListError, InboxListSkeleton } from './inbox-list-states'
@@ -29,6 +28,8 @@ export interface InboxListPanelProps {
   /** At organization scope every row names its property. */
   showPropertyNames: boolean
   totalCount: number
+  /** What the queue holds before any search or filter; null until its count has arrived. */
+  queueTotal: number | null
   searchQ: string | undefined
   filters: InboxListFilterValues
   sort: InboxSort
@@ -38,14 +39,16 @@ export interface InboxListPanelProps {
   isLoading: boolean
   error: string | null
   onRetry: () => void
+  /** Try again is reading; the error panel stays, its button busy. */
+  isRetrying?: boolean
   nextCursor: Cursor | null
   loadAction: { isPending: boolean }
   listRef: RefObject<HTMLDivElement | null>
   onSearchChange: (q: string | undefined) => void
   onFiltersChange: (patch: Partial<InboxListFilterValues>) => void
   onSortChange: (sort: InboxSort) => void
-  /** Drops every filter and the sort in one navigation. */
-  onClearAll: () => void
+  /** Drops the search and every filter in one navigation; the sort stays. */
+  onClearFilters: () => void
   onToggleSelect: (id: string) => void
   onSelectAll: () => void
   onDeselectAll: () => void
@@ -66,13 +69,25 @@ export interface InboxListPanelProps {
 /** Picks the scroll-area content (skeleton / error / empty / list). Kept as a
  *  plain function (taking the panel props) so InboxListPanel stays a thin shell. */
 export function renderListContent(props: InboxListPanelProps): ReactNode {
+  // The failure comes first: a retry resets the query to pending, and the panel
+  // must stay, its button busy, rather than give way to the skeleton.
+  if (props.error) {
+    return (
+      <InboxListError
+        error={props.error}
+        onRetry={props.onRetry}
+        isRetrying={props.isRetrying ?? false}
+      />
+    )
+  }
   if (props.isLoading) return <InboxListSkeleton />
-  if (props.error) return <InboxListError error={props.error} onRetry={props.onRetry} />
   if (props.items.length === 0) {
     return (
       <InboxListEmpty
         queue={props.queue}
         isFiltered={!!props.searchQ || countActiveInboxFilters(props.filters) > 0}
+        searching={!!props.searchQ}
+        onClearFilters={props.onClearFilters}
       />
     )
   }
@@ -93,7 +108,7 @@ export function renderListContent(props: InboxListPanelProps): ReactNode {
 }
 
 /** Renders nothing until there is a next page and the initial load is done. */
-export function LoadMoreButton({
+export function InboxLoadMore({
   nextCursor,
   loadedCount,
   totalCount,
@@ -114,17 +129,10 @@ export function LoadMoreButton({
       <span className="text-xs tabular-nums text-muted-foreground">
         {loadedCount} of {totalCount}
       </span>
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={loadAction.isPending}
-        onClick={() => onLoadMore(nextCursor)}
-      >
-        {loadAction.isPending && (
-          <Loader2 data-icon="inline-start" className="animate-spin" />
-        )}
-        Load more
-      </Button>
+      <LoadMoreButton
+        loading={loadAction.isPending}
+        onLoadMore={() => void onLoadMore(nextCursor)}
+      />
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { createFileRoute, getRouteApi, useNavigate } from '@tanstack/react-route
 import { z } from 'zod/v4'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
   getNotificationPreferencesFn,
@@ -18,6 +19,7 @@ import {
 } from '#/routes/-queries/route-queries'
 import { checkControlledRoute } from '#/shared/auth/controlled-route-check'
 import type { AuthRouteContext } from '#/routes/_authenticated'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 const authRoute = getRouteApi('/_authenticated')
 
@@ -35,6 +37,7 @@ const preferencesQuery = (organizationId: string) =>
 const notificationsSearchSchema = z.object({ propertyId: z.string().optional() })
 
 export const Route = createFileRoute('/_authenticated/settings/notifications')({
+  staticData: { page: { title: 'Notifications', under: 'settings' } },
   validateSearch: (search) => notificationsSearchSchema.parse(search),
   loader: async ({ context }) => {
     const routeContext = context as AuthRouteContext & {
@@ -61,7 +64,7 @@ function NotificationsSettings() {
       <PageHeader
         title="Notifications"
         description="Control property-specific in-app and email delivery."
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Notifications' }]}
+        breadcrumbs={trailCrumbs('settings', {}, 'Notifications')}
       />
       <NotificationSettingsPropertyScope
         key={`${organizationId}:${notificationPropertyScopeKey(properties.properties)}`}
@@ -111,11 +114,11 @@ function NotificationSettingsPropertyScope({
   })
   // Only a settled "allowed" enables the email controls. An in-flight or failed
   // check is neither a yes nor a no, and says so instead of "not enabled".
-  const emailAvailability = emailCapability.isPending
-    ? 'checking'
-    : emailCapability.isError
-      ? 'unknown'
-      : emailCapability.data.allowed
+  const emailAvailability = hasFailed(emailCapability)
+    ? 'unknown'
+    : emailCapability.isPending
+      ? 'checking'
+      : emailCapability.data?.allowed
         ? 'allowed'
         : 'unavailable'
   const updatePreference = useActionMutation(updateNotificationPreferenceFn, {
@@ -147,6 +150,7 @@ function NotificationSettingsPropertyScope({
           // a whole column of controls that could only ever fail.
           emailAvailability={emailAvailability}
           retryEmailAvailability={() => void emailCapability.refetch()}
+          emailAvailabilityRetrying={isRetrying(emailCapability)}
           setPropertyId={setPropertyId}
           updatePreference={updatePreference}
           resetPropertyCategory={resetPropertyCategory}

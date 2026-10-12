@@ -108,7 +108,7 @@ export const IgnoresTheAppTheme: Story = {
     expect(tile && getComputedStyle(tile).color).toBe(rootStyle.color)
     expect(tile && getComputedStyle(tile).textDecorationLine).toBe('none')
     // A link that asks for the accent gets it, underlined.
-    const privacy = within(canvasElement).getByRole('link', { name: 'Privacy notice' })
+    const privacy = within(canvasElement).getByRole('link', { name: /^Privacy notice/u })
     expect(getComputedStyle(privacy).textDecorationLine).toBe('underline')
     expect(getComputedStyle(privacy).color).not.toBe(rootStyle.color)
   },
@@ -145,12 +145,83 @@ export const DarkAccentIsReplaced: Story = {
   },
 }
 
-/** A wide viewport keeps the phone-width column and lets the backdrop run full width. */
+/**
+ * A wide viewport keeps the phone-width column and lets the backdrop run full
+ * width. In a frame (the admin preview) the hero stays the phone's 236 px,
+ * however wide the window: only the page asks the viewport.
+ */
 export const WideViewport: Story = {
   parameters: { frameWidth: 1024 },
   play: async ({ canvasElement }) => {
     const column = canvasElement.querySelector<HTMLElement>('.ih-column')
     expect(column?.getBoundingClientRect().width).toBe(480)
     expect(rootOf(canvasElement).getBoundingClientRect().width).toBe(1024)
+    const hero = canvasElement.querySelector<HTMLElement>('.ih-hero')
+    expect(hero?.getBoundingClientRect().height).toBe(236)
+  },
+}
+
+/** The hero's height and where the kicker sits, both measured on the page. */
+function heroMetrics(canvasElement: HTMLElement) {
+  const hero = canvasElement.querySelector<HTMLElement>('.ih-hero')
+  const kicker = canvasElement.querySelector<HTMLElement>('.ih-title__kicker')
+  if (!hero || !kicker) throw new Error('the hero or the kicker is missing')
+  const heroBox = hero.getBoundingClientRect()
+  return {
+    height: heroBox.height,
+    kickerFromBottom: heroBox.bottom - kicker.getBoundingClientRect().top,
+  }
+}
+
+/**
+ * The hero's height the stylesheet gives the page at this window width: the
+ * phone's 236 px below sm, and from sm up 34% of the width, never under 300 px
+ * and never over 440 px.
+ */
+const heroHeightAt = (windowWidth: number) =>
+  windowWidth < 640 ? 236 : Math.min(440, Math.max(300, windowWidth * 0.34))
+
+/**
+ * From sm up the hero photo grows with the viewport instead of being cropped to
+ * a thin strip, and the title block follows it down so the kicker keeps the
+ * same distance above the photo's bottom edge. A tablet gets the least it grows.
+ * The expectation follows the window the story is opened in: the story runner
+ * opens it at the tablet's width, and the geometry gate opens every story at a
+ * phone's first, where the hero is the phone's.
+ */
+export const HeroGrowsOnATablet: Story = {
+  args: { height: 'page' },
+  parameters: { frameWidth: 820, viewport: { defaultViewport: 'tablet' } },
+  play: async ({ canvasElement }) => {
+    const { height, kickerFromBottom } = heroMetrics(canvasElement)
+    expect(Math.abs(height - heroHeightAt(window.innerWidth))).toBeLessThan(1)
+    expect(Math.round(kickerFromBottom)).toBe(94)
+  },
+}
+
+/** On a laptop the growth stops at 440 px: bounded, not a full-width poster. */
+export const HeroIsBoundedOnADesktop: Story = {
+  args: { height: 'page' },
+  parameters: { frameWidth: 1440, viewport: { defaultViewport: 'desktopManager' } },
+  play: async ({ canvasElement }) => {
+    const { height, kickerFromBottom } = heroMetrics(canvasElement)
+    expect(Math.abs(height - heroHeightAt(window.innerWidth))).toBeLessThan(1)
+    expect(height).toBeLessThanOrEqual(440)
+    expect(Math.round(kickerFromBottom)).toBe(94)
+  },
+}
+
+/** The no-photo page keeps its arch and its title where the board has them, on any width. */
+export const NoPhotoPageDoesNotGrow: Story = {
+  args: {
+    height: 'page',
+    brand: { ...CHAMPAGNE, hero: null },
+    heroAlt: { value: '' },
+  },
+  parameters: { frameWidth: 1440, viewport: { defaultViewport: 'desktopManager' } },
+  play: async ({ canvasElement }) => {
+    const title = canvasElement.querySelector<HTMLElement>('.ih-title')
+    expect(title && parseFloat(getComputedStyle(title).marginTop)).toBe(78)
+    expect(canvasElement.querySelector('.ih-hero')).toBeNull()
   },
 }

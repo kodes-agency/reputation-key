@@ -3,8 +3,9 @@
  * Wraps TanStack Form's form.Field with shadcn's Field components.
  */
 
-import { Field, FieldLabel, FieldError } from '#/components/ui/field'
+import type { ReactNode } from 'react'
 import { Textarea } from '#/components/ui/textarea'
+import { describedByOf, FormFieldFrame } from './form-field-frame'
 
 export type BaseFieldApiTextarea = {
   name: string
@@ -36,6 +37,10 @@ type Props = Readonly<{
    */
   labelClassName?: string
   textareaClassName?: string
+  /** The person may leave it empty: the label says "Optional". */
+  optional?: boolean
+  /** A line under the field on what it is for; the textarea names it as its description. */
+  description?: ReactNode
 }>
 
 export function FormTextarea({
@@ -48,14 +53,21 @@ export function FormTextarea({
   maxLength,
   labelClassName,
   textareaClassName,
+  optional,
+  description,
 }: Props) {
   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
 
   return (
-    <Field data-invalid={isInvalid}>
-      <FieldLabel htmlFor={id} className={labelClassName}>
-        {label}
-      </FieldLabel>
+    <FormFieldFrame
+      id={id}
+      label={label}
+      optional={optional}
+      description={description}
+      invalid={isInvalid}
+      errors={isInvalid ? field.state.meta.errors : undefined}
+      labelClassName={labelClassName}
+    >
       <Textarea
         id={id}
         className={textareaClassName}
@@ -64,12 +76,12 @@ export function FormTextarea({
         onBlur={field.handleBlur}
         onChange={(e) => field.handleChange(e.target.value)}
         aria-invalid={isInvalid}
+        aria-describedby={describedByOf(id, description, isInvalid)}
         placeholder={placeholder}
         rows={rows}
         disabled={disabled}
         maxLength={maxLength}
       />
-      {isInvalid && <FieldError errors={field.state.meta.errors} />}
-    </Field>
+    </FormFieldFrame>
   )
 }

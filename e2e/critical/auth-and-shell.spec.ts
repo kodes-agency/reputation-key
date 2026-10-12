@@ -4,11 +4,12 @@
 // Scope notes:
 // - Self-service registration has no route in beta. The positive
 //   invitation→registration→sign-in journey lives in e2e/auth.spec.ts.
-// - Property People covers Staff Participants; quarantined Team has no beta UI.
+// - Property Staff covers Staff Participants; quarantined Team has no beta UI.
 // - Property/inbox/members use seed-state deep-links (no UI property create).
 
 import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
+import { expectOneH1 } from '../helpers/page-structure'
 import { openSeededProperty, SEEDED_PROPERTY_NAME } from '../helpers/property'
 import { requireE2eSeedState } from '../helpers/seed-state'
 
@@ -19,7 +20,7 @@ function inboxChrome(page: import('@playwright/test').Page) {
     .or(page.getByText(/no message selected/i))
     .or(page.getByText(/nothing needs a reply/i))
     .or(page.getByText(/no matches/i))
-    .or(page.getByRole('button', { name: /retry/i }))
+    .or(page.getByRole('button', { name: /try again/i }))
     .first()
 }
 
@@ -50,6 +51,7 @@ test.describe('Critical: properties shell', () => {
     await page.goto('/properties')
     await expect(page.getByRole('heading', { name: /^properties$/i })).toBeVisible()
     await expect(page.getByText(SEEDED_PROPERTY_NAME)).toBeVisible()
+    await expectOneH1(page)
   })
 
   test('open seeded property detail', async ({ page }) => {
@@ -76,6 +78,7 @@ test.describe('Critical: inbox and members shell', () => {
     await page.goto('/inbox')
     await expect(page).toHaveURL(/\/inbox/)
     await expect(inboxChrome(page)).toBeVisible({ timeout: 15_000 })
+    await expectOneH1(page)
   })
 
   test('settings members page loads', async ({ page }) => {
@@ -85,5 +88,16 @@ test.describe('Critical: inbox and members shell', () => {
     await expect(page.getByRole('heading', { name: /^members$/i }).first()).toBeVisible({
       timeout: 15_000,
     })
+    // The page header's h1 and the section's h2 both say Members.
+    await expectOneH1(page)
+    // The page answers who works which properties: the description and the
+    // table's Person / Role / Properties columns, not bare name and email.
+    await expect(
+      page.getByText(
+        'Invite people, manage their roles and the properties they can work.',
+      ),
+    ).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Properties' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Person' })).toBeVisible()
   })
 })

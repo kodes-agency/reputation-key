@@ -82,7 +82,14 @@ export function canInviteWithRole(
 // Consumers in this context should migrate to importing from '#/shared/domain'.
 export { normalizeSlug } from '#/shared/domain/slug'
 
-/** Check if a user can change another user's role. */
+/**
+ * Check if a user can change a member's role.
+ *
+ * D2: role administration is AccountAdmin-only, and an AccountAdmin may change
+ * any member's role — another AccountAdmin's included. Nobody may change their
+ * own role, and the last AccountAdmin stays; the use case enforces both, and
+ * the command store re-checks the last-owner rule under the Organization lock.
+ */
 export function canChangeRole(
   changerRole: Role,
   currentTargetRole: Role,
@@ -90,18 +97,15 @@ export function canChangeRole(
 ): Result<true, IdentityError> {
   // Defense-in-depth: use case already gates with can(role, 'member.update').
   // This ensures the domain rule is independently enforceable even if called outside a use case.
-  // Must be at least PropertyManager to change roles
-  if (!hasRole(changerRole, 'PropertyManager')) {
-    return err(identityError('forbidden', 'Insufficient role to change member roles'))
+  if (changerRole !== 'AccountAdmin') {
+    return err(identityError('forbidden', 'Only Account Admins can change member roles'))
   }
 
-  // Cannot change role of someone with higher or equal role
-  if (hasRole(currentTargetRole, changerRole)) {
+  // Cannot change the role of someone above you (unreachable for the top role,
+  // kept so the rule does not depend on AccountAdmin being the highest)
+  if (!hasRole(changerRole, currentTargetRole)) {
     return err(
-      identityError(
-        'forbidden',
-        'Cannot change the role of a member with equal or higher role',
-      ),
+      identityError('forbidden', 'Cannot change the role of a member with a higher role'),
     )
   }
 

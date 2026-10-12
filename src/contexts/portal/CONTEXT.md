@@ -12,7 +12,8 @@ assignment, and governed access artifacts.
 ## Boundaries
 
 - Guest resolves public Portal data through `PortalPublicApi`; Goal reads group
-  membership through `PortalGroupPublicApi`. Portal does not read their stores.
+  membership and a group's name through `PortalGroupPublicApi`. Portal does not
+  read their stores.
 - Retained `entityType`/`entityId` values may reference historical Team or Staff rows for reconciliation. They never change Property ownership, authorization, grouping, or notification responsibility.
 - AI Reply Brand Authority is content-minimal. Generation may read only the exact display name, profile version, and derived display-name digest; transaction-bound callers receive only a boolean exact-current answer. Image URLs, colors, localized content, Portal overrides, links, Guest ratings, and Private Feedback are never exposed through it.
 - Responsible-manager assignment never grants property access, portal access, or staff attribution.
@@ -311,7 +312,15 @@ records a `portal_address_downloads` row, then decrypts, and its server function
 is a no-store POST behind an actor and Organization rate limit. The token status
 carries `addressRecoverable` so the page offers the download only when the
 keyring still holds the key that sealed the live code. Without a keyring the
-address is shown once, when a code is made, as before.
+address is shown once, when a code is made, as before. The same reveal, for the
+purpose `show`, backs the workspace header's "Open page", which opens the bare
+`/p/<token>` address (no scan marker) in a new tab and is offered only for a live
+portal with a recoverable live code (an address already held in the browser opens
+with no reveal); otherwise it links to Share, and it is absent for a caller
+without `portal.update` and `portal.write`, and on the Share tab itself. The token status
+also carries `madeBy`, the display name of the person `issued_by` recorded for the
+live code (an operator reads as the fixed label; null when unknown), which Share
+words as "Made 12 Mar by …". Only `getPortal` resolves it.
 
 `getPortalPreview` is the read behind the editor's live preview (A8): the guest page of one
 Portal, per language, from the saved working copy (`draft`) or the active verified snapshot
@@ -359,6 +368,19 @@ the legacy category headings, and a v3 short description as link preview text on
 changes name the manager's own words (a tile's label, a language) and are a read model for
 the people who manage the Portal: nothing here is published as a fact. A snapshot that no
 longer verifies is left out of the list, because it could not be served or made live again.
+
+`getPortalVersionPreview` is what the History's "View" draws: the guest page of one published
+version, whichever is live, from that version's verified snapshot. It is the live preview's
+read with the same rules (`readPublishedPreviewInputs`: the guest edge's approval cut-off, none
+when the Linktree is off, images only while servable), so it shows what guests would be served
+if that version were made live now, and a tile whose address has since lapsed is left out. Its
+preview says `source: 'version'` with the version number, so it cannot be mistaken for the live
+page, and it carries no address, as the live one does not. A version from the earlier page
+design is `unavailable` (`earlier_design`) and the History falls back to the words of
+`getPortalVersion`; a version the Portal never had, or that no longer verifies, is refused
+(`publication_snapshot_unavailable`). Gated by `portal.read`; it writes nothing. The
+History's dialog says, under the phone, when the page draws fewer tiles than the version's
+words list (a lapsed address leaves a tile out of the page, not out of the words).
 
 `portal_page_edits` is the page-edit ledger: one row per change that can make a
 Portal's working page differ from what guests see, written in the same
@@ -417,7 +439,9 @@ unnamed placeholder.
 Review & publish reads through `getPortalReview` (`portal.read`, writes nothing). It
 asks the questions `publishPortalChanges` asks, in the same words: the Property is
 active, the Google destination is verified, someone is responsible, the address
-works, and the resolver's blockers and warnings (`portal-review-rules.ts` turns them
+works (any code that resolves, an older code made before access artifacts included:
+guests open the page with it, only its scans are not counted, and Share offers to
+replace it), and the resolver's blockers and warnings (`portal-review-rules.ts` turns them
 into checks; a blocked check is exactly what publishing would refuse, a copied text
 is a warning). The change list is the page-edit ledger since the live version was
 published (the live one, which "Make live again" can make older than the newest; the
@@ -432,11 +456,28 @@ left, and "no_visible_change" when changes were recorded but the draft says what
 (Member) or a dark capability never gets a button the server would refuse. `nothingToPublish` is the question the publish use case answers `unchanged` to.
 A Portal that is not live has no change list: it has no live version to differ from.
 
+A content review (`completeContentReview`, a live Portal only) records three facts at
+once. The configuration completeness counts five fields on the working copy Publish reads,
+under the Portal lock (`portal-configuration-completeness.ts`): the Portal name; the
+primary language's welcome line, link preview and link labels (what the `primary_text`
+check asks); the Property look (a Brand Profile with a display name and an accent); a
+Linktree link guests can open (the Linktree on and an approved link); and the Property's
+verified Google review destination, which the use case looks up. The fact names the fields
+it counted (`fieldSet: 'immersive_hub'`, event version 3). Every version 1 and 2 fact
+counted the legacy settings (name, `portals.description`, the Portal theme's colour, link
+categories, link addresses), which a v3 Portal cannot complete; Metric keeps the two under
+separate versions of `portal.configuration_completeness`. The destination ratio counts every
+link: one with a Property destination when that destination is approved, a raw legacy
+address by the safe-link allowlist (ADR 0044). The ratio needs five links for a reading and
+a new Portal holds at most four, so only an older Portal with more links ever records one.
+
 The earlier issued-image implementation (presigned browser upload, issuance
 table, background job) was removed and is not coming back. The nullable
 `portals.hero_image_url` column and read path remain so published historical
 rows still render, while the shared arbitrary-key storage stack remains live
 for Identity avatar and organization-logo uploads through `container.assetStorage`.
+`confirmUpload` only confirms the object is there; Identity stores its own address
+for the image (`/api/public/identity-assets/<key>`), never a provider URL.
 
 ## Invariants
 

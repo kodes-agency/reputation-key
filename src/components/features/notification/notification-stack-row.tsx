@@ -3,18 +3,16 @@
 // Laid out like a notification row — the whole row is the link, one facts
 // line, the menu its one sibling control — but it opens the Property's Inbox
 // queue for that kind (D5), where the items are worked, and following it marks
-// every row in it read. Its menu acts on all of them at once.
+// every row in it read. Its menu acts on all of them at once; "Dismiss all N"
+// asks first, like the page's "Dismiss all", because it takes several
+// notifications out in one press (the toast's Undo is the way back, not a
+// reason to skip the question).
 
-import { createElement } from 'react'
+import { createElement, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Check, MoreHorizontal, Trash2 } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
+import { Check, Trash2 } from 'lucide-react'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
+import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
 import { cn } from '#/lib/utils'
 import {
   isStillWaiting,
@@ -53,6 +51,9 @@ export function NotificationStackRow({
   })
   const unreadIds = notifications.filter(isStillWaiting).map((row) => row.id)
   const allIds = notifications.map((row) => row.id)
+  // Held here, above the menu: a dialog rendered inside a DropdownMenu unmounts
+  // with the menu.
+  const [isConfirmingDismissAll, setIsConfirmingDismissAll] = useState(false)
 
   return (
     <li
@@ -110,32 +111,34 @@ export function NotificationStackRow({
         </time>
       </Link>
       <span className="shrink-0 py-2 pr-1.5 pl-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 has-[[data-state=open]]:opacity-100 pointer-coarse:opacity-100">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              data-row-control="menu"
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground"
-              aria-label={`More actions for: ${view.accessibleName}`}
+        <RowActionsMenu name={view.accessibleName} size="small" data-row-control="menu">
+          {unreadIds.length > 0 && (
+            <RowActionsItem
+              icon={Check}
+              onSelect={() => actions.onMarkManyRead(unreadIds)}
             >
-              <MoreHorizontal aria-hidden="true" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            {unreadIds.length > 0 && (
-              <DropdownMenuItem onSelect={() => actions.onMarkManyRead(unreadIds)}>
-                <Check aria-hidden="true" />
-                Mark all as read
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onSelect={() => actions.onDismissMany(allIds)}>
-              <Trash2 aria-hidden="true" />
-              Dismiss all {notifications.length}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              Mark all read
+            </RowActionsItem>
+          )}
+          <RowActionsItem
+            icon={Trash2}
+            opensDialog
+            onSelect={() => setIsConfirmingDismissAll(true)}
+          >
+            Dismiss all {notifications.length}
+          </RowActionsItem>
+        </RowActionsMenu>
       </span>
+      <ConfirmationDialog
+        open={isConfirmingDismissAll}
+        onOpenChange={setIsConfirmingDismissAll}
+        title={`Dismiss all ${notifications.length} notifications?`}
+        description={`This hides all ${notifications.length} notifications in this stack. It does not change the underlying reviews, feedback, or other work.`}
+        cancelLabel="Keep notifications"
+        confirmLabel="Dismiss all"
+        pendingLabel="Dismissing…"
+        onConfirm={() => actions.onDismissMany(allIds)}
+      />
     </li>
   )
 }

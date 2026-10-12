@@ -141,6 +141,12 @@ export const NeedsTimezone: Story = {
     await expect(canvas.getByText('Link existing')).toBeVisible()
     await expect(canvas.queryByText('Create new')).toBeNull()
     await expect(canvas.getByText('Choose a timezone.')).toBeVisible()
+    // The flag is the same warn pill "Needs attention" wears in the Google
+    // connection settings: a person has to act, nothing has failed.
+    await expect(canvas.getByText('Needs attention')).toHaveAttribute(
+      'data-variant',
+      'warn',
+    )
     await expect(
       canvas.getByRole('combobox', { name: /timezone, row 1/i }),
     ).toHaveAttribute('aria-invalid', 'true')

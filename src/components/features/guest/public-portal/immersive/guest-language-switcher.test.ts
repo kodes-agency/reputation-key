@@ -6,8 +6,11 @@ import { bgV2 } from '../language-packs/bg-v2'
 import { enV2 } from '../language-packs/en-v2'
 import {
   GuestLanguageSwitcher,
+  InertLanguageChip,
   type GuestLanguageSwitcherProps,
 } from './guest-language-switcher'
+import { previewLanguageOptions } from './language-options'
+import { InertLanguageSheet } from './language-sheet'
 
 function render(props: Partial<GuestLanguageSwitcherProps> = {}) {
   return renderToStaticMarkup(
@@ -128,5 +131,81 @@ describe('GuestLanguageSwitcher: the sheet', () => {
 
   it('explains when the page opens in the phone’s language', () => {
     expect(html).toContain('This page opens in your phone’s language when it has it.')
+  })
+})
+
+describe('InertLanguageChip (the admin preview)', () => {
+  const inert = (locale: GuestLocale = 'en') =>
+    renderToStaticMarkup(
+      createElement(InertLanguageChip, {
+        selectedLocale: locale,
+        copy: locale === 'bg' ? bgV2.copy : enV2.copy,
+      }),
+    )
+
+  it('draws the chip a guest sees, with its code and its name', () => {
+    const html = inert()
+    expect(html).toContain('ih-chip')
+    expect(html).toContain('>EN<')
+    expect(html).toContain('aria-label="EN, Language: English"')
+    expect(inert('bg')).toContain('>БГ<')
+  })
+
+  it('opens nothing: no button, no sheet, no dialog', () => {
+    const html = inert()
+    expect(html).not.toContain('<button')
+    expect(html).not.toContain('<dialog')
+    expect(html).not.toContain('aria-haspopup')
+  })
+})
+
+describe('InertLanguageSheet (the admin preview)', () => {
+  const sheet = (locale: GuestLocale = 'en') =>
+    renderToStaticMarkup(
+      createElement(InertLanguageSheet, {
+        options: previewLanguageOptions({
+          locales: ['en', 'bg', 'de'],
+          selectedLocale: locale,
+          copy: enV2.copy,
+        }),
+        copy: enV2.copy,
+        height: 844,
+      }),
+    )
+
+  it('draws the sheet a guest opens, with a row for each language and the current one marked', () => {
+    const html = sheet()
+    expect(html).toContain('ih-sheet__panel')
+    expect(html).toContain(enV2.copy.languageSheetTitle)
+    expect(html).toContain(enV2.copy.languageSheetHint)
+    expect(rows(html)).toHaveLength(3)
+    expect(html.match(/aria-current="page"/gu)).toHaveLength(1)
+    expect(html).toContain('>Deutsch<')
+  })
+
+  it('is open on the first screen of the phone, over a dimmed page', () => {
+    const html = sheet()
+    expect(html).toContain('ih-sheet-scene')
+    expect(html).toContain('ih-sheet-scene__scrim')
+    expect(html).toContain('height:844px')
+  })
+
+  it('is a picture: no dialog and no address to follow, and the part marker for the preview', () => {
+    const html = sheet()
+    expect(html).not.toContain('<dialog')
+    expect(html).not.toContain('href=')
+    expect(html).toContain('data-preview-part="language-sheet"')
+  })
+
+  it('is inert as a whole, so its close button answers nothing wherever it is drawn', () => {
+    expect(sheet()).toMatch(/<div class="ih-sheet-scene"[^>]*\sinert=""/u)
+  })
+
+  it('keeps the dialog’s own markup for its panel', () => {
+    const dialog = render({ locales: ['en', 'bg', 'de'] })
+    for (const marker of ['ih-sheet__grab', 'ih-sheet__head', 'ih-sheet__list']) {
+      expect(dialog).toContain(marker)
+      expect(sheet()).toContain(marker)
+    }
   })
 })

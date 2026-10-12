@@ -2,13 +2,15 @@
 //
 // Only the property name keeps the link accent: it is the row's one way to open
 // the property. The attention and setup cells are links too, but figures must
-// not turn purple (row 2 of the plan's findings), and the global `a` colour in
-// styles.css is unlayered, so those links pin their ink with `!`.
+// not turn purple (row 2 of the plan's findings), so those links name their ink.
 import { Link } from '@tanstack/react-router'
-import { Check, Link2Off, Star } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
+import { Check, Link2Off } from 'lucide-react'
+import { RatingFigure } from '#/components/ui/rating-figure'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { Skeleton } from '#/components/ui/skeleton'
+import { ROW_FIGURE_LINK, ROW_NAME_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
+import { PROPERTY_LIFECYCLE_STATUS } from './property-lifecycle-model'
 import {
   propertySetupStepLabel,
   propertySetupStepTarget,
@@ -22,9 +24,7 @@ import {
   type PropertyListRow,
   type PropertySetupProgress,
 } from './property-list-view'
-
-const FOCUS_RING =
-  'rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+import { formatNumber } from '#/lib/format'
 
 function Pending({ className }: Readonly<{ className?: string }>) {
   return <Skeleton className={cn('h-4', className)} aria-hidden="true" />
@@ -39,11 +39,13 @@ export function PropertyNameCell({ row }: Readonly<{ row: PropertyListRow }>) {
         <Link
           to="/properties/$propertyId"
           params={{ propertyId: property.id }}
-          className={cn('truncate font-medium', FOCUS_RING)}
+          className={cn('truncate font-medium', ROW_NAME_LINK)}
         >
           {property.name}
         </Link>
-        {row.paused ? <Badge variant="secondary">Paused</Badge> : null}
+        {row.paused ? (
+          <StatusBadge status="suspended" map={PROPERTY_LIFECYCLE_STATUS} />
+        ) : null}
       </div>
       {row.country || notice ? (
         <p className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
@@ -54,8 +56,8 @@ export function PropertyNameCell({ row }: Readonly<{ row: PropertyListRow }>) {
               params={{ propertyId: property.id }}
               aria-label={`${notice} for ${property.name}`}
               className={cn(
-                'inline-flex items-center gap-1 font-medium text-warn!',
-                FOCUS_RING,
+                'inline-flex items-center gap-1 font-medium text-warn',
+                ROW_NAME_LINK,
               )}
             >
               <Link2Off className="size-3" aria-hidden="true" />
@@ -79,13 +81,7 @@ export function RatingValue({ comparison, fleet }: FigureProps) {
   if (comparison.avgRating === null) {
     return <span className="text-muted-foreground">No ratings</span>
   }
-  return (
-    <span className="inline-flex items-center gap-1 font-medium">
-      <span className="tabular-nums">{comparison.avgRating.toFixed(1)}</span>
-      <Star className="size-3.5 fill-current text-rating" aria-hidden="true" />
-      <span className="sr-only">stars</span>
-    </span>
-  )
+  return <RatingFigure value={comparison.avgRating} className="font-medium" />
 }
 
 export function ReviewsValue({ comparison, fleet }: FigureProps) {
@@ -94,7 +90,7 @@ export function ReviewsValue({ comparison, fleet }: FigureProps) {
   const count = comparison.reviewCount
   return (
     <span className="tabular-nums">
-      {count.toLocaleString()}
+      {formatNumber(count)}
       {/* The column header names the figure in the table; stacked, the words do. */}
       <span className="@4xl:sr-only"> {count === 1 ? 'review' : 'reviews'}</span>
     </span>
@@ -137,10 +133,7 @@ export function AttentionValue({
       ))}
     </>
   )
-  const className = cn(
-    'inline-flex flex-wrap items-baseline gap-x-1.5 text-foreground!',
-    FOCUS_RING,
-  )
+  const className = cn('inline-flex flex-wrap items-baseline gap-x-1.5', ROW_FIGURE_LINK)
   // Work the fleet counts without a page to open (a rating drop, on a bounded
   // window): the figure stands, without a link.
   if (target === null) {
@@ -237,7 +230,7 @@ export function SetupValue({
       to={target}
       params={{ propertyId }}
       aria-label={`Setup ${completedCount} of ${stepCount} at ${propertyName}. Next: ${next}`}
-      className={cn('flex flex-col gap-0.5 text-foreground!', FOCUS_RING)}
+      className={cn('flex flex-col gap-0.5', ROW_FIGURE_LINK)}
     >
       {progress}
       <span className="text-xs text-muted-foreground">Next: {next}</span>

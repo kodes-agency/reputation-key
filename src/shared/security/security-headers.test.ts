@@ -154,6 +154,64 @@ describe('explicit configuration (ARC-03-T14)', () => {
     ).toEqual(['https://s3.us-east-1.amazonaws.com'])
   })
 
+  it('puts the bucket in front of a custom endpoint host, as virtual-host addressing does', () => {
+    expect(
+      storageConnectSources({
+        S3_PRESIGN_ENDPOINT: 'https://t3.storageapi.dev',
+        AWS_S3_BUCKET_NAME: 'object-store-ab12cd34',
+        AWS_S3_REGION: 'auto',
+        S3_FORCE_PATH_STYLE: 'false',
+      }),
+    ).toEqual(['https://object-store-ab12cd34.t3.storageapi.dev'])
+  })
+
+  it('keeps the endpoint origin itself for path style, an IP host or a non-host bucket name', () => {
+    const base = { AWS_S3_BUCKET_NAME: 'bucket-1', AWS_S3_REGION: 'auto' }
+    expect(
+      storageConnectSources({
+        ...base,
+        S3_PRESIGN_ENDPOINT: 'https://t3.storageapi.dev',
+        S3_FORCE_PATH_STYLE: 'true',
+      }),
+    ).toEqual(['https://t3.storageapi.dev'])
+    expect(
+      storageConnectSources({ ...base, S3_PRESIGN_ENDPOINT: 'http://127.0.0.1:4900' }),
+    ).toEqual(['http://127.0.0.1:4900'])
+    expect(
+      storageConnectSources({
+        S3_PRESIGN_ENDPOINT: 'https://t3.storageapi.dev',
+        AWS_S3_BUCKET_NAME: 'My_Bucket',
+      }),
+    ).toEqual(['https://t3.storageapi.dev'])
+  })
+
+  it('follows the internal endpoint when no browser-facing one is set, as the adapter does', () => {
+    expect(
+      storageConnectSources({
+        S3_INTERNAL_ENDPOINT: 'https://t3.storageapi.dev',
+        AWS_S3_BUCKET_NAME: 'object-store-ab12cd34',
+      }),
+    ).toEqual(['https://object-store-ab12cd34.t3.storageapi.dev'])
+  })
+
+  it('lets the Railway bucket be reached for an upload and leaves images same-origin', () => {
+    const csp = getSecurityHeaders({
+      isProduction: true,
+      env: {
+        S3_PRESIGN_ENDPOINT: 'https://t3.storageapi.dev',
+        S3_INTERNAL_ENDPOINT: 'https://t3.storageapi.dev',
+        AWS_S3_BUCKET_NAME: 'object-store-ab12cd34',
+        AWS_S3_REGION: 'auto',
+        S3_FORCE_PATH_STYLE: 'false',
+      },
+    })['Content-Security-Policy']
+
+    expect(csp).toContain(
+      "connect-src 'self' https://object-store-ab12cd34.t3.storageapi.dev;",
+    )
+    expect(csp).toContain("img-src 'self' data: https:")
+  })
+
   it('derives nothing from an incomplete configuration rather than guessing', () => {
     expect(storageConnectSources({ AWS_S3_BUCKET_NAME: 'assets' })).toEqual([])
     expect(storageConnectSources({})).toEqual([])

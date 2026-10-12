@@ -2,11 +2,23 @@
 // the figure so far against the target, a neutral bar, and who set it. Pure: the
 // words and the bar's fill are decided here, from the live month-to-date read.
 //
+// The target shown is the month's own. Once a manager has changed it, the card
+// names that person and what the month started at instead of who set the goal:
+// the number on the card is theirs.
+//
 // It is never the month's result. The figure is what has counted so far, so the
 // bar is neutral (no good or bad colour, no praise), a figure that cannot be
 // read is not a zero, and an average too thin to show says why instead.
 import type { GoalProgress } from '#/contexts/reporting/application/public-api'
 import { goalMetricLabel } from '#/components/goals/goal-metric-label'
+import { goalTargetMarkerLine } from '#/components/goals/goal-target-marker'
+import {
+  formatNumber,
+  formatDayKey,
+  formatMonthDay,
+  formatMonthName,
+  formatShortDate,
+} from '#/lib/format'
 
 export type GoalCardState = 'live' | 'too_few' | 'unavailable' | 'not_started'
 
@@ -22,7 +34,10 @@ export type GoalCardView = Readonly<{
   fraction: number | null
   /** Why there is no figure, or what the goal is waiting for. */
   detail: string | null
-  /** "Set by Elena Petrova · the month ends today". */
+  /**
+   * "Set by Elena Petrova on Aug 12 · the month ends today", or "Changed by
+   * Marco Rossi on Sep 20, started at 300 · …" for a month whose target changed.
+   */
   note: string
   /** What the bar says to a screen reader. */
   progressLabel: string
@@ -36,15 +51,6 @@ export type GoalCardContext = Readonly<{
 
 const DAY_MS = 86_400_000
 
-function localDateKey(at: Date, timezone: string): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(at)
-}
-
 function daysBetween(fromKey: string, toKey: string): number {
   return Math.round(
     (Date.parse(`${toKey}T00:00:00Z`) - Date.parse(`${fromKey}T00:00:00Z`)) / DAY_MS,
@@ -54,10 +60,10 @@ function daysBetween(fromKey: string, toKey: string): number {
 /** Whole local days from today to the month's last day: 0 on that day, negative after it. */
 function daysLeftInMonth(goal: GoalProgress, now: Date): number {
   const lastDay = new Date(goal.period.end.getTime() - 1)
-  return daysBetween(
-    localDateKey(now, goal.timezone),
-    localDateKey(lastDay, goal.timezone),
-  )
+  const today = formatDayKey(now, goal.timezone)
+  const last = formatDayKey(lastDay, goal.timezone)
+  // A day that cannot be read counts as past, which says nothing rather than a wrong count.
+  return today === null || last === null ? -1 : daysBetween(today, last)
 }
 
 function monthEnds(daysLeft: number): string | null {
@@ -68,37 +74,34 @@ function monthEnds(daysLeft: number): string | null {
 }
 
 function formatValue(goal: GoalProgress, value: number): string {
-  return goal.metric === 'portal_rating_average'
-    ? value.toFixed(1)
-    : value.toLocaleString('en-US')
+  return goal.metric === 'portal_rating_average' ? value.toFixed(1) : formatNumber(value)
 }
 
-function monthName(at: Date, timezone: string): string {
-  return new Intl.DateTimeFormat('en-US', { timeZone: timezone, month: 'long' }).format(
-    at,
-  )
-}
-
-function startsOn(at: Date, timezone: string): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    day: 'numeric',
-    month: 'short',
-  }).formatToParts(at)
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((candidate) => candidate.type === type)?.value ?? ''
-  return `${part('day')} ${part('month')}`
-}
-
-function noteOf(goal: GoalProgress, context: GoalCardContext): string {
+/**
+ * Who the target on the card comes from: the person who changed this month's
+ * target, with what it started at, or else the person who set the goal. The
+ * day is always there, because a goal can be set during the month it counts.
+ */
+function targetSource(goal: GoalProgress, context: GoalCardContext): string {
+  if (goal.monthTarget !== null) {
+    return goalTargetMarkerLine(goal.metric, goal.monthTarget, {
+      timezone: goal.timezone,
+      now: context.now,
+      personName: context.setByName,
+    })
+  }
   const name = context.setByName(goal.setBy)
+  const setOn = `on ${formatShortDate(goal.setAt, goal.timezone, context.now) ?? 'an unknown date'}`
+  return name === null ? `Set ${setOn}` : `Set by ${name} ${setOn}`
+}
+
+/** Where the target comes from, then how long the month has left. */
+function noteOf(goal: GoalProgress, context: GoalCardContext): string {
   const ends =
     goal.status === 'active' ? monthEnds(daysLeftInMonth(goal, context.now)) : null
-  const parts = [name === null ? null : `Set by ${name}`, ends].filter(
-    (part): part is string => part !== null,
-  )
-  const note = parts.join(' · ')
-  return name === null ? note.charAt(0).toUpperCase() + note.slice(1) : note
+  return [targetSource(goal, context), ends]
+    .filter((part): part is string => part !== null)
+    .join(' · ')
 }
 
 type Outcome = Readonly<{
@@ -140,7 +143,7 @@ function outcomeOf(goal: GoalProgress): Outcome {
         detail:
           goal.status === 'paused'
             ? 'Paused'
-            : `Starts on ${startsOn(goal.period.start, goal.timezone)}`,
+            : `Starts on ${formatMonthDay(goal.period.start, goal.timezone) ?? 'a later date'}`,
       }
   }
 }
@@ -150,7 +153,7 @@ export function goalCardView(goal: GoalProgress, context: GoalCardContext): Goal
   const outcome = outcomeOf(goal)
   const target = formatValue(goal, goal.targetValue)
   return {
-    title: `${monthName(goal.period.start, goal.timezone)} · ${label}`,
+    title: `${formatMonthName(goal.period.start, goal.timezone) ?? 'This month'} · ${label}`,
     ...outcome,
     target: `of ${target}`,
     note: noteOf(goal, context),

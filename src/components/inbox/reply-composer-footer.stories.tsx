@@ -8,7 +8,7 @@
 // pins every status against a reporting surface. The guarantee moved to the
 // submit's tooltip (`Nothing publishes until a manager approves it`) and the
 // submit toast. What this file still pins, per status, is what the FOOTER does
-// with the status it is still handed: offer `Retry save` on an error and on
+// with the status it is still handed: offer `Try saving again` on an error and on
 // nothing else — and that neither the old line nor its guarantee comes back.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
@@ -57,7 +57,9 @@ type Story = StoryObj<typeof ReplyComposerFooter>
 export const Idle: Story = {
   play: async ({ canvasElement }) => {
     expectNoSaveStateLine(canvasElement)
-    expect(within(canvasElement).queryByRole('button', { name: 'Retry save' })).toBeNull()
+    expect(
+      within(canvasElement).queryByRole('button', { name: 'Try saving again' }),
+    ).toBeNull()
     // The footer's one primary, and the region's.
     const primaries = canvasElement.querySelectorAll('button[data-variant="default"]')
     expect(primaries).toHaveLength(1)
@@ -70,7 +72,9 @@ export const Pending: Story = {
   args: { status: 'pending' },
   play: async ({ canvasElement }) => {
     expectNoSaveStateLine(canvasElement)
-    expect(within(canvasElement).queryByRole('button', { name: 'Retry save' })).toBeNull()
+    expect(
+      within(canvasElement).queryByRole('button', { name: 'Try saving again' }),
+    ).toBeNull()
   },
 }
 
@@ -79,7 +83,9 @@ export const Saving: Story = {
   args: { status: 'saving' },
   play: async ({ canvasElement }) => {
     expectNoSaveStateLine(canvasElement)
-    expect(within(canvasElement).queryByRole('button', { name: 'Retry save' })).toBeNull()
+    expect(
+      within(canvasElement).queryByRole('button', { name: 'Try saving again' }),
+    ).toBeNull()
   },
 }
 
@@ -94,7 +100,7 @@ export const Saved: Story = {
     const canvas = within(canvasElement)
     expectNoSaveStateLine(canvasElement)
     // A saved draft offers no retry: there is nothing to retry.
-    expect(canvas.queryByRole('button', { name: 'Retry save' })).toBeNull()
+    expect(canvas.queryByRole('button', { name: 'Try saving again' })).toBeNull()
   },
 }
 
@@ -107,7 +113,9 @@ export const Unsaved: Story = {
   args: { status: 'unsaved' },
   play: async ({ canvasElement }) => {
     expectNoSaveStateLine(canvasElement)
-    expect(within(canvasElement).queryByRole('button', { name: 'Retry save' })).toBeNull()
+    expect(
+      within(canvasElement).queryByRole('button', { name: 'Try saving again' }),
+    ).toBeNull()
   },
 }
 
@@ -130,7 +138,7 @@ export const SaveFailed: Story = {
       canvas.getByText('Draft could not be saved. Retry before submitting.'),
     ).toBeVisible()
 
-    const retry = canvas.getByRole('button', { name: 'Retry save' })
+    const retry = canvas.getByRole('button', { name: 'Try saving again' })
     expect(retry).toHaveAttribute('data-variant', 'ghost')
     expect(canvas.getByRole('button', { name: 'Submit for approval' })).toBeDisabled()
     const primaries = canvasElement.querySelectorAll('button[data-variant="default"]')
@@ -204,7 +212,7 @@ export const DeleteDraftRefused: Story = {
 }
 
 /**
- * A `Retry save` that fails again is reported where the first failure was:
+ * A `Try saving again` that fails again is reported where the first failure was:
  * the coordinator puts autosave's `error` back on the line before its retry
  * rejects. The footer only has to settle the promise, as it does for a
  * refused delete above.
@@ -233,7 +241,7 @@ export const RetrySaveRefused: Story = {
     window.addEventListener('unhandledrejection', record)
     try {
       await userEvent.click(
-        within(canvasElement).getByRole('button', { name: 'Retry save' }),
+        within(canvasElement).getByRole('button', { name: 'Try saving again' }),
       )
       expect(refusedRetries).toHaveLength(1)
       // Two task turns, as in `DeleteDraftRefused`.

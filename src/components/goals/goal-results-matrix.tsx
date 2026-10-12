@@ -14,14 +14,22 @@ import {
   TableRow,
 } from '#/components/ui/table'
 import { AvailabilityLine } from '#/components/features/dashboard/availability-line'
+import { formatDate, formatMonthYear, formatShortDate } from '#/lib/format'
+import { goalTargetMarkerLine } from './goal-target-marker'
 
-type Props = Readonly<{ matrix: GoalResultsMatrixModel }>
+type Props = Readonly<{
+  matrix: GoalResultsMatrixModel
+  /** The instant the page was opened, which decides whether a day prints its year. */
+  now: Date
+  /** Who changed a month's target, by name; null where the directory cannot say. */
+  personName: (userId: string) => string | null
+}>
 
-export function GoalResultsMatrix({ matrix }: Props) {
+export function GoalResultsMatrix({ matrix, now, personName }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Goal Results Matrix</CardTitle>
+        <CardTitle as="h2">Goal results matrix</CardTitle>
         <p className="text-sm text-muted-foreground">
           Monthly evidence for Property, Portal Group, and Portal goals. Each result keeps
           its own measure and target.
@@ -38,7 +46,7 @@ export function GoalResultsMatrix({ matrix }: Props) {
               key={`${month.periodStart.toISOString()}:${month.periodEnd.toISOString()}`}
             >
               <h3 className="mb-2 text-sm font-medium">
-                {monthLabel(month.periodStart, month.propertyTimezone)}
+                {formatMonthYear(month.periodStart, month.propertyTimezone)}
               </h3>
               <Table>
                 <TableHeader>
@@ -56,6 +64,8 @@ export function GoalResultsMatrix({ matrix }: Props) {
                       key={row.resultId}
                       row={row}
                       timezone={month.propertyTimezone}
+                      now={now}
+                      personName={personName}
                     />
                   ))}
                 </TableBody>
@@ -75,7 +85,7 @@ export function GoalResultsMatrix({ matrix }: Props) {
                   {portal.groupName ? (
                     <span className="text-muted-foreground"> · {portal.groupName}</span>
                   ) : (
-                    <span className="text-muted-foreground"> · Ungrouped Portal</span>
+                    <span className="text-muted-foreground"> · Ungrouped portal</span>
                   )}
                   <span className="block text-xs text-muted-foreground">
                     {portal.message}
@@ -93,7 +103,11 @@ export function GoalResultsMatrix({ matrix }: Props) {
 function MatrixRow({
   row,
   timezone,
-}: Readonly<{ row: GoalResultsMatrixRow; timezone: string }>) {
+  now,
+  personName,
+}: Readonly<
+  { row: GoalResultsMatrixRow; timezone: string } & Pick<Props, 'now' | 'personName'>
+>) {
   return (
     <TableRow>
       <TableCell>
@@ -122,7 +136,8 @@ function MatrixRow({
         </span>
       </TableCell>
       <TableCell>
-        {row.dataThrough ? formatDate(row.dataThrough, timezone) : 'Not available yet'}
+        {(row.dataThrough ? formatDate(row.dataThrough, timezone) : null) ??
+          'Not available yet'}
       </TableCell>
       <TableCell className="max-w-64 whitespace-normal">
         <span className="block">
@@ -137,8 +152,20 @@ function MatrixRow({
           {shortVersion(row.targetProvenance.metricDefinitionVersionId)}
         </span>
         <span className="block text-xs text-muted-foreground">
-          Effective {formatDate(row.targetProvenance.effectiveFrom, timezone)}
+          Effective {formatDate(row.targetProvenance.effectiveFrom, timezone)} · set on{' '}
+          {formatShortDate(row.targetProvenance.setAt, timezone, now) ??
+            'an unknown date'}
         </span>
+        {/* The target above is the month's own once a manager changed it. */}
+        {row.monthTarget === null ? null : (
+          <span className="block text-xs text-muted-foreground">
+            {goalTargetMarkerLine(row.metric, row.monthTarget, {
+              timezone,
+              now,
+              personName,
+            })}
+          </span>
+        )}
       </TableCell>
     </TableRow>
   )
@@ -158,8 +185,8 @@ function evidenceLabel(evidence: GoalResultsMatrixEvidence, metric: string): str
 
 function scopeLabel(row: GoalResultsMatrixRow): string {
   if (row.scope === 'property') return 'Property'
-  if (row.scope === 'portal_group') return 'Portal Group'
-  return row.ungroupedPortal ? 'Ungrouped Portal' : 'Portal'
+  if (row.scope === 'portal_group') return 'Portal group'
+  return row.ungroupedPortal ? 'Ungrouped portal' : 'Portal'
 }
 
 function metricLabel(metric: string): string {
@@ -174,19 +201,4 @@ function formatTarget(value: number, metric: string): string {
 
 function shortVersion(value: string): string {
   return value.length > 12 ? `…${value.slice(-8)}` : value
-}
-
-function monthLabel(start: Date, timezone: string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: timezone,
-  }).format(start)
-}
-
-function formatDate(date: Date, timezone: string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeZone: timezone,
-  }).format(date)
 }

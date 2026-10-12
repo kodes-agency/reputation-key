@@ -26,16 +26,20 @@ import {
   RouterProvider,
   useRouterState,
 } from '@tanstack/react-router'
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Role } from '#/shared/domain/roles'
-import { SidebarProvider } from '#/components/ui/sidebar'
+import { SidebarProvider, useSidebar } from '#/components/ui/sidebar'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { ManagerSidebar } from './manager-sidebar'
 
+const organizationName = 'Avela Hospitality'
+
+const acmeHotelId = '10000000-0000-4000-8000-000000000001'
+
 const properties = [
   {
-    id: '10000000-0000-4000-8000-000000000001',
+    id: acmeHotelId,
     name: 'Acme Hotel',
     slug: 'acme-hotel',
   },
@@ -125,8 +129,31 @@ function withRoleAt(role: Role, initialUrl: string) {
         path: '/portals',
         component: StorySurface,
       })
+      const propertyList = createRoute({
+        getParentRoute: () => authed,
+        path: '/properties',
+        component: StorySurface,
+      })
+      const propertyPortals = createRoute({
+        getParentRoute: () => authed,
+        path: '/properties/$propertyId/portals',
+        component: StorySurface,
+      })
+      const propertyPeople = createRoute({
+        getParentRoute: () => authed,
+        path: '/properties/$propertyId/people',
+        component: StorySurface,
+      })
       const tree = root.addChildren([
-        authed.addChildren([index, inbox, reviews, portals]),
+        authed.addChildren([
+          index,
+          inbox,
+          reviews,
+          portals,
+          propertyList,
+          propertyPortals,
+          propertyPeople,
+        ]),
       ])
       return createRouter({
         routeTree: tree,
@@ -141,18 +168,22 @@ function withRoleAt(role: Role, initialUrl: string) {
 // A property is selected (?propertyId=) → switcher shows it, nav enabled, and
 // the new-count badge (mocked to 5) mounts on the Reviews entry.
 export const AsPropertyManager: Story = {
-  args: { properties, getLastVisitCount: lastVisitCountWithBadge },
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountWithBadge },
   decorators: [withRoleAt('PropertyManager', `/?propertyId=${properties[0].id}`)],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Property switcher shows the active property.
     expect(await canvas.findByText(/acme hotel/i)).toBeInTheDocument()
     // Nav entries render enabled (propertyId is set). Use findBy to tolerate async render.
-    expect(await canvas.findByText(/^dashboard$/i)).toBeInTheDocument()
-    expect(await canvas.findByText(/^reviews$/i)).toBeInTheDocument()
-    expect(await canvas.findByText(/^people$/i)).toBeInTheDocument()
-    expect(await canvas.findByText(/^portals$/i)).toBeInTheDocument()
-    expect(await canvas.findByText(/^goals$/i)).toBeInTheDocument()
+    for (const entry of [
+      /^dashboard$/i,
+      /^reviews$/i,
+      /^staff$/i,
+      /^portals$/i,
+      /^goals$/i,
+    ]) {
+      expect(await canvas.findByText(entry)).toBeInTheDocument()
+    }
     expect(canvas.queryByText(/^leaderboard$/i)).toBeNull()
     // New-count badge resolves from the mock (async) → "5".
     expect(await canvas.findByText(/^5$/)).toBeInTheDocument()
@@ -162,7 +193,7 @@ export const AsPropertyManager: Story = {
 // AccountAdmin also sees this sidebar (route renders it for PropertyManager+).
 // Identical chrome — documents the role reaches the same nav.
 export const AsAccountAdmin: Story = {
-  args: { properties, getLastVisitCount: lastVisitCountZero },
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
   decorators: [withRoleAt('AccountAdmin', `/?propertyId=${properties[0].id}`)],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -183,13 +214,13 @@ async function expectNoPropertyChrome(canvasElement: HTMLElement) {
 // shows "Select property", the property-scoped entries are disabled, and
 // Reviews opens the Inbox at the only scope there is: All properties.
 export const NoPropertySelected: Story = {
-  args: { properties, getLastVisitCount: lastVisitCountZero },
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
   decorators: [withRoleAt('PropertyManager', '/')],
   play: async ({ canvasElement }) => {
     const canvas = await expectNoPropertyChrome(canvasElement)
     const reviews = await canvas.findByRole('link', { name: /^reviews$/i })
     expect(reviews).toHaveAttribute('href', '/inbox')
-    expect(canvas.queryByRole('link', { name: /^people$/i })).toBeNull()
+    expect(canvas.queryByRole('link', { name: /^staff$/i })).toBeNull()
     // Portals opens All properties, the Organization's Portals grouped by Property.
     expect(await canvas.findByRole('link', { name: /^portals$/i })).toHaveAttribute(
       'href',
@@ -199,12 +230,22 @@ export const NoPropertySelected: Story = {
 }
 
 // The All properties page has no property id by design. Portals is the active
-// entry and links to itself; the entries that need one stay disabled.
+// entry and links to itself; the entries that need one stay disabled. The tile
+// names the Organization with "All properties" under it (board 10).
 export const PortalsAllProperties: Story = {
-  args: { properties, getLastVisitCount: lastVisitCountZero },
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
   decorators: [withRoleAt('PropertyManager', '/portals')],
   play: async ({ canvasElement }) => {
-    const canvas = await expectNoPropertyChrome(canvasElement)
+    const canvas = within(canvasElement)
+    expect(await canvas.findByText(/^dashboard$/i)).toBeInTheDocument()
+    expect(
+      await canvas.findByRole('button', {
+        name: 'Avela Hospitality, all properties. Switch to a property',
+      }),
+    ).toBeInTheDocument()
+    expect(canvas.getByText('Avela Hospitality')).toBeInTheDocument()
+    expect(canvas.getByText('All properties')).toBeInTheDocument()
+    expect(canvas.queryByText(/^select property$/i)).toBeNull()
     const portals = await canvas.findByRole('link', { name: /^portals$/i })
     expect(portals).toHaveAttribute('data-active', 'true')
     expect(portals).toHaveAttribute('href', '/portals')
@@ -212,41 +253,128 @@ export const PortalsAllProperties: Story = {
       'data-active',
       'true',
     )
-    expect(canvas.queryByRole('link', { name: /^people$/i })).toBeNull()
+    expect(canvas.queryByRole('link', { name: /^staff$/i })).toBeNull()
     expect(canvas.queryByRole('link', { name: /^goals$/i })).toBeNull()
+
+    // The scope in view is marked, and the property list stays one click away.
+    await userEvent.click(canvas.getByRole('button', { name: /all properties/i }))
+    const page = within(canvasElement.ownerDocument.body)
+    const all = await page.findByRole('menuitem', { name: /^all properties/i })
+    expect(all).toHaveTextContent('Active')
+    expect(page.getByRole('menuitem', { name: /view all properties/i })).toBeVisible()
+  },
+}
+
+// Reaching All properties from inside a property: the Portals section opens the
+// Portals of the whole Organization. Before this the page was reachable only
+// when no property was in scope.
+export const PortalsReachAllProperties: Story = {
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
+  decorators: [withRoleAt('PropertyManager', `/properties/${acmeHotelId}/portals`)],
+  play: async ({ canvasElement }) => {
+    const { canvas } = await chooseFromTile(
+      canvasElement,
+      /acme hotel/i,
+      /^all properties/i,
+    )
+
+    await waitFor(() =>
+      expect(canvas.getByTestId('story-location')).toHaveTextContent(/^\/portals$/),
+    )
+    expect(
+      await canvas.findByRole('button', {
+        name: 'Avela Hospitality, all properties. Switch to a property',
+      }),
+    ).toBeInTheDocument()
+  },
+}
+
+// A section with no view over the whole Organization falls back to the one place
+// "all my properties" lives, the property list. The tile there still names the
+// Organization, and the menu does not offer the same destination twice.
+export const DashboardReachAllProperties: Story = {
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
+  decorators: [withRoleAt('PropertyManager', `/properties/${acmeHotelId}/people`)],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('button', { name: /acme hotel/i }))
+    const page = within(canvasElement.ownerDocument.body)
+    expect(page.queryByRole('menuitem', { name: /view all properties/i })).toBeNull()
+    await userEvent.click(await page.findByRole('menuitem', { name: /^all properties/i }))
+
+    await waitFor(() =>
+      expect(canvas.getByTestId('story-location')).toHaveTextContent(/^\/properties$/),
+    )
+    expect(
+      await canvas.findByRole('button', {
+        name: 'Avela Hospitality, all properties. Switch to a property',
+      }),
+    ).toBeInTheDocument()
   },
 }
 
 // No properties at all (new account) → switcher prompt + fully disabled nav.
 export const EmptyProperties: Story = {
-  args: { properties: [], getLastVisitCount: lastVisitCountZero },
+  args: { properties: [], organizationName, getLastVisitCount: lastVisitCountZero },
   decorators: [withRole('PropertyManager')],
   play: ({ canvasElement }) =>
     expectNoPropertyChrome(canvasElement).then(() => undefined),
 }
 
-// The organization-wide inbox has no property id by design. The app tile is the
-// app's property context, the same on every page, so it offers no inbox-only
-// "All properties" — the inbox's own rail does. Reviews stays the active entry.
+// The organization-wide inbox has no property id by design. The app tile names
+// the Organization with "All properties", and Reviews stays the active entry.
 export const InboxAllProperties: Story = {
-  args: { properties, getLastVisitCount: lastVisitCountZero },
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
   decorators: [withRoleAt('PropertyManager', '/inbox')],
   play: async ({ canvasElement }) => {
-    const canvas = await expectNoPropertyChrome(canvasElement)
+    const canvas = within(canvasElement)
     const reviews = await canvas.findByRole('link', { name: /^reviews$/i })
     expect(reviews).toHaveAttribute('data-active', 'true')
 
-    await userEvent.click(canvas.getByRole('button', { name: /select property/i }))
+    await userEvent.click(
+      await canvas.findByRole('button', {
+        name: 'Avela Hospitality, all properties. Switch to a property',
+      }),
+    )
     const page = within(canvasElement.ownerDocument.body)
     expect(await page.findByRole('menuitem', { name: /globex hq/i })).toBeInTheDocument()
-    expect(page.queryByRole('menuitem', { name: /^all properties$/i })).toBeNull()
+    expect(
+      await page.findByRole('menuitem', { name: /^all properties/i }),
+    ).toHaveTextContent('Active')
+  },
+}
+
+// All properties from inside a property's Inbox goes to the organization-wide
+// Inbox through the same hook as the rail: queue and filters stay, the opened
+// item does not.
+export const InboxReachAllProperties: Story = {
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
+  decorators: [
+    withRoleAt(
+      'PropertyManager',
+      `/properties/${acmeHotelId}/reviews?queue=closed&itemId=20000000-0000-4000-8000-000000000001`,
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const { canvas } = await chooseFromTile(
+      canvasElement,
+      /acme hotel/i,
+      /^all properties/i,
+    )
+
+    await waitFor(() =>
+      expect(canvas.getByTestId('story-location')).toHaveTextContent(
+        '/inbox?queue=closed',
+      ),
+    )
+    expect(canvas.getByTestId('story-location')).not.toHaveTextContent('itemId=')
   },
 }
 
 // Icon mode keeps the property identity visible without exposing Dashboard's
 // sub-list until the user asks for it.
 export const Collapsed: Story = {
-  args: { properties, getLastVisitCount: lastVisitCountZero },
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
   decorators: [withRoleAt('PropertyManager', `/?propertyId=${properties[0].id}`)],
   parameters: { sidebarDefaultOpen: false },
   play: async ({ canvasElement }) => {
@@ -261,7 +389,7 @@ export const Collapsed: Story = {
 
 // Dashboard's hidden sub-list becomes a stable menu beside the collapsed rail.
 export const CollapsedDashboardMenuOpen: Story = {
-  args: { properties, getLastVisitCount: lastVisitCountZero },
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
   decorators: [withRoleAt('PropertyManager', `/?propertyId=${properties[0].id}`)],
   parameters: { sidebarDefaultOpen: false },
   play: async ({ canvasElement }) => {
@@ -294,7 +422,7 @@ async function chooseFromTile(
 // Changing scope inside the inbox stays in the same work surface. It keeps the
 // queue/filter state, but an item opened under the old scope cannot survive.
 export const InboxPropertySwitch: Story = {
-  args: { properties, getLastVisitCount: lastVisitCountZero },
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
   decorators: [
     withRoleAt(
       'PropertyManager',
@@ -318,7 +446,7 @@ export const InboxPropertySwitch: Story = {
 // item and the URL exactly as they are — the same rule the queue rail and the
 // compact scope menu follow, because all three go through one navigation hook.
 export const InboxActivePropertyKeepsTheOpenItem: Story = {
-  args: { properties, getLastVisitCount: lastVisitCountZero },
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
   decorators: [
     withRoleAt(
       'PropertyManager',
@@ -336,5 +464,64 @@ export const InboxActivePropertyKeepsTheOpenItem: Story = {
 
     expect(location.textContent).toBe(before)
     expect(location).toHaveTextContent('itemId=')
+  },
+}
+
+// The router matches a link by prefix, so every link above the open page used to
+// announce itself as the current one while one row was drawn active. One row is
+// the current page, and it is the one that is drawn.
+export const OneCurrentPage: Story = {
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
+  decorators: [withRoleAt('PropertyManager', `/properties/${acmeHotelId}/reviews`)],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const reviews = await canvas.findByRole('link', { name: /^reviews$/i })
+    const nav = canvas.getByRole('navigation', { name: 'Primary navigation' })
+    const current = within(nav)
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('aria-current') === 'page')
+
+    expect(current).toEqual([reviews])
+    expect(reviews).toHaveAttribute('data-active', 'true')
+    expect(
+      within(nav)
+        .getAllByRole('link')
+        .filter((link) => link.getAttribute('data-active') === 'true'),
+    ).toEqual([reviews])
+  },
+}
+
+/** Opens the phone drawer, which is closed until a person asks for it. */
+function OpenDrawer() {
+  const { setOpenMobile } = useSidebar()
+  useEffect(() => setOpenMobile(true), [setOpenMobile])
+  return null
+}
+
+// On a phone the sidebar is a sheet over the page. Choosing a link changes the
+// page behind it, so the sheet leaves with the click instead of hiding the page
+// the person just chose.
+export const MobileDrawerClosesOnNavigation: Story = {
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
+  decorators: [
+    (Story) => (
+      <>
+        <OpenDrawer />
+        <Story />
+      </>
+    ),
+    withRoleAt('PropertyManager', `/?propertyId=${acmeHotelId}`),
+  ],
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body)
+    const drawer = await page.findByRole('dialog')
+
+    await userEvent.click(within(drawer).getByRole('link', { name: /^reviews$/i }))
+
+    await waitFor(() => expect(page.queryByRole('dialog')).toBeNull())
+    await waitFor(() =>
+      expect(page.getByTestId('story-location')).toHaveTextContent(/reviews$/),
+    )
   },
 }

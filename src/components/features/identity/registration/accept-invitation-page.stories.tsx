@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { AcceptInvitationPage } from './accept-invitation-page'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 
 const meta = {
   title: 'Identity/Registration/AcceptInvitationPage',
@@ -27,7 +28,12 @@ export const PendingInvitation: Story = {}
 export const SpecificAcceptanceFailure: Story = {
   args: {
     acceptInvitation: fn(async () => {
-      throw new Error('Invitation is invalid or expired')
+      throw new ServerFunctionError(
+        'InvitationError',
+        'Invitation is invalid or expired',
+        'invitation_invalid',
+        400,
+      )
     }),
   },
   play: async ({ canvasElement }) => {

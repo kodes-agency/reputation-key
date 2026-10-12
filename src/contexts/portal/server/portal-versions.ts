@@ -75,3 +75,19 @@ export const getPortalVersion = createServerFn({ method: 'GET' })
       'portal.getPortalVersion',
     ),
   )
+
+/** The guest page of one published version, drawn the way the live preview draws it. */
+export const getPortalVersionPreview = createServerFn({ method: 'GET' })
+  .validator(versionInput)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const ctx = await resolveTenantContext(await headersFromContext())
+        return readWithScope(ctx, data.portalId, () =>
+          getContainer().portalPublicApi.management.getPortalVersionPreview(data, ctx),
+        )
+      },
+      'GET',
+      'portal.getPortalVersionPreview',
+    ),
+  )

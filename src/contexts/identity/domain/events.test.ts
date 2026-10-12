@@ -4,6 +4,7 @@ import {
   identityInvitationAccepted,
   identityInvitationCanceled,
   identityMemberInvited,
+  identityMemberPropertyAccessChanged,
   identityMemberRemoved,
   identityMemberRoleChanged,
   identityMerchantAiChanged,
@@ -193,5 +194,46 @@ describe('identity events', () => {
         occurredAt: NOW,
       }),
     ).not.toThrow()
+  })
+
+  describe('identityMemberPropertyAccessChanged', () => {
+    const PROPERTY_A = '11111111-1111-4111-8111-111111111111'
+    const PROPERTY_B = '22222222-2222-4222-8222-222222222222'
+
+    it('records who changed which Properties for which member, ids only', () => {
+      const event = identityMemberPropertyAccessChanged({
+        organizationId: ORG_ID,
+        memberUserId: userId('user-member'),
+        userId: USER_ID,
+        grantedPropertyIds: [PROPERTY_A],
+        revokedPropertyIds: [PROPERTY_B],
+        occurredAt: NOW,
+      })
+
+      expect(event).toEqual({
+        _tag: 'identity.member.property_access_changed',
+        eventId: expect.any(String),
+        organizationId: ORG_ID,
+        memberUserId: 'user-member',
+        userId: USER_ID,
+        grantedPropertyIds: [PROPERTY_A],
+        revokedPropertyIds: [PROPERTY_B],
+        occurredAt: NOW,
+        correlationId: null,
+      })
+    })
+
+    it('refuses a fact that changes nothing', () => {
+      expect(() =>
+        identityMemberPropertyAccessChanged({
+          organizationId: ORG_ID,
+          memberUserId: userId('user-member'),
+          userId: USER_ID,
+          grantedPropertyIds: [],
+          revokedPropertyIds: [],
+          occurredAt: NOW,
+        }),
+      ).toThrow(/grant or revoke/)
+    })
   })
 })

@@ -55,7 +55,7 @@ export const Active: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText('Active')).toBeVisible()
-    const archiveButton = canvas.getByRole('button', { name: 'Archive Property' })
+    const archiveButton = canvas.getByRole('button', { name: 'Archive property' })
     expect(archiveButton).toBeVisible()
     expect(canvas.queryByText(/delete property/i)).not.toBeInTheDocument()
     await userEvent.click(archiveButton)
@@ -66,7 +66,7 @@ export const Active: Story = {
       name: /archive Harborline Suites/i,
     })
     await waitFor(() => expect(heading).toBeVisible())
-    const confirm = dialog.getByRole('button', { name: 'Archive Property' })
+    const confirm = dialog.getByRole('button', { name: 'Archive property' })
     expect(confirm).toBeDisabled()
     await userEvent.type(
       dialog.getByLabelText('Archive note'),
@@ -91,10 +91,10 @@ export const ArchivedAndGoogleConnected: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText('Archived')).toBeVisible()
-    expect(canvas.getByRole('button', { name: 'Restore Property' })).toBeEnabled()
+    expect(canvas.getByRole('button', { name: 'Restore property' })).toBeEnabled()
     expect(
       canvas.getByRole('button', {
-        name: 'Disconnect this Property from Google',
+        name: 'Disconnect this property from Google',
       }),
     ).toBeVisible()
     expect(canvas.getByText(/before Sep 27, 2026/i)).toBeVisible()
@@ -116,7 +116,7 @@ export const ArchivedNeedsResponsibleManager: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByRole('button', { name: 'Restore Property' })).toBeDisabled()
+    expect(canvas.getByRole('button', { name: 'Restore property' })).toBeDisabled()
     expect(canvas.getByText(/assign an eligible Responsible Manager/i)).toBeVisible()
     expect(canvas.getByText(/Google reconnection needed/i)).toBeVisible()
   },

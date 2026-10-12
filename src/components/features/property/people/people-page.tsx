@@ -1,13 +1,14 @@
+// Property › Staff (the address stays /people): the profiles without a login who
+// work at the Property and the Portals each is responsible for. People who sign
+// in are the Organization's members, managed in Settings › Members, so this page
+// has no Directory of them.
 import { useState } from 'react'
-import { LockKeyhole } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
-import { DirectoryTab } from '#/components/features/property/people/directory-tab'
 import { StaffTab } from '#/components/features/property/people/staff-tab'
 import { PageHeader } from '#/components/layout/page-header'
-import { ErrorState, LoadingState } from '#/components/layout/page-states'
+import { NAV_LABEL } from '#/components/layout/nav-labels'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
-import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import type { PortalOption } from '#/components/features/staff/portal-selector'
 import type {
   ArchiveStaffParticipationMutationInput,
@@ -17,27 +18,14 @@ import type {
   UpdatePortalResponsibilitiesMutationInput,
 } from '#/components/features/staff/types'
 
-type DirectoryMember = Readonly<{
-  userId: string
-  name: string
-  email: string
-  role: string | null
-}>
-
 interface PeoplePageProps {
   propertyId: string
   propertyName: string
   participations: ReadonlyArray<StaffParticipationView>
   responsibilities: ReadonlyArray<PortalResponsibilitySelection>
-  members: ReadonlyArray<DirectoryMember>
   portals: ReadonlyArray<PortalOption>
   portalsDenied: boolean
   canManageStaff?: boolean
-  state?: 'ready' | 'loading' | 'error' | 'forbidden'
-  errorMessage?: string
-  onRetry?: () => void
-  tab: string | undefined
-  onTabChange: (tab: string) => void
   createParticipationMutation: Action<{
     data: CreateStaffParticipationMutationInput
   }>
@@ -54,71 +42,39 @@ export function PeoplePage({
   propertyName,
   participations,
   responsibilities,
-  members,
   portals,
   portalsDenied,
   canManageStaff = true,
-  state = 'ready',
-  errorMessage,
-  onRetry,
-  tab,
-  onTabChange,
   createParticipationMutation,
   archiveParticipationMutation,
   updateResponsibilitiesMutation,
 }: PeoplePageProps) {
-  const activeTab = tab ?? 'staff'
   const [createParticipationOpen, setCreateParticipationOpen] = useState(false)
   return (
-    <PageShell>
+    <PageShell tier="dashboard">
       <PageHeader
-        title="People"
-        description="Manage property participation and Portal responsibility."
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: propertyName, to: `/properties/${propertyId}` },
-          { label: 'People' },
-        ]}
+        title="Staff"
+        description="Who works at this property and the Portals they are responsible for; people who sign in are managed in Settings › Members."
+        breadcrumbs={trailCrumbs(
+          'property',
+          { propertyId, propertyName },
+          NAV_LABEL.staff,
+        )}
       />
 
-      {state === 'loading' ? (
-        <LoadingState label="Loading people" />
-      ) : state === 'error' ? (
-        <ErrorState
-          message={errorMessage ?? 'People could not be loaded.'}
-          onRetry={onRetry}
-        />
-      ) : state === 'forbidden' ? (
-        <Alert>
-          <LockKeyhole aria-hidden="true" />
-          <AlertTitle>People management is unavailable</AlertTitle>
-          <AlertDescription>
-            You do not have permission to view people at this property.
-          </AlertDescription>
-        </Alert>
-      ) : (
-        <Tabs value={activeTab} onValueChange={onTabChange}>
-          <TabsList className="max-w-full overflow-x-auto">
-            <TabsTrigger value="staff">Staff</TabsTrigger>
-            <TabsTrigger value="directory">Directory</TabsTrigger>
-          </TabsList>
-
-          <StaffTab
-            propertyId={propertyId}
-            participations={participations}
-            responsibilities={responsibilities}
-            portalOptions={portals}
-            portalsDenied={portalsDenied}
-            canManageStaff={canManageStaff}
-            createMutation={createParticipationMutation}
-            archiveMutation={archiveParticipationMutation}
-            createOpen={createParticipationOpen}
-            onCreateOpenChange={setCreateParticipationOpen}
-            updateResponsibilitiesMutation={updateResponsibilitiesMutation}
-          />
-          <DirectoryTab members={members} />
-        </Tabs>
-      )}
+      <StaffTab
+        propertyId={propertyId}
+        participations={participations}
+        responsibilities={responsibilities}
+        portalOptions={portals}
+        portalsDenied={portalsDenied}
+        canManageStaff={canManageStaff}
+        createMutation={createParticipationMutation}
+        archiveMutation={archiveParticipationMutation}
+        createOpen={createParticipationOpen}
+        onCreateOpenChange={setCreateParticipationOpen}
+        updateResponsibilitiesMutation={updateResponsibilitiesMutation}
+      />
     </PageShell>
   )
 }

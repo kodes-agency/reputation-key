@@ -89,6 +89,14 @@ token version]`. A ciphertext copied to another tenant, Portal, token or
 - Rotating a key means adding the new key first and keeping the old one until
   every live code was replaced (or accepting that those codes cannot be
   downloaded again).
+- **"Open page" shares the reveal's budget.** The workspace header's "Open page"
+  reveals the live address for the purpose `show`, so it spends the same actor
+  (30 per hour) and Organization (200 per day) budgets as "Download again" and
+  leaves a `show` row in History. An address already held in the browser (made
+  or fetched again in the same visit) opens with no reveal, which keeps the common
+  case off the budget. An Organization that checks its pages very often can still
+  use up the day's budget before a print run; the refusal says so in Open page's
+  words. A separate budget per purpose is the answer if that is ever observed.
 - **A release below this one is not a safe rollback once codes are sealed.**
   Migration 0046 adds the CHECK of decision 3, and migrations only go forward.
   An image from before this release replaces, stops and deletes codes without

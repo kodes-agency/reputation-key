@@ -1,11 +1,10 @@
-import { Link } from '@tanstack/react-router'
-import { Badge } from '#/components/ui/badge'
-import { Button } from '#/components/ui/button'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
   presentGoogleReviewDestination,
   type GoogleReviewDestinationStatus,
 } from './google-review-destination-status'
+import { InlineLink } from '#/components/ui/inline-link'
 
 export function GoogleReviewDestinationCard({
   destination,
@@ -24,7 +23,7 @@ export function GoogleReviewDestinationCard({
         <h3 id="google-destination-title" className="text-sm font-medium">
           Google review destination
         </h3>
-        <Badge variant={presentation.badgeVariant}>{presentation.label}</Badge>
+        <StatusBadge tone={presentation.tone} label={presentation.label} />
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
         {presentation.description} No separate link needs to be entered for this portal.
@@ -32,14 +31,14 @@ export function GoogleReviewDestinationCard({
       {destination.state === 'unavailable' ? (
         <div className="mt-2 flex flex-col items-start gap-1">
           {canManageGoogleConnection ? (
-            <Button asChild size="xs" variant="link">
-              <Link to="/settings/integrations">Open Google integrations</Link>
-            </Button>
+            <InlineLink to="/settings/integrations" className="text-xs">
+              Open Google integrations
+            </InlineLink>
           ) : null}
           {canConfirmGoogleProperty ? (
-            <Button asChild size="xs" variant="link">
-              <Link to="/properties/import-google">Review property import</Link>
-            </Button>
+            <InlineLink to="/properties/import-google" className="text-xs">
+              Review property import
+            </InlineLink>
           ) : null}
           {!canManageGoogleConnection || !canConfirmGoogleProperty ? (
             <p className="text-xs text-muted-foreground">

@@ -19,6 +19,16 @@ import {
   goalMonthlyResultReconciledSchema,
   goalMonthlyResultRevisedSchema,
 } from './goal-event-schemas'
+import {
+  portalApprovedDestinationRatioRecordedV1Schema,
+  portalApprovedDestinationRatioRecordedV2Schema,
+  portalConfigurationCompletenessRecordedV1Schema,
+  portalConfigurationCompletenessRecordedV2Schema,
+  portalConfigurationCompletenessRecordedV3Schema,
+  portalContentReviewCompletedV1Schema,
+  portalContentReviewCompletedV2Schema,
+} from './portal-workflow-event-schemas'
+import { registerIdentityAccessEventSchemas } from './identity-access-event-schemas'
 
 // ── Review event schemas ────────────────────────────────────────────
 
@@ -913,12 +923,7 @@ const memberInvitedV2Schema = z.object({
 })
 
 // Invitation facts are emitted only in their content-minimal v2 shape.
-
-const invitationAcceptedSchema = z.object({
-  organizationId: z.string(),
-  userId: z.string(),
-  invitationId: z.string(),
-})
+// identity.invitation.accepted lives in ./identity-access-event-schemas.ts.
 
 const invitationCanceledSchema = z.object({
   invitationId: z.string(),
@@ -1069,45 +1074,6 @@ const connectionVisibilityChangedSchema = z.object({
 })
 
 // ── Portal event schemas ───────────────────────────────────────────
-
-const portalWorkflowFactV1Schema = z.object({
-  reviewId: z.string().min(1),
-  revision: z.number().int().positive(),
-  organizationId: z.string().min(1),
-  propertyId: z.string().min(1),
-  portalId: z.string().min(1),
-  portalGroupId: z.string().nullable(),
-  supersedesSourceEventId: z.string().min(1).nullable(),
-  occurredAt: z.string(),
-})
-
-const portalWorkflowFactV2Schema = portalWorkflowFactV1Schema.extend({
-  sourceAggregateVersion: z.iso.datetime(),
-  occurredAt: z.iso.datetime(),
-})
-
-const portalContentReviewCompletedV1Schema = portalWorkflowFactV1Schema
-const portalContentReviewCompletedV2Schema = portalWorkflowFactV2Schema
-const portalConfigurationCompletenessRecordedV1Schema = portalWorkflowFactV1Schema.extend(
-  {
-    completedFields: z.number().int().nonnegative(),
-    requiredFields: z.number().int().positive(),
-  },
-)
-const portalConfigurationCompletenessRecordedV2Schema = portalWorkflowFactV2Schema.extend(
-  {
-    completedFields: z.number().int().nonnegative(),
-    requiredFields: z.number().int().positive(),
-  },
-)
-const portalApprovedDestinationRatioRecordedV1Schema = portalWorkflowFactV1Schema.extend({
-  approvedDestinations: z.number().int().nonnegative(),
-  configuredDestinations: z.number().int().nonnegative(),
-})
-const portalApprovedDestinationRatioRecordedV2Schema = portalWorkflowFactV2Schema.extend({
-  approvedDestinations: z.number().int().nonnegative(),
-  configuredDestinations: z.number().int().nonnegative(),
-})
 
 const portalLifecycleFactSchema = z.object({
   portalId: z.string(),
@@ -1690,11 +1656,7 @@ export function registerAllEventSchemas(): void {
     version: 2,
     schema: memberInvitedV2Schema,
   })
-  registerEventSchema({
-    type: 'identity.invitation.accepted',
-    version: EVENT_VERSION,
-    schema: invitationAcceptedSchema,
-  })
+  registerIdentityAccessEventSchemas()
   registerEventSchema({
     type: 'identity.invitation.canceled',
     version: EVENT_VERSION,
@@ -1863,6 +1825,11 @@ export function registerAllEventSchemas(): void {
     type: 'portal.configuration_completeness.recorded',
     version: 2,
     schema: portalConfigurationCompletenessRecordedV2Schema,
+  })
+  registerEventSchema({
+    type: 'portal.configuration_completeness.recorded',
+    version: 3,
+    schema: portalConfigurationCompletenessRecordedV3Schema,
   })
   registerEventSchema({
     type: 'portal.approved_destination_ratio.recorded',

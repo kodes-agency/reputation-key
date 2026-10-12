@@ -273,15 +273,15 @@ export const ReadyWithComparison: Story = {
       await canvas.findByText('Service complaints fell from 30.0% to 15.0%.'),
     ).toBeVisible()
     const supportingReview = canvas.getByRole('link', {
-      name: /Open supporting review from 8 Sept 2026 in the inbox/,
+      name: /Open supporting review from Sep 8, 2026 in the inbox/,
     })
     expect(supportingReview).toHaveAttribute(
       'href',
       `/properties/${PROPERTY_ID}/reviews?itemId=${firstInboxItemId}`,
     )
-    expect(canvas.getByText('Previous period · 2 Aug 2026')).toBeVisible()
+    expect(canvas.getByText('Previous period · Aug 2, 2026')).toBeVisible()
     expect(
-      canvas.queryByRole('link', { name: /Open supporting review from 2 Aug 2026/ }),
+      canvas.queryByRole('link', { name: /Open supporting review from Aug 2, 2026/ }),
     ).not.toBeInTheDocument()
     expect(canvas.getByText('Based on 120 reviews · 96 analysed')).toBeVisible()
 
@@ -314,8 +314,8 @@ export const ReadyWithComparison: Story = {
       ),
     ).toBeVisible()
 
-    const range = canvas.getByRole('group', { name: 'Time range' })
-    await userEvent.click(within(range).getByRole('button', { name: '30 days' }))
+    const range = canvas.getByRole('radiogroup', { name: 'Time range' })
+    await userEvent.click(within(range).getByRole('radio', { name: '30 days' }))
     expect(args.onRangeChange).toHaveBeenCalledWith('30d')
   },
 }
@@ -327,10 +327,7 @@ export const ReadyAllTime: Story = {
   },
   play: async ({ canvas }) => {
     expect(await canvas.findByText('Based on 120 reviews · 96 analysed')).toBeVisible()
-    expect(canvas.getByRole('button', { name: 'All time' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    expect(canvas.getByRole('radio', { name: 'All time' })).toBeChecked()
     expect(
       within(canvas.getByRole('table', { name: 'Topics' })).queryByRole('columnheader', {
         name: 'Change',
@@ -395,7 +392,7 @@ export const AnalysisOff: Story = {
   },
   play: async ({ canvas }) => {
     expect(await canvas.findByText('AI analysis is off for this property')).toBeVisible()
-    expect(canvas.getByRole('link', { name: 'Enable AI analysis' })).toHaveAttribute(
+    expect(canvas.getByRole('link', { name: 'Turn on AI analysis' })).toHaveAttribute(
       'href',
       expect.stringMatching(/\/properties\/[^/]+\/settings\/ai$/),
     )
@@ -408,7 +405,7 @@ export const AnalysisOffForMember: Story = {
   play: async ({ canvas }) => {
     expect(await canvas.findByText(/An account admin can enable it/)).toBeVisible()
     expect(
-      canvas.queryByRole('link', { name: 'Enable AI analysis' }),
+      canvas.queryByRole('link', { name: 'Turn on AI analysis' }),
     ).not.toBeInTheDocument()
   },
 }

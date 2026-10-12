@@ -5,11 +5,10 @@
 // moves it, and the checklist says so. Each portal is its own atomic move, run
 // one after another; the first refusal stops the rest and is shown.
 import { useForm } from '@tanstack/react-form'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { Button } from '#/components/ui/button'
-import { DialogFooter } from '#/components/ui/dialog'
+import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { addPortalsToGroupFormSchema } from '#/contexts/portal/application/dto/portal-group-membership.dto'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
 import { PortalGroupChecklistField } from './portal-group-checklist-field'
@@ -62,31 +61,17 @@ export function PortalGroupAddForm({ groupId, rows, mutation, onDone }: Props) {
           />
         )}
       </form.Field>
-      {/* A refusal from an earlier time the dialog was open is not shown again. */}
-      <form.Subscribe selector={(state) => state.submissionAttempts}>
-        {(attempts) => (attempts > 0 ? <FormErrorBanner error={mutation.error} /> : null)}
+      <DialogErrorBanner error={mutation.error} />
+      <form.Subscribe selector={(state) => state.values.portalIds.length}>
+        {(count) => (
+          <DialogFooter note={<span aria-live="polite">{describeSelection(count)}</span>}>
+            <DialogCancel />
+            <SubmitButton mutation={mutation} form={form} disabled={count === 0}>
+              Add to group
+            </SubmitButton>
+          </DialogFooter>
+        )}
       </form.Subscribe>
-      <DialogFooter className="items-center sm:justify-between">
-        <form.Subscribe selector={(state) => state.values.portalIds.length}>
-          {(count) => (
-            <p className="text-sm text-muted-foreground" aria-live="polite">
-              {describeSelection(count)}
-            </p>
-          )}
-        </form.Subscribe>
-        <div className="flex flex-col-reverse gap-2 sm:flex-row">
-          <Button type="button" variant="outline" onClick={onDone}>
-            Cancel
-          </Button>
-          <form.Subscribe selector={(state) => state.values.portalIds.length}>
-            {(count) => (
-              <SubmitButton mutation={mutation} form={form} disabled={count === 0}>
-                Add to group
-              </SubmitButton>
-            )}
-          </form.Subscribe>
-        </div>
-      </DialogFooter>
     </form>
   )
 }

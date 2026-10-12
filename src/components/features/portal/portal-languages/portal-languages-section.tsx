@@ -3,7 +3,6 @@
 // written at once through the portal's autosave coordinator; the wording itself
 // is written by hand in the Welcome and Linktree sections (no AI translation).
 
-import { Link } from '@tanstack/react-router'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalLanguageCoverage } from '#/contexts/portal/application/public-api'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
@@ -17,6 +16,8 @@ import {
   languageDisplayName,
 } from './portal-languages-rules'
 import { usePortalLanguageChange } from './use-portal-language-change'
+import { InlineLink } from '#/components/ui/inline-link'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 
 type Props = Readonly<{
   portal: Readonly<{
@@ -40,6 +41,10 @@ export function PortalLanguagesSection({
   const primary = portal.primaryGuestLocale ?? 'en'
   const additional = portal.additionalGuestLocales ?? []
   const onChange = usePortalLanguageChange(portal, update)
+  const { can } = usePermissions()
+  // The property's wording behind a welcome line or link preview is written by
+  // an account admin (`portal.admin`), in Welcome.
+  const canWritePropertyWording = canEdit && can('portal.admin')
   const coverageOf = (locale: GuestLocale) =>
     coverage?.languages.find((row) => row.locale === locale) ?? null
   return (
@@ -54,6 +59,7 @@ export function PortalLanguagesSection({
             isFallback={locale === primary}
             coverage={coverageOf(locale)}
             canEdit={canEdit}
+            canWritePropertyWording={canWritePropertyWording}
             onChange={onChange}
           />
         ))}
@@ -98,14 +104,8 @@ function MissingTextNote({
         When a text is missing
       </h3>
       <p className="text-sm">
-        The fallback language needs its own title and description before the Portal can be
-        published. The title and description come from the Property&rsquo;s wording for
-        each language, which an account admin writes in the Property Brand Profile; you
-        can then change them for this Portal in Welcome.
-      </p>
-      <p className="text-sm">
-        A title, description or link label that another language does not have shows its
-        text in the fallback language, {fallback}.
+        Guests whose language is missing a text read it in {fallback}, the fallback
+        language. {fallback} needs every text before the portal can be published.
       </p>
       {coverage !== undefined ? (
         <p className="text-sm text-muted-foreground">
@@ -116,24 +116,23 @@ function MissingTextNote({
       ) : null}
       <p className="text-sm text-muted-foreground">
         Write each language&rsquo;s text in{' '}
-        <Link
+        <InlineLink
           to="/properties/$propertyId/portals/$portalId"
           params={{ propertyId, portalId }}
           search={{ tab: 'page', section: 'welcome' }}
-          className="text-link underline-offset-4 hover:underline"
         >
           Welcome
-        </Link>{' '}
+        </InlineLink>{' '}
         and{' '}
-        <Link
+        <InlineLink
           to="/properties/$propertyId/portals/$portalId"
           params={{ propertyId, portalId }}
           search={{ tab: 'page', section: 'linktree' }}
-          className="text-link underline-offset-4 hover:underline"
         >
           Linktree
-        </Link>
-        .
+        </InlineLink>
+        . A welcome line and a link preview start from the property&rsquo;s wording, which
+        an account admin writes.
       </p>
     </section>
   )

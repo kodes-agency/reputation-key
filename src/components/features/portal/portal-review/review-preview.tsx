@@ -1,17 +1,24 @@
-// The right-hand side of the review page: the page a guest meets after a 1 star
-// and after a 5 star rating, side by side, so a manager sees that the Google
-// card is the same for both. The language switch and "Try as guest" sit above;
-// choosing a state under "See every guest state" shows that one phone instead.
+// The guest side of the review page (beside the lists from `lg`, under them
+// before the footer below it): the page a guest meets after a 1 star and after a
+// 5 star rating, side by side, so a manager sees that the Google card is the
+// same for both. The language switch and "Try as guest" sit above; choosing a
+// state under "See every guest state" shows that one phone instead.
 // The page is the saved draft, drawn by the same view the editor's preview uses.
 // Nothing here writes anything.
 
 import { useEffect, useRef } from 'react'
 import { Smartphone } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { EmptyState } from '#/components/ui/empty-state'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
-import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
+import {
+  GUEST_LOCALE_METADATA,
+  adminLanguageCode,
+  type GuestLocale,
+} from '#/shared/domain/guest-locale'
 import {
   describeUnavailable,
   TRY_AS_GUEST_NOTICE,
@@ -77,6 +84,17 @@ export function ReviewPreview({
       behavior: reduced ? 'auto' : 'smooth',
     })
   }, [showRequest, arePhonesDrawn])
+  // A state chosen under "See every guest state" shows in the phone here. Below
+  // `lg` that phone is under the lists, so it is brought into view; beside them
+  // it already is, and "nearest" moves nothing.
+  useEffect(() => {
+    if (view.kind !== 'state' || phones.current === null) return
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    phones.current.scrollIntoView({
+      block: 'nearest',
+      behavior: reduced ? 'auto' : 'smooth',
+    })
+  }, [view])
 
   return (
     <section aria-label="What guests will see" className="space-y-4">
@@ -109,27 +127,23 @@ function PreviewBody({
   if (data.status === 'loading') return <PreviewSkeleton />
   if (data.status === 'error') {
     return (
-      <div role="alert" className="rounded-lg border border-dashed p-6 text-center">
-        <p className="text-sm font-medium">The preview couldn’t be loaded</p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          onClick={data.retry}
-        >
-          Try again
-        </Button>
-      </div>
+      <RegionError
+        size="compact"
+        message="The preview couldn’t be loaded."
+        onRetry={data.retry}
+        retrying={data.retrying}
+      />
     )
   }
   if (data.status === 'unavailable') {
     const note = describeUnavailable(data.reason)
     return (
-      <div className="rounded-lg border border-dashed p-6 text-center">
-        <p className="text-sm font-medium">{note.title}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{note.body}</p>
-      </div>
+      <EmptyState
+        size="compact"
+        icon={Smartphone}
+        title={note.title}
+        description={note.body}
+      />
     )
   }
   const { preview, experience, copy, locale } = data
@@ -158,7 +172,7 @@ function PreviewBody({
             }}
             options={preview.locales.map((code) => ({
               value: code,
-              label: GUEST_LOCALE_METADATA[code].chipLabel,
+              label: adminLanguageCode(code),
               accessibleLabel: GUEST_LOCALE_METADATA[code].englishName,
             }))}
           />
@@ -183,9 +197,11 @@ function PreviewBody({
           </p>
         </div>
       ) : null}
+      {/* The scroll margin keeps a phone brought into view clear of the
+          footer, which is pinned over the page below `lg`. */}
       <div
         ref={phones}
-        className="flex flex-wrap items-start justify-center gap-x-8 gap-y-6"
+        className="flex scroll-mt-4 scroll-mb-28 flex-wrap items-start justify-center gap-x-8 gap-y-6 lg:scroll-mb-4"
       >
         {view.kind === 'pair' ? (
           reviewPairStates(preview.privateFeedbackThreshold).map((option) => (

@@ -5,25 +5,17 @@
 // navigation landmark with `aria-current`, not an ARIA tablist: a tablist
 // promises a panel in the same document, and the panel here is the route's.
 //
-// On a phone the list becomes one scrolling row; the group headings and the
-// summary lines belong to the wider layout.
+// It is the reference composition of `SectionNav` (icon, label, live summary,
+// group headings, a note under the list); this file only says what the editor
+// puts in it. It sits in a `SectionNavLayout frame="rail"` with the section and
+// its preview, and is a row above them until that space is wide enough for a
+// column beside them.
 
-import { Link } from '@tanstack/react-router'
-import {
-  CircleAlert,
-  Languages,
-  Layers,
-  LayoutGrid,
-  Lock,
-  MessageSquareText,
-  Palette,
-  PanelBottom,
-  Star,
-  Type,
-  UserRound,
-  type LucideIcon,
-} from 'lucide-react'
-import { cn } from '#/lib/utils'
+import { linkOptions } from '@tanstack/react-router'
+import { CircleAlert, Lock } from 'lucide-react'
+import { SectionNav } from '#/components/ui/section-nav'
+import type { SectionNavItem } from '#/components/ui/section-nav-types'
+import { PORTAL_EDITOR_SECTION_ICONS } from './portal-editor-section-icons'
 import {
   PORTAL_EDITOR_SECTION_GROUPS,
   PORTAL_EDITOR_SECTION_LABELS,
@@ -31,119 +23,67 @@ import {
 } from './portal-editor-sections'
 import type { PortalEditorSectionSummary } from './portal-editor-summary'
 
-const SECTION_ICONS: Readonly<Record<PortalEditorSection, LucideIcon>> = {
-  look: Palette,
-  welcome: Type,
-  rating: Star,
-  'private-note': MessageSquareText,
-  linktree: LayoutGrid,
-  footer: PanelBottom,
-  languages: Languages,
-  group: Layers,
-  responsible: UserRound,
-}
+type Summaries = Readonly<Record<PortalEditorSection, PortalEditorSectionSummary>>
 
-type Props = Readonly<{
+type ItemsInput = Readonly<{
   propertyId: string
   portalId: string
-  active: PortalEditorSection
   available: ReadonlyArray<PortalEditorSection>
-  summaries: Readonly<Record<PortalEditorSection, PortalEditorSectionSummary>>
+  summaries: Summaries
 }>
 
-export function PortalEditorNav({
-  propertyId,
-  portalId,
-  active,
-  available,
-  summaries,
-}: Props) {
+function SectionSummary({ summary }: Readonly<{ summary: PortalEditorSectionSummary }>) {
   return (
-    <nav
-      aria-label="Editor sections"
-      className="border-b lg:w-72 lg:shrink-0 lg:self-stretch lg:border-r lg:border-b-0"
-    >
-      {/* One scrolling row on a phone; a sticky column beside the section from lg. */}
-      <div className="lg:sticky lg:top-0">
-        <div className="flex gap-1 overflow-x-auto px-4 py-2 md:px-6 lg:flex-col lg:gap-5 lg:px-3 lg:py-5">
-          {PORTAL_EDITOR_SECTION_GROUPS.map((group) => {
-            const sections = group.sections.filter((section) =>
-              available.includes(section),
-            )
-            if (sections.length === 0) return null
-            return (
-              <div key={group.heading} className="max-lg:contents">
-                <p className="hidden px-3 pb-1 text-xs font-medium text-muted-foreground lg:block">
-                  {group.heading}
-                </p>
-                <ul className="flex gap-1 lg:flex-col">
-                  {sections.map((section) => (
-                    <li key={section} className="max-lg:shrink-0">
-                      <SectionLink
-                        propertyId={propertyId}
-                        portalId={portalId}
-                        section={section}
-                        isActive={section === active}
-                        summary={summaries[section]}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )
-          })}
-        </div>
-        <p className="hidden px-6 pb-5 text-xs text-muted-foreground lg:block">
-          Edits stay in this draft until you publish. Printed codes keep working.
-        </p>
-      </div>
-    </nav>
+    <>
+      {summary.locked ? <Lock className="size-3 shrink-0" aria-hidden /> : null}
+      <span className="truncate">{summary.text}</span>
+      {summary.attention ? (
+        <span className="flex shrink-0 items-center gap-1 text-foreground">
+          <span aria-hidden>·</span>
+          <CircleAlert className="size-3 text-warn" aria-hidden />
+          {summary.attention}
+        </span>
+      ) : null}
+    </>
   )
 }
 
-function SectionLink({
+/** The available sections as nav items, grouped as guests meet them. */
+export function portalEditorNavItems({
   propertyId,
   portalId,
-  section,
-  isActive,
-  summary,
-}: Readonly<{
-  propertyId: string
-  portalId: string
-  section: PortalEditorSection
-  isActive: boolean
-  summary: PortalEditorSectionSummary
-}>) {
-  const Icon = SECTION_ICONS[section]
+  available,
+  summaries,
+}: ItemsInput): ReadonlyArray<SectionNavItem> {
+  return PORTAL_EDITOR_SECTION_GROUPS.flatMap((group) =>
+    group.sections
+      .filter((section) => available.includes(section))
+      .map((section): SectionNavItem => ({
+        key: section,
+        // Checked against the route, which a plain `to: string` would not be.
+        ...linkOptions({
+          to: '/properties/$propertyId/portals/$portalId',
+          params: { propertyId, portalId },
+          search: { tab: 'page', section },
+        }),
+        label: PORTAL_EDITOR_SECTION_LABELS[section],
+        icon: PORTAL_EDITOR_SECTION_ICONS[section],
+        summary: <SectionSummary summary={summaries[section]} />,
+        group: group.heading,
+      })),
+  )
+}
+
+export function PortalEditorNav({
+  active,
+  ...input
+}: ItemsInput & Readonly<{ active: PortalEditorSection }>) {
   return (
-    <Link
-      to="/properties/$propertyId/portals/$portalId"
-      params={{ propertyId, portalId }}
-      search={{ tab: 'page', section }}
-      aria-current={isActive ? 'page' : undefined}
-      className={cn(
-        'flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-        'hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring',
-        isActive ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground',
-      )}
-    >
-      <Icon className="size-4 shrink-0" aria-hidden />
-      <span className="min-w-0">
-        <span className="block whitespace-nowrap text-foreground">
-          {PORTAL_EDITOR_SECTION_LABELS[section]}
-        </span>
-        <span className="hidden items-center gap-1 truncate text-xs font-normal text-muted-foreground lg:flex">
-          {summary.locked ? <Lock className="size-3 shrink-0" aria-hidden /> : null}
-          <span className="truncate">{summary.text}</span>
-          {summary.attention ? (
-            <span className="flex shrink-0 items-center gap-1 text-foreground">
-              <span aria-hidden>·</span>
-              <CircleAlert className="size-3 text-warn" aria-hidden />
-              {summary.attention}
-            </span>
-          ) : null}
-        </span>
-      </span>
-    </Link>
+    <SectionNav
+      aria-label="Editor sections"
+      items={portalEditorNavItems(input)}
+      current={active}
+      footer="Edits stay in this draft until you publish. Printed codes keep working."
+    />
   )
 }

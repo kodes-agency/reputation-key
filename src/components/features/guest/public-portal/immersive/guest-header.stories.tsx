@@ -278,6 +278,93 @@ export const LogoReplacesWordmark: Story = {
   },
 }
 
+/**
+ * The wordmark is never cut off, whatever its length or the phone's width. At
+ * 320 px with the language chip the room is about 180 px, and a 24-letter
+ * wordmark (the editor's limit) is still whole in the bar, smaller and closer
+ * set, with no ellipsis.
+ */
+export const LongWordmarkOnTheNarrowestPhone: Story = {
+  parameters: { frameWidth: 320 },
+  args: { children: <AvelaChrome wordmark="Atelier Marina Bay Hotel" /> },
+  play: async ({ canvasElement }) => {
+    const header = canvasElement.querySelector('header') as HTMLElement
+    const mark = within(header).getByText('Atelier Marina Bay Hotel')
+    const chip = chipOf(canvasElement)
+    const markStyle = getComputedStyle(mark)
+    expect(markStyle.textOverflow).not.toBe('ellipsis')
+    // Whole: nothing is clipped, and it ends before the chip begins.
+    expect(mark.scrollWidth).toBeLessThanOrEqual(mark.clientWidth)
+    expect(mark.getBoundingClientRect().right).toBeLessThanOrEqual(
+      chip.getBoundingClientRect().left,
+    )
+    // It stepped down from the board's 16 px, but not below 11 px.
+    expect(parseFloat(markStyle.fontSize)).toBeLessThan(16)
+    expect(parseFloat(markStyle.fontSize)).toBeGreaterThanOrEqual(11)
+    expect(header.getBoundingClientRect().height).toBe(64)
+    expect(mark.getBoundingClientRect().height).toBeLessThanOrEqual(64)
+    const frame = canvasElement.querySelector<HTMLElement>('[data-testid="phone-frame"]')
+    expect((frame as HTMLElement).scrollWidth).toBeLessThanOrEqual(320)
+  },
+}
+
+/** A name that fits at the board's size keeps it: 16 px and 0.38 em, as in board G01. */
+export const ShortWordmarkKeepsTheBoardsSize: Story = {
+  play: async ({ canvasElement }) => {
+    const mark = within(canvasElement).getByText('Avela', { selector: 'p' })
+    const style = getComputedStyle(mark)
+    expect(parseFloat(style.fontSize)).toBe(16)
+    expect(parseFloat(style.letterSpacing)).toBeCloseTo(16 * 0.38, 1)
+    expect(mark.getBoundingClientRect().height).toBeLessThan(24)
+  },
+}
+
+/** A name that needs room beside the chip steps down, in size and then spacing, and stays on one line. */
+export const MediumWordmarkStepsDown: Story = {
+  args: { children: <AvelaChrome wordmark="Hotel Marina Bay" /> },
+  play: async ({ canvasElement }) => {
+    const mark = within(canvasElement).getByText('Hotel Marina Bay')
+    const style = getComputedStyle(mark)
+    expect(parseFloat(style.fontSize)).toBeLessThan(16)
+    expect(parseFloat(style.fontSize)).toBeGreaterThan(11)
+    expect(mark.scrollWidth).toBeLessThanOrEqual(mark.clientWidth)
+    expect(mark.getBoundingClientRect().height).toBeLessThan(24)
+    expect(mark.getBoundingClientRect().right).toBeLessThanOrEqual(
+      chipOf(canvasElement).getBoundingClientRect().left,
+    )
+  },
+}
+
+/** With one language there is no chip, and a name that had to step down beside one keeps the board's size. */
+export const WordmarkWithNoChipHasTheWholeBar: Story = {
+  parameters: { frameWidth: 320 },
+  args: { children: <AvelaChrome wordmark="Hotel Marina Bay" locales={['en']} /> },
+  play: async ({ canvasElement }) => {
+    const mark = within(canvasElement).getByText('Hotel Marina Bay')
+    expect(canvasElement.querySelector('button')).toBeNull()
+    expect(mark.scrollWidth).toBeLessThanOrEqual(mark.clientWidth)
+    expect(mark.getBoundingClientRect().height).toBeLessThan(24)
+    expect(parseFloat(getComputedStyle(mark).fontSize)).toBe(16)
+  },
+}
+
+/** No wordmark and no logo: no mark at all, the large name below says it, and the chip keeps the right edge. */
+export const NoWordmarkNoLogoIsJustTheChip: Story = {
+  args: { children: <AvelaChrome wordmark={null} /> },
+  play: async ({ canvasElement }) => {
+    const header = canvasElement.querySelector('header') as HTMLElement
+    expect(header.querySelector('.ih-wordmark')).toBeNull()
+    expect(header.querySelector('img')).toBeNull()
+    // The name appears once, as the large line.
+    expect(within(canvasElement).getAllByText('Avela Resort')).toHaveLength(1)
+    const chip = chipOf(canvasElement)
+    const right = chip.getBoundingClientRect().right
+    expect(Math.round(header.getBoundingClientRect().right - right)).toBeLessThanOrEqual(
+      2,
+    )
+  },
+}
+
 /** Narrow phone, a long name in German: it wraps inside the column, never sideways. */
 export const LongNameOnNarrowPhone: Story = {
   parameters: { frameWidth: 320 },

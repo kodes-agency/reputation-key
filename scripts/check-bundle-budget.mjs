@@ -59,10 +59,10 @@
 //
 // The closure budget is a RATCHET above the measured floor, not an aspirational
 // number. The measured target is 319,519 B (312 KiB), replacing the unmeasured
-// 204,800 B target. Fully deferring the 29,257 B Sentry chunk would move the
-// floor to about 290,000 B; it remains in this closure because src/start.ts
-// statically imports the browser middleware even though instrument.client.ts
-// now retains its dynamic import.
+// 204,800 B target. The 29 KB Sentry chunk sat in this closure until
+// 2026-10-03, because src/start.ts statically imported the browser middleware
+// while instrument.client.ts already loaded the SDK dynamically; it is out now
+// and gated below (see the 2026-10-03 vendor-sentry note).
 //
 // Re-measured 2026-09-18 after src/styles.css stopped scanning the folders
 // .dockerignore keeps out of the image (docs, review, e2e, .storybook and the
@@ -202,10 +202,263 @@
 // change merged onto it: 335,331 B -> 335,517 B (83 js + 1 css), +186 B. `main`
 // had 369 B of headroom under its 335,700 B. The budget moves to 335,900 B.
 //
+// 2026-10-02 (Portal round 4, s47b, click a part of the preview to edit it):
+// the preview's part boxes and the language sheet are in the portal editor's lazy
+// chunks; the initial closure moves by ten bytes (a shared stub chunk). The CI
+// production build of this change merged onto main measured 335,910 B (83 js + 1
+// css) against the 335,900 B budget. The budget moves to 336,300 B.
+//
+// 2026-10-03 (UI consistency, stage S1: safety bugs, link layer and shell
+// ownership): A1 (guarded Portal route errors), B1 (link layer in @layer base,
+// sidebar classes) and B2 (page gutter owner, theme control, dashboard tier)
+// were each measured alone, never together. Fresh production builds of main
+// (484f3cc2b) and of the combined stage branch: 336,222 B -> 336,691 B (82 js + 1
+// css) before the review fixes, +469 B (A1 +371, B1 +16 and B2 +73 alone, 9 B
+// more together), which left 9 B under the 336,700 B A1 had raised to. The review
+// fixes add 22 B on top (336,691 B -> 336,713 B): mostly the Portal list
+// fallbacks' dashboard tier, so they stop narrowing the page while it loads
+// (that chunk +15 B), the account menu's generated label id and phone touch
+// target (entry chunk +9 B) and the stylesheet (+6 B). Final measurement:
+// 336,713 B (82 js + 1 css, entry 45,629 B), +491 B over main. The budget moves
+// to 336,800 B, which leaves 87 B. This is baseline growth, so it waits for the
+// owner's approval at the S1 pull request (plan decision 12); the alternative is
+// to cut the guarded error hook out of the router's first paint.
+//
+// 2026-10-03 (Inbox first paint on phones, #672): `useIsMobile` and
+// `useInboxCompactLayout` now answer from the request's viewport hint during
+// SSR and hydration, so a phone's first paint is already the phone layout. The
+// shared hook (`useViewportBelow`, its context and the hint's breakpoint check)
+// is first-paint code, because the notification bell in the entry chunk calls
+// `useIsMobile`. A chunk group for the three hook modules was tried and made
+// the closure larger (337,008 B): the entry imports them statically. The cookie
+// writer stays in the code-split authenticated layout. Fresh production builds
+// of main (3e2a53028) and of this change merged onto it: 336,745 B -> 336,870 B
+// (82 js + 1 css), +125 B, against main's 55 B of headroom. The budget moves to
+// 337,000 B.
+// 2026-10-03 (UI consistency, stage S2, slice C1: PageState): one PageState now
+// draws every page's pending, failed, missing and unavailable states in the
+// title, breadcrumbs and tier the loaded page has, and every authenticated page is
+// named once on its route (`staticData.page`), which also titles its tab. Fresh
+// production builds of the S1 stage head (e1d39e526) and of this change: 336,745
+// B -> 337,733 B (82 js + 1 css), +988 B. The router's three inline defaults, the
+// old `page-states` chunk (488 B) and the Portal-only `portal-route-fallbacks`
+// chunk (879 B) are gone, and the entry chunk shrank 484 B as the guarded error
+// hook and the defaults moved into one shared `route-page-state` chunk (2,102 B:
+// PageState, the identity rules, the guarded hook). What is new is that chunk's
+// identity and PageState code, the `alert` chunk (573 B, no longer inlined in the
+// entry chunk), `route-notice` (193 B, the thrown cause of a refusal), and the 28
+// page names in the route configs (+227 B, measured by building without them). The
+// refusal sentences are not in first paint: a route throws only the cause, and the
+// copy sits in the shell's lazy not-found boundary (`route-notice-copy`); the first
+// draft carried them and measured +1,437 B, so moving them out saved 409 B. The
+// budget moves to 337,800 B, which leaves 67 B. This is baseline growth on top of S1's, so it waits for the owner's
+// approval (plan decision 12).
+//
+// 2026-10-03 (UI consistency, stage S2, slice C2, region states): EmptyState
+// gained a size, a tone, and description and action slots, and RegionError (with
+// its Try again button) became a shared lazy chunk. Fresh production builds of
+// main (e1d39e526) and of the slice: 336,745 B -> 336,959 B (82 js + 1 css),
+// +214 B: the empty-state chunk +176 B (PageState's missing and unavailable
+// bodies draw it on first paint once slice C1 lands; the page error body draws an
+// Alert), the entry chunk +95 B (the preload map lists one more shared chunk), the
+// stylesheet -56 B, the old page-states chunk -1 B. The bell's "could not load"
+// body stays plain markup so the entry does not import EmptyState. The slice alone
+// raised the budget to 337,000 B (41 B of headroom); it is folded into the
+// combined stage's figure below. This is baseline growth, so it waits for the
+// owner's approval (plan decision 12); the alternative is to render PageState's
+// notice body without EmptyState.
+//
+// 2026-10-03 (UI consistency, stage S2, review fixes): a fresh production build of
+// the combined stage (6d7f28200) measured 337,964 B; the review fixes (a refusal
+// answers in its page's frame and the shell keeps its sidebar state and focus; the
+// three remaining role redirects answer in the shell; Try again reports its retry
+// and takes the Inbox's compact density) measure 337,986 B (82 js + 1 css), +22 B,
+// so the budget stays at 338,000 B with 14 B of headroom. The fixes were kept out
+// of first paint on purpose: the refusal frame, the way-back links and the
+// continuity hooks live in the shell's lazy not-found boundary and component chunk,
+// the three role refusals name their way back instead of writing the link (the
+// first draft wrote it in the route configs: +21 B in the entry chunk), the
+// Notifications bell does not import the retry helper (it joined the closure:
+// +145 B), and the tests spell no Tailwind class whole (two stray class strings in
+// a guard test added their rules to the stylesheet: +19 B). The budget does not
+// move, so these fixes add no baseline growth beyond what the stage already
+// waits on the owner for.
+//
+// 2026-10-03 (UI consistency, stage S3: E1 tones + E2 feedback + review fixes):
+// Alert draws the icon of its tone, so the first-paint `alert` chunk (573 B ->
+// 781 B) imports the four tone icons and the shared tone table (`tone`, 341 B,
+// also read by the lazy Badge, StatusBadge and review checks), and takes its role
+// from its variant. Two icon chunks join the closure (`circle-check` 219 B, `info`
+// 206 B); the `circle-alert` and `circle-x` chunks are gone, their icons folded
+// into the `triangle-alert` and `notification-filters` chunks. E2 themes the
+// Toaster from the app tokens and routes the dates through one format module, both
+// in the root closure. Fresh production builds, 82 js + 1 css each: the S2 stage
+// head (eaeb2f0c5) 337,992 B; slice E1 alone 338,347 B (+355 B); slice E2 alone
+// 337,987 B on the S2 head; the merged stage head before its review fixes
+// (6b67ffbda) 338,376 B, which is not the sum of the slices (gzip does not add, and
+// both slices touch the root closure). The review fixes bring the merged stage to
+// 338,281 B: the Toaster takes its four icons from the tone table, which the Alert
+// already puts in the closure, and so drops the OctagonX icon (the `index` chunk
+// -148 B); against that the Alert's per-variant role costs 40 B and the stylesheet
+// 14 B (the attention chips' `[&>svg]:size-4`). Kept out of first paint on
+// purpose: the import's status labels live in their own module (moving them out of
+// the progress model, which the first-paint import queries share, saved 96 B),
+// FormErrorBanner's sanitising reads the `use-action-mutation` chunk the closure
+// already holds, and the tests and stories spell no Tailwind class that the
+// components do not already use.
+// The budget moves to 338,400 B, which leaves 119 B. This is baseline growth on
+// top of S1's and S2's, so it waits for the owner's approval (plan decision 12);
+// the alternative is to leave the success and info icons out of the Alert and let
+// those two callers draw their own.
+//
+// 2026-10-03 (UI consistency, stage S4 slice D1: Button): Button gains `pending`
+// (an inline spinner, `aria-busy`, a label swap), a touch-height token on its
+// sizes and the `inline` size, and `aria-disabled` styling; Input, Select and the
+// menu items read the same token. Fresh production builds, 82 js + 1 css each: the
+// S3 stage head (c06cb5353) 338,290 B; this slice 338,673 B, +383 B. The `button`
+// chunk 858 -> about 1,120 B (the class strings and the spinner), the entry chunk
+// +72 B (the auth routes' InlineLink), `vendor-tanstack` +27 B (`createLink`), the
+// stylesheet +25 B (the touch token's two utilities and `focus-ring` against about
+// a hundred per-file height classes deleted). Kept out of first paint on purpose:
+// `IconButton` and the tooltip primitives (the shell's lazy chunk; the public
+// header's ThemeToggle, the bell and the bell's could-not-load header stay plain
+// Buttons, each noted in `button-sources.test.ts`), the spinner is drawn inline
+// (an imported lucide icon was a 196 B chunk of its own), and `InlineLink` is a
+// bare router link wrapper. A first draft that mounted a `TooltipProvider` in the
+// root and used `IconButton` in the bell measured 342,764 B. The budget moves to
+// 338,800 B, which leaves 127 B. This is baseline growth on top of S1's, S2's and
+// S3's, so it waits for the owner's approval (plan decision 12).
+//
+// 2026-10-03 (UI consistency, stage S4 combined: D1 Button + D2 dialogs + review
+// fixes): the budget is sized to the stage, not to D1's figure alone. With D2 the
+// stage measured 338,592 B, below D1's 338,673 B; the review fixes then added 72 B
+// (the Button's `touch` and `iconBelow` variants, which stand in for the
+// `--control-touch` class strings the Inbox and the beta launcher spelled per file).
+// A fresh production build of the merged stage measured 338,664 B, +374 B over the
+// S3 stage head's 338,290 B. The budget moves from 338,800 B to 338,700 B, which
+// leaves 36 B. Still baseline growth on top of S1's to S3's, so it waits for the
+// owner's approval (plan decision 12).
+//
+// 2026-10-04 (UI consistency, stage S4 visual QA fixes): the Dialog's footer is
+// pinned to the bottom of its scroll box, so a tall dialog keeps Cancel and the
+// primary action on screen. That is the footer's `sticky` offset, its bleed over the
+// dialog's padding (now the `--dialog-pad` variable the Portal version dialog also
+// sets) and a fade above it, all in the first paint because the beta launcher mounts
+// a Dialog there. Fresh production builds, 82 js + 1 css each: the stage tip
+// (b34a5170f) 338,781 B, which is 81 B past the 338,700 B above (the docs and menu
+// commits after the stage measurement); the three fixes 338,959 B, +178 B. The
+// pinned footer is +154 B (the stylesheet's rules and the class string, of which the
+// fade is 101 B: it is a plain `linear-gradient` background, because the gradient
+// utilities would add Tailwind's nine `@property` registrations), a pending Button
+// that keeps its full strength (`aria-busy:disabled:opacity-100`) and the tooltip's
+// 8px gap from the window edge are +24 B together. The budget moves from 338,700 B
+// to 339,000 B, which leaves 41 B. Baseline growth on top of S1's to S4's, so it
+// waits for the owner's approval (plan decision 12).
+//
+// 2026-10-04 (UI consistency, stage S5: SectionNav, NavLink, LinkTabs and the view
+// switchers): the Portal editor's section list becomes a shared SectionNav (a strip
+// or a list by the width of its container, the sidebar's active fill drawn from
+// `aria-current`, the shared focus ring and touch height), Property settings uses
+// it, the sidebars' links become `NavLink` (one current page, no router `active`
+// class) and the sidebar's rows wear `focus-ring`; the page-level views become
+// `LinkTabs` (a `NavLink` in a list item, one underline recipe shared with the
+// Radix line tabs, the strip's overflow mechanics) and the dashboard range and the
+// Portal Results window one `RangeControl`. Fresh production builds, 82 js + 1 css
+// each: the S4 stage tip (a787cd59f) 338,959 B; slice F1 alone 339,157 B, +198 B;
+// the combined stage (34777317d, F1 + F2 + review fixes) 339,053 B, +94 B over the
+// S4 tip. The stylesheet is where F1's growth was (+119 B: the container-query rules
+// of the two frames, `@3xl` for a page's own content and `@6xl` for a full-bleed
+// workspace, the `aria-[current=page]` rules, less the `xl:` and `md:` rules the two
+// hand-rolled navs wore) and the entry chunk is +79 B, which is the preload map
+// listing the new shared chunks (`nav-link`, `nav-count`, `section-nav`), not code in
+// the closure. F2 gave some of it back: the line tabs, the pill `Tabs` and the range
+// control share one recipe (`tabs-line-styles.ts`) and one range table, so the
+// hand-written underline strip, the pressed-Button range row and three preset lists
+// are gone (F2 and the review fixes net -104 B against F1 alone). Kept out of first
+// paint on purpose: SectionNav, LinkTabs, the strip hooks, their layout and class
+// tables are lazy (the Portal editor, Property settings, People, Properties, Goals,
+// Notifications and Portal workspace routes), NavCount is its own module so the Inbox
+// imports a span and not the nav, and the tests and stories spell no Tailwind class
+// that the product does not (a first draft that tested the old ring by name added a
+// 288 B rule, `focus-visible:ring`, and two story widths added 25 B). The budget
+// moves from 339,000 B to 339,200 B, which leaves 147 B. Baseline growth on top of
+// S1's to S4's, so it waits for the owner's approval (plan decision 12); the
+// alternative is to leave the sidebars' links as router links and keep their
+// `aria-current` mismatch.
+//
+// 2026-10-04 (S5 visual QA fixes): the shared `focus-ring` utility gains a 1px
+// full-strength outline in the ring token, the edge a Button's border gives its
+// halo, because the halo alone reads 1.65:1 on the dark page and 1.92:1 on the
+// light one and a nav row has no border to carry it (3:1 is measured in
+// `nav-contrast.test.ts`), and SectionNav re-reveals its open section through the
+// hook LinkTabs already uses. Fresh production builds, 82 js + 1 css each: the
+// stage before these fixes 339,082 B (339,053 B when it was first measured); with
+// them 339,129 B, +47 B. The stylesheet is +10 B (the declaration) and the entry
+// chunk +46 B, which is the preload map listing the hook as a chunk SectionNav and
+// LinkTabs share, not code in the closure. Inside the 339,200 B budget, which
+// leaves 71 B; the budget does not move.
+//
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
 // When a cycle fails it: the chunk group that moved a module away from the
 // modules it imports is the cause — keep a group closed under static imports.
+// 2026-10-03 (UI consistency S2 rebased onto main after #736 and #672): the
+// S2 stage (PageState + region states) measured 337,964 B on the S1 head; on
+// main with #672's first-paint viewport hooks (+125 B) the fresh production
+// build measures 338,122 B (82 js + 1 css). The budget moves to 338,200 B.
+// 2026-10-03 (UI consistency S3 rebased onto the S2 head on main): the tones
+// and feedback stage on main with #672 measures 338,411 B (82 js + 1 css) in a
+// fresh production build. The budget moves to 338,500 B.
+// 2026-10-03 (vendor-sentry out of first paint): src/start.ts imported
+// Sentry's request and function middleware statically. In the browser the
+// package exports inert placeholders for them, but the import still pulled
+// `export * from '@sentry/react'`, the whole `vendor-sentry` chunk, into the
+// closure. start.ts now names them only in a `createIsomorphicFn` server branch,
+// so the Start compiler drops the import from the client bundle; the server
+// chains are unchanged and the SDK still loads lazily from instrument.client.ts.
+// Fresh production builds of main (a2cf552c4) and of this change: 338,411 B ->
+// 309,364 B (82 -> 80 js + 1 css), -29,047 B: vendor-sentry -28,961 B, and
+// `recorded-browser-errors` (177 B) folded into the entry chunk (+91 B). The
+// budget is LOWERED to 309,500 B, and a vendor-sentry chunk in the closure now
+// fails by name: cut the new static importer, do not raise the budget for it.
+// 2026-10-04 (UI consistency S4 rebased onto main): #741 moved vendor-sentry
+// out of the initial closure and set the budget to 309,500 B. S4 (Button
+// pending and touch density, IconButton, InlineLink, DialogContent size and
+// dismissal guard, ConfirmationDialog pending contract) on that base measures
+// 310,061 B (80 js + 1 css) in a fresh production build. The budget moves to
+// 310,100 B.
+// 2026-10-04 (UI consistency S5 rebased onto main after S4): SectionNav,
+// NavLink, LinkTabs and RangeControl on main (310,100 B budget) measure
+// 310,212 B (80 js + 1 css) in a fresh production build. The budget moves to
+// 310,300 B.
+//
+// 2026-10-06 (user management part 3, #694, rebased onto main after the UI
+// consistency stages and #741): fresh production builds of main (1f798ee9a) and
+// of this change: 309,122 B (76 js + 1 css) -> 309,716 B (77 js + 1 css), +594 B,
+// inside main's 310,300 B, which does not move. The entry chunk +265 B (the
+// /operator route and the invitation pages' route configs), the shared
+// server-function stub chunk +111 B (the stubs those routes hold), query keys
+// +41 B (platformKeys, the member access key), the notification type tables
+// +37 B (two new account notices) and `ui/sheet` now its own 804 B chunk (+141 B
+// against the 1,220 B `use-property-id` chunk it shared on main), because the
+// Members page's lazy Edit access sheet imports it too. The console, the
+// invitation pages and the Members UI themselves stay in their routes' lazy chunks.
+//
+// 2026-10-11 (flexible goal months, slice 1: start this month, rebased onto
+// main after #769): fresh production builds of main (7955627ad) and of this
+// change: 310,134 B (77 js + 1 css) -> 310,298 B (77 js + 1 css), +164 B. The
+// shared server-function stub chunk +87 B (the stubs of the two month-so-far
+// reads, getGoalProgramProgress for the goal page and previewGoalMonth for the
+// new-goal form), the goal command DTO +52 B (the start-month field on the
+// create schema and the preview read's input schema; the start-month helpers
+// it re-exports stay with their calendar code in the lazy chunks) and query
+// keys +26 B (goalKeys.programProgress and goalKeys.monthPreview). The other
+// -1 B is six chunks that changed by 1 or 2 B each, because they name other
+// chunks by their hashed file names; that alone moves the total by about 10 B
+// between builds of the same first-paint code. The goal screens themselves
+// stay in their routes' lazy chunks. The measurement left 2 B under main's
+// 310,300 B, so a renamed chunk could fail CI by chance. The budget moves to
+// 310,600 B: the measurement plus about 300 B, to the nearest 100.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -217,7 +470,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 335_900, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126); raised to 334,300 on 2026-10-01 for the v3 writer and the guest mount rebased onto the inbox phone bars, measured 334,045 (main 333,447); raised to 335,700 on 2026-10-01 for the Review & publish page's loader, measured 335,082 (main 334,045); raised to 335,900 on 2026-10-01 for the Property look photo and logo controls, measured 335,517 (main 335,331)
+  initialClosureGzip: 310_600, // lowered on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every earlier raise and its measurement is in the dated notes above; 38_800, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126); raised to 334,300 on 2026-10-01 for the v3 writer and the guest mount rebased onto the inbox phone bars, measured 334,045 (main 333,447); raised to 335,700 on 2026-10-01 for the Review & publish page's loader, measured 335,082 (main 334,045); raised to 335,900 on 2026-10-01 for the Property look photo and logo controls, measured 335,517 (main 335,331); raised to 336,300 on 2026-10-02 for the click-to-edit preview, measured 335,910; raised to 336,700 on 2026-10-03 for the Portal route errors' guarded boundary (sanitised message, report, sign-in redirect, Try again, shared with the router default: UI consistency A1), measured 336,593 (main 336,222); raised to 336,800 on 2026-10-03 for the combined S1 stage (A1 + B1 + B2 + review fixes, see the 2026-10-03 entry above), measured 336,713, pending the owner's approval; raised to 337,800 on 2026-10-03 for UI consistency S2 slice C1 (PageState and page names, see the 2026-10-03 entry above), measured 337,733, pending the owner's approval, and to 338,000 on 2026-10-03 for the combined S2 stage (C1 PageState + C2 region states, the two slice deltas were +988 B and +214 B; a fresh production build of the merged stage measured 337,964), pending the owner's approval; raised to 338,400 on 2026-10-03 for the combined UI consistency S3 stage (E1 tones + E2 feedback + review fixes: the Alert draws its tone's icon from the shared tone table; a fresh production build of the merged stage measured 338,281, +289 B over the S2 stage head's 337,992), pending the owner's approval; raised to 338,800 on 2026-10-03 for UI consistency S4 slice D1 (Button pending, touch density and the inline size, see the 2026-10-03 entry above), measured 338,673, +383 B over the S3 stage head's 338,290, pending the owner's approval; 700, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126); raised to 334,300 on 2026-10-01 for the v3 writer and the guest mount rebased onto the inbox phone bars, measured 334,045 (main 333,447); raised to 335,700 on 2026-10-01 for the Review & publish page's loader, measured 335,082 (main 334,045); raised to 335,900 on 2026-10-01 for the Property look photo and logo controls, measured 335,517 (main 335,331); raised to 336,300 on 2026-10-02 for the click-to-edit preview, measured 335,910; raised to 336,700 on 2026-10-03 for the Portal route errors' guarded boundary (sanitised message, report, sign-in redirect, Try again, shared with the router default: UI consistency A1), measured 336,593 (main 336,222); raised to 336,800 on 2026-10-03 for the combined S1 stage (A1 + B1 + B2 + review fixes, see the 2026-10-03 entry above), measured 336,713, pending the owner's approval; raised to 337,800 on 2026-10-03 for UI consistency S2 slice C1 (PageState and page names, see the 2026-10-03 entry above), measured 337,733, pending the owner's approval, and to 338,000 on 2026-10-03 for the combined S2 stage (C1 PageState + C2 region states, the two slice deltas were +988 B and +214 B; a fresh production build of the merged stage measured 337,964), pending the owner's approval; raised to 338,400 on 2026-10-03 for the combined UI consistency S3 stage (E1 tones + E2 feedback + review fixes: the Alert draws its tone's icon from the shared tone table; a fresh production build of the merged stage measured 338,281, +289 B over the S2 stage head's 337,992), pending the owner's approval; raised to 338,800 on 2026-10-03 for UI consistency S4 slice D1 (Button pending, touch density and the inline size, see the 2026-10-03 entry above), measured 338,673, +383 B over the S3 stage head's 338,290, pending the owner's approval, and lowered to 338,700 on 2026-10-03 for the combined S4 stage (D1 Button + D2 dialogs + review fixes, see the second 2026-10-03 S4 entry above; a fresh production build of the merged stage measured 338,664, +374 B over the S3 stage head's 338,290), pending the owner's approval; 9_000, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126); raised to 334,300 on 2026-10-01 for the v3 writer and the guest mount rebased onto the inbox phone bars, measured 334,045 (main 333,447); raised to 335,700 on 2026-10-01 for the Review & publish page's loader, measured 335,082 (main 334,045); raised to 335,900 on 2026-10-01 for the Property look photo and logo controls, measured 335,517 (main 335,331); raised to 336,300 on 2026-10-02 for the click-to-edit preview, measured 335,910; raised to 336,700 on 2026-10-03 for the Portal route errors' guarded boundary (sanitised message, report, sign-in redirect, Try again, shared with the router default: UI consistency A1), measured 336,593 (main 336,222); raised to 336,800 on 2026-10-03 for the combined S1 stage (A1 + B1 + B2 + review fixes, see the 2026-10-03 entry above), measured 336,713, pending the owner's approval; raised to 337,800 on 2026-10-03 for UI consistency S2 slice C1 (PageState and page names, see the 2026-10-03 entry above), measured 337,733, pending the owner's approval, and to 338,000 on 2026-10-03 for the combined S2 stage (C1 PageState + C2 region states, the two slice deltas were +988 B and +214 B; a fresh production build of the merged stage measured 337,964), pending the owner's approval; raised to 338,400 on 2026-10-03 for the combined UI consistency S3 stage (E1 tones + E2 feedback + review fixes: the Alert draws its tone's icon from the shared tone table; a fresh production build of the merged stage measured 338,281, +289 B over the S2 stage head's 337,992), pending the owner's approval; raised to 338,800 on 2026-10-03 for UI consistency S4 slice D1 (Button pending, touch density and the inline size, see the 2026-10-03 entry above), measured 338,673, +383 B over the S3 stage head's 338,290, pending the owner's approval, and lowered to 338,700 on 2026-10-03 for the combined S4 stage (D1 Button + D2 dialogs + review fixes, see the second 2026-10-03 S4 entry above; a fresh production build of the merged stage measured 338,664, +374 B over the S3 stage head's 338,290), pending the owner's approval; raised to 339,000 on 2026-10-04 for the S4 visual QA fixes (pinned Dialog footer, a pending Button at full strength, the tooltip's edge gap, see the 2026-10-04 entry above; the stage tip measured 338,781 and a fresh production build 338,959, +178 B), pending the owner's approval; set to 310,100 on 2026-10-04 for S4 rebased onto main after #741 took vendor-sentry out of first paint (main 309,500), measured 310,061; 39_300, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126); raised to 334,300 on 2026-10-01 for the v3 writer and the guest mount rebased onto the inbox phone bars, measured 334,045 (main 333,447); raised to 335,700 on 2026-10-01 for the Review & publish page's loader, measured 335,082 (main 334,045); raised to 335,900 on 2026-10-01 for the Property look photo and logo controls, measured 335,517 (main 335,331); raised to 336,300 on 2026-10-02 for the click-to-edit preview, measured 335,910; raised to 336,700 on 2026-10-03 for the Portal route errors' guarded boundary (sanitised message, report, sign-in redirect, Try again, shared with the router default: UI consistency A1), measured 336,593 (main 336,222); raised to 336,800 on 2026-10-03 for the combined S1 stage (A1 + B1 + B2 + review fixes, see the 2026-10-03 entry above), measured 336,713, pending the owner's approval; raised to 337,800 on 2026-10-03 for UI consistency S2 slice C1 (PageState and page names, see the 2026-10-03 entry above), measured 337,733, pending the owner's approval, and to 338,000 on 2026-10-03 for the combined S2 stage (C1 PageState + C2 region states, the two slice deltas were +988 B and +214 B; a fresh production build of the merged stage measured 337,964), pending the owner's approval; raised to 338,400 on 2026-10-03 for the combined UI consistency S3 stage (E1 tones + E2 feedback + review fixes: the Alert draws its tone's icon from the shared tone table; a fresh production build of the merged stage measured 338,281, +289 B over the S2 stage head's 337,992), pending the owner's approval; raised to 338,800 on 2026-10-03 for UI consistency S4 slice D1 (Button pending, touch density and the inline size, see the 2026-10-03 entry above), measured 338,673, +383 B over the S3 stage head's 338,290, pending the owner's approval, and lowered to 338,700 on 2026-10-03 for the combined S4 stage (D1 Button + D2 dialogs + review fixes, see the second 2026-10-03 S4 entry above; a fresh production build of the merged stage measured 338,664, +374 B over the S3 stage head's 338,290), pending the owner's approval; raised to 339,000 on 2026-10-04 for the S4 visual QA fixes (pinned Dialog footer, a pending Button at full strength, the tooltip's edge gap, see the 2026-10-04 entry above; the stage tip measured 338,781 and a fresh production build 338,959, +178 B), pending the owner's approval; raised to 339,300 on 2026-10-04 for UI consistency S5 slice F1 (SectionNav, NavLink and the sidebar focus ring, see the 2026-10-04 S5 entry above; the S4 stage tip measured 338,959 and a fresh production build of the slice 339,144, +185 B), pending the owner's approval; 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126); raised to 334,300 on 2026-10-01 for the v3 writer and the guest mount rebased onto the inbox phone bars, measured 334,045 (main 333,447); raised to 335,700 on 2026-10-01 for the Review & publish page's loader, measured 335,082 (main 334,045); raised to 335,900 on 2026-10-01 for the Property look photo and logo controls, measured 335,517 (main 335,331); raised to 336,300 on 2026-10-02 for the click-to-edit preview, measured 335,910; raised to 336,700 on 2026-10-03 for the Portal route errors' guarded boundary (sanitised message, report, sign-in redirect, Try again, shared with the router default: UI consistency A1), measured 336,593 (main 336,222); raised to 336,800 on 2026-10-03 for the combined S1 stage (A1 + B1 + B2 + review fixes, see the 2026-10-03 entry above), measured 336,713, pending the owner's approval; raised to 337,800 on 2026-10-03 for UI consistency S2 slice C1 (PageState and page names, see the 2026-10-03 entry above), measured 337,733, pending the owner's approval, and to 338,000 on 2026-10-03 for the combined S2 stage (C1 PageState + C2 region states, the two slice deltas were +988 B and +214 B; a fresh production build of the merged stage measured 337,964), pending the owner's approval; raised to 338,400 on 2026-10-03 for the combined UI consistency S3 stage (E1 tones + E2 feedback + review fixes: the Alert draws its tone's icon from the shared tone table; a fresh production build of the merged stage measured 338,281, +289 B over the S2 stage head's 337,992), pending the owner's approval; raised to 338,800 on 2026-10-03 for UI consistency S4 slice D1 (Button pending, touch density and the inline size, see the 2026-10-03 entry above), measured 338,673, +383 B over the S3 stage head's 338,290, pending the owner's approval, and lowered to 338,700 on 2026-10-03 for the combined S4 stage (D1 Button + D2 dialogs + review fixes, see the second 2026-10-03 S4 entry above; a fresh production build of the merged stage measured 338,664, +374 B over the S3 stage head's 338,290), pending the owner's approval; raised to 339,000 on 2026-10-04 for the S4 visual QA fixes (pinned Dialog footer, a pending Button at full strength, the tooltip's edge gap, see the 2026-10-04 entry above; the stage tip measured 338,781 and a fresh production build 338,959, +178 B), pending the owner's approval; raised to 339,300 on 2026-10-04 for UI consistency S5 slice F1 (SectionNav, NavLink and the sidebar focus ring, see the 2026-10-04 S5 entry above; the S4 stage tip measured 338,959 and a fresh production build of the slice 339,157, +198 B), pending the owner's approval; 200, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126); raised to 334,300 on 2026-10-01 for the v3 writer and the guest mount rebased onto the inbox phone bars, measured 334,045 (main 333,447); raised to 335,700 on 2026-10-01 for the Review & publish page's loader, measured 335,082 (main 334,045); raised to 335,900 on 2026-10-01 for the Property look photo and logo controls, measured 335,517 (main 335,331); raised to 336,300 on 2026-10-02 for the click-to-edit preview, measured 335,910; raised to 336,700 on 2026-10-03 for the Portal route errors' guarded boundary (sanitised message, report, sign-in redirect, Try again, shared with the router default: UI consistency A1), measured 336,593 (main 336,222); raised to 336,800 on 2026-10-03 for the combined S1 stage (A1 + B1 + B2 + review fixes, see the 2026-10-03 entry above), measured 336,713, pending the owner's approval; raised to 337,800 on 2026-10-03 for UI consistency S2 slice C1 (PageState and page names, see the 2026-10-03 entry above), measured 337,733, pending the owner's approval, and to 338,000 on 2026-10-03 for the combined S2 stage (C1 PageState + C2 region states, the two slice deltas were +988 B and +214 B; a fresh production build of the merged stage measured 337,964), pending the owner's approval; raised to 338,400 on 2026-10-03 for the combined UI consistency S3 stage (E1 tones + E2 feedback + review fixes: the Alert draws its tone's icon from the shared tone table; a fresh production build of the merged stage measured 338,281, +289 B over the S2 stage head's 337,992), pending the owner's approval; raised to 338,800 on 2026-10-03 for UI consistency S4 slice D1 (Button pending, touch density and the inline size, see the 2026-10-03 entry above), measured 338,673, +383 B over the S3 stage head's 338,290, pending the owner's approval, and lowered to 338,700 on 2026-10-03 for the combined S4 stage (D1 Button + D2 dialogs + review fixes, see the second 2026-10-03 S4 entry above; a fresh production build of the merged stage measured 338,664, +374 B over the S3 stage head's 338,290), pending the owner's approval; raised to 339,000 on 2026-10-04 for the S4 visual QA fixes (pinned Dialog footer, a pending Button at full strength, the tooltip's edge gap, see the 2026-10-04 entry above; the stage tip measured 338,781 and a fresh production build 338,959, +178 B), pending the owner's approval; raised to 339,200 on 2026-10-04 for the combined UI consistency S5 stage (SectionNav, NavLink, LinkTabs and RangeControl, see the 2026-10-04 S5 entry above; the S4 stage tip measured 338,959 and a fresh production build of the combined stage 339,053, +94 B), pending the owner's approval; set to 310,300 on 2026-10-04 for S5 rebased onto main after S4 (main 310,100), measured 310,212; raised to 310,600 on 2026-10-11 for flexible goal months slice 1 (start this month, see the 2026-10-11 entry above; fresh production builds measured main 7955627ad at 310,134 and this change at 310,298, +164 B)
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
@@ -329,6 +582,13 @@ const over = (what, actual, budget) =>
 for (const cycle of firstPaintCycles) {
   failures.push(
     `static import cycle through the initial closure (${cycle.length} chunks): ${cycle.join(' ↔ ')}`,
+  )
+}
+
+for (const file of closure) {
+  if (!file.startsWith('vendor-sentry-')) continue
+  failures.push(
+    `${file} (${fmt(sizes.get(file))}) is in the initial closure: the browser Sentry SDK loads only through instrument.client.ts's dynamic import, so cut the static importer`,
   )
 }
 

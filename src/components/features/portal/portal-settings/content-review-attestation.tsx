@@ -4,10 +4,10 @@
 // so each publication state maps to one flat branch.
 
 import { Button } from '#/components/ui/button'
-import { Checkbox } from '#/components/ui/checkbox'
-import { Field, FieldLabel } from '#/components/ui/field'
+import { ConsentCheckbox } from '#/components/forms/consent-checkbox'
 import type { Action } from '#/components/hooks/use-action'
 import type { CompleteReviewResult, CompleteReviewVariables } from '../shared/types'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 const CHECKBOX_ID = 'portal-content-review-attestation'
 
@@ -42,24 +42,17 @@ export function ContentReviewAttestation({
 
   return (
     <>
-      <Field orientation="horizontal">
-        <Checkbox
-          id={CHECKBOX_ID}
-          checked={attested}
-          disabled={busy}
-          onCheckedChange={(next) => onAttestedChange(next === true)}
-        />
-        <FieldLabel htmlFor={CHECKBOX_ID} className="text-xs font-normal">
-          I opened every destination on this portal and confirm each one points at the
-          intended review page.
-        </FieldLabel>
-      </Field>
-      <Button
-        variant="outline"
-        className="min-h-11 sm:min-h-9"
-        disabled={busy || !attested}
-        onClick={record}
+      <ConsentCheckbox
+        id={CHECKBOX_ID}
+        checked={attested}
+        disabled={busy}
+        onCheckedChange={onAttestedChange}
       >
+        I opened every destination on this portal and confirm each one points at the
+        intended review page.
+      </ConsentCheckbox>
+      <FormErrorBanner error={mutation.error} />
+      <Button variant="outline" disabled={busy || !attested} onClick={record}>
         {mutation.isPending ? 'Recording…' : 'Record content review'}
       </Button>
     </>

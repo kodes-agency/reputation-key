@@ -121,6 +121,7 @@ function harness(
               gracePeriodEnds: null,
               hasPublishedAccessArtifact: true,
               addressKeyVersion: null,
+              issuedBy: null,
             },
     },
     propertyGoogleReviewDestinationApi: {

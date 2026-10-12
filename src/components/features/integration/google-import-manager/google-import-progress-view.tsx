@@ -1,19 +1,19 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { AlertCircle, ChevronDown, Clock3, RefreshCcw } from 'lucide-react'
+import { ChevronDown, RefreshCcw } from 'lucide-react'
 import type {
   ImportProgressDto,
   ImportProgressItemDto,
 } from '#/contexts/integration/application/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { Button } from '#/components/ui/button'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
-import { StatCard } from '#/components/features/shared/stat-card'
+import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { useHydrated } from '#/components/hooks/use-hydrated'
 import { GoogleImportProgressItems } from './google-import-progress-items'
 import {
@@ -23,6 +23,8 @@ import {
   isImportParentTerminal,
   parentStatusMessage,
 } from './google-import-progress-model'
+import { PARENT_STATUS } from './google-import-parent-status'
+import { formatClock } from '#/lib/format'
 
 type Props = Readonly<{
   progress: ImportProgressDto
@@ -67,12 +69,7 @@ export function GoogleImportProgressView({
             <h2 className="text-xl font-semibold tracking-tight">
               {parentStatusMessage(progress.status)}
             </h2>
-            <Badge variant={terminal ? 'outline' : 'secondary'}>
-              {progress.status === 'queued' || progress.status === 'processing' ? (
-                <Clock3 aria-hidden="true" />
-              ) : null}
-              {progress.status.replaceAll('_', ' ')}
-            </Badge>
+            <StatusBadge status={progress.status} map={PARENT_STATUS} />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {progress.processedCount} of {progress.totalCount} properties processed
@@ -110,7 +107,6 @@ export function GoogleImportProgressView({
 
       {isPollingError ? (
         <Alert variant="destructive">
-          <AlertCircle aria-hidden="true" />
           <AlertTitle>Live updates paused</AlertTitle>
           <AlertDescription>
             The import may still be running. Use Refresh status to continue.
@@ -118,12 +114,20 @@ export function GoogleImportProgressView({
         </Alert>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Imported or linked" value={summary.completed} />
-        <StatCard label="Already linked" value={summary.alreadyLinked} />
-        <StatCard label="Need attention" value={summary.issues} />
-        <StatCard label="Remaining" value={summary.remaining} />
-      </div>
+      <MetricStrip aria-label="Import progress" variant="tiles">
+        <Metric label="Imported or linked">
+          <MetricValue value={summary.completed} />
+        </Metric>
+        <Metric label="Already linked">
+          <MetricValue value={summary.alreadyLinked} />
+        </Metric>
+        <Metric label="Need attention">
+          <MetricValue value={summary.issues} />
+        </Metric>
+        <Metric label="Remaining">
+          <MetricValue value={summary.remaining} />
+        </Metric>
+      </MetricStrip>
 
       {settingUp ? (
         <>
@@ -173,6 +177,7 @@ function ImportProgressMeter({ progress }: Readonly<{ progress: ImportProgressDt
   // which React rejects as a mismatch (#418); so it joins the caption once
   // hydrated, and a client-side visit shows it from the first render.
   const hydrated = useHydrated()
+  const updatedAt = formatClock(progress.updatedAt, 'viewer')
   return (
     <div>
       <div
@@ -200,9 +205,7 @@ function ImportProgressMeter({ progress }: Readonly<{ progress: ImportProgressDt
         {queued
           ? 'Queued · the import worker picks this up within seconds'
           : `${percent}% complete`}
-        {hydrated
-          ? ` · Last updated ${new Date(progress.updatedAt).toLocaleTimeString()}`
-          : null}
+        {hydrated && updatedAt !== null ? ` · Last updated ${updatedAt}` : null}
       </p>
     </div>
   )

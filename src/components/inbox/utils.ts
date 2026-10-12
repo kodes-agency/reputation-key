@@ -1,72 +1,14 @@
 // Inbox shared formatting utilities
-
-/**
- * The formatters are module constants, not per-call constructions.
- *
- * `new Intl.DateTimeFormat(...)` costs ~26.5 µs on V8 — it resolves the locale
- * and builds an ICU pattern every time. Every thread node formats its `title`
- * through `formatDateTime`, and every node older than a week also formats its
- * visible stamp through `formatRelativeTime`'s absolute branch — one
- * constructor per node for a recent thread, two once entries age past the
- * week. On a 50-row rail that is roughly 1.3 ms and 2.7 ms of construction per
- * render, and it ran again on each keystroke in the internal-note box, which
- * re-renders the pane. The inbox list's row clock, `formatCompactAge`, runs
- * once per row and formats every row older than a week the same way.
- *
- * `Intl.DateTimeFormat` instances are immutable and safe to share;
- * `person-initials.ts` already hoists its `Intl.Segmenter` for the same reason.
- *
- * Every formatter but `DATE_LOCAL` is zone-stable UTC on purpose — see
- * `formatRelativeTime` for the one deliberate exception.
- */
-const DATE_UTC = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-  timeZone: 'UTC',
-})
-
-const DATE_TIME_UTC = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit',
-  timeZone: 'UTC',
-})
-
-/** The viewer's own zone — `formatRelativeTime`'s absolute branch only. */
-const DATE_LOCAL = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-})
-
-/** `formatCompactAge`'s same-year date; another year takes `DATE_UTC`. */
-const MONTH_DAY_UTC = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  timeZone: 'UTC',
-})
-
-const LIST_DATE_UTC = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'short',
-  timeZone: 'UTC',
-})
+//
+// The date text itself comes from `#/lib/format` (one locale, UTC unless a
+// caller names a zone, and formatters built once: the rail formats a date for
+// every row). This file keeps what is Inbox-specific, the relative clocks.
+import { formatDate, formatMonthDay } from '#/lib/format'
 
 const LANGUAGE_NAMES = new Intl.DisplayNames(['en'], { type: 'language' })
 
 const asDate = (date: Date | string): Date =>
   typeof date === 'string' ? new Date(date) : date
-
-export function formatDate(date: Date | string): string {
-  return DATE_UTC.format(asDate(date))
-}
-
-export function formatDateTime(date: Date | string): string {
-  return DATE_TIME_UTC.format(asDate(date))
-}
 
 /**
  * `just now`, `Nm ago`, `Nh ago`, `Nd ago`, then an absolute date from the
@@ -83,7 +25,7 @@ export function formatDateTime(date: Date | string): string {
  * formats in the viewer's own time zone. That is deliberate and unchanged: a
  * relative stamp is only meaningful against the reader's `now`, and every
  * caller renders it inside a `<time>` whose `title` carries the zone-stable
- * `formatDateTime`.
+ * `formatTimestamp` (`#/lib/format`).
  */
 export function formatRelativeTime(date: Date | string): string {
   const d = asDate(date)
@@ -98,11 +40,7 @@ export function formatRelativeTime(date: Date | string): string {
   if (diffHours < 24) return `${diffHours}h ago`
   if (diffDays < 7) return `${diffDays}d ago`
 
-  return DATE_LOCAL.format(d)
-}
-
-export function formatInboxListDate(date: Date | string): string {
-  return LIST_DATE_UTC.format(asDate(date))
+  return formatDate(d, 'viewer') ?? ''
 }
 
 /** The fixed-width list clock: relative under a week, compact absolute after. */
@@ -115,7 +53,7 @@ export function formatCompactAge(date: Date | string, now = new Date()): string 
   if (hours < 24) return `${hours}h`
   if (days < 7) return `${days}d`
   const sameYear = value.getUTCFullYear() === now.getUTCFullYear()
-  return (sameYear ? MONTH_DAY_UTC : DATE_UTC).format(value)
+  return (sameYear ? formatMonthDay(value) : formatDate(value)) ?? ''
 }
 
 export function formatReviewLanguage(languageCode: string | null | undefined) {

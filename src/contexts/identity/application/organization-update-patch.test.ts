@@ -10,8 +10,8 @@ import { buildOrganizationUpdatePatch } from './organization-update-patch'
 //   field              include when   value mapping
 //   name               truthy         as-is
 //   slug               truthy         as-is
-//   logo               always         null → undefined
-//   contactEmail       defined        null → undefined
+//   logo               always         as-is (null clears it)
+//   contactEmail       defined        as-is (null clears it)
 
 describe('buildOrganizationUpdatePatch', () => {
   it('includes name and slug when provided', () => {
@@ -38,21 +38,34 @@ describe('buildOrganizationUpdatePatch', () => {
     expect(patch).not.toHaveProperty('slug')
   })
 
-  it('always includes the logo key, mapping null → undefined for Better Auth', () => {
+  // Better Auth skips an `undefined` field on update, so only `null` clears a column.
+  // A removal mapped to `undefined` saved nothing: the logo reappeared on reload.
+  it('leaves the logo alone when the input has none', () => {
     expect(buildOrganizationUpdatePatch({}).logo).toBeUndefined()
-    expect(buildOrganizationUpdatePatch({ logo: null }).logo).toBeUndefined()
+  })
+
+  it('passes a null logo through, so removing the logo is saved', () => {
+    const patch = buildOrganizationUpdatePatch({ logo: null })
+
+    expect(patch).toHaveProperty('logo')
+    expect(patch.logo).toBeNull()
+  })
+
+  it('passes a logo address through unchanged', () => {
     expect(buildOrganizationUpdatePatch({ logo: 'https://example.com/l.png' }).logo).toBe(
       'https://example.com/l.png',
     )
   })
 
-  it('maps a null contact field to undefined while keeping the key', () => {
+  // Better Auth skips an `undefined` field on update, so only `null` clears the contact
+  // email. A clear mapped to `undefined` saved nothing: the email came back on reload.
+  it('passes a null contact email through, so clearing it is saved', () => {
     const patch = buildOrganizationUpdatePatch({
       contactEmail: null,
     })
 
     expect(patch).toHaveProperty('contactEmail')
-    expect(patch.contactEmail).toBeUndefined()
+    expect(patch.contactEmail).toBeNull()
   })
 
   it('passes the supported contact string through unchanged', () => {

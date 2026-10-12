@@ -6,7 +6,14 @@ import {
   type Ref,
   type SyntheticEvent,
 } from 'react'
-import type { LanguageOption, LanguageSwitcherCopy } from './language-options'
+import type {
+  LanguageOption,
+  LanguageSwitcherCopy,
+  PreviewLanguageOption,
+} from './language-options'
+
+/** What the panel draws: a row of the guest's sheet has an address, a row of the preview has none. */
+type SheetRow = PreviewLanguageOption & Readonly<{ href?: string }>
 
 export type LanguageSheetProps = Readonly<{
   ref: Ref<HTMLDialogElement>
@@ -49,12 +56,6 @@ export function LanguageSheet({
     if (event.target === event.currentTarget) onRequestClose()
   }
 
-  // The current row is where the guest already is: it closes the sheet, not reloads.
-  const keepPage = (event: SyntheticEvent) => {
-    event.preventDefault()
-    onRequestClose()
-  }
-
   return (
     <dialog
       ref={ref}
@@ -64,54 +65,118 @@ export function LanguageSheet({
       onKeyDown={handleKeyDown}
       onClick={handleBackdropClick}
     >
-      <div className="ih-sheet__panel">
-        <div className="ih-sheet__grab" aria-hidden="true" />
-        <div className="ih-sheet__head">
-          <h2 id={titleId} className="ih-display ih-sheet__title">
-            {copy.languageSheetTitle}
-          </h2>
-          <button
-            type="button"
-            className="ih-sheet__close"
-            aria-label={copy.languageSheetClose}
-            onClick={onRequestClose}
-          >
-            <X size={18} strokeWidth={1.8} aria-hidden="true" />
-          </button>
-        </div>
-        <ul className="ih-sheet__list">
-          {options.map((option) => (
-            <li key={option.locale}>
-              <a
-                href={option.href}
-                hrefLang={option.locale}
-                aria-current={option.isCurrent ? 'page' : undefined}
-                className="ih-sheet__row"
-                onClick={option.isCurrent ? keepPage : undefined}
-              >
-                <span className="ih-sheet__text">
-                  <span lang={option.locale} className="ih-sheet__name">
-                    {option.nativeName}
-                  </span>
-                  {option.secondaryName ? (
-                    <span className="ih-sheet__aside">{option.secondaryName}</span>
-                  ) : null}
-                </span>
-                {option.isCurrent ? (
-                  <>
-                    <Check size={20} strokeWidth={2} aria-hidden="true" />
-                    <span className="ih-sr-only">{copy.languageCurrent}</span>
-                  </>
-                ) : null}
-              </a>
-            </li>
-          ))}
-        </ul>
-        <p className="ih-sheet__hint">
-          <Globe size={14} strokeWidth={1.6} aria-hidden="true" />
-          {copy.languageSheetHint}
-        </p>
-      </div>
+      <LanguageSheetPanel
+        titleId={titleId}
+        options={options}
+        copy={copy}
+        onRequestClose={onRequestClose}
+      />
     </dialog>
   )
 }
+
+type LanguageSheetPanelProps = Readonly<{
+  titleId: string
+  options: readonly SheetRow[]
+  copy: LanguageSwitcherCopy
+  onRequestClose: () => void
+}>
+
+/** The sheet itself: the grab handle, the title and close button, the rows and the hint. */
+function LanguageSheetPanel({
+  titleId,
+  options,
+  copy,
+  onRequestClose,
+}: LanguageSheetPanelProps) {
+  // The current row is where the guest already is: it closes the sheet, not reloads.
+  const keepPage = (event: SyntheticEvent) => {
+    event.preventDefault()
+    onRequestClose()
+  }
+  return (
+    <div className="ih-sheet__panel">
+      <div className="ih-sheet__grab" aria-hidden="true" />
+      <div className="ih-sheet__head">
+        <h2 id={titleId} className="ih-display ih-sheet__title">
+          {copy.languageSheetTitle}
+        </h2>
+        <button
+          type="button"
+          className="ih-sheet__close"
+          aria-label={copy.languageSheetClose}
+          onClick={onRequestClose}
+        >
+          <X size={18} strokeWidth={1.8} aria-hidden="true" />
+        </button>
+      </div>
+      <ul className="ih-sheet__list">
+        {options.map((option) => (
+          <li key={option.locale}>
+            <a
+              href={option.href}
+              hrefLang={option.locale}
+              aria-current={option.isCurrent ? 'page' : undefined}
+              className="ih-sheet__row"
+              onClick={option.isCurrent ? keepPage : undefined}
+            >
+              <span className="ih-sheet__text">
+                <span lang={option.locale} className="ih-sheet__name">
+                  {option.nativeName}
+                </span>
+                {option.secondaryName ? (
+                  <span className="ih-sheet__aside">{option.secondaryName}</span>
+                ) : null}
+              </span>
+              {option.isCurrent ? (
+                <>
+                  <Check size={20} strokeWidth={2} aria-hidden="true" />
+                  <span className="ih-sr-only">{copy.languageCurrent}</span>
+                </>
+              ) : null}
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p className="ih-sheet__hint">
+        <Globe size={14} strokeWidth={1.6} aria-hidden="true" />
+        {copy.languageSheetHint}
+      </p>
+    </div>
+  )
+}
+
+/**
+ * The sheet as the admin's preview draws it: open on the phone's first screen
+ * over the dimmed page, a picture and not a dialog. It holds no `<dialog>` and
+ * its rows go nowhere, because a preview has no token to build an address from.
+ * The whole scene is `inert`, so its close button and rows answer nothing
+ * wherever it is drawn. `height` is the phone's own height, which the page
+ * behind it is taller than.
+ */
+export function InertLanguageSheet({
+  options,
+  copy,
+  height,
+}: Readonly<{
+  options: readonly PreviewLanguageOption[]
+  copy: LanguageSwitcherCopy
+  height: number
+}>) {
+  const titleId = useId()
+  return (
+    <div className="ih-sheet-scene" style={{ height }} inert>
+      <div className="ih-sheet-scene__scrim" />
+      <div className="ih-sheet-scene__sheet" data-preview-part="language-sheet">
+        <LanguageSheetPanel
+          titleId={titleId}
+          options={options}
+          copy={copy}
+          onRequestClose={doNothing}
+        />
+      </div>
+    </div>
+  )
+}
+
+const doNothing = () => undefined

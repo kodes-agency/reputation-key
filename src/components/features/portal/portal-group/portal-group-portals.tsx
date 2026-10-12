@@ -2,9 +2,11 @@
 // overview, with no group heads, ordered by qualified scans where the results
 // are shown. Under the table: a quiet "Add portal", the one-group rule, and what
 // the group's results count.
-import { Info, Plus } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { useState } from 'react'
+import { Globe, Info } from 'lucide-react'
+import { AddAction } from '#/components/ui/add-action'
 import { DropdownMenuItem } from '#/components/ui/dropdown-menu'
+import { EmptyState } from '#/components/ui/empty-state'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
 import type { PortalArchiveMutations } from '../portal-overview/portal-archive-dialog'
 import type { PortalOverviewResultsControls } from '../portal-overview/portal-overview-results-strip'
@@ -15,8 +17,10 @@ import {
   type PortalManagerName,
 } from '../portal-overview/portal-overview-view'
 import type { PortalGroupMutations, PortalGroupRef } from './portal-group-mutations'
-
-const MENU_ITEM = 'min-h-11 md:min-h-8'
+import {
+  PortalGroupRemovePortalDialog,
+  type PortalChosenForRemoval,
+} from './portal-group-remove-portal-dialog'
 
 type Props = PortalArchiveMutations &
   Readonly<{
@@ -52,8 +56,13 @@ export function PortalGroupPortals({
   onAdd,
   archiveMutation,
   restoreMutation,
+  disableMutation,
   removePortalMutation,
 }: Props) {
+  // The menu item only chooses; the dialog lives out here because a dialog
+  // inside a menu unmounts with it.
+  const [removing, setRemoving] = useState<PortalChosenForRemoval | null>(null)
+  const [removeOpen, setRemoveOpen] = useState(false)
   const resultsState: PortalOverviewResultsState = results?.state ?? { status: 'off' }
   const byScans = resultsState.status === 'ready'
   const overview = buildPortalOverview(
@@ -70,9 +79,7 @@ export function PortalGroupPortals({
         Portals in this group
       </h2>
       {rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-          No portals in this group yet.
-        </p>
+        <EmptyState size="compact" icon={Globe} title="No portals in this group yet" />
       ) : (
         <PortalOverviewTable
           sections={overview.sections}
@@ -80,6 +87,7 @@ export function PortalGroupPortals({
           propertyName={propertyName}
           archiveMutation={archiveMutation}
           restoreMutation={restoreMutation}
+          disableMutation={disableMutation}
           results={resultsState}
           busy={results?.busy}
           scansOrder={byScans ? 'desc' : undefined}
@@ -89,12 +97,10 @@ export function PortalGroupPortals({
             canEdit
               ? (item) => (
                   <DropdownMenuItem
-                    className={MENU_ITEM}
                     disabled={removePortalMutation.isPending}
                     onSelect={() => {
-                      void removePortalMutation({
-                        data: { portalGroupId: group.id, portalId: item.row.portalId },
-                      }).catch(() => undefined)
+                      setRemoving({ portalId: item.row.portalId, name: item.row.name })
+                      setRemoveOpen(true)
                     }}
                   >
                     Remove from group
@@ -106,15 +112,9 @@ export function PortalGroupPortals({
       )}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         {canEdit ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="min-h-11 md:min-h-8"
-            onClick={onAdd}
-          >
-            <Plus aria-hidden="true" />
+          <AddAction variant="ghost" size="sm" onClick={onAdd}>
             Add portal
-          </Button>
+          </AddAction>
         ) : null}
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Info className="size-3.5 shrink-0" aria-hidden="true" />A portal can be in one
@@ -122,6 +122,15 @@ export function PortalGroupPortals({
         </p>
       </div>
       {basis ? <p className="text-xs text-muted-foreground">{basis}</p> : null}
+      <PortalGroupRemovePortalDialog
+        portal={removing}
+        groupName={group.name}
+        open={removeOpen}
+        onOpenChange={setRemoveOpen}
+        onConfirm={(portalId) =>
+          removePortalMutation({ data: { portalGroupId: group.id, portalId } })
+        }
+      />
     </section>
   )
 }

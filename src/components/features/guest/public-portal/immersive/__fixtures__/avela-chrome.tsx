@@ -42,6 +42,8 @@ export type AvelaChromeProps = Readonly<{
   withLogo?: boolean
   /** Replaces the title, to try a title that is a fallback or a very long name. */
   title?: string
+  /** The wordmark, to try a long one or none (`null`); "Avela" by default. */
+  wordmark?: string | null
 }>
 
 export function AvelaChrome({
@@ -50,13 +52,14 @@ export function AvelaChrome({
   locales = AVELA_LOCALES,
   withLogo = false,
   title,
+  wordmark = 'Avela',
 }: AvelaChromeProps): ReactNode {
   const page = PAGE[locale]
   return (
     <>
       <GuestHeader
         displayName={displayName}
-        wordmark="Avela"
+        wordmark={wordmark}
         logo={withLogo ? STORY_LOGO : null}
         logoAlt={page.logoAlt}
       >

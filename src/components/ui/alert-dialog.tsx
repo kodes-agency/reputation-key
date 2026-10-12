@@ -3,6 +3,7 @@ import { AlertDialog as AlertDialogPrimitive } from 'radix-ui'
 
 import { cn } from '#/lib/utils'
 import { Button } from '#/components/ui/button'
+import { DIALOG_SIZE, DIALOG_WIDTH_CAP } from '#/components/ui/dialog-width'
 
 function AlertDialog({
   ...props
@@ -52,7 +53,9 @@ function AlertDialogContent({
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(
-          'group/alert-dialog-content fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 data-[size=sm]:max-w-xs data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[size=default]:sm:max-w-lg',
+          'group/alert-dialog-content fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-full translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border bg-background p-6 shadow-lg duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+          DIALOG_WIDTH_CAP,
+          DIALOG_SIZE[size === 'sm' ? 'sm' : 'md'],
           className,
         )}
         {...props}
@@ -129,21 +132,36 @@ function AlertDialogMedia({ className, ...props }: React.ComponentProps<'div'>) 
   )
 }
 
+/**
+ * The confirm. A Button inside Radix's Action (not the other way round), so the
+ * Button can draw its pending state: `pending` is a spinner, `aria-busy` and
+ * disabled. Radix closes the dialog on this click; a caller that must wait for a
+ * request prevents the default and closes itself (`ConfirmationDialog`).
+ */
 function AlertDialogAction({
   className,
   variant = 'default',
   size = 'default',
+  pending,
+  pendingLabel,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Action> &
-  Pick<React.ComponentProps<typeof Button>, 'variant' | 'size'>) {
+  Pick<
+    React.ComponentProps<typeof Button>,
+    'variant' | 'size' | 'pending' | 'pendingLabel'
+  >) {
   return (
-    <Button variant={variant} size={size} asChild>
-      <AlertDialogPrimitive.Action
+    <AlertDialogPrimitive.Action asChild>
+      <Button
         data-slot="alert-dialog-action"
+        variant={variant}
+        size={size}
+        pending={pending}
+        pendingLabel={pendingLabel}
         className={cn(className)}
         {...props}
       />
-    </Button>
+    </AlertDialogPrimitive.Action>
   )
 }
 

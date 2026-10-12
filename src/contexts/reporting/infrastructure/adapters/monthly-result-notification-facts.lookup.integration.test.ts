@@ -4,6 +4,7 @@ import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-r
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
+import { seedLockedMonthTargetCommitted } from '../testing/goal-month-target-seed'
 import { createMonthlyResultNotificationFactsLookup } from './monthly-result-notification-facts.lookup'
 
 describe.sequential('monthly-result notification facts lookup (integration)', () => {
@@ -17,7 +18,8 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
     propertyId = randomUUID()
   })
 
-  beforeEach(async () => {
+  /** One Property carries one goal per subject and metric; each test starts on a new one. */
+  async function useFreshProperty(): Promise<void> {
     propertyId = randomUUID()
     await lease.pool.query(
       `INSERT INTO properties
@@ -25,7 +27,9 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
        VALUES ($1, $2, 'Goal Notification Facts Property', $3, 'UTC')`,
       [propertyId, organizationId, `goal-notification-${randomUUID()}`],
     )
-  })
+  }
+
+  beforeEach(useFreshProperty)
 
   afterAll(async () => {
     await lease?.release()
@@ -48,6 +52,8 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
       start: '2026-07-01T00:00:00.000Z',
       end: '2026-08-01T00:00:00.000Z',
     },
+    /** When the goal was set. Defaults to the month's first instant. */
+    setAt: string = period.start,
   ) {
     const programId = randomUUID()
     const programVersionId = randomUUID()
@@ -72,7 +78,7 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
           metric_minimum_sample, target_value, property_timezone,
           effective_from, change_reason, created_by, created_at)
        VALUES ($1, $2, $3, $4, 1, $5, $6, 'portal_rating_count', 0, 10,
-               $8, $7, 'created', 'manager-1', $7)`,
+               $8, $7, 'created', 'manager-1', $9)`,
       [
         programVersionId,
         programId,
@@ -82,6 +88,7 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
         METRIC_VERSION_IDS.portalRatingCountGoal,
         effectiveFrom,
         period.timezone,
+        new Date(setAt),
       ],
     )
     await lease.pool.query(
@@ -197,8 +204,124 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
         programName: seeded.programName,
         periodMonth: '2026-07',
         subject,
+        setDuringMonth: false,
+        targetChangedInMonth: false,
       })
     }
+  })
+
+  // A month whose target was changed while it ran closes against that target.
+  // "Goal met" is then true of the changed target, and the notice says so;
+  // this is the fact it reads, from the month's own row.
+  it('says the target was changed during the month only for a month that closed on a target of its own', async () => {
+    const lookup = createMonthlyResultNotificationFactsLookup(getDb())
+    const factsFor = async (monthTarget: number | null) => {
+      await useFreshProperty()
+      const seeded = await seedClosedResult({ kind: 'property' })
+      if (monthTarget !== null) {
+        await seedLockedMonthTargetCommitted(
+          lease.pool,
+          seeded.monthlyResultId,
+          monthTarget,
+        )
+      }
+      return lookup.findMonthlyResultNotificationFacts({
+        organizationId,
+        propertyId,
+        assignmentId: seeded.assignmentId,
+        monthlyResultId: seeded.monthlyResultId,
+      })
+    }
+
+    await expect(factsFor(8)).resolves.toMatchObject({
+      targetChangedInMonth: true,
+      setDuringMonth: false,
+    })
+    await expect(factsFor(null)).resolves.toMatchObject({
+      targetChangedInMonth: false,
+      setDuringMonth: false,
+    })
+  })
+
+  it('reports a month that was both set and changed part-way through as both', async () => {
+    const seeded = await seedClosedResult(
+      { kind: 'property' },
+      true,
+      undefined,
+      '2026-07-20T09:00:00.000Z',
+    )
+    await seedLockedMonthTargetCommitted(lease.pool, seeded.monthlyResultId, 8)
+    const lookup = createMonthlyResultNotificationFactsLookup(getDb())
+
+    await expect(
+      lookup.findMonthlyResultNotificationFacts({
+        organizationId,
+        propertyId,
+        assignmentId: seeded.assignmentId,
+        monthlyResultId: seeded.monthlyResultId,
+      }),
+    ).resolves.toMatchObject({ targetChangedInMonth: true, setDuringMonth: true })
+  })
+
+  // A goal set on the 20th counts the whole month, so a month it has already
+  // reached closes as met. The notice says the goal was set during the month;
+  // this is the fact it reads, from the version the month was judged under.
+  it('says a goal was set during its month only when it was set after the month began', async () => {
+    const lookup = createMonthlyResultNotificationFactsLookup(getDb())
+    const factsFor = async (setAt?: string) => {
+      await useFreshProperty()
+      const seeded = await seedClosedResult({ kind: 'property' }, true, undefined, setAt)
+      return lookup.findMonthlyResultNotificationFacts({
+        organizationId,
+        propertyId,
+        assignmentId: seeded.assignmentId,
+        monthlyResultId: seeded.monthlyResultId,
+      })
+    }
+
+    await expect(factsFor('2026-07-20T09:00:00.000Z')).resolves.toMatchObject({
+      setDuringMonth: true,
+    })
+    // One second in is still during the month; the first instant is not.
+    await expect(factsFor('2026-07-01T00:00:01.000Z')).resolves.toMatchObject({
+      setDuringMonth: true,
+    })
+    await expect(factsFor('2026-07-01T00:00:00.000Z')).resolves.toMatchObject({
+      setDuringMonth: false,
+    })
+    await expect(factsFor('2026-06-15T09:00:00.000Z')).resolves.toMatchObject({
+      setDuringMonth: false,
+    })
+  })
+
+  it('compares instants, so a Property ahead of UTC is not marked a day early', async () => {
+    // July in Auckland begins at 12:00 UTC on 30 June. A goal set at 11:00 UTC
+    // that day was set in June, an hour before the month it is for.
+    const auckland = {
+      timezone: 'Pacific/Auckland',
+      start: '2026-06-30T12:00:00.000Z',
+      end: '2026-07-31T12:00:00.000Z',
+    }
+    const lookup = createMonthlyResultNotificationFactsLookup(getDb())
+    const factsFor = async (setAt: string) => {
+      await useFreshProperty()
+      const seeded = await seedClosedResult({ kind: 'property' }, true, auckland, setAt)
+      return lookup.findMonthlyResultNotificationFacts({
+        organizationId,
+        propertyId,
+        assignmentId: seeded.assignmentId,
+        monthlyResultId: seeded.monthlyResultId,
+      })
+    }
+
+    await expect(factsFor('2026-06-30T11:00:00.000Z')).resolves.toMatchObject({
+      periodMonth: '2026-07',
+      setDuringMonth: false,
+    })
+    await expect(factsFor('2026-06-30T13:00:00.000Z')).resolves.toMatchObject({
+      periodMonth: '2026-07',
+      setDuringMonth: true,
+    })
   })
 
   it('returns null instead of falling back across status, outcome, or identity', async () => {
@@ -303,6 +426,7 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
       revision: 1,
       evaluationState: 'unavailable',
       achieved: null,
+      setDuringMonth: false,
     })
 
     const secondRevisionId = await appendRevision(seeded.monthlyResultId, {
@@ -339,6 +463,68 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
         lookup.findMonthlyResultRevisionNotificationFacts({ ...firstFence, ...mismatch }),
       ).resolves.toBeNull()
     }
+  })
+
+  it('a correction of a month whose goal was set part-way through carries the same fact', async () => {
+    const seeded = await seedClosedResult(
+      { kind: 'property' },
+      true,
+      undefined,
+      '2026-07-20T09:00:00.000Z',
+    )
+    const revisionId = await appendRevision(seeded.monthlyResultId, {
+      revision: 1,
+      supersedesRevisionId: null,
+      evaluationState: 'eligible',
+      value: 9,
+      achieved: false,
+      at: '2026-08-03T12:00:00.000Z',
+    })
+    const lookup = createMonthlyResultNotificationFactsLookup(getDb())
+
+    await expect(
+      lookup.findMonthlyResultRevisionNotificationFacts({
+        organizationId,
+        propertyId,
+        programId: seeded.programId,
+        programVersionId: seeded.programVersionId,
+        assignmentId: seeded.assignmentId,
+        monthlyResultId: seeded.monthlyResultId,
+        revisionId,
+        revision: 1,
+      }),
+    ).resolves.toMatchObject({ achieved: false, setDuringMonth: true })
+  })
+
+  it('a correction of a month whose target was changed while it ran carries the same fact', async () => {
+    const seeded = await seedClosedResult({ kind: 'property' })
+    await seedLockedMonthTargetCommitted(lease.pool, seeded.monthlyResultId, 8)
+    const revisionId = await appendRevision(seeded.monthlyResultId, {
+      revision: 1,
+      supersedesRevisionId: null,
+      evaluationState: 'eligible',
+      value: 7,
+      achieved: false,
+      at: '2026-08-03T12:00:00.000Z',
+    })
+    const lookup = createMonthlyResultNotificationFactsLookup(getDb())
+
+    await expect(
+      lookup.findMonthlyResultRevisionNotificationFacts({
+        organizationId,
+        propertyId,
+        programId: seeded.programId,
+        programVersionId: seeded.programVersionId,
+        assignmentId: seeded.assignmentId,
+        monthlyResultId: seeded.monthlyResultId,
+        revisionId,
+        revision: 1,
+      }),
+    ).resolves.toMatchObject({
+      achieved: false,
+      setDuringMonth: false,
+      targetChangedInMonth: true,
+    })
   })
 
   // Probe scenario A: the month closed achieved, r1 un-achieved it, and r2 (a

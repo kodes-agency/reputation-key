@@ -27,7 +27,7 @@ function PropertyPeopleSettings() {
   )
   const { data: membersData } = useSuspenseQuery(membersQuery)
   const updateAction = useActionMutation(updatePropertyResponsibleManagers, {
-    successMessage: 'Responsible managers updated',
+    successMessage: 'Responsible managers saved',
     invalidateKeys: [
       propertyKeys.detail(propertyId),
       propertyKeys.responsibleManagers(propertyId),

@@ -27,6 +27,7 @@ import type { Finding } from './phone-story-tests'
 
 const BAR_PX = 44
 export const CONTROL_PX = 36
+/** A queue pill in the strip. */
 const PILL_PX = 32
 const ROW_PX = 78
 /** The checkbox column (20) and its gap (8) that the row text sits behind while selecting. */
@@ -79,7 +80,9 @@ export function activeFilterLines(
     ...found(group, 'the active-filters row'),
     ...heightIs('the active-filters row', group.box, BAR_PX),
     ...spansWindow('the active-filters row', group.box, view),
-    ...controlsAre(group.controls, PILL_PX),
+    // A removable chip is a control, so it takes the compact touch height (36px,
+    // inside the row's 44px) like the Clear that ends the row.
+    ...controlsAre(group.controls, CONTROL_PX),
     ...(first === undefined ? [] : boxStartsOnGutter('the first chip', first.box)),
   ]
 }
@@ -240,7 +243,7 @@ type SheetParts = Readonly<{
   sheet: ScopeReport
   /** The scrolling body with the choice chips. */
   body: ScopeReport
-  /** The action bar at the bottom: Clear all and the results button. */
+  /** The action bar at the bottom: Clear filters and the results button. */
   footer: ScopeReport
   /** The title bar across the top. */
   bar: ScopeReport
@@ -310,7 +313,7 @@ export function sheetLines(
         ]),
     ...(actions.length < 2
       ? [
-          `the sheet footer has ${actions.length} button(s), expected Clear all and the results button`,
+          `the sheet footer has ${actions.length} button(s), expected Clear filters and the results button`,
         ]
       : []),
     // The footer is the sheet's bottom action bar: its buttons are bar height.

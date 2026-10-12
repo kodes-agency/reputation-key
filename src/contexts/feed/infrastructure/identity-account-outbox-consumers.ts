@@ -4,6 +4,7 @@ import { organizationId, unbrand, userId, type OrganizationId } from '#/shared/d
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationType } from '../domain/notification-types'
+import type { NotificationMemberRole } from '../domain/notification-payload'
 import type { OrganizationAccountNotificationEventType } from '../application/ports/organization-account-notification-authority.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
@@ -12,6 +13,7 @@ import {
   type OrganizationPayloadDeps,
 } from './notification-payload-facts'
 import { affectedUserFromIdentityFact } from './adapters/organization-account-notification-authority.adapter'
+import { handleInvitationAcceptedInviterNotice } from './invitation-accepted-inviter-notice'
 
 export const IDENTITY_ACCOUNT_NOTIFICATION_CONSUMERS = [
   {
@@ -28,6 +30,11 @@ export const IDENTITY_ACCOUNT_NOTIFICATION_CONSUMERS = [
     eventType: 'identity.member.removed',
     consumerName: 'notification.on-identity-member-removed',
     notificationType: 'account.organization_access_removed',
+  },
+  {
+    eventType: 'identity.member.property_access_changed',
+    consumerName: 'notification.on-identity-member-property-access-changed',
+    notificationType: 'account.organization_property_access_changed',
   },
 ] as const satisfies ReadonlyArray<{
   eventType: OrganizationAccountNotificationEventType
@@ -102,6 +109,10 @@ export type IdentityAccountNotificationConsumerDeps = Readonly<{
   receipts: Pick<OutboxRepository, 'insertReceipt'>
 }>
 
+/** The account routes also name the Organization in what they queue. */
+export type IdentityAccountNotificationRouteDeps =
+  IdentityAccountNotificationConsumerDeps & OrganizationPayloadDeps
+
 const routeFor = (eventType: string) =>
   IDENTITY_ACCOUNT_NOTIFICATION_CONSUMERS.find(
     (candidate) => candidate.eventType === eventType,
@@ -123,8 +134,37 @@ const leftOnTheirOwn = (event: ConsumerEvent): boolean => {
   return typeof removedBy === 'string' && removedBy === member
 }
 
+/** The roles a notice has a phrase for; any other reads as a plain update. */
+const MEMBER_ROLES: ReadonlyMap<string, NotificationMemberRole> = new Map([
+  ['AccountAdmin', 'account_admin'],
+  ['PropertyManager', 'property_manager'],
+])
+
+/**
+ * What only this route's fact adds to its notice, beside the Organization's
+ * name. A removal writes its flag true or false: a repeat folds into the unread
+ * notice and its payload merges as `old || new`, so an omitted flag would let
+ * an earlier self-leave survive an administrator's later removal. A role the
+ * copy has no phrase for (the inert `Member` role) writes nothing, so an
+ * earlier role on a still-unread notice stays.
+ */
+const routeFacts = (
+  notificationType: NotificationType,
+  event: ConsumerEvent,
+): Readonly<Record<string, unknown>> => {
+  if (notificationType === 'account.organization_access_removed') {
+    return { leftOrganization: leftOnTheirOwn(event) }
+  }
+  if (notificationType === 'account.organization_role_changed') {
+    const { newRole } = event.payload as Readonly<{ newRole?: unknown }>
+    const memberRole = typeof newRole === 'string' ? MEMBER_ROLES.get(newRole) : undefined
+    return memberRole === undefined ? {} : { memberRole }
+  }
+  return {}
+}
+
 export async function handleIdentityAccountNotificationEvent(
-  deps: IdentityAccountNotificationConsumerDeps,
+  deps: IdentityAccountNotificationRouteDeps,
   event: ConsumerEvent,
 ): Promise<Readonly<{ status: 'applied' }>> {
   const route = routeFor(event.eventType)
@@ -141,13 +181,11 @@ export async function handleIdentityAccountNotificationEvent(
     payload: event.payload,
   })
   const recipientId = unbrand(recipient)
-  // Written on every removal, true or false: a repeat removal folds into the unread
-  // notice and its payload merges as `old || new`, so an omitted flag would let
-  // an earlier self-leave survive an administrator's later removal.
-  const payload =
-    route.notificationType === 'account.organization_access_removed'
-      ? { leftOrganization: leftOnTheirOwn(event) }
-      : undefined
+  // The Organization's name on every route, so the copy can say where.
+  const payload = {
+    ...(await buildOrganizationPayload(deps, organization)),
+    ...routeFacts(route.notificationType, event),
+  }
 
   await deps.queue.add(
     INSERT_NOTIFICATION_JOB_NAME,
@@ -159,7 +197,7 @@ export async function handleIdentityAccountNotificationEvent(
       resourceType: 'organization',
       resourceId: event.organizationId,
       eventId: event.eventId,
-      ...(payload ? { payload } : {}),
+      ...(Object.keys(payload).length > 0 ? { payload } : {}),
       audience: {
         kind: 'affected_organization_user',
         eventId: event.eventId,
@@ -301,7 +339,7 @@ export async function handleBetaFeedbackOutcomeEvent(
 
 export function registerIdentityAccountNotificationConsumers(
   registry: ConsumerRegistry,
-  deps: IdentityAccountNotificationConsumerDeps,
+  deps: IdentityAccountNotificationRouteDeps,
 ): void {
   const { registerConsumer } = registry
   // Written explicitly so governance can mechanically prove the exact
@@ -323,6 +361,20 @@ export function registerIdentityAccountNotificationConsumers(
     consumerName: 'notification.on-identity-member-removed',
     module: 'notification.identity-account-outbox-consumers',
     handler: (event) => handleIdentityAccountNotificationEvent(deps, event),
+  })
+  registerConsumer({
+    eventType: 'identity.member.property_access_changed',
+    consumerName: 'notification.on-identity-member-property-access-changed',
+    module: 'notification.identity-account-outbox-consumers',
+    handler: (event) => handleIdentityAccountNotificationEvent(deps, event),
+  })
+  // The second durable consumer of the accepted fact: the inviter's notice,
+  // receipted apart from the new member's "You joined".
+  registerConsumer({
+    eventType: 'identity.invitation.accepted',
+    consumerName: 'notification.on-identity-invitation-accepted-inviter',
+    module: 'notification.identity-account-outbox-consumers',
+    handler: (event) => handleInvitationAcceptedInviterNotice(deps, event),
   })
   registerConsumer({
     eventType: 'identity.beta_feedback.outcome_reached',

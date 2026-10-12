@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import {
   usePortalVisitRecording,
   type PortalVisitRecorder,
@@ -20,7 +21,7 @@ export type ImmersiveFooterViewProps = Readonly<{
 
 /**
  * The page footer as a pure view (boards G01 and G04). While the guest has not
- * acknowledged the notice, it holds the disclosure, the privacy link and "Got
+ * acknowledged the notice, it holds the one-line notice, the privacy link and "Got
  * it". Afterwards it is one row: the privacy link and the attribution.
  */
 export function ImmersiveFooterView({
@@ -28,6 +29,88 @@ export function ImmersiveFooterView({
   isNoticeVisible,
   onAcknowledge,
 }: ImmersiveFooterViewProps) {
+  return (
+    <FooterLayout
+      copy={copy}
+      isNoticeVisible={isNoticeVisible}
+      privacyLink={
+        <PrivacyLink
+          href={PRIVACY_HREF}
+          text={copy.privacyLink}
+          opensNewTab={copy.privacyLinkOpensNewTab}
+        />
+      }
+      acknowledge={
+        <button type="button" className="ih-footer__ack" onClick={onAcknowledge}>
+          <span className="ih-footer__ack-pill">{copy.acknowledge}</span>
+        </button>
+      }
+    />
+  )
+}
+
+/**
+ * The footer as the admin's preview draws it: the same layout, but a picture. The
+ * privacy link goes nowhere and "Got it" acknowledges nothing, so a manager
+ * clicking through "Try as guest" neither leaves the editor nor sets the guest's
+ * acknowledgement.
+ */
+export function InertImmersiveFooterView({
+  copy,
+  isNoticeVisible,
+}: Omit<ImmersiveFooterViewProps, 'onAcknowledge'>) {
+  return (
+    <FooterLayout
+      copy={copy}
+      isNoticeVisible={isNoticeVisible}
+      privacyLink={
+        <PrivacyLink
+          href={undefined}
+          text={copy.privacyLink}
+          opensNewTab={copy.privacyLinkOpensNewTab}
+        />
+      }
+      acknowledge={
+        <span className="ih-footer__ack ih-footer__ack--inert">
+          <span className="ih-footer__ack-pill">{copy.acknowledge}</span>
+        </span>
+      }
+    />
+  )
+}
+
+/**
+ * An anchor with no `href` is not a link: it keeps the look and is neither
+ * focusable nor announced. A live link opens the notice in a tab of its own, so
+ * a guest who is part-way through a rating or a note keeps their place, and says
+ * so to a screen reader.
+ */
+function PrivacyLink({
+  href,
+  text,
+  opensNewTab,
+}: Readonly<{ href: string | undefined; text: string; opensNewTab: string }>) {
+  const opensTab = href !== undefined
+  return (
+    <a
+      href={href}
+      target={opensTab ? '_blank' : undefined}
+      rel={opensTab ? 'noopener' : undefined}
+      className="ih-link-accent ih-footer__link"
+    >
+      {text}
+      {opensTab && <span className="ih-sr-only"> {opensNewTab}</span>}
+    </a>
+  )
+}
+
+function FooterLayout({
+  copy,
+  isNoticeVisible,
+  privacyLink,
+  acknowledge,
+}: Omit<ImmersiveFooterViewProps, 'onAcknowledge'> &
+  Readonly<{ privacyLink: ReactNode; acknowledge: ReactNode }>) {
   return (
     <footer className="ih-footer">
       <style href={IMMERSIVE_FOOTER_STYLE_HREF} precedence="default">
@@ -37,19 +120,13 @@ export function ImmersiveFooterView({
         <section aria-label={copy.noticeLabel} className="ih-footer__notice">
           <p className="ih-footer__text">{copy.visitNotice}</p>
           <div className="ih-footer__actions">
-            <a href={PRIVACY_HREF} className="ih-link-accent ih-footer__link">
-              {copy.privacyLink}
-            </a>
-            <button type="button" className="ih-footer__ack" onClick={onAcknowledge}>
-              <span className="ih-footer__ack-pill">{copy.acknowledge}</span>
-            </button>
+            {privacyLink}
+            {acknowledge}
           </div>
         </section>
       ) : (
         <div className="ih-footer__row">
-          <a href={PRIVACY_HREF} className="ih-link-accent ih-footer__link">
-            {copy.privacyLink}
-          </a>
+          {privacyLink}
           <p className="ih-footer__made">{copy.madeWith}</p>
         </div>
       )}

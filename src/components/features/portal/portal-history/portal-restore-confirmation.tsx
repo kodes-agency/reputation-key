@@ -6,11 +6,13 @@
 import { useEffect, useRef } from 'react'
 import { Check, Undo2 } from 'lucide-react'
 import type { PortalVersionDetail } from '#/contexts/portal/application/public-api'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Button } from '#/components/ui/button'
 import { formatHistoryTime } from './portal-history-time'
 import { PhraseView } from './portal-phrase-view'
 import { draftLine, laterLine } from './portal-restore-copy'
 import { describeGuestEffect } from './portal-guest-effect'
+import { revealRestoreConfirmation } from './portal-restore-reveal'
 
 type Props = Readonly<{
   detail: PortalVersionDetail
@@ -37,9 +39,15 @@ export function PortalRestoreConfirmation({
   onConfirm,
   focusOnOpen = true,
 }: Props) {
+  const section = useRef<HTMLElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
+  const actions = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (focusOnOpen) heading.current?.focus()
+    revealRestoreConfirmation(
+      { section: section.current, heading: heading.current, actions: actions.current },
+      { focusOnOpen, viewportHeight: window.innerHeight },
+    )
   }, [focusOnOpen])
   const published = formatHistoryTime(detail.publishedAt, now, timeZone)
   const by = detail.publishedBy?.displayName
@@ -53,6 +61,7 @@ export function PortalRestoreConfirmation({
   const id = `restore-v${detail.version}`
   return (
     <section
+      ref={section}
       id={id}
       aria-labelledby={`${id}-title`}
       className="my-1 rounded-lg border bg-card p-4 shadow-xs md:p-5"
@@ -114,16 +123,14 @@ export function PortalRestoreConfirmation({
           </ul>
         </div>
       </div>
-      {error === null ? null : (
-        <p role="alert" className="mt-3 text-sm text-destructive">
-          {error}
-        </p>
-      )}
+      <div className="mt-3 empty:hidden">
+        <FormErrorBanner error={error} />
+      </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
-        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+        <p className="w-full min-w-0 text-xs text-muted-foreground sm:w-auto sm:flex-1">
           {laterLine(detail)}
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div ref={actions} className="flex flex-wrap gap-2">
           <Button
             type="button"
             variant="outline"
@@ -132,8 +139,13 @@ export function PortalRestoreConfirmation({
           >
             Cancel
           </Button>
-          <Button type="button" onClick={onConfirm} disabled={submitting}>
-            {submitting ? 'Making it live…' : `Make version ${detail.version} live`}
+          <Button
+            type="button"
+            onClick={onConfirm}
+            pending={submitting}
+            pendingLabel="Making it live…"
+          >
+            {`Make version ${detail.version} live`}
           </Button>
         </div>
       </div>

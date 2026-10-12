@@ -11,7 +11,11 @@ import { enV2 } from '../language-packs/en-v2'
 import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
 import { loadGuestPortalCopyV2 } from '../language-packs/load-guest-copy-v2'
 import { guestCopyText } from '../guest-copy-format'
-import { ImmersiveFooterView, type ImmersiveFooterViewProps } from './immersive-footer'
+import {
+  ImmersiveFooterView,
+  InertImmersiveFooterView,
+  type ImmersiveFooterViewProps,
+} from './immersive-footer'
 import { immersiveFooterCopy } from './immersive-footer-copy'
 import { IMMERSIVE_FOOTER_CSS } from './immersive-footer-styles'
 
@@ -32,6 +36,8 @@ function render(props: Partial<ImmersiveFooterViewProps> = {}, pack = enV2) {
   )
 }
 
+const withoutStyle = (html: string) => html.replace(/<style[\s\S]*?<\/style>/gu, '')
+
 /** Visible text of the markup, tags and the hoisted stylesheet removed. */
 const textOf = (html: string) =>
   html
@@ -43,23 +49,22 @@ const textOf = (html: string) =>
 
 describe('immersiveFooterCopy', () => {
   it.each(PACKS)(
-    'uses the full disclosure of $locale, never the shorter notice',
+    'uses the one-line notice of $locale with the name filled in',
     (pack) => {
       const copy = immersiveFooterCopy(pack, NAME)
-      expect(copy.visitNotice).toBe(
-        guestCopyText(pack, 'visitNoticeDetail', { name: NAME }),
-      )
-      expect(copy.visitNotice).not.toBe(
-        guestCopyText(pack, 'visitNotice', { name: NAME }),
-      )
-      expect(copy.visitNotice).toContain(NAME)
+      expect(copy.visitNotice).toBe(guestCopyText(pack, 'visitNotice', { name: NAME }))
+      expect(copy.visitNotice.startsWith(NAME)).toBe(true)
+      expect(copy.visitNotice).not.toContain('{name}')
     },
   )
 
-  it('discloses the session cookie and the network marker in English', () => {
+  it('says it in one line in English, and still discloses the cookie and the marker', () => {
     const { visitNotice } = immersiveFooterCopy(enV2, NAME)
-    expect(visitNotice).toMatch(/session cookie/iu)
-    expect(visitNotice).toMatch(/network marker/iu)
+    expect(visitNotice).toBe(
+      `${NAME} counts visits with one essential cookie and a privacy-protected marker. No ads or third-party trackers.`,
+    )
+    expect(visitNotice).toMatch(/essential cookie/iu)
+    expect(visitNotice).toMatch(/privacy-protected marker/iu)
     expect(visitNotice).toMatch(/no ads or third.party trackers/iu)
   })
 
@@ -67,10 +72,27 @@ describe('immersiveFooterCopy', () => {
     expect(immersiveFooterCopy(pack, NAME)).toMatchObject({
       noticeLabel: pack.copy.visitNoticeLabel,
       acknowledge: pack.copy.visitNoticeAcknowledge,
-      privacyLink: pack.copy.privacyNoticeLink,
+      privacyLinkOpensNewTab: pack.copy.linkOpensNewTab,
       madeWith: pack.copy.footerMadeWith,
     })
   })
+
+  // The notice is the English closed-beta document (ADR 0044): a page in any
+  // other language says so in that language rather than promising a text the
+  // guest cannot read.
+  it('labels the privacy link plainly on an English page', () => {
+    expect(immersiveFooterCopy(enV2, NAME).privacyLink).toBe('Privacy notice')
+  })
+
+  it.each(PACKS.filter((pack) => pack.locale !== 'en'))(
+    'labels the privacy link as English in $locale, in that language',
+    (pack) => {
+      const { privacyLink } = immersiveFooterCopy(pack, NAME)
+      expect(privacyLink).toBe(pack.copy.privacyNoticeLinkInEnglish)
+      expect(privacyLink).toContain(pack.copy.privacyNoticeLink)
+      expect(privacyLink).not.toBe(pack.copy.privacyNoticeLink)
+    },
+  )
 })
 
 describe('ImmersiveFooterView with the notice', () => {
@@ -88,16 +110,18 @@ describe('ImmersiveFooterView with the notice', () => {
     expect(html).toContain('aria-label="Visit counting"')
   })
 
-  it('shows the full disclosure with the property name filled in', () => {
+  it('shows the one-line notice with the property name filled in', () => {
     const text = textOf(html).join(' ')
-    expect(text).toContain('An essential session cookie protects your response.')
-    expect(text).toContain('privacy-protected network marker')
-    expect(text).toContain(`count this visit for ${NAME}`)
+    expect(text).toContain(`${NAME} counts visits with one essential cookie`)
+    expect(text).toContain('a privacy-protected marker')
+    expect(text).toContain('No ads or third-party trackers.')
     expect(text).not.toContain('{name}')
+    expect(text).not.toContain('session cookie')
+    expect(text).not.toContain('network marker')
   })
 
   it('has the privacy link and one acknowledge button, and no way to refuse', () => {
-    expect(html).toMatch(/<a [^>]*href="\/privacy"[^>]*>Privacy notice<\/a>/u)
+    expect(html).toMatch(/<a [^>]*href="\/privacy"[^>]*>Privacy notice</u)
     expect(html.match(/<button\b/gu)).toHaveLength(1)
     expect(html).toMatch(
       /<button [^>]*type="button"[^>]*>[\s\S]*Got it[\s\S]*<\/button>/u,
@@ -105,10 +129,17 @@ describe('ImmersiveFooterView with the notice', () => {
     expect(html).not.toMatch(/reject|decline|refuse/iu)
   })
 
+  it('opens the privacy notice in a tab of its own and says so to a screen reader', () => {
+    const link = html.match(/<a\b[^>]*href="\/privacy"[^>]*>[\s\S]*?<\/a>/u)?.[0] ?? ''
+    expect(link).toContain('target="_blank"')
+    expect(link).toContain('rel="noopener"')
+    expect(link).toMatch(/<span class="ih-sr-only"> \(opens in a new tab\)<\/span>/u)
+  })
+
   it('reads the notice before the privacy link and the acknowledge button', () => {
     const text = textOf(html)
     expect(text.indexOf('Privacy notice')).toBeGreaterThan(
-      text.findIndex((part) => part.includes('session cookie')),
+      text.findIndex((part) => part.includes('essential cookie')),
     )
     expect(text.indexOf('Got it')).toBeGreaterThan(text.indexOf('Privacy notice'))
   })
@@ -118,13 +149,17 @@ describe('ImmersiveFooterView after the notice is acknowledged', () => {
   const html = render({ isNoticeVisible: false })
 
   it('reads "Privacy notice" then "Made with Reputation Key"', () => {
-    expect(textOf(html)).toEqual(['Privacy notice', 'Made with Reputation Key'])
+    expect(textOf(html)).toEqual([
+      'Privacy notice',
+      '(opens in a new tab)',
+      'Made with Reputation Key',
+    ])
   })
 
   it('has no region, no button and none of the notice text', () => {
     expect(html).not.toContain('<section')
     expect(html).not.toContain('<button')
-    expect(html).not.toMatch(/session cookie|network marker/iu)
+    expect(html).not.toMatch(/essential cookie|privacy-protected marker/iu)
   })
 
   it('keeps the privacy link a 44 px target', () => {
@@ -134,13 +169,15 @@ describe('ImmersiveFooterView after the notice is acknowledged', () => {
 })
 
 describe('ImmersiveFooterView in Bulgarian', () => {
-  it('shows the Bulgarian disclosure, labels and attribution', () => {
+  it('shows the Bulgarian notice, labels and attribution', () => {
     const html = render({ isNoticeVisible: true }, bgV2)
+    expect(html).toContain(guestCopyText(bgV2, 'visitNotice', { name: NAME }))
     expect(html).toContain(`aria-label="${bgV2.copy.visitNoticeLabel}"`)
-    expect(html).toContain(bgV2.copy.privacyNoticeLink)
+    expect(html).toContain(bgV2.copy.privacyNoticeLinkInEnglish)
     expect(html).toContain(bgV2.copy.visitNoticeAcknowledge)
     expect(textOf(render({ isNoticeVisible: false }, bgV2))).toEqual([
-      bgV2.copy.privacyNoticeLink,
+      bgV2.copy.privacyNoticeLinkInEnglish,
+      bgV2.copy.linkOpensNewTab,
       bgV2.copy.footerMadeWith,
     ])
   })
@@ -163,5 +200,42 @@ describe('the footer stylesheet', () => {
 
   it('answers reduced motion wherever it moves anything', () => {
     expect(IMMERSIVE_FOOTER_CSS).toMatch(/prefers-reduced-motion:\s*reduce/u)
+  })
+})
+
+describe('InertImmersiveFooterView (the admin preview)', () => {
+  const inert = (props: Partial<Omit<ImmersiveFooterViewProps, 'onAcknowledge'>> = {}) =>
+    renderToStaticMarkup(
+      createElement(InertImmersiveFooterView, {
+        copy: immersiveFooterCopy(enV2, NAME),
+        isNoticeVisible: true,
+        ...props,
+      }),
+    )
+
+  it('draws the one-line notice, the privacy link and "Got it" as the guest reads them', () => {
+    const text = textOf(inert()).join(' ')
+    expect(text).toContain('counts visits with one essential cookie')
+    expect(text).toContain('Privacy notice')
+    expect(text).toContain('Got it')
+  })
+
+  it('goes nowhere: no address, no button, nothing to acknowledge', () => {
+    const html = withoutStyle(inert())
+    expect(html).not.toContain('href=')
+    expect(html).not.toContain('<button')
+    expect(html).toContain('ih-footer__ack--inert')
+  })
+
+  it('draws the acknowledged row the same way', () => {
+    const html = withoutStyle(inert({ isNoticeVisible: false }))
+    expect(textOf(html)).toEqual(['Privacy notice', 'Made with Reputation Key'])
+    expect(html).not.toContain('href=')
+  })
+
+  it('drops the pointer and the hover of the acknowledge pill', () => {
+    expect(IMMERSIVE_FOOTER_CSS).toMatch(
+      /\.ih-footer__ack--inert\s*\{[^}]*cursor:\s*default/u,
+    )
   })
 })

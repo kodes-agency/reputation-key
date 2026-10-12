@@ -1,5 +1,5 @@
-import { Loader2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { LoadMoreButton } from '#/components/ui/load-more-button'
 
 type Props = Readonly<{
   selectedCount: number
@@ -43,26 +43,20 @@ export function GoogleImportSelectionFooter({
         <Button
           type="button"
           variant="outline"
-          disabled={isSelectingAll || isLoadingCandidates || loadedCount === 0}
+          pending={isSelectingAll}
+          pendingLabel="Loading all locations…"
+          disabled={isLoadingCandidates || loadedCount === 0}
           onClick={onSelectAllEligible}
         >
-          {isSelectingAll ? (
-            <Loader2 className="animate-spin" aria-hidden="true" />
-          ) : null}
-          {isSelectingAll ? 'Loading all locations…' : 'Select all eligible locations'}
+          Select all eligible locations
         </Button>
         {hasMoreCandidates ? (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isLoadingMoreCandidates}
-            onClick={onLoadMoreCandidates}
-          >
-            {isLoadingMoreCandidates ? (
-              <Loader2 className="animate-spin" aria-hidden="true" />
-            ) : null}
-            Load more locations
-          </Button>
+          <LoadMoreButton
+            size="default"
+            label="Load more locations"
+            loading={isLoadingMoreCandidates}
+            onLoadMore={onLoadMoreCandidates}
+          />
         ) : null}
         <Button type="button" disabled={selectedCount === 0} onClick={onReview}>
           Review {selectedCount || ''} {selectedCount === 1 ? 'property' : 'properties'}

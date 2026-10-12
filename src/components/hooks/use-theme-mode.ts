@@ -44,6 +44,29 @@ function applyThemeMode(mode: ThemeMode) {
   root.style.colorScheme = resolved
 }
 
+function subscribeToAppliedTheme(onStoreChange: () => void) {
+  const observer = new MutationObserver(onStoreChange)
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class'],
+  })
+  return () => observer.disconnect()
+}
+
+/**
+ * The theme the document is showing right now, `light` or `dark`, whatever mode
+ * chose it (`auto` resolved against the OS, a stored choice, the first-paint
+ * script, a Storybook decorator). Read it for a third-party widget that needs
+ * its own `theme` prop; it applies nothing, unlike `useThemeMode`.
+ */
+export function useResolvedTheme(): 'light' | 'dark' {
+  return useSyncExternalStore(
+    subscribeToAppliedTheme,
+    () => (document.documentElement.classList.contains('dark') ? 'dark' : 'light'),
+    () => 'light',
+  )
+}
+
 export function useThemeMode() {
   const mode = useSyncExternalStore<ThemeMode>(
     subscribeToThemeMode,

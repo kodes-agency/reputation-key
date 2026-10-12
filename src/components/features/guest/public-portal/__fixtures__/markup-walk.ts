@@ -66,3 +66,21 @@ export const text = (html: string) =>
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+
+/**
+ * The markup without its <style> elements, so assertions read only the content. A
+ * cut-and-search loop rather than a one-pass regex replace: removing one match
+ * cannot join two halves into a new `<style`.
+ */
+export function withoutStyleElements(html: string): string {
+  const parts: string[] = []
+  let rest = html
+  for (let start = rest.indexOf('<style'); start !== -1; start = rest.indexOf('<style')) {
+    parts.push(rest.slice(0, start))
+    const close = rest.indexOf('</style>', start)
+    if (close === -1) return parts.join('')
+    rest = rest.slice(close + '</style>'.length)
+  }
+  parts.push(rest)
+  return parts.join('')
+}

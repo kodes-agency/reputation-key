@@ -2,7 +2,6 @@
 // AuthCard and AuthFooterLink are identity-specific layout components.
 // For error display, use FormErrorBanner from components/forms/ directly.
 
-import { Link } from '@tanstack/react-router'
 import {
   Card,
   CardContent,
@@ -10,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
+import { InlineLink } from '#/components/ui/inline-link'
 
 type AuthCardProps = Readonly<{
   title: string
@@ -22,7 +22,9 @@ export function AuthCard({ title, description, children }: AuthCardProps) {
     <div className="page-wrap flex min-h-[60vh] items-center justify-center px-4 pb-8 pt-14">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">{title}</CardTitle>
+          <CardTitle as="h1" className="text-2xl">
+            {title}
+          </CardTitle>
           <CardDescription>{description}</CardDescription>
         </CardHeader>
         <CardContent>{children}</CardContent>
@@ -40,10 +42,7 @@ type AuthFooterLinkProps = Readonly<{
 export function AuthFooterLink({ message, linkText, to }: AuthFooterLinkProps) {
   return (
     <p className="mt-6 text-center text-sm text-muted-foreground">
-      {message}{' '}
-      <Link to={to} className="font-medium text-link underline-offset-4 hover:underline">
-        {linkText}
-      </Link>
+      {message} <InlineLink to={to}>{linkText}</InlineLink>
     </p>
   )
 }

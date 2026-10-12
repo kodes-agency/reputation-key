@@ -2,6 +2,7 @@ import type {
   GoogleConnectionDto,
   ImportCandidateDto,
 } from '#/contexts/integration/application/public-api'
+import { searchMatcher } from '#/components/property/property-search'
 import type { GoogleImportStep } from './google-import-manager-contract'
 import type { ImportReviewDraft } from './google-import-review-model'
 
@@ -245,14 +246,14 @@ export function filterLoadedCandidates(
   candidates: readonly ImportCandidateDto[],
   query: string,
 ): readonly ImportCandidateDto[] {
-  const normalized = query.normalize('NFKC').trim().toLocaleLowerCase()
-  if (!normalized) return candidates
+  if (query.trim() === '') return candidates
+  const matches = searchMatcher(query)
   return candidates.filter((candidate) =>
     [
       candidate.businessName,
       candidate.address,
       candidate.primaryCategory,
       candidate.accountDisplayName,
-    ].some((value) => value?.normalize('NFKC').toLocaleLowerCase().includes(normalized)),
+    ].some((value) => value != null && matches(value)),
   )
 }

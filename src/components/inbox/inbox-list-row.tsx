@@ -7,7 +7,7 @@ import type { InboxCurrentUser } from './inbox-case-toolbar-props'
 import type { InboxAssignmentOption } from './inbox-owner-view'
 import { inboxRowView } from './inbox-list-row-view'
 import { STAR_FILLED_CLASS } from './inbox-detail-helpers'
-import { formatDateTime } from './utils'
+import { formatTimestamp } from '#/lib/format'
 
 type RowView = ReturnType<typeof inboxRowView>
 
@@ -163,7 +163,7 @@ function RowTrailing({ item, view }: Readonly<{ item: InboxItem; view: RowView }
       <time
         className="tabular-nums text-muted-foreground"
         dateTime={new Date(item.sourceDate).toISOString()}
-        title={formatDateTime(item.sourceDate)}
+        title={formatTimestamp(item.sourceDate) ?? undefined}
       >
         {view.age}
       </time>
@@ -187,7 +187,7 @@ function RowOpenButton({
       aria-current={isActive ? 'true' : undefined}
       aria-label={view.accessibleName}
       aria-describedby={view.owner.isAssigned ? ownerDescriptionId : undefined}
-      className="flex min-w-0 flex-1 gap-2 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-w-0 flex-1 gap-2 rounded-sm text-left focus-ring"
       onClick={() => onOpen(item)}
     >
       <span className="min-w-0 flex-1">

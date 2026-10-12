@@ -5,7 +5,11 @@
 import { Smartphone } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { SegmentedControl } from '#/components/ui/segmented-control'
-import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
+import {
+  GUEST_LOCALE_METADATA,
+  adminLanguageCode,
+  type GuestLocale,
+} from '#/shared/domain/guest-locale'
 import type { PortalPreviewSource } from '#/contexts/portal/application/public-api'
 
 type Props = Readonly<{
@@ -42,7 +46,7 @@ export function PortalPreviewToolbar({
           }}
           options={locales.map((code) => ({
             value: code,
-            label: GUEST_LOCALE_METADATA[code].chipLabel,
+            label: adminLanguageCode(code),
             accessibleLabel: GUEST_LOCALE_METADATA[code].englishName,
           }))}
         />

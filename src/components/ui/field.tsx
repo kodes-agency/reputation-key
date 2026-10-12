@@ -18,7 +18,7 @@ function FieldGroup({ className, ...props }: React.ComponentProps<'div'>) {
 }
 
 const fieldVariants = cva(
-  'group/field flex w-full gap-3 data-[invalid=true]:text-destructive',
+  'group/field flex w-full gap-3 data-[invalid=true]:text-negative',
   {
     variants: {
       orientation: {
@@ -57,7 +57,15 @@ function Field({
   )
 }
 
-function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>) {
+function FieldLabel({
+  className,
+  optional = false,
+  children,
+  ...props
+}: React.ComponentProps<typeof Label> & {
+  /** The person may leave the field empty: "Optional", after the label text. */
+  optional?: boolean
+}) {
   return (
     <Label
       data-slot="field-label"
@@ -67,6 +75,41 @@ function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>)
         'has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5 dark:has-data-[state=checked]:bg-primary/10',
         className,
       )}
+      {...props}
+    >
+      {children}
+      {optional ? <FieldOptional /> : null}
+    </Label>
+  )
+}
+
+/**
+ * The marker of a field the person may leave empty, for a label that arranges its
+ * own parts (`FieldLabel optional` is the usual way). It belongs inside the label,
+ * so the control's name carries it; the space is for that name ("Note Optional"):
+ * a flex row draws none of it.
+ */
+function FieldOptional() {
+  return (
+    <>
+      {' '}
+      <span data-slot="field-optional" className="font-normal text-muted-foreground">
+        Optional
+      </span>
+    </>
+  )
+}
+
+/**
+ * The line of help under a control: what the field is for, or the rule it follows.
+ * Name it as the control's description (`aria-describedby`); `Form*Field` do. It keeps
+ * the muted ink inside a Field that has turned invalid, so help never reads as an error.
+ */
+function FieldDescription({ className, ...props }: React.ComponentProps<'p'>) {
+  return (
+    <p
+      data-slot="field-description"
+      className={cn('text-sm font-normal text-muted-foreground', className)}
       {...props}
     />
   )
@@ -114,7 +157,7 @@ function FieldError({
     <div
       role="alert"
       data-slot="field-error"
-      className={cn('text-sm font-normal text-destructive', className)}
+      className={cn('text-sm font-normal text-negative', className)}
       {...props}
     >
       {content}
@@ -122,4 +165,4 @@ function FieldError({
   )
 }
 
-export { Field, FieldLabel, FieldError, FieldGroup }
+export { Field, FieldLabel, FieldOptional, FieldDescription, FieldError, FieldGroup }

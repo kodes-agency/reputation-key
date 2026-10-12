@@ -6,6 +6,7 @@ type Props = Readonly<{
   user: FormProps['user']
   updateProfile: FormProps['updateProfile']
   updateUserImage: FormProps['updateUserImage']
+  removeUserImage: FormProps['removeUserImage']
   requestAvatarUpload: FormProps['requestAvatarUpload']
   finalizeAvatarUpload: FormProps['finalizeAvatarUpload']
 }>
@@ -14,6 +15,7 @@ export function ProfileSettingsPage({
   user,
   updateProfile,
   updateUserImage,
+  removeUserImage,
   requestAvatarUpload,
   finalizeAvatarUpload,
 }: Props) {
@@ -22,6 +24,7 @@ export function ProfileSettingsPage({
       user={user}
       updateProfile={updateProfile}
       updateUserImage={updateUserImage}
+      removeUserImage={removeUserImage}
       requestAvatarUpload={requestAvatarUpload}
       finalizeAvatarUpload={finalizeAvatarUpload}
     />

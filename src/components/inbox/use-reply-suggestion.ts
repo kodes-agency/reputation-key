@@ -147,7 +147,7 @@ export function useReplySuggestion(input: Input) {
           // draft suggestion could not be generated" while the composer head
           // printed `Not saved` — two accounts of one event, and the actionable
           // one was the one the error line did not give. The autosave channel
-          // already says what went wrong and offers `Retry save`, so this
+          // already says what went wrong and offers `Try saving again`, so this
           // returns and lets it speak. The request still ends as a failure: its
           // key goes, so the next click is a new draft, and the `finally` below
           // releases `inFlight` and, for its owner, the spinner.

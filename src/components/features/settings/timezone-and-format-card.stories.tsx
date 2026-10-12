@@ -226,7 +226,7 @@ export const LoadFailedCanBeRetried: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('alert')).toHaveTextContent(
-      "Couldn't load your timezone and date format.",
+      'Your timezone and date format couldn’t be loaded.',
     )
     await userEvent.click(canvas.getByRole('button', { name: 'Try again' }))
     expect(onRetry).toHaveBeenCalledOnce()
@@ -261,10 +261,36 @@ export const RetryKeepsFocusOnTheButton: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Try again' }))
 
-    const busy = await canvas.findByRole('button', { name: 'Trying again…' })
+    // The accessible name stays "Try again"; the visible words change.
+    const busy = canvas.getByRole('button', { name: 'Try again' })
+    await waitFor(() => expect(busy).toHaveAttribute('aria-busy', 'true'))
+    expect(busy).toHaveTextContent('Trying again…')
     expect(busy).toHaveFocus()
     expect(busy).toHaveAttribute('aria-disabled', 'true')
     expect(canvas.getByRole('alert')).toBeInTheDocument()
     expect(onRetry).toHaveBeenCalledOnce()
+  },
+}
+
+/**
+ * The card saves like the name card above it on Profile: Reset appears with an
+ * edit, puts back what delivery is using, and leaves Save waiting for a change.
+ */
+export const ResetPutsBackWhatIsInEffect: Story = {
+  args: { settings: organizationSettings },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const format = canvas.getByRole('combobox', { name: 'Date and time format' })
+    const before = format.textContent
+    expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
+
+    await pickFormat(canvas, 'English (UK)')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+
+    await waitFor(() => expect(format.textContent).toBe(before))
+    expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
+    expect(
+      canvas.getByRole('button', { name: 'Save timezone and format' }),
+    ).toBeDisabled()
   },
 }

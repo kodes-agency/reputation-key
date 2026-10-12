@@ -4,6 +4,8 @@
 
 import { ShieldCheck } from 'lucide-react'
 import type { PortalVersions } from '#/contexts/portal/application/public-api'
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { cn } from '#/lib/utils'
 import { formatHistoryTime } from './portal-history-time'
@@ -14,6 +16,10 @@ type Props = Readonly<{
   /** Null while the read is loading or after it failed (see `failed`). */
   versions: PortalVersions | null
   failed: boolean
+  /** Reads the versions again after a failure. */
+  onRetry: () => void
+  /** `onRetry` is reading; the failure stays, its button busy. */
+  retrying?: boolean
   /** How many changes the draft holds, from the same read the header's note uses. */
   pendingChangeCount: number
   now: Date
@@ -60,7 +66,11 @@ function DraftTile({
       {edited === null ? null : (
         <p className="text-xs text-muted-foreground">
           Edited{' '}
-          <time dateTime={edited.dateTime} title={edited.title}>
+          <time
+            dateTime={edited.dateTime}
+            title={edited.title}
+            className="whitespace-nowrap"
+          >
             {edited.label}
           </time>
           {by ? ` by ${by.displayName ?? 'someone'}` : ''}
@@ -118,14 +128,26 @@ function VersionTile({
 }
 
 export function PortalVersionsRail(props: Props) {
-  const { versions, failed, now, timeZone, activeVersion, onSelect, pendingChangeCount } =
-    props
+  const {
+    versions,
+    failed,
+    now,
+    timeZone,
+    activeVersion,
+    onSelect,
+    onRetry,
+    retrying = false,
+    pendingChangeCount,
+  } = props
   const published = versions?.versions.length ?? 0
   const hasDraft = versions !== null && (pendingChangeCount > 0 || published === 0)
   return (
     <aside
       aria-labelledby="portal-versions-title"
-      className="border-t px-4 py-5 md:px-6 lg:w-[22rem] lg:shrink-0 lg:border-t-0 lg:border-l"
+      className={cn(
+        PAGE_GUTTER_X,
+        'border-t py-5 lg:w-[22rem] lg:shrink-0 lg:border-t-0 lg:border-l',
+      )}
     >
       <div className="flex items-baseline justify-between gap-2">
         <h2 id="portal-versions-title" className="text-base font-semibold">
@@ -140,9 +162,14 @@ export function PortalVersionsRail(props: Props) {
       </div>
       {versions === null ? (
         failed ? (
-          <p role="alert" className="mt-4 text-sm text-destructive">
-            Versions could not be loaded.
-          </p>
+          <div className="mt-4">
+            <RegionError
+              size="compact"
+              message="Versions couldn’t be loaded."
+              onRetry={onRetry}
+              retrying={retrying}
+            />
+          </div>
         ) : (
           <div className="mt-4 space-y-3" aria-hidden="true">
             <Skeleton className="h-16 w-full" />

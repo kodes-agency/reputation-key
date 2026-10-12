@@ -1,4 +1,5 @@
-import { Badge } from '#/components/ui/badge'
+import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
+import { StatusBadge, type StatusMap } from '#/components/ui/status-badge'
 import {
   Card,
   CardAction,
@@ -8,16 +9,17 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import type { ReviewAnalysisProgress } from '#/contexts/ai/application/public-api'
+import { formatNumber, formatTimestamp } from '#/lib/format'
 
 type Props = Readonly<{
   progress: ReviewAnalysisProgress | undefined
 }>
 
-const numberFormat = new Intl.NumberFormat('en')
-const dateFormat = new Intl.DateTimeFormat('en', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-})
+/** How the two counting states read as a pill; the setup flow adds its own around them. */
+export const REVIEW_ANALYSIS_STATUS: StatusMap<'analysing' | 'caught_up'> = {
+  analysing: { label: 'Analysing', tone: 'neutral' },
+  caught_up: { label: 'Up to date', tone: 'positive' },
+}
 
 /** How much of the review history has been read, as a share of what exists. */
 export function reviewAnalysisShare(
@@ -40,7 +42,7 @@ export function ReviewAnalysisProgressCard({ progress }: Props) {
     return (
       <Card aria-busy="true">
         <CardHeader>
-          <CardTitle>Review analysis</CardTitle>
+          <CardTitle as="h2">Review analysis</CardTitle>
           <CardDescription>Checking progress…</CardDescription>
         </CardHeader>
       </Card>
@@ -50,7 +52,7 @@ export function ReviewAnalysisProgressCard({ progress }: Props) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Review analysis</CardTitle>
+          <CardTitle as="h2">Review analysis</CardTitle>
           <CardDescription>
             Off for this property. Turn on review analysis above to read sentiment and
             topics from its Google reviews.
@@ -65,16 +67,14 @@ export function ReviewAnalysisProgressCard({ progress }: Props) {
   return (
     <Card>
       <CardHeader className="border-b">
-        <CardTitle>Review analysis</CardTitle>
+        <CardTitle as="h2">Review analysis</CardTitle>
         <CardDescription>
           {progress.status === 'analysing'
-            ? `Reading reviews newest first. ${numberFormat.format(waiting)} still to go.`
+            ? `Reading reviews newest first. ${formatNumber(waiting)} still to go.`
             : 'Every review this property has is analysed.'}
         </CardDescription>
         <CardAction>
-          <Badge variant={progress.status === 'caught_up' ? 'secondary' : 'outline'}>
-            {progress.status === 'caught_up' ? 'Up to date' : 'Analysing'}
-          </Badge>
+          <StatusBadge status={progress.status} map={REVIEW_ANALYSIS_STATUS} />
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -91,36 +91,27 @@ export function ReviewAnalysisProgressCard({ progress }: Props) {
             style={{ transform: `scaleX(${share})` }}
           />
         </div>
-        <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-          <div>
-            <dt className="text-muted-foreground">Analysed</dt>
-            <dd className="text-lg font-medium tabular-nums">
-              {numberFormat.format(progress.analysed)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Waiting</dt>
-            <dd className="text-lg font-medium tabular-nums">
-              {numberFormat.format(progress.queued)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Running</dt>
-            <dd className="text-lg font-medium tabular-nums">
-              {numberFormat.format(progress.inProgress)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Not analysable</dt>
-            <dd className="text-lg font-medium tabular-nums">
-              {numberFormat.format(progress.notAnalysable)}
-            </dd>
-          </div>
-        </dl>
+        <MetricStrip aria-label="Review analysis counts">
+          <Metric label="Analysed">
+            <MetricValue value={formatNumber(progress.analysed)} />
+          </Metric>
+          <Metric label="Waiting">
+            <MetricValue value={formatNumber(progress.queued)} />
+          </Metric>
+          <Metric label="Running">
+            <MetricValue value={formatNumber(progress.inProgress)} />
+          </Metric>
+          <Metric label="Not analysable">
+            <MetricValue value={formatNumber(progress.notAnalysable)} />
+          </Metric>
+        </MetricStrip>
+        {/* `progress` comes from a query the route does not prefetch, so this
+            card never renders data on the server and the viewer's clock cannot
+            disagree with a server-rendered line. */}
         <p className="text-xs text-muted-foreground">
           {progress.verifiedThroughEpochMillis === null
             ? 'Not analysable means the review has no text, is in an unsupported language, or its Google content has expired.'
-            : `History verified complete ${dateFormat.format(progress.verifiedThroughEpochMillis)}.`}
+            : `History verified complete ${formatTimestamp(progress.verifiedThroughEpochMillis, 'viewer')}.`}
         </p>
       </CardContent>
     </Card>

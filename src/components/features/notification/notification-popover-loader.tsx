@@ -20,6 +20,10 @@ const reloadPage = () => window.location.reload()
  * What the popover shows when its body could not be loaded. On a phone
  * (`onClose`, the sheet's) it keeps the sheet's title and Close: a
  * full-screen sheet has no outside to tap.
+ *
+ * Plain markup, not EmptyState: the bell is in the public header, so this file
+ * is in the first-paint closure and would pull the panel into it. The recovery
+ * is a reload, not a refetch (see above), which is why it is not RegionError.
  */
 export function PopoverBodyUnavailable({
   onReload = reloadPage,
@@ -32,7 +36,7 @@ export function PopoverBodyUnavailable({
         role="alert"
         className="flex flex-col items-center gap-3 px-4 py-6 text-center"
       >
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load notifications.</p>
+        <p className="text-sm text-muted-foreground">Notifications couldn’t be loaded.</p>
         <Button variant="outline" size="sm" onClick={onReload}>
           <RefreshCw aria-hidden="true" className="size-3" />
           Reload page

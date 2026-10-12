@@ -18,7 +18,8 @@ function LogoLink() {
   return (
     <Button variant="outline" size="sm" className="rounded-full gap-2" asChild>
       <Link to="/">
-        <span className="size-2 rounded-full bg-[linear-gradient(90deg,oklch(0.42_0.18_290),oklch(0.52_0.19_290))]" />
+        {/* The one gradient in the product (DESIGN.md names it): the primary violet to a lighter mix of itself. */}
+        <span className="size-2 rounded-full bg-[linear-gradient(90deg,var(--primary),color-mix(in_oklch,var(--primary)_82%,white))]" />
         Reputation Key
       </Link>
     </Button>

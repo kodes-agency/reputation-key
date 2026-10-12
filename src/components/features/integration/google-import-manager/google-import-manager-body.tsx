@@ -28,7 +28,7 @@ function visibleError(error: unknown): string | null {
 
 function ClearedContentNotice({ onResume }: Readonly<{ onResume: () => void }>) {
   return (
-    <Alert>
+    <Alert variant="info">
       <AlertTitle>Google location details were cleared</AlertTitle>
       <AlertDescription className="space-y-3">
         <p>
@@ -59,7 +59,7 @@ export function GoogleImportManagerBody({
 }: Props) {
   if (connections.length === 0) {
     return (
-      <Alert>
+      <Alert variant="info">
         <AlertTitle>Connect Google to import properties</AlertTitle>
         <AlertDescription>
           Use the connection button above. RepKey keeps location details only while this
@@ -71,7 +71,7 @@ export function GoogleImportManagerBody({
 
   if (!connections.some((connection) => connection.status === 'active')) {
     return (
-      <Alert>
+      <Alert variant="warning">
         <AlertTitle>Reconnect Google to continue</AlertTitle>
         <AlertDescription>
           None of the saved Google connections can be used for discovery. Open Integration

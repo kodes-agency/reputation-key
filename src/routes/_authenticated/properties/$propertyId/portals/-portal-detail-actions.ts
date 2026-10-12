@@ -18,7 +18,11 @@ import { downloadPortalPrintKit } from '#/contexts/portal/server/portal-print-ki
 import { publishPortalChanges } from '#/contexts/portal/server/portal-publish-changes'
 import { updatePortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 import type { Action } from '#/components/hooks/use-action'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import {
+  actionErrorMessage,
+  useActionMutation,
+} from '#/components/hooks/use-action-mutation'
+import { openPageErrorMessage } from '#/components/features/portal/portal-workspace/portal-open-page'
 import { portalKeys } from '#/shared/queries/query-keys'
 import type { UpdatePortalVariables } from '#/components/features/portal/shared/types'
 import type { PortalQueryResult } from './-portal-detail-data'
@@ -85,10 +89,13 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
     portalKeys.experience(propertyId, portalId),
     portalKeys.publicationHistory(portalId),
   ]
+  // The editor's Linktree reads each tile's approval, so an approval or a
+  // turn-off refreshes it too: the tile that opens the site says so at once.
   const destinationInvalidations = [
     portalKeys.approvedDestinations(portalId),
     portalKeys.publicationHistory(portalId),
     portalKeys.links(portalId),
+    portalKeys.linktree(portalId),
   ]
   const saveContent = useActionMutation(savePropertyPortalBrandContent, {
     successMessage: 'Guest content saved',
@@ -99,15 +106,18 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
     invalidateKeys: experienceInvalidations,
   })
   const requestDestination = useActionMutation(requestPortalApprovedDestination, {
-    successMessage: 'Destination added',
+    successMessage: 'Site added',
     invalidateKeys: destinationInvalidations,
   })
+  // Approving is a row action: a refusal is a toast. Disabling is confirmed in a
+  // dialog that stays open and says a refusal itself, so it passes no toast.
   const approveDestination = useActionMutation(approvePortalApprovedDestination, {
-    successMessage: 'Destination approved',
+    successMessage: 'Site approved',
+    errorMessage: actionErrorMessage,
     invalidateKeys: destinationInvalidations,
   })
   const disableDestination = useActionMutation(disablePortalApprovedDestination, {
-    successMessage: 'Destination disabled',
+    successMessage: 'Site turned off',
     invalidateKeys: destinationInvalidations,
   })
   return {
@@ -117,6 +127,16 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
     approveDestination,
     disableDestination,
   }
+}
+
+/**
+ * The workspace header's "Open page": the same reveal as "Download again", for
+ * the purpose "show". It says why it failed itself (a rate limit, a retired
+ * key) in Open page's words, because the header has no banner to carry the error.
+ * It shares the reveal's budget with "Download again" (ADR 0064).
+ */
+export function usePortalOpenPageReveal() {
+  return useActionMutation(revealPortalAddress, { errorMessage: openPageErrorMessage })
 }
 
 /**
@@ -141,9 +161,11 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
   // Silent: the address appearing is the acknowledgement. Nothing to refetch,
   // since a download changes no state the page shows (History reads it itself).
   const revealAddress = useActionMutation(revealPortalAddress)
-  // Silent on success (the browser's own download is the acknowledgement); the
-  // Print kit section shows a refusal under its button.
-  const downloadPrintKit = useActionMutation(downloadPortalPrintKit)
+  // Silent on success (the browser's own download is the acknowledgement); a
+  // refusal is a toast, because a download is an immediate action.
+  const downloadPrintKit = useActionMutation(downloadPortalPrintKit, {
+    errorMessage: actionErrorMessage,
+  })
   const revokeToken = useActionMutation(revokePortalTokens, {
     successMessage: 'All codes stopped',
     invalidateKeys: tokenInvalidations,
@@ -156,7 +178,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     invalidateKeys: [portalKeys.detail(portalId)],
   })
   const updateResponsibleManagers = useActionMutation(updatePortalResponsibleManagers, {
-    successMessage: 'Responsible managers updated',
+    successMessage: 'Responsible managers saved',
     invalidateKeys: [
       portalKeys.detail(portalId),
       portalKeys.responsibleManagers(portalId),

@@ -18,7 +18,7 @@
 // description.
 
 import { createElement } from 'react'
-import { CheckCircle2 } from 'lucide-react'
+import { CircleCheck } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { cn } from '#/lib/utils'
 import {
@@ -49,7 +49,7 @@ type Props = Readonly<{
 }>
 
 const TONE_ICON_CLASS: Readonly<Record<NotificationRowTone, string>> = {
-  critical: 'text-destructive',
+  critical: 'text-negative',
   'needs-you': 'text-foreground',
   update: 'text-muted-foreground',
   done: 'text-positive',
@@ -76,8 +76,7 @@ export function NotificationRow({
     notification.type,
   )
   const detailId = `notification-detail-${notification.id}`
-  const icon =
-    view.tone === 'done' ? CheckCircle2 : getNotificationIcon(notification.type)
+  const icon = view.tone === 'done' ? CircleCheck : getNotificationIcon(notification.type)
 
   return (
     <li

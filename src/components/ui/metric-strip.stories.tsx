@@ -6,6 +6,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { Star } from 'lucide-react'
 import { expect, within } from 'storybook/test'
+import { Card, CardContent, CardHeader, CardTitle } from './card'
 import { Metric, MetricStrip, MetricValue } from './metric-strip'
 
 const meta: Meta<typeof MetricStrip> = {
@@ -117,6 +118,101 @@ export const LoadingAndUnavailable: Story = {
     expect(cells(canvasElement)).toEqual([
       ['Qualified scans', ''],
       ['Private notes', '9'],
+    ])
+  },
+}
+
+/**
+ * Separate bordered tiles that wrap: for a set of independent measures longer than
+ * a row (an import's counts, an analytics summary). Two columns narrow, `columns`
+ * from 2xl. A measure with nothing to average yet is a note (`value={null}`), not a
+ * sentence set in the figure's 24px type, which wraps to three lines in a tile.
+ */
+export const Tiles: Story = {
+  args: { variant: 'tiles', columns: 3, 'aria-label': 'Response targets' },
+  render: (args) => (
+    <MetricStrip {...args}>
+      <Metric label="Measured cycles">
+        <MetricValue value="128" />
+      </Metric>
+      <Metric label="Currently open">
+        <MetricValue value="7" />
+      </Metric>
+      <Metric label="Target time passed">
+        <MetricValue value="2" />
+      </Metric>
+      <Metric label="Completed within target">
+        <MetricValue value="104" />
+      </Metric>
+      <Metric label="Average time to first handling">
+        <MetricValue value={null} detail="Not enough measured data" />
+      </Metric>
+    </MetricStrip>
+  ),
+  play: async ({ canvasElement }) => {
+    expect(canvasElement.querySelector('dl')).toHaveAttribute('data-variant', 'tiles')
+    expect(cells(canvasElement)).toHaveLength(5)
+    expect(cells(canvasElement)[4]).toEqual([
+      'Average time to first handling',
+      'Not enough measured data',
+    ])
+  },
+}
+
+export const TilesLight: Story = {
+  ...Tiles,
+  parameters: { theme: 'light' },
+}
+
+/** In a card, which is the frame: the cells keep their hairlines and lose their own edge. */
+export const Embedded: Story = {
+  args: { variant: 'embedded', 'aria-label': 'Google performance' },
+  render: (args) => (
+    <Card>
+      <CardHeader>
+        <CardTitle>At a glance</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <MetricStrip {...args}>
+          <Metric label="Profile views">
+            <MetricValue value="1,204" detail="Up 12% vs the previous 90 days" />
+          </Metric>
+          <Metric label="Website clicks">
+            <MetricValue value="88" detail="No comparable period" />
+          </Metric>
+          <Metric label="Call clicks">
+            <MetricValue value="Not returned" detail="Not applicable or not returned" />
+          </Metric>
+          <Metric label="Direction requests">
+            <MetricValue value="41" detail="Down 3% vs the previous 90 days" />
+          </Metric>
+        </MetricStrip>
+      </CardContent>
+    </Card>
+  ),
+  play: async ({ canvasElement }) => {
+    expect(canvasElement.querySelector('dl')).toHaveAttribute('data-variant', 'embedded')
+    expect(cells(canvasElement)).toHaveLength(4)
+  },
+}
+
+/** A measure with no number says why, in its place, and keeps its term. */
+export const NoFigure: Story = {
+  args: { variant: 'ruled' },
+  render: (args) => (
+    <MetricStrip {...args}>
+      <Metric label="Average rating">
+        <MetricValue value={null} detail="No ratings in this period." />
+      </Metric>
+      <Metric label="Reviews">
+        <MetricValue value="12" detail="Up 4% vs the previous 30 days" />
+      </Metric>
+    </MetricStrip>
+  ),
+  play: ({ canvasElement }) => {
+    expect(cells(canvasElement)).toEqual([
+      ['Average rating', 'No ratings in this period.'],
+      ['Reviews', '12Up 4% vs the previous 30 days'],
     ])
   },
 }

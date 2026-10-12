@@ -35,7 +35,7 @@ export function LegalMarkdown({ html }: Readonly<{ html: string }>) {
   return (
     <div className="page-wrap px-4 py-12 sm:px-6 sm:py-16">
       <article
-        className="prose prose-neutral dark:prose-invert mx-auto max-w-4xl overflow-x-auto prose-headings:scroll-mt-24 prose-headings:font-display prose-a:font-medium prose-a:underline prose-a:underline-offset-4 prose-table:text-sm"
+        className="prose prose-neutral dark:prose-invert mx-auto max-w-4xl overflow-x-auto prose-headings:scroll-mt-24 prose-headings:font-display prose-a:font-medium prose-a:text-link prose-a:underline prose-a:underline-offset-4 prose-table:text-sm"
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </div>

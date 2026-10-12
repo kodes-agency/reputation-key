@@ -9,11 +9,14 @@
 // Presentational: the route owns the reads and the URL; this page receives the
 // search and reports changes through `onSearchChange`.
 import { Link } from '@tanstack/react-router'
-import { Plus, SearchX } from 'lucide-react'
+import { Building2, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { AddActionLink } from '#/components/ui/add-action'
 import { Button } from '#/components/ui/button'
+import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import { EmptyState } from '#/components/ui/empty-state'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
+import { LinkTab, LinkTabs } from '#/components/ui/link-tabs'
+import { TabCount } from '#/components/ui/tabs'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
@@ -60,43 +63,46 @@ function EmptyPropertyList({
   allRemoved,
   canImport,
 }: Readonly<{ allRemoved: boolean; canImport: boolean }>) {
+  if (allRemoved) {
+    return (
+      <EmptyState
+        icon={Building2}
+        title="No active properties"
+        description="Every property you have is currently removed. Restore one to start working again."
+      />
+    )
+  }
   return (
-    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-12 text-center">
-      {allRemoved ? (
-        <>
-          <p className="text-muted-foreground">No active properties.</p>
-          <p className="text-sm text-muted-foreground">
-            Every property you have is currently removed. Restore one to start working
-            again.
-          </p>
-        </>
-      ) : (
-        <>
-          <p className="text-muted-foreground">No properties yet.</p>
-          {canImport ? (
-            // At 320 px the label is wider than the box, so it wraps, balanced.
-            <Button asChild className="h-auto min-h-9 whitespace-normal text-balance">
-              <Link to="/properties/import-google">
-                Import your first property from Google
-              </Link>
-            </Button>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Ask an account admin to import a property from Google or give you access to
-              one.
-            </p>
-          )}
-        </>
-      )}
-    </div>
+    <EmptyState
+      icon={Building2}
+      title="No properties yet"
+      description={
+        canImport
+          ? undefined
+          : 'Ask an account admin to import a property from Google or give you access to one.'
+      }
+      action={
+        canImport ? (
+          // At 320 px the label is wider than the box, so it wraps, balanced.
+          <Button asChild className="h-auto min-h-9 whitespace-normal text-balance">
+            <Link to="/properties/import-google">
+              Import your first property from Google
+            </Link>
+          </Button>
+        ) : undefined
+      }
+    />
   )
 }
 
-function describe(workspace: ReadonlyArray<PropertyListProperty>): string | undefined {
+/** The meta line under the title: how many properties, and how many of them are paused. */
+function describe(
+  workspace: ReadonlyArray<PropertyListProperty>,
+): readonly string[] | undefined {
   if (workspace.length === 0) return undefined
   const count = workspace.length === 1 ? '1 property' : `${workspace.length} properties`
   const paused = workspace.filter((property) => property.lifecycleState === 'suspended')
-  return paused.length > 0 ? `${count} · ${paused.length} paused` : count
+  return paused.length > 0 ? [count, `${paused.length} paused`] : [count]
 }
 
 export function PropertyListPage({
@@ -127,7 +133,7 @@ export function PropertyListPage({
     )
   const several = workspace.length > 1
 
-  // Radix unmounts the inactive tab, so each property name still renders once.
+  // Only the chosen view is rendered, so each property name still renders once.
   const tab = removed.length > 0 && search.tab === 'removed' ? 'removed' : 'workspace'
   const workspaceContent = (
     <>
@@ -158,14 +164,17 @@ export function PropertyListPage({
             </>
           ) : null}
           {visible.length === 0 ? (
-            <EmptyState icon={SearchX} title="No properties match">
-              <Button
-                variant="outline"
-                onClick={() => update({ q: undefined, show: undefined })}
-              >
-                Clear search and filter
-              </Button>
-            </EmptyState>
+            <EmptyState
+              icon={SearchX}
+              title="No properties match"
+              action={
+                <ClearFiltersButton
+                  variant="outline"
+                  searching={view.q.trim() !== ''}
+                  onClear={() => update({ q: undefined, show: undefined })}
+                />
+              }
+            />
           ) : (
             <PropertyListTable
               rows={visible}
@@ -191,44 +200,42 @@ export function PropertyListPage({
     <PageShell tier="dashboard">
       <PageHeader
         title="Properties"
-        description={describe(workspace)}
+        meta={describe(workspace)}
         actions={
           can('property.import_gbp_v2') ? (
-            <Button asChild>
-              <Link to="/properties/import-google">
-                <Plus />
-                Import from Google
-              </Link>
-            </Button>
+            <AddActionLink to="/properties/import-google">
+              Import from Google
+            </AddActionLink>
           ) : undefined
         }
       />
 
       {removed.length > 0 ? (
-        <Tabs
-          value={tab}
-          onValueChange={(value) =>
-            update({ tab: value === 'removed' ? 'removed' : undefined })
-          }
-          className="gap-4"
-        >
-          <TabsList aria-label="Which properties">
-            <TabsTrigger value="workspace" className="px-3">
+        <div className="flex flex-col gap-4">
+          <LinkTabs aria-label="Which properties">
+            <LinkTab
+              to="/properties"
+              search={propertyListSearchPatch(search, { tab: undefined })}
+              current={tab === 'workspace'}
+            >
               Workspace
-              <span className="tabular-nums text-muted-foreground">
-                {workspace.length}
-              </span>
-            </TabsTrigger>
-            <TabsTrigger value="removed" className="px-3">
+              <TabCount>{workspace.length}</TabCount>
+            </LinkTab>
+            <LinkTab
+              to="/properties"
+              search={propertyListSearchPatch(search, { tab: 'removed' })}
+              current={tab === 'removed'}
+            >
               Removed
-              <span className="tabular-nums text-muted-foreground">{removed.length}</span>
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="workspace">{workspaceContent}</TabsContent>
-          <TabsContent value="removed">
+              <TabCount>{removed.length}</TabCount>
+            </LinkTab>
+          </LinkTabs>
+          {tab === 'removed' ? (
             <PropertyListRemoved properties={removed} />
-          </TabsContent>
-        </Tabs>
+          ) : (
+            workspaceContent
+          )}
+        </div>
       ) : (
         workspaceContent
       )}

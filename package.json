@@ -65,7 +65,7 @@
     "check:product-state-consistency": "tsx scripts/ci/check-product-state-consistency.ts",
     "check:runtime-environment-contract": "tsx scripts/ci/check-runtime-environment-contract.ts",
     "check:file-length": "tsx scripts/ci/check-file-length.ts",
-    "check:unchecked-indexed-access": "tsx scripts/ci/check-unchecked-indexed-access.ts",
+    "check:unchecked-indexed-access": "NODE_OPTIONS=--max-old-space-size=6144 tsx scripts/ci/check-unchecked-indexed-access.ts",
     "ops": "tsx scripts/ops/index.ts",
     "db:baseline": "tsx scripts/db-baseline.ts",
     "db:reset": "tsx scripts/db-reset.ts"
@@ -178,13 +178,17 @@
   "pnpm": {
     "overrides": {
       "esbuild": "0.28.2",
+      "handlebars": "4.7.10",
       "hono": "4.12.34",
       "js-yaml": "4.3.2",
       "kysely": "0.28.17",
       "nanoid": "3.3.18",
       "playwright": "$@playwright/test",
       "playwright-core": "$@playwright/test",
-      "postcss": "8.5.23"
+      "postcss": "8.5.23",
+      "proxy-addr": "2.0.8",
+      "shell-quote": "1.11.0",
+      "source-map-js": "1.2.2"
     },
     "onlyBuiltDependencies": [
       "esbuild",

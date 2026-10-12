@@ -16,17 +16,7 @@ import { useMemo, useRef } from 'react'
 import { CheckCheck, Settings2, Trash2 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
 import { useNotificationFormat, useNotifications } from './notification-queries'
@@ -52,8 +42,8 @@ const EMPTY_TITLES: Partial<Record<NotificationFilter, string>> = {
 type Props = Readonly<{
   notificationFns: NotificationServerFns
   organizationId: string
+  /** The route's `filter`; the tabs are links that change it. */
   filter: NotificationFilter
-  onFilterChange: (filter: NotificationFilter) => void
   /** The reader's Properties, for the filter; it is offered with two or more. */
   properties: ReadonlyArray<Readonly<{ id: string; name: string }>>
   /** The Property the page is filtered to, or null for all of them. */
@@ -65,7 +55,6 @@ export function NotificationPage({
   notificationFns,
   organizationId,
   filter,
-  onFilterChange,
   properties,
   propertyId,
   onPropertyChange,
@@ -132,18 +121,17 @@ export function NotificationPage({
         title="Notifications"
         description="What needs you comes first. Dismissed notifications and categories you muted are not listed."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <>
             {offersMarkAllRead && (
-              <Button variant="outline" size="sm" onClick={markAllRead}>
+              <Button variant="outline" onClick={markAllRead}>
                 <CheckCheck aria-hidden="true" />
                 Mark all read
               </Button>
             )}
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
+            <ConfirmationDialog
+              trigger={
                 <Button
                   variant="outline"
-                  size="sm"
                   // It dismisses every notification (or the filtered
                   // Property's), not this tab's, so an empty tab (Needs you,
                   // most mornings) does not disable it.
@@ -152,50 +140,41 @@ export function NotificationPage({
                   <Trash2 aria-hidden="true" />
                   Dismiss all
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent
-                onCloseAutoFocus={(event) => {
-                  if (!dismissAllConfirmed.current) return
-                  dismissAllConfirmed.current = false
-                  // Focus goes to the emptied list — what the action changed —
-                  // rather than back to the button, and never to <body>.
-                  event.preventDefault()
-                  listRef.current?.focus()
-                }}
-              >
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    {property
-                      ? `Dismiss all notifications about ${property.name}?`
-                      : 'Dismiss all notifications?'}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {property
-                      ? `This hides every notification about ${property.name} currently addressed to you. Other properties' notifications stay.`
-                      : 'This hides every notification currently addressed to you.'}{' '}
-                    It does not change the underlying reviews, feedback, or other work.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Keep notifications</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => {
-                      dismissAllConfirmed.current = true
-                      mutations.dismissAll(scope)
-                    }}
-                  >
-                    Dismiss all
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            <Button asChild variant="ghost" size="sm">
+              }
+              onCloseAutoFocus={(event) => {
+                if (!dismissAllConfirmed.current) return
+                dismissAllConfirmed.current = false
+                // Focus goes to the emptied list — what the action changed —
+                // rather than back to the button, and never to <body>.
+                event.preventDefault()
+                listRef.current?.focus()
+              }}
+              title={
+                property
+                  ? `Dismiss all notifications about ${property.name}?`
+                  : 'Dismiss all notifications?'
+              }
+              description={`${
+                property
+                  ? `This hides every notification about ${property.name} currently addressed to you. Other properties' notifications stay.`
+                  : 'This hides every notification currently addressed to you.'
+              } It does not change the underlying reviews, feedback, or other work.`}
+              cancelLabel="Keep notifications"
+              confirmLabel="Dismiss all"
+              // Optimistic: the list empties at once and a failure is the
+              // mutation's toast, so the dialog closes as it is pressed.
+              onConfirm={() => {
+                dismissAllConfirmed.current = true
+                mutations.dismissAll(scope)
+              }}
+            />
+            <Button asChild variant="ghost">
               <Link to="/settings/notifications">
                 <Settings2 aria-hidden="true" />
                 Preferences
               </Link>
             </Button>
-          </div>
+          </>
         }
       />
       <NotificationAnnouncer announcement={announcement} />
@@ -206,7 +185,7 @@ export function NotificationPage({
           onChange={onPropertyChange}
         />
       </div>
-      <NotificationFilterTabs value={filter} onChange={onFilterChange} className="mt-4">
+      <NotificationFilterTabs value={filter} className="mt-4">
         <NotificationListBody
           groups={groups}
           isLoading={list.isLoading}

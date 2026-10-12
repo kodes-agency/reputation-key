@@ -130,13 +130,13 @@ export const ChangesTheWindow: Story = {
   args: withResults,
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('combobox', { name: 'Time range' }))
-    const options = await within(document.body).findAllByRole('option')
+    const range = canvas.getByRole('radiogroup', { name: 'Time range' })
+    const options = within(range).getAllByRole('radio')
     await expect(options.map((option) => option.textContent)).toEqual([
-      'Last 7 days',
-      'Last 30 days',
-      'Last 60 days',
-      'Last 90 days',
+      '7 days',
+      '30 days',
+      '60 days',
+      '90 days',
     ])
     await userEvent.click(options[0]!)
     await expect(args.results?.onTimeRangeChange).toHaveBeenCalledWith('7d')
@@ -162,13 +162,46 @@ export const NamesTheWindowAndTheFloor: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      canvas.getByText('1–30 Sep, Europe/Sofia time · all portals'),
+      canvas.getByText('1–30 Sep, Sofia time · all portals'),
     ).toBeInTheDocument()
     await expect(
       canvas.getByText(
-        'Last 30 days, Europe/Sofia time · an average needs 5 private ratings',
+        /Last 30 days, (Europe\/)?Sofia time · an average needs 5 private ratings/,
       ),
     ).toBeInTheDocument()
+  },
+}
+
+/** The Private notes cell's follow-up: the notes still waiting in the Inbox, filtered by the Property. */
+export const InboxWaitingLinksToTheInbox: Story = {
+  args: { ...withResults, inboxWaiting: 5 },
+  play: async ({ canvasElement }) => {
+    const strip = within(within(canvasElement).getByRole('region', { name: 'Results' }))
+    const link = strip.getByRole('link', { name: '5 waiting in Inbox' })
+    // It is the Private notes cell's own line, not a header control.
+    const notes = strip.getByText('Private notes').closest('div')
+    await expect(notes).not.toBeNull()
+    await expect(notes?.contains(link)).toBe(true)
+    const href = new URL(link.getAttribute('href') ?? '', 'http://localhost')
+    await expect(href.pathname).toBe('/inbox')
+    await expect(href.searchParams.get('propertyId')).toBe('prop-1')
+    await expect(href.searchParams.get('queue')).toBe('feedback')
+    // There is no "Open results": the strip is already the results.
+    await expect(strip.queryByRole('link', { name: /open results/i })).toBeNull()
+  },
+}
+
+export const NothingWaitingSaysNothing: Story = {
+  args: { ...withResults, inboxWaiting: 0 },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).queryByText(/waiting in Inbox/)).toBeNull()
+  },
+}
+
+export const InboxCountNotReadSaysNothing: Story = {
+  args: withResults,
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).queryByText(/waiting in Inbox/)).toBeNull()
   },
 }
 

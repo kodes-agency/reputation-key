@@ -86,6 +86,7 @@ describe('parseNotificationPayload', () => {
       moderationReason: 'Tone is too defensive.',
       hasModerationReason: true,
       leftOrganization: true,
+      memberRole: 'property_manager',
       lowRating: true,
       publishOutcome: 'refused',
       goalName: 'Lobby QR scans',
@@ -102,6 +103,7 @@ describe('parseNotificationPayload', () => {
       goalMonth: '2026-10',
       goalSubjectKind: 'portal',
       goalOutcome: 'met',
+      goalMarker: 'set_in_month',
       // `failed`, because a reason is only admitted on a failed import: a
       // completed one carrying a stale reason would render "the import
       // stopped" over a success.
@@ -134,6 +136,11 @@ describe('parseNotificationPayload', () => {
       sentimentScore: -0.82,
       mediaUrl: 'https://lh3.googleusercontent.com/x',
       actorName: 'Dave from reception',
+      // ADR 0046 r.8: no account notice names another person.
+      inviterName: 'Dave from reception',
+      inviteeName: 'Maria K.',
+      memberName: 'Maria K.',
+      memberEmail: 'maria@example.com',
     })
 
     expect(parsed).toEqual({ propertyName: 'Riverside Hotel' })
@@ -141,6 +148,19 @@ describe('parseNotificationPayload', () => {
 
   // The reason a Google connection needs reauthorization is a closed fact from
   // the integration.google_account.reauthorization_required event, never text.
+  it('keeps a Goal marker only while it is one of the two the notices may carry', () => {
+    expect(parseNotificationPayload({ goalMarker: 'set_in_month' })).toEqual({
+      goalMarker: 'set_in_month',
+    })
+    expect(parseNotificationPayload({ goalMarker: 'target_changed' })).toEqual({
+      goalMarker: 'target_changed',
+    })
+    // A marker is a closed fact about the month, never a date, a target or a name.
+    for (const other of ['set on Oct 20', 'lowered from 400', true, 20, null]) {
+      expect(parseNotificationPayload({ goalMarker: other })).toEqual({})
+    }
+  })
+
   it('keeps a known Google reauthorization cause and drops anything else', () => {
     expect(
       parseNotificationPayload({ reauthorizationCause: 'provider_revoked' }),
@@ -162,6 +182,22 @@ describe('parseNotificationPayload', () => {
     expect(
       parseNotificationPayload({ publishFailureCause: 'rejected by Google' }),
     ).toEqual({})
+  })
+
+  // The role a member now holds, named in the role-change notice. A closed
+  // enum: a person's name never rides with it.
+  it('keeps a known member role and drops anything else', () => {
+    expect(parseNotificationPayload({ memberRole: 'account_admin' })).toEqual({
+      memberRole: 'account_admin',
+    })
+    expect(parseNotificationPayload({ memberRole: 'property_manager' })).toEqual({
+      memberRole: 'property_manager',
+    })
+    // `staff` is an actor role, not one a member can hold; raw role tokens and
+    // free text are not admitted either.
+    for (const memberRole of ['staff', 'PropertyManager', 'Maria K.', 7, null]) {
+      expect(parseNotificationPayload({ memberRole })).toEqual({})
+    }
   })
 
   it('returns an empty payload for non-object input', () => {

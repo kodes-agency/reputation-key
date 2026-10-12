@@ -37,6 +37,8 @@ describe('isUrgent', () => {
     expect(isUrgent('account.organization_access_granted')).toBe(false)
     expect(isUrgent('account.organization_role_changed')).toBe(false)
     expect(isUrgent('account.organization_access_removed')).toBe(false)
+    expect(isUrgent('account.organization_property_access_changed')).toBe(false)
+    expect(isUrgent('account.invitation_accepted')).toBe(false)
   })
 
   it('returns false for review.created', () => {

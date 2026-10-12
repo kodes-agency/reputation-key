@@ -21,6 +21,7 @@ import type {
 import type { PortalPublicationState } from './portal-publication'
 import type { PortalAccessArtifactChannel } from './portal-access-artifact'
 import type { PortalHealthReason, PortalHealthStatus } from './portal-health'
+import type { PortalConfigurationFieldSet } from './portal-configuration-completeness'
 import { assertPortalLifecycleFact, type PortalEventArgs } from './portal-event-base'
 import type {
   PortalAddedToGroup,
@@ -386,6 +387,8 @@ export type PortalConfigurationCompletenessRecorded = Readonly<{
   sourceAggregateVersion: string
   completedFields: number
   requiredFields: number
+  /** Which fields were counted; facts from before the Immersive Hub count say `legacy`. */
+  fieldSet: PortalConfigurationFieldSet
   occurredAt: Date
   correlationId: string | null
 }>
@@ -818,6 +821,10 @@ export const portalConfigurationCompletenessRecorded = (
       args.completedFields >= 0 &&
       args.completedFields <= args.requiredFields,
     'completedFields must be between zero and requiredFields',
+  )
+  assert(
+    args.fieldSet === 'legacy' || args.fieldSet === 'immersive_hub',
+    'fieldSet must name the fields that were counted',
   )
   return {
     _tag: 'portal.configuration_completeness.recorded',

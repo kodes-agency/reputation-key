@@ -3,6 +3,7 @@
  * Re-exports ports for cross-context dependency injection.
  */
 export type { StoragePort } from './ports/storage.port'
+export { StoredObjectTooLargeError } from './ports/storage.port'
 import type { GuestLanguagePackVersion, GuestLocale } from '#/shared/domain/guest-locale'
 
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events.
@@ -22,6 +23,8 @@ export type {
 } from '../domain/events'
 
 export { isValidExternalUrl } from '../domain/rules'
+/** Whether the Property wrote wording for a language: the base a Portal's own lines need. */
+export { hasPropertyWording } from '../domain/property-wording'
 export type { Portal } from '../domain/types'
 /** C2: portal token existence/metadata for management surfaces — never token material. */
 export type { PortalTokenStatus } from './portal-token-status'
@@ -50,6 +53,7 @@ export type {
   PortalPreviewExperience,
   PortalPreviewLink,
   PortalPreviewLinkState,
+  PortalPreviewOrigin,
   PortalPreviewOutcome,
   PortalPreviewSource,
   PortalPreviewUnavailableReason,
@@ -419,4 +423,12 @@ export type PortalGroupPublicApi = Readonly<{
     propertyId: PropertyId,
     groupId: PortalGroupId,
   ) => Promise<boolean>
+  /**
+   * A group's minimal facts by id; null when the organization has no such
+   * group or it is archived. The caller compares the Property.
+   */
+  getGroupInfo: (
+    orgId: OrganizationId,
+    groupId: PortalGroupId,
+  ) => Promise<PortalGroupSummary | null>
 }>

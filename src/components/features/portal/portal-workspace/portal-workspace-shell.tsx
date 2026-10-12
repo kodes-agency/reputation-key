@@ -1,7 +1,7 @@
 // The workspace frame: a header, an optional tab strip, and one scrolling body.
 //
 // The authenticated layout gives this route the whole viewport (see
-// `isWorkspaceRoute`), so the frame owns the height and the body scrolls on its
+// `isFullBleedRoute`), so the frame owns the height and the body scrolls on its
 // own — the header and tabs stay put while a long editor scrolls beneath them.
 // `PortalWorkspaceHeader` and `PortalWorkspaceTabs` are passed in rather than
 // built here, so the shell stays a frame and each of them stays testable alone.

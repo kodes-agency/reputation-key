@@ -5,6 +5,7 @@ import {
   AuthedRouterDecorator,
   withRole,
 } from '../../../../../.storybook/AuthedRouterDecorator'
+import { PageGutterDecorator } from '../../../../../.storybook/PageGutterDecorator'
 import { action, baseArgs } from '../portal-list-page-stories-data'
 import {
   indexOverviewResults,
@@ -32,7 +33,7 @@ const meta: Meta<typeof PortalGroupPage> = {
   title: 'Portal/PortalGroup/GroupPage',
   component: PortalGroupPage,
   parameters: { layout: 'fullscreen' },
-  decorators: [AuthedRouterDecorator],
+  decorators: [AuthedRouterDecorator, PageGutterDecorator],
   args: {
     propertyId: 'prop-1',
     propertyName: 'Avela Resort',
@@ -55,6 +56,7 @@ const meta: Meta<typeof PortalGroupPage> = {
     onRetryHistory: fn(),
     archiveMutation: baseArgs.archiveMutation,
     restoreMutation: baseArgs.restoreMutation,
+    disableMutation: baseArgs.disableMutation,
     renameMutation: baseArgs.renameMutation,
     archiveGroupMutation: baseArgs.archiveGroupMutation,
     movePortalMutation: action<{ data: { portalGroupId: string; portalId: string } }>(),
@@ -72,16 +74,17 @@ export const HeaderSaysWhatAGroupIs: Story = {
     await expect(
       canvas.getByRole('heading', { level: 1, name: 'Pool side' }),
     ).toBeInTheDocument()
+    // Meta says what it is and where; the description says what it is for.
+    await expect(canvas.getByText('Group')).toBeInTheDocument()
+    await expect(canvas.getByText('3 portals at Avela Resort')).toBeInTheDocument()
     await expect(
-      canvas.getByText(
-        'Group · 3 portals at Avela Resort · for shared results and goals',
-      ),
+      canvas.getByText('Shared results and goals for the portals in this group.'),
     ).toBeInTheDocument()
     await expect(canvas.getByRole('button', { name: 'Rename' })).toBeInTheDocument()
     // One in the header, and the quiet one under the table.
     await expect(canvas.getAllByRole('button', { name: 'Add portal' })).toHaveLength(2)
     await expect(
-      canvas.getByRole('button', { name: 'Actions for group Pool side' }),
+      canvas.getByRole('button', { name: 'More actions for group Pool side' }),
     ).toBeInTheDocument()
   },
 }
@@ -97,7 +100,7 @@ export const ResultsAreTheGroupsOwn: Story = {
     await expect(strip.getByText('17% of scans')).toBeInTheDocument()
     await expect(strip.getByText('13')).toBeInTheDocument()
     await expect(
-      within(canvasElement).getByText(/1–30 Sep, Europe\/Sofia time · this group/),
+      within(canvasElement).getByText(/1–30 Sep, Sofia time · this group/),
     ).toBeInTheDocument()
   },
 }
@@ -123,6 +126,27 @@ export const ListsOnlyThePortalsInTheGroup: Story = {
   },
 }
 
+// A draft has no code to give out, so its row has no Share link. The place stays,
+// unseen and hidden from a screen reader, so Edit sits where it does in the rows
+// that have one (the geometry is measured against real CSS in the metrics suite).
+export const DraftRowKeepsTheSharePlace: Story = {
+  play: async ({ canvasElement }) => {
+    const table = within(
+      within(canvasElement).getByRole('table', { name: /portals at avela resort/i }),
+    )
+    const draft = within(table.getByRole('link', { name: 'Pool bar' }).closest('tr')!)
+    await expect(draft.queryByRole('link', { name: /^Share / })).toBeNull()
+    await expect(draft.getByText('Share').closest('[aria-hidden="true"]')).not.toBeNull()
+    // The rows that can be shared keep their link.
+    const live = within(
+      table.getByRole('link', { name: 'Pool & Terrace' }).closest('tr')!,
+    )
+    await expect(
+      live.getByRole('link', { name: 'Share Pool & Terrace' }),
+    ).toBeInTheDocument()
+  },
+}
+
 export const GoalCardIsLiveAndNeutral: Story = {
   play: async ({ canvasElement }) => {
     const card = within(
@@ -136,7 +160,7 @@ export const GoalCardIsLiveAndNeutral: Story = {
       }),
     ).toHaveAttribute('aria-valuenow', '84')
     await expect(
-      card.getByText('Set by Elena Petrova · the month ends today'),
+      card.getByText('Set by Elena Petrova on Aug 12 · the month ends today'),
     ).toBeInTheDocument()
     await expect(card.getByRole('link', { name: /open in goals/i })).toBeInTheDocument()
   },
@@ -152,7 +176,7 @@ export const HistoryTellsWhatHappenedNewestFirst: Story = {
       history.getByText(/Spa & thermal pools moved here from Wellness/),
     ).toBeInTheDocument()
     await expect(
-      history.getByText('Its results before 12 Aug stay with Wellness'),
+      history.getByText('Its results before Aug 12 stay with Wellness'),
     ).toBeInTheDocument()
     await expect(
       history.getByText(/Elena Petrova created Pools with 3 portals/),
@@ -170,6 +194,39 @@ export const NoGoalYet: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText(/no goal for this group yet/i)).toBeInTheDocument()
     await expect(canvas.getByRole('link', { name: 'Set a goal' })).toBeInTheDocument()
+  },
+}
+
+/**
+ * A month whose target a manager changed shows the changed target, and names
+ * the person who changed it and what it started at in place of who set the goal.
+ */
+export const GoalCardNamesWhoChangedTheMonth: Story = {
+  args: {
+    goals: ready([
+      {
+        ...RATINGS_GOAL,
+        targetValue: 220,
+        monthTarget: {
+          changedAt: new Date('2026-09-20T09:00:00.000Z'),
+          changedBy: 'u-georgi',
+          startTarget: 250,
+          changeCount: 1,
+        },
+      },
+    ]),
+  },
+  play: async ({ canvasElement }) => {
+    const card = within(
+      within(canvasElement).getByRole('article', { name: 'September · Private ratings' }),
+    )
+    await expect(card.getByText('of 220 so far')).toBeInTheDocument()
+    await expect(
+      card.getByText(
+        'Changed by Georgi Ivanov on Sep 20, started at 250 · the month ends today',
+      ),
+    ).toBeInTheDocument()
+    await expect(card.queryByText(/Set by/)).toBeNull()
   },
 }
 
@@ -203,7 +260,7 @@ export const GoalNotOfferedToThisReader: Story = {
 }
 
 export const SideReadsWaitAndFailAlone: Story = {
-  args: { goals: { status: 'loading' }, history: { status: 'failed' } },
+  args: { goals: { status: 'loading' }, history: { status: 'failed', retrying: false } },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Loading the goal')).toBeInTheDocument()
@@ -223,15 +280,11 @@ export const EmptyGroup: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('No portals in this group yet.')).toBeInTheDocument()
+    await expect(canvas.getByText('No portals in this group yet')).toBeInTheDocument()
     await expect(
       canvas.getByText('Nothing has happened to this group yet.'),
     ).toBeInTheDocument()
-    await expect(
-      canvas.getByText(
-        'Group · 0 portals at Avela Resort · for shared results and goals',
-      ),
-    ).toBeInTheDocument()
+    await expect(canvas.getByText('0 portals at Avela Resort')).toBeInTheDocument()
   },
 }
 
@@ -265,9 +318,14 @@ export const ArchivingAsksFirstAndKeepsThePortals: Story = {
   args: { archiveGroupMutation: spy<{ data: { portalGroupId: string } }>() },
   play: async ({ canvasElement, args }) => {
     await userEvent.click(
-      within(canvasElement).getByRole('button', { name: 'Actions for group Pool side' }),
+      within(canvasElement).getByRole('button', {
+        name: 'More actions for group Pool side',
+      }),
     )
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Archive group…' }))
+    const item = await screen.findByRole('menuitem', { name: 'Archive group…' })
+    // A group has no restore, so its archive is red in the menu and in the confirm.
+    await expect(item).toHaveAttribute('data-variant', 'destructive')
+    await userEvent.click(item)
     const dialog = within(await screen.findByRole('alertdialog'))
     await expect(
       dialog.getByRole('heading', { name: 'Archive Pool side?' }),
@@ -276,7 +334,9 @@ export const ArchivingAsksFirstAndKeepsThePortals: Story = {
       dialog.getByText(/portals stay and become “Not in a group”/i),
     ).toBeInTheDocument()
     await expect(args.archiveGroupMutation).not.toHaveBeenCalled()
-    await userEvent.click(dialog.getByRole('button', { name: 'Archive group' }))
+    const confirm = dialog.getByRole('button', { name: 'Archive group' })
+    await expect(confirm).toHaveAttribute('data-variant', 'destructive')
+    await userEvent.click(confirm)
     await waitFor(() =>
       expect(args.archiveGroupMutation).toHaveBeenCalledWith({
         data: { portalGroupId: 'group-pool' },
@@ -285,22 +345,45 @@ export const ArchivingAsksFirstAndKeepsThePortals: Story = {
   },
 }
 
+async function chooseRemoveFromGroup(canvasElement: HTMLElement) {
+  await userEvent.click(
+    within(canvasElement).getByRole('button', { name: 'More actions for Pool bar' }),
+  )
+  await userEvent.click(
+    await screen.findByRole('menuitem', { name: 'Remove from group' }),
+  )
+  return within(await screen.findByRole('alertdialog'))
+}
+
+/** The menu item asks first; the portal leaves the group only when that is confirmed. */
 export const RemovingAPortalTakesItOutOfTheGroup: Story = {
   args: {
     removePortalMutation: spy<{ data: { portalGroupId: string; portalId: string } }>(),
   },
   play: async ({ canvasElement, args }) => {
-    await userEvent.click(
-      within(canvasElement).getByRole('button', { name: 'More actions for Pool bar' }),
-    )
-    await userEvent.click(
-      await screen.findByRole('menuitem', { name: 'Remove from group' }),
-    )
+    const dialog = await chooseRemoveFromGroup(canvasElement)
+    await expect(
+      dialog.getByRole('heading', { name: 'Remove Pool bar from Pool side?' }),
+    ).toBeInTheDocument()
+    await expect(args.removePortalMutation).not.toHaveBeenCalled()
+    await userEvent.click(dialog.getByRole('button', { name: 'Remove from group' }))
     await waitFor(() =>
       expect(args.removePortalMutation).toHaveBeenCalledWith({
         data: { portalGroupId: 'group-pool', portalId: 'p-bar' },
       }),
     )
+  },
+}
+
+export const KeepingAPortalInTheGroup: Story = {
+  args: {
+    removePortalMutation: spy<{ data: { portalGroupId: string; portalId: string } }>(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const dialog = await chooseRemoveFromGroup(canvasElement)
+    await userEvent.click(dialog.getByRole('button', { name: 'Keep in group' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    await expect(args.removePortalMutation).not.toHaveBeenCalled()
   },
 }
 

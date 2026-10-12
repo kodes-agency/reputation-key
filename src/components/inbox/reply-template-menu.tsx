@@ -10,7 +10,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
-import { CASE_SQUARE_CLASS } from './inbox-case-member'
 import {
   hasPropertyDefaultOption,
   replyLanguageEntryText,
@@ -31,6 +30,7 @@ import {
 } from './reply-language-options'
 import type { ReplyLanguageChoices } from './use-reply-composer'
 import type { ReplyAssistScope } from './use-reply-suggestion'
+import { IconButton } from '#/components/ui/icon-button'
 
 type TemplateOption = Readonly<{ id: string; title: string }>
 
@@ -91,7 +91,7 @@ type SwitchProps = Readonly<{
  * and then the list, and typeahead keeps working), each with `aria-current`
  * and a name that carries the source — visible `Turkish`, accessible
  * `Turkish · review language` (the visible word leads the name, WCAG 2.5.3).
- * The same row height as every menu item below `md` (`max-md:min-h-11`).
+ * The same row height as every menu item below `md` (the item's own touch height).
  *
  * `onSelect` prevents Radix's close-on-select: the point of switching is to
  * watch the list below re-scope, so the menu stays open.
@@ -105,7 +105,7 @@ function TemplateLanguageSwitch({ entries, onSwitch }: SwitchProps) {
           disabled={entry.disabledReason !== null}
           aria-current={entry.isSelected ? 'true' : undefined}
           aria-label={replyLanguageEntryText(entry)}
-          className="flex-1 justify-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground aria-[current=true]:bg-background aria-[current=true]:text-foreground aria-[current=true]:shadow-xs max-md:min-h-11"
+          className="flex-1 justify-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground aria-[current=true]:bg-background aria-[current=true]:text-foreground aria-[current=true]:shadow-xs"
           onSelect={(event) => {
             event.preventDefault()
             if (!entry.isSelected) onSwitch(entry.tag)
@@ -181,7 +181,7 @@ export function ReplyTemplateMenu(props: ReplyTemplateMenuProps) {
           type="button"
           size="sm"
           variant="outline"
-          className={`${CASE_SQUARE_CLASS} aria-disabled:opacity-50`}
+          iconBelow="md"
           // Blocked-with-a-reason is `aria-disabled`, not `disabled`: a natively
           // disabled button leaves the tab order and takes its
           // `aria-describedby` with it, so the one sentence saying why this
@@ -200,7 +200,7 @@ export function ReplyTemplateMenu(props: ReplyTemplateMenuProps) {
             void props.onLoadRecommended()
           }}
         >
-          <ShieldCheck data-icon="inline-start" aria-hidden="true" />
+          <ShieldCheck aria-hidden="true" />
           <span className={ASSIST_LABEL_CLASS}>
             {props.isLoadingTemplate ? 'Loading…' : 'Template'}
           </span>
@@ -211,17 +211,16 @@ export function ReplyTemplateMenu(props: ReplyTemplateMenuProps) {
           }}
         >
           <DropdownMenuTrigger asChild>
-            <Button
+            <IconButton
               type="button"
               size="icon-sm"
               variant="outline"
-              className="max-md:size-9"
               disabled={props.disabled}
-              aria-label="Choose a reply template"
+              label="Choose a reply template"
               aria-describedby={describedBy}
             >
-              <ChevronDown data-icon="inline-start" aria-hidden="true" />
-            </Button>
+              <ChevronDown aria-hidden="true" />
+            </IconButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"
@@ -250,14 +249,13 @@ export function ReplyTemplateMenu(props: ReplyTemplateMenuProps) {
               {props.templates.map((template) => (
                 <DropdownMenuItem
                   key={template.id}
-                  className="max-md:min-h-11"
                   onSelect={() => void props.onLoadTemplate(template.id, template.title)}
                 >
                   {template.title}
                 </DropdownMenuItem>
               ))}
               {props.templates.length === 0 && (
-                <DropdownMenuItem disabled className="max-md:min-h-11">
+                <DropdownMenuItem disabled>
                   {props.isLoadingTemplate
                     ? 'Loading property templates…'
                     : 'No library templates for this review'}
@@ -265,10 +263,7 @@ export function ReplyTemplateMenu(props: ReplyTemplateMenuProps) {
               )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="max-md:min-h-11"
-              onSelect={() => void props.onLoadLocalSafe()}
-            >
+            <DropdownMenuItem onSelect={() => void props.onLoadLocalSafe()}>
               Local safe template
             </DropdownMenuItem>
           </DropdownMenuContent>

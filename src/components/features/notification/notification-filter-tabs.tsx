@@ -1,72 +1,43 @@
-// Filter tabs shared by the bell popover and the /notifications page.
+// The /notifications page's filter: Needs you, Updates and All, drawn as the same
+// underline as every page-level view switch. Each option is a search value of the
+// route (`?filter=`), so the filter is a `LinkTabs` (decision 7 of the UI
+// consistency plan): a filtered view has an address, a reload or a shared link
+// reads the same feed, and Back steps between the filters as it does between
+// People's views. It is a navigation landmark with `aria-current`, not an ARIA
+// tablist, because the feed below is the route's, and the property filter beside
+// it travels with the link.
 //
-// One `TabsContent` per option (the repo's Tabs precedent) so every trigger's
-// `aria-controls` resolves; Radix mounts only the active panel, so `children`
-// renders exactly once.
-//
-// Activation is manual: arrows move focus, Enter or Space chooses. Each tab
-// starts a server read, so automatic activation fired a request (and a
-// loading flash) for every tab a keyboard user merely passed.
-
+// Choosing is a link, so a keyboard user passing one does not start a server read
+// for it: arrows are not a thing here, Tab moves between links and Enter follows
+// one. (The Radix tablist this replaced needed `activationMode="manual"` for that.)
 import type { ReactNode } from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { cn } from '#/lib/utils'
-import {
-  NOTIFICATION_FILTERS,
-  parseNotificationFilter,
-  type NotificationFilter,
-} from './notification-filters'
+import { LinkTab, LinkTabs } from '#/components/ui/link-tabs'
+import { NOTIFICATION_FILTERS, type NotificationFilter } from './notification-filters'
 
 type Props = Readonly<{
+  /** The filter the page is on, which is the route's `filter`. */
   value: NotificationFilter
-  onChange: (value: NotificationFilter) => void
+  /** The feed for `value`. */
   children: ReactNode
   className?: string
-  listClassName?: string
-  contentClassName?: string
 }>
 
-export function NotificationFilterTabs({
-  value,
-  onChange,
-  children,
-  className,
-  listClassName,
-  contentClassName,
-}: Props) {
+export function NotificationFilterTabs({ value, children, className }: Props) {
   return (
-    <Tabs
-      value={value}
-      activationMode="manual"
-      onValueChange={(next) => onChange(parseNotificationFilter(next))}
-      className={cn('gap-0', className)}
-    >
-      <TabsList
-        variant="line"
-        aria-label="Filter notifications"
-        // The vendored list pins its height with a group variant, which a
-        // plain `h-auto` cannot outrank; wrapped tabs then spilled over the
-        // list below on a phone.
-        className={cn(
-          'w-full flex-wrap justify-start gap-x-1 group-data-[orientation=horizontal]/tabs:h-auto',
-          listClassName,
-        )}
-      >
+    <div className={className}>
+      <LinkTabs aria-label="Filter notifications">
         {NOTIFICATION_FILTERS.map((option) => (
-          <TabsTrigger
+          <LinkTab
             key={option.value}
-            value={option.value}
-            className="flex-none text-xs"
+            to="/notifications"
+            search={(previous) => ({ ...previous, filter: option.value })}
+            current={option.value === value}
           >
             {option.label}
-          </TabsTrigger>
+          </LinkTab>
         ))}
-      </TabsList>
-      {NOTIFICATION_FILTERS.map((option) => (
-        <TabsContent key={option.value} value={option.value} className={contentClassName}>
-          {children}
-        </TabsContent>
-      ))}
-    </Tabs>
+      </LinkTabs>
+      {children}
+    </div>
   )
 }

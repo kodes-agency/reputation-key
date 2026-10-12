@@ -1,4 +1,4 @@
-import { Button } from '#/components/ui/button'
+import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import { FieldGroup } from '#/components/ui/field'
 import {
   Popover,
@@ -8,7 +8,7 @@ import {
   PopoverTrigger,
 } from '#/components/ui/popover'
 import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/aspect-labels'
-import { Filter, X } from 'lucide-react'
+import { ListFilter } from 'lucide-react'
 import { InboxFilterSelect } from './inbox-filter-select'
 import {
   ATTENTION_OPTIONS,
@@ -22,6 +22,7 @@ import {
   countActiveInboxFilters,
   type InboxListFilterValues,
 } from './inbox-filters'
+import { IconButton } from '#/components/ui/icon-button'
 
 const TITLE_ID = 'inbox-filter-popover-title'
 
@@ -35,17 +36,17 @@ export function InboxFilterPopover({ value, onChange }: Props) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button
+        <IconButton
           variant="outline"
           size="icon-sm"
           className="relative"
-          aria-label={activeCount > 0 ? `Filters, ${activeCount} active` : 'Filters'}
+          label={activeCount > 0 ? `Filters, ${activeCount} active` : 'Filters'}
         >
-          <Filter />
+          <ListFilter />
           {activeCount > 0 && (
             <span className="absolute top-1 right-1 size-1.5 rounded-full bg-foreground" />
           )}
-        </Button>
+        </IconButton>
       </PopoverTrigger>
       {/* role="dialog" with no accessible name fails axe (aria-dialog-name).
           PopoverTitle is not wired to the content the way DialogTitle is, so
@@ -53,20 +54,19 @@ export function InboxFilterPopover({ value, onChange }: Props) {
       <PopoverContent
         align="end"
         collisionPadding={8}
+        data-density="compact"
         className="w-72"
         aria-labelledby={TITLE_ID}
       >
         <PopoverHeader className="mb-4 flex-row items-center justify-between">
           <PopoverTitle id={TITLE_ID}>Filters</PopoverTitle>
-          <Button
-            variant="ghost"
+          {/* No search is in force here: the header shows the search instead of this control. */}
+          <ClearFiltersButton
             size="xs"
+            searching={false}
             disabled={activeCount === 0}
-            onClick={() => onChange(CLEARED_INBOX_LIST_FILTERS)}
-          >
-            <X data-icon="inline-start" />
-            Clear
-          </Button>
+            onClear={() => onChange(CLEARED_INBOX_LIST_FILTERS)}
+          />
         </PopoverHeader>
         <FieldGroup className="gap-4">
           <InboxFilterSelect

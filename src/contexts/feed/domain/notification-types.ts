@@ -24,6 +24,12 @@ export const NOTIFICATION_TYPES = [
   'account.organization_access_granted',
   'account.organization_role_changed',
   'account.organization_access_removed',
+  // An AccountAdmin changed which Properties a PropertyManager can work. Goes
+  // to that member; names the Organization, never the AccountAdmin (r.8).
+  'account.organization_property_access_changed',
+  // Somebody the recipient invited joined. Goes to the inviter; names the
+  // Organization, never the person who joined (r.8).
+  'account.invitation_accepted',
   // LIF-01 program bullet 5: the MANDATORY final notice at Purge Pending.
   // Closing suppresses ordinary product mail; this one is carved out, because
   // it is the last chance anybody has to stop an irreversible erasure.

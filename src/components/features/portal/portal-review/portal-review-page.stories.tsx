@@ -5,8 +5,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
-import type { Action } from '#/components/hooks/use-action'
-import type { UpdatePortalVariables } from '../shared/types'
 import {
   PREVIEW_DRAFT,
   PREVIEW_DRAFT_ONE_LANGUAGE,
@@ -23,11 +21,6 @@ import {
   REVIEW_PROPERTY_ID,
 } from './__fixtures__/portal-review-fixtures'
 import { PortalReviewPage } from './portal-review-page'
-
-const idleMutation = Object.assign(
-  async (_input: UpdatePortalVariables) => ({ success: true }),
-  { isPending: false, error: null as unknown, isSuccess: false, data: null },
-) as Action<UpdatePortalVariables, { success: boolean }>
 
 /** The four languages of board 05; the German and Spanish pages reuse the English one. */
 const FOUR_LANGUAGES = {
@@ -56,8 +49,6 @@ const meta = {
     getPortalPreview: previewReader({ draft: FOUR_LANGUAGES }),
     onPublish: fn(),
     isPublishing: false,
-    updateMutation: idleMutation,
-    canManage: true,
   },
 } satisfies Meta<typeof PortalReviewPage>
 
@@ -78,7 +69,7 @@ export const LiveWithChanges: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      canvas.getByRole('heading', { level: 2, name: /What guests will see change/ }),
+      canvas.getByRole('heading', { level: 2, name: /Changes guests will see/ }),
     ).toHaveTextContent('2')
     await expect(
       canvas.getByRole('button', {
@@ -104,6 +95,24 @@ export const LiveWithChanges: Story = {
     await expect(canvas.getByText('Printed codes keep working')).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Publish changes' })).toBeEnabled()
     await expect(canvas.getByRole('link', { name: 'Back to editing' })).toBeVisible()
+  },
+}
+
+/**
+ * Below `lg` the page is one column read top to bottom, so what guests will see
+ * comes before the footer that publishes, and the footer is pinned across the
+ * whole page rather than inside the lists.
+ */
+export const PreviewComesBeforePublish: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const phones = canvas.getByRole('region', { name: 'What guests will see' })
+    const publish = canvas.getByRole('button', { name: 'Publish changes' })
+    await expect(
+      phones.compareDocumentPosition(publish) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    const footer = publish.closest('footer')
+    await expect(footer?.parentElement).toBe(phones.closest('aside')?.parentElement)
   },
 }
 
@@ -174,13 +183,21 @@ export const BlockedByAMissingCode: Story = {
   },
 }
 
+/** Nothing waits: the footer says which version is live, and the way back is the action. */
 export const NothingToPublish: Story = {
   args: { review: REVIEW_NOTHING_TO_PUBLISH },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Nothing has changed since version 5.')).toBeVisible()
-    await expect(canvas.getByRole('button', { name: 'Publish changes' })).toBeDisabled()
-    await expect(canvas.getByText('Nothing to publish')).toBeVisible()
+    await expect(canvas.getByText('Version 5 is live · nothing waiting')).toBeVisible()
+    // No version to be, no promise about printed codes, no button that cannot be used.
+    await expect(canvas.queryByText(/Publishes as version/)).toBeNull()
+    await expect(canvas.queryByText('Printed codes keep working')).toBeNull()
+    await expect(canvas.queryByRole('button', { name: 'Publish changes' })).toBeNull()
+    const back = canvas.getAllByRole('link', { name: 'Back to editing' })
+    await expect(back).toHaveLength(1)
+    await expect(back[0]).toHaveAttribute('data-slot', 'button')
+    await expect(back[0]).not.toHaveAttribute('aria-current')
   },
 }
 
@@ -195,7 +212,12 @@ export const FirstPublication: Story = {
     await expect(
       canvas.getByRole('heading', { level: 2, name: 'What guests will see' }),
     ).toBeVisible()
-    await expect(canvas.getByText(/Nothing is public yet/)).toBeVisible()
+    // Words that hold at every width: the preview is beside the lists or under them.
+    await expect(
+      canvas.getByText(/Publishing opens the guest page in the preview/),
+    ).toBeVisible()
+    await expect(canvas.queryByText(/on the right/)).toBeNull()
+    await expect(canvas.getByRole('button', { name: 'See the guest page' })).toBeVisible()
     await expect(canvas.getByText('Publishes as version 1')).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Publish portal' })).toBeEnabled()
     // A page that is not live offers nothing to turn off.
@@ -205,13 +227,13 @@ export const FirstPublication: Story = {
   },
 }
 
-/** A live page can still be turned off, as the interim page offered. */
-export const LiveCanBeDisabled: Story = {
+/** Taking a live page down is not a step of publishing: the review offers no "Disable public page". */
+export const LiveOffersNoDisable: Story = {
   args: { review: REVIEW_ALL_CLEAR },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByRole('button', { name: /disable public page/i }),
-    ).toBeVisible()
+      within(canvasElement).queryByRole('button', { name: /disable public page/i }),
+    ).toBeNull()
   },
 }
 
@@ -282,7 +304,7 @@ export const PreviewFailure: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      await canvas.findByText('The preview couldn’t be loaded', undefined, WAIT),
+      await canvas.findByText('The preview couldn’t be loaded.', undefined, WAIT),
     ).toBeVisible()
     // The lists beside it are unaffected.
     await expect(canvas.getByText('Publishes as version 6')).toBeVisible()

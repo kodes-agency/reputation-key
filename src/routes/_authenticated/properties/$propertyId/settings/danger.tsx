@@ -34,6 +34,9 @@ function PropertyDangerSettings() {
     responsibleManagersQuery(propertyId),
   )
   const invalidateKeys = [propertyKeys.detail(propertyId), propertyKeys.list()]
+  // Each of these is confirmed in a dialog that stays open while it runs and
+  // says a refusal itself, in a banner above its actions. None passes an
+  // `errorMessage`: a toast as well would tell the person twice.
   const archive = useActionMutation(archiveProperty, {
     successMessage: 'Property archived. Its settings and history are retained.',
     invalidateKeys,

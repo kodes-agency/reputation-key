@@ -10,7 +10,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
-import { CASE_SQUARE_CLASS } from './inbox-case-member'
 import {
   hasPropertyDefaultOption,
   replyLanguageMenuEntries,
@@ -27,6 +26,7 @@ import {
 import type { ReviewLanguageReadiness } from './reply-language-options'
 import type { ReplyLanguageChoices } from './use-reply-composer'
 import type { ReplyTone } from './use-reply-suggestion'
+import { IconButton } from '#/components/ui/icon-button'
 
 export type ReplyAiMenuProps = Readonly<{
   tone: ReplyTone
@@ -63,14 +63,6 @@ const TONE_LABEL: Readonly<Record<ReplyTone, string>> = {
 const TONES = Object.keys(TONE_LABEL) as ReadonlyArray<ReplyTone>
 
 /**
- * Below `md` both halves of the split button are 36 px (row 20): the primary
- * collapses to its sparkle in `CASE_SQUARE_CLASS`'s square — the case
- * toolbar's control geometry, reused so the dock and the toolbar cannot drift
- * — and the chevron grows from `icon-sm`'s 32 to 36 in both axes.
- */
-const CHEVRON_CLASS = 'max-md:size-9'
-
-/**
  * `Draft with AI ▾` (plan v2.1 row 17). The dropdown holds everything the
  * draft is made WITH: the `Tone` group, then — below a separator — the
  * `Write in` group, one row per `ReplyLanguageOption`. The language used to be
@@ -105,7 +97,7 @@ export function ReplyAiMenu(props: ReplyAiMenuProps) {
           type="button"
           size="sm"
           variant="outline"
-          className={`${CASE_SQUARE_CLASS} aria-disabled:opacity-50`}
+          iconBelow="md"
           // Blocked-with-a-reason is `aria-disabled`, not `disabled`: a natively
           // disabled button leaves the tab order and takes its
           // `aria-describedby` with it, so the one sentence saying why this
@@ -122,24 +114,23 @@ export function ReplyAiMenu(props: ReplyAiMenuProps) {
             void props.onRequestAi()
           }}
         >
-          <Sparkles data-icon="inline-start" aria-hidden="true" />
+          <Sparkles aria-hidden="true" />
           <span className={ASSIST_LABEL_CLASS}>
             {props.isGenerating ? 'Drafting…' : 'Draft with AI'}
           </span>
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
+            <IconButton
               type="button"
               size="icon-sm"
               variant="outline"
-              className={CHEVRON_CLASS}
               disabled={props.disabled}
-              aria-label={`AI tone and language: ${TONE_LABEL[props.tone]}${languageName ? `, ${languageName}` : ''}`}
+              label={`AI tone and language: ${TONE_LABEL[props.tone]}${languageName ? `, ${languageName}` : ''}`}
               aria-describedby={describedBy}
             >
-              <ChevronDown data-icon="inline-start" aria-hidden="true" />
-            </Button>
+              <ChevronDown aria-hidden="true" />
+            </IconButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"
@@ -152,7 +143,6 @@ export function ReplyAiMenu(props: ReplyAiMenuProps) {
                 <DropdownMenuItem
                   key={tone}
                   aria-current={tone === props.tone ? 'true' : undefined}
-                  className="max-md:min-h-11"
                   onSelect={() => props.onToneChange(tone)}
                 >
                   {TONE_LABEL[tone]}

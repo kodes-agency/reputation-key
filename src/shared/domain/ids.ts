@@ -92,6 +92,12 @@ export type InvitationId = Brand<string, 'InvitationId'>
 export function invitationId(id: string): InvitationId {
   return id as InvitationId
 }
+/**
+ * The longest invitation id the anonymous link preview reads. The link pages
+ * hold the same bound, so an id too long to be ours reads as "no invitation"
+ * there instead of being refused by the server.
+ */
+export const INVITATION_ID_MAX_LENGTH = 128
 
 export type GoogleConnectionId = Brand<string, 'GoogleConnectionId'>
 export type MetricReadingId = Brand<string, 'MetricReadingId'>

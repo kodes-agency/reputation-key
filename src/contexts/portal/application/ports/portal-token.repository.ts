@@ -20,6 +20,12 @@ export type ResolvablePortalTokenSummary = Readonly<{
    * only: the ciphertext never leaves `PortalAddressRepository`.
    */
   addressKeyVersion: number | null
+  /**
+   * Who made this code, as the user id `portal_tokens.issued_by` recorded (or an
+   * operator reference); null for a code made before the column was written.
+   * An identifier only: names are resolved by the reader that shows them.
+   */
+  issuedBy: string | null
 }>
 
 export type PortalAccessArtifactReadinessGap = Readonly<{

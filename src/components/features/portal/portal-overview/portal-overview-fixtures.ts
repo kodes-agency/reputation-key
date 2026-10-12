@@ -11,6 +11,7 @@ const WORKING_CODE: PortalOverviewRow['token'] = {
   issuedAt: '2026-09-01T09:00:00.000Z',
   graceExpiresAt: null,
   addressRecoverable: false,
+  madeBy: null,
 }
 
 export const NO_CODE: PortalOverviewRow['token'] = {
@@ -20,6 +21,13 @@ export const NO_CODE: PortalOverviewRow['token'] = {
   issuedAt: null,
   graceExpiresAt: null,
   addressRecoverable: false,
+  madeBy: null,
+}
+
+/** A live code issued before access artifacts: it works, but its scans are not counted. */
+export const OLDER_CODE: PortalOverviewRow['token'] = {
+  ...WORKING_CODE,
+  qualifiedScanReady: false,
 }
 
 export const overviewGroup = (id: string, name: string) => ({

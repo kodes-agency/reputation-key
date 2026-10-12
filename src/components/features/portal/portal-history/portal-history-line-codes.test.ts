@@ -66,7 +66,7 @@ describe('describeHistoryEntry: codes', () => {
       }),
     ).toMatchObject({
       action: 'replaced the code',
-      detail: 'the old one works until 14 Oct',
+      detail: 'the old one works until Oct 14',
     })
     expect(
       line({ kind: 'code_replaced', version: 2, previousCodesWorkUntil: null }),
@@ -86,7 +86,7 @@ describe('describeHistoryEntry: codes', () => {
         null,
         'Pacific/Auckland',
       ),
-    ).toMatchObject({ detail: 'the old one works until 15 Oct' })
+    ).toMatchObject({ detail: 'the old one works until Oct 15' })
   })
 
   it('says what a download was for', () => {

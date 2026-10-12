@@ -6,7 +6,9 @@
 //   - qualified scans and private notes: the change against the period before;
 //   - private ratings and Google opens: the share of qualified scans, unless
 //     scans are not known or fewer than the step counted (a share over 100% is
-//     a bug to a reader), when it falls back to the change;
+//     a bug to a reader), when it falls back to the change. Where the reader
+//     can switch the comparison (the Results tab), the share and the change are
+//     both said, so the switch visibly does something to these two cells;
 //   - the average: the sample it rests on, and its comparison in stars.
 // A figure that is not ready is a dash with the reason, never a zero. Every
 // floor comes from the server (`thresholds`); this file keeps none.
@@ -25,6 +27,7 @@ import {
   type MetricEvidenceSubject,
 } from '#/components/features/dashboard/metric-availability-presentation'
 import { dayCount } from './portal-results-window'
+import { formatNumber } from '#/lib/format'
 
 export type ResultsCellKey = 'scans' | 'ratings' | 'average' | 'googleOpens' | 'notes'
 
@@ -40,7 +43,15 @@ export type ResultsCell = Readonly<{
   detail: string | null
 }>
 
-type Options = Readonly<{ compare: boolean }>
+type Options = Readonly<{
+  compare: boolean
+  /**
+   * Say the change beside the share ("16% of scans · +9 vs the 30 days
+   * before") instead of only the share. The Results tab's, whose switch turns
+   * the comparison on and off; a strip that always compares keeps the share.
+   */
+  shareAndChange?: boolean
+}>
 type Count = PortalCountKPIValue
 type LocalDays = NonNullable<PortalAnalyticsData['localDays']>
 
@@ -78,11 +89,9 @@ export const RESULTS_LABELS = {
 
 export const DASH = '—'
 
-export const formatCount = (value: number) => value.toLocaleString('en-US')
-
 function signed(delta: number): string {
   if (delta === 0) return 'No change'
-  return `${delta > 0 ? '+' : '−'}${formatCount(Math.abs(delta))}`
+  return `${delta > 0 ? '+' : '−'}${formatNumber(Math.abs(delta))}`
 }
 
 /** "the 30 days before", from the window's own local days. */
@@ -144,6 +153,21 @@ function shareOfScans(
   return shareLine(count, kpis.scans.value)
 }
 
+/** The one line under ratings or Google opens: the share, the change, or both when asked. */
+function shareAndChangeLine(
+  key: 'ratings' | 'googleOpens',
+  kpi: Count,
+  data: ResultsMeasuresInput,
+  options: Options,
+): string | null {
+  const share = shareOfScans(key, data)
+  const change = changeLine(kpi, data, options)
+  if (options.shareAndChange === true && share !== null && change !== null) {
+    return `${share} · ${change}`
+  }
+  return share ?? change
+}
+
 function countCell(
   key: ResultsCellKey,
   label: string,
@@ -162,7 +186,7 @@ function countCell(
       detail: notReadyLine(subject, kpi.evidence, timeZone),
     }
   }
-  return { key, label, subject, value: formatCount(kpi.value), unit: null, detail }
+  return { key, label, subject, value: formatNumber(kpi.value), unit: null, detail }
 }
 
 function starChange(comparison: number): string {
@@ -171,7 +195,7 @@ function starChange(comparison: number): string {
 }
 
 function ratingsWord(count: number): string {
-  return count === 1 ? '1 rating' : `${formatCount(count)} ratings`
+  return count === 1 ? '1 rating' : `${formatNumber(count)} ratings`
 }
 
 /** The reason an average is withheld for want of ratings (the domain's `AVERAGE_BELOW_MINIMUM_REASON`). */
@@ -194,7 +218,7 @@ function averageCell(data: ResultsMeasuresInput, options: Options): ResultsCell 
           : notReadyLine('ratings', evidence, data.timezone)
     return { ...base, value: DASH, unit: null, detail }
   }
-  const parts = [`from ${formatCount(avgRating.sampleCount)}`]
+  const parts = [`from ${formatNumber(avgRating.sampleCount)}`]
   if (options.compare) {
     if (avgRating.comparison !== null) parts.push(starChange(avgRating.comparison))
     else if (avgRating.comparisonWithheld === 'sample_too_small') {
@@ -228,7 +252,7 @@ export function measureCells(
       RESULTS_LABELS.ratings,
       'ratings',
       kpis.ratings,
-      shareOfScans('ratings', data) ?? changeLine(kpis.ratings, data, options),
+      shareAndChangeLine('ratings', kpis.ratings, data, options),
       zone,
     ),
     averageCell(data, options),
@@ -237,7 +261,7 @@ export function measureCells(
       RESULTS_LABELS.googleOpens,
       'google_opens',
       kpis.googleOpens,
-      shareOfScans('googleOpens', data) ?? changeLine(kpis.googleOpens, data, options),
+      shareAndChangeLine('googleOpens', kpis.googleOpens, data, options),
       zone,
     ),
     countCell(
@@ -262,6 +286,6 @@ export function resultsCells(
       timezone: data.period.timezone,
       localDays: data.localDays,
     },
-    options,
+    { ...options, shareAndChange: true },
   )
 }

@@ -5,13 +5,12 @@
 // but cannot be clicked.
 //
 // A row goes inert when the destination route's own capability gate
-// (`gateControlledRoute` in its `beforeLoad`) would bounce the user to
-// `/unavailable`, so the nav never offers a dead link. Disabling here is a UI
+// (`gateControlledRoute` in its `beforeLoad`) would answer with the unavailable
+// page, so the nav never offers a dead link. Disabling here is a UI
 // affordance, not a security boundary — the route gate and every server
 // function still authorize independently (ADR 0049, mirroring the note in
 // `controlled-route-gate.ts`).
 import type { ReactNode } from 'react'
-import { Link } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -34,6 +33,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
+import { NavLink } from '#/components/ui/nav-link'
 import { Tooltip, TooltipContent, TooltipTrigger } from '#/components/ui/tooltip'
 
 /** Destination of a live row: path plus whichever of params/search it needs. */
@@ -75,10 +75,10 @@ export function LinkNavItem({
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild isActive={isActive} tooltip={label}>
-        <Link {...link}>
+        <NavLink {...link} current={isActive}>
           <Icon />
           <span>{label}</span>
-        </Link>
+        </NavLink>
       </SidebarMenuButton>
       {badge}
     </SidebarMenuItem>
@@ -145,10 +145,12 @@ export function CategoryNavItem({
     <Collapsible asChild defaultOpen={isActive} className="group/collapsible">
       <SidebarMenuItem>
         <SidebarMenuButton asChild isActive={isActive} tooltip={label}>
-          <Link {...link}>
+          {/* The category is where you are, drawn active; the page you are on is
+              the sub-page below it that links to it, so only that one is current. */}
+          <NavLink {...link} current={false}>
             <Icon />
             <span>{label}</span>
-          </Link>
+          </NavLink>
         </SidebarMenuButton>
         <CollapsibleTrigger asChild>
           <SidebarMenuAction aria-label={`Toggle ${label} pages`}>
@@ -180,9 +182,9 @@ export function CategoryNavSubItem({
             : undefined
         }
       >
-        <Link {...link} aria-current={isActive ? 'page' : undefined}>
+        <NavLink {...link} current={isActive}>
           {label}
-        </Link>
+        </NavLink>
       </DropdownMenuItem>
     )
   }
@@ -190,9 +192,9 @@ export function CategoryNavSubItem({
   return (
     <SidebarMenuSubItem>
       <SidebarMenuSubButton asChild isActive={isActive}>
-        <Link {...link}>
+        <NavLink {...link} current={isActive}>
           <span>{label}</span>
-        </Link>
+        </NavLink>
       </SidebarMenuSubButton>
     </SidebarMenuSubItem>
   )

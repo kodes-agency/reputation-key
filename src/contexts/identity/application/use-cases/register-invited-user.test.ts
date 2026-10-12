@@ -117,12 +117,15 @@ describe('registerInvitedUser', () => {
         role: 'admin',
       }),
     ])
-    expect(fixture.outbox.byTag('identity.invitation.accepted')).toHaveLength(1)
+    const accepted = fixture.outbox.byTag('identity.invitation.accepted')
+    expect(accepted).toHaveLength(1)
+    expect(accepted[0]?.inviterId).toBe('user-inviter')
     expect(fixture.complete).toHaveBeenCalledWith('10000000-0000-4000-8000-000000000001')
     expect(fixture.runOnAccepted).toHaveBeenCalledWith({
       userId: 'user-preallocated-manager',
       organizationId: 'org-manager',
       propertyIds: ['property-1'],
+      inviterId: 'user-inviter',
       displayName: 'New Manager',
     })
   })

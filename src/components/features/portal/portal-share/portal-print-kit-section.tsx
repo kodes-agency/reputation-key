@@ -1,12 +1,15 @@
 // The Print kit section of the Share tab: which piece, in which languages, with
-// which call to action, and the download. What is chosen drives the preview
-// beside it; the PDF is made by the server from the same choice.
+// which call to action, the download, and how to print the piece (a table tent
+// needs a print shop; a counter card prints on A4 or Letter at actual size).
+// What is chosen drives the preview beside it; the PDF is made by the server
+// from the same choice.
 
 import { Download, RectangleVertical, Triangle } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { Button } from '#/components/ui/button'
 import { Label } from '#/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
 import {
@@ -19,7 +22,7 @@ import {
   type PrintKitChoice,
   type PrintKitPiece,
 } from '#/shared/domain/portal-print-kit'
-import { languageChoiceLabel } from './print-kit-state'
+import { languageChoiceLabel, printKitPrintAdvice } from './print-kit-state'
 
 const PIECE_ICONS: Readonly<
   Record<PrintKitPiece, ComponentType<{ className?: string }>>
@@ -31,11 +34,12 @@ type Props = Readonly<{
   choice: PrintKitChoice | null
   isError: boolean
   onRetry: () => void
+  /** Try again is reading; the error stays, its button busy. */
+  isRetrying?: boolean
   onChoiceChange: (choice: PrintKitChoice) => void
   /** Why the download is off, or null when it is on. */
   unavailableReason: string | null
   isWorking: boolean
-  errorMessage: string | null
   onDownload: () => void
 }>
 
@@ -44,10 +48,10 @@ export function PortalPrintKitSection({
   choice,
   isError,
   onRetry,
+  isRetrying = false,
   onChoiceChange,
   unavailableReason,
   isWorking,
-  errorMessage,
   onDownload,
 }: Props) {
   return (
@@ -57,16 +61,16 @@ export function PortalPrintKitSection({
           Print kit
         </h2>
         <p className="text-sm text-muted-foreground">
-          A print-ready PDF with your code on it, for a print shop or your own printer.
+          A print-ready PDF with your code on it, with bleed and crop marks.
         </p>
       </div>
       {isError && (
-        <p className="text-sm text-destructive" role="alert">
-          The print kit could not be loaded.{' '}
-          <Button type="button" variant="link" className="h-auto p-0" onClick={onRetry}>
-            Try again
-          </Button>
-        </p>
+        <RegionError
+          size="compact"
+          message="The print kit couldn’t be loaded."
+          onRetry={onRetry}
+          retrying={isRetrying}
+        />
       )}
       {view === null || choice === null ? (
         !isError && <Loading />
@@ -76,22 +80,21 @@ export function PortalPrintKitSection({
       <div className="flex flex-col gap-2">
         <Button
           type="button"
-          className="min-h-11 self-start sm:min-h-9"
+          className="self-start"
           disabled={
             view === null || choice === null || unavailableReason !== null || isWorking
           }
           onClick={onDownload}
         >
-          <Download data-icon="inline-start" />{' '}
-          {isWorking ? 'Making the PDF…' : 'Download print kit (PDF)'}
+          <Download /> {isWorking ? 'Making the PDF…' : 'Download print kit (PDF)'}
         </Button>
+        {choice !== null && (
+          <p className="text-sm text-muted-foreground">
+            {printKitPrintAdvice(choice.piece)}
+          </p>
+        )}
         {unavailableReason !== null && (
           <p className="text-sm text-muted-foreground">{unavailableReason}</p>
-        )}
-        {errorMessage !== null && (
-          <p className="text-sm text-destructive" role="alert">
-            {errorMessage}
-          </p>
         )}
       </div>
     </section>

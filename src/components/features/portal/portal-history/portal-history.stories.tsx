@@ -21,6 +21,9 @@ import {
   storyHistoryFor,
 } from './__fixtures__/portal-history-stories-data'
 import { PortalHistoryView, type HistorySelection } from './portal-history-view'
+import { listedTileCount } from './portal-version-page-note'
+import { PortalVersionPreview } from './portal-version-preview'
+import { storyVersionPreview } from './__fixtures__/portal-version-preview-stories-data'
 
 type HarnessProps = Readonly<{
   entriesState?: 'loading' | 'error' | 'ready'
@@ -32,12 +35,16 @@ type HarnessProps = Readonly<{
   initialSelection?: HistorySelection | null
   detailStatus?: 'loading' | 'error' | 'ready'
   restoreError?: string | null
+  /** The restore request is in flight. */
+  submitting?: boolean
   entries?: typeof STORY_ENTRIES
   note?: string | null
   /** Version 4 was made live again after version 5; the draft is still on 5. */
   afterRestore?: boolean
   /** Confirming succeeds: the confirmation closes, as the tab does. */
   confirmSucceeds?: boolean
+  /** The dialog draws the version's page (the tab's container passes it; here it answers from data). */
+  withPagePreview?: boolean
   onConfirm?: (version: number) => void
 }>
 
@@ -52,10 +59,12 @@ function Harness({
   initialSelection = null,
   detailStatus = 'ready',
   restoreError = null,
+  submitting = false,
   entries,
   note = null,
   afterRestore = false,
   confirmSucceeds = false,
+  withPagePreview = false,
   onConfirm = fn(),
 }: HarnessProps) {
   const [filter, setFilter] = useState<HistoryFilterKey>(initialFilter)
@@ -106,16 +115,28 @@ function Harness({
       }
       versions={versions}
       versionsFailed={versionsFailed}
+      onRetryVersions={fn()}
       pendingChangeCount={pendingChanges}
       canMakeLive={canMakeLive}
       note={note}
       selection={selection}
+      versionPreview={
+        withPagePreview && selection ? (
+          <PortalVersionPreview
+            key={selection.version}
+            portalId="portal-1"
+            version={selection.version}
+            getVersionPreview={async ({ data }) => storyVersionPreview(data.version)}
+            listedTileCount={listedTileCount(details[selection.version] ?? null)}
+          />
+        ) : null
+      }
       detail={{
         status: detailStatus,
         detail: selection ? (details[selection.version] ?? null) : null,
         retry: fn(),
       }}
-      submitting={false}
+      submitting={submitting}
       restoreError={restoreError}
       onSelect={setSelection}
       onConfirmRestore={(version) => {
@@ -329,6 +350,42 @@ export const MakeLiveAgainFailed: Story = {
   },
 }
 
+// The confirmation in the dialog holds it open while the request runs: Escape is
+// refused, so the refusal banner always has the surface it appears on.
+export const MakeLiveAgainDialogHeldWhileSubmitting: Story = {
+  args: {
+    initialSelection: { version: 4, mode: 'restore', host: 'dialog' },
+    submitting: true,
+  },
+  play: async () => {
+    const body = within(document.body)
+    const dialog = await body.findByRole('dialog')
+    await expect(
+      within(dialog).getByRole('button', { name: /making it live/i }),
+    ).toBeDisabled()
+    await expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    await userEvent.keyboard('{Escape}')
+    await expect(body.getByRole('dialog')).toBeInTheDocument()
+  },
+}
+
+// Once the request has settled (here: it was refused) Escape closes it again.
+export const MakeLiveAgainDialogClosesWhenIdle: Story = {
+  args: {
+    initialSelection: { version: 4, mode: 'restore', host: 'dialog' },
+    restoreError: 'Only a currently published Portal can make another version live again',
+  },
+  play: async () => {
+    const body = within(document.body)
+    const dialog = await body.findByRole('dialog')
+    await expect(within(dialog).getByRole('alert')).toHaveTextContent(
+      /currently published/,
+    )
+    await userEvent.keyboard('{Escape}')
+    await expect(body.queryByRole('dialog')).toBeNull()
+  },
+}
+
 export const CheckingWhatWouldChange: Story = {
   args: {
     initialSelection: { version: 4, mode: 'restore', host: 'row' },
@@ -341,13 +398,30 @@ export const CheckingWhatWouldChange: Story = {
   },
 }
 
+/** The check failed: the same Try again as everywhere, and a way out beside it. */
+export const CheckingFailed: Story = {
+  args: {
+    initialSelection: { version: 4, mode: 'restore', host: 'row' },
+    detailStatus: 'error',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('alert')).toHaveTextContent(
+      'What would change couldn’t be checked.',
+    )
+    await expect(canvas.getByRole('button', { name: 'Try again' })).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Cancel' }))
+    await expect(canvas.queryByRole('alert')).toBeNull()
+  },
+}
+
 // A rail tile opens the version for reading; from there it can be made live.
 export const ViewVersionFromRail: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(
       canvas.getByRole('button', {
-        name: 'Version 3, published 14 Jul by Georgi Ivanov',
+        name: 'Version 3, published Jul 14 by Georgi Ivanov',
       }),
     )
     const dialog = within(await within(document.body).findByRole('dialog'))
@@ -356,6 +430,32 @@ export const ViewVersionFromRail: Story = {
     await userEvent.click(dialog.getByRole('button', { name: 'Make live again…' }))
     await expect(
       await within(document.body).findByText('Make version 3 live again?'),
+    ).toBeInTheDocument()
+  },
+}
+
+// "View" with the page beside what the version lists (the metrics file measures it).
+export const ViewVersionWithPage: Story = {
+  args: {
+    initialSelection: { version: 4, mode: 'view', host: 'dialog' },
+    withPagePreview: true,
+  },
+  play: async () => {
+    const dialog = within(await within(document.body).findByRole('dialog'))
+    await expect(
+      await dialog.findByRole('region', { name: 'Version 4 as guests see it' }),
+    ).toBeInTheDocument()
+    await expect(
+      await dialog.findByRole(
+        'region',
+        {
+          name: (name: string) => name.startsWith('Preview of the guest page: Version 4'),
+        },
+        { timeout: 10_000 },
+      ),
+    ).toBeInTheDocument()
+    await expect(
+      dialog.getByRole('button', { name: 'Make live again…' }),
     ).toBeInTheDocument()
   },
 }
@@ -393,12 +493,19 @@ export const PageIsOff: Story = {
   },
 }
 
+/** Nothing waiting: the draft matches the live version, so no edit is still in draft. */
 export const NoDraftChanges: Story = {
-  args: { pendingChanges: 0 },
+  args: {
+    pendingChanges: 0,
+    entries: STORY_ENTRIES.slice(
+      STORY_ENTRIES.findIndex((entry) => entry.detail.kind === 'version_published'),
+    ),
+  },
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByText('No changes waiting'),
     ).toBeInTheDocument()
+    await expect(within(canvasElement).queryByText('In draft')).toBeNull()
   },
 }
 
@@ -409,8 +516,10 @@ export const Loading: Story = {
 export const LoadFailed: Story = {
   args: { entriesState: 'error', versionsLoaded: false, versionsFailed: true },
   play: async ({ canvasElement }) => {
-    const alerts = within(canvasElement).getAllByRole('alert')
-    await expect(alerts).toHaveLength(2)
+    const canvas = within(canvasElement)
+    await expect(canvas.getAllByRole('alert')).toHaveLength(2)
+    // The ledger and the rail each offer the one recovery.
+    await expect(canvas.getAllByRole('button', { name: 'Try again' })).toHaveLength(2)
   },
 }
 

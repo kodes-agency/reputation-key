@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react'
 import type { Action } from '#/components/hooks/use-action'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
+import { Globe } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { EmptyState } from '#/components/ui/empty-state'
 import {
   Dialog,
+  DialogCancel,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -19,6 +22,10 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import { PortalSelector, type PortalOption } from './portal-selector'
+import {
+  describeResponsibilities,
+  offersSupportingPortals,
+} from './portal-responsibilities-rules'
 import type { UpdatePortalResponsibilitiesMutationInput } from '#/components/features/staff/types'
 
 type Props = Readonly<{
@@ -77,20 +84,19 @@ export function PortalResponsibilitiesModal({
   }
 
   return (
-    <Dialog open onOpenChange={onOpenChange}>
+    <Dialog open busy={updateAction.isPending} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Portal responsibilities — {displayName}</DialogTitle>
-          <DialogDescription>
-            Choose one primary portal and any supporting portals. Responsibilities do not
-            grant property access.
-          </DialogDescription>
+          <DialogDescription>{describeResponsibilities(displayName)}</DialogDescription>
         </DialogHeader>
 
         {allPortals.length === 0 ? (
-          <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-            No portals are available at this property.
-          </p>
+          <EmptyState
+            size="compact"
+            icon={Globe}
+            title="No portals are available at this property"
+          />
         ) : (
           <div className="space-y-5 py-2">
             <Field>
@@ -114,30 +120,29 @@ export function PortalResponsibilitiesModal({
                 </SelectContent>
               </Select>
             </Field>
-            <PortalSelector
-              field={supportingField}
-              portals={supportingOptions}
-              label="Supporting portals (optional)"
-            />
+            {offersSupportingPortals(allPortals.length) ? (
+              <PortalSelector
+                field={supportingField}
+                portals={supportingOptions}
+                label="Supporting portals"
+                optional
+              />
+            ) : null}
           </div>
         )}
 
-        <FormErrorBanner error={updateAction.error} />
+        <DialogErrorBanner error={updateAction.error} />
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={updateAction.isPending}
-          >
-            Cancel
-          </Button>
+          <DialogCancel />
           <Button
             // A refusal stays in the banner with the dialog open (handleSave
             // closes only on success); settling keeps it from escaping the click.
             onClick={() => void handleSave().catch(() => undefined)}
-            disabled={!primaryPortalId || !hasChanges || updateAction.isPending}
+            pending={updateAction.isPending}
+            pendingLabel="Saving…"
+            disabled={!primaryPortalId || !hasChanges}
           >
-            {updateAction.isPending ? 'Saving…' : 'Save responsibilities'}
+            Save responsibilities
           </Button>
         </DialogFooter>
       </DialogContent>

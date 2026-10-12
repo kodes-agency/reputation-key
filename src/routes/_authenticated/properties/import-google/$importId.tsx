@@ -7,6 +7,7 @@ import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { integrationKeys } from '#/shared/queries/query-keys'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { requireGoogleImportRole } from './-route-access'
 
@@ -19,6 +20,12 @@ const connectionsQuery = queryOptions({
 export const Route = createFileRoute(
   '/_authenticated/properties/import-google/$importId',
 )({
+  staticData: {
+    page: {
+      title: 'Import Google properties',
+      under: 'properties',
+    },
+  },
   beforeLoad: async ({ context }) => {
     const { role } = context as AuthRouteContext
     requireGoogleImportRole(role)
@@ -54,11 +61,7 @@ function ImportProgressPage() {
       <PageHeader
         title="Import Google properties"
         description="Track the import, then set up the properties it created."
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: 'Import properties' },
-        ]}
-        backTo={{ to: '/properties', label: 'Back to properties' }}
+        breadcrumbs={trailCrumbs('properties', {}, 'Import Google properties')}
       />
 
       <GoogleImportManager

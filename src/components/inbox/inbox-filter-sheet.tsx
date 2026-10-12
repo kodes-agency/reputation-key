@@ -1,7 +1,8 @@
 import { useRef } from 'react'
-import { Filter, X } from 'lucide-react'
+import { ListFilter, X } from 'lucide-react'
 import type { InboxSort } from '#/contexts/inbox/application/public-api'
 import { Button } from '#/components/ui/button'
+import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import {
   Sheet,
   SheetClose,
@@ -22,6 +23,7 @@ import {
   type InboxFilterOption,
 } from './inbox-filter-options'
 import { countActiveInboxFilters, type InboxListFilterValues } from './inbox-filters'
+import { IconButton } from '#/components/ui/icon-button'
 
 // The group heading already says what "All" is all of ("All ratings" under
 // "Rating" would read twice), so the first choice of each group is plain "All".
@@ -62,8 +64,8 @@ type Props = Readonly<{
   isLoading: boolean
   onFiltersChange: (patch: Partial<InboxListFilterValues>) => void
   onSortChange: (sort: InboxSort) => void
-  /** Drops every filter and the sort in one navigation. */
-  onClearAll: () => void
+  /** Drops the search and every filter in one navigation; the sort stays. */
+  onClearFilters: () => void
 }>
 
 /**
@@ -77,31 +79,31 @@ export function InboxFilterSheet({
   isLoading,
   onFiltersChange,
   onSortChange,
-  onClearAll,
+  onClearFilters,
 }: Props) {
   const activeCount = countActiveInboxFilters(filters)
-  const canClear = activeCount > 0 || sort !== 'newest'
+  const canClear = activeCount > 0
   const primaryRef = useRef<HTMLButtonElement>(null)
 
-  // Once it has run there is nothing left to clear, so "Clear all" goes
+  // Once it has run there is nothing left to clear, so "Clear filters" goes
   // disabled under the keyboard user's focus. Focus moves to the footer's other
   // button first, so it never lands on a control that cannot take it.
-  function clearAll() {
+  function clearFilters() {
     primaryRef.current?.focus()
-    onClearAll()
+    onClearFilters()
   }
 
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button
+        <IconButton
           variant="ghost"
           size="icon"
-          className="relative size-9"
+          className="relative"
           data-inbox-filter-trigger
-          aria-label={activeCount > 0 ? `Filters, ${activeCount} active` : 'Filters'}
+          label={activeCount > 0 ? `Filters, ${activeCount} active` : 'Filters'}
         >
-          <Filter />
+          <ListFilter />
           {activeCount > 0 && (
             <span
               aria-hidden="true"
@@ -110,24 +112,22 @@ export function InboxFilterSheet({
               {activeCount}
             </span>
           )}
-        </Button>
+        </IconButton>
       </SheetTrigger>
       <SheetContent
         side="bottom"
         showCloseButton={false}
         className="max-h-[85dvh] gap-0 rounded-t-xl p-0"
       >
-        <div className="flex h-11 shrink-0 items-center justify-between border-b px-4">
+        <div
+          data-density="compact"
+          className="flex h-11 shrink-0 items-center justify-between border-b px-4"
+        >
           <SheetTitle className="text-base">Sort and filter</SheetTitle>
           <SheetClose asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="-mr-2.5 size-9"
-              aria-label="Close"
-            >
+            <IconButton variant="ghost" className="-mr-2.5" label="Close" tooltip={false}>
               <X />
-            </Button>
+            </IconButton>
           </SheetClose>
         </div>
         <SheetDescription className="sr-only">
@@ -191,17 +191,16 @@ export function InboxFilterSheet({
           />
         </div>
         <div className="flex shrink-0 gap-2 border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <Button
+          {/* The sort has its own choice above; no search is in force while the sheet is reachable. */}
+          <ClearFiltersButton
             variant="outline"
             size="lg"
-            className="h-11"
+            searching={false}
             disabled={!canClear}
-            onClick={clearAll}
-          >
-            Clear all
-          </Button>
+            onClear={clearFilters}
+          />
           <SheetClose asChild>
-            <Button ref={primaryRef} size="lg" className="h-11 flex-1">
+            <Button ref={primaryRef} size="lg" className="flex-1">
               {resultsLabel(totalCount, isLoading)}
             </Button>
           </SheetClose>

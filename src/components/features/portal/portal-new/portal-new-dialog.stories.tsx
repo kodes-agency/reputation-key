@@ -1,8 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
+import { useRefusingAction } from '#/components/forms/refusing-action.stories.fixtures'
+import { GENERIC_ACTION_ERROR_MESSAGE } from '#/components/hooks/use-action-mutation'
 import type { CreatePortalInput } from '#/contexts/portal/application/dto/create-portal.dto'
 import { PortalNewDialog } from './portal-new-dialog'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import type { PortalNewData } from './portal-new-types'
 
 type CreateInput = { data: CreatePortalInput }
@@ -209,17 +212,33 @@ export const Saving: Story = {
   },
 }
 
+/** The mutation still holds a refusal from the last time the dialog was open. */
+function RefusingDialog() {
+  const mutation = useRefusingAction<CreateInput>(
+    () =>
+      new ServerFunctionError(
+        'PortalError',
+        'This role cannot create portals.',
+        'forbidden',
+        403,
+      ),
+    new Error('an earlier refusal'),
+  )
+  return (
+    <PortalNewDialog open onOpenChange={() => undefined} data={{ ...data, mutation }} />
+  )
+}
+
 export const Refused: Story = {
-  args: {
-    data: {
-      ...data,
-      mutation: action({ error: new Error('This role cannot create portals.') }),
-    },
-  },
+  render: () => <RefusingDialog />,
   play: async () => {
+    await expect(dialog().queryByRole('alert')).toBeNull()
+    await userEvent.type(dialog().getByLabelText('Name'), 'Pool & Terrace')
+    await userEvent.click(dialog().getByRole('button', { name: 'Create draft' }))
     await expect(
       await dialog().findByText(/This role cannot create portals/),
     ).toBeInTheDocument()
+    await expect(dialog().queryByText(/earlier refusal/)).toBeNull()
   },
 }
 
@@ -231,11 +250,22 @@ export const Loading: Story = {
 }
 
 export const OptionsFailed: Story = {
-  args: { data: null, loadError: new Error('Portals are not available right now.') },
+  // A read that failed on the server: its own text may name internal state, so
+  // the banner says the generic sentence and not the server's.
+  args: {
+    data: null,
+    loadError: new ServerFunctionError(
+      'InternalError',
+      'Portals are not available right now.',
+      'internal_error',
+      503,
+    ),
+  },
   play: async () => {
     await expect(
-      await dialog().findByText(/Portals are not available right now/),
+      await dialog().findByText(GENERIC_ACTION_ERROR_MESSAGE),
     ).toBeInTheDocument()
+    await expect(dialog().queryByText(/not available right now/)).toBeNull()
     await expect(dialog().queryByLabelText('Name')).toBeNull()
   },
 }

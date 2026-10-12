@@ -33,6 +33,7 @@ const liveToken = (addressRecoverable: boolean): PortalTokenStatus => ({
   issuedAt: '2026-03-12T09:30:00.000Z',
   graceExpiresAt: null,
   addressRecoverable,
+  madeBy: null,
 })
 
 /** A photograph's stand-in: a warm sky over a dark terrace, as a picture the browser can load. */
@@ -127,11 +128,17 @@ export const TableTent: Story = {
     await expect(canvas.getByText(/table tent a6 · front · 105 × 148 mm/i)).toBeVisible()
     await expect(canvas.getByText(/3 mm bleed and crop marks/i)).toBeVisible()
     await expect(within(front).getByText('Оценете посещението си')).toBeInTheDocument()
-    // The short address is on the print as words, without the scan marker.
-    // Too long for one line at a legible size, it breaks before the code.
-    await expect(within(front).getByText('app.reputationkey.app/p/')).toBeInTheDocument()
-    await expect(within(front).getByText(/^pt_AbCdEfGhIjKl/)).toBeInTheDocument()
+    // Only the host is on the print as words: never the token path or the scan marker.
+    await expect(within(front).getByText('app.reputationkey.app')).toBeInTheDocument()
+    await expect(within(front).queryByText(/pt_AbCdEfGhIjKl/)).toBeNull()
     await expect(within(front).queryByText(/accessArtifact/i)).toBeNull()
+    // The tent's sheet is taller than office paper: it goes to a print shop.
+    await expect(
+      canvas.getByText(
+        /table tent needs a print shop: its sheet is larger than A4 or Letter\. Ask them to print it at 100% \(actual size\)/i,
+      ),
+    ).toBeVisible()
+    await expect(canvas.queryByText(/your own printer/i)).toBeNull()
   },
 }
 
@@ -162,6 +169,40 @@ export const CounterCardInOneLanguage: Story = {
     // One language on a counter card is one side: nothing to switch.
     await expect(canvas.queryByRole('radio', { name: 'Back' })).toBeNull()
     await expect(canvas.getByText(/one A6 page per side/i)).toBeVisible()
+    await expect(
+      canvas.getByText(
+        /print the counter card on A4 or Letter at 100% \(actual size\), not “fit to page”/i,
+      ),
+    ).toBeVisible()
+  },
+}
+
+/** Long words shrink in the preview as they do in the file, so it never shows them larger. */
+export const LongCopyShrinksAsInTheFile: Story = {
+  args: {
+    ...baseArgs,
+    printKit: {
+      read: async () =>
+        view({
+          primaryLocale: 'fr',
+          locales: ['fr'],
+          titles: { fr: 'Restaurant panoramique et terrasse du dernier étage' },
+        }),
+      downloadMutation: downloadMutation(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      await canvas.findByRole('radio', {
+        name: /how was your visit\? tell us privately/i,
+      }),
+    )
+    const front = await preview(canvasElement)
+    const headline = within(front).getByText('Comment s’est passée votre visite ?')
+    // The full one-language size, as a share of the card's width (28.5 pt × 1.22 on a 125 mm page).
+    const fullSize = (28.5 * 1.22 * (25.4 / 72) * 100) / 125
+    await expect(Number.parseFloat(headline.style.fontSize)).toBeLessThan(fullSize)
   },
 }
 
@@ -301,6 +342,34 @@ export const OneLanguageOnly: Story = {
   },
 }
 
+/** A failed read says so where the controls and the preview would be, and Try again reads once more. */
+export const ReadFailsThenRecovers: Story = {
+  args: {
+    ...baseArgs,
+    printKit: {
+      read: (() => {
+        let calls = 0
+        return async () => {
+          calls += 1
+          if (calls === 1) throw new Error('Print kit unavailable')
+          return view()
+        }
+      })(),
+      downloadMutation: downloadMutation(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      await canvas.findByText('The print kit couldn’t be loaded.'),
+    ).toBeVisible()
+    await expect(canvas.getByText('The preview couldn’t be loaded.')).toBeVisible()
+    await userEvent.click(canvas.getAllByRole('button', { name: 'Try again' })[0]!)
+    await expect(await preview(canvasElement)).toBeInTheDocument()
+    await expect(canvas.queryByText('The print kit couldn’t be loaded.')).toBeNull()
+  },
+}
+
 export const ViewerGetsNoPrintKit: Story = {
   args: baseArgs,
   decorators: [withRole('Member')],
@@ -308,5 +377,7 @@ export const ViewerGetsNoPrintKit: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText(/view-only access/i)).toBeInTheDocument()
     await expect(canvas.queryByRole('heading', { name: 'Print kit' })).toBeNull()
+    // The print kit is not silently gone: the viewer is told whom to ask.
+    await expect(canvas.getByText(/for the QR code or print kit\./)).toBeInTheDocument()
   },
 }

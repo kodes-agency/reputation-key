@@ -1,8 +1,10 @@
 // "Show on the page": whether guests see the Linktree at all. Turning it off
-// keeps every tile. It is saved at once, after any typed text still waiting.
+// keeps every tile. It is saved at once, after any typed text still waiting; the
+// switch moves as it is flipped (the write is optimistic), so it passes no `pending`
+// and the row says "Saving…" and "Saved" from the save's promise. A refusal rolls the
+// switch back and is a toast, which the mutation reports.
 
-import { Label } from '#/components/ui/label'
-import { Switch } from '#/components/ui/switch'
+import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
 import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
 import type { LinktreeMutations } from './use-linktree-mutations'
 
@@ -16,21 +18,15 @@ type Props = Readonly<{
 export function LinktreeSwitch({ portalId, enabled, save, disabled }: Props) {
   const autosave = usePortalDraftAutosave()
   return (
-    <div className="flex items-center gap-2">
-      <Label htmlFor="linktree-enabled" className="text-sm font-normal">
-        Show on the page
-      </Label>
-      <Switch
-        id="linktree-enabled"
-        checked={enabled}
-        disabled={disabled}
-        onCheckedChange={(next) => {
-          void autosave
-            .flush()
-            .then(() => save({ data: { portalId, enabled: next } }))
-            .catch(() => undefined)
-        }}
-      />
-    </div>
+    <SettingSwitchRow
+      id="linktree-enabled"
+      label="Show on the page"
+      commit="immediate"
+      checked={enabled}
+      disabled={disabled}
+      onCheckedChange={(next) =>
+        autosave.flush().then(() => save({ data: { portalId, enabled: next } }))
+      }
+    />
   )
 }

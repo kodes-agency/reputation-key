@@ -179,16 +179,18 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
     // replayed every history page already loaded.
     if (next) needsYou.refetch()
   }
+  // A plain Button, not an IconButton: the bell is in the first-paint closure (the
+  // public header mounts it), and the tooltip primitives are not (the bundle budget).
   const bell = (
     <Button
       variant="ghost"
       size="icon-sm"
-      className="relative max-md:size-9"
+      className="relative"
       onPointerEnter={preloadPopoverContent}
       onFocus={preloadPopoverContent}
       aria-label={`Notifications${count > 0 ? `, ${count} ${count === 1 ? 'needs' : 'need'} you` : ''}`}
     >
-      <Bell aria-hidden="true" className="size-4" />
+      <Bell aria-hidden="true" />
       {count > 0 && (
         <span
           aria-hidden="true"

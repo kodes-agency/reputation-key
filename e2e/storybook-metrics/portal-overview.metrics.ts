@@ -62,6 +62,34 @@ for (const width of TABLE_WIDTHS) {
   })
 }
 
+// A draft has no Share, and an archived Portal none either. Its row keeps the
+// place, unseen, so Edit and the menu sit where they do in every other row and
+// the actions read as one column rather than a ragged edge.
+for (const [story, rowName] of [
+  [STORY, 'Pool bar'],
+  ['portal-portalgroup-grouppage--default', 'Pool bar'],
+] as const) {
+  test(`${story}: a draft's Edit and menu line up with the other rows' (1280px)`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await openStory(page, story)
+
+    const table = page.getByRole('table', { name: /portals at avela resort/i })
+    const left = async (role: 'link' | 'button', name: string): Promise<number> => {
+      const box = await table.getByRole(role, { name }).boundingBox()
+      if (box === null) throw new Error(`${name} has no box`)
+      return Math.round(box.x)
+    }
+    const shared = await left('link', 'Edit Pool & Terrace')
+    expect(await left('link', `Edit ${rowName}`), 'the draft row’s Edit').toBe(shared)
+    expect(
+      await left('button', `More actions for ${rowName}`),
+      'the draft row’s menu',
+    ).toBe(await left('button', 'More actions for Pool & Terrace'))
+  })
+}
+
 for (const width of CARD_WIDTHS) {
   test(`a ${width}px window shows cards with one summary line, not measure columns`, async ({
     page,
@@ -78,5 +106,54 @@ for (const width of CARD_WIDTHS) {
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
     )
     expect(documentScrolls, 'the document scrolls sideways').toBe(false)
+  })
+}
+
+// A section's head row is the only row of its body once the group is folded, so it is
+// the body's last row. The cards' "last card keeps its border" rule once matched it
+// and boxed the head in a square 1px border (it is not a card and has no radius).
+const FOLDED_GROUP_STORY = 'portal-portallistpage--default'
+
+for (const width of CARD_WIDTHS) {
+  test(`a ${width}px window draws a folded group's head with no box around it`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await openStory(page, FOLDED_GROUP_STORY)
+
+    const table = page.getByRole('table', { name: /portals at avela resort/i })
+    await table.getByRole('button', { name: 'Portals in Pool side' }).click()
+    await expect(table.getByRole('link', { name: 'Pool & Terrace' })).toHaveCount(0)
+
+    const widths = (row: ReturnType<typeof table.locator>) =>
+      row.evaluate((element) => {
+        const style = getComputedStyle(element)
+        return [
+          style.borderTopWidth,
+          style.borderRightWidth,
+          style.borderBottomWidth,
+          style.borderLeftWidth,
+        ]
+      })
+    const head = table
+      .getByRole('button', { name: 'Portals in Pool side' })
+      .locator('xpath=ancestor::tr')
+    expect(await widths(head), 'the folded head row’s borders').toEqual([
+      '0px',
+      '0px',
+      '0px',
+      '0px',
+    ])
+
+    // The last card of an open group keeps its border: only the head lost none.
+    const card = table
+      .getByRole('link', { name: 'Reception' })
+      .locator('xpath=ancestor::tr')
+    expect(await widths(card), 'a Portal card’s borders').toEqual([
+      '1px',
+      '1px',
+      '1px',
+      '1px',
+    ])
   })
 }

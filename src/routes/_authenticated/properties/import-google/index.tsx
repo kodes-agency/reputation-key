@@ -8,6 +8,8 @@ import { importFns, importSetupFns } from './-import-fns'
 import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
+import { Alert, AlertDescription } from '#/components/ui/alert'
 import { requireGoogleImportRole } from './-route-access'
 
 const importSearchSchema = z.object({
@@ -26,6 +28,12 @@ const connectionsQuery = queryOptions({
 })
 
 export const Route = createFileRoute('/_authenticated/properties/import-google/')({
+  staticData: {
+    page: {
+      title: 'Import Google properties',
+      under: 'properties',
+    },
+  },
   validateSearch: importSearchSchema,
   beforeLoad: async ({ context }) => {
     const { role } = context as AuthRouteContext
@@ -54,19 +62,12 @@ function ImportPage() {
       <PageHeader
         title="Import Google properties"
         description="Discover, review, and import locations from Google Business Profile."
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: 'Import properties' },
-        ]}
-        backTo={{ to: '/properties', label: 'Back to properties' }}
+        breadcrumbs={trailCrumbs('properties', {}, 'Import Google properties')}
       />
 
       {search.error ? (
-        <div
-          className="rounded-lg border border-destructive/50 bg-destructive/10 p-4"
-          role="alert"
-        >
-          <p className="text-sm text-destructive">
+        <Alert variant="destructive">
+          <AlertDescription>
             {search.error === 'denied'
               ? 'Google authorization was cancelled.'
               : search.error === 'account_already_connected'
@@ -74,8 +75,8 @@ function ImportPage() {
                 : search.error === 'connection_failed'
                   ? 'Google could not be connected. Try again.'
                   : 'Google authorization could not be completed.'}
-          </p>
-        </div>
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       <GoogleImportManager

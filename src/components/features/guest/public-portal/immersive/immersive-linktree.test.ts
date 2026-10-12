@@ -7,8 +7,10 @@ import { describe, expect, it } from 'vitest'
 import { PORTAL_LINK_ICON_KEYS } from '#/shared/domain/portal-link-icon'
 import {
   ImmersiveLinktree,
+  InertImmersiveLinktree,
   type ImmersiveLinktreeLink,
   type ImmersiveLinktreeProps,
+  type InertImmersiveLinktreeProps,
 } from './immersive-linktree'
 import { linktreeIconFor } from './linktree-icons'
 import { LINKTREE_CSS } from './linktree-styles'
@@ -216,4 +218,103 @@ describe('ImmersiveLinktree icons and photos', () => {
       expect(linktreeIconFor(key)).toBeNull()
     },
   )
+})
+
+describe('InertImmersiveLinktree (the admin preview)', () => {
+  const photo = 'https://media.example.com/terrace.jpg'
+  const renderInert = (props: Partial<InertImmersiveLinktreeProps> = {}) =>
+    renderToStaticMarkup(
+      createElement(InertImmersiveLinktree, {
+        enabled: base.enabled,
+        title: base.title,
+        defaultTitle: base.defaultTitle,
+        links: base.links,
+        ...props,
+      }),
+    )
+
+  it('draws the same title and tiles but no anchor, no address and no button', () => {
+    const html = withoutStyle(renderInert())
+    expect(html).toMatch(/<h2\b[^>]*>Around the resort<\/h2>/u)
+    expect(html).toContain('Spa &amp; treatments')
+    expect(html).toContain('Olive Terrace menu')
+    expect(html).not.toContain('<a ')
+    expect(html).not.toContain('href=')
+    expect(html).not.toContain('<button')
+    expect(tags(html, 'li')).toHaveLength(2)
+  })
+
+  it('draws a photo tile with its photo, the arrow and its text, and still no anchor', () => {
+    const html = withoutStyle(renderInert({ links: [{ ...LINKS[0]!, imageUrl: photo }] }))
+    expect(html).toContain('ih-tile--photo')
+    expect(html).toContain(`src="${photo}"`)
+    expect(html).toContain('ih-tile__arrow')
+    expect(html).toContain('Spa &amp; treatments')
+    expect(html).not.toContain('<a ')
+  })
+
+  it('marks an inert tile so the stylesheet can drop the pointer', () => {
+    expect(withoutStyle(renderInert())).toContain('ih-tile--inert')
+    expect(LINKTREE_CSS).toMatch(/\.ih-tile--inert \{[^}]*cursor: default/u)
+  })
+
+  it('keeps the Linktree rules: nothing renders when it is off or empty', () => {
+    expect(renderInert({ enabled: false })).toBe('')
+    expect(renderInert({ links: [] })).toBe('')
+  })
+
+  it('draws a waiting tile as a dashed variant of the real tile, with the reason for its line', () => {
+    const html = withoutStyle(
+      renderInert({
+        links: [
+          {
+            ...LINKS[1]!,
+            line: 'Lunch and dinner',
+            placeholder: { kind: 'awaiting_approval', note: 'Waiting for approval' },
+          },
+        ],
+      }),
+    )
+    expect(html).toContain('ih-glass ih-glass--tile ih-tile')
+    expect(html).toContain('ih-tile--waiting')
+    expect(html).toContain('data-ih-tile-placeholder="awaiting_approval"')
+    expect(html).toContain('lucide-clock')
+    expect(html).toContain('Olive Terrace menu')
+    expect(html).toMatch(/<span class="ih-tile__line">Waiting for approval<\/span>/u)
+    expect(html).not.toContain('Lunch and dinner')
+    expect(html).not.toContain('ih-tile__arrow')
+    expect(LINKTREE_CSS).toMatch(/\.ih-tile--waiting \{[^}]*dashed/u)
+  })
+
+  it('draws a waiting tile with a photo as a glass tile: nothing is approved to show', () => {
+    const html = withoutStyle(
+      renderInert({
+        links: [
+          {
+            ...LINKS[0]!,
+            imageUrl: photo,
+            placeholder: { kind: 'not_approved', note: 'Not approved' },
+          },
+        ],
+      }),
+    )
+    expect(html).not.toContain('<img')
+    expect(html).not.toContain('ih-tile--photo')
+  })
+
+  it('never draws a placeholder on a live page, whatever the link carries', () => {
+    const html = withoutStyle(
+      render({
+        links: [
+          {
+            ...LINKS[0]!,
+            placeholder: { kind: 'awaiting_approval', note: 'Waiting for approval' },
+          },
+        ],
+      }),
+    )
+    expect(html).not.toContain('Waiting for approval')
+    expect(html).not.toContain('ih-tile--waiting')
+    expect(html).toContain('href="/api/public/p/tok/click/l1"')
+  })
 })

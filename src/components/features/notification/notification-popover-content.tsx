@@ -33,6 +33,7 @@ import { useNotifications } from './notification-queries'
 import type { NotificationFormat } from './notification-utils'
 import type { NotificationRowActions, NotificationServerFns } from './types'
 import type { NotificationView } from '#/contexts/feed/application/public-api'
+import { IconButton } from '#/components/ui/icon-button'
 
 /** How many updates the bell shows; the page has the rest. */
 const UPDATES_LIMIT = 8
@@ -138,14 +139,14 @@ export function NotificationPopoverContent(props: Props) {
             </Button>
           )}
           {props.onClose && (
-            <Button
+            <IconButton
               variant="ghost"
               size="icon-sm"
               onClick={props.onClose}
-              aria-label="Close notifications"
+              label="Close notifications"
             >
-              <X aria-hidden="true" className="size-4" />
-            </Button>
+              <X aria-hidden="true" />
+            </IconButton>
           )}
         </div>
       </div>

@@ -25,7 +25,7 @@ describe('cancelInvitation', () => {
   it('records identity.invitation.canceled with the org and invitation id', async () => {
     const { useCase, outbox, commandStore } = setup()
     const invId: InvitationId = invitationId('inv-cancel-1')
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     commandStore.seedInvitation({
       id: invId as string,
       organizationId: ctx.organizationId as string,
@@ -48,6 +48,32 @@ describe('cancelInvitation', () => {
 
     // The invitation row is marked canceled (better-auth semantics).
     expect(commandStore.invitationById(invId as string)?.status).toBe('canceled')
+  })
+
+  it('rejects PropertyManager from canceling invitations, and cancels nothing', async () => {
+    const { useCase, outbox, commandStore } = setup()
+    const invId: InvitationId = invitationId('inv-cancel-pm')
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    commandStore.seedInvitation({
+      id: invId as string,
+      organizationId: ctx.organizationId as string,
+      email: 'pending@test.com',
+      role: 'owner',
+      status: 'pending',
+      expiresAt: new Date(Date.now() + 86_400_000),
+      propertyIds: null,
+      inviterId: ctx.userId as string,
+      createdAt: new Date(),
+    })
+
+    await expect(useCase({ invitationId: invId }, ctx)).rejects.toSatisfy(
+      (e) => isIdentityError(e) && e.code === 'forbidden',
+    )
+
+    // Manager administration is the AccountAdmin's alone (ADR 0033): even an
+    // invitation this manager sent themselves stays pending.
+    expect(commandStore.invitationById(invId as string)?.status).toBe('pending')
+    expect(outbox.facts).toHaveLength(0)
   })
 
   it('rejects Member from canceling invitations', async () => {

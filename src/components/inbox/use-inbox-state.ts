@@ -32,6 +32,7 @@ import {
   inboxListPagesRefetchInterval,
   isReplyPolled,
 } from './inbox-cache-policy'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 type InboxPage = {
   items: ReadonlyArray<InboxItem>
@@ -226,7 +227,9 @@ export function useInboxState(
     responseCutoff,
     viewedUpTo,
     isLoading: query.isPending,
-    error: query.error ? 'Failed to load inbox. Try again.' : null,
+    error: hasFailed(query) ? 'The inbox couldn’t be loaded.' : null,
+    // The error panel stays while Try again reads (`hasFailed` above), its button busy.
+    isRetrying: isRetrying(query),
     selectedIds,
     setSelectedIds,
     // LoadMoreButton compat: nextCursor (has-more) + a loadAction-shaped pending flag.

@@ -16,9 +16,11 @@ type FormFieldValues = {
 type Props = Readonly<{
   form: FormWithField<FormFieldValues>
   mode: 'register' | 'join'
+  /** The invitation's address: prefilled and not editable. */
+  emailLocked?: boolean
 }>
 
-export function RegisterFormFields({ form, mode }: Props) {
+export function RegisterFormFields({ form, mode, emailLocked = false }: Props) {
   const isJoinMode = mode === 'join'
 
   return (
@@ -44,6 +46,10 @@ export function RegisterFormFields({ form, mode }: Props) {
             type="email"
             placeholder="you@example.com"
             autoComplete="email"
+            readOnly={emailLocked}
+            description={
+              emailLocked ? 'The invitation was sent to this address.' : undefined
+            }
           />
         )}
       </form.Field>

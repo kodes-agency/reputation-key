@@ -30,6 +30,7 @@ const overviewQuery = (propertyId: string, timeRange: TimeRangePreset) =>
   })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/')({
+  staticData: { page: { title: 'Overview', tier: 'dashboard', under: 'property' } },
   staleTime: 60_000,
   loader: async ({ params: { propertyId }, context }) => {
     await Promise.all([

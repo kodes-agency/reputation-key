@@ -90,7 +90,7 @@ function useLiveHandlers(
 }
 
 /** What an accepted call leaves the page showing, which the container decides in the real page. */
-type LiveOutcome = 'started-over' | 'removed'
+type LiveOutcome = 'started-over' | 'started-over-after-removal' | 'removed'
 
 /**
  * The page's own response area, as the container will drive it, with the
@@ -131,8 +131,8 @@ function useSectionProps(
     notice: corrected ? ('rating-updated' as const) : props.notice,
   }
   const stage: ImmersiveResponseViewProps =
-    outcome === 'started-over'
-      ? { ...shown, response: null, notice: 'started-over' }
+    outcome === 'started-over' || outcome === 'started-over-after-removal'
+      ? { ...shown, response: null, notice: outcome }
       : outcome === 'removed' && correctedResponse
         ? {
             ...shown,
@@ -155,7 +155,8 @@ function useSectionProps(
       },
       onStartOver: () => {
         ;(handlers?.onStartOver ?? base.onStartOver)()
-        finish('started-over')
+        // The container tells a start over from a removed response from any other.
+        finish(outcome === 'removed' ? 'started-over-after-removal' : 'started-over')
       },
     },
   }
@@ -189,7 +190,12 @@ function ResponsePage({
         kicker={locale === 'bg' ? 'Басейн и тераса' : 'Pool & Terrace'}
         language={locale === 'bg' ? 'Български' : 'English'}
         linktreeTitle={locale === 'bg' ? 'Около курорта' : 'Around the resort'}
-        privacy={pack.copy.privacyNoticeLink}
+        // As the real footer words it: the notice is English, so another language says so.
+        privacy={
+          locale === 'bg'
+            ? pack.copy.privacyNoticeLinkInEnglish
+            : pack.copy.privacyNoticeLink
+        }
         madeWith={pack.copy.footerMadeWith}
       >
         <ImmersiveResponseView {...props} />
@@ -711,6 +717,123 @@ export const StartsOver: Story = {
     expect(args.section?.handlers?.onStartOver).toHaveBeenCalledTimes(1)
     const ready = await canvas.findByText(enV2.copy.startOverDone)
     expect(ready).toHaveFocus()
+  },
+}
+
+/**
+ * Removing the whole response used to end the page in a notice with nothing to
+ * press. The notice now has "Start over", and a fresh rating card follows it
+ * with a line that does not claim the removed response remains saved.
+ */
+export const RemovedResponseCanStartOver: Story = {
+  args: {
+    state: { kind: 'done', rating: 2 },
+    live: true,
+    section: { open: true, handlers: sectionActions() },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: REMOVE_ALL_BUTTON }))
+    await userEvent.click(
+      canvas.getByRole('button', { name: enV2.copy.responseRemoveAllConfirm }),
+    )
+    expect(
+      await canvas.findByRole('heading', { name: enV2.copy.responseRemoveAllDoneTitle }),
+    ).toHaveFocus()
+    // Nothing is left to rate or share, but the way on is there, a full-size target.
+    expect(canvas.queryByRole('radio')).toBeNull()
+    expect(canvas.getByText(enV2.copy.sharedDeviceTitle)).toBeVisible()
+    const startOver = canvas.getByRole('button', { name: enV2.copy.startOverAction })
+    expect(startOver.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
+
+    await userEvent.click(startOver)
+    expect(args.section?.handlers?.onStartOver).toHaveBeenCalledTimes(1)
+    const ready = await canvas.findByText(enV2.copy.startOverDoneAfterRemoval)
+    expect(ready).toHaveFocus()
+    expect(ready).toHaveTextContent('Ready for the next guest.')
+    expect(canvas.queryByText(enV2.copy.startOverDone)).toBeNull()
+    expect(canvas.queryByText(/remains saved/u)).toBeNull()
+    expect(canvas.getByRole('radio', { name: /^1 star/u })).toBeVisible()
+  },
+}
+
+/** A start over from the removed notice that did not go through says so beside the button. */
+export const RemovedStartOverFailed: Story = {
+  args: {
+    state: { kind: 'done', rating: 2 },
+    section: { open: true },
+    overrides: {
+      response: {
+        status: 'deleted',
+        rating: null,
+        hasPrivateFeedback: false,
+        privateFeedbackEligible: false,
+        submittedAt: '2026-01-01T12:00:00.000Z',
+        correctedAt: null,
+        correctionDeadline: null,
+        correctionAvailable: false,
+        responseWithdrawalDeadline: null,
+        responseWithdrawalAvailable: false,
+        feedbackSubmittedAt: null,
+        feedbackWithdrawalDeadline: null,
+        feedbackWithdrawalAvailable: false,
+        feedbackWithdrawnAt: null,
+        deletedAt: '2026-01-01T12:10:00.000Z',
+      },
+      failure: 'start-over',
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(await canvas.findByRole('alert')).toHaveTextContent(enV2.copy.startOverFailed)
+    expect(canvas.getByRole('button', { name: enV2.copy.startOverAction })).toBeEnabled()
+  },
+}
+
+/** Bulgarian: the removed page's words and its way on fit the phone. */
+export const BulgarianRemovedResponse: Story = {
+  args: {
+    state: { kind: 'done', rating: 2 },
+    locale: 'bg',
+    live: true,
+    section: { open: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      canvas.getByRole('button', {
+        name: `${bgV2.copy.responseRemoveAllAction} ${bgV2.copy.responseRemoveAllTitle}`,
+      }),
+    )
+    await userEvent.click(
+      canvas.getByRole('button', { name: bgV2.copy.responseRemoveAllConfirm }),
+    )
+    expect(
+      await canvas.findByRole('heading', { name: bgV2.copy.responseRemoveAllDoneTitle }),
+    ).toBeVisible()
+    expect(canvas.getByRole('button', { name: bgV2.copy.startOverAction })).toBeVisible()
+    const frame = canvasElement.closest('[data-testid="phone-frame"]') ?? canvasElement
+    expect(frame.scrollWidth).toBeLessThanOrEqual(frame.clientWidth)
+  },
+}
+
+/**
+ * When only the rating cannot be sent, the card says so about the rating and
+ * leaves the page it sits on alone, instead of announcing that the page the
+ * guest is reading is not available.
+ */
+export const RatingsCannotBeSentFromHere: Story = {
+  args: { state: { kind: 'arrival' }, overrides: { availability: 'unavailable' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const title = canvas.getByRole('heading', { name: enV2.copy.ratingUnavailableTitle })
+    expect(title).toHaveTextContent('Ratings can’t be sent from here right now.')
+    expect(title.closest('section')?.getAttribute('role')).toBe('status')
+    expect(canvas.getByText('Please try again later.')).toBeVisible()
+    expect(canvas.queryByText(/This page isn’t available/u)).toBeNull()
+    expect(canvas.queryByRole('radio')).toBeNull()
+    // The page around it, and the Linktree, stand.
+    expect(canvas.getByText('Around the resort')).toBeVisible()
   },
 }
 

@@ -163,10 +163,11 @@ ora di {zone}`; a test covers days 1, 8 and 11.
 - **UTC and fixed-offset zones.** The zone slot also takes `UTC` and `UTC+3`, so
   German reads `Ortszeit UTC` and French `heure locale (UTC)`. That is accepted
   for the rare Portal on such a zone and pinned in the deadline test.
-- **Open for the owner: the spelling of Kyiv.** The English pack maps
-  `Europe/Kiev` to "Kyiv"; the Spanish, Italian and French packs say "Kiev" and
-  German says "Kiew" (the German Foreign Office now writes "Kyjiw"). This is a
-  naming choice and is left as drafted until the owner decides it per language.
+- **Decided: the spelling of Kyiv.** Every Latin-script pack (English, Spanish,
+  Italian, French, German) spells the city "Kyiv", matching the IANA zone id
+  `Europe/Kyiv`; the old id `Europe/Kiev` resolves to the same word. Bulgarian is
+  Cyrillic and keeps its own spelling. A pack test pins it (owner question 10,
+  taken at the recommended default).
 - **Template slots drive wording.** The property name never follows "de" in
   French (it would need an elision before a vowel), and the French deadline
   names the zone in brackets for the same reason.

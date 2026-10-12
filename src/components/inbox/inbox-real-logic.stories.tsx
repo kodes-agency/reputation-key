@@ -103,7 +103,7 @@ function InboxRealLogic() {
           ✓ Real use-case computed the expected counts (5 / 4 / 2)
         </p>
       ) : (
-        <p className="text-sm font-medium text-destructive">✗ Counts mismatch</p>
+        <p className="text-sm font-medium text-negative">✗ Counts mismatch</p>
       )}
     </div>
   )

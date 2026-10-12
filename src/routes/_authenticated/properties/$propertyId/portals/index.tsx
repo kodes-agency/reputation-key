@@ -1,7 +1,8 @@
 // fallow-ignore-file code-duplication
 // r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // Portal list — shows all portals for a property
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -16,14 +17,7 @@ import {
   portalOverviewSearchSchema,
   type PortalOverviewSearch,
 } from '#/components/features/portal/portal-overview/portal-overview-search-schema'
-import {
-  PortalListError,
-  PortalListLoading,
-} from '#/components/features/portal/portal-route-fallbacks'
-import {
-  actionErrorMessage,
-  useActionMutation,
-} from '#/components/hooks/use-action-mutation'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -32,9 +26,11 @@ import { portalGroupsQuery } from './-portal-detail-data'
 import { portalOverviewQuery } from './-portal-overview-data'
 import { useNewPortal } from './-use-new-portal'
 import { usePortalResultsControls } from './-portal-results-controls'
+import { usePortalInboxWaiting } from './-portal-inbox-waiting'
 import { portalGroupCachePolicy } from '#/components/features/portal/portal-group-cache-policy'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({
+  staticData: { page: { title: 'Portals', tier: 'dashboard', under: 'property' } },
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
       data: {
@@ -44,7 +40,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
       },
     })
     const { role } = context as AuthRouteContext
-    if (!can(role, 'portal.read')) throw redirect({ to: '/properties' })
+    if (!can(role, 'portal.read')) throw roleUnavailable('Portals', 'properties')
   },
   validateSearch: (search) => portalOverviewSearchSchema.parse(search),
   staleTime: 30_000,
@@ -54,8 +50,6 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
       context.queryClient.ensureQueryData(portalGroupsQuery(params.propertyId)),
     ])
   },
-  pendingComponent: PortalListLoading,
-  errorComponent: PortalListError,
   component: PortalListRoute,
 })
 
@@ -76,6 +70,7 @@ function PortalListRoute() {
     retry: false,
   })
   const results = usePortalResultsControls(propertyId)
+  const inboxWaiting = usePortalInboxWaiting(propertyId)
   const { portals } = overviewData
   const { groups } = portalGroupsData
   const { properties } = propsData
@@ -99,8 +94,12 @@ function PortalListRoute() {
     successMessage: 'Portal restored as Disabled',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
-  // The dialogs show a refusal in place; the archive confirmation closes first,
-  // so its refusal is the page's banner and a toast.
+  const disableMutation = useActionMutation(updatePortal, {
+    successMessage: 'Public page disabled',
+    invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
+  })
+  // Every dialog here (the forms and the archive confirmations) stays open and
+  // shows a refusal itself, so none of these mutations toasts one as well.
   const createMutation = useActionMutation(createPortalGroup, {
     successMessage: 'Group created',
     onSuccess: () => portalGroupCachePolicy.onGroupCreated(queryClient, propertyId),
@@ -111,7 +110,6 @@ function PortalListRoute() {
   })
   const archiveGroupMutation = useActionMutation(softDeletePortalGroup, {
     successMessage: 'Group archived',
-    errorMessage: actionErrorMessage,
     onSuccess: () => portalGroupCachePolicy.onGroupDeleted(queryClient, propertyId),
   })
 
@@ -127,10 +125,12 @@ function PortalListRoute() {
       propertyId={propertyId}
       propertyName={propertyName}
       results={results}
+      inboxWaiting={inboxWaiting}
       search={search}
       onSearchChange={(next) => void navigate({ search: next, replace: true })}
       archiveMutation={archiveMutation}
       restoreMutation={restoreMutation}
+      disableMutation={disableMutation}
       groups={groups.map((group) => ({ id: group.id, name: group.name }))}
       createMutation={createMutation}
       renameMutation={renameMutation}

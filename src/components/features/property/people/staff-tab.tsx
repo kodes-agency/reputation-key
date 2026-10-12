@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { LockKeyhole, Plus } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
 import { PortalResponsibilitiesModal } from '#/components/features/staff/portal-responsibilities-modal'
 import {
@@ -8,7 +7,7 @@ import {
 } from '#/components/features/staff'
 import type { PortalOption } from '#/components/features/staff/portal-selector'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { Button } from '#/components/ui/button'
+import { AddAction } from '#/components/ui/add-action'
 import {
   Dialog,
   DialogContent,
@@ -17,7 +16,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '#/components/ui/dialog'
-import { TabsContent } from '#/components/ui/tabs'
 import type {
   ArchiveStaffParticipationMutationInput,
   CreateStaffParticipationMutationInput,
@@ -76,27 +74,27 @@ export function StaffTab({
 
   if (!canManageStaff) {
     return (
-      <TabsContent value="staff" className="mt-4">
-        <Alert>
-          <LockKeyhole aria-hidden="true" />
+      <section aria-label="Staff">
+        <Alert variant="info">
           <AlertTitle>Staff management is unavailable</AlertTitle>
           <AlertDescription>
             You do not have permission to manage participation at this property.
           </AlertDescription>
         </Alert>
-      </TabsContent>
+      </section>
     )
   }
 
   return (
-    <TabsContent value="staff" className="mt-4 space-y-4">
+    <section aria-label="Staff" className="space-y-4">
       <div className="flex justify-end">
-        <Dialog open={createOpen} onOpenChange={onCreateOpenChange}>
+        <Dialog
+          open={createOpen}
+          busy={createMutation.isPending}
+          onOpenChange={onCreateOpenChange}
+        >
           <DialogTrigger asChild>
-            <Button>
-              <Plus aria-hidden="true" />
-              Add staff
-            </Button>
+            <AddAction>Add staff</AddAction>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -116,8 +114,7 @@ export function StaffTab({
       </div>
 
       {portalsDenied && (
-        <Alert>
-          <LockKeyhole aria-hidden="true" />
+        <Alert variant="info">
           <AlertTitle>Portal responsibilities are unavailable</AlertTitle>
           <AlertDescription>
             You can still manage staff participation. Portal responsibility controls
@@ -148,6 +145,6 @@ export function StaffTab({
           }}
         />
       )}
-    </TabsContent>
+    </section>
   )
 }

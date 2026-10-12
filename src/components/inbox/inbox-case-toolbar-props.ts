@@ -188,7 +188,7 @@ export type InboxDetailBranchState = Pick<
  * which `InboxDetailContent`, and with it the toolbar, is mounted.
  *
  * Both surfaces branch on it before rendering the content: `InboxDetailPanel`
- * and `InboxDetailSheet` show the error block (with `Retry`) or skeletons when
+ * and `InboxDetailSheet` show the error block (with `Try again`) or skeletons when
  * it is false, and mount the content otherwise. The HEADER renders in all three
  * branches.
  * That difference only started to matter in PR 2: while Escalate / Resolve
@@ -200,7 +200,7 @@ export type InboxDetailBranchState = Pick<
  * key must never reach past a control the pane has taken away — so it asks
  * this predicate too. Without it, `e` on an uncached item's first open
  * (`use-inbox-detail.ts`, `isLoading` is `detailQuery.isLoading ||
- * notesQuery.isLoading`) or on a pane stuck on `Failed to load detail` issued
+ * notesQuery.isLoading`) or on a pane stuck on the detail error issued
  * `escalate` from a pane that showed no Escalate button.
  *
  * Both surfaces call THIS predicate rather than restating the condition inline,

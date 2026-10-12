@@ -26,7 +26,7 @@ import { CLEARED_INBOX_LIST_FILTERS } from './inbox-filters'
 import { InboxQueueRail } from './inbox-queue-rail'
 import { InboxQueueStrip } from './inbox-queue-strip'
 import { InboxShortcutsDialog } from './inbox-shortcuts-dialog'
-import { queueLabel } from './inbox-queues'
+import { queueCount, queueLabel } from './inbox-queues'
 import type { InboxPropertyScopeInput } from './inbox-property-scope'
 import { InboxPropertySelect } from './inbox-property-select'
 import { useInboxPropertyScope } from './use-inbox-property-scope'
@@ -84,6 +84,7 @@ export function InboxPageV2({
     scopeLabel,
     showPropertyNames: !(activePropertyId ?? search.propertyId),
     totalCount: s.totalCount,
+    queueTotal: queueCount(s.queueCounts, s.queue),
     searchQ: search.q,
     filters: {
       sourceType: search.sourceType,
@@ -100,6 +101,7 @@ export function InboxPageV2({
     isLoading: s.isLoading,
     error: s.error,
     onRetry: s.refetch,
+    isRetrying: s.isRetrying,
     nextCursor: s.nextCursor,
     loadAction: s.loadAction,
     listRef,
@@ -111,15 +113,15 @@ export function InboxPageV2({
       }),
     onSortChange: (sort) =>
       onNavigate({ to: '.', search: (p) => ({ ...p, sort, itemId: undefined }) }),
-    // One navigation, so one history entry: an absent `sort` is the newest
-    // first default (`search.sort ?? 'newest'` above).
-    onClearAll: () =>
+    // One navigation, so one history entry. The search and the filters go; the
+    // sort stays, as it does on every list: it is an order, not a cut.
+    onClearFilters: () =>
       onNavigate({
         to: '.',
         search: (p) => ({
           ...p,
           ...CLEARED_INBOX_LIST_FILTERS,
-          sort: undefined,
+          q: undefined,
           itemId: undefined,
         }),
       }),
@@ -164,7 +166,7 @@ export function InboxPageV2({
 
   if (s.isCompactLayout) {
     return (
-      <div className="flex h-full w-full flex-col overflow-hidden">
+      <div data-density="compact" className="flex h-full w-full flex-col overflow-hidden">
         <InboxListPanel
           {...listPanelProps}
           scopeControl={propertySelect('header')}
@@ -195,7 +197,7 @@ export function InboxPageV2({
   }
 
   return (
-    <div className="flex h-full min-w-0">
+    <div data-density="compact" className="flex h-full min-w-0">
       <InboxQueueRail
         queue={s.queue}
         counts={s.queueCounts}

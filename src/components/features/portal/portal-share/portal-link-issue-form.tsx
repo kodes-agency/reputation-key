@@ -19,12 +19,12 @@ export function PortalLinkIssueForm({
     <div className="flex flex-col gap-4 rounded-lg bg-muted/40 p-4">
       <p className="text-sm text-muted-foreground">
         A portal has one code. It works as a QR code for print and as an NFC tag. Use
-        another portal when you need separate attribution or goals.
+        another portal when you need separate results or goals.
       </p>
       <Button
         type="button"
         disabled={isPending}
-        className="min-h-11 self-start sm:min-h-9"
+        className="self-start"
         onClick={() => {
           void issueMutation({ data: { portalId } })
             .then((link) => {
@@ -33,7 +33,7 @@ export function PortalLinkIssueForm({
             .catch(() => undefined)
         }}
       >
-        <QrCode data-icon="inline-start" />
+        <QrCode />
         {issueMutation.isPending ? 'Making…' : 'Make code'}
       </Button>
     </div>

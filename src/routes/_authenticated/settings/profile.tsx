@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { useServerFn } from '@tanstack/react-start'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
@@ -21,6 +22,7 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 const NO_ACTIVE_ORGANIZATION = 'no-active-organization'
 
 export const Route = createFileRoute('/_authenticated/settings/profile')({
+  staticData: { page: { title: 'Profile', under: 'settings' } },
   loader: async ({ context }) => {
     const organizationId =
       (context as AuthRouteContext).activeOrganization?.id ?? NO_ACTIVE_ORGANIZATION
@@ -42,10 +44,15 @@ function ProfileSettings() {
   const ctx = Route.useRouteContext() as AuthRouteContext
   const organizationId = ctx.activeOrganization?.id ?? NO_ACTIVE_ORGANIZATION
   const updateProfile = useActionMutation(updateProfileFn, {
-    successMessage: 'Profile updated successfully',
+    successMessage: 'Profile saved',
   })
+  // Both are immediate actions: the avatar setting says a refusal, so neither passes an
+  // `errorMessage`.
   const updateUserImage = useActionMutation(updateUserImageFn, {
-    successMessage: 'Avatar updated successfully',
+    successMessage: 'Avatar updated',
+  })
+  const removeUserImage = useActionMutation(updateUserImageFn, {
+    successMessage: 'Avatar removed',
   })
   const requestUpload = useServerFn(requestAvatarUpload)
   const finalizeUpload = useServerFn(finalizeAvatarUpload)
@@ -62,7 +69,7 @@ function ProfileSettings() {
       <PageHeader
         title="Profile"
         description="Manage your name, email, avatar, timezone and date format."
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Profile' }]}
+        breadcrumbs={trailCrumbs('settings', {}, 'Profile')}
       />
       <div className="mt-6 space-y-6">
         <ProfileSettingsPage
@@ -70,6 +77,7 @@ function ProfileSettings() {
           user={ctx.user}
           updateProfile={updateProfile}
           updateUserImage={updateUserImage}
+          removeUserImage={removeUserImage}
           requestAvatarUpload={requestUpload}
           finalizeAvatarUpload={finalizeUpload}
         />

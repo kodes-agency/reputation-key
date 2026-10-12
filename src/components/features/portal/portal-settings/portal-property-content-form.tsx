@@ -1,4 +1,5 @@
 import { useForm } from '@tanstack/react-form'
+import { FormActions } from '#/components/forms/form-actions'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
@@ -15,6 +16,11 @@ const propertyContentFormSchema = propertyPortalBrandContentInputSchema
   .pick({ title: true, shortDescription: true })
   .required()
 
+/**
+ * The property's welcome line and link preview in one language: what every
+ * portal of the property starts from. Property-wide, so it keeps an explicit
+ * Save, and only an account admin may change it.
+ */
 export function PortalPropertyContentForm({
   locale,
   propertyId,
@@ -41,14 +47,13 @@ export function PortalPropertyContentForm({
   useExplicitDraftGuard(`content-${locale}`, form)
   return (
     <form className="space-y-3" onSubmit={submitHandler(form)}>
-      <p className="text-sm text-muted-foreground">Property-wide fallback</p>
       <FieldGroup>
         <form.Field name="title">
           {(field: BaseFieldApi) => (
             <FormTextField
               field={field}
               id={`portal-content-title-${locale}`}
-              label="Title"
+              label="Welcome line"
               maxLength={120}
               disabled={readOnly || action.isPending}
             />
@@ -59,7 +64,8 @@ export function PortalPropertyContentForm({
             <FormTextarea
               field={field}
               id={`portal-content-description-${locale}`}
-              label="Description"
+              label="Link preview"
+              rows={2}
               maxLength={500}
               disabled={readOnly || action.isPending}
             />
@@ -67,9 +73,11 @@ export function PortalPropertyContentForm({
         </form.Field>
       </FieldGroup>
       {!readOnly ? (
-        <SubmitButton mutation={action} form={form} variant="outline">
-          Save Property fallback
-        </SubmitButton>
+        <FormActions form={form} error={action.error}>
+          <SubmitButton mutation={action} form={form} variant="outline">
+            Save property wording
+          </SubmitButton>
+        </FormActions>
       ) : null}
     </form>
   )

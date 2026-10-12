@@ -26,6 +26,14 @@ export type PortalTokenStatus = Readonly<{
    * address is shown once, when a code is made or replaced.
    */
   addressRecoverable: boolean
+  /**
+   * The display name of who made the live code ("Made 12 Mar by …"). Null when
+   * the code recorded no maker or the directory cannot name them: the reader
+   * then says when the code was made and nothing more. An operator reads as the
+   * fixed `OPERATOR_ACTOR_LABEL`. Only `getPortal` resolves it; the batched
+   * overview, which shows no maker, leaves it null.
+   */
+  madeBy: string | null
 }>
 
 export const NO_ACTIVE_TOKEN: PortalTokenStatus = {
@@ -35,6 +43,7 @@ export const NO_ACTIVE_TOKEN: PortalTokenStatus = {
   issuedAt: null,
   graceExpiresAt: null,
   addressRecoverable: false,
+  madeBy: null,
 }
 
 /** Whether a key version can open a sealed address: the cipher's `canOpen`, or never. */
@@ -43,6 +52,7 @@ export type CanOpenAddressKey = (keyVersion: number) => boolean
 export const toPortalTokenStatus = (
   summary: ResolvablePortalTokenSummary | null | undefined,
   canOpenKey: CanOpenAddressKey = () => false,
+  madeBy: string | null = null,
 ): PortalTokenStatus =>
   summary
     ? {
@@ -55,5 +65,6 @@ export const toPortalTokenStatus = (
           summary.addressKeyVersion !== null &&
           summary.hasPublishedAccessArtifact &&
           canOpenKey(summary.addressKeyVersion),
+        madeBy,
       }
     : NO_ACTIVE_TOKEN

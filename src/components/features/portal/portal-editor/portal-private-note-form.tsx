@@ -6,7 +6,7 @@ import type { z } from 'zod/v4'
 import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
 import type { Action } from '#/components/hooks/use-action'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { PortalFeedbackThresholdField } from '../portal-form/portal-feedback-threshold-field'
+import { RatingThresholdField } from '#/components/forms/rating-threshold-field'
 import { usePortalFormAutosave } from './use-portal-form-autosave'
 import type { PortalData, UpdatePortalVariables } from '../shared/types'
 
@@ -48,9 +48,14 @@ export function PortalPrivateNoteForm({ portal, mutation, disabled = false }: Pr
     <form className="flex flex-col gap-6" onSubmit={(event) => event.preventDefault()}>
       <form.Field name="privateFeedbackThreshold">
         {(field) => (
-          <PortalFeedbackThresholdField
-            field={field}
+          <RatingThresholdField
             id="edit-private-feedback-threshold"
+            label="Private feedback threshold"
+            value={field.state.value}
+            onValueChange={field.handleChange}
+            onBlur={field.handleBlur}
+            invalid={!field.state.meta.isValid}
+            errors={field.state.meta.errors}
             disabled={isDisabled}
             description="Controls when optional private feedback appears after the private rating. It never changes access to the Google review action."
           />

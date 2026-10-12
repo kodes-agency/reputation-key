@@ -75,7 +75,7 @@ async function checkTopBar(page: Page, view: PageReport, id: string): Promise<Fi
   const locked = id.endsWith('sidebar-locked')
   const phone = view.innerWidth < 768
   const header = await measure(page, '#storybook-root header')
-  const trigger = named(header, 'Toggle Sidebar')
+  const trigger = named(header, 'Toggle sidebar')
   const bell = named(header, /^Notifications/)
   const account = named(header, 'Account menu')
   const avatar = await measure(page, 'header button[aria-label="Account menu"] > *')
@@ -183,7 +183,7 @@ async function checkDetailSheet(
   const conversation = await measure(page, 'section[aria-label="Conversation"]')
   const composer = await measure(page, 'section[aria-label="Composer"]')
   const back = named(header, 'Back to list')
-  const more = named(header, 'More review actions')
+  const more = named(header, 'More actions for this review')
   const regions = [
     ['the case toolbar', toolbar],
     ['the conversation', conversation],
@@ -216,7 +216,7 @@ async function checkDetailSheet(
       // The copy menu is an OUTLINE button: its box, not its glyph, is on the gutter.
       ...(more === undefined
         ? []
-        : boxEndsOnGutter('More review actions', more.box, view)),
+        : boxEndsOnGutter('More actions for this review', more.box, view)),
       ...regions.flatMap(([what, region]) => [
         ...found(region, what),
         ...(region.content === null

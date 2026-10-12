@@ -118,7 +118,7 @@ describe('flushOnTeardown after a failed save', () => {
     // A failed save leaves its text in `failed`, but that is not reliably the
     // box: a token-less `Use draft` saves the suggestion before the composer
     // adopts it, and a save can fail after `Delete draft`. The failure was
-    // reported while the composer was open (`Not saved`, `Retry save`).
+    // reported while the composer was open (`Not saved`, `Try saving again`).
     const save = refusedOnceSave()
     const coordinator = await failFirstSave(save)
 

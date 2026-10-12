@@ -215,14 +215,14 @@ export function printKitSheets(
 }
 
 /**
- * The address as printed under the code: no scheme, no query (the marker that
- * counts a scan is in the code, not in the words), no trailing slash.
+ * The address as printed under the code: the host only. The path is the code's
+ * own secret (the token) and the query holds the marker that counts a scan, so
+ * neither is printed in words. Nobody types them; the code and the NFC tag
+ * carry them.
  */
 export function shortPrintAddress(address: string): string {
   try {
-    const url = new URL(address)
-    const path = url.pathname === '/' ? '' : url.pathname.replace(/\/$/u, '')
-    return `${url.host}${path}`
+    return new URL(address).host
   } catch {
     return address
   }

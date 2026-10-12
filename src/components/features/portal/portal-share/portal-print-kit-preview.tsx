@@ -4,7 +4,8 @@
 // the Property's look; the code is the live code's when its address is in
 // memory and a sample otherwise, and the caption says which.
 
-import { Button } from '#/components/ui/button'
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
+import { RegionError } from '#/components/ui/region-error'
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
@@ -15,6 +16,7 @@ import {
   type PrintKitPiece,
 } from '#/shared/domain/portal-print-kit'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { cn } from '#/lib/utils'
 import { PrintKitArt } from './print-kit-art'
 import { printKitCaptions } from './print-kit-state'
 import { usePrintKitCode } from './use-print-kit-code'
@@ -33,6 +35,8 @@ type Props = Readonly<{
   qrAddress: string | null
   isError: boolean
   onRetry: () => void
+  /** Try again is reading; the error stays, its button busy. */
+  isRetrying?: boolean
 }>
 
 const SIDE_OPTIONS = [
@@ -50,6 +54,7 @@ export function PortalPrintKitPreview({
   qrAddress,
   isError,
   onRetry,
+  isRetrying = false,
 }: Props) {
   const codeUrl = usePrintKitCode(qrAddress)
   const captions = printKitCaptions(piece, side)
@@ -57,7 +62,7 @@ export function PortalPrintKitPreview({
     <div className="min-w-0 flex-1 bg-muted/40">
       <section
         aria-labelledby="print-preview-heading"
-        className="flex flex-col gap-4 px-4 py-5 md:px-6 lg:sticky lg:top-0"
+        className={cn(PAGE_GUTTER_X, 'flex flex-col gap-4 py-5 lg:sticky lg:top-0')}
       >
         {/* The guest fonts are linked here: the Share tab is not a guest route, so
           nothing else loads them. React hoists and de-duplicates the tag. */}
@@ -78,12 +83,12 @@ export function PortalPrintKitPreview({
           )}
         </div>
         {isError ? (
-          <p className="text-sm text-muted-foreground" role="status">
-            The preview could not be loaded.{' '}
-            <Button type="button" variant="link" className="h-auto p-0" onClick={onRetry}>
-              Try again
-            </Button>
-          </p>
+          <RegionError
+            size="compact"
+            message="The preview couldn’t be loaded."
+            onRetry={onRetry}
+            retrying={isRetrying}
+          />
         ) : view === null || face === null ? (
           <Skeleton className="mx-auto aspect-125/168 w-full max-w-md" />
         ) : (

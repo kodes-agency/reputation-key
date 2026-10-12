@@ -1,4 +1,5 @@
-import { createElement, useId, type MouseEvent } from 'react'
+import { Clock } from 'lucide-react'
+import { createElement, useId, type MouseEvent, type ReactNode } from 'react'
 import { LinktreeArrow, linktreeIconFor } from './linktree-icons'
 import {
   followLinktreeLink,
@@ -18,24 +19,43 @@ export type ImmersiveLinktreeLink = Readonly<{
   line: string | null
   /** Set when label and line were copied from another language; it becomes their `lang`. */
   fallbackFrom: string | null
+  /**
+   * A tile with no approved address, drawn only in an inert preview: a dashed
+   * glass tile that gives `note` in place of its line. A live page ignores it,
+   * because a live page never carries a tile it cannot open.
+   */
+  placeholder?: ImmersiveLinktreePlaceholder
 }>
 
-export type ImmersiveLinktreeProps = Readonly<{
+export type ImmersiveLinktreePlaceholder = Readonly<{
+  /** Why the tile is a placeholder; it becomes the tile's `data-ih-tile-placeholder`. */
+  kind: string
+  note: string
+}>
+
+type LinktreeContent = Readonly<{
   /** The portal's Linktree switch. Off, or with no link, nothing renders. */
   enabled: boolean
   title: Readonly<{ value: string; fallbackFrom: string | null }>
   /** The language pack's default title, used when the stored title is blank. */
   defaultTitle: string
   links: ReadonlyArray<ImmersiveLinktreeLink>
-  /** Where a tile goes: the click route on a public page, the destination itself in a preview. */
-  hrefFor: (linkId: string) => string
-  /**
-   * Present only after a rating (see `bindLinkSelector`). It records a qualified
-   * link action and resolves the destination. Absent, a tile is a plain link to
-   * `hrefFor`, which is how every tap before a rating works.
-   */
-  selectLink?: LinktreeSelect
 }>
+
+export type ImmersiveLinktreeProps = LinktreeContent &
+  Readonly<{
+    /** Where a tile goes: the click route on a public page. */
+    hrefFor: (linkId: string) => string
+    /**
+     * Present only after a rating (see `bindLinkSelector`). It records a qualified
+     * link action and resolves the destination. Absent, a tile is a plain link to
+     * `hrefFor`, which is how every tap before a rating works.
+     */
+    selectLink?: LinktreeSelect
+  }>
+
+/** The admin's preview takes the content alone: it has no address to give a tile. */
+export type InertImmersiveLinktreeProps = LinktreeContent
 
 const PHOTO_WIDTH = 420
 const PHOTO_HEIGHT = 194
@@ -59,13 +79,37 @@ function goTo(url: string) {
  * absence.
  */
 export function ImmersiveLinktree({
+  hrefFor,
+  selectLink,
+  ...content
+}: ImmersiveLinktreeProps) {
+  return (
+    <LinktreeSection
+      {...content}
+      tile={(link) => (
+        <LinktreeTile link={link} hrefFor={hrefFor} selectLink={selectLink} />
+      )}
+    />
+  )
+}
+
+/**
+ * The Linktree as the admin's preview draws it: the same section and tiles, but
+ * a picture. A tile is neither a link nor a button, because the preview has no
+ * address to open and must not follow one, and nothing is recorded. A link with
+ * a `placeholder` is drawn as a waiting tile.
+ */
+export function InertImmersiveLinktree(props: InertImmersiveLinktreeProps) {
+  return <LinktreeSection {...props} tile={(link) => <InertTile link={link} />} />
+}
+
+function LinktreeSection({
   enabled,
   title,
   defaultTitle,
   links,
-  hrefFor,
-  selectLink,
-}: ImmersiveLinktreeProps) {
+  tile,
+}: LinktreeContent & Readonly<{ tile: (link: ImmersiveLinktreeLink) => ReactNode }>) {
   const titleId = useId()
   if (!enabled || links.length === 0) return null
   const hasTitle = title.value.trim().length > 0
@@ -84,7 +128,7 @@ export function ImmersiveLinktree({
         <ul className="ih-linktree__grid">
           {links.map((link) => (
             <li key={link.id} className="ih-linktree__item">
-              <LinktreeTile link={link} hrefFor={hrefFor} selectLink={selectLink} />
+              {tile(link)}
             </li>
           ))}
         </ul>
@@ -115,9 +159,74 @@ function LinktreeTile({
   }
   return link.imageUrl ? (
     <a href={href} onClick={onClick} rel="noreferrer" className="ih-tile ih-tile--photo">
+      <PhotoTileBody link={link} imageUrl={link.imageUrl} />
+    </a>
+  ) : (
+    <a
+      href={href}
+      onClick={onClick}
+      rel="noreferrer"
+      className="ih-glass ih-glass--tile ih-tile ih-tile--icon"
+    >
+      <IconTileBody link={link} />
+    </a>
+  )
+}
+
+/**
+ * A tile drawn as a picture: the markup of the live tile in a `div`, so there is
+ * nothing to follow, focus or press.
+ */
+function InertTile({ link }: Readonly<{ link: ImmersiveLinktreeLink }>) {
+  const { placeholder } = link
+  if (placeholder) return <WaitingTile link={link} placeholder={placeholder} />
+  return link.imageUrl ? (
+    <div className="ih-tile ih-tile--photo ih-tile--inert">
+      <PhotoTileBody link={link} imageUrl={link.imageUrl} />
+    </div>
+  ) : (
+    <div className="ih-glass ih-glass--tile ih-tile ih-tile--icon ih-tile--inert">
+      <IconTileBody link={link} />
+    </div>
+  )
+}
+
+/**
+ * The tile of a link with no approved address: publishing leaves it out, so a
+ * manager sees why a tile they made is missing from the page. It keeps its
+ * words, shows a clock for its icon and gives the reason in place of its line.
+ */
+function WaitingTile({
+  link,
+  placeholder,
+}: Readonly<{ link: ImmersiveLinktreeLink; placeholder: ImmersiveLinktreePlaceholder }>) {
+  return (
+    <div
+      className="ih-glass ih-glass--tile ih-tile ih-tile--icon ih-tile--waiting ih-tile--inert"
+      data-ih-tile-placeholder={placeholder.kind}
+    >
+      <span className="ih-tile__top">
+        <span className="ih-tile__icon" aria-hidden="true">
+          <Clock size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        </span>
+      </span>
+      <span className="ih-tile__text" lang={link.fallbackFrom ?? undefined}>
+        <span className="ih-tile__label">{link.label}</span>
+        <span className="ih-tile__line">{placeholder.note}</span>
+      </span>
+    </div>
+  )
+}
+
+function PhotoTileBody({
+  link,
+  imageUrl,
+}: Readonly<{ link: ImmersiveLinktreeLink; imageUrl: string }>) {
+  return (
+    <>
       <img
         className="ih-tile__image"
-        src={link.imageUrl}
+        src={imageUrl}
         alt=""
         width={PHOTO_WIDTH}
         height={PHOTO_HEIGHT}
@@ -133,14 +242,13 @@ function LinktreeTile({
         />
       </span>
       <TileText link={link} />
-    </a>
-  ) : (
-    <a
-      href={href}
-      onClick={onClick}
-      rel="noreferrer"
-      className="ih-glass ih-glass--tile ih-tile ih-tile--icon"
-    >
+    </>
+  )
+}
+
+function IconTileBody({ link }: Readonly<{ link: ImmersiveLinktreeLink }>) {
+  return (
+    <>
       <span className="ih-tile__top">
         <TileIcon iconKey={link.iconKey} />
         <LinktreeArrow
@@ -151,7 +259,7 @@ function LinktreeTile({
         />
       </span>
       <TileText link={link} />
-    </a>
+    </>
   )
 }
 

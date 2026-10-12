@@ -12,6 +12,7 @@ import { getSession } from '#/shared/auth/auth.functions'
 import { getActiveOrganization } from '#/contexts/identity/server/organizations'
 import { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { notificationFns } from '#/routes/-notification-fns'
+import { readViewportHint } from '#/routes/-viewport-hint'
 import type { Role } from '#/shared/domain/roles'
 import type { ClientAuthz } from '#/shared/domain/auth-context'
 import {
@@ -20,9 +21,17 @@ import {
   type CapabilitySet,
 } from '#/shared/auth/capability-set'
 import { propertyIdFromLocation } from '#/components/hooks/use-property-id'
-import { isWorkspaceRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
+import { isFullBleedRoute } from '#/components/layout/full-bleed-route'
+import { pageHead } from '#/components/layout/page-identity'
+import { PAGE_GUTTER } from '#/components/layout/page-shell'
+import { ShellNoticeBoundary } from '#/components/layout/shell-notice-boundary'
+import { useKeepSidebarFocus, useSidebarOpen } from '#/components/layout/shell-continuity'
+import { ShellPresence } from '#/components/layout/route-page-state'
 import { httpStatus } from '#/shared/security/expected-refusal'
 import { SidebarProvider } from '#/components/ui/sidebar'
+import { ViewportHintContext } from '#/components/hooks/use-viewport-below'
+import { useRememberViewportWidth } from '#/components/hooks/use-remember-viewport-width'
+import { UNKNOWN_VIEWPORT } from '#/components/hooks/viewport-hint'
 import { ManagerSidebar } from '#/components/layout/manager-sidebar'
 import { SettingsSidebar } from '#/components/layout/settings-sidebar'
 import { AppTopBar } from '#/components/layout/app-top-bar'
@@ -34,7 +43,7 @@ import {
   listMyBetaFeedbackFn,
   submitBetaFeedbackFn,
 } from '#/contexts/identity/server/beta-feedback'
-import { useState } from 'react'
+import type { ReactNode } from 'react'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -53,7 +62,7 @@ export type AuthRouteContext = Readonly<{
    * navigation, so switching property re-resolves it.
    *
    * UI affordance only: it exists so navigation can render an unavailable
-   * feature as disabled instead of routing into `/unavailable`. It is not a
+   * feature as disabled instead of routing into its unavailable page. It is not a
    * security boundary — every route gate and server function still asserts.
    */
   capabilities: CapabilitySet
@@ -182,29 +191,43 @@ export const Route = createFileRoute('/_authenticated')({
   },
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData(propertiesQuery)
+    // Read here, not in the component: loader data is what hydration reuses,
+    // so the browser's first render answers exactly as the server's did.
+    return { viewportHint: readViewportHint() }
   },
   // The property list rarely changes. It is cached via Query and refetched by
   // targeted invalidation after property mutations.
   staleTime: 5 * 60 * 1000, // 5 min — matches the Query staleTime
+  // The tab is titled after the deepest page in the chain, whether it rendered or
+  // was refused: a denied People page is still the People tab.
+  head: ({ matches }) => pageHead(matches),
   component: AuthenticatedLayout,
+  // The boundary for every not-found below the shell: an unknown address, a
+  // Property that is not there, and the notices of `route-notice` (a role or a
+  // feature that cannot open the page). A boundary replaces its route's own
+  // component, so the notice draws inside a shell of its own.
+  notFoundComponent: AuthenticatedNotFound,
 })
 
-function AuthenticatedLayout() {
+/** The app shell around `children`: sidebar, top bar and the one padded `<main>`. */
+function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
   const ctx = Route.useRouteContext()
+  const { viewportHint } = Route.useLoaderData()
+  useRememberViewportWidth()
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
   // Removed properties stay out of the navigation. They remain reachable and
   // restorable from the Properties page, which lists them under "Removed".
   const properties = partitionWorkspaceProperties(propsData.properties).workspace
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isSettings = pathname.startsWith('/settings')
-  // Both surfaces are full-bleed: the sidebar collapses to the icon rail and
-  // the surface scrolls its own panes. The Inbox and the portal workspace share
-  // the treatment.
-  const isFullBleed =
-    pathname.startsWith('/inbox') ||
-    pathname.includes('/reviews') ||
-    isWorkspaceRoute(pathname)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  // A full-bleed surface (Inbox, Property Reviews, the portal workspace): the
+  // sidebar collapses to the icon rail and the surface scrolls its own panes.
+  // `isFullBleedRoute` is the one place that says which routes those are.
+  const isFullBleed = isFullBleedRoute(pathname)
+  // Kept outside this component: a refusal replaces the shell with a new one
+  // (see `shell-continuity`), and a collapsed sidebar must not open again.
+  const [sidebarOpen, setSidebarOpen] = useSidebarOpen()
+  useKeepSidebarFocus()
 
   const content = (
     <SidebarProvider
@@ -216,7 +239,11 @@ function AuthenticatedLayout() {
       {isSettings ? (
         <SettingsSidebar />
       ) : hasRole(ctx.role, 'PropertyManager') ? (
-        <ManagerSidebar properties={properties} getLastVisitCount={getLastVisitCountFn} />
+        <ManagerSidebar
+          properties={properties}
+          organizationName={ctx.activeOrganization?.name}
+          getLastVisitCount={getLastVisitCountFn}
+        />
       ) : null}
       {/*
         BQC-6.8: the layout wrapper is a plain div, NOT SidebarInset — the
@@ -245,23 +272,40 @@ function AuthenticatedLayout() {
             hasRole(ctx.role, 'PropertyManager') ? listMyBetaFeedbackFn : undefined
           }
         />
+        {/* The only element that pads a page (PAGE_GUTTER); nothing below adds a second gutter. */}
         <main
           className={`min-w-0 flex-1 ${
-            isFullBleed ? 'overflow-hidden' : 'overflow-auto px-4 py-5 md:px-6 md:py-8'
+            isFullBleed ? 'overflow-hidden' : `overflow-auto ${PAGE_GUTTER}`
           }`}
         >
-          <Outlet />
+          <ShellPresence value>{children}</ShellPresence>
         </main>
       </div>
     </SidebarProvider>
   )
 
-  return isFullBleed ? (
-    <div className="h-screen overflow-hidden flex flex-col">
-      <style>{`[data-slot="sidebar-wrapper"]{flex:1 1 0%;overflow:hidden}`}</style>
-      {content}
-    </div>
-  ) : (
-    content
+  return (
+    <ViewportHintContext.Provider value={viewportHint ?? UNKNOWN_VIEWPORT}>
+      {isFullBleed ? (
+        <div className="h-screen overflow-hidden flex flex-col">
+          <style>{`[data-slot="sidebar-wrapper"]{flex:1 1 0%;overflow:hidden}`}</style>
+          {content}
+        </div>
+      ) : (
+        content
+      )}
+    </ViewportHintContext.Provider>
   )
+}
+
+function AuthenticatedLayout() {
+  return (
+    <AuthenticatedShell>
+      <Outlet />
+    </AuthenticatedShell>
+  )
+}
+
+function AuthenticatedNotFound({ data }: Readonly<{ data?: unknown }>) {
+  return <ShellNoticeBoundary data={data} shell={AuthenticatedShell} />
 }

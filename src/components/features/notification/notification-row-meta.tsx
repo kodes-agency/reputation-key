@@ -18,7 +18,7 @@ export function NotificationRowMeta({ view }: Props) {
   if (view.property !== null) facts.push(view.property)
   if (view.tone === 'done') facts.push(<span className="text-positive">Done</span>)
   if (view.targetPassed) {
-    facts.push(<span className="font-medium text-destructive">Target passed</span>)
+    facts.push(<span className="font-medium text-negative">Target passed</span>)
   }
   if (view.rating !== undefined) {
     facts.push(<StarRating value={view.rating} label={`Rated ${view.rating} of 5`} />)

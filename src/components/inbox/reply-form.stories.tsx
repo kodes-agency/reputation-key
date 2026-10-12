@@ -152,7 +152,7 @@ export const DraftOverLimit: Story = {
 // ── read-only states: the thread's, not this component's ─────────────────────
 
 /**
- * Awaiting approval. Confirm & Publish and Reject are the thread message's
+ * Awaiting approval. Confirm & publish and Reject are the thread message's
  * actions — see `reply-message.stories.tsx` → `AwaitingApproval`.
  */
 export const PendingApproval: Story = {

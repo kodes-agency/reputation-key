@@ -2,12 +2,14 @@
 // languages under it, and the responsible managers. Each is a small answer to
 // one question, so the table and the phone card can place the same parts.
 //
-// Only the Portal's name keeps the link accent: it is the row's one way in. The
-// global `a` colour in styles.css is unlayered, so any other link pins its ink
-// with `!` to stay out of the accent (figures and notes must not turn purple).
+// Only the Portal's name keeps the link accent: it is the row's one way in. Any
+// other link names its ink (`text-foreground`) to stay out of the accent
+// (figures and notes must not turn purple).
 import { Link } from '@tanstack/react-router'
-import { CircleDashed, PencilLine, TriangleAlert } from 'lucide-react'
+import { CircleDashed, History, PencilLine, TriangleAlert } from 'lucide-react'
+import { Badge } from '#/components/ui/badge'
 import { OwnerDisc } from '#/components/ui/owner-disc'
+import { ROW_FIGURE_LINK, ROW_NAME_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import { attentionLine } from './portal-attention'
 import { PortalIssuesPopover } from './portal-issues-popover'
@@ -17,9 +19,6 @@ import type {
   PortalOverviewItem,
 } from './portal-overview-view'
 
-const FOCUS_RING =
-  'rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
-
 type RowRef = Readonly<{ propertyId: string; portalId: string; name: string }>
 
 export function PortalNameLink({ row }: Readonly<{ row: RowRef }>) {
@@ -28,7 +27,7 @@ export function PortalNameLink({ row }: Readonly<{ row: RowRef }>) {
       to="/properties/$propertyId/portals/$portalId"
       params={{ propertyId: row.propertyId, portalId: row.portalId }}
       search={{ tab: 'page' }}
-      className={cn('truncate font-medium', FOCUS_RING)}
+      className={cn('truncate font-medium', ROW_NAME_LINK)}
     >
       {row.name}
     </Link>
@@ -71,11 +70,26 @@ export function PortalAttentionLine({
               params={{ propertyId, portalId: row.portalId }}
               search={{ tab: 'page' }}
               aria-label={`Continue setup for ${row.name}`}
-              className={cn('font-medium text-foreground!', FOCUS_RING)}
+              className={cn('font-medium whitespace-nowrap', ROW_FIGURE_LINK)}
             >
               Continue setup
             </Link>
           </span>
+        </p>
+      )
+    case 'older_code':
+      return (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <History className="size-3.5 shrink-0" aria-hidden="true" />
+          <Link
+            to="/properties/$propertyId/portals/$portalId"
+            params={{ propertyId, portalId: row.portalId }}
+            search={{ tab: 'share' }}
+            aria-label={`${line}: open Share for ${row.name}`}
+            className={ROW_FIGURE_LINK}
+          >
+            {line}
+          </Link>
         </p>
       )
     case 'pending':
@@ -91,17 +105,14 @@ export function PortalAttentionLine({
 }
 
 /** `EN BG ES DE`, with the full names for a screen reader. */
-export function PortalLocaleChips({ locales }: Readonly<{ locales: PortalLocalesView }>) {
+function PortalLocaleChips({ locales }: Readonly<{ locales: PortalLocalesView }>) {
   return (
     <>
       <span aria-hidden="true" className="inline-flex flex-wrap gap-1">
         {locales.chips.map((chip) => (
-          <span
-            key={chip.code}
-            className="rounded-sm bg-muted px-1.5 text-[11px] leading-5 font-medium text-muted-foreground"
-          >
+          <Badge key={chip.code} variant="secondary">
             {chip.label}
-          </span>
+          </Badge>
         ))}
       </span>
       <span className="sr-only">{locales.description}</span>

@@ -2,7 +2,7 @@
 // (docs/plan/property-list-table.md). The page is presentational, so each story
 // holds the URL search in state the way the route holds it in the URL.
 // Routing and permissions come from decorators.
-import { useState } from 'react'
+import { useState, type MouseEvent } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import { withRole } from '../../../../.storybook/AuthedRouterDecorator'
@@ -13,7 +13,11 @@ import {
   type PropertyListPageProps,
   type PropertySetupProgress,
 } from './property-list-page'
-import type { PropertyListSearch } from './property-list-search-schema'
+import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/list-search-limit'
+import {
+  propertyListSearchSchema,
+  type PropertyListSearch,
+} from './property-list-search-schema'
 import type { PropertyListProperty } from './property-list-view'
 
 type StoryArgs = Omit<PropertyListPageProps, 'search' | 'onSearchChange'> &
@@ -21,7 +25,22 @@ type StoryArgs = Omit<PropertyListPageProps, 'search' | 'onSearchChange'> &
 
 function ListStory({ initialSearch, ...props }: StoryArgs) {
   const [search, setSearch] = useState<PropertyListSearch>(initialSearch ?? {})
-  return <PropertyListPage {...props} search={search} onSearchChange={setSearch} />
+  // The route holds the search in the URL and a view tab is a link to it. The
+  // story router has no such route, so a click on a link to the list itself is
+  // turned into the same change of state instead of a navigation.
+  const followListLink = (event: MouseEvent<HTMLElement>) => {
+    const anchor = (event.target as Element).closest('a')
+    if (anchor === null) return
+    const url = new URL(anchor.getAttribute('href') ?? '', 'http://story.test')
+    if (url.pathname !== '/properties') return
+    event.preventDefault()
+    setSearch(propertyListSearchSchema.parse(Object.fromEntries(url.searchParams)))
+  }
+  return (
+    <div onClickCapture={followListLink}>
+      <PropertyListPage {...props} search={search} onSearchChange={setSearch} />
+    </div>
+  )
 }
 
 const meta: Meta<StoryArgs> = {
@@ -190,7 +209,8 @@ export const Default: Story = {
       canvas.getByRole('link', { name: 'Google not linked for Initech Campus' }),
     ).toHaveAttribute('href', '/properties/prop-initech/settings/google')
     expect(canvas.getByText('Paused')).toBeVisible()
-    expect(canvas.getByText('6 properties · 1 paused')).toBeVisible()
+    expect(canvas.getByText('6 properties')).toBeVisible()
+    expect(canvas.getByText('1 paused')).toBeVisible()
     expect(
       canvas.getByText('Ratings and review counts are all-time.', { exact: false }),
     ).toBeVisible()
@@ -289,7 +309,8 @@ export const ShowNeedsAttention: Story = {
     expect(canvas.getByText('3 of 6')).toBeVisible()
     expect(canvas.getByRole('button', { name: 'Show: Needs attention' })).toBeVisible()
 
-    await userEvent.click(canvas.getByRole('button', { name: 'Clear' }))
+    // Only a filter is in force, so the one Clear control says "filters".
+    await userEvent.click(canvas.getByRole('button', { name: 'Clear filters' }))
     expect(bodyRows(canvas)).toHaveLength(6)
   },
 }
@@ -303,12 +324,30 @@ export const SearchByAddress: Story = {
   },
 }
 
+/** The field stops where the URL schema does, instead of resetting on the 101st character. */
+export const SearchStopsAtItsLimit: Story = {
+  args: ready,
+  play: async ({ canvasElement }) => {
+    const box = within(canvasElement).getByRole('searchbox', {
+      name: 'Search properties',
+    })
+    await userEvent.click(box)
+    await userEvent.paste('a'.repeat(MAX_LIST_SEARCH_LENGTH + 20))
+    expect(box).toHaveValue('a'.repeat(MAX_LIST_SEARCH_LENGTH))
+  },
+}
+
 export const SearchNoMatch: Story = {
   args: { ...ready, initialSearch: { q: 'no such hotel' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText('No properties match')).toBeVisible()
-    await userEvent.click(canvas.getByRole('button', { name: 'Clear search and filter' }))
+    // The toolbar's Clear and the empty result's are the same control in the same
+    // words; the panel's is the one this story presses.
+    const panel = within(
+      canvasElement.querySelector<HTMLElement>('[data-slot="empty-state"]')!,
+    )
+    await userEvent.click(panel.getByRole('button', { name: 'Clear search and filters' }))
     expect(bodyRows(canvas)).toHaveLength(6)
   },
 }
@@ -391,15 +430,26 @@ export const WithRemovedProperty: Story = {
   args: { ...ready, properties: [...properties, removedProperty] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByRole('tab', { name: /Workspace\s*6/ })).toHaveAttribute(
-      'aria-selected',
-      'true',
+    // The views are links to the list, the current one marked, not a tablist.
+    expect(canvas.queryByRole('tablist')).toBeNull()
+    const views = within(canvas.getByRole('navigation', { name: 'Which properties' }))
+    expect(views.getByRole('link', { name: /Workspace\s*6/ })).toHaveAttribute(
+      'aria-current',
+      'page',
     )
-    // The inactive tab is not rendered, so the table holds only the workspace.
+    expect(views.getByRole('link', { name: /Removed\s*1/ })).toHaveAttribute(
+      'href',
+      '/properties?tab=removed',
+    )
+    // The other view is not rendered, so the table holds only the workspace.
     expect(canvas.queryByText(removedProperty.name)).toBeNull()
     expect(bodyRows(canvas)).toHaveLength(6)
 
-    await userEvent.click(canvas.getByRole('tab', { name: /Removed\s*1/ }))
+    await userEvent.click(canvas.getByRole('link', { name: /Removed\s*1/ }))
+    expect(canvas.getByRole('link', { name: /Removed\s*1/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
     expect(canvas.getByRole('link', { name: removedProperty.name })).toHaveAttribute(
       'href',
       `/properties/${removedProperty.id}`,
@@ -447,7 +497,7 @@ export const RemovedTabForPropertyManager: Story = {
 
 async function openRowActions(canvasElement: HTMLElement, name: string) {
   await userEvent.click(
-    within(canvasElement).getByRole('button', { name: `Actions for ${name}` }),
+    within(canvasElement).getByRole('button', { name: `More actions for ${name}` }),
   )
   // The menu renders in a portal, outside the story's canvas.
   return within(await within(document.body).findByRole('menu'))
@@ -495,6 +545,6 @@ export const AllRemoved: Story = {
     expect(
       canvas.queryByRole('link', { name: /import your first property/i }),
     ).not.toBeInTheDocument()
-    expect(canvas.getByRole('tab', { name: /Removed\s*1/ })).toBeVisible()
+    expect(canvas.getByRole('link', { name: /Removed\s*1/ })).toBeVisible()
   },
 }

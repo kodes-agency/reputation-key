@@ -5,7 +5,7 @@
 // `category`, `propertyId` and coalescing fields — the previous fixtures cast an
 // incomplete object to `Notification` and omitted all four.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { makeNotification, notificationFixtures } from './notification.stories.fixtures'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { groupByDay, needsReader, type NotificationGroup } from './notification-filters'
@@ -56,7 +56,7 @@ const meta: Meta<typeof NotificationListBody> = {
   },
   decorators: [
     (Story) => (
-      <div className="w-96 rounded-xl border bg-popover p-1 text-popover-foreground">
+      <div className="w-96 max-w-[calc(100vw-2rem)] rounded-xl border bg-popover p-1 text-popover-foreground">
         <Story />
       </div>
     ),
@@ -69,8 +69,8 @@ export const ErrorState: Story = {
   args: { groups: [], error: new Error('Notifications service unavailable') },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText(/couldn't load notifications/i)).toBeInTheDocument()
-    expect(canvas.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+    expect(canvas.getByText(/notifications couldn’t be loaded/i)).toBeInTheDocument()
+    expect(canvas.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
   },
 }
 
@@ -93,7 +93,30 @@ const expectRowsKeptWithNotice = (
 export const RefreshFailureKeepsTheRows: Story = {
   args: { error: new Error('Notifications service unavailable') },
   play: async ({ canvasElement }) => {
-    expectRowsKeptWithNotice(canvasElement, /couldn't refresh notifications/i, /retry/i)
+    expectRowsKeptWithNotice(
+      canvasElement,
+      /notifications couldn’t be refreshed/i,
+      'Try again',
+    )
+  },
+}
+
+/**
+ * Try again on the refresh notice goes busy from the press: the rows keep the
+ * read in its error state while it tries again, so nothing else says it is
+ * reading, and a second press would ask again.
+ */
+export const RefreshRetryGoesBusy: Story = {
+  args: { error: new Error('Notifications service unavailable'), onRetry: fn() },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const retry = canvas.getByRole('button', { name: 'Try again' })
+    await userEvent.click(retry)
+
+    await waitFor(() => expect(retry).toHaveAttribute('aria-busy', 'true'))
+    expect(retry).toHaveTextContent('Trying again…')
+    await userEvent.click(retry)
+    expect(args.onRetry).toHaveBeenCalledTimes(1)
   },
 }
 
@@ -114,7 +137,7 @@ export const SessionEnded: Story = {
       'href',
       expect.stringMatching(/^\/login\?redirect=/),
     )
-    expect(canvas.queryByRole('button', { name: /retry/i })).toBeNull()
+    expect(canvas.queryByRole('button', { name: 'Try again' })).toBeNull()
   },
 }
 
@@ -124,7 +147,7 @@ export const LoadMoreFailure: Story = {
   play: async ({ canvasElement }) => {
     expectRowsKeptWithNotice(
       canvasElement,
-      /couldn't load older notifications/i,
+      /older notifications couldn’t be loaded/i,
       'Try again',
     )
   },

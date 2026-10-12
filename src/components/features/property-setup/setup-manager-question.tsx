@@ -124,7 +124,7 @@ export function SetupManagerQuestion({
                 >
                   <SelectTrigger
                     aria-label={`Responsible manager for ${property.propertyName}`}
-                    className="min-h-11 w-full sm:min-h-9"
+                    className="w-full"
                   >
                     <SelectValue />
                   </SelectTrigger>

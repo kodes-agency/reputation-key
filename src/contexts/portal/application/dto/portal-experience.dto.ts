@@ -50,6 +50,10 @@ export const propertyPublicDisplayNameInputSchema = z.object({
   displayName: portalBrandDisplayNameSchema,
 })
 
+/** What the Public display name form holds: the name alone, never the colours. */
+export const propertyPublicDisplayNameFormInputSchema =
+  propertyPublicDisplayNameInputSchema.pick({ displayName: true })
+
 export const propertyPortalBrandProfileInputSchema = portalExperienceScopeSchema
   .extend({
     logoUrl: z.null().optional(),
@@ -57,16 +61,12 @@ export const propertyPortalBrandProfileInputSchema = portalExperienceScopeSchema
   })
   .and(portalBrandFormInputSchema)
 
-const portalGuestTitleSchema = z
-  .string()
-  .trim()
-  .min(1, 'Guest title is required')
-  .max(120)
+const portalGuestTitleSchema = z.string().trim().min(1, 'Write a welcome line').max(120)
 
 const portalGuestDescriptionSchema = z
   .string()
   .trim()
-  .min(1, 'Guest description is required')
+  .min(1, 'Write a link preview')
   .max(500)
 
 export const propertyPortalBrandContentInputSchema = portalExperienceScopeSchema.extend({

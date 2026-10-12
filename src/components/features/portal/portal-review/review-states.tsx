@@ -1,6 +1,8 @@
 // "See every guest state": the guest page at each step (arrival, after each
-// rating, done) as small pictures. Choosing one shows it in the phone on the
-// right; the pair returns when the manager asks for it again.
+// rating, done) as small pictures. Choosing one shows it in the phone of the
+// guest preview (beside the lists from `lg`, under them on a smaller screen,
+// where the phone is brought into view); the pair returns when the manager asks
+// for it again.
 
 import { ChevronRight } from 'lucide-react'
 import {
@@ -8,6 +10,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
+import { BackButton } from '#/components/ui/back-link'
 import { Button } from '#/components/ui/button'
 import { PortalPreviewFilmstrip } from '../portal-preview/portal-preview-filmstrip'
 import {
@@ -41,7 +44,7 @@ export function ReviewStates({ data, view, onViewChange, languageCount }: Props)
         >
           <ChevronRight
             aria-hidden="true"
-            className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90"
+            className="shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90"
           />
           <span className="font-medium">See every guest state</span>
           <span className="min-w-0 whitespace-normal text-xs text-muted-foreground">
@@ -76,15 +79,10 @@ export function ReviewStates({ data, view, onViewChange, languageCount }: Props)
           )}
         />
         {view.kind === 'pair' ? null : (
-          <Button
-            type="button"
-            variant="link"
-            size="sm"
-            className="px-1"
+          <BackButton
+            label="Back to the 1★ and 5★ pair"
             onClick={() => onViewChange({ kind: 'pair' })}
-          >
-            Back to the 1★ and 5★ pair
-          </Button>
+          />
         )}
       </CollapsibleContent>
     </Collapsible>

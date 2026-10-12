@@ -6,6 +6,7 @@
 // else. It is now the person's own default, and this says what it is so the
 // button that sets it is not a leap of faith.
 
+import { ratingThresholdWords } from '#/components/forms/rating-threshold'
 import {
   resolveCategoryPreference,
   type ConfigurableNotificationCategory,
@@ -31,14 +32,6 @@ const defaultFor = (
     : { enabled: stored.enabled, cadence: stored.cadence, maxRating: stored.maxRating }
 }
 
-/** "N★ or lower", said so it reads in a sentence. */
-export const lowRatingWords = (maxRating: number): string =>
-  maxRating === 1 ? '1★ only' : `${maxRating}★ or lower`
-
-/** The same read aloud: a screen reader says "★" as "black star". */
-export const spokenLowRatingWords = (maxRating: number): string =>
-  maxRating === 1 ? '1 star only' : `${maxRating} stars or lower`
-
 export function describeInheritedDefault(
   category: ConfigurableNotificationCategory,
   defaults: readonly NotificationCategoryDefault[],
@@ -54,7 +47,7 @@ export function describeInheritedDefault(
   const email = resolve('email')
   if (category === 'low_ratings') {
     const words = (values: typeof inApp) =>
-      values.enabled && values.maxRating ? lowRatingWords(values.maxRating) : 'off'
+      values.enabled && values.maxRating ? ratingThresholdWords(values.maxRating) : 'off'
     const when = email.enabled ? `, ${CADENCE_WORDS[email.cadence]}` : ''
     return `A new property gets ${words(inApp)} in the app, ${words(email)} by email${when}.`
   }

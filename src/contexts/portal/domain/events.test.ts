@@ -12,6 +12,7 @@ import {
   portalLocaleSetUpdated,
   portalApprovedDestinationUpdated,
   portalArchived,
+  portalConfigurationCompletenessRecorded,
   portalLinkCategoryDeleted,
   portalLinkCategoryUpdated,
   portalLinkDeleted,
@@ -412,5 +413,38 @@ describe('portal events', () => {
         }),
       ]),
     )
+  })
+
+  it('records which fields a completeness count was taken on, within its bounds', () => {
+    const args = {
+      reviewId: 'review-1',
+      revision: 1,
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      portalId: PORTAL_ID,
+      portalGroupId: null,
+      supersedesSourceEventId: null,
+      sourceAggregateVersion: NOW.toISOString(),
+      occurredAt: NOW,
+      completedFields: 4,
+      requiredFields: 5,
+      fieldSet: 'immersive_hub',
+    } as const
+
+    expect(portalConfigurationCompletenessRecorded(args)).toMatchObject({
+      _tag: 'portal.configuration_completeness.recorded',
+      completedFields: 4,
+      requiredFields: 5,
+      fieldSet: 'immersive_hub',
+    })
+    expect(() =>
+      portalConfigurationCompletenessRecorded({ ...args, completedFields: 6 }),
+    ).toThrow('completedFields must be between zero and requiredFields')
+    expect(() =>
+      portalConfigurationCompletenessRecorded({
+        ...args,
+        fieldSet: 'theme' as unknown as typeof args.fieldSet,
+      }),
+    ).toThrow('fieldSet must name the fields that were counted')
   })
 })

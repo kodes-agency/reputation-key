@@ -1,6 +1,6 @@
+import { useState } from 'react'
 import { BookOpenText } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Badge } from '#/components/ui/badge'
 import {
   Card,
@@ -11,16 +11,15 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { EmptyState } from '#/components/ui/empty-state'
-import { Switch } from '#/components/ui/switch'
+import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
 import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '#/components/ui/table'
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+} from '#/components/ui/data-table'
 import type { SetPropertyReplyTemplateEnabledInput } from '#/contexts/review/application/dto/reply-library.dto'
 import type {
   PropertyReplyLibraryProfile,
@@ -45,6 +44,39 @@ type Props = Readonly<{
   toggleAction: ToggleReplyTemplateAction
 }>
 
+/** One template's switch: it saves as it is flipped and says so while the request runs. */
+function TemplateEnabledSwitch({
+  propertyId,
+  template,
+  toggleAction,
+}: Readonly<{
+  propertyId: string
+  template: PropertyReplyLibraryTemplate
+  toggleAction: ToggleReplyTemplateAction
+}>) {
+  const [saving, setSaving] = useState(false)
+  return (
+    <SettingSwitchRow
+      id={`reply-template-enabled-${template.id}`}
+      layout="cell"
+      label={`Enabled: ${template.title}`}
+      stateWords={['On', 'Off']}
+      commit="immediate"
+      pending={saving}
+      disabled={toggleAction.isPending}
+      checked={template.enabled}
+      onCheckedChange={(enabled) => {
+        setSaving(true)
+        // The action reports a refusal in a toast; the row reads how it went from the
+        // promise, and this ends the busy state.
+        return toggleAction({
+          data: { propertyId, templateId: template.id, enabled },
+        }).finally(() => setSaving(false))
+      }}
+    />
+  )
+}
+
 export function PropertyReplyTemplateLibraryCard({
   propertyId,
   profile,
@@ -59,7 +91,7 @@ export function PropertyReplyTemplateLibraryCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Template library</CardTitle>
+        <CardTitle as="h2">Template library</CardTitle>
         <CardDescription>
           Author Property-specific replies by rating, review type, aspect, and language.
           Disable a template to remove it from the composer without deleting its history.
@@ -82,72 +114,52 @@ export function PropertyReplyTemplateLibraryCard({
             Ask a property manager or account admin to manage this template library.
           </p>
         ) : templates.length === 0 ? (
-          <EmptyState icon={BookOpenText} title="No reply templates yet">
-            <p className="max-w-md text-sm text-muted-foreground">
-              Add a template for a rating band, review type, and language to make it
-              available in the reply composer.
-            </p>
-          </EmptyState>
+          <EmptyState
+            icon={BookOpenText}
+            title="No reply templates yet"
+            description="Add a template for a rating band, review type, and language to make it available in the reply composer."
+          />
         ) : (
-          <Table>
-            <TableCaption className="sr-only">
-              Property reply template library
-            </TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Rating band</TableHead>
-                <TableHead>Review type</TableHead>
-                <TableHead>Aspect</TableHead>
-                <TableHead>Language</TableHead>
-                <TableHead>Enabled</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <DataTable label="Property reply template library" layout="scroll">
+            <DataTableHeader>
+              <DataTableHead>Title</DataTableHead>
+              <DataTableHead>Rating band</DataTableHead>
+              <DataTableHead>Review type</DataTableHead>
+              <DataTableHead>Aspect</DataTableHead>
+              <DataTableHead>Language</DataTableHead>
+              <DataTableHead>Enabled</DataTableHead>
+              <DataTableHead actions />
+            </DataTableHeader>
+            <DataTableBody>
               {templates.map((template) => (
-                <TableRow key={template.id}>
-                  <TableCell className="max-w-64 whitespace-normal font-medium">
+                <DataTableRow key={template.id}>
+                  <DataTableCell className="max-w-64 whitespace-normal font-medium">
                     {template.title}
-                  </TableCell>
-                  <TableCell>
+                  </DataTableCell>
+                  <DataTableCell>
                     {template.ratingMin === template.ratingMax
                       ? `${template.ratingMin} star${template.ratingMin === 1 ? '' : 's'}`
                       : `${template.ratingMin}–${template.ratingMax} stars`}
-                  </TableCell>
-                  <TableCell>
+                  </DataTableCell>
+                  <DataTableCell>
                     <Badge variant="outline">
                       {template.hasText ? 'With text' : 'Rating only'}
                     </Badge>
-                  </TableCell>
-                  <TableCell className="capitalize">
+                  </DataTableCell>
+                  <DataTableCell className="capitalize">
                     {template.aspect?.replaceAll('_', ' ') ?? 'General'}
-                  </TableCell>
-                  <TableCell>
+                  </DataTableCell>
+                  <DataTableCell>
                     <code>{template.languageTag}</code>
-                  </TableCell>
-                  <TableCell>
-                    <label
-                      htmlFor={`reply-template-enabled-${template.id}`}
-                      className="flex min-h-11 cursor-pointer items-center gap-2"
-                    >
-                      <Switch
-                        id={`reply-template-enabled-${template.id}`}
-                        checked={template.enabled}
-                        onCheckedChange={(enabled) =>
-                          void toggleAction({
-                            data: { propertyId, templateId: template.id, enabled },
-                          })
-                        }
-                        disabled={toggleAction.isPending}
-                        aria-label={`${template.enabled ? 'Disable' : 'Enable'} ${template.title}`}
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        {template.enabled ? 'On' : 'Off'}
-                      </span>
-                    </label>
-                  </TableCell>
-                  <TableCell className="text-right">
+                  </DataTableCell>
+                  <DataTableCell>
+                    <TemplateEnabledSwitch
+                      propertyId={propertyId}
+                      template={template}
+                      toggleAction={toggleAction}
+                    />
+                  </DataTableCell>
+                  <DataTableCell className="text-right">
                     <ReplyTemplateEditor
                       key={`${template.id}:${template.version}`}
                       propertyId={propertyId}
@@ -156,13 +168,12 @@ export function PropertyReplyTemplateLibraryCard({
                       defaultLanguageTag={defaultLanguageTag}
                       action={saveAction}
                     />
-                  </TableCell>
-                </TableRow>
+                  </DataTableCell>
+                </DataTableRow>
               ))}
-            </TableBody>
-          </Table>
+            </DataTableBody>
+          </DataTable>
         )}
-        <FormErrorBanner error={toggleAction.error} />
       </CardContent>
     </Card>
   )

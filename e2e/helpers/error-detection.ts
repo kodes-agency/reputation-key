@@ -475,8 +475,18 @@ export function attachErrorDetection(
  * navigation and asserts zero detections in teardown, so the FIRST test that
  * produces a runtime error fails immediately with the original error.
  */
-export const test = base.extend({
-  page: async ({ page }, use, testInfo) => {
+export const test = base.extend<{
+  /**
+   * Allowlist entries for THIS spec only, appended to ERROR_ALLOWLIST. For a
+   * refusal that is the behaviour under test (a journey that signs in as an
+   * unverified member and must see the 403), which would otherwise need a
+   * suite-wide entry. Same rules: narrow, owned, expiring. Set with
+   * `test.use({ extraErrorAllowlist: [...] })`.
+   */
+  extraErrorAllowlist: readonly AllowlistEntry[]
+}>({
+  extraErrorAllowlist: [[], { option: true }],
+  page: async ({ page, extraErrorAllowlist }, use, testInfo) => {
     // BQC-6.1 hermeticity: the app font set is linked by RootDocument from
     // external CDNs (src/shared/font-sets.ts: api.fontshare.com,
     // fonts.googleapis.com — binaries from cdn.fontshare.com / fonts.gstatic.com).
@@ -496,7 +506,9 @@ export const test = base.extend({
       /^https?:\/\/(?:api\.fontshare\.com|cdn\.fontshare\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)(?:[:/?#]|$)/,
       (route) => route.fulfill({ status: 200, contentType: 'text/css', body: '' }),
     )
-    const collector = attachErrorDetection(page)
+    const collector = attachErrorDetection(page, {
+      extraAllowlist: extraErrorAllowlist,
+    })
     await use(page)
     await collector.assertEmpty(testInfo)
   },

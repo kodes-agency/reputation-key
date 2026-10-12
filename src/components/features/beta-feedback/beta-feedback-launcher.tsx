@@ -74,17 +74,19 @@ export function BetaFeedbackLauncher({ submitFeedback, listFeedback }: Props) {
           code-split marker can append "— 1 report updated" without the
           launcher carrying that state.
 
-          36 px tall below md. Where the label is hidden (below sm) the button
-          is a 36 px square: a fixed width, not zero side padding, because the
-          size's `has-[>svg]:px-2.5` outranks a breakpoint padding utility.
+          36 px tall below md, from the top bar's compact density. Where the label
+          is hidden (below sm) the button is a 36 px square: a fixed width, not
+          zero side padding, because the size's `has-[>svg]:px-2.5` outranks a
+          breakpoint padding utility.
         */}
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="relative gap-2 max-md:h-9 max-sm:w-9"
+          iconBelow="sm"
+          className="relative gap-2"
         >
-          <MessageSquarePlus className="size-4" aria-hidden="true" />
+          <MessageSquarePlus aria-hidden="true" />
           <span className="sr-only">Feedback: report a problem or share an idea</span>
           <span className="hidden sm:inline" aria-hidden="true">
             Feedback
@@ -100,10 +102,7 @@ export function BetaFeedbackLauncher({ submitFeedback, listFeedback }: Props) {
         </Button>
       </DialogTrigger>
       {open && (
-        <DialogContent
-          className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl"
-          data-beta-feedback-capture-exclude
-        >
+        <DialogContent size="lg" data-beta-feedback-capture-exclude>
           <DialogHeader>
             <DialogTitle>Help shape RepKey</DialogTitle>
             <DialogDescription>

@@ -129,6 +129,12 @@ describe('buildPortalOverview', () => {
     ).toEqual(['Pool & Terrace', 'Pool bar', 'Spa & thermal pools'])
   })
 
+  it('counts the Portals that need attention before the search narrows the list', () => {
+    expect(build({}).needingAttention).toBe(3)
+    expect(build({ q: 'reception' }).needingAttention).toBe(3)
+    expect(build({ show: 'attention' }).needingAttention).toBe(3)
+  })
+
   it('counts a group by its members, not by what the search left', () => {
     const page = build({ q: 'spa' })
     const section = page.sections[0]
@@ -255,7 +261,7 @@ describe('channelLabel', () => {
 describe('localeChips', () => {
   it('lists the primary language first, then the others in the order given', () => {
     const chips = localeChips('en', ['bg', 'es', 'de'])
-    expect(chips.chips.map((chip) => chip.label)).toEqual(['EN', 'БГ', 'ES', 'DE'])
+    expect(chips.chips.map((chip) => chip.label)).toEqual(['EN', 'BG', 'ES', 'DE'])
     expect(chips.description).toBe('Languages: English, Bulgarian, Spanish, German')
   })
 

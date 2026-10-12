@@ -1,11 +1,9 @@
 import { Link } from '@tanstack/react-router'
 import { Stars, ReplyStatusBadge } from './property-dashboard-helpers'
 import type { RecentReview } from '#/contexts/reporting/application/public-api'
-
-const dashboardDateFormatter = new Intl.DateTimeFormat('en-US', {
-  dateStyle: 'medium',
-  timeZone: 'UTC',
-})
+import { formatDate } from '#/lib/format'
+import { ROW_LINK_SURFACE } from '#/components/ui/row-link'
+import { cn } from '#/lib/utils'
 
 /**
  * Format a review date, or render nothing when it is not a real instant.
@@ -15,14 +13,10 @@ const dashboardDateFormatter = new Intl.DateTimeFormat('en-US', {
  * boundary as an Invalid Date, and `Intl.DateTimeFormat#format` throws
  * `RangeError: Invalid time value` on one. That threw during render, so the
  * whole property page died rather than one row losing its date — which is what
- * the e2e error gate caught on /properties/$id.
- *
- * Mirrors the guard `formatPropertyRecoveryDeadline` already uses in
- * property-lifecycle-card.tsx.
+ * the e2e error gate caught on /properties/$id. `formatDate` answers null for it.
  */
 export function formatReviewedAt(value: Date): string | null {
-  const time = value instanceof Date ? value.getTime() : Number.NaN
-  return Number.isFinite(time) ? dashboardDateFormatter.format(value) : null
+  return formatDate(value)
 }
 
 /**
@@ -38,7 +32,10 @@ export function ReviewRow({
     <Link
       to="/inbox"
       search={{ propertyId, reviewId: review.id }}
-      className="flex min-h-11 items-center gap-4 rounded-lg border p-3 transition-colors hover:border-border hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className={cn(
+        'flex min-h-11 items-center gap-4 rounded-lg border p-3',
+        ROW_LINK_SURFACE,
+      )}
     >
       <span className="flex flex-col items-center gap-1">
         <span className="text-lg font-semibold">{review.rating}</span>

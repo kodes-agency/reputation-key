@@ -9,14 +9,8 @@
 
 import { useRef, useState, type ChangeEvent } from 'react'
 import { Button } from '#/components/ui/button'
-import { Checkbox } from '#/components/ui/checkbox'
-import {
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '#/components/ui/dialog'
-import { Field, FieldLabel } from '#/components/ui/field'
+import { ConsentCheckbox } from '#/components/forms/consent-checkbox'
+import { DialogDescription, DialogHeader, DialogTitle } from '#/components/ui/dialog'
 import {
   PORTAL_IMAGE_ACCEPT,
   describePortalImageFile,
@@ -24,7 +18,9 @@ import {
   validatePortalImageFile,
   type PortalImageUploader,
 } from '../portal-media/upload-portal-image'
+import { UploadDialogFooter } from '../portal-media/upload-dialog-footer'
 import { UploadDialogShell } from '../portal-media/upload-dialog-shell'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 const SAVE_FAILED =
   'The photo was uploaded, but it could not be put on the tile. Try again.'
@@ -49,7 +45,7 @@ export function LinktreePhotoDialog({
   upload,
 }: Props) {
   return (
-    <UploadDialogShell open={open} onOpenChange={onOpenChange} className="sm:max-w-md">
+    <UploadDialogShell open={open} onOpenChange={onOpenChange}>
       {(guard) => (
         <PhotoDialogBody
           propertyId={propertyId}
@@ -155,34 +151,23 @@ function PhotoDialogBody({
             {file ? describePortalImageFile(file) : 'JPEG, PNG or WebP, up to 10 MB.'}
           </p>
         </div>
-        <Field orientation="horizontal">
-          <Checkbox
-            id="linktree-photo-rights"
-            checked={confirmed}
-            disabled={isUploading}
-            onCheckedChange={(next) => setConfirmed(next === true)}
-          />
-          <FieldLabel htmlFor="linktree-photo-rights" className="font-normal">
-            This property owns this photo or has permission to use it.
-          </FieldLabel>
-        </Field>
-        <p role="alert" className="min-h-5 text-sm text-destructive">
-          {message}
-        </p>
-      </div>
-      <p className="text-sm text-muted-foreground">Live pages change when you publish.</p>
-      <DialogFooter>
-        <Button type="button" variant="ghost" disabled={isUploading} onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          disabled={!file || !confirmed || isUploading}
-          onClick={() => void submit()}
+        <ConsentCheckbox
+          id="linktree-photo-rights"
+          checked={confirmed}
+          disabled={isUploading}
+          onCheckedChange={setConfirmed}
         >
-          {isUploading ? 'Uploading…' : 'Use photo'}
-        </Button>
-      </DialogFooter>
+          This property owns this photo or has permission to use it.
+        </ConsentCheckbox>
+      </div>
+      <FormErrorBanner error={message} />
+      <UploadDialogFooter
+        primaryLabel="Use photo"
+        note="Live pages change when you publish."
+        canSubmit={Boolean(file) && confirmed}
+        isBusy={isUploading}
+        onSubmit={() => void submit()}
+      />
     </>
   )
 }

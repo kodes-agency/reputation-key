@@ -142,15 +142,13 @@ describe('listInvitations', () => {
     expect(result.invitations[0]).toMatchObject({ role: null, rawRole: 'member' })
   })
 
-  it('allows PropertyManager to list invitations', async () => {
-    const { useCase } = setup([row({})])
+  it('rejects PropertyManager from listing invitations', async () => {
+    const { useCase, listOpenForOrganization } = setup([row({})])
 
-    const result = await useCase(
-      undefined,
-      buildTestAuthContext({ role: 'PropertyManager' }),
-    )
-
-    expect(result.invitations).toHaveLength(1)
+    await expect(
+      useCase(undefined, buildTestAuthContext({ role: 'PropertyManager' })),
+    ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
+    expect(listOpenForOrganization).not.toHaveBeenCalled()
   })
 
   it('rejects Member from listing invitations', async () => {

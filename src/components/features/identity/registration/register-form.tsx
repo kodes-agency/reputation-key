@@ -9,7 +9,7 @@ import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { submitForm } from '#/components/forms/form-submit'
+import { submitHandler } from '#/components/forms/form-submit'
 import {
   registerUserInputSchema,
   registerMemberInputSchema,
@@ -57,18 +57,23 @@ type Props = Readonly<{
   mode: 'register' | 'join'
   mutation: AnyAction
   invitationId?: string
+  /**
+   * Join mode: the address the invitation was sent to. Prefilled and locked —
+   * the server only accepts a sign-up for exactly that address.
+   */
+  lockedEmail?: string
 }>
 
 // ── Component ────────────────────────────────────────────────────────
 
-export function RegisterForm({ mode, mutation, invitationId }: Props) {
+export function RegisterForm({ mode, mutation, invitationId, lockedEmail }: Props) {
   const isJoinMode = mode === 'join'
 
   const form = useForm({
     defaultValues: {
       mode,
       name: '',
-      email: '',
+      email: lockedEmail ?? '',
       password: '',
       confirmPassword: '',
       organizationName: '',
@@ -89,19 +94,14 @@ export function RegisterForm({ mode, mutation, invitationId }: Props) {
   })
 
   return (
-    <form
-      method="post"
-      onSubmit={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        void submitForm(form)
-      }}
-      className="space-y-4"
-    >
+    <form method="post" onSubmit={submitHandler(form)} className="space-y-4">
+      <RegisterFormFields
+        form={form}
+        mode={mode}
+        emailLocked={lockedEmail !== undefined}
+      />
+
       <FormErrorBanner error={mutation.error} />
-
-      <RegisterFormFields form={form} mode={mode} />
-
       <SubmitButton mutation={mutation} form={form} className="w-full">
         {isJoinMode ? 'Create account' : 'Create account & organization'}
       </SubmitButton>

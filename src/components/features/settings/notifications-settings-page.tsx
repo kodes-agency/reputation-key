@@ -29,6 +29,8 @@ type Props = Readonly<{
   propertyId: string
   emailAvailability: EmailAvailability
   retryEmailAvailability: () => void
+  /** The check is running again after a failure; the notice stays, its button busy. */
+  emailAvailabilityRetrying?: boolean
   setPropertyId: (value: string) => void
   updatePreference: Action<PreferenceUpdate, NotificationPreference>
   resetPropertyCategory: Action<
@@ -59,6 +61,7 @@ export function NotificationsSettingsPage({
   propertyId,
   emailAvailability,
   retryEmailAvailability,
+  emailAvailabilityRetrying,
   setPropertyId,
   updatePreference,
   resetPropertyCategory,
@@ -116,6 +119,7 @@ export function NotificationsSettingsPage({
       quietHoursOverride={override}
       emailAvailability={emailAvailability}
       retryEmailAvailability={retryEmailAvailability}
+      emailAvailabilityRetrying={emailAvailabilityRetrying}
       setPropertyId={setPropertyId}
       preferenceFor={preferenceFor}
       savePreference={savePreference}

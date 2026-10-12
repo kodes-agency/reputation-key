@@ -2,17 +2,8 @@
 // offers it (D7, docs/design/notifications). Split out of the category row it
 // sits in.
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
+import { InheritedSetting } from '#/components/forms/inherited-setting'
 import { Button } from '#/components/ui/button'
 import type { ConfigurableNotificationCategory } from '#/contexts/feed/application/public-api'
 import { namesInBrief, type SetDifferently } from './notification-apply-everywhere'
@@ -62,7 +53,29 @@ export function DefaultControls({
   const count = setDifferently.length
   const includesMute = setDifferently.some((property) => property.muted)
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-3 md:col-span-3 md:col-start-1">
+    <InheritedSetting
+      source="your default"
+      overridden={ownHere}
+      commit="immediate"
+      inheritLabel="Use my default here"
+      inheritAccessibleName={named(categoryLabel, 'Use my default here')}
+      onInherit={() => void resetToDefault(category, [propertyInView])}
+      noteId={noteId}
+      note={
+        <>
+          {inherited}
+          {count > 0 && (
+            <>
+              {' '}
+              {namesInBrief(setDifferently.map((property) => property.name))}{' '}
+              {count === 1 ? 'keeps its' : 'keep their'} own setting
+              {includesMute ? ', including a mute from the notification bell' : ''}.
+            </>
+          )}
+        </>
+      }
+      className="md:col-span-3 md:col-start-1"
+    >
       <Button
         type="button"
         variant="outline"
@@ -73,31 +86,9 @@ export function DefaultControls({
       >
         Make this my default
       </Button>
-      {ownHere && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-label={named(categoryLabel, 'Use my default here')}
-          onClick={() => void resetToDefault(category, [propertyInView])}
-        >
-          Use my default here
-        </Button>
-      )}
-      <p id={noteId} className="basis-full text-sm text-muted-foreground">
-        {inherited}
-        {count > 0 && (
-          <>
-            {' '}
-            {namesInBrief(setDifferently.map((property) => property.name))}{' '}
-            {count === 1 ? 'keeps its' : 'keep their'} own setting
-            {includesMute ? ', including a mute from the notification bell' : ''}.
-          </>
-        )}
-      </p>
       {count > 0 && (
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
+        <ConfirmationDialog
+          trigger={
             <Button
               type="button"
               variant="ghost"
@@ -111,37 +102,24 @@ export function DefaultControls({
             >
               Reset {count === 1 ? 'it' : 'them'} to my default
             </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                Reset {count} {count === 1 ? 'property' : 'properties'} to your default?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {namesInBrief(setDifferently.map((property) => property.name))}{' '}
-                {count === 1 ? 'loses its' : 'lose their'} own{' '}
-                {categoryLabel.toLowerCase()} settings
-                {includesMute
-                  ? ', including a mute from the notification bell,'
-                  : ''} and {count === 1 ? 'follows' : 'follow'} your default instead.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Keep them</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() =>
-                  void resetToDefault(
-                    category,
-                    setDifferently.map((property) => property.id),
-                  )
-                }
-              >
-                Reset
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          }
+          title={`Reset ${count} ${count === 1 ? 'property' : 'properties'} to your default?`}
+          description={`${namesInBrief(setDifferently.map((property) => property.name))} ${
+            count === 1 ? 'loses its' : 'lose their'
+          } own ${categoryLabel.toLowerCase()} settings${
+            includesMute ? ', including a mute from the notification bell,' : ''
+          } and ${count === 1 ? 'follows' : 'follow'} your default instead.`}
+          cancelLabel="Keep them"
+          confirmLabel="Reset"
+          pendingLabel="Resetting…"
+          onConfirm={() =>
+            resetToDefault(
+              category,
+              setDifferently.map((property) => property.id),
+            )
+          }
+        />
       )}
-    </div>
+    </InheritedSetting>
   )
 }

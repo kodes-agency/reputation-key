@@ -6,9 +6,15 @@
 // them on the client. The mutation.error will be an Error instance with
 // .message from the server. Custom properties (code, status) are also
 // preserved by seroval.
+//
+// What it prints is the toast's rule (`actionErrorMessage`): the server's own
+// sentence for a 4xx refusal, which a context wrote for the person who pressed
+// the button, and one generic sentence for anything else. A 5xx or an untagged
+// error carries text that was never written for a reader and may name internal
+// state, so it is not shown here any more than in a toast.
 
+import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { AlertCircle } from 'lucide-react'
 
 type Props = Readonly<{
   error: unknown
@@ -65,18 +71,17 @@ const parseValidationIssues = (message: string): readonly string[] | null => {
 const extractErrorMessage = (error: unknown): string => {
   if (!error) return ''
 
-  // TanStack Start re-throws serialized Errors from server functions.
-  // The .message contains the domain error message (e.g., "slug must be URL-friendly").
-  if (error instanceof Error) {
+  // A failure a dialog already holds as a sentence (an upload refusal).
+  if (typeof error === 'string') return error
+
+  // A rejected `.validator` schema reaches the client as a plain Error whose
+  // message is the issue list; it is the person's own input being refused, so
+  // it is shown (as lines, by the caller) whatever the error's class.
+  if (error instanceof Error && parseValidationIssues(error.message) !== null) {
     return error.message
   }
 
-  // Fallback for non-Error error shapes
-  if (typeof error === 'object' && error !== null && 'message' in error) {
-    return String(error.message)
-  }
-
-  return 'An unexpected error occurred.'
+  return actionErrorMessage(error)
 }
 
 export function FormErrorBanner({ error }: Props) {
@@ -87,7 +92,6 @@ export function FormErrorBanner({ error }: Props) {
 
   return (
     <Alert variant="destructive">
-      <AlertCircle className="h-4 w-4" />
       <AlertTitle>Unable to complete this action</AlertTitle>
       <AlertDescription>
         {issues ? (

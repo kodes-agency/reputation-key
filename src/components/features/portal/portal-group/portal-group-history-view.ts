@@ -10,6 +10,7 @@
 // people and portals are looked up now, and one that cannot be resolved is a
 // plain word ("Someone", "A portal"), never an identifier.
 import type { PortalGroupHistoryEntry } from '#/contexts/portal/application/public-api'
+import { formatDate, formatDayKey, formatMonthDay } from '#/lib/format'
 
 export type HistoryNames = Readonly<{
   actor: (userId: string) => string | null
@@ -34,7 +35,7 @@ export type PortalGroupHistoryLine = Readonly<{
   kind: PortalGroupHistoryLineKind
   text: string
   detail: string | null
-  /** "14 Aug", or "30 Dec 2025" for an earlier year. */
+  /** "Aug 14", or "Dec 30, 2025" for an earlier year. */
   dateLabel: string
   /** For `<time dateTime>`. */
   occurredAt: string
@@ -50,22 +51,14 @@ function joinNames(names: readonly string[]): string {
   return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
 }
 
-/** "14 Aug": the day and the three-letter month, in the property's own day. */
+/** "Aug 14": the month and day in the property's own day, with the year in another year. */
 function dateLabelOf(at: Date, frame: HistoryFrame): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: frame.timezone,
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).formatToParts(at)
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((candidate) => candidate.type === type)?.value ?? ''
-  const nowYear = new Intl.DateTimeFormat('en-US', {
-    timeZone: frame.timezone,
-    year: 'numeric',
-  }).format(frame.now)
-  const day = `${part('day')} ${part('month')}`
-  return part('year') === nowYear ? day : `${day} ${part('year')}`
+  const sameYear =
+    formatDayKey(at, frame.timezone)?.slice(0, 4) ===
+    formatDayKey(frame.now, frame.timezone)?.slice(0, 4)
+  return (
+    (sameYear ? formatMonthDay(at, frame.timezone) : formatDate(at, frame.timezone)) ?? ''
+  )
 }
 
 /** What a move writes into the history, so the creation line can count what it began with. */

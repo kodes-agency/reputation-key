@@ -1,10 +1,5 @@
 import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'
-
-// UTC keeps the server render and the browser on the same calendar day.
-const connectedOn = new Intl.DateTimeFormat('en', {
-  dateStyle: 'medium',
-  timeZone: 'UTC',
-})
+import { formatDate } from '#/lib/format'
 
 /**
  * What people call a Google connection: the address of the Google account it
@@ -15,5 +10,8 @@ export function googleConnectionLabel(
   connection: Pick<GoogleConnectionDto, 'accountEmail' | 'createdAt'>,
 ): string {
   if (connection.accountEmail) return connection.accountEmail
-  return `Google account connected ${connectedOn.format(new Date(connection.createdAt))}`
+  const connectedOn = formatDate(connection.createdAt)
+  return connectedOn === null
+    ? 'Google account'
+    : `Google account connected ${connectedOn}`
 }

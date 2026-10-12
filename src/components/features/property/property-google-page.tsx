@@ -5,6 +5,8 @@
 // the shared range, and the report.
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { NAV_LABEL } from '#/components/layout/nav-labels'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import {
   DashboardRangeControl,
   RangeLimitNote,
@@ -18,7 +20,7 @@ import { GooglePerformanceSection } from './google-performance-section'
 import type { GooglePerformanceServerFns } from './use-google-performance'
 
 export interface PropertyGooglePageProps {
-  property: Readonly<{ id: string; name: string }> | null | undefined
+  property: Readonly<{ id: string; name: string }>
   propertyId: string
   range: DashboardRange
   onRangeChange: (range: DashboardRange) => void
@@ -32,18 +34,16 @@ export function PropertyGooglePage({
   onRangeChange,
   performanceFns,
 }: PropertyGooglePageProps) {
-  if (!property) return null
-
   return (
     <PageShell tier="dashboard">
       <PageHeader
         title="Google Business Profile"
         description="How people find you on Search and Maps, and what they do next."
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: property.name },
-          { label: 'Google' },
-        ]}
+        breadcrumbs={trailCrumbs(
+          'property',
+          { propertyId, propertyName: property.name },
+          NAV_LABEL.google,
+        )}
         actions={<DashboardRangeControl range={range} onRangeChange={onRangeChange} />}
       />
 

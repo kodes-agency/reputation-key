@@ -150,7 +150,7 @@ export function PortalHistoryRow({
                 <StateTag filled>Live now</StateTag>
               </span>
             ) : null}
-            <span className="text-muted-foreground">
+            <span className="whitespace-nowrap text-muted-foreground">
               {dot}
               <time dateTime={time.dateTime} title={time.title}>
                 {time.label}

@@ -175,8 +175,8 @@ function NotificationListState(props: NotificationListBodyProps): ReactNode {
       return <p className="px-3 py-3 text-sm text-muted-foreground">{title}</p>
     }
     return (
-      <div className="px-3 py-6">
-        <EmptyState icon={Inbox} title={title} />
+      <div className="px-3 py-3">
+        <EmptyState size="compact" icon={Inbox} title={title} />
       </div>
     )
   }

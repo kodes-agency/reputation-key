@@ -11,7 +11,7 @@ import {
   QuestionnaireItem,
   QuestionnaireTitle,
 } from '#/components/ui/questionnaire'
-import { Switch } from '#/components/ui/switch'
+import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
 import { toggleAiCapability } from '#/components/features/settings/merchant-ai-capability-selection'
 import { ApplyToAllOverride, ApplyToAllToggle } from './apply-to-all-toggle'
 import type { AiAnswer, SetupPropertyFacts } from './setup-plan'
@@ -136,25 +136,23 @@ export function SetupAiQuestion({
                     key={property.propertyId}
                     propertyName={property.propertyName}
                   >
-                    <div className="flex items-center gap-3 sm:justify-end">
-                      <span aria-hidden="true" className="text-sm text-muted-foreground">
-                        {included ? 'AI on' : 'Not now'}
-                      </span>
-                      <Switch
-                        aria-label={`AI features for ${property.propertyName}`}
-                        checked={included}
-                        disabled={disabled}
-                        onCheckedChange={(checked) =>
-                          enable({
-                            excluded: checked
-                              ? enabled.excluded.filter(
-                                  (id) => id !== property.propertyId,
-                                )
-                              : [...enabled.excluded, property.propertyId],
-                          })
-                        }
-                      />
-                    </div>
+                    <SettingSwitchRow
+                      id={`setup-ai-property-${property.propertyId}`}
+                      layout="cell"
+                      label={`AI features for ${property.propertyName}`}
+                      stateWords={['AI on', 'Not now']}
+                      commit="deferred"
+                      checked={included}
+                      disabled={disabled}
+                      onCheckedChange={(checked) =>
+                        enable({
+                          excluded: checked
+                            ? enabled.excluded.filter((id) => id !== property.propertyId)
+                            : [...enabled.excluded, property.propertyId],
+                        })
+                      }
+                      className="sm:justify-end"
+                    />
                   </ApplyToAllOverride>
                 )
               })}

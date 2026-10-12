@@ -232,4 +232,20 @@ export const createMetricRepository = (
         correctionHead: dateOrNull(row?.correctionHead),
       }
     }),
+
+  hasReading: async (query) =>
+    trace('metric.hasReading', async () => {
+      const rows = await db
+        .select({ id: metricReadings.id })
+        .from(metricReadings)
+        .where(
+          and(
+            eq(metricReadings.definitionVersionId, query.definitionVersionId),
+            eq(metricReadings.sourceEventId, query.sourceEventId),
+            eq(metricReadings.organizationId, unbrand(query.organizationId)),
+          ),
+        )
+        .limit(1)
+      return rows.length > 0
+    }),
 })

@@ -46,6 +46,7 @@ function HeaderStory({
         queueLabel="Needs reply"
         scopeLabel="Hotel Elegance"
         totalCount={18}
+        queueTotal={42}
         searchQ={search}
         filters={
           filters ??
@@ -57,7 +58,7 @@ function HeaderStory({
         onSearchChange={setSearch}
         onFiltersChange={onFiltersChange}
         onSortChange={() => undefined}
-        onClearAll={() => undefined}
+        onClearFilters={() => undefined}
         onStartSelection={() => undefined}
         isCompactLayout
         selectionToolbar={selectionToolbar}
@@ -98,13 +99,14 @@ export const AllProperties: Story = {
     queueLabel: 'Awaiting approval',
     scopeLabel: 'All properties',
     totalCount: 4,
+    queueTotal: 42,
     searchQ: undefined,
     filters: CLEARED_INBOX_LIST_FILTERS,
     sort: 'oldest',
     onSearchChange: () => undefined,
     onFiltersChange: () => undefined,
     onSortChange: () => undefined,
-    onClearAll: () => undefined,
+    onClearFilters: () => undefined,
   },
   render: (args) => (
     <div className="w-[400px] border-x">
@@ -118,13 +120,14 @@ export const CompactSelectionControl: Story = {
     queueLabel: 'Needs reply',
     scopeLabel: 'Hotel Elegance',
     totalCount: 18,
+    queueTotal: 42,
     searchQ: undefined,
     filters: CLEARED_INBOX_LIST_FILTERS,
     sort: 'newest',
     onSearchChange: fn(),
     onFiltersChange: fn(),
     onSortChange: fn(),
-    onClearAll: fn(),
+    onClearFilters: fn(),
     onStartSelection: fn(),
     isCompactLayout: true,
   },
@@ -172,13 +175,14 @@ function PropertySelectStory({ phone = false }: { phone?: boolean }) {
           />
         }
         totalCount={23}
+        queueTotal={42}
         searchQ={undefined}
         filters={CLEARED_INBOX_LIST_FILTERS}
         sort="newest"
         onSearchChange={() => undefined}
         onFiltersChange={() => undefined}
         onSortChange={() => undefined}
-        onClearAll={() => undefined}
+        onClearFilters={() => undefined}
         onStartSelection={() => undefined}
         isCompactLayout
       />
@@ -262,7 +266,7 @@ export const PhoneSearching: Story = {
   parameters: phoneParameters('mobileStaff'),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('textbox', { name: 'Search reviews' })).toHaveValue(
+    await expect(canvas.getByRole('searchbox', { name: 'Search reviews' })).toHaveValue(
       'breakfast',
     )
     await expect(canvas.getByRole('button', { name: 'Close search' })).toBeVisible()
@@ -305,13 +309,14 @@ export const PhoneFilterSheet: Story = {
     queueLabel: 'Needs reply',
     scopeLabel: 'Hotel Elegance',
     totalCount: 18,
+    queueTotal: 42,
     searchQ: undefined,
     filters: CLEARED_INBOX_LIST_FILTERS,
     sort: 'newest',
     onSearchChange: fn(),
     onFiltersChange: fn(),
     onSortChange: fn(),
-    onClearAll: fn(),
+    onClearFilters: fn(),
     onStartSelection: fn(),
     isCompactLayout: true,
   },
@@ -347,6 +352,7 @@ export const PhoneFilterSheetWhileLoading: Story = {
     ...PhoneFilterSheet.args,
     filters: TWO_FILTERS,
     totalCount: 0,
+    queueTotal: 42,
     isLoading: true,
   },
   render: PhoneFilterSheet.render,
@@ -361,8 +367,8 @@ export const PhoneFilterSheetWhileLoading: Story = {
       }),
     )
     await expect(sheet.getByRole('button', { name: 'Show results' })).toBeVisible()
-    await userEvent.click(sheet.getByRole('button', { name: 'Clear all' }))
-    await expect(args.onClearAll).toHaveBeenCalledTimes(1)
+    await userEvent.click(sheet.getByRole('button', { name: 'Clear filters' }))
+    await expect(args.onClearFilters).toHaveBeenCalledTimes(1)
     await expect(args.onFiltersChange).not.toHaveBeenCalled()
     await expect(args.onSortChange).not.toHaveBeenCalled()
   },

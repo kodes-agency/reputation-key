@@ -8,7 +8,7 @@ describe('requireGoogleImportRole', () => {
   })
 
   it.each<Role>(['PropertyManager', 'Member'])(
-    'redirects %s before an import detail route can load',
+    'answers %s in the shell before an import detail route can load',
     (role) => {
       let thrown: unknown
       try {
@@ -17,7 +17,14 @@ describe('requireGoogleImportRole', () => {
         thrown = error
       }
 
-      expect(thrown).toMatchObject({ options: { to: '/properties' } })
+      expect(thrown).toMatchObject({
+        routeId: '/_authenticated',
+        data: {
+          cause: 'role',
+          title: 'Import Google properties',
+          back: 'properties',
+        },
+      })
     },
   )
 })

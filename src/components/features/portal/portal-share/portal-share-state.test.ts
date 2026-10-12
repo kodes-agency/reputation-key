@@ -15,7 +15,11 @@
 // into conflict with the others rather than checking one flag at a time.
 
 import { describe, it, expect } from 'vitest'
-import { derivePortalShareView, directPortalAddress } from './portal-share-state'
+import {
+  derivePortalShareView,
+  describeMadeCode,
+  directPortalAddress,
+} from './portal-share-state'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
 
 const NO_TOKEN: PortalTokenStatus = {
@@ -25,6 +29,7 @@ const NO_TOKEN: PortalTokenStatus = {
   issuedAt: null,
   graceExpiresAt: null,
   addressRecoverable: false,
+  madeBy: null,
 }
 
 const LIVE_TOKEN: PortalTokenStatus = {
@@ -34,6 +39,7 @@ const LIVE_TOKEN: PortalTokenStatus = {
   issuedAt: '2026-01-04T12:00:00Z',
   graceExpiresAt: null,
   addressRecoverable: false,
+  madeBy: null,
 }
 
 /** In-session URL: returned by issue/rotate, gone after a reload. */
@@ -129,19 +135,10 @@ describe('derivePortalShareView — precedence between the three sources of trut
       tokenStatus: LIVE_TOKEN,
     })
 
-    expect(viewer.showViewOnlyNotice).toBe(true)
     expect(viewer.showIssueForm).toBe(false)
     expect(viewer.showActions).toBe(false)
     // Read-only is not blind: the code block is informational, not an affordance.
     expect(viewer.showCode).toBe(true)
-
-    const manager = derivePortalShareView({
-      canManage: true,
-      revoked: false,
-      publicUrl: null,
-      tokenStatus: LIVE_TOKEN,
-    })
-    expect(manager.showViewOnlyNotice).toBe(false)
   })
 
   it('keeps make and manage mutually exclusive, and both behind canManage', () => {
@@ -182,7 +179,7 @@ describe('derivePortalShareView — when the code was made', () => {
     }).madeLabel
 
   it('reads the day the code was made', () => {
-    expect(madeLabel(LIVE_TOKEN)).toBe('4 Jan 2026')
+    expect(madeLabel(LIVE_TOKEN)).toBe('Jan 4, 2026')
   })
 
   it('is empty rather than "Invalid Date" or a null', () => {
@@ -196,9 +193,9 @@ describe('derivePortalShareView — when the code was made', () => {
     // midnight UTC and must resolve to their UTC day in every runner zone.
     const cases = [
       // 01:30 the next day east of UTC.
-      { issuedAt: '2026-01-04T23:30:00Z', label: '4 Jan 2026' },
+      { issuedAt: '2026-01-04T23:30:00Z', label: 'Jan 4, 2026' },
       // 20:00 the previous day west of UTC.
-      { issuedAt: '2026-01-05T01:00:00Z', label: '5 Jan 2026' },
+      { issuedAt: '2026-01-05T01:00:00Z', label: 'Jan 5, 2026' },
     ]
 
     for (const { issuedAt, label } of cases) {
@@ -206,19 +203,47 @@ describe('derivePortalShareView — when the code was made', () => {
     }
   })
 
-  it('labels a grace window only while one is set', () => {
-    const graceLabel = (graceExpiresAt: string | null) =>
+  it('labels a grace window only while one is set, as a moment in the property’s time', () => {
+    const graceLabel = (graceExpiresAt: string | null, timeZone?: string) =>
       derivePortalShareView({
         canManage: true,
         revoked: false,
         publicUrl: null,
         tokenStatus: { ...LIVE_TOKEN, graceExpiresAt },
+        now: new Date('2026-01-11T09:00:00Z'),
+        timeZone,
       }).graceLabel
 
     expect(graceLabel(null)).toBeNull()
-    expect(graceLabel('2026-02-10T09:00:00Z')).toBe('10 Feb 2026')
+    expect(graceLabel('2026-02-10T09:00:00Z', 'Europe/Sofia')).toBe(
+      'Feb 10, 2026, 11:00 AM Sofia time, in 30 days',
+    )
+    // Without the property's zone the moment is in UTC, and says so.
+    expect(graceLabel('2026-02-10T09:00:00Z')).toBe(
+      'Feb 10, 2026, 9:00 AM UTC, in 30 days',
+    )
     // A malformed timestamp hides the row; it must not render "Invalid Date".
     expect(graceLabel('soon')).toBeNull()
+  })
+
+  it('says how to get the picture back to a manager, and nothing to someone who can only look', () => {
+    const note = (input: Partial<ShareViewInput>) =>
+      derivePortalShareView({
+        canManage: true,
+        revoked: false,
+        publicUrl: null,
+        tokenStatus: LIVE_TOKEN,
+        ...input,
+      }).addressNote
+
+    expect(note({})).toBe(
+      'The QR image and the addresses are shown only when a code is made or replaced.',
+    )
+    expect(note({ tokenStatus: { ...LIVE_TOKEN, addressRecoverable: true } })).toMatch(
+      /^Download the code again whenever you need it/,
+    )
+    expect(note({ publicUrl: PUBLIC_URL })).toBeNull()
+    expect(note({ canManage: false })).toBeNull()
   })
 })
 
@@ -253,7 +278,7 @@ describe('derivePortalShareView — a code made in this session', () => {
       tokenStatus: LIVE_TOKEN,
       now: new Date('2026-09-30T23:30:00Z'),
     })
-    expect(view.madeLabel).toBe('30 Sept 2026')
+    expect(view.madeLabel).toBe('Sep 30, 2026')
   })
 
   it('says it was made today after a first make, when tokenStatus knows no token', () => {
@@ -264,6 +289,82 @@ describe('derivePortalShareView — a code made in this session', () => {
       tokenStatus: NO_TOKEN,
       now: new Date('2026-09-30T08:00:00Z'),
     })
-    expect(view.madeLabel).toBe('30 Sept 2026')
+    expect(view.madeLabel).toBe('Sep 30, 2026')
+  })
+})
+
+describe('derivePortalShareView — a code made here, once tokenStatus has caught up', () => {
+  it('reads the day tokenStatus recorded, not the clock', () => {
+    const view = derivePortalShareView({
+      canManage: true,
+      revoked: false,
+      publicUrl: PUBLIC_URL,
+      tokenStatus: LIVE_TOKEN,
+      issuedVersion: 3,
+      now: new Date('2026-09-30T08:00:00Z'),
+    })
+    expect(view.madeLabel).toBe('Jan 4, 2026')
+  })
+})
+
+describe('derivePortalShareView — who made the code', () => {
+  const NAMED: PortalTokenStatus = { ...LIVE_TOKEN, madeBy: 'Georgi Ivanov' }
+  const madeBy = (input: Partial<Parameters<typeof derivePortalShareView>[0]>) =>
+    derivePortalShareView({
+      canManage: true,
+      revoked: false,
+      publicUrl: null,
+      tokenStatus: NAMED,
+      ...input,
+    }).madeBy
+
+  it('names the person who made the live code', () => {
+    expect(madeBy({})).toBe('Georgi Ivanov')
+  })
+
+  it('names nobody when the code recorded no maker', () => {
+    expect(madeBy({ tokenStatus: LIVE_TOKEN })).toBeNull()
+  })
+
+  it('does not credit the stale code maker with a code made in this session', () => {
+    // tokenStatus has not refetched: it still describes the code that was replaced.
+    expect(madeBy({ publicUrl: PUBLIC_URL })).toBeNull()
+  })
+
+  it('names the maker once tokenStatus has refetched and describes the code made here', () => {
+    // Issue/replace return the new code's version; the refetched tokenStatus
+    // reaching that version is what proves it no longer describes the old code.
+    expect(madeBy({ publicUrl: PUBLIC_URL, issuedVersion: 3 })).toBe('Georgi Ivanov')
+  })
+
+  it('still credits nobody while tokenStatus describes the code that was replaced', () => {
+    expect(madeBy({ publicUrl: PUBLIC_URL, issuedVersion: 4 })).toBeNull()
+    expect(
+      madeBy({ publicUrl: PUBLIC_URL, issuedVersion: 1, tokenStatus: NO_TOKEN }),
+    ).toBeNull()
+  })
+
+  it('keeps the maker for an address fetched again, which belongs to the described code', () => {
+    expect(madeBy({ publicUrl: PUBLIC_URL, addressRevealed: true })).toBe('Georgi Ivanov')
+  })
+
+  it('names nobody once the codes are stopped', () => {
+    expect(madeBy({ revoked: true })).toBeNull()
+  })
+})
+
+describe('describeMadeCode', () => {
+  it('reads "Made Mar 12, 2026 by Georgi Ivanov"', () => {
+    expect(describeMadeCode('Mar 12, 2026', 'Georgi Ivanov')).toBe(
+      'Made Mar 12, 2026 by Georgi Ivanov',
+    )
+  })
+
+  it('reads the date alone when nobody can be named', () => {
+    expect(describeMadeCode('Mar 12, 2026', null)).toBe('Made Mar 12, 2026')
+  })
+
+  it('says nothing without a date, rather than "by" a name alone', () => {
+    expect(describeMadeCode(null, 'Georgi Ivanov')).toBeNull()
   })
 })

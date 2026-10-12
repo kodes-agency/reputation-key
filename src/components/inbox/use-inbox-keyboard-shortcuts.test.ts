@@ -180,7 +180,7 @@ describe('e — escalate or resolve', () => {
     ['still loading', { error: null, isLoading: true }],
     [
       'showing its load error',
-      { error: 'Failed to load detail. Try again.', isLoading: false },
+      { error: 'This item couldn’t be loaded.', isLoading: false },
     ],
   ])('does nothing while the pane is %s and shows no toolbar', (_, branch) => {
     const spies = makeSpies()

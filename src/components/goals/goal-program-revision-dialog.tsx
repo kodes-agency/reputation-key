@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useForm, useStore } from '@tanstack/react-form'
-import { toast } from 'sonner'
 import type { reviseGoalProgram } from '#/contexts/reporting/server/goal-programs'
 import type {
   GoalMetric,
@@ -13,24 +12,33 @@ import {
 } from '#/contexts/reporting/application/dto/goal-program.dto'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { goalKeys } from '#/shared/queries/query-keys'
-import { DialogFooter } from '#/components/ui/dialog'
+import { Alert, AlertDescription } from '#/components/ui/alert'
+import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
-import { Field, FieldError, FieldLabel } from '#/components/ui/field'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FormFieldFrame } from '#/components/forms/form-field-frame'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import {
-  goalRevisionScheduledMessage,
-  goalRevisionStartDate,
+  goalRevisionDescription,
+  goalRevisionReceipt,
+  type GoalChangeSource,
   type GoalVersionStart,
 } from './goal-revision-start'
+import { withGoalRefusals } from './goal-refusal'
 import { GoalProgramFormDialog } from './goal-program-form-dialog'
 import { GoalChangeReasonField, GoalSubjectsField } from './goal-program-fields'
+import { GoalMetricField } from './goal-metric-field'
 
 type GoalProgramRevisionDialogProps = Readonly<{
   reviseGoalProgramFn: typeof reviseGoalProgram
-  property: Readonly<{ id: string; name: string }>
+  /** The Property and its own zone: a revision is cut in the zone it has now. */
+  property: Readonly<{ id: string; name: string; timezone: string }>
   programId: string
+  /** The version the page shows. A goal that changed since refuses the save. */
+  currentVersion: number
+  /** What the day the revision applies from is read from. */
+  goal: GoalChangeSource
   metric: GoalMetric
   targetValue: number
   assignments: readonly GoalSubjectAssignment[]
@@ -42,23 +50,19 @@ type GoalProgramRevisionDialogProps = Readonly<{
   portals: readonly Readonly<{ id: string; name: string }>[]
 }>
 
-const METRICS: readonly Readonly<{ id: GoalMetric; label: string }>[] = [
-  { id: 'qualified_scans', label: 'Qualified scans' },
-  { id: 'portal_rating_count', label: 'Private rating count' },
-  { id: 'portal_rating_average', label: 'Private rating average' },
-]
-
 export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps) {
   const [open, setOpen] = useState(false)
-  // The start the server chose. It stays on screen: after the Property's
-  // timezone moved east it is a month later than "next month".
+  // The instant the dialog was last opened. The day the revision applies from
+  // is worked out from it, so a page left open over the end of a month still
+  // says the right month.
+  const [openedAt, setOpenedAt] = useState<Date | null>(null)
+  // The start the command answered. It stays on screen: after the Property's
+  // timezone moved east it is a month later than the next one.
   const [scheduled, setScheduled] = useState<GoalVersionStart | null>(null)
-  const mutation = useActionMutation(props.reviseGoalProgramFn, {
+  const mutation = useActionMutation(withGoalRefusals(props.reviseGoalProgramFn), {
     invalidateKeys: [goalKeys.all],
-    onSuccess: ({ version }) => {
-      setScheduled(version)
-      toast.success(goalRevisionScheduledMessage(version))
-    },
+    // The dialog stays open on its receipt, which is the success: no toast.
+    onSuccess: ({ version }) => setScheduled(version),
   })
   const initialFormValues = (): ReviseGoalProgramFormInput => ({
     metric: props.metric,
@@ -74,7 +78,9 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
         data: {
           propertyId: props.property.id,
           programId: props.programId,
+          expectedVersion: props.currentVersion,
           ...value,
+          reason: value.reason.trim() || undefined,
         },
       })
     },
@@ -85,6 +91,7 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
     if (next) {
       form.reset(initialFormValues())
       setScheduled(null)
+      setOpenedAt(new Date())
     }
     setOpen(next)
   }
@@ -93,38 +100,28 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
     <GoalProgramFormDialog
       open={open}
       onOpenChange={onOpenChange}
+      busy={mutation.isPending}
       trigger="Revise"
       title="Revise goal"
-      description="The month in progress keeps the current version. This version starts with the first full month in the Property's timezone that begins after it ends."
+      description={
+        openedAt === null
+          ? ''
+          : goalRevisionDescription(props.goal, openedAt, props.property.timezone)
+      }
       onSubmit={() => void submitForm(form)}
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <form.Field name="metric">
-          {(field) => (
-            <Field data-invalid={!field.state.meta.isValid}>
-              <FieldLabel htmlFor="revision-metric">Metric</FieldLabel>
-              <select
-                id="revision-metric"
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.value as GoalMetric)}
-                aria-invalid={!field.state.meta.isValid}
-              >
-                {METRICS.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.label}
-                  </option>
-                ))}
-              </select>
-              <FieldError errors={field.state.meta.errors} />
-            </Field>
-          )}
+          {(field) => <GoalMetricField id="revision-metric" field={field} />}
         </form.Field>
         <form.Field name="targetValue">
           {(field) => (
-            <Field data-invalid={!field.state.meta.isValid}>
-              <FieldLabel htmlFor="revision-target">Monthly target</FieldLabel>
+            <FormFieldFrame
+              id="revision-target"
+              label="Monthly target"
+              invalid={!field.state.meta.isValid}
+              errors={field.state.meta.errors}
+            >
               <Input
                 id="revision-target"
                 type="number"
@@ -136,8 +133,7 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
                 onChange={(event) => field.handleChange(Number(event.target.value))}
                 aria-invalid={!field.state.meta.isValid}
               />
-              <FieldError errors={field.state.meta.errors} />
-            </Field>
+            </FormFieldFrame>
           )}
         </form.Field>
       </div>
@@ -154,13 +150,15 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
           />
         )}
       </form.Field>
-      <FormErrorBanner error={mutation.error} />
-      {scheduled ? (
-        <p role="status" className="rounded-md bg-muted/50 p-3 text-sm">
-          {`Revision scheduled. This version starts ${goalRevisionStartDate(scheduled)} (${scheduled.propertyTimezone}).`}
-        </p>
+      {scheduled !== null && openedAt !== null ? (
+        <Alert variant="success">
+          <AlertDescription>{goalRevisionReceipt(scheduled, openedAt)}</AlertDescription>
+        </Alert>
       ) : null}
+      <DialogErrorBanner error={mutation.error} />
       <DialogFooter>
+        {/* The receipt above is the end of it: nothing is left to cancel. */}
+        <DialogCancel>{scheduled !== null ? 'Close' : 'Cancel'}</DialogCancel>
         <SubmitButton mutation={mutation} form={form} disabled={scheduled !== null}>
           Schedule revision
         </SubmitButton>

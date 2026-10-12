@@ -48,14 +48,14 @@ Smart constructors (`constructors.ts`) are used in other contexts to:
 
 **This doesn't apply to identity because:**
 
-| Operation           | Where It Happens                                | Returns             |
-| ------------------- | ----------------------------------------------- | ------------------- |
-| Sign up user        | `better-auth.api.signUpEmail()`                 | User object with ID |
-| Create organization | `ops:bootstrap-owner` (first Organization only) | Organization ID     |
-| Create invitation   | IdentityCommandStore.inviteMember (BQC-3.5)     | Invitation ID       |
-| Accept invitation   | IdentityCommandStore.acceptInvitation (BQC-3.5) | void                |
+| Operation           | Where It Happens                                                                                               | Returns             |
+| ------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------- |
+| Sign up user        | `better-auth.api.signUpEmail()`                                                                                | User object with ID |
+| Create organization | `ops:bootstrap-owner` (empty database) or `PlatformOrganizationStore.provisionOrganization` (operator console) | Organization ID     |
+| Create invitation   | IdentityCommandStore.inviteMember (BQC-3.5)                                                                    | Invitation ID       |
+| Accept invitation   | IdentityCommandStore.acceptInvitation (BQC-3.5)                                                                | void                |
 
-These are **I/O operations that directly persist to the database**, not pure functions that build in-memory entities. Sign-up stays delegated to better-auth (password hashing); the invitation and member writes are app-owned and commit atomically with their outbox facts via the identity command store (BQC-3.5, expanding the precedent the app-owned acceptInvitation transaction set). The operator's `ops:bootstrap-owner` creates the first Organization and records no fact; `createOrganizationFn` stays dormant behind the blocked `organization.create` capability.
+These are **I/O operations that directly persist to the database**, not pure functions that build in-memory entities. Sign-up stays delegated to better-auth (password hashing); the invitation and member writes are app-owned and commit atomically with their outbox facts via the identity command store (BQC-3.5, expanding the precedent the app-owned acceptInvitation transaction set). The operator's `ops:bootstrap-owner` creates the first Organization and records no fact; every later Organization is created from the operator console (ADR 0065). Neither records a fact of its own; the console's first-admin invitation records `identity.member.invited`. `createOrganizationFn` stays dormant behind the blocked `organization.create` capability.
 
 ### 4. What Identity Context Does Provide
 

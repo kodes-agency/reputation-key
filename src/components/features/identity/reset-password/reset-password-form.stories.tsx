@@ -45,7 +45,7 @@ export const Submitting: Story = {
   },
 }
 
-// Server/SDK-rejected request — top-level banner surfaces the message.
+// Server/SDK-rejected request — the banner above the button surfaces the message.
 export const MutationError: Story = {
   args: {
     mutation: makeAction(

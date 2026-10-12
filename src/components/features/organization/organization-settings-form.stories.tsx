@@ -17,7 +17,17 @@ const meta: Meta<typeof OrganizationSettingsForm> = {
   title: 'Organization/OrganizationSettingsForm',
   component: OrganizationSettingsForm,
   tags: ['autodocs'],
-  parameters: { layout: 'centered' },
+  // The form fills the width the page gives it, as it does in Settings, so the story
+  // gives it a column to fill: `centered` shrinks a Card to its content, a phone-wide
+  // sliver whose inputs cut their values off.
+  parameters: { layout: 'padded' },
+  decorators: [
+    (Story) => (
+      <div className="max-w-2xl">
+        <Story />
+      </div>
+    ),
+  ],
 }
 export default meta
 type Story = StoryObj<typeof OrganizationSettingsForm>
@@ -31,17 +41,17 @@ export const Default: Story = {
   },
 }
 
-// Slug-change warning — editing the slug warns that guest portal URLs will break.
-export const SlugWarning: Story = {
+// Slug edit — no warning. Guest links are /p/<token>, and no link, email,
+// QR code or NFC tag carries the organization slug, so a new one breaks nothing.
+export const SlugEdit: Story = {
   args: { ...Default.args },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const slugInput = canvas.getByLabelText(/slug/i)
     await userEvent.clear(slugInput)
     await userEvent.type(slugInput, 'acme-renamed')
-    // The slug-changed warning renders reactively via form.Subscribe once
-    // the slug field diverges from the persisted organization.slug.
-    await expect(await canvas.findByText(/changing the slug will break/i)).toBeVisible()
+    await expect(slugInput).toHaveValue('acme-renamed')
+    await expect(canvas.queryByRole('alert')).not.toBeInTheDocument()
   },
 }
 
@@ -53,7 +63,9 @@ export const Submitting: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: /save changes/i })).toBeDisabled()
+    await expect(
+      canvas.getByRole('button', { name: /save organization/i }),
+    ).toBeDisabled()
   },
 }
 
@@ -62,5 +74,26 @@ export const WithError: Story = {
   args: {
     ...Default.args,
     error: new Error('Slug is already taken by another organization.'),
+  },
+}
+
+// The actions are in the identity card, Reset puts the saved identity back, and
+// there is no Cancel link to Profile.
+export const ResetRestoresTheSavedIdentity: Story = {
+  args: { ...Default.args },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('link', { name: 'Cancel' })).not.toBeInTheDocument()
+    expect(canvas.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument()
+    const name = canvas.getByLabelText(/^name$/i)
+    await userEvent.type(name, ' Group')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    expect(name).toHaveValue('Acme Hotels')
+    const save = canvas.getByRole('button', { name: /save organization/i })
+    expect(save.closest('[data-slot="card-footer"]')).not.toBeNull()
+    // The contact email may be left empty, and says so.
+    expect(canvas.getByLabelText(/contact email/i)).toHaveAccessibleName(
+      'Contact email Optional',
+    )
   },
 }

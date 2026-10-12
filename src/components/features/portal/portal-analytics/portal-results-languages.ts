@@ -9,6 +9,7 @@
 
 import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
 import { GUEST_LOCALE_METADATA, matchGuestLocale } from '#/shared/domain/guest-locale'
+import { formatNumber } from '#/lib/format'
 
 export type ResultsLanguageRow = Readonly<{
   key: string
@@ -70,13 +71,13 @@ export function languageRows(
     return {
       ...tally,
       percent,
-      detail: `${tally.count.toLocaleString('en-US')} · ${percent}%`,
+      detail: `${formatNumber(tally.count)} · ${percent}%`,
       barPercent: Math.round((tally.count / largest) * 100),
     }
   })
   const noun = total === 1 ? 'private rating' : 'private ratings'
   return {
     rows,
-    caption: `From ${total.toLocaleString('en-US')} ${noun}, by page language.`,
+    caption: `From ${formatNumber(total)} ${noun}, by page language.`,
   }
 }

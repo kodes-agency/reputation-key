@@ -7,7 +7,8 @@ import { createInMemoryPortalAddressCipher } from '#/shared/testing/in-memory-po
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { PropertyId } from '#/shared/domain/ids'
+import type { PropertyId, UserId } from '#/shared/domain/ids'
+import type { PortalActorDirectory } from '../ports/portal-actor-directory.port'
 import type {
   PortalTokenRepository,
   ResolvablePortalTokenSummary,
@@ -21,16 +22,23 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
   getAssignedPortals: async () => [],
 })
 
+const namedPeople = (names: Readonly<Record<string, string>>): PortalActorDirectory => ({
+  resolveDisplayNames: async (_org, ids: readonly UserId[]) =>
+    new Map(ids.flatMap((id) => (names[id] === undefined ? [] : [[id, names[id]]]))),
+})
+
 const setup = (
   accessible: ReadonlyArray<PropertyId> | null = null,
   token: ResolvablePortalTokenSummary | null = null,
   addressCipher: ReturnType<typeof createInMemoryPortalAddressCipher> | null = null,
+  actorDirectory: PortalActorDirectory = namedPeople({}),
 ) => {
   const portalRepo = createInMemoryPortalRepo()
   const useCase = getPortal({
     portalRepo,
     portalTokenRepo: { findResolvableSummaryForPortal: async () => token },
     staffPublicApi: staffApiMock(accessible),
+    actorDirectory,
     addressCipher,
     clock: () => NOW,
   })
@@ -106,6 +114,7 @@ describe('getPortal', () => {
       issuedAt: null,
       graceExpiresAt: null,
       addressRecoverable: false,
+      madeBy: null,
     })
   })
 
@@ -116,6 +125,7 @@ describe('getPortal', () => {
       gracePeriodEnds: null,
       hasPublishedAccessArtifact: true,
       addressKeyVersion: null,
+      issuedBy: null,
     })
     const ctx = buildTestAuthContext()
     const portal = buildTestPortal({})
@@ -130,12 +140,14 @@ describe('getPortal', () => {
       issuedAt: ISSUED_AT.toISOString(),
       graceExpiresAt: null,
       addressRecoverable: false,
+      madeBy: null,
     })
     expect(Object.keys(result.tokenStatus).sort()).toEqual([
       'addressRecoverable',
       'graceExpiresAt',
       'hasActiveToken',
       'issuedAt',
+      'madeBy',
       'qualifiedScanReady',
       'version',
     ])
@@ -149,6 +161,7 @@ describe('getPortal', () => {
       gracePeriodEnds: graceEnds,
       hasPublishedAccessArtifact: false,
       addressKeyVersion: null,
+      issuedBy: null,
     })
     const ctx = buildTestAuthContext()
     const portal = buildTestPortal({})
@@ -163,6 +176,7 @@ describe('getPortal', () => {
       issuedAt: ISSUED_AT.toISOString(),
       graceExpiresAt: graceEnds.toISOString(),
       addressRecoverable: false,
+      madeBy: null,
     })
   })
 
@@ -175,6 +189,7 @@ describe('getPortal', () => {
       portalRepo,
       portalTokenRepo: { findResolvableSummaryForPortal },
       staffPublicApi: staffApiMock(null),
+      actorDirectory: namedPeople({}),
       addressCipher: null,
       clock: () => NOW,
     })
@@ -198,6 +213,7 @@ describe('getPortal', () => {
       gracePeriodEnds: null,
       hasPublishedAccessArtifact: true,
       addressKeyVersion: 2,
+      issuedBy: null,
     }
     const ctx = buildTestAuthContext()
     const portal = buildTestPortal({})
@@ -226,5 +242,74 @@ describe('getPortal', () => {
       (await retired.useCase({ portalId: portal.id }, ctx)).tokenStatus
         .addressRecoverable,
     ).toBe(false)
+  })
+
+  describe('who made the code', () => {
+    const made = (issuedBy: string | null) => ({
+      version: 1,
+      issuedAt: ISSUED_AT,
+      gracePeriodEnds: null,
+      hasPublishedAccessArtifact: true,
+      addressKeyVersion: null,
+      issuedBy,
+    })
+
+    it('names the person who made the live code', async () => {
+      const { useCase, portalRepo } = setup(
+        null,
+        made('user-georgi'),
+        null,
+        namedPeople({ 'user-georgi': 'Georgi Ivanov' }),
+      )
+      const portal = buildTestPortal({})
+      portalRepo.seed([portal])
+
+      const result = await useCase({ portalId: portal.id }, buildTestAuthContext())
+
+      expect(result.tokenStatus.madeBy).toBe('Georgi Ivanov')
+    })
+
+    it('leaves the name out when the directory cannot name them', async () => {
+      const { useCase, portalRepo } = setup(null, made('user-gone'))
+      const portal = buildTestPortal({})
+      portalRepo.seed([portal])
+
+      const result = await useCase({ portalId: portal.id }, buildTestAuthContext())
+
+      expect(result.tokenStatus.madeBy).toBeNull()
+    })
+
+    it('shows an operator under the fixed label and never asks the directory', async () => {
+      const resolveDisplayNames = vi.fn<PortalActorDirectory['resolveDisplayNames']>(
+        async () => new Map(),
+      )
+      const { useCase, portalRepo } = setup(null, made('ops:ada'), null, {
+        resolveDisplayNames,
+      })
+      const portal = buildTestPortal({})
+      portalRepo.seed([portal])
+
+      const result = await useCase({ portalId: portal.id }, buildTestAuthContext())
+
+      expect(result.tokenStatus.madeBy).toBe('Reputation Key')
+      expect(JSON.stringify(result.tokenStatus)).not.toContain('ada')
+      expect(resolveDisplayNames).not.toHaveBeenCalled()
+    })
+
+    it('asks nobody when the code records no maker', async () => {
+      const resolveDisplayNames = vi.fn<PortalActorDirectory['resolveDisplayNames']>(
+        async () => new Map(),
+      )
+      const { useCase, portalRepo } = setup(null, made(null), null, {
+        resolveDisplayNames,
+      })
+      const portal = buildTestPortal({})
+      portalRepo.seed([portal])
+
+      const result = await useCase({ portalId: portal.id }, buildTestAuthContext())
+
+      expect(result.tokenStatus.madeBy).toBeNull()
+      expect(resolveDisplayNames).not.toHaveBeenCalled()
+    })
   })
 })

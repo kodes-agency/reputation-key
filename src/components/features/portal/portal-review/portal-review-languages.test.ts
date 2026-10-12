@@ -27,6 +27,12 @@ describe('describeReviewLanguage', () => {
     })
   })
 
+  it('names English once, as its own name and its English name are the same', () => {
+    const line = describeReviewLanguage(row({ locale: 'en' }))
+    expect(line.native).toBe('English')
+    expect(line.english).toBeNull()
+  })
+
   it('tags the fallback language', () => {
     expect(describeReviewLanguage(row({ locale: 'en', isFallback: true })).tag).toBe(
       'Fallback',

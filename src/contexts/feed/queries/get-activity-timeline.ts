@@ -31,9 +31,9 @@ export const getActivityTimeline =
       limit,
     )
 
-    // Data scope, not an unrelated Organization mutation permission, decides
-    // whether this read is tenant-wide. PropertyManager intentionally has
-    // organization.update but only assigned-properties scope for Inbox data.
+    // Data scope, not an Organization mutation permission, decides whether this
+    // read is tenant-wide. A PropertyManager holds no Organization permission
+    // and only assigned-properties scope for Inbox data.
     let scoped: readonly RecentActivityEntry[]
     const readScope = scopeForPermission(ctx, 'inbox.read')
     if (readScope === 'organization') {

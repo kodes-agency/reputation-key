@@ -3,9 +3,12 @@
 // in as a render prop, because it owns its own read and write.
 
 import type { ReactNode } from 'react'
-import { Button } from '#/components/ui/button'
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
+import { LoadMoreButton } from '#/components/ui/load-more-button'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { Timeline } from '#/components/ui/timeline'
+import { cn } from '#/lib/utils'
 import { PortalHistoryEarlierRow } from './portal-history-earlier-row'
 import { PortalHistoryFilters } from './portal-history-filters'
 import { PortalHistoryRow } from './portal-history-row'
@@ -42,6 +45,8 @@ type Props = Readonly<{
   loadingMore: boolean
   onLoadMore: () => void
   onRetry: () => void
+  /** `onRetry` is reading; the failure stays, its button busy. */
+  retrying?: boolean
   /** A quiet line under the filters, e.g. why no version can be made live. */
   note?: ReactNode
 }>
@@ -51,7 +56,7 @@ export function PortalHistoryLedger(props: Props) {
   return (
     <section
       aria-labelledby="portal-ledger-title"
-      className="min-w-0 flex-1 px-4 py-5 md:px-6"
+      className={cn(PAGE_GUTTER_X, 'min-w-0 flex-1 py-5')}
     >
       <h2 id="portal-ledger-title" className="sr-only">
         History of {props.portalName}
@@ -71,18 +76,12 @@ export function PortalHistoryLedger(props: Props) {
           </div>
         ) : null}
         {state === 'error' ? (
-          <div role="alert" className="text-sm">
-            <p className="text-destructive">The history could not be loaded.</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-2"
-              onClick={props.onRetry}
-            >
-              Try again
-            </Button>
-          </div>
+          <RegionError
+            size="compact"
+            message="The history couldn’t be loaded."
+            onRetry={props.onRetry}
+            retrying={props.retrying === true}
+          />
         ) : null}
         {state === 'ready' && rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">{EMPTY_TEXT[filter]}</p>
@@ -128,16 +127,12 @@ export function PortalHistoryLedger(props: Props) {
           </Timeline>
         ) : null}
         {state === 'ready' && props.hasMore ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
+          <LoadMoreButton
             className="mt-4"
-            disabled={props.loadingMore}
-            onClick={props.onLoadMore}
-          >
-            {props.loadingMore ? 'Loading…' : 'Load earlier activity'}
-          </Button>
+            label="Load earlier activity"
+            loading={props.loadingMore}
+            onLoadMore={props.onLoadMore}
+          />
         ) : null}
       </div>
     </section>

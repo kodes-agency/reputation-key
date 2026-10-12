@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { formatNumber } from '#/lib/format'
 
 const STAR_BUCKETS = [5, 4, 3, 2, 1] as const
 
@@ -30,7 +31,7 @@ export function buildRatingDistributionData(
       label: `${stars}★`,
       count,
       percentage,
-      detail: `${count.toLocaleString()} · ${percentageLabel}%`,
+      detail: `${formatNumber(count)} · ${percentageLabel}%`,
     }
   })
 }
@@ -59,7 +60,7 @@ export function RatingDistributionChart({
   const largest = data.reduce((current, bucket) =>
     bucket.count > current.count ? bucket : current,
   )
-  const caption = `${largest.count.toLocaleString()} of ${total.toLocaleString()} ratings are ${largest.label} (${Number.isInteger(largest.percentage) ? largest.percentage.toFixed(0) : largest.percentage.toFixed(1)}%).`
+  const caption = `${formatNumber(largest.count)} of ${formatNumber(total)} ratings are ${largest.label} (${Number.isInteger(largest.percentage) ? largest.percentage.toFixed(0) : largest.percentage.toFixed(1)}%).`
 
   return (
     <figure

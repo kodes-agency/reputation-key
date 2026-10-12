@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation'
 import { Route as JoinRouteImport } from './routes/join'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as OperatorRouteImport } from './routes/operator'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as UnavailableRouteImport } from './routes/unavailable'
@@ -57,6 +58,7 @@ import { Route as AuthenticatedPropertiesPropertyIdSettingsRouteImport } from '.
 import { Route as AuthenticatedPropertiesImportGoogleIndexRouteImport } from './routes/_authenticated/properties/import-google/index'
 import { Route as AuthenticatedPropertiesImportGoogleImportIdRouteImport } from './routes/_authenticated/properties/import-google/$importId'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google/callback'
+import { Route as ApiPublicIdentityAssetsSplatRouteImport } from './routes/api/public/identity-assets/$'
 import { Route as ApiPublicPortalMediaAssetIdRouteImport } from './routes/api/public/portal-media/$assetId'
 import { Route as ApiWebhooksGbpNotificationsRouteImport } from './routes/api/webhooks/gbp/notifications'
 import { Route as ApiWebhooksResendEventsRouteImport } from './routes/api/webhooks/resend/events'
@@ -102,6 +104,11 @@ const JoinRoute = JoinRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperatorRoute = OperatorRouteImport.update({
+  id: '/operator',
+  path: '/operator',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -344,6 +351,12 @@ const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   path: '/api/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicIdentityAssetsSplatRoute =
+  ApiPublicIdentityAssetsSplatRouteImport.update({
+    id: '/api/public/identity-assets/$',
+    path: '/api/public/identity-assets/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicPortalMediaAssetIdRoute =
   ApiPublicPortalMediaAssetIdRouteImport.update({
     id: '/api/public/portal-media/$assetId',
@@ -481,6 +494,7 @@ export interface FileRoutesByFullPath {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
+  '/operator': typeof OperatorRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
@@ -522,6 +536,7 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRouteWithChildren
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/public/identity-assets/$': typeof ApiPublicIdentityAssetsSplatRoute
   '/api/public/portal-media/$assetId': typeof ApiPublicPortalMediaAssetIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/api/webhooks/resend/events': typeof ApiWebhooksResendEventsRoute
@@ -552,6 +567,7 @@ export interface FileRoutesByTo {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
+  '/operator': typeof OperatorRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
@@ -589,6 +605,7 @@ export interface FileRoutesByTo {
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/public/identity-assets/$': typeof ApiPublicIdentityAssetsSplatRoute
   '/api/public/portal-media/$assetId': typeof ApiPublicPortalMediaAssetIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/api/webhooks/resend/events': typeof ApiWebhooksResendEventsRoute
@@ -620,6 +637,7 @@ export interface FileRoutesById {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
+  '/operator': typeof OperatorRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
@@ -661,6 +679,7 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRouteWithChildren
   '/_authenticated/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/public/identity-assets/$': typeof ApiPublicIdentityAssetsSplatRoute
   '/api/public/portal-media/$assetId': typeof ApiPublicPortalMediaAssetIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/api/webhooks/resend/events': typeof ApiWebhooksResendEventsRoute
@@ -693,6 +712,7 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
+    | '/operator'
     | '/privacy'
     | '/reset-password'
     | '/unavailable'
@@ -734,6 +754,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/settings'
     | '/properties/import-google/$importId'
     | '/api/auth/google/callback'
+    | '/api/public/identity-assets/$'
     | '/api/public/portal-media/$assetId'
     | '/api/webhooks/gbp/notifications'
     | '/api/webhooks/resend/events'
@@ -764,6 +785,7 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
+    | '/operator'
     | '/privacy'
     | '/reset-password'
     | '/unavailable'
@@ -801,6 +823,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/reviews'
     | '/properties/import-google/$importId'
     | '/api/auth/google/callback'
+    | '/api/public/identity-assets/$'
     | '/api/public/portal-media/$assetId'
     | '/api/webhooks/gbp/notifications'
     | '/api/webhooks/resend/events'
@@ -831,6 +854,7 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
+    | '/operator'
     | '/privacy'
     | '/reset-password'
     | '/unavailable'
@@ -872,6 +896,7 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/settings'
     | '/_authenticated/properties/import-google/$importId'
     | '/api/auth/google/callback'
+    | '/api/public/identity-assets/$'
     | '/api/public/portal-media/$assetId'
     | '/api/webhooks/gbp/notifications'
     | '/api/webhooks/resend/events'
@@ -904,6 +929,7 @@ export interface RootRouteChildren {
   AcceptInvitationRoute: typeof AcceptInvitationRoute
   JoinRoute: typeof JoinRoute
   LoginRoute: typeof LoginRoute
+  OperatorRoute: typeof OperatorRoute
   PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   UnavailableRoute: typeof UnavailableRoute
@@ -919,6 +945,7 @@ export interface RootRouteChildren {
   ApiNotificationsUnsubscribeRoute: typeof ApiNotificationsUnsubscribeRoute
   ApiHealthIndexRoute: typeof ApiHealthIndexRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
+  ApiPublicIdentityAssetsSplatRoute: typeof ApiPublicIdentityAssetsSplatRoute
   ApiPublicPortalMediaAssetIdRoute: typeof ApiPublicPortalMediaAssetIdRoute
   ApiWebhooksGbpNotificationsRoute: typeof ApiWebhooksGbpNotificationsRoute
   ApiWebhooksResendEventsRoute: typeof ApiWebhooksResendEventsRoute
@@ -960,6 +987,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operator': {
+      id: '/operator'
+      path: '/operator'
+      fullPath: '/operator'
+      preLoaderRoute: typeof OperatorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -1261,6 +1295,13 @@ declare module '@tanstack/react-router' {
       path: '/api/auth/google/callback'
       fullPath: '/api/auth/google/callback'
       preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/identity-assets/$': {
+      id: '/api/public/identity-assets/$'
+      path: '/api/public/identity-assets/$'
+      fullPath: '/api/public/identity-assets/$'
+      preLoaderRoute: typeof ApiPublicIdentityAssetsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/portal-media/$assetId': {
@@ -1620,6 +1661,7 @@ const rootRouteChildren: RootRouteChildren = {
   AcceptInvitationRoute: AcceptInvitationRoute,
   JoinRoute: JoinRoute,
   LoginRoute: LoginRoute,
+  OperatorRoute: OperatorRoute,
   PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   UnavailableRoute: UnavailableRoute,
@@ -1635,6 +1677,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNotificationsUnsubscribeRoute: ApiNotificationsUnsubscribeRoute,
   ApiHealthIndexRoute: ApiHealthIndexRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
+  ApiPublicIdentityAssetsSplatRoute: ApiPublicIdentityAssetsSplatRoute,
   ApiPublicPortalMediaAssetIdRoute: ApiPublicPortalMediaAssetIdRoute,
   ApiWebhooksGbpNotificationsRoute: ApiWebhooksGbpNotificationsRoute,
   ApiWebhooksResendEventsRoute: ApiWebhooksResendEventsRoute,

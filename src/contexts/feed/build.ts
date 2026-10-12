@@ -168,7 +168,10 @@ type ActivityBuildInput = Readonly<{
   operationalHistoryHoldIdGen: () => string
 }>
 
-const buildActivityFeed = (input: ActivityBuildInput) => {
+const buildActivityFeed = (
+  input: ActivityBuildInput,
+  monthlyResultFacts: MonthlyResultNotificationFactsLookup,
+) => {
   const repo = createRecentActivityRepository(input.db, input.logger)
   const inboxItemLookup = createDbInboxItemLookupAdapter(input.db)
   const userLookup = createActivityDbUserLookupAdapter(input.db)
@@ -215,6 +218,7 @@ const buildActivityFeed = (input: ActivityBuildInput) => {
       deliveryStore,
       userLookup,
       inboxItemLookup,
+      monthlyResultFacts,
       clock: input.clock,
       logger: input.logger,
       idGen: input.idGen,
@@ -732,6 +736,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   ) => {
     registerIdentityAccountNotificationConsumers(consumerRegistry, {
       queue,
+      displayNames,
+      logger: input.logger,
       receipts: input.outboxRepo,
     })
     // LIF-01 program bullet 5 — the mandatory final notice at Purge Pending.
@@ -914,7 +920,12 @@ type BuildInput = Readonly<{
 }>
 
 export const buildFeedContext = (input: BuildInput) => {
-  const activity = buildActivityFeed(input.activity)
+  // Reporting's read of a closed Goal month serves both halves: the Goal
+  // notices and the Recent Activity row carry the same marker from it.
+  const activity = buildActivityFeed(
+    input.activity,
+    input.notification.monthlyResultFacts,
+  )
   const notification = buildNotificationFeed(input.notification)
 
   return Object.freeze({

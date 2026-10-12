@@ -1,17 +1,10 @@
-import { Loader2 } from 'lucide-react'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
+import { FormActions } from '#/components/forms/form-actions'
 import { Button } from '#/components/ui/button'
 import { CardFooter } from '#/components/ui/card'
+import {
+  ConfirmationDialog,
+  ConfirmationTrigger,
+} from '#/components/ui/confirmation-dialog'
 
 export function MerchantAiSettingsActions({
   propertyName,
@@ -20,10 +13,12 @@ export function MerchantAiSettingsActions({
   isEnabled,
   canEnable,
   canSave,
+  selectionChanged,
   pending,
   onEnable,
   onChange,
   onRevoke,
+  onResetSelection,
 }: Readonly<{
   propertyName: string
   /** The notice's call to action, rendered for this property. */
@@ -32,82 +27,60 @@ export function MerchantAiSettingsActions({
   isEnabled: boolean
   canEnable: boolean
   canSave: boolean
+  /** The capability choice differs from the one saved: Reset shows. */
+  selectionChanged: boolean
   pending: boolean
-  onEnable: () => void
+  /** Enable and turn off are confirmed: a refusal rejects and the dialog says it. */
+  onEnable: () => Promise<unknown>
   onChange: () => void
-  onRevoke: () => void
+  onRevoke: () => Promise<unknown>
+  /** Puts the saved capability choice back. */
+  onResetSelection: () => void
 }>) {
   return (
-    <CardFooter className="flex-col gap-3 border-t sm:flex-row sm:justify-end">
+    <CardFooter className="border-t">
       {canRevoke ? (
-        <>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="outline"
-                className="min-h-11 w-full sm:w-auto"
-                disabled={pending}
-              >
-                Turn off AI features
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  Turn off AI features for {propertyName}?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  Future review analysis, reply drafting, and property trend processing
-                  will stop for this property. This does not disconnect Google.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep AI features on</AlertDialogCancel>
-                <AlertDialogAction variant="destructive" onClick={onRevoke}>
-                  Turn off
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+        <FormActions
+          dirty={isEnabled && selectionChanged}
+          onReset={onResetSelection}
+          pending={pending}
+          leading={
+            <ConfirmationDialog
+              trigger={
+                <ConfirmationTrigger tone="neutral" disabled={pending}>
+                  Turn off AI features
+                </ConfirmationTrigger>
+              }
+              // Reversible: Enable AI features turns it back on, so the tone is neutral.
+              tone="neutral"
+              title={`Turn off AI features for ${propertyName}?`}
+              description="Future review analysis, reply drafting, and property trend processing will stop for this property. This does not disconnect Google."
+              cancelLabel="Keep AI features on"
+              confirmLabel="Turn off"
+              pendingLabel="Turning off…"
+              onConfirm={onRevoke}
+            />
+          }
+        >
           {isEnabled ? (
-            <Button
-              className="min-h-11 w-full sm:w-auto"
-              disabled={!canSave}
-              onClick={onChange}
-            >
-              {pending ? (
-                <Loader2
-                  data-icon="inline-start"
-                  className="animate-spin motion-reduce:animate-none"
-                  aria-hidden="true"
-                />
-              ) : null}
+            <Button pending={pending} disabled={!canSave} onClick={onChange}>
               Save feature access
             </Button>
           ) : null}
-        </>
+        </FormActions>
       ) : (
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button className="min-h-11 w-full sm:w-auto" disabled={!canEnable}>
-              Enable AI features
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{enableCallToAction}?</AlertDialogTitle>
-              <AlertDialogDescription>
-                You confirm the data-handling notice above and authorize review analysis,
-                editable reply drafting, and de-identified property trends for this
-                property.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={onEnable}>Confirm and enable</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <FormActions>
+          <ConfirmationDialog
+            trigger={<Button disabled={!canEnable}>Enable AI features</Button>}
+            title={`${enableCallToAction}?`}
+            description="You confirm the data-handling notice above and authorize review analysis, editable reply drafting, and de-identified property trends for this property."
+            cancelLabel="Cancel"
+            confirmLabel="Confirm & enable"
+            pendingLabel="Enabling…"
+            confirmDisabled={!canEnable}
+            onConfirm={onEnable}
+          />
+        </FormActions>
       )}
     </CardFooter>
   )

@@ -46,7 +46,7 @@ const ENGLISH: PortalPreviewExperience = {
       id: 'l-1',
       state: 'ready',
       iconKey: 'book-open',
-      imageUrl: null,
+      imageUrl: PREVIEW_STORY_PHOTO,
       label: 'Discover the resort',
       line: 'Rooms, pools, the sea',
       fallbackFrom: null,
@@ -120,6 +120,13 @@ export const PREVIEW_LIVE: PortalPreview = {
     bg: { ...BULGARIAN, links: BULGARIAN.links.filter((link) => link.state === 'ready') },
   },
 }
+
+/** A published version chosen from the History: the live page's tiles, under its own number. */
+export const previewOfVersion = (version: number): PortalPreview => ({
+  ...PREVIEW_LIVE,
+  source: 'version',
+  version,
+})
 
 export const PREVIEW_DRAFT_ONE_LANGUAGE: PortalPreview = {
   ...PREVIEW_DRAFT,

@@ -1,4 +1,4 @@
-import { AlertTriangle } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Label } from '#/components/ui/label'
 
@@ -21,12 +21,11 @@ export function BetaFeedbackErrorNotice({
   disabled,
 }: Props) {
   return (
-    <div className="flex gap-3 rounded-lg border border-warn-line bg-warn-muted p-3">
-      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" />
-      <div className="min-w-0 space-y-2">
-        <p className="text-sm font-medium">
-          RepKey recorded an error while you were here
-        </p>
+    <Alert variant="warning" role="status">
+      <AlertTitle className="line-clamp-none">
+        RepKey recorded an error while you were here
+      </AlertTitle>
+      <AlertDescription className="gap-2">
         <div className="flex items-start gap-2">
           <Checkbox
             id="beta-feedback-include-error"
@@ -49,7 +48,7 @@ export function BetaFeedbackErrorNotice({
             </span>
           </Label>
         </div>
-      </div>
-    </div>
+      </AlertDescription>
+    </Alert>
   )
 }

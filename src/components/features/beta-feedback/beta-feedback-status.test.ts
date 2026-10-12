@@ -13,7 +13,7 @@ describe('reporter feedback status', () => {
     })
 
     expect(status.label).toBe('Not sent')
-    expect(status.tone).toBe('failed')
+    expect(status.tone).toBe('negative')
   })
 
   it('treats an undelivered report as still sending', () => {

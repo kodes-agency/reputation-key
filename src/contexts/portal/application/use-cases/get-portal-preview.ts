@@ -16,9 +16,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
-import { IMMERSIVE_HUB_SCHEMA_VERSION } from '../../domain/portal-publication-snapshot'
 import { buildPortalLinktreeView } from '../../domain/portal-linktree-view'
-import { APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS } from '../approved-destination-age'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import {
   buildDraftPortalPreview,
@@ -26,10 +24,9 @@ import {
   type PortalPreviewOutcome,
   type PortalPreviewSource,
 } from '../portal-preview'
-import { immersiveAssetIds } from '../public-portal-immersive'
+import { readPublishedPreviewInputs } from '../published-preview-inputs'
 import { resolvePropertyLookMedia } from '../property-look-media'
 import { listServableTileImageIds } from '../servable-tile-images'
-import { resolvePortalMediaUrls } from './resolve-portal-media-urls'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
@@ -79,33 +76,14 @@ export const getPortalPreview =
       if (!snapshot) {
         return { status: 'unavailable', source: 'live', reason: 'not_published' }
       }
-      const urls =
-        snapshot.configuration.schemaVersion === IMMERSIVE_HUB_SCHEMA_VERSION &&
-        snapshot.configuration.linktree.enabled
-          ? snapshot.configuration.links.map((link) => link.url)
-          : []
-      const approved =
-        urls.length === 0
-          ? []
-          : await deps.destinationRepo.listApprovedUris(
-              ctx.organizationId,
-              portal.propertyId,
-              urls,
-              new Date(
-                deps.clock().getTime() - APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS,
-              ),
-            )
-      const mediaUrls =
-        snapshot.configuration.schemaVersion === IMMERSIVE_HUB_SCHEMA_VERSION
-          ? await resolvePortalMediaUrls(deps)(
-              ctx.organizationId,
-              portal.propertyId,
-              immersiveAssetIds(snapshot.configuration),
-            )
-          : {}
+      const { approvedUris, mediaUrls } = await readPublishedPreviewInputs(
+        deps,
+        { organizationId: ctx.organizationId, propertyId: portal.propertyId },
+        snapshot,
+      )
       return buildLivePortalPreview({
         snapshot,
-        approvedUris: new Set(approved),
+        approvedUris,
         mediaUrls,
       })
     }

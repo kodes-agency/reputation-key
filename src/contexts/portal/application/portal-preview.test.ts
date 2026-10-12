@@ -14,7 +14,11 @@ import {
   immersiveConfiguration,
   immersiveSnapshot,
 } from './__fixtures__/immersive-snapshot'
-import { buildDraftPortalPreview, buildLivePortalPreview } from './portal-preview'
+import {
+  buildDraftPortalPreview,
+  buildLivePortalPreview,
+  buildVersionPortalPreview,
+} from './portal-preview'
 import { NO_PROPERTY_LOOK_MEDIA } from './property-look-media'
 import type { PortalPreview } from './portal-preview'
 
@@ -701,5 +705,59 @@ describe('buildLivePortalPreview', () => {
       source: 'live',
       reason: 'earlier_design',
     })
+  })
+})
+
+describe('buildVersionPortalPreview', () => {
+  const snapshot = immersiveSnapshot()
+  const allApproved = new Set([
+    'https://harbor.example.com/menu',
+    'https://harbor.example.com/spa',
+  ])
+
+  it('presents a published version as a version, naming which one', () => {
+    const outcome = buildVersionPortalPreview({ snapshot, approvedUris: allApproved })
+
+    if (outcome.status !== 'ready') throw new Error('expected a preview')
+    expect(outcome.preview).toMatchObject({
+      source: 'version',
+      version: 6,
+      locales: ['en', 'bg'],
+    })
+    expect(experienceOf(outcome.preview, 'en').links.map((link) => link.state)).toEqual([
+      'ready',
+      'ready',
+    ])
+  })
+
+  it('draws only the tiles guests would be served if the version were live now', () => {
+    const outcome = buildVersionPortalPreview({
+      snapshot,
+      approvedUris: new Set(['https://harbor.example.com/menu']),
+    })
+
+    if (outcome.status !== 'ready') throw new Error('expected a preview')
+    expect(experienceOf(outcome.preview, 'en').links.map((link) => link.label)).toEqual([
+      'Menu',
+    ])
+  })
+
+  it('does not draw a version published with the earlier page design, and says which source', () => {
+    const legacy = {
+      ...snapshot,
+      configuration: { ...snapshot.configuration, schemaVersion: 2 },
+    } as unknown as typeof snapshot
+
+    expect(
+      buildVersionPortalPreview({ snapshot: legacy, approvedUris: allApproved }),
+    ).toEqual({ status: 'unavailable', source: 'version', reason: 'earlier_design' })
+  })
+
+  it('never puts an address into the preview', () => {
+    const json = JSON.stringify(
+      buildVersionPortalPreview({ snapshot, approvedUris: allApproved }),
+    )
+
+    expect(json).not.toContain('harbor.example.com/menu')
   })
 })

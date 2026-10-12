@@ -39,10 +39,8 @@ export function createDraftFormSaveTracker(initialValues: unknown): DraftFormSav
 }
 
 /**
- * Submit the form if its values differ from the tracker. `project` maps the
- * form's values to what is actually written (a blur-committed field is written
- * as its committed value), so the comparison and the baseline are about what
- * the server holds, not about what is typed.
+ * Submit the form if its values differ from the tracker, so the comparison and
+ * the baseline are about what the server holds.
  *
  * A rejected submit (the server said no) propagates for the coordinator to
  * report, and the baseline becomes unknown: the next attempt always writes, even
@@ -52,9 +50,8 @@ export function createDraftFormSaveTracker(initialValues: unknown): DraftFormSav
 export async function saveDraftForm(
   form: DraftFormApi,
   tracker: DraftFormSaveTracker,
-  project: (values: unknown) => unknown = (values) => values,
 ): Promise<PortalDraftSaveOutcome> {
-  const submitted = stableSerialize(project(form.state.values))
+  const submitted = stableSerialize(form.state.values)
   if (submitted === tracker.saved) return 'unchanged'
   try {
     await form.handleSubmit()

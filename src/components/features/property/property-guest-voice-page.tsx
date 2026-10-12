@@ -1,12 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Clock, Info, SearchX } from 'lucide-react'
 import { DashboardRangeControl } from '#/components/features/dashboard/dashboard-range-control'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { PageHeader } from '#/components/layout/page-header'
+import { NAV_LABEL } from '#/components/layout/nav-labels'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
+import { ROW_FIGURE_LINK } from '#/components/ui/row-link'
+import { cn } from '#/lib/utils'
 import type {
   AiPropertyInsightsRead,
   AiTrendReportView,
@@ -18,6 +21,7 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { aiKeys } from '#/shared/queries/query-keys'
 import { PropertyInsightsTopicTable } from './property-insights-aspect-table'
 import { PropertyInsightsEmergingIssues } from './property-insights-emerging-issues'
+import { formatNumber, formatLocalDate } from '#/lib/format'
 
 type ReadyInsights = Extract<AiPropertyInsightsRead, { status: 'ready' }>
 
@@ -26,7 +30,7 @@ export type PropertyGuestVoiceServerFns = Readonly<{
 }>
 
 function pluralized(count: number, singular: string, plural = `${singular}s`): string {
-  return `${count.toLocaleString()} ${count === 1 ? singular : plural}`
+  return `${formatNumber(count)} ${count === 1 ? singular : plural}`
 }
 
 export function PropertyGuestVoiceBasis({ result }: Readonly<{ result: ReadyInsights }>) {
@@ -35,7 +39,7 @@ export function PropertyGuestVoiceBasis({ result }: Readonly<{ result: ReadyInsi
     <div className="flex flex-col gap-2 text-sm text-muted-foreground">
       <p>
         Based on {pluralized(basis.reviewCount, 'review')} ·{' '}
-        {basis.analyzedReviewCount.toLocaleString()} analysed
+        {formatNumber(basis.analyzedReviewCount)} analysed
       </p>
       {result.provisional ? (
         <p>
@@ -50,32 +54,32 @@ export function PropertyGuestVoiceBasis({ result }: Readonly<{ result: ReadyInsi
         <p>AI analysis covers the most recent 24 months.</p>
       ) : null}
       <details className="w-fit max-w-full">
-        <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-ring">
           What is in this figure
         </summary>
         <dl className="grid gap-x-8 gap-y-2 pb-1 sm:grid-cols-2">
           <div className="flex justify-between gap-6">
             <dt>Reviews without text</dt>
             <dd className="font-medium tabular-nums text-foreground">
-              {basis.starOnlyCount.toLocaleString()}
+              {formatNumber(basis.starOnlyCount)}
             </dd>
           </div>
           <div className="flex justify-between gap-6">
             <dt>Awaiting analysis</dt>
             <dd className="font-medium tabular-nums text-foreground">
-              {basis.awaitingAnalysisCount.toLocaleString()}
+              {formatNumber(basis.awaitingAnalysisCount)}
             </dd>
           </div>
           <div className="flex justify-between gap-6">
             <dt>In an unsupported language</dt>
             <dd className="font-medium tabular-nums text-foreground">
-              {basis.notAnalyzableCount.toLocaleString()}
+              {formatNumber(basis.notAnalyzableCount)}
             </dd>
           </div>
           <div className="flex justify-between gap-6">
             <dt>Not analysed for topics</dt>
             <dd className="font-medium tabular-nums text-foreground">
-              {basis.preAspectAnalysisCount.toLocaleString()}
+              {formatNumber(basis.preAspectAnalysisCount)}
             </dd>
           </div>
         </dl>
@@ -84,13 +88,8 @@ export function PropertyGuestVoiceBasis({ result }: Readonly<{ result: ReadyInsi
   )
 }
 
-const SUPPORTING_REVIEW_DATE = new Intl.DateTimeFormat('en-GB', {
-  dateStyle: 'medium',
-  timeZone: 'UTC',
-})
-
 function formatSupportingReviewDate(localDate: string): string {
-  return SUPPORTING_REVIEW_DATE.format(new Date(`${localDate}T00:00:00.000Z`))
+  return formatLocalDate(localDate) ?? localDate
 }
 
 function SupportingReview({
@@ -113,7 +112,10 @@ function SupportingReview({
       params={{ propertyId }}
       search={{ itemId: review.inboxItemId }}
       aria-label={`Open supporting review from ${date} in the inbox`}
-      className="inline-flex min-h-11 items-center rounded-md border px-3 text-sm text-link underline-offset-4 hover:bg-muted/40 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className={cn(
+        ROW_FIGURE_LINK,
+        'inline-flex min-h-11 items-center rounded-md border px-3 text-sm hover:bg-muted/40',
+      )}
     >
       {label}
     </Link>
@@ -167,8 +169,7 @@ function TrendHeadline({
 function DisabledGuestVoice({ propertyId }: Readonly<{ propertyId: string }>) {
   const { can } = usePermissions()
   return (
-    <Alert>
-      <Info aria-hidden="true" />
+    <Alert variant="info">
       <AlertTitle>AI analysis is off for this property</AlertTitle>
       <AlertDescription className="flex flex-col gap-3">
         <p>
@@ -178,7 +179,7 @@ function DisabledGuestVoice({ propertyId }: Readonly<{ propertyId: string }>) {
         {can('ai.manage') ? (
           <Button asChild size="sm">
             <Link to="/properties/$propertyId/settings/ai" params={{ propertyId }}>
-              Enable AI analysis
+              Turn on AI analysis
             </Link>
           </Button>
         ) : (
@@ -201,8 +202,7 @@ function GuestVoiceState({
   if (result.status === 'disabled') return <DisabledGuestVoice propertyId={propertyId} />
   if (result.status === 'preparing') {
     return (
-      <Alert>
-        <Clock aria-hidden="true" />
+      <Alert variant="info">
         <AlertTitle>Guest voice is being prepared</AlertTitle>
         <AlertDescription>
           AI analysis is still settling. Topics appear as soon as there is enough review
@@ -212,8 +212,7 @@ function GuestVoiceState({
     )
   }
   return (
-    <Alert>
-      <SearchX aria-hidden="true" />
+    <Alert variant="info">
       <AlertTitle>
         {range === 'all'
           ? 'Not enough review evidence in the available history'
@@ -256,11 +255,11 @@ export function PropertyGuestVoicePage({
       <PageHeader
         title="Guest voice"
         description="What guests praise, what needs attention, and how the picture is changing."
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: propertyName },
-          { label: 'Guest voice' },
-        ]}
+        breadcrumbs={trailCrumbs(
+          'property',
+          { propertyId, propertyName },
+          NAV_LABEL.guests,
+        )}
         actions={<DashboardRangeControl range={range} onRangeChange={onRangeChange} />}
       />
 

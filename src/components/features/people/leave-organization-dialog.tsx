@@ -11,9 +11,10 @@
 // it up front instead of letting someone fill in a whole transfer form first.
 
 import { useState } from 'react'
-import { LogOut, TriangleAlert } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import {
   Dialog,
+  DialogCancel,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -23,6 +24,8 @@ import {
 } from '#/components/ui/dialog'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
+import { ConfirmationTrigger } from '#/components/ui/confirmation-dialog'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { Label } from '#/components/ui/label'
 import {
   Select,
@@ -142,12 +145,14 @@ export function LeaveOrganizationDialog({
   })
 
   return (
-    <Dialog>
+    <Dialog busy={leaveOrganization.isPending}>
       <DialogTrigger asChild>
-        <Button variant="outline" data-testid="open-leave-organization">
+        {/* A transfer form rather than a yes/no, so a Dialog; the trigger is still
+            the destructive one, because leaving cannot be taken back. */}
+        <ConfirmationTrigger tone="destructive" data-testid="open-leave-organization">
           <LogOut aria-hidden="true" />
           Leave organization
-        </Button>
+        </ConfirmationTrigger>
       </DialogTrigger>
       <DialogContent data-testid="leave-organization-dialog">
         <DialogHeader>
@@ -160,7 +165,6 @@ export function LeaveOrganizationDialog({
 
         {worklistUnavailable && (
           <Alert variant="destructive" data-testid="leave-worklist-unavailable">
-            <TriangleAlert aria-hidden="true" />
             <AlertTitle>Leaving is unavailable right now</AlertTitle>
             <AlertDescription>
               We could not read what you are currently responsible for, so we cannot
@@ -171,8 +175,7 @@ export function LeaveOrganizationDialog({
         )}
 
         {isSoleAccountAdmin ? (
-          <Alert variant="destructive" data-testid="sole-account-admin-block">
-            <TriangleAlert aria-hidden="true" />
+          <Alert variant="warning" data-testid="sole-account-admin-block">
             <AlertTitle>You are the only account administrator</AlertTitle>
             <AlertDescription>
               Promote another person to account administrator first. Leaving now would
@@ -221,10 +224,19 @@ export function LeaveOrganizationDialog({
           </div>
         )}
 
+        {/* A refusal (a stale worklist, a responsibility someone just took)
+            has no toast: the leave mutation reports nothing of its own, so it
+            is said here, directly above the actions. The banner keeps a 4xx
+            refusal's sentence and says the generic one for anything else (a
+            database or lock failure in the offboarding command). */}
+        <DialogErrorBanner error={leaveOrganization.error} />
+
         <DialogFooter>
+          <DialogCancel />
           <Button
             variant="destructive"
-            disabled={!canLeave || leaveOrganization.isPending}
+            pending={leaveOrganization.isPending}
+            disabled={!canLeave}
             data-testid="confirm-leave-organization"
             onClick={() =>
               void leaveOrganization({
@@ -235,7 +247,9 @@ export function LeaveOrganizationDialog({
                     toUserId: assignments.get(keyOf(item))!,
                   })),
                 },
-              })
+                // The refusal is read back from `leaveOrganization.error`; the
+                // catch only keeps the rejection from escaping the click.
+              }).catch(() => undefined)
             }
           >
             Transfer and leave

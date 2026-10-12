@@ -34,6 +34,7 @@ import { identityError } from './domain/errors'
 import { updateOrganization } from './application/use-cases/update-organization'
 import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
 import { buildInvitationUseCases, type InvitationUseCaseDeps } from './build-invitations'
+import { buildMemberAccessUseCases } from './build-member-access'
 import { buildCapabilityPolicyHandle } from './infrastructure/policy-store-init'
 import { createPolicyAdminOps } from './application/use-cases/policy-admin'
 import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
@@ -76,6 +77,7 @@ import {
   type OrganizationReactivationReadinessDeps,
 } from './infrastructure/organization-reactivation-readiness'
 import { createOrganizationLifecycleCommandStore } from './infrastructure/organization-lifecycle-command-store'
+import { createIdentityAssetReferences } from './infrastructure/adapters/identity-asset-references.adapter'
 import {
   createOrganizationLifecycleCoordinator,
   type BeginIrreversibleOrganizationPurgeInput,
@@ -599,6 +601,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     commandStore,
     resolveOrganizationName,
   })
+  const memberAccess = buildMemberAccessUseCases(deps)
 
   // Capability fate and environment controls are process-static. Tenant
   // grants, consent, and the execution kill switch retain their live reads.
@@ -832,6 +835,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     updateCustomRole: useCases.updateCustomRole,
     deleteCustomRole: useCases.deleteCustomRole,
     merchantAiAuthorization: merchantAiRequestApi,
+    ...memberAccess,
   })
   const managerFacts = Object.freeze({
     listActiveManagers: managerMembershipRepo.listActiveManagers,
@@ -913,5 +917,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     /** Beta-feedback reporting for the signed-in reporter. Request-facing, but
      * kept off `publicApi`, which other contexts receive. */
     betaFeedback: buildBetaFeedbackRequests(deps),
+    /** What still points at an uploaded avatar or logo. Request-facing, so kept off `publicApi`. */
+    assetReferences: createIdentityAssetReferences(deps.db),
   } as const
 }

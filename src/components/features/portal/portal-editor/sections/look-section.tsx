@@ -37,7 +37,7 @@ export function LookSection({ resources, canEdit }: PortalEditorSectionProps) {
             The property has no public display name yet, so there is no look to show.
           </p>
         )}
-        <Button variant="outline" className="min-h-11 sm:min-h-9" asChild>
+        <Button variant="outline" asChild>
           <Link to="/properties/$propertyId/portals/look" params={{ propertyId }}>
             <Palette />
             {canManage ? 'Edit the property look' : 'See the property look'}

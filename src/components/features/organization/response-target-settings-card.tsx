@@ -1,9 +1,13 @@
+import { SectionTitle } from '#/components/ui/section-title'
+import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import type { Action } from '#/components/hooks/use-action'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { submitForm } from '#/components/forms/form-submit'
+import { FormActions } from '#/components/forms/form-actions'
+import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormNumberField } from '#/components/forms/form-number-field'
+import { RatingThresholdField } from '#/components/forms/rating-threshold-field'
+import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
 import {
   Card,
   CardContent,
@@ -45,18 +49,18 @@ function LowRatingTargetFields({
   form,
 }: Readonly<{ form: ReturnType<typeof useLowRatingForm> }>) {
   return (
-    <div className="sm:col-span-3">
+    <div className="sm:col-span-2">
       <form.Field name="shortenForLowRatings">
         {(field) => (
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="size-4 accent-primary"
-              checked={field.state.value === true}
-              onChange={(event) => field.handleChange(event.target.checked)}
-            />
-            Answer low-rated reviews sooner
-          </label>
+          <SettingSwitchRow
+            id="shorten-for-low-ratings"
+            label="Answer low-rated reviews sooner"
+            description="A review at or below the rating you choose gets a shorter target, so its reminders come earlier."
+            commit="deferred"
+            checked={field.state.value === true}
+            unsaved={!field.state.meta.isDefaultValue}
+            onCheckedChange={field.handleChange}
+          />
         )}
       </form.Field>
       <form.Subscribe selector={(state) => state.values.shortenForLowRatings === true}>
@@ -65,12 +69,14 @@ function LowRatingTargetFields({
             <div className="mt-3 grid gap-3 sm:grid-cols-[9rem_9rem] sm:items-end">
               <form.Field name="lowRatingThreshold">
                 {(field) => (
-                  <FormNumberField
+                  <RatingThresholdField
                     id="low-rating-threshold"
-                    label="At or below (stars)"
-                    min={1}
-                    max={5}
-                    field={field}
+                    label="Low rating"
+                    value={field.state.value}
+                    onValueChange={field.handleChange}
+                    onBlur={field.handleBlur}
+                    invalid={field.state.meta.errors.length > 0}
+                    errors={field.state.meta.errors}
                   />
                 )}
               </form.Field>
@@ -98,6 +104,7 @@ const useLowRatingForm = (
   policy: OrganizationPolicy,
   updatePolicy: UpdatePolicyAction,
   offersLowRating: boolean,
+  onFailure: (error: unknown) => void,
 ) =>
   useForm({
     defaultValues: {
@@ -108,26 +115,32 @@ const useLowRatingForm = (
     },
     validators: { onSubmit: organizationResponseTargetFormDto },
     onSubmit: async ({ value }) => {
-      await updatePolicy({
-        data: {
-          scope: 'organization',
-          targetKind: policy.targetKind,
-          durationMinutes: value.durationHours * 60,
-          expectedPolicyVersion: policy.policyVersion,
-          // Only the Google card may say anything about low ratings; the
-          // private-feedback card leaves the stored value untouched.
-          ...(offersLowRating
-            ? {
-                lowRating: value.shortenForLowRatings
-                  ? {
-                      threshold: value.lowRatingThreshold,
-                      durationMinutes: value.lowRatingHours * 60,
-                    }
-                  : null,
-              }
-            : {}),
-        },
-      })
+      onFailure(null)
+      try {
+        await updatePolicy({
+          data: {
+            scope: 'organization',
+            targetKind: policy.targetKind,
+            durationMinutes: value.durationHours * 60,
+            expectedPolicyVersion: policy.policyVersion,
+            // Only the Google card may say anything about low ratings; the
+            // private-feedback card leaves the stored value untouched.
+            ...(offersLowRating
+              ? {
+                  lowRating: value.shortenForLowRatings
+                    ? {
+                        threshold: value.lowRatingThreshold,
+                        durationMinutes: value.lowRatingHours * 60,
+                      }
+                    : null,
+                }
+              : {}),
+          },
+        })
+      } catch (error) {
+        onFailure(error)
+        throw error
+      }
     },
   })
 
@@ -144,16 +157,15 @@ function TargetPolicyForm({
   updatePolicy: UpdatePolicyAction
   offersLowRating?: boolean
 }>) {
-  const form = useLowRatingForm(policy, updatePolicy, offersLowRating)
+  // Two forms share one action, so each keeps the failure of its own last
+  // attempt: the refusal shows beside the Save that was pressed, not on both.
+  const [failure, setFailure] = useState<unknown>(null)
+  const form = useLowRatingForm(policy, updatePolicy, offersLowRating, setFailure)
 
   return (
     <form
-      className="grid gap-3 rounded-lg border p-4 sm:grid-cols-[minmax(0,1fr)_9rem_auto] sm:items-end"
-      onSubmit={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        void submitForm(form)
-      }}
+      className="grid gap-3 rounded-lg border p-4 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-end"
+      onSubmit={submitHandler(form)}
     >
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -175,10 +187,12 @@ function TargetPolicyForm({
           />
         )}
       </form.Field>
-      <SubmitButton mutation={updatePolicy} form={form}>
-        Save target
-      </SubmitButton>
       {offersLowRating ? <LowRatingTargetFields form={form} /> : null}
+      <FormActions form={form} error={failure} className="sm:col-span-2">
+        <SubmitButton mutation={updatePolicy} form={form}>
+          Save target
+        </SubmitButton>
+      </FormActions>
     </form>
   )
 }
@@ -197,14 +211,13 @@ export function ResponseTargetSettingsCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Response targets</CardTitle>
+        <CardTitle as="h2">Response targets</CardTitle>
         <CardDescription>
           Working targets help managers prioritize follow-up. They measure timing but do
           not close or escalate an Inbox item automatically.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <FormErrorBanner error={updatePolicy.error} />
         <TargetPolicyForm
           key={`google:${settings.organization.googleReviewResponse.policyVersion ?? 'default'}`}
           label="Google review response"
@@ -215,7 +228,7 @@ export function ResponseTargetSettingsCard({
         />
         <div className="space-y-3 border-t pt-5">
           <div>
-            <h3 className="font-medium">Google review response performance</h3>
+            <SectionTitle level={3}>Google review response performance</SectionTitle>
             <p className="text-sm text-muted-foreground">
               Based only on cycles with reliable saved timing. Imported history and older
               records without timing evidence stay visible as excluded counts.
@@ -232,7 +245,7 @@ export function ResponseTargetSettingsCard({
         />
         <div className="space-y-3 border-t pt-5">
           <div>
-            <h3 className="font-medium">Private feedback performance</h3>
+            <SectionTitle level={3}>Private feedback performance</SectionTitle>
             <p className="text-sm text-muted-foreground">
               Only cycles with a reliable saved target are included.
             </p>

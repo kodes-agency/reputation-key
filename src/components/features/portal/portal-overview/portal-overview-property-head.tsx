@@ -4,14 +4,9 @@
 // read through the Property's own days. A quiet notice says when its Google link
 // needs attention; nothing is said when it does not.
 import { Link } from '@tanstack/react-router'
-import { ChevronDown, ChevronRight, Ellipsis, TriangleAlert } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
+import { TriangleAlert } from 'lucide-react'
+import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
+import { ROW_NAME_LINK } from '#/components/ui/row-link'
 import { TableCell, TableHead, TableRow } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
 import { PortalMeasureCells } from './portal-overview-measure-cells'
@@ -19,6 +14,7 @@ import { groupHeadCount, type MeasureSlot } from './portal-overview-results'
 import { PORTAL_OVERVIEW_COLUMNS } from './portal-overview-table-row'
 import type { PortalPropertySection } from './portal-all-properties-view'
 import { describeGroupCount } from './portal-overview-view'
+import { PortalOverviewToggle } from './portal-overview-toggle'
 
 type Props = Readonly<{
   property: PortalPropertySection
@@ -30,43 +26,26 @@ type Props = Readonly<{
   onToggle: () => void
 }>
 
-// The global `a` colour is unlayered, so a link used as a menu item pins its ink.
-const ITEM = 'min-h-11 text-foreground! md:min-h-8'
-const FOCUS_RING =
-  'rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
-
 function PropertyMenu({ property }: Readonly<{ property: PortalPropertySection }>) {
   const params = { propertyId: property.propertyId }
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-11 text-muted-foreground md:size-8"
-          aria-label={`More actions for ${property.name}`}
-        >
-          <Ellipsis aria-hidden="true" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-48">
-        <DropdownMenuItem asChild className={ITEM}>
-          <Link to="/properties/$propertyId/portals" params={params}>
-            Open portals
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild className={ITEM}>
-          <Link to="/properties/$propertyId" params={params}>
-            Open dashboard
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild className={ITEM}>
-          <Link to="/properties/$propertyId/settings" params={params}>
-            Property settings
-          </Link>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <RowActionsMenu name={property.name}>
+      <RowActionsItem asChild>
+        <Link to="/properties/$propertyId/portals" params={params}>
+          Open portals
+        </Link>
+      </RowActionsItem>
+      <RowActionsItem asChild>
+        <Link to="/properties/$propertyId" params={params}>
+          Open dashboard
+        </Link>
+      </RowActionsItem>
+      <RowActionsItem asChild>
+        <Link to="/properties/$propertyId/settings" params={params}>
+          Property settings
+        </Link>
+      </RowActionsItem>
+    </RowActionsMenu>
   )
 }
 
@@ -89,7 +68,6 @@ export function PortalOverviewPropertyHead({
   const { name, googleNotice } = property
   const { members, matched } = groupHeadCount(property, readCount)
   const summary = figures.kind === 'figures' ? figures.measures.summary : null
-  const Chevron = expanded ? ChevronDown : ChevronRight
   return (
     <TableRow
       className={cn(
@@ -101,19 +79,11 @@ export function PortalOverviewPropertyHead({
         scope="rowgroup"
         className="block h-auto p-0 text-left font-normal @4xl:table-cell @4xl:px-2 @4xl:py-2.5"
       >
-        <button
-          type="button"
-          aria-expanded={expanded}
-          aria-label={`Portals in ${name}`}
-          onClick={onToggle}
-          className="-ml-1 inline-flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:size-8"
-        >
-          <Chevron className="size-4" aria-hidden="true" />
-        </button>
+        <PortalOverviewToggle name={name} expanded={expanded} onToggle={onToggle} />
         <Link
           to="/properties/$propertyId/portals"
           params={{ propertyId: property.propertyId }}
-          className={cn('font-semibold', FOCUS_RING)}
+          className={cn('font-semibold', ROW_NAME_LINK)}
         >
           {name}
         </Link>

@@ -62,6 +62,8 @@ describe('production error-monitoring wiring', () => {
     const instrumentation = read('src/instrument.client.ts')
     const clientEntry = read('src/client.tsx')
     const router = read('src/router.tsx')
+    const routePageState = read('src/components/layout/route-page-state.tsx')
+    const guardedRouteError = read('src/components/layout/use-guarded-route-error.tsx')
     const telemetry = read('src/shared/observability/telemetry.ts')
     const viteConfig = read('vite.config.ts')
 
@@ -73,8 +75,18 @@ describe('production error-monitoring wiring', () => {
     expect(instrumentation).toContain(
       "from '#/shared/observability/browser-exception-capture'",
     )
-    expect(router).toContain("from '#/shared/observability/browser-exception-capture'")
+    // The router's default error component (`RouteError`, drawn by PageState)
+    // reports through the guarded route error hook, which holds the one
+    // `captureBrowserException` call every route boundary shares. None of them
+    // may import the Sentry SDK statically.
+    expect(router).toContain("from '#/components/layout/route-page-state'")
+    expect(routePageState).toContain("from './use-guarded-route-error'")
+    expect(guardedRouteError).toContain(
+      "from '#/shared/observability/browser-exception-capture'",
+    )
     expect(router).not.toContain("from '@sentry/tanstackstart-react'")
+    expect(routePageState).not.toContain("from '@sentry/tanstackstart-react'")
+    expect(guardedRouteError).not.toContain("from '@sentry/tanstackstart-react'")
     expect(instrumentation).toContain('beforeBreadcrumb: scrubSentryBreadcrumb')
     expect(viteConfig).toContain("'**/shared/observability/browser-exception-capture.ts'")
     expect(telemetry).toContain("from './sentry-event-scrub'")
@@ -88,15 +100,30 @@ describe('production error-monitoring wiring', () => {
     )
   })
 
-  it('runs Sentry request and function middleware before application middleware', () => {
+  it('runs Sentry request and function middleware first, named only on the server', () => {
+    // The order itself is proved against the real start instance in
+    // src/start.test.ts. In the browser the package exports inert placeholders,
+    // but importing even those puts all of @sentry/react in first paint, so
+    // start.ts names them only in an isomorphic server branch, whose import the
+    // Start compiler drops from the client bundle.
     const start = read('src/start.ts')
-    const requestMiddleware = start.slice(start.indexOf('requestMiddleware:'))
+    const isomorphic = start.slice(start.indexOf('createIsomorphicFn()'))
+    const serverBranch = isomorphic.slice(0, isomorphic.indexOf('.client('))
 
-    expect(requestMiddleware.indexOf('sentryGlobalRequestMiddleware')).toBeGreaterThan(-1)
-    expect(requestMiddleware.indexOf('csrfMiddleware')).toBeGreaterThan(
-      requestMiddleware.indexOf('sentryGlobalRequestMiddleware'),
+    for (const name of [
+      'sentryGlobalRequestMiddleware',
+      'sentryGlobalFunctionMiddleware',
+    ]) {
+      expect(serverBranch).toContain(`[${name}]`)
+      expect(
+        start.split(name).length - 1,
+        `${name} may appear only in its import and the server branch`,
+      ).toBe(2)
+    }
+    expect(start).toContain(
+      'requestMiddleware: [...sentry.request, csrfMiddleware, cspNonceMiddleware]',
     )
-    expect(start).toContain('functionMiddleware: [sentryGlobalFunctionMiddleware]')
+    expect(start).toContain('functionMiddleware: [...sentry.function]')
   })
 
   it('externalizes only the shared Node SDK from the server bundle', () => {

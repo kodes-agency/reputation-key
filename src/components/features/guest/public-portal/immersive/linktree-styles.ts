@@ -57,6 +57,10 @@ export const LINKTREE_CSS = `
 .ih-tile--photo .ih-tile__arrow { box-sizing: content-box; padding: 6.5px; border-radius: 999px; color: ${rgba(IMMERSIVE_TEXT_COLOUR, 1)}; background: rgba(10, 14, 12, 0.55); }
 .ih-tile--photo .ih-tile__text { position: relative; margin: 0; padding: 28px 13px 10px; background: linear-gradient(180deg, transparent 0, ${SCRIM} 28px); }
 
+.ih-tile--inert { cursor: default; }
+.ih-root .ih-tile--waiting { border-style: dashed; }
+.ih-tile--waiting .ih-tile__line { font-size: 11px; line-height: 14px; letter-spacing: 0.04em; text-transform: uppercase; }
+
 @media (prefers-reduced-motion: reduce) {
   .ih-root .ih-tile__arrow, .ih-root .ih-tile--photo, .ih-root .ih-tile--photo .ih-tile__image { transition: none; }
   .ih-root a.ih-tile:hover .ih-tile__arrow, .ih-root a.ih-tile--photo:hover .ih-tile__image, .ih-root a.ih-tile--photo:active { transform: none; }

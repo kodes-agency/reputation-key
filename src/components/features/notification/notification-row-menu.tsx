@@ -7,15 +7,12 @@
 // Everything here is keyboard reachable by construction: it lives behind a
 // permanently visible trigger, not a hover-only affordance.
 
-import { BellOff, Check, MoreHorizontal, Trash2, Undo2 } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { BellOff, Check, Trash2, Undo2 } from 'lucide-react'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
+  RowActionsItem,
+  RowActionsMenu,
+  RowActionsSeparator,
+} from '#/components/ui/row-actions-menu'
 import {
   isPreferenceDisableable,
   NOTIFICATION_SETTINGS_CATEGORIES,
@@ -52,45 +49,34 @@ export function NotificationRowMenu({
     isPreferenceDisableable(notification.category, 'in_app')
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          data-row-control="menu"
-          variant="ghost"
-          size="icon-xs"
-          className="text-muted-foreground"
-          aria-label={`More actions for: ${title}`}
+    <RowActionsMenu name={title} size="small" width="default" data-row-control="menu">
+      {!isSettled && isUnread && (
+        <RowActionsItem icon={Check} onSelect={() => actions.onMarkRead(notification.id)}>
+          Mark as read
+        </RowActionsItem>
+      )}
+      {!isSettled && !isUnread && (
+        <RowActionsItem
+          icon={Undo2}
+          onSelect={() => actions.onMarkUnread(notification.id)}
         >
-          <MoreHorizontal aria-hidden="true" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        {!isSettled && isUnread && (
-          <DropdownMenuItem onSelect={() => actions.onMarkRead(notification.id)}>
-            <Check aria-hidden="true" />
-            Mark as read
-          </DropdownMenuItem>
-        )}
-        {!isSettled && !isUnread && (
-          <DropdownMenuItem onSelect={() => actions.onMarkUnread(notification.id)}>
-            <Undo2 aria-hidden="true" />
-            Mark as unread
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem onSelect={() => actions.onDismiss(notification.id)}>
-          <Trash2 aria-hidden="true" />
-          Dismiss
-        </DropdownMenuItem>
-        {canMute && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => actions.onMuteCategory(notification)}>
-              <BellOff aria-hidden="true" />
-              Mute {categoryLabel.toLowerCase()} for this property
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          Mark as unread
+        </RowActionsItem>
+      )}
+      <RowActionsItem icon={Trash2} onSelect={() => actions.onDismiss(notification.id)}>
+        Dismiss
+      </RowActionsItem>
+      {canMute && (
+        <>
+          <RowActionsSeparator />
+          <RowActionsItem
+            icon={BellOff}
+            onSelect={() => actions.onMuteCategory(notification)}
+          >
+            Mute {categoryLabel.toLowerCase()} for this property
+          </RowActionsItem>
+        </>
+      )}
+    </RowActionsMenu>
   )
 }

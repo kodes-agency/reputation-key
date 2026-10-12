@@ -76,7 +76,7 @@ function ReplyTemplateSelectField({
       <Select value={value} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger
           id={id}
-          className="min-h-11 w-full capitalize"
+          className="w-full capitalize"
           onBlur={onBlur}
           aria-invalid={invalid}
         >
@@ -85,11 +85,7 @@ function ReplyTemplateSelectField({
         <SelectContent>
           <SelectGroup>
             {options.map((option) => (
-              <SelectItem
-                key={option.value}
-                value={option.value}
-                className="min-h-11 capitalize"
-              >
+              <SelectItem key={option.value} value={option.value} className="capitalize">
                 {option.label}
               </SelectItem>
             ))}

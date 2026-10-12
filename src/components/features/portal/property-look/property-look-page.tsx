@@ -13,11 +13,11 @@
 // The batch "Review & publish" sits in the status bar: it reads each live
 // portal's review and publishes the ones that are ready, in turn.
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
-import { EmptyState } from '#/components/ui/empty-state'
-import { Palette } from 'lucide-react'
+import { Alert, AlertDescription } from '#/components/ui/alert'
+import type { SavePublicDisplayNameAction } from '#/components/features/property/property-public-display-name-card'
 import type { PropertyLookMedia } from '#/contexts/portal/application/public-api'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
@@ -27,6 +27,7 @@ import { PropertyLookBatchPublish } from './property-look-batch-publish'
 import { PropertyLookColoursSection } from './property-look-colours-section'
 import { PropertyLookIdentitySection } from './property-look-identity-section'
 import { PropertyLookLanguagesSection } from './property-look-languages-section'
+import { PropertyLookNameGate } from './property-look-name-gate'
 import { PropertyLookPhotoSection } from './property-look-photo-section'
 import { PropertyLookPortals } from './property-look-portals'
 import { PropertyLookPreview } from './property-look-preview'
@@ -53,11 +54,13 @@ export type PropertyLookPageProps = PropertyLookSaves &
   Readonly<{
     propertyId: string
     propertyName: string
-    /** Null while the Property has no public display name (nothing to look at yet). */
+    /** Null while the property has no public display name (nothing to look at yet). */
     profile: PropertyLookProfile | null
-    /** An Account Admin, with Portals writes switched on. */
+    /** An account admin, with portal writes switched on. */
     canEdit: boolean
-    /** Every portal of the Property. */
+    /** Saves the public display name alone, for a property that has none yet. */
+    saveDisplayName?: SavePublicDisplayNameAction
+    /** Every portal of the property. */
     rows: readonly AffectedPortalRow[]
     getPortalPreview: PortalPreviewReader
     /** The photograph and logo the Property has, as a page draws them. */
@@ -82,35 +85,25 @@ const SETTLING: ReadonlySet<string> = new Set(['pending', 'saving', 'invalid', '
 const LEAVE_COPY =
   'Some changes to the look have not been saved. If you go on, they are discarded.'
 
-const breadcrumbsOf = (propertyId: string, propertyName: string) => [
-  { label: 'Properties', to: '/properties' },
-  { label: propertyName, to: `/properties/${propertyId}` },
-  { label: 'Portals', to: `/properties/${propertyId}/portals` },
-  { label: 'Property look' },
-]
-
 export function PropertyLookPage(props: PropertyLookPageProps) {
-  const { propertyId, propertyName, profile } = props
+  const { propertyId, propertyName, profile, canEdit, saveDisplayName } = props
   return (
     <PageShell tier="dashboard">
       <PageHeader
         title="Property look"
         description={`How every portal at ${propertyName} looks. Portal wording and links stay per portal.`}
-        breadcrumbs={breadcrumbsOf(propertyId, propertyName)}
+        breadcrumbs={trailCrumbs(
+          'portals',
+          { propertyId, propertyName },
+          'Property look',
+        )}
       />
       {profile === null ? (
-        <EmptyState icon={Palette} title="Set the public display name first">
-          <p className="text-sm text-muted-foreground">
-            The look is the Property's public display name dressed in its colours.{' '}
-            <Link
-              to="/properties/$propertyId/settings/profile"
-              params={{ propertyId }}
-              className="font-medium text-link underline-offset-4 hover:underline"
-            >
-              Set it in Property settings
-            </Link>
-          </p>
-        </EmptyState>
+        <PropertyLookNameGate
+          propertyId={propertyId}
+          canEdit={canEdit}
+          {...(saveDisplayName ? { saveDisplayName } : {})}
+        />
       ) : (
         <PortalDraftAutosaveProvider delayMs={PROPERTY_LOOK_AUTOSAVE_DELAY_MS}>
           <PropertyLookEditor {...props} profile={profile} />
@@ -179,9 +172,11 @@ function PropertyLookEditor({
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21rem] min-[90rem]:grid-cols-[minmax(0,1fr)_21rem_15rem]">
         <div className="min-w-0 space-y-4 lg:row-span-2 min-[90rem]:row-span-1">
           {canEdit ? null : (
-            <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-              An Account Admin manages the look shared by every portal of this Property.
-            </p>
+            <Alert variant="info">
+              <AlertDescription>
+                An account admin manages the look shared by every portal of this property.
+              </AlertDescription>
+            </Alert>
           )}
           <div>
             <PropertyLookPhotoSection
@@ -214,6 +209,7 @@ function PropertyLookEditor({
               <PropertyLookBatchPublish
                 propertyId={propertyId}
                 live={affected.live}
+                waiting={affected.waiting}
                 canPublish={canPublish}
                 isSettling={SETTLING.has(state.status)}
                 getPortalReview={getPortalReview}

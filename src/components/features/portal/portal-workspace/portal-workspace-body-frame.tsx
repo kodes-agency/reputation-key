@@ -5,6 +5,7 @@
 // these bodies simply do not use this frame.
 
 import type { ReactNode } from 'react'
+import { FullBleedFrame } from '#/components/layout/page-shell'
 
 export function PortalWorkspaceBodyFrame({
   children,
@@ -15,14 +16,10 @@ export function PortalWorkspaceBodyFrame({
   wide?: boolean
 }>) {
   return (
-    <div
-      className={
-        wide
-          ? 'mx-auto w-full max-w-7xl px-4 py-5 md:px-6 md:py-8'
-          : 'mx-auto w-full max-w-5xl px-4 py-5 md:px-6 md:py-8'
-      }
+    <FullBleedFrame
+      className={wide ? 'mx-auto w-full max-w-7xl' : 'mx-auto w-full max-w-5xl'}
     >
       {children}
-    </div>
+    </FullBleedFrame>
   )
 }

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Action } from './use-action'
 import {
   actionErrorMessage,
+  actionFailureMessage,
   GENERIC_ACTION_ERROR_MESSAGE,
   useActionMutation,
   type ActionMutationOptions,
@@ -246,6 +247,55 @@ describe('useActionMutation error feedback', () => {
     await expect(action(input)).resolves.toEqual({ commandRevision: 2 })
 
     expect(toast.error).not.toHaveBeenCalled()
+  })
+})
+
+describe('actionFailureMessage', () => {
+  const failure = actionFailureMessage("Couldn't update quiet hours.")
+
+  it("names what failed, then Try again, when the server's words cannot be shown", () => {
+    const internal = new ServerFunctionError(
+      'InternalError',
+      'boom',
+      'internal_error',
+      500,
+    )
+
+    expect(failure(internal)).toBe("Couldn't update quiet hours. Try again.")
+    expect(failure(new TypeError('Failed to fetch'))).toBe(
+      "Couldn't update quiet hours. Try again.",
+    )
+  })
+
+  it("shows the server's own sentence for a 4xx refusal", () => {
+    const refusal = new ServerFunctionError(
+      'IdentityError',
+      'You cannot remove the last Account Admin.',
+      'forbidden',
+      403,
+    )
+
+    expect(failure(refusal)).toBe('You cannot remove the last Account Admin.')
+  })
+
+  it('is the message a toast shows when handed to errorMessage', async () => {
+    const input = { data: { id: 'x' } }
+    const internal = new ServerFunctionError(
+      'InternalError',
+      'boom',
+      'internal_error',
+      500,
+    )
+    const action = renderAction(
+      vi.fn(async (_input: typeof input): Promise<void> => {
+        throw internal
+      }),
+      { errorMessage: failure },
+    )
+
+    await expect(action(input)).rejects.toBe(internal)
+
+    expect(toast.error).toHaveBeenCalledWith("Couldn't update quiet hours. Try again.")
   })
 })
 

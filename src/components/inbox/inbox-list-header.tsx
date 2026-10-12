@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { ArrowUpDown, Search } from 'lucide-react'
+import { ArrowDownUp, Search } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { ButtonGroup } from '#/components/ui/button-group'
 import {
@@ -15,6 +15,7 @@ import { InboxFilterPopover } from './inbox-filter-popover'
 import { InboxFilterSheet } from './inbox-filter-sheet'
 import type { InboxListFilterValues } from './inbox-filters'
 import { InboxListSearch } from './inbox-list-search'
+import { IconButton } from '#/components/ui/icon-button'
 
 type Props = Readonly<{
   queueLabel: string
@@ -22,6 +23,8 @@ type Props = Readonly<{
   /** Replaces the plain scope line when the scope can be changed from here. */
   scopeControl?: ReactNode
   totalCount: number
+  /** What the queue holds before any search or filter; null until its count has arrived. */
+  queueTotal: number | null
   searchQ: string | undefined
   filters: InboxListFilterValues
   sort: InboxSort
@@ -30,8 +33,8 @@ type Props = Readonly<{
   onSearchChange: (q: string | undefined) => void
   onFiltersChange: (patch: Partial<InboxListFilterValues>) => void
   onSortChange: (sort: InboxSort) => void
-  /** Drops every filter and the sort in one navigation. */
-  onClearAll: () => void
+  /** Drops the search and every filter in one navigation; the sort stays. */
+  onClearFilters: () => void
   onStartSelection?: () => void
   isCompactLayout?: boolean
   selectionToolbar?: ReactNode
@@ -80,25 +83,19 @@ function PhoneControls({
   onOpenSearch,
   onFiltersChange,
   onSortChange,
-  onClearAll,
+  onClearFilters,
   onStartSelection,
 }: ControlsProps &
   Readonly<{
     totalCount: number
     isLoading: boolean
-    onClearAll: () => void
+    onClearFilters: () => void
   }>) {
   return (
     <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-9"
-        aria-label="Search"
-        onClick={onOpenSearch}
-      >
+      <IconButton variant="ghost" size="icon" label="Search" onClick={onOpenSearch}>
         <Search />
-      </Button>
+      </IconButton>
       <InboxFilterSheet
         filters={filters}
         sort={sort}
@@ -106,7 +103,7 @@ function PhoneControls({
         isLoading={isLoading}
         onFiltersChange={onFiltersChange}
         onSortChange={onSortChange}
-        onClearAll={onClearAll}
+        onClearFilters={onClearFilters}
       />
       {onStartSelection && (
         <SelectButton className="-mr-2 h-9 px-2" onClick={onStartSelection} />
@@ -126,14 +123,14 @@ function WideControls({
 }: ControlsProps) {
   return (
     <>
-      <Button variant="ghost" size="icon-sm" aria-label="Search" onClick={onOpenSearch}>
+      <IconButton variant="ghost" size="icon-sm" label="Search" onClick={onOpenSearch}>
         <Search />
-      </Button>
+      </IconButton>
       <ButtonGroup>
         <InboxFilterPopover value={filters} onChange={onFiltersChange} />
         <Select value={sort} onValueChange={(value) => onSortChange(value as InboxSort)}>
           <SelectTrigger size="sm" aria-label="Sort reviews">
-            <ArrowUpDown className="size-4" aria-hidden="true" />
+            <ArrowDownUp className="size-4" aria-hidden="true" />
             <span>{sort === 'newest' ? 'Newest' : 'Oldest'}</span>
           </SelectTrigger>
           <SelectContent position="popper">
@@ -151,11 +148,73 @@ function WideControls({
   )
 }
 
+/** The phone's bar or the wide one: `isMobile` is `useIsMobile`'s answer. */
+function HeaderControls({
+  isMobile,
+  totalCount,
+  isLoading,
+  onClearFilters,
+  ...controls
+}: ControlsProps &
+  Readonly<{
+    isMobile: boolean
+    totalCount: number
+    isLoading: boolean
+    onClearFilters: () => void
+  }>) {
+  return isMobile ? (
+    <PhoneControls
+      {...controls}
+      totalCount={totalCount}
+      isLoading={isLoading}
+      onClearFilters={onClearFilters}
+    />
+  ) : (
+    <WideControls {...controls} />
+  )
+}
+
+/**
+ * The queue's name, its count and the scope under it. The name is the page's one h1 at
+ * every width: on a phone the queue strip above draws it, so the heading is read, not
+ * drawn.
+ */
+function QueueHeading({
+  queueLabel,
+  scopeLabel,
+  scopeControl,
+  totalCount,
+}: Readonly<Pick<Props, 'queueLabel' | 'scopeLabel' | 'scopeControl' | 'totalCount'>>) {
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 items-center gap-2">
+        <h1 className="truncate text-sm font-semibold max-md:sr-only">{queueLabel}</h1>
+        <span className="text-xs tabular-nums text-muted-foreground max-md:hidden">
+          {totalCount}
+        </span>
+      </div>
+      {scopeControl ?? (
+        <p className="truncate text-xs text-muted-foreground max-md:text-[13px] max-md:font-medium max-md:text-foreground">
+          {scopeLabel}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Search and the selection toolbar take the whole header over, the drawn heading with
+ * it. The page keeps its one h1 (FRAME-10), read and not drawn.
+ */
+const takesHeaderOver = (selectionToolbar: ReactNode, searchVisible: boolean) =>
+  (selectionToolbar ?? null) !== null || searchVisible
+
 export function InboxListHeader({
   queueLabel,
   scopeLabel,
   scopeControl,
   totalCount,
+  queueTotal,
   searchQ,
   filters,
   sort,
@@ -163,7 +222,7 @@ export function InboxListHeader({
   onSearchChange,
   onFiltersChange,
   onSortChange,
-  onClearAll,
+  onClearFilters,
   onStartSelection,
   isCompactLayout = false,
   selectionToolbar,
@@ -180,51 +239,38 @@ export function InboxListHeader({
       data-inbox-list-header
       className="flex h-14 shrink-0 items-center border-b px-3 max-md:h-11 max-md:px-4"
     >
+      {takesHeaderOver(selectionToolbar, searchVisible) ? (
+        <h1 className="sr-only">{queueLabel}</h1>
+      ) : null}
       {selectionToolbar ??
         (searchVisible ? (
           <InboxListSearch
             value={searchQ}
             totalCount={totalCount}
+            queueTotal={queueTotal}
             onChange={onSearchChange}
             onClose={() => setSearchOpen(false)}
           />
         ) : (
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2 max-md:hidden">
-                <h1 className="truncate text-sm font-semibold">{queueLabel}</h1>
-                <span className="text-xs tabular-nums text-muted-foreground">
-                  {totalCount}
-                </span>
-              </div>
-              {scopeControl ?? (
-                <p className="truncate text-xs text-muted-foreground max-md:text-[13px] max-md:font-medium max-md:text-foreground">
-                  {scopeLabel}
-                </p>
-              )}
-            </div>
-            {isMobile ? (
-              <PhoneControls
-                filters={filters}
-                sort={sort}
-                totalCount={totalCount}
-                isLoading={isLoading}
-                onOpenSearch={openSearch}
-                onFiltersChange={onFiltersChange}
-                onSortChange={onSortChange}
-                onClearAll={onClearAll}
-                onStartSelection={startSelection}
-              />
-            ) : (
-              <WideControls
-                filters={filters}
-                sort={sort}
-                onOpenSearch={openSearch}
-                onFiltersChange={onFiltersChange}
-                onSortChange={onSortChange}
-                onStartSelection={startSelection}
-              />
-            )}
+            <QueueHeading
+              queueLabel={queueLabel}
+              scopeLabel={scopeLabel}
+              scopeControl={scopeControl}
+              totalCount={totalCount}
+            />
+            <HeaderControls
+              isMobile={isMobile}
+              filters={filters}
+              sort={sort}
+              totalCount={totalCount}
+              isLoading={isLoading}
+              onOpenSearch={openSearch}
+              onFiltersChange={onFiltersChange}
+              onSortChange={onSortChange}
+              onClearFilters={onClearFilters}
+              onStartSelection={startSelection}
+            />
           </div>
         ))}
     </header>

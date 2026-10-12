@@ -9,11 +9,13 @@ import { Calendar, Check, Clock, Copy, Info, QrCode } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { PortalCodeActions } from './portal-code-actions'
 import { PortalDownloadMenu } from './portal-download-menu'
+import { describeMadeCode } from './portal-share-state'
+import { NFC_ADDRESS_HINT } from './portal-share-guidance'
 import { QR_INK, QR_PAPER } from './portal-qr'
 import { COPY_FAILED_MESSAGE } from './use-copy-link'
 import { usePortalCodeDownload, type ResolveQrAddress } from './use-portal-code-download'
 import { usePortalQrPreview } from './use-portal-qr-preview'
-import type { RefObject } from 'react'
+import { useId, type RefObject } from 'react'
 import type { PortalShareView } from './portal-share-state'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
 
@@ -59,6 +61,9 @@ export function PortalCodeBlock({
   onLinksRevoked,
 }: Props) {
   const download = usePortalCodeDownload(qrAddress, portalName, resolveQrAddress)
+  const madeText = describeMadeCode(view.madeLabel, view.madeBy)
+  const canCopyNfc = nfcAddress !== null || canDownloadAgain
+  const nfcHintId = useId()
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -69,23 +74,17 @@ export function PortalCodeBlock({
           <p className="text-sm text-muted-foreground">Both open {portalName}.</p>
         </div>
         <ul className="flex flex-col gap-1.5 text-sm">
-          {view.madeLabel !== null && (
-            <CodeFact icon={<Calendar />}>Made {view.madeLabel}</CodeFact>
-          )}
+          {madeText !== null && <CodeFact icon={<Calendar />}>{madeText}</CodeFact>}
           <CodeFact icon={<Check className="text-positive" />}>
             Printed codes keep working when you publish changes.
           </CodeFact>
           {view.graceLabel !== null && (
             <CodeFact icon={<Clock />}>
-              The code before this one keeps working until {view.graceLabel} (UTC).
+              The code before this one keeps working until {view.graceLabel}.
             </CodeFact>
           )}
-          {qrAddress === null && (
-            <CodeFact icon={<Info />}>
-              {canDownloadAgain
-                ? 'Download the code again whenever you need it. Each download is recorded in History.'
-                : 'The QR image and the addresses are shown only when a code is made or replaced.'}
-            </CodeFact>
+          {view.addressNote !== null && (
+            <CodeFact icon={<Info />}>{view.addressNote}</CodeFact>
           )}
         </ul>
         <div className="flex flex-wrap gap-2">
@@ -96,14 +95,14 @@ export function PortalCodeBlock({
               onDownload={(format) => void download.download(format)}
             />
           )}
-          {(nfcAddress !== null || canDownloadAgain) && (
+          {canCopyNfc && (
             <Button
               type="button"
               variant="outline"
-              className="min-h-11 sm:min-h-9"
+              aria-describedby={nfcHintId}
               onClick={() => void onCopyNfc()}
             >
-              <Copy data-icon="inline-start" />
+              <Copy />
               {nfcCopied ? 'Copied' : 'Copy NFC address'}
             </Button>
           )}
@@ -118,14 +117,14 @@ export function PortalCodeBlock({
             />
           )}
         </div>
-        {download.failed && (
-          <p className="text-sm text-destructive" role="alert">
-            The file could not be made. Try again, or replace the code to get a new set.
+        {canCopyNfc && (
+          <p id={nfcHintId} className="text-xs text-muted-foreground">
+            {NFC_ADDRESS_HINT}
           </p>
         )}
         {nfcCopyFailed && nfcAddress !== null && (
           <div className="flex flex-col gap-2">
-            <p className="text-sm text-destructive" role="alert">
+            <p className="text-sm text-negative" role="alert">
               {COPY_FAILED_MESSAGE}
             </p>
             <code

@@ -1,5 +1,5 @@
 import { useForm } from '@tanstack/react-form'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge } from '#/components/ui/status-badge'
 import {
   Card,
   CardAction,
@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import { Field, FieldError, FieldGroup, FieldLabel } from '#/components/ui/field'
+import { FieldGroup } from '#/components/ui/field'
 import {
   Select,
   SelectContent,
@@ -18,14 +18,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { submitForm } from '#/components/forms/form-submit'
+import { FormActions } from '#/components/forms/form-actions'
+import { describedByOf, FormFieldFrame } from '#/components/forms/form-field-frame'
+import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import type { Action } from '#/components/hooks/use-action'
 import { updatePropertyInputSchema } from '#/contexts/property/application/dto/update-property.dto'
 import { PROPERTY_REPLY_LANGUAGE_OPTIONS } from './property-reply-language-options'
 
 const UNCONFIGURED = '__not_configured__'
+const DEFAULT_LANGUAGE_HELP =
+  'This choice is explicit and is never inferred from the property country or timezone.'
 const replyLanguageFormSchema = updatePropertyInputSchema
   .pick({ defaultReplyLanguage: true })
   .required()
@@ -64,38 +67,35 @@ export function PropertyReplyLanguageCard({ property, updateProperty }: Props) {
   })
 
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        void submitForm(form)
-      }}
-    >
+    <form onSubmit={submitHandler(form)}>
       <Card className="min-w-0">
         <CardHeader className="border-b">
-          <CardTitle>Reply language</CardTitle>
+          <CardTitle as="h2">Reply language</CardTitle>
           <CardDescription>
             Default for public replies and AI drafts at {property.name}. Each review can
             still use the guest&apos;s language instead.
           </CardDescription>
           <CardAction>
-            <Badge variant={configuredLanguage ? 'secondary' : 'outline'}>
-              {configuredLanguage ? 'Configured' : 'Not configured'}
-            </Badge>
+            <StatusBadge
+              tone={configuredLanguage ? 'positive' : 'neutral'}
+              label={configuredLanguage ? 'Configured' : 'Not configured'}
+            />
           </CardAction>
         </CardHeader>
 
-        <CardContent>
-          <FormErrorBanner error={updateProperty.error} />
+        <CardContent className="flex flex-col gap-4">
           <FieldGroup>
             <form.Field name="defaultReplyLanguage">
               {(field) => {
                 const invalid = field.state.meta.isTouched && !field.state.meta.isValid
                 return (
-                  <Field data-invalid={invalid}>
-                    <FieldLabel htmlFor="property-reply-language">
-                      Property default
-                    </FieldLabel>
+                  <FormFieldFrame
+                    id="property-reply-language"
+                    label="Property default"
+                    description={DEFAULT_LANGUAGE_HELP}
+                    invalid={invalid}
+                    errors={invalid ? field.state.meta.errors : undefined}
+                  >
                     <Select
                       value={field.state.value ?? UNCONFIGURED}
                       disabled={updateProperty.isPending}
@@ -107,7 +107,11 @@ export function PropertyReplyLanguageCard({ property, updateProperty }: Props) {
                         id="property-reply-language"
                         className="w-full max-w-md"
                         aria-invalid={invalid}
-                        aria-describedby="property-reply-language-help"
+                        aria-describedby={describedByOf(
+                          'property-reply-language',
+                          DEFAULT_LANGUAGE_HELP,
+                          invalid,
+                        )}
                         onBlur={field.handleBlur}
                       >
                         <SelectValue />
@@ -123,25 +127,19 @@ export function PropertyReplyLanguageCard({ property, updateProperty }: Props) {
                         </SelectGroup>
                       </SelectContent>
                     </Select>
-                    <p
-                      id="property-reply-language-help"
-                      className="text-sm text-muted-foreground"
-                    >
-                      This choice is explicit and is never inferred from the property
-                      country or timezone.
-                    </p>
-                    {invalid ? <FieldError errors={field.state.meta.errors} /> : null}
-                  </Field>
+                  </FormFieldFrame>
                 )
               }}
             </form.Field>
           </FieldGroup>
         </CardContent>
 
-        <CardFooter className="justify-end border-t">
-          <SubmitButton mutation={updateProperty} form={form}>
-            Save reply language
-          </SubmitButton>
+        <CardFooter className="border-t">
+          <FormActions form={form} error={updateProperty.error}>
+            <SubmitButton mutation={updateProperty} form={form}>
+              Save reply language
+            </SubmitButton>
+          </FormActions>
         </CardFooter>
       </Card>
     </form>

@@ -19,6 +19,7 @@ import type {
   RecordMetric,
   RecordMetricInput,
 } from '../application/use-cases/record-metric'
+import type { MetricRepository } from '../application/ports/metric.repository'
 import { METRIC_VERSION_IDS } from '../domain/metric-registry'
 
 export type PortalMetricAttribution = Readonly<{
@@ -34,6 +35,8 @@ export type PortalWorkflowMetricDeps = Readonly<{
     portalId: PortalId,
     occurredAt: Date,
   ) => Promise<PortalMetricAttribution | null>
+  /** Whether the source event has a reading under this version. */
+  hasReading: MetricRepository['hasReading']
 }>
 
 type PortalWorkflowEvent =
@@ -103,12 +106,44 @@ export const onContentReviewCompleted = (deps: PortalWorkflowMetricDeps) => {
   }
 }
 
+/** Each field set counts different fields, so each has its own version (ADR 0041). */
+const COMPLETENESS_VERSION_IDS: Readonly<
+  Record<PortalConfigurationCompletenessRecorded['fieldSet'], string>
+> = {
+  legacy: METRIC_VERSION_IDS.configurationCompleteness,
+  immersive_hub: METRIC_VERSION_IDS.configurationCompletenessImmersiveHub,
+}
+
+/**
+ * The reading a completeness correction replaces, when that reading is of the
+ * correction's own version. A review counted on one field set and corrected on
+ * the other has nothing to replace in the correction's version: the earlier
+ * reading keeps its meaning, and the correction starts its own version's
+ * series. Passed on, the store would reject it and delivery would retry until
+ * its budget ran out.
+ */
+async function supersededInVersion(
+  deps: PortalWorkflowMetricDeps,
+  event: PortalConfigurationCompletenessRecorded,
+): Promise<string | null> {
+  const superseded = event.supersedesSourceEventId
+  if (superseded === null) return null
+  const otherFieldSet = event.fieldSet === 'legacy' ? 'immersive_hub' : 'legacy'
+  const countedOnOtherFields = await deps.hasReading({
+    organizationId: event.organizationId,
+    definitionVersionId: COMPLETENESS_VERSION_IDS[otherFieldSet],
+    sourceEventId: superseded,
+  })
+  return countedOnOtherFields ? null : superseded
+}
+
 export const onConfigurationCompletenessRecorded = (deps: PortalWorkflowMetricDeps) => {
   return async (event: PortalConfigurationCompletenessRecorded): Promise<void> => {
     const common = await buildCommonInput(deps, event)
     await deps.recordMetric({
       ...common,
-      definitionVersionId: METRIC_VERSION_IDS.configurationCompleteness,
+      supersedesSourceEventId: await supersededInVersion(deps, event),
+      definitionVersionId: COMPLETENESS_VERSION_IDS[event.fieldSet],
       value: Number(((event.completedFields / event.requiredFields) * 100).toFixed(2)),
       numerator: event.completedFields,
       denominator: event.requiredFields,
@@ -148,9 +183,19 @@ type PortalWorkflowPayload = Readonly<{
   occurredAt: string
   completedFields?: number
   requiredFields?: number
+  fieldSet?: 'immersive_hub'
   approvedDestinations?: number
   configuredDestinations?: number
 }>
+
+function fieldSetOf(
+  payload: PortalWorkflowPayload,
+): PortalConfigurationCompletenessRecorded['fieldSet'] {
+  if (payload.fieldSet !== 'immersive_hub') {
+    throw new Error('Portal configuration completeness field set is missing')
+  }
+  return payload.fieldSet
+}
 
 function portalWorkflowDomainEvent(
   event: ConsumerEvent,
@@ -205,6 +250,8 @@ function portalWorkflowDomainEvent(
         _tag: event.eventType,
         completedFields: payload.completedFields,
         requiredFields: payload.requiredFields,
+        // v1 and v2 facts were all counted on the legacy fields; v3 names its own.
+        fieldSet: event.eventVersion >= 3 ? fieldSetOf(payload) : 'legacy',
       }
     case 'portal.approved_destination_ratio.recorded':
       if (

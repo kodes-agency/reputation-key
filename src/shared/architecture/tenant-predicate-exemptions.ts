@@ -54,7 +54,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/reporting/infrastructure/repositories/goal-program.repository.ts',
+    file: 'src/contexts/reporting/infrastructure/repositories/goal-monthly-result.repository.ts',
     symbol: 'listDueResults',
     reason:
       'The bounded goal-maintenance scheduler intentionally enumerates due result records across all tenants before tenant-preserving maintenance work.',

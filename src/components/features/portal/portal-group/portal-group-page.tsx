@@ -3,10 +3,11 @@
 // the route owns the reads and the URL. The results, the goal and the history are
 // side reads, so a slow or refused one never holds the rest back.
 import { useState } from 'react'
-import { Pencil, Plus } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import { PageHeader } from '#/components/layout/page-header'
+import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { AddAction } from '#/components/ui/add-action'
 import { Button } from '#/components/ui/button'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
@@ -75,39 +76,29 @@ export function PortalGroupPage(props: PortalGroupPageProps) {
     canSetGoal,
   })
   const inGroup = rows.filter((row) => row.group?.id === group.id)
-  const description = `Group · ${inGroup.length === 1 ? '1 portal' : `${inGroup.length} portals`} at ${propertyName} · for shared results and goals`
+  const meta = [
+    'Group',
+    `${inGroup.length === 1 ? '1 portal' : `${inGroup.length} portals`} at ${propertyName}`,
+  ]
 
   return (
     <PageShell tier="dashboard">
       <PageHeader
         title={group.name}
-        description={description}
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: propertyName, to: `/properties/${propertyId}` },
-          { label: 'Portals', to: `/properties/${propertyId}/portals` },
-          { label: group.name },
-        ]}
+        meta={meta}
+        description="Shared results and goals for the portals in this group."
+        breadcrumbs={trailCrumbs('portals', { propertyId, propertyName }, group.name)}
         actions={
           <>
             {canEdit ? (
               <>
-                <Button
-                  variant="ghost"
-                  className="min-h-11 sm:min-h-9"
-                  onClick={() => setDialog('rename')}
-                >
+                <Button variant="ghost" onClick={() => setDialog('rename')}>
                   <Pencil aria-hidden="true" />
                   Rename
                 </Button>
-                <Button
-                  variant="outline"
-                  className="min-h-11 sm:min-h-9"
-                  onClick={() => setDialog('add')}
-                >
-                  <Plus aria-hidden="true" />
+                <AddAction variant="outline" onClick={() => setDialog('add')}>
                   Add portal
-                </Button>
+                </AddAction>
               </>
             ) : null}
             <PortalGroupMenu
@@ -118,14 +109,6 @@ export function PortalGroupPage(props: PortalGroupPageProps) {
               archiveGroupMutation={props.archiveGroupMutation}
             />
           </>
-        }
-      />
-      <FormErrorBanner
-        error={
-          props.archiveGroupMutation.error ??
-          props.archiveMutation.error ??
-          props.removePortalMutation.error ??
-          props.restoreMutation.error
         }
       />
       {results ? (
@@ -147,6 +130,7 @@ export function PortalGroupPage(props: PortalGroupPageProps) {
           onAdd={() => setDialog('add')}
           archiveMutation={props.archiveMutation}
           restoreMutation={props.restoreMutation}
+          disableMutation={props.disableMutation}
           removePortalMutation={props.removePortalMutation}
         />
         <div className="flex flex-col gap-8">

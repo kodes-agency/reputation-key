@@ -19,6 +19,7 @@ describe('toPortalTokenStatus', () => {
         gracePeriodEnds: null,
         hasPublishedAccessArtifact: true,
         addressKeyVersion: null,
+        issuedBy: null,
       }),
     ).toEqual({
       hasActiveToken: true,
@@ -27,6 +28,7 @@ describe('toPortalTokenStatus', () => {
       issuedAt: '2026-09-01T10:00:00.000Z',
       graceExpiresAt: null,
       addressRecoverable: false,
+      madeBy: null,
     })
   })
 
@@ -38,6 +40,7 @@ describe('toPortalTokenStatus', () => {
         gracePeriodEnds: GRACE_END,
         hasPublishedAccessArtifact: false,
         addressKeyVersion: null,
+        issuedBy: null,
       }),
     ).toMatchObject({
       hasActiveToken: true,
@@ -53,6 +56,7 @@ describe('toPortalTokenStatus', () => {
       gracePeriodEnds: null,
       hasPublishedAccessArtifact: true,
       addressKeyVersion: 2,
+      issuedBy: null,
     }
 
     it('is on when the code was sealed and the keyring still holds that key', () => {
@@ -84,6 +88,27 @@ describe('toPortalTokenStatus', () => {
         () => true,
       )
       expect(status.addressRecoverable).toBe(false)
+    })
+  })
+
+  describe('madeBy', () => {
+    const summary = {
+      version: 1,
+      issuedAt: ISSUED,
+      gracePeriodEnds: null,
+      hasPublishedAccessArtifact: true,
+      addressKeyVersion: null,
+      issuedBy: 'user-1',
+    }
+
+    it('carries the name the caller resolved for the issuer', () => {
+      expect(toPortalTokenStatus(summary, () => false, 'Georgi Ivanov').madeBy).toBe(
+        'Georgi Ivanov',
+      )
+    })
+
+    it('is null when the issuer could not be named', () => {
+      expect(toPortalTokenStatus(summary).madeBy).toBeNull()
     })
   })
 })

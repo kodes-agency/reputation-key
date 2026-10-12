@@ -101,7 +101,8 @@ export function LinkTextsForm({
           {(field: BaseFieldApi) => (
             <FormTextField
               field={field}
-              label="Line under the label (optional)"
+              label="Line under the label"
+              optional
               id={`${fieldId}-line`}
               maxLength={LINK_TEXT_LINE_MAX_LENGTH}
               disabled={disabled}

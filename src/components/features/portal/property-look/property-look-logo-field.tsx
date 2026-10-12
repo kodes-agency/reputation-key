@@ -9,7 +9,6 @@ import { Button } from '#/components/ui/button'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import { PropertyLookLogoDialog } from './property-look-logo-dialog'
 import { PropertyLookMediaActions } from './property-look-media-actions'
-import { useRemoveMedia } from './use-remove-media'
 
 export type PropertyLookLogoControls = Readonly<{
   propertyId: string
@@ -22,20 +21,26 @@ export type PropertyLookLogoControls = Readonly<{
   upload?: PortalImageUploader
 }>
 
-const REMOVE_FAILED = 'The logo could not be taken off. Try again.'
+const LOGO_REMOVAL = {
+  title: 'Remove the logo?',
+  description:
+    'Pages will show the wordmark again. You’ll need the file again to put the logo back.',
+  confirmLabel: 'Remove logo',
+  cancelLabel: 'Keep logo',
+} as const
 
 export function PropertyLookLogoField({
   logo: controls,
 }: Readonly<{ logo: PropertyLookLogoControls }>) {
   const [isOpen, setIsOpen] = useState(false)
   const { logo, canEdit } = controls
-  const removal = useRemoveMedia(() => controls.onSave(null), REMOVE_FAILED)
 
   return (
     <div className="space-y-2">
       {logo ? (
         <div className="flex flex-wrap items-center gap-4">
-          <div className="grid h-16 min-w-32 place-items-center rounded-md bg-neutral-900 px-4">
+          {/* A dark-theme scope in either app theme: the guest page draws the logo on a dark header. */}
+          <div className="dark grid h-16 min-w-32 place-items-center rounded-md bg-card px-4">
             <img
               src={logo.url}
               alt={`${controls.propertyName} logo`}
@@ -50,10 +55,8 @@ export function PropertyLookLogoField({
               <PropertyLookMediaActions
                 replaceLabel="Replace logo"
                 removeLabel="Remove logo"
-                isRemoving={removal.isRemoving}
-                failure={removal.failure}
+                removal={{ ...LOGO_REMOVAL, run: () => controls.onSave(null) }}
                 onReplace={() => setIsOpen(true)}
-                onRemove={() => void removal.remove()}
               />
             </div>
           ) : null}

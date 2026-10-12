@@ -20,6 +20,19 @@ export type MonthlyResultNotificationFacts = Readonly<{
    */
   periodMonth: string
   subject: GoalSubject
+  /**
+   * The version the month was judged under was written after the month began:
+   * the goal was set part-way through the month it reports on. Read from the
+   * rows at delivery time; no event carries it.
+   */
+  setDuringMonth: boolean
+  /**
+   * The month closed on a target of its own: its target was changed while it
+   * ran, and it was judged against the changed one. A month put back on its
+   * version's target stores none and is not marked. Read from the month's row
+   * at delivery time; no event carries it.
+   */
+  targetChangedInMonth: boolean
 }>
 
 export type FindMonthlyResultRevisionNotificationFactsInput = Readonly<{

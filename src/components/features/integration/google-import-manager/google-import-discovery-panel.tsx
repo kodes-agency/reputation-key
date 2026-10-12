@@ -1,4 +1,4 @@
-import { AlertCircle, MapPin, Search } from 'lucide-react'
+import { MapPin } from 'lucide-react'
 import type {
   ImportAccountDto,
   ImportCandidateDto,
@@ -11,7 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import { Input } from '#/components/ui/input'
+import { EmptyState } from '#/components/ui/empty-state'
+import { SearchField } from '#/components/ui/search-field'
 import { GoogleImportAccountList } from './google-import-account-list'
 import { GoogleImportCandidateResults } from './google-import-candidate-results'
 import { GoogleImportSelectionFooter } from './google-import-selection-footer'
@@ -64,7 +65,7 @@ export function GoogleImportDiscoveryPanel(props: Props) {
 
       <Card className="min-w-0 gap-4">
         <CardHeader>
-          <CardTitle>
+          <CardTitle as="h2">
             {selectedAccount ? selectedAccount.displayName : 'Locations'}
           </CardTitle>
           <CardDescription>
@@ -74,32 +75,23 @@ export function GoogleImportDiscoveryPanel(props: Props) {
         </CardHeader>
         <CardContent className="space-y-4">
           {!props.selectedAccountRef ? (
-            <div className="flex min-h-48 flex-col items-center justify-center rounded-lg border border-dashed px-6 text-center">
-              <MapPin className="mb-3 size-7 text-muted-foreground" aria-hidden="true" />
-              <p className="font-medium">Choose a business account</p>
-              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                Its locations will appear here. Provider identifiers stay hidden.
-              </p>
-            </div>
+            <EmptyState
+              icon={MapPin}
+              title="Choose a business account"
+              description="Its locations will appear here. Provider identifiers stay hidden."
+            />
           ) : (
             <>
-              <div className="relative">
-                <Search
-                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <Input
-                  value={props.search}
-                  onChange={(event) => props.onSearchChange(event.currentTarget.value)}
-                  placeholder="Search loaded names, addresses, or categories"
-                  aria-label="Search loaded Google locations"
-                  className="pl-9"
-                />
-              </div>
+              <SearchField
+                label="Search loaded Google locations"
+                placeholder="Search loaded names, addresses, or categories"
+                value={props.search}
+                onValueChange={props.onSearchChange}
+                className="sm:w-full"
+              />
 
               {props.selectAllError ? (
-                <Alert>
-                  <AlertCircle aria-hidden="true" />
+                <Alert variant="warning">
                   <AlertTitle>Some locations could not be loaded</AlertTitle>
                   <AlertDescription>{props.selectAllError}</AlertDescription>
                 </Alert>
@@ -111,6 +103,9 @@ export function GoogleImportDiscoveryPanel(props: Props) {
                 isLoading={props.isLoadingCandidates}
                 error={props.candidatesError}
                 onRecover={props.onRecoverCandidates}
+                onClearSearch={
+                  props.search.trim() === '' ? null : () => props.onSearchChange('')
+                }
                 onToggleCandidate={props.onToggleCandidate}
                 onToggleLoaded={props.onToggleLoaded}
               />

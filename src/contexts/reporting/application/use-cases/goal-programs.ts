@@ -1,737 +1,241 @@
-import {
-  METRIC_VERSION_IDS,
-  type GovernedMetricVersion,
-} from '../../domain/metric-registry'
+// Goal Program use cases — read, revise and change the status of a Program,
+// composed with the create, rename, assignment-change, month-target and
+// maintenance commands.
 import type {
-  GovernedGoalMetricQuery,
-  GovernedGoalMetricResult,
-} from './query-goal-metric'
-import {
-  organizationId as toOrganizationId,
-  portalGroupId as toPortalGroupId,
-  portalId as toPortalId,
-  propertyId as toPropertyId,
-} from '#/shared/domain/ids'
-import type {
-  GoalMonthlyResult,
   GoalProgramBundle,
-  GoalProgramRepository,
   GoalProgramVersion,
+  GoalScheduledStatusReason,
   GoalSubjectAssignment,
 } from '../ports/goal-program.repository'
 import {
   canTransitionGoalProgram,
-  evaluateGoalMetric,
-  firstFullMonthlyPeriodAtOrAfter,
-  goalSubjectIdentity,
-  isGoalResultReadyToClose,
-  MAX_GOAL_ASSIGNMENT_SELECTIONS,
-  minimumSampleForGoalMetric,
-  validateGoalTarget,
   type GoalMetric,
-  type GoalMetricEvaluation,
   type GoalProgramStatus,
   type GoalSubject,
 } from '../../domain/goal-program'
-import type { PermissionAuthorityContext } from '#/shared/domain/permissions'
+import { nextRevisionStart } from '../goal-revision-start'
 import {
-  classifySelections,
-  resolveAssignmentOutcomes,
-  type GoalAssignmentChangeOutcome,
-} from '../goal-assignment-selection'
+  changeAssignments,
+  type GoalAssignmentChangeResult,
+} from './goal-program-assignment-changes'
+import { changeMonthTarget } from './goal-month-target'
+import { createGoal } from './goal-program-create'
+import { renameGoal } from './goal-program-details'
+import {
+  GoalProgramMaintenanceError,
+  loadCaughtUpProgram,
+  maintain,
+  reconcileClosedResult,
+  reconcileResult,
+  type GoalProgramMaintenanceStats,
+} from './goal-program-maintenance'
+import {
+  assertSubjectsAreFree,
+  assignmentFor,
+  GoalProgramError,
+  isMetricSourceInactive,
+  noteOf,
+  resolveGoalDefinition,
+  type GoalActor,
+  type GoalExecutionPolicy,
+  type GoalMetricReadPort,
+  type GoalProgramDependencies,
+  type GoalProgramSubjectReader,
+} from './goal-program-shared'
 
-export type GoalActor = Readonly<{
-  organizationId: string
-  userId: string
-}> &
-  PermissionAuthorityContext
-
-export type GoalExecutionPolicy = Readonly<{
-  authorize(
-    input: Readonly<{
-      actor: GoalActor | 'system'
-      organizationId: string
-      propertyId: string
-      action: 'goal.read' | 'goal.create' | 'goal.update' | 'goal.cancel'
-    }>,
-  ): Promise<void>
-}>
-
-export type GoalMetricReadPort = Readonly<{
-  queryGoalMetric: (query: GovernedGoalMetricQuery) => Promise<GovernedGoalMetricResult>
-  getApprovedGoalVersion?: (
-    definitionVersionId: string,
-  ) => Promise<GovernedMetricVersion | null>
-}>
-
+// The command families live in flat sibling modules and the shared pieces in a
+// leaf; this module composes them behind the one service and keeps re-exporting
+// every name its importers already use.
 export { MAX_GOAL_ASSIGNMENT_SELECTIONS } from '../../domain/goal-program'
-
-const GOAL_METRIC_VERSION_IDS: Readonly<Record<GoalMetric, string>> = {
-  qualified_scans: METRIC_VERSION_IDS.qualifiedScanGoal,
-  portal_rating_count: METRIC_VERSION_IDS.portalRatingCountGoal,
-  portal_rating_average: METRIC_VERSION_IDS.portalRatingAverageGoal,
+export { GoalProgramError, GoalProgramMaintenanceError }
+export type {
+  GoalActor,
+  GoalAssignmentChangeResult,
+  GoalExecutionPolicy,
+  GoalMetricReadPort,
+  GoalProgramDependencies,
+  GoalProgramMaintenanceStats,
+  GoalProgramSubjectReader,
 }
 
-export type GoalProgramSubjectReader = Readonly<{
-  getTimezone(organizationId: string, propertyId: string): Promise<string | null>
-  subjectBelongsToProperty(
-    organizationId: string,
-    propertyId: string,
-    subject: GoalSubject,
-  ): Promise<boolean>
-  /**
-   * Returns a bounded request-time snapshot. The result is never persisted as
-   * a selector and therefore cannot assign Portals created after this call.
-   */
-  listCurrentPortalIds(
-    organizationId: string,
-    propertyId: string,
-    limit: number,
-  ): Promise<readonly string[]>
-}>
-
-export type GoalProgramDependencies = Readonly<{
-  repository: GoalProgramRepository
-  policy: GoalExecutionPolicy
-  subjects: GoalProgramSubjectReader
-  metrics: GoalMetricReadPort
-  id: () => string
-  now: () => Date
-}>
-
-export class GoalProgramError extends Error {
-  constructor(
-    readonly code:
-      | 'forbidden'
-      | 'not_found'
-      | 'invalid_name'
-      | 'invalid_target'
-      | 'invalid_subject'
-      | 'duplicate_subject'
-      | 'assignment_limit_exceeded'
-      | 'invalid_reason'
-      | 'metric_unavailable'
-      | 'invalid_transition'
-      | 'revision_conflict',
-  ) {
-    super(code)
-    this.name = 'GoalProgramError'
-  }
-}
-
-export type GoalAssignmentChangeResult = Readonly<{
+type ReviseGoalInput = Readonly<{
+  propertyId: string
   programId: string
-  previousVersion: number
-  currentVersion: number
-  effectiveFrom: Date | null
-  selectedAt: Date
-  selectedCurrentPortalCount: number
-  outcomes: readonly GoalAssignmentChangeOutcome[]
-}>
-
-export type GoalProgramMaintenanceStats = Readonly<{
-  inspected: number
-  activated: number
-  scheduledResults: number
-  reconciled: number
-  closed: number
-  denied: number
-  unavailable: number
+  metric: GoalMetric
+  targetValue: number
+  subjects: readonly GoalSubject[]
+  /** The manager's optional note. Without one the version records `revised`. */
+  reason?: string
   /**
-   * Due results whose month runs past their assignment or version window. The
-   * database refuses every update to one, so retrying cannot help; they are
-   * reported here instead of failing every run.
+   * The version the form was opened on. A form that sends it is refused once
+   * the head has moved, instead of changing a goal it never showed.
    */
-  stranded: number
-  failed: number
+  expectedVersion?: number
 }>
 
 /**
- * Makes partial maintenance failures visible to BullMQ so its governed retry
- * and quarantine policy can act. The stats are identifier-free and safe to
- * report; individual tenant/program identifiers never cross this boundary.
+ * The bundle as a revision leaves it. The head it follows closes where the new
+ * version starts; a head it replaces keeps the empty window [from, from). A
+ * goal that has not started takes the reason its new plan waits for.
  */
-// Exported although nothing imports it TODAY: this class is thrown OUT of the
-// module, and BullMQ's retry policy is meant to act on it. A caller that
-// eventually wants to discriminate it should be able to use `instanceof`
-// rather than string-matching `error.name`, which is the only handle an
-// un-exported class leaves behind.
-export class GoalProgramMaintenanceError extends Error {
-  constructor(readonly stats: GoalProgramMaintenanceStats) {
-    super(`Goal Program maintenance had ${stats.failed} failed operation(s)`)
-    this.name = 'GoalProgramMaintenanceError'
-  }
-}
-
-function evaluationFromGovernedRead(
-  metric: GoalMetric,
-  target: number,
-  reading: GovernedGoalMetricResult,
-): GoalMetricEvaluation {
-  if (reading.state === 'insufficient_data') {
-    return {
-      state: 'insufficient_data',
-      value: null,
-      sampleCount: reading.sampleCount,
-      achieved: null,
-      reason: reading.reason ?? 'minimum_sample_not_met',
-    }
-  }
-  return evaluateGoalMetric({
-    metric,
-    target,
-    reading: {
-      dataQuality: reading.state,
-      exactValue: reading.exactValue,
-      sampleCount: reading.sampleCount,
-    },
-  })
-}
-
-function sameGoalEvaluation(
-  left: GoalMetricEvaluation,
-  right: GoalMetricEvaluation,
-): boolean {
-  return (
-    left.state === right.state &&
-    left.value === right.value &&
-    left.sampleCount === right.sampleCount &&
-    left.achieved === right.achieved &&
-    left.reason === right.reason
-  )
-}
-
-function sameInstant(left: Date | null, right: Date | null): boolean {
-  return left?.getTime() === right?.getTime()
-}
-
-/**
- * The earliest instant a revision may start: after the request, and never
- * before a month that still has to reconcile ends. That month belongs to the
- * current version's timezone; the next month in a Property timezone further
- * east starts before it ends, and closing the version there would leave the
- * month outside its version window, where the database refuses every update.
- */
-function earliestRevisionStart(results: readonly GoalMonthlyResult[], now: Date): Date {
-  // One millisecond on: a revision never redefines a month already in
-  // progress, even when the request lands exactly on its first instant.
-  const earliest = results
-    .filter((result) => result.status === 'open' || result.status === 'reconciling')
-    .reduce(
-      (latest, result) => Math.max(latest, result.periodEnd.getTime()),
-      now.getTime() + 1,
-    )
-  return new Date(earliest)
-}
-
-/**
- * Raised when a due result's month runs past its assignment or version window.
- * The database refuses every update to such a result, so maintenance counts it
- * rather than failing the whole run on it every hour.
- */
-class GoalResultOutsideWindowError extends Error {
-  constructor() {
-    super('Goal monthly result falls outside its assignment or version window')
-    this.name = 'GoalResultOutsideWindowError'
-  }
-}
-
-/** Mirrors the monthly-result guard's window check in the database. */
-function isOutsideItsWindow(
-  result: GoalMonthlyResult,
-  assignment: GoalSubjectAssignment,
+function revisedBundle(
+  current: GoalProgramBundle,
   version: GoalProgramVersion,
-): boolean {
-  return [assignment, version].some(
-    (window) =>
-      result.periodStart < window.effectiveFrom ||
-      (window.effectiveTo !== null && result.periodEnd > window.effectiveTo),
-  )
-}
-
-function assignmentFor(
-  input: Readonly<{
-    id: string
-    programId: string
-    programVersionId: string
-    organizationId: string
-    propertyId: string
-    metric: GoalMetric
-    subject: GoalSubject
-    effectiveFrom: Date
-    effectiveTo: Date | null
-    actorId: string
-    at: Date
+  assignments: readonly GoalSubjectAssignment[],
+  change: Readonly<{
+    supersedeRowlessHead: boolean
+    scheduledStatusReason: GoalScheduledStatusReason | undefined
   }>,
-): GoalSubjectAssignment {
+): GoalProgramBundle {
+  const closedAt = (window: Readonly<{ effectiveFrom: Date }>) =>
+    change.supersedeRowlessHead ? window.effectiveFrom : version.effectiveFrom
   return {
-    id: input.id,
-    programId: input.programId,
-    programVersionId: input.programVersionId,
-    organizationId: input.organizationId,
-    propertyId: input.propertyId,
-    metric: input.metric,
-    subject: input.subject,
-    effectiveFrom: input.effectiveFrom,
-    effectiveTo: input.effectiveTo,
-    createdBy: input.actorId,
-    createdAt: input.at,
-  }
-}
-
-function metricSubject(subject: GoalSubject): GovernedGoalMetricQuery['subject'] {
-  switch (subject.kind) {
-    case 'property':
-      return { kind: 'property', propertyId: toPropertyId(subject.propertyId) }
-    case 'portal_group':
-      return {
-        kind: 'portal_group',
-        portalGroupId: toPortalGroupId(subject.portalGroupId),
-      }
-    case 'portal':
-      return { kind: 'portal', portalId: toPortalId(subject.portalId) }
-  }
-}
-
-function openResultFor(
-  assignment: GoalSubjectAssignment,
-  period: Readonly<{ start: Date; end: Date }>,
-  timezone: string,
-  id: string,
-  at: Date,
-): GoalMonthlyResult {
-  return {
-    id,
-    assignmentId: assignment.id,
-    programId: assignment.programId,
-    programVersionId: assignment.programVersionId,
-    organizationId: assignment.organizationId,
-    propertyId: assignment.propertyId,
-    periodStart: period.start,
-    periodEnd: period.end,
-    propertyTimezone: timezone,
-    status: 'open',
-    evaluation: {
-      state: 'updating',
-      value: null,
-      sampleCount: 0,
-      achieved: null,
-      reason: 'period_open',
+    program: {
+      ...current.program,
+      currentVersion: version.version,
+      statusReason: change.scheduledStatusReason ?? current.program.statusReason,
+      updatedAt: version.createdAt,
     },
-    sourceCompleteThrough: null,
-    evaluationWatermark: null,
-    closedAt: null,
-    createdAt: at,
-    updatedAt: at,
-  }
-}
-
-function dueMonthlyPeriods(
-  version: GoalProgramVersion,
-  latestPeriodEnd: Date | null,
-  now: Date,
-): readonly Readonly<{ start: Date; end: Date }>[] {
-  const periods: Readonly<{ start: Date; end: Date }>[] = []
-  let period = firstFullMonthlyPeriodAtOrAfter(
-    latestPeriodEnd ?? version.effectiveFrom,
-    version.propertyTimezone,
-  )
-
-  // A bounded catch-up protects the worker from corrupt temporal data while
-  // still recovering up to a decade of missed monthly schedules. Exceeding
-  // the bound fails visibly so the job cannot silently leave a partial gap.
-  while (period.start <= now) {
-    if (periods.length >= 120) {
-      throw new Error('Goal Program monthly catch-up exceeds safety bound')
-    }
-    if (version.effectiveTo !== null && period.end > version.effectiveTo) break
-    periods.push(period)
-    period = firstFullMonthlyPeriodAtOrAfter(period.end, version.propertyTimezone)
-  }
-  return periods
-}
-
-function openResultsForPeriods(
-  bundle: GoalProgramBundle,
-  periods: readonly Readonly<{ start: Date; end: Date }>[],
-  id: () => string,
-  at: Date,
-): readonly GoalMonthlyResult[] {
-  return periods.flatMap((period) =>
-    bundle.assignments
-      .filter(
-        (assignment) =>
-          assignment.programVersionId === bundle.version.id &&
-          assignment.effectiveFrom <= period.start &&
-          (assignment.effectiveTo === null || assignment.effectiveTo >= period.end),
-      )
-      .map((assignment) =>
-        openResultFor(assignment, period, bundle.version.propertyTimezone, id(), at),
+    version,
+    versions: [
+      ...current.versions.map((known) =>
+        known.id === current.version.id
+          ? { ...known, effectiveTo: closedAt(known) }
+          : known,
       ),
-  )
-}
-
-async function validateSubjects(
-  deps: GoalProgramDependencies,
-  organizationId: string,
-  propertyId: string,
-  subjects: readonly GoalSubject[],
-): Promise<void> {
-  if (subjects.length === 0) throw new GoalProgramError('invalid_subject')
-  const identities = subjects.map(goalSubjectIdentity)
-  if (new Set(identities).size !== identities.length) {
-    throw new GoalProgramError('duplicate_subject')
+      version,
+    ],
+    assignments: [
+      ...current.assignments.map((known) =>
+        known.programVersionId === current.version.id && known.effectiveTo === null
+          ? { ...known, effectiveTo: closedAt(known) }
+          : known,
+      ),
+      ...assignments,
+    ],
+    results: current.results,
+    // A revision changes no month's own target: the log stays as it was read.
+    ...(current.targetChanges ? { targetChanges: current.targetChanges } : {}),
   }
-  const ownership = await Promise.all(
-    subjects.map((subject) =>
-      deps.subjects.subjectBelongsToProperty(organizationId, propertyId, subject),
-    ),
-  )
-  if (ownership.some((owned) => !owned)) throw new GoalProgramError('invalid_subject')
 }
 
-async function resolveMetricVersion(deps: GoalProgramDependencies, metric: GoalMetric) {
-  const versionId = GOAL_METRIC_VERSION_IDS[metric]
-  const governed = await deps.metrics.getApprovedGoalVersion?.(versionId)
+/**
+ * Change a Program's measure, target and subjects from a coming month. A
+ * month already open keeps the version it opened under.
+ */
+async function reviseGoal(
+  deps: GoalProgramDependencies,
+  input: ReviseGoalInput,
+  actor: GoalActor,
+): Promise<GoalProgramBundle> {
+  await deps.policy.authorize({
+    actor,
+    organizationId: actor.organizationId,
+    propertyId: input.propertyId,
+    action: 'goal.update',
+  })
+  const now = deps.now()
+  const current = await loadCaughtUpProgram(deps, actor, input, now)
   if (
-    !governed ||
-    governed.version.id !== versionId ||
-    governed.version.minimumSample !== minimumSampleForGoalMetric(metric)
+    input.expectedVersion !== undefined &&
+    current.version.version !== input.expectedVersion
   ) {
+    throw new GoalProgramError('revision_conflict')
+  }
+  const { target, timezone, governed, readinessSubject } = await resolveGoalDefinition(
+    deps,
+    actor.organizationId,
+    input,
+  )
+  // A head with no month yet (a goal that has not started, or an earlier
+  // change still waiting for its month) is replaced rather than followed.
+  // When the Property's timezone moved east, the next local month begins
+  // before the open month ends, so the revision starts one local month
+  // later and the skipped local month is not evaluated under either
+  // version. The caller shows the returned start date.
+  const { head, period } = nextRevisionStart(current, now, timezone)
+  await assertSubjectsAreFree(deps, {
+    organizationId: actor.organizationId,
+    propertyId: input.propertyId,
+    excludeProgramId: current.program.id,
+    metric: input.metric,
+    effectiveFrom: period.start,
+    subjects: input.subjects,
+  })
+  const sourceInactive = await isMetricSourceInactive(deps, {
+    organizationId: actor.organizationId,
+    propertyId: input.propertyId,
+    governed,
+    subject: readinessSubject,
+    period,
+  })
+  if (sourceInactive && current.program.status !== 'scheduled') {
     throw new GoalProgramError('metric_unavailable')
   }
-  return governed
-}
 
-/**
- * Validate a Program definition's target and subjects, and resolve what it is
- * measured under: the Property's timezone and the governed metric version.
- * The first subject is the one its metric's readiness is checked against.
- */
-async function resolveGoalDefinition(
-  deps: GoalProgramDependencies,
-  organizationId: string,
-  input: Readonly<{
-    propertyId: string
-    metric: GoalMetric
-    targetValue: number
-    subjects: readonly GoalSubject[]
-  }>,
-) {
-  const target = validateGoalTarget(input.metric, input.targetValue)
-  if (!target.ok) throw new GoalProgramError('invalid_target')
-  const [timezone, governed] = await Promise.all([
-    deps.subjects.getTimezone(organizationId, input.propertyId),
-    resolveMetricVersion(deps, input.metric),
-    validateSubjects(deps, organizationId, input.propertyId, input.subjects),
-  ])
-  if (!timezone) throw new GoalProgramError('not_found')
-  const readinessSubject = input.subjects[0]
-  if (!readinessSubject) throw new GoalProgramError('invalid_subject')
-  return { target, timezone, governed, readinessSubject }
-}
-
-/**
- * True when the metric's source is not active yet for the version's first
- * month. A source that is active but unavailable or quarantined refuses it.
- */
-async function isMetricSourceInactive(
-  deps: GoalProgramDependencies,
-  query: Readonly<{
-    organizationId: string
-    propertyId: string
-    governed: GovernedMetricVersion
-    subject: GoalSubject
-    period: Readonly<{ start: Date; end: Date }>
-  }>,
-): Promise<boolean> {
-  const readiness = await deps.metrics.queryGoalMetric({
-    organizationId: toOrganizationId(query.organizationId),
-    propertyId: toPropertyId(query.propertyId),
-    definitionVersionId: query.governed.version.id,
-    subject: metricSubject(query.subject),
-    periodStart: query.period.start,
-    periodEnd: query.period.end,
-  })
-  const sourceInactive = readiness.reason === 'metric_source_not_active'
-  if (!sourceInactive && ['unavailable', 'quarantined'].includes(readiness.state)) {
-    throw new GoalProgramError('metric_unavailable')
+  const versionId = deps.id()
+  const version: GoalProgramVersion = {
+    id: versionId,
+    programId: current.program.id,
+    organizationId: current.program.organizationId,
+    propertyId: current.program.propertyId,
+    version: current.version.version + 1,
+    metricDefinitionId: governed.definition.id,
+    metricDefinitionVersionId: governed.version.id,
+    metric: input.metric,
+    metricMinimumSample: governed.version.minimumSample,
+    targetValue: target.normalizedTarget,
+    propertyTimezone: timezone,
+    effectiveFrom: period.start,
+    effectiveTo: null,
+    changeReason: noteOf(input.reason) ?? 'revised',
+    createdBy: actor.userId,
+    createdAt: now,
   }
-  return sourceInactive
-}
-
-/**
- * False when policy refuses this system maintenance pass for the bundle. Any
- * other authorization failure is not a per-program outcome and propagates.
- */
-async function maintenanceAuthorized(
-  deps: GoalProgramDependencies,
-  bundle: GoalProgramBundle,
-): Promise<boolean> {
-  try {
-    await deps.policy.authorize({
-      actor: 'system',
-      organizationId: bundle.program.organizationId,
-      propertyId: bundle.program.propertyId,
-      action: 'goal.update',
-    })
-    return true
-  } catch (error) {
-    if (error instanceof GoalProgramError && error.code === 'forbidden') return false
-    throw error
-  }
-}
-
-/**
- * `not_due` leaves the bundle untouched for the append pass; `unavailable` and
- * `skipped` end the program's turn, the former counting against readiness.
- */
-type ScheduledActivation =
-  | Readonly<{ kind: 'not_due' }>
-  | Readonly<{ kind: 'unavailable' }>
-  | Readonly<{ kind: 'skipped' }>
-  | Readonly<{
-      kind: 'activated'
-      bundle: GoalProgramBundle
-      scheduledResults: number
-    }>
-
-async function activateScheduledProgram(
-  deps: GoalProgramDependencies,
-  bundle: GoalProgramBundle,
-  now: Date,
-): Promise<ScheduledActivation> {
-  if (!(bundle.program.status === 'scheduled' && bundle.version.effectiveFrom <= now)) {
-    return { kind: 'not_due' }
-  }
-  const assignment = bundle.assignments.find(
-    (candidate) => candidate.programVersionId === bundle.version.id,
+  const assignments = input.subjects.map((subject) =>
+    assignmentFor({
+      id: deps.id(),
+      programId: current.program.id,
+      programVersionId: versionId,
+      organizationId: current.program.organizationId,
+      propertyId: current.program.propertyId,
+      metric: input.metric,
+      subject,
+      effectiveFrom: period.start,
+      effectiveTo: null,
+      actorId: actor.userId,
+      at: now,
+    }),
   )
-  if (!assignment) return { kind: 'unavailable' }
-  const periods = dueMonthlyPeriods(bundle.version, null, now)
-  const period = periods[0]
-  if (!period) return { kind: 'skipped' }
-  const readiness = await deps.metrics.queryGoalMetric({
-    organizationId: toOrganizationId(bundle.program.organizationId),
-    propertyId: toPropertyId(bundle.program.propertyId),
-    definitionVersionId: bundle.version.metricDefinitionVersionId,
-    subject: metricSubject(assignment.subject),
-    periodStart: period.start,
-    periodEnd: period.end,
-  })
-  if (
-    readiness.reason === 'metric_source_not_active' ||
-    readiness.state === 'unavailable' ||
-    readiness.state === 'quarantined'
-  ) {
-    return { kind: 'unavailable' }
+  const change = {
+    supersedeRowlessHead: head !== 'in_force',
+    // What a goal that has not started waits for was decided from the plan it
+    // was created with. This plan may have another measure, so it is decided
+    // again, by the rule creation uses: the source first, else the month.
+    scheduledStatusReason:
+      head !== 'never_started'
+        ? undefined
+        : sourceInactive
+          ? ('metric_source_not_active' as const)
+          : ('awaiting_first_full_month' as const),
   }
-  const newResults = openResultsForPeriods(bundle, periods, deps.id, now)
-  const active = await deps.repository.activate({
-    bundle,
-    results: newResults,
+  const revised = await deps.repository.revise({
+    expectedVersion: current.version,
+    version,
+    assignments,
+    ...change,
+    actorId: actor.userId,
     at: now,
   })
-  if (!active) return { kind: 'skipped' }
-  return {
-    kind: 'activated',
-    bundle: {
-      ...bundle,
-      program: active,
-      results: [...bundle.results, ...newResults],
-    },
-    scheduledResults: newResults.length,
-  }
-}
-
-/** Opens the monthly results that have come due since the latest one, if any. */
-async function appendDueResults(
-  deps: GoalProgramDependencies,
-  bundle: GoalProgramBundle,
-  now: Date,
-): Promise<number> {
-  if (bundle.program.status !== 'active') return 0
-  const currentResults = bundle.results.filter(
-    (result) => result.programVersionId === bundle.version.id,
-  )
-  const latestPeriodEnd =
-    currentResults.length === 0
-      ? null
-      : currentResults.reduce(
-          (latest, result) => (result.periodEnd > latest ? result.periodEnd : latest),
-          currentResults[0]!.periodEnd,
-        )
-  const periods = dueMonthlyPeriods(bundle.version, latestPeriodEnd, now)
-  const nextResults = openResultsForPeriods(bundle, periods, deps.id, now)
-  if (nextResults.length === 0) return 0
-  return deps.repository.appendResults({
-    program: bundle.program,
-    version: bundle.version,
-    results: nextResults,
-    at: now,
-  })
-}
-
-type ProgramMaintenanceTally = Readonly<{
-  activated: number
-  scheduledResults: number
-  unavailable: number
-  failed: number
-}>
-
-/**
- * One program's maintenance pass: activate it when due, then open any monthly
- * results that have come due. A failure part-way still reports the work that
- * did land, so the stats never under-count a completed activation.
- */
-async function maintainProgram(
-  deps: GoalProgramDependencies,
-  original: GoalProgramBundle,
-  now: Date,
-): Promise<ProgramMaintenanceTally> {
-  let activated = 0
-  let scheduledResults = 0
-  try {
-    const activation = await activateScheduledProgram(deps, original, now)
-    if (activation.kind === 'unavailable') {
-      return { activated, scheduledResults, unavailable: 1, failed: 0 }
-    }
-    if (activation.kind === 'skipped') {
-      return { activated, scheduledResults, unavailable: 0, failed: 0 }
-    }
-    const bundle = activation.kind === 'activated' ? activation.bundle : original
-    if (activation.kind === 'activated') {
-      activated = 1
-      scheduledResults = activation.scheduledResults
-    }
-    scheduledResults += await appendDueResults(deps, bundle, now)
-    return { activated, scheduledResults, unavailable: 0, failed: 0 }
-  } catch {
-    return { activated, scheduledResults, unavailable: 0, failed: 1 }
-  }
-}
-
-/** 'closed' also counts as reconciled; the caller tallies both. */
-async function reconcileDueResult(
-  reconcile: () => Promise<Readonly<{ status: string }>>,
-): Promise<'reconciled' | 'closed' | 'denied' | 'stranded' | 'failed'> {
-  try {
-    const updated = await reconcile()
-    return updated.status === 'closed' ? 'closed' : 'reconciled'
-  } catch (error) {
-    if (error instanceof GoalResultOutsideWindowError) return 'stranded'
-    return error instanceof GoalProgramError && error.code === 'forbidden'
-      ? 'denied'
-      : 'failed'
-  }
+  // The head moved, or a month opened under it, since this command read it.
+  if (!revised) throw new GoalProgramError('revision_conflict')
+  return revisedBundle(current, version, assignments, change)
 }
 
 export function createGoalProgramService(deps: GoalProgramDependencies) {
-  const serviceMethods = {
-    create: async (
-      input: Readonly<{
-        propertyId: string
-        name: string
-        description?: string | null
-        metric: GoalMetric
-        targetValue: number
-        subjects: readonly GoalSubject[]
-      }>,
-      actor: GoalActor,
-    ): Promise<GoalProgramBundle> => {
-      await deps.policy.authorize({
-        actor,
-        organizationId: actor.organizationId,
-        propertyId: input.propertyId,
-        action: 'goal.create',
-      })
-      const name = input.name.trim()
-      if (!name) throw new GoalProgramError('invalid_name')
-      const { target, timezone, governed, readinessSubject } =
-        await resolveGoalDefinition(deps, actor.organizationId, input)
-
-      const now = deps.now()
-      const period = firstFullMonthlyPeriodAtOrAfter(now, timezone)
-      const sourceInactive = await isMetricSourceInactive(deps, {
-        organizationId: actor.organizationId,
-        propertyId: input.propertyId,
-        governed,
-        subject: readinessSubject,
-        period,
-      })
-      const programId = deps.id()
-      const versionId = deps.id()
-      const status: GoalProgramStatus =
-        sourceInactive || period.start > now ? 'scheduled' : 'active'
-      const program = {
-        id: programId,
-        organizationId: actor.organizationId,
-        propertyId: input.propertyId,
-        name,
-        description: input.description?.trim() || null,
-        status,
-        statusReason: sourceInactive
-          ? 'metric_source_not_active'
-          : status === 'scheduled'
-            ? 'awaiting_first_full_month'
-            : null,
-        currentVersion: 1,
-        createdBy: actor.userId,
-        createdAt: now,
-        updatedAt: now,
-      } as const
-      const version: GoalProgramVersion = {
-        id: versionId,
-        programId,
-        organizationId: actor.organizationId,
-        propertyId: input.propertyId,
-        version: 1,
-        metricDefinitionId: governed.definition.id,
-        metricDefinitionVersionId: governed.version.id,
-        metric: input.metric,
-        metricMinimumSample: governed.version.minimumSample,
-        targetValue: target.normalizedTarget,
-        propertyTimezone: timezone,
-        effectiveFrom: period.start,
-        effectiveTo: null,
-        changeReason: 'created',
-        createdBy: actor.userId,
-        createdAt: now,
-      }
-      const assignments = input.subjects.map((subject) =>
-        assignmentFor({
-          id: deps.id(),
-          programId,
-          programVersionId: versionId,
-          organizationId: actor.organizationId,
-          propertyId: input.propertyId,
-          metric: input.metric,
-          subject,
-          effectiveFrom: period.start,
-          effectiveTo: null,
-          actorId: actor.userId,
-          at: now,
-        }),
-      )
-      const results =
-        status === 'active'
-          ? assignments.map((assignment) =>
-              openResultFor(assignment, period, timezone, deps.id(), now),
-            )
-          : []
-      const bundle: GoalProgramBundle = {
-        program,
-        version,
-        versions: [version],
-        assignments,
-        results,
-      }
-      await deps.repository.create({
-        bundle,
-        auditAction: 'goal.program.created',
-      })
-      return bundle
-    },
+  return {
+    create: (input: Parameters<typeof createGoal>[1], actor: GoalActor) =>
+      createGoal(deps, input, actor),
 
     get: async (
       input: Readonly<{ propertyId: string; programId: string }>,
@@ -762,301 +266,28 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       return deps.repository.list(actor.organizationId, propertyId)
     },
 
-    revise: async (
-      input: Readonly<{
-        propertyId: string
-        programId: string
-        metric: GoalMetric
-        targetValue: number
-        subjects: readonly GoalSubject[]
-        reason: string
-      }>,
+    revise: (input: ReviseGoalInput, actor: GoalActor) => reviseGoal(deps, input, actor),
+
+    rename: (input: Parameters<typeof renameGoal>[1], actor: GoalActor) =>
+      renameGoal(deps, input, actor),
+
+    changeAssignments: (
+      input: Parameters<typeof changeAssignments>[1],
       actor: GoalActor,
-    ): Promise<GoalProgramBundle> => {
-      await deps.policy.authorize({
-        actor,
-        organizationId: actor.organizationId,
-        propertyId: input.propertyId,
-        action: 'goal.update',
-      })
-      const current = await deps.repository.get(
-        actor.organizationId,
-        input.propertyId,
-        input.programId,
-      )
-      if (!current) throw new GoalProgramError('not_found')
-      if (current.program.status === 'ended') {
-        throw new GoalProgramError('invalid_transition')
-      }
-      const now = deps.now()
-      // A future Program head is already the one pending revision that the
-      // maintenance runtime will activate. Stacking another future head would
-      // either create a zero-length version or skip the pending version.
-      if (current.version.effectiveFrom > now) {
-        throw new GoalProgramError('revision_conflict')
-      }
-      const { target, timezone, governed, readinessSubject } =
-        await resolveGoalDefinition(deps, actor.organizationId, input)
-      // When the Property's timezone moved east, the next local month begins
-      // before the open month ends, so the revision starts one local month
-      // later and the skipped local month is not evaluated under either
-      // version. The caller shows the returned start date.
-      const period = firstFullMonthlyPeriodAtOrAfter(
-        earliestRevisionStart(current.results, now),
-        timezone,
-      )
-      const sourceInactive = await isMetricSourceInactive(deps, {
-        organizationId: actor.organizationId,
-        propertyId: input.propertyId,
-        governed,
-        subject: readinessSubject,
-        period,
-      })
-      if (sourceInactive && current.program.status !== 'scheduled') {
-        throw new GoalProgramError('metric_unavailable')
-      }
+    ) => changeAssignments(deps, input, actor),
 
-      const versionId = deps.id()
-      const version: GoalProgramVersion = {
-        id: versionId,
-        programId: current.program.id,
-        organizationId: current.program.organizationId,
-        propertyId: current.program.propertyId,
-        version: current.version.version + 1,
-        metricDefinitionId: governed.definition.id,
-        metricDefinitionVersionId: governed.version.id,
-        metric: input.metric,
-        metricMinimumSample: governed.version.minimumSample,
-        targetValue: target.normalizedTarget,
-        propertyTimezone: timezone,
-        effectiveFrom: period.start,
-        effectiveTo: null,
-        changeReason: input.reason.trim() || 'revised',
-        createdBy: actor.userId,
-        createdAt: now,
-      }
-      const assignments = input.subjects.map((subject) =>
-        assignmentFor({
-          id: deps.id(),
-          programId: current.program.id,
-          programVersionId: versionId,
-          organizationId: current.program.organizationId,
-          propertyId: current.program.propertyId,
-          metric: input.metric,
-          subject,
-          effectiveFrom: period.start,
-          effectiveTo: null,
-          actorId: actor.userId,
-          at: now,
-        }),
-      )
-      const revised = await deps.repository.revise({
-        expectedVersion: current.version,
-        version,
-        assignments,
-        actorId: actor.userId,
-        at: now,
-      })
-      if (!revised) throw new GoalProgramError('revision_conflict')
-      return {
-        program: { ...current.program, currentVersion: version.version, updatedAt: now },
-        version,
-        versions: [...current.versions, version],
-        assignments: [...current.assignments, ...assignments],
-        results: current.results,
-      }
-    },
-
-    changeAssignments: async (
-      input: Readonly<{
-        propertyId: string
-        programId: string
-        expectedVersion: number
-        add: readonly GoalSubject[]
-        remove: readonly GoalSubject[]
-        selectAllCurrentPortals: boolean
-        reason: string
-      }>,
+    changeMonthTarget: (
+      input: Parameters<typeof changeMonthTarget>[1],
       actor: GoalActor,
-    ): Promise<GoalAssignmentChangeResult> => {
-      await deps.policy.authorize({
-        actor,
-        organizationId: actor.organizationId,
-        propertyId: input.propertyId,
-        action: 'goal.update',
-      })
-      if (input.add.length + input.remove.length > MAX_GOAL_ASSIGNMENT_SELECTIONS) {
-        throw new GoalProgramError('assignment_limit_exceeded')
-      }
-      if (
-        input.add.length === 0 &&
-        input.remove.length === 0 &&
-        !input.selectAllCurrentPortals
-      ) {
-        throw new GoalProgramError('invalid_subject')
-      }
-      const reason = input.reason.trim()
-      if (!reason || reason.length > 500) throw new GoalProgramError('invalid_reason')
-
-      const current = await deps.repository.get(
-        actor.organizationId,
-        input.propertyId,
-        input.programId,
-      )
-      if (!current) throw new GoalProgramError('not_found')
-      if (current.program.status === 'ended') {
-        throw new GoalProgramError('invalid_transition')
-      }
-      if (current.version.version !== input.expectedVersion) {
-        throw new GoalProgramError('revision_conflict')
-      }
-
-      const selectedAt = deps.now()
-      if (current.version.effectiveFrom > selectedAt) {
-        throw new GoalProgramError('revision_conflict')
-      }
-      const currentPortalIds = input.selectAllCurrentPortals
-        ? await deps.subjects.listCurrentPortalIds(
-            actor.organizationId,
-            input.propertyId,
-            MAX_GOAL_ASSIGNMENT_SELECTIONS + 1,
-          )
-        : []
-      if (
-        currentPortalIds.length > MAX_GOAL_ASSIGNMENT_SELECTIONS ||
-        input.add.length + input.remove.length + currentPortalIds.length >
-          MAX_GOAL_ASSIGNMENT_SELECTIONS
-      ) {
-        throw new GoalProgramError('assignment_limit_exceeded')
-      }
-
-      const preliminary = classifySelections({
-        add: input.add,
-        remove: input.remove,
-        currentPortalIds,
-      })
-      const ownership = await Promise.all(
-        preliminary.map((selection) =>
-          selection.outcome
-            ? Promise.resolve(true)
-            : deps.subjects.subjectBelongsToProperty(
-                actor.organizationId,
-                input.propertyId,
-                selection.subject,
-              ),
-        ),
-      )
-      const currentAssignments = current.assignments.filter(
-        (assignment) => assignment.programVersionId === current.version.id,
-      )
-      if (currentAssignments.length === 0) {
-        throw new GoalProgramError('invalid_subject')
-      }
-      const currentByIdentity = new Map(
-        currentAssignments.map((assignment) => [
-          goalSubjectIdentity(assignment.subject),
-          assignment.subject,
-        ]),
-      )
-      const effectiveFrom = firstFullMonthlyPeriodAtOrAfter(
-        new Date(selectedAt.getTime() + 1),
-        current.version.propertyTimezone,
-      ).start
-      const additionsToCheck = preliminary.flatMap((selection, index) => {
-        if (
-          selection.outcome ||
-          !ownership[index] ||
-          selection.operation !== 'add' ||
-          currentByIdentity.has(selection.identity)
-        ) {
-          return []
-        }
-        return [selection.subject]
-      })
-      const conflictingSubjects =
-        additionsToCheck.length === 0
-          ? []
-          : await deps.repository.findAssignmentConflicts({
-              organizationId: actor.organizationId,
-              propertyId: input.propertyId,
-              excludeProgramId: current.program.id,
-              metric: current.version.metric,
-              effectiveFrom,
-              subjects: additionsToCheck,
-            })
-      const overlapping = new Set(conflictingSubjects.map(goalSubjectIdentity))
-      const { outcomes, nextByIdentity, changed } = resolveAssignmentOutcomes({
-        selections: preliminary,
-        ownership,
-        currentByIdentity,
-        overlapping,
-      })
-      if (nextByIdentity.size > MAX_GOAL_ASSIGNMENT_SELECTIONS) {
-        throw new GoalProgramError('assignment_limit_exceeded')
-      }
-      if (!changed) {
-        return {
-          programId: current.program.id,
-          previousVersion: current.version.version,
-          currentVersion: current.version.version,
-          effectiveFrom: null,
-          selectedAt,
-          selectedCurrentPortalCount: currentPortalIds.length,
-          outcomes,
-        }
-      }
-
-      const versionId = deps.id()
-      const version: GoalProgramVersion = {
-        ...current.version,
-        id: versionId,
-        version: current.version.version + 1,
-        effectiveFrom,
-        effectiveTo: null,
-        changeReason: reason,
-        createdBy: actor.userId,
-        createdAt: selectedAt,
-      }
-      const assignments = [...nextByIdentity.values()].map((subject) =>
-        assignmentFor({
-          id: deps.id(),
-          programId: current.program.id,
-          programVersionId: versionId,
-          organizationId: actor.organizationId,
-          propertyId: input.propertyId,
-          metric: current.version.metric,
-          subject,
-          effectiveFrom,
-          effectiveTo: null,
-          actorId: actor.userId,
-          at: selectedAt,
-        }),
-      )
-      const revised = await deps.repository.revise({
-        expectedVersion: current.version,
-        version,
-        assignments,
-        actorId: actor.userId,
-        at: selectedAt,
-      })
-      if (!revised) throw new GoalProgramError('revision_conflict')
-      return {
-        programId: current.program.id,
-        previousVersion: current.version.version,
-        currentVersion: version.version,
-        effectiveFrom,
-        selectedAt,
-        selectedCurrentPortalCount: currentPortalIds.length,
-        outcomes,
-      }
-    },
+    ) => changeMonthTarget(deps, input, actor),
 
     changeStatus: async (
       input: Readonly<{
         propertyId: string
         programId: string
         status: GoalProgramStatus
-        reason: string
+        /** The manager's optional note. Without one no status reason is stored. */
+        reason?: string
       }>,
       actor: GoalActor,
     ) => {
@@ -1088,230 +319,23 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         programId: input.programId,
         expectedStatus: current.program.status,
         status: input.status,
-        reason: input.reason.trim() || 'status_changed',
+        reason: noteOf(input.reason),
         actorId: actor.userId,
         at: deps.now(),
       })
+      // The status moved, or the version history did, since this command read it.
       if (!updated) throw new GoalProgramError('revision_conflict')
       return updated
     },
 
-    reconcileResult: async (
-      input: Readonly<{
-        organizationId: string
-        propertyId: string
-        resultId: string
-      }>,
-    ): Promise<GoalMonthlyResult> => {
-      const result = await deps.repository.getDueResult(
-        input.organizationId,
-        input.propertyId,
-        input.resultId,
-        deps.now(),
-      )
-      if (!result) throw new GoalProgramError('not_found')
-      await deps.policy.authorize({
-        actor: 'system',
-        organizationId: result.organizationId,
-        propertyId: result.propertyId,
-        action: 'goal.update',
-      })
-      const [program, assignment, version] = await Promise.all([
-        deps.repository.get(result.organizationId, result.propertyId, result.programId),
-        deps.repository.getAssignment(
-          result.organizationId,
-          result.propertyId,
-          result.assignmentId,
-        ),
-        deps.repository.getVersion(
-          result.organizationId,
-          result.propertyId,
-          result.programVersionId,
-        ),
-      ])
-      if (!program || !assignment || !version) throw new GoalProgramError('not_found')
-      if (isOutsideItsWindow(result, assignment, version)) {
-        throw new GoalResultOutsideWindowError()
-      }
-      // Pausing or ending stops future period materialization, but an already
-      // opened month remains evidence that must reconcile and close. Otherwise
-      // a mid-lifecycle status change would strand an immutable result forever.
-      if (program.program.status === 'scheduled') {
-        throw new GoalProgramError('invalid_transition')
-      }
-      const reading = await deps.metrics.queryGoalMetric({
-        organizationId: toOrganizationId(result.organizationId),
-        propertyId: toPropertyId(result.propertyId),
-        definitionVersionId: version.metricDefinitionVersionId,
-        subject: metricSubject(assignment.subject),
-        periodStart: result.periodStart,
-        periodEnd: result.periodEnd,
-      })
-      const evaluation = evaluationFromGovernedRead(
-        version.metric,
-        version.targetValue,
-        reading,
-      )
-      const now = deps.now()
-      const close =
-        result.status === 'reconciling' &&
-        evaluation.state !== 'updating' &&
-        reading.sourceCompleteThrough !== null &&
-        isGoalResultReadyToClose({
-          periodEnd: result.periodEnd,
-          now,
-          sourceWatermark: reading.sourceCompleteThrough,
-        })
-      const next: GoalMonthlyResult = {
-        ...result,
-        status: close ? 'closed' : 'reconciling',
-        evaluation,
-        sourceCompleteThrough: reading.sourceCompleteThrough,
-        evaluationWatermark: now,
-        closedAt: close ? now : null,
-        updatedAt: now,
-      }
-      const updated = await deps.repository.updateResult({
-        result: next,
-        expectedStatus: result.status,
-      })
-      if (!updated) throw new GoalProgramError('revision_conflict')
-      return updated
-    },
+    reconcileResult: (input: Parameters<typeof reconcileResult>[1]) =>
+      reconcileResult(deps, input),
 
-    reconcileClosedResult: async (
-      input: Readonly<{
-        organizationId: string
-        propertyId: string
-        resultId: string
-      }>,
-    ) => {
-      const head = await deps.repository.getClosedResult(
-        input.organizationId,
-        input.propertyId,
-        input.resultId,
-      )
-      if (!head) throw new GoalProgramError('not_found')
-      await deps.policy.authorize({
-        actor: 'system',
-        organizationId: head.result.organizationId,
-        propertyId: head.result.propertyId,
-        action: 'goal.update',
-      })
-      const [assignment, version] = await Promise.all([
-        deps.repository.getAssignment(
-          head.result.organizationId,
-          head.result.propertyId,
-          head.result.assignmentId,
-        ),
-        deps.repository.getVersion(
-          head.result.organizationId,
-          head.result.propertyId,
-          head.result.programVersionId,
-        ),
-      ])
-      if (!assignment || !version) throw new GoalProgramError('not_found')
-      const reading = await deps.metrics.queryGoalMetric({
-        organizationId: toOrganizationId(head.result.organizationId),
-        propertyId: toPropertyId(head.result.propertyId),
-        definitionVersionId: version.metricDefinitionVersionId,
-        subject: metricSubject(assignment.subject),
-        periodStart: head.result.periodStart,
-        periodEnd: head.result.periodEnd,
-      })
-      // A correction consumer can temporarily make the source incomplete.
-      // Closed evidence is last-safe and must not be replaced by an updating
-      // placeholder; a later retry will append the settled revision.
-      if (reading.state === 'updating') {
-        return { status: 'pending' as const, result: head.result }
-      }
-      const evaluation = evaluationFromGovernedRead(
-        version.metric,
-        version.targetValue,
-        reading,
-      )
-      if (
-        sameGoalEvaluation(head.result.evaluation, evaluation) &&
-        sameInstant(head.result.sourceCompleteThrough, reading.sourceCompleteThrough)
-      ) {
-        return { status: 'unchanged' as const, result: head.result }
-      }
-      const now = deps.now()
-      const revised = await deps.repository.appendResultRevision({
-        head,
-        revisionId: deps.id(),
-        evaluation,
-        sourceCompleteThrough: reading.sourceCompleteThrough,
-        evaluationWatermark: now,
-        changeReason: 'metric_correction_reconciliation',
-        createdBy: 'system',
-        at: now,
-      })
-      if (revised.status === 'conflict') {
-        throw new GoalProgramError('revision_conflict')
-      }
-      return revised
-    },
+    reconcileClosedResult: (input: Parameters<typeof reconcileClosedResult>[1]) =>
+      reconcileClosedResult(deps, input),
 
-    maintain: async (): Promise<GoalProgramMaintenanceStats> => {
-      const now = deps.now()
-      const operational = await deps.repository.listOperational()
-      let activated = 0
-      let scheduledResults = 0
-      let reconciled = 0
-      let closed = 0
-      let denied = 0
-      let unavailable = 0
-      let stranded = 0
-      let failed = 0
-
-      for (const original of operational) {
-        if (!(await maintenanceAuthorized(deps, original))) {
-          denied++
-          continue
-        }
-        const tally = await maintainProgram(deps, original, now)
-        activated += tally.activated
-        scheduledResults += tally.scheduledResults
-        unavailable += tally.unavailable
-        failed += tally.failed
-      }
-
-      const due = await deps.repository.listDueResults(now)
-      for (const result of due) {
-        const outcome = await reconcileDueResult(() =>
-          serviceMethods.reconcileResult({
-            organizationId: result.organizationId,
-            propertyId: result.propertyId,
-            resultId: result.id,
-          }),
-        )
-        if (outcome === 'denied') denied++
-        else if (outcome === 'stranded') stranded++
-        else if (outcome === 'failed') failed++
-        else {
-          reconciled++
-          if (outcome === 'closed') closed++
-        }
-      }
-
-      const stats = {
-        inspected: operational.length,
-        activated,
-        scheduledResults,
-        reconciled,
-        closed,
-        denied,
-        unavailable,
-        stranded,
-        failed,
-      }
-      if (failed > 0) throw new GoalProgramMaintenanceError(stats)
-      return stats
-    },
+    maintain: () => maintain(deps),
   }
-
-  return serviceMethods
 }
 
 export type GoalProgramService = ReturnType<typeof createGoalProgramService>
@@ -1334,6 +358,14 @@ export type GoalProgramRequestApi = Readonly<{
     policy: GoalExecutionPolicy,
     ...args: Parameters<GoalProgramService['changeStatus']>
   ) => ReturnType<GoalProgramService['changeStatus']>
+  rename: (
+    policy: GoalExecutionPolicy,
+    ...args: Parameters<GoalProgramService['rename']>
+  ) => ReturnType<GoalProgramService['rename']>
+  changeMonthTarget: (
+    policy: GoalExecutionPolicy,
+    ...args: Parameters<GoalProgramService['changeMonthTarget']>
+  ) => ReturnType<GoalProgramService['changeMonthTarget']>
   get: (
     policy: GoalExecutionPolicy,
     ...args: Parameters<GoalProgramService['get']>

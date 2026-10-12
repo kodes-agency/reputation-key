@@ -4,6 +4,10 @@ import { CircleIcon } from 'lucide-react'
 import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui'
 
 import { cn } from '#/lib/utils'
+import {
+  SEGMENT_CLASS,
+  SEGMENTED_CONTROL_CLASS,
+} from '#/components/ui/segmented-control-styles'
 
 function DropdownMenu({
   ...props
@@ -58,7 +62,7 @@ function DropdownMenuItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground data-[variant=destructive]:*:[svg]:text-destructive!",
+        "relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none max-md:min-h-(--control-touch) focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 data-[variant=destructive]:text-negative data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-negative dark:data-[variant=destructive]:focus:bg-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground data-[variant=destructive]:*:[svg]:text-negative!",
         className,
       )}
       {...props}
@@ -100,7 +104,7 @@ function DropdownMenuRadioItem({
     <DropdownMenuPrimitive.RadioItem
       data-slot="dropdown-menu-radio-item"
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none max-md:min-h-(--control-touch) focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       {...props}
@@ -112,6 +116,44 @@ function DropdownMenuRadioItem({
       </span>
       {children}
     </DropdownMenuPrimitive.RadioItem>
+  )
+}
+
+/**
+ * A choice that lives inside a menu and is drawn as the segmented pill
+ * (`SegmentedControl`'s look). The segments are menu radio items, not a bare
+ * radio group, so the menu's own arrow-key navigation reaches them: Radix
+ * prevents Tab inside a menu, which would leave a plain radio group unreachable
+ * from the keyboard. Each segment is a touch target, so below `md` it is at
+ * least 44 px tall (the menu item it replaced was), and 26 px from `md` up.
+ */
+function DropdownMenuSegmentedGroup({
+  className,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>) {
+  return (
+    <DropdownMenuPrimitive.RadioGroup
+      data-slot="dropdown-menu-segmented-group"
+      className={cn(SEGMENTED_CONTROL_CLASS, 'flex w-full', className)}
+      {...props}
+    />
+  )
+}
+
+function DropdownMenuSegment({
+  className,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem>) {
+  return (
+    <DropdownMenuPrimitive.RadioItem
+      data-slot="dropdown-menu-segment"
+      className={cn(
+        SEGMENT_CLASS,
+        'flex-1 cursor-default px-2 max-md:min-h-(--control-touch)',
+        className,
+      )}
+      {...props}
+    />
   )
 }
 
@@ -137,5 +179,7 @@ export {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSegment,
+  DropdownMenuSegmentedGroup,
   DropdownMenuSeparator,
 }

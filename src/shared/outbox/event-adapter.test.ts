@@ -526,6 +526,8 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
       supersedesSourceEventId: null,
       completedFields: 4,
       requiredFields: 5,
+      // A count on the legacy settings, the only kind v1 and v2 ever carried.
+      fieldSet: 'legacy',
       approvedDestinations: 3,
       configuredDestinations: 4,
       sourceAggregateVersion: '2025-06-01T12:01:00.000Z',
@@ -535,6 +537,7 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     const row = toOutboxEvent(event)
     const payload = row.payload as Record<string, unknown>
     expect(row.eventVersion).toBe(2)
+    expect(payload).not.toHaveProperty('fieldSet')
     expect(payload).toMatchObject({
       sourceAggregateVersion: '2025-06-01T12:01:00.000Z',
       occurredAt: NOW.toISOString(),
@@ -551,6 +554,45 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
         sourceAggregateVersion: undefined,
       }),
     ).toMatchObject({ occurredAt: NOW.toISOString() })
+  })
+
+  it('emits an Immersive Hub completeness count as v3, naming the fields it counted', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const event = {
+      _tag: 'portal.configuration_completeness.recorded',
+      eventId: 'evt-completeness-immersive-hub',
+      correlationId: null,
+      reviewId: 'review-1',
+      revision: 1,
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      portalId: portalId('portal-1'),
+      portalGroupId: null,
+      supersedesSourceEventId: null,
+      completedFields: 5,
+      requiredFields: 5,
+      fieldSet: 'immersive_hub',
+      sourceAggregateVersion: '2025-06-01T12:01:00.000Z',
+      occurredAt: NOW,
+    } as DomainEvent
+
+    const row = toOutboxEvent(event)
+
+    expect(row.eventVersion).toBe(3)
+    expect(row.payload).toMatchObject({
+      completedFields: 5,
+      requiredFields: 5,
+      fieldSet: 'immersive_hub',
+    })
+    const tag = 'portal.configuration_completeness.recorded'
+    const payload = row.payload as Record<string, unknown>
+    expect(() =>
+      validateEventPayload(tag, 3, { ...payload, fieldSet: undefined }),
+    ).toThrowError(ZodError)
+    expect(() =>
+      validateEventPayload(tag, 3, { ...payload, fieldSet: 'legacy' }),
+    ).toThrowError(ZodError)
   })
 
   it('registers only the content-minimal invitation v2 shape', () => {

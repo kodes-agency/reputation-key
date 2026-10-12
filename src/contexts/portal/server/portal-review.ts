@@ -18,7 +18,7 @@ import { requirePortalResourceScope } from './property-scope'
 
 const reviewInput = z.object({ portalId: z.string().min(1, 'Portal ID is required') })
 
-/** What guests will see change, what stops publishing, and how each language stands. */
+/** The changes guests will see, what stops publishing, and how each language stands. */
 export const getPortalReview = createServerFn({ method: 'GET' })
   .validator(reviewInput)
   .handler(

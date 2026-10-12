@@ -1,6 +1,7 @@
 // Inbox page parts — presentational sub-components split from
 // inbox-page-v2.tsx for line-count compliance.
 
+import { FullBleedFrame, PageShell } from '#/components/layout/page-shell'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import type { ComposerFocusBox } from './inbox-detail-content'
 import type { InboxAssignmentOption } from './inbox-owner-view'
@@ -8,7 +9,6 @@ import type { InboxCurrentUser } from './inbox-case-toolbar-props'
 import type { InboxDetailState } from './use-inbox-detail'
 import type { InboxDetailFns } from './types'
 import { InboxDetailPanel } from '#/components/inbox/inbox-detail-panel'
-import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { Panel, Separator, type LayoutStorage } from 'react-resizable-panels'
 import { Inbox } from 'lucide-react'
@@ -62,14 +62,20 @@ export const ResizeHandle = () => (
   <Separator className="w-1.5 bg-border/50 hover:bg-primary/30 active:bg-primary/50 transition-colors" />
 )
 
+/**
+ * The Inbox is a full-bleed route, so `<main>` pads nothing above this: the
+ * state brings the page gutter back, or it sits flush to the viewport edge.
+ */
 export function InboxNoOrgState() {
   return (
-    <PageShell>
-      <PageHeader
-        title="Inbox"
-        description="Select an organization to view your inbox."
-      />
-    </PageShell>
+    <FullBleedFrame scroll>
+      <PageShell>
+        <PageHeader
+          title="Inbox"
+          description="Select an organization to view your inbox."
+        />
+      </PageShell>
+    </FullBleedFrame>
   )
 }
 

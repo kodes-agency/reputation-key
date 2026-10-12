@@ -62,6 +62,7 @@ export const acceptInvitation =
           userId: input.userId,
           invitationId: input.invitationId,
           propertyIds: accepted.propertyIds,
+          inviterId: accepted.inviterId ?? undefined,
           occurredAt: now,
         }),
     })
@@ -80,6 +81,7 @@ export const acceptInvitation =
       userId: input.userId as string,
       organizationId: result.organizationId as string,
       propertyIds: result.propertyIds,
+      ...(result.inviterId ? { inviterId: result.inviterId as string } : {}),
     })
 
     return { organizationId: result.organizationId }

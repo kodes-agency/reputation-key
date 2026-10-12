@@ -3,6 +3,7 @@ import {
   portalResponseIntegrityCopy,
   type PortalResponseIntegritySummaryView,
 } from './portal-response-integrity-copy'
+import { formatNumber } from '#/lib/format'
 
 export function PortalResponseIntegritySummary({
   summary,
@@ -16,26 +17,24 @@ export function PortalResponseIntegritySummary({
         Response quality checks
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">
-        Private rating figures use accepted Portal responses, not unique guests. Hiding
+        Private rating figures use accepted portal responses, not unique guests. Hiding
         written feedback does not remove its star rating.
       </p>
       <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-muted-foreground">Accepted</dt>
-          <dd className="font-medium tabular-nums">
-            {summary.accepted.toLocaleString()}
-          </dd>
+          <dd className="font-medium tabular-nums">{formatNumber(summary.accepted)}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Filtered automatically</dt>
           <dd className="font-medium tabular-nums">
-            {summary.filteredAutomatically.toLocaleString()}
+            {formatNumber(summary.filteredAutomatically)}
           </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Under review</dt>
           <dd className="font-medium tabular-nums">
-            {summary.underReview.toLocaleString()}
+            {formatNumber(summary.underReview)}
           </dd>
         </div>
       </dl>

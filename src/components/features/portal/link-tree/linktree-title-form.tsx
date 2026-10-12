@@ -89,8 +89,7 @@ export function LinktreeTitleForm({
                   <Button
                     type="button"
                     variant="link"
-                    size="sm"
-                    className="h-auto p-0"
+                    size="inline"
                     disabled={disabled}
                     onClick={() => field.handleChange('')}
                   >

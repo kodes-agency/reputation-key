@@ -9,13 +9,14 @@ import type {
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { LinkAddressForm } from './link-address-form'
+import type { LinkSiteControls } from './link-approval-controls'
 import { linkPhotoUrl, photoOnOffer } from './linktree-photo-rules'
 import { LinktreePhotoDialog } from './linktree-photo-dialog'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import { LinkTextsForm } from './link-texts-form'
 import { LinktreeApprovalFact } from './linktree-approval-fact'
 import { LinktreeIconPicker } from './linktree-icon-picker'
-import { LinktreeLocaleTabs } from './linktree-locale-tabs'
+import { LinktreeLocaleSwitch } from './linktree-locale-switch'
 import { linkLocaleChips } from './linktree-rules'
 import type { LinktreeMutations } from './use-linktree-mutations'
 
@@ -39,7 +40,10 @@ type Props = Readonly<{
   propertyId: string
   /** The photo upload; the real one unless a story hands in a stub. */
   uploadPhoto?: PortalImageUploader
-  onCheckAddress: () => void
+  /** Checks the saved address again; resolves when the check is over. */
+  onCheckAddress: () => Promise<unknown>
+  /** Approve and turn-off for the site this tile opens, for an account admin. */
+  site?: LinkSiteControls
   canEdit: boolean
 }>
 
@@ -58,6 +62,7 @@ export function LinktreeTileEditor({
   propertyId,
   uploadPhoto,
   onCheckAddress,
+  site,
   canEdit,
 }: Props) {
   const primary = locales.find((locale) => locale === view.primaryLocale) ?? locales[0]
@@ -73,7 +78,7 @@ export function LinktreeTileEditor({
 
   return (
     <div className="space-y-5">
-      <LinktreeLocaleTabs
+      <LinktreeLocaleSwitch
         aria-label="Label language"
         locales={locales}
         active={locale}
@@ -121,13 +126,15 @@ export function LinktreeTileEditor({
           error={addressError}
           onEdit={onAddressEdit}
           disabled={!canEdit}
-        />
-        <LinktreeApprovalFact
-          destination={link.destination}
-          memberNames={memberNames}
-          onCheck={onCheckAddress}
-          isChecking={mutations.updateLink.isPending}
-          disabled={!canEdit}
+          status={
+            <LinktreeApprovalFact
+              destination={link.destination}
+              memberNames={memberNames}
+              onCheck={onCheckAddress}
+              disabled={!canEdit}
+              site={site}
+            />
+          }
         />
       </div>
     </div>

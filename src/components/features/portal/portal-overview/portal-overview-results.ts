@@ -19,7 +19,6 @@ import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import {
   BELOW_MINIMUM_SAMPLE,
   DASH,
-  formatCount,
   measureCells,
   type ResultsCell,
   type ResultsMeasuresInput,
@@ -29,6 +28,7 @@ import {
   totalStripOf,
   type OverviewStrip,
 } from './portal-overview-results-strips'
+import { formatNumber } from '#/lib/format'
 
 /** `missing`: no figure (still processing, or cannot be counted). `withheld`: too small to show. */
 export type MeasureTone = 'figure' | 'withheld' | 'missing'
@@ -81,7 +81,7 @@ function summaryOf(
   if (scans.tone !== 'figure') return null
   const head = `${scans.text} ${scansWord(measures.kpis.scans.value, style)}`
   if (average.tone !== 'figure') return head
-  return `${head} · ${average.text} ★ from ${formatCount(measures.kpis.avgRating.sampleCount)}`
+  return `${head} · ${average.text} ★ from ${formatNumber(measures.kpis.avgRating.sampleCount)}`
 }
 
 /**
@@ -256,7 +256,8 @@ export function groupHeadCount(
 export type PortalOverviewResultsState =
   | Readonly<{ status: 'off' }>
   | Readonly<{ status: 'loading' }>
-  | Readonly<{ status: 'failed' }>
+  /** `retrying`: Try again is reading, so the failure stays with its button busy. */
+  | Readonly<{ status: 'failed'; retrying?: boolean }>
   | Readonly<{ status: 'ready'; index: OverviewResultsIndex }>
 
 /** What one row's measure cells draw. */
@@ -307,13 +308,15 @@ function isTooManyPortals(e: unknown): boolean {
  * without results, and only a real failure says so.
  */
 export function resultsStateOf(
-  facts: Readonly<{ allowed: boolean; error: unknown }>,
+  facts: Readonly<{ allowed: boolean; error: unknown; retrying?: boolean }>,
   index: OverviewResultsIndex | null,
 ): PortalOverviewResultsState {
   if (!facts.allowed) return { status: 'off' }
   if (index) return { status: 'ready', index }
+  // A retry drops the query's error while it reads; the failure stays up until it answers.
+  if (facts.retrying === true) return { status: 'failed', retrying: true }
   if (facts.error === null) return { status: 'loading' }
   return isDarkCapabilityDenial(facts.error) || isTooManyPortals(facts.error)
     ? { status: 'off' }
-    : { status: 'failed' }
+    : { status: 'failed', retrying: false }
 }

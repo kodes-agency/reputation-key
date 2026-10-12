@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { invitationId, organizationId } from '#/shared/domain/ids'
+import { invitationId, organizationId, userId, type UserId } from '#/shared/domain/ids'
+import type { IdentityInvitationAccepted } from '../../domain/events'
 import type { InvitedRegistrationStore } from '../ports/invited-registration-store.port'
-import type { IdentityCommandStore } from '../ports/identity-command-store.port'
+import type {
+  AcceptInvitationCommand,
+  IdentityCommandStore,
+} from '../ports/identity-command-store.port'
 import { recoverInvitedRegistrations } from './recover-invited-registrations'
 
 const NOW = new Date('2026-08-27T12:00:00.000Z')
@@ -11,15 +15,21 @@ const ORGANIZATION_ID = organizationId('organization-recovery-1')
 
 function setup(
   results: ReadonlyArray<Awaited<ReturnType<InvitedRegistrationStore['reconcile']>>>,
+  inviterId: UserId | null = null,
 ) {
   const claimDue = vi.fn().mockResolvedValue([{ verificationId: VERIFICATION_ID }])
   const reconcile = vi.fn()
   for (const result of results) reconcile.mockResolvedValueOnce(result)
   const complete = vi.fn().mockResolvedValue(undefined)
-  const acceptInvitation = vi.fn().mockResolvedValue({
-    organizationId: ORGANIZATION_ID,
-    propertyIds: ['property-1'],
-    inviterId: null,
+  const builtEvents: IdentityInvitationAccepted[] = []
+  const acceptInvitation = vi.fn(async (command: AcceptInvitationCommand) => {
+    const accepted = {
+      organizationId: ORGANIZATION_ID,
+      propertyIds: ['property-1'],
+      inviterId,
+    }
+    builtEvents.push(command.buildEvent(accepted))
+    return accepted
   })
   const runOnAccepted = vi.fn().mockResolvedValue(undefined)
   const logger = { error: vi.fn() }
@@ -40,6 +50,7 @@ function setup(
     claimDue,
     reconcile,
     acceptInvitation,
+    builtEvents,
     complete,
     runOnAccepted,
     logger,
@@ -97,6 +108,38 @@ describe('recoverInvitedRegistrations', () => {
       userId: 'user-recovery-1',
       organizationId: ORGANIZATION_ID,
       propertyIds: ['property-1'],
+    })
+  })
+
+  it('records the inviter on the fact and hands it to the access hook', async () => {
+    const fixture = setup(
+      [
+        {
+          kind: 'ready_to_accept',
+          registration: {
+            verificationId: VERIFICATION_ID,
+            invitationId: INVITATION_ID,
+            organizationId: ORGANIZATION_ID,
+            authIds: {
+              userId: 'user-recovery-1',
+              credentialAccountId: 'account-recovery-1',
+              initialSessionId: 'session-recovery-1',
+            },
+          },
+          acceptorEmail: 'manager@example.com',
+        },
+      ],
+      userId('user-inviter'),
+    )
+
+    await fixture.run()
+
+    expect(fixture.builtEvents.map((event) => event.inviterId)).toEqual(['user-inviter'])
+    expect(fixture.runOnAccepted).toHaveBeenCalledWith({
+      userId: 'user-recovery-1',
+      organizationId: ORGANIZATION_ID,
+      propertyIds: ['property-1'],
+      inviterId: 'user-inviter',
     })
   })
 

@@ -9,16 +9,26 @@ import { portalKeys } from '#/shared/queries/query-keys'
 import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import { BarChart3 } from 'lucide-react'
+import { EmptyState } from '#/components/ui/empty-state'
+import { RegionError } from '#/components/ui/region-error'
 import { PortalAnalyticsContent } from './portal-analytics-content'
+import { PortalResultsLoading } from './portal-results-loading'
 import {
   PORTAL_RESULTS_RANGE_STORAGE_KEY,
   storedResultsRange,
 } from './portal-results-window'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 
 type Props = Readonly<{
   portalId: string
   propertyId: string
   getPortalAnalytics: typeof getPortalAnalyticsFn
+  /**
+   * Guests can open the portal now. Left out, it is taken to be live; a portal
+   * that is not has nothing to count, and its empty state says to publish.
+   */
+  pageIsLive?: boolean
 }>
 
 // Intentionally global, not per-portal: the selected range is a user-level
@@ -59,19 +69,20 @@ function remember(key: string, value: string): void {
   }
 }
 
-export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }: Props) {
+export function PortalAnalyticsTab({
+  portalId,
+  propertyId,
+  getPortalAnalytics,
+  pageIsLive = true,
+}: Props) {
+  const { can } = usePermissions()
   const [timeRange, setTimeRange] = useState<TimeRangePreset>(readStoredTimeRange)
   const [compare, setCompare] = useState<boolean>(readStoredCompare)
 
   useEffect(() => remember(TIME_RANGE_KEY, timeRange), [timeRange])
   useEffect(() => remember(COMPARE_KEY, compare ? 'on' : 'off'), [compare])
 
-  const {
-    data,
-    isLoading: loading,
-    error: queryError,
-    isPlaceholderData: stale,
-  } = useQuery({
+  const query = useQuery({
     queryKey: portalKeys.analytics(propertyId, portalId, timeRange, compare),
     queryFn: () =>
       getPortalAnalytics({ data: { propertyId, portalId, timeRange, compare } }),
@@ -79,14 +90,13 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
     // new figures load, instead of blanking it.
     placeholderData: keepPreviousData,
   })
+  const { data, isLoading: loading, error: queryError, isPlaceholderData: stale } = query
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-sm text-muted-foreground">Loading results…</p>
-      </div>
-    )
-  }
+  // A failed read comes before loading: a retry resets a query with no data to
+  // pending, and the panel must stay, its button busy, rather than give way to the
+  // skeleton and drop focus.
+  const failed = hasFailed(query)
+  if (loading && !failed) return <PortalResultsLoading />
 
   // getPortalAnalyticsFn authorizes on `dashboard.read`, a different capability
   // from the `portal.read` that got the reader onto this page — so a deliberate
@@ -94,24 +104,22 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
   // Degrade those to friendly copy and keep a generic message for real
   // failures: the raw `.message` was rendering deny reasons like
   // `org_not_allowlisted` at the reader, in destructive red.
-  if (queryError) {
+  if (failed) {
     if (isDarkCapabilityDenial(queryError)) {
       return (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <BarChart3 className="mx-auto size-10 text-muted-foreground/50" />
-          <h3 className="mt-4 font-semibold">Results aren't available yet</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Portal results aren't switched on for this property.
-          </p>
-        </div>
+        <EmptyState
+          icon={BarChart3}
+          title="Results aren’t available yet"
+          description="Portal results aren’t switched on for this property."
+        />
       )
     }
     return (
-      <div className="rounded-lg border border-dashed p-8 text-center">
-        <p className="text-sm text-destructive">
-          Couldn't load results. Please try again.
-        </p>
-      </div>
+      <RegionError
+        message="Results couldn’t be loaded."
+        onRetry={() => void query.refetch()}
+        retrying={isRetrying(query)}
+      />
     )
   }
 
@@ -124,6 +132,13 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
       compare={compare}
       onCompareChange={setCompare}
       busy={stale}
+      place={{
+        propertyId,
+        portalId,
+        isLive: pageIsLive,
+        // The link opens the manager Inbox, whose route refuses anyone without this.
+        canOpenInbox: can('inbox.manage'),
+      }}
     />
   )
 }

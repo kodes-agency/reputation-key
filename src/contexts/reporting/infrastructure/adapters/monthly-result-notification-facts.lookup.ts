@@ -14,6 +14,25 @@ import { parseGoalSubject } from '../../domain/goal-program'
 /** The correction a notice was raised for; the head is joined separately. */
 const requestedRevision = alias(goalResultRevisions, 'requested_revision')
 
+/**
+ * True when the version a month was judged under was written after the month
+ * began. Both reads join that exact version, so the comparison needs no
+ * timezone: it is between two instants.
+ */
+const setDuringMonth =
+  sql<boolean>`${goalProgramVersions.createdAt} > ${goalMonthlyResults.periodStart}`.as(
+    'set_during_month',
+  )
+
+/**
+ * True when the month has a target of its own. The guard lets a month take one
+ * only while it is open and running, so a stored one was set during the month.
+ */
+const targetChangedInMonth =
+  sql<boolean>`${goalMonthlyResults.targetValue} IS NOT NULL`.as(
+    'target_changed_in_month',
+  )
+
 export const createMonthlyResultNotificationFactsLookup = (
   db: Database,
 ): MonthlyResultNotificationFactsLookup => {
@@ -36,6 +55,8 @@ export const createMonthlyResultNotificationFactsLookup = (
           closedAchieved: goalMonthlyResults.achieved,
           headRevisionId: goalResultRevisions.id,
           headAchieved: goalResultRevisions.achieved,
+          setDuringMonth,
+          targetChangedInMonth,
         })
         .from(goalMonthlyResults)
         .leftJoin(
@@ -104,6 +125,8 @@ export const createMonthlyResultNotificationFactsLookup = (
         programName: row.programName,
         periodMonth: row.periodMonth,
         subject,
+        setDuringMonth: row.setDuringMonth,
+        targetChangedInMonth: row.targetChangedInMonth,
       }
     },
 
@@ -123,6 +146,8 @@ export const createMonthlyResultNotificationFactsLookup = (
           revision: goalResultRevisions.revision,
           evaluationState: goalResultRevisions.evaluationState,
           achieved: goalResultRevisions.achieved,
+          setDuringMonth,
+          targetChangedInMonth,
           periodMonth:
             sql<string>`to_char(${goalMonthlyResults.periodStart} AT TIME ZONE ${goalMonthlyResults.propertyTimezone}, 'YYYY-MM')`.as(
               'period_month',
@@ -213,6 +238,8 @@ export const createMonthlyResultNotificationFactsLookup = (
         programName: row.programName,
         periodMonth: row.periodMonth,
         subject,
+        setDuringMonth: row.setDuringMonth,
+        targetChangedInMonth: row.targetChangedInMonth,
         revisionId: row.revisionId,
         revision: row.revision,
         evaluationState,

@@ -5,7 +5,20 @@ import {
   validateGoalTarget,
 } from '../../domain/goal-program'
 
+// Routes and components may import application, not domain: the start-month
+// helpers the new-goal form shares with the create command. They are
+// re-exported, not used here, so their calendar code loads with the form and
+// stays out of the first-paint bundle this module is part of.
+export { defaultGoalStartMonth, goalStartOptions } from '../../domain/goal-start'
+
 const uuid = z.uuid()
+
+/**
+ * `YYYY-MM` on the Property's calendar. The command decides whether it is still
+ * a choice. No message of its own: the form offers the two months, so a
+ * malformed key is a client fault, and this module ships in first paint.
+ */
+const goalStartMonthSchema = z.string().regex(/^\d{4}-(?:0[1-9]|1[0-2])$/)
 
 const goalProgramMetricSchema = z.enum(GOAL_METRICS)
 
@@ -15,37 +28,57 @@ const goalProgramSubjectSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('portal'), portalId: uuid }),
 ])
 
-const goalProgramReasonSchema = z
-  .string()
-  .trim()
-  .min(1, 'Enter a reason for this change')
-  .max(500, 'Keep the reason under 500 characters')
+// A manager's note on a change, as a form holds it: a text field always has a
+// string, and an empty one means no note.
+const goalProgramNoteFieldSchema = z.string().trim().max(500)
+
+/**
+ * The note on a command: optional. Without one a version records a default
+ * (`revised`, `subjects_changed`) and a status change records nothing.
+ */
+const goalProgramReasonSchema = goalProgramNoteFieldSchema.optional()
 
 const goalProgramSubjectSelectionSchema = z
   .array(goalProgramSubjectSchema)
   .min(1, 'Select at least one subject')
   .max(MAX_GOAL_ASSIGNMENT_SELECTIONS)
 
-function addTargetIssue(
+const TARGET_FAULTS = {
+  target_not_finite: 'Enter a valid monthly target',
+  count_target_not_positive_integer: 'Use a positive whole number',
+  average_target_out_of_range: 'Use a rating target from 1 to 5',
+  average_target_precision: 'Use no more than one decimal place',
+} as const
+
+/**
+ * What is wrong with a target for its measure, in the words a form prints
+ * under the field; null when the measure takes it. One spelling for the single
+ * goal form and for each row of the table that sets several goals.
+ */
+export function goalTargetFault(
+  metric: z.infer<typeof goalProgramMetricSchema>,
+  targetValue: number,
+): string | null {
+  const target = validateGoalTarget(metric, targetValue)
+  return target.ok ? null : TARGET_FAULTS[target.reason]
+}
+
+/**
+ * The measure's own target rule as a form refinement: the issue lands under
+ * the target field. Exported for the month-target form (its own module), so
+ * both forms word the rule once.
+ */
+export function addTargetIssue(
   input: Readonly<{
     metric: z.infer<typeof goalProgramMetricSchema>
     targetValue: number
   }>,
   context: z.RefinementCtx,
 ): void {
-  const target = validateGoalTarget(input.metric, input.targetValue)
-  if (target.ok) return
-  const messages = {
-    target_not_finite: 'Enter a valid monthly target',
-    count_target_not_positive_integer: 'Use a positive whole number',
-    average_target_out_of_range: 'Use a rating target from 1 to 5',
-    average_target_precision: 'Use no more than one decimal place',
-  } as const
-  context.addIssue({
-    code: 'custom',
-    path: ['targetValue'],
-    message: messages[target.reason],
-  })
+  const message = goalTargetFault(input.metric, input.targetValue)
+  if (message !== null) {
+    context.addIssue({ code: 'custom', path: ['targetValue'], message })
+  }
 }
 
 export const createGoalProgramSchema = z.object({
@@ -55,6 +88,9 @@ export const createGoalProgramSchema = z.object({
   metric: goalProgramMetricSchema,
   targetValue: z.number().finite('Enter a valid monthly target'),
   subjects: goalProgramSubjectSelectionSchema,
+  // Omitted keeps the first full month that has not begun, as before the
+  // month could be chosen.
+  startMonth: goalStartMonthSchema.optional(),
 })
 
 export const reviseGoalProgramSchema = z.object({
@@ -64,6 +100,9 @@ export const reviseGoalProgramSchema = z.object({
   targetValue: z.number().finite('Enter a valid monthly target'),
   subjects: goalProgramSubjectSelectionSchema,
   reason: goalProgramReasonSchema,
+  // The version the form was opened on. A form that sends it is refused once
+  // the goal has changed under it.
+  expectedVersion: z.number().int().positive().optional(),
 })
 
 // Interactive forms use the same command fields, with the domain target rule
@@ -80,13 +119,14 @@ export const createGoalProgramFormSchema = z
   .superRefine(addTargetIssue)
 
 export const reviseGoalProgramFormSchema = reviseGoalProgramSchema
-  .omit({ propertyId: true, programId: true })
+  .omit({ propertyId: true, programId: true, expectedVersion: true })
+  .extend({ reason: goalProgramNoteFieldSchema })
   .superRefine(addTargetIssue)
 
 export const goalProgramAssignmentEditorSchema = z.object({
   subjects: z.array(goalProgramSubjectSchema).max(MAX_GOAL_ASSIGNMENT_SELECTIONS),
   selectAllCurrentPortals: z.boolean(),
-  reason: goalProgramReasonSchema,
+  reason: goalProgramNoteFieldSchema,
 })
 
 export const changeGoalProgramAssignmentsSchema = z
@@ -136,6 +176,15 @@ export const changeGoalProgramStatusSchema = z.object({
   reason: goalProgramReasonSchema,
 })
 
+/** A goal's name and description, changed in place. No version is written. */
+export const renameGoalProgramSchema = z.object({
+  propertyId: uuid,
+  programId: uuid,
+  name: createGoalProgramSchema.shape.name,
+  // Omitted keeps the description the goal has; null or empty clears it.
+  description: createGoalProgramSchema.shape.description,
+})
+
 export const goalProgramIdentitySchema = z.object({
   propertyId: uuid,
   programId: uuid,
@@ -146,6 +195,13 @@ export const listGoalProgramsSchema = z.object({ propertyId: uuid })
 /** The goals that target one subject, read live for the month so far. */
 export const getGoalProgressSchema = z.object({
   propertyId: uuid,
+  subject: goalProgramSubjectSchema,
+})
+
+/** The month so far for one subject and measure, read before a goal exists. */
+export const previewGoalMonthSchema = z.object({
+  propertyId: uuid,
+  metric: goalProgramMetricSchema,
   subject: goalProgramSubjectSchema,
 })
 

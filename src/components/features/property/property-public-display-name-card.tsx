@@ -1,6 +1,6 @@
 import { useForm } from '@tanstack/react-form'
 import type { Action } from '#/components/hooks/use-action'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FormActions } from '#/components/forms/form-actions'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
@@ -14,48 +14,42 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { FieldGroup } from '#/components/ui/field'
-import { portalBrandFormInputSchema } from '#/contexts/portal/application/dto/portal-experience.dto'
+import { InlineLink } from '#/components/ui/inline-link'
+import { propertyPublicDisplayNameFormInputSchema } from '#/contexts/portal/application/dto/portal-experience.dto'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 
-type PropertyBrandProfile = Readonly<{
-  displayName: string
-  primaryColor: string
-  backgroundColor: string
-  textColor: string
-}> | null
-
-type SavePublicDisplayNameAction = Action<{
+/**
+ * The name alone. The broader brand writer also sends colours, and a form
+ * opened before the Property look changed would write its old ones back.
+ */
+export type SavePublicDisplayNameAction = Action<{
   data: {
     propertyId: string
     displayName: string
-    primaryColor: string
-    backgroundColor: string
-    textColor: string
   }
 }>
 
 export function PropertyPublicDisplayNameCard({
   propertyId,
-  profile,
+  displayName: savedDisplayName,
   action,
+  showLookLink = true,
 }: Readonly<{
   propertyId: string
-  profile: PropertyBrandProfile
+  /** The name as saved; empty when the property has none yet. */
+  displayName: string
   action: SavePublicDisplayNameAction
+  /** Point to Property look for colours, photo and logo; off on Property look itself. */
+  showLookLink?: boolean
 }>) {
   const { can } = usePermissions()
   const canManage = can('portal.admin')
   const form = useForm({
-    defaultValues: {
-      displayName: profile?.displayName ?? '',
-      primaryColor: profile?.primaryColor ?? '#2563EB',
-      backgroundColor: profile?.backgroundColor ?? '#FFFFFF',
-      textColor: profile?.textColor ?? '#111827',
-    },
-    validators: { onSubmit: portalBrandFormInputSchema },
+    defaultValues: { displayName: savedDisplayName },
+    validators: { onSubmit: propertyPublicDisplayNameFormInputSchema },
     onSubmit: async ({ value }) => {
-      const parsed = portalBrandFormInputSchema.parse(value)
-      await action({ data: { propertyId, ...parsed } })
+      const { displayName } = propertyPublicDisplayNameFormInputSchema.parse(value)
+      await action({ data: { propertyId, displayName } })
     },
   })
 
@@ -63,11 +57,25 @@ export function PropertyPublicDisplayNameCard({
     <form onSubmit={submitHandler(form)}>
       <Card>
         <CardHeader>
-          <CardTitle>Public display name</CardTitle>
+          <CardTitle as="h2">Public display name</CardTitle>
           <CardDescription>
-            Used as the business identity in AI-drafted public replies. This Property-wide
-            name can be set before any Portal is created; Portal settings continue to own
-            colours and the guest-facing theme.
+            Shown to guests at the top of every portal, and used to sign AI-drafted
+            replies. It belongs to the whole property, so it can be set before any portal
+            exists.
+            {showLookLink ? (
+              <>
+                {' '}
+                Colours, photo and logo are in{' '}
+                <InlineLink
+                  to="/properties/$propertyId/portals/look"
+                  params={{ propertyId }}
+                  underline="always"
+                >
+                  Property look
+                </InlineLink>
+                .
+              </>
+            ) : null}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -89,13 +97,14 @@ export function PropertyPublicDisplayNameCard({
               Ask an account admin to set this property&rsquo;s public display name.
             </p>
           ) : null}
-          <FormErrorBanner error={action.error} />
         </CardContent>
         {canManage ? (
-          <CardFooter className="justify-end">
-            <SubmitButton mutation={action} form={form}>
-              Save public display name
-            </SubmitButton>
+          <CardFooter>
+            <FormActions form={form} error={action.error}>
+              <SubmitButton mutation={action} form={form}>
+                Save public display name
+              </SubmitButton>
+            </FormActions>
           </CardFooter>
         ) : null}
       </Card>

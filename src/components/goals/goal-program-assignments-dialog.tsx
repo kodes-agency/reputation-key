@@ -7,12 +7,14 @@ import {
   type GoalProgramAssignmentEditorInput,
 } from '#/contexts/reporting/application/dto/goal-program.dto'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitForm } from '#/components/forms/form-submit'
 import { goalKeys } from '#/shared/queries/query-keys'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { DialogFooter } from '#/components/ui/dialog'
+import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { goalSubjectKey, goalSubjectsFromKeys } from './goal-subject-picker'
+import { goalAssignmentsDescription, type GoalChangeSource } from './goal-revision-start'
+import { withGoalRefusals } from './goal-refusal'
 import { GoalAssignmentOutcomes } from './goal-assignment-outcomes'
 import { goalAssignmentSubjectLabel } from './goal-assignment-subject-label'
 import { GoalSelectAllPortalsField } from './goal-select-all-portals-field'
@@ -24,8 +26,10 @@ type Props = Readonly<{
   property: Readonly<{ id: string; name: string }>
   programId: string
   currentVersion: number
-  /** The current version's zone; a change starts with the next full month there. */
+  /** The current version's zone: a change of subjects keeps it, and starts a month there. */
   propertyTimezone: string
+  /** What the day the changes apply from is read from. */
+  goal: GoalChangeSource
   assignments: readonly GoalSubjectAssignment[]
   groups: readonly Readonly<{
     id: string
@@ -39,7 +43,10 @@ export function GoalProgramAssignmentsDialog(props: Props) {
   const initialKeys = () =>
     props.assignments.map(({ subject }) => goalSubjectKey(subject))
   const [open, setOpen] = useState(false)
-  const mutation = useActionMutation(props.changeAssignmentsFn, {
+  // The instant the dialog was last opened. The day the changes apply from is
+  // worked out from it.
+  const [openedAt, setOpenedAt] = useState<Date | null>(null)
+  const mutation = useActionMutation(withGoalRefusals(props.changeAssignmentsFn), {
     successMessage: 'Assignment changes reviewed',
     invalidateKeys: [goalKeys.all],
   })
@@ -68,7 +75,7 @@ export function GoalProgramAssignmentsDialog(props: Props) {
           add,
           remove,
           selectAllCurrentPortals: value.selectAllCurrentPortals,
-          reason: value.reason,
+          reason: value.reason.trim() || undefined,
         },
       })
     },
@@ -82,7 +89,10 @@ export function GoalProgramAssignmentsDialog(props: Props) {
     selected.some((key) => !currentKeys.has(key)) ||
     [...currentKeys].some((key) => !nextKeys.has(key))
   const onOpenChange = (next: boolean) => {
-    if (next) form.reset(initialFormValues())
+    if (next) {
+      form.reset(initialFormValues())
+      setOpenedAt(new Date())
+    }
     setOpen(next)
   }
 
@@ -90,9 +100,14 @@ export function GoalProgramAssignmentsDialog(props: Props) {
     <GoalProgramFormDialog
       open={open}
       onOpenChange={onOpenChange}
+      busy={mutation.isPending}
       trigger="Manage assignments"
       title="Manage goal assignments"
-      description="Changes start next full month. Current-month targets and results stay unchanged."
+      description={
+        openedAt === null
+          ? ''
+          : goalAssignmentsDescription(props.goal, openedAt, props.propertyTimezone)
+      }
       onSubmit={() => void submitForm(form)}
     >
       <form.Field name="subjects">
@@ -116,12 +131,12 @@ export function GoalProgramAssignmentsDialog(props: Props) {
       <form.Field name="reason">
         {(field) => <GoalChangeReasonField field={field} id="assignment-change-reason" />}
       </form.Field>
-      <FormErrorBanner error={mutation.error} />
-      {mutation.data ? (
+      {mutation.data && openedAt !== null ? (
         <GoalAssignmentOutcomes
           outcomes={mutation.data.outcomes}
           effectiveFrom={mutation.data.effectiveFrom}
           propertyTimezone={props.propertyTimezone}
+          now={openedAt}
           subjectLabel={(subject) =>
             goalAssignmentSubjectLabel(
               subject,
@@ -132,7 +147,9 @@ export function GoalProgramAssignmentsDialog(props: Props) {
           }
         />
       ) : null}
+      <DialogErrorBanner error={mutation.error} />
       <DialogFooter>
+        <DialogCancel />
         <SubmitButton mutation={mutation} form={form} disabled={!hasRequestedChange}>
           Review and schedule
         </SubmitButton>

@@ -14,7 +14,8 @@ const captured = new Map<unknown, ActionMutationOptions<unknown, unknown> | unde
 const mutationOptions: Array<{ onSuccess?: () => Promise<void> | void }> = []
 const invalidated: unknown[][] = []
 
-vi.mock('#/components/hooks/use-action-mutation', () => ({
+vi.mock('#/components/hooks/use-action-mutation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#/components/hooks/use-action-mutation')>()),
   useActionMutation: (fn: unknown, options?: ActionMutationOptions<unknown, unknown>) => {
     captured.set(fn, options)
     return {}

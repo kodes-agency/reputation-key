@@ -277,7 +277,7 @@ export function useReplyTemplate(input: Input) {
         })
         // The flush is a SAVE, and a failed one is reported where every failed
         // save is: the autosave coordinator has already said `Draft could not
-        // be saved`, offers `Retry save`, and clears both when a save lands.
+        // be saved`, offers `Try saving again`, and clears both when a save lands.
         // It cannot un-load the template, so it must not report a load
         // failure — and a second, template-specific error line here outlived
         // a successful retry, because nothing but another load cleared it.

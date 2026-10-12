@@ -111,3 +111,21 @@ export const ConfiguredCanBeClearedExplicitly: Story = {
     })
   },
 }
+
+// Reset puts the saved language back; it only shows once another was picked.
+export const ResetRestoresTheSavedLanguage: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
+    expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
+    await userEvent.click(canvas.getByLabelText('Property default'))
+    await userEvent.click(
+      await page.findByRole('option', { name: 'Bulgarian (Cyrillic)' }),
+    )
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    expect(canvas.getByLabelText('Property default')).toHaveTextContent('Not configured')
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull(),
+    )
+  },
+}

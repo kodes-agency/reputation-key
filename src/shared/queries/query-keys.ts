@@ -126,6 +126,12 @@ export const identityKeys = {
   all: ['identity'] as const,
   activeOrg: () => [...identityKeys.all, 'active-org'] as const,
   members: () => [...identityKeys.all, 'members'] as const,
+  /**
+   * Every member's active Property grants, for the AccountAdmin's access sheet.
+   * Below the member list, so the existing members invalidation after any role,
+   * removal or access change refreshes it too.
+   */
+  memberPropertyAccess: () => [...identityKeys.members(), 'property-access'] as const,
   invitations: () => [...identityKeys.all, 'invitations'] as const,
   userInvitations: () => [...identityKeys.invitations(), 'user'] as const,
   organizationInvitations: () => [...identityKeys.invitations(), 'organization'] as const,
@@ -224,6 +230,12 @@ export const goalKeys = {
   /** The live month to date of the goals that target one subject (`portal_group:<id>`). */
   progress: (propertyId: string, subject: string) =>
     [...goalKeys.all, 'progress', propertyId, subject] as const,
+  /** The live month to date of every current subject of one goal. */
+  programProgress: (propertyId: string, goalId: string) =>
+    [...goalKeys.all, 'program-progress', propertyId, goalId] as const,
+  /** The month so far for one measure and subject (`portal:<id>`), before its goal exists. */
+  monthPreview: (propertyId: string, metric: string, subject: string) =>
+    [...goalKeys.all, 'month-preview', propertyId, metric, subject] as const,
 }
 
 // ── Staff participation and portal responsibility ────────────────────────
@@ -288,6 +300,9 @@ export const portalKeys = {
   versions: (portalId: string) => [...portalKeys.detail(portalId), 'versions'] as const,
   version: (portalId: string, version: number) =>
     [...portalKeys.versions(portalId), 'version', version] as const,
+  /** The guest page of one published version, drawn for "View"; under the version, so a restore refreshes it with the rest. */
+  versionPreview: (portalId: string, version: number) =>
+    [...portalKeys.version(portalId, version), 'preview'] as const,
   propertyExperience: (propertyId: string) =>
     [...portalKeys.forProperty(propertyId), 'experience'] as const,
   /** The Property look's batch "Review & publish": one review of each live portal, read together. */
@@ -420,4 +435,12 @@ export const guestKeys = {
   all: ['guest'] as const,
   publicPortal: (args: Readonly<Record<string, unknown>>) =>
     [...guestKeys.all, 'public-portal', args] as const,
+}
+
+// ── Platform operator console (ADR 0065) ─────────────────────────────────
+// Cross-tenant: the operator holds no role in the Organizations it lists, so
+// nothing here carries an Organization id and nothing belongs to `identityKeys`.
+export const platformKeys = {
+  all: ['platform'] as const,
+  organizations: () => [...platformKeys.all, 'organizations'] as const,
 }

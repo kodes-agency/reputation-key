@@ -28,7 +28,7 @@ definitions and security controls live in
 **Impact:** P0 — potential cross-tenant data access.
 **Prerequisites:** Open a restricted incident record; name both operating roles; record the user pseudonym, Organization scope, `cell-us`, release SHA, discovery time, and correlation identifiers without copying account content or credentials.
 **Diagnostics:** Check `audit_logs` for suspicious actions by the user ID. Check `session` table for active sessions.
-**Containment:** Immediately invalidate all sessions for the user (`DELETE FROM session WHERE "userId" = $1`). Suspend the user's organization via `BETA_SUSPENDED_ORGS`.
+**Containment:** Immediately invalidate all sessions for the user (`DELETE FROM session WHERE "userId" = $1`). Suspend the user's organization: add its Organization ID (not its slug, which matches nothing) to `BETA_SUSPENDED_ORGS` on web and worker.
 **Recovery:** Require password reset. Re-verify email. Re-issue sessions only after identity confirmation.
 **Verification:** Confirm no active sessions remain. Audit log shows no further activity from the compromised account.
 **Escalation:** Page Bozhidar Denev immediately. Document incident timeline.

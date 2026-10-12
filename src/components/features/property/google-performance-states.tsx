@@ -1,4 +1,3 @@
-import { AlertCircle } from 'lucide-react'
 import type { PropertyGooglePerformanceResultV1 } from '#/shared/google-performance-report-contract'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Card, CardContent, CardHeader } from '#/components/ui/card'
@@ -68,8 +67,7 @@ export function GooglePerformanceError({
   retained,
 }: Readonly<{ code: string; retained?: boolean }>) {
   return (
-    <Alert variant={retained ? 'default' : 'destructive'}>
-      <AlertCircle aria-hidden="true" />
+    <Alert variant={retained ? 'warning' : 'destructive'}>
       <AlertTitle className="line-clamp-none">
         {retained
           ? 'Showing the last successful report'

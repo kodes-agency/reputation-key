@@ -10,7 +10,7 @@ describe('presentGoogleReviewDestination', () => {
 
     expect(result).toEqual({
       label: 'Ready',
-      badgeVariant: 'default',
+      tone: 'positive',
       description:
         'The Google review action is supplied automatically by this portal’s property.',
       confirmedAt: 'Aug 20, 2026',
@@ -26,6 +26,7 @@ describe('presentGoogleReviewDestination', () => {
       }),
     ).toMatchObject({
       label: 'Refreshing',
+      tone: 'neutral',
       description: expect.stringContaining(
         'Private ratings and feedback remain available',
       ),
@@ -41,7 +42,7 @@ describe('presentGoogleReviewDestination', () => {
 
     expect(result).toMatchObject({
       label: 'Needs connection',
-      badgeVariant: 'outline',
+      tone: 'warn',
       confirmedAt: null,
     })
     expect(result.description).toContain('Guests cannot continue to Google')

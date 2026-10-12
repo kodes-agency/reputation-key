@@ -1,21 +1,19 @@
 // Login page
-import {
-  createFileRoute,
-  Link,
-  redirect,
-  useNavigate,
-  useRouter,
-} from '@tanstack/react-router'
+import { createFileRoute, redirect, useNavigate, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useQueryClient } from '@tanstack/react-query'
 import { getSession, ensureActiveOrg } from '#/shared/auth/auth.functions'
 import { AuthCard } from '#/components/layout/auth-layout'
 import { LoginForm } from '#/components/features/identity'
-import { signInUser } from '#/contexts/identity/server/organizations'
+import {
+  resendVerificationEmail,
+  signInUser,
+} from '#/contexts/identity/server/organizations'
 import { useAction, wrapAction } from '#/components/hooks/use-action'
 import { safeReturnPath } from '#/shared/auth/safe-return-path'
 import { z } from 'zod/v4'
 import { clearTenantCacheBeforeNavigation } from '#/shared/queries/tenant-cache-transition'
+import { InlineLink } from '#/components/ui/inline-link'
 
 const loginSearchSchema = z.object({
   redirect: z.string().optional().catch(undefined).transform(safeReturnPath),
@@ -38,6 +36,7 @@ function LoginPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const signIn = useAction(useServerFn(signInUser))
+  const resendVerification = useServerFn(resendVerificationEmail)
 
   const mutation = wrapAction(signIn, async () => {
     await ensureActiveOrg()
@@ -53,14 +52,11 @@ function LoginPage() {
 
   return (
     <AuthCard title="Welcome back" description="Sign in to your Reputation Key account">
-      <LoginForm mutation={mutation} />
+      <LoginForm mutation={mutation} resendVerification={resendVerification} />
       <div className="mt-2 text-right">
-        <Link
-          to="/reset-password"
-          className="text-sm font-medium text-link underline-offset-4 hover:underline"
-        >
+        <InlineLink to="/reset-password" className="text-sm">
           Forgot password?
-        </Link>
+        </InlineLink>
       </div>
     </AuthCard>
   )

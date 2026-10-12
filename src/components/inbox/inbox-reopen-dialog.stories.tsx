@@ -6,6 +6,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { InboxReopenDialog } from './inbox-reopen-dialog'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 
 const REFUSAL =
   'Withdrawn, purged or unavailable private feedback cannot be reopened: no manager outcome could ever close it'
@@ -44,7 +45,7 @@ export const Confirms: Story = {
 export const Refused: Story = {
   args: {
     onConfirm: fn(async () => {
-      throw new Error(REFUSAL)
+      throw new ServerFunctionError('InboxError', REFUSAL, 'invalid_state', 409)
     }),
   },
   play: async ({ args }) => {

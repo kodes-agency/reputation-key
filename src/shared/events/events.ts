@@ -14,6 +14,7 @@ export type {
   IdentityInvitationAccepted,
   IdentityMemberRemoved,
   IdentityMemberRoleChanged,
+  IdentityMemberPropertyAccessChanged,
   IdentityMerchantAiChanged,
   IdentityOrganizationLifecycleChanged,
 } from '#/contexts/identity/domain/events'

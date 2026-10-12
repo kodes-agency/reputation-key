@@ -39,34 +39,30 @@ type Story = StoryObj<typeof meta>
 
 export const FourPresets: Story = {
   play: async ({ canvas, args }) => {
-    const group = canvas.getByRole('group', { name: 'Time range' })
+    const group = canvas.getByRole('radiogroup', { name: 'Time range' })
     for (const label of ['30 days', '90 days', '6 months', 'All time']) {
-      expect(within(group).getByRole('button', { name: label })).toBeVisible()
+      expect(within(group).getByRole('radio', { name: label })).toBeVisible()
     }
-    expect(within(group).getByRole('button', { name: '90 days' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    await userEvent.click(within(group).getByRole('button', { name: '6 months' }))
+    expect(within(group).getByRole('radio', { name: '90 days' })).toBeChecked()
+    await userEvent.click(within(group).getByRole('radio', { name: '6 months' }))
     expect(args.onRangeChange).toHaveBeenCalledWith('180d')
     await waitFor(() =>
-      expect(within(group).getByRole('button', { name: '6 months' })).toHaveAttribute(
-        'aria-pressed',
-        'true',
-      ),
+      expect(within(group).getByRole('radio', { name: '6 months' })).toBeChecked(),
     )
   },
 }
 
 /**
  * Carried over from the Google section's story when the range control moved out
- * of it: whichever rendering the viewport produces has to stay a 44 px target
- * and actually commit a choice (redesign row 13).
+ * of it: whichever rendering the viewport produces has to actually commit a
+ * choice (redesign row 13). Its height is the shared `RangeControl`'s: a tap
+ * target below `md` (see `Patterns/Range control`); the Storybook Vitest project
+ * compiles no Tailwind, so the 44px cannot show here.
  *
- * It branches on the rendering rather than asserting which one appears, as the
- * original did: the storybook browser shares one viewport across story files,
- * so a narrow-viewport parameter is not guaranteed to have taken effect by the
- * time this play function runs.
+ * It branches on the rendering rather than asserting which one appears: the
+ * storybook browser shares one viewport across story files, so a
+ * narrow-viewport parameter is not guaranteed to have taken effect by the time
+ * this play function runs.
  */
 export const Compact320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
@@ -74,7 +70,6 @@ export const Compact320: Story = {
     const control = canvas
       .getAllByLabelText('Time range')
       .find((element) => element.getBoundingClientRect().height > 0)!
-    expect(control.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
 
     if (control.getAttribute('role') === 'combobox') {
       await userEvent.click(control)
@@ -88,12 +83,12 @@ export const Compact320: Story = {
       return
     }
 
-    const thirtyDays = within(control).getByRole('button', { name: '30 days' })
+    const thirtyDays = within(control).getByRole('radio', { name: '30 days' })
     thirtyDays.focus()
-    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard(' ')
     await waitFor(() => {
       expect(args.onRangeChange).toHaveBeenCalledWith('30d')
-      expect(thirtyDays).toHaveAttribute('aria-pressed', 'true')
+      expect(thirtyDays).toBeChecked()
     })
   },
 }

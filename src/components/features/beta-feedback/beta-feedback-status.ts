@@ -6,13 +6,13 @@
 // at all. This maps the two states a reporter can meaningfully act on
 // (did it send, and where has it got to) onto plain language.
 
-export type ReporterFeedbackTone = 'pending' | 'active' | 'settled' | 'closed' | 'failed'
+import type { StatusPresentation } from '#/components/ui/status-badge'
 
-export type ReporterFeedbackStatus = Readonly<{
-  label: string
-  description: string
-  tone: ReporterFeedbackTone
-}>
+/** The pill's label and tone (the shared StatusBadge vocabulary), and a sentence under it. */
+export type ReporterFeedbackStatus = StatusPresentation &
+  Readonly<{
+    description: string
+  }>
 
 type Input = Readonly<{
   deliveryState: 'prepared' | 'delivered' | 'failed'
@@ -23,32 +23,32 @@ const TRIAGE_STATUS: Readonly<Record<Input['triageState'], ReporterFeedbackStatu
   new: {
     label: 'Received',
     description: 'It has reached the team and is waiting to be read.',
-    tone: 'pending',
+    tone: 'neutral',
   },
   screened: {
     label: 'Read',
     description: 'Someone has read it and is deciding what happens next.',
-    tone: 'active',
+    tone: 'neutral',
   },
   reproducing: {
     label: 'Being investigated',
     description: 'The team is trying to reproduce what you described.',
-    tone: 'active',
+    tone: 'neutral',
   },
   accepted: {
     label: 'Accepted',
     description: 'This is going to be worked on.',
-    tone: 'settled',
+    tone: 'positive',
   },
   declined: {
     label: 'Not planned',
     description: 'The team decided not to act on this one.',
-    tone: 'closed',
+    tone: 'neutral',
   },
   resolved: {
     label: 'Resolved',
     description: 'This has been dealt with.',
-    tone: 'settled',
+    tone: 'positive',
   },
 }
 
@@ -56,12 +56,12 @@ const DELIVERY_STATUS: Readonly<Record<'prepared' | 'failed', ReporterFeedbackSt
   prepared: {
     label: 'Sending',
     description: 'Still on its way. Refresh in a moment.',
-    tone: 'pending',
+    tone: 'neutral',
   },
   failed: {
     label: 'Not sent',
     description: 'This report did not reach the team. Please send it again.',
-    tone: 'failed',
+    tone: 'negative',
   },
 }
 

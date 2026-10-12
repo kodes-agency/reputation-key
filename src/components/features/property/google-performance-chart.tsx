@@ -30,6 +30,7 @@ import {
   TableRow,
 } from '#/components/ui/table'
 import { ChartFrame, ChartTooThin } from '#/components/features/shared/chart-frame'
+import { formatNumber } from '#/lib/format'
 
 const COLORS = [
   'var(--foreground)',
@@ -39,7 +40,6 @@ const COLORS = [
   'color-mix(in oklab, var(--foreground) 28%, var(--background))',
 ] as const
 const DASH_PATTERNS = [undefined, '9 3', '3 3', '10 3 2 3', '1 4'] as const
-const numberFormat = new Intl.NumberFormat()
 
 type DailyRow = {
   localDate: string
@@ -126,7 +126,7 @@ export function buildGooglePerformanceChartModel(
   const hasMissingValues = rows.some((row) =>
     series.some((_, index) => row[`series${index}`] === null),
   )
-  const caption = `${numberFormat.format(total)} ${valueLabel} across ${populatedBucketCount} ${bucketNoun(unit, populatedBucketCount)}${hasMissingValues ? '; unavailable values remain gaps' : ''}.`
+  const caption = `${formatNumber(total)} ${valueLabel} across ${populatedBucketCount} ${bucketNoun(unit, populatedBucketCount)}${hasMissingValues ? '; unavailable values remain gaps' : ''}.`
 
   return Object.freeze({
     dailyRows,
@@ -202,7 +202,7 @@ export function GooglePerformanceChart({
               <YAxis
                 allowDecimals={false}
                 axisLine={false}
-                tickFormatter={(value: number) => numberFormat.format(value)}
+                tickFormatter={(value: number) => formatNumber(value)}
                 tickLine={false}
                 width={48}
               />
@@ -238,8 +238,7 @@ export function GooglePerformanceChart({
           <ChartTooThin>
             Google returned {model.populatedBucketCount}{' '}
             {bucketNoun(model.unit, model.populatedBucketCount)} with values, too little
-            to show a trend. {numberFormat.format(model.total)} {valueLabel} were
-            reported.
+            to show a trend. {formatNumber(model.total)} {valueLabel} were reported.
           </ChartTooThin>
         )}
 
@@ -277,7 +276,7 @@ export function GooglePerformanceChart({
                       <TableCell key={item.id} className="text-right tabular-nums">
                         {row[`series${index}`] === null
                           ? 'Not returned'
-                          : numberFormat.format(row[`series${index}`] as number)}
+                          : formatNumber(row[`series${index}`] as number)}
                       </TableCell>
                     ))}
                   </TableRow>

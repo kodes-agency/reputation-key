@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
-import { AlertCircle, UserRoundCheck } from 'lucide-react'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { UserRoundCheck } from 'lucide-react'
+import { FormActions } from '#/components/forms/form-actions'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { Checkbox } from '#/components/ui/checkbox'
@@ -97,8 +97,7 @@ export function ResponsibleManagersPanel({
       </div>
 
       {(state.responsibilityNeeded || selected.length === 0) && (
-        <Alert>
-          <AlertCircle aria-hidden="true" />
+        <Alert variant="warning">
           <AlertTitle>{copy.alertTitle}</AlertTitle>
           <AlertDescription>{copy.alertDescription}</AlertDescription>
         </Alert>
@@ -147,12 +146,21 @@ export function ResponsibleManagersPanel({
         )}
       </div>
 
-      <FormErrorBanner error={error} />
-      <div className="flex justify-end">
-        <Button disabled={disabled || !dirty || isPending} onClick={save}>
-          {isPending ? 'Saving…' : 'Save responsible managers'}
+      <FormActions
+        dirty={dirty}
+        onReset={() => setSelected(serverSelection)}
+        error={error}
+        pending={isPending}
+      >
+        <Button
+          pending={isPending}
+          pendingLabel="Saving…"
+          disabled={disabled || !dirty}
+          onClick={save}
+        >
+          Save responsible managers
         </Button>
-      </div>
+      </FormActions>
     </div>
   )
 }

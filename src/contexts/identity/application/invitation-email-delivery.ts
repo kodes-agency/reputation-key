@@ -1,6 +1,7 @@
 // Identity context — sending the invitation email after the row is committed.
 //
-// invite-member and resend-invitation both commit first and mail second. A
+// invite-member and resend-invitation (and the operator console's
+// AccountAdmin invitations) all commit first and mail second. A
 // send that fails after the commit must not turn into a 500 while the
 // invitation exists: the caller reports `emailSent: false` and the admin can
 // use Resend. The failure is logged by name and code only — a transport or
@@ -13,7 +14,10 @@ import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { absoluteUrl } from '#/shared/email/urls'
 import { invitationExpiresInDays } from '../domain/invitation-state'
 import type { IdentityPort } from './ports/identity.port'
-import type { InvitationEmailSender } from './ports/invitation-email.port'
+import type {
+  InvitationEmail,
+  InvitationEmailSender,
+} from './ports/invitation-email.port'
 import type { PropertyNameLookup } from './ports/invitation-read-model.port'
 import { resolveInvitationProperties } from './invitation-properties'
 
@@ -87,8 +91,24 @@ export async function deliverInvitationEmail(
   ctx: AuthContext,
   delivery: InvitationEmailDelivery,
 ): Promise<boolean> {
+  return sendCommittedInvitationEmail(deps, () =>
+    composeInvitationEmail(deps, ctx, delivery),
+  )
+}
+
+/**
+ * The post-commit send every invitation path shares, the operator console's
+ * included: resolves true once sent, false when composing or sending failed.
+ */
+export async function sendCommittedInvitationEmail(
+  deps: Readonly<{
+    sendEmail: InvitationEmailSender
+    logger: Pick<LoggerPort, 'error'>
+  }>,
+  compose: () => Promise<InvitationEmail>,
+): Promise<boolean> {
   try {
-    await deps.sendEmail(await composeInvitationEmail(deps, ctx, delivery))
+    await deps.sendEmail(await compose())
     return true
   } catch (error) {
     // Identifiers stay out of logs (observability schema); the request's

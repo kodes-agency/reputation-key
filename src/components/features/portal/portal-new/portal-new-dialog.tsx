@@ -26,8 +26,8 @@ type Props = Readonly<{
 
 export function PortalNewDialog({ open, onOpenChange, data, loadError }: Props) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-[640px]">
+    <Dialog open={open} busy={data?.mutation.isPending} onOpenChange={onOpenChange}>
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>New portal</DialogTitle>
           <DialogDescription>
@@ -35,7 +35,7 @@ export function PortalNewDialog({ open, onOpenChange, data, loadError }: Props) 
           </DialogDescription>
         </DialogHeader>
         {data ? (
-          <PortalNewForm data={data} onCancel={() => onOpenChange(false)} />
+          <PortalNewForm data={data} />
         ) : loadError ? (
           <FormErrorBanner error={loadError} />
         ) : (

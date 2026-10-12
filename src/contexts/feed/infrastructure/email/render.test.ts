@@ -146,6 +146,47 @@ describe('renderNotificationEmail — the final deletion notice', () => {
   })
 })
 
+describe('renderNotificationEmail — the two account notices that name the Organization', () => {
+  const email = (type: Parameters<typeof renderNotification>[0], actionUrl: string) =>
+    renderNotificationEmail({
+      rendered: renderNotification(type, { organizationName: 'Riverside Group' }),
+      actionUrl,
+      preferencesUrl: null,
+      priority: 'normal',
+    })
+
+  it('tells a member their property access changed, and why they got it', () => {
+    const access = email(
+      'account.organization_property_access_changed',
+      'https://app.test/properties',
+    )
+
+    expect(access.subject).toBe('Your property access changed')
+    expect(access.html).toContain('Your property access at Riverside Group changed.')
+    expect(access.html).toContain(
+      'You received this because an Account Admin changed which properties you can work.',
+    )
+    expect(access.html).toContain('https://app.test/properties')
+    expect(access.html).not.toContain(PREFERENCES_URL)
+    expect(access.text).toContain('Riverside Group')
+  })
+
+  it('tells an inviter their invitation was accepted without saying by whom', () => {
+    const accepted = email(
+      'account.invitation_accepted',
+      'https://app.test/settings/members',
+    )
+
+    expect(accepted.subject).toBe('An invitation you sent was accepted')
+    expect(accepted.html).toContain('Someone you invited joined Riverside Group.')
+    expect(accepted.html).toContain(
+      'You received this because an invitation you sent on Reputation Key was accepted.',
+    )
+    expect(accepted.html).toContain('https://app.test/settings/members')
+    expect(accepted.html).not.toContain(PREFERENCES_URL)
+  })
+})
+
 describe('renderNotificationEmail — star rating', () => {
   const email = urgent(portalFeedback)
 

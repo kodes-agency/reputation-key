@@ -8,6 +8,7 @@
 // groups. This module adds what only the Organization needs: Property names
 // (search matches them too), the order of the Properties, and one page count
 // across all of them.
+import { searchMatcher } from '#/components/property/property-search'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
 import { attentionRank } from './portal-attention'
 import { compareProperties } from './portal-overview-order'
@@ -102,7 +103,7 @@ export function buildAllPropertiesOverview(
 ): AllPropertiesPage {
   const sort = search.sort ?? DEFAULT_PORTAL_OVERVIEW_SORT
   const dir = search.dir ?? defaultSortDirection(sort)
-  const needle = search.q?.trim().toLowerCase() ?? ''
+  const matchesText = searchMatcher(search.q ?? '')
   const infoById = new Map(properties.map((info) => [info.id, info]))
   const byProperty = rowsByProperty(rows)
 
@@ -110,7 +111,7 @@ export function buildAllPropertiesOverview(
     const info = infoById.get(propertyId)
     const name = info?.name ?? UNKNOWN_PROPERTY
     // Naming a Property asks for all of it; any other search narrows its Portals.
-    const nameMatches = needle !== '' && name.toLowerCase().includes(needle)
+    const nameMatches = (search.q ?? '').trim() !== '' && matchesText(name)
     const inner = buildPortalOverview(
       propertyRows,
       {
@@ -193,8 +194,8 @@ const plural = (count: number, one: string, many: string): string =>
   `${count} ${count === 1 ? one : many}`
 
 /**
- * The page's one line under its title: "All 3 properties in Avela Hospitality · 11
- * portals". "All" only where the reader's property access is Organization-wide
+ * The page's meta line under its title, as two facts ("All 3 properties in Avela
+ * Hospitality", "11 portals"). "All" only where the reader's property access is Organization-wide
  * and every Property has Portals: a Property Manager assigned some Properties
  * lists only those, so for them "all" would be about an Organization they do
  * not see whole.
@@ -208,12 +209,12 @@ export function describeAllProperties(
     organizationWide: boolean
   }>,
   organizationName: string | undefined,
-): string | undefined {
+): readonly string[] | undefined {
   if (counts.portals === 0) return undefined
   const properties = plural(counts.properties, 'property', 'properties')
   const all =
     counts.organizationWide && counts.properties > 1 && counts.properties === counts.known
   const scope = all ? `All ${properties}` : properties
   const where = organizationName ? ` in ${organizationName}` : ''
-  return `${scope}${where} · ${plural(counts.portals, 'portal', 'portals')}`
+  return [`${scope}${where}`, plural(counts.portals, 'portal', 'portals')]
 }

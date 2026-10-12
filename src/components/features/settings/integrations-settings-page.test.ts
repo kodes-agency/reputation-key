@@ -34,10 +34,10 @@ function connection(status: GoogleConnectionDto['status']): GoogleConnectionDto 
   }
 }
 
-const renderPage = (status: GoogleConnectionDto['status']) =>
+const renderPageWith = (connections: readonly GoogleConnectionDto[]) =>
   renderToStaticMarkup(
     createElement(IntegrationsSettingsPage, {
-      connections: [connection(status)],
+      connections,
       connectGoogle: action<AuthorizeInput, { url: string }>({
         url: 'https://accounts.google.test/oauth',
       }),
@@ -46,6 +46,9 @@ const renderPage = (status: GoogleConnectionDto['status']) =>
       }),
     }),
   )
+
+const renderPage = (status: GoogleConnectionDto['status']) =>
+  renderPageWith([connection(status)])
 
 describe('IntegrationsSettingsPage Google reauthorization', () => {
   it('gently offers reauthorization when the connection needs fresh permission', () => {
@@ -58,5 +61,38 @@ describe('IntegrationsSettingsPage Google reauthorization', () => {
 
   it('does not offer reauthorization for an active connection', () => {
     expect(renderPage('active')).not.toContain('Reauthorize')
+  })
+})
+
+// One button starts every Google authorization (UI consistency scan: FORM-13, ACT-09):
+// the same wording and glyph where there is no account and where there is one already.
+describe('IntegrationsSettingsPage Google connect', () => {
+  it('offers "Connect Google" when no account is connected', () => {
+    const html = renderPageWith([])
+
+    expect(html).toContain('>Connect Google<')
+    expect(html).not.toContain('Connect another account')
+  })
+
+  it('offers "Connect another account" beside an account that is connected', () => {
+    const html = renderPage('active')
+
+    expect(html).toContain('>Connect another account<')
+    expect(html).not.toContain('>Connect Google<')
+  })
+
+  it('does not rename the button while it connects, and has no second wording', () => {
+    for (const html of [renderPageWith([]), renderPage('active')]) {
+      expect(html).not.toContain('Connecting…')
+      expect(html).not.toContain('Connect Google Account')
+    }
+  })
+
+  it('draws the reauthorization as the same button, not a bespoke one', () => {
+    const html = renderPage('reauth_required')
+
+    expect(html).toMatch(
+      /<button[^>]*data-variant="outline"[^>]*>(?:(?!<\/button>).)*Reauthorize/u,
+    )
   })
 })

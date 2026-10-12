@@ -1,11 +1,13 @@
 // Identity context — finalize user avatar upload use case.
-// Confirms the S3 upload and returns the URL. Does NOT persist to any entity
+// Confirms the upload landed and returns the address the avatar is shown at (a
+// path on the app, see identity-assets.ts). Does NOT persist to any entity
 // (the caller persists via authClient.updateUser on the client side).
 
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
+import { identityAssetPath, isIdentityAssetKey } from '../identity-assets'
 
 export type FinalizeAvatarUploadInput = Readonly<{
   key: string
@@ -30,8 +32,12 @@ export const finalizeAvatarUpload =
       throw identityError('forbidden', 'Upload key is not scoped to this user')
     }
 
-    const avatarUrl = await deps.storage.confirmUpload(input.key)
-    return { avatarUrl }
+    if (!isIdentityAssetKey(input.key)) {
+      throw identityError('validation_error', 'Upload key is not an avatar key')
+    }
+
+    await deps.storage.confirmUpload(input.key)
+    return { avatarUrl: identityAssetPath(input.key) }
   }
 
 export type FinalizeAvatarUpload = ReturnType<typeof finalizeAvatarUpload>

@@ -1,8 +1,6 @@
 import { useForm } from '@tanstack/react-form'
-import { Link } from '@tanstack/react-router'
-import { Button } from '#/components/ui/button'
 import { FieldGroup } from '#/components/ui/field'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FormActions } from '#/components/forms/form-actions'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
@@ -10,6 +8,7 @@ import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import {
   Card,
   CardContent,
+  CardFooter,
   CardHeader,
   CardTitle,
   CardDescription,
@@ -44,15 +43,14 @@ export function SecuritySettingsForm({ changePassword }: Props) {
   return (
     <div className="space-y-6">
       <form method="post" onSubmit={submitHandler(form)} className="space-y-6">
-        <FormErrorBanner error={changePassword.error} />
         <Card>
           <CardHeader>
-            <CardTitle>Change password</CardTitle>
+            <CardTitle as="h2">Change password</CardTitle>
             <CardDescription>
               Update your password to keep your account secure.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-6">
             <FieldGroup>
               <form.Field name="currentPassword">
                 {(field: BaseFieldApi) => (
@@ -89,14 +87,13 @@ export function SecuritySettingsForm({ changePassword }: Props) {
               </form.Field>
             </FieldGroup>
           </CardContent>
-          <div className="px-6 pb-2 flex gap-2">
-            <Button type="button" variant="outline" asChild>
-              <Link to="/settings/profile">Cancel</Link>
-            </Button>
-            <SubmitButton mutation={changePassword} form={form}>
-              Update password
-            </SubmitButton>
-          </div>
+          <CardFooter>
+            <FormActions form={form} error={changePassword.error}>
+              <SubmitButton mutation={changePassword} form={form}>
+                Update password
+              </SubmitButton>
+            </FormActions>
+          </CardFooter>
         </Card>
       </form>
     </div>

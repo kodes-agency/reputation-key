@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { PropertyGoogleReviewDestinationPublicApi } from '#/contexts/property/application/public-api'
 import { portalGroupId, propertyId, type PropertyId } from '#/shared/domain/ids'
 import { isPortalError } from '../../domain/errors'
 import {
@@ -15,8 +16,28 @@ const accessible = (ids: readonly PropertyId[]): StaffPublicApi => ({
   getAssignedPortals: async () => [],
 })
 
+const verifiedDestination = {
+  state: 'verified',
+  uri: 'https://search.google.com/local/writereview?placeid=review-test',
+  retrievedAt: now,
+  sourceEpoch: 1,
+  profileVersion: 1,
+} as const
+
+function googleDestinationApi(
+  destination: Awaited<
+    ReturnType<PropertyGoogleReviewDestinationPublicApi['getGoogleReviewDestination']>
+  >,
+): PropertyGoogleReviewDestinationPublicApi {
+  return { getGoogleReviewDestination: vi.fn(async () => destination) }
+}
+
 function setup(
-  options: { published?: boolean; accessibleIds?: readonly PropertyId[] } = {},
+  options: {
+    published?: boolean
+    accessibleIds?: readonly PropertyId[]
+    googleDestinationApi?: PropertyGoogleReviewDestinationPublicApi
+  } = {},
 ) {
   const portalRepo = createInMemoryPortalRepo()
   const portal = buildTestPortal({
@@ -43,6 +64,8 @@ function setup(
         name: 'Front desk',
       })),
     },
+    propertyGoogleReviewDestinationApi:
+      options.googleDestinationApi ?? googleDestinationApi(verifiedDestination),
     factStore,
     clock: () => now,
   })
@@ -66,8 +89,48 @@ describe('completeContentReview', () => {
         revision: 1,
         supersedes: null,
         occurredAt: now,
+        googleReviewDestinationVerified: true,
       },
     ])
+  })
+
+  it.each([
+    ['the Property has no Google review destination', null],
+    [
+      'the destination is waiting for a refresh',
+      { ...verifiedDestination, state: 'awaiting_refresh' },
+    ],
+  ] as const)(
+    'records the Google destination as not verified when %s',
+    async (_case, destination) => {
+      const { useCase, commands, portal } = setup({
+        googleDestinationApi: googleDestinationApi(destination),
+      })
+
+      await useCase(
+        { portalId: portal.id, reviewId: 'review-1', revision: 1 },
+        buildTestAuthContext({ role: 'PropertyManager' }),
+      )
+
+      expect(commands[0]).toMatchObject({ googleReviewDestinationVerified: false })
+    },
+  )
+
+  it('records nothing when the Google destination cannot be read', async () => {
+    const lookupFailure = new Error('property destination lookup unavailable')
+    const { useCase, portal, factStore } = setup({
+      googleDestinationApi: {
+        getGoogleReviewDestination: vi.fn().mockRejectedValue(lookupFailure),
+      },
+    })
+
+    await expect(
+      useCase(
+        { portalId: portal.id, reviewId: 'review-1', revision: 1 },
+        buildTestAuthContext({ role: 'PropertyManager' }),
+      ),
+    ).rejects.toBe(lookupFailure)
+    expect(factStore.recordCompletedReview).not.toHaveBeenCalled()
   })
 
   it('passes complete correction lineage without creating an unrelated review', async () => {

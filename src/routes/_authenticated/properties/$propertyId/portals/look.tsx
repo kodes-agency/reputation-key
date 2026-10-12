@@ -1,7 +1,8 @@
 // The Property look: the photo, colours, name and logo, and default languages
 // shared by every portal of a Property (round-4 admin board 9). The route owns
 // the reads and the two autosaved writes; the page draws them.
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -11,6 +12,7 @@ import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
+import { savePropertyPublicDisplayName } from '#/contexts/portal/server/portals'
 import { getPortalReview } from '#/contexts/portal/server/portal-review'
 import { publishPortalsChanges } from '#/contexts/portal/server/portal-publish-changes'
 import {
@@ -21,10 +23,6 @@ import {
 } from '#/contexts/portal/server/property-look'
 import { PropertyLookPage } from '#/components/features/portal/property-look/property-look-page'
 import { savedDescriptions } from '#/components/features/portal/property-look/property-photo-rules'
-import {
-  PortalListError,
-  PortalListLoading,
-} from '#/components/features/portal/portal-route-fallbacks'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { propertyPortalExperienceQuery } from '../-settings-queries'
 import { portalOverviewQuery } from './-portal-overview-data'
@@ -32,6 +30,7 @@ import { portalOverviewQuery } from './-portal-overview-data'
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/look',
 )({
+  staticData: { page: { title: 'Property look', tier: 'dashboard', under: 'portals' } },
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
       data: {
@@ -41,7 +40,7 @@ export const Route = createFileRoute(
       },
     })
     const { role } = context as AuthRouteContext
-    if (!can(role, 'portal.read')) throw redirect({ to: '/properties' })
+    if (!can(role, 'portal.read')) throw roleUnavailable('Property look', 'properties')
   },
   staleTime: 30_000,
   loader: async ({ params, context }) => {
@@ -53,8 +52,6 @@ export const Route = createFileRoute(
       context.queryClient.ensureQueryData(propertyQuery(params.propertyId)),
     ])
   },
-  pendingComponent: PortalListLoading,
-  errorComponent: PortalListError,
   component: PropertyLookRoute,
 })
 
@@ -98,6 +95,11 @@ function PropertyLookRoute() {
     onSuccess: refreshPublished,
     onError: () => void refreshPublished(),
   })
+  // The name alone, for a property that has none yet: the page opens once it is saved.
+  const saveDisplayName = useActionMutation(savePropertyPublicDisplayName, {
+    successMessage: 'Public display name saved',
+    invalidateKeys: [portalKeys.propertyExperience(propertyId)],
+  })
   const saveLocales = useActionMutation(savePropertyDefaultGuestLocales, {
     // New portals read them in the New portal dialog.
     invalidateKeys: [portalKeys.creationOptions(propertyId)],
@@ -118,6 +120,7 @@ function PropertyLookRoute() {
       getPortalReview={getPortalReview}
       publishPortals={publishPortals}
       canPublish={canDo('portal.update') && has('portal.write')}
+      saveDisplayName={saveDisplayName}
       saveLook={saveLook}
       saveLocales={saveLocales}
       saveHero={saveHero}

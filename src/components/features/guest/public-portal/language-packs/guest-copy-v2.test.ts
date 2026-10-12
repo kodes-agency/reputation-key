@@ -169,8 +169,6 @@ describe('the copy is industry-neutral', () => {
   it('uses "visit" for the counting notice', () => {
     expect(enV2.copy.visitNotice).toMatch(/\bvisits\b/)
     expect(bgV2.copy.visitNotice).toMatch(/посещения/)
-    expect(enV2.copy.visitNoticeDetail).toMatch(/\bvisit\b/)
-    expect(bgV2.copy.visitNoticeDetail).toMatch(/посещение/)
     expect(esV2.copy.visitNotice).toMatch(/\bvisitas\b/)
     expect(itV2.copy.visitNotice).toMatch(/\bvisite\b/)
     expect(frV2.copy.visitNotice).toMatch(/\bvisites\b/)
@@ -178,40 +176,44 @@ describe('the copy is industry-neutral', () => {
   })
 })
 
-// ADR 0044: whatever notice a guest reads must disclose the essential session
-// cookie and the network marker. `visitNoticeDetail` is the full disclosure;
-// slice 17 renders it until the owner approves shorter copy (plan section 5,
-// action 2).
-describe('the full visit disclosure (ADR 0044)', () => {
-  it('names the essential session cookie and the network marker in English', () => {
-    expect(enV2.copy.visitNoticeDetail).toMatch(/\bcookie\b/i)
-    expect(enV2.copy.visitNoticeDetail).toMatch(/\bmarker\b/i)
+// ADR 0044: whatever notice a guest reads must disclose the essential cookie
+// and the privacy-protected marker. Owner decision (2026-10-01): the footer
+// shows ONE line, `visitNotice`, in every language, and there is no longer
+// text behind it, so that line carries the whole disclosure.
+describe('the visit notice (ADR 0044)', () => {
+  it('is the owner-approved one line in English', () => {
+    expect(enV2.copy.visitNotice).toBe(
+      '{name} counts visits with one essential cookie and a privacy-protected marker. No ads or third-party trackers.',
+    )
   })
 
-  it('names the essential session cookie and the network marker in Bulgarian', () => {
-    expect(bgV2.copy.visitNoticeDetail).toMatch(/бисквитка/i)
-    expect(bgV2.copy.visitNoticeDetail).toMatch(/маркер/i)
-  })
-
-  it('also promises no ads or third-party trackers', () => {
-    expect(enV2.copy.visitNoticeDetail).toMatch(/third.party trackers/i)
-    expect(bgV2.copy.visitNoticeDetail).toMatch(/трети страни/)
+  it('has no longer disclosure behind it', () => {
+    for (const pack of [enV2, bgV2, esV2, itV2, frV2, deV2]) {
+      expect(Object.keys(pack.copy)).not.toContain('visitNoticeDetail')
+    }
   })
 
   it.each([
     ['es', esV2, /\bcookie\b/i, /\bmarcador\b/i, /\bterceros\b/],
     ['it', itV2, /\bcookie\b/i, /\bmarcatore\b/i, /\bterze parti\b/],
     ['fr', frV2, /\bcookie\b/i, /\bmarqueur\b/i, /\btiers\b/],
-    ['de', deV2, /\bCookie\b/, /\bMarker\b|marker\b/, /\bDritten\b/],
+    ['de', deV2, /\bCookie\b/, /\bMarker\b/, /\bDritten\b/],
+    ['bg', bgV2, /бисквитка/i, /маркер/i, /трети страни/],
   ] as const)(
-    'names the essential session cookie, the network marker and the absence of third parties in %s',
+    'names the essential cookie, the marker and the absence of third parties in %s',
     (_locale, pack, cookie, marker, thirdParties) => {
-      expect(pack.copy.visitNoticeDetail).toMatch(cookie)
-      expect(pack.copy.visitNoticeDetail).toMatch(marker)
-      expect(pack.copy.visitNoticeDetail).toMatch(thirdParties)
+      expect(pack.copy.visitNotice).toMatch(cookie)
+      expect(pack.copy.visitNotice).toMatch(marker)
       expect(pack.copy.visitNotice).toMatch(thirdParties)
     },
   )
+
+  it('starts with the property name and is a single line of two sentences in every language', () => {
+    for (const pack of [enV2, bgV2, esV2, itV2, frV2, deV2]) {
+      expect(pack.copy.visitNotice.startsWith('{name} ')).toBe(true)
+      expect(pack.copy.visitNotice).not.toMatch(/\n/u)
+    }
+  })
 })
 
 describe('the language sheet and link labels', () => {

@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
-  portalLinkCategories,
+  portalApprovedDestinations,
   portalLinks,
   portals,
 } from '#/shared/db/schema/portal.schema'
@@ -14,6 +14,10 @@ import {
 } from '../domain/events'
 import { portalError } from '../domain/errors'
 import { validateExternalLink } from '../domain/safe-link'
+import {
+  evaluatePortalConfigurationCompleteness,
+  type PortalConfigurationCompleteness,
+} from '../domain/portal-configuration-completeness'
 import type {
   PortalWorkflowFactCommand,
   PortalWorkflowFactEvent,
@@ -21,93 +25,28 @@ import type {
   PortalWorkflowFactStore,
 } from '../application/use-cases/complete-content-review'
 import { nextLockedPortalRevision } from './portal-command-revision'
-
-const REQUIRED_CONFIGURATION_FIELDS = 5
-
-type PortalWorkflowPortalRow = Readonly<{
-  id: string
-  organizationId: string
-  propertyId: string
-  name: string
-  description: string | null
-  theme: unknown
-  publicationState: string
-  updatedAt: Date
-}>
-
-type PortalWorkflowContentRow = Readonly<{
-  categoryCount: number | string
-  urls: unknown
-}>
-
-type PortalWorkflowSnapshotRow = PortalWorkflowPortalRow & PortalWorkflowContentRow
+import { readPortalWorkingCopy } from './portal-working-copy.reader'
 
 type PortalWorkflowSnapshot = Readonly<{
-  completedFields: number
-  requiredFields: number
+  completeness: PortalConfigurationCompleteness
   approvedDestinations: number
   configuredDestinations: number
-  aggregateRevision: Date
 }>
 
-function parseTimestamp(value: unknown): Date | null {
-  const parsed =
-    value instanceof Date ? value : typeof value === 'string' ? new Date(value) : null
-  return parsed && !Number.isNaN(parsed.getTime()) ? parsed : null
-}
+/** One link: its raw address (a link from before Property destinations) or its destination's approval. */
+type LinkDestinationRow = Readonly<{
+  url: string | null
+  destinationId: string | null
+  approvalState: string | null
+}>
 
-function parsePortalRow(value: unknown): PortalWorkflowPortalRow | null {
+function parsePublicationState(value: unknown): string | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return null
   }
-  if (
-    !('id' in value) ||
-    typeof value.id !== 'string' ||
-    !('organizationId' in value) ||
-    typeof value.organizationId !== 'string' ||
-    !('propertyId' in value) ||
-    typeof value.propertyId !== 'string' ||
-    !('name' in value) ||
-    typeof value.name !== 'string' ||
-    !('description' in value) ||
-    (value.description !== null && typeof value.description !== 'string') ||
-    !('theme' in value) ||
-    !('publicationState' in value) ||
-    typeof value.publicationState !== 'string' ||
-    !('updatedAt' in value)
-  ) {
-    return null
-  }
-  const updatedAt = parseTimestamp(value.updatedAt)
-  if (!updatedAt) return null
-  return {
-    id: value.id,
-    organizationId: value.organizationId,
-    propertyId: value.propertyId,
-    name: value.name,
-    description: value.description,
-    theme: value.theme,
-    publicationState: value.publicationState,
-    updatedAt,
-  }
-}
-
-function parseContentRow(value: unknown): PortalWorkflowContentRow | null {
-  if (
-    typeof value !== 'object' ||
-    value === null ||
-    Array.isArray(value) ||
-    !('categoryCount' in value) ||
-    (typeof value.categoryCount !== 'number' &&
-      typeof value.categoryCount !== 'string') ||
-    !('urls' in value)
-  ) {
-    return null
-  }
-  return {
-    categoryCount: value.categoryCount,
-    urls: value.urls,
-  }
+  return 'publicationState' in value && typeof value.publicationState === 'string'
+    ? value.publicationState
+    : null
 }
 
 const WORKFLOW_FACT_TYPES = [
@@ -116,50 +55,41 @@ const WORKFLOW_FACT_TYPES = [
   'portal.approved_destination_ratio.recorded',
 ] as const satisfies readonly PortalWorkflowFactEvent['_tag'][]
 
-function calculateSnapshot(row: PortalWorkflowSnapshotRow): PortalWorkflowSnapshot {
-  if (row.publicationState !== 'published') {
-    throw portalError(
-      'invalid_publication_transition',
-      'content review can only be completed for published Portal content',
+/**
+ * A link's destination counts as approved when its Property destination is
+ * approved; a raw address from before Property destinations keeps the rule it
+ * was always counted by, the safe-link allowlist (ADR 0044).
+ */
+function isApprovedDestination(link: LinkDestinationRow): boolean {
+  if (link.destinationId !== null) return link.approvalState === 'approved'
+  return link.url !== null && validateExternalLink(link.url).valid
+}
+
+async function readLinkDestinations(
+  tx: Tx,
+  command: PortalWorkflowFactCommand,
+): Promise<readonly LinkDestinationRow[]> {
+  return tx
+    .select({
+      url: portalLinks.url,
+      destinationId: portalLinks.destinationId,
+      approvalState: portalApprovedDestinations.approvalState,
+    })
+    .from(portalLinks)
+    .leftJoin(
+      portalApprovedDestinations,
+      and(
+        eq(portalApprovedDestinations.organizationId, portalLinks.organizationId),
+        eq(portalApprovedDestinations.propertyId, portalLinks.propertyId),
+        eq(portalApprovedDestinations.id, portalLinks.destinationId),
+      ),
     )
-  }
-
-  const theme =
-    typeof row.theme === 'object' && row.theme !== null && !Array.isArray(row.theme)
-      ? row.theme
-      : {}
-  const primaryColor =
-    'primaryColor' in theme && typeof theme.primaryColor === 'string'
-      ? theme.primaryColor.trim()
-      : ''
-  if (!Array.isArray(row.urls)) {
-    throw portalError('invalid_url', 'Portal configuration snapshot is malformed')
-  }
-  const urls = row.urls.filter((url): url is string => typeof url === 'string')
-  const categoryCount = Number(row.categoryCount)
-  if (
-    !Number.isInteger(categoryCount) ||
-    categoryCount < 0 ||
-    urls.length !== row.urls.length
-  ) {
-    throw portalError('invalid_url', 'Portal configuration snapshot is malformed')
-  }
-
-  const completedFields = [
-    row.name.trim().length > 0,
-    (row.description?.trim().length ?? 0) > 0,
-    primaryColor.length > 0,
-    categoryCount > 0,
-    urls.length > 0,
-  ].filter(Boolean).length
-
-  return {
-    completedFields,
-    requiredFields: REQUIRED_CONFIGURATION_FIELDS,
-    approvedDestinations: urls.filter((url) => validateExternalLink(url).valid).length,
-    configuredDestinations: urls.length,
-    aggregateRevision: row.updatedAt,
-  }
+    .where(
+      and(
+        eq(portalLinks.organizationId, command.organizationId),
+        eq(portalLinks.portalId, command.portalId),
+      ),
+    )
 }
 
 async function loadSnapshot(
@@ -169,18 +99,14 @@ async function loadSnapshot(
   // Lock the aggregate in its own statement. Under READ COMMITTED, a single
   // SELECT that both waits on FOR UPDATE and runs child subqueries can retain
   // the statement-start snapshot for those subqueries after PostgreSQL's EPQ
-  // recheck. The second statement below starts only after the Portal lock is
-  // held, so it observes every child write whose Portal revision we inherited.
-  const portalResult = await tx.execute(sql`
-    SELECT
-      ${portals.id} AS "id",
-      ${portals.organizationId} AS "organizationId",
-      ${portals.propertyId} AS "propertyId",
-      ${portals.name} AS "name",
-      ${portals.description} AS "description",
-      ${portals.theme} AS "theme",
-      ${portals.publicationState} AS "publicationState",
-      ${portals.updatedAt} AS "updatedAt"
+  // recheck. The reads below start only after the Portal lock is held, so they
+  // observe every Portal child write whose revision we inherited. The
+  // Property-wide rows (look, wording, time zone) are not under this lock: a
+  // Property edit committed meanwhile is counted now or by the next review.
+  // Fencing them would mean the Property publication lock, taken before this
+  // row (ADR 0060).
+  const locked = await tx.execute(sql`
+    SELECT ${portals.publicationState} AS "publicationState"
     FROM ${portals}
     WHERE ${portals.organizationId} = ${command.organizationId}
       AND ${portals.propertyId} = ${command.propertyId}
@@ -188,37 +114,41 @@ async function loadSnapshot(
       AND ${portals.deletedAt} IS NULL
     FOR UPDATE
   `)
-  const portal = parsePortalRow(portalResult.rows[0])
-  if (!portal) {
+  const publicationState = parsePublicationState(locked.rows[0])
+  if (publicationState === null) {
     throw portalError(
       'portal_not_found',
       'portal not found in the requested tenant scope',
     )
   }
-
-  const contentResult = await tx.execute(sql`
-    SELECT
-      (
-        SELECT COUNT(*)::int
-        FROM ${portalLinkCategories}
-        WHERE ${portalLinkCategories.organizationId} = ${command.organizationId}
-          AND ${portalLinkCategories.portalId} = ${command.portalId}
-      ) AS "categoryCount",
-      COALESCE(
-        (
-          SELECT jsonb_agg(${portalLinks.url} ORDER BY ${portalLinks.id})
-          FROM ${portalLinks}
-          WHERE ${portalLinks.organizationId} = ${command.organizationId}
-            AND ${portalLinks.portalId} = ${command.portalId}
-        ),
-        '[]'::jsonb
-      ) AS "urls"
-  `)
-  const content = parseContentRow(contentResult.rows[0])
-  if (!content) {
-    throw portalError('invalid_url', 'Portal configuration snapshot is malformed')
+  if (publicationState !== 'published') {
+    throw portalError(
+      'invalid_publication_transition',
+      'content review can only be completed for published Portal content',
+    )
   }
-  return calculateSnapshot({ ...portal, ...content })
+
+  // Completeness is counted on what Publish reads, through the same reader.
+  const source = await readPortalWorkingCopy(tx, {
+    organizationId: command.organizationId,
+    propertyId: command.propertyId,
+    portalId: command.portalId,
+  })
+  if (!source) {
+    throw portalError(
+      'publication_snapshot_unavailable',
+      'Portal working copy is unavailable',
+    )
+  }
+  const links = await readLinkDestinations(tx, command)
+  return {
+    completeness: evaluatePortalConfigurationCompleteness({
+      source,
+      googleReviewDestinationVerified: command.googleReviewDestinationVerified,
+    }),
+    approvedDestinations: links.filter(isApprovedDestination).length,
+    configuredDestinations: links.length,
+  }
 }
 
 function buildEvents(
@@ -244,8 +174,9 @@ function buildEvents(
     portalConfigurationCompletenessRecorded({
       ...common,
       supersedesSourceEventId: command.supersedes?.configurationSourceEventId ?? null,
-      completedFields: snapshot.completedFields,
-      requiredFields: snapshot.requiredFields,
+      completedFields: snapshot.completeness.completedFields,
+      requiredFields: snapshot.completeness.requiredFields,
+      fieldSet: snapshot.completeness.fieldSet,
     }),
     portalApprovedDestinationRatioRecorded({
       ...common,

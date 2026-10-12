@@ -18,10 +18,13 @@ import type { PortalHistoryRepository } from './application/ports/portal-history
 import type { PortalHealthRepository } from './application/ports/portal-health.repository'
 import type { PortalActorDirectory } from './application/ports/portal-actor-directory.port'
 import type { PortalTokenRepository } from './application/ports/portal-token.repository'
+import type { PortalApprovedDestinationRepository } from './application/ports/portal-approved-destination.repository'
+import type { PortalMediaAssetRepository } from './application/ports/portal-media-asset.repository'
 import { getPortalPublicationHistory } from './application/use-cases/get-portal-publication-history'
 import { getPortalHistory } from './application/use-cases/get-portal-history'
 import { getPortalVersions } from './application/use-cases/get-portal-versions'
 import { getPortalVersion } from './application/use-cases/get-portal-version'
+import { getPortalVersionPreview } from './application/use-cases/get-portal-version-preview'
 import { getPortalReview } from './application/use-cases/get-portal-review'
 
 export type PortalHistoryReadDeps = Readonly<{
@@ -33,6 +36,8 @@ export type PortalHistoryReadDeps = Readonly<{
   healthRepo: PortalHealthRepository
   actorDirectory: PortalActorDirectory
   portalTokenRepo: PortalTokenRepository
+  destinationRepo: Pick<PortalApprovedDestinationRepository, 'listApprovedUris'>
+  mediaRepo: Pick<PortalMediaAssetRepository, 'listServableIds'>
   propertyApi: PropertyGoogleReviewDestinationPublicApi & PropertyLifecyclePublicApi
   staffPublicApi: StaffPublicApi
   clock: () => Date
@@ -67,6 +72,14 @@ export function buildPortalHistoryReads(deps: PortalHistoryReadDeps) {
       staffPublicApi,
       publicationRepo,
       actorDirectory,
+    }),
+    getPortalVersionPreview: getPortalVersionPreview({
+      portalRepo,
+      staffPublicApi,
+      publicationRepo,
+      destinationRepo: deps.destinationRepo,
+      mediaRepo: deps.mediaRepo,
+      clock: deps.clock,
     }),
     getPortalReview: getPortalReview({
       portalRepo,

@@ -66,6 +66,12 @@ describe('stateCaption', () => {
       'Live · After 5★ · Bulgarian',
     )
   })
+
+  it('names the version when a published version is drawn', () => {
+    expect(stateCaption('version', 'Arrival', 'English', 4)).toBe(
+      'Version 4 · Arrival · English',
+    )
+  })
 })
 
 describe('tryAsGuestReducer', () => {

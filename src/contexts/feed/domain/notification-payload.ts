@@ -18,7 +18,9 @@
 //             ended (closed enum), an internal moderation reason
 //             (staff-authored; historical rows only), and whether the notice
 //             is a Low ratings one for its reader (`lowRating`: the outcome of
-//             the reader's own threshold, never the stars).
+//             the reader's own threshold, never the stars), and the one marker
+//             a Goal notice may carry about its month (`goalMarker`: a closed
+//             enum, never a date, a target or a person).
 //   FORBIDDEN Google/provider review ratings and content, reply text,
 //             guest/reviewer name, media URLs, sentiment or any derived score,
 //             and any other employee's NAME or email.
@@ -36,6 +38,9 @@ export type NotificationGuestRating = 1 | 2 | 3 | 4 | 5
  * r.8 excludes other employees' data.
  */
 export type NotificationActorRole = 'account_admin' | 'property_manager' | 'staff'
+
+/** A role a member can hold and a notice names; `staff` is an actor role only. */
+export type NotificationMemberRole = 'account_admin' | 'property_manager'
 
 export type NotificationPlatform = 'google' | 'portal'
 
@@ -87,6 +92,12 @@ export type NotificationPayload = Readonly<{
    * removed them, or the row predates the fact saying so.
    */
   leftOrganization?: boolean
+  /**
+   * The role the member now holds (account.organization_role_changed only):
+   * a closed enum, so the notice can say "You are now a Property Manager"
+   * without a person's name. Absent for a role the copy has no phrase for.
+   */
+  memberRole?: NotificationMemberRole
   /**
    * This notice reached its reader because the review or feedback is at or
    * below their own Low-ratings threshold (ADR 0046, amended 2026-09-30).
@@ -155,6 +166,11 @@ export type NotificationPayload = Readonly<{
   /** Which way the month's result stands now. */
   goalOutcome?: NotificationGoalOutcome
   /**
+   * The one thing a reader of "goal met" should know about the month's target:
+   * it was not in place for the whole month. Absent for a goal that was.
+   */
+  goalMarker?: NotificationGoalMarker
+  /**
    * How a Property's first Google review import ended
    * (`property.review_import_finished`). Absent degrades to the neutral copy.
    */
@@ -183,6 +199,13 @@ export type NotificationGoalSubjectKind = 'property' | 'portal_group' | 'portal'
  * quarantined). Never the numbers.
  */
 export type NotificationGoalOutcome = 'met' | 'not_met' | 'unavailable'
+
+/**
+ * How a month's target came about when it did not stand for the whole month:
+ * the goal was set after the month began, or its target was changed while the
+ * month ran. One marker per notice; never when, by whom or to what.
+ */
+export type NotificationGoalMarker = 'set_in_month' | 'target_changed'
 
 /** A Portal health state that asks for attention; `healthy` never notifies. */
 export type NotificationPortalHealthStatus = 'degraded' | 'unavailable'
@@ -226,6 +249,8 @@ const ACTOR_ROLES: Record<string, true> = {
   property_manager: true,
   staff: true,
 }
+
+const MEMBER_ROLES: Record<string, true> = { account_admin: true, property_manager: true }
 
 const PLATFORMS: Record<string, true> = { google: true, portal: true }
 
@@ -273,6 +298,11 @@ const GOAL_OUTCOMES: Record<string, true> = {
   met: true,
   not_met: true,
   unavailable: true,
+}
+
+const GOAL_MARKERS: Record<string, true> = {
+  set_in_month: true,
+  target_changed: true,
 }
 
 const REOPEN_REASONS: Record<string, true> = {
@@ -376,6 +406,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   set('moderationReason', takeText(raw.moderationReason, MAX_REASON_LENGTH))
   set('hasModerationReason', takeFlag(raw.hasModerationReason))
   set('leftOrganization', takeFlag(raw.leftOrganization))
+  set('memberRole', takeMember<NotificationMemberRole>(raw.memberRole, MEMBER_ROLES))
   set('lowRating', raw.lowRating === true ? true : undefined)
   set(
     'publishOutcome',
@@ -434,6 +465,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
     takeMember<NotificationGoalSubjectKind>(raw.goalSubjectKind, GOAL_SUBJECT_KINDS),
   )
   set('goalOutcome', takeMember<NotificationGoalOutcome>(raw.goalOutcome, GOAL_OUTCOMES))
+  set('goalMarker', takeMember<NotificationGoalMarker>(raw.goalMarker, GOAL_MARKERS))
   const importOutcome = takeMember<NotificationImportOutcome>(
     raw.importOutcome,
     IMPORT_OUTCOMES,

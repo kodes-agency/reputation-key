@@ -1,7 +1,13 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { Metric, MetricStrip, MetricValue } from './metric-strip'
+import {
+  Metric,
+  METRIC_LABEL_CLASS,
+  METRIC_TILE_FIGURE_CLASS,
+  MetricStrip,
+  MetricValue,
+} from './metric-strip'
 
 describe('MetricStrip', () => {
   it('is a labelled description list whose cells hold a term and its figure', () => {
@@ -144,5 +150,76 @@ describe('MetricStrip', () => {
     expect(skeleton('boxed')).toContain('h-11')
     expect(skeleton('ruled')).toContain('h-12')
     expect(skeleton('ruled')).not.toContain('h-11')
+  })
+})
+
+describe('MetricStrip tiles and embedded looks (COLL-04)', () => {
+  const strip = (props: Record<string, unknown>) =>
+    renderToStaticMarkup(
+      createElement(
+        MetricStrip,
+        { 'aria-label': 'A', ...props } as never,
+        createElement(
+          Metric,
+          { label: 'L' },
+          createElement(MetricValue, { value: '9', detail: 'd' }),
+        ),
+      ),
+    )
+
+  it('draws separate bordered tiles that wrap, in two columns narrow and four from 2xl', () => {
+    const html = strip({ variant: 'tiles' })
+
+    expect(html).toContain('data-variant="tiles"')
+    expect(html).toContain('gap-3')
+    expect(html).toContain('@2xl:grid-cols-4')
+    expect(html).toContain('rounded-lg border p-4')
+    // Tiles wrap: they are never one row, and a lone last tile does not span.
+    expect(html).not.toContain('@3xl:flex')
+    expect(html).not.toContain('col-span-2')
+  })
+
+  it('has three columns for a longer set', () => {
+    expect(strip({ variant: 'tiles', columns: 3 })).toContain('@2xl:grid-cols-3')
+    expect(strip({ variant: 'tiles', columns: 3 })).not.toContain('@2xl:grid-cols-4')
+  })
+
+  it('sizes a tile figure 24/32 semibold, between the boxed and the ruled figure', () => {
+    const html = strip({ variant: 'tiles' })
+
+    expect(html).toContain('text-2xl leading-8 font-semibold')
+    expect(METRIC_TILE_FIGURE_CLASS).toContain('text-2xl')
+    expect(METRIC_TILE_FIGURE_CLASS).toContain('tabular-nums')
+  })
+
+  it('draws a card-embedded strip as the boxed cells with no frame of their own', () => {
+    const html = strip({ variant: 'embedded' })
+
+    expect(html).toContain('gap-px')
+    expect(html).toContain('bg-border')
+    expect(html).not.toContain('rounded-lg')
+    expect(html).not.toMatch(/[\s"]border[\s"]/u)
+    expect(html).toContain('bg-card')
+  })
+
+  it('takes a term that is more than text, such as a glossary entry', () => {
+    const html = renderToStaticMarkup(
+      createElement(
+        MetricStrip,
+        { 'aria-label': 'A' },
+        createElement(
+          Metric,
+          { label: createElement('abbr', { title: 'Reply rate' }, 'RR') },
+          'v',
+        ),
+      ),
+    )
+
+    expect(html).toContain('<abbr title="Reply rate">RR</abbr></dt>')
+  })
+
+  it('shares its label recipe with anything that prints a term over a figure', () => {
+    expect(METRIC_LABEL_CLASS).toBe('text-xs font-medium text-muted-foreground')
+    expect(strip({ variant: 'tiles' })).toContain(METRIC_LABEL_CLASS)
   })
 })

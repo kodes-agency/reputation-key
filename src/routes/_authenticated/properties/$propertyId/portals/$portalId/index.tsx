@@ -6,6 +6,7 @@ import { createFileRoute, notFound } from '@tanstack/react-router'
 import { getPortalHistory } from '#/contexts/portal/server/portals'
 import {
   getPortalVersion,
+  getPortalVersionPreview,
   getPortalVersions,
 } from '#/contexts/portal/server/portal-versions'
 import { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
@@ -20,6 +21,7 @@ const HISTORY_READS = {
   getHistory: getPortalHistory,
   getVersions: getPortalVersions,
   getVersion: getPortalVersion,
+  getVersionPreview: getPortalVersionPreview,
 }
 
 export const Route = createFileRoute(
