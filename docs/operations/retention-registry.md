@@ -142,16 +142,35 @@ This is currently a documented ordering constraint recorded in the registry
 be enforced before the fact purge is ever armed in apply mode.
 
 It is also why the Metric side of the 24 months has no sweep rule. The Guest
-rules of §3 delete Guest rows only; the Metric readings recorded from them are
-separate rows and stay. A reading may be deleted only after its Portal's
+rules of §3 delete Guest rows only. Reporting records a `metric_readings` row
+from every Guest fact, and those rows stay, so the visit or rating is still
+stored after its Guest row has gone:
+
+| Guest fact            | Metric keys recorded from it                                 | Feeds the lifetime aggregate |
+| --------------------- | ------------------------------------------------------------ | ---------------------------- |
+| Visit record          | `portal.scan`                                                | no                           |
+| Counted visit         | `portal.qualified_scan`                                      | yes                          |
+| Rating                | `portal.rating`                                              | yes                          |
+| Rating                | `portal.rating_count`, `portal.rating_average` (Goal copies) | no                           |
+| Private feedback      | `portal.feedback` (a count, never the text)                  | yes                          |
+| Destination selection | `portal.review_link_click`                                   | yes                          |
+
+A reading that feeds the aggregate may be deleted only after its Portal's
 lifetime aggregate has been sealed through that day (`sealThrough` in the
 Reporting lifetime repository): the seal moves the reading's contribution into
 the anonymous baseline, and without it the aggregate would hold more than its
 sources add up to, which is the mismatch the parity check before Organization
-closure refuses. Nothing calls the seal yet. A correction cannot be deleted on
-its own either: removing it would restore the uncorrected value of a reading
-that is still stored, and `metric_corrections.reading_id` is `ON DELETE
-RESTRICT`.
+closure refuses. Nothing calls the seal yet. The three keys that feed no
+aggregate need no seal and have no rule either. A correction cannot be deleted
+on its own: removing it would restore the uncorrected value of a reading that is
+still stored, and `metric_corrections.reading_id` is `ON DELETE RESTRICT`.
+
+Reporting's own metric definitions carry a `retentionClass`: `guest_gateway_24_month`
+for `portal.qualified_scan`, `portal.rating_count` and `portal.rating_average`,
+and `short` for the other four. No code reads the field and `short` names no
+number. The registry therefore holds all seven to the notice's 24 months, as
+`accepted_unexecuted`; whether the four `short` keys should go sooner is an
+owner decision that nothing depends on today.
 
 ---
 
@@ -188,11 +207,18 @@ those reports does not migrate, archive or delete their source rows.
    `docs/operations/backup-and-lifecycle.md` still list `gbp_cache.expired`** as
    a live retention subject. That table row is now stale.
 3. **Three classes the accepted 24 months reach have no executing rule.** The
-   registry carries two as `accepted_unexecuted` and binds corrections to their
+   registry carries them as `accepted_unexecuted` and binds corrections to their
    reading, and `docs/BETA.md` §3 marks all three UNENFORCED:
-   - destination selections (`metric_readings`, `portal.review_link_click`):
-     needs the seal-then-delete sweep of §5, and a decision on which other
-     Guest-derived readings follow the same 24 months;
+   - Reporting's readings of Guest facts (`metric_readings`, the seven keys in
+     the table of §5). Three registry entries name them: visit readings
+     (`portal.scan`, `portal.qualified_scan`), response readings
+     (`portal.rating`, `portal.rating_count`, `portal.rating_average`,
+     `portal.feedback`) and destination selections
+     (`portal.review_link_click`). This is the copy that outlives the Guest
+     rows the sweep now deletes. The four keys that feed the lifetime aggregate
+     need the seal-then-delete sweep of §5. The other three need no seal, but a
+     rule for them must take their corrections with it, and what Goal history
+     reads once a reading is gone has not been examined;
    - corrections and withdrawals (`metric_corrections`): go with their reading,
      so they wait for that sweep;
    - AI derivatives (`ai_review_analyses` and what is built from it): the

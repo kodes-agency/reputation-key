@@ -5,6 +5,7 @@
 // or let reading a row silently extend its content deadline.
 
 import { describe, expect, it } from 'vitest'
+import { METRIC_KEYS } from '#/shared/domain/metric-keys'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 import {
   assertRetentionRegistryApplyAllowed,
@@ -27,6 +28,23 @@ const ruleById = (id: string): RetentionRegistryRule => {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Metric keys no Guest fact produces: the imported Google review aggregate and
+ * the three Portal content-review measures. Every other key is the reading
+ * Reporting records from a Guest visit, rating, private feedback or destination
+ * selection (`record-portal-metric.ts`), so it is a second copy of that fact.
+ */
+const METRIC_KEYS_NOT_FROM_GUEST_FACTS: ReadonlyArray<string> = [
+  'property.review',
+  'portal.content_review.completed',
+  'portal.configuration_completeness',
+  'portal.approved_destination_ratio',
+]
+
+/** The metric keys a registry predicate names, e.g. `metric_key IN ('a', 'b')`. */
+const metricKeysNamedBy = (predicate: string | null): ReadonlyArray<string> =>
+  (predicate?.match(/'[^']+'/g) ?? []).map((quoted) => quoted.slice(1, -1))
 
 describe('retention registry — matrix completeness', () => {
   it('gives every rule an owner, a source, an eligibility query, evidence and a restore implication', () => {
@@ -168,6 +186,16 @@ describe('retention registry — §3.3.10 default horizons', () => {
 
     expect(unexecuted).toEqual([
       {
+        id: 'metric.deidentified_visit_reading_facts',
+        source: 'metric_readings',
+        horizon: { kind: 'accepted_unexecuted', months: 24 },
+      },
+      {
+        id: 'metric.deidentified_response_reading_facts',
+        source: 'metric_readings',
+        horizon: { kind: 'accepted_unexecuted', months: 24 },
+      },
+      {
         id: 'metric.deidentified_destination_click_facts',
         source: 'metric_readings',
         horizon: { kind: 'accepted_unexecuted', months: 24 },
@@ -178,6 +206,57 @@ describe('retention registry — §3.3.10 default horizons', () => {
         horizon: { kind: 'accepted_unexecuted', months: 24 },
       },
     ])
+  })
+
+  it('names every Metric reading recorded from a Guest fact, each exactly once', () => {
+    // Deleting the Guest row does not delete the fact while Reporting still
+    // holds the reading recorded from it: the same Portal, instant and source
+    // event. Each such reading is therefore listed under the 24 months, and a
+    // new metric key must be placed here or in the list of keys that are not
+    // Guest facts before this passes.
+    const readingRules = RETENTION_REGISTRY.filter(
+      (rule) => rule.source === 'metric_readings',
+    )
+    const namedKeys = readingRules.flatMap((rule) =>
+      metricKeysNamedBy(rule.eligibility.predicate),
+    )
+
+    expect([...namedKeys].sort()).toEqual(
+      METRIC_KEYS.filter((key) => !METRIC_KEYS_NOT_FROM_GUEST_FACTS.includes(key)).sort(),
+    )
+    expect(readingRules.map(({ id, eligibility }) => [id, eligibility.horizon])).toEqual(
+      readingRules.map(({ id }) => [id, { kind: 'accepted_unexecuted', months: 24 }]),
+    )
+  })
+
+  it('says which Guest-derived readings wait for the lifetime seal and which do not', () => {
+    // The seal covers the four keys the Portal lifetime aggregate is built
+    // from (`portal-lifetime-aggregate.ts`). The other three feed no aggregate,
+    // so "sealed first" is not what keeps them, and the entry must not say so.
+    const boundaryNaming = (metricKey: string): string => {
+      const rule = RETENTION_REGISTRY.find(
+        (candidate) =>
+          candidate.source === 'metric_readings' &&
+          metricKeysNamedBy(candidate.eligibility.predicate).includes(metricKey),
+      )
+      if (!rule) throw new Error(`no registry rule names the metric key '${metricKey}'`)
+      return rule.eligibility.implementedBoundary
+    }
+
+    for (const sealed of [
+      'portal.qualified_scan',
+      'portal.rating',
+      'portal.feedback',
+      'portal.review_link_click',
+    ]) {
+      expect(boundaryNaming(sealed), sealed).toContain('sealThrough')
+    }
+    expect(boundaryNaming('portal.scan')).toContain(
+      'A portal.scan reading feeds no aggregate',
+    )
+    expect(boundaryNaming('portal.rating_count')).toContain(
+      'portal.rating_count and portal.rating_average readings feed no aggregate',
+    )
   })
 
   it('gives a correction no horizon apart from the reading it corrects', () => {

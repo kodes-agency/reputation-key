@@ -65,8 +65,10 @@ visit facts. The retention sweep deletes the counted visit (`guest_qualified_sca
 the visit record (`scan_events`) 24 UTC calendar months after the visit, and the rating
 fact on the `retention_deadline` stamped when it was submitted. `scan_events` is deleted
 on age because every visit still writes it; `ratings` and `feedback`, which nothing writes
-any more, are not. The readings Reporting recorded from these facts are separate rows the
-sweep does not delete (`docs/BETA.md` §3).
+any more, are not. Deleting the Guest row does not remove the fact: Reporting recorded a
+reading from each visit, rating, private feedback and destination selection, with the same
+Portal, instant and source event, and no rule deletes a reading. For those copies the 24
+months are unenforced (`docs/BETA.md` §3).
 
 A Contact Request is a separate consented aggregate, encrypted for exactly 30 days
 and backend-only until its approval and handling requirements are met.

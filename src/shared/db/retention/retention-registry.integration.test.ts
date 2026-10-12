@@ -212,6 +212,10 @@ describe('retention registry report-only mode', () => {
     )
     expect(uncountable).toEqual({
       'google.source_content': 'no counsel-approved horizon exists',
+      'metric.deidentified_visit_reading_facts':
+        'the accepted 24-month horizon has no executing rule',
+      'metric.deidentified_response_reading_facts':
+        'the accepted 24-month horizon has no executing rule',
       'metric.deidentified_destination_click_facts':
         'the accepted 24-month horizon has no executing rule',
       'metric.deidentified_correction_withdrawal_facts':
