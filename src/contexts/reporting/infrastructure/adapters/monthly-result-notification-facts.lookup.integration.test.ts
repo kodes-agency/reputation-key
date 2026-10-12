@@ -4,6 +4,7 @@ import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-r
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
+import { seedLockedMonthTargetCommitted } from '../testing/goal-month-target-seed'
 import { createMonthlyResultNotificationFactsLookup } from './monthly-result-notification-facts.lookup'
 
 describe.sequential('monthly-result notification facts lookup (integration)', () => {
@@ -204,8 +205,62 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
         periodMonth: '2026-07',
         subject,
         setDuringMonth: false,
+        targetChangedInMonth: false,
       })
     }
+  })
+
+  // A month whose target was changed while it ran closes against that target.
+  // "Goal met" is then true of the changed target, and the notice says so;
+  // this is the fact it reads, from the month's own row.
+  it('says the target was changed during the month only for a month that closed on a target of its own', async () => {
+    const lookup = createMonthlyResultNotificationFactsLookup(getDb())
+    const factsFor = async (monthTarget: number | null) => {
+      await useFreshProperty()
+      const seeded = await seedClosedResult({ kind: 'property' })
+      if (monthTarget !== null) {
+        await seedLockedMonthTargetCommitted(
+          lease.pool,
+          seeded.monthlyResultId,
+          monthTarget,
+        )
+      }
+      return lookup.findMonthlyResultNotificationFacts({
+        organizationId,
+        propertyId,
+        assignmentId: seeded.assignmentId,
+        monthlyResultId: seeded.monthlyResultId,
+      })
+    }
+
+    await expect(factsFor(8)).resolves.toMatchObject({
+      targetChangedInMonth: true,
+      setDuringMonth: false,
+    })
+    await expect(factsFor(null)).resolves.toMatchObject({
+      targetChangedInMonth: false,
+      setDuringMonth: false,
+    })
+  })
+
+  it('reports a month that was both set and changed part-way through as both', async () => {
+    const seeded = await seedClosedResult(
+      { kind: 'property' },
+      true,
+      undefined,
+      '2026-07-20T09:00:00.000Z',
+    )
+    await seedLockedMonthTargetCommitted(lease.pool, seeded.monthlyResultId, 8)
+    const lookup = createMonthlyResultNotificationFactsLookup(getDb())
+
+    await expect(
+      lookup.findMonthlyResultNotificationFacts({
+        organizationId,
+        propertyId,
+        assignmentId: seeded.assignmentId,
+        monthlyResultId: seeded.monthlyResultId,
+      }),
+    ).resolves.toMatchObject({ targetChangedInMonth: true, setDuringMonth: true })
   })
 
   // A goal set on the 20th counts the whole month, so a month it has already
@@ -439,6 +494,37 @@ describe.sequential('monthly-result notification facts lookup (integration)', ()
         revision: 1,
       }),
     ).resolves.toMatchObject({ achieved: false, setDuringMonth: true })
+  })
+
+  it('a correction of a month whose target was changed while it ran carries the same fact', async () => {
+    const seeded = await seedClosedResult({ kind: 'property' })
+    await seedLockedMonthTargetCommitted(lease.pool, seeded.monthlyResultId, 8)
+    const revisionId = await appendRevision(seeded.monthlyResultId, {
+      revision: 1,
+      supersedesRevisionId: null,
+      evaluationState: 'eligible',
+      value: 7,
+      achieved: false,
+      at: '2026-08-03T12:00:00.000Z',
+    })
+    const lookup = createMonthlyResultNotificationFactsLookup(getDb())
+
+    await expect(
+      lookup.findMonthlyResultRevisionNotificationFacts({
+        organizationId,
+        propertyId,
+        programId: seeded.programId,
+        programVersionId: seeded.programVersionId,
+        assignmentId: seeded.assignmentId,
+        monthlyResultId: seeded.monthlyResultId,
+        revisionId,
+        revision: 1,
+      }),
+    ).resolves.toMatchObject({
+      achieved: false,
+      setDuringMonth: false,
+      targetChangedInMonth: true,
+    })
   })
 
   // Probe scenario A: the month closed achieved, r1 un-achieved it, and r2 (a

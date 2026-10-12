@@ -38,9 +38,17 @@ const sofiaMay = {
 }
 
 describe('what a change dialog says before the change is saved', () => {
-  it('says a revision applies from the month after the one still counting', () => {
+  it('says a revision applies from the month after the one still counting, and where this month is changed', () => {
     expect(goalRevisionDescription(counting, MID_OCTOBER, SOFIA)).toBe(
-      'Applies from Nov 1.',
+      'Applies from Nov 1. To change this month, use Change this month’s target.',
+    )
+  })
+
+  it('points at no other dialog once the month it showed has ended', () => {
+    // The page was left open over the end of October: no month is running in
+    // what it holds, so there is nothing "this month" to change.
+    expect(goalRevisionDescription(counting, at('2026-10-31T22:30:00.000Z'), SOFIA)).toBe(
+      'Applies from Dec 1.',
     )
   })
 
@@ -70,7 +78,7 @@ describe('what a change dialog says before the change is saved', () => {
     }
 
     expect(goalRevisionDescription(waiting, MID_OCTOBER, SOFIA)).toBe(
-      'Applies from Nov 1.',
+      'Applies from Nov 1. To change this month, use Change this month’s target.',
     )
   })
 
@@ -82,7 +90,7 @@ describe('what a change dialog says before the change is saved', () => {
     }
 
     expect(goalRevisionDescription(december, at('2026-12-10T09:00:00.000Z'), SOFIA)).toBe(
-      'Applies from Jan 1, 2027.',
+      'Applies from Jan 1, 2027. To change this month, use Change this month’s target.',
     )
   })
 

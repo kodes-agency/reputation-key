@@ -24,6 +24,15 @@ const setDuringMonth =
     'set_during_month',
   )
 
+/**
+ * True when the month has a target of its own. The guard lets a month take one
+ * only while it is open and running, so a stored one was set during the month.
+ */
+const targetChangedInMonth =
+  sql<boolean>`${goalMonthlyResults.targetValue} IS NOT NULL`.as(
+    'target_changed_in_month',
+  )
+
 export const createMonthlyResultNotificationFactsLookup = (
   db: Database,
 ): MonthlyResultNotificationFactsLookup => {
@@ -47,6 +56,7 @@ export const createMonthlyResultNotificationFactsLookup = (
           headRevisionId: goalResultRevisions.id,
           headAchieved: goalResultRevisions.achieved,
           setDuringMonth,
+          targetChangedInMonth,
         })
         .from(goalMonthlyResults)
         .leftJoin(
@@ -116,6 +126,7 @@ export const createMonthlyResultNotificationFactsLookup = (
         periodMonth: row.periodMonth,
         subject,
         setDuringMonth: row.setDuringMonth,
+        targetChangedInMonth: row.targetChangedInMonth,
       }
     },
 
@@ -136,6 +147,7 @@ export const createMonthlyResultNotificationFactsLookup = (
           evaluationState: goalResultRevisions.evaluationState,
           achieved: goalResultRevisions.achieved,
           setDuringMonth,
+          targetChangedInMonth,
           periodMonth:
             sql<string>`to_char(${goalMonthlyResults.periodStart} AT TIME ZONE ${goalMonthlyResults.propertyTimezone}, 'YYYY-MM')`.as(
               'period_month',
@@ -227,6 +239,7 @@ export const createMonthlyResultNotificationFactsLookup = (
         periodMonth: row.periodMonth,
         subject,
         setDuringMonth: row.setDuringMonth,
+        targetChangedInMonth: row.targetChangedInMonth,
         revisionId: row.revisionId,
         revision: row.revision,
         evaluationState,

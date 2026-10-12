@@ -228,9 +228,12 @@ describe.sequential('Goal Program repository (integration)', () => {
       auditAction: 'goal.program.created',
     })
 
-    await expect(repository.get(organizationId, propertyId, programId)).resolves.toEqual(
-      bundle,
-    )
+    // The read a page works from also carries the log of the goal's month
+    // target changes: empty for a goal whose months kept their target.
+    await expect(repository.get(organizationId, propertyId, programId)).resolves.toEqual({
+      ...bundle,
+      targetChanges: [],
+    })
     await expect(
       repository.activate({
         bundle,
@@ -1710,6 +1713,7 @@ describe.sequential('Goal Program repository (integration)', () => {
           description: 'Counted at the desk',
           updatedAt: renamedAt,
         },
+        targetChanges: [],
       })
       await expect(
         auditDetails(bundle.program.id, 'goal.program.renamed'),

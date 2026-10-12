@@ -39,6 +39,18 @@ const counting = {
   ],
 }
 
+// The same goal with the month the clock is in open: a month is running.
+const runningThisMonth = (() => {
+  const now = new Date()
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+  return {
+    program: { status: 'active' as const },
+    version: { id: VERSION_ID, effectiveFrom: start },
+    results: [{ programVersionId: VERSION_ID, status: 'open' as const, periodEnd: end }],
+  }
+})()
+
 // A goal set to start with Sofia's December, with no month opened yet.
 const notStarted = {
   program: { status: 'scheduled' as const },
@@ -51,6 +63,8 @@ const notStarted = {
 // whatever the clock says; only its year shows once the clock is past it.
 const APPLIES_FROM_A_MONTH_START = /^Applies from [A-Z][a-z][a-z] 1[,.]/
 const APPLIES_FROM_DECEMBER = /^Applies from Dec 1(?:, 2026)?\.$/
+const APPLIES_FROM_NEXT_MONTH_AND_NAMES_THIS_MONTHS_DIALOG =
+  /^Applies from [A-Z][a-z][a-z] 1(?:, \d\d\d\d)?\. To change this month, use Change this month’s target\.$/
 
 // The Property's timezone was corrected from UTC to Europe/Sofia. March is
 // still open under UTC and ends at 1 April 00:00 UTC, after Sofia's April has
@@ -141,6 +155,8 @@ export const SaysWhenTheChangeApplies: Story = {
     reviseMock.mockClear()
     const dialog = await openRevise(canvasElement)
     expect(dialog.queryByText(/first full month/i)).toBeNull()
+    // The month this goal has open ended long ago: there is no "this month".
+    expect(dialog.queryByText(/Change this month’s target/)).toBeNull()
 
     const sent = await schedule(dialog)
 
@@ -154,6 +170,18 @@ export const SaysWhenTheChangeApplies: Story = {
       /^Change saved\. Applies from May 1(?:, 2026)? \(Europe\/Sofia\)\.$/,
     )
     expect(dialog.getByRole('button', { name: 'Schedule revision' })).toBeDisabled()
+  },
+}
+
+/**
+ * A revision never touches the month that is running. While one is, the dialog
+ * says which day the revision applies from and names the dialog that changes
+ * this month's target.
+ */
+export const SaysWhereThisMonthIsChanged: Story = {
+  args: { goal: runningThisMonth },
+  play: async ({ canvasElement }) => {
+    await openRevise(canvasElement, APPLIES_FROM_NEXT_MONTH_AND_NAMES_THIS_MONTHS_DIALOG)
   },
 }
 

@@ -113,6 +113,39 @@ export const LOBBY_RATINGS = bulkGoal({
   targetValue: 400,
 })
 
+/**
+ * The same goal after October's target was changed to 450 for that month only:
+ * its open month carries the target, the goal's own is still 400.
+ */
+export const LOBBY_RATINGS_OCTOBER_CHANGED: GoalBundle = {
+  ...LOBBY_RATINGS,
+  results: LOBBY_RATINGS.assignments.map((assignment) => ({
+    id: `${assignment.id}-october`,
+    assignmentId: assignment.id,
+    programId: assignment.programId,
+    programVersionId: assignment.programVersionId,
+    organizationId: assignment.organizationId,
+    propertyId: assignment.propertyId,
+    periodStart: OCTOBER,
+    periodEnd: NOVEMBER,
+    propertyTimezone: BULK_PROPERTY.timezone,
+    status: 'open',
+    targetValue: 450,
+    evaluation: {
+      state: 'updating',
+      value: null,
+      sampleCount: 0,
+      achieved: null,
+      reason: 'period_open',
+    },
+    sourceCompleteThrough: null,
+    evaluationWatermark: null,
+    closedAt: null,
+    createdAt: OCTOBER,
+    updatedAt: OCTOBER,
+  })),
+}
+
 /** The same goal ended in October: it holds the Lobby until the month is over. */
 export const LOBBY_RATINGS_ENDED = bulkGoal({
   id: '20000000-0000-4000-8000-000000000002',

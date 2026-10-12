@@ -1,11 +1,12 @@
 // Server-only request plumbing for the Goal Program server functions.
 //
-// goal-programs.ts, goal-program-details.ts and goal-bulk-create.ts run their
-// handlers through `withGoalPrograms`. It reaches the composition root and the
-// server-only error throwers, so it lives in a *.server.ts module: a
-// server-function module that exported it would carry those imports into the
-// client build, which the import protection refuses. Called only inside handler
-// bodies, this import is stripped from the client with them.
+// goal-programs.ts, goal-program-details.ts, goal-bulk-create.ts and
+// goal-month-target.ts run their handlers through `withGoalPrograms`. It
+// reaches the composition root and the server-only error throwers, so it lives
+// in a *.server.ts module: a server-function module that exported it would
+// carry those imports into the client build, which the import protection
+// refuses. Called only inside handler bodies, this import is stripped from the
+// client with them.
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -55,6 +56,8 @@ const goalProgramStatus = (error: GoalProgramError): number => {
     case 'metric_unavailable':
     case 'subject_has_goal':
     case 'start_month_changed':
+    case 'month_locked':
+    case 'no_open_month':
       return 409
     case 'invalid_name':
     case 'invalid_target':

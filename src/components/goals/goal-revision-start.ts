@@ -7,7 +7,8 @@
 // month, and a goal that is counting changes after every month still open. The
 // dialogs ask the same rule the commands use, so the date a manager reads
 // before saving is the one the change is saved with, and the receipt states
-// the start the command answered.
+// the start the command answered. The month that is running is changed
+// elsewhere: it carries a target of its own (goal-month-target-dialog.tsx).
 import { nextRevisionStart } from '#/contexts/reporting/application/goal-revision-start'
 import { formatShortDate } from '#/lib/format'
 
@@ -32,15 +33,27 @@ const nextChangeDay = (goal: GoalChangeSource, now: Date, timezone: string): str
   startDay(nextRevisionStart(goal, now, timezone).period.start, timezone, now)
 
 /**
+ * A month of the goal is open and has not reached its end: the month whose
+ * target "Change this month's target" changes.
+ */
+const hasRunningMonth = (goal: GoalChangeSource, now: Date): boolean =>
+  goal.results.some((result) => result.status === 'open' && now < result.periodEnd)
+
+/**
  * What the revision dialog says under its title. `timezone` is the Property's
- * own: a revision is cut in the zone the Property has now.
+ * own: a revision is cut in the zone the Property has now. A revision never
+ * touches the month that is running, so while one is, the dialog names the
+ * dialog that does.
  */
 export function goalRevisionDescription(
   goal: GoalChangeSource,
   now: Date,
   timezone: string,
 ): string {
-  return `Applies from ${nextChangeDay(goal, now, timezone)}.`
+  const applies = `Applies from ${nextChangeDay(goal, now, timezone)}.`
+  return hasRunningMonth(goal, now)
+    ? `${applies} To change this month, use Change this month’s target.`
+    : applies
 }
 
 /**

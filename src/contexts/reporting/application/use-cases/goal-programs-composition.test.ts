@@ -14,6 +14,7 @@ import {
 
 const SERVICE_METHODS = [
   'changeAssignments',
+  'changeMonthTarget',
   'changeStatus',
   'create',
   'get',

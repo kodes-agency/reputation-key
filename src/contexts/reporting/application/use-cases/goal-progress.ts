@@ -27,10 +27,16 @@ import {
   type GoalSubject,
 } from '../../domain/goal-program'
 import type {
+  GoalMonthlyResult,
   GoalProgramBundle,
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from '../ports/goal-program.repository'
+import { effectiveMonthTarget } from '../goal-effective-month-target'
+import {
+  monthTargetMarker,
+  type GoalMonthTargetMarker,
+} from '../goal-month-target-marker'
 import { goalTargetProvenance } from '../goal-target-provenance'
 import { metricSubject } from './goal-program-shared'
 import type {
@@ -56,8 +62,18 @@ export type GoalProgress = Readonly<{
   programId: string
   name: string
   metric: GoalMetric
+  /**
+   * The target the running month is judged against: the month's own when it
+   * has one, else its version's. The version's while no month is running.
+   */
   targetValue: number
-  /** The person who set the target now in force. */
+  /**
+   * Who changed the running month's target last, when, what it started at and
+   * how many times it changed. Null while the month is on the target it
+   * started with, and while no month is running.
+   */
+  monthTarget: GoalMonthTargetMarker | null
+  /** The person who set the goal's target: the version's, not a month's own. */
   setBy: string
   /** When that target was set. A later change of subjects alone does not move it. */
   setAt: Date
@@ -175,6 +191,23 @@ function versionOf(
   )
 }
 
+/** The subject's month that is running at `now`: open, begun and not yet over. */
+function runningMonthOf(
+  bundle: GoalProgramBundle,
+  assignment: GoalSubjectAssignment,
+  now: Date,
+): GoalMonthlyResult | null {
+  return (
+    bundle.results.find(
+      (result) =>
+        result.assignmentId === assignment.id &&
+        result.status === 'open' &&
+        result.periodStart <= now &&
+        now < result.periodEnd,
+    ) ?? null
+  )
+}
+
 /** What a governed read of a month still running says, in the card's terms. */
 export function readingOf(
   version: Pick<GoalProgramVersion, 'metric' | 'metricMinimumSample'>,
@@ -230,11 +263,15 @@ async function progressOf(
       )
     : { kind: 'not_started' }
   const { setAt, setBy } = goalTargetProvenance(bundle, version)
+  // A month opens under the assignment's own version, so that is the version
+  // its target falls back to.
+  const month = runningMonthOf(bundle, assignment, now)
   return {
     programId: bundle.program.id,
     name: bundle.program.name,
     metric: version.metric,
-    targetValue: version.targetValue,
+    targetValue: month ? effectiveMonthTarget(month, version) : version.targetValue,
+    monthTarget: month ? monthTargetMarker(bundle, month, version) : null,
     setBy,
     setAt,
     status,

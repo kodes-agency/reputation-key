@@ -45,7 +45,7 @@ export type GoalStartOption = Readonly<{
 }>
 
 /** `YYYY-MM` of the local month that begins at `monthStart`. */
-const monthKeyOf = (monthStart: Date, timezone: string): string =>
+export const monthKeyOf = (monthStart: Date, timezone: string): string =>
   dayKeyInTimezone(monthStart, timezone).slice(0, 7).replace('_', '-')
 
 /**

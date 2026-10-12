@@ -36,3 +36,4 @@ Missing numbers are retired, merged, or never issued: `0001–0006`, `0009–001
 | [0063](0063-portal-media.md)                                              | Portal media: re-encoded uploads, served same-origin         | accepted | —             |
 | [0064](0064-sealed-portal-address-and-download-again.md)                  | Sealed Portal address and "Download again"                   | accepted | —             |
 | [0065](0065-platform-operators-provision-organizations.md)                | Platform operators provision Organizations                   | accepted | —             |
+| [0066](0066-goal-months-carry-their-own-target.md)                        | Goal months carry their own target                           | accepted | —             |

@@ -30,10 +30,20 @@ const SENTENCES: Readonly<Record<GoalProgramError['code'], string>> = {
     'This goal changed while you were working on it. Reload the page and try again.',
   subject_has_goal: 'A subject you chose already has a goal for this measure.',
   start_month_changed: 'The month has changed. Check the start and save again.',
+  month_locked: 'This month has ended. Its target can’t be changed.',
+  no_open_month: 'This month’s result isn’t open yet. Try again in a few minutes.',
 }
 
-const sentenceFor = (code: string): string | undefined =>
-  Object.hasOwn(SENTENCES, code) ? SENTENCES[code as GoalProgramError['code']] : undefined
+/** A caller's own sentence for some codes, where it can say more than the table. */
+export type GoalRefusalSentences = Readonly<
+  Partial<Record<GoalProgramError['code'], string>>
+>
+
+const sentenceFor = (code: string, own: GoalRefusalSentences): string | undefined =>
+  Object.hasOwn(SENTENCES, code)
+    ? (own[code as GoalProgramError['code']] ??
+      SENTENCES[code as GoalProgramError['code']])
+    : undefined
 
 /** The code of a refusal a command sent; null for any other failure. */
 export function goalRefusalCode(error: unknown): string | null {
@@ -43,11 +53,12 @@ export function goalRefusalCode(error: unknown): string | null {
 /**
  * A goal command's refusal with its sentence as the message. Any other failure
  * (another context's refusal, a code with no sentence here, a fault) is handed
- * back as it is, and the banner or the toast applies its own rule to it.
+ * back as it is, and the banner or the toast applies its own rule to it. `own`
+ * replaces the table's sentence for the codes it names.
  */
-export function goalRefusal(error: unknown): unknown {
+export function goalRefusal(error: unknown, own: GoalRefusalSentences = {}): unknown {
   if (!isServerFunctionError(error) || error.name !== GOAL_REFUSAL) return error
-  const sentence = sentenceFor(error.code)
+  const sentence = sentenceFor(error.code, own)
   if (sentence === undefined || sentence === error.message) return error
   return new ServerFunctionError(error.name, sentence, error.code, error.status)
 }
@@ -59,12 +70,13 @@ export function goalRefusal(error: unknown): unknown {
  */
 export function withGoalRefusals<TInput, TOutput>(
   command: (input: TInput) => Promise<TOutput>,
+  own: GoalRefusalSentences = {},
 ): (input: TInput) => Promise<TOutput> {
   return async (input) => {
     try {
       return await command(input)
     } catch (error) {
-      throw goalRefusal(error)
+      throw goalRefusal(error, own)
     }
   }
 }

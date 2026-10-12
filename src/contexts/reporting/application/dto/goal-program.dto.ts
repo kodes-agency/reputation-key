@@ -63,7 +63,12 @@ export function goalTargetFault(
   return target.ok ? null : TARGET_FAULTS[target.reason]
 }
 
-function addTargetIssue(
+/**
+ * The measure's own target rule as a form refinement: the issue lands under
+ * the target field. Exported for the month-target form (its own module), so
+ * both forms word the rule once.
+ */
+export function addTargetIssue(
   input: Readonly<{
     metric: z.infer<typeof goalProgramMetricSchema>
     targetValue: number

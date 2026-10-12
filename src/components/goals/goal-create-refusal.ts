@@ -52,7 +52,13 @@ export function goalHeldSentence(
     context.now,
   )
   const ends = `${name} has a goal for this measure that ends ${lastDay ?? 'this month'}.`
-  return context.startsThisMonth ? `${ends} Start the new goal next month.` : ends
+  if (!context.startsThisMonth) return ends
+  // A goal that goes on can still have its running month's target changed,
+  // which is the other way to a different number this month. One that has
+  // ended takes no change, so it is not offered.
+  return hold.goalEnded
+    ? `${ends} Start the new goal next month.`
+    : `${ends} Start the new goal next month, or change this month’s target.`
 }
 
 /** One sentence per chosen subject another goal holds; null before those goals are read. */

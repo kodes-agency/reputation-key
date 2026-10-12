@@ -7,6 +7,7 @@
 // another request.
 import type { GoalMetric } from '../domain/goal-program'
 import { goalSubjectIdentity, type GoalSubject } from '../domain/goal-subject'
+import { effectiveMonthTarget } from './goal-effective-month-target'
 import type {
   GoalProgramBundle,
   GoalSubjectAssignment,
@@ -19,11 +20,19 @@ export type GoalSubjectHold = Readonly<{
   programName: string
   /**
    * That goal's target for the subject at the start asked about: the one in
-   * force then, or the one the goal begins on when it has not begun by then.
+   * force then, which is the month's own once a running month's target was
+   * changed, or the one the goal begins on when it has not begun by then.
    */
   targetValue: number
   /** Null while the goal is live; otherwise the instant the subject is free again. */
   heldUntil: Date | null
+  /**
+   * The goal that holds the subject has ended. It holds its subject until the
+   * month it had open is over and takes no further change, a change to that
+   * month's target included. A subject taken out of a goal that goes on is held
+   * until the month ends too, by a goal that can still be changed.
+   */
+  goalEnded: boolean
 }>
 
 /**
@@ -49,8 +58,10 @@ export const holdOutlasts = (candidate: Date | null, known: Date | null): boolea
  * The goal's target for a held subject at `from`. A revision that waits for
  * next month already holds the subject for good, but the month `from` is in is
  * still counted against the target before it: the assignment in force at
- * `from` says which. A goal that has not begun by `from` has none in force,
- * and shows the target it begins on.
+ * `from` says which. That month can carry a target of its own, changed while
+ * it ran; then that is what it is counted against, and what is shown. A goal
+ * that has not begun by `from` has no assignment in force and no month, and
+ * shows the target it begins on.
  */
 function targetAt(
   bundle: GoalProgramBundle,
@@ -69,7 +80,13 @@ function targetAt(
   const version =
     bundle.versions.find((candidate) => candidate.id === inForce.programVersionId) ??
     bundle.version
-  return version.targetValue
+  const month = bundle.results.find(
+    (result) =>
+      result.assignmentId === inForce.id &&
+      result.periodStart <= from &&
+      from < result.periodEnd,
+  )
+  return month ? effectiveMonthTarget(month, version) : version.targetValue
 }
 
 /**
@@ -95,6 +112,7 @@ export function subjectHolds(
         programName: bundle.program.name,
         targetValue: targetAt(bundle, assignment, from),
         heldUntil: assignment.effectiveTo,
+        goalEnded: bundle.program.status === 'ended',
       })
     }
   }

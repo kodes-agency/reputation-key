@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   goalDay,
-  goalMonthNotes,
   goalNoResultsText,
   goalStartLine,
   goalStartMonthHint,
@@ -271,90 +270,5 @@ describe('goalNoResultsText', () => {
     })
 
     expect(text).toBe('This goal has no monthly results.')
-  })
-})
-
-describe('goalMonthNotes', () => {
-  const live = { kind: 'live', value: 412, sampleCount: 412 } as const
-  const running = { status: 'open', periodStart: OCTOBER.start } as const
-
-  it('shows the figure so far on the month still running', () => {
-    const notes = goalMonthNotes({
-      metric: 'portal_rating_count',
-      result: running,
-      setAt: at('2026-09-12T08:00:00.000Z'),
-      progress: { period: OCTOBER, reading: live },
-      timezone: ZONE,
-      now: NOW,
-    })
-
-    expect(notes).toEqual(['412 so far'])
-  })
-
-  it('says when a goal was set during the month it counts', () => {
-    const notes = goalMonthNotes({
-      metric: 'portal_rating_count',
-      result: running,
-      setAt: at('2026-10-20T08:00:00.000Z'),
-      progress: { period: OCTOBER, reading: live },
-      timezone: ZONE,
-      now: NOW,
-    })
-
-    expect(notes).toEqual(['412 so far', 'Set on Oct 20'])
-  })
-
-  it('keeps the set-on note on a month that has closed', () => {
-    const notes = goalMonthNotes({
-      metric: 'portal_rating_count',
-      result: { status: 'closed', periodStart: OCTOBER.start },
-      setAt: at('2026-10-20T08:00:00.000Z'),
-      progress: null,
-      timezone: ZONE,
-      now: at('2026-11-15T09:00:00.000Z'),
-    })
-
-    expect(notes).toEqual(['Set on Oct 20'])
-  })
-
-  it('says nothing for a month whose target was set before it began', () => {
-    const notes = goalMonthNotes({
-      metric: 'portal_rating_count',
-      result: { status: 'closed', periodStart: OCTOBER.start },
-      setAt: at('2026-09-12T08:00:00.000Z'),
-      progress: null,
-      timezone: ZONE,
-      now: NOW,
-    })
-
-    expect(notes).toEqual([])
-  })
-
-  it('never puts this month’s figure on another month', () => {
-    const september = { status: 'open', periodStart: at('2026-08-31T21:00:00.000Z') }
-
-    const notes = goalMonthNotes({
-      metric: 'portal_rating_count',
-      result: september,
-      setAt: at('2026-08-12T08:00:00.000Z'),
-      progress: { period: OCTOBER, reading: live },
-      timezone: ZONE,
-      now: NOW,
-    })
-
-    expect(notes).toEqual([])
-  })
-
-  it('never puts a live figure on a month that is being reconciled', () => {
-    const notes = goalMonthNotes({
-      metric: 'portal_rating_count',
-      result: { status: 'reconciling', periodStart: OCTOBER.start },
-      setAt: at('2026-09-12T08:00:00.000Z'),
-      progress: { period: OCTOBER, reading: live },
-      timezone: ZONE,
-      now: NOW,
-    })
-
-    expect(notes).toEqual([])
   })
 })

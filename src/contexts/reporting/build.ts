@@ -339,6 +339,8 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
       buildGoalPrograms(policy).changeAssignments(...args),
     changeStatus: (policy, ...args) => buildGoalPrograms(policy).changeStatus(...args),
     rename: (policy, ...args) => buildGoalPrograms(policy).rename(...args),
+    changeMonthTarget: (policy, ...args) =>
+      buildGoalPrograms(policy).changeMonthTarget(...args),
     get: (policy, ...args) => readGoalPrograms(policy).get(...args),
     list: (policy, ...args) => readGoalPrograms(policy).list(...args),
     progress: (policy, ...args) => readGoalProgress(policy)(...args),

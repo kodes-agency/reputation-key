@@ -4,16 +4,30 @@
 // Pure. A goal can start in the month it was created in, so the page always
 // says when its target was set: a month that was already running when the
 // target arrived is marked, and the month still running shows what has counted
-// so far (the live month to date, never the month's result).
+// so far (the live month to date, never the month's result). A month whose
+// target a manager changed while it ran says who changed it and what it started
+// at (goal-target-marker.ts).
 import type {
   GoalMetric,
   GoalProgram,
   GoalProgress,
 } from '#/contexts/reporting/application/public-api'
+import type { GoalMonthTargetMarker } from '#/contexts/reporting/application/goal-month-target-marker'
 import { formatShortDate } from '#/lib/format'
 import { goalSoFarNote } from './goal-so-far'
+import { goalTargetMarkerLine } from './goal-target-marker'
 
 type Calendar = Readonly<{ timezone: string; now: Date }>
+
+const PAGE_METRIC_LABELS: Readonly<Record<GoalMetric, string>> = {
+  qualified_scans: 'Qualified scans',
+  portal_rating_count: 'Private rating count',
+  portal_rating_average: 'Private rating average',
+}
+
+/** What a goal's own page and its forms call a measure. */
+export const goalPageMetricLabel = (metric: GoalMetric): string =>
+  PAGE_METRIC_LABELS[metric]
 
 /** "Oct 11", with its year once it is not the year the reader is in. */
 export const goalDay = (date: Date, { timezone, now }: Calendar): string =>
@@ -117,16 +131,21 @@ export type GoalMonthNotesInput = Calendar &
   Readonly<{
     metric: GoalMetric
     result: Readonly<{ status: string; periodStart: Date }>
-    /** When the target this month is judged against was set. */
+    /** When the target this month started with was set. */
     setAt: Date
     /** The live month to date of this row's subject, once it has been read. */
     progress: Pick<GoalProgress, 'period' | 'reading'> | null
+    /** The month's target is no longer the one it started with: who, when, from what. */
+    marker: GoalMonthTargetMarker | null
+    /** The person's name; null where the directory cannot give one. */
+    personName: (userId: string) => string | null
   }>
 
 /**
  * The quiet lines under a month's figure: "412 so far" on the month still
- * running, and "Set on Oct 20" on a month that had begun when its target was
- * set.
+ * running, then where its target comes from when that needs saying. A month
+ * whose target was changed says who changed it and what it started at; any
+ * other month that had begun when its target was set says "Set on Oct 20".
  */
 export function goalMonthNotes(input: GoalMonthNotesInput): readonly string[] {
   const { result, progress } = input
@@ -137,5 +156,9 @@ export function goalMonthNotes(input: GoalMonthNotesInput): readonly string[] {
   const soFar = running ? goalSoFarNote(input.metric, progress.reading) : null
   const setDuringMonth =
     input.setAt > result.periodStart ? `Set on ${goalDay(input.setAt, input)}` : null
-  return [soFar, setDuringMonth].filter((note): note is string => note !== null)
+  const targetSource =
+    input.marker === null
+      ? setDuringMonth
+      : goalTargetMarkerLine(input.metric, input.marker, input)
+  return [soFar, targetSource].filter((note): note is string => note !== null)
 }

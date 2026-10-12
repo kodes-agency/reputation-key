@@ -27,6 +27,8 @@ const SENTENCES: Readonly<Record<string, string>> = {
     'This goal changed while you were working on it. Reload the page and try again.',
   subject_has_goal: 'A subject you chose already has a goal for this measure.',
   start_month_changed: 'The month has changed. Check the start and save again.',
+  month_locked: 'This month has ended. Its target can’t be changed.',
+  no_open_month: 'This month’s result isn’t open yet. Try again in a few minutes.',
 }
 
 describe('goalRefusal', () => {
@@ -118,5 +120,25 @@ describe('withGoalRefusals', () => {
     })
 
     await expect(command(undefined)).rejects.toBe(failure)
+  })
+
+  it('says a caller’s own sentence for a refusal the caller can say more about', async () => {
+    // The month-target dialog knows which month it showed, so it names it.
+    const own = { month_locked: 'October has ended. Its target can’t be changed.' }
+    const locked = withGoalRefusals(async () => {
+      throw refusal('month_locked')
+    }, own)
+    const conflict = withGoalRefusals(async () => {
+      throw refusal('revision_conflict')
+    }, own)
+
+    await expect(locked(undefined)).rejects.toMatchObject({
+      message: 'October has ended. Its target can’t be changed.',
+      code: 'month_locked',
+      status: 409,
+    })
+    await expect(conflict(undefined)).rejects.toMatchObject({
+      message: SENTENCES.revision_conflict,
+    })
   })
 })
