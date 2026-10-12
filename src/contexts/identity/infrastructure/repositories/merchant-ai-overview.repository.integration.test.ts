@@ -5,6 +5,7 @@ import { Pool } from 'pg'
 import * as schema from '#/shared/db/schema'
 import type { Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import type { Permission } from '#/shared/domain/permissions'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -280,11 +281,15 @@ describe('Merchant AI overview reader', () => {
 })
 
 describe('member permission Property scope', () => {
-  const scopeFor = (organizationId: string, userId: string) =>
+  const scopeFor = (
+    organizationId: string,
+    userId: string,
+    permission: Permission = 'ai.manage',
+  ) =>
     resolveMemberPermissionPropertyScope(db, {
       organizationId,
       userId,
-      permission: 'ai.manage',
+      permission,
       at: AT,
     })
 
@@ -292,8 +297,15 @@ describe('member permission Property scope', () => {
     await expect(scopeFor(ORG, OWNER)).resolves.toEqual({ kind: 'organization' })
   })
 
+  it('denies a PropertyManager AI management on every Property, grants or not', async () => {
+    // Consent to AI is an AccountAdmin decision: a grant on BETA changes nothing.
+    await expect(scopeFor(ORG, MANAGER)).resolves.toEqual({ kind: 'denied' })
+  })
+
+  // The scope resolver is generic; a permission a PropertyManager does hold still
+  // follows the grants, which is what AI management used to do.
   it('limits a PropertyManager to current grants, excluding revoked and expired ones', async () => {
-    await expect(scopeFor(ORG, MANAGER)).resolves.toEqual({
+    await expect(scopeFor(ORG, MANAGER, 'inbox.manage')).resolves.toEqual({
       kind: 'properties',
       propertyIds: [BETA],
     })
@@ -359,10 +371,10 @@ describe('Organization AI overview', () => {
     ])
   })
 
-  it('shows a PropertyManager only the Properties they may manage AI for', async () => {
-    const { properties } = await overview({ organizationId: ORG, actorUserId: MANAGER })
-
-    expect(properties.map((entry) => entry.propertyId)).toEqual([BETA])
+  it('refuses a PropertyManager the overview, because they manage AI for no Property', async () => {
+    await expect(
+      overview({ organizationId: ORG, actorUserId: MANAGER }),
+    ).rejects.toMatchObject({ code: 'capability_denied' })
   })
 
   it('refuses an actor outside the Organization', async () => {

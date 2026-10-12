@@ -143,8 +143,10 @@ type MissingProps = Readonly<{
  * in each assist menu, beside the language choice it explains. The caller
  * renders it only when the property has no default.
  *
- * A manager with `ai.manage` gets the fix: `Set property language`, the same
- * link to `/settings/ai` the alert carried. Anyone else gets the read-only
+ * A manager who can edit the property (`property.update`, the permission its
+ * Replies settings ask for) gets the fix: `Set property language`, a link to
+ * those settings. It is not `ai.manage`: the language is a reply setting, and AI
+ * consent is an AccountAdmin's alone. Anyone else gets the read-only
  * sentence. Either way the readiness sentence rides along as a second line and
  * as the row's `aria-describedby`, so the name stays the short action
  * (`getByRole('menuitem', { name: 'Set property language' })`) while a screen
@@ -171,7 +173,7 @@ export function PropertyLanguageMissingItem({
     </span>
   )
 
-  if (can('ai.manage')) {
+  if (can('property.update')) {
     return (
       <DropdownMenuItem
         asChild

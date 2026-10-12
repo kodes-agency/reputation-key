@@ -3,7 +3,7 @@
 // permission sets and that the sync permission table is properly initialized.
 
 import { describe, it, expect } from 'vitest'
-import { statement, can, initPermissionTable } from './permissions'
+import { admin, statement, can, initPermissionTable } from './permissions'
 import type { Permission } from '#/shared/domain/permissions'
 
 describe('permissions statement', () => {
@@ -139,7 +139,6 @@ describe('admin role (PropertyManager)', () => {
     'inbox.manage',
     'ai.reply.generate',
     'ai.trends.read',
-    'ai.manage',
     'dashboard.read',
     'dashboard.fleet_read',
     'goal.read',
@@ -164,6 +163,7 @@ describe('admin role (PropertyManager)', () => {
     'portal.admin',
     'property.import_gbp_v2',
     'integration.manage',
+    'ai.manage',
   ]
 
   it('has all expected permissions', () => {
@@ -176,6 +176,28 @@ describe('admin role (PropertyManager)', () => {
     for (const permission of deniedPermissions) {
       expect(can('PropertyManager', permission)).toBe(false)
     }
+  })
+
+  // Consent to AI is an AccountAdmin decision: the property AI page and the
+  // setup rule both say an account admin decides, so the permission table has to
+  // agree. A PropertyManager still drafts replies and reads trends.
+  describe('AI consent', () => {
+    it('cannot decide whether AI is on', () => {
+      expect(can('PropertyManager', 'ai.manage')).toBe(false)
+    })
+
+    it('still drafts replies and reads trends', () => {
+      expect(can('PropertyManager', 'ai.reply.generate')).toBe(true)
+      expect(can('PropertyManager', 'ai.trends.read')).toBe(true)
+    })
+
+    it('stays with the AccountAdmin', () => {
+      expect(can('AccountAdmin', 'ai.manage')).toBe(true)
+    })
+
+    it('grants the role no manage action on the better-auth AI statement', () => {
+      expect(admin.statements.ai).toEqual(['reply.generate', 'trends.read'])
+    })
   })
 
   // Manager administration belongs to the AccountAdmin alone (ADR 0033,
