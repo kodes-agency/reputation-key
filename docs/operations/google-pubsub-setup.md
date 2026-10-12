@@ -207,7 +207,10 @@ refusal in `correlation_id`, e.g. `authorization_changed`.
 ## 7. Verify
 
 1. `GET /api/health/metrics` → `sync.gbp_push_enabled` should be `1`.
-2. Post a review on a connected test property.
+2. Post a review on a connected test property whose account is subscribed. An
+   account imported before the variables were set is subscribed by the next
+   daily run (§6), up to 24 hours away, and nothing brings that run forward:
+   until then its reviews arrive on the discovery sweep, not within seconds.
 3. Within seconds: a `sync-property-reviews` job with initiator
    `webhook:gbp`, then the review row, the inbox item, and the notification.
 4. `review_sync_state.last_notification_at` for that property should be ~now, and

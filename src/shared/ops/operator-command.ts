@@ -351,9 +351,9 @@ function decisionRequestFor(
     organizationId: args.organizationId,
     propertyId: args.propertyId,
     executionKind: 'operator',
-    // What kind of invocation the policy is asked about: a read, a dry-run
-    // report, or an applied mutation with the operator's reason. The policy
-    // decides on it and stores none of it.
+    // What kind of invocation this is: a read, a dry-run report, or an applied
+    // mutation with the operator's reason. The policy takes the field and does
+    // not read it, and nothing stores it.
     reason: args.reason ?? (spec.mutation ? 'dry-run' : 'read'),
     now,
     correlationId,

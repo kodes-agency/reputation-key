@@ -76,8 +76,8 @@ const controls = [
     source: "import '#/contexts/review/server/reply'\n",
   },
   // ARC-03-T1: scripts/ is a mandated control category. Operator commands
-  // are audited admin entry points, not browsers — a context's server layer
-  // is an inbound HTTP adapter and is off limits to every script.
+  // are admin entry points, not browsers — a context's server layer is an
+  // inbound HTTP adapter and is off limits to every script.
   {
     name: 'operator script cannot import a context server adapter',
     file: 'scripts/ops/boundary-negative-control.ts',
