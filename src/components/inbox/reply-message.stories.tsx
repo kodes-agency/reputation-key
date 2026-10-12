@@ -235,8 +235,11 @@ const REWRITTEN_REPLY = makeReply({
 
 /**
  * A host that re-reads the reply when the window regains focus, as the pane's
- * detail query does. The reply keeps its id and its status, so the action row
- * is not remounted and a dialog open over it stays open.
+ * detail query does, and renders it at once. The reply keeps its id and its
+ * status, so the action row is not remounted and a dialog open over it stays
+ * open. (The Inbox pane itself keeps the reply it shows while a confirmation
+ * is open, `use-reply-confirmation-hold.ts`; this host does not, which is the
+ * case the message has to be safe in by itself.)
  */
 function RefocusedPaneHost({
   rereads,
@@ -380,6 +383,9 @@ export const ConfirmAndPublishAsksFirst: Story = {
  * still name the reply the dialog was opened on, so the server can refuse it.
  * Naming the reply on the screen at the press would publish text nobody at
  * this screen read.
+ *
+ * What a confirmation names must not depend on its host: the Inbox pane holds
+ * the reply still under an open dialog, and this message is right without it.
  */
 export const ConfirmNamesTheReplyTheDialogOpenedOn: Story = {
   args: { reply: makeReply() },

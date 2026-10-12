@@ -528,7 +528,12 @@ Four rules keep a cached page in step with the server it sends commands to.
   `onFeedbackHandlingFailed`, the responsible-managers saves of the Property
   people tab and the Portal editor), and re-read the list when a bulk command
   changed nothing. The refusal must outlive that read: a toast does, and a
-  sentence held inside what the read replaces is gone with it.
+  sentence held inside what the read replaces is gone with it. A confirmation
+  drawn inside what it asks about therefore keeps the page as it was while it
+  is open, and stays a confirmation: the Inbox pane shows the detail a reply
+  confirmation was opened on until the dialog closes, when it shows the detail
+  as read (`inbox/use-reply-confirmation-hold.ts`). The cache is re-read at
+  once either way.
 - **A draft kept across a refetch keeps the revision it was started from.** Save
   it with that revision, never the refetched one: the fence exists so a change
   the person has not seen is refused, and a kept draft has not seen the refetch

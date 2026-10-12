@@ -84,7 +84,10 @@ type Input = Readonly<{
  * open and says the refusal itself (`ui/confirmation-dialog.tsx`), so they pass
  * no `errorMessage` and their call sites return the promise to the dialog
  * (`reply-message-actions.tsx`, `reply-editor-views.tsx`): a toast as well
- * would tell it twice.
+ * would tell it twice. Those two dialogs are drawn inside the reply they ask
+ * about, and the re-read above would unmount them with the sentence in them,
+ * so the pane keeps the reply it shows while one is open
+ * (`use-reply-confirmation-hold.ts`).
  *
  * The draft and template mutations stay silent and re-read nothing: autosave
  * reports its own state in the composer, runs on every pause in typing, and

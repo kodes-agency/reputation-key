@@ -500,6 +500,13 @@ export const inboxCachePolicy = {
    * opened on, the server refuses it once the stored reply is another one or
    * has moved on, and what the manager needs next is the reply as it is, to
    * read it and confirm that one by reopening the dialog.
+   *
+   * This read replaces the thread message's action row and can close the
+   * editor, and the two confirmations are drawn inside them. The cache is
+   * re-read at once all the same; it is the pane that keeps the reply it shows
+   * until an open confirmation is dismissed
+   * (`use-reply-confirmation-hold.ts`), so the refusal is still in its dialog
+   * when the read lands.
    */
   onReplyCommandFailed(qc: QueryClient, reviewId: string): void {
     for (const itemId of cachedItemIdsForReview(qc, reviewId)) {

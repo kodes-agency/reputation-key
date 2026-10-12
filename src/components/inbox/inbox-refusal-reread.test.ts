@@ -174,7 +174,9 @@ describe('a refused reply command', () => {
   )
 
   // One reporter: the dialog prints the rejection it is handed, so a toast as
-  // well would say it twice. The re-read is the same as for every other command.
+  // well would say it twice. The re-read is the same as for every other
+  // command, and as prompt; the pane keeps the reply it shows until the dialog
+  // is dismissed (`reply-command-refusal.stories.tsx`).
   it.each(confirmed)(
     '$name hands the refusal to its confirmation, toasts nothing, and re-reads the reply, the lists and the counts',
     async (command) => {
