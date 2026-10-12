@@ -49,6 +49,17 @@ use case calls it yet, so nothing emits the fact. Network Pressure Records are
 seven-day, content-free, daily-rotating pseudonymous admission facts, not Guest
 identity or analytics attribution.
 
+The signed session ends 24 hours after the guest opens the Portal, or 24 hours after
+their rating or private feedback if that is later. Its own records follow it: the
+retention sweep deletes the session binding once it has expired and clears the legacy
+`session_id` columns a day after each row was written. The session identifier lives
+longer in one place. The Qualified Scan and destination-action receipts carry it in
+their key and payload, and they are ordinary `idempotency_receipts` rows: they stop
+deciding anything when the session ends, but only the shared 30-day receipt rule (or a
+Property erase or Organization purge) removes them. The Privacy Notice states both
+figures (`docs/legal/privacy-notice.md` §6), so changing either one is a notice change
+(`docs/BETA.md` §2, §3).
+
 A Contact Request is a separate consented aggregate, encrypted for exactly 30 days
 and backend-only until its approval and handling requirements are met.
 

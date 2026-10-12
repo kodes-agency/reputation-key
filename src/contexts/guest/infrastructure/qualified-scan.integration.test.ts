@@ -6,13 +6,20 @@ import {
   portalAccessArtifactId,
   portalGroupId,
   portalId,
+  portalLinkId,
   propertyId,
   qualifiedScanId,
+  scanEventId,
 } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import { guestQualifiedScanRecorded, guestQualifiedScanRetracted } from '../domain/events'
+import {
+  guestQualifiedScanRecorded,
+  guestQualifiedScanRetracted,
+  guestReviewLinkClicked,
+  guestScanRecorded,
+} from '../domain/events'
 import { createPortalGroupRepository } from '#/contexts/portal/infrastructure/repositories/portal-group.repository'
 import { createPortalAccessArtifactRepository } from '#/contexts/portal/infrastructure/repositories/portal-access-artifact.repository'
 import { createAtomicGuestObservationStore } from './guest-observation-store'
@@ -28,6 +35,8 @@ import {
   type ConsumerRegistry,
 } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
+import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
+import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 
 const ORG = organizationId('org-qualified-scan-integration')
 const OTHER_ORG = organizationId('org-qualified-scan-other')
@@ -46,6 +55,7 @@ const GROUP_AFTER_EVENT = portalGroupId('73000000-0000-4000-8000-000000000007')
 const SESSION = '73000000-0000-4000-8000-000000000008'
 const EVENT_TIME = new Date('2026-08-27T10:00:00.000Z')
 const GROUP_MOVE_TIME = new Date('2026-08-27T11:00:00.000Z')
+const DAY_MS = 24 * 60 * 60 * 1000
 
 const { getPool } = setupIntegrationDb({
   orgA: ORG,
@@ -176,12 +186,36 @@ async function seedPublishedArtifact(): Promise<void> {
   )
 }
 
+/** Runs the named sweep rules with the cutoff the scheduled job gives each at `at`. */
+async function sweepAt(at: Date, subjects: ReadonlyArray<string>): Promise<void> {
+  for (const subject of subjects) {
+    const rule = RETENTION_RULES.find((candidate) => candidate.subject === subject)
+    if (!rule) throw new Error(`No retention rule has the subject ${subject}`)
+    await executeRetentionRule(getDb(), rule, {
+      cutoff: new Date(at.getTime() - rule.olderThanMs),
+    })
+  }
+}
+
+function guestReceipts() {
+  return getPool().query<{ scope: string; key: string; session_id: string }>(
+    `SELECT scope, key, payload->>'sessionId' AS session_id
+     FROM idempotency_receipts
+     WHERE scope IN ('guest_qualified_scan', 'guest_destination_action')
+       AND payload->>'organizationId' = $1
+     ORDER BY scope`,
+    [ORG],
+  )
+}
+
 async function cleanMetricState(): Promise<void> {
   await getPool().query(
     `DELETE FROM idempotency_receipts
-     WHERE scope = 'guest_qualified_scan' AND payload->>'organizationId' = $1`,
+     WHERE scope IN ('guest_qualified_scan', 'guest_destination_action')
+       AND payload->>'organizationId' = $1`,
     [ORG],
   )
+  await getPool().query(`DELETE FROM scan_events WHERE organization_id = $1`, [ORG])
   await getPool().query(
     `DELETE FROM event_consumer_receipts
      WHERE event_id IN (
@@ -374,6 +408,120 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
         [ORG],
       ),
     ).toMatchObject({ rows: [{ count: 1 }] })
+  })
+
+  it('keeps the session identifier in both Guest receipts after the one-day session sweep, until the 30-day receipt rule', async () => {
+    // The retention the Privacy Notice states (section 6, since version 2.1):
+    // the session's own records lose the identifier after a day, the two
+    // duplicate-prevention receipts keep it for the shared 30 days.
+    const store = createAtomicGuestObservationStore(getDb())
+    const visitId = scanEventId('73000000-0000-4000-8000-000000000021')
+    await store.commitScan(
+      {
+        id: visitId,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        portalId: PORTAL,
+        source: 'qr',
+        sessionId: SESSION,
+        ipHash: null,
+        createdAt: EVENT_TIME,
+      },
+      guestScanRecorded({
+        scanId: visitId,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        portalId: PORTAL,
+        scanSource: 'qr',
+        occurredAt: EVENT_TIME,
+      }),
+    )
+    const scanId = qualifiedScanId('73000000-0000-4000-8000-000000000022')
+    const scanFact = guestQualifiedScanRecorded({
+      qualifiedScanId: scanId,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      portalGroupId: GROUP_AT_EVENT,
+      accessArtifactId: ARTIFACT,
+      occurredAt: EVENT_TIME,
+    })
+    await store.commitQualifiedScan(
+      {
+        id: scanId,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        portalId: PORTAL,
+        portalGroupId: GROUP_AT_EVENT,
+        accessArtifactId: ARTIFACT,
+        sourceEventId: scanFact.eventId,
+        occurredAt: EVENT_TIME,
+        staffAttribution: null,
+      },
+      SESSION,
+      scanFact,
+    )
+    const selection = guestReviewLinkClicked({
+      linkId: portalLinkId('73000000-0000-4000-8000-000000000023'),
+      destinationKind: 'google_review',
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      occurredAt: EVENT_TIME,
+    })
+    await store.commitReviewLinkClick(
+      {
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        portalId: PORTAL,
+        sessionId: SESSION,
+        destinationId: selection.linkId,
+        destinationKind: selection.destinationKind,
+        occurredAt: EVENT_TIME,
+        expiresAt: new Date(EVENT_TIME.getTime() + DAY_MS),
+      },
+      selection,
+    )
+    const sessionIdentifierRules = [
+      'scan_events.guest_session_pseudonym',
+      'idempotency_receipts',
+    ]
+
+    await sweepAt(new Date(EVENT_TIME.getTime() + 2 * DAY_MS), sessionIdentifierRules)
+
+    expect(
+      await getPool().query(
+        `SELECT session_id FROM scan_events WHERE organization_id = $1`,
+        [ORG],
+      ),
+    ).toMatchObject({ rows: [{ session_id: null }] })
+    const afterSessionSweep = await guestReceipts()
+    expect(
+      afterSessionSweep.rows.map(({ scope, key, session_id }) => ({
+        scope,
+        sessionInPayload: session_id,
+        sessionInKey: (JSON.parse(key) as string[]).includes(SESSION),
+      })),
+    ).toEqual([
+      {
+        scope: 'guest_destination_action',
+        sessionInPayload: SESSION,
+        sessionInKey: true,
+      },
+      { scope: 'guest_qualified_scan', sessionInPayload: SESSION, sessionInKey: true },
+    ])
+
+    await sweepAt(new Date(EVENT_TIME.getTime() + 30 * DAY_MS), sessionIdentifierRules)
+    expect((await guestReceipts()).rows.map(({ scope }) => scope)).toEqual([
+      'guest_destination_action',
+      'guest_qualified_scan',
+    ])
+
+    await sweepAt(
+      new Date(EVENT_TIME.getTime() + 30 * DAY_MS + 1),
+      sessionIdentifierRules,
+    )
+    expect((await guestReceipts()).rows).toEqual([])
   })
 
   it('projects one replay-safe Metric contribution and removes it by correction', async () => {

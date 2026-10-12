@@ -32,7 +32,11 @@ two distinct fields for exactly that reason:
 Conflating the two is how a privacy notice ends up describing behaviour the
 system does not have. The Guest session pseudonym is the clearest example: the
 §3.3.10 default is seven days, the code expires the binding at twenty-four
-hours.
+hours. It is also the example of a boundary read too widely: the same identifier
+sits in the key and payload of the `guest_qualified_scan` and
+`guest_destination_action` idempotency receipts, which follow
+`platform.idempotency_receipts` and stay thirty days. Privacy Notice version 2.0
+gave twenty-four hours for those receipts; version 2.1 corrects it.
 
 ---
 

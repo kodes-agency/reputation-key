@@ -545,8 +545,10 @@ export const guestResponseExperienceSnapshots = pgTable(
 
 /**
  * Short-lived recovery authority. Keeping the signed-session pseudonym outside
- * the response fact lets it disappear after 24 hours without deleting the
- * rating/tombstone needed by managerial analytics and correction lineage.
+ * the response fact lets this binding disappear after 24 hours without deleting
+ * the rating/tombstone needed by managerial analytics and correction lineage.
+ * The identifier itself outlives the binding in one place: the Qualified Scan
+ * and destination-action rows of `idempotency_receipts`, kept 30 days.
  */
 export const guestResponseSessionBindings = pgTable(
   'guest_response_session_bindings',

@@ -2,13 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
+corrected_on: 2026-10-12
 ---
 
 # Privacy Notice — Reputation Key Closed Beta
 
 **Status:** Accepted for publication
-**Effective date:** 2026-09-08
-**Version:** 2.0
+**Effective date:** 2026-10-26
+**Version:** 2.1
 **Accountable owner:** Bozhidar Denev
 
 ## 1. About this notice
@@ -212,7 +213,8 @@ repository:
 
 | Information class                                                                      | Current repository horizon or trigger                                              |
 | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Guest response session and destination-action receipt                                  | Absolute expiry, no more than 24 hours                                             |
+| Guest response session                                                                 | No more than 24 hours, counted as explained below this table                       |
+| Guest visit and destination-selection receipts                                         | 30 days; they hold the Guest session identifier, as explained below this table     |
 | Guest private-feedback text                                                            | No more than 90 days; same signed session may withdraw for 24 hours                |
 | Canonical de-identified Guest response fact/tombstone                                  | 24 calendar months from the initial rating                                         |
 | Guest session diagnostic pseudonym                                                     | Redacted after 24 hours                                                            |
@@ -224,6 +226,21 @@ repository:
 | Google-controlled source content                                                       | Per-row source-policy expiry; intended maximum 30 days from latest fetch           |
 | Optional masked Bug layout                                                             | Application expiry no later than 30 days; provider deletion still needs live proof |
 | Organization Export object                                                             | At most seven days; single-use retrieval authority at most 24 hours                |
+
+A Guest response session has a random session identifier. It contains no name,
+contact detail, or network address. The session ends no more than 24 hours
+after the Guest opens the Portal or, if later, 24 hours after the Guest submits
+a rating or private feedback. When the session has ended, its record is deleted
+by a daily clean-up.
+
+When a Guest's visit is counted, and when a Guest first selects the Google
+Review action or another link, the Service also stores a receipt so that the
+same visit or selection is not counted twice. Each receipt holds the session
+identifier, the Portal, the time, and a reference to the counted visit or the
+selected link. A receipt has no effect once the session has ended, but it is
+kept for 30 days from the visit or selection and is then deleted by a daily
+clean-up. During those 30 days the receipts still connect that visit and that
+selection to the same session identifier.
 
 Reading, viewing, moderating, or archiving content does not extend its content
 deadline.
@@ -290,9 +307,17 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-09-08 and is version 2.0. Material changes will
-be announced to Participants by email at least 14 days before they take effect.
-The version and effective date will remain shown on this page.
+This notice takes effect on 2026-10-26 and is version 2.1. It replaces version
+2.0, which took effect on 2026-09-08. Material changes will be announced to
+Participants by email at least 14 days before they take effect. The version and
+effective date will remain shown on this page.
+
+Version 2.1 corrects section 6. Version 2.0 gave one expiry, no more than 24
+hours, for the Guest response session and the destination-action receipt
+together. It did not say that the Guest visit and destination-selection
+receipts keep the session identifier for 30 days, or how the 24 hours of a
+session are counted. The retention itself has not changed since version 2.0 was
+published; version 2.1 describes it correctly.
 
 The data-protection, security, and rights-request contact is
 [denev@kodes.agency](mailto:denev@kodes.agency).
