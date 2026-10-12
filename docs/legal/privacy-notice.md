@@ -8,7 +8,7 @@ corrected_on: 2026-10-12
 # Privacy Notice — Reputation Key Closed Beta
 
 **Status:** Accepted for publication
-**Effective date:** 2026-10-26
+**Effective date:** 2026-10-12
 **Version:** 2.1
 **Accountable owner:** Bozhidar Denev
 
@@ -310,7 +310,7 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-10-26 and is version 2.1. It replaces version
+This notice takes effect on 2026-10-12 and is version 2.1. It replaces version
 2.0, which took effect on 2026-09-08. Material changes will be announced to
 Participants by email at least 14 days before they take effect. The version and
 effective date will remain shown on this page.
@@ -320,7 +320,9 @@ hours, for the Guest response session and the destination-action receipt
 together. It did not say that the Guest visit and destination-selection
 receipts keep the session identifier for 30 days, or how the 24 hours of a
 session are counted. The retention itself has not changed since version 2.0 was
-published; version 2.1 describes it correctly.
+published; version 2.1 describes it correctly. Because it corrects a description
+and changes nothing about what the Service stores or for how long, it is not a
+material change and takes effect on the day it is published.
 
 The data-protection, security, and rights-request contact is
 [denev@kodes.agency](mailto:denev@kodes.agency).
