@@ -202,6 +202,89 @@ describe.sequential('AI review analysis backlog adapter (real PostgreSQL)', () =
     ])
   })
 
+  it('releases a claimed entry untried: no attempt counted and its first start cleared', async () => {
+    const envelope = await enqueue(PROPERTY_A, await seedReview(PROPERTY_A, 1))
+    const claim = (nowEpochMillis: number) =>
+      backlog.claimReady({
+        nowEpochMillis,
+        leaseMillis: 60_000,
+        perProperty: 3,
+        limit: 3,
+      })
+    // One tried attempt first, so the release has an attempt count and a first
+    // start to leave alone and to clear.
+    await claim(NOW)
+    await backlog.reschedule({
+      eventEnvelopeId: envelope,
+      organizationId: ORGANIZATION_ID,
+      nextAttemptAtEpochMillis: NOW + 1_000,
+      nowEpochMillis: NOW + 1,
+    })
+    await expect(claim(NOW + 1_000)).resolves.toEqual([
+      expect.objectContaining({ attempts: 1, firstStartedAtEpochMillis: NOW }),
+    ])
+
+    await backlog.release({
+      eventEnvelopeId: envelope,
+      organizationId: ORGANIZATION_ID,
+      nextAttemptAtEpochMillis: NOW + 61_000,
+      nowEpochMillis: NOW + 1_001,
+    })
+
+    const [row] = await db
+      .select({
+        state: aiReviewAnalysisBacklog.state,
+        attempts: aiReviewAnalysisBacklog.attempts,
+        claimedUntil: aiReviewAnalysisBacklog.claimedUntil,
+        firstStartedAt: aiReviewAnalysisBacklog.firstStartedAt,
+        nextAttemptAt: aiReviewAnalysisBacklog.nextAttemptAt,
+      })
+      .from(aiReviewAnalysisBacklog)
+    expect(row).toEqual({
+      state: 'queued',
+      attempts: 1,
+      claimedUntil: null,
+      firstStartedAt: null,
+      nextAttemptAt: new Date(NOW + 61_000),
+    })
+    // Held until its time, then taken as an entry that starts now: the
+    // operation horizon does not run while the entry was refused.
+    await expect(claim(NOW + 60_999)).resolves.toEqual([])
+    await expect(claim(NOW + 61_000)).resolves.toEqual([
+      expect.objectContaining({
+        eventEnvelopeId: envelope,
+        attempts: 1,
+        firstStartedAtEpochMillis: NOW + 61_000,
+      }),
+    ])
+  })
+
+  it('releases only the named entry of the named Organization', async () => {
+    const envelope = await enqueue(PROPERTY_A, await seedReview(PROPERTY_A, 1))
+    await backlog.claimReady({
+      nowEpochMillis: NOW,
+      leaseMillis: 60_000,
+      perProperty: 3,
+      limit: 3,
+    })
+
+    await backlog.release({
+      eventEnvelopeId: envelope,
+      organizationId: organizationId('ai-backlog-another-organization'),
+      nextAttemptAtEpochMillis: NOW + 61_000,
+      nowEpochMillis: NOW + 1,
+    })
+
+    await expect(
+      backlog.readProgress({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_A,
+        sourceEpoch: 1,
+        reviewAnalysisEpoch: 1,
+      }),
+    ).resolves.toMatchObject({ queued: 0, inProgress: 1 })
+  })
+
   it('enqueues idempotently by origin event and completes by deleting', async () => {
     const review = await seedReview(PROPERTY_A, 1)
     const envelope = await enqueue(PROPERTY_A, review)
