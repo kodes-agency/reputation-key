@@ -44,6 +44,7 @@ import {
 } from './reply-publication-workflow'
 import type { ReplyStatus } from './types'
 import {
+  afterAiDraftPurge,
   afterPublicationEvent,
   afterRefusedClaim,
   isLegalReplyState,
@@ -356,6 +357,45 @@ describe('withdrawn AI text against the hand-written workflow', () => {
         reply.publication === 'authorized'
       expect(afterRefusedClaim(reply)).toEqual(refusable ? withdrawalOf(reply) : null)
     }
+  })
+
+  it('the purge never touches a reply a manager wrote, nor one inside its window when only time is asked', () => {
+    for (const reply of legal) {
+      if (reply.authorship === 'human') {
+        expect(afterAiDraftPurge(reply, 'every_ai_reply', true)).toBe(reply)
+      }
+      expect(afterAiDraftPurge(reply, 'replies_past_their_window', false)).toBe(reply)
+    }
+  })
+
+  it('the purge deletes what nobody confirmed, empties what a manager confirmed and nothing has left for, and leaves the rest', () => {
+    const fates = new Map<string, string>()
+    for (const reply of aiReplies) {
+      const after = afterAiDraftPurge(reply, 'every_ai_reply', false)
+      // Past its window, a sync does to it exactly what a changed input does.
+      expect(afterAiDraftPurge(reply, 'replies_past_their_window', true)).toEqual(after)
+      const fate =
+        after === null ? 'deleted' : after === reply ? 'left alone' : 'withdrawn'
+      if (fate === 'withdrawn') expect(after).toEqual(withdrawalOf(reply))
+      // Where a claim can refuse the reply, it leaves what the purge leaves.
+      expect(afterRefusedClaim(reply) ?? after).toEqual(after)
+      fates.set(`${reply.status}/${String(reply.publication)}`, fate)
+    }
+    // Written out by hand from the Review CONTEXT, Model.
+    expect(Object.fromEntries(fates)).toEqual({
+      'draft/null': 'deleted',
+      'pending_approval/null': 'deleted',
+      'rejected/null': 'deleted',
+      'draft/cancelled': 'withdrawn',
+      'pending_approval/cancelled': 'withdrawn',
+      'rejected/cancelled': 'withdrawn',
+      'approved/authorized': 'withdrawn',
+      'approved/sending': 'left alone',
+      'approved/pending_observation': 'left alone',
+      'published/published': 'left alone',
+      'publish_failed/terminal': 'left alone',
+      'publish_failed/ambiguous': 'left alone',
+    })
   })
 
   it('the claim excuses a closed window for words claimed before, and never a changed input', () => {

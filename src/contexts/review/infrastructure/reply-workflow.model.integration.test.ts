@@ -5,18 +5,25 @@
 // published, delete), a disconnect cancellation, executions of the publish
 // worker with each provider outcome, the reconciliation sweep (also racing a
 // worker that claims after the sweep read its batch), a review sync that reads
-// Google, the end of an AI draft's ten-minute adoption window, and the passing
-// of time. They run against the real use cases, command store, AI acceptance
-// store and binding, observation store, worker and sweep
-// (testing/reply-workflow-harness.ts).
+// Google, the end of an AI draft's ten-minute adoption window, the AI draft
+// purge (when something AI drafts were generated from changes, and when a sync
+// sees the review again), and the passing of time. They run against the real
+// use cases, command store, AI acceptance store and binding, purge,
+// observation store, worker and sweep (testing/reply-workflow-harness.ts).
 //
 // Three dimensions sit across the workflow. Authorship: a reply is the
 // manager's text or the unedited text of an AI suggestion, and the commands by
 // which a manager writes it change which. Freshness: an AI-assisted reply's
-// binding is current or stale, and its words were claimed for sending before
-// or never were. Identity: an approval names the reply the manager's screen
-// showed, which is the stored reply, an earlier revision of it, or a reply
-// that was deleted and replaced since.
+// binding is current or stale (because its window passed, or because an input
+// changed), and its words were claimed for sending before or never were.
+// Identity: an approval names the reply the manager's screen showed, which is
+// the stored reply, an earlier revision of it, or a reply that was deleted and
+// replaced since.
+//
+// The purge is the one writer here that is not part of the reply workflow: it
+// writes SQL of its own, from other contexts' transactions, past every guard
+// the commands carry. The histories put it between any two steps, so whatever
+// it leaves is met by every command, the worker and the sweep.
 //
 // The oracle is the workflow written out by hand
 // (domain/__fixtures__/reply-workflow-oracle.ts), never the production
@@ -41,6 +48,7 @@ import type { Reply } from '../domain/types'
 import { isReviewError } from '../domain/errors'
 import { googleReplyTextDigest } from '../domain/google-reply-observation'
 import {
+  afterAiDraftPurge,
   afterPublicationEvent,
   afterRefusedClaim,
   isLegalReplyState,
@@ -48,6 +56,7 @@ import {
   mayBeClaimed,
   reachableBy,
   sameReplyState,
+  type AiDraftPurgeScope,
   type CommandEvidence,
   type ManagerCommand,
   type ManagerVerdict,
@@ -120,6 +129,10 @@ type Step =
   | Readonly<{ act: 'cancel' }>
   /** Ten minutes pass for the AI draft: its adoption window is over. */
   | Readonly<{ act: 'lapse' }>
+  /** The AI draft purge runs: for every AI draft of the Property, because
+   * something they were generated from changed; or only for those past their
+   * window, because a sync saw the unchanged review. */
+  | Readonly<{ act: 'purge'; scope: AiDraftPurgeScope }>
   | Readonly<{ act: 'wait'; minutes: number }>
 
 const arbText = fc.constantFrom(...TEXTS)
@@ -180,6 +193,16 @@ const arbStep: fc.Arbitrary<Step> = fc.oneof(
   { weight: 1, arbitrary: fc.constant({ act: 'cancel' as const }) },
   { weight: 2, arbitrary: fc.constant({ act: 'lapse' as const }) },
   {
+    weight: 2,
+    arbitrary: fc.record({
+      act: fc.constant('purge' as const),
+      scope: fc.constantFrom<AiDraftPurgeScope>(
+        'every_ai_reply',
+        'replies_past_their_window',
+      ),
+    }),
+  },
+  {
     weight: 1,
     arbitrary: fc.record({
       act: fc.constant('wait' as const),
@@ -212,6 +235,9 @@ const worker = (outcome: GoogleWriteOutcome, index = 0): Step => ({
 })
 const LAPSE: Step = { act: 'lapse' }
 const OBSERVE: Step = { act: 'observe' }
+const DISCONNECT: Step = { act: 'cancel' }
+const INPUT_CHANGES: Step = { act: 'purge', scope: 'every_ai_reply' }
+const SYNC_SEES_THE_REVIEW: Step = { act: 'purge', scope: 'replies_past_their_window' }
 const ADOPT = does({ kind: 'adopt_ai', text: AI_TEXT })
 const SUBMIT = does({ kind: 'submit' })
 const APPROVE = does({ kind: 'approve', screen: 'this_reply' })
@@ -316,6 +342,96 @@ const SCRIPTED_HISTORIES: ReadonlyArray<ReadonlyArray<Step>> = [
     SUBMIT,
     does({ kind: 'approve', screen: 'a_replaced_reply' }),
     APPROVE,
+  ],
+  // Something the AI text was generated from changes under a confirmed reply
+  // no worker has claimed: the purge empties it, its job sends nothing, and
+  // the empty draft is neither submitted nor deleted. What a manager types
+  // into it goes the normal way.
+  [
+    ADOPT,
+    SUBMIT,
+    APPROVE,
+    INPUT_CHANGES,
+    worker('accepted'),
+    SUBMIT,
+    does({ kind: 'delete' }),
+    TYPE_OVER,
+    SUBMIT,
+    APPROVE,
+    worker('accepted', 1),
+    OBSERVE,
+  ],
+  // Under a reply still waiting for approval: the purge deletes it. A
+  // confirmation left open names a reply that is gone, and the reply written
+  // in its place is pending at the same revision.
+  [
+    ADOPT,
+    SUBMIT,
+    INPUT_CHANGES,
+    TYPE_OVER,
+    SUBMIT,
+    does({ kind: 'approve', screen: 'a_replaced_reply' }),
+    APPROVE,
+  ],
+  // Under a reply Google refused once: the purge leaves a cycle that ran to
+  // its end alone, and the retry's claim withdraws it. Having been claimed
+  // before excuses a closed window, not a changed input.
+  [
+    ADOPT,
+    SUBMIT,
+    APPROVE,
+    worker('rejected'),
+    INPUT_CHANGES,
+    RETRY,
+    worker('accepted', 1),
+    TYPE_OVER,
+    SUBMIT,
+    APPROVE,
+    worker('accepted', 2),
+    OBSERVE,
+  ],
+  // A sync leaves an AI draft alone while its binding is current and removes
+  // it once its window has passed; a confirmed one it empties.
+  [
+    ADOPT,
+    SYNC_SEES_THE_REVIEW,
+    LAPSE,
+    SYNC_SEES_THE_REVIEW,
+    ADOPT,
+    SUBMIT,
+    APPROVE,
+    LAPSE,
+    SYNC_SEES_THE_REVIEW,
+    worker('accepted'),
+  ],
+  // A cycle waiting for its next execution when the window passes: the sync
+  // gets there before the worker and withdraws it. (Two histories up, the
+  // worker gets there first and sends. Either is a rule keeping its word.)
+  [
+    ADOPT,
+    SUBMIT,
+    APPROVE,
+    worker('not_sent'),
+    LAPSE,
+    SYNC_SEES_THE_REVIEW,
+    worker('accepted'),
+  ],
+  // A draft back from a cancelled cycle, submitted again: the purge empties
+  // it under the approver, and a newly adopted suggestion takes its place in
+  // the same reply, held by its own binding.
+  [
+    ADOPT,
+    SUBMIT,
+    APPROVE,
+    DISCONNECT,
+    SUBMIT,
+    INPUT_CHANGES,
+    APPROVE,
+    ADOPT,
+    SUBMIT,
+    APPROVE,
+    worker('accepted', 1),
+    OBSERVE,
   ],
 ]
 
@@ -773,6 +889,45 @@ function createRun() {
     expect(cancelledCount, context()).toBe(pre?.publication === 'authorized' ? 1 : 0)
   }
 
+  const cancellationFacts = (evidence: ReplyEvidence): number =>
+    evidence.facts['review.reply.publication_cancelled'] ?? 0
+
+  /** Which of the purge's three outcomes the run has now seen. */
+  function notePurge(pre: OracleState, expected: OracleState): void {
+    if (pre?.authorship !== 'ai_assisted') return
+    if (expected === null) covered.add('purge: deleted an AI reply nobody confirmed')
+    else if (expected.text === '') covered.add('purge: emptied a confirmed AI reply')
+    else covered.add('purge: left an AI reply alone')
+  }
+
+  async function purge(
+    step: Extract<Step, { act: 'purge' }>,
+    before: ReplyEvidence,
+  ): Promise<void> {
+    const everyAiReply = step.scope === 'every_ai_reply'
+    const pastItsWindow =
+      before.reply !== null && (await harness.ai.pastItsWindow(before.reply.id))
+    say(
+      everyAiReply
+        ? 'something AI drafts were generated from changes: the purge runs for all of them'
+        : `sync sees the unchanged review: the purge runs for AI drafts past their window${pastItsWindow ? ' (this one is)' : ''}`,
+    )
+    await (everyAiReply ? harness.ai.changeInput() : harness.ai.observeReviewAgain())
+    const after = await harness.evidence()
+    const pre = toOracle(before.reply)
+    const expected = afterAiDraftPurge(pre, step.scope, pastItsWindow)
+    expect(sameReplyState(toOracle(after.reply), expected), context()).toBe(true)
+    // Whoever was waiting on the reply (an approver, or the author of a
+    // confirmed one) is told once. A draft nobody was asked about, and a reply
+    // the purge left alone, tell nobody.
+    const wasWaitedOn =
+      pre !== null &&
+      (pre.status === 'pending_approval' || pre.publication === 'authorized')
+    const told = wasWaitedOn && !sameReplyState(pre, expected) ? 1 : 0
+    expect(cancellationFacts(after) - cancellationFacts(before), context()).toBe(told)
+    notePurge(pre, expected)
+  }
+
   // ── Invariants (src/contexts/review/CONTEXT.md) ────────────────────
 
   function assertInvariants(now: ReplyEvidence): void {
@@ -879,6 +1034,7 @@ function createRun() {
       else if (step.act === 'sweep') await sweep(step, before, await evidenceOf(before))
       else if (step.act === 'observe') await observe(before)
       else if (step.act === 'cancel') await cancel(before)
+      else if (step.act === 'purge') await purge(step, before)
       else if (step.act === 'lapse') {
         const lapsed = await harness.ai.letWindowPass()
         say(`ten minutes pass: ${lapsed} AI-assisted reply past its adoption window`)
@@ -922,8 +1078,9 @@ describe.sequential('reply workflow model (PostgreSQL)', () => {
     // The histories are only evidence if they went through publication, its
     // failures and its cancellation, not just through drafts; if AI text went
     // the same way; if its stale binding was both refused where it gates and
-    // passed where it must not; if a withdrawn reply was refused as blank; and
-    // if a confirmation met both a rewritten reply and a replaced one.
+    // passed where it must not; if the purge deleted, emptied and left alone,
+    // and what it emptied was refused as a reply; and if a confirmation met
+    // both a rewritten reply and a replaced one.
     expect([...covered].sort()).toEqual(
       expect.arrayContaining([
         'approved/authorized',
@@ -941,7 +1098,11 @@ describe.sequential('reply workflow model (PostgreSQL)', () => {
         'stale AI text refused: submit',
         'stale AI text refused: approve',
         'stale AI text: withdrawn at the claim',
+        'AI text with a changed input: withdrawn at the claim',
         'stale AI text: claimed again',
+        'purge: deleted an AI reply nobody confirmed',
+        'purge: emptied a confirmed AI reply',
+        'purge: left an AI reply alone',
         'blank reply refused: submit',
         'stale AI text: draft',
         'stale AI text: reject',

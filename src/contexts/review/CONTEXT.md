@@ -233,11 +233,11 @@ for a Reply it withdraws.
 
 The purge writes SQL of its own, from the transactions of other contexts, and
 goes through none of the reply guards. The two are held together by tests
-(`infrastructure/reply-ai-withdrawal.integration.test.ts`): a command that
-read the Reply before the purge matches no row after it, a claim or a
-confirmation that waited for the purge's locks finds the Reply withdrawn or
-gone, and a draft save that waited writes the manager's text into the emptied
-Reply. A cycle that is waiting for its
+(`infrastructure/reply-ai-withdrawal.integration.test.ts`, and the purge as a
+step of the model suite): a command that read the Reply before the purge
+matches no row after it, a claim or a confirmation that waited for the purge's
+locks finds the Reply withdrawn or gone, and a draft save that waited writes
+the manager's text into the emptied Reply. A cycle that is waiting for its
 next execution when the window passes is sent if the worker reaches it first
 and withdrawn if a sync does; both are a rule keeping its word.
 
@@ -386,6 +386,9 @@ for sending before or never) and identity (a confirmation that names the stored
 Reply, an earlier revision of it, or a Reply that was deleted and replaced): AI
 suggestions are adopted through the real acceptance store and judged by the
 real binding, and no AI text that went stale before its first claim, or whose
-inputs changed, may leave RepKey.
+inputs changed, may leave RepKey. The AI draft purge is a step of the
+PostgreSQL histories (for every AI draft when an input changes, and for those
+past their window when a sync sees the Review), and the oracle states by hand
+what it deletes, empties and leaves alone.
 
 Recurring activation remains quarantined until the external shadow-parity/cutover audit is complete.

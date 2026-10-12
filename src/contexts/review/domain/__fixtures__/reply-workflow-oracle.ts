@@ -16,6 +16,11 @@
 // claimed for sending before; and which reply is stored, at which revision.
 // The last is identity, which a state cannot carry: a reply that is deleted
 // and written anew is another reply in the very same state.
+//
+// One writer is not a command and not a publication event: the AI draft purge
+// (Review CONTEXT, Model; AI CONTEXT, Invariant 4). It withdraws unedited AI
+// text that may no longer be published, from outside the reply workflow, and
+// is written out at the end of this file.
 
 export type OracleStatus =
   'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'publish_failed'
@@ -536,3 +541,47 @@ export const afterRefusedClaim = (reply: OracleReply): OracleReply | null =>
   is(reply, 'approved', 'authorized') && reply.authorship === 'ai_assisted'
     ? withdrawn(reply)
     : null
+
+/** Which AI-assisted replies one run of the AI draft purge reaches. */
+export type AiDraftPurgeScope =
+  /** Something they were generated from changed (the Review, the Property, its
+   * AI settings), and the transaction that changed it runs the purge. */
+  | 'every_ai_reply'
+  /** A sync saw the Review again, unchanged. Nothing marks the moment the ten
+   * minutes run out, so this is when a reply past them is withdrawn. */
+  | 'replies_past_their_window'
+
+/** Confirmed once, and nothing of its current cycle has left RepKey: the
+ * cycle is waiting for a worker, or it was cancelled and the reply is a draft
+ * again (perhaps submitted again since, or rejected). */
+const confirmedAndNotDispatched = (reply: OracleReply): boolean =>
+  is(reply, 'approved', 'authorized') ||
+  (reply.publication === 'cancelled' &&
+    (reply.status === 'draft' ||
+      reply.status === 'pending_approval' ||
+      reply.status === 'rejected'))
+
+/**
+ * The reply after the AI draft purge ran for it. The purge touches only
+ * unedited AI text (a reply a manager wrote, or typed over, is never in its
+ * reach), and what it does depends on how far the reply got:
+ *
+ *   - no manager ever confirmed it (a draft, awaiting approval, rejected, with
+ *     no publication cycle): it is deleted;
+ *   - it was confirmed and nothing of its current cycle has left RepKey, or it
+ *     is back in draft after a cancelled cycle: it is withdrawn, not deleted;
+ *   - a worker has claimed it, or its cycle ended published or failed: left
+ *     alone. Its text may be on Google, and the attempt evidence describes it.
+ *
+ * `pastItsWindow`: the reply's ten-minute adoption window has passed.
+ */
+export function afterAiDraftPurge(
+  state: OracleState,
+  scope: AiDraftPurgeScope,
+  pastItsWindow: boolean,
+): OracleState {
+  if (state === null || state.authorship !== 'ai_assisted') return state
+  if (scope === 'replies_past_their_window' && !pastItsWindow) return state
+  if (state.publication === null) return null
+  return confirmedAndNotDispatched(state) ? withdrawn(state) : state
+}
