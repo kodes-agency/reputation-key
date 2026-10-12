@@ -21,7 +21,7 @@ export type PortalIssueCode =
   | 'no_live_version'
   | 'no_code'
   | 'no_responsible'
-  | 'google_refreshing'
+  | 'google_on_hold'
   | 'google_unavailable'
 
 /** Where a manager goes to put an issue right. */
@@ -64,10 +64,14 @@ const ISSUES: Readonly<Record<PortalIssueCode, Omit<PortalIssue, 'code'>>> = {
     detail: 'Nobody gets this portal’s notices. Choose a manager.',
     fix: 'responsible',
   },
-  google_refreshing: {
-    title: 'The Google link is being refreshed',
+  // Nothing refreshes a Property's Google link in the background. A live Portal
+  // of an available Property reports this only after Google was disconnected
+  // from the Property, and a relink pins a new destination, so the Portal has to
+  // be published again before guests are sent to it.
+  google_on_hold: {
+    title: 'The Google link is on hold',
     detail:
-      'Guests are still sent to Google once it is ready. This usually clears itself.',
+      'Guests are not sent to Google. Relink the property to Google, then publish this portal again.',
     fix: 'google',
   },
   google_unavailable: {
@@ -93,7 +97,7 @@ function liveIssues(input: PortalAttentionInput): readonly PortalIssue[] {
   // its own line, which links to Share, where the code is replaced.
   if (!input.token.hasActiveToken) codes.push('no_code')
   if (input.responsibleManagerUserIds.length === 0) codes.push('no_responsible')
-  if (reason === 'google_destination_awaiting_refresh') codes.push('google_refreshing')
+  if (reason === 'google_destination_awaiting_refresh') codes.push('google_on_hold')
   if (reason === 'google_destination_unavailable') codes.push('google_unavailable')
   return codes.map(issue)
 }
