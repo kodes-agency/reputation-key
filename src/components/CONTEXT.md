@@ -522,11 +522,14 @@ Four rules keep a cached page in step with the server it sends commands to.
   means the page is behind, and often nothing else will bring it forward (no
   poll, no refetch until the window is refocused). Give the mutation an
   `onError` that invalidates the entity it named, read from the command's own
-  input (`inboxCachePolicy.onReplyCommandFailed`, `onFeedbackHandlingFailed`),
-  and re-read the list when a bulk command changed nothing. The refusal must
-  outlive that read: a sentence held inside what the read replaces is gone with
-  it, so such a command reports by toast (the Inbox's Confirm & publish and
-  Confirm & update, under Confirmation in the Pattern index).
+  input because neither the Inbox pane nor a route is remounted when the entity
+  on screen changes (`inboxCachePolicy.onReplyCommandFailed`,
+  `onFeedbackHandlingFailed`, the responsible-managers saves of the Property
+  people tab and the Portal editor), and re-read the list when a bulk command
+  changed nothing. The refusal must outlive that read: a sentence held inside
+  what the read replaces is gone with it, so such a command reports by toast
+  (the Inbox's Confirm & publish and Confirm & update, under Confirmation in the
+  Pattern index).
 - **A draft kept across a refetch keeps the revision it was started from.** Save
   it with that revision, never the refetched one: the fence exists so a change
   the person has not seen is refused, and a kept draft has not seen the refetch

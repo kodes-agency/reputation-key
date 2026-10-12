@@ -48,3 +48,30 @@ export const resolveResponsibleManagerSelection = (
   edit !== null && isLiveResponsibleManagerEdit(edit, server)
     ? { selected: edit.selected, expectedRevision: edit.base.revision, dirty: true }
     : { selected: server.selection, expectedRevision: server.revision, dirty: false }
+
+/**
+ * The edit after one tick or untick.
+ *
+ * The first change starts an edit from the server state on screen. A change
+ * made on top of a live edit keeps the state that edit was started from, however
+ * often the page has re-read since: the person is still changing a selection
+ * that has not seen those reads, so it must still be refused when one of them
+ * brought another admin's change. Taking the latest read as the base here would
+ * hand the kept selection the newer revision on its next tick, and the save
+ * would end every manager the other admin had added.
+ */
+export const toggleResponsibleManager = (
+  edit: ResponsibleManagerEdit | null,
+  server: ResponsibleManagerServerState,
+  userId: string,
+  checked: boolean,
+): ResponsibleManagerEdit => {
+  const live = edit !== null && isLiveResponsibleManagerEdit(edit, server) ? edit : null
+  const from = live?.selected ?? server.selection
+  return {
+    selected: checked
+      ? normalizeResponsibleManagerIds([...from, userId])
+      : from.filter((id) => id !== userId),
+    base: live?.base ?? server,
+  }
+}

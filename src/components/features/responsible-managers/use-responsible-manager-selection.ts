@@ -3,6 +3,7 @@ import {
   isLiveResponsibleManagerEdit,
   normalizeResponsibleManagerIds,
   resolveResponsibleManagerSelection,
+  toggleResponsibleManager,
   type ResponsibleManagerEdit,
   type ResponsibleManagerServerState,
 } from './selection'
@@ -38,18 +39,7 @@ export function useResponsibleManagerSelection(
   )
 
   const toggle = (userId: string, checked: boolean) =>
-    setHeld((current) => {
-      const live =
-        current !== null && isLiveResponsibleManagerEdit(current, server) ? current : null
-      const from = resolveResponsibleManagerSelection(live, server).selected
-      return {
-        selected: checked
-          ? normalizeResponsibleManagerIds([...from, userId])
-          : from.filter((id) => id !== userId),
-        // An edit keeps the state it was started from; the first change starts one.
-        base: live?.base ?? server,
-      }
-    })
+    setHeld((current) => toggleResponsibleManager(current, server, userId, checked))
 
   return {
     selected,
