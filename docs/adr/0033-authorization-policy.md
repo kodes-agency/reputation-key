@@ -48,11 +48,13 @@ action and scope; an unavailable or unknown policy input fails closed.
   (`createScheduledScopeAuthorizer`), before any effect for them. The Review
   Analysis backlog drain did not, and went on sending a stopped Organization's
   queued reviews to the provider. `tenant-cross-schedule-authorization.test.ts`
-  is exhaustive over the catalogue: a new capability-gated tenant-cross
-  schedule fails there until it names how its candidates are decided, and one
-  that names a scope authorizer must be given it where the worker registers
-  the job. The Response Target reminder release is recorded there as the one
-  schedule that still asks nothing.
+  is exhaustive over the scheduled job families, read as the gate reads a
+  firing: the schedule row, else the job row, and the capability by action, so
+  a family with no schedule row or an ungated one is covered too. A new
+  capability-gated tenant-cross schedule fails there until it names how its
+  candidates are decided, and one that names a scope authorizer must be given
+  it where the worker registers the job. The Response Target reminder release
+  is recorded there as the one schedule that still asks nothing.
 
 ## Amended 2026-10-01 — manager administration is AccountAdmin-only
 
