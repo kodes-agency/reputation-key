@@ -1,9 +1,16 @@
 // The five measures as one ruled strip (board 07). Each cell says what it
 // counts, prints the figure, and gives one line under it (portal-results-cells).
+// The headline, qualified scans, is a term people do not know: its label opens
+// the definition, on the Results tab and on every Portals overview strip.
 import type { ReactNode } from 'react'
 import { Star } from 'lucide-react'
+import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { RESULTS_LABELS, type ResultsCell } from './portal-results-cells'
+
+function labelOf(cell: ResultsCell): ReactNode {
+  return cell.key === 'scans' ? <GlossaryTerm term="qualified-scans" /> : cell.label
+}
 
 function Figure({ cell }: Readonly<{ cell: ResultsCell }>) {
   if (cell.unit !== 'star') return cell.value
@@ -27,7 +34,7 @@ export function PortalResultsStrip({
   return (
     <MetricStrip aria-label="Portal results" variant="ruled">
       {cells.map((cell) => (
-        <Metric key={cell.key} label={cell.label}>
+        <Metric key={cell.key} label={labelOf(cell)}>
           <MetricValue
             value={<Figure cell={cell} />}
             detail={

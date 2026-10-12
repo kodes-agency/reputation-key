@@ -103,6 +103,7 @@ describe('parseNotificationPayload', () => {
       goalMonth: '2026-10',
       goalSubjectKind: 'portal',
       goalOutcome: 'met',
+      goalMarker: 'set_in_month',
       // `failed`, because a reason is only admitted on a failed import: a
       // completed one carrying a stale reason would render "the import
       // stopped" over a success.
@@ -147,6 +148,19 @@ describe('parseNotificationPayload', () => {
 
   // The reason a Google connection needs reauthorization is a closed fact from
   // the integration.google_account.reauthorization_required event, never text.
+  it('keeps a Goal marker only while it is one of the two the notices may carry', () => {
+    expect(parseNotificationPayload({ goalMarker: 'set_in_month' })).toEqual({
+      goalMarker: 'set_in_month',
+    })
+    expect(parseNotificationPayload({ goalMarker: 'target_changed' })).toEqual({
+      goalMarker: 'target_changed',
+    })
+    // A marker is a closed fact about the month, never a date, a target or a name.
+    for (const other of ['set on Oct 20', 'lowered from 400', true, 20, null]) {
+      expect(parseNotificationPayload({ goalMarker: other })).toEqual({})
+    }
+  })
+
   it('keeps a known Google reauthorization cause and drops anything else', () => {
     expect(
       parseNotificationPayload({ reauthorizationCause: 'provider_revoked' }),

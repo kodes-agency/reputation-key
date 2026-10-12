@@ -11,6 +11,8 @@ vi.mock('#/shared/auth/controlled-route-gate', async (importOriginal) => ({
   gateControlledRoute: vi.fn(async () => undefined),
 }))
 
+import { visiblePropertySettingsSections } from '#/components/features/property/settings/property-settings-sections'
+import { can } from '#/shared/domain/permissions'
 import { Route as AiRoute } from './settings/ai'
 import { Route as TargetsRoute } from './settings/targets'
 import { Route as ReviewRoute } from './portals/$portalId/review'
@@ -32,7 +34,7 @@ async function refusal(beforeLoad: Gate | undefined, role: string): Promise<unkn
 }
 
 describe('role refusals answer in the shell with a way back', () => {
-  it('Property AI, for a role without ai.manage', async () => {
+  it('Property AI, for a role that does not use AI', async () => {
     expect(await refusal(AiRoute.options.beforeLoad as Gate, 'Member')).toMatchObject({
       routeId: '/_authenticated',
       data: {
@@ -55,6 +57,29 @@ describe('role refusals answer in the shell with a way back', () => {
       },
     })
   })
+
+  // The page is where an account admin decides whether AI is on; a manager reads the
+  // state there, locked, rather than being turned away.
+  it('lets a PropertyManager read the Property AI page', async () => {
+    expect(
+      await refusal(AiRoute.options.beforeLoad as Gate, 'PropertyManager'),
+    ).toBeNull()
+  })
+
+  // The route and the nav item are written apart (the nav module stays out of the
+  // first-paint bundle), so this holds them to the same answer for every role.
+  it.each(['AccountAdmin', 'PropertyManager', 'Member'] as const)(
+    'opens the Property AI page for %s exactly when the nav shows its section',
+    async (role) => {
+      const shown = visiblePropertySettingsSections((permission) =>
+        can(role, permission),
+      ).some((section) => section.key === 'ai')
+
+      expect((await refusal(AiRoute.options.beforeLoad as Gate, role)) === null).toBe(
+        shown,
+      )
+    },
+  )
 
   it('lets the roles that hold the permission through', async () => {
     expect(await refusal(AiRoute.options.beforeLoad as Gate, 'AccountAdmin')).toBeNull()

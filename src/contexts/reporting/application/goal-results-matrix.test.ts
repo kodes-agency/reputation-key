@@ -84,6 +84,7 @@ function bundle(
         periodEnd,
         propertyTimezone: 'America/New_York',
         status: 'closed',
+        targetValue: null,
         evaluation: input.evaluation,
         sourceCompleteThrough:
           input.sourceCompleteThrough === undefined
@@ -168,6 +169,7 @@ describe('Goal Results Matrix', () => {
         evidence: { kind: 'count', value: 0, sampleCount: 0 },
         outcome: 'not_met',
         explanation: 'Not met: 0 verified qualified scans; target is at least 100.',
+        monthTarget: null,
       }),
       expect.objectContaining({
         scope: 'portal_group',
@@ -200,8 +202,109 @@ describe('Goal Results Matrix', () => {
       metricDefinitionVersionId: 'metric-version-rating-average',
       targetValue: 4.3,
       effectiveFrom: periodStart,
+      setAt: new Date('2026-08-02T05:00:00.000Z'),
     })
     expect(JSON.stringify(matrix)).not.toMatch(/rank|composite|progressPercent|ring/i)
+  })
+
+  it('shows and explains a month against its own target, and names who changed it', () => {
+    const base = bundle({
+      id: 'scans',
+      name: 'Property scans',
+      metric: 'qualified_scans',
+      target: 100,
+      subject: { kind: 'property', propertyId: 'property-1' },
+      // Judged against 80, the target the month closed with.
+      evaluation: {
+        state: 'eligible',
+        value: 90,
+        sampleCount: 90,
+        achieved: true,
+        reason: null,
+      },
+    })
+    const changedAt = new Date('2026-07-20T15:00:00.000Z')
+    const changes = [
+      { previous: 100, next: 90, by: 'elena', at: new Date('2026-07-10T15:00:00.000Z') },
+      { previous: 90, next: 80, by: 'marco', at: changedAt },
+    ]
+
+    const matrix = buildGoalResultsMatrix({
+      ...catalogue,
+      programs: [
+        {
+          ...base,
+          results: base.results.map((result) => ({ ...result, targetValue: 80 })),
+          targetChanges: changes.map((change, index) => ({
+            id: `change-${index}`,
+            organizationId: 'org-1',
+            propertyId: 'property-1',
+            programId: 'scans',
+            monthlyResultId: 'result-scans',
+            changeId: `command-${index}`,
+            previousTargetValue: change.previous,
+            newTargetValue: change.next,
+            followingOutcome: 'not_requested' as const,
+            followingReason: null,
+            followingVersionId: null,
+            note: null,
+            createdBy: change.by,
+            createdAt: change.at,
+          })),
+        },
+      ],
+    })
+
+    expect(matrix.months[0]?.rows[0]).toMatchObject({
+      outcome: 'met',
+      explanation: 'Met: 90 verified qualified scans; target is at least 80.',
+      targetProvenance: { targetValue: 80, programVersion: 3 },
+      monthTarget: {
+        changedAt,
+        changedBy: 'marco',
+        startTarget: 100,
+        changeCount: 2,
+      },
+    })
+  })
+
+  it('dates a target from when it was set, not from a later change of subjects', () => {
+    const base = bundle({
+      id: 'ratings',
+      name: 'Front desk ratings',
+      metric: 'portal_rating_count',
+      target: 20,
+      subject: { kind: 'portal_group', portalGroupId: 'group-1' },
+      evaluation: {
+        state: 'eligible',
+        value: 24,
+        sampleCount: 24,
+        achieved: true,
+        reason: null,
+      },
+    })
+    const setAt = new Date('2026-06-12T09:00:00.000Z')
+    // The version the result is pinned to only changed the subjects: it carries
+    // the measure and the target of the version before it.
+    const targetSet = {
+      ...base.version,
+      id: 'version-target-set',
+      version: 2,
+      effectiveFrom: new Date('2026-06-01T04:00:00.000Z'),
+      effectiveTo: periodStart,
+      createdAt: setAt,
+    }
+
+    const matrix = buildGoalResultsMatrix({
+      ...catalogue,
+      programs: [{ ...base, versions: [targetSet, base.version] }],
+    })
+
+    expect(matrix.months[0]?.rows[0]?.targetProvenance).toMatchObject({
+      programVersion: 3,
+      effectiveFrom: periodStart,
+      setAt,
+    })
   })
 
   it('keeps readiness, evidence, and data-through semantics honest', () => {

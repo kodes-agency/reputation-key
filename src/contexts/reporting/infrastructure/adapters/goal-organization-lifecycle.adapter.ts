@@ -29,6 +29,9 @@ const CONTEXT = 'goal' as const
  * tenant-scoped and deleted only by the irreversible lifecycle phase.
  */
 export const GOAL_PURGE_TABLES = Object.freeze([
+  // The month target log holds its month, its Program and the version that
+  // carried a target forward with ON DELETE RESTRICT, so it goes first.
+  'goal_month_target_changes',
   'goal_result_revisions',
   'goal_monthly_results',
   'goal_subject_assignments',
@@ -40,7 +43,8 @@ export const GOAL_PURGE_TABLES = Object.freeze([
  * The monthly-result validation guard rejects deletion alongside enforcing its
  * status and revision transitions, so irreversible tenant purge disables it
  * transactionally. Program versions and result revisions are append-only
- * through their repository write surfaces and need no database trigger.
+ * through their repository write surfaces and need no database trigger. The
+ * month target log has none either, so purge needs no bypass for it.
  *
  * `ALTER TABLE ... DISABLE TRIGGER` is transactional in PostgreSQL, so the
  * guard is restored by the same commit that carries the receipt — and
@@ -93,6 +97,10 @@ async function countTenantRows(tx: Tx, organization: string): Promise<number> {
       )
       + (
         SELECT count(*) FROM goal_result_revisions
+        WHERE organization_id = ${organization}
+      )
+      + (
+        SELECT count(*) FROM goal_month_target_changes
         WHERE organization_id = ${organization}
       ) AS rows
   `)
@@ -247,6 +255,9 @@ const purge = async (
   }
   try {
     // Canonical Goal Program family, children first.
+    await tx.execute(
+      sql`DELETE FROM goal_month_target_changes WHERE organization_id = ${organization}`,
+    )
     await purgeResultRevisionChain(tx, organization)
     await tx.execute(
       sql`DELETE FROM goal_monthly_results WHERE organization_id = ${organization}`,

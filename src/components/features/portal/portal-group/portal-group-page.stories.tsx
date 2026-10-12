@@ -100,7 +100,7 @@ export const ResultsAreTheGroupsOwn: Story = {
     await expect(strip.getByText('17% of scans')).toBeInTheDocument()
     await expect(strip.getByText('13')).toBeInTheDocument()
     await expect(
-      within(canvasElement).getByText(/1–30 Sep, Europe\/Sofia time · this group/),
+      within(canvasElement).getByText(/1–30 Sep, Sofia time · this group/),
     ).toBeInTheDocument()
   },
 }
@@ -165,7 +165,7 @@ export const GoalCardIsLiveAndNeutral: Story = {
       }),
     ).toHaveAttribute('aria-valuenow', '84')
     await expect(
-      card.getByText('Set by Elena Petrova · the month ends today'),
+      card.getByText('Set by Elena Petrova on Aug 12 · the month ends today'),
     ).toBeInTheDocument()
     await expect(card.getByRole('link', { name: /open in goals/i })).toBeInTheDocument()
   },
@@ -199,6 +199,39 @@ export const NoGoalYet: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText(/no goal for this group yet/i)).toBeInTheDocument()
     await expect(canvas.getByRole('link', { name: 'Set a goal' })).toBeInTheDocument()
+  },
+}
+
+/**
+ * A month whose target a manager changed shows the changed target, and names
+ * the person who changed it and what it started at in place of who set the goal.
+ */
+export const GoalCardNamesWhoChangedTheMonth: Story = {
+  args: {
+    goals: ready([
+      {
+        ...RATINGS_GOAL,
+        targetValue: 220,
+        monthTarget: {
+          changedAt: new Date('2026-09-20T09:00:00.000Z'),
+          changedBy: 'u-georgi',
+          startTarget: 250,
+          changeCount: 1,
+        },
+      },
+    ]),
+  },
+  play: async ({ canvasElement }) => {
+    const card = within(
+      within(canvasElement).getByRole('article', { name: 'September · Private ratings' }),
+    )
+    await expect(card.getByText('of 220 so far')).toBeInTheDocument()
+    await expect(
+      card.getByText(
+        'Changed by Georgi Ivanov on Sep 20, started at 250 · the month ends today',
+      ),
+    ).toBeInTheDocument()
+    await expect(card.queryByText(/Set by/)).toBeNull()
   },
 }
 

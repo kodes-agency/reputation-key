@@ -13,6 +13,7 @@ import {
   text,
   timestamp,
   index,
+  uniqueIndex,
   unique,
   check,
   foreignKey,
@@ -97,6 +98,14 @@ export const goalProgramVersions = pgTable(
       t.programId,
       t.id,
       t.metricKey,
+    ),
+    // What a month target change references, so its following version is one
+    // of its own Program. An index, as migration 0054 built it.
+    uniqueIndex('goal_program_versions_target_change_fk_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.programId,
+      t.id,
     ),
     index('goal_program_versions_effective_idx').on(
       t.organizationId,
@@ -279,6 +288,11 @@ export const goalMonthlyResults = pgTable(
     closedAt: timestamp('closed_at', { withTimezone: true }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
+    // The target of this one month. NULL means the month uses its version's
+    // target. guard_goal_monthly_result_v1 lets a row take or change one only
+    // while it is open and its period has not ended, on INSERT and on UPDATE,
+    // and holds it to the version's measure rule.
+    targetValue: numeric('target_value', { precision: 30, scale: 10, mode: 'number' }),
   },
   (t) => [
     unique('goal_monthly_results_assignment_period_key').on(
@@ -289,6 +303,14 @@ export const goalMonthlyResults = pgTable(
     unique('goal_monthly_results_org_property_id_key').on(
       t.organizationId,
       t.propertyId,
+      t.id,
+    ),
+    // What a month target change references, so the month it names is one of
+    // its own Program. An index, as migration 0054 built it.
+    uniqueIndex('goal_monthly_results_target_change_fk_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.programId,
       t.id,
     ),
     index('goal_monthly_results_due_idx').on(
@@ -341,6 +363,10 @@ export const goalMonthlyResults = pgTable(
         OR ${t.evaluationState} NOT IN ('eligible', 'insufficient_data')
         OR ${t.sourceCompleteThrough} = ${t.periodEnd}
       )`,
+    ),
+    check(
+      'goal_monthly_results_target_value_check',
+      sql`${t.targetValue} IS NULL OR ${t.targetValue} > 0`,
     ),
   ],
 )
@@ -408,6 +434,94 @@ export const goalResultRevisions = pgTable(
     check(
       'goal_result_revisions_reason_check',
       sql`length(btrim(${t.changeReason})) > 0`,
+    ),
+  ],
+)
+
+// Every change to a month's own target: who, when, the old and the new value
+// and an optional note. One command writes one row per month it changed, all
+// sharing `changeId`, and never two for the same month. `followingOutcome`
+// records what happened to the months after it. The month and the following
+// version a row names belong to the Program it names. The application only
+// appends rows; the table has no guard trigger, because it records a value
+// from before the month closed, not closed evidence.
+export const goalMonthTargetChanges = pgTable(
+  'goal_month_target_changes',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    programId: uuid('program_id').notNull(),
+    monthlyResultId: uuid('monthly_result_id').notNull(),
+    changeId: uuid('change_id').notNull(),
+    previousTargetValue: numeric('previous_target_value', {
+      precision: 30,
+      scale: 10,
+      mode: 'number',
+    }).notNull(),
+    newTargetValue: numeric('new_target_value', {
+      precision: 30,
+      scale: 10,
+      mode: 'number',
+    }).notNull(),
+    followingOutcome: varchar('following_outcome', { length: 32 }).notNull(),
+    followingReason: varchar('following_reason', { length: 40 }),
+    followingVersionId: uuid('following_version_id'),
+    note: text('note'),
+    createdBy: varchar('created_by', { length: 255 }).notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t) => [
+    unique('goal_month_target_changes_change_result_key').on(
+      t.changeId,
+      t.monthlyResultId,
+    ),
+    index('goal_month_target_changes_program_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.programId,
+      t.createdAt,
+    ),
+    foreignKey({
+      name: 'goal_month_target_changes_result_fk',
+      columns: [t.organizationId, t.propertyId, t.programId, t.monthlyResultId],
+      foreignColumns: [
+        goalMonthlyResults.organizationId,
+        goalMonthlyResults.propertyId,
+        goalMonthlyResults.programId,
+        goalMonthlyResults.id,
+      ],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'goal_month_target_changes_program_fk',
+      columns: [t.organizationId, t.propertyId, t.programId],
+      foreignColumns: [
+        goalPrograms.organizationId,
+        goalPrograms.propertyId,
+        goalPrograms.id,
+      ],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'goal_month_target_changes_following_version_fk',
+      columns: [t.organizationId, t.propertyId, t.programId, t.followingVersionId],
+      foreignColumns: [
+        goalProgramVersions.organizationId,
+        goalProgramVersions.propertyId,
+        goalProgramVersions.programId,
+        goalProgramVersions.id,
+      ],
+    }).onDelete('restrict'),
+    check(
+      'goal_month_target_changes_outcome_check',
+      sql`${t.followingOutcome} IN ('applied', 'replaced_scheduled_change', 'kept_scheduled_change', 'not_applied', 'not_requested')`,
+    ),
+    check(
+      'goal_month_target_changes_note_check',
+      sql`${t.note} IS NULL OR char_length(btrim(${t.note})) BETWEEN 1 AND 500`,
+    ),
+    check(
+      'goal_month_target_changes_value_check',
+      sql`${t.newTargetValue} > 0 AND ${t.newTargetValue} <> ${t.previousTargetValue}`,
     ),
   ],
 )

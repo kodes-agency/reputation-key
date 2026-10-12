@@ -11,7 +11,7 @@ export function portalResponseIntegrityCopy(
 ): string {
   const outside = summary.filteredAutomatically + summary.underReview
   if (outside === 0) {
-    return 'No Portal responses in this period are outside the private-rating figures.'
+    return 'No portal responses in this period are outside the private-rating figures.'
   }
-  return `${formatNumber(outside)} Portal ${outside === 1 ? 'response is' : 'responses are'} currently outside the private-rating figures while quality checks are resolved.`
+  return `${formatNumber(outside)} portal ${outside === 1 ? 'response is' : 'responses are'} currently outside the private-rating figures while quality checks are resolved.`
 }

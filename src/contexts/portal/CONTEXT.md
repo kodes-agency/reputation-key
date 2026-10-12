@@ -12,7 +12,8 @@ assignment, and governed access artifacts.
 ## Boundaries
 
 - Guest resolves public Portal data through `PortalPublicApi`; Goal reads group
-  membership through `PortalGroupPublicApi`. Portal does not read their stores.
+  membership and a group's name through `PortalGroupPublicApi`. Portal does not
+  read their stores.
 - Retained `entityType`/`entityId` values may reference historical Team or Staff rows for reconciliation. They never change Property ownership, authorization, grouping, or notification responsibility.
 - AI Reply Brand Authority is content-minimal. Generation may read only the exact display name, profile version, and derived display-name digest; transaction-bound callers receive only a boolean exact-current answer. Image URLs, colors, localized content, Portal overrides, links, Guest ratings, and Private Feedback are never exposed through it.
 - Responsible-manager assignment never grants property access, portal access, or staff attribution.

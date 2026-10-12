@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { averageDomain, chartModel, niceScale } from './portal-results-chart-model'
+import {
+  averageDomain,
+  chartModel,
+  labelSpans,
+  niceScale,
+} from './portal-results-chart-model'
 import { RESULTS_HEALTHY } from './portal-results-stories-data'
 
 const SERIES = RESULTS_HEALTHY.series
@@ -36,6 +41,48 @@ describe('averageDomain', () => {
   })
 })
 
+describe('labelSpans', () => {
+  it('names every week while there are five or fewer', () => {
+    expect(labelSpans(5)).toEqual([1, 1, 1, 1, 1])
+    expect(labelSpans(1)).toEqual([1])
+  })
+
+  it('names every second week at 60 days, the short end joining the one before', () => {
+    // Nine weeks: 0, 2, 4 and a last label over the final three columns.
+    expect(labelSpans(9)).toEqual([2, null, 2, null, 2, null, 3, null, null])
+  })
+
+  it('names every third week at 90 days, so no label is squeezed into one narrow column', () => {
+    expect(labelSpans(13)).toEqual([
+      3,
+      null,
+      null,
+      3,
+      null,
+      null,
+      3,
+      null,
+      null,
+      4,
+      null,
+      null,
+      null,
+    ])
+  })
+
+  it('covers every column exactly once', () => {
+    for (const count of [6, 7, 8, 9, 10, 11, 12, 13]) {
+      const total = labelSpans(count).reduce<number>((sum, span) => sum + (span ?? 0), 0)
+      expect(total).toBe(count)
+    }
+  })
+
+  it('prints a label for every week of the default 30 days', () => {
+    const thirtyDays = chartModel(SERIES, MARKERS)
+    expect(thirtyDays.columns.every((column) => column.labelSpan === 1)).toBe(true)
+  })
+})
+
 describe('chartModel', () => {
   const model = chartModel(SERIES, MARKERS)
 
@@ -56,12 +103,13 @@ describe('chartModel', () => {
     expect(first?.priorScansPercent).toBeCloseTo((86 / 150) * 100)
   })
 
-  it('puts an average near the top of its axis and leaves a withheld one off, with a note', () => {
+  it('puts an average near the top of its axis and marks a week with too few ratings, without a dot', () => {
     const [first, , , , last] = model.columns
     expect(first?.averageFromTop).toBeCloseTo(((5 - 4.4) / 2) * 100)
-    expect(first?.averageNote).toBeNull()
+    expect(first?.isBelowFloor).toBe(false)
     expect(last?.averageFromTop).toBeNull()
-    expect(last?.averageNote).toBe('4 ratings, too few')
+    expect(last?.isBelowFloor).toBe(true)
+    expect(model.hasBelowFloor).toBe(true)
   })
 
   it('says nothing about too few ratings while the ratings are not ready', () => {
@@ -77,7 +125,8 @@ describe('chartModel', () => {
       [],
     )
 
-    expect(updating.columns.every((column) => column.averageNote === null)).toBe(true)
+    expect(updating.columns.every((column) => !column.isBelowFloor)).toBe(true)
+    expect(updating.hasBelowFloor).toBe(false)
     expect(updating.columns.every((column) => column.averageFromTop === null)).toBe(true)
   })
 

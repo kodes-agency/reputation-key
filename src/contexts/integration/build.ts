@@ -11,9 +11,6 @@
 import type { Database } from '#/shared/db'
 import type { Queue } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
-import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
-import type { GoogleImportV2QueuePort } from './application/ports/gbp-queue.port'
 import type {
   GoogleOAuthPort,
   GoogleOAuthProviderCallAuthorizer,
@@ -52,6 +49,7 @@ import {
 } from './application/use-cases'
 import { createGoogleConnectionRepository } from './infrastructure/repositories/google-connection.repository'
 import { createGoogleImportV2Store } from './infrastructure/google-import-v2-store'
+import { createGoogleImportV2Queue } from './infrastructure/google-import-v2-queue'
 import type { GoogleImportV2Store } from './application/ports/google-import-v2-store.port'
 import { createAtomicIntegrationCommandStore } from './infrastructure/integration-command-store'
 import { createGoogleConnectorDepartureStore } from './infrastructure/google-connector-departure.store'
@@ -61,7 +59,6 @@ import {
 } from './infrastructure/outbox-consumers'
 import { registerGoogleReviewPushDispatchConsumer } from './infrastructure/google-review-push-outbox-consumers'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
-import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from './application/google-import-v2-contract'
 import { createCredentialLifecycleRepository } from './infrastructure/repositories/credential-lifecycle.repository'
 import { createGoogleOAuthExchangeRecoveryRepository } from './infrastructure/repositories/google-oauth-exchange-recovery.repository'
 import { createGoogleDisconnectRevokeRepository } from './infrastructure/repositories/google-disconnect-revoke.repository'
@@ -496,42 +493,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   if (!deps.jobQueue) throw new Error('jobQueue required')
   const jobQueue = deps.jobQueue
 
-  // One child import batch fans out up to 100 item jobs in a single addBulk, so
-  // the queue depth is intentionally far above what the pool can execute at
-  // once. Safety comes from the worker side, not from throttling here: the
-  // worker's pool covers DEFAULT_QUEUE_CONCURRENCY * WORST_CASE_POOL_CLIENTS_PER_JOB
-  // and every other queue (src/worker/pool-budget.ts), because each item holds its fenced
-  // `FOR UPDATE` transaction while the nested Property effect opens a second
-  // one. If that budget is ever violated, every worker slot holds a client
-  // and the nested acquisitions deadlock until connectionTimeoutMillis.
-  const googleImportV2Queue: GoogleImportV2QueuePort = {
-    addImportItemJobs: async (jobs) => {
-      if (jobs.length === 0) return
-      const options = jobEnqueueOptions(GOOGLE_PROPERTY_IMPORT_ITEM_JOB)
-      await jobQueue.addBulk(
-        jobs.map((job) => {
-          const execution = createJobExecutionEnvelope({
-            organizationId: job.organizationId,
-            capability: 'property.import_gbp_v2',
-            initiator: {
-              kind: 'system',
-              id: 'outbox:google-property-import-dispatch',
-            },
-          })
-          return {
-            name: GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
-            data: { ...job, ...execution },
-            opts: {
-              jobId: job.jobId,
-              removeOnComplete: { count: 100 },
-              removeOnFail: { count: 50 },
-              ...options,
-            },
-          }
-        }),
-      )
-    },
-  }
+  const googleImportV2Queue = createGoogleImportV2Queue(jobQueue)
 
   const invalidationReferences = deps.googleImportReferences
   const providerAuthorizationInvalidation =

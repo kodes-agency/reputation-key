@@ -18,11 +18,17 @@ import {
   storedResultsRange,
 } from './portal-results-window'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 
 type Props = Readonly<{
   portalId: string
   propertyId: string
   getPortalAnalytics: typeof getPortalAnalyticsFn
+  /**
+   * Guests can open the portal now. Left out, it is taken to be live; a portal
+   * that is not has nothing to count, and its empty state says to publish.
+   */
+  pageIsLive?: boolean
 }>
 
 // Intentionally global, not per-portal: the selected range is a user-level
@@ -63,7 +69,13 @@ function remember(key: string, value: string): void {
   }
 }
 
-export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }: Props) {
+export function PortalAnalyticsTab({
+  portalId,
+  propertyId,
+  getPortalAnalytics,
+  pageIsLive = true,
+}: Props) {
+  const { can } = usePermissions()
   const [timeRange, setTimeRange] = useState<TimeRangePreset>(readStoredTimeRange)
   const [compare, setCompare] = useState<boolean>(readStoredCompare)
 
@@ -120,6 +132,13 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
       compare={compare}
       onCompareChange={setCompare}
       busy={stale}
+      place={{
+        propertyId,
+        portalId,
+        isLive: pageIsLive,
+        // The link opens the manager Inbox, whose route refuses anyone without this.
+        canOpenInbox: can('inbox.manage'),
+      }}
     />
   )
 }

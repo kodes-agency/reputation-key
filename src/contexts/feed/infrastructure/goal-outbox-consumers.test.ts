@@ -98,6 +98,8 @@ const makeDeps = () => {
         programName: 'Monthly guest engagement',
         periodMonth: '2026-10',
         subject: { kind: 'property' as const, propertyId: IDS.property },
+        setDuringMonth: false,
+        targetChangedInMonth: false,
       })),
       findMonthlyResultRevisionNotificationFacts: vi.fn(
         async () =>
@@ -113,6 +115,8 @@ const makeDeps = () => {
             programName: 'Monthly guest engagement',
             periodMonth: '2026-10',
             subject: { kind: 'property' as const, propertyId: IDS.property },
+            setDuringMonth: false,
+            targetChangedInMonth: false,
           }) as MonthlyResultRevisionNotificationFacts | null,
       ),
     },
@@ -230,6 +234,109 @@ describe('canonical Goal monthly-result notification consumer', () => {
     expect(order).toEqual(['enqueue', 'receipt'])
   })
 
+  // A goal set on the 20th that is already reached produces "goal met" for
+  // every responsible manager. The notice says so, from the fact Reporting
+  // reads when the notice is raised; the event itself carries nothing new.
+  it('marks a completion whose goal was set after its month began', async () => {
+    const deps = makeDeps()
+    const facts = await deps.monthlyResultFacts.findMonthlyResultNotificationFacts()
+    deps.monthlyResultFacts.findMonthlyResultNotificationFacts.mockResolvedValue({
+      ...facts,
+      setDuringMonth: true,
+    })
+
+    await expect(
+      handleNotificationGoalMonthlyResultClosed(deps, event()),
+    ).resolves.toEqual({ status: 'applied' })
+
+    expect((deps.jobs[0]?.data as { payload: unknown }).payload).toEqual({
+      goalName: 'Monthly guest engagement',
+      propertyName: 'Riverside Hotel',
+      goalMonth: '2026-10',
+      goalSubjectKind: 'property',
+      goalOutcome: 'met',
+      goalMarker: 'set_in_month',
+    })
+  })
+
+  // The month was judged against a target changed while it ran. That says
+  // more about "goal met" than when the goal was set, so it is the one marker
+  // the notice carries when both are true.
+  it('the goal-met notice says the target was changed during the month', async () => {
+    const deps = makeDeps()
+    const facts = await deps.monthlyResultFacts.findMonthlyResultNotificationFacts()
+    deps.monthlyResultFacts.findMonthlyResultNotificationFacts.mockResolvedValue({
+      ...facts,
+      targetChangedInMonth: true,
+    })
+
+    await handleNotificationGoalMonthlyResultClosed(deps, event())
+
+    expect((deps.jobs[0]?.data as { payload: unknown }).payload).toEqual({
+      goalName: 'Monthly guest engagement',
+      propertyName: 'Riverside Hotel',
+      goalMonth: '2026-10',
+      goalSubjectKind: 'property',
+      goalOutcome: 'met',
+      goalMarker: 'target_changed',
+    })
+  })
+
+  it('a changed target wins over a goal set during the month', async () => {
+    const deps = makeDeps()
+    const facts = await deps.monthlyResultFacts.findMonthlyResultNotificationFacts()
+    deps.monthlyResultFacts.findMonthlyResultNotificationFacts.mockResolvedValue({
+      ...facts,
+      setDuringMonth: true,
+      targetChangedInMonth: true,
+    })
+
+    await handleNotificationGoalMonthlyResultClosed(deps, event())
+
+    expect((deps.jobs[0]?.data as { payload: unknown }).payload).toMatchObject({
+      goalMarker: 'target_changed',
+    })
+  })
+
+  it('marks a corrected result whose target was changed during its month', async () => {
+    const deps = makeDeps()
+    const facts =
+      await deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts()
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue({
+      ...facts!,
+      setDuringMonth: true,
+      targetChangedInMonth: true,
+    })
+
+    await expect(
+      handleNotificationGoalMonthlyResultRevised(deps, revisedEvent()),
+    ).resolves.toEqual({ status: 'applied' })
+
+    expect((deps.jobs[0]?.data as { payload: unknown }).payload).toMatchObject({
+      goalOutcome: 'met',
+      goalMarker: 'target_changed',
+    })
+  })
+
+  it('marks a corrected result whose goal was set after its month began', async () => {
+    const deps = makeDeps()
+    const facts =
+      await deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts()
+    deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts.mockResolvedValue({
+      ...facts!,
+      setDuringMonth: true,
+    })
+
+    await expect(
+      handleNotificationGoalMonthlyResultRevised(deps, revisedEvent()),
+    ).resolves.toEqual({ status: 'applied' })
+
+    expect((deps.jobs[0]?.data as { payload: unknown }).payload).toMatchObject({
+      goalOutcome: 'met',
+      goalMarker: 'set_in_month',
+    })
+  })
+
   it('acknowledges an unachieved close without lookup or delivery', async () => {
     const deps = makeDeps()
     await expect(
@@ -260,6 +367,8 @@ describe('canonical Goal monthly-result notification consumer', () => {
       programName: 'Monthly guest engagement',
       periodMonth: '2026-10',
       subject: { kind: 'property', propertyId: IDS.property },
+      setDuringMonth: false,
+      targetChangedInMonth: false,
       [key]: value,
     })
 
@@ -399,6 +508,8 @@ describe('canonical Goal monthly-result notification consumer', () => {
       programName: 'Monthly guest engagement',
       periodMonth: '2026-10',
       subject: { kind: 'property', propertyId: IDS.property },
+      setDuringMonth: false,
+      targetChangedInMonth: false,
     })
 
     await expect(
@@ -442,6 +553,8 @@ describe('canonical Goal monthly-result notification consumer', () => {
       programName: 'Monthly guest engagement',
       periodMonth: '2026-10',
       subject: { kind: 'property', propertyId: IDS.property },
+      setDuringMonth: false,
+      targetChangedInMonth: false,
     })
 
     await expect(
@@ -483,6 +596,8 @@ describe('canonical Goal monthly-result notification consumer', () => {
       programName: 'Monthly guest engagement',
       periodMonth: '2026-10',
       subject: { kind: 'property', propertyId: IDS.property },
+      setDuringMonth: false,
+      targetChangedInMonth: false,
     })
     // Like BullMQ, an add under an id the queue still holds is a no-op.
     const held = new Map<string, unknown>()
@@ -539,6 +654,8 @@ describe('canonical Goal monthly-result notification consumer', () => {
       programName: 'Monthly guest engagement',
       periodMonth: '2026-10',
       subject: { kind: 'property', propertyId: IDS.property },
+      setDuringMonth: false,
+      targetChangedInMonth: false,
     })
 
     await expect(

@@ -47,6 +47,7 @@ const portalGroups: PortalGroupPublicApi = {
   getGroupPortalIds: async () => [PORTAL],
   findGroupIdsByPortalIds: async () => [GROUP],
   portalGroupBelongsToProperty: async () => true,
+  getGroupInfo: async () => ({ id: GROUP, propertyId: PROPERTY, name: 'Front Desk' }),
 }
 
 const query = (

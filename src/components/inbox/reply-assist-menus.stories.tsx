@@ -464,8 +464,8 @@ export const TemplateLoadingAndEmpty: Story = {
 /**
  * No property default, a review too short to detect. The template path leads.
  * The standing alert is gone; its content is a row in BOTH menus. A manager
- * (`ai.manage`, the default AccountAdmin role here) gets `Set property
- * language`, a link to the AI settings for this property, described by the
+ * (`property.update`, the default AccountAdmin role here) gets `Set property
+ * language`, a link to the Replies settings for this property, described by the
  * readiness sentence that explains why the default matters in this state.
  * `Detect automatically` is disabled with its reason in its own name.
  */
@@ -517,7 +517,7 @@ export const NoDefaultManagerGetsTheFix390: Story = {
 }
 
 /**
- * The same state for a Member, who holds no `ai.manage`: the read-only
+ * The same state for a Member, who holds no `property.update`: the read-only
  * sentence instead of the link. It is `aria-disabled` but still reachable, and
  * choosing it neither navigates nor closes the menu.
  */

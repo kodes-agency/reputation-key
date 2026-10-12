@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { portalResponseIntegrityCopy } from './portal-response-integrity-copy'
 
 describe('portalResponseIntegrityCopy', () => {
-  it('uses Portal responses rather than claiming unique guests', () => {
+  it('uses portal responses rather than claiming unique guests', () => {
     const copy = portalResponseIntegrityCopy({
       accepted: 8,
       filteredAutomatically: 1,
@@ -11,7 +11,7 @@ describe('portalResponseIntegrityCopy', () => {
     })
 
     expect(copy).toBe(
-      '2 Portal responses are currently outside the private-rating figures while quality checks are resolved.',
+      '2 portal responses are currently outside the private-rating figures while quality checks are resolved.',
     )
     expect(copy.toLowerCase()).not.toContain('unique guest')
   })
@@ -24,7 +24,7 @@ describe('portalResponseIntegrityCopy', () => {
         underReview: 1,
         total: 5,
       }),
-    ).toContain('1 Portal response is currently outside')
+    ).toContain('1 portal response is currently outside')
     expect(
       portalResponseIntegrityCopy({
         accepted: 4,
@@ -32,6 +32,6 @@ describe('portalResponseIntegrityCopy', () => {
         underReview: 0,
         total: 4,
       }),
-    ).toBe('No Portal responses in this period are outside the private-rating figures.')
+    ).toBe('No portal responses in this period are outside the private-rating figures.')
   })
 })

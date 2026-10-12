@@ -12,6 +12,7 @@ import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
+import { savePropertyPublicDisplayName } from '#/contexts/portal/server/portals'
 import { getPortalReview } from '#/contexts/portal/server/portal-review'
 import { publishPortalsChanges } from '#/contexts/portal/server/portal-publish-changes'
 import {
@@ -94,6 +95,11 @@ function PropertyLookRoute() {
     onSuccess: refreshPublished,
     onError: () => void refreshPublished(),
   })
+  // The name alone, for a property that has none yet: the page opens once it is saved.
+  const saveDisplayName = useActionMutation(savePropertyPublicDisplayName, {
+    successMessage: 'Public display name saved',
+    invalidateKeys: [portalKeys.propertyExperience(propertyId)],
+  })
   const saveLocales = useActionMutation(savePropertyDefaultGuestLocales, {
     // New portals read them in the New portal dialog.
     invalidateKeys: [portalKeys.creationOptions(propertyId)],
@@ -114,6 +120,7 @@ function PropertyLookRoute() {
       getPortalReview={getPortalReview}
       publishPortals={publishPortals}
       canPublish={canDo('portal.update') && has('portal.write')}
+      saveDisplayName={saveDisplayName}
       saveLook={saveLook}
       saveLocales={saveLocales}
       saveHero={saveHero}

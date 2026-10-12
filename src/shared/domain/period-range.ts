@@ -125,6 +125,11 @@ function wallClockAt(date: Date, timezone: string): WallClock {
   }
 }
 
+/** The day of the month (1-31) on the calendar of an IANA timezone. */
+export function localDayOfMonth(date: Date, timezone: string): number {
+  return wallClockAt(date, timezone).day
+}
+
 function sameWallClock(left: WallClock, right: WallClock): boolean {
   return (
     left.year === right.year &&

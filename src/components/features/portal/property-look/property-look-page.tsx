@@ -17,8 +17,7 @@ import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
 import { Alert, AlertDescription } from '#/components/ui/alert'
-import { EmptyState } from '#/components/ui/empty-state'
-import { Palette } from 'lucide-react'
+import type { SavePublicDisplayNameAction } from '#/components/features/property/property-public-display-name-card'
 import type { PropertyLookMedia } from '#/contexts/portal/application/public-api'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
@@ -28,6 +27,7 @@ import { PropertyLookBatchPublish } from './property-look-batch-publish'
 import { PropertyLookColoursSection } from './property-look-colours-section'
 import { PropertyLookIdentitySection } from './property-look-identity-section'
 import { PropertyLookLanguagesSection } from './property-look-languages-section'
+import { PropertyLookNameGate } from './property-look-name-gate'
 import { PropertyLookPhotoSection } from './property-look-photo-section'
 import { PropertyLookPortals } from './property-look-portals'
 import { PropertyLookPreview } from './property-look-preview'
@@ -48,18 +48,19 @@ import {
 import { usePropertyLookMediaControls } from './use-property-look-media-controls'
 import type { PropertyLookMediaSaves } from './use-property-look-media'
 import { usePropertyLookPreview } from './use-property-look-preview'
-import { InlineLink } from '#/components/ui/inline-link'
 
 export type PropertyLookPageProps = PropertyLookSaves &
   PropertyLookMediaSaves &
   Readonly<{
     propertyId: string
     propertyName: string
-    /** Null while the Property has no public display name (nothing to look at yet). */
+    /** Null while the property has no public display name (nothing to look at yet). */
     profile: PropertyLookProfile | null
-    /** An Account Admin, with Portals writes switched on. */
+    /** An account admin, with portal writes switched on. */
     canEdit: boolean
-    /** Every portal of the Property. */
+    /** Saves the public display name alone, for a property that has none yet. */
+    saveDisplayName?: SavePublicDisplayNameAction
+    /** Every portal of the property. */
     rows: readonly AffectedPortalRow[]
     getPortalPreview: PortalPreviewReader
     /** The photograph and logo the Property has, as a page draws them. */
@@ -85,7 +86,7 @@ const LEAVE_COPY =
   'Some changes to the look have not been saved. If you go on, they are discarded.'
 
 export function PropertyLookPage(props: PropertyLookPageProps) {
-  const { propertyId, propertyName, profile } = props
+  const { propertyId, propertyName, profile, canEdit, saveDisplayName } = props
   return (
     <PageShell tier="dashboard">
       <PageHeader
@@ -98,20 +99,10 @@ export function PropertyLookPage(props: PropertyLookPageProps) {
         )}
       />
       {profile === null ? (
-        <EmptyState
-          icon={Palette}
-          title="Set the public display name first"
-          description={
-            <>
-              The look is the Property's public display name dressed in its colours.{' '}
-              <InlineLink
-                to="/properties/$propertyId/settings/profile"
-                params={{ propertyId }}
-              >
-                Set it in property settings
-              </InlineLink>
-            </>
-          }
+        <PropertyLookNameGate
+          propertyId={propertyId}
+          canEdit={canEdit}
+          {...(saveDisplayName ? { saveDisplayName } : {})}
         />
       ) : (
         <PortalDraftAutosaveProvider delayMs={PROPERTY_LOOK_AUTOSAVE_DELAY_MS}>
@@ -183,7 +174,7 @@ function PropertyLookEditor({
           {canEdit ? null : (
             <Alert variant="info">
               <AlertDescription>
-                An Account Admin manages the look shared by every portal of this Property.
+                An account admin manages the look shared by every portal of this property.
               </AlertDescription>
             </Alert>
           )}
@@ -218,6 +209,7 @@ function PropertyLookEditor({
               <PropertyLookBatchPublish
                 propertyId={propertyId}
                 live={affected.live}
+                waiting={affected.waiting}
                 canPublish={canPublish}
                 isSettling={SETTLING.has(state.status)}
                 getPortalReview={getPortalReview}

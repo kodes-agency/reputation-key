@@ -20,8 +20,13 @@
 //
 // Pure unit tests — no database.
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { REPLY_TONES } from '#/shared/ai-reply-template-catalogue'
+import {
+  createEnvCapabilityPolicyStore,
+  initCapabilityPolicyStore,
+  resetCapabilityPolicyStore,
+} from '#/shared/auth/beta-capabilities'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { AiReviewCurrentSource } from '#/contexts/review/application/public-api'
 import type { GenerateReplySuggestionResult } from '#/contexts/ai/application/use-cases/generate-reply-suggestion'
@@ -124,6 +129,7 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 
 /** Compile-time sourced: a typo no longer type-checks against the union. */
 const REPLY_GENERATE: Permission = 'ai.reply.generate'
+const REPLY_MANAGE: Permission = 'reply.manage'
 const PERMISSION_DENIED: PolicyDenyReason = 'permission_denied'
 
 type UnavailableCode = Extract<
@@ -169,6 +175,27 @@ const READY: GenerateReplySuggestionResult = {
   baseReplyStateRevision: NEVER_REPLIED_STATE_REVISION,
   concreteLanguageTag: 'en-Latn',
 }
+
+/** What the use case answers for `templateOnly`: local copy, no provider call. */
+const TEMPLATE: GenerateReplySuggestionResult = {
+  status: 'fallback',
+  kind: 'local_safe_template',
+  reason: 'template_requested',
+  languageSource: 'explicit',
+  replyText: 'Thank you for taking the time to share your experience.',
+  concreteLanguageTag: 'en-Latn',
+}
+
+const callTemplateOnly = () =>
+  generateReplySuggestionFn({
+    data: {
+      reviewId: REVIEW_ID,
+      tone: 'professional',
+      targetLanguage: REVIEW_LANGUAGE_TARGET,
+      idempotencyKey: IDEMPOTENCY_KEY,
+      templateOnly: true,
+    },
+  })
 
 /**
  * Exhaustive over the use-case union: adding an unavailable code without adding
@@ -297,20 +324,20 @@ describe('generateReplySuggestionFn — request shaping', () => {
       propertyId: PROPERTY_ID,
     })
   })
-  it('routes explicit local templates without the AI execution-policy gate', async () => {
-    await generateReplySuggestionFn({
-      data: {
-        reviewId: REVIEW_ID,
-        tone: 'professional',
-        targetLanguage: REVIEW_LANGUAGE_TARGET,
-        idempotencyKey: IDEMPOTENCY_KEY,
-        templateOnly: true,
-      },
-    })
 
-    expect(mocks.requireExecutionAllowed).not.toHaveBeenCalled()
+  it('gates an explicit local template on reply.manage for the same property, not on the AI permission', async () => {
+    mocks.generateReplySuggestion.mockResolvedValue(TEMPLATE)
+
+    await expect(callTemplateOnly()).resolves.toEqual(TEMPLATE)
+
+    // A template needs no AI capability, so the AI permission is not asked for.
+    // It is still a reply for one Property's Review, so the right to manage
+    // replies there is, with the Property read from the stored review.
+    expect(mocks.requireExecutionAllowed.mock.calls).toEqual([
+      [{ actor: ACTOR, action: REPLY_MANAGE, propertyId: PROPERTY_ID }],
+    ])
     expect(mocks.generateReplySuggestion).toHaveBeenCalledWith(
-      expect.objectContaining({ templateOnly: true }),
+      expect.objectContaining({ templateOnly: true, propertyId: PROPERTY_ID }),
     )
   })
 
@@ -498,6 +525,95 @@ describe('generateReplySuggestionFn — failure surfaces', () => {
       code: 'quota_exhausted',
       status: 429,
     })
+  })
+})
+
+// The suites above replace `requireExecutionAllowed` with a recorder, which can
+// show what the handler asks but not what a manager is then refused. These run
+// the handler against the real execution policy and capability store: the only
+// stand-ins are the tenant resolver, the Review port and the use case.
+describe('generateReplySuggestionFn — a local template under the real policy', () => {
+  const MANAGER = {
+    organizationId: ORGANIZATION_ID,
+    userId: 'manager-reply-1',
+    role: 'PropertyManager',
+  } as unknown as AuthContext
+  const OTHER_PROPERTY_ID = '00000000-0000-4000-8000-000000000025'
+
+  /** Install the real policy: this environment, and the manager's grants. */
+  async function underPolicy(
+    env: Readonly<Record<string, string>>,
+    grantedPropertyIds: ReadonlyArray<string>,
+  ): Promise<typeof ExecutionPolicyModule> {
+    const policy = await vi.importActual<typeof ExecutionPolicyModule>(
+      '#/shared/auth/execution-policy',
+    )
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore(env))
+    policy.initExecutionPolicy(
+      policy.createExecutionPolicy({
+        listAccessiblePropertyIds: async () => grantedPropertyIds,
+      }),
+    )
+    mocks.requireExecutionAllowed.mockImplementation(policy.requireExecutionAllowed)
+    mocks.resolveTenantContext.mockResolvedValue(MANAGER)
+    mocks.generateReplySuggestion.mockResolvedValue(TEMPLATE)
+    return policy
+  }
+
+  afterEach(async () => {
+    const policy = await vi.importActual<typeof ExecutionPolicyModule>(
+      '#/shared/auth/execution-policy',
+    )
+    policy.resetExecutionPolicy()
+    resetCapabilityPolicyStore()
+  })
+
+  it('refuses a PropertyManager who holds no grant on the review Property', async () => {
+    await underPolicy({}, [OTHER_PROPERTY_ID])
+
+    await expect(callTemplateOnly()).rejects.toMatchObject({
+      name: 'AuthError',
+      code: 'scope_denied',
+      status: 403,
+    })
+    // Nothing about the review is derived for them: no reply state is read and
+    // the template, which is chosen by the review's rating, is never built.
+    expect(mocks.readReplyStateRevision).not.toHaveBeenCalled()
+    expect(mocks.generateReplySuggestion).not.toHaveBeenCalled()
+  })
+
+  it('answers a PropertyManager who holds a grant on the review Property', async () => {
+    await underPolicy({}, [PROPERTY_ID])
+
+    await expect(callTemplateOnly()).resolves.toEqual(TEMPLATE)
+  })
+
+  it('still answers a template while the AI reply capability is switched off', async () => {
+    await underPolicy({ BETA_CAPABILITIES_OFF: 'ai.generate_reply' }, [PROPERTY_ID])
+
+    await expect(callTemplateOnly()).resolves.toEqual(TEMPLATE)
+  })
+
+  it.each([
+    [
+      'every capability is switched off',
+      { BETA_CAPABILITIES_OFF: 'all' },
+      'capability_disabled',
+    ],
+    [
+      'the Organization is suspended',
+      { BETA_SUSPENDED_ORGS: ORGANIZATION_ID },
+      'org_suspended',
+    ],
+  ] as const)('refuses a template while %s', async (_stop, env, code) => {
+    await underPolicy(env, [PROPERTY_ID])
+
+    await expect(callTemplateOnly()).rejects.toMatchObject({
+      name: 'AuthError',
+      code,
+      status: 403,
+    })
+    expect(mocks.generateReplySuggestion).not.toHaveBeenCalled()
   })
 })
 

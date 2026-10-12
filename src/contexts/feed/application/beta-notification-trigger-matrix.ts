@@ -328,10 +328,12 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     'reply.pending_approval',
     'reply.publish_failed',
   ]),
+  // The AI draft purge withdraws a reply that may still be awaiting approval
+  // (cause `ai_draft_withdrawn`), so the request is retired with it.
   settles(
     'review.reply.publication_cancelled',
     'notification.settle-on-review-reply-publication-cancelled',
-    ['reply.publish_failed'],
+    ['reply.publish_failed', 'reply.pending_approval'],
   ),
   settles(
     'inbox.inbox_item.escalation_resolved',

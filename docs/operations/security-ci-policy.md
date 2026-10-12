@@ -142,7 +142,11 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
   `3.5.7-1~deb13u3` in every base stage, not excepted (bumped from
   `~deb13u2` on 2026-09-30 for DSA-6531-1, whose three High CVEs —
   CVE-2026-72897 / -84782 / -84784 — failed every image scan once grype's
-  database listed them). The families Debian
+  database listed them). The same three are fixed in the provider Redis by
+  installing Alpine's `libssl3`/`libcrypto3` 3.3.7-r2 over the pinned
+  upstream build until upstream rebuilds on it. One more entry,
+  CVE-2026-102010 (gcc-14 runtime libraries), has no fix in any Debian
+  release yet. The families Debian
   marks won't-fix (perl-base, glibc, util-linux, zlib, gzip, ncurses, libacl,
   sqlite, pcre2) are the same on trixie as they were on bookworm; their
   reachable surface stays removed (npm CLI stripped, setuid/setgid bits
@@ -265,17 +269,19 @@ dependency, action, and base-image updates; the gates above are the enforcement
 floor (they do not depend on Dependabot firing).
 
 **Exactly pinned, deliberately:** `better-auth` carries no range (`1.7.5`, not
-`^1.7.5`). `src/routes/api/auth/$.ts` refuses a list of better-auth's OWN
-route paths at the HTTP boundary (raw organization writes, self-service
-`/sign-up/email`, and `/send-verification-email`, whose per-address limit only
-the app-owned `resendVerificationEmail` enforces); a minor bump that renames a
-route would silently narrow that refusal to nothing, and the colocated test
-asserts our handler, not the upstream route table. The test therefore also pins
-the version and fails on any move: on a Dependabot bump, re-verify the
-organization plugin route files (`crud-access-control.mjs` / `crud-invites.mjs`
-/ `crud-members.mjs`), `/sign-up/email` and `/send-verification-email`, then
-move `VERIFIED_BETTER_AUTH_VERSION`. All 13 paths were confirmed present in
-1.7.5.
+`^1.7.5`). `/api/auth/*` serves an allow list of better-auth's OWN routes and
+refuses every other request at the HTTP boundary
+(`src/routes/api/auth/-provider-routes.ts`): the raw organization reads and
+writes, self-service `/sign-up/email`, and `/send-verification-email`, whose
+per-address limit only the app-owned `resendVerificationEmail` enforces.
+`src/routes/api/auth/-provider-routes.test.ts` enumerates the configured
+provider's endpoints and fails on a route that is neither allowed nor refused on
+purpose, so a bump that adds, renames or removes a route is caught. It cannot
+see an allowed route that kept its path and changed what it returns or writes.
+The colocated route test therefore also pins the version and fails on any move:
+on a Dependabot bump, classify whatever the drift guard reports, re-read the
+handler of each allowed route against the reason written beside it, then move
+`VERIFIED_BETTER_AUTH_VERSION`.
 
 ### CodeQL / GHAS platform note
 
