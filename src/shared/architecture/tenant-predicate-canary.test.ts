@@ -15,6 +15,11 @@ import {
   type TenantPredicateExemption,
   TENANT_PREDICATE_EXEMPTIONS,
 } from './tenant-predicate-exemptions'
+import {
+  UNRESTRICTED_STATEMENT_BASELINE,
+  baselineDrift,
+  unrestrictedBesideRestricted,
+} from './tenant-predicate-statement-baseline'
 
 const ROOT = process.cwd()
 const CONTEXTS_ROOT = join(ROOT, 'src', 'contexts')
@@ -462,6 +467,70 @@ describe('canary: every tenant-owned repository query carries a tenant predicate
     expect(inspectSynthetic(resolveReply('propertyId: replies.propertyId'))).toEqual([
       expect.objectContaining({ restrictedStatements: 0, mentionsTenant: false }),
     ])
+  })
+
+  // The finding's query plus one scoped statement: no statement-free callable,
+  // so the registry never sees it. The count beside the baseline does.
+  it('counts an unrestricted statement beside a restricted one', () => {
+    const reports = inspectTenantStatements(
+      [
+        {
+          file: SYNTHETIC,
+          text: `const publishReply = async (orgId: string, replyId: string) => {
+            const rows = await db.select().from(replies).where(eq(replies.id, replyId))
+            await db.update(replies).set({ state: 'queued' }).where(eq(replies.id, replyId))
+            await db.update(reviews).set({ replied: true })
+              .where(eq(reviews.organizationId, orgId))
+            return rows
+          }
+          const findReply = async (replyId: string) =>
+            db.select().from(replies).where(eq(replies.id, replyId))
+          const listReplies = async (orgId: string) =>
+            db.select().from(replies).where(eq(replies.organizationId, orgId))`,
+        },
+      ],
+      tenantTables(),
+    )
+
+    const found = unrestrictedBesideRestricted(reports)
+    expect([...found]).toEqual([[`${SYNTHETIC}#publishReply`, 2]])
+    expect(baselineDrift(found, UNRESTRICTED_STATEMENT_BASELINE).unlisted).toEqual([
+      `${SYNTHETIC}#publishReply`,
+    ])
+  })
+
+  it('lets a recorded count only go down', () => {
+    const baseline = {
+      'a.ts#steady': 2,
+      'a.ts#grown': 1,
+      'a.ts#shrunk': 2,
+      'a.ts#gone': 1,
+    }
+    const found = new Map([
+      ['a.ts#steady', 2],
+      ['a.ts#grown', 2],
+      ['a.ts#shrunk', 1],
+      ['a.ts#added', 1],
+    ])
+
+    expect(baselineDrift(found, baseline)).toEqual({
+      unlisted: ['a.ts#added'],
+      grown: ['a.ts#grown'],
+      shrunk: ['a.ts#gone', 'a.ts#shrunk'],
+    })
+  })
+
+  it('lets no callable gain an unrestricted statement beside a restricted one', () => {
+    const found = unrestrictedBesideRestricted(inspectTree())
+
+    expect(found.size).toBeGreaterThan(0)
+    // unlisted: restrict the new statement; the baseline takes no new callable.
+    // grown: the same for a listed callable. shrunk: lower or remove the entry.
+    expect(baselineDrift(found, UNRESTRICTED_STATEMENT_BASELINE)).toEqual({
+      unlisted: [],
+      grown: [],
+      shrunk: [],
+    })
   })
 
   it('matches every detected tenant-free query exactly to the reviewed registry', () => {

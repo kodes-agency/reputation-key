@@ -40,8 +40,9 @@
 //     list only inside an `if`.
 //
 // Known limits, on purpose.
-//   - A callable is held to ONE restricted statement, so a second statement
-//     that finds its row by id passes beside it.
+//   - The registry holds a callable to ONE restricted statement. The
+//     unrestricted statements beside it are counted against a recorded baseline
+//     that can only shrink (tenant-predicate-statement-baseline.ts).
 //   - A raw statement is held to one restricting predicate, wherever its CTEs
 //     put it, and an upsert is read as the insert it starts with.
 //   - Raw SQL is read by a scanner that errs towards reporting: a raw `OR`

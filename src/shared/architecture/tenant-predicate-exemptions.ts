@@ -5,8 +5,10 @@
 // real callable and rejects unrecorded tenant-free repository queries.
 //
 // A query is tenant-free when no statement of its callable is restricted to a
-// tenant value (tenant-predicate-constraint.ts says what counts). The category
-// says why that is acceptable:
+// tenant value (tenant-predicate-constraint.ts says what counts). A callable
+// that restricts one statement and not another is not listed here: its
+// unrestricted statements are counted in tenant-predicate-statement-baseline.ts.
+// The category says why a tenant-free query is acceptable:
 //
 //   LEGITIMATE-GLOBAL  crosses tenants on purpose: a bounded sweep, a health
 //                      gauge, a global uniqueness check, or a worker step that
