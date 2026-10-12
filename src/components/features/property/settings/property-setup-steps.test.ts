@@ -5,6 +5,7 @@ import {
   completedPropertySetupStepCount,
   firstPropertySetupSection,
   openPropertySetupSteps,
+  propertyAiIsOn,
   propertySetupStepLabel,
   propertySetupStepTarget,
 } from './property-setup-steps'
@@ -79,5 +80,25 @@ describe('property setup steps', () => {
     const current = setup({ ai_decision: 'needs_admin', reviews_synced: 'waiting' })
     const labels = openPropertySetupSteps(current).map(propertySetupStepLabel)
     expect(labels).toEqual(['Reviews are syncing', 'An account admin decides on AI'])
+  })
+})
+
+// A PropertyManager cannot read the AI authorization (an AccountAdmin decides it),
+// but the setup they already load carries one step for it, and only `complete`
+// means AI is on: a deferred or revoked decision, or none yet, is off.
+describe('propertyAiIsOn', () => {
+  it('is on only when the AI decision step is complete', () => {
+    expect(propertyAiIsOn(setup({ ai_decision: 'complete' }))).toBe(true)
+  })
+
+  it.each(['needs_admin', 'pending', 'deferred'] as const)(
+    'is off while the AI decision step is %s',
+    (status) => {
+      expect(propertyAiIsOn(setup({ ai_decision: status }))).toBe(false)
+    },
+  )
+
+  it('is unknown until setup is available', () => {
+    expect(propertyAiIsOn(undefined)).toBeUndefined()
   })
 })

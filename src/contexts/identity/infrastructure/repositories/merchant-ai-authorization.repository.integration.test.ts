@@ -152,8 +152,8 @@ async function resetAuthorization(): Promise<void> {
   await insertProperty()
   await db.execute(sql`
     INSERT INTO member (id, "userId", "organizationId", role, "createdAt")
-    VALUES ('member-merchant-ai-store', ${USER}, ${ORG}, 'admin', now())
-    ON CONFLICT (id) DO UPDATE SET role = 'admin'
+    VALUES ('member-merchant-ai-store', ${USER}, ${ORG}, 'owner', now())
+    ON CONFLICT (id) DO UPDATE SET role = 'owner'
   `)
 }
 
@@ -178,7 +178,7 @@ beforeAll(async () => {
   `)
   await db.execute(sql`
     INSERT INTO member (id, "userId", "organizationId", role, "createdAt")
-    VALUES ('member-merchant-ai-store', ${USER}, ${ORG}, 'admin', now())
+    VALUES ('member-merchant-ai-store', ${USER}, ${ORG}, 'owner', now())
   `)
   await db.execute(sql`
     INSERT INTO google_connections (
@@ -906,8 +906,22 @@ describe('Merchant AI authorization store', () => {
     ).resolves.toBe(false)
   })
 
-  it('fails closed for missing membership, assignment, or active source', async () => {
-    await db.execute(sql`DELETE FROM member WHERE "organizationId" = ${ORG}`)
+  it('fails closed for missing membership, a role that cannot decide AI, or an inactive source', async () => {
+    // The fixture member is the Organization's only AccountAdmin, which the
+    // last-owner guard will not let a plain statement remove or demote.
+    const removeMember = () =>
+      withLastOwnerGuardDisabled(cleanupPool, (client) =>
+        client.query('DELETE FROM member WHERE "organizationId" = $1', [ORG]),
+      )
+    const setRole = (role: string) =>
+      withLastOwnerGuardDisabled(cleanupPool, (client) =>
+        client.query(
+          `UPDATE member SET role = $1 WHERE id = 'member-merchant-ai-store'`,
+          [role],
+        ),
+      )
+
+    await removeMember()
     await expect(store.mutate(command())).rejects.toMatchObject({
       code: 'membership_denied',
     })
@@ -918,23 +932,13 @@ describe('Merchant AI authorization store', () => {
     await expect(store.mutate(command())).rejects.toMatchObject({
       code: 'membership_denied',
     })
-    await db.execute(sql`
-      UPDATE member
-      SET role = 'admin'
-      WHERE id = 'member-merchant-ai-store'
-    `)
-    await db.execute(sql`
-      DELETE FROM property_access_grant
-      WHERE organization_id = ${ORG} AND property_id = ${PROPERTY}::uuid
-    `)
+    // Deciding AI is an AccountAdmin's alone: the PropertyManager role is refused
+    // even with the current Property grant the fixture inserts.
+    await setRole('admin')
     await expect(store.mutate(command())).rejects.toMatchObject({
-      code: 'assignment_denied',
+      code: 'membership_denied',
     })
-    await db.execute(sql`
-      INSERT INTO property_access_grant (
-        organization_id, property_id, user_id, source, created_by
-      ) VALUES (${ORG}, ${PROPERTY}::uuid, ${USER}, 'operator', ${USER})
-    `)
+    await setRole('owner')
     await db.execute(sql`
       UPDATE properties SET lifecycle_state = 'suspended' WHERE id = ${PROPERTY}::uuid
     `)

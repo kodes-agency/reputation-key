@@ -3,9 +3,9 @@
 // `ai.manage` and `integration.manage` each conditionally render a nav
 // entry, so the visible nav changes with the signed-in role:
 //   - AccountAdmin (owner): all beta items render.
-//   - PropertyManager (admin): Members (read-only), AI overview and the account
-//     entries render; Organization settings and Google connection
-//     administration are AccountAdmin-only.
+//   - PropertyManager (admin): Members (read-only) and the account entries
+//     render; Organization settings, Google connection administration and the
+//     AI overview (AI consent is the AccountAdmin's) are AccountAdmin-only.
 //   - Staff (member): only Profile, Security, Preferences, Notifications — the
 //     four always-on entries.
 // `isManager = hasRole(role, 'PropertyManager')` also flips the "Back to app"
@@ -46,12 +46,11 @@ async function expectAlwaysOnEntries(canvasElement: HTMLElement) {
   }
 }
 
-/** Members and AI overview come with managing; Recognition stays out of this beta. */
+/** Members come with managing; Recognition stays out of this beta. */
 function expectManagerEntries(canvasElement: HTMLElement) {
   const canvas = within(canvasElement)
   expect(canvas.getByText(/^members$/i)).toBeInTheDocument()
   expect(canvas.queryByText(/^recognition$/i)).toBeNull()
-  expect(canvas.getByText(/^ai overview$/i)).toBeInTheDocument()
 }
 
 // Owner role → every gated beta item (Organization, Members,
@@ -63,6 +62,8 @@ export const AsAccountAdmin: Story = {
     await expectAlwaysOnEntries(canvasElement)
     expect(canvas.getByRole('link', { name: /^organization$/i })).toBeInTheDocument()
     expectManagerEntries(canvasElement)
+    // AI consent is an AccountAdmin's, so the overview that manages it is theirs too.
+    expect(canvas.getByText(/^ai overview$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^integrations$/i)).toBeInTheDocument()
     // Scope is labelled: account pages under You, shared pages under Organization.
     expect(canvas.getByText(/^you$/i)).toBeInTheDocument()
@@ -70,9 +71,9 @@ export const AsAccountAdmin: Story = {
   },
 }
 
-// PropertyManager lists Members and manages AI settings, but edits neither the
-// Organization (ADR 0033, amended 2026-10) nor the Google connection: both are
-// AccountAdmin-only. "Back to app" → /properties.
+// PropertyManager lists Members, but edits neither the Organization (ADR 0033,
+// amended 2026-10) nor the Google connection, and does not decide AI: all
+// three are AccountAdmin-only. "Back to app" → /properties.
 export const AsPropertyManager: Story = {
   decorators: [withRole('PropertyManager')],
   play: async ({ canvasElement }) => {
@@ -81,6 +82,7 @@ export const AsPropertyManager: Story = {
     expectManagerEntries(canvasElement)
     expect(canvas.queryByRole('link', { name: /^organization$/i })).toBeNull()
     expect(canvas.queryByText(/^integrations$/i)).toBeNull()
+    expect(canvas.queryByText(/^ai overview$/i)).toBeNull()
   },
 }
 

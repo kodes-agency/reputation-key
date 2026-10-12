@@ -188,11 +188,13 @@ list and the inbox composer all read, and one place to configure a property. Dec
   yet, so a partial index on completed runs by organization, Property and source epoch is a
   candidate follow-up. `portal_published` needs a `published` Portal with an open publication
   activation; Portal health is not a setup step.
-- **Open question: who holds `ai.manage`.** Decision 8 keeps the AI decision AccountAdmin-only,
-  and the setup rule reports `needs_admin` to a PropertyManager as agreed. The permission table
-  and the transition function, however, also give a PropertyManager `ai.manage` on granted
-  Properties, and defer and the B3 overview reuse that authority unchanged. Narrowing it is a
-  permission change for C2 or a follow-up, not part of this slice.
+- **Resolved (2026-10-06): who holds `ai.manage`.** Decision 8 keeps the AI decision
+  AccountAdmin-only, and the setup rule reports `needs_admin` to a PropertyManager as agreed. The
+  permission table used to give a PropertyManager `ai.manage` on granted Properties as well, and
+  enable, change, revoke, defer and the B3 overview reuse that authority. The table now matches the
+  decision: `ai.manage` is the AccountAdmin's alone (`fix/ai-consent-admin-only`). A PropertyManager
+  keeps `ai.reply.generate` and `ai.trends.read`, reads the Property's AI state locked on the AI
+  features page, and no longer sees the Organization AI overview.
 
 ### B2. Settings hub as child routes (decisions 10, 11)
 
