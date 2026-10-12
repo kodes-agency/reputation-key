@@ -51,20 +51,22 @@ export function computeReviewContentHash(
 }
 
 /** Valid reply status transitions. Keys are current status, values are allowed next statuses.
+ *  The table says which status may follow which. Which COMMAND may make a move,
+ *  and from which publication state, is `reply-command-preconditions.ts`: every
+ *  reply command checks its own start there before this table is consulted.
  *  `draft → draft` is an explicit self-transition covering in-place edits of an existing draft
- *  (text changes without a status change), so `transitionReply` is the single authority for
- *  every reply write — including edits.
+ *  (text changes without a status change).
  *  `publish_failed → published` exists ONLY for the BQC-3.3 reconciliation path
  *  (reconcileReplyPublication): the provider confirms the reply already exists,
  *  healing an ambiguous publish outcome. It never skips approval.
- *  `approved → draft` exists ONLY for the BQC-3.8 publication-cancellation path
- *  (disconnect/policy): cancelling an in-flight publication returns the reply
- *  to draft, where it must pass through pending_approval → approved again
- *  before any new publish. */
+ *  `approved → draft` is deliberately absent. Only a publication cancellation
+ *  (disconnect/policy) makes that move, through its own function
+ *  (`cancelledPublication`); while the edge sat in this table a draft save
+ *  could take it and rewrite a reply that was being published. */
 const REPLY_TRANSITIONS: Readonly<Record<ReplyStatus, ReadonlyArray<ReplyStatus>>> = {
   draft: ['draft', 'pending_approval'],
   pending_approval: ['approved', 'rejected'],
-  approved: ['published', 'publish_failed', 'draft'],
+  approved: ['published', 'publish_failed'],
   // published → approved exists ONLY for the edit-and-republish path
   // (editPublishedReply): editing a published reply's text re-enters the
   // durable publication machine; the GBP reply update is an upsert, so

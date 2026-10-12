@@ -1,8 +1,8 @@
 // Shared SET-clause builder for reply guarded updates (BQC-3.3).
 //
-// Used by ReplyRepository.conditionalUpdate and the atomic ReplyCommandStore
-// so both enforce the identical field mapping inside their guarded writes —
-// the TOCTOU guard semantics must never drift between the two.
+// Used by every guarded reply write (reply-write-guards.ts: the reply
+// repository's draft save and the atomic ReplyCommandStore), so they all apply
+// the identical field mapping.
 
 import type { ConditionalReplyUpdate } from '../application/ports/reply.repository'
 

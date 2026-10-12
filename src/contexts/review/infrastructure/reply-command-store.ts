@@ -2,8 +2,12 @@
 //
 // One PostgreSQL transaction commits each reply/review state mutation with its
 // outbox row. A crash anywhere inside the transaction rolls back both, while a
-// guarded transition that matches no row records no fact and returns null,
-// exactly as with ReplyRepository.conditionalUpdate.
+// guarded transition that matches no row records no fact and returns null.
+//
+// Every write carries its command's precondition as a compare-and-set
+// (reply-write-guards.ts): the snapshot must be a reply the command may start
+// from, and the row must still be that snapshot. The store does not trust the
+// use case to have checked, so a second entry point cannot skip the rule.
 //
 // BQC-3.8: the publication state machine is persisted here. Publication
 // transitions guard on BOTH status and publication_state; the target state
@@ -22,7 +26,6 @@ import {
 } from '#/shared/db/schema/review.schema'
 import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
-import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type { Reply } from '../domain/types'
 import { reviewError } from '../domain/errors'
@@ -42,11 +45,13 @@ import {
   assertCurrentAiDraftBinding,
   type AiDraftBindingStatus,
 } from './ai-draft-binding'
-import { buildReplySetClause } from './reply-set-clause'
-import type {
-  ConditionalReplyUpdate,
-  ReplyRepository,
-} from '../application/ports/reply.repository'
+import { guardedPublicationUpdate, guardedReplyUpdate } from './reply-write-guards'
+import {
+  cancelledPublication,
+  replyCommandMayStart,
+  type ReplyCommand,
+} from '../domain/reply-command-preconditions'
+import type { ConditionalReplyUpdate } from '../application/ports/reply.repository'
 import type { ReplyCommandStore } from '../application/ports/reply-command-store.port'
 import type { PublicationAuthorizationFacts } from '../application/ports/reply-command-store.port'
 import { googleReplyTextDigest } from '../domain/google-reply-observation'
@@ -85,63 +90,6 @@ function assertAiDraftBinding(tx: Tx, reply: Reply): Promise<AiDraftBindingStatu
     organizationId: reply.organizationId,
     replyId: reply.id,
   })
-}
-
-/**
- * Guarded reply update inside a transaction. Applies only while the row's
- * status is still the one the use case read (`reply.status`) — identical
- * TOCTOU semantics to ReplyRepository.conditionalUpdate.
- */
-async function guardedReplyUpdate(
-  tx: Tx,
-  reply: Reply,
-  updates: ConditionalReplyUpdate,
-  occurredAt: Date,
-): Promise<Reply | null> {
-  const result = await tx
-    .update(replies)
-    .set(buildReplySetClause(updates, occurredAt))
-    .where(
-      and(
-        eq(replies.id, reply.id),
-        eq(replies.organizationId, reply.organizationId),
-        inArray(replies.status, [reply.status]),
-        eq(replies.publicationCycle, reply.publicationCycle),
-      ),
-    )
-    .returning()
-  // No row matched → status changed concurrently, TOCTOU guard triggered.
-  return result[0] ? replyFromRow(result[0]) : null
-}
-
-/**
- * BQC-3.8: guarded publication update. Applies only while the row still has
- * the expected status AND one of `allowedStates` — the atomic backstop for
- * the cancellation race (a disconnect cancel moves the row out of every
- * publication-active state, so any racing publication write misses).
- */
-async function guardedPublicationUpdate(
-  run: Pick<Database, 'update'>,
-  reply: Reply,
-  expectedStatus: Reply['status'],
-  allowedStates: ReadonlyArray<PersistedPublicationState>,
-  set: Record<string, unknown>,
-): Promise<Reply | null> {
-  const result = await run
-    .update(replies)
-    .set(set)
-    .where(
-      and(
-        eq(replies.id, reply.id),
-        eq(replies.organizationId, reply.organizationId),
-        eq(replies.status, expectedStatus),
-        eq(replies.stateRevision, reply.stateRevision),
-        eq(replies.publicationCycle, reply.publicationCycle),
-        inArray(replies.publicationState, [...allowedStates]),
-      ),
-    )
-    .returning()
-  return result[0] ? replyFromRow(result[0]) : null
 }
 
 /**
@@ -521,14 +469,17 @@ async function cancelUnclaimablePublication(
   attempt: PublicationAttemptStart,
   at: Date,
 ): Promise<void> {
+  const cancellation = cancelledPublication(reply)
+  if (!cancellation) return
+  // Only the cycle this claim read as unclaimed: a row another worker has
+  // since claimed is that worker's to settle.
   const cancelled = await guardedPublicationUpdate(
     tx,
     reply,
     'approved',
-    ['authorized', 'sending'],
+    ['authorized'],
     {
-      status: 'draft',
-      publicationState: 'cancelled',
+      ...cancellation,
       updatedAt: at,
     },
   )
@@ -561,6 +512,7 @@ export const createAtomicReplyCommandStore = (
   const transition = async (
     span: string,
     reply: Reply,
+    command: ReplyCommand,
     updates: ConditionalReplyUpdate,
     event: DomainEvent | null,
     now?: Date,
@@ -569,7 +521,7 @@ export const createAtomicReplyCommandStore = (
       const occurredAt = now ?? clock()
       const saved = await db.transaction(async (tx) => {
         if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
-        const row = await guardedReplyUpdate(tx, reply, updates, occurredAt)
+        const row = await guardedReplyUpdate(tx, reply, command, updates, occurredAt)
         if (!row) return null
         if (event) await insertOutboxRow(tx, event)
         return row
@@ -618,13 +570,14 @@ export const createAtomicReplyCommandStore = (
     tx: Tx,
     input: Readonly<{
       reply: Reply
+      command: Extract<ReplyCommand, 'approve' | 'retry_publication' | 'edit_published'>
       intent: PublicationAuthorizationFacts['publicationIntent']
       publicationCycle: number
       updates: ConditionalReplyUpdate
       occurredAt: Date
     }>,
   ): Promise<Reply | null> => {
-    const { reply, intent, publicationCycle, updates, occurredAt } = input
+    const { reply, command, intent, publicationCycle, updates, occurredAt } = input
     const scope = await lockCurrentReplyTruthScope(tx, {
       organizationId: reply.organizationId,
       reviewId: reply.reviewId,
@@ -642,6 +595,7 @@ export const createAtomicReplyCommandStore = (
     const row = await guardedReplyUpdate(
       tx,
       reply,
+      command,
       {
         ...updates,
         publicationState: 'authorized',
@@ -714,15 +668,16 @@ export const createAtomicReplyCommandStore = (
 
   return {
     submitReply: (reply, updates, event, now) =>
-      transition('reply.commandStore.submitReply', reply, updates, event, now),
+      transition('reply.commandStore.submitReply', reply, 'submit', updates, event, now),
     rejectReply: (reply, updates, event, now) =>
-      transition('reply.commandStore.rejectReply', reply, updates, event, now),
+      transition('reply.commandStore.rejectReply', reply, 'reject', updates, event, now),
     // BQC-3.8: publish also persists publication_state='published' and clears
     // the reconcile schedule — provider confirmation is authoritative.
     markPublished: (reply, updates, event, now) =>
       transition(
         'reply.commandStore.markPublished',
         reply,
+        'confirm_published',
         { ...updates, publicationState: 'published', reconcileDueAt: null },
         event,
         now,
@@ -731,17 +686,36 @@ export const createAtomicReplyCommandStore = (
     // BQC-3.8: authorize = approve/retry re-authorization (new publication
     // cycle): guarded status update + authorized state + cycle reset + the
     // approved fact when one is supplied — one transaction.
+    //
+    // One write, two commands, told apart by the approved fact. An approval
+    // carries it, starts from `pending_approval`, and records the manager the
+    // intent names as approver. A retry carries none, starts from a settled
+    // failure, and keeps the approval the reply already has. A retry-shaped
+    // call can therefore not approve a pending reply, and neither shape can
+    // re-authorize a reply whose last attempt is of unknown outcome.
     markPublicationAuthorized: (reply, updates, facts, now) => {
-      if (!nextStateOrNull(reply, 'authorize')) return Promise.resolve(null)
+      const command = facts.lifecycleEvent ? 'approve' : 'retry_publication'
+      if (!replyCommandMayStart(command, reply) || !nextStateOrNull(reply, 'authorize')) {
+        return Promise.resolve(null)
+      }
       const publicationCycle = assertPublicationIntentMatchesCycle(reply, facts)
       const occurredAt = now ?? clock()
       return trace('reply.commandStore.markPublicationAuthorized', async () => {
         const saved = await db.transaction(async (tx) => {
           const row = await authorizePublicationCycle(tx, {
             reply,
+            command,
             intent: facts.publicationIntent,
             publicationCycle,
-            updates,
+            updates:
+              command === 'approve'
+                ? {
+                    ...updates,
+                    status: 'approved',
+                    approvedBy: facts.publicationIntent.userId,
+                    approvedAt: updates.approvedAt ?? occurredAt,
+                  }
+                : { status: 'approved' },
             occurredAt,
           })
           if (!row) return null
@@ -1079,13 +1053,14 @@ export const createAtomicReplyCommandStore = (
     // cancellation, or concurrent edit since the user opened the editor loses
     // the race — no fact, no mutation, the caller surfaces invalid_transition).
     editPublishedReply: (reply, command) => {
-      if (reply.status !== 'published') return Promise.resolve(null)
+      if (!replyCommandMayStart('edit_published', reply)) return Promise.resolve(null)
       const publicationCycle = assertPublicationIntentMatchesCycle(reply, command)
       const occurredAt = command.now ?? clock()
       return trace('reply.commandStore.editPublishedReply', async () => {
         const saved = await db.transaction(async (tx) => {
           const row = await authorizePublicationCycle(tx, {
             reply,
+            command: 'edit_published',
             intent: command.publicationIntent,
             publicationCycle,
             updates: { text: command.text, status: 'approved' },
@@ -1107,19 +1082,18 @@ export const createAtomicReplyCommandStore = (
           let count = 0
           for (const { reply, event, now } of commands) {
             // Rows whose state moved on (published/failed/cancelled/purged)
-            // are skipped without a fact — the batch still commits.
-            if (!nextStateOrNull(reply, 'cancel')) continue
+            // are skipped without a fact — the batch still commits. So is a
+            // row a worker claimed after the caller read it as undispatched:
+            // the guard compares the exact state and attempt count.
+            const cancellation = cancelledPublication(reply)
+            if (!cancellation) continue
             const occurredAt = now ?? clock()
             const row = await guardedPublicationUpdate(
               tx,
               reply,
               reply.status,
               ['requested', 'authorized', 'sending', 'pending_observation'],
-              {
-                status: 'draft',
-                publicationState: 'cancelled',
-                updatedAt: occurredAt,
-              },
+              { ...cancellation, updatedAt: occurredAt },
             )
             if (!row) continue
             if (row.publicationAttempts > 0) {
@@ -1172,338 +1146,6 @@ export const createAtomicReplyCommandStore = (
         void event
         denyLegacyReviewDestruction()
       })
-    },
-  }
-}
-
-/**
- * Non-transactional store for unit tests. Applies the same state → outbox
- * order without a real transaction; the legacy Review purge is denied before
- * every dependency in both stores.
- * Not for production — production must use createAtomicReplyCommandStore.
- */
-export const createSequentialReplyCommandStore = (deps: {
-  conditionalUpdate: ReplyRepository['conditionalUpdate']
-  upsert: ReplyRepository['upsert']
-  deleteByReviewIdAndSource: ReplyRepository['deleteByReviewIdAndSource']
-  /** @deprecated SAFE-03 keeps this compatibility dependency unreachable. */
-  deleteReviewById: (reviewId: ReviewId, organizationId: OrganizationId) => Promise<void>
-  clock: () => Date
-  recordOutbox?: (event: DomainEvent) => Promise<void>
-  /**
-   * BQC-3.8: publication-state-guarded update for the claim/cancel/requeue
-   * paths (the sequential equivalent of guardedPublicationUpdate).
-   */
-  publicationUpdate?: (
-    reply: Reply,
-    allowedStates: ReadonlyArray<PersistedPublicationState>,
-    updates: ConditionalReplyUpdate,
-    now?: Date,
-  ) => Promise<Reply | null>
-}): ReplyCommandStore => {
-  const recordOutbox = async (event: DomainEvent): Promise<void> => {
-    if (deps.recordOutbox) await deps.recordOutbox(event)
-  }
-
-  const transition = async (
-    reply: Reply,
-    updates: ConditionalReplyUpdate,
-    event: DomainEvent | null,
-    now?: Date,
-  ): Promise<Reply | null> => {
-    const saved = await deps.conditionalUpdate(
-      reply.id,
-      reply.organizationId,
-      [reply.status],
-      updates,
-      now,
-    )
-    if (saved && event) await recordOutbox(event)
-    return saved
-  }
-
-  const publicationTransition = async (
-    reply: Reply,
-    event: PublicationStateEvent,
-    allowedStates: ReadonlyArray<PersistedPublicationState>,
-    updates: ConditionalReplyUpdate,
-    fact: DomainEvent | null,
-    now?: Date,
-  ): Promise<Reply | null> => {
-    if (!nextStateOrNull(reply, event)) return null
-    if (!deps.publicationUpdate) {
-      throw reviewError(
-        'build_config_error',
-        'publicationUpdate dep is required for publication transitions',
-      )
-    }
-    const saved = await deps.publicationUpdate(reply, allowedStates, updates, now)
-    if (saved && fact) await recordOutbox(fact)
-    return saved
-  }
-
-  const sequentialUncertainUpdate = (
-    reply: Reply,
-    snapshot: UncertainSendSnapshot,
-    updates: ConditionalReplyUpdate,
-    now: Date,
-  ): Promise<Reply | null> => {
-    if (!deps.publicationUpdate) {
-      throw reviewError(
-        'build_config_error',
-        'publicationUpdate dep is required for uncertain-send commands',
-      )
-    }
-    return deps.publicationUpdate(reply, [snapshot.publicationState], updates, now)
-  }
-
-  return {
-    submitReply: (reply, updates, event, now) => transition(reply, updates, event, now),
-    rejectReply: (reply, updates, event, now) => transition(reply, updates, event, now),
-    markPublished: (reply, updates, event, now) =>
-      transition(
-        reply,
-        { ...updates, publicationState: 'published', reconcileDueAt: null },
-        event,
-        now,
-      ),
-
-    markPublicationAuthorized: async (reply, updates, facts, now) => {
-      if (!nextStateOrNull(reply, 'authorize')) return Promise.resolve(null)
-      const publicationCycle = assertPublicationIntentMatchesCycle(reply, facts)
-      const saved = await deps.conditionalUpdate(
-        reply.id,
-        reply.organizationId,
-        [reply.status],
-        {
-          ...updates,
-          publicationState: 'authorized',
-          publicationCycle,
-          publicationAttempts: 0,
-          publicationLastErrorClass: null,
-          reconcileDueAt: new Date(
-            (now ?? deps.clock()).getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
-          ),
-        },
-        now,
-      )
-      if (!saved) return null
-      if (facts.lifecycleEvent && deps.recordOutbox) {
-        await deps.recordOutbox(facts.lifecycleEvent)
-      }
-      if (deps.recordOutbox) await deps.recordOutbox(facts.publicationIntent)
-      return saved
-    },
-
-    markPublicationSending: (reply, _attempt, now) =>
-      publicationTransition(
-        reply,
-        'claim',
-        ['authorized'],
-        {
-          publicationState: 'sending',
-          reconcileDueAt: new Date(
-            (now ?? deps.clock()).getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
-          ),
-        },
-        null,
-        now,
-      ),
-
-    markProviderOutcomePendingObservation: (reply, _outcome, now) =>
-      publicationTransition(
-        reply,
-        'provider_accepted',
-        ['sending'],
-        {
-          publicationState: 'pending_observation',
-          reconcileDueAt: new Date(
-            (now ?? deps.clock()).getTime() + PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
-          ),
-        },
-        null,
-        now,
-      ),
-
-    deferPendingPublicationObservation: (reply, now) => {
-      if (reply.publicationState !== 'pending_observation') {
-        return Promise.resolve(null)
-      }
-      if (!deps.publicationUpdate) {
-        throw reviewError(
-          'build_config_error',
-          'publicationUpdate dep is required to defer a provider observation',
-        )
-      }
-      const at = now ?? deps.clock()
-      return deps.publicationUpdate(
-        reply,
-        ['pending_observation'],
-        {
-          reconcileDueAt: new Date(
-            at.getTime() + PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
-          ),
-        },
-        at,
-      )
-    },
-
-    markPublicationTerminal: (reply, errorClass, event, now) =>
-      publicationTransition(
-        reply,
-        'fail_terminal',
-        ['requested', 'authorized', 'sending', 'ambiguous'],
-        {
-          status: 'publish_failed',
-          publicationState: 'terminal',
-          publicationLastErrorClass: errorClass,
-          reconcileDueAt: null,
-        },
-        event,
-        now,
-      ),
-
-    markPublicationAmbiguous: (reply, event, now, dueAt) =>
-      publicationTransition(
-        reply,
-        'fail_ambiguous',
-        ['sending', 'pending_observation'],
-        {
-          status: 'publish_failed',
-          publicationState: 'ambiguous',
-          publicationLastErrorClass: 'ambiguous',
-          reconcileDueAt:
-            dueAt ??
-            new Date((now ?? deps.clock()).getTime() + AMBIGUOUS_RECONCILE_DELAY_MS),
-        },
-        event,
-        now,
-      ),
-
-    // The fake's publicationUpdate guards on the state list only, so the
-    // snapshot pre-check stands in for the atomic store's full CAS.
-    deferUncertainSend: async (reply, dueAt, now) => {
-      const snapshot = uncertainSnapshotFor(reply, DEFERRABLE_SEND)
-      if (!snapshot) return null
-      assertDueAfter(dueAt, now)
-      return sequentialUncertainUpdate(reply, snapshot, { reconcileDueAt: dueAt }, now)
-    },
-
-    rescheduleAmbiguousReconciliation: async (reply, dueAt, now) => {
-      const snapshot = uncertainSnapshotFor(reply, LADDER_AMBIGUITY)
-      if (!snapshot) return null
-      assertDueAfter(dueAt, now)
-      return sequentialUncertainUpdate(reply, snapshot, { reconcileDueAt: dueAt }, now)
-    },
-
-    settleNeverDispatchedAttempt: async (reply, event, now) => {
-      const snapshot = uncertainSnapshotFor(reply, NEVER_DISPATCHED_SETTLEABLE)
-      if (!snapshot) return null
-      const saved = await sequentialUncertainUpdate(
-        reply,
-        snapshot,
-        {
-          status: 'publish_failed',
-          publicationState: 'terminal',
-          publicationLastErrorClass: 'retryable',
-          reconcileDueAt: null,
-        },
-        now,
-      )
-      if (saved && event && snapshot.status !== 'publish_failed') {
-        await recordOutbox(event)
-      }
-      return saved
-    },
-
-    markPublicationRetryQueued: (reply, now) =>
-      publicationTransition(
-        reply,
-        'requeue',
-        ['sending'],
-        {
-          publicationState: 'authorized',
-          reconcileDueAt: new Date(
-            (now ?? deps.clock()).getTime() + PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
-          ),
-        },
-        null,
-        now,
-      ),
-
-    // Edit-and-republish: guard on the persisted published status (mirrors the
-    // atomic store — the fake's conditionalUpdate enforces the TOCTOU guard).
-    editPublishedReply: (reply, command) => {
-      if (reply.status !== 'published') return Promise.resolve(null)
-      const publicationCycle = assertPublicationIntentMatchesCycle(reply, command)
-      return deps
-        .conditionalUpdate(
-          reply.id,
-          reply.organizationId,
-          [reply.status],
-          {
-            text: command.text,
-            status: 'approved',
-            publicationState: 'authorized',
-            publicationCycle,
-            publicationAttempts: 0,
-            publicationLastErrorClass: null,
-            reconcileDueAt: new Date(
-              (command.now ?? deps.clock()).getTime() +
-                PUBLICATION_RECOVERY_RECONCILE_DELAY_MS,
-            ),
-          },
-          command.now,
-        )
-        .then(async (saved) => {
-          if (!saved) return null
-          if (deps.recordOutbox) {
-            await deps.recordOutbox(command.lifecycleEvent)
-            await deps.recordOutbox(command.publicationIntent)
-          }
-          return saved
-        })
-    },
-
-    cancelPublications: async (commands) => {
-      let count = 0
-      for (const { reply, event, now } of commands) {
-        const saved = await publicationTransition(
-          reply,
-          'cancel',
-          ['requested', 'authorized', 'sending', 'pending_observation'],
-          { status: 'draft', publicationState: 'cancelled' },
-          null,
-          now,
-        )
-        if (saved) {
-          await recordOutbox(event)
-          count++
-        }
-      }
-      return count
-    },
-
-    mirrorSyncedReply: async (command) => {
-      if (!command.reply) {
-        await deps.deleteByReviewIdAndSource(
-          command.reviewId,
-          'google_sync',
-          command.organizationId,
-        )
-        return null
-      }
-      const saved = await deps.upsert(command.reply, command.now)
-      if (command.event) await recordOutbox(command.event)
-      return saved
-    },
-
-    purgeExpiredReview: async (reviewId, event) => {
-      // Keep the non-transactional fake aligned with production safety. Tests
-      // must never normalize a cascade that production deliberately denies.
-      void reviewId
-      void event
-      denyLegacyReviewDestruction()
     },
   }
 }

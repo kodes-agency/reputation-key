@@ -8,6 +8,14 @@
 // is persisted through this store. Every external-interaction transition is a
 // guarded write (status + publication_state), so a lost TOCTOU race
 // (cancellation, a racing claim, a purge) records no fact and returns null.
+//
+// Every write is a compare-and-set on what its command may start from
+// (domain/reply-command-preconditions.ts) and on the snapshot it is given: the
+// row must still have that status and publication state, in that cycle, and
+// for a publication write that exact attempt count. A command called with a
+// reply it may not start from, or with a snapshot the row has moved past,
+// returns null and records nothing. The store enforces this itself; it does
+// not rely on the use case having checked.
 
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { Reply } from '../../domain/types'
@@ -93,11 +101,10 @@ export type PublicationAttemptStart = PublicationAuthorizationFence &
 
 export type ReplyCommandStore = Readonly<{
   /**
-   * Guarded transition + review.reply.submitted fact, one transaction.
-   * The update applies only while the reply's current status still equals
-   * `reply.status` (TOCTOU guard, same semantics as
-   * ReplyRepository.conditionalUpdate). Returns null on a lost race — the
-   * caller throws invalid_transition exactly as with conditionalUpdate today.
+   * Guarded transition + review.reply.submitted fact, one transaction. Starts
+   * only from a draft with no open publication. Returns null when `reply` is
+   * anything else or the row moved since it was read — the caller throws
+   * invalid_transition.
    */
   submitReply(
     reply: Reply,
@@ -111,6 +118,14 @@ export type ReplyCommandStore = Readonly<{
    * bounded recovery deadline, a NEW monotonic publication cycle, the optional
    * review.reply.approved lifecycle fact, and the required durable
    * review.reply.publication_requested intent — one transaction.
+   *
+   * The lifecycle fact decides which command this is. With it, an approval:
+   * `reply` must be `pending_approval` with no open publication, and the store
+   * records the intent's manager as approver. Without it, a retry: `reply`
+   * must be `publish_failed` with a settled (`terminal`, not ambiguous)
+   * publication, and only its status and publication fields change. A reply
+   * whose last attempt is of unknown outcome matches neither, so it can never
+   * be authorized again before settleNeverDispatchedAttempt has settled it.
    */
   markPublicationAuthorized(
     reply: Reply,
@@ -159,6 +174,11 @@ export type ReplyCommandStore = Readonly<{
    * fact, one transaction. Used for confirmed no-write failures, exhausted
    * retryable work, and sweep expiry. A null event is allowed when the parent
    * review is unavailable; liveness settlement must still complete.
+   *
+   * The row must still be in `reply`'s exact publication state and attempt
+   * count. The sweep ends a due `authorized` cycle as "not sent" from a batch
+   * it read earlier; if a worker has claimed the row since, this returns null
+   * and the claimed attempt stays with the worker and the uncertain-send path.
    */
   markPublicationTerminal(
     reply: Reply,
@@ -230,22 +250,26 @@ export type ReplyCommandStore = Readonly<{
    * text, a fresh publication cycle, and a bounded recovery deadline
    * (publication_state='authorized', attempts/error reset) + the
    * review.reply.updated fact, one transaction. Returns null when the reply is
-   * no longer published — no fact, no mutation.
+   * not, or is no longer, a settled published reply — no fact, no mutation.
    */
   editPublishedReply(
     reply: Reply,
     command: EditPublishedReplyCommand,
   ): Promise<Reply | null>
   /**
-   * BQC-3.8: disconnect/policy cancellation — per command, guarded
-   * publication_state IN ('requested','authorized','sending') → 'cancelled'
-   * + status → 'draft' + the publication_cancelled fact, ALL in one
-   * transaction for the batch. Returns the number of cancelled rows; rows
-   * whose state moved on (published/failed/cancelled/purged) are skipped.
+   * BQC-3.8: disconnect/policy cancellation — per command, the reply's open
+   * publication cycle → 'cancelled' + status → 'draft'
+   * (domain `cancelledPublication`, the only way back from approved to draft)
+   * + the publication_cancelled fact, ALL in one transaction for the batch.
+   * Returns the number of cancelled rows; rows whose state moved on
+   * (published/failed/cancelled/purged) are skipped, and so is a row that left
+   * the exact state and attempt count of the snapshot: a cycle read as
+   * undispatched and claimed since is not cancelled.
    */
   cancelPublications(commands: ReadonlyArray<CancelPublicationCommand>): Promise<number>
   /**
-   * Guarded transition → rejected + review.reply.rejected fact, one transaction. */
+   * Guarded transition → rejected + review.reply.rejected fact, one
+   * transaction. Starts only from `pending_approval`. */
   rejectReply(
     reply: Reply,
     updates: ConditionalReplyUpdate,
@@ -253,11 +277,11 @@ export type ReplyCommandStore = Readonly<{
     now?: Date,
   ): Promise<Reply | null>
   /**
-   * Guarded transition approved → published + published fact, one
-   * transaction. BQC-3.8: also persists publication_state='published' and
-   * clears reconcile_due_at — provider confirmation is authoritative from
-   * any publication state (job ack from 'sending', reconciliation heal from
-   * 'ambiguous'/'terminal', legacy pre-0015 rows from NULL).
+   * Guarded transition → published + published fact, one transaction.
+   * BQC-3.8: also persists publication_state='published' and clears
+   * reconcile_due_at. Starts only from a reply that was sent and not yet
+   * confirmed: approved or publish_failed, in 'sending', 'pending_observation',
+   * 'ambiguous' or 'terminal'. Never from a draft or a reply awaiting approval.
    */
   markPublished(
     reply: Reply,

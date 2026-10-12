@@ -76,6 +76,27 @@ Google Reply Observation proves publication. Publication authorizations, attempt
 and observations are append-only evidence with tenant, source, material, Reply,
 and cycle fences.
 Terminal/ambiguous outcomes may enter `publish_failed`; rejected replies can be re-drafted.
+
+Each reply command starts only from the states it names
+(`domain/reply-command-preconditions.ts`): a draft save from a draft or a
+rejected reply with no open publication, submit from such a draft, Confirm &
+Publish and reject from `pending_approval`, Try publishing again from a settled
+`publish_failed`, edit-and-republish from `published`, delete from a draft or a
+rejected reply that was never authorized. The use case refuses anything else
+with `invalid_transition`. The store does not trust the use case: every guarded
+write (`infrastructure/reply-write-guards.ts`) repeats the rule as its
+compare-and-set on status, publication state and cycle, and a publication write
+also on the exact state and attempt count it read. A second entry point, or a
+change between the read and the write, therefore matches no row and records no
+fact. The status table (`REPLY_TRANSITIONS`) only says which status may follow
+which; it has no `approved → draft`, because a Reply returns to draft only when
+its open cycle is cancelled (`cancelledPublication`).
+
+A Reply that was ever authorized is never deleted. Its authorization and attempt
+rows are the evidence of what a manager confirmed and what was sent, and they
+reference it `ON DELETE RESTRICT`. A cancelled publication leaves such a Reply
+as a draft; Delete is refused there with a sentence that says so, and the Reply
+stays editable and can be submitted again.
 The `review.reply.publish_failed` fact says how the publication ended, in a closed
 `outcome`: `not_sent` (nothing was posted: never dispatched, or retryable
 failures, an answered 429 included, ran out), `refused` (a terminal rejection by Google or by RepKey before sending), or
@@ -128,13 +149,14 @@ creates a separate row and never overwrites the renamed template.
 - **review.on-reply-publication-requested** — Durable worker consumer that independently recovers queue admission after a request-process interruption. It reloads the authoritative reply and only admits the intent's exact active cycle. Queue-add/receipt ambiguity is fenced by the deterministic reply+cycle BullMQ job ID.
 - **review.on-property-archived** — Durable worker consumer that cancels, as a Google disconnect does (`findUndispatchedPublicationsByReviewIds`, cause `disconnect`), every publication cycle of the Property's reviews that is not yet dispatched (`requested`/`authorized`) and either belongs to a Property that is not active or was authorized at a source epoch the Property has since moved past (Archive and Restore both advance it). The Reply returns to draft and one `review.reply.publication_cancelled` fact (cause `policy`) is recorded per Reply, so the provider authorizer's refusal is never reported to the author as a Google rejection. Every cancellation fact carries the Reply's author (identifier only, null when unknown or on facts recorded before the field existed): the author was last told the reply was queued to publish to Google, so Feed has to be able to find them again. Because the rule keys on the epoch, a fact delivered after a quick Restore still clears the pre-archive cycles and leaves a reply approved at the restored epoch alone. A dispatched cycle (`sending`/`pending_observation`) may already be on Google and stays with the worker and the reconciliation sweep, which end it with the `unconfirmed` publish-failed notice when no read can prove it.
 - **publish-reply** — Executes one guarded provider write for an approved current cycle. Claim revalidates the cycle's named manager against current membership, effective `reply.manage`, and Property scope in the claim transaction, and locks the Property to require it active at the cycle's source epoch; either denial cancels the cycle (cause `policy`) without provider egress. If an Archive or Restore commits after the claim, the provider authorizer refuses the write before sending (`stale_source`); the job cancels that cycle as `policy` too, never as a Google rejection. A fresh authorized attempt may write once. BullMQ allows five executions (exponential from 30 s with 0.5 jitter, so 15-30 s before the second); only a retryable failure spends them on another write, and a terminal rejection resolves at once. A persisted `sending` attempt is uncertain and is never written again: the job first asks for dispatch evidence (settling a never-dispatched attempt as not published), then makes one targeted read. An absent, unreadable or failed read inside the 15-minute propagation grace keeps the row `sending`, due in one minute and re-read on the sweep's next five-minute run; past the grace it becomes `ambiguous`, due at the next ladder rung after the attempt's age. Acknowledged writes remain `pending_observation`.
-- **reconcile-ambiguous-publications** — Globally single-flight across replicas through a PostgreSQL session advisory lease. It keyset-walks due `requested`/`authorized` rows (ended as a retryable failure, no provider read) and `sending`/`pending_observation`/`ambiguous` rows, and performs provider reads only, after dispatch evidence for `sending` and `ambiguous` rows. A restore-fenced row (`approved` + `ambiguous`, left by the recovery fence) takes neither evidence nor a read: it ends as terminal ambiguity on its first due run. An ambiguous row is re-read on a ladder measured from the attempt start (`reply_publication_attempts.created_at`): 15 min, 30 min, 1 h, 2 h, 4 h, 8 h, 24 h, 48 h, 72 h, never sooner than one minute ahead. A non-confirming read — absent, unreadable, or failed — reschedules to the next rung; only the end of the ladder (or a missing attempt start on pre-RPL rows) makes the row terminal ambiguity (`reconcile_due_at` NULL, no more automatic checks). An accepted write whose echo is absent or unreadable waits out its own 15-minute propagation grace (an unreadable echo records no observation, so only the attempt's age bounds it), then becomes `ambiguous` at the next ladder rung. A 240-second monotonic start deadline leaves 60 seconds inside the worker's 300-second timeout for an already-started bounded provider read, its checkpoint, reporting, and lease release; an unstarted suffix remains due for the next run.
+- **reconcile-ambiguous-publications** — Globally single-flight across replicas through a PostgreSQL session advisory lease. It keyset-walks due `requested`/`authorized` rows (ended as a retryable failure with no provider read, but only while still unclaimed: the write compares the exact state and attempt count the sweep read, so a row a worker claimed after the batch was read is left alone and comes back as an uncertain `sending` row) and `sending`/`pending_observation`/`ambiguous` rows, and performs provider reads only, after dispatch evidence for `sending` and `ambiguous` rows. A restore-fenced row (`approved` + `ambiguous`, left by the recovery fence) takes neither evidence nor a read: it ends as terminal ambiguity on its first due run. An ambiguous row is re-read on a ladder measured from the attempt start (`reply_publication_attempts.created_at`): 15 min, 30 min, 1 h, 2 h, 4 h, 8 h, 24 h, 48 h, 72 h, never sooner than one minute ahead. A non-confirming read — absent, unreadable, or failed — reschedules to the next rung; only the end of the ladder (or a missing attempt start on pre-RPL rows) makes the row terminal ambiguity (`reconcile_due_at` NULL, no more automatic checks). An accepted write whose echo is absent or unreadable waits out its own 15-minute propagation grace (an unreadable echo records no observation, so only the attempt's age bounds it), then becomes `ambiguous` at the next ladder rung. A 240-second monotonic start deadline leaves 60 seconds inside the worker's 300-second timeout for an already-started bounded provider read, its checkpoint, reporting, and lease release; an unstarted suffix remains due for the next run.
 
 ### Manager publication commands
 
 - **Check Google again** (`reply.checkPublication`, `checkReplyPublicationFn`) — for `approved` + `sending`/`pending_observation`, `publish_failed` + `ambiguous`, and terminal ambiguity. Dispatch evidence first: a never-dispatched attempt is settled with no Google read (`never_sent`). Otherwise one targeted read, then the reply is re-read and returned with `checkedAt` and `nextAutomaticCheckAt` (its `reconcile_due_at`). Outcomes: `live_on_google`, `not_on_google`, `never_sent`, `different_reply_on_google`, `unreadable_on_google`, `review_missing_on_google`, `cancelled`. A reply with nothing to check is `invalid_transition`; an unreachable Google is `sync_failed`. It never authorizes a cycle or enqueues a job.
+- **Confirm & Publish** (`reply.approve`) — only from `pending_approval`. The authorization write records the approver and commits the `review.reply.approved` fact with the publication intent. A failed Reply is never approved again; it is retried, which keeps the non-dispatch proof of Invariant 9 in front of every resend.
 - **Publication scope** — Approve, edit-and-republish and **Try publishing again** refuse before any write, in words that match the Property's lifecycle, when it is not active: archived ("This property has been removed… Restore it from the Removed list…"), suspended while its Organization is being closed ("Your organization is being closed…"), or past its recovery window and being deleted ("This property is being deleted…"). They also refuse when the Review has not been observed at the Property's current source epoch since a Restore or relink ("…Try again after the next sync."). The provider authorizer would refuse any of these writes; these commands read the Property outside their authorization transaction, so the publish worker's claim repeats the lifecycle and epoch check under a lock.
-- **Try publishing again** (`reply.retryPublish`) — re-authorizes a NEW cycle for a not-published reply. A reply descended from an uncertain attempt must first prove the attempt never dispatched (it is then settled and re-authorized); otherwise it refuses: "RepKey won't send this reply again because Google may already have it. Use Check Google again instead." It never reads Google.
+- **Try publishing again** (`reply.retryPublish`) — re-authorizes a NEW cycle for a Reply whose publication failed (`publish_failed`), keeping its approval. A Reply still waiting for approval, or one whose cycle is still open, is refused. A reply descended from an uncertain attempt must first prove the attempt never dispatched (it is then settled and re-authorized); otherwise it refuses: "RepKey won't send this reply again because Google may already have it. Use Check Google again instead." It never reads Google.
 
 ## Invariants
 
@@ -148,7 +170,10 @@ creates a separate row and never overwrites the renamed template.
 5. Reply text must pass `replyCommentProblem` (`src/shared/google-provider-control/reply-comment.ts`): not blank, at most 4096 UTF-8 bytes (Google's documented limit), no C0 control other than line feed, carriage return and tab, no DEL, no lone surrogate. Draft save, submit, approve and edit-published refuse anything else with `invalid_reply`.
 6. A changed grounded Brand Profile invalidates the pending AI operation and creates no draft; legacy provenance verification remains compatible.
 7. Every publication cycle atomically commits Reply state and its identifier-only
-   intent. Older cycles cannot admit or acknowledge newer work.
+   intent. Older cycles cannot admit or acknowledge newer work. The text a cycle
+   authorized stays the Reply's text while the cycle is open and after it ends
+   published or failed: no draft save rewrites it, and edit-and-republish
+   changes published text only by authorizing a new cycle for the new text.
 8. Provider write acknowledgement persists the exact attempt/correlation outcome as `pending_observation`; it never marks the Reply published and never closes Inbox work.
 9. A persisted `sending` attempt is an uncertain provider outcome. Positive
    non-dispatch evidence (below) settles it as not published without a Google
@@ -178,7 +203,10 @@ creates a separate row and never overwrites the renamed template.
    re-reads the permits before it writes, so a permit is either visible to the
    settle or denied because the attempt is no longer `sending`. That settle is
    the only transition from uncertainty to "safe to publish again", and the
-   resend still needs a manager's new cycle.
+   resend still needs a manager's new cycle. Nothing else authorizes one: the
+   persisted machine has no `authorize` from `ambiguous`, and the store's
+   authorization write refuses an uncertain Reply whether it is called as an
+   approval or as a retry.
 10. A stale observation or event cannot confirm a newer Reply cycle. Application
     agreement alone is not closure authority.
 11. Count or average drift during or between reputation scans terminally fails the
@@ -198,5 +226,13 @@ Unit tests stay beside material comparison, source lifecycle, Reply state,
 observations, reconciliation, server contracts, workers, and build registration.
 PostgreSQL integration tests cover immutable authorization, claim/revocation races,
 atomic observation confirmation, replay, erasure, and verified snapshots.
+
+The Reply workflow has a model-based suite. Its oracle is the workflow written
+out by hand (`domain/__fixtures__/reply-workflow-oracle.ts`), never the
+production transition tables. `domain/reply-workflow.property.test.ts` holds the
+command preconditions and both tables to it;
+`infrastructure/reply-workflow.model.integration.test.ts` runs generated
+histories of commands, worker executions, sweeps and syncs against PostgreSQL
+and checks Invariants 7 to 10 against what a stand-in Google received.
 
 Recurring activation remains quarantined until the external shadow-parity/cutover audit is complete.

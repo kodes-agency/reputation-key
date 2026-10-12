@@ -860,39 +860,24 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         .limit(1),
     ).resolves.toEqual([{ disposition: 'adopted' }])
 
-    // The repository's guarded write runs the same binding check inside its
-    // own transaction: the adopted draft advances, an expired one is refused
-    // without a row change.
+    // The repository's guarded draft save runs the same binding check inside
+    // its own transaction: an expired AI-assisted draft is refused without a
+    // row change.
     const replyRepository = createReplyRepository(db, () => new Date())
-    await expect(
-      replyRepository.conditionalUpdate(
-        accepted.reply.id,
-        ORGANIZATION_ID,
-        ['draft'],
-        { status: 'pending_approval', submittedAt: new Date() },
-        new Date(),
-      ),
-    ).resolves.toMatchObject({ id: accepted.reply.id, status: 'pending_approval' })
     await db
       .update(replies)
       .set({ aiDraftExpiresAt: new Date(NOW.getTime() - 1) })
       .where(eq(replies.id, accepted.reply.id))
     await expect(
-      replyRepository.conditionalUpdate(
-        accepted.reply.id,
-        ORGANIZATION_ID,
-        ['pending_approval'],
-        { status: 'approved', approvedBy: ACTOR_USER_ID, approvedAt: new Date() },
-        new Date(),
-      ),
+      replyRepository.saveDraft(accepted.reply, { text: 'Edited by a manager' }),
     ).resolves.toBeNull()
     await expect(
       db
-        .select({ status: replies.status })
+        .select({ text: replies.text, authorship: replies.authorship })
         .from(replies)
         .where(eq(replies.id, accepted.reply.id))
         .limit(1),
-    ).resolves.toEqual([{ status: 'pending_approval' }])
+    ).resolves.toEqual([{ text: SUGGESTION, authorship: 'ai_assisted' }])
     brandProfileCurrent = true
   })
 

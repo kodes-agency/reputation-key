@@ -113,9 +113,10 @@ describe('Review context build', () => {
     ])
     expect(Object.isFrozen(api.lookups.reply)).toBe(true)
     expect(Object.isFrozen(api.lookups.review)).toBe(true)
-    // A spread is what once carried upsert/deleteById across to Inbox.
+    // A spread is what once carried the reply writes across to Inbox.
     expect({ ...api.lookups.reply }).not.toHaveProperty('upsert')
-    expect({ ...api.lookups.reply }).not.toHaveProperty('deleteById')
+    expect({ ...api.lookups.reply }).not.toHaveProperty('saveDraft')
+    expect({ ...api.lookups.reply }).not.toHaveProperty('deleteDraft')
     expect({ ...api.lookups.review }).not.toHaveProperty('upsert')
   })
 })
