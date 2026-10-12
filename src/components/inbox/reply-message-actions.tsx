@@ -19,6 +19,11 @@ export type ReplyMessageActionsProps = Readonly<{
   actions: readonly ReplyMessageAction[]
   /** The SERVER copy of the reply — the same text the publish fence reads. */
   text: string
+  /**
+   * The state revision of that copy: which reply `text` is. Null for a reply
+   * Google shows, which is never confirmed here.
+   */
+  stateRevision: number | null
   isSaving: boolean
   /**
    * This reply's check is in flight. Separate from `isSaving`, which is true
@@ -33,7 +38,8 @@ export type ReplyMessageActionsProps = Readonly<{
    * that opens it, so nothing local to this row can see it.
    */
   isEditing: boolean
-  onApprove: () => Promise<unknown>
+  /** Confirms the reply at the revision the manager read; see `stateRevision`. */
+  onApprove: (expectedStateRevision: number) => Promise<unknown>
   onReject: (reason?: string) => Promise<unknown>
   /** Starts the check; its answer is reported by `ReplyMessage`, not here. */
   onCheck: () => void
@@ -142,10 +148,21 @@ function SimpleAction({
  * the rejection it performed, and across a change of item.
  */
 export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode {
-  const { actions, text, isSaving, onApprove, onReject } = props
+  const { actions, text, stateRevision, isSaving, onApprove, onReject } = props
   const [showRejectInput, setShowRejectInput] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
-  const canApprove = actions.includes('approve')
+  /**
+   * The reply the manager is confirming: the revision this row showed when the
+   * confirmation OPENED, not when its button is pressed. The row is keyed by
+   * reply and status, so a reply that was rejected, rewritten and submitted
+   * again re-renders here in place, under a dialog that is still open, with
+   * new text the manager has not read. Sending the revision they opened the
+   * dialog on makes the server refuse that confirmation; reopening it confirms
+   * the reply that is on the screen then.
+   */
+  const confirmingRevision = useRef<number | null>(null)
+  const approvableRevision = actions.includes('approve') ? stateRevision : null
+  const canApprove = approvableRevision !== null
   const canReject = actions.includes('reject')
   // The fence reads the reply as the SERVER holds it, not any local text: this
   // message never owns an editor, and `approveReply` re-runs the same check.
@@ -218,9 +235,12 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
             confirmLabel="Confirm & publish"
             pendingLabel="Confirming…"
             confirmDisabled={isSaving || publishBlockedReason !== null}
+            onOpenChange={(open) => {
+              confirmingRevision.current = open ? approvableRevision : null
+            }}
             // A refusal stays in the dialog (the approve mutation passes no
             // toast), so the manager reads it where they pressed the button.
-            onConfirm={onApprove}
+            onConfirm={() => onApprove(confirmingRevision.current ?? approvableRevision)}
           />
         )}
         {canReject && (

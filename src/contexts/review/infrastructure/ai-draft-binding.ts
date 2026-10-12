@@ -5,6 +5,12 @@
 // when a property, review, profile, authorization or control changes; what is
 // left to check here is the state those purges cannot see coming: the two
 // expiries, and the operation's settled receipt.
+//
+// The binding gates AI text on its way to Google and nothing else: submit,
+// Confirm & Publish and the publish worker's claim read it
+// (reply-write-guards.ts, `aiTextMayAdvance`). Reject, delete and a draft save
+// do not, and a retry or an edit of a reply a manager already confirmed is that
+// manager's own act on the text (domain/reply-ai-text.ts).
 
 import { and, eq, sql } from 'drizzle-orm'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
@@ -17,8 +23,9 @@ export type AiDraftBindingStatus = 'current' | 'not_ai' | 'stale'
 
 /**
  * Lock the reply row and decide whether its AI provenance is still current.
- * Human-authored replies are `not_ai`; a stale binding means the caller must
- * refuse the write (the draft is no longer the one the merchant reviewed).
+ * Human-authored replies are `not_ai`; a stale binding means a caller that
+ * moves the text toward Google must refuse (the draft is no longer the one the
+ * merchant reviewed).
  */
 export async function assertCurrentAiDraftBinding(
   tx: Tx,

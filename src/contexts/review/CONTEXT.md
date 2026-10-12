@@ -92,6 +92,47 @@ fact. The status table (`REPLY_TRANSITIONS`) only says which status may follow
 which; it has no `approved → draft`, because a Reply returns to draft only when
 its open cycle is cancelled (`cancelledPublication`).
 
+Confirm & Publish is bound to the Reply the manager read. The Inbox sends the
+Reply's state revision as it stood when the confirmation was opened
+(`expectedStateRevision`); the use case refuses a Reply that has moved past it
+with the same error as a lost race, and the store's authorization write (an
+approval, a retry or an edit) compares the state revision of the Reply it was
+given. A Reply that was rejected, rewritten and submitted again while a
+confirmation stood open is pending again in the same cycle; only that revision
+tells it apart, and the authorization digests whatever text the row holds. A
+caller with no screen (a seed, a script) sends no revision and confirms the
+stored Reply.
+
+An AI-assisted Reply is the unedited text of one AI suggestion a manager
+adopted as a draft (`authorship = 'ai_assisted'`). AI output is advisory (ADR
+0031; AI CONTEXT, Invariants 5 and 6), so that text stays held by the AI draft
+binding (`infrastructure/ai-draft-binding.ts`): everything it was generated
+from must still be current, and its ten-minute adoption window must not have
+passed. The binding is a gate on AI text moving toward Google, not a lock on
+the Reply, and `domain/reply-ai-text.ts` says which command does what:
+
+- **It gates the three steps that move unedited AI text toward Google**:
+  submit, Confirm & Publish, and the publish worker's claim. A stale binding
+  refuses the first two with `ai_suggestion_stale` and a sentence that names
+  the way out; the claim sends nothing and leaves the cycle `authorized`, which
+  the sweep ends as `not_sent`.
+- **Adoption ends when a manager acts on the text as their own.** A draft save
+  (typing over the draft, or Edit & resubmit on a rejected Reply), Try
+  publishing again and edit-and-republish never read the binding. Each records
+  the Reply as human-authored and clears its AI provenance, through the same
+  set clause (`reply-set-clause.ts`). `ai_assisted` therefore always means
+  "still held by the binding", which is what the schema (every such row has an
+  expiry), the AI draft purge and the worker's claim take it to mean.
+- **Reject and delete never read it.** An approver can always send a Reply
+  back.
+
+So a stale AI draft can be typed over, a pending one rejected, and a Reply a
+manager confirmed can be tried again or edited whenever its publication failed
+or succeeded; none of that waits on a window that closed. A published
+AI-assisted Reply nobody acted on again keeps its label, and nothing reads its
+binding again. What the window still decides is whether AI text nobody has
+touched may be put forward as it is.
+
 A Reply that was ever authorized is never deleted. Its authorization and attempt
 rows are the evidence of what a manager confirmed and what was sent, and they
 reference it `ON DELETE RESTRICT`. A cancelled publication leaves such a Reply
@@ -154,9 +195,9 @@ creates a separate row and never overwrites the renamed template.
 ### Manager publication commands
 
 - **Check Google again** (`reply.checkPublication`, `checkReplyPublicationFn`) — for `approved` + `sending`/`pending_observation`, `publish_failed` + `ambiguous`, and terminal ambiguity. Dispatch evidence first: a never-dispatched attempt is settled with no Google read (`never_sent`). Otherwise one targeted read, then the reply is re-read and returned with `checkedAt` and `nextAutomaticCheckAt` (its `reconcile_due_at`). Outcomes: `live_on_google`, `not_on_google`, `never_sent`, `different_reply_on_google`, `unreadable_on_google`, `review_missing_on_google`, `cancelled`. A reply with nothing to check is `invalid_transition`; an unreachable Google is `sync_failed`. It never authorizes a cycle or enqueues a job.
-- **Confirm & Publish** (`reply.approve`) — only from `pending_approval`. The authorization write records the approver and commits the `review.reply.approved` fact with the publication intent. A failed Reply is never approved again; it is retried, which keeps the non-dispatch proof of Invariant 9 in front of every resend.
+- **Confirm & Publish** (`reply.approve`) — only from `pending_approval`, and only for the Reply the manager read (`expectedStateRevision`, see Model). The authorization write records the approver and commits the `review.reply.approved` fact with the publication intent. A failed Reply is never approved again; it is retried, which keeps the non-dispatch proof of Invariant 9 in front of every resend. An AI-assisted Reply is confirmed only while its binding is current.
 - **Publication scope** — Approve, edit-and-republish and **Try publishing again** refuse before any write, in words that match the Property's lifecycle, when it is not active: archived ("This property has been removed… Restore it from the Removed list…"), suspended while its Organization is being closed ("Your organization is being closed…"), or past its recovery window and being deleted ("This property is being deleted…"). They also refuse when the Review has not been observed at the Property's current source epoch since a Restore or relink ("…Try again after the next sync."). The provider authorizer would refuse any of these writes; these commands read the Property outside their authorization transaction, so the publish worker's claim repeats the lifecycle and epoch check under a lock.
-- **Try publishing again** (`reply.retryPublish`) — re-authorizes a NEW cycle for a Reply whose publication failed (`publish_failed`), keeping its approval. A Reply still waiting for approval, or one whose cycle is still open, is refused. A reply descended from an uncertain attempt must first prove the attempt never dispatched (it is then settled and re-authorized); otherwise it refuses: "RepKey won't send this reply again because Google may already have it. Use Check Google again instead." It never reads Google.
+- **Try publishing again** (`reply.retryPublish`) — re-authorizes a NEW cycle for a Reply whose publication failed (`publish_failed`), keeping its approval. It is a manager's own command on confirmed text: it never reads the AI draft binding and records the Reply as human-authored. A Reply still waiting for approval, or one whose cycle is still open, is refused. A reply descended from an uncertain attempt must first prove the attempt never dispatched (it is then settled and re-authorized); otherwise it refuses: "RepKey won't send this reply again because Google may already have it. Use Check Google again instead." It never reads Google.
 
 ## Invariants
 
@@ -174,6 +215,9 @@ creates a separate row and never overwrites the renamed template.
    authorized stays the Reply's text while the cycle is open and after it ends
    published or failed: no draft save rewrites it, and edit-and-republish
    changes published text only by authorizing a new cycle for the new text.
+   The text a cycle authorizes is the text its caller read: the authorization
+   write compares the Reply's state revision, so a Reply rewritten since
+   matches no row.
 8. Provider write acknowledgement persists the exact attempt/correlation outcome as `pending_observation`; it never marks the Reply published and never closes Inbox work.
 9. A persisted `sending` attempt is an uncertain provider outcome. Positive
    non-dispatch evidence (below) settles it as not published without a Google
@@ -233,6 +277,10 @@ production transition tables. `domain/reply-workflow.property.test.ts` holds the
 command preconditions and both tables to it;
 `infrastructure/reply-workflow.model.integration.test.ts` runs generated
 histories of commands, worker executions, sweeps and syncs against PostgreSQL
-and checks Invariants 7 to 10 against what a stand-in Google received.
+and checks Invariants 7 to 10 against what a stand-in Google received. Both
+carry authorship (a manager's text or adopted AI text) and freshness (the AI
+draft binding current or stale; a confirmation that names the Reply on screen
+or an earlier one): AI suggestions are adopted through the real acceptance
+store and judged by the real binding, and no stale AI text may leave RepKey.
 
 Recurring activation remains quarantined until the external shadow-parity/cutover audit is complete.

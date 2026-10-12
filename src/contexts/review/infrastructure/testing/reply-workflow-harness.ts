@@ -4,7 +4,9 @@
 // command store, observation store and dispatch evidence. The publish worker and
 // the reconciliation sweep are the real job handlers. Only three things are
 // stand-ins: Google (an upsert endpoint that remembers what it was sent), the
-// queue (it keeps the jobs the commands enqueue) and the clock.
+// queue (it keeps the jobs the commands enqueue) and the clock. An AI
+// suggestion is adopted through the real acceptance store and judged by the
+// real binding (testing/reply-workflow-ai-fixture.ts).
 //
 // Google is the witness. Every request that leaves RepKey is written to
 // `google.sent` with the text it carried, and `google.live` is what a guest
@@ -54,6 +56,7 @@ import { createGoogleReplyObservationStore } from '../google-reply-observation-s
 import { createReplyPublicationDispatchEvidence } from '../reply-publication-dispatch-evidence'
 import { createPublishReplyHandler } from '../jobs/publish-reply.job'
 import { createReconcileAmbiguousPublicationsHandler } from '../jobs/reconcile-ambiguous-publications.job'
+import { createReplyWorkflowAiFixture } from './reply-workflow-ai-fixture'
 
 export const WORKFLOW_ORG = organizationId('org-reply-workflow-model-00000001')
 export const WORKFLOW_PROPERTY = propertyId('4f000000-0000-4000-8000-000000000001')
@@ -68,6 +71,9 @@ const EXTERNAL_REVIEW_ID = 'ext-reply-workflow-model-1'
 const STARTED_AT = new Date('2090-01-01T08:00:00.000Z')
 const CONTENT_TTL_MS = 25 * 24 * 60 * 60 * 1000
 const MAX_JOB_ATTEMPTS = 5
+/** Seeding and removing the workflow's Organization is a few dozen statements;
+ * the default ten seconds is not enough on a machine that is busy. */
+export const WORKFLOW_HOOK_TIMEOUT_MS = 60_000
 
 /** What the stand-in Google does with the next reply write it is sent. */
 export type GoogleWriteOutcome =
@@ -211,6 +217,12 @@ export async function createReplyWorkflowHarness(
   const commandStore = createAtomicReplyCommandStore(db, clock, async () => true)
   const observationStore = createGoogleReplyObservationStore(db)
   const dispatchEvidence = createReplyPublicationDispatchEvidence(db)
+  const ai = createReplyWorkflowAiFixture({
+    organizationId: WORKFLOW_ORG,
+    propertyId: WORKFLOW_PROPERTY,
+    reviewId: WORKFLOW_REVIEW,
+    actorUserId: WORKFLOW_MANAGER,
+  })
 
   // ── Google ───────────────────────────────────────────────────────────
   const google = {
@@ -254,10 +266,16 @@ export async function createReplyWorkflowHarness(
     )
   }
 
-  /** The two rules a write must satisfy as it leaves: it carries the text that
-   * was authorized for its cycle, and no earlier request for this reply is
-   * still of unknown outcome (Review CONTEXT, Invariant 9). */
+  /** The rules a write must satisfy as it leaves: it carries the text that was
+   * authorized for its cycle, no earlier request for this reply is still of
+   * unknown outcome (Review CONTEXT, Invariant 9), and it is not unedited AI
+   * text whose binding has gone stale. */
   async function checkWriteAsItLeaves(input: GoogleReplyPublicationRequest) {
+    if ((await ai.bindingOf(replyId(input.replyId))) === 'stale') {
+      google.violations.push(
+        `cycle ${input.publicationCycle} sent AI text whose binding was stale`,
+      )
+    }
     const authorization = await pool.query<{ expected_reply_digest: string }>(
       `SELECT expected_reply_digest FROM reply_publication_authorizations
         WHERE reply_id = $1 AND publication_cycle = $2`,
@@ -372,6 +390,7 @@ export async function createReplyWorkflowHarness(
       },
     },
     commandStore,
+    aiSuggestedDraftStore: ai.store,
     dispatchEvidence,
     googleReplyObservationStore: observationStore,
     propertyPublicationScope: {
@@ -426,6 +445,7 @@ export async function createReplyWorkflowHarness(
     for (const table of TENANT_TABLES) {
       await pool.query(`DELETE FROM ${table} WHERE organization_id = $1`, [WORKFLOW_ORG])
     }
+    await ai.reset()
     nowMs = STARTED_AT.getTime()
     google.live = null
     google.calls = 0
@@ -468,6 +488,7 @@ export async function createReplyWorkflowHarness(
       ],
     )
     await reviewRepo.upsert(seedReview(locationName), STARTED_AT)
+    await ai.seed()
   }
 
   async function remove(): Promise<void> {
@@ -476,6 +497,7 @@ export async function createReplyWorkflowHarness(
       await pool.query(`DELETE FROM ${table} WHERE organization_id = $1`, [WORKFLOW_ORG])
     }
     await deleteTestOrganizationsWithExecutor(pool, [WORKFLOW_ORG])
+    await ai.restore()
   }
 
   async function currentReply(): Promise<Reply | null> {
@@ -669,10 +691,29 @@ export async function createReplyWorkflowHarness(
       }
       return { reached, release }
     },
+    ai: {
+      /** The ten-minute adoption window of every AI-assisted reply is over. */
+      letWindowPass: ai.letWindowPass,
+      /** What the real binding says about a reply right now. */
+      bindingOf: ai.bindingOf,
+    },
     commands: {
       draft: (text: string) => useCases.draft({ ...reviewInput, text }, MANAGER_CTX),
+      /** A manager adopts an AI suggestion, unedited, as the review's draft. */
+      adoptAiSuggestion: async (text: string) =>
+        useCases.draft(
+          { ...reviewInput, text, provenanceToken: await ai.issueSuggestion(text) },
+          MANAGER_CTX,
+        ),
       submit: () => useCases.submit(reviewInput, MANAGER_CTX),
-      approve: () => useCases.approve(reviewInput, MANAGER_CTX),
+      /** `expectedStateRevision`: the reply revision the manager's screen showed. */
+      approve: (expectedStateRevision?: number) =>
+        useCases.approve(
+          expectedStateRevision === undefined
+            ? reviewInput
+            : { ...reviewInput, expectedStateRevision },
+          MANAGER_CTX,
+        ),
       reject: () => useCases.reject(reviewInput, MANAGER_CTX),
       retry: () => useCases.retry(reviewInput, MANAGER_CTX),
       editPublished: (text: string) =>

@@ -486,6 +486,29 @@ describe('draftReply', () => {
     expect(deps.replyRepo.saveDraft).not.toHaveBeenCalled()
   })
 
+  it('saves over an AI-assisted draft without asking whether its binding is still current', async () => {
+    // Typing over AI text makes it the manager's own, however old it is.
+    const aiDraft = makeReply({ aiGenerated: true })
+    const assertCurrentBinding = vi.fn(async () => 'stale' as const)
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(aiDraft),
+      aiSuggestedDraftStore: { accept: vi.fn(), assertCurrentBinding },
+    })
+
+    const saved = await draftReply(deps)(
+      { reviewId: REVIEW_ID, text: 'Typed by a manager' },
+      MANAGER_CTX,
+    )
+
+    expect(saved).toMatchObject({ text: 'Typed by a manager', aiGenerated: false })
+    expect(assertCurrentBinding).not.toHaveBeenCalled()
+    expect(deps.replyRepo.saveDraft).toHaveBeenCalledWith(
+      aiDraft,
+      { text: 'Typed by a manager' },
+      NOW,
+    )
+  })
+
   it('allows re-drafting a rejected reply', async () => {
     const rejected = makeReply({ status: 'rejected', rejectionReason: 'Bad tone' })
     const deps = makeDeps({
@@ -953,6 +976,115 @@ describe('approveReply', () => {
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
     expect(deps.outbox.facts).toHaveLength(0)
   })
+
+  it('refuses a reply that is no longer the one the manager’s screen showed', async () => {
+    // Rejected, rewritten and submitted again while the confirmation was open:
+    // pending in the same cycle, at a later state revision.
+    const pending = makeReply({ status: 'pending_approval', stateRevision: 6 })
+    const deps = makeDeps({ replyRepo: replyRepoWith(pending) })
+
+    await expect(
+      approveReply(deps)({ reviewId: REVIEW_ID, expectedStateRevision: 3 }, MANAGER_CTX),
+    ).rejects.toMatchObject({
+      _tag: 'ReviewError',
+      code: 'invalid_transition',
+      message: 'Reply status changed concurrently',
+    })
+    expect(deps.propertyPublicationScope.getPublicationScope).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
+  })
+
+  it('confirms the reply at the state revision the screen showed', async () => {
+    const pending = makeReply({ status: 'pending_approval', stateRevision: 6 })
+    const deps = makeDeps({ replyRepo: replyRepoWith(pending) })
+
+    await expect(
+      approveReply(deps)({ reviewId: REVIEW_ID, expectedStateRevision: 6 }, MANAGER_CTX),
+    ).resolves.toMatchObject({ status: 'approved', approvedBy: USER_ID })
+    expect(deps.outbox.byTag('review.reply.approved')).toHaveLength(1)
+    expect(deps.queue.addPublishJob).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['submit', submitReply, 'draft', 'Edit it, then submit it again.'],
+    [
+      'Confirm & Publish',
+      approveReply,
+      'pending_approval',
+      'Reject it so it can be edited and submitted again.',
+    ],
+  ] as const)(
+    '%s refuses a stale AI draft and says what to do next',
+    async (_name, command, status, nextStep) => {
+      const aiReply = makeReply({ status, aiGenerated: true })
+      const deps = makeDeps({
+        replyRepo: replyRepoWith(aiReply),
+        aiSuggestedDraftStore: {
+          accept: vi.fn(),
+          assertCurrentBinding: vi.fn(async () => 'stale' as const),
+        },
+      })
+
+      await expect(
+        command(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+      ).rejects.toMatchObject({
+        _tag: 'ReviewError',
+        code: 'ai_suggestion_stale',
+        message: expect.stringContaining(nextStep),
+      })
+      expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+      expect(deps.outbox.facts).toHaveLength(0)
+    },
+  )
+
+  it.each([
+    ['reject', rejectReply, makeReply({ status: 'pending_approval', aiGenerated: true })],
+    [
+      'Try publishing again',
+      retryPublish,
+      makeReply({
+        status: 'publish_failed',
+        aiGenerated: true,
+        approvedBy: ADMIN_ID,
+        approvedAt: NOW,
+        publicationState: 'terminal',
+        publicationLastErrorClass: 'terminal_rejection',
+        publicationCycle: 1,
+        publicationAttempts: 1,
+      }),
+    ],
+    [
+      'edit-and-republish',
+      editPublishedReply,
+      makeReply({
+        status: 'published',
+        aiGenerated: true,
+        approvedBy: ADMIN_ID,
+        approvedAt: NOW,
+        publicationState: 'published',
+        publicationCycle: 1,
+        publicationAttempts: 1,
+      }),
+    ],
+  ] as const)(
+    '%s never asks whether an AI-assisted reply is still current',
+    async (_name, command, aiReply) => {
+      const assertCurrentBinding = vi.fn(async () => 'stale' as const)
+      const deps = makeDeps({
+        replyRepo: replyRepoWith(aiReply),
+        aiSuggestedDraftStore: { accept: vi.fn(), assertCurrentBinding },
+      })
+
+      const result = await command(deps)(
+        { reviewId: REVIEW_ID, text: 'Edited by a manager' },
+        MANAGER_CTX,
+      )
+
+      expect(result.id).toBe(aiReply.id)
+      expect(assertCurrentBinding).not.toHaveBeenCalled()
+    },
+  )
 
   it('refuses to approve a reply that is already being published or is published', async () => {
     for (const reply of [

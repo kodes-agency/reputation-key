@@ -167,10 +167,27 @@ async function assertPropertyAcceptsPublication(
   }
 }
 
+/** A stale AI draft is refused with the way out: only the person who can take
+ * the next step differs. */
+const STALE_AI_DRAFT = {
+  submit:
+    'This AI draft is no longer current, so RepKey will not submit it as it is. Edit it, then submit it again.',
+  approve:
+    'This AI draft is no longer current, so RepKey will not publish it as it is. Reject it so it can be edited and submitted again.',
+} as const
+
+/**
+ * Unedited AI text moves toward Google only while everything it was generated
+ * from is still current and its ten-minute adoption window is open
+ * (domain/reply-ai-text.ts). Only the two commands that move it ask: submit and
+ * Confirm & Publish. The store repeats the check in the transaction of its
+ * write; this one exists to say why, and what to do next.
+ */
 async function assertCurrentAiDraftBinding(
   deps: ReplyDeps,
   ctx: AuthContext,
   reply: Reply,
+  command: keyof typeof STALE_AI_DRAFT,
 ): Promise<void> {
   if (!reply.aiGenerated) return
   if (!deps.aiSuggestedDraftStore) {
@@ -184,7 +201,7 @@ async function assertCurrentAiDraftBinding(
     replyId: reply.id,
   })
   if (status === 'stale') {
-    throw reviewError('ai_suggestion_stale', 'The AI-assisted draft is no longer current')
+    throw reviewError('ai_suggestion_stale', STALE_AI_DRAFT[command])
   }
 }
 
@@ -363,9 +380,11 @@ export const draftReply =
       // published or published keeps its text: a save from a stale composer
       // would otherwise change what a manager confirmed, or what RepKey says
       // is on Google. The store repeats this as the guard of its write.
+      //
+      // A save never asks whether an AI draft is still current: typing over AI
+      // text, or loading a template over it, makes the reply the manager's own
+      // (domain/reply-ai-text.ts), however long ago it was generated.
       assertReplyCommandMayStart('save_draft', existing)
-      if (input.templateId === undefined)
-        await assertCurrentAiDraftBinding(deps, ctx, existing)
       const redrafted = await deps.replyRepo.saveDraft(
         existing,
         {
@@ -439,7 +458,7 @@ export const submitReply =
     // can still be too long in bytes.
     assertReplyTextSendable(reply.text)
     assertReplySlotsFilled(reply.text)
-    await assertCurrentAiDraftBinding(deps, ctx, reply)
+    await assertCurrentAiDraftBinding(deps, ctx, reply, 'submit')
 
     const now = deps.clock()
     // BQC-3.3: guarded status update and submitted fact commit in one transaction.
@@ -468,6 +487,12 @@ export const submitReply =
 
 export type ApproveReplyInput = Readonly<{
   reviewId: ReviewId
+  /**
+   * The reply state revision the manager's screen showed when they opened the
+   * confirmation. The Inbox always sends it. A caller with no screen (a seed, a
+   * script) leaves it out and confirms the reply as it is stored.
+   */
+  expectedStateRevision?: number
 }>
 
 export const approveReply =
@@ -480,10 +505,21 @@ export const approveReply =
     // that an attempt of unknown outcome never reached Google (Invariant 9);
     // approving it here would skip that proof.
     assertReplyCommandMayStart('approve', reply)
+    // The manager confirms the reply they read, not whatever is stored by now.
+    // A reply that was rejected, rewritten and submitted again while the
+    // confirmation was open is pending again in the same cycle; only its state
+    // revision tells it apart. The store carries the revision read here as the
+    // compare-and-set of its write, so a rewrite after this line loses too.
+    if (
+      input.expectedStateRevision !== undefined &&
+      input.expectedStateRevision !== reply.stateRevision
+    ) {
+      throw replyChangedConcurrently()
+    }
     await assertPropertyAcceptsPublication(deps, review)
     assertReplyTextSendable(reply.text)
     assertReplySlotsFilled(reply.text)
-    await assertCurrentAiDraftBinding(deps, ctx, reply)
+    await assertCurrentAiDraftBinding(deps, ctx, reply, 'approve')
 
     return authorizeAndEnqueuePublication(
       deps,

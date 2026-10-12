@@ -7,7 +7,11 @@
 // Every write carries its command's precondition as a compare-and-set
 // (reply-write-guards.ts): the snapshot must be a reply the command may start
 // from, and the row must still be that snapshot. The store does not trust the
-// use case to have checked, so a second entry point cannot skip the rule.
+// use case to have checked, so a second entry point cannot skip the rule. The
+// same guard carries what the command means for AI-assisted text
+// (domain/reply-ai-text.ts): submit and approval need a current AI draft
+// binding, reject never reads it, a retry or an edit makes the Reply
+// human-authored.
 //
 // BQC-3.8: the publication state machine is persisted here. Publication
 // transitions guard on BOTH status and publication_state; the target state
@@ -42,10 +46,10 @@ import {
 } from '../domain/reply-publication-workflow'
 import { replyFromRow, replyToRow } from './mappers/reply.mapper'
 import {
-  assertCurrentAiDraftBinding,
-  type AiDraftBindingStatus,
-} from './ai-draft-binding'
-import { guardedPublicationUpdate, guardedReplyUpdate } from './reply-write-guards'
+  aiTextMayAdvance,
+  guardedPublicationUpdate,
+  guardedReplyUpdate,
+} from './reply-write-guards'
 import {
   cancelledPublication,
   replyCommandMayStart,
@@ -82,14 +86,6 @@ export type ReplyPublicationActorAuthority = (
 
 const missingPublicationActorAuthority: ReplyPublicationActorAuthority = async () => {
   throw reviewError('build_config_error', 'Reply publication actor authority is required')
-}
-
-function assertAiDraftBinding(tx: Tx, reply: Reply): Promise<AiDraftBindingStatus> {
-  if (!reply.aiGenerated) return Promise.resolve('not_ai')
-  return assertCurrentAiDraftBinding(tx, {
-    organizationId: reply.organizationId,
-    replyId: reply.id,
-  })
 }
 
 /**
@@ -520,7 +516,6 @@ export const createAtomicReplyCommandStore = (
     return trace(span, async () => {
       const occurredAt = now ?? clock()
       const saved = await db.transaction(async (tx) => {
-        if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
         const row = await guardedReplyUpdate(tx, reply, command, updates, occurredAt)
         if (!row) return null
         if (event) await insertOutboxRow(tx, event)
@@ -591,7 +586,6 @@ export const createAtomicReplyCommandStore = (
       at: occurredAt,
     })
     if (!actorAllowed) return null
-    if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
     const row = await guardedReplyUpdate(
       tx,
       reply,
@@ -685,7 +679,10 @@ export const createAtomicReplyCommandStore = (
 
     // BQC-3.8: authorize = approve/retry re-authorization (new publication
     // cycle): guarded status update + authorized state + cycle reset + the
-    // approved fact when one is supplied — one transaction.
+    // approved fact when one is supplied — one transaction. The write also
+    // names the state revision of `reply`: a Reply rejected, rewritten and
+    // submitted again since it was read is in the same status and cycle and
+    // matches no row, so the text authorized is the text the caller read.
     //
     // One write, two commands, told apart by the approved fact. An approval
     // carries it, starts from `pending_approval`, and records the manager the
@@ -762,7 +759,11 @@ export const createAtomicReplyCommandStore = (
             propertyId: attempt.propertyId,
           })
           if (!scope) return null
-          if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
+          // The last gate for AI text: a Reply still AI-assisted here is in
+          // the cycle its Confirm & Publish authorized, and is sent only while
+          // its binding is current. A retried or edited Reply is human-authored
+          // by then (domain/reply-ai-text.ts) and passes.
+          if (!(await aiTextMayAdvance(tx, reply))) return null
           const authorization = await readCurrentPublicationAuthorization(
             tx,
             reply,

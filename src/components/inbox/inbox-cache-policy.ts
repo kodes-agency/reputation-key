@@ -336,6 +336,16 @@ function patchItem(qc: QueryClient, item: InboxItem): void {
 
 // ── The policy ──────────────────────────────────────────────────
 
+/** Re-read one review's reply wherever the cache holds it: its item detail,
+ * and the lists and counts its state feeds. */
+function rereadReviewReply(qc: QueryClient, reviewId: string): void {
+  for (const itemId of cachedItemIdsForReview(qc, reviewId)) {
+    qc.invalidateQueries({ queryKey: inboxKeys.detail(itemId), exact: true })
+  }
+  qc.invalidateQueries({ queryKey: inboxKeys.lists() })
+  qc.invalidateQueries({ queryKey: inboxKeys.counts() })
+}
+
 export const inboxCachePolicy = {
   /** The server confirmed a successful Inbox visit watermark. */
   async onInboxVisited(qc: QueryClient): Promise<void> {
@@ -425,11 +435,19 @@ export const inboxCachePolicy = {
    * shows the reply as it is next to the toast.
    */
   onReplyCheckFailed(qc: QueryClient, reviewId: string): void {
-    for (const itemId of cachedItemIdsForReview(qc, reviewId)) {
-      qc.invalidateQueries({ queryKey: inboxKeys.detail(itemId), exact: true })
-    }
-    qc.invalidateQueries({ queryKey: inboxKeys.lists() })
-    qc.invalidateQueries({ queryKey: inboxKeys.counts() })
+    rereadReviewReply(qc, reviewId)
+  },
+
+  /**
+   * Confirm & publish was refused. The confirmation names the reply the pane
+   * showed (its state revision), so the usual cause is the same as above: the
+   * reply was rejected, rewritten or confirmed by someone else while this pane
+   * stood still, and nothing polls a reply that is waiting for approval. The
+   * pane re-reads it, so the manager sees the reply as it is behind the dialog
+   * that says it changed, and confirms the new one only after reopening it.
+   */
+  onReplyConfirmationRefused(qc: QueryClient, reviewId: string): void {
+    rereadReviewReply(qc, reviewId)
   },
 
   /**

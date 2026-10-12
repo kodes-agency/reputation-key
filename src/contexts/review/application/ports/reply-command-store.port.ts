@@ -16,6 +16,13 @@
 // reply it may not start from, or with a snapshot the row has moved past,
 // returns null and records nothing. The store enforces this itself; it does
 // not rely on the use case having checked.
+//
+// The same holds for AI-assisted text (domain/reply-ai-text.ts). Submit and an
+// approval return null while the reply's AI draft binding is stale, and so does
+// the claim; a rejection never reads the binding; a retry and an edit record
+// the reply as human-authored. An authorization (approval, retry, edit) also
+// compares the reply's state revision, so the text it authorizes is the text
+// of the reply it was given.
 
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { Reply } from '../../domain/types'

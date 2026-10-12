@@ -38,7 +38,6 @@ import {
 } from '#/shared/domain/ids'
 import { replyFromRow, replyToRow } from '../mappers/reply.mapper'
 import { guardedReplyUpdate } from '../reply-write-guards'
-import { assertCurrentAiDraftBinding } from '../ai-draft-binding'
 import { reviewError } from '../../domain/errors'
 import {
   hasPublicationRecord,
@@ -466,30 +465,21 @@ export const createReplyRepository = (
   saveDraft: async (reply, content, now) => {
     return trace('reply.saveDraft', async () => {
       const updatedAt = now ?? clock()
-      return db.transaction(async (tx) => {
-        const binding = await assertCurrentAiDraftBinding(tx, {
-          organizationId: reply.organizationId,
-          replyId: reply.id,
-        })
-        if (binding === 'stale') return null
-
-        // The guard is the `save_draft` precondition as a compare-and-set: a
-        // reply that is waiting for approval, being published or published
-        // matches no row, whoever calls.
-        return guardedReplyUpdate(
+      // The guard is the `save_draft` precondition as a compare-and-set: a
+      // reply that is waiting for approval, being published or published
+      // matches no row, whoever calls. A save never reads the AI draft
+      // binding: a manager typing over AI text, however old, makes the reply
+      // theirs, and the guard records it as human-authored
+      // (domain/reply-ai-text.ts).
+      return db.transaction((tx) =>
+        guardedReplyUpdate(
           tx,
           reply,
           'save_draft',
-          {
-            ...content,
-            status: 'draft',
-            rejectedBy: null,
-            rejectionReason: null,
-            aiGenerated: false,
-          },
+          { ...content, status: 'draft', rejectedBy: null, rejectionReason: null },
           updatedAt,
-        )
-      })
+        ),
+      )
     })
   },
 

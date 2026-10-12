@@ -117,7 +117,8 @@ type Props = Readonly<{
   isSaving: boolean
   /** Whether the pane's published-reply editor is open — see `ReplyMessageActions`. */
   isEditing: boolean
-  onApprove: () => Promise<unknown>
+  /** Confirms the reply at the state revision this message shows. */
+  onApprove: (expectedStateRevision: number) => Promise<unknown>
   onReject: (reason?: string) => Promise<unknown>
   /** Resolves what the check found; see `useReplyCheckRun`. */
   onCheck: () => Promise<ReplyPublicationCheckResult>
@@ -277,6 +278,8 @@ export function ReplyMessage({
             key={actionRowKey(reply.id, reply.status)}
             actions={view.actions}
             text={reply.text}
+            // A reply Google shows has no revision and offers no confirmation.
+            stateRevision={'stateRevision' in reply ? reply.stateRevision : null}
             isSaving={isSaving}
             isChecking={checkRun.isChecking}
             isEditing={isEditing}

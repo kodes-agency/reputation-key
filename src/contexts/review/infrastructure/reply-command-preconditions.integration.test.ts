@@ -24,6 +24,7 @@ import {
 import { PUBLICATION_RECOVERY_RECONCILE_DELAY_MS } from '../domain/reply-publication-workflow'
 import {
   createReplyWorkflowHarness,
+  WORKFLOW_HOOK_TIMEOUT_MS,
   WORKFLOW_MANAGER,
   WORKFLOW_ORG,
   WORKFLOW_PROPERTY,
@@ -49,13 +50,13 @@ beforeAll(async () => {
     logger: createMockLogger(),
   })
   await harness.seed()
-})
+}, WORKFLOW_HOOK_TIMEOUT_MS)
 
 afterAll(async () => {
   await harness.remove()
   clearEventSchemas()
   await pool.end()
-})
+}, WORKFLOW_HOOK_TIMEOUT_MS)
 
 beforeEach(async () => {
   await harness.reset()
@@ -213,6 +214,75 @@ describe.sequential('reply command preconditions (PostgreSQL)', () => {
 
       expect(await storedReply()).toEqual(uncertain)
       expect((await harness.evidence()).authorizations).toHaveLength(1)
+    })
+
+    /** A second manager rejects the pending reply, rewrites it and submits it
+     * again: the same status and the same cycle, with different text. */
+    async function replacePendingReply(): Promise<Reply> {
+      await harness.commands.reject()
+      await harness.commands.draft(LATER_TEXT)
+      await harness.commands.submit()
+      return storedReply()
+    }
+
+    it('refuses a reply that was rejected, rewritten and resubmitted since the manager’s screen showed it', async () => {
+      await harness.commands.draft(APPROVED_TEXT)
+      await harness.commands.submit()
+      const onScreen = await storedReply()
+      const replaced = await replacePendingReply()
+      expect(replaced).toMatchObject({
+        status: 'pending_approval',
+        publicationCycle: onScreen.publicationCycle,
+        text: LATER_TEXT,
+      })
+
+      // The confirm dialog still shows APPROVED_TEXT.
+      await expect(
+        harness.commands.approve(onScreen.stateRevision),
+      ).rejects.toMatchObject({
+        ...REFUSED,
+        message: 'Reply status changed concurrently',
+      })
+
+      expect(await storedReply()).toEqual(replaced)
+      expect(harness.jobs).toHaveLength(0)
+      expect((await harness.evidence()).authorizations).toEqual([])
+    })
+
+    it('confirms the reply the screen shows, and a caller with no screen confirms the stored one', async () => {
+      await harness.commands.draft(APPROVED_TEXT)
+      await harness.commands.submit()
+      const onScreen = await storedReply()
+
+      await expect(
+        harness.commands.approve(onScreen.stateRevision),
+      ).resolves.toMatchObject({ status: 'approved', text: APPROVED_TEXT })
+
+      await harness.reset()
+      await harness.commands.draft(APPROVED_TEXT)
+      await harness.commands.submit()
+      await expect(harness.commands.approve()).resolves.toMatchObject({
+        status: 'approved',
+        text: APPROVED_TEXT,
+      })
+    })
+
+    it('loses a direct store authorization decided on a reply that has been replaced since it was read', async () => {
+      await harness.commands.draft(APPROVED_TEXT)
+      await harness.commands.submit()
+      const read = await storedReply()
+      const replaced = await replacePendingReply()
+
+      await expect(
+        harness.commandStore.markPublicationAuthorized(
+          read,
+          { status: 'approved' },
+          { lifecycleEvent: approvedFact(read), publicationIntent: nextIntent(read) },
+        ),
+      ).resolves.toBeNull()
+
+      expect(await storedReply()).toEqual(replaced)
+      expect((await harness.evidence()).authorizations).toEqual([])
     })
   })
 

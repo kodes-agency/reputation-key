@@ -147,8 +147,9 @@ const COMMANDS = [
     name: 'approveReplyFn',
     fn: approveReplyFn,
     method: 'approve',
-    data: { reviewId: REVIEW_ID },
-    forwarded: { reviewId: REVIEW_ID },
+    // The reply revision the manager's screen showed rides along.
+    data: { reviewId: REVIEW_ID, expectedStateRevision: 7 },
+    forwarded: { reviewId: REVIEW_ID, expectedStateRevision: 7 },
   },
   {
     name: 'editPublishedReplyFn',

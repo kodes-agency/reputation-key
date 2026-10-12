@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import {
+  approveReplyDto,
   reviewErrorStatus,
   reviewIdDto,
   draftReplyDto,
@@ -31,6 +32,30 @@ describe('reviewIdDto', () => {
     const result = reviewIdDto.safeParse({})
     expect(result.success).toBe(false)
   })
+})
+
+describe('approveReplyDto', () => {
+  const reviewId = '550e8400-e29b-41d4-a716-446655440000'
+
+  it('carries the reply state revision the manager confirmed', () => {
+    expect(approveReplyDto.parse({ reviewId, expectedStateRevision: 4 })).toEqual({
+      reviewId,
+      expectedStateRevision: 4,
+    })
+  })
+
+  it('accepts a caller that read no screen and so names no revision', () => {
+    expect(approveReplyDto.parse({ reviewId })).toEqual({ reviewId })
+  })
+
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '4', null])(
+    'rejects %s as a state revision',
+    (expectedStateRevision) => {
+      expect(approveReplyDto.safeParse({ reviewId, expectedStateRevision }).success).toBe(
+        false,
+      )
+    },
+  )
 })
 
 describe('draftReplyDto', () => {

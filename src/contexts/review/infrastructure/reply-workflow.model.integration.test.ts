@@ -1,12 +1,20 @@
 // Model-based test of the reply workflow on PostgreSQL (fast-check).
 //
 // Generated sequences of everything that can happen to a reply: the manager
-// commands (draft, submit, approve, reject, retry, edit published, delete), a
-// disconnect cancellation, executions of the publish worker with each provider
-// outcome, the reconciliation sweep (also racing a worker that claims after the
-// sweep read its batch), a review sync that reads Google, and the passing of
-// time. They run against the real use cases, command store, observation store,
-// worker and sweep (testing/reply-workflow-harness.ts).
+// commands (draft, adopt an AI suggestion, submit, approve, reject, retry, edit
+// published, delete), a disconnect cancellation, executions of the publish
+// worker with each provider outcome, the reconciliation sweep (also racing a
+// worker that claims after the sweep read its batch), a review sync that reads
+// Google, the end of an AI draft's ten-minute adoption window, and the passing
+// of time. They run against the real use cases, command store, AI acceptance
+// store and binding, observation store, worker and sweep
+// (testing/reply-workflow-harness.ts).
+//
+// Two dimensions sit across the workflow. Authorship: a reply is the manager's
+// text or the unedited text of an AI suggestion, and the commands by which a
+// manager makes it their own change which. Freshness: an AI-assisted reply's
+// binding is current or stale, and an approval names the reply the manager's
+// screen showed or an earlier one.
 //
 // The oracle is the workflow written out by hand
 // (domain/__fixtures__/reply-workflow-oracle.ts), never the production
@@ -33,8 +41,10 @@ import {
   afterPublicationEvent,
   isLegalReplyState,
   managerVerdict,
+  mayBeClaimed,
   reachableBy,
   sameReplyState,
+  type CommandEvidence,
   type ManagerCommand,
   type OraclePublication,
   type OracleReply,
@@ -43,6 +53,7 @@ import {
 } from '../domain/__fixtures__/reply-workflow-oracle'
 import {
   createReplyWorkflowHarness,
+  WORKFLOW_HOOK_TIMEOUT_MS,
   type GoogleWriteOutcome,
   type ReplyEvidence,
   type ReplyWorkflowHarness,
@@ -58,6 +69,7 @@ const MODEL_SEED = 20_261_012
 const TEXTS = ['Thank you!', 'We are sorry.', 'See you again.'] as const
 const COMMAND_KINDS = [
   'draft',
+  'adopt_ai',
   'submit',
   'approve',
   'reject',
@@ -85,16 +97,21 @@ type Step =
   | Readonly<{ act: 'sweep'; waitMinutes: number; racing: GoogleWriteOutcome | null }>
   | Readonly<{ act: 'observe' }>
   | Readonly<{ act: 'cancel' }>
+  /** Ten minutes pass for the AI draft: its adoption window is over. */
+  | Readonly<{ act: 'lapse' }>
   | Readonly<{ act: 'wait'; minutes: number }>
 
 const arbText = fc.constantFrom(...TEXTS)
 const arbOutcome = fc.constantFrom(...WRITE_OUTCOMES)
 const arbManagerCommand: fc.Arbitrary<ManagerCommand> = fc.oneof(
   arbText.map((text) => ({ kind: 'draft' as const, text })),
+  arbText.map((text) => ({ kind: 'adopt_ai' as const, text })),
   arbText.map((text) => ({ kind: 'edit' as const, text })),
   fc.constantFrom(
     { kind: 'submit' as const },
-    { kind: 'approve' as const },
+    { kind: 'approve' as const, onScreen: 'this_reply' as const },
+    // A confirmation left open while the reply was replaced beneath it.
+    { kind: 'approve' as const, onScreen: 'an_earlier_reply' as const },
     { kind: 'reject' as const },
     { kind: 'retry' as const },
     { kind: 'delete' as const },
@@ -138,6 +155,7 @@ const arbStep: fc.Arbitrary<Step> = fc.oneof(
   },
   { weight: 2, arbitrary: fc.constant({ act: 'observe' as const }) },
   { weight: 1, arbitrary: fc.constant({ act: 'cancel' as const }) },
+  { weight: 2, arbitrary: fc.constant({ act: 'lapse' as const }) },
   {
     weight: 1,
     arbitrary: fc.record({
@@ -146,6 +164,100 @@ const arbStep: fc.Arbitrary<Step> = fc.oneof(
     }),
   },
 )
+
+// ── Histories that are always run ─────────────────────────────────────
+//
+// A random walk reaches a stale AI reply at each of its three gates only now
+// and then. These histories go there on purpose, through the same steps, the
+// same oracle and the same invariants as the generated ones.
+
+const AI_TEXT = TEXTS[0]
+const TYPED_TEXT = TEXTS[1]
+
+const does = (command: ManagerCommand): Step => ({
+  act: 'manager',
+  pick: 0,
+  wild: command,
+  text: AI_TEXT,
+})
+const worker = (outcome: GoogleWriteOutcome, index = 0): Step => ({
+  act: 'job',
+  job: index,
+  outcome,
+  final: false,
+})
+const LAPSE: Step = { act: 'lapse' }
+const OBSERVE: Step = { act: 'observe' }
+const ADOPT = does({ kind: 'adopt_ai', text: AI_TEXT })
+const SUBMIT = does({ kind: 'submit' })
+const APPROVE = does({ kind: 'approve', onScreen: 'this_reply' })
+const RETRY = does({ kind: 'retry' })
+
+const SCRIPTED_HISTORIES: ReadonlyArray<ReadonlyArray<Step>> = [
+  // The window passes on a draft: submit is refused, typing over it is not.
+  [ADOPT, LAPSE, SUBMIT, does({ kind: 'draft', text: TYPED_TEXT }), SUBMIT, APPROVE],
+  // It passes on a pending reply: approval is refused, a reject is not, and
+  // the author reworks the rejected reply.
+  [
+    ADOPT,
+    SUBMIT,
+    LAPSE,
+    APPROVE,
+    does({ kind: 'reject' }),
+    does({ kind: 'draft', text: AI_TEXT }),
+    SUBMIT,
+    APPROVE,
+    worker('accepted'),
+    OBSERVE,
+  ],
+  // It passes between Confirm & Publish and the claim: nothing is sent, the
+  // sweep ends the cycle as not sent, and a manager sends the text again.
+  [
+    ADOPT,
+    SUBMIT,
+    APPROVE,
+    LAPSE,
+    worker('accepted'),
+    { act: 'sweep', waitMinutes: 30, racing: null },
+    RETRY,
+    worker('accepted', 1),
+    OBSERVE,
+  ],
+  // It passes after Google refused the first attempt: the retry still goes.
+  [
+    ADOPT,
+    SUBMIT,
+    APPROVE,
+    worker('rejected'),
+    LAPSE,
+    RETRY,
+    worker('accepted', 1),
+    OBSERVE,
+  ],
+  // It passes after publication: the reply can still be edited.
+  [
+    ADOPT,
+    SUBMIT,
+    APPROVE,
+    worker('accepted'),
+    OBSERVE,
+    LAPSE,
+    does({ kind: 'edit', text: TYPED_TEXT }),
+    worker('accepted', 1),
+    OBSERVE,
+  ],
+  // A confirmation left open while the reply was rejected, rewritten and
+  // submitted again names a reply that is no longer there.
+  [
+    does({ kind: 'draft', text: AI_TEXT }),
+    SUBMIT,
+    does({ kind: 'reject' }),
+    does({ kind: 'draft', text: TYPED_TEXT }),
+    SUBMIT,
+    does({ kind: 'approve', onScreen: 'an_earlier_reply' }),
+    APPROVE,
+  ],
+]
 
 const toOracle = (reply: Reply | null): OracleState =>
   reply === null
@@ -157,7 +269,17 @@ const toOracle = (reply: Reply | null): OracleState =>
         cycle: reply.publicationCycle,
         attempts: reply.publicationAttempts,
         text: reply.text,
+        authorship: reply.aiGenerated ? 'ai_assisted' : 'human',
       }
+
+/** The command as a manager's screen sends it. */
+const commandOf = (
+  kind: (typeof COMMAND_KINDS)[number],
+  text: (typeof TEXTS)[number],
+): ManagerCommand => {
+  if (kind === 'draft' || kind === 'edit' || kind === 'adopt_ai') return { kind, text }
+  return kind === 'approve' ? { kind, onScreen: 'this_reply' } : { kind }
+}
 
 /** The events one execution of the publish job makes once it has called Google. */
 function jobEvents(outcome: GoogleWriteOutcome, final: boolean): PublicationEvent[] {
@@ -209,13 +331,13 @@ beforeAll(async () => {
     logger: createMockLogger(),
   })
   await harness.seed()
-})
+}, WORKFLOW_HOOK_TIMEOUT_MS)
 
 afterAll(async () => {
   await harness.remove()
   clearEventSchemas()
   await pool.end()
-})
+}, WORKFLOW_HOOK_TIMEOUT_MS)
 
 /** One generated history, with what the invariants need remembered. */
 function createRun() {
@@ -255,29 +377,62 @@ function createRun() {
 
   // ── Steps ──────────────────────────────────────────────────────────
 
+  /** Whether the real binding still holds the reply's AI text as current. */
+  async function evidenceOf(before: ReplyEvidence): Promise<CommandEvidence> {
+    const binding =
+      before.reply === null ? 'not_ai' : await harness.ai.bindingOf(before.reply.id)
+    return {
+      provablyNeverSent: provablyNeverSent(before),
+      aiBindingCurrent: binding !== 'stale',
+    }
+  }
+
+  function execute(command: ManagerCommand, before: ReplyEvidence): Promise<unknown> {
+    switch (command.kind) {
+      case 'draft':
+        return harness.commands.draft(command.text)
+      case 'adopt_ai':
+        return harness.commands.adoptAiSuggestion(command.text)
+      case 'edit':
+        return harness.commands.editPublished(command.text)
+      case 'approve': {
+        // What the manager's screen showed: this reply, or the one before it.
+        const revision = before.reply?.stateRevision ?? 1
+        return harness.commands.approve(
+          command.onScreen === 'this_reply' ? revision : revision - 1,
+        )
+      }
+      default:
+        return harness.commands[command.kind]()
+    }
+  }
+
   async function manager(
     step: Extract<Step, { act: 'manager' }>,
     before: ReplyEvidence,
+    evidence: CommandEvidence,
   ): Promise<void> {
     const state = toOracle(before.reply)
-    const evidence = { provablyNeverSent: provablyNeverSent(before) }
-    const allowed = COMMAND_KINDS.map((kind): ManagerCommand =>
-      kind === 'draft' || kind === 'edit' ? { kind, text: step.text } : { kind },
-    ).filter((command) => managerVerdict(state, command, evidence).accepted)
+    const allowed = COMMAND_KINDS.map((kind) => commandOf(kind, step.text)).filter(
+      (command) => managerVerdict(state, command, evidence).accepted,
+    )
     const command: ManagerCommand = step.wild ??
-      allowed[step.pick % Math.max(allowed.length, 1)] ?? { kind: 'approve' }
+      allowed[step.pick % Math.max(allowed.length, 1)] ?? { kind: 'submit' }
     const verdict = managerVerdict(state, command, evidence)
+    const staleAi = state?.authorship === 'ai_assisted' && !evidence.aiBindingCurrent
     say(
-      `${command.kind}${'text' in command ? ` "${command.text}"` : ''} → expect ${
+      `${command.kind}${'text' in command ? ` "${command.text}"` : ''}${
+        'onScreen' in command && command.onScreen === 'an_earlier_reply'
+          ? ' (screen shows an earlier reply)'
+          : ''
+      }${staleAi ? ' [AI text, binding stale]' : ''} → expect ${
         verdict.accepted ? 'accepted' : verdict.code
       }`,
     )
 
     let failure: unknown = null
     try {
-      if (command.kind === 'draft') await harness.commands.draft(command.text)
-      else if (command.kind === 'edit') await harness.commands.editPublished(command.text)
-      else await harness.commands[command.kind]()
+      await execute(command, before)
     } catch (error) {
       failure = error
     }
@@ -287,7 +442,16 @@ function createRun() {
       expect(failure, context()).toBeNull()
       expect(sameReplyState(toOracle(after.reply), verdict.next), context()).toBe(true)
       if (command.kind === 'approve') approvals += 1
+      // The window never keeps a manager from taking a stale AI reply back or
+      // making it their own.
+      if (staleAi) covered.add(`stale AI text: ${command.kind}`)
       return
+    }
+    if (verdict.code === 'ai_suggestion_stale' && command.kind !== 'adopt_ai') {
+      covered.add(`stale AI text refused: ${command.kind}`)
+    }
+    if ('onScreen' in command && state?.status === 'pending_approval') {
+      if (command.onScreen === 'an_earlier_reply') covered.add('stale screen refused')
     }
     // A refusal is a tagged error the Inbox can show, never a database error,
     // and it leaves the reply and its evidence exactly as they were.
@@ -300,6 +464,7 @@ function createRun() {
   async function job(
     step: Extract<Step, { act: 'job' }>,
     before: ReplyEvidence,
+    evidence: CommandEvidence,
   ): Promise<void> {
     if (harness.jobs.length === 0) return say('job: nothing queued')
     const index = step.job % harness.jobs.length
@@ -315,6 +480,14 @@ function createRun() {
     const post = toOracle((await harness.evidence()).reply)
     if (pre === null) return expect(post, context()).toBeNull()
     expect(post, context()).not.toBeNull()
+    if (pre.publication === 'authorized' && !mayBeClaimed(pre, evidence)) {
+      // The claim is the last gate for AI text: a stale one is not sent, and
+      // its cycle is left for the sweep to end as not sent.
+      expect(called, `stale AI text was claimed${context()}`).toBe(false)
+      expect(sameReplyState(post, pre), context()).toBe(true)
+      covered.add('stale AI text: not claimed')
+      return
+    }
     if (called) {
       // A write was attempted: the row went exactly where that outcome leads.
       let expected: OracleReply | null = pre
@@ -445,6 +618,7 @@ function createRun() {
     const state = toOracle(reply)!
     expect(isLegalReplyState(state), `${JSON.stringify(state)}${at}`).toBe(true)
     covered.add(`${state.status}/${String(state.publication)}`)
+    if (state.authorship === 'ai_assisted') covered.add(`AI text: ${state.status}`)
 
     // Invariant 7: every cycle commits its authorization and its intent.
     expect(
@@ -488,12 +662,15 @@ function createRun() {
     await harness.reset()
     for (const step of steps) {
       const before = await harness.evidence()
-      if (step.act === 'manager') await manager(step, before)
-      else if (step.act === 'job') await job(step, before)
+      if (step.act === 'manager') await manager(step, before, await evidenceOf(before))
+      else if (step.act === 'job') await job(step, before, await evidenceOf(before))
       else if (step.act === 'sweep') await sweep(step, before)
       else if (step.act === 'observe') await observe(before)
       else if (step.act === 'cancel') await cancel(before)
-      else {
+      else if (step.act === 'lapse') {
+        const lapsed = await harness.ai.letWindowPass()
+        say(`ten minutes pass: ${lapsed} AI-assisted reply past its adoption window`)
+      } else {
         say(`wait ${step.minutes} min`)
         harness.advance(step.minutes * MINUTE_MS)
       }
@@ -521,11 +698,19 @@ describe.sequential('reply workflow model (PostgreSQL)', () => {
       // The trace in every assertion message is the counterexample; shrinking
       // a guided walk would replay hundreds of histories against PostgreSQL.
       // A fixed seed: the same histories on every run, so a failure here is a
-      // change in the code and never a new draw.
-      { numRuns: 60, seed: MODEL_SEED, endOnFailure: true },
+      // change in the code and never a new draw. The scripted histories run
+      // first and count toward the sixty.
+      {
+        numRuns: 60,
+        seed: MODEL_SEED,
+        endOnFailure: true,
+        examples: SCRIPTED_HISTORIES.map((steps): [Step[]] => [[...steps]]),
+      },
     )
     // The histories are only evidence if they went through publication, its
-    // failures and its cancellation, not just through drafts.
+    // failures and its cancellation, not just through drafts; if AI text went
+    // the same way; and if its stale binding was both refused where it gates
+    // and passed where it must not.
     expect([...covered].sort()).toEqual(
       expect.arrayContaining([
         'approved/authorized',
@@ -535,6 +720,19 @@ describe.sequential('reply workflow model (PostgreSQL)', () => {
         'publish_failed/ambiguous',
         'publish_failed/terminal',
         'published/published',
+        'AI text: draft',
+        'AI text: pending_approval',
+        'AI text: approved',
+        'AI text: published',
+        'AI text: publish_failed',
+        'stale AI text refused: submit',
+        'stale AI text refused: approve',
+        'stale AI text: not claimed',
+        'stale AI text: draft',
+        'stale AI text: reject',
+        'stale AI text: retry',
+        'stale AI text: edit',
+        'stale screen refused',
       ]),
     )
   }, 300_000)

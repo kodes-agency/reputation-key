@@ -7,6 +7,11 @@
 // is stated from src/contexts/review/CONTEXT.md (Model, Runtime, Manager
 // publication commands, Invariants 7 to 10) and docs/BETA.md §5 (No
 // auto-publish). When the product rule changes, this file changes by hand.
+//
+// Two things a verdict depends on are not part of the reply and are passed in
+// as evidence: whether the current attempt provably never left RepKey, and
+// whether an AI-assisted reply's binding is still current (everything it was
+// generated from, and its ten-minute adoption window).
 
 export type OracleStatus =
   'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'publish_failed'
@@ -24,6 +29,10 @@ export type OraclePublication =
 
 export type OracleFailure = null | 'retryable' | 'terminal_rejection' | 'ambiguous'
 
+/** `ai_assisted`: the unedited text of an AI suggestion a manager adopted. Any
+ * act by which a manager makes the text their own ends it. */
+export type OracleAuthorship = 'human' | 'ai_assisted'
+
 export type OracleReply = Readonly<{
   status: OracleStatus
   publication: OraclePublication
@@ -33,6 +42,7 @@ export type OracleReply = Readonly<{
   /** Attempts claimed in the current cycle. */
   attempts: number
   text: string
+  authorship: OracleAuthorship
 }>
 
 /** Null: the review has no internal reply. */
@@ -68,9 +78,13 @@ export const isLegalReplyState = (reply: OracleReply): boolean =>
 // ── Manager commands ──────────────────────────────────────────────────
 
 export type ManagerCommand =
+  /** Type the reply: a new draft, or over the one that is there. */
   | Readonly<{ kind: 'draft'; text: string }>
+  /** Adopt an AI suggestion, unedited, as the review's draft. */
+  | Readonly<{ kind: 'adopt_ai'; text: string }>
   | Readonly<{ kind: 'submit' }>
-  | Readonly<{ kind: 'approve' }>
+  /** Confirm & Publish, from a screen that shows this reply or an earlier one. */
+  | Readonly<{ kind: 'approve'; onScreen: 'this_reply' | 'an_earlier_reply' }>
   | Readonly<{ kind: 'reject' }>
   | Readonly<{ kind: 'retry' }>
   | Readonly<{ kind: 'edit'; text: string }>
@@ -78,16 +92,33 @@ export type ManagerCommand =
 
 export type ManagerVerdict =
   | Readonly<{ accepted: true; next: OracleState }>
-  | Readonly<{ accepted: false; code: 'reply_not_found' | 'invalid_transition' }>
+  | Readonly<{
+      accepted: false
+      code: 'reply_not_found' | 'invalid_transition' | 'ai_suggestion_stale'
+    }>
 
-/** What is known about the reply's current attempt beyond the reply itself. */
-export type AttemptEvidence = Readonly<{
+/** What a verdict depends on beyond the reply itself. */
+export type CommandEvidence = Readonly<{
   /** Positive evidence that no request for the current attempt left RepKey. */
   provablyNeverSent: boolean
+  /** Everything an AI-assisted reply was generated from is still current, and
+   * its ten-minute adoption window has not passed. Not read for a reply a
+   * human authored. */
+  aiBindingCurrent: boolean
 }>
 
 const REFUSED: ManagerVerdict = { accepted: false, code: 'invalid_transition' }
 const NO_REPLY: ManagerVerdict = { accepted: false, code: 'reply_not_found' }
+const STALE_AI_TEXT: ManagerVerdict = { accepted: false, code: 'ai_suggestion_stale' }
+
+/**
+ * AI output is advisory: unedited AI text moves toward Google only while its
+ * binding is current. That holds for the three steps that move it (submit,
+ * Confirm & Publish, the worker's claim) and for nothing else: the binding
+ * never keeps a manager from taking the reply back or making it their own.
+ */
+const staleAiText = (reply: OracleReply, evidence: CommandEvidence): boolean =>
+  reply.authorship === 'ai_assisted' && !evidence.aiBindingCurrent
 
 /** No publication cycle is open and none ended: a draft may be worked on. */
 const outsidePublication = (reply: OracleReply): boolean =>
@@ -100,80 +131,120 @@ const outcomeUnknown = (reply: OracleReply): boolean =>
     (reply.publication === 'terminal' && reply.lastFailure === 'ambiguous'))
 
 /** A manager confirms the reply: a new cycle, nothing claimed yet. */
-const authorized = (reply: OracleReply, text = reply.text): OracleReply => ({
+const authorized = (
+  reply: OracleReply,
+  authorship: OracleAuthorship,
+  text = reply.text,
+): OracleReply => ({
   status: 'approved',
   publication: 'authorized',
   lastFailure: null,
   cycle: reply.cycle + 1,
   attempts: 0,
   text,
+  authorship,
+})
+
+const newDraft = (text: string, authorship: OracleAuthorship): OracleReply => ({
+  status: 'draft',
+  publication: null,
+  lastFailure: null,
+  cycle: 0,
+  attempts: 0,
+  text,
+  authorship,
 })
 
 function draftVerdict(state: OracleState, text: string): ManagerVerdict {
-  if (state === null) {
-    return {
-      accepted: true,
-      next: {
-        status: 'draft',
-        publication: null,
-        lastFailure: null,
-        cycle: 0,
-        attempts: 0,
-        text,
-      },
-    }
-  }
+  if (state === null) return { accepted: true, next: newDraft(text, 'human') }
   // Only an unsubmitted reply is rewritten. In particular not an approved one:
   // its text is what a manager confirmed and what Google is being sent.
+  // Typing over AI text makes the reply the manager's own, however stale the
+  // AI draft was: the binding is not asked.
   const rewritable =
     (state.status === 'draft' || state.status === 'rejected') && outsidePublication(state)
   return rewritable
-    ? { accepted: true, next: { ...state, status: 'draft', text } }
+    ? { accepted: true, next: { ...state, status: 'draft', text, authorship: 'human' } }
     : REFUSED
 }
 
-function retryVerdict(state: OracleReply, evidence: AttemptEvidence): ManagerVerdict {
+function adoptVerdict(state: OracleState, text: string): ManagerVerdict {
+  if (state === null) return { accepted: true, next: newDraft(text, 'ai_assisted') }
+  // A suggestion replaces only an unsubmitted reply. One generated before the
+  // reply was submitted, confirmed or published is stale by then.
+  const replaceable = state.status === 'draft' || state.status === 'rejected'
+  return replaceable
+    ? {
+        accepted: true,
+        next: { ...state, status: 'draft', text, authorship: 'ai_assisted' },
+      }
+    : STALE_AI_TEXT
+}
+
+function submitVerdict(state: OracleReply, evidence: CommandEvidence): ManagerVerdict {
+  if (state.status !== 'draft' || !outsidePublication(state)) return REFUSED
+  return staleAiText(state, evidence)
+    ? STALE_AI_TEXT
+    : { accepted: true, next: { ...state, status: 'pending_approval' } }
+}
+
+function approveVerdict(
+  state: OracleReply,
+  onScreen: 'this_reply' | 'an_earlier_reply',
+  evidence: CommandEvidence,
+): ManagerVerdict {
+  // BETA §5: a reply reaches Google only after pending_approval → approved.
+  if (state.status !== 'pending_approval' || !outsidePublication(state)) return REFUSED
+  // The manager confirms the reply they read. One that was rejected, rewritten
+  // and submitted again since is another reply, in the same status.
+  if (onScreen === 'an_earlier_reply') return REFUSED
+  // Confirming does not end the adoption: the worker's claim still asks.
+  return staleAiText(state, evidence)
+    ? STALE_AI_TEXT
+    : { accepted: true, next: authorized(state, state.authorship) }
+}
+
+function retryVerdict(state: OracleReply, evidence: CommandEvidence): ManagerVerdict {
   // A reply already confirmed on Google answers the retry as it is.
   if (state.status === 'published' && state.publication === 'published') {
     return { accepted: true, next: state }
   }
   if (state.status !== 'publish_failed') return REFUSED
+  // Trying again is a manager's own command on text a manager confirmed
+  // before. It ends the AI adoption and never waits on the binding: a failed
+  // reply has no other way forward.
+  const retried: ManagerVerdict = { accepted: true, next: authorized(state, 'human') }
   // Invariant 9: an attempt of unknown outcome is sent again only on positive
   // evidence that it never left RepKey.
-  if (outcomeUnknown(state)) {
-    return evidence.provablyNeverSent
-      ? { accepted: true, next: authorized(state) }
-      : REFUSED
-  }
-  return state.publication === 'terminal'
-    ? { accepted: true, next: authorized(state) }
-    : REFUSED
+  if (outcomeUnknown(state)) return evidence.provablyNeverSent ? retried : REFUSED
+  return state.publication === 'terminal' ? retried : REFUSED
 }
 
 function editVerdict(state: OracleReply, text: string): ManagerVerdict {
   if (state.status !== 'published' || state.publication !== 'published') return REFUSED
-  return { accepted: true, next: text === state.text ? state : authorized(state, text) }
+  // The manager typed the new text: it is theirs, whatever wrote the old one.
+  return {
+    accepted: true,
+    next: text === state.text ? state : authorized(state, 'human', text),
+  }
 }
 
 /** What a reply command must do from `state`: the move it makes, or its refusal. */
 export function managerVerdict(
   state: OracleState,
   command: ManagerCommand,
-  evidence: AttemptEvidence,
+  evidence: CommandEvidence,
 ): ManagerVerdict {
   if (command.kind === 'draft') return draftVerdict(state, command.text)
+  if (command.kind === 'adopt_ai') return adoptVerdict(state, command.text)
   if (state === null) return NO_REPLY
   switch (command.kind) {
     case 'submit':
-      return state.status === 'draft' && outsidePublication(state)
-        ? { accepted: true, next: { ...state, status: 'pending_approval' } }
-        : REFUSED
+      return submitVerdict(state, evidence)
     case 'approve':
-      // BETA §5: a reply reaches Google only after pending_approval → approved.
-      return state.status === 'pending_approval' && outsidePublication(state)
-        ? { accepted: true, next: authorized(state) }
-        : REFUSED
+      return approveVerdict(state, command.onScreen, evidence)
     case 'reject':
+      // An approver can always send a reply back, AI-assisted and stale or not.
       return state.status === 'pending_approval' && outsidePublication(state)
         ? { accepted: true, next: { ...state, status: 'rejected' } }
         : REFUSED
@@ -254,6 +325,15 @@ const is = (
   ...publications: OraclePublication[]
 ): boolean => reply.status === status && publications.includes(reply.publication)
 
+/**
+ * Whether a worker may take the reply's cycle and write to Google. The claim is
+ * the last gate for AI text: a reply that is still AI-assisted is sent only
+ * while its binding is current. A stale one stays `authorized` until the sweep
+ * ends its cycle as not sent; a manager may then try again.
+ */
+export const mayBeClaimed = (reply: OracleReply, evidence: CommandEvidence): boolean =>
+  is(reply, 'approved', 'authorized') && !staleAiText(reply, evidence)
+
 /** The reply after `event`, or null when the event does not apply to it. */
 export function afterPublicationEvent(
   reply: OracleReply,
@@ -325,6 +405,7 @@ export function sameReplyState(left: OracleState, right: OracleState): boolean {
     left.cycle === right.cycle &&
     left.attempts === right.attempts &&
     left.text === right.text &&
+    left.authorship === right.authorship &&
     (!failureMatters || left.lastFailure === right.lastFailure)
   )
 }

@@ -37,6 +37,8 @@ import { createPropertyProcessingProfileAdapter } from '#/contexts/ai/infrastruc
 import { createReviewRepository } from './repositories/review.repository'
 import { createReplyRepository } from './repositories/reply.repository'
 import { createAiSuggestedDraftStore } from './ai-suggested-draft-store'
+import { createAtomicReplyCommandStore } from './reply-command-store'
+import { reviewReplyApproved, reviewReplyPublicationRequested } from '../domain/events'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
 
@@ -860,24 +862,75 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         .limit(1),
     ).resolves.toEqual([{ disposition: 'adopted' }])
 
-    // The repository's guarded draft save runs the same binding check inside
-    // its own transaction: an expired AI-assisted draft is refused without a
-    // row change.
+    // Confirm & Publish runs the same binding check inside the transaction of
+    // its write: once the draft's expiry has passed, the approval is refused
+    // without a row change. (reply-ai-adoption.integration.test.ts covers the
+    // rest of the lifecycle: a draft save, a reject, a retry and an edit do not
+    // read the binding.)
     const replyRepository = createReplyRepository(db, () => new Date())
     await db
       .update(replies)
-      .set({ aiDraftExpiresAt: new Date(NOW.getTime() - 1) })
+      .set({
+        status: 'pending_approval',
+        submittedAt: NOW,
+        aiDraftExpiresAt: new Date(NOW.getTime() - 1),
+      })
       .where(eq(replies.id, accepted.reply.id))
+    const pending = await replyRepository.findById(accepted.reply.id, ORGANIZATION_ID)
+    if (!pending) throw new Error('Expected the adopted reply to be stored')
     await expect(
-      replyRepository.saveDraft(accepted.reply, { text: 'Edited by a manager' }),
+      store.assertCurrentBinding({
+        organizationId: ORGANIZATION_ID,
+        replyId: accepted.reply.id,
+      }),
+    ).resolves.toBe('stale')
+    const approval = {
+      replyId: pending.id,
+      reviewId: REVIEW_ID,
+      propertyId: PROPERTY_ID,
+      organizationId: ORGANIZATION_ID,
+      userId: ACTOR_USER_ID,
+      occurredAt: NOW,
+    }
+    await expect(
+      createAtomicReplyCommandStore(
+        db,
+        () => new Date(),
+        async () => true,
+      ).markPublicationAuthorized(
+        pending,
+        { status: 'approved' },
+        {
+          lifecycleEvent: reviewReplyApproved({ ...approval, authorId: ACTOR_USER_ID }),
+          publicationIntent: reviewReplyPublicationRequested({
+            ...approval,
+            publicationCycle: 1,
+            sourceEpoch: SOURCE_EPOCH,
+            materialReviewRevision: SOURCE_REVISION,
+            baseObservationRevision: 0,
+          }),
+        },
+      ),
     ).resolves.toBeNull()
     await expect(
       db
-        .select({ text: replies.text, authorship: replies.authorship })
+        .select({
+          text: replies.text,
+          authorship: replies.authorship,
+          status: replies.status,
+          publicationState: replies.publicationState,
+        })
         .from(replies)
         .where(eq(replies.id, accepted.reply.id))
         .limit(1),
-    ).resolves.toEqual([{ text: SUGGESTION, authorship: 'ai_assisted' }])
+    ).resolves.toEqual([
+      {
+        text: SUGGESTION,
+        authorship: 'ai_assisted',
+        status: 'pending_approval',
+        publicationState: null,
+      },
+    ])
     brandProfileCurrent = true
   })
 

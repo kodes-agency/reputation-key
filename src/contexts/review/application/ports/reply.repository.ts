@@ -182,6 +182,11 @@ export type ReplyRepository = Readonly<{
    * (domain/reply-command-preconditions.ts): `reply` must be a draft or a
    * rejected reply with no open publication, and the row must still have its
    * status, publication state and cycle. Null otherwise, with nothing written.
+   *
+   * An AI-assisted reply is saved over like any other, whether or not its AI
+   * draft binding is still current: a manager typing over AI text makes the
+   * reply theirs, and the save clears its AI provenance
+   * (domain/reply-ai-text.ts).
    */
   saveDraft(reply: Reply, content: DraftReplyContent, now?: Date): Promise<Reply | null>
   /**

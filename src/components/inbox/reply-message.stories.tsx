@@ -330,6 +330,8 @@ export const ConfirmAndPublishAsksFirst: Story = {
       within(dialog).getByRole('button', { name: 'Confirm & publish' }),
     )
     expect(onApprove).toHaveBeenCalledOnce()
+    // The confirmation names the reply the dialog was opened on.
+    expect(onApprove).toHaveBeenCalledWith(makeReply().stateRevision)
   },
 }
 
