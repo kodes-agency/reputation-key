@@ -204,14 +204,10 @@ export function ReviewReplyPublishedEditor({
             confirmLabel="Confirm & update"
             pendingLabel="Confirming…"
             confirmDisabled={!canSave}
-            // Settled either way, so the dialog closes and prints no refusal
-            // of its own: the edit mutation toasts it (use-reply-actions.ts)
-            // and re-reads the reply. If the reply can still be edited, the
-            // editor stays open on the text (`reply-published-edit.tsx` closes
-            // only after a save resolves); if it moved on, the pane's edit
-            // target is no longer live and this editor goes with it, which is
-            // why the sentence cannot be held in a dialog drawn inside it.
-            onConfirm={() => onSave(text).catch(() => undefined)}
+            // A refused update stays in the dialog (the edit mutation passes no
+            // toast) and the editor stays open on the text
+            // (`reply-published-edit.tsx` closes only after a save resolves).
+            onConfirm={() => onSave(text)}
           />
         </div>
         {/* NOT a live region. This paragraph mounts with its own content the

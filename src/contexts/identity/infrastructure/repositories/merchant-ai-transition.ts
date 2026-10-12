@@ -10,7 +10,7 @@ import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import { createAiAdvisoryScope } from '#/shared/ai-lock-order-v1'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { organizationId } from '#/shared/domain/ids'
-import { deleteAiDraftsForAuthorization } from '#/shared/db/ai/ai-draft-purge'
+import { purgeAiDraftsForAuthorization } from '#/shared/db/ai/ai-draft-purge'
 import { identityMerchantAiChanged } from '../../domain/events'
 import {
   isMerchantAiExecutionContractCurrent,
@@ -534,7 +534,7 @@ export async function commitMerchantAiTransition(
   `)
   const evidence = evidenceResult.rows[0] as SnapshotRow
 
-  await deleteAiDraftsForAuthorization(tx, {
+  await purgeAiDraftsForAuthorization(tx, {
     organizationId: input.organizationId,
     propertyId: input.propertyId,
   })

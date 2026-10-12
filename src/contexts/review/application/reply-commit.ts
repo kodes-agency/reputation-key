@@ -14,6 +14,10 @@ import type { ReviewError } from '../domain/errors'
 import { reviewError } from '../domain/errors'
 import { transitionReply } from '../domain/rules'
 
+/** A guarded store write matched no row: the reply moved after it was read. */
+export const replyChangedConcurrently = (): ReviewError =>
+  reviewError('invalid_transition', 'Reply status changed concurrently')
+
 /**
  * Run the BQC-3.3 commit sequence for a reply transition: validate the
  * transition, then run the guarded command-store commit. A null store
@@ -28,8 +32,6 @@ export async function commitTransition(
   const transitioned = transitionReply(reply, target, now)
   if (transitioned.isErr()) return err(transitioned.error)
   const updated = await commit()
-  if (!updated) {
-    return err(reviewError('invalid_transition', 'Reply status changed concurrently'))
-  }
+  if (!updated) return err(replyChangedConcurrently())
   return ok(updated)
 }

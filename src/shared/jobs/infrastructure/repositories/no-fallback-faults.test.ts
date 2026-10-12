@@ -88,7 +88,10 @@ import { createReplyRepository } from '#/contexts/review/infrastructure/reposito
 import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
 import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
 import { createPublishReplyHandler } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
-import { reviewReplyPublicationRequested } from '#/contexts/review/domain/events'
+import {
+  reviewReplyApproved,
+  reviewReplyPublicationRequested,
+} from '#/contexts/review/domain/events'
 import { AMBIGUOUS_RECONCILE_DELAY_MS } from '#/contexts/review/domain/reply-publication-workflow'
 
 // Queue names are unique to this suite — the shared Redis hosts other suites'
@@ -489,7 +492,15 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       pendingReply,
       { status: 'approved', approvedBy: USER_C, approvedAt: NOW_C },
       {
-        lifecycleEvent: null,
+        lifecycleEvent: reviewReplyApproved({
+          replyId: REPLY_C,
+          reviewId: REVIEW_C,
+          propertyId: PROP_C,
+          organizationId: ORG_C,
+          userId: USER_C,
+          authorId: USER_C,
+          occurredAt: NOW_C,
+        }),
         publicationIntent: reviewReplyPublicationRequested({
           replyId: REPLY_C,
           reviewId: REVIEW_C,

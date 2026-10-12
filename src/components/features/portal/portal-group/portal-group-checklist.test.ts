@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { overviewGroup, overviewRow } from '../portal-overview/portal-overview-fixtures'
 import {
   buildPortalChecklist,
+  describeNewGroupSelection,
   describeSelection,
   toggleSelection,
 } from './portal-group-checklist'
@@ -90,5 +91,18 @@ describe('describeSelection', () => {
     [3, '3 portals selected'],
   ])('says %i selected', (count, words) => {
     expect(describeSelection(count)).toBe(words)
+  })
+})
+
+describe('describeNewGroupSelection', () => {
+  it('does not read as a blocker: a group needs only a name, so no portals is fine', () => {
+    expect(describeNewGroupSelection(0)).toBe(
+      'Portals are optional. You can add them later.',
+    )
+  })
+
+  it('counts what was ticked', () => {
+    expect(describeNewGroupSelection(1)).toBe('1 portal selected')
+    expect(describeNewGroupSelection(3)).toBe('3 portals selected')
   })
 })

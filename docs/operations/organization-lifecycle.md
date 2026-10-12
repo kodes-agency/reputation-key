@@ -73,8 +73,9 @@ The capability map sends that legacy permission to the blocked
 `property.erase` capability.
 
 Archive atomically changes the stable Property row to `archived`, advances its
-source epoch, creates a 30-day recovery deadline, invalidates the current Google
-review destination, and records `property.archived`. Archived Properties are
+source epoch, creates a 30-day recovery deadline, fences the current Google
+review destination (`awaiting_refresh`; the URI and its pin are kept), and
+records `property.archived`. Archived Properties are
 excluded from normal external effects and public work by lifecycle admission.
 Owners of scheduled work react to the fact themselves: Inbox cancels the
 Property's unreleased Response Target reminder slots, and Notification treats a
@@ -97,7 +98,12 @@ by raising `portal.responsibility_became_needed` for each live Portal of the
 Property that still has no manager, because those gaps stayed silent while it
 was archived and Restore checks only the Property's own manager. The returned
 Google-binding readiness is either `ready` or `reconnect_required`; Restore does
-not silently recreate provider authority.
+not silently recreate provider authority. When the binding is still `active`,
+Restore also returns the fenced Google review destination to `verified`, pin
+unchanged, so the Property's live Portals offer the Google action again and can
+be published; it calls Google for nothing. A binding disconnected while
+archived leaves the destination `awaiting_refresh` until a relink, and a
+Property Google gave no review link at import still has none.
 
 Google-binding Disconnect requires the Property to be archived. It uses the
 Property-owned exact epoch/profile-version store and is idempotent for already

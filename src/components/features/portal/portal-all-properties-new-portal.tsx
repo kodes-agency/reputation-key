@@ -4,7 +4,7 @@
 // Property's own (the dialog arrives with slice 26).
 import { Link } from '@tanstack/react-router'
 import { ChevronDown } from 'lucide-react'
-import { usePermissions } from '#/shared/hooks/usePermissions'
+import { usePortalAccess } from './portal-overview/use-portal-access'
 import { AddAction, AddActionLink } from '#/components/ui/add-action'
 import {
   DropdownMenu,
@@ -19,9 +19,10 @@ export type NewPortalProperty = Readonly<{ id: string; name: string }>
 export function PortalAllPropertiesNewPortal({
   properties,
 }: Readonly<{ properties: readonly NewPortalProperty[] }>) {
-  const { can } = usePermissions()
+  // A portal create the server would refuse (the organisation's portal writes are off) is not offered.
+  const { canCreate } = usePortalAccess()
   const [only] = properties
-  if (!can('portal.create') || only === undefined) return null
+  if (!canCreate || only === undefined) return null
   if (properties.length === 1) {
     return (
       <AddActionLink

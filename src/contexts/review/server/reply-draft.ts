@@ -3,8 +3,8 @@
 import { createServerFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { reviewId } from '#/shared/domain/ids'
-import { reviewIdDto, draftReplyDto } from './reply-read'
+import { replyId, reviewId } from '#/shared/domain/ids'
+import { approveReplyDto, reviewIdDto, draftReplyDto } from './reply-read'
 import { runReplyCommand } from './reply-command'
 
 // ── draftReply ───────────────────────────────────────────────────────
@@ -52,12 +52,25 @@ export const submitReplyFn = createServerFn({ method: 'POST' })
 // ── approveReply ─────────────────────────────────────────────────────
 
 export const approveReplyFn = createServerFn({ method: 'POST' })
-  .validator(reviewIdDto)
+  .validator(approveReplyDto)
   .handler(
     tracedHandler(
       async ({ data }) =>
         runReplyCommand((reply, ctx) =>
-          reply.approve({ reviewId: reviewId(data.reviewId) }, ctx),
+          reply.approve(
+            {
+              reviewId: reviewId(data.reviewId),
+              ...(data.expectedReply === undefined
+                ? {}
+                : {
+                    expectedReply: {
+                      id: replyId(data.expectedReply.id),
+                      stateRevision: data.expectedReply.stateRevision,
+                    },
+                  }),
+            },
+            ctx,
+          ),
         ),
       'POST',
       'review.approveReply',

@@ -6,6 +6,8 @@
 // offered: a lifetime figure comes from the lifetime aggregate, not from readings).
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
+import { GlossaryTerm } from '#/components/features/shared/glossary-term'
+import { buttonVariants } from '#/components/ui/button'
 import { RegionError } from '#/components/ui/region-error'
 import { RangeControl } from '#/components/ui/range-control'
 import { cn } from '#/lib/utils'
@@ -18,6 +20,10 @@ import { PORTAL_OVERVIEW_RANGES } from '../portal-analytics/portal-results-windo
 import { INBOX_WAITING_QUEUE, inboxWaitingLabel } from './portal-overview-inbox'
 import type { PortalOverviewResultsState } from './portal-overview-results'
 import { organizationScopeLine } from './portal-overview-strip-scope'
+import {
+  UncountedScansNote,
+  type UncountedScanPortal,
+} from './portal-overview-uncounted-note'
 
 /** What the route tells the page about the results: where they are, and the window. */
 export type PortalOverviewResultsControls = Readonly<{
@@ -43,6 +49,8 @@ type Props = Readonly<{
    * out; the Organization's and a group's strips never carry it.
    */
   inboxWaiting?: number | null
+  /** Live Portals whose scans nobody counted (an older code): the strip says they are not in it. */
+  uncounted?: readonly UncountedScanPortal[]
 }>
 
 const COLLAPSE_NOTE = 'collapsed properties stay collapsed for you'
@@ -82,7 +90,8 @@ function scopeLine(
 /**
  * "3 waiting in Inbox →", the Private notes cell's detail line, into the Inbox's
  * private feedback queue for the Property. The accent link colour and the cell
- * detail's size are the boards'; the padding only grows the touch target.
+ * detail's size are the boards'; on a phone it is a tap target (the Button's own
+ * `touch` minimum), on a desktop the line's own height.
  */
 function InboxWaitingLink({
   propertyId,
@@ -93,9 +102,8 @@ function InboxWaitingLink({
       to="/inbox"
       search={{ propertyId, queue: INBOX_WAITING_QUEUE }}
       className={cn(
-        '-my-1.5 inline-flex items-center gap-1 rounded-sm py-1.5 text-xs leading-4 font-medium',
-        'underline-offset-4 hover:underline',
-        'focus-ring',
+        buttonVariants({ variant: 'link', size: 'inline', touch: true }),
+        'justify-start gap-1 text-xs leading-4',
       )}
     >
       {label}
@@ -110,6 +118,7 @@ export function PortalOverviewResultsStrip({
   propertiesListed,
   groupId,
   inboxWaiting = null,
+  uncounted = [],
 }: Props) {
   const { state, timeRange, onTimeRangeChange, onRetry, busy = false } = controls
   if (state.status === 'off') return null
@@ -150,6 +159,7 @@ export function PortalOverviewResultsStrip({
           />
         </div>
       ) : null}
+      {strip ? <UncountedScansNote portals={uncounted} /> : null}
     </section>
   )
 }
@@ -167,7 +177,10 @@ export function PortalOverviewResultsFooter({ controls, propertyId, groupId }: P
         busy && 'opacity-60',
       )}
     >
-      {propertyId === null ? `${strip.footer} · ${COLLAPSE_NOTE}` : strip.footer}
+      {propertyId === null ? `${strip.footer} · ${COLLAPSE_NOTE}` : strip.footer} ·{' '}
+      <GlossaryTerm term="qualified-scans" ariaLabel="What a qualified scan is">
+        What is a qualified scan?
+      </GlossaryTerm>
     </p>
   )
 }

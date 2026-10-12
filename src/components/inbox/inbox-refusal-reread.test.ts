@@ -116,43 +116,53 @@ describe('a refused reply command', () => {
     400,
   )
 
-  const commands: ReadonlyArray<
-    Readonly<{
-      name: string
-      serverFn: keyof typeof replyServer
-      run: (actions: ReplyActions) => Promise<unknown>
-    }>
-  > = [
+  /** The reply a confirmation was opened on, as the row names it to the server. */
+  const OPENED_ON = { id: 'reply-1', stateRevision: 2 }
+
+  type Command = Readonly<{
+    name: string
+    serverFn: keyof typeof replyServer
+    run: (actions: ReplyActions) => Promise<unknown>
+  }>
+  /** Immediate actions: nothing but a toast can say their refusal. */
+  const immediate: ReadonlyArray<Command> = [
     { name: 'submit', serverFn: 'submitReplyFn', run: (a) => a.submitReply() },
-    { name: 'approve', serverFn: 'approveReplyFn', run: (a) => a.approve() },
     { name: 'reject', serverFn: 'rejectReplyFn', run: (a) => a.reject('Too informal') },
     { name: 'delete', serverFn: 'deleteReplyFn', run: (a) => a.deleteDraft() },
     { name: 'retry', serverFn: 'retryPublishFn', run: (a) => a.retry() },
+  ]
+  /** Confirmed in a dialog, which stays open and says the refusal itself. */
+  const confirmed: ReadonlyArray<Command> = [
+    { name: 'approve', serverFn: 'approveReplyFn', run: (a) => a.approve(OPENED_ON) },
     { name: 'edit', serverFn: 'editPublishedReplyFn', run: (a) => a.saveEdit('Thanks!') },
   ]
 
-  // Approve and edit sit behind a confirmation, and a confirmation usually
-  // says its own refusal. Theirs cannot: the re-read asserted below replaces
-  // the action row and can close the editor, and the dialog is drawn inside
-  // them. So all six say it the same way, in a toast, which outlives the read.
-  it.each(commands)(
-    '$name says the refusal in a toast and re-reads the reply, the lists and the counts',
-    async ({ serverFn, run }) => {
-      // The pane opened the reply while it waited for approval…
-      const server = { reply: replyIn('pending_approval') }
-      const requests = mountPane(
-        () => ({ item, reply: server.reply }) as InboxItemDetailResult,
-      )
-      await pane.settle()
-      const actions = pane.renderHooks(() =>
-        useReplyActions({ reviewId: REVIEW_ID, onReplyChanged: () => {} }),
-      )
-      // …and a colleague rejected it from another browser. Nothing tells this pane.
-      server.reply = replyIn('rejected')
-      replyServer[serverFn].mockRejectedValue(refusal)
+  /**
+   * The pane opened the reply while it waited for approval, a colleague
+   * rejected it from another browser, and nothing told this pane. `run` is
+   * then refused. Resolves what the caller got back and what was requested.
+   */
+  async function refuse({ serverFn, run }: Command) {
+    const server = { reply: replyIn('pending_approval') }
+    const requests = mountPane(
+      () => ({ item, reply: server.reply }) as InboxItemDetailResult,
+    )
+    await pane.settle()
+    const actions = pane.renderHooks(() =>
+      useReplyActions({ reviewId: REVIEW_ID, onReplyChanged: () => {} }),
+    )
+    server.reply = replyIn('rejected')
+    replyServer[serverFn].mockRejectedValue(refusal)
 
-      const outcome: unknown = await run(actions).catch((error: unknown) => error)
-      await pane.settle()
+    const outcome: unknown = await run(actions).catch((error: unknown) => error)
+    await pane.settle()
+    return { outcome, requests }
+  }
+
+  it.each(immediate)(
+    '$name says the refusal in a toast and re-reads the reply, the lists and the counts',
+    async (command) => {
+      const { outcome, requests } = await refuse(command)
 
       expect(outcome).toBe(refusal)
       expect(vi.mocked(toast.error).mock.calls).toEqual([
@@ -162,6 +172,37 @@ describe('a refused reply command', () => {
       expect(requests).toEqual({ detail: 2, list: 2, counts: 2 })
     },
   )
+
+  // One reporter: the dialog prints the rejection it is handed, so a toast as
+  // well would say it twice. The re-read is the same as for every other command.
+  it.each(confirmed)(
+    '$name hands the refusal to its confirmation, toasts nothing, and re-reads the reply, the lists and the counts',
+    async (command) => {
+      const { outcome, requests } = await refuse(command)
+
+      expect(outcome).toBe(refusal)
+      expect(vi.mocked(toast.error).mock.calls).toEqual([])
+      expect(cachedDetail()?.reply?.status).toBe('rejected')
+      expect(requests).toEqual({ detail: 2, list: 2, counts: 2 })
+    },
+  )
+
+  it('approve names the reply and state revision its confirmation was opened on', async () => {
+    mountPane(
+      () => ({ item, reply: replyIn('pending_approval') }) as InboxItemDetailResult,
+    )
+    await pane.settle()
+    const actions = pane.renderHooks(() =>
+      useReplyActions({ reviewId: REVIEW_ID, onReplyChanged: () => {} }),
+    )
+    replyServer.approveReplyFn.mockResolvedValue(replyIn('approved'))
+
+    await actions.approve(OPENED_ON)
+
+    expect(replyServer.approveReplyFn.mock.calls).toEqual([
+      [{ data: { reviewId: REVIEW_ID, expectedReply: OPENED_ON } }],
+    ])
+  })
 
   it('a failed draft autosave re-reads nothing', async () => {
     // Autosave runs on every pause in typing, fails for want of a network far

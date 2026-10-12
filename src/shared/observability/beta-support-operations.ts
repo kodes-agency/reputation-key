@@ -136,11 +136,12 @@ export const BETA_SUPPORT_POLICY = Object.freeze({
     'security_confirmed',
     'critical_journey_unavailable',
   ] as const),
+  // No earlier release in this list: recovery is forward-only (ADR 0038,
+  // amended 2026-10-12; runbooks.md §28).
   afterHoursContainment: Object.freeze([
     'disable_affected_non_core_capability',
     'suspend_affected_property_processing',
     'pause_affected_queue_without_deleting_work',
-    'roll_back_to_last_signed_release',
   ] as const),
   statusCommunication: Object.freeze({
     P0: 'hourly_until_contained',

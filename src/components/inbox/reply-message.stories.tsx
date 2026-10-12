@@ -11,6 +11,8 @@
 //     `ReplyData` carries `createdBy` / `approvedBy` / `rejectedBy` as bare
 //     `UserId` and no name exists anywhere in the payload;
 //   · Confirm & publish is unreachable without its dialog;
+//   · a confirmation names the reply its dialog was OPENED on, not whatever
+//     the pane has re-read underneath by the time the button is pressed;
 //   · an unfilled template slot blocks publishing AND says why, on the button;
 //   · `Needs a check` never offers a second send;
 //   · a publish failure offers Try again and NOTHING else — no server path
@@ -36,7 +38,7 @@
 // inert here. Nothing below asserts geometry — only content, roles, accessible
 // names and behaviour, which are real in this runner.
 import type { Meta, StoryObj } from '@storybook/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { Toaster } from '#/components/ui/sonner'
@@ -48,6 +50,7 @@ import {
   REPLY_CHECK_COPY,
   replyCheckMutationOptions,
 } from './reply-check-feedback'
+import { openConfirmation } from './reply-editor.stories.play'
 import { ReplyMessage } from './reply-message'
 import { REPLY_CHIP_WORDS } from './reply-state-copy'
 import type { ReplyData } from './reply-status-view'
@@ -215,6 +218,42 @@ function ReplyMessageHost(
   )
 }
 
+/** What a confirmation opened on `makeReply()` names: the reply, at its revision. */
+const ON_SCREEN_WHEN_OPENED = {
+  id: replyId(IDS.reply),
+  stateRevision: makeReply().stateRevision,
+} as const
+
+const REWRITTEN_TEXT = 'Thank you. The shower you told us about has been repaired.'
+
+/** The SAME reply after a colleague rejected it, rewrote it and submitted it
+ * again: pending as before, with other text, at a later state revision. */
+const REWRITTEN_REPLY = makeReply({
+  text: REWRITTEN_TEXT,
+  stateRevision: makeReply().stateRevision + 3,
+})
+
+/**
+ * A host that re-reads the reply when the window regains focus, as the pane's
+ * detail query does. The reply keeps its id and its status, so the action row
+ * is not remounted and a dialog open over it stays open.
+ */
+function RefocusedPaneHost({
+  rereads,
+  ...props
+}: Omit<ComponentProps<typeof ReplyMessage>, 'reply'> & {
+  reply: Reply
+  rereads: Reply
+}): ReactNode {
+  const [reply, setReply] = useState<Reply>(props.reply)
+  useEffect(() => {
+    const reread = () => setReply(rereads)
+    window.addEventListener('focus', reread)
+    return () => window.removeEventListener('focus', reread)
+  }, [rereads])
+  return <ReplyMessage {...props} reply={reply} />
+}
+
 /**
  * The meta line, pinned to exactly two parts: the milestone and when it
  * happened. There is no third clause because nothing in `ReplyData` could fill
@@ -270,6 +309,14 @@ function expectConfirmedStatus(
   return message
 }
 
+/** Presses Confirm & publish and resolves the confirmation it opens. */
+const openPublishConfirmation = (canvasElement: HTMLElement): Promise<HTMLElement> =>
+  openConfirmation(
+    canvasElement,
+    'Confirm & publish',
+    /keeps it pending until google confirms/i,
+  )
+
 const meta: Meta<typeof ReplyMessage> = {
   title: 'Inbox/ReplyMessage',
   component: ReplyMessage,
@@ -313,23 +360,50 @@ export const ConfirmAndPublishAsksFirst: Story = {
   args: { reply: makeReply() },
   play: async ({ canvasElement }) => {
     resetSpies()
-    const canvas = within(canvasElement)
-
-    await userEvent.click(canvas.getByRole('button', { name: 'Confirm & publish' }))
-    const dialog = await within(document.body).findByRole('alertdialog')
-    // The copy mounts with the dialog's entry animation — wait for it rather
-    // than sampling the first frame.
-    await waitFor(() =>
-      expect(
-        within(dialog).getByText(/keeps it pending until google confirms/i),
-      ).toBeVisible(),
-    )
+    const dialog = await openPublishConfirmation(canvasElement)
     expect(onApprove).not.toHaveBeenCalled()
 
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Confirm & publish' }),
     )
     expect(onApprove).toHaveBeenCalledOnce()
+    // The confirmation names the reply the dialog was opened on.
+    expect(onApprove).toHaveBeenCalledWith(ON_SCREEN_WHEN_OPENED)
+  },
+}
+
+/**
+ * The confirmation is for the reply the manager READ. A pane re-reads its
+ * detail when the window regains focus, and nothing closes a dialog that is
+ * open over it: the same reply re-renders in place, rewritten by a colleague,
+ * under the words "the exact reply shown here". Pressing the button then must
+ * still name the reply the dialog was opened on, so the server can refuse it.
+ * Naming the reply on the screen at the press would publish text nobody at
+ * this screen read.
+ */
+export const ConfirmNamesTheReplyTheDialogOpenedOn: Story = {
+  args: { reply: makeReply() },
+  render: (args) => (
+    <RefocusedPaneHost {...args} reply={makeReply()} rereads={REWRITTEN_REPLY} />
+  ),
+  play: async ({ canvasElement }) => {
+    resetSpies()
+    const canvas = within(canvasElement)
+
+    const dialog = await openPublishConfirmation(canvasElement)
+
+    // The pane re-reads the reply while the dialog stands open over it.
+    window.dispatchEvent(new Event('focus'))
+    await waitFor(() => expect(canvas.getByText(REWRITTEN_TEXT)).toBeVisible())
+    expect(canvas.queryByText(REPLY_TEXT)).not.toBeInTheDocument()
+    expect(dialog).toBeVisible()
+
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Confirm & publish' }),
+    )
+    expect(onApprove).toHaveBeenCalledOnce()
+    expect(onApprove).toHaveBeenCalledWith(ON_SCREEN_WHEN_OPENED)
+    expect(REWRITTEN_REPLY.stateRevision).not.toBe(ON_SCREEN_WHEN_OPENED.stateRevision)
   },
 }
 

@@ -269,6 +269,25 @@ describe('Auth configuration', () => {
       await expect(hook?.({})).rejects.toThrow(/app-owned Identity command/i)
     }
   })
+
+  it('refuses a session-bound Organization creation at the provider', async () => {
+    // Organizations are operator-provisioned (ADR 0065) and organization.create
+    // is beta_disabled. The library allows any signed-in user to create one
+    // unless this option says otherwise, so the option is the in-process fence
+    // behind the HTTP allow list (routes/api/auth/-provider-routes.ts). What
+    // it does against the real provider is proven in
+    // routes/api/auth/-$.integration.test.ts.
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+    const { createAuth } = await import('#/shared/auth/auth')
+    const organizationPlugin = createAuth().options.plugins?.find(
+      (plugin) => plugin.id === 'organization',
+    ) as
+      | Readonly<{ options?: Readonly<{ allowUserToCreateOrganization?: unknown }> }>
+      | undefined
+
+    expect(organizationPlugin?.options?.allowUserToCreateOrganization).toBe(false)
+  })
 })
 
 describe('Auth context and role helpers', () => {

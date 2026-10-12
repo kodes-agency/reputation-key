@@ -47,6 +47,8 @@ export interface PropertyOverviewProps {
   /** Last 30 days against the 30 before: the pulse. */
   pulse: DashboardData
   signals: AttentionSignals
+  /** Portals guests cannot use, for the attention band's one portal chip; left out: no chip. */
+  blockedPortals?: number
   guestVoiceFns: OverviewGuestVoiceServerFns
   profileViewsFns: OverviewProfileViewsServerFns
   /** What is left to set the property up; renders nothing once it is done. */
@@ -172,6 +174,7 @@ export function PropertyOverview({
   lifetime,
   pulse,
   signals,
+  blockedPortals,
   guestVoiceFns,
   profileViewsFns,
   setupStrip,
@@ -190,7 +193,11 @@ export function PropertyOverview({
 
       {setupStrip}
 
-      <AttentionBand signals={signals} propertyId={propertyId} />
+      <AttentionBand
+        signals={signals}
+        propertyId={propertyId}
+        blockedPortals={blockedPortals}
+      />
 
       <section aria-labelledby="overview-scorecard" className="space-y-3">
         <h2 id="overview-scorecard" className="text-lg font-semibold tracking-tight">

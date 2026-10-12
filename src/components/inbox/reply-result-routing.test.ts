@@ -174,7 +174,10 @@ describe('inboxCachePolicy reply changes', () => {
     expect(invalidated).toEqual([])
   })
 
-  it("re-reads the checked review's detail, the lists and the counts after a failed check", () => {
+  // One re-read for every reply command: a failed check, a refused
+  // confirmation and the rest (`inbox-refusal-reread.test.ts` drives each of
+  // them through the real hook).
+  it("re-reads the review's detail, the lists and the counts after a refused or failed reply command, so the pane shows the reply that is stored", () => {
     const { qc, invalidated } = realQc()
     qc.setQueryData(inboxKeys.detail('item-a'), detailOf('item-a', 'review-a'))
     qc.setQueryData(inboxKeys.detail('item-b'), detailOf('item-b', 'review-b'))

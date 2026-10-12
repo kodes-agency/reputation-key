@@ -686,15 +686,23 @@ describe('reply-publication-workflow (B1.10)', () => {
 })
 
 describe('nextPublicationState (BQC-3.8 persisted machine)', () => {
-  it('authorize starts a new cycle from NULL, terminal, ambiguous, or cancelled', () => {
+  it('authorize starts a new cycle from NULL, terminal, or cancelled', () => {
     expect(nextPublicationState(null, 'authorize')).toBe('authorized')
     expect(nextPublicationState('terminal', 'authorize')).toBe('authorized')
-    expect(nextPublicationState('ambiguous', 'authorize')).toBe('authorized')
     expect(nextPublicationState('cancelled', 'authorize')).toBe('authorized')
   })
 
   it('authorize is invalid from published (a completed publication never re-opens)', () => {
     expect(nextPublicationState('published', 'authorize')).toBeNull()
+  })
+
+  it('authorize is invalid while an attempt is of unknown outcome, or a cycle is already open', () => {
+    // Invariant 9: an ambiguous attempt is settled as never dispatched (which
+    // makes it terminal) before anything may authorize a new cycle.
+    expect(nextPublicationState('ambiguous', 'authorize')).toBeNull()
+    expect(nextPublicationState('authorized', 'authorize')).toBeNull()
+    expect(nextPublicationState('sending', 'authorize')).toBeNull()
+    expect(nextPublicationState('pending_observation', 'authorize')).toBeNull()
   })
 
   it('only a fresh authorization can claim one provider write', () => {

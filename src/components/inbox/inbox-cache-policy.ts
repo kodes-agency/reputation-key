@@ -489,13 +489,17 @@ export const inboxCachePolicy = {
    * A reply command a manager issued was refused or failed: submit, confirm,
    * reject, delete, retry, edit or "Check Google again". The usual cause of a
    * refusal is a pane that is behind: another manager or tab already moved the
-   * reply (rejected it, published it, took it out of every checkable state,
-   * `check-reply-publication.ts` NOTHING_TO_CHECK), and nothing polls a reply
-   * that waits for a person (`replyRefetchInterval`). So the review's detail,
-   * the lists and the counts are re-read, and the pane shows the reply as it is
-   * instead of offering the refused command again. The refusal itself is a
-   * toast (`use-reply-actions.ts`): this read replaces the action row and can
-   * close the editor, so nothing drawn inside either would outlive it.
+   * reply (rejected it, rewrote it, published it, took it out of every
+   * checkable state, `check-reply-publication.ts` NOTHING_TO_CHECK), and
+   * nothing polls a reply that waits for a person (`replyRefetchInterval`). So
+   * the review's detail, the lists and the counts are re-read, and the pane
+   * shows the reply as it is instead of offering the refused command again.
+   *
+   * One re-read for the whole family. A refused Confirm & publish is no other
+   * case: its confirmation names the reply and state revision the dialog was
+   * opened on, the server refuses it once the stored reply is another one or
+   * has moved on, and what the manager needs next is the reply as it is, to
+   * read it and confirm that one by reopening the dialog.
    */
   onReplyCommandFailed(qc: QueryClient, reviewId: string): void {
     for (const itemId of cachedItemIdsForReview(qc, reviewId)) {

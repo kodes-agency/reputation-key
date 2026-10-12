@@ -60,7 +60,7 @@ export type PublicationCancelledNotificationDeps = InboxPayloadDeps &
  * A `policy` cancellation is what a Property Archive or a lost authority looks
  * like from here, so the approvers it took that authority from are left out:
  * telling them to re-approve something they can no longer touch is noise. The
- * other three causes take nobody's authority, so every approver is kept.
+ * other four causes take nobody's authority, so every approver is kept.
  */
 async function publicationCancelledRecipients(
   deps: PublicationCancelledNotificationDeps,

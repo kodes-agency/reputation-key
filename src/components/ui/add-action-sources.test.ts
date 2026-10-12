@@ -24,7 +24,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
     'one trigger that is Add template, or Edit when a template is open',
   'src/components/layout/manager-property-switcher.tsx':
     'a menu item of the sidebar’s property menu, not a button',
-  'src/components/features/portal/portal-list-page.tsx':
+  'src/components/features/portal/portal-overview/portal-list-header-actions.tsx':
     'New group is the secondary action beside New portal: its folder glyph tells a group from a portal',
   'src/components/inbox/history-event-node.tsx':
     'the glyph of a "created" event in a history line, not a button',

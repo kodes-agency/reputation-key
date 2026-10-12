@@ -47,9 +47,10 @@ export type ReplyDraftAdoption = Readonly<{
  * the id survives every later edit — it names the template the draft last
  * started from, whatever the text now says. The AI tag, by contrast, does
  * survive a reload: every save that is not an AI acceptance writes
- * `aiGenerated: false` (`reply-operations.ts:336`), so a saved `true` still
- * describes the text, and the saved tag is the one the AI store stamped
- * (`ai-suggested-draft-store.ts:360`).
+ * `aiGenerated: false` (the `ends_adoption` rule of a draft save, applied by
+ * `reply-write-guards.ts`), so a saved `true` still describes the text, and
+ * the saved tag is the one the AI acceptance store stamped
+ * (`ai-suggested-draft-store.ts`).
  *
  * Within a mount the template tag follows `hasAiDraft` exactly: an adoption
  * sets it, the next adoption replaces it, and a hand edit does not clear it.

@@ -143,4 +143,21 @@ describe('describeHistoryEntry: health', () => {
       ),
     ).toMatchObject({ glyph: 'health_off', detail: 'it has no working code' })
   })
+
+  it('says a Google link held back is on hold: nothing refreshes it', () => {
+    expect(
+      line(
+        {
+          kind: 'health_changed',
+          status: 'degraded',
+          reason: 'google_destination_awaiting_refresh',
+        },
+        null,
+      ),
+    ).toMatchObject({
+      glyph: 'health_warn',
+      action: 'Health: needs attention',
+      detail: 'the Google link is on hold',
+    })
+  })
 })

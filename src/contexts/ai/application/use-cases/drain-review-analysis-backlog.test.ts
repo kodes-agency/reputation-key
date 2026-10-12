@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import {
   AI_ADMISSION_IN_FLIGHT,
   AI_ON_DEMAND_ANALYSIS_INTERACTIVE_HEADROOM,
@@ -69,7 +70,11 @@ function harness(
     index: number,
     entry: AiReviewAnalysisBacklogEntry,
   ) => AnalyzeReviewEventResult | Promise<AnalyzeReviewEventResult>,
-  options: Readonly<{ now?: () => number }> = {},
+  options: Readonly<{
+    now?: () => number
+    /** Current policy for one Organization and Property. Allows by default. */
+    authorize?: (organizationId: OrganizationId, propertyId: PropertyId) => boolean
+  }> = {},
 ) {
   let calls = 0
   const analyzeReviewEvent = vi.fn(
@@ -88,19 +93,36 @@ function harness(
     claimForReview: vi.fn(async () => rounds[0]?.[0] ?? null),
     complete: vi.fn(async () => {}),
     reschedule: vi.fn(async () => {}),
+    release: vi.fn(async () => {}),
     readProgress: vi.fn(),
     hasPendingForReview: vi.fn(),
   } satisfies AiReviewAnalysisBacklogPort
   const logger = { warn: vi.fn() }
   const advanceEnrollment = vi.fn(async () => ({ status: 'waiting_for_replay' }))
-  const drainer = createDrainReviewAnalysisBacklog({
+  const authorizeScope = vi.fn(
+    async (organization: OrganizationId, property: PropertyId) =>
+      options.authorize?.(organization, property) ?? true,
+  )
+  const backlogDrain = createDrainReviewAnalysisBacklog({
     backlog,
     analyzeReviewEvent,
     nowEpochMillis: options.now ?? (() => NOW),
     logger,
     advanceEnrollment,
   })
-  return { drainer, backlog, analyzeReviewEvent, logger, advanceEnrollment }
+  // Every recurring drain here runs under the test's policy.
+  const drainer = {
+    drain: () => backlogDrain.drain({ authorizeScope }),
+    drainReview: backlogDrain.drainReview,
+  }
+  return {
+    drainer,
+    backlog,
+    analyzeReviewEvent,
+    authorizeScope,
+    logger,
+    advanceEnrollment,
+  }
 }
 
 describe('drainReviewAnalysisBacklog', () => {
@@ -114,6 +136,7 @@ describe('drainReviewAnalysisBacklog', () => {
       rescheduled: 0,
       waitingForLane: 0,
       failed: 0,
+      denied: 0,
     })
     expect(test.backlog.claimReady).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -218,6 +241,7 @@ describe('drainReviewAnalysisBacklog', () => {
       rescheduled: 0,
       waitingForLane: 0,
       failed: 0,
+      denied: 0,
     })
     release()
 
@@ -382,6 +406,94 @@ describe('drainReviewAnalysisBacklog', () => {
       'AI review analysis backlog entry failed',
     )
     expect(JSON.stringify(test.logger.warn.mock.calls)).not.toContain('room was cold')
+  })
+
+  it('asks current policy about each entry for its own Organization and Property', async () => {
+    const otherOrganization = organizationId('drain-backlog-other-org')
+    const entries = [
+      entry(1, { propertyId: PROPERTY_A }),
+      entry(2, { propertyId: PROPERTY_A }),
+      entry(3, { organizationId: otherOrganization, propertyId: PROPERTY_B }),
+    ]
+    const test = harness([entries], () => ({ status: 'completed' }))
+
+    await expect(test.drainer.drain()).resolves.toMatchObject({ completed: 3, denied: 0 })
+    expect(test.authorizeScope.mock.calls).toEqual([
+      [ORGANIZATION_ID, PROPERTY_A],
+      [ORGANIZATION_ID, PROPERTY_A],
+      [otherOrganization, PROPERTY_B],
+    ])
+  })
+
+  it('returns a refused entry to the queue untried: no analysis, no attempt, nothing settled', async () => {
+    const refused = entry(1, { attempts: 2 })
+    const test = harness([[refused]], () => ({ status: 'completed' }), {
+      authorize: () => false,
+    })
+
+    await expect(test.drainer.drain()).resolves.toEqual({
+      claimed: 1,
+      completed: 0,
+      rescheduled: 0,
+      waitingForLane: 0,
+      failed: 0,
+      denied: 1,
+    })
+    expect(test.analyzeReviewEvent).not.toHaveBeenCalled()
+    expect(test.backlog.release).toHaveBeenCalledWith({
+      eventEnvelopeId: refused.eventEnvelopeId,
+      organizationId: ORGANIZATION_ID,
+      nextAttemptAtEpochMillis: NOW + 60_000,
+      nowEpochMillis: NOW,
+    })
+    // `reschedule` counts an attempt and `complete` removes the entry.
+    expect(test.backlog.reschedule).not.toHaveBeenCalled()
+    expect(test.backlog.complete).not.toHaveBeenCalled()
+    expect(test.advanceEnrollment).not.toHaveBeenCalled()
+    expect(test.logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('keeps draining the properties policy allows when one is refused', async () => {
+    const refused = entry(1, { propertyId: PROPERTY_A })
+    const allowed = entry(2, { propertyId: PROPERTY_B })
+    const test = harness([[refused, allowed]], () => ({ status: 'completed' }), {
+      authorize: (_organization, property) => property === PROPERTY_B,
+    })
+
+    await expect(test.drainer.drain()).resolves.toMatchObject({
+      completed: 1,
+      denied: 1,
+    })
+    expect(test.analyzeReviewEvent.mock.calls.map(([input]) => input)).toEqual([
+      expect.objectContaining({ eventEnvelopeId: allowed.eventEnvelopeId }),
+    ])
+    expect(test.backlog.complete).toHaveBeenCalledWith({
+      eventEnvelopeId: allowed.eventEnvelopeId,
+      organizationId: ORGANIZATION_ID,
+    })
+  })
+
+  it('stops after a round in which every entry was refused', async () => {
+    const test = harness([[entry(1)], [entry(2)]], () => ({ status: 'completed' }), {
+      authorize: () => false,
+    })
+
+    await expect(test.drainer.drain()).resolves.toMatchObject({ claimed: 1, denied: 1 })
+    expect(test.backlog.claimReady).toHaveBeenCalledOnce()
+  })
+
+  it('fails the drain when policy cannot be read, without counting an attempt', async () => {
+    const outage = new Error('policy unavailable')
+    const test = harness([[entry(1)]], () => ({ status: 'completed' }))
+    test.authorizeScope.mockRejectedValueOnce(outage)
+
+    await expect(test.drainer.drain()).rejects.toBe(outage)
+    expect(test.analyzeReviewEvent).not.toHaveBeenCalled()
+    expect(test.backlog.reschedule).not.toHaveBeenCalled()
+    expect(test.backlog.release).not.toHaveBeenCalled()
+    expect(test.backlog.complete).not.toHaveBeenCalled()
+    // The failed tick releases the process guard, so the next one can drain.
+    await expect(test.drainer.drain()).resolves.toMatchObject({ claimed: 0 })
   })
 
   it('advances the enrollment of each property whose analyses settled', async () => {

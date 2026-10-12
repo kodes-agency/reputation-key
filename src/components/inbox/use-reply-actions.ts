@@ -27,6 +27,7 @@ import type { ReplyTemplateListResult } from '#/contexts/review/application/use-
 import { inboxCachePolicy, type InboxReplyCacheChange } from './inbox-cache-policy'
 import { replyCheckMutationOptions } from './reply-check-feedback'
 import type { ReplyLanguageTarget } from './reply-language-options'
+import type { ReplyOnScreen } from './reply-message-actions'
 import type { LoadedReplyTemplateDraft } from './reply-suggestion-contract'
 
 export type ReplyActions = Readonly<{
@@ -38,7 +39,12 @@ export type ReplyActions = Readonly<{
   ) => Promise<unknown>
   submitReply: () => Promise<unknown>
   deleteDraft: () => Promise<unknown>
-  approve: () => Promise<unknown>
+  /**
+   * Confirm & publish `expectedReply`: the reply the pane showed when the
+   * manager opened the confirmation, and its state revision. The server
+   * refuses when the stored reply is another one, or has moved past it.
+   */
+  approve: (expectedReply: ReplyOnScreen) => Promise<unknown>
   reject: (reason?: string) => Promise<unknown>
   /** Resolves what the check found; rejects (after its toast) only on an error. */
   check: () => Promise<ReplyPublicationCheckResult>
@@ -66,22 +72,19 @@ type Input = Readonly<{
  * deliberately excludes the draft, template-list and template-load mutations so
  * an autosave in flight never disables the action row.
  *
- * Every command a manager clicks reports its refusal in a toast
- * (`errorMessage`), and re-reads the reply when it is refused or fails
- * (`reread`, `inboxCachePolicy.onReplyCommandFailed`): a refusal usually means
- * the pane is behind, and the pane must not go on offering the command it was
- * just refused. `Action` is `mutateAsync`, so the call sites guard the promise
- * against an unhandled rejection.
+ * Every command a manager issues re-reads the reply when it is refused or
+ * fails (`reread`, `inboxCachePolicy.onReplyCommandFailed`): a refusal usually
+ * means the pane is behind, and the pane must not go on offering the command
+ * it was just refused.
  *
- * Approve and update are no exception, although they are confirmed in a
- * dialog and a confirmation normally says its own refusal
- * (`ui/confirmation-dialog.tsx`). The dialog holds that sentence in its own
- * state, and it is drawn inside the reply it asks about: the action row is
- * keyed by the reply's status and the editor is mounted only while its edit
- * target is live, so the re-read that follows a refusal unmounts the dialog
- * and the sentence with it. A toast outlives the re-read. Their call sites
- * therefore settle the confirmation (`reply-message-actions.tsx`,
- * `reply-editor-views.tsx`), so the dialog closes and the refusal is said once.
+ * Who says the refusal follows the one rule (`use-action-mutation.ts`). Submit,
+ * reject, delete, retry and the check are immediate actions: a toast
+ * (`errorMessage`), and the call sites only guard the promise, because `Action`
+ * is `mutateAsync`. Approve and update are confirmed in a dialog, which stays
+ * open and says the refusal itself (`ui/confirmation-dialog.tsx`), so they pass
+ * no `errorMessage` and their call sites return the promise to the dialog
+ * (`reply-message-actions.tsx`, `reply-editor-views.tsx`): a toast as well
+ * would tell it twice.
  *
  * The draft and template mutations stay silent and re-read nothing: autosave
  * reports its own state in the composer, runs on every pause in typing, and
@@ -116,9 +119,13 @@ export function useReplyActions(input: Input): ReplyActions {
     onError: reread,
     onSuccess: changed('state_changed'),
   })
+  // Approve and edit are confirmed in a dialog that stays open and says a refusal
+  // itself, so they pass no `errorMessage`: a toast as well would tell it twice.
+  // A refused one re-reads the reply like every other command: the pane was
+  // behind, and the manager confirms the reply as it is only after reopening
+  // the dialog on it.
   const approve = useActionMutation(approveReplyFn, {
     successMessage: 'Confirmation recorded. Waiting for Google',
-    errorMessage: actionErrorMessage,
     onError: reread,
     onSuccess: changed('state_changed'),
   })
@@ -151,7 +158,6 @@ export function useReplyActions(input: Input): ReplyActions {
   })
   const edit = useActionMutation(editPublishedReplyFn, {
     successMessage: 'Update confirmed. Waiting for Google',
-    errorMessage: actionErrorMessage,
     onError: reread,
     onSuccess: changed('state_changed'),
   })
@@ -176,7 +182,7 @@ export function useReplyActions(input: Input): ReplyActions {
       }),
     submitReply: () => submit({ data: { reviewId } }),
     deleteDraft: () => del({ data: { reviewId } }),
-    approve: () => approve({ data: { reviewId } }),
+    approve: (expectedReply) => approve({ data: { reviewId, expectedReply } }),
     reject: (reason) => reject({ data: { reviewId, reason } }),
     check: () => check({ data: { reviewId } }),
     retry: () => retry({ data: { reviewId } }),

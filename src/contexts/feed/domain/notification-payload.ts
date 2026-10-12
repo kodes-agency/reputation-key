@@ -189,7 +189,7 @@ export type NotificationImportFailureReason =
   'google_authorization' | 'property_source_changed' | 'location_too_large' | 'temporary'
 
 export type NotificationPublicationCancellationCause =
-  'disconnect' | 'policy' | 'source_changed' | 'provider_truth'
+  'disconnect' | 'policy' | 'source_changed' | 'provider_truth' | 'ai_draft_withdrawn'
 
 export type NotificationGoalSubjectKind = 'property' | 'portal_group' | 'portal'
 
@@ -275,6 +275,7 @@ const PUBLICATION_CANCELLATION_CAUSES: Record<string, true> = {
   policy: true,
   source_changed: true,
   provider_truth: true,
+  ai_draft_withdrawn: true,
 }
 
 const PORTAL_HEALTH_STATUSES: Record<string, true> = {

@@ -436,7 +436,7 @@ way.
 | Button | `Button` from `#/components/ui/button`<br>`SubmitButton` from `#/components/forms/submit-button` | Every action. `pending` and `pendingLabel` own the spinner; the density (44px below `md`) is the primitive's | `variant`, `size`, `touch`, `iconBelow`; `data-density="compact"` on a container | The Inbox and the top bar are compact (36px on a phone) | `ui/button-sources.test.ts` |
 | Add action | `AddAction`, `AddActionLink` from `#/components/ui/add-action` | The control that adds a thing to a list: the Plus, then a sentence-case label, in the default Button. It sits in the header's `actions`; a card or a tab that owns a list may carry its own | `AddAction` opens a dialog or a menu or runs a command, `AddActionLink` goes to a page; `size` `default`, `sm` (in a card header) | Portals repeats "New portal" in a fixed bar at the foot of a phone (`PortalPhoneNewPortalBar`); Add staff sits above its table | `ui/add-action-sources.test.ts` |
 | Icon-only control and link in text | `IconButton` from `#/components/ui/icon-button`<br>`InlineLink` from `#/components/ui/inline-link` | A control with no visible label (a required `label`, which is its name and its tooltip); a link set in a sentence | `tooltip`; `focus-ring` for a control that is not a Button | A control that opens a menu or popover shows no tooltip | `ui/button-sources.test.ts` |
-| Confirmation | `ConfirmationDialog`, `ConfirmationTrigger` from `#/components/ui/confirmation-dialog` | Every confirmation. It stays open and pending until `onConfirm` settles, then says a refusal once | `tone`: `destructive` (cannot be undone, or loses data), `neutral` (reversible) | Leave organisation is a `Dialog` (a transfer form), Inbox Reject is inline (it needs a reason); a draft language, an unsent reply draft and one notification skip it. The Inbox's Confirm & publish and Confirm & update say a refusal in a toast and close: the refusal re-reads the reply, and that read replaces the row or editor the dialog is drawn in (`inbox/use-reply-actions.ts`) | `ui/dialog-sources.test.ts` |
+| Confirmation | `ConfirmationDialog`, `ConfirmationTrigger` from `#/components/ui/confirmation-dialog` | Every confirmation. It stays open and pending until `onConfirm` settles, then says a refusal once | `tone`: `destructive` (cannot be undone, or loses data), `neutral` (reversible) | Leave organisation is a `Dialog` (a transfer form), Inbox Reject is inline (it needs a reason); a draft language, an unsent reply draft and one notification skip it | `ui/dialog-sources.test.ts` |
 | Dialog | `Dialog`, `DialogFooter`, `DialogCancel` from `#/components/ui/dialog`<br>`useDialogBusy` from `#/components/ui/dialog-dismissal` | Any other dialog: its width and height bound come from the primitive | `size`: `sm`, `md`, `lg`, `xl`; `busy` while a mutation runs | The two Inbox dialogs drop the corner close; a popover on desktop is a sheet on a phone | `ui/dialog-sources.test.ts`, `ui/dialog-dismissal.test.ts` |
 
 ### Forms and settings
@@ -527,10 +527,8 @@ Four rules keep a cached page in step with the server it sends commands to.
   on screen changes (`inboxCachePolicy.onReplyCommandFailed`,
   `onFeedbackHandlingFailed`, the responsible-managers saves of the Property
   people tab and the Portal editor), and re-read the list when a bulk command
-  changed nothing. The refusal must outlive that read: a sentence held inside
-  what the read replaces is gone with it, so such a command reports by toast
-  (the Inbox's Confirm & publish and Confirm & update, under Confirmation in the
-  Pattern index).
+  changed nothing. The refusal must outlive that read: a toast does, and a
+  sentence held inside what the read replaces is gone with it.
 - **A draft kept across a refetch keeps the revision it was started from.** Save
   it with that revision, never the refetched one: the fence exists so a change
   the person has not seen is refused, and a kept draft has not seen the refetch
