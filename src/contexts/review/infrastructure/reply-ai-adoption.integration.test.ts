@@ -7,6 +7,10 @@
 // (testing/reply-workflow-harness.ts) over a suggestion adopted through the
 // real acceptance store, let the window pass, and check both halves: the three
 // gates still refuse, and every other command still has somewhere to go.
+//
+// A claim the gate refuses withdraws the reply as the AI draft purge would:
+// what that purge and the commands make of each other is in
+// reply-ai-withdrawal.integration.test.ts.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
@@ -36,6 +40,13 @@ const OTHER_AI_TEXT = 'We are glad you enjoyed your stay with us.'
 const TYPED_TEXT = 'Thank you, Anna. We hope to see you again.'
 const MINUTE_MS = 60_000
 const STALE = { _tag: 'ReviewError', code: 'ai_suggestion_stale' }
+/** What a refused claim leaves: an empty draft that claims no AI authorship. */
+const WITHDRAWN = {
+  status: 'draft',
+  publicationState: 'cancelled',
+  text: '',
+  aiGenerated: false,
+}
 
 let pool: Pool
 let harness: ReplyWorkflowHarness
@@ -171,7 +182,7 @@ describe.sequential('AI-assisted reply after its adoption window (PostgreSQL)', 
       expect((await harness.evidence()).authorizations).toEqual([])
     })
 
-    it('does not send AI text whose binding went stale after Confirm & Publish: the refused claim returns it to draft', async () => {
+    it('does not send AI text whose binding went stale after Confirm & Publish: the refused claim withdraws it', async () => {
       await adoptSuggestion()
       await harness.commands.submit()
       await harness.commands.approve()
@@ -179,24 +190,23 @@ describe.sequential('AI-assisted reply after its adoption window (PostgreSQL)', 
       expect(stale).toMatchObject({ status: 'approved', publicationState: 'authorized' })
 
       // The worker's claim is the last gate: nothing leaves RepKey, and the
-      // cycle does not wait for the sweep. The reply is a draft again, still
-      // the AI's text, with one cancellation fact for the people waiting.
+      // cycle does not wait for the sweep. The reply is a draft again with
+      // the AI's text removed, as the purge would have left it at the next
+      // sync, and one cancellation fact tells the people waiting.
       await harness.runPublishJob(0, 'accepted')
       expect(harness.google.calls).toBe(0)
-      const returned = await storedReply()
-      expect(returned).toMatchObject({
-        status: 'draft',
-        publicationState: 'cancelled',
-        text: AI_TEXT,
-        aiGenerated: true,
-      })
+      expect(await storedReply()).toMatchObject({ ...WITHDRAWN, id: stale.id })
       const after = await harness.evidence()
       expect(after.attempts).toEqual([])
+      expect(after.authorizations).toHaveLength(1)
       expect(after.facts['review.reply.publication_cancelled']).toBe(1)
       expect(after.facts['review.reply.publish_failed']).toBeUndefined()
 
-      // As it is, the text goes nowhere; typed over, it is the manager's.
-      await expect(harness.commands.submit()).rejects.toMatchObject(STALE)
+      // There is nothing to submit until a manager writes a reply into it.
+      await expect(harness.commands.submit()).rejects.toMatchObject({
+        _tag: 'ReviewError',
+        code: 'invalid_reply',
+      })
       await harness.commands.draft(TYPED_TEXT)
       await harness.commands.submit()
       await harness.commands.approve()
@@ -232,12 +242,7 @@ describe.sequential('AI-assisted reply after its adoption window (PostgreSQL)', 
       await harness.runPublishJob(1, 'accepted')
 
       expect(harness.google.calls).toBe(0)
-      expect(await storedReply()).toMatchObject({
-        status: 'draft',
-        publicationState: 'cancelled',
-        text: AI_TEXT,
-        aiGenerated: true,
-      })
+      expect(await storedReply()).toMatchObject({ ...WITHDRAWN, publicationCycle: 2 })
       expect((await harness.evidence()).attempts).toEqual([])
     })
   })
@@ -387,11 +392,7 @@ describe.sequential('AI-assisted reply after its adoption window (PostgreSQL)', 
       await harness.runPublishJob(1, 'accepted')
 
       expect(harness.google.sent).toEqual([])
-      expect(await storedReply()).toMatchObject({
-        status: 'draft',
-        publicationState: 'cancelled',
-        text: OTHER_AI_TEXT,
-      })
+      expect(await storedReply()).toMatchObject(WITHDRAWN)
     })
 
     it('edits a published AI reply after the window, and records the edit as the manager’s text', async () => {

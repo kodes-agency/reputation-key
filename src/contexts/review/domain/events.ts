@@ -463,8 +463,11 @@ export type ReviewReplyPublicationCancelled = Readonly<{
    * `ai_draft_withdrawn` is the AI draft purge's cause
    * (`src/shared/db/ai/ai-draft-purge.ts`): an unedited AI-assisted reply that
    * was awaiting approval or confirmed but not dispatched was withdrawn because
-   * something it was generated from changed. Nothing was sent and its text is
-   * gone, so unlike the other causes there is no draft left to approve again.
+   * something it was generated from changed, or its time ran out. Nothing was
+   * sent and its text is gone, so unlike the other causes there is no draft
+   * left to approve again. The publish worker's claim records it too, for a
+   * reply whose AI text it refuses: it withdraws that reply as the purge
+   * would (`infrastructure/unclaimable-publication.ts`).
    */
   cause:
     'disconnect' | 'policy' | 'source_changed' | 'provider_truth' | 'ai_draft_withdrawn'

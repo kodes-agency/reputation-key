@@ -19,11 +19,13 @@
 //
 // The same holds for AI-assisted text (domain/reply-ai-text.ts). Submit and an
 // approval return null while the reply's AI draft binding is stale. So does
-// the claim, until the text has been claimed once, and it cancels the cycle it
-// refuses. A rejection and a retry never read the binding and change no
-// authorship; an edit records the reply as human-authored. An authorization
-// (approval, retry, edit) also compares the reply's state revision, so the
-// text it authorizes is the text of the reply it was given.
+// the claim (once the text has been claimed, a closed adoption window alone
+// no longer counts), and it withdraws the reply it refuses. A rejection and a
+// retry never read the binding and change no authorship; an edit records the
+// reply as human-authored. A write that puts the text forward (submit, and an
+// authorization: approval, retry, edit) also compares the reply's state
+// revision, so the text it submits or authorizes is the text of the reply it
+// was given, and not what the AI draft purge has left of it since.
 
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { Reply } from '../../domain/types'
@@ -152,9 +154,12 @@ export type ReplyCommandStore = Readonly<{
    * when the guard misses. A cycle whose named manager lost current authority,
    * or whose Property is not active at the cycle's source epoch, is instead
    * cancelled in the same transaction (publication_cancelled, cause 'policy')
-   * and null is returned: the provider authorizer would refuse its write. So
-   * is a cycle of AI-assisted text whose binding is stale and that no worker
-   * claimed before: the text is not sent, and the reply returns to draft.
+   * and null is returned: the provider authorizer would refuse its write. A
+   * cycle of AI-assisted text the last gate refuses (a stale binding, unless
+   * the text was claimed before and only its adoption window has passed) is
+   * withdrawn instead: the text is not sent, and the reply returns to draft
+   * with the AI text removed (publication_cancelled, cause
+   * 'ai_draft_withdrawn').
    */
   markPublicationSending(
     reply: Reply,

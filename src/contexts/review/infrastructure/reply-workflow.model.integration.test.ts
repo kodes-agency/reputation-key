@@ -42,6 +42,7 @@ import { isReviewError } from '../domain/errors'
 import { googleReplyTextDigest } from '../domain/google-reply-observation'
 import {
   afterPublicationEvent,
+  afterRefusedClaim,
   isLegalReplyState,
   managerVerdict,
   mayBeClaimed,
@@ -236,7 +237,8 @@ const SCRIPTED_HISTORIES: ReadonlyArray<ReadonlyArray<Step>> = [
     OBSERVE,
   ],
   // It passes between Confirm & Publish and the claim: nothing is sent and
-  // the reply is a draft again, which goes nowhere until a manager types it.
+  // the reply is withdrawn, an empty draft that goes nowhere until a manager
+  // types a reply into it.
   [
     ADOPT,
     SUBMIT,
@@ -473,14 +475,18 @@ function createRun() {
   // ── Steps ──────────────────────────────────────────────────────────
 
   /** What the verdicts depend on beyond the reply's state: what the real
-   * binding says of its AI text, what the stand-in Google was asked for
-   * before, and which reply is stored. */
+   * binding says of its AI text, as a whole and apart from its window, what
+   * the stand-in Google was asked for before, and which reply is stored. */
   async function evidenceOf(before: ReplyEvidence): Promise<CommandEvidence> {
     const reply = before.reply
     const binding = reply === null ? 'not_ai' : await harness.ai.bindingOf(reply.id)
     return {
       provablyNeverSent: provablyNeverSent(before),
       aiBindingCurrent: binding !== 'stale',
+      aiInputsCurrent:
+        reply === null ||
+        binding !== 'stale' ||
+        (await harness.ai.inputsCurrentOf(reply.id)),
       textClaimedBefore:
         reply !== null &&
         harness.wasClaimedBefore({ replyId: reply.id, text: reply.text }),
@@ -562,6 +568,7 @@ function createRun() {
     if (code === 'ai_suggestion_stale' && command.kind !== 'adopt_ai') {
       covered.add(`stale AI text refused: ${command.kind}`)
     }
+    if (code === 'invalid_reply') covered.add(`blank reply refused: ${command.kind}`)
     if (command.kind !== 'approve' || state?.status !== 'pending_approval' || !stored) {
       return
     }
@@ -609,6 +616,50 @@ function createRun() {
     expect(after, context()).toEqual(before)
   }
 
+  /**
+   * The claim is the last gate for AI text: text that is stale and was never
+   * claimed, or whose inputs changed, is not sent. An execution that got as
+   * far as the claim (this cycle's job, with an execution left) withdraws the
+   * reply as the purge would; any other execution leaves it alone.
+   */
+  function expectRefusedClaim(
+    pre: OracleReply,
+    post: OracleState,
+    reachedTheClaim: boolean,
+    evidence: CommandEvidence,
+  ): void {
+    const expected = reachedTheClaim ? afterRefusedClaim(pre) : pre
+    expect(sameReplyState(post, expected), context()).toBe(true)
+    if (!reachedTheClaim) return
+    covered.add(
+      evidence.aiInputsCurrent
+        ? 'stale AI text: withdrawn at the claim'
+        : 'AI text with a changed input: withdrawn at the claim',
+    )
+  }
+
+  /** A write was attempted: the row went exactly where that outcome leads. */
+  function expectWriteOutcome(
+    pre: OracleReply,
+    post: OracleState,
+    step: Extract<Step, { act: 'job' }>,
+    evidence: CommandEvidence,
+  ): void {
+    // Stale by now, and sent all the same: these words were claimed before.
+    if (pre.authorship === 'ai_assisted' && !evidence.aiBindingCurrent) {
+      covered.add('stale AI text: claimed again')
+    }
+    let expected: OracleReply | null = pre
+    for (const event of jobEvents(step.outcome, step.final)) {
+      expected = expected && afterPublicationEvent(expected, event)
+    }
+    expect(
+      expected,
+      `a write left for a row that could not be claimed${context()}`,
+    ).not.toBeNull()
+    expect(sameReplyState(post, expected), context()).toBe(true)
+  }
+
   async function job(
     step: Extract<Step, { act: 'job' }>,
     before: ReplyEvidence,
@@ -629,36 +680,13 @@ function createRun() {
     if (pre === null) return expect(post, context()).toBeNull()
     expect(post, context()).not.toBeNull()
     if (pre.publication === 'authorized' && !mayBeClaimed(pre, evidence)) {
-      // The claim is the last gate for AI text: text that is stale and was
-      // never claimed is not sent. An execution that got as far as the claim
-      // (this cycle's job, with an execution left) cancels the cycle, and the
-      // reply is a draft again; any other execution leaves it alone.
       expect(called, `stale AI text was claimed${context()}`).toBe(false)
       const reachedTheClaim =
         ran &&
         harness.jobs[index]?.data.publicationCycle === before.reply?.publicationCycle
-      const expected = reachedTheClaim ? afterPublicationEvent(pre, 'cancel') : pre
-      expect(sameReplyState(post, expected), context()).toBe(true)
-      if (reachedTheClaim) covered.add('stale AI text: returned to draft at the claim')
-      return
+      return expectRefusedClaim(pre, post, reachedTheClaim, evidence)
     }
-    if (called) {
-      // Stale by now, and sent all the same: these words were claimed before.
-      if (pre.authorship === 'ai_assisted' && !evidence.aiBindingCurrent) {
-        covered.add('stale AI text: claimed again')
-      }
-      // A write was attempted: the row went exactly where that outcome leads.
-      let expected: OracleReply | null = pre
-      for (const event of jobEvents(step.outcome, step.final)) {
-        expected = expected && afterPublicationEvent(expected, event)
-      }
-      expect(
-        expected,
-        `a write left for a row that could not be claimed${context()}`,
-      ).not.toBeNull()
-      expect(sameReplyState(post, expected), context()).toBe(true)
-      return
-    }
+    if (called) return expectWriteOutcome(pre, post, step, evidence)
     expect(reachableBy(pre, post!, READBACK_EVENTS, 1), context()).toBe(true)
   }
 
@@ -700,13 +728,23 @@ function createRun() {
       }
       return
     }
-    // The worker's moves, then at most one of the sweep's. A worker that may
-    // not claim the cycle (stale AI text, never claimed) cancels it instead.
-    const workerMoves: PublicationEvent[] =
-      pre.publication === 'authorized' && !mayBeClaimed(pre, evidence)
-        ? ['cancel']
-        : jobEvents(racing, false)
-    const workerAndSweep = [...workerMoves, ...READBACK_EVENTS, ...SWEEP_EVENTS]
+    if (pre.publication === 'authorized' && !mayBeClaimed(pre, evidence)) {
+      // A worker that may not claim the cycle withdraws the reply, and the
+      // sweep's settlement of the row it read then matches nothing. A worker
+      // with no execution left does nothing, and the sweep makes its move.
+      const withdrawn = afterRefusedClaim(pre)
+      expect(
+        sameReplyState(post, withdrawn) || reachableBy(pre, post!, SWEEP_EVENTS, 1),
+        context(),
+      ).toBe(true)
+      return
+    }
+    // The worker's moves, then at most one of the sweep's.
+    const workerAndSweep = [
+      ...jobEvents(racing, false),
+      ...READBACK_EVENTS,
+      ...SWEEP_EVENTS,
+    ]
     expect(reachableBy(pre, post!, workerAndSweep, 3), context()).toBe(true)
   }
 
@@ -779,6 +817,10 @@ function createRun() {
     expect(isLegalReplyState(state), `${JSON.stringify(state)}${at}`).toBe(true)
     covered.add(`${state.status}/${String(state.publication)}`)
     if (state.authorship === 'ai_assisted') covered.add(`AI text: ${state.status}`)
+    // Invariant 5: blank text is not a reply. It is what a withdrawal leaves,
+    // in a draft, and nothing puts it forward: not to an approver, not to a
+    // worker.
+    if (reply.text.trim() === '') expect(reply.status, at).toBe('draft')
 
     // What a confirmation names, a reply at a revision, is one text in one
     // status for as long as the history runs. A revision alone is not: every
@@ -880,8 +922,8 @@ describe.sequential('reply workflow model (PostgreSQL)', () => {
     // The histories are only evidence if they went through publication, its
     // failures and its cancellation, not just through drafts; if AI text went
     // the same way; if its stale binding was both refused where it gates and
-    // passed where it must not; and if a confirmation met both a rewritten
-    // reply and a replaced one.
+    // passed where it must not; if a withdrawn reply was refused as blank; and
+    // if a confirmation met both a rewritten reply and a replaced one.
     expect([...covered].sort()).toEqual(
       expect.arrayContaining([
         'approved/authorized',
@@ -898,8 +940,9 @@ describe.sequential('reply workflow model (PostgreSQL)', () => {
         'AI text: publish_failed',
         'stale AI text refused: submit',
         'stale AI text refused: approve',
-        'stale AI text: returned to draft at the claim',
+        'stale AI text: withdrawn at the claim',
         'stale AI text: claimed again',
+        'blank reply refused: submit',
         'stale AI text: draft',
         'stale AI text: reject',
         'stale AI text: retry',

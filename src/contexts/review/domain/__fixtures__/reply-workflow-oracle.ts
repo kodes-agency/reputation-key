@@ -11,10 +11,11 @@
 // Four things a verdict depends on are not part of the reply's state and are
 // passed in as evidence: whether the current attempt provably never left
 // RepKey; whether an AI-assisted reply's binding is still current (everything
-// it was generated from, and its ten-minute adoption window); whether the text
-// the reply holds was claimed for sending before; and which reply is stored,
-// at which revision. The last is identity, which a state cannot carry: a reply
-// that is deleted and written anew is another reply in the very same state.
+// it was generated from, and its ten-minute adoption window; and which of the
+// two it is that no longer holds); whether the text the reply holds was
+// claimed for sending before; and which reply is stored, at which revision.
+// The last is identity, which a state cannot carry: a reply that is deleted
+// and written anew is another reply in the very same state.
 
 export type OracleStatus =
   'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'publish_failed'
@@ -106,7 +107,8 @@ export type ManagerVerdict =
   | Readonly<{ accepted: true; next: OracleState }>
   | Readonly<{
       accepted: false
-      code: 'reply_not_found' | 'invalid_transition' | 'ai_suggestion_stale'
+      code:
+        'reply_not_found' | 'invalid_transition' | 'invalid_reply' | 'ai_suggestion_stale'
     }>
 
 /** What a verdict depends on beyond the reply itself. */
@@ -117,6 +119,10 @@ export type CommandEvidence = Readonly<{
    * its ten-minute adoption window has not passed. Not read for a reply a
    * human authored. */
   aiBindingCurrent: boolean
+  /** The first half alone: everything it was generated from is still current,
+   * whatever its adoption window says. False only when the binding is not
+   * current either. */
+  aiInputsCurrent: boolean
   /** A worker claimed this reply for sending before, with the text it holds
    * now. Those words then passed every gate while they were current. */
   textClaimedBefore: boolean
@@ -127,6 +133,7 @@ export type CommandEvidence = Readonly<{
 
 const REFUSED: ManagerVerdict = { accepted: false, code: 'invalid_transition' }
 const NO_REPLY: ManagerVerdict = { accepted: false, code: 'reply_not_found' }
+const NO_TEXT: ManagerVerdict = { accepted: false, code: 'invalid_reply' }
 const STALE_AI_TEXT: ManagerVerdict = { accepted: false, code: 'ai_suggestion_stale' }
 
 /**
@@ -211,6 +218,9 @@ function adoptVerdict(state: OracleState, text: string): ManagerVerdict {
 
 function submitVerdict(state: OracleReply, evidence: CommandEvidence): ManagerVerdict {
   if (state.status !== 'draft' || !outsidePublication(state)) return REFUSED
+  // Invariant 5: blank text is not a reply. A manager cannot save one; the
+  // only blank reply there is, is one whose AI text was withdrawn.
+  if (state.text === '') return NO_TEXT
   return staleAiText(state, evidence)
     ? STALE_AI_TEXT
     : { accepted: true, next: { ...state, status: 'pending_approval' } }
@@ -298,9 +308,9 @@ export function managerVerdict(
 // ── Publication events (worker, sweep, sync, policy) ──────────────────
 
 export type PublicationEvent =
-  /** A disconnect or a policy change ends a cycle nothing was sent for. So
-   * does a worker that may not claim it: AI text that went stale before it
-   * was ever claimed returns to draft instead of being sent. */
+  /** A disconnect or a policy change ends a cycle nothing was sent for. The
+   * reply returns to draft with its text. (A worker that may not claim AI
+   * text ends the cycle too, and takes the text with it: `afterRefusedClaim`.) */
   | 'cancel'
   /** The worker takes the cycle: exactly one provider write may follow. */
   | 'claim'
@@ -362,15 +372,18 @@ const is = (
 /**
  * Whether a worker may take the reply's cycle and write to Google. The claim is
  * the last gate for AI text: it is sent while its binding is current, and
- * after that only if these words were claimed once before (they then went
- * through while they were current, and a later attempt or a retry does not
- * wait on a window that has closed since). AI text that is stale and was never
- * claimed is not sent, by the cycle of its approval or by the cycle of a
- * retry: the worker cancels the cycle and the reply is a draft again.
+ * after that only if these words were claimed once before and nothing but the
+ * ten minutes has passed since (they then went through while they were
+ * current, and a later attempt or a retry does not wait on a window that has
+ * closed). A changed input is never excused: it is what the AI draft purge
+ * withdraws a reply for. AI text the gate refuses is not sent, by the cycle of
+ * its approval or by the cycle of a retry: the worker withdraws the reply
+ * (`afterRefusedClaim`).
  */
 export const mayBeClaimed = (reply: OracleReply, evidence: CommandEvidence): boolean =>
   is(reply, 'approved', 'authorized') &&
-  (!staleAiText(reply, evidence) || evidence.textClaimedBefore)
+  (!staleAiText(reply, evidence) ||
+    (evidence.textClaimedBefore && evidence.aiInputsCurrent))
 
 /** What one publication event does to a reply, or null when it does not apply. */
 type PublicationMove = (reply: OracleReply) => OracleReply | null
@@ -494,3 +507,32 @@ export function reachableBy(
     return next !== null && reachableBy(next, to, events, maxEvents - 1)
   })
 }
+
+// ── Withdrawn AI text (the AI draft purge, and a claim the gate refuses) ──
+
+/**
+ * What a withdrawal leaves of a reply a manager once confirmed. Its
+ * authorizations and attempts are evidence and they keep the reply, so it is
+ * not deleted: its open cycle is cancelled, the AI text is removed, and with
+ * no AI text left it claims no AI authorship. An empty draft, in which a
+ * manager writes a new reply. The cycle count and the attempts stay: they are
+ * the record.
+ */
+const withdrawn = (reply: OracleReply): OracleReply => ({
+  ...reply,
+  status: 'draft',
+  publication: 'cancelled',
+  lastFailure: null,
+  text: '',
+  authorship: 'human',
+})
+
+/**
+ * A worker found AI text it may not claim (`mayBeClaimed`). Nothing is sent,
+ * and the reply is withdrawn on the spot, exactly as the purge would withdraw
+ * it at its next run. Null when the reply is not one a claim can refuse so.
+ */
+export const afterRefusedClaim = (reply: OracleReply): OracleReply | null =>
+  is(reply, 'approved', 'authorized') && reply.authorship === 'ai_assisted'
+    ? withdrawn(reply)
+    : null

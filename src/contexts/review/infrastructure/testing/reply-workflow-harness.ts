@@ -276,19 +276,38 @@ export async function createReplyWorkflowHarness(
       (asked) => asked.replyId === reply.replyId && asked.text === reply.text,
     )
 
-  /** The rules a write must satisfy as it leaves: it carries the text that was
-   * authorized for its cycle, no earlier request for this reply is still of
-   * unknown outcome (Review CONTEXT, Invariant 9), and it is not unedited AI
-   * text whose binding went stale before it was ever claimed for sending. */
+  /** Unedited AI text leaves only while its binding is current, or, once it
+   * was claimed for sending before, after its adoption window alone has
+   * passed. Never after something it was generated from changed. */
+  async function checkAiTextAsItLeaves(
+    input: GoogleReplyPublicationRequest,
+    claimedBefore: boolean,
+  ) {
+    const sent = replyId(input.replyId)
+    if ((await ai.bindingOf(sent)) !== 'stale') return
+    if (!claimedBefore) {
+      google.violations.push(
+        `cycle ${input.publicationCycle} sent AI text that was stale before any claim`,
+      )
+    } else if (!(await ai.inputsCurrentOf(sent))) {
+      google.violations.push(
+        `cycle ${input.publicationCycle} sent AI text after something it was generated from changed`,
+      )
+    }
+  }
+
+  /** The rules a write must satisfy as it leaves: it carries text, the text
+   * that was authorized for its cycle, no earlier request for this reply is
+   * still of unknown outcome (Review CONTEXT, Invariant 9), and it is not
+   * unedited AI text the last gate should have held. */
   async function checkWriteAsItLeaves(
     input: GoogleReplyPublicationRequest,
     claimedBefore: boolean,
   ) {
-    if (!claimedBefore && (await ai.bindingOf(replyId(input.replyId))) === 'stale') {
-      google.violations.push(
-        `cycle ${input.publicationCycle} sent AI text that was stale before any claim`,
-      )
+    if (input.text.trim() === '') {
+      google.violations.push(`cycle ${input.publicationCycle} sent a reply with no text`)
     }
+    await checkAiTextAsItLeaves(input, claimedBefore)
     const authorization = await pool.query<{ expected_reply_digest: string }>(
       `SELECT expected_reply_digest FROM reply_publication_authorizations
         WHERE reply_id = $1 AND publication_cycle = $2`,
@@ -713,6 +732,15 @@ export async function createReplyWorkflowHarness(
       letWindowPass: ai.letWindowPass,
       /** What the real binding says about a reply right now. */
       bindingOf: ai.bindingOf,
+      /** The same, apart from the adoption window. */
+      inputsCurrentOf: ai.inputsCurrentOf,
+      /** Whether a reply's ten-minute adoption window has passed. */
+      pastItsWindow: ai.pastItsWindow,
+      /** Something the Property's AI-assisted replies were generated from
+       * changes, and the transaction that changes it runs the AI draft purge. */
+      changeInput: ai.changeProcessingProfile,
+      /** A sync sees the unchanged Review: the purge for replies past their window. */
+      observeReviewAgain: ai.observeReviewAgain,
     },
     commands: {
       draft: (text: string) => useCases.draft({ ...reviewInput, text }, MANAGER_CTX),

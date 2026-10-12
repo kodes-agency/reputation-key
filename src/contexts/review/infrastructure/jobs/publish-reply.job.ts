@@ -22,9 +22,10 @@
 //      → sending, attempts+1). A null claim means the publication was
 //      cancelled (disconnect/policy) or the row is no longer claimable:
 //      the side effect must NOT run. The claim itself cancels (policy) a
-//      cycle whose Property is not active at its source epoch, and one that
-//      holds AI-assisted text whose binding went stale before any claim
-//      (domain/reply-ai-text.ts): that reply returns to draft unsent.
+//      cycle whose Property is not active at its source epoch. One that holds
+//      AI-assisted text the last gate refuses (domain/reply-ai-text.ts) it
+//      withdraws, as the AI draft purge would: that reply returns to draft
+//      unsent, with the AI text removed.
 //   2. a persisted `sending` state is uncertain, and nothing on this path
 //      permits another provider write:
 //        a. D4: no `reviews.reply` permit for this exact attempt once the

@@ -393,7 +393,9 @@ reply never went out. `ai_draft_withdrawn` is the AI draft purge's cause
 or confirmed and not yet posted is gone, so its notice says "AI draft removed",
 that nothing was posted, and to write a new reply, and the fact also retires
 the open approval request. It asserts no reason, because the fact carries none:
-the draft may only have run out of time. Under the `policy` cause — a Property
+the draft may only have run out of time. Review's publish claim records the
+same cause when it refuses to send AI text and withdraws the reply (ADR 0046,
+amended 2026-10-13). Under the `policy` cause — a Property
 Archive, a lost publishing authority — an approver who is no longer eligible
 for the Property is left out: that cause is what taking their authority away
 looks like. Every other cause keeps them. On a Property that is no longer

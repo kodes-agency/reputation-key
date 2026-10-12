@@ -14,6 +14,10 @@
 //      binding exactly where the workflow moves AI text toward Google, and ends
 //      the adoption exactly where a manager writes the text.
 //
+// A fifth block holds the oracle's own account of withdrawn AI text (the AI
+// draft purge, and a claim the last gate refuses) to the rules it is written
+// from, and the commands to what a withdrawal leaves.
+//
 // Then generated sequences of commands and publication events walk the
 // workflow. At every step the production preconditions and AI text rules are
 // asked the same question as the oracle and must give the same answer. The
@@ -32,6 +36,7 @@ import {
 } from './reply-command-preconditions'
 import { aiTextRuleOf } from './reply-ai-text'
 import { canTransitionReply } from './rules'
+import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import {
   nextPublicationState,
   type PersistedPublicationState,
@@ -40,6 +45,7 @@ import {
 import type { ReplyStatus } from './types'
 import {
   afterPublicationEvent,
+  afterRefusedClaim,
   isLegalReplyState,
   LEGAL_REPLY_STATES,
   managerVerdict,
@@ -91,14 +97,17 @@ const THIS_REPLY: ReplyOnScreen = { id: 'reply-1', revision: 2 }
 const NEVER_SENT: CommandEvidence = {
   provablyNeverSent: true,
   aiBindingCurrent: true,
+  aiInputsCurrent: true,
   textClaimedBefore: false,
   stored: THIS_REPLY,
 }
 const MAYBE_SENT: CommandEvidence = { ...NEVER_SENT, provablyNeverSent: false }
-/** The same two, ten minutes after an AI suggestion was generated. */
+/** The same two, ten minutes after an AI suggestion was generated; and once
+ * something it was generated from has changed. */
 const STALE_AI: ReadonlyArray<CommandEvidence> = [
   { ...NEVER_SENT, aiBindingCurrent: false },
   { ...MAYBE_SENT, aiBindingCurrent: false },
+  { ...NEVER_SENT, aiBindingCurrent: false, aiInputsCurrent: false },
 ]
 
 const subject = (reply: OracleReply): ReplyCommandSubject => ({
@@ -142,10 +151,11 @@ const commandOf = (
 
 /**
  * Whether production would let `command` write, as the use case decides it:
- * the command's precondition, then its AI text rule. Retry is the one command
- * with a step before its precondition: an attempt of unknown outcome is first
- * settled as never sent, on evidence, and the precondition is asked of the
- * settled reply. A settled published reply answers a retry without a write.
+ * the command's precondition, then (for submit) the stored text, then its AI
+ * text rule. Retry is the one command with a step before its precondition: an
+ * attempt of unknown outcome is first settled as never sent, on evidence, and
+ * the precondition is asked of the settled reply. A settled published reply
+ * answers a retry without a write.
  *
  * An approval is the Inbox's: it names the reply on screen. The refusal of one
  * that names an earlier reply is a comparison of state revisions in the use
@@ -162,7 +172,14 @@ function productionAccepts(
       aiTextRuleOf(production) === 'needs_current_binding' &&
       reply.authorship === 'ai_assisted' &&
       !evidence.aiBindingCurrent
-    return replyCommandMayStart(production, subject(reply)) && !movesStaleAiText
+    // Invariant 5: a blank reply is not submitted.
+    const submitsNoText =
+      command.kind === 'submit' && replyCommentProblem(reply.text) !== null
+    return (
+      replyCommandMayStart(production, subject(reply)) &&
+      !submitsNoText &&
+      !movesStaleAiText
+    )
   }
   if (reply.status === 'published' && reply.publication === 'published') return true
   const outcomeUnknown =
@@ -313,6 +330,79 @@ describe('the AI text rule of each command against the hand-written workflow', (
         open,
         `${reply.status}/${String(reply.publication)}/${String(reply.lastFailure)}`,
       ).not.toEqual([])
+    }
+  })
+})
+
+describe('withdrawn AI text against the hand-written workflow', () => {
+  const legal = everyReplyState().filter(isLegalReplyState)
+  const aiReplies = legal.filter((reply) => reply.authorship === 'ai_assisted')
+  /** Written out by hand: an empty draft, no AI claim, its cancelled cycle kept. */
+  const withdrawalOf = (reply: OracleReply): OracleReply => ({
+    status: 'draft',
+    publication: 'cancelled',
+    lastFailure: null,
+    cycle: reply.cycle,
+    attempts: reply.attempts,
+    text: '',
+    authorship: 'human',
+  })
+
+  it('a claim the gate refuses withdraws an AI reply waiting for a worker, and nothing else', () => {
+    for (const reply of legal) {
+      const refusable =
+        reply.authorship === 'ai_assisted' &&
+        reply.status === 'approved' &&
+        reply.publication === 'authorized'
+      expect(afterRefusedClaim(reply)).toEqual(refusable ? withdrawalOf(reply) : null)
+    }
+  })
+
+  it('the claim excuses a closed window for words claimed before, and never a changed input', () => {
+    const waiting = aiReplies.find((reply) => reply.publication === 'authorized')!
+    const claimable = (evidence: Partial<CommandEvidence>) =>
+      mayBeClaimed(waiting, { ...NEVER_SENT, ...evidence })
+    const windowPassed = { aiBindingCurrent: false }
+    const inputChanged = { aiBindingCurrent: false, aiInputsCurrent: false }
+
+    expect(claimable({})).toBe(true)
+    expect(claimable({ ...windowPassed, textClaimedBefore: true })).toBe(true)
+    expect(claimable({ ...windowPassed, textClaimedBefore: false })).toBe(false)
+    expect(claimable({ ...inputChanged, textClaimedBefore: true })).toBe(false)
+    expect(claimable({ ...inputChanged, textClaimedBefore: false })).toBe(false)
+    // A reply a manager wrote is never held by a binding.
+    expect(
+      mayBeClaimed(
+        { ...waiting, authorship: 'human' },
+        { ...NEVER_SENT, ...inputChanged },
+      ),
+    ).toBe(true)
+  })
+
+  it('a withdrawn reply takes the text a manager types and nothing else, and production agrees', () => {
+    for (const cycle of [1, 2]) {
+      const empty = withdrawalOf({ ...aiReplies[0]!, cycle })
+      expect(isLegalReplyState(empty)).toBe(true)
+      const verdicts = Object.fromEntries(
+        COMMAND_KINDS.map((kind) => {
+          const verdict = managerVerdict(empty, commandOf(kind), NEVER_SENT)
+          expect(productionAccepts(empty, commandOf(kind), NEVER_SENT), kind).toBe(
+            verdict.accepted,
+          )
+          return [kind, verdict.accepted ? 'accepted' : verdict.code]
+        }),
+      )
+      expect(verdicts).toEqual({
+        draft: 'accepted',
+        // Blank text is not a reply (Invariant 5).
+        submit: 'invalid_reply',
+        approve: 'invalid_transition',
+        reject: 'invalid_transition',
+        retry: 'invalid_transition',
+        edit: 'invalid_transition',
+        // Its authorization is evidence, and the evidence keeps the reply.
+        delete: 'invalid_transition',
+      })
     }
   })
 })
@@ -480,6 +570,8 @@ type Step = Readonly<{
   text: string
   provablyNeverSent: boolean
   aiBindingCurrent: boolean
+  /** Read only when the binding is not current: only its window has passed. */
+  onlyTheWindowPassed: boolean
 }>
 
 const TEXTS = ['Thank you!', 'We are sorry.', 'See you again.'] as const
@@ -511,6 +603,11 @@ const arbStep: fc.Arbitrary<Step> = fc.record({
     { weight: 3, arbitrary: fc.constant(true) },
     { weight: 1, arbitrary: fc.constant(false) },
   ),
+  // Mostly the window, or words claimed before would rarely be claimed again.
+  onlyTheWindowPassed: fc.oneof(
+    { weight: 3, arbitrary: fc.constant(true) },
+    { weight: 1, arbitrary: fc.constant(false) },
+  ),
 })
 
 const does = (command: GeneratedCommand): Step => ({
@@ -519,6 +616,7 @@ const does = (command: GeneratedCommand): Step => ({
   text: TEXTS[0],
   provablyNeverSent: false,
   aiBindingCurrent: true,
+  onlyTheWindowPassed: true,
 })
 
 /**
@@ -556,6 +654,7 @@ function createStoreLedger() {
     evidence: (step: Step, state: OracleState): CommandEvidence => ({
       provablyNeverSent: step.provablyNeverSent,
       aiBindingCurrent: step.aiBindingCurrent,
+      aiInputsCurrent: step.aiBindingCurrent || step.onlyTheWindowPassed,
       textClaimedBefore: state !== null && claimedTexts.has(state.text),
       stored,
     }),
@@ -616,8 +715,9 @@ function allowedMoves(state: OracleState, step: Step, evidence: CommandEvidence)
   }
   if (state !== null) {
     for (const event of PUBLICATION_EVENTS) {
-      // A worker claims only what it may: stale AI text that was never claimed
-      // is left to `cancel`, the one move a worker has for it.
+      // A worker claims only what it may. AI text the gate refuses is
+      // withdrawn instead (`afterRefusedClaim`, held to the purge above); a
+      // `cancel` in this walk is a disconnect or a policy stop.
       if (event === 'claim' && !mayBeClaimed(state, evidence)) continue
       if (afterPublicationEvent(state, event) !== null)
         moves.push({ by: 'system', event })
@@ -780,8 +880,12 @@ function afterSystemMove(
   // Chosen from the moves that apply, so the event has a result.
   const after = afterPublicationEvent(before, event)
   if (event === 'claim' && before.authorship === 'ai_assisted') {
-    // The last gate: current, or these words went through before.
-    expect(evidence.aiBindingCurrent || evidence.textClaimedBefore).toBe(true)
+    // The last gate: current, or these words went through before and only
+    // their window has passed since.
+    expect(
+      evidence.aiBindingCurrent ||
+        (evidence.textClaimedBefore && evidence.aiInputsCurrent),
+    ).toBe(true)
   }
   return after
 }

@@ -22,7 +22,7 @@
 // a command that puts the text forward compares the state revision as well,
 // which the database advances whenever text, status or authorship changes.
 
-import { and, eq, isNull, type SQL } from 'drizzle-orm'
+import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { replies, replyPublicationAttempts } from '#/shared/db/schema/review.schema'
 import type { Tx } from '#/shared/outbox/commit'
@@ -32,10 +32,11 @@ import {
   type ReplyCommand,
 } from '../domain/reply-command-preconditions'
 import { aiTextRuleOf } from '../domain/reply-ai-text'
+import { reviewError } from '../domain/errors'
 import { googleReplyTextDigest } from '../domain/google-reply-observation'
 import type { PersistedPublicationState } from '../domain/reply-publication-workflow'
 import type { ConditionalReplyUpdate } from '../application/ports/reply.repository'
-import { assertCurrentAiDraftBinding } from './ai-draft-binding'
+import { aiDraftInputsAreCurrent, assertCurrentAiDraftBinding } from './ai-draft-binding'
 import { replyFromRow } from './mappers/reply.mapper'
 import { buildReplySetClause } from './reply-set-clause'
 
@@ -111,9 +112,21 @@ async function aiTextMayAdvance(tx: Tx, reply: Reply): Promise<boolean> {
  * went through while they were current, and a later attempt for them, in the
  * same cycle or in the cycle of a retry, does not wait on a window that has
  * closed since. An attempt for other text proves nothing about this one.
+ *
+ * The evidence excuses the window and nothing else. When something the text
+ * was generated from has changed since (AI switched off, a consent or profile
+ * change, a guest edit), the AI draft purge withdraws every such reply it can
+ * still reach, and it leaves a failed one alone only because its cycle ran to
+ * its end. A retry of that reply must not send what the purge would have
+ * withdrawn, so the claim refuses it, claimed before or not.
  */
 export async function aiTextMayBeClaimed(tx: Tx, reply: Reply): Promise<boolean> {
   if (await aiTextMayAdvance(tx, reply)) return true
+  const onlyItsWindowPassed = await aiDraftInputsAreCurrent(tx, {
+    organizationId: reply.organizationId,
+    replyId: reply.id,
+  })
+  if (!onlyItsWindowPassed) return false
   const claimedBefore = await tx
     .select({ id: replyPublicationAttempts.id })
     .from(replyPublicationAttempts)
@@ -195,4 +208,37 @@ export async function guardedPublicationUpdate(
     )
     .returning()
   return result[0] ? replyFromRow(result[0]) : null
+}
+
+/** Update the attempt row the Reply currently points at. Its absence means the
+ * append-only publication evidence and the Reply have diverged. `fromOutcomes`
+ * additionally refuses to rewrite an attempt that already reached any other
+ * outcome (the transaction then rolls back with the Reply write). */
+export async function updateCurrentAttempt(
+  tx: Tx,
+  reply: Reply,
+  set: Record<string, unknown>,
+  fromOutcomes?: ReadonlyArray<string>,
+): Promise<void> {
+  const rows = await tx
+    .update(replyPublicationAttempts)
+    .set(set)
+    .where(
+      and(
+        eq(replyPublicationAttempts.replyId, reply.id),
+        eq(replyPublicationAttempts.organizationId, reply.organizationId),
+        eq(replyPublicationAttempts.publicationCycle, reply.publicationCycle),
+        eq(replyPublicationAttempts.attemptNumber, reply.publicationAttempts),
+        fromOutcomes
+          ? inArray(replyPublicationAttempts.outcome, [...fromOutcomes])
+          : undefined,
+      ),
+    )
+    .returning({ id: replyPublicationAttempts.id })
+  if (!rows[0]) {
+    throw reviewError(
+      'invalid_transition',
+      'Reply publication attempt evidence is missing',
+    )
+  }
 }

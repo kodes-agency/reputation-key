@@ -12,14 +12,22 @@
 // the Reply. When it guarded every write, a Reply ten minutes old could not be
 // typed over, rejected, retried or edited, and stayed where it was for good.
 //
-// The gate stands until the text has been claimed for sending once. Submit and
-// Confirm & Publish need a current binding, and so does the publish worker's
-// claim, the last step before a request leaves RepKey. A claim that passes
-// writes an attempt for that text; from then on the text has gone through
-// every gate while it was current, and a later attempt for it, in the same
-// cycle or in the cycle of a retry, is claimed without asking again. A claim
-// that is refused cancels its cycle: the Reply is a draft again, holding AI
-// text a manager has to make their own before it can be put forward.
+// The binding has two halves: time (the ten-minute window) and everything the
+// text was generated from. Submit and Confirm & Publish need both, and so does
+// the publish worker's claim, the last step before a request leaves RepKey. A
+// claim that passes writes an attempt for that text; from then on the text has
+// gone through every gate while it was current, and a later attempt for it, in
+// the same cycle or in the cycle of a retry, no longer waits on the window.
+// That is all the earlier claim excuses. Once something the text was generated
+// from has changed (AI switched off, a consent or profile change, a guest
+// edit), it is text the AI draft purge withdraws wherever it still can
+// (src/shared/db/ai/ai-draft-purge.ts), and the claim refuses it, claimed
+// before or not.
+//
+// A claim that is refused withdraws the Reply, exactly as that purge would at
+// its next run: the cycle is cancelled, the AI text is removed, and what is
+// left is an empty draft a manager writes a new reply into
+// (infrastructure/unclaimable-publication.ts).
 //
 // Each command therefore states which of three things it does with AI text:
 //
@@ -31,6 +39,10 @@
 //   - it does neither, and never reads the binding (reject, delete, recording
 //     a provider confirmation, and Try publishing again, which changes no text
 //     and leaves the decision to the claim of the cycle it authorizes).
+//
+// The purge is not a command and is not in this table. It is the other writer
+// of AI-assisted Replies: it deletes one nobody confirmed and empties one that
+// has publication evidence, from other contexts' transactions.
 //
 // Authorship is the durable record of where the text came from, and the
 // Organization export carries it. It changes only when the text does: a Reply
@@ -57,8 +69,9 @@ const REPLY_COMMAND_AI_TEXT_RULES: Readonly<Record<ReplyCommand, AiTextRule>> = 
   reject: 'unaffected',
   // A retry changes no text, so it changes no authorship, and it authorizes a
   // cycle without sending anything. Whether the text may still go is decided
-  // where it would leave: at the claim of that cycle, which passes text that
-  // was claimed once before and asks the binding for text that never was.
+  // where it would leave: at the claim of that cycle, which asks the whole
+  // binding of text that was never claimed, and everything but the window of
+  // text that was.
   retry_publication: 'unaffected',
   // The manager typed the new text.
   edit_published: 'ends_adoption',

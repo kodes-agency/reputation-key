@@ -14,10 +14,21 @@
 // moves the stored expiry into the past instead. The reply trigger counts that as a change of the reply (its
 // state revision advances), which no real passage of time does; nothing here
 // depends on the revision staying still across that step.
+//
+// The binding also ends when something the text was generated from changes,
+// and the transaction that changes it runs the AI draft purge
+// (src/shared/db/ai/ai-draft-purge.ts). `changeProcessingProfile` is that
+// transaction for one input, the Property's processing profile, written as the
+// profile adapter writes it. `observeReviewAgain` is the purge a sync runs when
+// it sees the unchanged Review: only for replies whose window has passed.
 
 import { generateKeyPairSync } from 'node:crypto'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import {
+  purgeAiDraftsForProfile,
+  purgeExpiredAiDraftsForReview,
+} from '#/shared/db/ai/ai-draft-purge'
 import {
   aiExecutionControlHeads,
   aiExecutionControlTransitions,
@@ -39,6 +50,7 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
+import { aiDraftInputsAreCurrent } from '../ai-draft-binding'
 import { createAiSuggestedDraftStore } from '../ai-suggested-draft-store'
 
 const KEY_ID = 'reply-workflow-provenance'
@@ -150,6 +162,23 @@ export function createReplyWorkflowAiFixture(
       .limit(1)
     if (!property) throw new Error('The workflow property is missing')
     return property.sourceEpoch
+  }
+
+  /** The version of the Property's processing profile as it stands: a
+   * suggestion is bound to the one it was generated under. */
+  async function profileVersion(): Promise<number> {
+    const [profile] = await db
+      .select({ profileVersion: aiPropertyProcessingProfiles.profileVersion })
+      .from(aiPropertyProcessingProfiles)
+      .where(
+        and(
+          eq(aiPropertyProcessingProfiles.organizationId, organizationId),
+          eq(aiPropertyProcessingProfiles.propertyId, propertyId),
+        ),
+      )
+      .limit(1)
+    if (!profile) throw new Error('The workflow property has no processing profile')
+    return profile.profileVersion
   }
 
   /** Seed once per suite, after the Property and its Review exist. */
@@ -282,7 +311,7 @@ export function createReplyWorkflowAiFixture(
       sourceEpoch: review.sourceEpoch,
       sourceRevision: review.sourceRevision,
       baseReplyStateRevision: review.replyStateRevision,
-      propertyProfileVersion: 1,
+      propertyProfileVersion: await profileVersion(),
       providerDeploymentProfileVersion: DEPLOYMENT_PROFILE,
       operationProfileVersion: 'reply-suggestion-v1',
       outputLeakageProfileVersion: LEAKAGE_PROFILE.version,
@@ -392,5 +421,77 @@ export function createReplyWorkflowAiFixture(
     return store.assertCurrentBinding({ organizationId, replyId })
   }
 
-  return { store, seed, reset, restore, issueSuggestion, letWindowPass, bindingOf }
+  /** What the real binding says of an AI-assisted reply apart from its
+   * adoption window: everything it was generated from is still current. */
+  function inputsCurrentOf(replyId: Reply['id']): Promise<boolean> {
+    return db.transaction((tx) =>
+      aiDraftInputsAreCurrent(tx, { organizationId, replyId }),
+    )
+  }
+
+  /** Whether an AI-assisted reply's adoption window has passed, by the clock
+   * the binding and the purge read. False for a reply that has none. */
+  async function pastItsWindow(replyId: Reply['id']): Promise<boolean> {
+    const result = await db.execute<{ passed: boolean | null }>(sql`
+      SELECT ai_draft_expires_at <= now() AS "passed"
+      FROM replies
+      WHERE id = ${replyId}::uuid AND organization_id = ${organizationId}
+    `)
+    return result.rows[0]?.passed === true
+  }
+
+  /**
+   * Something every AI-assisted reply of the Property was generated from
+   * changes: its processing profile moves to its next version, and the same
+   * transaction runs the AI draft purge for the Property. These are the two
+   * writes of the profile adapter
+   * (ai/infrastructure/adapters/property-processing-profile.adapter.ts).
+   * `beforeCommit` runs once both are written and holds the transaction open
+   * until it resolves, so a test can run a command against the purge's locks.
+   */
+  async function changeProcessingProfile(
+    beforeCommit?: () => Promise<void>,
+  ): Promise<void> {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(aiPropertyProcessingProfiles)
+        .set({
+          profileVersion: sql`${aiPropertyProcessingProfiles.profileVersion} + 1`,
+          updatedAt: sql`now()`,
+        })
+        .where(
+          and(
+            eq(aiPropertyProcessingProfiles.organizationId, organizationId),
+            eq(aiPropertyProcessingProfiles.propertyId, propertyId),
+          ),
+        )
+      await purgeAiDraftsForProfile(tx, { organizationId, propertyId })
+      await beforeCommit?.()
+    })
+  }
+
+  /**
+   * A sync sees the Review again and nothing about it changed: the purge runs
+   * only for its AI-assisted replies whose adoption window has passed
+   * (repositories/review-observation.repository.ts).
+   */
+  async function observeReviewAgain(): Promise<void> {
+    await db.transaction((tx) =>
+      purgeExpiredAiDraftsForReview(tx, { organizationId, reviewId }),
+    )
+  }
+
+  return {
+    store,
+    seed,
+    reset,
+    restore,
+    issueSuggestion,
+    letWindowPass,
+    bindingOf,
+    inputsCurrentOf,
+    pastItsWindow,
+    changeProcessingProfile,
+    observeReviewAgain,
+  }
 }

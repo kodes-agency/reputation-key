@@ -1014,6 +1014,26 @@ A plain AI draft nobody was asked about is removed without a fact or a notice.
 A dispatched AI-assisted reply that a guest edit returns to draft is emptied
 too, under the `source_changed` notice that cancellation already sends.
 
+## Amended 2026-10-13 — the publish worker's claim records the same cause
+
+The purge is not the only place an unedited AI reply stops being publishable.
+The publish worker's claim is the last gate before a request leaves RepKey, and
+it refuses AI text whose binding is stale: text no worker claimed while it was
+current, and text whose inputs changed since, claimed before or not. A refused
+claim used to leave the cycle open until the reconciliation sweep reported the
+reply as not published, twenty minutes later. It now ends the cycle at once.
+
+`policy`, the cause of the claim's other refusals, was the nearest existing
+one, and its notice would have said "This property can no longer publish to
+Google… The draft is saved." Neither half would be true: the Property can
+publish, and the next sync's purge would empty the saved draft without telling
+anyone. So the claim withdraws the reply exactly as the purge would (cycle
+cancelled, AI text removed, authorization and attempts kept) and records
+`ai_draft_withdrawn`. The copy needs no change: nothing was posted for the
+cycle the claim refused, and a retry is only ever authorized for a reply whose
+last attempt is settled as not on Google. The audience is the cause's own: the
+author and everyone who can approve.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.
