@@ -26,6 +26,21 @@ describe('reply.publication_cancelled copy', () => {
     )
   })
 
+  // The AI draft purge leaves no draft behind, so its notice must not say the
+  // reply was "returned to draft" or that anything is saved to approve again.
+  it('says an unedited AI draft was removed, not returned, and that nothing was sent', () => {
+    const rendered = renderNotification('reply.publication_cancelled', {
+      propertyName: 'Riverside Hotel',
+      publicationCancellationCause: 'ai_draft_withdrawn',
+    })
+    expect(rendered).toMatchObject({
+      title: 'AI draft removed at Riverside Hotel',
+      body: 'This was an AI draft nobody had edited, and the review, the property or its AI settings changed after it was written. RepKey sent nothing to Google and removed the draft. Write a new reply.',
+      actionLabel: 'Open review',
+    })
+    expect(rendered.body).not.toMatch(/draft is saved|approve it again/)
+  })
+
   it('does not claim non-delivery when an older notice carries no cause', () => {
     const rendered = renderNotification('reply.publication_cancelled', {})
     expect(rendered.body).not.toMatch(NON_DELIVERY)

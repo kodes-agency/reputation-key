@@ -320,6 +320,12 @@ const renderReplyPublishFailed = (p: NotificationPayload): RendererCopy => {
  * say so; a guest edit or a different live reply can stop one Google may
  * already hold, so neither claims it was not sent. The title never says
  * "your" — the same notice goes to the approvers who have to act on it.
+ *
+ * `ai_draft_withdrawn` is the one cause that leaves no draft behind: the AI
+ * draft purge removed an unedited AI reply that was awaiting approval or
+ * confirmed but not dispatched. So it says the draft is gone, not "returned",
+ * and it names every reason the purge runs for, because the fact does not say
+ * which one it was.
  */
 const PUBLICATION_CANCELLATION_BODIES = {
   disconnect:
@@ -330,17 +336,25 @@ const PUBLICATION_CANCELLATION_BODIES = {
     'The guest changed their review, so RepKey stopped publishing the approved text. Open it to check what Google shows, then reply to the new review.',
   provider_truth:
     'A different reply is live on Google, so this one is not. Open it to check.',
+  ai_draft_withdrawn:
+    'This was an AI draft nobody had edited, and the review, the property or its AI settings changed after it was written. RepKey sent nothing to Google and removed the draft. Write a new reply.',
 } as const
 
 const renderReplyPublicationCancelled = (p: NotificationPayload): RendererCopy => {
   const cause = p.publicationCancellationCause
   const why = cause === undefined ? '' : PUBLICATION_CANCELLATION_BODIES[cause]
+  const draftRemoved = cause === 'ai_draft_withdrawn'
   return {
-    title: `Reply returned to draft${atProperty(p)}`,
+    title: `${draftRemoved ? 'AI draft removed' : 'Reply returned to draft'}${atProperty(p)}`,
     body: why === '' ? SEE_WHERE : why,
     detail: why,
-    actionLabel: cause === 'source_changed' ? 'Open review' : 'Open reply',
-    summary: factsAt(p, 'review', 'returned to draft'),
+    actionLabel:
+      cause === 'source_changed' || draftRemoved ? 'Open review' : 'Open reply',
+    summary: factsAt(
+      p,
+      'review',
+      draftRemoved ? 'AI draft removed' : 'returned to draft',
+    ),
   }
 }
 

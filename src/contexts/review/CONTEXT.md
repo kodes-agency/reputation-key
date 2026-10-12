@@ -90,6 +90,34 @@ else its creator when no submitter was recorded. Feed addresses the outcome
 notices to it. The Organization purge nulls `submitted_by` and the
 Organization export includes it.
 
+An AI-assisted Reply is the unedited output of one AI operation; the first
+manager edit makes it human-authored. It is bound to what it was generated from
+(`infrastructure/ai-draft-binding.ts`): the Review's source epoch and Material
+Review Revision, the Property's processing profile, the Merchant AI
+Authorization and the AI execution controls. Submit, approve and the publish
+worker's claim refuse it once any of them has moved, and the transaction that
+moves one runs the AI draft purge (`src/shared/db/ai/ai-draft-purge.ts`) for
+the scope it changed: a control transition, an Authorization or profile change,
+a Property archive or Google binding change, an Organization closing, a new
+Material Review Revision or source epoch, or source-content erasure. The purge
+withdraws the AI-assisted Replies whose text has not gone to Google:
+
+- one no manager ever confirmed (a draft, awaiting approval, rejected) is
+  deleted;
+- one that was confirmed but not dispatched (`requested`/`authorized`), or that
+  is back in draft after a cancelled cycle, is kept, because its authorization
+  and attempts reference it and must survive. An open cycle is cancelled as a
+  policy stop cancels one, its AI-derived text is emptied, and the row stops
+  claiming AI authorship;
+- one that was dispatched, published or ended as `publish_failed` is left to the
+  publish worker, the reconciliation sweep and the cancellation paths above.
+
+Each Reply that was awaiting approval or confirmed and waiting to be sent
+records one `review.reply.publication_cancelled` fact with cause
+`ai_draft_withdrawn`, so its author and approvers are told and the approval
+request is retired (ADR 0046, amended 2026-10-12). A draft nobody was asked
+about goes without one.
+
 A guest edit does not inherit the answer to the revision it replaced. A live
 Google reply whose text equals the previous head's, recorded in the same source
 epoch at an earlier revision, is carried over, not added: it resolves
@@ -191,6 +219,11 @@ creates a separate row and never overwrites the renamed template.
 14. Template edits and enabled-state changes are tenant-and-Property-scoped,
     versioned, attributed to the acting user, and leave version and attribution
     unchanged when the persisted value is unchanged.
+15. Observing a Review again at the same source epoch and Material Review
+    Revision never removes or changes a Reply. Only an observation that moves
+    one of them, or source-content erasure, runs the AI draft purge for that
+    Review, and the purge never deletes a Reply that publication evidence
+    references (`infrastructure/ai-draft-purge.integration.test.ts`).
 
 ## Verification
 

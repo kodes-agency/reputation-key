@@ -177,6 +177,18 @@ describe('registered review.reply.publication_cancelled schema', () => {
     ).not.toThrow()
   })
 
+  // The AI draft purge writes this cause from inside other contexts'
+  // transactions. A schema that refused it would fail the AI kill switch.
+  it('accepts the cause the AI draft purge records', () => {
+    expect(
+      validateEventPayload('review.reply.publication_cancelled', 1, {
+        ...validPayload,
+        authorId: 'manager-1',
+        cause: 'ai_draft_withdrawn',
+      }),
+    ).toMatchObject({ cause: 'ai_draft_withdrawn', authorId: 'manager-1' })
+  })
+
   it.each([
     ['empty organization', { organizationId: '' }],
     ['non-UUID Reply', { replyId: 'reply-1' }],

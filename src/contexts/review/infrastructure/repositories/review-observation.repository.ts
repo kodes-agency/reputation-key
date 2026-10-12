@@ -14,7 +14,7 @@ import {
 } from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
 import type { Tx } from '#/shared/outbox/commit'
-import { deleteAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
+import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
 import type {
   MaterialReviewRevision,
   ReviewObservationComparison,
@@ -411,8 +411,22 @@ async function recordOutOfOrderObservation(
   }
 }
 
+/**
+ * An AI-assisted reply is bound to the Review's source epoch and Material
+ * Review Revision (`ai-draft-binding.ts`). Only an observation that moves one
+ * of them makes the draft stale. Every fetch moves `content_expires_at`, so a
+ * refresh of the same revision must leave the reply alone.
+ */
+function movesAiDraftBinding(existing: ReviewRow, observed: ReviewRow): boolean {
+  return (
+    existing.sourceEpoch !== observed.sourceEpoch ||
+    existing.sourceRevision !== observed.sourceRevision
+  )
+}
+
 /** Insert the first Review row, or advance the existing one to this
- * observation's source content and counters. */
+ * observation's source content and counters. A guest edit or an epoch carry
+ * withdraws the AI-assisted replies written for the revision it replaces. */
 async function writeObservedReviewRow(
   tx: Tx,
   existing: ReviewRow | null,
@@ -486,8 +500,8 @@ async function writeObservedReviewRow(
   if (!persistedRow) {
     throw reviewError('repo_upsert_failed', 'Review observation returned no row')
   }
-  if (existing !== null) {
-    await deleteAiDraftsForReview(tx, {
+  if (existing !== null && movesAiDraftBinding(existing, persistedRow)) {
+    await purgeAiDraftsForReview(tx, {
       organizationId: existing.organizationId,
       reviewId: existing.id,
     })

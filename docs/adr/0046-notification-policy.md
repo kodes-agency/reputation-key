@@ -977,6 +977,32 @@ Each invitation an AccountAdmin sent therefore sends them a mandatory notice
 when it is accepted, by email too. An in-app-only exception would need a migration and an ADR, as
 ADR 0059 did.
 
+## Amended 2026-10-12 — a withdrawn AI draft tells the people waiting on it
+
+The AI draft purge (`src/shared/db/ai/ai-draft-purge.ts`) withdraws an
+unedited AI-assisted reply when something it was generated from changes: the
+review, the Property, the AI Authorization, the processing profile or an AI
+execution control. It used to do so silently. A reply awaiting approval
+disappeared and its approval request stayed in the bell, pointing at an item
+with no reply.
+
+`review.reply.publication_cancelled` gains a fifth closed cause,
+`ai_draft_withdrawn`, recorded by the purge for each reply that was awaiting
+approval, or confirmed and not yet dispatched. It goes to the same audience as
+the other causes: the author, and the people who can approve. Its copy differs
+in the one way that matters. Every other cause leaves a draft to approve again;
+this one leaves none, because the purge removes the AI-derived text. So the
+notice is titled "AI draft removed", says nothing was sent to Google, and asks
+for a new reply. It names every reason the purge runs for, because the fact
+does not record which one applied. The purge only withdraws replies that were
+never dispatched, so the notice may say nothing was sent.
+
+The same fact now also settles `reply.pending_approval`: the reply the request
+asked about is gone. No other cause can meet an open approval request, because
+the other four only cancel a reply somebody already approved.
+
+A plain AI draft nobody was asked about is removed without a fact or a notice.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.
