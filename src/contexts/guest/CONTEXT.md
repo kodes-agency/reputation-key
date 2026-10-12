@@ -60,6 +60,14 @@ Property erase or Organization purge) removes them. The Privacy Notice states bo
 figures (`docs/legal/privacy-notice.md` §6), so changing either one is a notice change
 (`docs/BETA.md` §2, §3).
 
+The visit itself is kept for 24 months, the figure the Privacy Notice gives for base Guest
+visit facts. The retention sweep deletes the counted visit (`guest_qualified_scans`) and
+the visit record (`scan_events`) 24 UTC calendar months after the visit, and the rating
+fact on the `retention_deadline` stamped when it was submitted. `scan_events` is deleted
+on age because every visit still writes it; `ratings` and `feedback`, which nothing writes
+any more, are not. The readings Reporting recorded from these facts are separate rows the
+sweep does not delete (`docs/BETA.md` §3).
+
 A Contact Request is a separate consented aggregate, encrypted for exactly 30 days
 and backend-only until its approval and handling requirements are met.
 

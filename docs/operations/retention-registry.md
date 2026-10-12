@@ -70,18 +70,28 @@ to prevent.
 
 ---
 
-## 3. Compatibility mirrors remain row-preserving
+## 3. Compatibility mirrors: two stay row-preserving, one holds live visit facts
 
-The live `scan_events`, `ratings` and `feedback` compatibility tables are not
-deleted by the retention sweep. The migration that called for one-off
-contraction inventories was struck, so retention governance no longer depends
-on a dedicated inventory command. The tables and their retention rules remain.
+The `ratings` and `feedback` compatibility tables are not deleted by the
+retention sweep. The beta no longer writes them, so whatever rows they hold
+predate the response model. The migration that called for one-off contraction
+inventories was struck, so retention governance no longer depends on a
+dedicated inventory command. The tables and their retention rules remain.
+
+`scan_events` is not in that position. Every Portal visit still writes a row to
+it, so its rows are current visit facts, and the accepted Privacy Notice keeps
+base Guest visit facts for 24 months. The sweep subject
+`scan_events.deidentified_fact` therefore deletes a visit record 24 UTC calendar
+months after the visit, beside `guest_qualified_scans.deidentified_fact`, which
+does the same for the counted visit. Neither table stamps a deadline, so both
+rules count the months back from the run; the rating fact keeps its own stamped
+`retention_deadline`.
 
 ### The declared redactions
 
-Six sweep rules touch those three mirrors: the `ip_hash` and `session_id`
+Six sweep rules touch the three mirrors: the `ip_hash` and `session_id`
 pseudonym redactions on each table. They are `redact`, never `delete`. Every row
-survives, while the §3.3.10 seven-day pseudonym default still reaches the
+survives them, while the §3.3.10 seven-day pseudonym default still reaches the
 mirrors. `LEGACY_MIRROR_PSEUDONYM_REDACTIONS` aligns those executable sweep
 subjects with the counsel-facing registry horizons.
 
@@ -131,6 +141,18 @@ This is currently a documented ordering constraint recorded in the registry
 (`metric.lifetime_aggregates` restore implication), not an enforced one. It must
 be enforced before the fact purge is ever armed in apply mode.
 
+It is also why the Metric side of the 24 months has no sweep rule. The Guest
+rules of §3 delete Guest rows only; the Metric readings recorded from them are
+separate rows and stay. A reading may be deleted only after its Portal's
+lifetime aggregate has been sealed through that day (`sealThrough` in the
+Reporting lifetime repository): the seal moves the reading's contribution into
+the anonymous baseline, and without it the aggregate would hold more than its
+sources add up to, which is the mismatch the parity check before Organization
+closure refuses. Nothing calls the seal yet. A correction cannot be deleted on
+its own either: removing it would restore the uncorrected value of a reading
+that is still stored, and `metric_corrections.reading_id` is `ON DELETE
+RESTRICT`.
+
 ---
 
 ## 6. Running the report
@@ -158,10 +180,21 @@ those reports does not migrate, archive or delete their source rows.
 
 ---
 
-## 8. Known gaps in this change
+## 8. Known gaps
 
 1. **The lifetime-aggregate ordering constraint is documented, not enforced**
    (§5).
 2. **`docs/operations/runbooks.md` and
    `docs/operations/backup-and-lifecycle.md` still list `gbp_cache.expired`** as
    a live retention subject. That table row is now stale.
+3. **Three classes the accepted 24 months reach have no executing rule.** The
+   registry carries two as `accepted_unexecuted` and binds corrections to their
+   reading, and `docs/BETA.md` §3 marks all three UNENFORCED:
+   - destination selections (`metric_readings`, `portal.review_link_click`):
+     needs the seal-then-delete sweep of §5, and a decision on which other
+     Guest-derived readings follow the same 24 months;
+   - corrections and withdrawals (`metric_corrections`): go with their reading,
+     so they wait for that sweep;
+   - AI derivatives (`ai_review_analyses` and what is built from it): the
+     analysis and trend-outcome reads withhold a row after `expires_at`, but
+     nothing deletes it, and the daily aggregates have no age to measure.

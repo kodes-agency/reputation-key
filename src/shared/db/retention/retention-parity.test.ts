@@ -38,4 +38,32 @@ describe('retention registry execution parity', () => {
 
     expect(unexecuted).toEqual([])
   })
+
+  it('executes each rule stated in months exactly as the registry declares it', () => {
+    const executed = RETENTION_RULES.filter(
+      ({ olderThanMonths }) => olderThanMonths !== undefined,
+    ).map(({ subject, table, tsColumn, olderThanMonths }) => ({
+      evidenceSubject: subject,
+      source: table,
+      anchorColumn: tsColumn,
+      horizon: { kind: 'months', months: olderThanMonths },
+    }))
+    const declared = executed.map(({ evidenceSubject }) => {
+      const registryRule = RETENTION_REGISTRY.find(
+        (candidate) => candidate.evidenceSubject === evidenceSubject,
+      )
+      return {
+        evidenceSubject,
+        source: registryRule?.source,
+        anchorColumn: registryRule?.eligibility.anchorColumn,
+        horizon: registryRule?.eligibility.horizon,
+      }
+    })
+
+    expect(executed.map(({ evidenceSubject }) => evidenceSubject)).toEqual([
+      'guest_qualified_scans.deidentified_fact',
+      'scan_events.deidentified_fact',
+    ])
+    expect(declared).toEqual(executed)
+  })
 })

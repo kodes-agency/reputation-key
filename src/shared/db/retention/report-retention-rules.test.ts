@@ -78,6 +78,36 @@ describe('buildRetentionRuleReport', () => {
     })
   })
 
+  it('reports a rule stated in months at the calendar-month cutoff the sweep uses', async () => {
+    const visitFacts: RetentionRule = {
+      subject: 'guest_qualified_scans.deidentified_fact',
+      table: 'guest_qualified_scans',
+      keyColumns: ['id'],
+      tsColumn: 'occurred_at',
+      olderThanMonths: 24,
+    }
+    const countCandidates = vi.fn().mockResolvedValueOnce(3)
+
+    const report = await buildRetentionRuleReport({
+      db: {} as Database,
+      rules: [visitFacts],
+      generatedAt: new Date('2028-09-05T03:00:00.000Z'),
+      countCandidates,
+    })
+
+    // Counting from "now" would report every stored visit as due.
+    expect(report.rules).toEqual([
+      {
+        subject: 'guest_qualified_scans.deidentified_fact',
+        operation: 'delete',
+        cutoff: '2026-09-05T03:00:00.000Z',
+        eligibleRows: 3,
+        estimatedBatches: 1,
+        wouldReachRunCap: false,
+      },
+    ])
+  })
+
   it('rejects invalid execution bounds before inspecting the database', async () => {
     const countCandidates = vi.fn()
 

@@ -17,11 +17,14 @@
  *    `assertRetentionRegistryApplyAllowed` refuses apply for all of them.
  *    Report-only is the only reachable mode.
  *
- * 2. No deleting rule may name a compatibility mirror or bounded-contraction
- *    table. The only registry entries over those tables are the six exact
- *    row-preserving pseudonym redactions already executed by the sweep.
- *    Deleting rows would perform contraction early and destroy the inventory
- *    the contraction decision rests on.
+ * 2. No deleting rule may name `ratings` or `feedback`, the compatibility
+ *    mirrors the beta no longer writes. The only registry entries over them
+ *    are the row-preserving pseudonym redactions already executed by the
+ *    sweep; deleting rows would perform contraction early and destroy the
+ *    inventory the contraction decision rests on. `scan_events` is different:
+ *    every Portal visit still writes it, so besides its two redactions it has
+ *    one deleting rule, the 24 months the accepted Privacy Notice gives a
+ *    visit fact.
  *
  * 3. A content deadline is anchored on the original submission or creation
  *    column (or an absolute deadline stamped at submission). Reading,
@@ -30,7 +33,9 @@
  *
  * Horizons come from the program contract, not from invention. Where the
  * program states no horizon the rule carries `counsel_undecided` rather than
- * guessing a number that would then read as an approved policy.
+ * guessing a number that would then read as an approved policy. Where the
+ * accepted Privacy Notice states one that no rule executes yet, the rule
+ * carries `accepted_unexecuted` and says what is missing.
  */
 
 import { GUEST_DEIDENTIFIED_FACT_RULES } from './retention-registry-guest-facts'
@@ -605,12 +610,12 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     source: 'ai_review_analyses',
     eligibility: {
       anchorColumn: 'expires_at',
-      horizon: { kind: 'counsel_undecided' },
+      horizon: { kind: 'accepted_unexecuted', months: 24 },
       predicate: 'the owning authorization is withdrawn or the generation is retired',
       query:
-        'Erasure is driven by AccountAdmin-requested erasure and generation retirement, not by an age cutoff. generated_at/expires_at bound freshness reuse, not retention.',
+        'The accepted Privacy Notice keeps de-identified AI derivatives for 24 months. No rule deletes on age: the analysis and trend-outcome reads withhold a row once expires_at has passed, and the row stays stored. Erasure is driven by AccountAdmin-requested erasure and generation retirement.',
       implementedBoundary:
-        'Live: the durable merchant authorization-change consumer deletes retired generations in the same transaction that records its event-consumer receipt.',
+        'Live for retired generations only: the durable merchant authorization-change consumer deletes them in the same transaction that records its event-consumer receipt. Nothing deletes an expired analysis, the aspects and aggregate contributions that cascade from it, or the daily aggregates built from them, which have no age to measure.',
     },
     evidenceSubject: 'ai.enroll-review-analysis',
     restoreImplication:

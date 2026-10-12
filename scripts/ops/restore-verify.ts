@@ -41,6 +41,7 @@ import {
   RETENTION_RULES,
 } from '../../src/shared/jobs/retention-sweep.job'
 import { countRetentionRuleCandidates } from '../../src/shared/db/retention/execute-retention-rule'
+import { retentionRuleCutoff } from '../../src/shared/db/retention/retention-cutoff'
 import {
   collectReviewSourceContentLifecycleReport,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
@@ -103,7 +104,7 @@ async function main(): Promise<void> {
                     await countRetentionRuleCandidates(
                       container.db,
                       rule,
-                      new Date(now.getTime() - rule.olderThanMs),
+                      retentionRuleCutoff(rule, now),
                     ),
                   ] as const,
               ),

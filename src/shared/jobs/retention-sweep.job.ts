@@ -15,6 +15,7 @@ import {
   type RetentionRule,
 } from '#/shared/db/retention/execute-retention-rule'
 import { closeRetentionRun, openRetentionRun } from '#/shared/db/retention/evidence'
+import { retentionRuleCutoff } from '#/shared/db/retention/retention-cutoff'
 import { assertRetentionRegistryApplyAllowed } from '#/shared/db/retention/retention-registry'
 import type { RetentionRegistryRule } from '#/shared/db/retention/retention-registry-model'
 import { getLogger } from '#/shared/observability/logger'
@@ -36,6 +37,14 @@ const DAY_MS = 24 * 60 * 60 * 1000
  * indefinite-by-design (see the registry comment below).
  */
 const AUDIT_EVIDENCE_RETENTION_MS = 365 * DAY_MS
+
+/**
+ * Privacy Notice §6: base Guest visit facts are kept for 24 months. The rating
+ * fact carries its own deadline (retention_deadline, stamped 24 calendar months
+ * out at submission). The counted visit and the visit record carry none, so
+ * their rules count the same calendar months back from the run.
+ */
+const GUEST_VISIT_FACT_RETENTION_MONTHS = 24
 
 /**
  * The retention rule registry. Durations per table docs:
@@ -118,6 +127,25 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     operation: 'redact',
     redactColumns: ['session_id'],
   })),
+  {
+    // The counted visit (Qualified Scan): identifiers and a time, no content.
+    subject: 'guest_qualified_scans.deidentified_fact',
+    table: 'guest_qualified_scans',
+    keyColumns: ['id'],
+    tsColumn: 'occurred_at',
+    olderThanMonths: GUEST_VISIT_FACT_RETENTION_MONTHS,
+  },
+  {
+    // The visit record. Unlike `ratings` and `feedback`, this table is still
+    // written on every Portal visit, so its rows are current visit facts, not
+    // pre-beta inventory: the two redactions above clear its pseudonyms early
+    // and this removes what is left of the row at the published horizon.
+    subject: 'scan_events.deidentified_fact',
+    table: 'scan_events',
+    keyColumns: ['id'],
+    tsColumn: 'created_at',
+    olderThanMonths: GUEST_VISIT_FACT_RETENTION_MONTHS,
+  },
   {
     subject: 'outbox_events.published',
     table: 'outbox_events',
@@ -388,7 +416,7 @@ async function sweepRetentionRules(
 ): Promise<void> {
   for (const rule of rules) {
     const startedAt = deps.clock()
-    const cutoff = new Date(startedAt.getTime() - rule.olderThanMs)
+    const cutoff = retentionRuleCutoff(rule, startedAt)
     const runId = await openRetentionRun(deps.db, rule.subject, batchSize, startedAt)
     try {
       const result = await executeRetentionRule(deps.db, rule, { cutoff, batchSize })

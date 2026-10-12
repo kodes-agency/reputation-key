@@ -36,6 +36,7 @@ import {
 } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
+import { retentionRuleCutoff } from '#/shared/db/retention/retention-cutoff'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 
 const ORG = organizationId('org-qualified-scan-integration')
@@ -191,9 +192,7 @@ async function sweepAt(at: Date, subjects: ReadonlyArray<string>): Promise<void>
   for (const subject of subjects) {
     const rule = RETENTION_RULES.find((candidate) => candidate.subject === subject)
     if (!rule) throw new Error(`No retention rule has the subject ${subject}`)
-    await executeRetentionRule(getDb(), rule, {
-      cutoff: new Date(at.getTime() - rule.olderThanMs),
-    })
+    await executeRetentionRule(getDb(), rule, { cutoff: retentionRuleCutoff(rule, at) })
   }
 }
 
@@ -522,6 +521,87 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
       sessionIdentifierRules,
     )
     expect((await guestReceipts()).rows).toEqual([])
+  })
+
+  it('keeps the counted visit and the visit record for 24 calendar months, then deletes both', async () => {
+    // Privacy Notice section 6: base Guest visit facts are kept for 24 months.
+    // Neither row carries a stamped deadline, so the sweep measures the months
+    // from the visit itself.
+    const store = createAtomicGuestObservationStore(getDb())
+    const visitId = scanEventId('73000000-0000-4000-8000-000000000031')
+    await store.commitScan(
+      {
+        id: visitId,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        portalId: PORTAL,
+        source: 'qr',
+        sessionId: SESSION,
+        ipHash: null,
+        createdAt: EVENT_TIME,
+      },
+      guestScanRecorded({
+        scanId: visitId,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        portalId: PORTAL,
+        scanSource: 'qr',
+        occurredAt: EVENT_TIME,
+      }),
+    )
+    const scanId = qualifiedScanId('73000000-0000-4000-8000-000000000032')
+    const scanFact = guestQualifiedScanRecorded({
+      qualifiedScanId: scanId,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      portalGroupId: GROUP_AT_EVENT,
+      accessArtifactId: ARTIFACT,
+      occurredAt: EVENT_TIME,
+    })
+    await store.commitQualifiedScan(
+      {
+        id: scanId,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        portalId: PORTAL,
+        portalGroupId: GROUP_AT_EVENT,
+        accessArtifactId: ARTIFACT,
+        sourceEventId: scanFact.eventId,
+        occurredAt: EVENT_TIME,
+        staffAttribution: null,
+      },
+      SESSION,
+      scanFact,
+    )
+    const visitFactRules = [
+      'guest_qualified_scans.deidentified_fact',
+      'scan_events.deidentified_fact',
+    ]
+    const storedVisitFacts = async () => ({
+      countedVisits: (
+        await getPool().query<{ id: string }>(
+          `SELECT id FROM guest_qualified_scans WHERE organization_id = $1`,
+          [ORG],
+        )
+      ).rows.map(({ id }) => id),
+      visitRecords: (
+        await getPool().query<{ id: string }>(
+          `SELECT id FROM scan_events WHERE organization_id = $1`,
+          [ORG],
+        )
+      ).rows.map(({ id }) => id),
+    })
+    const twentyFourMonthsOn = new Date('2028-08-27T10:00:00.000Z')
+
+    await sweepAt(twentyFourMonthsOn, visitFactRules)
+    expect(await storedVisitFacts()).toEqual({
+      countedVisits: [scanId],
+      visitRecords: [visitId],
+    })
+
+    await sweepAt(new Date(twentyFourMonthsOn.getTime() + 1), visitFactRules)
+    expect(await storedVisitFacts()).toEqual({ countedVisits: [], visitRecords: [] })
   })
 
   it('projects one replay-safe Metric contribution and removes it by correction', async () => {

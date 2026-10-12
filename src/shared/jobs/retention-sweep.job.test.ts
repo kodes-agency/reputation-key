@@ -36,20 +36,21 @@ import { RETENTION_REGISTRY } from '#/shared/db/retention/retention-registry'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 
 const NOW = new Date('2026-07-17T12:00:00Z')
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 
 const RULE_A: RetentionRule = {
   subject: 'a.old',
   table: 'a_table',
   keyColumns: ['id'],
   tsColumn: 'created_at',
-  olderThanMs: 30 * 24 * 60 * 60 * 1000,
+  olderThanMs: THIRTY_DAYS_MS,
 }
 const RULE_B: RetentionRule = {
   subject: 'b.old',
   table: 'b_table',
   keyColumns: ['id'],
   tsColumn: 'created_at',
-  olderThanMs: 30 * 24 * 60 * 60 * 1000,
+  olderThanMs: THIRTY_DAYS_MS,
 }
 
 describe('retention sweep job (BQC-1.6)', () => {
@@ -107,8 +108,40 @@ describe('retention sweep job (BQC-1.6)', () => {
     // Cutoff derived from the rule's olderThanMs
     const firstCall = (executeRetentionRule as ReturnType<typeof vi.fn>).mock.calls[0]
     expect((firstCall[2] as { cutoff: Date }).cutoff).toEqual(
-      new Date(NOW.getTime() - RULE_A.olderThanMs),
+      new Date(NOW.getTime() - THIRTY_DAYS_MS),
     )
+  })
+
+  it('gives a rule stated in months a cutoff that many calendar months back', async () => {
+    const monthsRule: RetentionRule = {
+      subject: 'c.old',
+      table: 'c_table',
+      keyColumns: ['id'],
+      tsColumn: 'occurred_at',
+      olderThanMonths: 24,
+    }
+    vi.mocked(executeRetentionRule).mockResolvedValueOnce({
+      batches: 0,
+      rowsDeleted: 0,
+      rowsRedacted: 0,
+      capped: false,
+    })
+
+    const handler = createRetentionSweepHandler({
+      db: {} as never,
+      clock: () => NOW,
+      rules: [monthsRule],
+    })
+    await handler({} as never)
+
+    // Not "now": a rule without olderThanMs must never reach every row.
+    expect(vi.mocked(executeRetentionRule).mock.calls).toEqual([
+      [
+        expect.anything(),
+        monthsRule,
+        { cutoff: new Date('2024-07-17T12:00:00Z'), batchSize: 500 },
+      ],
+    ])
   })
 
   it('records pseudonym redactions separately from deletions', async () => {
@@ -480,13 +513,50 @@ describe('retention rule registry (BQC-3.7)', () => {
     expect(receiptParents).toEqual([{ table: 'outbox_events', onDelete: 'cascade' }])
   })
 
-  it('touches a compatibility mirror only through row-preserving redaction', () => {
-    const mirrors = new Set(['scan_events', 'ratings', 'feedback'])
-    const mirrorRules = RETENTION_RULES.filter((rule) => mirrors.has(rule.table))
-    expect(mirrorRules).toHaveLength(6)
+  it('deletes the counted visit and the visit record 24 calendar months after the visit', () => {
+    // Privacy Notice section 6: base Guest visit facts are kept for 24 months.
+    // Neither table stamps a deadline, so the age is measured from the visit.
+    expect(
+      RETENTION_RULES.find(
+        (rule) => rule.subject === 'guest_qualified_scans.deidentified_fact',
+      ),
+    ).toEqual({
+      subject: 'guest_qualified_scans.deidentified_fact',
+      table: 'guest_qualified_scans',
+      keyColumns: ['id'],
+      tsColumn: 'occurred_at',
+      olderThanMonths: 24,
+    })
+    expect(
+      RETENTION_RULES.find((rule) => rule.subject === 'scan_events.deidentified_fact'),
+    ).toEqual({
+      subject: 'scan_events.deidentified_fact',
+      table: 'scan_events',
+      keyColumns: ['id'],
+      tsColumn: 'created_at',
+      olderThanMonths: 24,
+    })
+  })
+
+  it('touches the mirrors the beta no longer writes only through row-preserving redaction', () => {
+    // `ratings` and `feedback` hold only what predates the response model, so
+    // their rows stay as inventory. `scan_events` is still written on every
+    // visit: its rows are current visit facts and leave at 24 months.
+    const unwrittenMirrors = new Set(['ratings', 'feedback'])
+    const mirrorRules = RETENTION_RULES.filter((rule) => unwrittenMirrors.has(rule.table))
+    expect(mirrorRules).toHaveLength(4)
     for (const rule of mirrorRules) {
       expect(rule.operation, rule.subject).toBe('redact')
     }
+    expect(
+      RETENTION_RULES.filter((rule) => rule.table === 'scan_events').map(
+        ({ subject, operation }) => ({ subject, operation: operation ?? 'delete' }),
+      ),
+    ).toEqual([
+      { subject: 'scan_events.abuse_pseudonym', operation: 'redact' },
+      { subject: 'scan_events.guest_session_pseudonym', operation: 'redact' },
+      { subject: 'scan_events.deidentified_fact', operation: 'delete' },
+    ])
   })
 
   it('removes expired durable Google discovery state at its exact deadline', () => {

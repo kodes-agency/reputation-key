@@ -40,6 +40,12 @@ export type RetentionHorizon =
   | Readonly<{ kind: 'retained_no_age_expiry' }>
   /** The program states no horizon; counsel must decide before any apply. */
   | Readonly<{ kind: 'counsel_undecided' }>
+  /**
+   * A horizon the accepted Privacy Notice states and no rule executes yet,
+   * because removing these rows safely takes more than a cutoff. The rule's
+   * `implementedBoundary` says what is missing.
+   */
+  | Readonly<{ kind: 'accepted_unexecuted'; months: number }>
 
 export type RetentionEligibility = Readonly<{
   /**

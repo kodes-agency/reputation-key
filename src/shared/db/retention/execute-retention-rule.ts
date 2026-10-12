@@ -32,15 +32,33 @@ type RetentionRuleBase = Readonly<{
   keyColumns: ReadonlyArray<string>
   /** Timestamp column the cutoff applies to (ignored when equalsWhere set). */
   tsColumn: string
-  /** Rows older than this are deleted (ignored when equalsWhere set). */
-  olderThanMs: number
   /** Extra runtime-free registry predicate (e.g. 'published_at IS NOT NULL'). */
   extraWhere?: string
   /** Bound equality predicates for lifecycle purges and tenant scoping. */
   equalsWhere?: ReadonlyArray<Readonly<{ column: string; value: string }>>
 }>
 
+/**
+ * How old a row must be before the rule reaches it (ignored when equalsWhere
+ * set). A rule states one of the two, and `retentionRuleCutoff` is the only
+ * place that turns either into a cutoff. A rule stated in months has no
+ * `olderThanMs`, so no caller can derive its cutoff by subtracting one: with a
+ * zero there, that sum would be "now" and the rule would reach every row.
+ */
+export type RetentionRuleAge =
+  | Readonly<{
+      /** A fixed age; 0 when tsColumn already holds the row's deadline. */
+      olderThanMs: number
+      olderThanMonths?: never
+    }>
+  | Readonly<{
+      /** UTC calendar months, for a horizon that is published in months. */
+      olderThanMonths: number
+      olderThanMs?: never
+    }>
+
 export type RetentionRule = RetentionRuleBase &
+  RetentionRuleAge &
   (
     | Readonly<{
         operation?: 'delete'

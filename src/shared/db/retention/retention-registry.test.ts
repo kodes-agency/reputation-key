@@ -133,33 +133,86 @@ describe('retention registry — §3.3.10 default horizons', () => {
     })
   })
 
-  it('keeps the live rating fact at 24 months and marks separately stored facts undecided', () => {
-    const facts = ruleById('guest.deidentified_facts')
-    expect(facts.eligibility.horizon).toEqual({ kind: 'months', months: 24 })
-    expect(facts.coveredFacts).toEqual(['rating'])
-
-    for (const [id, source, coveredFacts] of [
+  it('holds the rating fact, the counted visit and the visit record at 24 months', () => {
+    for (const [id, source, anchorColumn, coveredFacts] of [
+      ['guest.deidentified_facts', 'guest_responses', 'retention_deadline', ['rating']],
       [
         'guest.deidentified_qualified_scan_facts',
         'guest_qualified_scans',
+        'occurred_at',
         ['qualified_scan'],
       ],
       [
-        'metric.deidentified_destination_click_facts',
-        'metric_readings',
-        ['destination_click'],
-      ],
-      [
-        'metric.deidentified_correction_withdrawal_facts',
-        'metric_corrections',
-        ['correction', 'withdrawal'],
+        'guest.deidentified_visit_record_facts',
+        'scan_events',
+        'created_at',
+        ['visit_record'],
       ],
     ] as const) {
       const rule = ruleById(id)
       expect(rule.source, id).toBe(source)
-      expect(rule.eligibility.horizon, id).toEqual({ kind: 'counsel_undecided' })
+      expect(rule.operation ?? 'delete', id).toBe('delete')
+      expect(rule.eligibility.anchorColumn, id).toBe(anchorColumn)
+      expect(rule.eligibility.horizon, id).toEqual({ kind: 'months', months: 24 })
       expect(rule.coveredFacts, id).toEqual(coveredFacts)
     }
+  })
+
+  it('names every accepted horizon that no rule executes yet', () => {
+    // The accepted Privacy Notice states 24 months for these classes and the
+    // sweep has no rule for them (docs/BETA.md §3, UNENFORCED). A rule leaves
+    // this list when its deletion ships, never by relabelling it.
+    const unexecuted = RETENTION_REGISTRY.filter(
+      (rule) => rule.eligibility.horizon.kind === 'accepted_unexecuted',
+    ).map(({ id, source, eligibility }) => ({ id, source, horizon: eligibility.horizon }))
+
+    expect(unexecuted).toEqual([
+      {
+        id: 'metric.deidentified_destination_click_facts',
+        source: 'metric_readings',
+        horizon: { kind: 'accepted_unexecuted', months: 24 },
+      },
+      {
+        id: 'ai.local_derivatives',
+        source: 'ai_review_analyses',
+        horizon: { kind: 'accepted_unexecuted', months: 24 },
+      },
+    ])
+  })
+
+  it('gives a correction no horizon apart from the reading it corrects', () => {
+    const corrections = ruleById('metric.deidentified_correction_withdrawal_facts')
+
+    expect(corrections.source).toBe('metric_corrections')
+    expect(corrections.coveredFacts).toEqual(['correction', 'withdrawal'])
+    expect(corrections.eligibility.horizon).toEqual({ kind: 'counsel_undecided' })
+    expect(corrections.eligibility.query).toContain(
+      'deleted with the reading it corrects or not at all',
+    )
+  })
+})
+
+describe('retention registry — compatibility mirrors', () => {
+  const rulesOver = (source: string) =>
+    RETENTION_REGISTRY.filter((rule) => rule.source === source).map(
+      ({ id, operation }) => ({ id, operation: operation ?? 'delete' }),
+    )
+
+  it('names the mirrors the beta no longer writes only in row-preserving redactions', () => {
+    for (const source of ['ratings', 'feedback']) {
+      expect(rulesOver(source), source).toEqual([
+        { id: `guest.legacy_${source}.abuse_pseudonym`, operation: 'redact' },
+        { id: `guest.legacy_${source}.session_pseudonym`, operation: 'redact' },
+      ])
+    }
+  })
+
+  it('deletes from scan_events only the visit record, at the horizon of a visit fact', () => {
+    expect(rulesOver('scan_events')).toEqual([
+      { id: 'guest.legacy_scan_events.abuse_pseudonym', operation: 'redact' },
+      { id: 'guest.legacy_scan_events.session_pseudonym', operation: 'redact' },
+      { id: 'guest.deidentified_visit_record_facts', operation: 'delete' },
+    ])
   })
 })
 

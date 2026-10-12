@@ -11,6 +11,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
+import { retentionRuleCutoff } from '#/shared/db/retention/retention-cutoff'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { RETENTION_RULES } from './retention-sweep.job'
 
@@ -77,7 +78,7 @@ async function sweepNotifications(): Promise<void> {
         ...rule,
         extraWhere: `(${rule.extraWhere ?? 'TRUE'}) AND organization_id = '${ORG}'`,
       },
-      { cutoff: new Date(NOW.getTime() - rule.olderThanMs) },
+      { cutoff: retentionRuleCutoff(rule, NOW) },
     )
   }
 }
