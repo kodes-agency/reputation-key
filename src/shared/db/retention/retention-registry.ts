@@ -5,7 +5,9 @@
  * source table or object class, an eligibility query, an evidence subject and a
  * restore implication per rule. It is DECLARATIVE. It does not execute; the
  * separately authorized `RETENTION_RULES` sweep does that, and this registry is
- * the governance layer above it.
+ * the governance layer above it. The shape of a rule is
+ * `retention-registry-model.ts`; the de-identified Guest fact rules are
+ * `retention-registry-guest-facts.ts`.
  *
  * Three properties are load-bearing and are asserted by the companion test:
  *
@@ -31,28 +33,14 @@
  * guessing a number that would then read as an approved policy.
  */
 
-export const RETENTION_DATA_CLASSES = Object.freeze([
-  'google_source_content',
-  'guest_session_pseudonym',
-  'guest_abuse_pseudonym',
-  'guest_network_pseudonym',
-  'guest_optional_contact',
-  'guest_private_feedback_text',
-  'guest_deidentified_facts',
-  'guest_lifetime_aggregates',
-  'notifications',
-  'recent_activity',
-  'operational_action_history',
-  'logs_sentry_replay_screenshots',
-  'beta_feedback_masked_layout',
-  'ai_derivatives',
-  'uploads',
-  'provider_tokens',
-  'exports',
-  'backups',
-] as const)
-
-export type RetentionDataClass = (typeof RETENTION_DATA_CLASSES)[number]
+import { GUEST_DEIDENTIFIED_FACT_RULES } from './retention-registry-guest-facts'
+import {
+  defineRetentionRegistryRule as rule,
+  RESTORE_REPLAYS_DELETION,
+  RETENTION_DATA_CLASSES,
+  type RetentionDataClass,
+  type RetentionRegistryRule,
+} from './retention-registry-model'
 
 /**
  * Classes whose rows carry Guest, provider or manager content. Only these are
@@ -88,87 +76,6 @@ export const DEADLINE_NEUTRAL_COLUMNS: ReadonlyArray<string> = Object.freeze([
   'archived_at',
   'updated_at',
 ])
-
-export type RetentionApprovalState = 'pending_counsel' | 'approved'
-
-export type RetentionSourceKind = 'table' | 'object_store' | 'external_processor'
-
-export type RetentionHorizon =
-  | Readonly<{ kind: 'days'; days: number }>
-  | Readonly<{ kind: 'months'; months: number }>
-  /** An absolute deadline stamped on the row at submission. */
-  | Readonly<{ kind: 'row_deadline' }>
-  /** Deliberately kept while its owning aggregate lives; no age-based expiry. */
-  | Readonly<{ kind: 'retained_no_age_expiry' }>
-  /** The program states no horizon; counsel must decide before any apply. */
-  | Readonly<{ kind: 'counsel_undecided' }>
-
-export type RetentionEligibility = Readonly<{
-  /**
-   * The column the cutoff is measured from, or null for an object store or an
-   * external processor where the boundary is not a PostgreSQL column.
-   */
-  anchorColumn: string | null
-  horizon: RetentionHorizon
-  /** Registry-static predicate; never runtime input. */
-  predicate: string | null
-  /** The eligibility query in the form counsel and operators can review. */
-  query: string
-  /**
-   * What the shipped code enforces TODAY, which may be stricter than the
-   * counsel-facing horizon above. Counsel approves the horizon; operators are
-   * held to the boundary. Conflating them is how a policy document ends up
-   * describing behaviour the code does not have.
-   */
-  implementedBoundary: string
-}>
-
-export type RetentionRegistryRule = Readonly<{
-  id: string
-  dataClass: RetentionDataClass
-  /** Owning bounded context or platform area. */
-  ownerContext: string
-  /** The accountable human role, not a person. */
-  ownerRole: string
-  sourceKind: RetentionSourceKind
-  /** Physical table name, object class, or named external system. */
-  source: string
-  /** Declarative operation. Omitted entries are destructive row deletion. */
-  operation?: 'delete' | 'redact'
-  /** Columns cleared by a row-preserving redaction. */
-  redactColumns?: ReadonlyArray<string>
-  eligibility: RetentionEligibility
-  /** `retention_runs.subject`, or a named external evidence record. */
-  evidenceSubject: string
-  restoreImplication: string
-  approvalState: RetentionApprovalState
-  approvalArtifact: string | null
-  /** Only meaningful for the de-identified fact class. */
-  coveredFacts?: ReadonlyArray<string>
-}>
-
-type RetentionRegistryRuleInput = Omit<
-  RetentionRegistryRule,
-  'approvalState' | 'approvalArtifact'
-> &
-  Readonly<{ approvalArtifact?: string | null }>
-
-/**
- * `approvalState` is computed, never written. A rule reaches 'approved' only by
- * carrying a named counsel approval artifact, so the state cannot drift away
- * from the evidence that is supposed to justify it.
- */
-function rule(input: RetentionRegistryRuleInput): RetentionRegistryRule {
-  const approvalArtifact = input.approvalArtifact ?? null
-  return Object.freeze({
-    ...input,
-    approvalArtifact,
-    approvalState: approvalArtifact ? 'approved' : 'pending_counsel',
-  })
-}
-
-const RESTORE_REPLAYS_DELETION =
-  'A restore from a backup taken before the cutoff reinstates rows this rule already removed; the post-restore retention sweep must be re-run and its evidence linked to the restore before the cell is reopened.'
 
 const RESTORE_REPLAYS_REDACTION =
   'A restore reinstates the un-redacted column values; the redaction must be re-applied before the cell is reopened and the restore evidence must name the re-applied subject.'
@@ -403,87 +310,7 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     evidenceSubject: 'guest_response_private_feedback.expired',
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
-  rule({
-    id: 'guest.deidentified_facts',
-    dataClass: 'guest_deidentified_facts',
-    ownerContext: 'guest',
-    ownerRole: 'Guest context owner with the Metric context owner',
-    sourceKind: 'table',
-    source: 'guest_responses',
-    eligibility: {
-      anchorColumn: 'retention_deadline',
-      horizon: { kind: 'months', months: 24 },
-      predicate: null,
-      query:
-        'SELECT id FROM guest_responses WHERE retention_deadline < now(). retention_deadline is 24 calendar months from the INITIAL submission and is never recomputed — not on moderation (moderated_at), not on correction, not on archive.',
-      implementedBoundary:
-        'Live: the scheduled subject guest_responses.deidentified_fact deletes on retention_deadline. Corrections and withdrawals must reach portal_metric_lifetime_aggregates before this purge runs.',
-    },
-    evidenceSubject: 'guest_responses.deidentified_fact',
-    restoreImplication:
-      'A restore reinstates purged facts AND desynchronises the lifetime aggregate, because corrections and withdrawals applied before the purge are replayed against rows that already carry them. The aggregate must be reconciled against the restored facts before the cell is reopened.',
-    coveredFacts: ['rating'],
-  }),
-  rule({
-    id: 'guest.deidentified_qualified_scan_facts',
-    dataClass: 'guest_deidentified_facts',
-    ownerContext: 'guest',
-    ownerRole: 'Guest context owner with the Metric context owner',
-    sourceKind: 'table',
-    source: 'guest_qualified_scans',
-    eligibility: {
-      anchorColumn: 'occurred_at',
-      horizon: { kind: 'counsel_undecided' },
-      predicate: null,
-      query:
-        'Inventory guest_qualified_scans by occurred_at. No deletion cutoff is armed until counsel decides the separately stored Qualified Scan horizon.',
-      implementedBoundary:
-        'No executing retention rule exists for this identifier-only fact table.',
-    },
-    evidenceSubject: 'guest_qualified_scans.retention_undecided',
-    restoreImplication: RESTORE_REPLAYS_DELETION,
-    coveredFacts: ['qualified_scan'],
-  }),
-  rule({
-    id: 'metric.deidentified_destination_click_facts',
-    dataClass: 'guest_deidentified_facts',
-    ownerContext: 'metric',
-    ownerRole: 'Metric context owner with the Guest context owner',
-    sourceKind: 'table',
-    source: 'metric_readings',
-    eligibility: {
-      anchorColumn: 'event_at',
-      horizon: { kind: 'counsel_undecided' },
-      predicate: "metric_key = 'portal.review_link_click'",
-      query:
-        "Inventory metric_readings WHERE metric_key = 'portal.review_link_click' by event_at. No deletion cutoff is armed until counsel decides the separately stored click-fact horizon.",
-      implementedBoundary:
-        'No executing retention rule exists for retained destination-click readings.',
-    },
-    evidenceSubject: 'metric_readings.destination_click_retention_undecided',
-    restoreImplication: RESTORE_REPLAYS_DELETION,
-    coveredFacts: ['destination_click'],
-  }),
-  rule({
-    id: 'metric.deidentified_correction_withdrawal_facts',
-    dataClass: 'guest_deidentified_facts',
-    ownerContext: 'metric',
-    ownerRole: 'Metric context owner with the Guest context owner',
-    sourceKind: 'table',
-    source: 'metric_corrections',
-    eligibility: {
-      anchorColumn: 'event_at',
-      horizon: { kind: 'counsel_undecided' },
-      predicate: "kind IN ('retract', 'replace', 'adjust')",
-      query:
-        'Inventory metric_corrections by event_at. No deletion cutoff is armed until counsel decides the correction and withdrawal fact horizon.',
-      implementedBoundary:
-        'No executing retention rule exists for retained correction and withdrawal facts.',
-    },
-    evidenceSubject: 'metric_corrections.retention_undecided',
-    restoreImplication: RESTORE_REPLAYS_DELETION,
-    coveredFacts: ['correction', 'withdrawal'],
-  }),
+  ...GUEST_DEIDENTIFIED_FACT_RULES,
   rule({
     id: 'metric.lifetime_aggregates',
     dataClass: 'guest_lifetime_aggregates',

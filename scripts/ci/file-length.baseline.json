@@ -16,7 +16,6 @@
   "src/shared/ai-internal-transport-contract.ts": 1063,
   "src/shared/ai-provider-control/openai-connector.ts": 1178,
   "src/shared/ai-structured-marker-detectors.ts": 815,
-  "src/shared/db/retention/retention-registry.ts": 875,
   "src/shared/db/schema-drift.ts": 985,
   "src/shared/db/schema/ai.schema.ts": 1290,
   "src/shared/db/schema/inbox.schema.ts": 869,

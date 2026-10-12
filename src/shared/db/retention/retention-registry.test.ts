@@ -10,13 +10,15 @@ import {
   assertRetentionRegistryApplyAllowed,
   DEADLINE_NEUTRAL_COLUMNS,
   LEGACY_MIRROR_PSEUDONYM_REDACTIONS,
-  RETENTION_DATA_CLASSES,
   RETENTION_REGISTRY,
   retentionRegistryClassCoverage,
   retentionRegistryDeadlineExtensionViolations,
   retentionRegistryReportOnlyPlan,
-  type RetentionRegistryRule,
 } from './retention-registry'
+import {
+  RETENTION_DATA_CLASSES,
+  type RetentionRegistryRule,
+} from './retention-registry-model'
 
 const ruleById = (id: string): RetentionRegistryRule => {
   const rule = RETENTION_REGISTRY.find((entry) => entry.id === id)

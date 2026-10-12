@@ -13,11 +13,8 @@
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import {
-  retentionRegistryApprovalBlockers,
-  type RetentionHorizon,
-  type RetentionRegistryRule,
-} from './retention-registry'
+import { retentionRegistryApprovalBlockers } from './retention-registry'
+import type { RetentionHorizon, RetentionRegistryRule } from './retention-registry-model'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 

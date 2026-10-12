@@ -15,10 +15,8 @@ import {
   type RetentionRule,
 } from '#/shared/db/retention/execute-retention-rule'
 import { closeRetentionRun, openRetentionRun } from '#/shared/db/retention/evidence'
-import {
-  assertRetentionRegistryApplyAllowed,
-  type RetentionRegistryRule,
-} from '#/shared/db/retention/retention-registry'
+import { assertRetentionRegistryApplyAllowed } from '#/shared/db/retention/retention-registry'
+import type { RetentionRegistryRule } from '#/shared/db/retention/retention-registry-model'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
