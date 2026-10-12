@@ -60,3 +60,37 @@ about members, invitations or the Organization, and keeps it because Inbox
 assignment and Responsible managers read the member list. The Members page reads only what the
 viewer's role may read, so a PropertyManager's page issues no invitation or
 grant read.
+
+## Amended 2026-10-12 — the provider's HTTP routes are an allow list
+
+Better Auth serves every endpoint of its core and of its organization plugin
+from one handler, and those endpoints decide with the library's own checks:
+membership for the organization reads, the role table for its writes, and a
+session alone for creating an Organization. None of them asks `ExecutionPolicy`,
+so each one reachable over HTTP is a second authorization path. Refusing a list
+of paths did not hold. A PropertyManager could read every invitation of the
+Organization, ids included, and an invitation id is all that invited
+registration asks for besides the invited address. Any signed-in account could
+create an Organization and own it. An AccountAdmin could update the Organization
+with the kill switch pulled or the Organization suspended.
+
+`/api/auth/*` therefore serves an allow list
+(`src/routes/api/auth/-provider-routes.ts`). A request reaches the provider only
+when its method and exact path name a route the product needs over HTTP: reading
+one's own session, sign-in, sign-out, the password-reset steps and the mailed
+verification link. Every other request is refused with 404 before the provider
+sees it. A route is added only when it returns and changes nothing more than the
+caller already can through app-owned server functions, with that reason written
+beside it. The app keeps calling the provider in process, behind
+`requireExecutionAllowed`.
+
+The provider also refuses a session-bound Organization creation
+(`allowUserToCreateOrganization: false`), so a second mount of its handler would
+not reopen self-service. `createOrganizationFn`, dormant behind
+`organization.create`, creates as a provider system action.
+
+`src/routes/api/auth/-provider-routes.test.ts` enumerates the configured
+provider's endpoints and fails when one is neither allowed nor refused on
+purpose, so an upgrade or a new plugin cannot add a reachable route unnoticed.
+`src/routes/api/auth/-$.integration.test.ts` proves the refusals against the
+real provider and database.
