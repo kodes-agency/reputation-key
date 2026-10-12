@@ -319,9 +319,10 @@ describe('the committed constructs file', () => {
       ]),
     )
     const settled = SUPERSEDED_CONSTRUCT_DEFINITIONS.filter((entry) => {
-      const inMigration = readMigrationDefinitions(entry.migration).find(
-        (definition) => keyOf(definition) === keyOf(entry),
-      )
+      // The last statement in the migration, as the comparator takes it.
+      const inMigration = readMigrationDefinitions(entry.migration)
+        .filter((definition) => keyOf(definition) === keyOf(entry))
+        .at(-1)
       return (
         inMigration === undefined ||
         inMigration.definition === stated.get(keyOf(entry))?.definition

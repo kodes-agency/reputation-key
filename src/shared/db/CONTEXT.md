@@ -113,9 +113,12 @@ by 0006 and 0016 without being restated, so `db-constructs.sql` still carries a
 comparator expect 0016's statement instead. Do not edit or restate the file's
 text of that function: a `CREATE OR REPLACE` of the 26-argument signature adds a
 second overload beside the live 27-argument one. Bringing the file up to date
-needs 0016 changed from `CREATE FUNCTION` to `CREATE OR REPLACE FUNCTION`
-(otherwise an empty database fails at 0016 once 0001 creates the same
-signature), which is an open owner decision.
+is an open owner decision between two changes to the rule in `docs/BETA.md` §6.
+Either the file and 0001 take the live text and 0016 changes from
+`CREATE FUNCTION` to `CREATE OR REPLACE FUNCTION` (otherwise an empty database
+fails at 0016 once 0001 creates the same signature), which makes 0016 a second
+edited migration. Or the file alone takes the live text and no migration is
+edited, which leaves 0001 a byte copy in all but that one statement.
 
 Never run `pnpm db:push` against a shared database; it bypasses the journal.
 

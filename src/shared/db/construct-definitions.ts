@@ -148,15 +148,17 @@ export type SupersededConstructDefinition = Readonly<{
  * `apply_merchant_ai_transition_v1`: migration 0006 changed the body and 0016
  * replaced the 26-argument signature with a 27-argument one (`p_ceremony_id`);
  * neither was restated in the file, which still carries the pre-0006 text. The
- * file cannot simply be brought up to 0016: 0016 creates the function with a
- * plain `CREATE FUNCTION`, so an empty database that already got the
- * 27-argument function from 0001 fails there ("already exists with same
- * argument types"). Reconciling needs 0016 itself changed to
- * `CREATE OR REPLACE FUNCTION` — an edit to a second applied migration, which
- * docs/BETA.md §6 does not allow for and which is the owner's decision. Until
- * then the drift check expects 0016's statement, so the function cannot drift
- * further unseen, and DO NOT restate it from the file's text: that adds a
- * second overload and makes every 26-argument call ambiguous.
+ * file and its byte copy 0001 cannot simply be brought up to 0016: 0016 creates
+ * the function with a plain `CREATE FUNCTION`, so an empty database that
+ * already got the 27-argument function from 0001 fails there ("already exists
+ * with same argument types"). Reconciling therefore changes the rule in
+ * docs/BETA.md §6 one way or the other, which is the owner's decision: either
+ * 0016 also becomes `CREATE OR REPLACE FUNCTION` (a second edited migration and
+ * a second expected journal line), or the file alone takes the live text and
+ * 0001 stops being its byte copy for this one statement. Until then the drift
+ * check expects 0016's statement, so the function cannot drift further unseen,
+ * and DO NOT restate it from the file's text: that adds a second overload and
+ * makes every 26-argument call ambiguous.
  * construct-definitions.test.ts fails as soon as an entry here is no longer
  * superseded, or a later migration redefines the function.
  */
