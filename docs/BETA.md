@@ -78,6 +78,7 @@ Written commitments to Google (2026-07-14 response) and to users. Not changeable
 - **Privacy exfiltration** — one synthetic marker crosses logs, traces, Sentry, metrics, outbox and beta feedback and must be scrubbed at every one. `privacy-exfiltration-canary.test.ts`.
 - **Provider egress targets** — Google endpoint URLs exist only in the composition `providerConfigFor` mapping; no adapter URL, no fallback, one construction site each. `provider-target-selection.test.ts`.
 - **One provider SDK boundary** — the live Google Performance path has no repository, queue, cache or Metric dependency, so a Performance value can never become durable. `google-performance-live-boundary.test.ts`.
+- **Tenant-cross schedules decide each tenant** — a tenant-cross schedule firing is admitted before the capability check, so a schedule that holds a capability asks current policy about each Organization and Property before acting for them. `tenant-cross-schedule-authorization.test.ts`, with `review-analysis-backlog-jobs-policy.test.ts` for the Review Analysis drain. Catches a schedule that keeps working for a suspended Organization or a switched-off capability. One recorded gap: the Response Target reminder release still asks nothing (in-app reminders only; its emails are decided per Organization).
 
 ## 6. Release checklist
 
