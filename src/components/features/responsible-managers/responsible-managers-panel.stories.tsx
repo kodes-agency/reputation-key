@@ -248,6 +248,9 @@ type ManagersSave = Readonly<{
 
 const MANAGERS_KEY = ['story', 'responsible-managers'] as const
 const CHANGED_SINCE = 'responsible managers changed; reload them'
+/** The story's two stand-ins for another admin: one whose save the page re-reads, one it does not hear of. */
+const ANOTHER_ADMIN_SAVES = 'Another admin saves Avery and Riley'
+const ANOTHER_ADMIN_SAVES_UNTOLD = 'Another admin saves, and this page is not told'
 
 function makeManagersServer() {
   const held = { managerUserIds: ['user-1'], revision: 5 }
@@ -326,16 +329,76 @@ function RefreshedUnderAnEdit() {
           void queryClient.invalidateQueries({ queryKey: MANAGERS_KEY })
         }}
       >
-        Another admin saves Avery and Riley
+        {ANOTHER_ADMIN_SAVES}
       </button>
       <button
         type="button"
         onClick={() => managersServer.saveFromElsewhere(['user-1', 'user-3'])}
       >
-        Another admin saves, and this page is not told
+        {ANOTHER_ADMIN_SAVES_UNTOLD}
       </button>
     </>
   )
+}
+
+// ── The steps the three stories below share ──────────────────────
+
+/** The three stories below: one host, and a server started afresh for each. */
+const refreshedUnderAnEdit = {
+  render: () => <RefreshedUnderAnEdit />,
+  beforeEach: () => {
+    managersServer = makeManagersServer()
+  },
+} satisfies Story
+
+type Canvas = ReturnType<typeof within>
+
+const AVERY = /Avery Morgan/i
+const JORDAN = /Jordan Blake/i
+const RILEY = /Riley Chen/i
+const SAVE = /save responsible managers/i
+
+const checkbox = (canvas: Canvas, name: RegExp) => canvas.getByRole('checkbox', { name })
+const button = (canvas: Canvas, name: string | RegExp) =>
+  canvas.getByRole('button', { name })
+const press = (canvas: Canvas, name: string | RegExp) =>
+  userEvent.click(button(canvas, name))
+
+/** The admin ticks Jordan, and then another admin saves Avery and Riley. */
+async function tickJordanThenAnotherAdminSaves(
+  canvasElement: HTMLElement,
+  anotherAdminSaves: string,
+): Promise<Canvas> {
+  const canvas = within(canvasElement)
+  await userEvent.click(await canvas.findByRole('checkbox', { name: JORDAN }))
+  await press(canvas, anotherAdminSaves)
+  return canvas
+}
+
+/** The edit as the admin left it: Jordan ticked, Riley not. */
+async function expectTheEditKept(canvas: Canvas): Promise<void> {
+  await expect(checkbox(canvas, JORDAN)).toBeChecked()
+  await expect(checkbox(canvas, RILEY)).not.toBeChecked()
+}
+
+/** The save was refused and said so, and Riley is still a responsible manager. */
+async function expectRefusedAndRileyKept(canvas: Canvas): Promise<void> {
+  await expect(await canvas.findByText(CHANGED_SINCE)).toBeVisible()
+  await expect(managersServer.held).toEqual({
+    managerUserIds: ['user-1', 'user-3'],
+    revision: 6,
+  })
+}
+
+/** Jordan is ticked on top of the other admin's change, and that save lands. */
+async function tickJordanOnTopAndSave(canvas: Canvas): Promise<void> {
+  await userEvent.click(checkbox(canvas, JORDAN))
+  await press(canvas, SAVE)
+  await canvas.findByText('Read at revision 7')
+  await expect(managersServer.held).toEqual({
+    managerUserIds: ['user-1', 'user-2', 'user-3'],
+    revision: 7,
+  })
 }
 
 /**
@@ -347,67 +410,38 @@ function RefreshedUnderAnEdit() {
  * the server accepted, and Riley was removed with nothing said.
  */
 export const AnEditKeptAcrossARefreshIsRefused: Story = {
-  render: () => <RefreshedUnderAnEdit />,
-  beforeEach: () => {
-    managersServer = makeManagersServer()
-  },
+  ...refreshedUnderAnEdit,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('checkbox', { name: /Jordan Blake/i }))
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Another admin saves Avery and Riley' }),
+    const canvas = await tickJordanThenAnotherAdminSaves(
+      canvasElement,
+      ANOTHER_ADMIN_SAVES,
     )
     await canvas.findByText('Read at revision 6')
     // The edit survived the re-read: Jordan ticked, Riley as the admin left her.
-    await expect(canvas.getByRole('checkbox', { name: /Jordan Blake/i })).toBeChecked()
-    await expect(canvas.getByRole('checkbox', { name: /Riley Chen/i })).not.toBeChecked()
+    await expectTheEditKept(canvas)
 
-    await userEvent.click(
-      canvas.getByRole('button', { name: /save responsible managers/i }),
-    )
+    await press(canvas, SAVE)
 
     await waitFor(() =>
       expect(managersServer.received).toEqual([
         { managerUserIds: ['user-1', 'user-2'], expectedRevision: 5 },
       ]),
     )
-    await expect(await canvas.findByText(CHANGED_SINCE)).toBeVisible()
-    // Riley is still a responsible manager.
-    await expect(managersServer.held).toEqual({
-      managerUserIds: ['user-1', 'user-3'],
-      revision: 6,
-    })
+    await expectRefusedAndRileyKept(canvas)
 
     // Reset shows the other admin's change, and the next edit is made on top of it.
-    await userEvent.click(canvas.getByRole('button', { name: 'Reset' }))
-    await expect(canvas.getByRole('checkbox', { name: /Riley Chen/i })).toBeChecked()
-    await userEvent.click(canvas.getByRole('checkbox', { name: /Jordan Blake/i }))
-    await userEvent.click(
-      canvas.getByRole('button', { name: /save responsible managers/i }),
-    )
-
-    await canvas.findByText('Read at revision 7')
-    await expect(managersServer.held).toEqual({
-      managerUserIds: ['user-1', 'user-2', 'user-3'],
-      revision: 7,
-    })
-    await expect(
-      canvas.getByRole('button', { name: /save responsible managers/i }),
-    ).toBeDisabled()
+    await press(canvas, 'Reset')
+    await expect(checkbox(canvas, RILEY)).toBeChecked()
+    await tickJordanOnTopAndSave(canvas)
+    await expect(button(canvas, SAVE)).toBeDisabled()
 
     // The saved edit is spent. When someone else changes the managers later,
     // the panel shows their change; it does not bring the old edit back as an
     // unsaved one.
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Another admin saves Avery and Riley' }),
-    )
+    await press(canvas, ANOTHER_ADMIN_SAVES)
     await canvas.findByText('Read at revision 8')
-    await expect(
-      canvas.getByRole('checkbox', { name: /Jordan Blake/i }),
-    ).not.toBeChecked()
-    await expect(
-      canvas.getByRole('button', { name: /save responsible managers/i }),
-    ).toBeDisabled()
+    await expect(checkbox(canvas, JORDAN)).not.toBeChecked()
+    await expect(button(canvas, SAVE)).toBeDisabled()
   },
 }
 
@@ -419,33 +453,23 @@ export const AnEditKeptAcrossARefreshIsRefused: Story = {
  * would send it with the newer revision, and Riley would be removed.
  */
 export const AChangeMadeAfterTheRefreshIsStillRefused: Story = {
-  render: () => <RefreshedUnderAnEdit />,
-  beforeEach: () => {
-    managersServer = makeManagersServer()
-  },
+  ...refreshedUnderAnEdit,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('checkbox', { name: /Jordan Blake/i }))
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Another admin saves Avery and Riley' }),
+    const canvas = await tickJordanThenAnotherAdminSaves(
+      canvasElement,
+      ANOTHER_ADMIN_SAVES,
     )
     await canvas.findByText('Read at revision 6')
 
-    await userEvent.click(canvas.getByRole('checkbox', { name: /Avery Morgan/i }))
-    await userEvent.click(
-      canvas.getByRole('button', { name: /save responsible managers/i }),
-    )
+    await userEvent.click(checkbox(canvas, AVERY))
+    await press(canvas, SAVE)
 
     await waitFor(() =>
       expect(managersServer.received).toEqual([
         { managerUserIds: ['user-2'], expectedRevision: 5 },
       ]),
     )
-    await expect(await canvas.findByText(CHANGED_SINCE)).toBeVisible()
-    await expect(managersServer.held).toEqual({
-      managerUserIds: ['user-1', 'user-3'],
-      revision: 6,
-    })
+    await expectRefusedAndRileyKept(canvas)
   },
 }
 
@@ -458,45 +482,25 @@ export const AChangeMadeAfterTheRefreshIsStillRefused: Story = {
  * every further save was refused the same way.
  */
 export const ARefusedSaveReReadsTheManagers: Story = {
-  render: () => <RefreshedUnderAnEdit />,
-  beforeEach: () => {
-    managersServer = makeManagersServer()
-  },
+  ...refreshedUnderAnEdit,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('checkbox', { name: /Jordan Blake/i }))
-    await userEvent.click(
-      canvas.getByRole('button', {
-        name: 'Another admin saves, and this page is not told',
-      }),
+    const canvas = await tickJordanThenAnotherAdminSaves(
+      canvasElement,
+      ANOTHER_ADMIN_SAVES_UNTOLD,
     )
     await expect(canvas.getByText('Read at revision 5')).toBeVisible()
 
-    await userEvent.click(
-      canvas.getByRole('button', { name: /save responsible managers/i }),
-    )
+    await press(canvas, SAVE)
 
     await expect(await canvas.findByText(CHANGED_SINCE)).toBeVisible()
     await canvas.findByText('Read at revision 6')
     // The refused edit is kept as the admin left it, for them to judge.
-    await expect(canvas.getByRole('checkbox', { name: /Jordan Blake/i })).toBeChecked()
-    await expect(canvas.getByRole('checkbox', { name: /Riley Chen/i })).not.toBeChecked()
+    await expectTheEditKept(canvas)
 
-    await userEvent.click(canvas.getByRole('button', { name: 'Reset' }))
-    await expect(canvas.getByRole('checkbox', { name: /Riley Chen/i })).toBeChecked()
-    await expect(
-      canvas.getByRole('checkbox', { name: /Jordan Blake/i }),
-    ).not.toBeChecked()
+    await press(canvas, 'Reset')
+    await expect(checkbox(canvas, RILEY)).toBeChecked()
+    await expect(checkbox(canvas, JORDAN)).not.toBeChecked()
 
-    await userEvent.click(canvas.getByRole('checkbox', { name: /Jordan Blake/i }))
-    await userEvent.click(
-      canvas.getByRole('button', { name: /save responsible managers/i }),
-    )
-
-    await canvas.findByText('Read at revision 7')
-    await expect(managersServer.held).toEqual({
-      managerUserIds: ['user-1', 'user-2', 'user-3'],
-      revision: 7,
-    })
+    await tickJordanOnTopAndSave(canvas)
   },
 }
