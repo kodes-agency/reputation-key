@@ -75,13 +75,18 @@ describe('readBaseJournal', () => {
     })
   })
 
-  it('reports a base journal that is not JSON instead of comparing nothing', () => {
+  it('reports a base journal it cannot parse instead of comparing nothing', () => {
     expect(readBaseJournal(gitWith(['origin/main'], '<<<<<<< HEAD'), {})).toMatchObject({
       kind: 'unreadable',
       ref: 'origin/main',
       reason: expect.stringContaining(
-        `drizzle/meta/_journal.json at ${MERGE_BASE} is not JSON`,
+        `drizzle/meta/_journal.json at ${MERGE_BASE} cannot be parsed`,
       ),
+    })
+    expect(readBaseJournal(gitWith(['origin/main'], '{}'), {})).toEqual({
+      kind: 'unreadable',
+      ref: 'origin/main',
+      reason: `drizzle/meta/_journal.json at ${MERGE_BASE} cannot be parsed: the journal has no "entries" list`,
     })
   })
 })

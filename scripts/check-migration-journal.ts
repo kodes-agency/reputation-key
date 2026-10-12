@@ -79,7 +79,7 @@ function journalAt(git: Git, ref: string, mergeBase: string): BaseJournal {
     return {
       kind: 'unreadable',
       ref,
-      reason: `${JOURNAL_PATH} at ${mergeBase} is not JSON: ${reason}`,
+      reason: `${JOURNAL_PATH} at ${mergeBase} cannot be parsed: ${reason}`,
     }
   }
 }

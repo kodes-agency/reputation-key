@@ -37,9 +37,11 @@ export const JOURNAL_WHEN_STEP_MS = 100_000_000
 const MIGRATIONS_DIR = fileURLToPath(new URL('../../../drizzle', import.meta.url))
 const SQL_SUFFIX = '.sql'
 
-/** The entries of a `_journal.json`, from its text. */
+/** The entries of a `_journal.json`, from its text. Throws when it has none. */
 export function parseMigrationJournal(raw: string): readonly MigrationJournalEntry[] {
-  return (JSON.parse(raw) as { entries: MigrationJournalEntry[] }).entries
+  const { entries } = JSON.parse(raw) as { entries?: MigrationJournalEntry[] }
+  if (!Array.isArray(entries)) throw new Error('the journal has no "entries" list')
+  return entries
 }
 
 export function readMigrationJournal(): readonly MigrationJournalEntry[] {
