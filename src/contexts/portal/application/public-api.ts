@@ -423,4 +423,12 @@ export type PortalGroupPublicApi = Readonly<{
     propertyId: PropertyId,
     groupId: PortalGroupId,
   ) => Promise<boolean>
+  /**
+   * A group's minimal facts by id; null when the organization has no such
+   * group or it is archived. The caller compares the Property.
+   */
+  getGroupInfo: (
+    orgId: OrganizationId,
+    groupId: PortalGroupId,
+  ) => Promise<PortalGroupSummary | null>
 }>

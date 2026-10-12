@@ -47,6 +47,13 @@ function averagePath(columns: readonly ChartColumn[]): string {
   return path.trim()
 }
 
+/** A week with ratings, too few for an average: a hollow dashed ring where a dot would be. */
+function BelowFloorMarker() {
+  return (
+    <span className="block size-2.5 rounded-full border-2 border-dashed border-muted-foreground bg-background" />
+  )
+}
+
 function AverageLine({ model }: Readonly<{ model: ChartModel }>) {
   const count = model.columns.length
   const path = averagePath(model.columns)
@@ -90,11 +97,9 @@ function AverageLine({ model }: Readonly<{ model: ChartModel }>) {
           }}
         >
           {column.averageFromTop === null ? (
-            column.averageNote === null ? null : (
-              <span className="block w-16 -translate-y-1 text-center text-xs leading-tight text-muted-foreground">
-                {column.averageNote}
-              </span>
-            )
+            column.isBelowFloor ? (
+              <BelowFloorMarker />
+            ) : null
           ) : (
             <span className="block size-2.5 rounded-full border-2 border-foreground bg-background" />
           )}
@@ -186,6 +191,15 @@ export function PortalResultsSeriesChart({
           />
           Average private rating
         </li>
+        {model.hasBelowFloor ? (
+          <li className="flex items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className="size-2.5 rounded-full border-2 border-dashed border-muted-foreground"
+            />
+            Too few ratings for an average
+          </li>
+        ) : null}
         {model.markers.length === 0 ? null : (
           <li className="flex items-center gap-1.5">
             <span aria-hidden="true" className="h-3 border-l border-primary" />
@@ -209,14 +223,23 @@ export function PortalResultsSeriesChart({
         <ScanBars model={model} />
         <div
           aria-hidden="true"
-          className="ml-10 grid text-center text-xs text-muted-foreground"
+          className="ml-10 grid text-xs text-muted-foreground"
           style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}
         >
-          {model.columns.map((column) => (
-            <span key={column.index} className="px-0.5 leading-tight">
-              {column.label}
-            </span>
-          ))}
+          {model.columns.map((column) =>
+            column.labelSpan === null ? null : (
+              <span
+                key={column.index}
+                className={cn(
+                  'px-0.5 leading-tight',
+                  column.labelSpan === 1 ? 'text-center' : 'text-left',
+                )}
+                style={{ gridColumn: `${column.index + 1} / span ${column.labelSpan}` }}
+              >
+                {column.label}
+              </span>
+            ),
+          )}
         </div>
         <div
           aria-hidden="true"

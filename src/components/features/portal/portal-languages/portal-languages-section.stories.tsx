@@ -9,7 +9,10 @@ import type { PortalLanguageCoverage } from '#/contexts/portal/application/publi
 import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
 import type { UpdatePortalVariables } from '../shared/types'
 import { PortalLanguagesSection } from './portal-languages-section'
-import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+import {
+  AuthedRouterDecorator,
+  withRole,
+} from '../../../../../.storybook/AuthedRouterDecorator'
 
 const meta: Meta<typeof PortalLanguagesSection> = {
   title: 'Portal/PortalLanguagesSection',
@@ -108,22 +111,51 @@ export const WithGaps: Story = {
   },
 }
 
+/** Opens the missing texts under Bulgarian and returns their list. */
+async function openMissingInBulgarian(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  await userEvent.click(
+    canvas.getByRole('button', { name: 'Show missing texts in Bulgarian' }),
+  )
+  return canvas.getByRole('list', { name: 'Missing in Bulgarian' })
+}
+
 export const ShowMissingNamesEachGap: Story = {
   args: { ...WithGaps.args, update: update() },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Show missing texts in Bulgarian' }),
-    )
-    const list = canvas.getByRole('list', { name: 'Missing in Bulgarian' })
+    const list = await openMissingInBulgarian(canvasElement)
     await expect(within(list).getByText('Link preview')).toBeVisible()
-    await expect(within(list).getByText('Needs the Property’s wording')).toBeVisible()
     await expect(within(list).getByText('Label for “Spa”')).toBeVisible()
     await expect(
       within(list).getByRole('link', { name: 'Write it in Linktree' }),
     ).toBeVisible()
+    // An account admin writes the property's wording, so the gap links to Welcome.
+    await expect(
+      within(list).getByRole('link', { name: 'Write it in Welcome' }),
+    ).toBeVisible()
     await expect(
       canvas.getByRole('button', { name: 'Hide missing texts in Bulgarian' }),
+    ).toBeVisible()
+  },
+}
+
+// A manager cannot write the property's wording: the gap says who can, instead of
+// ending in a dead end with no link and no name.
+export const ManagerIsToldWhoWritesThePropertyWording: Story = {
+  args: { ...WithGaps.args, update: update() },
+  decorators: [withRole('PropertyManager')],
+  play: async ({ canvasElement }) => {
+    const list = await openMissingInBulgarian(canvasElement)
+    await expect(
+      within(list).getByText('An account admin writes this in Welcome'),
+    ).toBeVisible()
+    await expect(
+      within(list).queryByRole('link', { name: 'Write it in Welcome' }),
+    ).toBeNull()
+    // The link label is theirs to write.
+    await expect(
+      within(list).getByRole('link', { name: 'Write it in Linktree' }),
     ).toBeVisible()
   },
 }

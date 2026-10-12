@@ -12,6 +12,7 @@ import {
 } from '#/contexts/reporting/application/dto/dashboard.dto'
 import type { PortalResultsTimeRange } from '#/contexts/reporting/application/public-api'
 import { RANGE_PRESET_LABELS } from '#/shared/dashboard-range'
+import { describeTimezone } from '#/shared/timezone-display'
 
 type LocalDays = NonNullable<PortalAnalyticsData['localDays']>
 
@@ -111,9 +112,20 @@ export function dayCount(startLocalDate: string, endLocalDate: string): number {
   )
 }
 
-/** The window's own name: "1–30 Sep, Europe/Sofia time". */
+/**
+ * The zone as people say it: "Sofia time" for `Europe/Sofia`, the guest page's
+ * words, never the machine id. A fixed-offset zone (`Etc/GMT-3`) has no place
+ * name, so it is written as its offset.
+ */
+export function zoneTimeLabel(timezone: string): string {
+  const { city, offset } = describeTimezone(timezone)
+  const isFixedOffset = timezone.startsWith('Etc/GMT') && timezone !== 'Etc/GMT'
+  return `${isFixedOffset && offset ? offset : city} time`
+}
+
+/** The window's own name: "1–30 Sep, Sofia time". */
 export function windowCaption(days: LocalDays, timezone: string): string {
-  return `${formatDayRange(days.start, days.end)}, ${timezone} time`
+  return `${formatDayRange(days.start, days.end)}, ${zoneTimeLabel(timezone)}`
 }
 
 /** What the toggle compares against: "Compare with the 30 days before". */
@@ -142,11 +154,12 @@ export function windowFooter(
   timezone: string,
   comparisonMinSample: number,
 ): string {
-  if (days === null) return `All time, ${timezone} time`
+  const zone = zoneTimeLabel(timezone)
+  if (days === null) return `All time, ${zone}`
   const current = formatDayRange(days.start, days.end)
   if (days.compareStart === null || days.compareEnd === null) {
-    return `${current}, ${timezone} time`
+    return `${current}, ${zone}`
   }
   const prior = formatDayRange(days.compareStart, days.compareEnd)
-  return `${current} against ${prior}, ${timezone} time · Averages compare only when both periods have at least ${comparisonMinSample} private ratings.`
+  return `${current} against ${prior}, ${zone} · Averages compare only when both periods have at least ${comparisonMinSample} private ratings.`
 }

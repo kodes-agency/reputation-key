@@ -15,6 +15,7 @@ import type { Database } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { seedLockedMonthTargetCommitted } from '../testing/goal-month-target-seed'
 import {
   createGoalOrganizationLifecycleAdapter,
   GOAL_PURGE_TABLES,
@@ -137,6 +138,30 @@ async function seedTenantRows(
       PERIOD_START,
       PERIOD_END,
       CLOSED_AT,
+    ],
+  )
+  // The month closed against its own target of 8 (the version says 10). The
+  // target lock refuses that on a closed month, so it is seeded past the guard.
+  await seedLockedMonthTargetCommitted(lease.pool, monthlyResultId, 8)
+  // The log row that recorded that change. It references the month, the
+  // Program and a version with ON DELETE RESTRICT, so purge must delete it
+  // before any of the three.
+  await lease.pool.query(
+    `INSERT INTO goal_month_target_changes
+       (id, organization_id, property_id, program_id, monthly_result_id, change_id,
+        previous_target_value, new_target_value, following_outcome,
+        following_version_id, created_by, created_at)
+     VALUES ($1::uuid, $2, $3::uuid, $4::uuid, $5::uuid, $6::uuid, 10, 8, 'applied',
+             $7::uuid, 'user:test', $8)`,
+    [
+      randomUUID(),
+      organizationId,
+      fixture.propertyId,
+      fixture.programId,
+      monthlyResultId,
+      randomUUID(),
+      programVersionId,
+      PERIOD_START,
     ],
   )
   // A two-link revision lineage: `supersedes_revision_id` is ON DELETE

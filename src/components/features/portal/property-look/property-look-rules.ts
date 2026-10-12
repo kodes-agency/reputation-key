@@ -168,6 +168,12 @@ export type AffectedPortalRow = Readonly<{
   name: string
   publicationState: 'draft' | 'published' | 'disabled' | 'archived'
   group: Readonly<{ id: string; name: string }> | null
+  /**
+   * Changes saved to the draft that guests do not see yet (the portals overview
+   * reads it for every portal). Left out where the page was not given it; the
+   * status line then says only how many portals use the look.
+   */
+  pendingChangeCount?: number
 }>
 
 export type AffectedPortals = Readonly<{
@@ -177,13 +183,22 @@ export type AffectedPortals = Readonly<{
   drafts: readonly AffectedPortalRow[]
   /** The list the page shows, live first. */
   listed: readonly AffectedPortalRow[]
+  /**
+   * How many live portals have saved changes waiting to publish (the look's, or
+   * any other); null when the rows do not say.
+   */
+  waiting: number | null
 }>
 
 /** Archived and switched-off portals show no guest page, so the look does not reach them. */
 export function affectedPortals(rows: readonly AffectedPortalRow[]): AffectedPortals {
   const live = rows.filter((row) => row.publicationState === 'published')
   const drafts = rows.filter((row) => row.publicationState === 'draft')
-  return { live, drafts, listed: [...live, ...drafts] }
+  const isKnown = live.every((row) => row.pendingChangeCount !== undefined)
+  const waiting = isKnown
+    ? live.filter((row) => (row.pendingChangeCount ?? 0) > 0).length
+    : null
+  return { live, drafts, listed: [...live, ...drafts], waiting }
 }
 
 export function describeAffected(affected: AffectedPortals): string {
@@ -208,18 +223,36 @@ export type LookStatus = Readonly<{
   canRetry: boolean
 }>
 
-function usersOf(live: number): string {
+/**
+ * Whether guests have the saved look, as far as the rows say: "uses" only says
+ * the look is meant for the portal, so when the rows say what is waiting the
+ * line says that instead. The count is of portals with any change waiting.
+ */
+function reachOf(affected: AffectedPortals): string {
+  const live = affected.live.length
   if (live === 0) return 'no live portal uses this look yet'
-  return live === 1
-    ? '1 live portal uses this look'
-    : `${live} live portals use this look`
+  const { waiting } = affected
+  if (waiting === null) {
+    return live === 1
+      ? '1 live portal uses this look'
+      : `${live} live portals use this look`
+  }
+  if (waiting === 0) {
+    return live === 1
+      ? 'the live portal shows this look'
+      : `all ${live} live portals show this look`
+  }
+  if (live === 1) return 'changes are waiting to go live on the live portal'
+  return waiting === live
+    ? `changes are waiting to go live on all ${live} portals`
+    : `changes are waiting to go live on ${waiting} of ${live} portals`
 }
 
 export function describeLookStatus(
   state: LookSaveState,
   affected: AffectedPortals,
 ): LookStatus {
-  const users = usersOf(affected.live.length)
+  const users = reachOf(affected)
   switch (state.status) {
     case 'pending':
     case 'saving':

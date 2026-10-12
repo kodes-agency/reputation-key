@@ -20,6 +20,7 @@ export type GlossaryTermKey =
   | 'reply-rate'
   | 'profile-views'
   | 'updated'
+  | 'qualified-scans'
 
 export type GlossaryEntry = Readonly<{
   /** The word as it appears in the interface. */
@@ -63,6 +64,11 @@ export const DASHBOARD_GLOSSARY: Readonly<Record<GlossaryTermKey, GlossaryEntry>
     term: 'Profile views',
     definition:
       'How many times your Google Business Profile was seen on Search and Maps. Reported by Google, not measured by RepKey.',
+  },
+  'qualified-scans': {
+    term: 'Qualified scans',
+    definition:
+      'Visits to a portal that our server verified, counted once per guest in 24 hours. Page opens from bots and refreshes are not counted, so this is lower than a raw count of opens.',
   },
   updated: {
     term: 'Updated',

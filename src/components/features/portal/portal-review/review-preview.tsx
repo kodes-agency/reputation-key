@@ -1,7 +1,8 @@
-// The right-hand side of the review page: the page a guest meets after a 1 star
-// and after a 5 star rating, side by side, so a manager sees that the Google
-// card is the same for both. The language switch and "Try as guest" sit above;
-// choosing a state under "See every guest state" shows that one phone instead.
+// The guest side of the review page (beside the lists from `lg`, under them
+// before the footer below it): the page a guest meets after a 1 star and after a
+// 5 star rating, side by side, so a manager sees that the Google card is the
+// same for both. The language switch and "Try as guest" sit above; choosing a
+// state under "See every guest state" shows that one phone instead.
 // The page is the saved draft, drawn by the same view the editor's preview uses.
 // Nothing here writes anything.
 
@@ -83,6 +84,17 @@ export function ReviewPreview({
       behavior: reduced ? 'auto' : 'smooth',
     })
   }, [showRequest, arePhonesDrawn])
+  // A state chosen under "See every guest state" shows in the phone here. Below
+  // `lg` that phone is under the lists, so it is brought into view; beside them
+  // it already is, and "nearest" moves nothing.
+  useEffect(() => {
+    if (view.kind !== 'state' || phones.current === null) return
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    phones.current.scrollIntoView({
+      block: 'nearest',
+      behavior: reduced ? 'auto' : 'smooth',
+    })
+  }, [view])
 
   return (
     <section aria-label="What guests will see" className="space-y-4">
@@ -185,9 +197,11 @@ function PreviewBody({
           </p>
         </div>
       ) : null}
+      {/* The scroll margin keeps a phone brought into view clear of the
+          footer, which is pinned over the page below `lg`. */}
       <div
         ref={phones}
-        className="flex flex-wrap items-start justify-center gap-x-8 gap-y-6"
+        className="flex scroll-mt-4 scroll-mb-28 flex-wrap items-start justify-center gap-x-8 gap-y-6 lg:scroll-mb-4"
       >
         {view.kind === 'pair' ? (
           reviewPairStates(preview.privateFeedbackThreshold).map((option) => (

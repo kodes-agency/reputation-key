@@ -10,11 +10,12 @@ import { Button } from '#/components/ui/button'
 import { PortalCodeActions } from './portal-code-actions'
 import { PortalDownloadMenu } from './portal-download-menu'
 import { describeMadeCode } from './portal-share-state'
+import { NFC_ADDRESS_HINT } from './portal-share-guidance'
 import { QR_INK, QR_PAPER } from './portal-qr'
 import { COPY_FAILED_MESSAGE } from './use-copy-link'
 import { usePortalCodeDownload, type ResolveQrAddress } from './use-portal-code-download'
 import { usePortalQrPreview } from './use-portal-qr-preview'
-import type { RefObject } from 'react'
+import { useId, type RefObject } from 'react'
 import type { PortalShareView } from './portal-share-state'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
 
@@ -61,6 +62,8 @@ export function PortalCodeBlock({
 }: Props) {
   const download = usePortalCodeDownload(qrAddress, portalName, resolveQrAddress)
   const madeText = describeMadeCode(view.madeLabel, view.madeBy)
+  const canCopyNfc = nfcAddress !== null || canDownloadAgain
+  const nfcHintId = useId()
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -77,15 +80,11 @@ export function PortalCodeBlock({
           </CodeFact>
           {view.graceLabel !== null && (
             <CodeFact icon={<Clock />}>
-              The code before this one keeps working until {view.graceLabel} (UTC).
+              The code before this one keeps working until {view.graceLabel}.
             </CodeFact>
           )}
-          {qrAddress === null && (
-            <CodeFact icon={<Info />}>
-              {canDownloadAgain
-                ? 'Download the code again whenever you need it. Each download is recorded in History.'
-                : 'The QR image and the addresses are shown only when a code is made or replaced.'}
-            </CodeFact>
+          {view.addressNote !== null && (
+            <CodeFact icon={<Info />}>{view.addressNote}</CodeFact>
           )}
         </ul>
         <div className="flex flex-wrap gap-2">
@@ -96,8 +95,13 @@ export function PortalCodeBlock({
               onDownload={(format) => void download.download(format)}
             />
           )}
-          {(nfcAddress !== null || canDownloadAgain) && (
-            <Button type="button" variant="outline" onClick={() => void onCopyNfc()}>
+          {canCopyNfc && (
+            <Button
+              type="button"
+              variant="outline"
+              aria-describedby={nfcHintId}
+              onClick={() => void onCopyNfc()}
+            >
               <Copy />
               {nfcCopied ? 'Copied' : 'Copy NFC address'}
             </Button>
@@ -113,6 +117,11 @@ export function PortalCodeBlock({
             />
           )}
         </div>
+        {canCopyNfc && (
+          <p id={nfcHintId} className="text-xs text-muted-foreground">
+            {NFC_ADDRESS_HINT}
+          </p>
+        )}
         {nfcCopyFailed && nfcAddress !== null && (
           <div className="flex flex-col gap-2">
             <p className="text-sm text-negative" role="alert">

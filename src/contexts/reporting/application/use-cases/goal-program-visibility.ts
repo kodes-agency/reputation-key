@@ -2,8 +2,9 @@
 //
 // An actor who can create Goals reads every Program at the Property. Anyone
 // else reads Property-wide assignments plus those for the Portals they are
-// responsible for and those Portals' groups, with only the matching results; a
-// Program with none of those assignments is not found. Every built-in role that
+// responsible for and those Portals' groups, with only the matching results and
+// the target changes of those results; a Program with none of those assignments
+// is not found. Every built-in role that
 // reads Goals can also create them (Member lost goal.read in 77a0e1988), so
 // today only a custom role would be filtered.
 
@@ -23,10 +24,12 @@ export type GoalProgramVisibilityPort = (
 
 export function scopeGoalProgramsForMember<
   Assignment extends Readonly<{ id: string; subject: GoalSubject }>,
-  Result extends Readonly<{ assignmentId: string }>,
+  Result extends Readonly<{ id: string; assignmentId: string }>,
+  TargetChange extends Readonly<{ monthlyResultId: string }>,
   Program extends Readonly<{
     assignments: readonly Assignment[]
     results: readonly Result[]
+    targetChanges?: readonly TargetChange[]
   }>,
 >(
   programs: readonly Program[],
@@ -49,13 +52,23 @@ export function scopeGoalProgramsForMember<
     })
     if (assignments.length === 0) return []
     const assignmentIds = new Set(assignments.map(({ id }) => id))
+    const results = bundle.results.filter(({ assignmentId }) =>
+      assignmentIds.has(assignmentId),
+    )
+    const resultIds = new Set(results.map(({ id }) => id))
     return [
       {
         ...bundle,
         assignments,
-        results: bundle.results.filter(({ assignmentId }) =>
-          assignmentIds.has(assignmentId),
-        ),
+        results,
+        // A change to a month's target is read with its month, or not at all.
+        ...(bundle.targetChanges
+          ? {
+              targetChanges: bundle.targetChanges.filter(({ monthlyResultId }) =>
+                resultIds.has(monthlyResultId),
+              ),
+            }
+          : {}),
       },
     ]
   })

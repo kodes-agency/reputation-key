@@ -31,11 +31,20 @@ type Props = Readonly<{
   /** The change "Show" last brought into view. */
   shownId: string | null
   onShow: (line: ReviewChangeLine) => void
+  /** Brings the guest page into view; below `lg` it is under the lists. */
+  onSeeGuestPage: () => void
 }>
 
-export function ReviewChanges({ review, now, timeZone, shownId, onShow }: Props) {
+export function ReviewChanges({
+  review,
+  now,
+  timeZone,
+  shownId,
+  onShow,
+  onSeeGuestPage,
+}: Props) {
   const { changes, live } = review
-  if (live === null) return <NotLive />
+  if (live === null) return <NotLive onSeeGuestPage={onSeeGuestPage} />
   const lines = changes.map(describeReviewChange)
   return (
     <section aria-labelledby="review-changes-heading" className="space-y-3">
@@ -77,16 +86,27 @@ export function ReviewChanges({ review, now, timeZone, shownId, onShow }: Props)
   )
 }
 
-function NotLive() {
+function NotLive({ onSeeGuestPage }: Readonly<{ onSeeGuestPage: () => void }>) {
   return (
     <section aria-labelledby="review-changes-heading" className="space-y-2">
       <h2 id="review-changes-heading" className="text-lg font-semibold">
         What guests will see
       </h2>
       <p className="text-sm text-muted-foreground">
-        Nothing is public yet. Publishing opens the page on the right to guests who use
-        this portal’s code.
+        Nothing is public yet. Publishing opens the guest page in the preview to guests
+        who use this portal’s code.
       </p>
+      {/* Beside the lists from `lg`; under them on a smaller screen. */}
+      <Button
+        type="button"
+        variant="link"
+        size="inline"
+        touch
+        className="lg:hidden"
+        onClick={onSeeGuestPage}
+      >
+        See the guest page
+      </Button>
     </section>
   )
 }

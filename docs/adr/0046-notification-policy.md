@@ -423,6 +423,22 @@ is unchanged.
   outcome direction. A correction that leaves a month ineligible reports no
   usable result, which is not a missed target.
 
+  Since 2026-10-11 they may also carry one marker, `goalMarker`: a closed enum
+  that says the month's target did not stand for the whole month. Either the
+  goal was set after its month began (`set_in_month`): a goal may start in the
+  month it is created in, and the metric counts that whole month, so "goal
+  met" can be true of a goal set on the 20th, and the notice adds "The goal
+  was set during the month." Or the month's target was changed while it ran
+  (`target_changed`, raised since 2026-10-12, ADR 0066): the month closed on a
+  target of its own, and the notice adds "The target was changed during the
+  month." A month that is both carries `target_changed` alone, because the
+  changed target is the one it was judged against. A month put back on the
+  target it started with stores none of its own and carries no marker for the
+  change. The marker is read from Reporting when the notice is raised, as the
+  other Goal facts are, so no Goal event changes. It never says when, by whom
+  or against what number; the goal's page does. The Recent Activity row of a
+  month that closed as met carries the same token.
+
 Copy stays English, produced only by `domain/notification-templates.ts` (r.5),
 so only the ZONE crosses into the render context, never a locale.
 

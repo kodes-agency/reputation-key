@@ -298,7 +298,7 @@ describe('other states', () => {
     expect(html).not.toContain('type="radio"')
   })
 
-  it('shows a busy placeholder while the gateway loads, and the unavailable text when it fails', () => {
+  it('shows a busy placeholder while the gateway loads, and the rating-only text when it fails', () => {
     const base = immersiveResponseProps(
       { kind: 'arrival' },
       { pack, displayName: DISPLAY_NAME },
@@ -310,7 +310,7 @@ describe('other states', () => {
         ),
       )
     expect(render('loading')).toContain('aria-busy="true"')
-    expect(render('unavailable')).toContain(pack.copy.unavailableTitle)
+    expect(render('unavailable')).toContain(pack.copy.ratingUnavailableTitle)
     expect(render('unavailable')).not.toContain('type="radio"')
   })
 

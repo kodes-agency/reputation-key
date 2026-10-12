@@ -28,6 +28,8 @@ export const GUEST_COPY_V2_PLACEHOLDERS = {
   languageNameFr: [],
   languageNameDe: [],
   privacyNoticeLink: [],
+  // The same link on a page that is not in English: the notice itself is English.
+  privacyNoticeLinkInEnglish: [],
   footerMadeWith: [],
   logoAlt: ['name'],
   // The footer's one-line notice (ADR 0044): it names the essential cookie and
@@ -116,12 +118,18 @@ export const GUEST_COPY_V2_PLACEHOLDERS = {
   sharedDeviceBody: [],
   startOverAction: [],
   startOverDone: [],
+  // After a guest removed their whole response, so nothing earlier "remains saved".
+  startOverDoneAfterRemoval: [],
   startOverFailed: [],
   // The Linktree and the page that has nothing to show.
   linktreeDefaultTitle: [],
   linkOpensNewTab: [],
   unavailableTitle: [],
   unavailableBody: [],
+  unavailableRetry: [],
+  // The in-page card when only the rating cannot be sent and the rest of the page works.
+  ratingUnavailableTitle: [],
+  ratingUnavailableBody: [],
 } as const satisfies Readonly<Record<string, readonly GuestCopyPlaceholder[]>>
 
 export const GUEST_PLURAL_V2_PLACEHOLDERS = {

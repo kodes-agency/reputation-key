@@ -194,19 +194,25 @@ export function missingTextSection(text: MissingPortalText): 'welcome' | 'linktr
 }
 
 /**
- * What a manager does about a missing text. A title or description is missing
- * because the Property has no wording for the language (an override alone does
- * not count), which an account admin writes; a link label is written in the
- * Linktree section. Where the gap is does not change who fixes it.
+ * What a person does about a missing text. A link label is written in the
+ * Linktree section. A title or description is missing because the property has
+ * no wording for the language (an override alone does not count), which only an
+ * account admin writes, in Welcome, where the property's wording opens for that
+ * language: for them the gap is a link there. Anyone else is told who writes it.
+ * Where the gap is does not change who fixes it.
  */
 export type MissingTextAction =
   | Readonly<{ kind: 'write'; section: 'welcome' | 'linktree' }>
-  | Readonly<{ kind: 'needs_property_wording' }>
+  | Readonly<{ kind: 'ask_account_admin'; section: 'welcome' }>
 
-export function missingTextAction(text: MissingPortalText): MissingTextAction {
-  return text.kind === 'link_label'
-    ? { kind: 'write', section: missingTextSection(text) }
-    : { kind: 'needs_property_wording' }
+export function missingTextAction(
+  text: MissingPortalText,
+  canWritePropertyWording: boolean,
+): MissingTextAction {
+  if (text.kind === 'link_label') return { kind: 'write', section: 'linktree' }
+  return canWritePropertyWording
+    ? { kind: 'write', section: 'welcome' }
+    : { kind: 'ask_account_admin', section: 'welcome' }
 }
 
 const joinParts = (parts: readonly string[]): string =>

@@ -101,7 +101,16 @@ export async function assertPropertyAllowsPublication(
 export const portalHasResponsibleManager = (existing: Portal): boolean =>
   existing.responsibilityNeededSince === null
 
-/** The Portal has an address guests can use right now. */
+/**
+ * The Portal has an address guests can use right now: a code that resolves.
+ *
+ * A code made before access artifacts has no QR or NFC marker, so its scans
+ * are not counted towards scan goals, but guests open the page with it all the
+ * same (the guest route resolves the token alone; the marker only qualifies a
+ * scan). Publishing therefore accepts it, as Portal health, the Portals list
+ * and Share already do; Share keeps offering to replace it ("QR update
+ * available") so future scans count.
+ */
 export async function portalHasPublicAddress(
   deps: Readonly<{
     portalTokenRepo: Pick<PortalTokenRepository, 'findResolvableSummaryForPortal'>
@@ -115,7 +124,7 @@ export async function portalHasPublicAddress(
     existing.id,
     at,
   )
-  return address?.hasPublishedAccessArtifact === true
+  return Boolean(address)
 }
 
 /** Someone is responsible for the Portal, and it has an address guests can use. */

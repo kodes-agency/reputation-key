@@ -374,20 +374,28 @@ describe('guest response server-fn gates', () => {
     }
   })
 
-  it('rotates shared-device recovery only after a durable rating', () => {
+  it('rotates shared-device recovery only after a durable rating or a withdrawal', () => {
     const fn = slice('startNewGuestResponseFn')
     const current = fn.indexOf('responseLifecycle.getState')
-    const ratingGate = fn.indexOf('if (!isQualifiedGuestResponse(response))')
+    const gate = fn.indexOf('if (!canStartNewGuestResponse(response))')
     const issue = fn.indexOf('guestSessions.issue')
     const cookie = fn.indexOf("setResponseHeader('Set-Cookie'")
 
     expect(current).toBeGreaterThan(-1)
-    expect(ratingGate).toBeGreaterThan(current)
-    expect(issue).toBeGreaterThan(ratingGate)
+    expect(gate).toBeGreaterThan(current)
+    expect(issue).toBeGreaterThan(gate)
     expect(cookie).toBeGreaterThan(issue)
     expect(fn).toContain("'new_response'")
     expect(fn).not.toContain('responseLifecycle.withdraw')
     expect(fn).not.toContain('responseLifecycle.correct')
+    // Only start over widened: the Google and secondary-link gates still need a rating.
+    expect(fn).not.toContain('isQualifiedGuestResponse')
+    expect(slice('selectGoogleReviewFn')).toContain(
+      'if (!isQualifiedGuestResponse(response))',
+    )
+    expect(slice('selectSecondaryLinkFn')).toContain(
+      'if (!isQualifiedGuestResponse(response))',
+    )
   })
 
   it('keeps action-specific network limits on distinct Redis keys', () => {

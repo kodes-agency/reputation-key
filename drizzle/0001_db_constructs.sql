@@ -871,6 +871,7 @@ DECLARE
   version_from timestamptz;
   version_to timestamptz;
   version_timezone varchar(64);
+  version_metric varchar(40);
   expected_start timestamptz;
   expected_end timestamptz;
 BEGIN
@@ -881,6 +882,22 @@ BEGIN
 
   IF TG_OP = 'UPDATE' AND OLD."status" = 'closed' THEN
     RAISE EXCEPTION 'closed goal monthly results are immutable; append a revision'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF TG_OP = 'UPDATE'
+    AND NEW."target_value" IS DISTINCT FROM OLD."target_value"
+    AND (OLD."status" <> 'open' OR clock_timestamp() >= OLD."period_end")
+  THEN
+    RAISE EXCEPTION 'goal monthly result target is locked once its period ends'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF TG_OP = 'INSERT'
+    AND NEW."target_value" IS NOT NULL
+    AND (NEW."status" <> 'open' OR clock_timestamp() >= NEW."period_end")
+  THEN
+    RAISE EXCEPTION 'goal monthly result target is locked once its period ends'
       USING ERRCODE = '55000';
   END IF;
 
@@ -897,13 +914,15 @@ BEGIN
     assignment."effective_to",
     version."effective_from",
     version."effective_to",
-    version."property_timezone"
+    version."property_timezone",
+    version."metric_key"
   INTO
     assignment_from,
     assignment_to,
     version_from,
     version_to,
-    version_timezone
+    version_timezone,
+    version_metric
   FROM "goal_subject_assignments" assignment
   JOIN "goal_program_versions" version
     ON version."organization_id" = assignment."organization_id"
@@ -919,6 +938,22 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'goal monthly result assignment is unavailable'
       USING ERRCODE = '23503';
+  END IF;
+
+  IF NEW."target_value" IS NOT NULL AND NOT (
+    (
+      version_metric IN ('qualified_scans', 'portal_rating_count')
+      AND NEW."target_value" > 0
+      AND NEW."target_value" = trunc(NEW."target_value")
+    )
+    OR (
+      version_metric = 'portal_rating_average'
+      AND NEW."target_value" BETWEEN 1 AND 5
+      AND NEW."target_value" * 10 = trunc(NEW."target_value" * 10)
+    )
+  ) THEN
+    RAISE EXCEPTION 'goal monthly result target breaks its measure rule'
+      USING ERRCODE = '23514';
   END IF;
 
   IF NEW."property_timezone" <> version_timezone THEN

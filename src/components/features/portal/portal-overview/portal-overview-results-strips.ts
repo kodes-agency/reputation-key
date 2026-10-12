@@ -10,6 +10,7 @@ import { measureCells, type ResultsCell } from '../portal-analytics/portal-resul
 import {
   currentPeriodLabel,
   windowCaption,
+  zoneTimeLabel,
 } from '../portal-analytics/portal-results-window'
 
 /** The ruled strip above the table, for one Property's Portals or for the Organization's. */
@@ -20,7 +21,7 @@ export type OverviewStrip = Readonly<{
    * Organization: each Property reads its own days, so there is no one range.
    */
   caption: string | null
-  /** "Last 30 days, Europe/Sofia time · an average needs 5 private ratings". */
+  /** "Last 30 days, Sofia time · an average needs 5 private ratings". */
   footer: string
   /** The private ratings an average needs before it is shown. */
   averageMinSample: number
@@ -45,7 +46,7 @@ export function stripOf(
       { compare: property.comparePeriod !== null },
     ),
     caption: windowCaption(localDays, timezone),
-    footer: `${currentPeriodLabel(localDays)}, ${timezone} time · an average needs ${thresholds.averageMinSample} private ratings`,
+    footer: `${currentPeriodLabel(localDays)}, ${zoneTimeLabel(timezone)} · an average needs ${thresholds.averageMinSample} private ratings`,
     averageMinSample: thresholds.averageMinSample,
   }
 }

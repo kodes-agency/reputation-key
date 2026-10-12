@@ -38,9 +38,39 @@ type Story = StoryObj<typeof PortalResponsibilitiesModal>
 
 export const Populated: Story = {
   play: async () => {
+    const page = within(document.body)
+    // What primary and supporting do is said, and so is that this is not access.
     await expect(
-      within(document.body).getByText(/responsibilities do not grant property access/i),
+      page.getByText(/ratings guests leave on the primary portal are credited to/i),
     ).toBeInTheDocument()
+    await expect(page.getByText(/their ratings are not credited/i)).toBeInTheDocument()
+    await expect(
+      page.getByText(/does not give access to the property/i),
+    ).toBeInTheDocument()
+    await expect(
+      page.getByText(/Supporting portals/, { selector: 'label' }),
+    ).toBeVisible()
+  },
+}
+
+/** One portal at the property: it is the primary one, so there is nothing to support. */
+export const OnePortal: Story = {
+  args: {
+    currentPrimaryPortalId: 'portal-1',
+    currentSupportingPortalIds: [],
+    allPortals: [{ id: 'portal-1', name: 'Main entrance' }],
+  },
+  play: async () => {
+    const page = within(document.body)
+    await expect(page.getByRole('combobox', { name: 'Primary portal' })).toBeVisible()
+    // No supporting field, and no message that contradicts the portal just chosen.
+    await expect(
+      page.queryByText(/Supporting portals/, { selector: 'label' }),
+    ).not.toBeInTheDocument()
+    await expect(
+      page.queryByText(/No other portals at this property/),
+    ).not.toBeInTheDocument()
+    await expect(page.queryByText(/No portals available/)).not.toBeInTheDocument()
   },
 }
 

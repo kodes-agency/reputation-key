@@ -15,10 +15,7 @@ import {
   type GuestLocale,
   type OfferedGuestLocale,
 } from '#/shared/domain/guest-locale'
-import type {
-  PortalLinktreeDestination,
-  PortalLinktreeLink,
-} from '#/contexts/portal/application/public-api'
+import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
 
 const isOffered = (locale: GuestLocale): locale is OfferedGuestLocale =>
   (OFFERED_GUEST_LOCALES as ReadonlyArray<GuestLocale>).includes(locale)
@@ -35,8 +32,16 @@ export function offeredLocales(
 
 export type LinkCapFact = Readonly<{ text: string; isFull: boolean }>
 
-export function describeLinkCap(count: number, max: number): LinkCapFact {
-  return { text: `${count} of ${max} tiles in use`, isFull: count >= max }
+/**
+ * The cap fact under the tiles. Tiles guests cannot see (`hidden`) are counted
+ * in it, so a list that looks full of live links does not hide one that is not.
+ */
+export function describeLinkCap(count: number, max: number, hidden = 0): LinkCapFact {
+  const used = `${count} of ${max} tiles in use`
+  return {
+    text: hidden > 0 ? `${used} · ${hidden} hidden from guests` : used,
+    isFull: count >= max,
+  }
 }
 
 /** What a tile prints as its name: the primary language, else the first text it has. */
@@ -91,59 +96,14 @@ export function describeMissingLanguages(
 
 const MAX_NAMED_MISSING = 2
 
-export type LinkApprovalFact = Readonly<{ tone: 'ok' | 'warn'; text: string }>
-
-/** The one line under a tile's address: who vouched for it, or why guests cannot see it yet. */
-export function describeLinkApproval(
-  destination: PortalLinktreeDestination,
-  names: ReadonlyMap<string, string>,
-): LinkApprovalFact {
-  switch (destination.state) {
-    case 'approved': {
-      if (
-        destination.sourceType === 'recognized' ||
-        destination.sourceType === 'provider'
-      ) {
-        return { tone: 'ok', text: 'Recognised service · approved automatically' }
-      }
-      const name =
-        destination.approvedByUserId === null
-          ? undefined
-          : names.get(destination.approvedByUserId)
-      return { tone: 'ok', text: name === undefined ? 'Approved' : `Approved · ${name}` }
-    }
-    case 'pending':
-      return {
-        tone: 'warn',
-        text: 'Waiting for approval · guests will not see this link until an account admin approves it',
-      }
-    case 'disabled':
-      return {
-        tone: 'warn',
-        text: 'Not approved · an account admin turned this address off',
-      }
-    case 'quarantined':
-      return {
-        tone: 'warn',
-        text: 'Held back · this address did not pass a safety check',
-      }
-    case 'unclassified':
-      return {
-        tone: 'warn',
-        text: 'Not checked yet · guests will not see this link until its address is checked',
-      }
-  }
-}
-
 export type LinkMoveDirection = 'up' | 'down'
 
-/** Which control asked for a move: a chevron button, or the handle's arrow keys. */
-export type LinkMoveControl = LinkMoveDirection | 'handle'
+/** Which control asked for a move: the up button or the down button. */
+export type LinkMoveControl = LinkMoveDirection
 
 /**
- * The move an arrow key on a tile's handle asks for. The handle is the
- * keyboard stand-in for dragging (drag and drop is not offered): Up and Down
- * move the tile one place, and no other key is taken from the handle.
+ * The move an arrow key on a tile's move buttons asks for: Up and Down move the
+ * tile one place, whichever button has focus, and no other key is taken from them.
  */
 export function moveDirectionForKey(key: string): LinkMoveDirection | null {
   if (key === 'ArrowUp') return 'up'

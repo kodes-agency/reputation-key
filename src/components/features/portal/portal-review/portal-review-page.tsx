@@ -8,7 +8,7 @@
 // publishing, so it lives in the portal's "more actions" menu on the Portals
 // list, not here.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import type { PortalReview } from '#/contexts/portal/application/public-api'
 import { cn } from '#/lib/utils'
@@ -64,6 +64,7 @@ export function PortalReviewPage({
   const [view, setView] = useState<ReviewPreviewView>({ kind: 'pair' })
   const [shown, setShown] = useState<ShowRequest & { id: string }>()
   const preview = useReviewPreview(portal.id, getPortalPreview, chosenLocale)
+  const guestPage = useRef<HTMLElement>(null)
 
   const show = (line: ReviewChangeLine) => {
     if (line.part === null) return
@@ -76,43 +77,53 @@ export function PortalReviewPage({
     }))
   }
 
+  const seeGuestPage = () => {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    guestPage.current?.scrollIntoView({
+      block: 'start',
+      behavior: reduced ? 'auto' : 'smooth',
+    })
+  }
+
+  // One column below `lg`, in the order a manager decides in: the lists, what
+  // guests will see, then the footer that publishes, pinned to the bottom of the
+  // whole page so it is there under the phones too. From `lg` the lists and the
+  // footer are the left column and the phones stay in view beside them.
   return (
-    <div className="flex min-h-full flex-col lg:flex-row">
-      <div className="flex min-w-0 flex-col lg:min-h-full lg:w-[34rem] lg:shrink-0 lg:border-r">
-        <div className={cn(PAGE_GUTTER_X, 'flex-1 space-y-8 py-5 md:py-6')}>
-          <ReviewChanges
-            review={review}
-            now={now}
-            timeZone={timeZone}
-            shownId={shown?.id ?? null}
-            onShow={show}
-          />
-          <ReviewChecks
-            checks={review.checks}
-            languages={review.languages}
-            propertyId={propertyId}
-            portalId={portal.id}
-            whoCanFix={describeWhoCanFix(viewerId, fixPeople)}
-          />
-          <ReviewLanguages languages={review.languages} />
-          <ReviewStates
-            data={preview}
-            view={view}
-            onViewChange={setView}
-            languageCount={review.languages.length}
-          />
-        </div>
-        <ReviewFooter
-          view={describeReviewFooter(review)}
+    <div className="flex min-h-full flex-col lg:grid lg:grid-cols-[34rem_minmax(0,1fr)] lg:grid-rows-[1fr_auto]">
+      <div
+        className={cn(
+          PAGE_GUTTER_X,
+          'min-w-0 space-y-8 py-5 md:py-6 lg:col-start-1 lg:row-start-1 lg:border-r',
+        )}
+      >
+        <ReviewChanges
+          review={review}
+          now={now}
+          timeZone={timeZone}
+          shownId={shown?.id ?? null}
+          onShow={show}
+          onSeeGuestPage={seeGuestPage}
+        />
+        <ReviewChecks
+          checks={review.checks}
+          languages={review.languages}
           propertyId={propertyId}
           portalId={portal.id}
-          tab={tab}
-          section={section}
-          isPublishing={isPublishing}
-          onPublish={onPublish}
+          whoCanFix={describeWhoCanFix(viewerId, fixPeople)}
+        />
+        <ReviewLanguages languages={review.languages} />
+        <ReviewStates
+          data={preview}
+          view={view}
+          onViewChange={setView}
+          languageCount={review.languages.length}
         />
       </div>
-      <aside className="min-w-0 flex-1 border-t bg-muted/20 px-4 py-5 md:px-8 lg:sticky lg:top-0 lg:max-h-full lg:self-start lg:overflow-y-auto lg:border-t-0">
+      <aside
+        ref={guestPage}
+        className="min-w-0 flex-1 scroll-mt-4 border-t bg-muted/20 px-4 py-5 md:px-8 lg:sticky lg:top-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:max-h-full lg:self-start lg:overflow-y-auto lg:border-t-0"
+      >
         <ReviewPreview
           data={preview}
           view={view}
@@ -121,6 +132,16 @@ export function PortalReviewPage({
           showRequest={shown ?? null}
         />
       </aside>
+      <ReviewFooter
+        view={describeReviewFooter(review)}
+        propertyId={propertyId}
+        portalId={portal.id}
+        tab={tab}
+        section={section}
+        isPublishing={isPublishing}
+        onPublish={onPublish}
+        className="lg:col-start-1 lg:row-start-2 lg:border-r"
+      />
     </div>
   )
 }

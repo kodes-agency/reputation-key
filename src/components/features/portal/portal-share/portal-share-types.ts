@@ -1,5 +1,6 @@
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import type { PortalPublicationState } from '../shared/types'
 import type { PortalPrintKitResources } from './portal-print-kit-types'
 
 export type IssuedPortalLink = Readonly<{
@@ -56,5 +57,20 @@ export type PortalShareProps = Readonly<{
   onLinksRevoked: () => void
   /** The Print kit section's read and download. Absent: the tab offers no print kit. */
   printKit?: PortalPrintKitResources
+  /**
+   * Whether guests can open the page the code leads to. A draft, turned-off or
+   * archived portal gets a notice that a scan shows the unavailable page.
+   * Absent: the tab says nothing about it.
+   */
+  publicationState?: PortalPublicationState
+  /** The portal's property, for the notice's "Review & publish" link. Absent: no link. */
+  propertyId?: string
+  /** The property's IANA zone, for when the code before this one stops. Absent: UTC. */
+  timeZone?: string
+  /**
+   * The portal's managers by name, whom someone who can only look asks for the
+   * QR code or print kit. Absent or empty: "a manager of this portal".
+   */
+  managerNames?: readonly string[]
 }> &
   PortalShareMutations

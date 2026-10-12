@@ -1,5 +1,15 @@
 import { BACKDROP_WASH_ALPHA } from '#/shared/domain/portal-field-colour'
 import { IMMERSIVE_CHROME_CSS } from './immersive-chrome-styles'
+import {
+  HERO_PHONE_HEIGHT,
+  HERO_TITLE_SCRIM,
+  HERO_TITLE_SCRIM_HALF_WIDTH,
+  HERO_TOP_SCRIM,
+  HERO_WIDE,
+  photoMaskGradient,
+  scrimGradient,
+  scrimReach,
+} from './immersive-hero-scrim'
 import { PHOTO_BACKDROP } from './immersive-look'
 
 // The Immersive Hub's stylesheet, as one string the shell hoists into the
@@ -38,11 +48,17 @@ export const IMMERSIVE_STYLE_HREF = 'guest-immersive'
 
 const percent = (share: number) => `${Math.round(share * 100)}%`
 
+const { solid, gone } = HERO_TITLE_SCRIM_HALF_WIDTH
+const titleScrimFade = `linear-gradient(90deg, transparent calc(50% - ${gone}px), #000 calc(50% - ${solid}px), #000 calc(50% + ${solid}px), transparent calc(50% + ${gone}px))`
+
 // Geometry measured from boards G01 and G09 (390 x 844): the hero is 236 px
-// tall, the glass card radius 28, the tiles 22, the chip a pill.
+// tall on a phone, the glass card radius 28, the tiles 22, the chip a pill. The
+// hero's fade and its two scrims are in `immersive-hero-scrim.ts`, which also
+// proves that the text on them stays legible over the brightest photo.
 export const IMMERSIVE_CSS = `
 .ih-root {
   --ih-accent-text: color-mix(in srgb, var(--ih-accent) 88%, #fff);
+  --ih-hero-h: ${HERO_PHONE_HEIGHT}px;
   --ih-display: var(--font-guest-display, 'Cormorant Garamond', Georgia, 'Times New Roman', serif);
   --ih-body: var(--font-guest-body, 'Ysabeau Office', system-ui, -apple-system, 'Segoe UI', sans-serif);
   position: relative;
@@ -149,7 +165,7 @@ body:has(.ih-root--page) { background-color: #0d1210; }
   left: 0;
   right: 0;
   z-index: -1;
-  height: 236px;
+  height: var(--ih-hero-h);
   pointer-events: none;
 }
 .ih-hero__image {
@@ -158,20 +174,32 @@ body:has(.ih-root--page) { background-color: #0d1210; }
   height: 100%;
   object-fit: cover;
   object-position: var(--ih-focal, 50% 42%);
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 52%, rgba(0, 0, 0, 0.5) 76%, rgba(0, 0, 0, 0) 100%);
-  mask-image: linear-gradient(180deg, #000 0%, #000 52%, rgba(0, 0, 0, 0.5) 76%, rgba(0, 0, 0, 0) 100%);
+  -webkit-mask-image: ${photoMaskGradient()};
+  mask-image: ${photoMaskGradient()};
 }
-/* Keep the wordmark and the title legible over any photo. */
+/* Keep the wordmark and the title legible over any photo, even a white one. */
 .ih-hero__scrim { position: absolute; left: 0; right: 0; }
 .ih-hero__scrim--top {
   top: 0;
-  height: 110px;
-  background: linear-gradient(180deg, rgba(6, 9, 8, 0.6) 0%, rgba(6, 9, 8, 0) 100%);
+  height: ${scrimReach(HERO_TOP_SCRIM)}px;
+  background: ${scrimGradient(HERO_TOP_SCRIM, true)};
 }
 .ih-hero__scrim--title {
-  top: 100px;
-  height: 150px;
-  background: radial-gradient(ellipse 70% 60% at 50% 60%, rgba(8, 10, 9, 0.56) 0%, rgba(8, 10, 9, 0) 100%);
+  bottom: 0;
+  height: ${scrimReach(HERO_TITLE_SCRIM)}px;
+  background: ${scrimGradient(HERO_TITLE_SCRIM, false)};
+  /* Solid behind the title's column, fading out beyond it on a wide screen. */
+  -webkit-mask-image: ${titleScrimFade};
+  mask-image: ${titleScrimFade};
+}
+/* From sm up the photo grows with the viewport instead of becoming a thin strip.
+   The title block follows it down (its margin is the hero's height), so the
+   text keeps the same place on the photo. Only the page height asks the
+   viewport: a shell in a frame (the admin preview) is a phone whatever the window. */
+@media (min-width: ${HERO_WIDE.minWidth}px) {
+  .ih-root--page[data-ih-surface='photo'] {
+    --ih-hero-h: clamp(${HERO_WIDE.minHeight}px, ${HERO_WIDE.vw}vw, ${HERO_WIDE.maxHeight}px);
+  }
 }
 .ih-arch {
   position: absolute;

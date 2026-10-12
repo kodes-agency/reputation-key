@@ -22,6 +22,7 @@ export const bgV2 = defineGuestCopyV2({
     languageNameFr: 'Френски',
     languageNameDe: 'Немски',
     privacyNoticeLink: 'Поверителност',
+    privacyNoticeLinkInEnglish: 'Поверителност (на английски)',
     footerMadeWith: 'Създадено с Reputation Key',
     logoAlt: 'Лого на {name}',
     visitNotice:
@@ -112,12 +113,16 @@ export const bgV2 = defineGuestCopyV2({
     sharedDeviceBody: 'Започнете отначало, за да види следващият гост чиста страница.',
     startOverAction: 'Започни отначало на това устройство',
     startOverDone: 'Готово за следващия гост. Предишният ви отговор остава запазен.',
+    startOverDoneAfterRemoval: 'Готово за следващия гост.',
     startOverFailed: 'Не успяхме да започнем отначало. Моля, опитайте отново.',
 
     linktreeDefaultTitle: 'Полезни връзки',
     linkOpensNewTab: '(отваря се в нов раздел)',
     unavailableTitle: 'Тази страница не е достъпна в момента.',
     unavailableBody: 'Моля, опитайте отново по-късно.',
+    unavailableRetry: 'Опитайте отново',
+    ratingUnavailableTitle: 'В момента оценки не могат да се изпращат оттук.',
+    ratingUnavailableBody: 'Моля, опитайте отново по-късно.',
   },
   plurals: {
     ratingStars: { one: '{count} звезда', other: '{count} звезди' },

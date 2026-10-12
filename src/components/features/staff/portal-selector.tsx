@@ -46,7 +46,7 @@ export function PortalSelector({
       </FieldLabel>
       {portals.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No portals available for this property.
+          No other portals at this property.
         </p>
       ) : (
         <>

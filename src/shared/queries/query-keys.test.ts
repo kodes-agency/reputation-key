@@ -137,6 +137,30 @@ describe('goal query keys', () => {
     ])
   })
 
+  it("keeps one goal's month so far apart from its detail and from another property", () => {
+    expect(goalKeys.programProgress('property-1', 'goal-1')).toEqual([
+      'goals',
+      'program-progress',
+      'property-1',
+      'goal-1',
+    ])
+    expect(goalKeys.programProgress('property-1', 'goal-1')).not.toEqual(
+      goalKeys.detail('property-1', 'goal-1'),
+    )
+  })
+
+  it('keys a month preview by property, measure and subject', () => {
+    expect(
+      goalKeys.monthPreview('property-1', 'qualified_scans', 'portal:portal-1'),
+    ).toEqual([
+      'goals',
+      'month-preview',
+      'property-1',
+      'qualified_scans',
+      'portal:portal-1',
+    ])
+  })
+
   it('keeps the portals overview in the property subtree, apart from the plain list', () => {
     expect(portalKeys.overview('property-1')).toEqual([
       'portals',

@@ -74,7 +74,7 @@ export function PropertyLookBatchDialog({
           <DialogDescription>
             {shown !== null
               ? 'Here is what happened to each portal.'
-              : 'Each live portal gets its saved draft, with the new look, as a new version. Printed codes keep working.'}
+              : 'Publishing sends a portal’s whole saved draft live as a new version: the new look, and anything else saved on it. Portals with other draft edits start unticked. Printed codes keep working.'}
           </DialogDescription>
         </DialogHeader>
 

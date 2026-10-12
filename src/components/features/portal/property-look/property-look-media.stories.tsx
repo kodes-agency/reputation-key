@@ -7,6 +7,7 @@
 // sends and what it does not. The pictures are made in the browser.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { openAlertDialog } from '#/components/ui/confirmation-dialog.stories.open'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   AuthedRouterDecorator,
@@ -410,11 +411,16 @@ export const AddingAFirstPhoto: Story = {
   },
 }
 
-/** Taking the photograph off writes null and returns the section to "Add a photo". */
+/** Taking the photograph off asks first; confirming writes null and returns the section to "Add a photo". */
 export const RemovingThePhoto: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Remove photo' }))
+    const confirm = await openAlertDialog(canvasElement, 'Remove photo')
+    // Nothing is written by the question itself, and it says what putting it back costs.
+    expect(args.saveHero).not.toHaveBeenCalled()
+    await expect(confirm.getByText('Remove the photo?')).toBeVisible()
+    await expect(confirm.getByText(/You’ll need the file again/)).toBeVisible()
+    await userEvent.click(confirm.getByRole('button', { name: 'Remove photo' }))
     await waitFor(
       () =>
         expect(args.saveHero).toHaveBeenCalledWith({
@@ -429,7 +435,21 @@ export const RemovingThePhoto: Story = {
   },
 }
 
-/** A photograph that could not be taken off says so beside it. */
+/** Keeping the photograph writes nothing and leaves it where it was. */
+export const KeepingThePhoto: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const confirm = await openAlertDialog(canvasElement, 'Remove photo')
+    await userEvent.click(confirm.getByRole('button', { name: 'Keep photo' }))
+    await waitFor(() =>
+      expect(within(document.body).queryByRole('alertdialog')).toBeNull(),
+    )
+    expect(args.saveHero).not.toHaveBeenCalled()
+    await expect(canvas.getByRole('button', { name: 'Replace photo' })).toBeVisible()
+  },
+}
+
+/** A photograph that could not be taken off says so in the question, which stays open to try again. */
 export const RemovingFailsInPlace: Story = {
   args: {
     saveHero: Object.assign(
@@ -441,10 +461,13 @@ export const RemovingFailsInPlace: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Remove photo' }))
-    await expect(
-      await canvas.findByText('The photo could not be taken off. Try again.'),
-    ).toBeVisible()
+    const confirm = await openAlertDialog(canvasElement, 'Remove photo')
+    await userEvent.click(confirm.getByRole('button', { name: 'Remove photo' }))
+    // The server's own words never reach the reader; the question stays open.
+    await expect(await confirm.findByRole('alert')).toBeVisible()
+    expect(confirm.queryByText(/offline/)).toBeNull()
+    await expect(confirm.getByRole('button', { name: 'Remove photo' })).toBeEnabled()
+    await userEvent.click(confirm.getByRole('button', { name: 'Keep photo' }))
     await expect(canvas.getByRole('button', { name: 'Replace photo' })).toBeVisible()
   },
 }
@@ -532,7 +555,7 @@ export const SmallLogoFailsTheCheck: Story = {
   },
 }
 
-/** Taking the logo off brings the wordmark back. */
+/** Taking the logo off asks first, then brings the wordmark back. */
 export const RemovingTheLogo: Story = {
   args: {
     media: {
@@ -543,7 +566,10 @@ export const RemovingTheLogo: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Remove logo' }))
+    const confirm = await openAlertDialog(canvasElement, 'Remove logo')
+    expect(args.saveLogo).not.toHaveBeenCalled()
+    await expect(confirm.getByText('Remove the logo?')).toBeVisible()
+    await userEvent.click(confirm.getByRole('button', { name: 'Remove logo' }))
     await waitFor(
       () =>
         expect(args.saveLogo).toHaveBeenCalledWith({
@@ -557,7 +583,7 @@ export const RemovingTheLogo: Story = {
   },
 }
 
-/** Everyone but an Account Admin sees the photograph and logo, and none of the controls. */
+/** Everyone but an account admin sees the photograph and logo, and none of the controls. */
 export const ReadOnlySeesNoControls: Story = {
   decorators: [withRole('Member')],
   args: {

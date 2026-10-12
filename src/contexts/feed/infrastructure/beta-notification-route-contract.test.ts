@@ -851,6 +851,8 @@ function currentRouteDeps(): RouteDeps {
     programName: 'Monthly rating goal',
     periodMonth: '2026-10',
     subject: { kind: 'property', propertyId: PROPERTY },
+    setDuringMonth: false,
+    targetChangedInMonth: false,
   } as const
   deps.userLookup.findByRole.mockResolvedValue([ADMIN])
   deps.responsibleManagers.findForProperty.mockResolvedValue([MANAGER])

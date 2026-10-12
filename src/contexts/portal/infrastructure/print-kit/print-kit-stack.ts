@@ -7,7 +7,16 @@
 // one language shrinks the type instead of running into the code.
 
 import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
-import { BRAND_FIT, mm, TYPE_PT, TRACKING_EM } from './print-kit-geometry'
+import {
+  BRAND_FIT,
+  mm,
+  STACK_FIT,
+  STACK_GAP_MM,
+  STACK_LEADING as LEADING,
+  STACK_RULE_WIDTH_MM as RULE_WIDTH_MM,
+  TYPE_PT,
+  TRACKING_EM,
+} from './print-kit-geometry'
 import type { PrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import { measureLine, type PdfTextStyle, type PrintKitFonts } from './print-kit-pdf-text'
 import { fitLines, wrapWords } from '#/shared/domain/portal-print-kit-text'
@@ -28,11 +37,6 @@ export type StackItem =
 export type Stack = Readonly<{ items: readonly StackItem[]; heightMm: number }>
 
 type Measure = (text: string, style: PdfTextStyle) => number
-
-/** Line height as a share of the type size. */
-const LEADING = { headline: 1.08, secondHeadline: 1.15, subline: 1.35, kicker: 1.4 }
-
-const RULE_WIDTH_MM = 8.5
 
 type Cursor = { y: number; items: StackItem[] }
 
@@ -90,14 +94,14 @@ function layoutFirstBlock(
     widthAt: (text, size) => measure(text, kickerAt(size)),
   })
   pushLines(cursor, kicker.lines, kickerAt(kicker.size), LEADING.kicker)
-  cursor.y += 1.6 * scale
+  cursor.y += STACK_GAP_MM.belowKicker * scale
   pushLines(
     cursor,
     wrapWords(block.headline, maxWidthPt, (line) => measure(line, headline)),
     headline,
     LEADING.headline,
   )
-  cursor.y += 1 * scale
+  cursor.y += STACK_GAP_MM.belowHeadline * scale
   pushLines(
     cursor,
     wrapWords(block.subline, maxWidthPt, (line) => measure(line, subline)),
@@ -128,21 +132,21 @@ function layoutSecondBlock(
     colour: palette.body,
     opacity: 0.72,
   }
-  cursor.y += 3.6 * scale
+  cursor.y += STACK_GAP_MM.aboveRule * scale
   cursor.items.push({
     kind: 'rule',
     yMm: cursor.y,
     widthMm: RULE_WIDTH_MM * scale,
     colour: palette.kicker,
   })
-  cursor.y += 3.4 * scale
+  cursor.y += STACK_GAP_MM.belowRule * scale
   pushLines(
     cursor,
     wrapWords(block.headline, maxWidthPt, (line) => measure(line, headline)),
     headline,
     LEADING.secondHeadline,
   )
-  cursor.y += 0.5 * scale
+  cursor.y += STACK_GAP_MM.belowSecondHeadline * scale
   pushLines(
     cursor,
     wrapWords(block.subline, maxWidthPt, (line) => measure(line, subline)),
@@ -172,9 +176,6 @@ export const measureWith =
   (text, style) =>
     measureLine(doc, fonts, text, style)
 
-const SCALE_STEP = 0.04
-const MIN_SCALE = 0.6
-
 /**
  * The stack at the largest scale up to `maxScale` that fits `roomMm`. A stack
  * that fits at no scale is returned at the smallest, and the caller clips it:
@@ -187,8 +188,8 @@ export function fitStack(
 ): Stack {
   let scale = maxScale
   let stack = layout(scale)
-  while (stack.heightMm > roomMm && scale > MIN_SCALE) {
-    scale = Math.max(MIN_SCALE, scale - SCALE_STEP)
+  while (stack.heightMm > roomMm && scale > STACK_FIT.minScale) {
+    scale = Math.max(STACK_FIT.minScale, scale - STACK_FIT.step)
     stack = layout(scale)
   }
   return stack

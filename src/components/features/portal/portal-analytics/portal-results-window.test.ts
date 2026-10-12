@@ -12,6 +12,7 @@ import {
   storedResultsRange,
   windowCaption,
   windowFooter,
+  zoneTimeLabel,
 } from './portal-results-window'
 
 describe('formatDayRange', () => {
@@ -53,8 +54,9 @@ describe('the window texts', () => {
     compareEnd: '2026-08-31',
   }
 
-  it('names the window and the Property zone it was cut in', () => {
-    expect(windowCaption(days, 'Europe/Sofia')).toBe('1–30 Sep, Europe/Sofia time')
+  it('names the window and the Property zone it was cut in, as a place', () => {
+    expect(windowCaption(days, 'Europe/Sofia')).toBe('1–30 Sep, Sofia time')
+    expect(windowCaption(days, 'America/New_York')).toBe('1–30 Sep, New York time')
   })
 
   it('says what the comparison is against', () => {
@@ -83,18 +85,33 @@ describe('the window texts', () => {
 
   it('puts both periods and the comparison floor in the footer', () => {
     expect(windowFooter(days, 'Europe/Sofia', 10)).toBe(
-      '1–30 Sep against 2–31 Aug, Europe/Sofia time · Averages compare only when both periods have at least 10 private ratings.',
+      '1–30 Sep against 2–31 Aug, Sofia time · Averages compare only when both periods have at least 10 private ratings.',
     )
   })
 
   it('has no comparison sentence when the comparison is off or All Time has none', () => {
-    expect(windowFooter(null, 'Europe/Sofia', 10)).toBe('All time, Europe/Sofia time')
+    expect(windowFooter(null, 'Europe/Sofia', 10)).toBe('All time, Sofia time')
   })
 
   it('leaves the comparison out of the footer when it is off', () => {
     expect(
       windowFooter({ ...days, compareStart: null, compareEnd: null }, 'Europe/Sofia', 10),
-    ).toBe('1–30 Sep, Europe/Sofia time')
+    ).toBe('1–30 Sep, Sofia time')
+  })
+})
+
+describe('zoneTimeLabel', () => {
+  it('names the place the way the guest page does, not the machine id', () => {
+    expect(zoneTimeLabel('Europe/Sofia')).toBe('Sofia time')
+    expect(zoneTimeLabel('America/New_York')).toBe('New York time')
+    expect(zoneTimeLabel('America/Argentina/Buenos_Aires')).toBe('Buenos Aires time')
+  })
+
+  it('writes UTC and a fixed offset without a place name', () => {
+    expect(zoneTimeLabel('UTC')).toBe('UTC time')
+    expect(zoneTimeLabel('Etc/UTC')).toBe('UTC time')
+    // POSIX sign: Etc/GMT-3 is three hours ahead of UTC.
+    expect(zoneTimeLabel('Etc/GMT-3')).toBe('UTC+3 time')
   })
 })
 

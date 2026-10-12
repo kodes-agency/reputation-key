@@ -22,6 +22,7 @@ export const esV2 = defineGuestCopyV2({
     languageNameFr: 'Francés',
     languageNameDe: 'Alemán',
     privacyNoticeLink: 'Aviso de privacidad',
+    privacyNoticeLinkInEnglish: 'Aviso de privacidad (en inglés)',
     footerMadeWith: 'Creado con Reputation Key',
     logoAlt: 'Logotipo de {name}',
     visitNotice:
@@ -110,12 +111,16 @@ export const esV2 = defineGuestCopyV2({
     startOverAction: 'Empezar de nuevo en este dispositivo',
     startOverDone:
       'Listo para el siguiente huésped. Su respuesta anterior sigue guardada.',
+    startOverDoneAfterRemoval: 'Listo para el siguiente huésped.',
     startOverFailed: 'No se pudo empezar de nuevo. Inténtelo de nuevo.',
 
     linktreeDefaultTitle: 'Enlaces útiles',
     linkOpensNewTab: '(se abre en una pestaña nueva)',
     unavailableTitle: 'Esta página no está disponible en este momento.',
     unavailableBody: 'Vuelva a intentarlo más tarde.',
+    unavailableRetry: 'Intentarlo de nuevo',
+    ratingUnavailableTitle: 'Ahora mismo no se pueden enviar valoraciones desde aquí.',
+    ratingUnavailableBody: 'Inténtelo de nuevo más tarde.',
   },
   plurals: {
     ratingStars: { one: '{count} estrella', other: '{count} estrellas' },

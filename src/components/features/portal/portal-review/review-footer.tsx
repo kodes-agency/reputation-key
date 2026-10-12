@@ -1,10 +1,14 @@
 // The footer of the review page: which version this publishes as, what it does
 // to printed codes, the way back, and the one publish button. It stays at the
-// bottom of the column while the lists scroll. The button is the one the review
-// read says the server will accept; when it cannot be used the footer says why.
-// On a phone the way back is the header's alone, so the facts and the button
-// share one row and the footer covers less of a small screen.
+// bottom of the screen while the page scrolls: below `lg` across the whole page,
+// so it is still there under the phones; from `lg` at the foot of the lists'
+// column. The button is the one the review read says the server will accept;
+// when it cannot be used the footer says why. When nothing waits to go live the
+// way back is the main action. Otherwise, on a phone the way back is the
+// header's alone, so the facts and the button share one row and the footer
+// covers less of a small screen.
 
+import { Link } from '@tanstack/react-router'
 import { QrCode } from 'lucide-react'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { BackLink } from '#/components/ui/back-link'
@@ -23,6 +27,7 @@ type Props = Readonly<{
   section?: PortalEditorSection
   isPublishing: boolean
   onPublish: () => void
+  className?: string
 }>
 
 export function ReviewFooter({
@@ -33,9 +38,21 @@ export function ReviewFooter({
   section,
   isPublishing,
   onPublish,
+  className,
 }: Props) {
+  const back = {
+    to: '/properties/$propertyId/portals/$portalId',
+    params: { propertyId, portalId },
+    search: { tab, section },
+  } as const
   return (
-    <footer className={cn(PAGE_GUTTER_X, 'sticky bottom-0 border-t bg-background py-3')}>
+    <footer
+      className={cn(
+        PAGE_GUTTER_X,
+        'sticky bottom-0 z-10 border-t bg-background py-3',
+        className,
+      )}
+    >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card p-3">
         <div className="min-w-0 flex-1 basis-40 text-sm">
           {view.versionLine === null ? null : (
@@ -53,13 +70,16 @@ export function ReviewFooter({
             </p>
           )}
         </div>
-        <BackLink
-          to="/properties/$propertyId/portals/$portalId"
-          params={{ propertyId, portalId }}
-          search={{ tab, section }}
-          label="Back to editing"
-          className="hidden sm:inline-flex"
-        />
+        {view.backIsPrimary ? (
+          <Button asChild>
+            {/* The review is under the portal's address: not "current" for that. */}
+            <Link {...back} activeOptions={{ exact: true }}>
+              Back to editing
+            </Link>
+          </Button>
+        ) : (
+          <BackLink {...back} label="Back to editing" className="hidden sm:inline-flex" />
+        )}
         {view.primary === null ? null : (
           <Button
             type="button"

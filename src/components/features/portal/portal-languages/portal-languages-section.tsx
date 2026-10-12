@@ -17,6 +17,7 @@ import {
 } from './portal-languages-rules'
 import { usePortalLanguageChange } from './use-portal-language-change'
 import { InlineLink } from '#/components/ui/inline-link'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 
 type Props = Readonly<{
   portal: Readonly<{
@@ -40,6 +41,10 @@ export function PortalLanguagesSection({
   const primary = portal.primaryGuestLocale ?? 'en'
   const additional = portal.additionalGuestLocales ?? []
   const onChange = usePortalLanguageChange(portal, update)
+  const { can } = usePermissions()
+  // The property's wording behind a welcome line or link preview is written by
+  // an account admin (`portal.admin`), in Welcome.
+  const canWritePropertyWording = canEdit && can('portal.admin')
   const coverageOf = (locale: GuestLocale) =>
     coverage?.languages.find((row) => row.locale === locale) ?? null
   return (
@@ -54,6 +59,7 @@ export function PortalLanguagesSection({
             isFallback={locale === primary}
             coverage={coverageOf(locale)}
             canEdit={canEdit}
+            canWritePropertyWording={canWritePropertyWording}
             onChange={onChange}
           />
         ))}

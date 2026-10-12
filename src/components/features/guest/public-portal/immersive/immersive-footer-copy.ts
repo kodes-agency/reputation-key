@@ -8,7 +8,14 @@ export type ImmersiveFooterCopy = Readonly<{
   /** The accessible name of the notice. */
   noticeLabel: string
   acknowledge: string
+  /**
+   * What the privacy link says. The notice it opens is the English closed-beta
+   * document (ADR 0044), so on a page in any other language the link says so,
+   * in that language, instead of promising a text the guest cannot read.
+   */
   privacyLink: string
+  /** Read out after the link, which opens the notice in a tab of its own. */
+  privacyLinkOpensNewTab: string
   madeWith: string
 }>
 
@@ -26,7 +33,11 @@ export function immersiveFooterCopy(
     visitNotice: guestCopyText(pack, 'visitNotice', { name: displayName }),
     noticeLabel: pack.copy.visitNoticeLabel,
     acknowledge: pack.copy.visitNoticeAcknowledge,
-    privacyLink: pack.copy.privacyNoticeLink,
+    privacyLink:
+      pack.locale === 'en'
+        ? pack.copy.privacyNoticeLink
+        : pack.copy.privacyNoticeLinkInEnglish,
+    privacyLinkOpensNewTab: pack.copy.linkOpensNewTab,
     madeWith: pack.copy.footerMadeWith,
   }
 }

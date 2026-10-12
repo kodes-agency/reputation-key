@@ -45,6 +45,7 @@ import {
 } from './print-kit-art-layout'
 import { PrintKitCropMarks } from './print-kit-crop-marks'
 import { PrintKitStack } from './print-kit-stack'
+import { previewStackScale } from './print-kit-stack-fit'
 import { printKitPreviewLabel } from './print-kit-state'
 
 const PAGE = printPageMm(A6_WIDTH_MM, A6_HEIGHT_MM)
@@ -74,6 +75,8 @@ export function PrintKitArt({ piece, face, look, codeUrl, shortAddress }: Props)
   const palette = printKitPalette(look.accentColour, look.fieldColour)
   const address = previewAddress(shortAddress)
   const plateTop = previewPlateTopMm(address)
+  const stackRoom = plateTop - STACK_GAP_BELOW_MM - STACK_TOP_MM
+  const stackScale = previewStackScale(face.blocks, stackRoom)
   const addressTop = plateTop + PLATE_MM + PLATE_ABOVE_ADDRESS_MM
   const bleed = PRINT_KIT_BLEED_MM
   const fade = `linear-gradient(to bottom, transparent ${PHOTO_FADE_FROM * 100}%, ${palette.field} 100%)`
@@ -162,7 +165,7 @@ export function PrintKitArt({ piece, face, look, codeUrl, shortAddress }: Props)
               left: u(SIDE_MARGIN_MM),
               width: u(A6_WIDTH_MM - 2 * SIDE_MARGIN_MM),
               top: u(STACK_TOP_MM),
-              height: u(plateTop - STACK_GAP_BELOW_MM - STACK_TOP_MM),
+              height: u(stackRoom),
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -170,7 +173,13 @@ export function PrintKitArt({ piece, face, look, codeUrl, shortAddress }: Props)
               textAlign: 'center',
             })}
           >
-            <PrintKitStack face={face} palette={palette} pt={pt} u={u} />
+            <PrintKitStack
+              face={face}
+              palette={palette}
+              pt={pt}
+              u={u}
+              scale={stackScale}
+            />
           </div>
           <Plate top={plateTop} codeUrl={codeUrl} />
           <div

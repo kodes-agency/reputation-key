@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyLinkOrder,
-  describeLinkApproval,
   describeLinkCap,
   isAddressWrite,
   linkLabelFor,
@@ -68,6 +67,14 @@ describe('describeLinkCap', () => {
   it('keeps a Portal that already has more than the cap full, without a negative room', () => {
     expect(describeLinkCap(6, 4)).toEqual({ text: '6 of 4 tiles in use', isFull: true })
   })
+
+  it('counts the tiles guests cannot see, so a full list is not taken for a live one', () => {
+    expect(describeLinkCap(4, 4, 1)).toEqual({
+      text: '4 of 4 tiles in use · 1 hidden from guests',
+      isFull: true,
+    })
+    expect(describeLinkCap(2, 4, 0).text).toBe('2 of 4 tiles in use')
+  })
 })
 
 describe('linkLabelFor', () => {
@@ -110,52 +117,6 @@ describe('linkLocaleChips', () => {
       false,
       true,
     ])
-  })
-})
-
-describe('describeLinkApproval', () => {
-  const names = new Map([['admin-1', 'Elena Petrova']])
-
-  it('names the approver of a custom destination', () => {
-    expect(
-      describeLinkApproval(
-        { state: 'approved', sourceType: 'custom', approvedByUserId: 'admin-1' },
-        names,
-      ),
-    ).toEqual({ tone: 'ok', text: 'Approved · Elena Petrova' })
-  })
-
-  it('does not invent a name it cannot resolve', () => {
-    expect(
-      describeLinkApproval(
-        { state: 'approved', sourceType: 'custom', approvedByUserId: 'gone' },
-        names,
-      ),
-    ).toEqual({ tone: 'ok', text: 'Approved' })
-  })
-
-  it('says a recognised service was approved automatically', () => {
-    expect(
-      describeLinkApproval(
-        { state: 'approved', sourceType: 'recognized', approvedByUserId: 'admin-1' },
-        names,
-      ),
-    ).toEqual({ tone: 'ok', text: 'Recognised service · approved automatically' })
-  })
-
-  it.each([
-    ['pending', 'Waiting for approval'],
-    ['disabled', 'Not approved'],
-    ['quarantined', 'Held back'],
-    ['unclassified', 'Not checked yet'],
-  ] as const)('warns about a %s destination', (state, start) => {
-    const approval = describeLinkApproval(
-      { state, sourceType: null, approvedByUserId: null },
-      names,
-    )
-
-    expect(approval.tone).toBe('warn')
-    expect(approval.text.startsWith(start)).toBe(true)
   })
 })
 

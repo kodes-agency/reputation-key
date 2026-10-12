@@ -29,4 +29,9 @@ export const createPortalGroupPublicApi = (
     const group = await portalGroupRepo.findById(orgId, groupId)
     return group?.propertyId === pid
   },
+  getGroupInfo: async (orgId: OrganizationId, groupId: PortalGroupId) => {
+    const group = await portalGroupRepo.findById(orgId, groupId)
+    if (!group) return null
+    return { id: group.id, propertyId: group.propertyId, name: group.name }
+  },
 })

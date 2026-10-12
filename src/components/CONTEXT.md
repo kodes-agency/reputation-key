@@ -115,9 +115,9 @@ and actions supply server state.
   link in it is chosen and its rows are the touch height.
   A page's sibling views are underline tabs, drawn from one recipe
   (`tabs-line-styles.ts`): `LinkTabs` / `LinkTab` when each view is a route or a
-  search value of one (Properties, Goals, the Portal workspace and the
-  Notifications filters), and `Tabs variant="line"` when the views swap a panel in
-  the same document (no page does today). `LinkTabs` is a navigation landmark of
+  search value of one (Properties, Goals, the two views of New goal, the Portal
+  workspace and the Notifications filters), and `Tabs variant="line"` when the
+  views swap a panel in the same document (no page does today). `LinkTabs` is a navigation landmark of
   links, not a tablist, and a `LinkTab` is a `NavLink` in a list item: it takes the
   router link's own `to`, `params` and `search` and the one `current` the page gives
   it, so no tab needs `activeOptions`, and what is drawn and what is announced are

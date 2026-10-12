@@ -135,19 +135,10 @@ describe('derivePortalShareView — precedence between the three sources of trut
       tokenStatus: LIVE_TOKEN,
     })
 
-    expect(viewer.showViewOnlyNotice).toBe(true)
     expect(viewer.showIssueForm).toBe(false)
     expect(viewer.showActions).toBe(false)
     // Read-only is not blind: the code block is informational, not an affordance.
     expect(viewer.showCode).toBe(true)
-
-    const manager = derivePortalShareView({
-      canManage: true,
-      revoked: false,
-      publicUrl: null,
-      tokenStatus: LIVE_TOKEN,
-    })
-    expect(manager.showViewOnlyNotice).toBe(false)
   })
 
   it('keeps make and manage mutually exclusive, and both behind canManage', () => {
@@ -212,19 +203,47 @@ describe('derivePortalShareView — when the code was made', () => {
     }
   })
 
-  it('labels a grace window only while one is set', () => {
-    const graceLabel = (graceExpiresAt: string | null) =>
+  it('labels a grace window only while one is set, as a moment in the property’s time', () => {
+    const graceLabel = (graceExpiresAt: string | null, timeZone?: string) =>
       derivePortalShareView({
         canManage: true,
         revoked: false,
         publicUrl: null,
         tokenStatus: { ...LIVE_TOKEN, graceExpiresAt },
+        now: new Date('2026-01-11T09:00:00Z'),
+        timeZone,
       }).graceLabel
 
     expect(graceLabel(null)).toBeNull()
-    expect(graceLabel('2026-02-10T09:00:00Z')).toBe('Feb 10, 2026')
+    expect(graceLabel('2026-02-10T09:00:00Z', 'Europe/Sofia')).toBe(
+      'Feb 10, 2026, 11:00 AM Sofia time, in 30 days',
+    )
+    // Without the property's zone the moment is in UTC, and says so.
+    expect(graceLabel('2026-02-10T09:00:00Z')).toBe(
+      'Feb 10, 2026, 9:00 AM UTC, in 30 days',
+    )
     // A malformed timestamp hides the row; it must not render "Invalid Date".
     expect(graceLabel('soon')).toBeNull()
+  })
+
+  it('says how to get the picture back to a manager, and nothing to someone who can only look', () => {
+    const note = (input: Partial<ShareViewInput>) =>
+      derivePortalShareView({
+        canManage: true,
+        revoked: false,
+        publicUrl: null,
+        tokenStatus: LIVE_TOKEN,
+        ...input,
+      }).addressNote
+
+    expect(note({})).toBe(
+      'The QR image and the addresses are shown only when a code is made or replaced.',
+    )
+    expect(note({ tokenStatus: { ...LIVE_TOKEN, addressRecoverable: true } })).toMatch(
+      /^Download the code again whenever you need it/,
+    )
+    expect(note({ publicUrl: PUBLIC_URL })).toBeNull()
+    expect(note({ canManage: false })).toBeNull()
   })
 })
 

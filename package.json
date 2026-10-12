@@ -178,6 +178,7 @@
   "pnpm": {
     "overrides": {
       "esbuild": "0.28.2",
+      "handlebars": "4.7.10",
       "hono": "4.12.34",
       "js-yaml": "4.3.2",
       "kysely": "0.28.17",

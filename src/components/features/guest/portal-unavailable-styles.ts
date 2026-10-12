@@ -51,6 +51,31 @@ body:has(.portal-unavailable) { background-color: #f6f4f0; }
   line-height: 22px;
   color: #5f5951;
 }
+.portal-unavailable__retry {
+  box-sizing: border-box;
+  min-height: 44px;
+  margin: 22px 0 0;
+  padding: 0 22px;
+  border: 1px solid #cdc6ba;
+  border-radius: 999px;
+  background: transparent;
+  color: #2a2723;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 150ms ease-out, transform 150ms ease-out;
+}
+.portal-unavailable__retry:hover { background: #ebe7df; }
+.portal-unavailable__retry:active { transform: scale(0.97); }
+.portal-unavailable__retry:focus-visible {
+  outline: 2px solid #2a2723;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .portal-unavailable__retry { transition: none; }
+  .portal-unavailable__retry:active { transform: none; }
+}
 .portal-unavailable__rule {
   width: 40px;
   height: 1px;

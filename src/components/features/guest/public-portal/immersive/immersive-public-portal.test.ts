@@ -131,7 +131,10 @@ describe('a tenant that cannot take a response', () => {
     (availability) => {
       const html = renderImmersivePortal({ availability })
 
-      expect(html).toContain('This page isn’t available right now.')
+      // Only the rating is said to be out of reach, not the page that stands around it.
+      expect(html).toContain('Ratings can’t be sent from here right now.')
+      expect(html).toContain('Please try again later.')
+      expect(html).not.toContain('This page isn’t available')
       expect(html).not.toContain('How was your experience?')
       // The page itself, and its Linktree, still stand.
       expect(html).toContain('Around the resort')

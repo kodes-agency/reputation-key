@@ -18,7 +18,9 @@
 //             ended (closed enum), an internal moderation reason
 //             (staff-authored; historical rows only), and whether the notice
 //             is a Low ratings one for its reader (`lowRating`: the outcome of
-//             the reader's own threshold, never the stars).
+//             the reader's own threshold, never the stars), and the one marker
+//             a Goal notice may carry about its month (`goalMarker`: a closed
+//             enum, never a date, a target or a person).
 //   FORBIDDEN Google/provider review ratings and content, reply text,
 //             guest/reviewer name, media URLs, sentiment or any derived score,
 //             and any other employee's NAME or email.
@@ -164,6 +166,11 @@ export type NotificationPayload = Readonly<{
   /** Which way the month's result stands now. */
   goalOutcome?: NotificationGoalOutcome
   /**
+   * The one thing a reader of "goal met" should know about the month's target:
+   * it was not in place for the whole month. Absent for a goal that was.
+   */
+  goalMarker?: NotificationGoalMarker
+  /**
    * How a Property's first Google review import ended
    * (`property.review_import_finished`). Absent degrades to the neutral copy.
    */
@@ -192,6 +199,13 @@ export type NotificationGoalSubjectKind = 'property' | 'portal_group' | 'portal'
  * quarantined). Never the numbers.
  */
 export type NotificationGoalOutcome = 'met' | 'not_met' | 'unavailable'
+
+/**
+ * How a month's target came about when it did not stand for the whole month:
+ * the goal was set after the month began, or its target was changed while the
+ * month ran. One marker per notice; never when, by whom or to what.
+ */
+export type NotificationGoalMarker = 'set_in_month' | 'target_changed'
 
 /** A Portal health state that asks for attention; `healthy` never notifies. */
 export type NotificationPortalHealthStatus = 'degraded' | 'unavailable'
@@ -284,6 +298,11 @@ const GOAL_OUTCOMES: Record<string, true> = {
   met: true,
   not_met: true,
   unavailable: true,
+}
+
+const GOAL_MARKERS: Record<string, true> = {
+  set_in_month: true,
+  target_changed: true,
 }
 
 const REOPEN_REASONS: Record<string, true> = {
@@ -446,6 +465,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
     takeMember<NotificationGoalSubjectKind>(raw.goalSubjectKind, GOAL_SUBJECT_KINDS),
   )
   set('goalOutcome', takeMember<NotificationGoalOutcome>(raw.goalOutcome, GOAL_OUTCOMES))
+  set('goalMarker', takeMember<NotificationGoalMarker>(raw.goalMarker, GOAL_MARKERS))
   const importOutcome = takeMember<NotificationImportOutcome>(
     raw.importOutcome,
     IMPORT_OUTCOMES,

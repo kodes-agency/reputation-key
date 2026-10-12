@@ -23,6 +23,7 @@ import {
   batchEntryOf,
   idsToPublish,
   PUBLISH_BATCH_SIZE,
+  startsLeftOut,
   type BatchEntry,
 } from './property-look-batch-rules'
 import type { AffectedPortalRow } from './property-look-rules'
@@ -97,7 +98,9 @@ export function usePropertyLookBatch({
     staleTime: 0,
     gcTime: 0,
   })
-  const [leftOut, setLeftOut] = useState<ReadonlySet<string>>(() => new Set())
+  // The portals whose tick the manager turned from where it started. A ready
+  // portal starts ticked, unless it also carries other draft edits.
+  const [flipped, setFlipped] = useState<ReadonlySet<string>>(() => new Set())
   const [run, setRun] = useState<BatchPhase>({ status: 'reviewing' })
   const order = useMemo(() => live.map((row) => row.portalId), [live])
 
@@ -110,8 +113,19 @@ export function usePropertyLookBatch({
     }))
   }, [reviews.data, live])
 
+  const leftOut: ReadonlySet<string> = useMemo(
+    () =>
+      new Set(
+        (rows ?? [])
+          .filter((item) => item.entry.kind === 'ready')
+          .filter((item) => startsLeftOut(item.entry) !== flipped.has(item.row.portalId))
+          .map((item) => item.row.portalId),
+      ),
+    [rows, flipped],
+  )
+
   const toggle = (portalId: string) =>
-    setLeftOut((current) => {
+    setFlipped((current) => {
       const next = new Set(current)
       if (!next.delete(portalId)) next.add(portalId)
       return next

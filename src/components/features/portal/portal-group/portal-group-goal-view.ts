@@ -2,12 +2,23 @@
 // the figure so far against the target, a neutral bar, and who set it. Pure: the
 // words and the bar's fill are decided here, from the live month-to-date read.
 //
+// The target shown is the month's own. Once a manager has changed it, the card
+// names that person and what the month started at instead of who set the goal:
+// the number on the card is theirs.
+//
 // It is never the month's result. The figure is what has counted so far, so the
 // bar is neutral (no good or bad colour, no praise), a figure that cannot be
 // read is not a zero, and an average too thin to show says why instead.
 import type { GoalProgress } from '#/contexts/reporting/application/public-api'
 import { goalMetricLabel } from '#/components/goals/goal-metric-label'
-import { formatNumber, formatDayKey, formatMonthDay, formatMonthName } from '#/lib/format'
+import { goalTargetMarkerLine } from '#/components/goals/goal-target-marker'
+import {
+  formatNumber,
+  formatDayKey,
+  formatMonthDay,
+  formatMonthName,
+  formatShortDate,
+} from '#/lib/format'
 
 export type GoalCardState = 'live' | 'too_few' | 'unavailable' | 'not_started'
 
@@ -23,7 +34,10 @@ export type GoalCardView = Readonly<{
   fraction: number | null
   /** Why there is no figure, or what the goal is waiting for. */
   detail: string | null
-  /** "Set by Elena Petrova · the month ends today". */
+  /**
+   * "Set by Elena Petrova on Aug 12 · the month ends today", or "Changed by
+   * Marco Rossi on Sep 20, started at 300 · …" for a month whose target changed.
+   */
   note: string
   /** What the bar says to a screen reader. */
   progressLabel: string
@@ -63,15 +77,31 @@ function formatValue(goal: GoalProgress, value: number): string {
   return goal.metric === 'portal_rating_average' ? value.toFixed(1) : formatNumber(value)
 }
 
-function noteOf(goal: GoalProgress, context: GoalCardContext): string {
+/**
+ * Who the target on the card comes from: the person who changed this month's
+ * target, with what it started at, or else the person who set the goal. The
+ * day is always there, because a goal can be set during the month it counts.
+ */
+function targetSource(goal: GoalProgress, context: GoalCardContext): string {
+  if (goal.monthTarget !== null) {
+    return goalTargetMarkerLine(goal.metric, goal.monthTarget, {
+      timezone: goal.timezone,
+      now: context.now,
+      personName: context.setByName,
+    })
+  }
   const name = context.setByName(goal.setBy)
+  const setOn = `on ${formatShortDate(goal.setAt, goal.timezone, context.now) ?? 'an unknown date'}`
+  return name === null ? `Set ${setOn}` : `Set by ${name} ${setOn}`
+}
+
+/** Where the target comes from, then how long the month has left. */
+function noteOf(goal: GoalProgress, context: GoalCardContext): string {
   const ends =
     goal.status === 'active' ? monthEnds(daysLeftInMonth(goal, context.now)) : null
-  const parts = [name === null ? null : `Set by ${name}`, ends].filter(
-    (part): part is string => part !== null,
-  )
-  const note = parts.join(' · ')
-  return name === null ? note.charAt(0).toUpperCase() + note.slice(1) : note
+  return [targetSource(goal, context), ends]
+    .filter((part): part is string => part !== null)
+    .join(' · ')
 }
 
 type Outcome = Readonly<{

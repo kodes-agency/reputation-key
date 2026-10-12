@@ -161,7 +161,7 @@ export const TitleLeavesRoomForTheCloseInAForm: Story = {
             <DialogTitle>
               Change the monthly target for every portal in this group
             </DialogTitle>
-            <DialogDescription>Changes start next full month.</DialogDescription>
+            <DialogDescription>Changes apply from Nov 1.</DialogDescription>
           </DialogHeader>
         </form>
       </DialogContent>

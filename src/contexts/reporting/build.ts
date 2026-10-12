@@ -58,6 +58,15 @@ import {
 } from './application/use-cases/goal-programs'
 import { withGoalProgramVisibility } from './application/use-cases/goal-program-visibility'
 import {
+  createGoalsForSubjects,
+  type GoalBulkCreateRequestApi,
+} from './application/use-cases/goal-bulk-create'
+import {
+  readGoalMonthPreview,
+  type GoalMonthPreviewRequestApi,
+} from './application/use-cases/goal-month-preview'
+import {
+  createGoalProgramProgressReader,
   createGoalProgressReader,
   type GoalProgressRequestApi,
 } from './application/use-cases/goal-progress'
@@ -272,15 +281,16 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     input.portalApi,
     input.portalGroupApi,
   )
+  const goalProgramDeps = (policy: GoalExecutionPolicy) => ({
+    repository: goalProgramRepo,
+    policy,
+    subjects: goalProgramSubjects,
+    metrics: metricApi,
+    id: input.idGen,
+    now: input.clock,
+  })
   const buildGoalPrograms = (policy: GoalExecutionPolicy) =>
-    createGoalProgramService({
-      repository: goalProgramRepo,
-      policy,
-      subjects: goalProgramSubjects,
-      metrics: metricApi,
-      id: input.idGen,
-      now: input.clock,
-    })
+    createGoalProgramService(goalProgramDeps(policy))
   const goalProgramVisibility = createGoalProgramVisibilityAdapter(
     createStaffPortalResolverAdapter(input.staffPublicApi),
     input.portalGroupApi,
@@ -301,21 +311,50 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
       }),
     )
   }
+  const goalProgressDeps = (policy: GoalExecutionPolicy) => ({
+    reads: readGoalPrograms(policy),
+    metrics: metricApi,
+    now: input.clock,
+  })
   const readGoalProgress = (policy: GoalExecutionPolicy) =>
-    createGoalProgressReader({
-      reads: readGoalPrograms(policy),
-      metrics: metricApi,
-      now: input.clock,
-    })
-  const programs: GoalProgramRequestApi & GoalProgressRequestApi = Object.freeze({
+    createGoalProgressReader(goalProgressDeps(policy))
+  const readGoalProgramProgress = (policy: GoalExecutionPolicy) =>
+    createGoalProgramProgressReader(goalProgressDeps(policy))
+  const programs: GoalProgramRequestApi &
+    GoalProgressRequestApi &
+    GoalMonthPreviewRequestApi &
+    GoalBulkCreateRequestApi = Object.freeze({
     create: (policy, ...args) => buildGoalPrograms(policy).create(...args),
+    createForSubjects: (policy, ...args) =>
+      createGoalsForSubjects(
+        {
+          ...goalProgramDeps(policy),
+          subjectNames: goalProgramSubjects,
+          logger: input.logger,
+        },
+        ...args,
+      ),
     revise: (policy, ...args) => buildGoalPrograms(policy).revise(...args),
     changeAssignments: (policy, ...args) =>
       buildGoalPrograms(policy).changeAssignments(...args),
     changeStatus: (policy, ...args) => buildGoalPrograms(policy).changeStatus(...args),
+    rename: (policy, ...args) => buildGoalPrograms(policy).rename(...args),
+    changeMonthTarget: (policy, ...args) =>
+      buildGoalPrograms(policy).changeMonthTarget(...args),
     get: (policy, ...args) => readGoalPrograms(policy).get(...args),
     list: (policy, ...args) => readGoalPrograms(policy).list(...args),
     progress: (policy, ...args) => readGoalProgress(policy)(...args),
+    programProgress: (policy, ...args) => readGoalProgramProgress(policy)(...args),
+    monthPreview: (policy, ...args) =>
+      readGoalMonthPreview(
+        {
+          policy,
+          subjects: goalProgramSubjects,
+          metrics: metricApi,
+          now: input.clock,
+        },
+        ...args,
+      ),
   })
 
   return {

@@ -6,11 +6,14 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
 import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
+import { openAlertDialog } from '#/components/ui/confirmation-dialog.stories.open'
 import type {
   PortalLinktreeLink,
   PortalLinktreeView,
 } from '#/contexts/portal/application/public-api'
 import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
+import type { PortalApprovedDestinationList } from '../portal-settings/portal-experience-settings-types'
+import type { LinkApprovalControls } from './link-approval-controls'
 import { LinkTree } from './link-tree'
 import type { LinktreeMutations } from './use-linktree-mutations'
 
@@ -103,9 +106,16 @@ type StoryProps = Readonly<{
   mutations: LinktreeMutations
   canEdit: boolean
   canDelete?: boolean
+  approval?: LinkApprovalControls
 }>
 
-function Harness({ view: current, mutations, canEdit, canDelete = true }: StoryProps) {
+function Harness({
+  view: current,
+  mutations,
+  canEdit,
+  canDelete = true,
+  approval,
+}: StoryProps) {
   return (
     <div className="max-w-2xl p-6">
       <LinkTree
@@ -115,6 +125,7 @@ function Harness({ view: current, mutations, canEdit, canDelete = true }: StoryP
         memberNames={MEMBER_NAMES}
         canEdit={canEdit}
         canDelete={canDelete}
+        approval={approval}
       />
     </div>
   )
@@ -183,14 +194,17 @@ export const MovesATileFromTheKeyboard: Story = {
   },
 }
 
-// The handle is the keyboard stand-in for dragging: focus it, press an arrow, and
-// the tile moves one place with focus staying on the handle.
-export const MovesATileWithTheHandle: Story = {
+// There is no grip: the two buttons are the whole control, and the arrow keys work
+// on either one, so a tile is re-ordered from the keyboard without a drag handle.
+export const MovesATileWithTheArrowKeys: Story = {
   args: { mutations: stubMutations() },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    const handle = canvas.getByRole('button', { name: 'Reorder Spa & treatments' })
-    handle.focus()
+    await expect(
+      canvas.queryByRole('button', { name: /^Reorder / }),
+    ).not.toBeInTheDocument()
+    const up = canvas.getByRole('button', { name: 'Move Spa & treatments up' })
+    up.focus()
     await userEvent.keyboard('{ArrowUp}')
     await waitFor(() =>
       expect(args.mutations.reorderLinks).toHaveBeenCalledWith({
@@ -206,15 +220,13 @@ export const MovesATileWithTheHandle: Story = {
         },
       }),
     )
-    await waitFor(() =>
-      expect(
-        canvas.getByRole('button', { name: 'Reorder Spa & treatments' }),
-      ).toHaveFocus(),
-    )
-    // The first tile has nowhere to go: its handle ignores Up.
-    canvas.getByRole('button', { name: 'Reorder Discover the resort' }).focus()
-    await userEvent.keyboard('{ArrowUp}')
+    // The arrow that was pressed is the move that was made, whichever button had focus.
+    canvas.getByRole('button', { name: 'Move Getting here up' }).focus()
+    await userEvent.keyboard('{ArrowDown}')
     await expect(args.mutations.reorderLinks).toHaveBeenCalledTimes(1)
+    canvas.getByRole('button', { name: 'Move Olive Terrace menu up' }).focus()
+    await userEvent.keyboard('{ArrowDown}')
+    await waitFor(() => expect(args.mutations.reorderLinks).toHaveBeenCalledTimes(2))
   },
 }
 
@@ -225,6 +237,17 @@ export const PhoneChipNamesTheMissingLanguage: Story = {
     const canvas = within(canvasElement)
     const chip = canvas.getByText('BG missing')
     await expect(chip.className).toContain('sm:hidden')
+  },
+}
+
+// From `sm` up a missing language is marked by an icon as well as by colour.
+export const MissingLanguageChipHasAnIcon: Story = {
+  play: async ({ canvasElement }) => {
+    const languageLists = within(canvasElement).getAllByRole('list', {
+      name: 'Languages',
+    })
+    await expect(languageLists[2]?.querySelector('svg')).not.toBeNull()
+    await expect(languageLists[0]?.querySelector('svg')).toBeNull()
   },
 }
 
@@ -408,6 +431,238 @@ export const WaitingForApproval: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /^Partner offer/ }))
     await expect(canvas.getByText(/Waiting for approval/)).toBeVisible()
+  },
+}
+
+// A tile guests cannot see says so on its row, in the words the open tile uses,
+// and the cap fact counts it: an approved tile stays quiet.
+export const CollapsedTilesSayWhenGuestsCannotSeeThem: Story = {
+  args: {
+    view: view({
+      links: [
+        tile('discover', 'a0', 'Discover the resort', null),
+        tile('partner', 'a1', 'Partner offer', null, {
+          destination: { state: 'pending', sourceType: 'custom', approvedByUserId: null },
+        }),
+        tile('menu', 'a2', 'Olive Terrace menu', null, {
+          destination: {
+            state: 'disabled',
+            sourceType: 'custom',
+            approvedByUserId: null,
+          },
+        }),
+      ],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('button', { name: /^Partner offer/ }),
+    ).toHaveTextContent('Hidden from guests · waiting for approval')
+    await expect(
+      canvas.getByRole('button', { name: /^Olive Terrace menu/ }),
+    ).toHaveTextContent('Hidden from guests · turned off')
+    await expect(
+      canvas.getByRole('button', { name: /^Discover the resort/ }),
+    ).not.toHaveTextContent('Hidden from guests')
+    await expect(
+      canvas.getByText('3 of 4 tiles in use · 2 hidden from guests'),
+    ).toBeVisible()
+  },
+}
+
+const PARTNER_SITE: PortalApprovedDestinationList['destinations'][number] = {
+  id: 'site-partner',
+  normalizedUri: 'https://avela.bg/partner',
+  hostname: 'avela.bg',
+  sourceType: 'custom',
+  approvalState: 'pending',
+  lastValidatedAt: '2026-10-01T09:00:00.000Z',
+}
+
+const approvalControls = (): LinkApprovalControls => ({
+  sites: [PARTNER_SITE],
+  approve: fn(async () => undefined),
+  turnOff: fn(async () => undefined),
+  isBusy: false,
+})
+
+const PARTNER_VIEW = view({
+  links: [
+    tile('partner', 'a0', 'Partner offer', null, {
+      destination: { state: 'pending', sourceType: 'custom', approvedByUserId: null },
+    }),
+  ],
+})
+
+// The tile is where an address is approved: an account admin who opens a waiting
+// tile approves it, or turns it off after a question, without leaving the tile.
+export const AccountAdminApprovesFromTheTile: Story = {
+  args: { view: PARTNER_VIEW, approval: approvalControls() },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Partner offer/ }))
+    await expect(canvas.getByText(/until you approve it/)).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Approve' }))
+    await waitFor(() =>
+      expect(args.approval?.approve).toHaveBeenCalledWith('site-partner'),
+    )
+
+    const dialog = await openAlertDialog(canvasElement, 'Turn off')
+    await expect(args.approval?.turnOff).not.toHaveBeenCalled()
+    await expect(
+      dialog.getByRole('heading', { name: 'Turn off avela.bg?' }),
+    ).toBeVisible()
+    await userEvent.click(dialog.getByRole('button', { name: 'Turn off site' }))
+    await waitFor(() =>
+      expect(args.approval?.turnOff).toHaveBeenCalledWith('site-partner'),
+    )
+  },
+}
+
+// A manager is told who approves, and is given no button for it.
+export const ManagerIsToldWhoApproves: Story = {
+  args: { view: PARTNER_VIEW },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Partner offer/ }))
+    await expect(canvas.getByText(/until an account admin approves it/)).toBeVisible()
+    await expect(canvas.queryByRole('button', { name: 'Approve' })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: 'Turn off' })).toBeNull()
+  },
+}
+
+// An approved tile offers an account admin only "Turn off".
+export const ApprovedTileOffersTurnOffToAnAccountAdmin: Story = {
+  args: {
+    view: view({
+      links: [
+        tile('partner', 'a0', 'Partner offer', null, {
+          destination: approvedBy('u-2'),
+        }),
+      ],
+    }),
+    approval: approvalControls(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Partner offer/ }))
+    await expect(canvas.getByText('Approved · Elena Petrova')).toBeVisible()
+    await expect(canvas.queryByRole('button', { name: 'Approve' })).toBeNull()
+    await expect(canvas.getByRole('button', { name: 'Turn off' })).toBeVisible()
+  },
+}
+
+// The check can take seconds: the line under the field says so instead of showing
+// the previous address's approval, then the approval comes back.
+export const CheckingAnAddressIsShown: Story = {
+  args: {
+    mutations: {
+      ...stubMutations(),
+      updateLink: stubAction(
+        () => new Promise<undefined>((done) => setTimeout(done, 700)),
+      ),
+    } as unknown as LinktreeMutations,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Olive Terrace menu/ }))
+    await expect(canvas.getByText('Approved · Elena Petrova')).toBeVisible()
+    const address = canvas.getByLabelText('Opens')
+    await userEvent.clear(address)
+    await userEvent.type(address, 'https://avela.bg/menu-new')
+    await userEvent.tab()
+    await expect(await canvas.findByText('Checking address…')).toBeVisible()
+    await expect(canvas.queryByText('Approved · Elena Petrova')).toBeNull()
+    await waitFor(() => expect(canvas.queryByText('Checking address…')).toBeNull(), {
+      timeout: 3000,
+    })
+    await expect(canvas.getByText('Approved · Elena Petrova')).toBeVisible()
+  },
+}
+
+// A tile from before approvals can be checked from its approval line, and says
+// "Checking address…" while that runs.
+export const CheckThisAddressShowsChecking: Story = {
+  args: {
+    view: view({
+      links: [
+        tile('old', 'a0', 'Old link', null, {
+          destination: {
+            state: 'unclassified',
+            sourceType: null,
+            approvedByUserId: null,
+          },
+        }),
+      ],
+    }),
+    mutations: {
+      ...stubMutations(),
+      updateLink: stubAction(
+        () => new Promise<undefined>((done) => setTimeout(done, 700)),
+      ),
+    } as unknown as LinktreeMutations,
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Old link/ }))
+    await expect(canvas.getByText(/^Not checked · /)).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Check this address' }))
+    await expect(await canvas.findByText('Checking address…')).toBeVisible()
+    await waitFor(() =>
+      expect(args.mutations.updateLink).toHaveBeenCalledWith({
+        data: { linkId: 'old', url: 'https://avela.bg/old' },
+      }),
+    )
+    await waitFor(() => expect(canvas.queryByText('Checking address…')).toBeNull(), {
+      timeout: 3000,
+    })
+  },
+}
+
+// The chosen icon is checked the moment it is chosen, before the server answers.
+// A refused write puts the saved icon back.
+export const ChosenIconShowsAtOnce: Story = {
+  args: {
+    mutations: {
+      ...stubMutations(),
+      updateLink: stubAction(
+        () =>
+          new Promise<undefined>((_done, refuse) =>
+            setTimeout(() => refuse(new Error('Not saved')), 600),
+          ),
+      ),
+    } as unknown as LinktreeMutations,
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Getting here/ }))
+    const car = canvas.getByRole('radio', { name: 'Car' })
+    await expect(car).not.toBeChecked()
+    await userEvent.click(car)
+    await waitFor(() => expect(args.mutations.updateLink).toHaveBeenCalled())
+    await expect(canvas.getByRole('radio', { name: 'Car' })).toBeChecked()
+    await expect(canvas.getByRole('radio', { name: 'Map pin' })).not.toBeChecked()
+    // Refused: the saved icon is back.
+    await waitFor(
+      () => expect(canvas.getByRole('radio', { name: 'Car' })).not.toBeChecked(),
+      {
+        timeout: 3000,
+      },
+    )
+    await expect(canvas.getByRole('radio', { name: 'Map pin' })).toBeChecked()
+  },
+}
+
+// The icons are glyphs only: each one names itself on focus.
+export const IconNamesShowOnFocus: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Getting here/ }))
+    canvas.getByRole('radio', { name: 'Concierge bell' }).focus()
+    await expect(await within(document.body).findByRole('tooltip')).toHaveTextContent(
+      'Concierge bell',
+    )
   },
 }
 

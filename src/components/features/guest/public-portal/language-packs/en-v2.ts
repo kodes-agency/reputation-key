@@ -19,6 +19,7 @@ export const enV2 = defineGuestCopyV2({
     languageNameFr: 'French',
     languageNameDe: 'German',
     privacyNoticeLink: 'Privacy notice',
+    privacyNoticeLinkInEnglish: 'Privacy notice (in English)',
     footerMadeWith: 'Made with Reputation Key',
     logoAlt: '{name} logo',
     visitNotice:
@@ -105,12 +106,16 @@ export const enV2 = defineGuestCopyV2({
     sharedDeviceBody: 'Start over so the next guest begins with a fresh page.',
     startOverAction: 'Start over on this device',
     startOverDone: 'Ready for the next guest. Your earlier response remains saved.',
+    startOverDoneAfterRemoval: 'Ready for the next guest.',
     startOverFailed: 'Could not start over. Please try again.',
 
     linktreeDefaultTitle: 'Useful links',
     linkOpensNewTab: '(opens in a new tab)',
     unavailableTitle: 'This page isn’t available right now.',
     unavailableBody: 'Please check back later.',
+    unavailableRetry: 'Try again',
+    ratingUnavailableTitle: 'Ratings can’t be sent from here right now.',
+    ratingUnavailableBody: 'Please try again later.',
   },
   plurals: {
     ratingStars: { one: '{count} star', other: '{count} stars' },

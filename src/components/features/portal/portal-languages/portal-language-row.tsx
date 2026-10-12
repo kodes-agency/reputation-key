@@ -36,6 +36,8 @@ type Props = Readonly<{
   /** Null until the coverage read has caught up with a language just added. */
   coverage: PortalLanguageCoverageRow | null
   canEdit: boolean
+  /** An account admin who may edit: the property's wording is theirs to write. */
+  canWritePropertyWording: boolean
   onChange: (change: PortalLanguageChange) => void
 }>
 
@@ -46,6 +48,7 @@ export function PortalLanguageRow({
   isFallback,
   coverage,
   canEdit,
+  canWritePropertyWording,
   onChange,
 }: Props) {
   const name = languageDisplayName(locale)
@@ -73,25 +76,13 @@ export function PortalLanguageRow({
             )}
           </div>
           <div className="flex items-center gap-2 max-sm:order-last max-sm:basis-full max-sm:pl-14">
-            {description === null ? null : (
-              <span
-                className={
-                  description.tone === 'missing'
-                    ? 'flex items-center gap-1 text-sm font-medium text-warn'
-                    : 'text-sm text-muted-foreground'
-                }
-              >
-                {description.tone === 'missing' ? (
-                  <CircleAlert className="size-3.5 shrink-0" aria-hidden />
-                ) : null}
-                {description.text}
-              </span>
-            )}
+            <CoverageFact description={description} />
             {gaps.length > 0 ? (
               <CollapsibleTrigger asChild>
                 <Button
                   variant="link"
                   size="inline"
+                  touch
                   aria-label={`${showingMissing ? 'Hide' : 'Show'} missing texts in ${name.english}`}
                   className="px-1 py-2"
                 >
@@ -111,24 +102,13 @@ export function PortalLanguageRow({
         </div>
         {gaps.length > 0 ? (
           <CollapsibleContent>
-            <ul
-              aria-label={`Missing in ${name.english}`}
-              className="mb-4 space-y-1 rounded-md border bg-muted/30 p-3 text-sm"
-            >
-              {gaps.map((text) => (
-                <li
-                  key={text.key}
-                  className="flex flex-wrap items-center justify-between gap-2"
-                >
-                  <span>{describeMissingText(text)}</span>
-                  <MissingTextAction
-                    text={text}
-                    propertyId={propertyId}
-                    portalId={portalId}
-                  />
-                </li>
-              ))}
-            </ul>
+            <MissingTexts
+              languageName={name.english}
+              gaps={gaps}
+              propertyId={propertyId}
+              portalId={portalId}
+              canWritePropertyWording={canWritePropertyWording}
+            />
           </CollapsibleContent>
         ) : null}
       </Collapsible>
@@ -136,15 +116,77 @@ export function PortalLanguageRow({
   )
 }
 
+/** How much of the language is written: quiet when complete, in warning ink with a mark when not. */
+function CoverageFact({
+  description,
+}: Readonly<{ description: ReturnType<typeof describeCoverage> | null }>) {
+  if (description === null) return null
+  const isMissing = description.tone === 'missing'
+  return (
+    <span
+      className={
+        isMissing
+          ? 'flex items-center gap-1 text-sm font-medium text-warn'
+          : 'text-sm text-muted-foreground'
+      }
+    >
+      {isMissing ? <CircleAlert className="size-3.5 shrink-0" aria-hidden /> : null}
+      {description.text}
+    </span>
+  )
+}
+
+/** The gaps under the row, each with what to do about it. */
+function MissingTexts({
+  languageName,
+  gaps,
+  propertyId,
+  portalId,
+  canWritePropertyWording,
+}: Readonly<{
+  languageName: string
+  gaps: readonly MissingPortalText[]
+  propertyId: string
+  portalId: string
+  canWritePropertyWording: boolean
+}>) {
+  return (
+    <ul
+      aria-label={`Missing in ${languageName}`}
+      className="mb-4 space-y-1 rounded-md border bg-muted/30 p-3 text-sm"
+    >
+      {gaps.map((text) => (
+        <li key={text.key} className="flex flex-wrap items-center justify-between gap-2">
+          <span>{describeMissingText(text)}</span>
+          <MissingTextAction
+            text={text}
+            propertyId={propertyId}
+            portalId={portalId}
+            canWritePropertyWording={canWritePropertyWording}
+          />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function MissingTextAction({
   text,
   propertyId,
   portalId,
-}: Readonly<{ text: MissingPortalText; propertyId: string; portalId: string }>) {
-  const action = missingTextAction(text)
-  if (action.kind === 'needs_property_wording') {
+  canWritePropertyWording,
+}: Readonly<{
+  text: MissingPortalText
+  propertyId: string
+  portalId: string
+  canWritePropertyWording: boolean
+}>) {
+  const action = missingTextAction(text, canWritePropertyWording)
+  if (action.kind === 'ask_account_admin') {
     return (
-      <span className="text-muted-foreground">Needs the Property&rsquo;s wording</span>
+      <span className="text-muted-foreground">
+        An account admin writes this in Welcome
+      </span>
     )
   }
   return (

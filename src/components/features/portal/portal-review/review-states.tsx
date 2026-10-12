@@ -1,6 +1,8 @@
 // "See every guest state": the guest page at each step (arrival, after each
-// rating, done) as small pictures. Choosing one shows it in the phone on the
-// right; the pair returns when the manager asks for it again.
+// rating, done) as small pictures. Choosing one shows it in the phone of the
+// guest preview (beside the lists from `lg`, under them on a smaller screen,
+// where the phone is brought into view); the pair returns when the manager asks
+// for it again.
 
 import { ChevronRight } from 'lucide-react'
 import {

@@ -89,10 +89,13 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
     portalKeys.experience(propertyId, portalId),
     portalKeys.publicationHistory(portalId),
   ]
+  // The editor's Linktree reads each tile's approval, so an approval or a
+  // turn-off refreshes it too: the tile that opens the site says so at once.
   const destinationInvalidations = [
     portalKeys.approvedDestinations(portalId),
     portalKeys.publicationHistory(portalId),
     portalKeys.links(portalId),
+    portalKeys.linktree(portalId),
   ]
   const saveContent = useActionMutation(savePropertyPortalBrandContent, {
     successMessage: 'Guest content saved',
@@ -103,18 +106,18 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
     invalidateKeys: experienceInvalidations,
   })
   const requestDestination = useActionMutation(requestPortalApprovedDestination, {
-    successMessage: 'Destination added',
+    successMessage: 'Site added',
     invalidateKeys: destinationInvalidations,
   })
   // Approving is a row action: a refusal is a toast. Disabling is confirmed in a
   // dialog that stays open and says a refusal itself, so it passes no toast.
   const approveDestination = useActionMutation(approvePortalApprovedDestination, {
-    successMessage: 'Destination approved',
+    successMessage: 'Site approved',
     errorMessage: actionErrorMessage,
     invalidateKeys: destinationInvalidations,
   })
   const disableDestination = useActionMutation(disablePortalApprovedDestination, {
-    successMessage: 'Destination disabled',
+    successMessage: 'Site turned off',
     invalidateKeys: destinationInvalidations,
   })
   return {

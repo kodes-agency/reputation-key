@@ -60,9 +60,10 @@ export const IMMERSIVE_FOOTER_CSS = `
 }
 .ih-root .ih-footer__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 0 12px;
 }
 .ih-root .ih-footer__ack {
   display: inline-flex;

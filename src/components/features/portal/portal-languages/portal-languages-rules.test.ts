@@ -9,7 +9,6 @@ import {
   hasLaterLanguages,
   languageDisplayName,
   languageSubline,
-  missingTextAction,
   missingTextSection,
   type LanguageRegistry,
 } from './portal-languages-rules'
@@ -245,25 +244,6 @@ describe('describeMissingText and missingTextSection', () => {
     expect(missingTextSection(titleGap())).toBe('welcome')
     expect(missingTextSection(descriptionGap())).toBe('welcome')
     expect(missingTextSection(label)).toBe('linktree')
-  })
-
-  it('sends a link label to the Linktree, and a title or description to the Property wording', () => {
-    expect(missingTextAction(labelGap('l-1', 'Menu'))).toEqual({
-      kind: 'write',
-      section: 'linktree',
-    })
-    expect(missingTextAction(titleGap())).toEqual({ kind: 'needs_property_wording' })
-    expect(missingTextAction(descriptionGap())).toEqual({
-      kind: 'needs_property_wording',
-    })
-  })
-
-  it('sends the same gap to the same place whether or not it blocks publishing', () => {
-    expect(missingTextAction(titleGap(true))).toEqual({ kind: 'needs_property_wording' })
-    expect(missingTextAction(labelGap('l-1', 'Menu', true))).toEqual({
-      kind: 'write',
-      section: 'linktree',
-    })
   })
 })
 

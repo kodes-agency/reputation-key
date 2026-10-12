@@ -34,6 +34,7 @@ import {
 } from './notification-templates-account'
 import type {
   NotificationActorRole,
+  NotificationGoalMarker,
   NotificationGoalOutcome,
   NotificationGoalSubjectKind,
   NotificationPayload,
@@ -760,11 +761,31 @@ const goalOutcomeTitle = (p: NotificationPayload, outcome: string): string => {
   return month === '' ? `Goal ${outcome}` : `${month} goal ${outcome}`
 }
 
+/**
+ * What a reader should know about a month whose target did not stand for all
+ * of it. "Met" against a goal set on the 20th is true and still needs saying.
+ */
+const GOAL_MARKER_CLAUSES: Record<NotificationGoalMarker, string> = {
+  set_in_month: 'The goal was set during the month.',
+  target_changed: 'The target was changed during the month.',
+}
+
+/** The marker's sentence, or nothing for a goal in place the whole month. */
+const goalMarkerClause = (p: NotificationPayload): string =>
+  p.goalMarker === undefined ? '' : GOAL_MARKER_CLAUSES[p.goalMarker]
+
 const renderGoalCompleted = (p: NotificationPayload): RendererCopy => ({
   title: goalTitle(goalOutcomeTitle(p, 'met'), p),
-  body: sentence(`${thisGoal(p)} hit its target.`, 'Open the goal to see the numbers.'),
+  body: sentence(
+    `${thisGoal(p)} hit its target.`,
+    goalMarkerClause(p),
+    'Open the goal to see the numbers.',
+  ),
   // Which of ten sibling results it is: the title says only "goal".
-  detail: p.goalSubjectKind === undefined ? '' : `${thisGoal(p)} hit its target.`,
+  detail: sentence(
+    p.goalSubjectKind === undefined ? '' : `${thisGoal(p)} hit its target.`,
+    goalMarkerClause(p),
+  ),
   actionLabel: 'View progress',
   summary: factsAt(
     p,
@@ -802,12 +823,15 @@ const renderGoalResultRevised = (p: NotificationPayload): RendererCopy => {
       outcome === undefined
         ? 'A monthly result changed.'
         : `${thisGoal(p)} ${GOAL_OUTCOME_CLAUSES[outcome]}.`,
+      goalMarkerClause(p),
       'Open the goal to see the current metrics.',
     ),
-    detail:
+    detail: sentence(
       outcome === undefined || p.goalSubjectKind === undefined
         ? ''
         : `${thisGoal(p)} ${GOAL_OUTCOME_CLAUSES[outcome]}.`,
+      goalMarkerClause(p),
+    ),
     actionLabel: 'View result',
     summary: factsAt(
       p,

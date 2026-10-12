@@ -1,10 +1,13 @@
 // Linktree: the tiles shown under the rating card, the title above them, and
-// the destinations they are allowed to open. Typed text saves as it is typed;
-// re-ordering, icons, addresses, adding and deleting are each saved when made.
+// the sites they are allowed to open. A tile is where an address is entered and,
+// for an account admin, approved or turned off; the account admin's list of
+// sites folds away below. Typed text saves as it is typed; re-ordering, icons,
+// addresses, adding and deleting are each saved when made.
 
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
 import { LinkTree } from '../../link-tree/link-tree'
+import { linkApprovalControls } from '../../link-tree/link-approval-controls'
 import { LinktreeSwitch } from '../../link-tree/linktree-switch'
 import { useLinktreeMutations } from '../../link-tree/use-linktree-mutations'
 import { PortalApprovedDestinationsEditor } from '../../portal-settings/portal-approved-destinations-editor'
@@ -46,6 +49,12 @@ export function LinktreeSection({ resources, canEdit }: PortalEditorSectionProps
         memberNames={memberNames}
         canEdit={canEdit}
         canDelete={canDelete}
+        approval={linkApprovalControls(
+          portal.id,
+          approvedDestinations,
+          portalExperienceActions,
+          canEdit,
+        )}
       />
       {approvedDestinations && portalExperienceActions ? (
         <PortalApprovedDestinationsEditor
