@@ -59,7 +59,8 @@ describe('isMigrationJournalMatched', () => {
       { applied: journalEntries + 1, journalEntries },
       '[health] this image is older than the database — more migrations are applied than its journal holds, ' +
         'so it is never ready by design (forward-only recovery, ADR 0038). ' +
-        'Expected on the outgoing container while a newer release deploys',
+        'Expected on the outgoing container until the newer release activates; ' +
+        'if that release never activates, this container cannot be redeployed (runbooks.md §28)',
     )
   })
 

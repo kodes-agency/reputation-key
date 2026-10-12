@@ -15,8 +15,10 @@
 //                         More applied = this image is older than the
 //                         database: never ready, by design — recovery is
 //                         forward-only (ADR 0038, amended 2026-10-12). The
-//                         outgoing container reads that way while a newer
-//                         release deploys.
+//                         outgoing container reads that way until the newer
+//                         release activates, and for good when that release
+//                         applied its migrations and never activated
+//                         (runbooks.md §28).
 //   - policy            — the process-static capability configuration parses
 //                         successfully and retains every hard-blocked
 //                         capability. Tenant grants/consent and the Google
@@ -78,7 +80,8 @@ export async function isMigrationJournalMatched(): Promise<boolean> {
         { applied, journalEntries },
         '[health] this image is older than the database — more migrations are applied than its journal holds, ' +
           'so it is never ready by design (forward-only recovery, ADR 0038). ' +
-          'Expected on the outgoing container while a newer release deploys',
+          'Expected on the outgoing container until the newer release activates; ' +
+          'if that release never activates, this container cannot be redeployed (runbooks.md §28)',
       )
     }
     return position === 'matched'

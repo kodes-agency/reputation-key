@@ -37,7 +37,11 @@
 // database with MORE applied migrations means this image is older than the
 // database; it is refused by design and no rerun converges. A bad release is
 // repaired by deploying a fix forward, never an earlier image (runbooks.md
-// §28). The messages live in src/shared/db/migration-journal-state.ts.
+// §28). The count cannot tell an old image from a fix whose revert deleted an
+// applied migration, so the message names both. The check runs AFTER the
+// schema tracks: a refused image has already run its Better Auth track and
+// concurrent-index sidecar against the newer database. The messages live in
+// src/shared/db/migration-journal-state.ts.
 //
 // GUARD: Railway runs prove their exact built-in project, environment, and
 // service identity before DATABASE_URL is opened. Only cell-us and the

@@ -12,7 +12,9 @@
 //                     applied: a deploy in flight or a failed migration. A
 //                     rerun converges (runbooks.md §8).
 //   database_ahead  — the database applied migrations the image does not
-//                     carry: the image is older than the database. Refused by
+//                     carry: the image is older than the database, or it was
+//                     built from a commit whose journal lost an applied
+//                     migration (a revert that deleted one). Refused by
 //                     design, and no rerun converges (runbooks.md §28).
 
 type MigrationJournalPosition = 'matched' | 'database_behind' | 'database_ahead'
@@ -34,14 +36,19 @@ export function migrationJournalPosition(
 /**
  * The database has applied migrations this image does not carry. Refused by
  * design: recovery is forward-only (ADR 0038, amended 2026-10-12), so the
- * repair is a newer release, never this image again.
+ * repair is a newer release, never this image again. The count cannot tell an
+ * old image from a new one whose journal was shortened, and nothing in CI
+ * catches the second, so the message names it for the operator whose fix is
+ * the image being refused.
  */
 class ImageOlderThanDatabaseError extends Error {
   constructor(applied: number, journalEntries: number) {
     super(
       `This image is older than the database: ${applied} migrations are applied and this image's journal holds ${journalEntries}. ` +
         'An image older than the applied migrations is refused by design: recovery is forward-only (ADR 0038), ' +
-        'and rerunning or redeploying this image never converges. Deploy a fix forward (runbooks.md §28).',
+        'and rerunning or redeploying this image never converges. Deploy a fix forward (runbooks.md §28). ' +
+        'An image built from current main that is refused this way has a journal that lost a migration ' +
+        'the database applied (a revert deleted it): the fix restores that migration file and its journal entry.',
     )
     this.name = 'ImageOlderThanDatabaseError'
   }
@@ -84,8 +91,9 @@ export function deployMigrationStateRefusal(state: DeployMigrationState): Error 
 export function deployFailureRecovery(failure: unknown): string {
   return failure instanceof ImageOlderThanDatabaseError
     ? 'Forward-only recovery: do not rerun this image, and do not edit ' +
-        'drizzle.__drizzle_migrations to make it pass. Deploy a release that carries ' +
-        'every applied migration — the fix, built from current main (runbooks.md §28).'
+        'drizzle.__drizzle_migrations to make it pass. Deploy a release whose journal carries ' +
+        'every applied migration — a fix committed on current main, never a revert that deletes ' +
+        'a migration file or its journal entry (runbooks.md §28).'
     : 'Forward recovery: fix the failing migration SQL ' +
         'and redeploy — every step is idempotent, the rerun converges. ' +
         'Do NOT hand-roll partial schema state (runbooks.md §8).'

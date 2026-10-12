@@ -60,6 +60,16 @@ refused by design, no rerun converges, and the repair is a fix deployed forward
 (`docs/operations/runbooks.md` §28). `migration-journal-state.test.ts` pins both
 messages.
 
+The count reads the same for an image whose journal lost an applied migration.
+So a migration file and its journal entry are never deleted once a deployed
+database has applied them, and a commit that touched `drizzle/` is never plainly
+reverted: revert the code and keep `drizzle/` and the schema model, or undo the
+schema change with a new migration. Nothing in CI catches a shortened journal,
+because CI migrates an empty database from the same checkout. On a developer
+machine the same refusal from `pnpm db:migrate-deploy` only means the checkout
+is behind the local database: bring the checkout up to date, or start the local
+database again with `pnpm db:reset` (it drops the database; localhost only).
+
 `migration-verification.test.ts` compares the migrated PostgreSQL catalogue with
 the full model in both directions: columns, types, defaults, keys, checks, foreign
 keys/actions, indexes, predicates, enums, registered constructs, and journal

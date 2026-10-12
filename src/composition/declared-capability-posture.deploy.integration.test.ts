@@ -332,11 +332,17 @@ describe('reset + deploy with a declared capability posture', () => {
   )
 })
 
-// Runs last: it needs the database the deploys above migrated.
 describe('a deploy from an image older than the database', () => {
   it(
     'is refused by design and told to fix forward, not to rerun',
     async () => {
+      // Its own starting point: a database at this checkout's journal, whether
+      // or not the deploys above ran first (the migrator key seeds an empty one
+      // and is ignored once the inventory exists).
+      const current = await deploy({
+        REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS: MIGRATOR_KEY,
+      })
+      expect(current.code).toBe(0)
       const applied = (
         await db.query<{ count: number }>(
           'SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations',
@@ -362,7 +368,13 @@ describe('a deploy from an image older than the database', () => {
           `This image is older than the database: ${applied + 1} migrations are applied and this image's journal holds ${applied}.`,
         )
         expect(run.stderr).toContain('refused by design')
+        // The same refusal meets a fix whose revert deleted a migration, so
+        // the runner names that case too.
+        expect(run.stderr).toContain('has a journal that lost a migration')
         expect(run.stderr).toContain('[migrate-deploy] Forward-only recovery:')
+        expect(run.stderr).toContain(
+          'never a revert that deletes a migration file or its journal entry',
+        )
         expect(run.stderr).not.toContain('the rerun converges')
         expect(postureLine(run)).toBeUndefined()
       } finally {

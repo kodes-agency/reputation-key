@@ -124,7 +124,10 @@ default the new target also applies to the months after.
   place. An older web image shows the version's target for such a month but
   writes nothing wrong. Amended 2026-10-12 (ADR 0038, recovery is forward-only):
   no worker or web image is rolled back, so this floor is a reason for that rule
-  and no longer a step before a rollback.
+  and no longer a step before a rollback. Nothing mechanical holds the worker
+  to it: the migration gate is web's, and an older worker image would start.
+  The worker changes only through `pnpm ops deploy-ci-images`, never through
+  Railway's Rollback or its Redeploy of an earlier deployment.
 - If a deploy stops after web and before worker, finish the worker step before
   anyone uses "Change this month's target".
 - A target can be lowered on the last day of a month, and the month then closes

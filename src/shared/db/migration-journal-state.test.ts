@@ -48,9 +48,31 @@ describe('deployMigrationStateRefusal', () => {
     expect(refusal?.message).toBe(
       "This image is older than the database: 56 migrations are applied and this image's journal holds 55. " +
         'An image older than the applied migrations is refused by design: recovery is forward-only (ADR 0038), ' +
-        'and rerunning or redeploying this image never converges. Deploy a fix forward (runbooks.md §28).',
+        'and rerunning or redeploying this image never converges. Deploy a fix forward (runbooks.md §28). ' +
+        'An image built from current main that is refused this way has a journal that lost a migration ' +
+        'the database applied (a revert deleted it): the fix restores that migration file and its journal entry.',
     )
     expect(refusal?.message).not.toContain('the rerun converges')
+  })
+
+  // A plain revert of a migration commit deletes the migration, CI stays green
+  // on an empty database, and the "fix" is then the image this gate refuses.
+  it('tells the operator whose fix is refused that its journal lost an applied migration', () => {
+    const refusal = deployMigrationStateRefusal({
+      ...reached,
+      applied: 55,
+      journalEntries: 54,
+    })
+
+    expect(refusal?.message).toContain(
+      "55 migrations are applied and this image's journal holds 54.",
+    )
+    expect(refusal?.message).toContain(
+      'An image built from current main that is refused this way has a journal that lost a migration',
+    )
+    expect(refusal?.message).toContain(
+      'restores that migration file and its journal entry',
+    )
   })
 
   it('names the older image even when another part of the state is also missing', () => {
@@ -91,8 +113,9 @@ describe('deployFailureRecovery', () => {
 
     expect(recovery).toBe(
       'Forward-only recovery: do not rerun this image, and do not edit ' +
-        'drizzle.__drizzle_migrations to make it pass. Deploy a release that carries ' +
-        'every applied migration — the fix, built from current main (runbooks.md §28).',
+        'drizzle.__drizzle_migrations to make it pass. Deploy a release whose journal carries ' +
+        'every applied migration — a fix committed on current main, never a revert that deletes ' +
+        'a migration file or its journal entry (runbooks.md §28).',
     )
     expect(recovery).not.toContain('the rerun converges')
   })
