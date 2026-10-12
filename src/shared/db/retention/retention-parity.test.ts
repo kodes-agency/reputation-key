@@ -8,6 +8,11 @@ const executingTables = new Set(RETENTION_RULES.map(({ table }) => table))
 // rather than a generic RETENTION_RULES entry.
 executingTables.add('guest_contact_requests')
 
+// Consumer receipts are deleted by the outbox_events.published rule, through
+// the cascade from the event row. A rule of their own could remove a receipt
+// before its event (retention-sweep-consumer-receipts.integration.test.ts).
+executingTables.add('event_consumer_receipts')
+
 describe('retention registry execution parity', () => {
   it('declares every table targeted by the executing retention rules', () => {
     const declaredTables = new Set(

@@ -512,11 +512,13 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     eligibility: {
       anchorColumn: 'created_at',
       horizon: { kind: 'days', days: 30 },
-      predicate: null,
-      query: 'Delete event_consumer_receipts created more than 30 days ago.',
-      implementedBoundary: 'Live as the scheduled event_consumer_receipts subject.',
+      predicate: 'the outbox event the receipt belongs to has been deleted',
+      query:
+        'No query of its own. A receipt is deleted with its outbox event, 30 days after that event was published, through the event_id foreign key (ON DELETE CASCADE). It is never deleted first: redelivery replays a published event that lacks a receipt.',
+      implementedBoundary:
+        'Live through the scheduled outbox_events.published subject. The receipts of an event that is still stored, published or not, are kept with it.',
     },
-    evidenceSubject: 'event_consumer_receipts',
+    evidenceSubject: 'outbox_events.published',
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({

@@ -48,6 +48,13 @@ const AUDIT_EVIDENCE_RETENTION_MS = 365 * DAY_MS
  * proof of erasure; table size is monitored via the metrics snapshot
  * instead. Documented in docs/operations/backup-and-lifecycle.md.
  *
+ * DELIBERATELY ABSENT — event_consumer_receipts: a receipt is the dispatcher's
+ * only proof that a consumer handled a fact, and redelivery replays every
+ * published fact that lacks one, whatever its age. The table cascades from
+ * outbox_events, so the outbox_events.published rule removes a receipt in the
+ * statement that removes its fact and never before it. A rule of its own (its
+ * own cutoff, per-run cap and failure isolation) could remove the receipt
+ * first, and the fact was then delivered to its consumers again.
  */
 export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
   {
@@ -120,16 +127,10 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     // created_at keying deleted it ~1d after publication. 30d is BQC-1.6's
     // deliberate value; the applied migration file's comment says 7d/90d —
     // that comment drift is NOT fixed here (applied migrations are immutable).
+    // Deleting a fact also deletes its consumer receipts (see the header).
     tsColumn: 'published_at',
     olderThanMs: 30 * DAY_MS,
     extraWhere: 'published_at IS NOT NULL',
-  },
-  {
-    subject: 'event_consumer_receipts',
-    table: 'event_consumer_receipts',
-    keyColumns: ['event_id', 'consumer_name'],
-    tsColumn: 'created_at',
-    olderThanMs: 30 * DAY_MS,
   },
   {
     subject: 'review_sync_runs',

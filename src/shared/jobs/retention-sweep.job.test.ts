@@ -30,8 +30,10 @@ import {
   GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
   RETENTION_RULES,
 } from './retention-sweep.job'
+import { getTableConfig } from 'drizzle-orm/pg-core'
 import type { RetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { RETENTION_REGISTRY } from '#/shared/db/retention/retention-registry'
+import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 
 const NOW = new Date('2026-07-17T12:00:00Z')
 
@@ -458,6 +460,24 @@ describe('retention rule registry (BQC-3.7)', () => {
     // BQC-1.6's deliberate 30d value (the migration-file comment drift —
     // 7d/90d — is documented at the rule; applied migrations are immutable).
     expect(outboxRule!.olderThanMs).toBe(30 * 24 * 60 * 60 * 1000)
+  })
+
+  it('gives consumer receipts no rule of their own: they leave with their fact', () => {
+    // A receipt rule ran on its own cutoff, per-run cap and failure isolation,
+    // so it could remove a receipt whose fact was still stored, and redelivery
+    // then replayed that fact (retention-sweep-consumer-receipts.integration).
+    expect(
+      RETENTION_RULES.filter((rule) => rule.table === 'event_consumer_receipts'),
+    ).toEqual([])
+    // What removes them instead: the cascade from the fact row. Without it the
+    // receipts of a deleted fact would stay forever.
+    const receiptParents = getTableConfig(eventConsumerReceipts).foreignKeys.map(
+      (foreignKey) => ({
+        table: getTableConfig(foreignKey.reference().foreignTable).name,
+        onDelete: foreignKey.onDelete,
+      }),
+    )
+    expect(receiptParents).toEqual([{ table: 'outbox_events', onDelete: 'cascade' }])
   })
 
   it('touches a compatibility mirror only through row-preserving redaction', () => {
