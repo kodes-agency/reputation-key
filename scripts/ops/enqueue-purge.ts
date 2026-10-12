@@ -18,8 +18,8 @@
 //   retention  — retention-sweep (daily; static registry, evidence in retention_runs)
 //
 // Report mode requires DATABASE_URL only. Apply also requires QUEUE_REDIS_URL. Every
-// invocation is audited by the harness; an enqueued apply is re-authorized by
-// the BQC-3 dispatch gate at execution.
+// invocation is policy-evaluated by the harness, which stores no record of it;
+// an enqueued apply is re-authorized by the BQC-3 dispatch gate at execution.
 // Runbook §10: purge requires operator confirmation + evidence report.
 
 import { createJobQueue } from '../../src/shared/jobs/queue'

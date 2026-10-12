@@ -199,6 +199,20 @@ describe('validateOperatorArgs', () => {
     ).toBeNull()
   })
 
+  // The harness evaluates and prints. It stores neither the reason nor the
+  // ticket, and its messages said both were "audited with the command".
+  it('asks for a reason and a ticket without claiming to keep them', () => {
+    expect(validateOperatorArgs(MUTATION_SPEC, args({ apply: true }))).toBe(
+      '--reason <text> is required with --apply',
+    )
+    expect(
+      validateOperatorArgs(
+        { ...MUTATION_SPEC, requiresTicket: true },
+        args({ apply: true, reason: 'incident 42' }),
+      ),
+    ).toBe('--ticket <ref> is required with --apply')
+  })
+
   it('rejects --apply on read commands and --apply/--dry-run conflicts', () => {
     expect(
       validateOperatorArgs(

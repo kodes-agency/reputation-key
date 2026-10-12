@@ -16,7 +16,7 @@
 //   pnpm ops restore-preflight --operator <id>
 //
 // Requires DATABASE_URL (pointed at the ISOLATED restore target). Read-only;
-// policy-evaluated + audited like every operator command. Runbook §8:
+// policy-evaluated like every operator command. Runbook §8:
 // restore → PITR sibling, boot verifier isolated (RESTORE_MODE=isolated),
 // verify with ops:restore-verify, cutover — the only rollback path, reserved
 // for data loss. Full procedure: docs/operations/backup-and-lifecycle.md.

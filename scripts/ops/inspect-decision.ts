@@ -5,8 +5,8 @@
 //     — explain the ExecutionPolicy decision for a user action (capability /
 //       permission / scope breakdown)
 //
-// Requires DATABASE_URL. Reads are policy-evaluated + audited like every
-// other invocation (harness decision row, reason 'read'). Output is
+// Requires DATABASE_URL. Reads are policy-evaluated like every other
+// invocation (the harness prints the decision and stores nothing). Output is
 // identifiers and decision states only — content-free.
 
 import { hasPermissionCapability } from '../../src/shared/auth/capability-for-permission'

@@ -651,7 +651,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   // ops:gbp-subscribe (scripts/ops/gbp-subscribe.ts) and the daily
   // reconciliation below. Reads the repo directly rather than the
   // listGoogleConnections use case: each caller has already authorized the
-  // organization (the operator harness as `system:ops`, audited; the job
+  // organization (the operator harness as `system:ops`; the job
   // through current delayed policy), and a system repair must not depend on a
   // tenant's `integration.manage` grant — the same posture as
   // ops:property-capabilities.

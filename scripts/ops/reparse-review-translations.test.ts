@@ -113,7 +113,7 @@ describe('reparse-review-translations through the operator harness', () => {
     )
   })
 
-  it('requires an audited reason and ticket before it writes', async () => {
+  it('requires a reason and a ticket before it writes', async () => {
     const { io, result, store } = await run(['repair', '--reason', 'Re-split', '--apply'])
 
     expect(result.exitCode).toBe(1)

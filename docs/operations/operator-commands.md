@@ -1,7 +1,8 @@
 # Operator commands (BQC-7.5)
 
-Invoke commands as `pnpm ops <name> ...`; `ops:<name>` below is the audited
-operation identity. Section references point to [Operational runbooks](runbooks.md).
+Invoke commands as `pnpm ops <name> ...`; `ops:<name>` below is the operation
+identity the harness evaluates and prints. Section references point to
+[Operational runbooks](runbooks.md).
 
 Every `ops:*` command runs through the operator-command harness
 (`scripts/ops/operator-command.ts`). The invocation contract:
@@ -11,6 +12,13 @@ Every `ops:*` command runs through the operator-command harness
 - Every invocation (reads included) is evaluated through the ExecutionPolicy
   operator branch. Its typed allow/deny decision and correlation id are printed
   on every run.
+- The harness stores none of that. No table holds the operator, the decision,
+  the reason or the ticket of an invocation, so the printed line is the only
+  trace the harness leaves: copy it, with the reason, into the incident record.
+  A fact a command commits carries the correlation id as its command id, and
+  some commands keep the operator or the ticket in their own write (for
+  example `ops:republish-legacy-portals` and `ops:triage-beta-feedback`).
+  `--reason` is required with `--apply` and no command reads it.
 - Mutations are DRY-RUN by default; `--apply` executes and requires
   `--reason <text>` (`--ticket <ref>` where the op needs one). Destructive
   commands additionally require the typed confirmation `--yes <command>`.
