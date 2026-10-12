@@ -8,32 +8,66 @@
 //
 // A statement is a query-builder chain with a `.where(...)`, a raw `sql`
 // statement, or a `resolvePortalContext(...)` lookup; it counts when it names a
-// tenant-owned table. It is restricted when a tenant value sits in its
-// predicate:
-//   - the arguments of its `.where(...)`;
-//   - an interpolation of the raw statement, or `organization_id = ${value}`;
-//   - a variable or same-file helper the predicate is built from, followed only
-//     where it stands for a predicate (`and(...conditions)`, `${scopeSql}`) or
-//     is a key computed from the tenant (`const key = receiptKey(orgId, id)`),
+// tenant-owned table. It is restricted when its predicate holds something
+// equal to a tenant value:
+//   - in the arguments of its `.where(...)`: `eq(t.organizationId, orgId)`;
+//   - in a raw statement, after an equality operator in a clause that filters
+//     rows: `WHERE organization_id = ${orgId}`, `IN (${orgIds})`,
+//     `= ANY(${orgIds})`, `IS NOT DISTINCT FROM ${orgId}` (raw-sql-position.ts);
+//   - in a variable or same-file helper the predicate is built from, followed
+//     only where it stands for a predicate (`and(...conditions)`, `${scopeSql}`)
+//     or is a key computed from the tenant (`const key = receiptKey(orgId, id)`),
 //     never where it is a row that was merely read under the tenant;
-//   - a predicate parameter (`where: SQL`), when every call of the callable, in
-//     its file and in the files that import it, passes a restricted one.
+//   - in a predicate parameter (`where: SQL`), when every call of the callable,
+//     in its file and in the files that import it, passes a restricted one.
+// A raw statement that only inserts VALUES has no predicate to hold, and counts
+// as carrying its tenant.
 //
 // These do not restrict, and are not accepted:
+//   - a tenant value that nothing is compared with: a guard (`orgId && …`), a
+//     raw projection (`SELECT ${orgId} AS organization_id`), an assignment
+//     (`SET organization_id = ${orgId}`), the row of an INSERT … SELECT, a CASE
+//     branch. A raw interpolation counts elsewhere only when it is SQL, not a
+//     value (raw-sql-fragments.ts);
 //   - a tenant COLUMN on its own: `eq(a.organizationId, b.organizationId)` ties
 //     two rows to the same tenant without naming one;
-//   - a tenant value under a range or negated comparison (a keyset cursor);
-//   - a branch of `or(...)` or of `cond ? a : b` unless every branch restricts
-//     (`value === null ? isNull(column) : eq(column, value)` is one predicate);
-//   - a predicate added to a condition list only inside an `if`.
+//   - a tenant value under a range or negated comparison (a keyset cursor,
+//     `NOT IN`), or in a subquery the statement only projects or excludes;
+//   - a branch of `or(...)`, of `a ?? b`, of `a || b` or of `cond ? a : b`
+//     unless every branch restricts (`value === null ? isNull(column) :
+//     eq(column, value)` is one predicate), and either side of a raw `OR`;
+//   - a predicate behind a guard (`orgId && eq(…)`), or added to a condition
+//     list only inside an `if`.
 //
-// Known limits, on purpose. A callable is held to ONE restricted statement, so
-// a second statement that finds its row by id passes beside it. The analysis
-// trusts a tenant value or a predicate handed to a helper it cannot open
-// (`baseWhere(table, orgId)`), does not see a builder chain without
-// `.where(...)`, and reads SQL only next to an interpolation.
+// Known limits, on purpose.
+//   - A callable is held to ONE restricted statement, so a second statement
+//     that finds its row by id passes beside it.
+//   - A raw statement is held to one restricting predicate, wherever its CTEs
+//     put it, and an upsert is read as the insert it starts with.
+//   - Raw SQL is read by a scanner that errs towards reporting: a raw `OR`
+//     never restricts, even when both sides do, and a value counts as compared
+//     only when the operator stands before it.
+//   - A builder chain without `.where(...)` is not seen, and only `.where(...)`
+//     arguments are read: a tenant value in a join's `ON` does not count, so
+//     such a query repeats it in `where` or is registered.
+//   - A tenant value or a predicate handed to a helper the analysis cannot open
+//     is trusted (`baseWhere(table, orgId)`), and so is any equality with a
+//     tenant value, whichever column it is on. `eq(t.organizationId, x)` takes
+//     any `x` that is not a column for a tenant value: a column wrapped in
+//     `sql`, or a subquery, passes.
+//   - A predicate parameter is followed only into the files that import its
+//     callable under its own name, and only under `infrastructure/`: a call
+//     through an alias or an injected object is not seen.
 
 import ts from 'typescript'
+import { type FragmentReader, createFragmentReader } from './raw-sql-fragments'
+import {
+  type SqlInterpolation,
+  type SqlSlot,
+  insertsOnlyValues,
+  leadingClause,
+  readSqlSlots,
+} from './raw-sql-position'
 import {
   type Binding,
   type NamedCallable,
@@ -41,6 +75,8 @@ import {
   callableSymbol,
   containsAwait,
   importedNames,
+  isFunctionValue,
+  isLogicalExpression,
   isReference,
   isSqlJoin,
   isSqlTemplate,
@@ -51,6 +87,7 @@ import {
   returnedExpressions,
   scopeOf,
   sqlTargetsDatabaseTable,
+  templateLiterals,
   textBeforeSpan,
   unwrap,
   whereCallsOnSpine,
@@ -64,11 +101,12 @@ import {
 
 const TENANT_MENTION = /\borganization(?:Id|_id)\b/u
 const SQL_STATEMENT = /\b(?:select|update|delete\s+from|insert\s+into)\b/iu
-// `?,` and `?::uuid,`: an earlier member of the row value an interpolation sits in.
-const ROW_VALUE_MEMBER = /\?,$/u
-const CAST_ROW_VALUE_MEMBER = /\?::\w+,$/u
-const RANGE_OPERATOR = /(?:[<>]=?|<>|!=)$/u
-const TENANT_COLUMN_EQUALITY = /\borganization_id"?\s*(?:=|=\s*ANY\s*\(|IN\s*\()\s*$/iu
+// `organization_id = `, `organization_id IN (`: the text that holds the next value to the tenant column.
+const TENANT_COLUMN_EQUALITY =
+  /\borganization_id"?\s*(?:=|=\s*ANY\s*\(|IN\s*\(|IS\s+NOT\s+DISTINCT\s+FROM)\s*$/iu
+// The same between two interpolations: `${t.organizationId} = ${value}`.
+const EQUALITY_BETWEEN = /^\s*(?:=|=\s*ANY\s*\(|IN\s*\(|IS\s+NOT\s+DISTINCT\s+FROM)\s*$/iu
+const DISJUNCTION = /\bOR\b/iu
 const TENANT_COLUMN_TIE = /\borganization_id"?\s*=\s*"?\w+"?\."?organization_id\b/iu
 // An imported helper named like these builds or wraps a predicate.
 const PREDICATE_HELPER = /(?:Where|Predicate|Scope|Conditions?|Filter)$/u
@@ -92,6 +130,13 @@ const NON_RESTRICTING_OPERATORS: ReadonlySet<string> = new Set([
   'notBetween',
 ])
 const EQUALITY_OPERATORS: ReadonlySet<string> = new Set(['eq', 'inArray'])
+/** Drizzle operators: a call of one builds a predicate, whatever it restricts. */
+const PREDICATE_OPERATORS: ReadonlySet<string> = new Set([
+  'and',
+  'or',
+  ...EQUALITY_OPERATORS,
+  ...NON_RESTRICTING_OPERATORS,
+])
 const LIST_MUTATIONS: ReadonlySet<string> = new Set(['push', 'unshift'])
 const EQUALITY_TOKENS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.EqualsEqualsEqualsToken,
@@ -142,33 +187,6 @@ type FileInspector = Readonly<{
   argumentVerdicts: ArgumentVerdicts
 }>
 
-/** The operator a scalar or row-value interpolation is compared with, whitespace removed. */
-function textBeforeComparedValue(
-  template: ts.TemplateExpression,
-  spanIndex: number,
-): string {
-  let before = textBeforeSpan(template, spanIndex).replace(/\s+/gu, '')
-  let shorter = before
-  do {
-    before = shorter
-    shorter = before.replace(ROW_VALUE_MEMBER, '').replace(CAST_ROW_VALUE_MEMBER, '')
-  } while (shorter !== before)
-  return before.endsWith('(') ? before.slice(0, -1) : before
-}
-
-function followsRangeOperator(
-  template: ts.TemplateExpression,
-  spanIndex: number,
-): boolean {
-  return RANGE_OPERATOR.test(textBeforeComparedValue(template, spanIndex))
-}
-
-function isFunctionValue(
-  node: ts.Node,
-): node is ts.ArrowFunction | ts.FunctionExpression {
-  return ts.isArrowFunction(node) || ts.isFunctionExpression(node)
-}
-
 function keepsPredicate(node: ts.Node): boolean {
   return (
     ts.isSpreadElement(node) ||
@@ -182,10 +200,13 @@ function keepsPredicate(node: ts.Node): boolean {
 function createRestrictionJudge(
   sourceFile: ts.SourceFile,
   scope: TenantScope,
+  fragments: FragmentReader,
+  tables: TenantTables,
   importerVerdicts: ArgumentVerdicts,
 ): RestrictionJudge {
   const predicateVerdicts = new Map<Binding, boolean>()
   const keyVerdicts = new Map<Binding, boolean>()
+  const slotsRead = new Map<ts.TemplateExpression, readonly SqlSlot[]>()
 
   /** `eq(reviews.organizationId, org.id)`: a tenant column held equal to a value. */
   function isTenantEquality(call: ts.CallExpression): boolean {
@@ -326,20 +347,67 @@ function createRestrictionJudge(
     return !ts.isPropertyAccessExpression(identifier.parent) && isTenantKey(binding)
   }
 
-  function spanRestricts(template: ts.TemplateExpression, index: number): boolean {
-    const expression = template.templateSpans[index]!.expression
-    if (followsRangeOperator(template, index)) return false
-    const followsTenantColumn = TENANT_COLUMN_EQUALITY.test(
-      textBeforeSpan(template, index),
+  /** A table, a fragment that begins a clause of its own (`${fromAndWhereSql}`), or neither. */
+  function interpolationOf(expression: ts.Expression): SqlInterpolation {
+    const node = unwrap(expression)
+    if (ts.isIdentifier(node) && scope.namesTable(node)) {
+      return { table: scope.namesTenantTable(node) ? 'held' : 'other' }
+    }
+    const leads = fragments
+      .templatesOf(expression)
+      .map((fragment) => leadingClause(templateLiterals(fragment.template)[0] ?? ''))
+    return { lead: leads.find((lead) => lead !== '') ?? '' }
+  }
+
+  /** `organization_id = ${v}` and `${t.organizationId} = ${v}`: held equal to the tenant column. */
+  function followsTenantColumn(template: ts.TemplateExpression, index: number): boolean {
+    if (TENANT_COLUMN_EQUALITY.test(textBeforeSpan(template, index))) return true
+    const previous = index > 0 ? template.templateSpans[index - 1] : undefined
+    return (
+      previous !== undefined &&
+      scope.isTenantColumn(previous.expression) &&
+      EQUALITY_BETWEEN.test(previous.literal.text)
     )
-    if (followsTenantColumn && !scope.isColumnAccess(expression)) return true
-    return restricts(expression, true)
+  }
+
+  /** A value restricts where it is compared for equality; SQL wherever it is spliced in. */
+  function spanRestricts(
+    template: ts.TemplateExpression,
+    index: number,
+    slot: SqlSlot,
+  ): boolean {
+    if (!slot.canRestrict || slot.comparison === 'range') return false
+    const expression = template.templateSpans[index]!.expression
+    if (slot.comparison === 'equality') {
+      if (followsTenantColumn(template, index) && !scope.isColumnAccess(expression)) {
+        return true
+      }
+      if (restricts(expression, false)) return true
+    }
+    return fragments.standsForSql(expression) && restricts(expression, true)
+  }
+
+  function slotsOf(template: ts.TemplateExpression): readonly SqlSlot[] {
+    const known = slotsRead.get(template)
+    if (known !== undefined) return known
+    const slots = readSqlSlots({
+      literals: templateLiterals(template),
+      interpolations: template.templateSpans.map((span) =>
+        interpolationOf(span.expression),
+      ),
+      heldTables: tables.tenantDatabaseNames,
+    })
+    slotsRead.set(template, slots)
+    return slots
   }
 
   function sqlTemplateRestricts(node: ts.TaggedTemplateExpression): boolean {
     const template = node.template
     if (!ts.isTemplateExpression(template)) return false
-    return template.templateSpans.some((_, index) => spanRestricts(template, index))
+    const slots = slotsOf(template)
+    return template.templateSpans.some((_, index) =>
+      spanRestricts(template, index, slots[index]!),
+    )
   }
 
   function helperCallRestricts(
@@ -352,7 +420,11 @@ function createRestrictionJudge(
       isPredicate &&
       PREDICATE_HELPER.test(callee.text) &&
       scope.resolveBinding(callee) === undefined
-    return call.arguments.some((argument) => restricts(argument, passesPredicates))
+    // A helper is handed the tenant as a value, or a predicate that holds it.
+    return call.arguments.some(
+      (argument) =>
+        restricts(argument, false) || (passesPredicates && restricts(argument, true)),
+    )
   }
 
   function namedCallRestricts(
@@ -374,10 +446,21 @@ function createRestrictionJudge(
     return isTenantEquality(call) || helperCallRestricts(call, callee, isPredicate)
   }
 
+  /** `sql.join(conditions, sql\` OR \`)`: any one of them may be the row's only match. */
+  function joinsWithOr(call: ts.CallExpression): boolean {
+    const [, separator] = call.arguments
+    return (
+      isSqlJoin(call) &&
+      separator !== undefined &&
+      DISJUNCTION.test(separator.getText(sourceFile))
+    )
+  }
+
   function callRestricts(call: ts.CallExpression, isPredicate: boolean): boolean {
     if (ts.isIdentifier(call.expression)) {
       return namedCallRestricts(call, call.expression, isPredicate)
     }
+    if (joinsWithOr(call)) return false
     const joinsPredicates = isPredicate && isSqlJoin(call)
     return (
       restricts(call.expression, false) ||
@@ -405,12 +488,32 @@ function createRestrictionJudge(
     )
   }
 
+  /** `orgId`, `ctx.organizationId`, `options.where`: a value or a member read off one. */
+  function isValueRead(node: ts.Node): boolean {
+    return (
+      ts.isPropertyAccessExpression(node) ||
+      (ts.isIdentifier(node) && scope.isTenantValue(node))
+    )
+  }
+
+  /**
+   * `guard && predicate` is no predicate when the guard fails; `a ?? b` and
+   * `a || b` are whichever side is there, so both have to restrict.
+   */
+  function logicalRestricts(node: ts.BinaryExpression): boolean {
+    if (node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) return false
+    return restricts(node.left, true) && restricts(node.right, true)
+  }
+
   function restricts(node: ts.Node, isPredicate: boolean): boolean {
     if (ts.isTypeNode(node)) return false
+    // A tenant value is what a predicate compares with, never a predicate itself.
+    if (isPredicate && isValueRead(node)) return false
     if (ts.isIdentifier(node)) return identifierRestricts(node, isPredicate)
     if (isSqlTemplate(node)) return sqlTemplateRestricts(node)
     if (ts.isCallExpression(node)) return callRestricts(node, isPredicate)
     if (ts.isConditionalExpression(node)) return conditionalRestricts(node, isPredicate)
+    if (isPredicate && isLogicalExpression(node)) return logicalRestricts(node)
     const childIsPredicate = isPredicate && keepsPredicate(node)
     return (
       ts.forEachChild(node, (child) =>
@@ -428,21 +531,18 @@ function createFileInspector(
   importerVerdicts: ArgumentVerdicts,
 ): FileInspector {
   const scope = createTenantScope(sourceFile, tables)
-  const judge = createRestrictionJudge(sourceFile, scope, importerVerdicts)
+  const fragments = createFragmentReader(
+    scope,
+    (name) => PREDICATE_OPERATORS.has(name) || PREDICATE_HELPER.test(name),
+  )
+  const judge = createRestrictionJudge(
+    sourceFile,
+    scope,
+    fragments,
+    tables,
+    importerVerdicts,
+  )
   const imports = importedNames(sourceFile)
-
-  /** The SQL fragments an interpolation stands for, when this file defines them. */
-  function fragmentsOf(expression: ts.Expression): readonly ts.Expression[] {
-    const node = unwrap(expression)
-    if (isSqlTemplate(node)) return [node]
-    const callee = ts.isCallExpression(node) ? node.expression : node
-    const binding = ts.isIdentifier(callee) ? scope.resolveBinding(callee) : undefined
-    if (binding === undefined) return []
-    if (ts.isFunctionDeclaration(binding)) return returnedExpressions(binding)
-    if (!ts.isVariableDeclaration(binding) || binding.initializer === undefined) return []
-    const initializer = unwrap(binding.initializer)
-    return isFunctionValue(initializer) ? returnedExpressions(initializer) : [initializer]
-  }
 
   /** A raw statement's text with the same-file fragments it interpolates. */
   function statementText(node: ts.TaggedTemplateExpression, seen: Set<ts.Node>): string {
@@ -451,11 +551,10 @@ function createFileInspector(
     const template = node.template
     if (!ts.isTemplateExpression(template)) return template.text
     const spans = template.templateSpans.map((span) => {
-      const fragments = fragmentsOf(span.expression)
-        .map(unwrap)
-        .filter(isSqlTemplate)
+      const spliced = fragments
+        .templatesOf(span.expression)
         .map((fragment) => statementText(fragment, seen))
-      return `${fragments.join(' ')} ? ${span.literal.text}`
+      return `${spliced.join(' ')} ? ${span.literal.text}`
     })
     return `${template.head.text}${spans.join('')}`
   }
@@ -489,7 +588,12 @@ function createFileInspector(
       )
     }
     if (isSqlTemplate(node) && SQL_STATEMENT.test(node.template.getText(sourceFile))) {
-      return namesTenantTable(node) ? judge.sqlTemplateRestricts(node) : null
+      if (!namesTenantTable(node)) return null
+      // A row that is only inserted carries its tenant; there is no predicate to hold.
+      return (
+        insertsOnlyValues(templateLiterals(node.template)) ||
+        judge.sqlTemplateRestricts(node)
+      )
     }
     if (ts.isCallExpression(node) && methodName(node) === 'resolvePortalContext') {
       return node.arguments.some((argument) => judge.restricts(argument, false))

@@ -423,6 +423,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'TENANT-CHECKED',
   },
   {
+    file: 'src/contexts/feed/infrastructure/repositories/notification-delivery-lag.repository.ts',
+    symbol: 'readSendableImmediateEmailRows',
+    reason:
+      'The notification delivery-lag gauge lists the Organization and Property of every immediate email in its window across tenants, then reads statuses and instants, no content, for the ones the beta gate allows: an allowed Property, or an allowed Organization where the email has none.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/feed/infrastructure/repositories/notification-due-recipients.query.ts',
     symbol: 'dueRecipientsInVisitOrder',
     reason:

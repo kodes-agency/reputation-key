@@ -188,6 +188,12 @@ export function isReference(identifier: ts.Identifier): boolean {
   return (parent as { name?: ts.Node }).name !== identifier
 }
 
+/** A template's literal parts: the head, then the text after each interpolation. */
+export function templateLiterals(template: ts.TemplateLiteral): readonly string[] {
+  if (!ts.isTemplateExpression(template)) return [template.text]
+  return [template.head.text, ...template.templateSpans.map((span) => span.literal.text)]
+}
+
 /** The literal text left of an interpolation, with earlier interpolations as `?`. */
 export function textBeforeSpan(
   template: ts.TemplateExpression,
@@ -208,6 +214,17 @@ function isLogicalOperator(kind: ts.SyntaxKind): boolean {
   )
 }
 
+/** `a && b`, `a || b`, `a ?? b`: the right side is evaluated only sometimes. */
+export function isLogicalExpression(node: ts.Node): node is ts.BinaryExpression {
+  return ts.isBinaryExpression(node) && isLogicalOperator(node.operatorToken.kind)
+}
+
+export function isFunctionValue(
+  node: ts.Node,
+): node is ts.ArrowFunction | ts.FunctionExpression {
+  return ts.isArrowFunction(node) || ts.isFunctionExpression(node)
+}
+
 function isConditionalAncestor(node: ts.Node): boolean {
   return (
     ts.isIfStatement(node) ||
@@ -216,7 +233,7 @@ function isConditionalAncestor(node: ts.Node): boolean {
     ts.isDefaultClause(node) ||
     ts.isIterationStatement(node, false) ||
     ts.isFunctionLike(node) ||
-    (ts.isBinaryExpression(node) && isLogicalOperator(node.operatorToken.kind))
+    isLogicalExpression(node)
   )
 }
 

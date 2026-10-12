@@ -86,6 +86,15 @@ function infrastructureSources(): readonly SourceText[] {
     }))
 }
 
+/** The whole tree is read once; every test below asks the same reports. */
+const inspectTree = (() => {
+  let reports: ReturnType<typeof inspectTenantStatements> | undefined
+  return () => {
+    reports ??= inspectTenantStatements(infrastructureSources(), tenantTables())
+    return reports
+  }
+})()
+
 function exemptionKey(entry: TenantPredicateExemption): string {
   return `${entry.file}#${entry.symbol}`
 }
@@ -194,6 +203,35 @@ describe('canary: every tenant-owned repository query carries a tenant predicate
         WHERE reply.organization_id = review.organization_id
           AND reply.review_id = review.id)\``,
     ],
+    [
+      'a key that was read under the tenant',
+      `const findReply = async (orgId: string, requestId: string) => {
+        const reviewId = await loadReviewId(orgId, requestId)
+        return db.select().from(replies).where(eq(replies.reviewId, reviewId))
+      }`,
+    ],
+    [
+      'a guard before the predicate',
+      `const findReply = async (replyId: string, orgId?: string) =>
+        db.select().from(replies).where(and(
+          eq(replies.id, replyId),
+          orgId && eq(replies.organizationId, orgId),
+        ))`,
+    ],
+    [
+      'a comparison before the predicate',
+      `const findReply = async (replyId: string, orgId?: string) =>
+        db.select().from(replies).where(and(
+          eq(replies.id, replyId),
+          orgId !== undefined && eq(replies.organizationId, orgId),
+        ))`,
+    ],
+    [
+      'the fallback of a predicate a caller leaves unrestricted',
+      `const findReply = async (orgId: string, scope?: SQL) =>
+        db.select().from(replies).where(scope ?? eq(replies.organizationId, orgId))
+      const findAny = (orgId: string) => findReply(orgId, isNotNull(replies.id))`,
+    ],
   ])('flags a tenant-free query whose only tenant mention is %s', (_mention, source) => {
     expect(tenantFreeSymbols(source)).toEqual(['findReply'])
   })
@@ -255,6 +293,15 @@ describe('canary: every tenant-owned repository query carries a tenant predicate
       `const findReply = async (owner: { id: string }, replyId: string) =>
         db.select().from(replies)
           .where(and(eq(replies.organizationId, owner.id), eq(replies.id, replyId)))`,
+    ],
+    [
+      'the fallback of an absent predicate',
+      `const findReply = async (orgId: string, scope?: SQL) =>
+        db.select().from(replies).where(
+          scope ?? eq(replies.organizationId, orgId),
+        )
+      const findMine = (orgId: string) =>
+        findReply(orgId, eq(replies.organizationId, orgId))`,
     ],
   ])('accepts a query whose tenant value is %s', (_position, source) => {
     const reports = inspectSynthetic(source).filter(
@@ -418,7 +465,7 @@ describe('canary: every tenant-owned repository query carries a tenant predicate
   })
 
   it('matches every detected tenant-free query exactly to the reviewed registry', () => {
-    const reports = inspectTenantStatements(infrastructureSources(), tenantTables())
+    const reports = inspectTree()
     const tenantFree = new Set(
       [...reports].flatMap(([file, callables]) =>
         callables.filter(isTenantFree).map((report) => `${file}#${report.symbol}`),
@@ -441,7 +488,7 @@ describe('canary: every tenant-owned repository query carries a tenant predicate
   })
 
   it('keeps every exemption unique, explained, and attached to a real callable', () => {
-    const reports = inspectTenantStatements(infrastructureSources(), tenantTables())
+    const reports = inspectTree()
     const seen = new Set<string>()
     const duplicateEntries: string[] = []
     const shortReasons: string[] = []

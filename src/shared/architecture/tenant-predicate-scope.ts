@@ -46,6 +46,8 @@ export type TenantTables = Readonly<{
 export type TenantScope = Readonly<{
   /** The declaration an identifier reads, when this file declares it. */
   resolveBinding: (reference: ts.Identifier) => Binding | undefined
+  /** True when the identifier names a table: a schema table, an alias or a derived one. */
+  namesTable: (identifier: ts.Identifier) => boolean
   /** True when the identifier names a tenant-owned table. */
   namesTenantTable: (identifier: ts.Identifier) => boolean
   /** `reviews.rating`, `r.id`: a member read off a table. */
@@ -153,6 +155,10 @@ export function createTenantScope(
     return binding !== undefined && isTenantTyped(binding)
   }
 
+  function namesTable(identifier: ts.Identifier): boolean {
+    return isReference(identifier) && tableNamed(identifier) !== null
+  }
+
   function namesTenantTable(identifier: ts.Identifier): boolean {
     const table = isReference(identifier) ? tableNamed(identifier) : null
     return table !== null && tables.tenantExportNames.has(table)
@@ -160,6 +166,7 @@ export function createTenantScope(
 
   return {
     resolveBinding,
+    namesTable,
     namesTenantTable,
     isColumnAccess,
     isTenantColumn,

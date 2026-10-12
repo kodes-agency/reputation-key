@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   bindingsByName,
   importedNames,
+  isFunctionValue,
+  isLogicalExpression,
   isReference,
   isUnconditionalWithin,
   leftmostIdentifier,
@@ -11,6 +13,7 @@ import {
   returnedExpressions,
   scopeOf,
   sqlTargetsDatabaseTable,
+  templateLiterals,
   textBeforeSpan,
   whereCallsOnSpine,
 } from './source-syntax'
@@ -204,6 +207,44 @@ describe('source syntax helpers', () => {
 
     expect(textBeforeSpan(template, 0)).toBe('SELECT 1 FROM t WHERE (a, b) > (')
     expect(textBeforeSpan(template, 1)).toBe('SELECT 1 FROM t WHERE (a, b) > (?, ')
+  })
+
+  it('splits a template into its literal parts', () => {
+    const sourceFile = parse(
+      'const a = sql`SELECT ${first} FROM t WHERE id = ${second}`\nconst b = sql`SELECT 1`',
+    )
+    const templates = nodesWhere(sourceFile, ts.isTaggedTemplateExpression)
+
+    expect(templates.map((tagged) => templateLiterals(tagged.template))).toEqual([
+      ['SELECT ', ' FROM t WHERE id = ', ''],
+      ['SELECT 1'],
+    ])
+  })
+
+  it('tells a short-circuit from any other binary expression', () => {
+    const sourceFile = parse('const a = [x && y, x || y, x ?? y, x === y, x + y]')
+    const operands = nodesWhere(sourceFile, ts.isBinaryExpression)
+
+    expect(operands.map((node) => isLogicalExpression(node))).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+    ])
+  })
+
+  it('tells a function value from a call of one', () => {
+    const sourceFile = parse(
+      'const a = () => 1\nconst b = function () { return 1 }\nconst c = build()',
+    )
+    const initializers = nodesWhere(sourceFile, ts.isVariableDeclaration).map(
+      (declaration) => declaration.initializer,
+    )
+
+    expect(
+      initializers.map((node) => node !== undefined && isFunctionValue(node)),
+    ).toEqual([true, true, false])
   })
 
   it.each([
