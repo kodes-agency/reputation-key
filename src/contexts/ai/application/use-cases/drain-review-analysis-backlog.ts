@@ -35,6 +35,11 @@ export const AI_BACKLOG_DRAIN_TIME_BUDGET_MILLIS = 20_000
 /** Spacing after an unexpected failure, so a poisoned entry cannot spin. */
 const FAILURE_RETRY_DELAY_MILLIS = 60_000
 const DEFERRED_RETRY_DELAY_MILLIS = 30_000
+/**
+ * How long an entry that current policy refuses waits before it is asked about
+ * again, so lifting a stop resumes the analysis within a minute.
+ */
+const DENIED_RETRY_DELAY_MILLIS = 60_000
 
 export type DrainReviewAnalysisBacklogResult = Readonly<{
   claimed: number
@@ -43,6 +48,30 @@ export type DrainReviewAnalysisBacklogResult = Readonly<{
   /** Entries returned to the queue because their lane was busy. */
   waitingForLane: number
   failed: number
+  /**
+   * Entries left queued because current policy refuses their Organization or
+   * Property. Not attempted and not settled: they run once the stop is lifted.
+   */
+  denied: number
+}>
+
+/**
+ * Current platform policy for one concrete Organization and Property: the kill
+ * switch, a suspension, the allowlist (ADR 0032). Throws when policy cannot be
+ * read, which fails the drain for a queue retry rather than skipping an entry.
+ */
+export type AuthorizeReviewAnalysisScope = (
+  organizationId: OrganizationId,
+  propertyId: PropertyId,
+) => Promise<boolean>
+
+export type DrainReviewAnalysisBacklogInput = Readonly<{
+  /**
+   * The recurring drain is tenant-cross, so the dispatch gate admitted its
+   * firing without asking about any tenant. Each claimed entry is decided here,
+   * for its own Organization and Property, before it is analysed.
+   */
+  authorizeScope: AuthorizeReviewAnalysisScope
 }>
 
 export type RequestReviewAnalysisResult =
@@ -88,6 +117,7 @@ type DrainCounts = {
   rescheduled: number
   waitingForLane: number
   failed: number
+  denied: number
 }
 
 const NOTHING_DRAINED: DrainReviewAnalysisBacklogResult = Object.freeze({
@@ -96,6 +126,7 @@ const NOTHING_DRAINED: DrainReviewAnalysisBacklogResult = Object.freeze({
   rescheduled: 0,
   waitingForLane: 0,
   failed: 0,
+  denied: 0,
 })
 
 /**
@@ -131,9 +162,10 @@ async function forEachConcurrently<T>(
  * bounded, per-property share of the newest waiting reviews and runs them
  * through the ordinary analysis use case in their lane, a few at a time; the
  * drain keeps claiming rounds while they settle work, up to its time budget.
- * A busy lane returns the property's remaining entries to the queue at the
- * lane's retry time without asking again; any settled outcome removes the
- * entry.
+ * An entry whose Organization or Property current policy refuses is returned
+ * to the queue untried. A busy lane returns the property's remaining entries
+ * to the queue at the lane's retry time without asking again; any settled
+ * outcome removes the entry.
  */
 export function createDrainReviewAnalysisBacklog(
   dependencies: DrainReviewAnalysisBacklogDependencies,
@@ -248,6 +280,7 @@ export function createDrainReviewAnalysisBacklog(
    * Returns how many entries this round claimed and settled.
    */
   async function drainRound(
+    input: DrainReviewAnalysisBacklogInput,
     parked: Map<string, number>,
     counts: DrainCounts,
   ): Promise<Readonly<{ claimed: number; completed: number }>> {
@@ -260,6 +293,23 @@ export function createDrainReviewAnalysisBacklog(
     const settled = new Map<string, PropertyScope>()
     let completed = 0
     await forEachConcurrently(entries, AI_BACKLOG_DRAIN_CONCURRENCY, async (entry) => {
+      // Asked outside `run`, so a policy that cannot be read fails the drain
+      // instead of being recorded as this entry's failed attempt.
+      if (!(await input.authorizeScope(entry.organizationId, entry.propertyId))) {
+        // The analysis use case checks the merchant's consent and the AI
+        // controls, not platform policy, and it settles what it refuses. So a
+        // refused entry never reaches it: it goes back untried and is
+        // analysed once the stop is lifted.
+        counts.denied += 1
+        const refusedAt = dependencies.nowEpochMillis()
+        await dependencies.backlog.release({
+          eventEnvelopeId: entry.eventEnvelopeId,
+          organizationId: entry.organizationId,
+          nextAttemptAtEpochMillis: refusedAt + DENIED_RETRY_DELAY_MILLIS,
+          nowEpochMillis: refusedAt,
+        })
+        return
+      }
       const lane = entry.priority
       const laneKey = `${entry.propertyId}:${lane}`
       const parkedUntil = parked.get(laneKey)
@@ -306,7 +356,9 @@ export function createDrainReviewAnalysisBacklog(
   let draining = false
 
   return Object.freeze({
-    async drain(): Promise<DrainReviewAnalysisBacklogResult> {
+    async drain(
+      input: DrainReviewAnalysisBacklogInput,
+    ): Promise<DrainReviewAnalysisBacklogResult> {
       if (draining) return NOTHING_DRAINED
       draining = true
       try {
@@ -315,9 +367,9 @@ export function createDrainReviewAnalysisBacklog(
         const parked = new Map<string, number>()
         let round: Readonly<{ claimed: number; completed: number }>
         do {
-          round = await drainRound(parked, counts)
+          round = await drainRound(input, parked, counts)
           // Stop once a round settles nothing: the backlog is empty, or every
-          // lane it reached is busy or failing and has its retry time.
+          // lane it reached is refused, busy or failing and has its retry time.
         } while (
           round.completed > 0 &&
           dependencies.nowEpochMillis() - startedAt < AI_BACKLOG_DRAIN_TIME_BUDGET_MILLIS
@@ -331,7 +383,9 @@ export function createDrainReviewAnalysisBacklog(
     /**
      * Analyse one waiting review now, ahead of the queue, on the interactive
      * lane with headroom left for reply drafts. A busy lane leaves the entry
-     * queued with interactive priority, so the next drain takes it first.
+     * queued with interactive priority, so the next drain takes it first. Its
+     * job is Property-scoped, so the dispatch gate has already decided policy
+     * for this Organization and Property.
      */
     async drainReview(
       input: Readonly<{

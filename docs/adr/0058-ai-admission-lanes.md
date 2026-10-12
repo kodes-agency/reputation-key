@@ -171,3 +171,26 @@ retry and a repeated click reuse it, and any finished answer rotates it.
   3. A first-enablement enrollment catches up only when none of its replayed
      reviews still owes an analysis: its current sequence must have settled,
      and not after an abandoned or still-open operation.
+- **2026-10-12** — The drain decides each entry under current platform policy.
+  The drain's schedule is tenant-cross, and the delayed policy admits a
+  tenant-cross firing before any capability check, because the firing names no
+  Organization (ADR 0032, ADR 0033). The drain then ran every claimed entry
+  through the analysis use case, which checks the merchant's authorization and
+  the AI control heads and nothing else. So `BETA_CAPABILITIES_OFF=ai.analyze`
+  (or `all`), a suspended Organization, or an Organization taken off the
+  allowlist stopped new review events at the consumer while the reviews already
+  queued kept going to the provider until the backlog was empty.
+  1. The worker hands the drain a scope authorizer for its own action, and the
+     drain asks it about each claimed entry's Organization and Property before
+     the analysis use case is called. The on-demand job is Property-scoped, so
+     the dispatch gate already decides it.
+  2. A refused entry is returned to the queue untried (`release`): no attempt
+     is counted, nothing is settled, its first start is cleared so the
+     operation horizon begins when a drain next takes it, and it is asked about
+     again after a minute. It is analysed once the stop is lifted. The drain
+     reports the count as `denied`.
+  3. A refused Property still takes one of a round's three Property slots when
+     the claim picks it, and its entries go back untried. Other Properties keep
+     draining; with many refused Properties holding large backlogs they are
+     picked less often. Leaving refused Properties out of the claim is the
+     follow-up if that is ever seen.
