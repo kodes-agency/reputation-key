@@ -15,6 +15,8 @@
 // (e2e-rate-limit-hatch.test.ts, src/routes/api/auth/-$.test.ts).
 
 import { afterEach, describe, expect, it } from 'vitest'
+import { buildCapabilityPolicyHandle } from '#/contexts/identity/infrastructure/policy-store-init'
+import type { Database } from '#/shared/db'
 import {
   assertE2EOverrideIdentity,
   assertE2ERateLimitBypassIdentity,
@@ -41,6 +43,8 @@ const E2E_STACK: CapabilityPolicyEnv = {
 const DEPLOYED_SHAPES: ReadonlyArray<readonly [string, CapabilityPolicyEnv]> = [
   ['a Railway project id', { RAILWAY_PROJECT_ID: 'project-1' }],
   ['a Railway environment id', { RAILWAY_ENVIRONMENT_ID: 'environment-1' }],
+  // A value nobody can vouch for reads as deployed: the doubtful case refuses.
+  ['a blank Railway project id', { RAILWAY_PROJECT_ID: ' ' }],
   [
     'both Railway ids under NODE_ENV=test',
     {
@@ -123,6 +127,44 @@ describe('test-only overrides in a deployed process', () => {
     expect(manifest.authRateLimitBypass).toBe(false)
     expect(manifest.e2eGlobalOverrides).toEqual([])
     expect(entries).toHaveLength(1)
+  })
+
+  describe('the store the web process builds (no boot guard runs there)', () => {
+    // The handle builder reads no row until a grant or consent is looked up.
+    const db = {} as Database
+    const build = (env: CapabilityPolicyEnv) => {
+      const warnings: Array<{ fields: unknown; message: string }> = []
+      const handle = buildCapabilityPolicyHandle({
+        db,
+        env,
+        clock: () => new Date('2026-10-12T00:00:00Z'),
+        logger: { warn: (fields, message) => warnings.push({ fields, message }) },
+      })
+      return { warnings, store: handle.capabilityPolicyStore }
+    }
+
+    it('says so once when it drops the capability override', () => {
+      const { warnings, store } = build({ ...E2E_STACK, RAILWAY_PROJECT_ID: 'project-1' })
+
+      expect(store.isCapabilityGloballyEnabled('goal.use')).toBe(false)
+      expect(warnings).toEqual([
+        {
+          fields: { variable: 'BETA_E2E_GLOBAL_CAPABILITIES' },
+          message:
+            'capability.e2e_override_refused: BETA_E2E_GLOBAL_CAPABILITIES is set on a deployed process and is IGNORED — unset it on the deployed service',
+        },
+      ])
+    })
+
+    it('stays quiet where the override is honoured, and where none is set', () => {
+      const playwright = build(E2E_STACK)
+      const deployed = build({ NODE_ENV: 'production', RAILWAY_PROJECT_ID: 'project-1' })
+
+      expect(playwright.store.isCapabilityGloballyEnabled('goal.use')).toBe(true)
+      expect(playwright.warnings).toEqual([])
+      expect(deployed.store.isCapabilityGloballyEnabled('goal.use')).toBe(false)
+      expect(deployed.warnings).toEqual([])
+    })
   })
 
   describe('lazy store fallback (a process with no boot guard)', () => {

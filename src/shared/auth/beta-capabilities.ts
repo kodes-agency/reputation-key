@@ -147,13 +147,27 @@ export function isOrgInAllowlist(
 /**
  * True in a deployed process. Railway injects these opaque IDs into every
  * deployment and nothing local or in CI sets them — the same pair refuses
- * DEPLOY_MIGRATE=1 (shared/db/deploy-migration-runtime.ts).
+ * DEPLOY_MIGRATE=1 (shared/db/deploy-migration-runtime.ts). Any non-empty
+ * value counts, a blank one included, as it does there: a value nobody can
+ * vouch for must not read as "not deployed".
  */
 function isDeployedProcess(
   env: Readonly<{ RAILWAY_PROJECT_ID?: string; RAILWAY_ENVIRONMENT_ID?: string }>,
 ): boolean {
-  return [env.RAILWAY_PROJECT_ID, env.RAILWAY_ENVIRONMENT_ID].some(
-    (id) => (id ?? '').trim().length > 0,
+  return Boolean(env.RAILWAY_PROJECT_ID || env.RAILWAY_ENVIRONMENT_ID)
+}
+
+/**
+ * True when BETA_E2E_GLOBAL_CAPABILITIES is set and createEnvCapabilityPolicyStore
+ * ignores it because the process is deployed. The worker's boot guard refuses
+ * startup in that state; the web process runs no boot guard, so the caller that
+ * builds its store logs this instead of dropping the override without a trace.
+ */
+export function ignoresE2EGlobalOverride(
+  env: Readonly<Record<string, string | undefined>>,
+): boolean {
+  return (
+    isDeployedProcess(env) && (env.BETA_E2E_GLOBAL_CAPABILITIES ?? '').trim().length > 0
   )
 }
 
