@@ -8,16 +8,19 @@
 // deployment. Both are the same operation: re-run `subscribe` over every usable
 // connection of an organization. That is this backfill.
 //
-// Two callers run it. The daily `reconcile-gbp-notification-subscriptions`
-// job runs it for every organization the capability allows, because the
-// operator command cannot reach a database inside a private network; and
-// ops:gbp-subscribe runs it on demand for one organization. Neither re-PATCHes
-// an account behind anyone's back: `subscribe` reads the account's setting
-// first and writes only when it differs from the configured topic.
+// One caller applies it: the daily `reconcile-gbp-notification-subscriptions`
+// job, for every organization the capability allows. It never re-PATCHes an
+// account behind anyone's back: `subscribe` reads the account's setting first
+// and writes only when it differs from the configured topic.
 //
-// The command's parse + action live here (with their unit tests); scripts/ is
-// outside tsconfig/eslint, so scripts/ops/gbp-subscribe.ts is wiring only — the
-// same split as ops:property-capabilities.
+// ops:gbp-subscribe is the report: it runs `plan` for one organization and
+// calls Google zero times. Its `--apply` is refused by the operator harness,
+// because operator commands run without the Google provider runtime
+// (`#/shared/ops/google-provider-commands`); the action's apply branch below
+// is reachable only from a provider-enabled path, and none exists today.
+//
+// The command's action lives here, with its unit tests;
+// scripts/ops/gbp-subscribe.ts is wiring only.
 
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
 import type { OrganizationId } from '#/shared/domain/ids'
@@ -173,19 +176,19 @@ type GbpSubscribeOperatorIO = Readonly<{ out: (line: string) => void }>
 
 /**
  * The ops:gbp-subscribe action — structurally compatible with the harness's
- * OperatorAction. DRY-RUN by default: the harness sets ctx.dryRun for a mutation
- * invoked without --apply, and then nothing calls Google at all.
+ * OperatorAction. The harness sets ctx.dryRun for a mutation invoked without
+ * --apply, and then nothing calls Google at all. That is the only way the
+ * harness runs this action today: it refuses --apply on this command and
+ * prints what subscribes the accounts instead, so the report ends there.
  *
  * Exit code 1 when an applied run left any connection neither subscribed nor
  * with nothing to subscribe (`skipped_inactive`, or `account_unresolved`: no
  * bound Property yet), so a backfill that quietly achieved nothing is not
  * mistaken for a successful one. `topic_unset` lands there too: it means
- * GBP_PUBSUB_TOPIC is empty in the environment the command ran in, which is the
- * single most likely reason an operator's backfill does nothing.
+ * GBP_PUBSUB_TOPIC is empty in the environment the command ran in.
  */
 export function createGbpSubscribeOperatorAction(
   backfill: GbpSubscribeBackfill,
-  commandName: string,
 ): (
   ctx: GbpSubscribeOperatorContext,
   args: unknown,
@@ -197,7 +200,6 @@ export function createGbpSubscribeOperatorAction(
     const organization = toOrganizationId(ctx.organizationId ?? '')
     if (ctx.dryRun) {
       io.out(JSON.stringify(await backfill.plan(organization), null, 2))
-      io.out(`re-run with --reason <text> --apply to ${commandName}`)
       return 0
     }
     const report = await backfill.apply(organization)

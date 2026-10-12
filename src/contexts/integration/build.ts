@@ -662,7 +662,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   })
   // The same backfill for every tenant, once a day (worker job
   // reconcile-gbp-notification-subscriptions), because the operator command
-  // cannot reach a database on a private network.
+  // only reports: operator commands run without the Google provider runtime.
   const reconcileNotificationSubscriptions = createGbpNotificationReconciliation({
     topicConfigured: notificationConfig.pubsubTopic.length > 0,
     listOrganizations: connectionRepo.listOrganizationIdsWithActiveConnections,

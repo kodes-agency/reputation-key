@@ -123,7 +123,7 @@ only your subscription's. Set it.
 
 ## 6. Subscribe the accounts
 
-Nothing to run. Three paths tell Google to publish, all through the same
+Nothing to run. Two paths tell Google to publish, both through the same
 `subscribe` use case
 (`src/contexts/integration/application/use-cases/manage-notifications.ts`):
 
@@ -138,20 +138,20 @@ Nothing to run. Three paths tell Google to publish, all through the same
    interval scheduler with no offset, so it **first runs right after the worker
    boots on the deploy that installs it**, then every 24 hours from that moment.
    It does nothing when `GBP_PUBSUB_TOPIC` is empty.
-3. **On demand**, from a host that can reach the app's database (not from
-   outside Railway's private network):
 
-   ```bash
-   # dry run: lists the candidate connections and their statuses, calls Google zero times
-   pnpm ops gbp-subscribe --operator <your-user-id> --org <organization-id>
+No operator command subscribes an account. `pnpm ops gbp-subscribe` refuses
+`--apply`: operator commands run without the Google provider runtime, so the
+command cannot call Google. It still reports, from a host that can reach the app's database (not
+from outside Railway's private network), which connections of one organization
+the daily job would cover:
 
-   # execute
-   pnpm ops gbp-subscribe --operator <your-user-id> --org <organization-id> \
-     --reason "enable GBP push" --apply
-   ```
+```bash
+# lists the candidate connections and their statuses, calls Google zero times
+pnpm ops gbp-subscribe --operator <your-user-id> --org <organization-id>
+```
 
-   `--apply` requires `--reason`; the reason lands in the operator audit trail
-   with the actor and the decision.
+Restarting the worker does not bring the next daily run forward: a later boot
+keeps the pending run.
 
 **Which accounts.** Notification settings are per **Google Business Profile
 account**, not per location, and RepKey touches an account only through a

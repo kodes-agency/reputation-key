@@ -1,22 +1,25 @@
-// Operator CLI (BQC-7.5): rotate/revoke a Google connection's credentials —
-// the runbook §2/§10 "revoke-then-reconnect" path. Runs the
-// disconnectGoogleAccount use case: best-effort Google token revoke, then one
-// atomic disconnect + identifier/secret redaction, GBP cache purge, and a
-// bounded source-content purge. The user reconnects via Google OAuth to
-// complete the rotation.
+// Operator CLI (BQC-7.5): name the Google connection a disconnect would act
+// on. REPORT ONLY: `--apply` is refused by the operator harness.
 //
-// DESTRUCTIVE (token revocation + content purge are irreversible): --apply
-// requires the typed confirmation --yes ops:disconnect-connection.
+// A disconnect revokes the Google grant, and operator commands run without the
+// Google provider runtime, so this command cannot do it
+// (src/shared/ops/google-provider-commands.ts). What works instead:
+//
+//   - An AccountAdmin of the Organization disconnects Google in the app
+//     (Settings, Integrations). That runs the disconnectGoogleAccount use case
+//     where the provider is available: imports cancelled, the governed revoke,
+//     one atomic disconnect + identifier/secret redaction, and a bounded
+//     source-content purge.
+//   - To stop the Organization's Google work without them, add its ID to
+//     BETA_SUSPENDED_ORGS on web and worker (runbook §1).
+//   - To stop Google for everyone, set BETA_CAPABILITIES_OFF (runbook §11).
 //
 // Usage:
-//   pnpm ops disconnect-connection <connectionId> --operator <id> --org <id>             — dry-run report
-//   pnpm ops disconnect-connection <connectionId> --operator <id> --org <id> \
-//     --reason <text> --apply --yes ops:disconnect-connection
+//   pnpm ops disconnect-connection <connectionId> --operator <id> --org <id>
 //
-// Requires DATABASE_URL (+ provider env for the revoke call). The use case
-// authorizes against a synthetic AccountAdmin context for the command's org
-// (the operator principal itself is authorized by the harness policy
-// evaluation, audited content-free).
+// Requires DATABASE_URL. The apply branch below is kept for a
+// provider-enabled operator path; none exists today, and the harness never
+// reaches it.
 //
 // NOT in this slice: ENCRYPTION_KEY/token-key rotation (re-encrypt-at-rest)
 // stays runbook-manual (runbook §2) — registered for the platform owner.
@@ -25,8 +28,7 @@ import { organizationId, userId } from '../../src/shared/domain/ids'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { runOperatorCommand } from './operator-command'
 
-const USAGE =
-  'pnpm ops disconnect-connection <connectionId> --operator <id> --org <id> [--reason <text> --apply --yes ops:disconnect-connection]'
+const USAGE = 'pnpm ops disconnect-connection <connectionId> --operator <id> --org <id>'
 
 function usage(): never {
   console.error(`Usage: ${USAGE}`)
@@ -48,7 +50,7 @@ async function main(): Promise<void> {
     async (ctx, _args, io) => {
       if (ctx.dryRun) {
         io.out(
-          `would disconnect connection=${connectionId} org=${ctx.organizationId} (revoke token + redact secrets + purge caches/content) — re-run with --apply --yes ops:disconnect-connection`,
+          `a disconnect of connection=${connectionId} org=${ctx.organizationId} would revoke the token, redact the stored secrets and purge caches and content`,
         )
         return
       }

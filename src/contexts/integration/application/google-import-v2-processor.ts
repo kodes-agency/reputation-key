@@ -275,8 +275,7 @@ export function createGoogleImportV2Processor(
   /**
    * Ask Google to push future reviews for this account. Swallows its own
    * failure: the discovery sweep still finds new reviews, and the daily
-   * `reconcile-gbp-notification-subscriptions` job (or `ops:gbp-subscribe`)
-   * repairs the subscription.
+   * `reconcile-gbp-notification-subscriptions` job repairs the subscription.
    */
   const subscribeToNotificationsBestEffort = async (
     organizationIdValue: string,

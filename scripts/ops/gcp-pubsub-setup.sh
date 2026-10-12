@@ -11,8 +11,8 @@
 # Railway, and the values are printed at the end for you to paste), and
 # subscribe the tenants (the worker's daily
 # reconcile-gbp-notification-subscriptions job does that once the variables are
-# set; `pnpm ops gbp-subscribe` does it at once from a host that reaches the
-# app's database). See docs/operations/google-pubsub-setup.md.
+# set; `pnpm ops gbp-subscribe` only reports which connections it would
+# cover). See docs/operations/google-pubsub-setup.md.
 #
 # Usage:
 #   scripts/ops/gcp-pubsub-setup.sh --project PROJECT_ID --domain YOUR_DOMAIN
@@ -162,11 +162,11 @@ Set these on BOTH the web and worker services:
 
 The worker then subscribes every tenant: its daily
 reconcile-gbp-notification-subscriptions job (first run right after the deploy
-that installed it). To subscribe one tenant at once, from a host that reaches
-the app's database (org-scoped, dry-run first):
+that installed it). No operator command subscribes a tenant. To list the
+connections the job would cover for one tenant, from a host that reaches the
+app's database (the command only reports):
 
   pnpm ops gbp-subscribe --operator <user-id> --org <org-id>
-  pnpm ops gbp-subscribe --operator <user-id> --org <org-id> --reason "enable GBP push" --apply
 
 Verify: GET /api/health/metrics → sync.gbp_push_enabled == 1, then post a
 review on a connected property and watch for a sync job with initiator

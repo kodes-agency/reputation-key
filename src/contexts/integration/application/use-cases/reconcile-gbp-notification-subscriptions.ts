@@ -5,13 +5,13 @@
 // off or broken — every closed-beta-v2 account imported before 2026-09-29,
 // when admission refused all notification calls — are never subscribed again,
 // and a changed GBP_PUBSUB_TOPIC is never re-pointed. `ops:gbp-subscribe`
-// repairs both but cannot reach a database on a private network, so the repair
-// has to run inside the worker, on a schedule.
+// repairs neither: operator commands run without the Google provider runtime,
+// so it only reports. The repair has to run inside the worker, on a schedule.
 //
 // One run walks every organization with an active Google connection, asks
 // current policy whether the organization may run Google work (the tenant-cross
-// schedule is only the enumeration boundary), and runs the same backfill the
-// operator command does. It is idempotent by construction: `subscribe` reads
+// schedule is only the enumeration boundary), and applies the backfill whose
+// plan the operator command reports. It is idempotent by construction: `subscribe` reads
 // each account's setting and writes only when it differs. It is a no-op when no
 // topic is configured.
 //

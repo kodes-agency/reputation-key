@@ -239,6 +239,26 @@ describe('validateOperatorArgs', () => {
     expect(validateOperatorArgs(spec, args())).toBeNull()
   })
 
+  // Operator commands run without the Google provider runtime, so these three
+  // can never apply. The refusal comes first: an operator must not be walked
+  // through --reason and --yes to reach it.
+  it.each([
+    ['ops:disconnect-connection', 'Settings, Integrations'],
+    ['ops:gbp-subscribe', 'reconcile-gbp-notification-subscriptions'],
+    ['ops:reconcile-publication', 'reconcile-ambiguous-publications'],
+  ])('refuses --apply on %s and says what does the work', (name, pointer) => {
+    const spec: OperatorCommandSpec = { ...MUTATION_SPEC, name, destructive: true }
+
+    const bare = validateOperatorArgs(spec, args({ apply: true }))
+    expect(bare).toContain('--apply is refused')
+    expect(bare).toContain(pointer)
+    expect(
+      validateOperatorArgs(spec, args({ apply: true, reason: 'r', yes: name })),
+    ).toBe(bare)
+    // The report keeps working.
+    expect(validateOperatorArgs(spec, args())).toBeNull()
+  })
+
   it('bounds --batch-size to the spec', () => {
     const spec: OperatorCommandSpec = {
       ...MUTATION_SPEC,
@@ -359,6 +379,78 @@ describe('runOperatorCommand', () => {
     expect(applyCtx[0]).toMatchObject({ dryRun: false, reason: 'incident 42' })
     expect(decide.mock.calls[1][0].reason).toBe('incident 42')
     expect(io.outLines.join('\n')).toContain('mode=apply')
+  })
+
+  it('a command that needs Google: --apply exits 1 with the pointer and runs nothing', async () => {
+    const { runtime, decide } = runtimeAllow()
+    const io = memoryIO()
+    const action = vi.fn<OperatorAction>(async () => {})
+    const spec: OperatorCommandSpec = {
+      ...MUTATION_SPEC,
+      name: 'ops:reconcile-publication',
+      usage: 'pnpm ops reconcile-publication --all-ambiguous --operator <id>',
+    }
+
+    const result = await runOperatorCommand(
+      spec,
+      action,
+      runtime,
+      ['--operator', 'op@x.io', '--reason', 'incident 42', '--apply'],
+      io,
+    )
+
+    expect(result.exitCode).toBe(1)
+    expect(decide).not.toHaveBeenCalled()
+    expect(action).not.toHaveBeenCalled()
+    expect(io.errLines).toEqual([
+      'ops:reconcile-publication: --apply is refused: this command needs a call to Google, ' +
+        'and operator commands run without the Google provider runtime, so it only reports. ' +
+        "The worker's reconcile-ambiguous-publications job re-reads Google for every due reply every five minutes, " +
+        'and a manager can use Check Google again on the reply in the Inbox (docs/operations/runbooks.md §6).',
+      'usage: pnpm ops reconcile-publication --all-ambiguous --operator <id>',
+    ])
+  })
+
+  it('a command that needs Google: every report ends by saying it is all the command does', async () => {
+    const { runtime } = runtimeAllow()
+    const io = memoryIO()
+    const spec: OperatorCommandSpec = { ...MUTATION_SPEC, name: 'ops:gbp-subscribe' }
+
+    const result = await runOperatorCommand(
+      spec,
+      async (ctx, _args, actionIO) => {
+        actionIO.out(`report dryRun=${ctx.dryRun}`)
+      },
+      runtime,
+      ['--operator', 'op@x.io'],
+      io,
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(io.outLines.slice(1)).toEqual([
+      'report dryRun=true',
+      'ops:gbp-subscribe only reports: --apply is refused. ' +
+        'The worker subscribes accounts by itself: an import subscribes its own, and the daily ' +
+        "reconcile-gbp-notification-subscriptions job re-asserts every Organization's " +
+        '(docs/operations/google-pubsub-setup.md §6).',
+    ])
+  })
+
+  it('a command that can apply prints no report-only line', async () => {
+    const { runtime } = runtimeAllow()
+    const io = memoryIO()
+
+    await runOperatorCommand(
+      MUTATION_SPEC,
+      async () => {},
+      runtime,
+      ['--operator', 'op@x.io'],
+      io,
+    )
+
+    expect(io.outLines).toEqual([
+      'ops:quarantine — operator=op@x.io correlation=corr-unit-1 decision=allow mode=dry-run',
+    ])
   })
 
   it('deny: exits 1, skips the action, prints the typed reason + correlation', async () => {
