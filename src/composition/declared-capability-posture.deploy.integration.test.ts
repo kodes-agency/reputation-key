@@ -331,3 +331,58 @@ describe('reset + deploy with a declared capability posture', () => {
     DEPLOY_TIMEOUT_MS,
   )
 })
+
+describe('a deploy from an image older than the database', () => {
+  it(
+    'is refused by design and told to fix forward, not to rerun',
+    async () => {
+      // Its own starting point: a database at this checkout's journal, whether
+      // or not the deploys above ran first (the migrator key seeds an empty one
+      // and is ignored once the inventory exists).
+      const current = await deploy({
+        REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS: MIGRATOR_KEY,
+      })
+      expect(current.code).toBe(0)
+      const applied = (
+        await db.query<{ count: number }>(
+          'SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations',
+        )
+      ).rows[0]!.count
+      // One applied migration this image's journal does not hold: what a newer
+      // release leaves behind for an older image (recovery is forward-only,
+      // ADR 0038 amended 2026-10-12).
+      const newer = await db.query<{ id: number }>(`
+        INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
+        SELECT 'applied-by-a-newer-release', max(created_at) + 1
+        FROM drizzle.__drizzle_migrations
+        RETURNING id
+      `)
+      try {
+        const run = await deploy({})
+
+        expect(run.code).toBe(1)
+        expect(run.stdout).toContain(
+          `"journalApplied":${applied + 1},"journalExpected":${applied}`,
+        )
+        expect(run.stderr).toContain(
+          `This image is older than the database: ${applied + 1} migrations are applied and this image's journal holds ${applied}.`,
+        )
+        expect(run.stderr).toContain('refused by design')
+        // The same refusal meets a fix whose revert deleted a migration, so
+        // the runner names that case too.
+        expect(run.stderr).toContain('has a journal that lost a migration')
+        expect(run.stderr).toContain('[migrate-deploy] Forward-only recovery:')
+        expect(run.stderr).toContain(
+          'never a revert that deletes a migration file or its journal entry',
+        )
+        expect(run.stderr).not.toContain('the rerun converges')
+        expect(postureLine(run)).toBeUndefined()
+      } finally {
+        await db.query('DELETE FROM drizzle.__drizzle_migrations WHERE id = $1', [
+          newer.rows[0]!.id,
+        ])
+      }
+    },
+    DEPLOY_TIMEOUT_MS,
+  )
+})

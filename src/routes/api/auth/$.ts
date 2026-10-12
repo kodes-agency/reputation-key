@@ -8,48 +8,25 @@ import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
 import { getContainer } from '#/composition'
 import { getLogger } from '#/shared/observability/logger'
 import { clientIpFromHeaders } from '#/shared/security/client-ip'
+import { classifyProviderRequest } from './-provider-routes'
 
-// Raw better-auth write endpoints PERMANENTLY blocked at the HTTP boundary.
+// The authentication provider's own HTTP routes are served from an ALLOW LIST
+// (./-provider-routes.ts): a request reaches Better Auth only when its method
+// and exact path name a route the product needs over HTTP. Every other
+// request under /api/auth/* is refused here, so a provider route nobody
+// decided on is never reachable. Refusing a list of paths did not hold: the
+// provider's organization reads handed every invitation id to any member,
+// and its create and update routes ran with none of the app's checks.
 //
-// This list is PATH-PINNED against better-auth's own route table, so it is only
-// as correct as the version it was verified against: every path below was
-// re-verified present in better-auth 1.7.5 (the exact pin in package.json).
-// A bump can rename a route and silently narrow this refusal to nothing, so
-// the colocated test asserts the installed version and fails on drift —
-// re-verify the org plugin route files, then move the pin.
+// Both lists name Better Auth's OWN routes, so they are only as correct as
+// the version they were read against: the exact pin in package.json (1.7.5).
+// The colocated tests enumerate the configured provider's endpoints and fail
+// on one that is on neither list, and assert the installed version, so a bump
+// is a deliberate re-read of what each allowed route returns and changes.
 //
-// Organization writes: app-owned services are the only write path (ADR 0001,
-// DAC Stage 1). Paths verified against the organization plugin route files
-// (crud-access-control.mjs / crud-invites.mjs / crud-members.mjs). The
-// invitation create path is "/organization/invite-member", not
-// "/create-invitation".
-//
-// Self-service sign-up: /sign-up/email is an unauthenticated user-row write on
-// a public, internet-reachable deployment, and the closed beta onboards by
-// invitation only. Refused here rather than by clearing better-auth's
-// emailAndPassword.enabled (src/shared/auth/auth.ts), which would also disable
-// sign-in and password reset for existing members.
-//
-// Verification email: the app-owned resendVerificationEmail server function is
-// the only entry point. It enforces the per-IP and per-address limits (ADR 0062
-// §6) and calls Better Auth in-process; the raw route has only per-IP limits,
-// so it would let anyone mail any unverified address repeatedly. The mailed
-// link's GET /verify-email stays open.
-const BLOCKED_RAW_WRITE_ENDPOINTS = [
-  '/organization/create-role',
-  '/organization/update-role',
-  '/organization/delete-role',
-  '/organization/invite-member',
-  '/organization/accept-invitation',
-  '/organization/reject-invitation',
-  '/organization/cancel-invitation',
-  '/organization/update-member-role',
-  '/organization/remove-member',
-  '/organization/delete',
-  '/organization/leave',
-  '/sign-up/email',
-  '/send-verification-email',
-] as const
+// App-owned server functions call the provider in process and never pass
+// through this handler. The Google Business Profile OAuth callback has its own
+// route file (./google/callback.ts).
 
 /** One refusal log per process — the hatch is a boot-time posture, not per-request news. */
 let bypassRefusalLogged = false
@@ -75,9 +52,10 @@ function authRateLimitBypassed(): boolean {
 }
 
 /**
- * Handle a raw better-auth HTTP request. Blocked write endpoints are refused with
- * 404 + a structured warn log (the alerting anchor). POST endpoints are rate-limited
- * to blunt brute-force / credential stuffing against better-auth native auth.
+ * Handle a raw better-auth HTTP request. A request that is not on the allow
+ * list is refused with 404 + a structured warn log (the alerting anchor), before
+ * the limiter so a 429 cannot mask it. Allowed POSTs are rate-limited to blunt
+ * brute-force / credential stuffing against better-auth native auth.
  *
  * BQC-6.8 / review §5.1: the 60-POSTs/60s fixed window per IP was sized for
  * interactive traffic; the e2e suite signs in per test (~70 POSTs in ~70s once
@@ -90,19 +68,21 @@ function authRateLimitBypassed(): boolean {
  * local-dev limiting are unchanged (better-auth's own limiter inside the
  * handler is gated by the same rule, see shared/auth/auth.ts).
  *
- * Exported for the colocated test: this seam is what makes the blocked-endpoint
- * refusals and the limiter's posture provable without booting the route tree.
+ * Exported for the colocated tests: this seam is what makes the allow list
+ * and the limiter's posture provable without booting the route tree.
  */
 export async function handleAuthRequest(
   request: Request,
   opts: { rateLimit: boolean },
 ): Promise<Response> {
   const { pathname } = new URL(request.url)
-  // endsWith tolerates the configured better-auth base path prefix (e.g. /api/auth).
-  if (BLOCKED_RAW_WRITE_ENDPOINTS.some((suffix) => pathname.endsWith(suffix))) {
+  const decision = classifyProviderRequest(request.method, pathname)
+  if (!decision.allowed) {
+    // The route is logged as its pattern, never the raw path: a path can carry
+    // a mailed reset token, and a path that names no provider route is noise.
     getLogger().warn(
-      { method: request.method, path: pathname },
-      'auth.raw_write_endpoint_blocked: raw better-auth write endpoint refused; use the app-owned service',
+      { method: request.method, route: decision.route ?? 'unlisted' },
+      'auth.raw_endpoint_blocked: raw better-auth endpoint is not on the allow list; use the app-owned service',
     )
     return new Response(JSON.stringify({ message: 'Not found' }), {
       status: 404,
