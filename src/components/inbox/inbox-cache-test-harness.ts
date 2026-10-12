@@ -37,6 +37,13 @@ import type { InboxServerFns } from './types'
 type ListPage = Awaited<ReturnType<InboxServerFns['getInboxItems']>>
 export type ListFilters = Readonly<Record<string, unknown>>
 
+/**
+ * How long a read stays fresh in the app (`src/router.tsx`, the client's
+ * default). A list that is shown again inside that time is not re-read unless
+ * something invalidated it, which is exactly what a cache write must not undo.
+ */
+export const APP_STALE_TIME_MS = 30_000
+
 /** The list query, keyed and fetched as `useInboxState` keys and fetches it. */
 function listOptions(fns: InboxServerFns, filters: ListFilters, onRequest?: () => void) {
   return {
@@ -60,7 +67,10 @@ export function installInboxCacheHarness() {
     // Observers fetch only in a browser; the unit project runs in Node.
     environmentManager.setIsServer(() => false)
     client = new QueryClient({
-      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      defaultOptions: {
+        queries: { retry: false, staleTime: APP_STALE_TIME_MS },
+        mutations: { retry: false },
+      },
     })
     client.mount()
   })

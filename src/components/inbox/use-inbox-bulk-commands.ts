@@ -37,14 +37,16 @@ export function useInboxBulkCommands({ bulkUpdateFn, bulkAssignFn, onDone }: Inp
   })
   const assign = useActionMutation(bulkAssignFn, {
     errorMessage: actionErrorMessage,
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if (result.updated === 0) {
         // An assignment is all or nothing, and the usual reason for nothing is
         // one row whose revision is behind (a colleague's change, another tab).
         // The command reads its fence from the rows, so the same selection
         // would be refused for ever: re-read them, and keep the selection for
-        // the next try (no `onDone`).
-        inboxCachePolicy.onBulkCommandSettled(qc)
+        // the next try (no `onDone`). Awaited, so the command stays pending
+        // and the toast waits until the rows are current: a retry before then
+        // would send the same stale row.
+        await inboxCachePolicy.onBulkCommandSettled(qc)
         toast.error(
           'No assignments changed. The list was refreshed; check access and try again.',
         )

@@ -2,7 +2,7 @@
 // reply-poll predicate that useInboxDetail (and future inbox UI) no longer know.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import type { QueryClient } from '@tanstack/react-query'
+import { QueryClient } from '@tanstack/react-query'
 import {
   BULLMQ_ACTIVITY_LAG_MS,
   inboxCachePolicy,
@@ -22,12 +22,6 @@ const makeFakeQc = () => {
     key: ReadonlyArray<unknown>
     updater: (old: unknown) => unknown
   }> = []
-  // Writes to every cached list at once (the row's command fence), kept apart
-  // from `setDataCalls` so those stay "the detail writes".
-  const listWrites: Array<{
-    key: ReadonlyArray<unknown>
-    updater: (old: unknown) => unknown
-  }> = []
   const qc = {
     invalidateQueries: (filters: { queryKey: ReadonlyArray<unknown> }) => {
       invalidated.push(filters.queryKey)
@@ -36,14 +30,12 @@ const makeFakeQc = () => {
     setQueryData: (key: ReadonlyArray<unknown>, updater: (old: unknown) => unknown) => {
       setDataCalls.push({ key, updater })
     },
-    setQueriesData: (
-      filters: { queryKey: ReadonlyArray<unknown> },
-      updater: (old: unknown) => unknown,
-    ) => {
-      listWrites.push({ key: filters.queryKey, updater })
-    },
+    // No list is cached in this fake, so the row's command fence has nowhere
+    // to go and `setDataCalls` stays "the detail writes". The list rows are
+    // covered against a real client: below, and in `inbox-list-staleness.test.ts`.
+    getQueryCache: () => ({ findAll: () => [] }),
   } as unknown as QueryClient
-  return { qc, invalidated, setDataCalls, listWrites }
+  return { qc, invalidated, setDataCalls }
 }
 
 const ID = 'item-1'
@@ -276,12 +268,8 @@ describe('inboxCachePolicy.onFeedbackHandlingChanged', () => {
 // ── onNoteAdded ─────────────────────────────────────────────────
 
 describe('inboxCachePolicy.onNoteAdded', () => {
-  it('advances the fence of every cached list row, and keeps a newer one', () => {
-    const { qc, listWrites } = makeFakeQc()
-
-    inboxCachePolicy.onNoteAdded(qc, ID, 5)
-
-    expect(listWrites.map((write) => write.key)).toEqual([inboxKeys.lists()])
+  it('advances the fence of a cached list row, and keeps a newer one', () => {
+    const qc = new QueryClient()
     const list = (revision: number) => ({
       pages: [
         {
@@ -295,10 +283,24 @@ describe('inboxCachePolicy.onNoteAdded', () => {
       ],
       pageParams: [undefined],
     })
-    expect(listWrites[0]!.updater(list(4))).toEqual(list(5))
-    expect(listWrites[0]!.updater(list(7))).toEqual(list(7))
-    // A list key that holds no pages (nothing read yet) is left as it is.
-    expect(listWrites[0]!.updater(undefined)).toBeUndefined()
+    const behind = inboxKeys.list({ queue: 'open' })
+    const ahead = inboxKeys.list({ queue: 'mine' })
+    const aheadRead = list(7)
+    qc.setQueryData(behind, list(4))
+    qc.setQueryData(ahead, aheadRead)
+
+    inboxCachePolicy.onNoteAdded(qc, ID, 5)
+
+    expect(qc.getQueryData(behind)).toEqual(list(5))
+    // A read that already holds a newer revision is not written at all: one
+    // write seeded it above, and that is still the only one.
+    expect(qc.getQueryData(ahead)).toBe(aheadRead)
+    expect({
+      behind: qc.getQueryState(behind)?.dataUpdateCount,
+      ahead: qc.getQueryState(ahead)?.dataUpdateCount,
+    }).toEqual({ behind: 2, ahead: 1 })
+    // A list key nothing was read into yet stays empty.
+    expect(qc.getQueryData(inboxKeys.list({ queue: 'closed' }))).toBeUndefined()
   })
 
   it('advances the cached command fence, invalidates notes, and retains a newer fence', () => {

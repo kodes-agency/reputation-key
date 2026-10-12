@@ -202,7 +202,6 @@ describe('a bulk assign the server refused whole', () => {
     const bulk = renderBulkCommands(fns, onDone)
 
     const refused = await assignTo(bulk, ['item-x', 'item-y'])
-    await pane.settle()
 
     expect(refused.results.map((item) => item.outcome)).toEqual([
       'batch_aborted',
@@ -210,6 +209,7 @@ describe('a bulk assign the server refused whole', () => {
     ])
     // Nothing changed, so the selection is kept for the retry.
     expect(onDone).not.toHaveBeenCalled()
+    // The command settled only once the rows were current: no wait in between.
     expect(pane.rowRevision(ON_SCREEN, 'item-y')).toBe(2)
     expect(toast.error).toHaveBeenCalledWith(
       'No assignments changed. The list was refreshed; check access and try again.',

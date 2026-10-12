@@ -254,10 +254,12 @@ export function polledReplyPublicationChanged(
 // A status change moves the item between folders → sibling list caches,
 // folder-count badges, and the global new-count badge are all stale.
 
-function invalidateFolderCaches(qc: QueryClient): void {
-  qc.invalidateQueries({ queryKey: inboxKeys.lists() })
+/** Resolves once the lists on screen have been re-read. */
+function invalidateFolderCaches(qc: QueryClient): Promise<void> {
+  const listsReread = qc.invalidateQueries({ queryKey: inboxKeys.lists() })
   qc.invalidateQueries({ queryKey: inboxKeys.counts() })
   qc.invalidateQueries({ queryKey: inboxKeys.lastVisitCount() })
+  return listsReread
 }
 
 function invalidateFolderSummaryCaches(qc: QueryClient): void {
@@ -353,20 +355,45 @@ const withCommandRevision =
  * command that includes it, and a bulk assign is refused whole.
  *
  * Written through rather than re-read: a list read is the heaviest request the
- * Inbox makes, and the revision is the only thing a note or a correction
- * changes on the row. Forward only, because a read that landed meanwhile may
- * already hold a newer one.
+ * Inbox makes, and the revision is the only thing on the row that a note or a
+ * correction changes and a command reads. Forward only, because a read that
+ * landed meanwhile may already hold a newer one.
+ *
+ * The write must leave each list as stale as it found it. `setQueryData` dates
+ * its query "read just now" and clears a pending invalidation (query-core
+ * `successState`), and a list that is cached but not on screen is re-read only
+ * when it is shown again and only if it is stale. Written plainly, one note
+ * made every cached queue fresh for `staleTime` and took back the re-read a
+ * status command had just ordered: escalate, add a note, open Escalated, and
+ * the item was missing. So only a list that holds the row behind the revision
+ * is written, with the date it already had, and a list that was invalidated is
+ * marked so again (`refetchType: 'none'`: marked, not fetched).
+ *
+ * A list read already in flight when the command lands (the reply poll, "Load
+ * more") can put the older revision back on the row. A bulk assign refused for
+ * it re-reads the list (`use-inbox-bulk-commands.ts`), so the next try works.
  */
 function advanceListRowFence(qc: QueryClient, id: string, commandRevision: number): void {
   const advance = withCommandRevision(id, commandRevision)
-  qc.setQueriesData<InboxListCache>({ queryKey: inboxKeys.lists() }, (old) =>
-    old?.pages
-      ? {
-          ...old,
-          pages: old.pages.map((page) => ({ ...page, items: page.items.map(advance) })),
-        }
-      : old,
-  )
+  for (const query of qc.getQueryCache().findAll({ queryKey: inboxKeys.lists() })) {
+    const { data, dataUpdatedAt, isInvalidated } = query.state
+    const list = data as InboxListCache | undefined
+    const isBehind = list?.pages.some((page) =>
+      page.items.some((item) => item.id === id && item.commandRevision < commandRevision),
+    )
+    if (!list || !isBehind) continue
+    qc.setQueryData<InboxListCache>(
+      query.queryKey,
+      {
+        ...list,
+        pages: list.pages.map((page) => ({ ...page, items: page.items.map(advance) })),
+      },
+      { updatedAt: dataUpdatedAt },
+    )
+    if (isInvalidated) {
+      qc.invalidateQueries({ queryKey: query.queryKey, exact: true, refetchType: 'none' })
+    }
+  }
 }
 
 // ── The policy ──────────────────────────────────────────────────
@@ -382,9 +409,11 @@ export const inboxCachePolicy = {
    * an assignment the server refused whole because one row was behind. None of
    * them returns item snapshots, so every Inbox folder projection is re-read,
    * and the rows carry what the server holds before the next bulk command.
+   * Resolves once the list on screen has been re-read, for the caller that
+   * must not offer its command again before then.
    */
-  onBulkCommandSettled(qc: QueryClient): void {
-    invalidateFolderCaches(qc)
+  onBulkCommandSettled(qc: QueryClient): Promise<void> {
+    return invalidateFolderCaches(qc)
   },
 
   /**

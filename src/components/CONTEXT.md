@@ -501,7 +501,7 @@ work. `use-hydrated` provides an SSR-safe client signal;
 `use-page-visible` pauses sensitive polling while the page is hidden (focus is deliberately not part of it); `use-property-id` reads
 Property route scope; `use-theme-mode` owns persisted theme state.
 
-Three rules keep a cached page in step with the server it sends commands to.
+Four rules keep a cached page in step with the server it sends commands to.
 
 - **A revision lives wherever the entity is cached.** A command result that
   advances a revision other commands are fenced on is written into every cached
@@ -509,6 +509,15 @@ Three rules keep a cached page in step with the server it sends commands to.
   revision is in its detail and in its row in each cached list, and the bulk
   commands read the row: a note that advanced only the detail made the next bulk
   assign fail (`inbox/inbox-cache-policy.ts`, `advanceListRowFence`).
+- **A write into a cached read leaves it as stale as it was.** `setQueryData`
+  dates the read "just now" and clears a pending invalidation, and a read that is
+  cached but not on screen is re-read only when it is shown again and only if it
+  is stale. A write that is not followed by an invalidation therefore writes only
+  the reads that hold the entity, passes `updatedAt` (the date the read already
+  had) and marks an invalidated read invalidated again
+  (`invalidateQueries` with `exact` and `refetchType: 'none'`). Otherwise one
+  note made every cached Inbox queue look fresh, and a queue was shown without
+  the item a status command had just moved into it (`advanceListRowFence`).
 - **A refused command re-reads what it was refused about.** A refusal usually
   means the page is behind, and often nothing else will bring it forward (no
   poll, no refetch until the window is refocused). Give the mutation an
