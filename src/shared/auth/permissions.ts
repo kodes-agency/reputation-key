@@ -79,6 +79,9 @@ export const owner = ac.newRole({ ...statement })
 // logo included (`identity.logo_upload` is owner-only).
 // `member.list` stays: Inbox assignment, Responsible managers and the Members
 // page itself read the member list.
+//
+// AI is the same: a PropertyManager drafts replies and reads trends, but only an
+// AccountAdmin decides whether AI is on for a Property, so `ai.manage` is owner-only.
 export const admin = ac.newRole({
   member: ['list'],
   dashboard: ['read', 'fleet_read'],
@@ -91,7 +94,7 @@ export const admin = ac.newRole({
   inbox: ['read', 'write', 'manage'],
   notification: ['read', 'update'],
   goal: ['read', 'create', 'update', 'cancel'],
-  ai: ['reply.generate', 'trends.read', 'manage'],
+  ai: ['reply.generate', 'trends.read'],
   identity: [
     'avatar_upload',
     'leave_org',

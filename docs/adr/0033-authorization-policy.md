@@ -33,6 +33,14 @@ action and scope; an unavailable or unknown policy input fails closed.
   tenant-cross sweep and the per-item work it discovers are separate actions:
   one Property-scoped job once made every Organization-scoped notification
   consumer that shared its action deny `missing_scope`.
+- An Organization- or Property-scoped job is enqueued with its `organizationId`
+  (and `propertyId`) in the payload, because the delayed gate reads a job's
+  scope from there and nowhere else. A producer that leaves them out is refused
+  by nothing: every job completes as a terminal `missing_scope` denial and the
+  work never runs. Property AI trends were enqueued with their schedule alone
+  and none was generated. `scoped-job-enqueue-scope.test.ts` drives every scoped
+  family's producer through the gate, and a new scoped family fails there until
+  it names how it is enqueued.
 
 ## Amended 2026-10-01 — manager administration is AccountAdmin-only
 

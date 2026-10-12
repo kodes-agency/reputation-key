@@ -80,7 +80,14 @@ export type RegisterAiConsumersInput = Readonly<{
   /** Where analysis that waits for the background lane is queued (ADR 0058). */
   backlog: Pick<AiReviewAnalysisBacklogPort, 'enqueue'>
   nowEpochMillis: () => number
-  enqueuePropertyTrend: (scheduleId: string) => Promise<void>
+  /**
+   * Queues one scheduled trend with the Organization and Property it belongs
+   * to: the trend job is property-scoped, and the delayed-execution gate reads
+   * that scope from the job payload.
+   */
+  enqueuePropertyTrend: (
+    request: Readonly<{ scheduleId: string; organizationId: string; propertyId: string }>,
+  ) => Promise<void>
   /**
    * Apply the Identity authorization trigger through the AI command store.
    * That store commits the enrollment intent (or exact obsolete/no-op
@@ -231,7 +238,11 @@ export async function handleAiPropertyTrendGenerationRequested(
   ) {
     throw new Error('AI property trend event routing mismatch')
   }
-  await dependencies.enqueuePropertyTrend(payload.scheduleId)
+  await dependencies.enqueuePropertyTrend({
+    scheduleId: payload.scheduleId,
+    organizationId: payload.organizationId,
+    propertyId: payload.propertyId,
+  })
   await dependencies.receipts.insertReceipt(
     event.eventId,
     AI_PROPERTY_TREND_GENERATION_CONSUMER,
