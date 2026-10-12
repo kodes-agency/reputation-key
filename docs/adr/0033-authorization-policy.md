@@ -92,5 +92,8 @@ not reopen self-service. `createOrganizationFn`, dormant behind
 `src/routes/api/auth/-provider-routes.test.ts` enumerates the configured
 provider's endpoints and fails when one is neither allowed nor refused on
 purpose, so an upgrade or a new plugin cannot add a reachable route unnoticed.
+A refused route wins over an allowed one that also matches the request (the
+reset link's token segment matches any value), and the same test fails when a
+listed route is not decided the way its list says.
 `src/routes/api/auth/-$.integration.test.ts` proves the refusals against the
 real provider and database.

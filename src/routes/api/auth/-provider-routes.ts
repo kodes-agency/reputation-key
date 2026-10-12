@@ -16,12 +16,19 @@
 // app-owned server functions; write that reason beside the entry.
 //
 // REFUSED_PROVIDER_ROUTES is every other route the configured provider
-// exposes. Nothing depends on it to refuse; it exists so that each refusal is
-// a decision. The colocated test enumerates the provider's endpoints and fails
-// when one is on neither list, so a library upgrade or a new plugin cannot add
-// surface that nobody looked at.
+// exposes, so that each refusal is a decision. A path on neither list is
+// refused all the same. The list decides one case: a request that an allowed
+// route and a refused route both match is refused. GET /reset-password/:token
+// matches any one segment, and the provider's router would hand a request for
+// a static sibling of it to the sibling. The colocated test enumerates the
+// provider's endpoints and fails when one is on neither list, so a library
+// upgrade or a new plugin cannot add surface that nobody looked at. It also
+// fails when an entry says one thing and the decision another.
 
-/** The provider's base path: Better Auth's default, and this route's own. */
+/**
+ * The provider's base path: Better Auth's default, and this route's own. The
+ * colocated test checks it against the configured provider.
+ */
 const PROVIDER_BASE_PATH = '/api/auth'
 
 /** A provider route: its method and its path after the base path. */
@@ -57,11 +64,14 @@ export const ALLOWED_PROVIDER_ROUTES: ReadonlyArray<ProviderRoute> = [
 ]
 
 export const REFUSED_PROVIDER_ROUTES: ReadonlyArray<ProviderRoute> = [
-  // Organization reads. The first four answer any member of the Organization
-  // with every invitation or member row; an invitation id is the only secret
+  // Organization reads. `list-invitations` and `get-full-organization` answer
+  // any member of the Organization with every invitation row, and
+  // `list-members` with every member row. An invitation id is the only secret
   // invited registration asks for, and only an AccountAdmin may list
-  // invitations (ADR 0033). The app reads all of these in process, behind the
-  // execution policy.
+  // invitations (ADR 0033). `get-invitation` answers one id, and only to the
+  // invited address; an invitation link reads the app-owned preview instead.
+  // Where the app needs one of these reads, its own server functions make it
+  // in process. Nothing needs one over HTTP.
   { method: 'GET', path: '/organization/list-invitations' },
   { method: 'GET', path: '/organization/get-full-organization' },
   { method: 'GET', path: '/organization/get-invitation' },
@@ -161,20 +171,40 @@ export type ProviderRequestDecision = Readonly<{
   route: string | null
 }>
 
-/** Decide one request to /api/auth/* by its method and exact path. */
+/** The two lists a request is decided against. */
+type ProviderRouteLists = Readonly<{
+  allowed: ReadonlyArray<ProviderRoute>
+  refused: ReadonlyArray<ProviderRoute>
+}>
+
+const PROVIDER_ROUTE_LISTS: ProviderRouteLists = {
+  allowed: ALLOWED_PROVIDER_ROUTES,
+  refused: REFUSED_PROVIDER_ROUTES,
+}
+
+/**
+ * Decide one request to /api/auth/* by its method and exact path. It is served
+ * only when an allowed route names it and no refused route does, so an allowed
+ * pattern never serves a route that is refused on purpose. `lists` is a
+ * parameter for the colocated test, which proves that with a route the
+ * provider does not have yet; the route handler never passes it.
+ */
 export function classifyProviderRequest(
   method: string,
   pathname: string,
+  lists: ProviderRouteLists = PROVIDER_ROUTE_LISTS,
 ): ProviderRequestDecision {
   if (!pathname.startsWith(`${PROVIDER_BASE_PATH}/`)) {
     return { allowed: false, route: null }
   }
   const path = pathname.slice(PROVIDER_BASE_PATH.length)
-  const allowed = ALLOWED_PROVIDER_ROUTES.find(
-    (route) => route.method === method && isRoutePath(route.path, path),
-  )
+  const namesRequest = (route: ProviderRoute): boolean =>
+    route.method === method && isRoutePath(route.path, path)
+  const refused = lists.refused.find(namesRequest)
+  if (refused) return { allowed: false, route: refused.path }
+  const allowed = lists.allowed.find(namesRequest)
   if (allowed) return { allowed: true, route: allowed.path }
-  const known = [...ALLOWED_PROVIDER_ROUTES, ...REFUSED_PROVIDER_ROUTES].find((route) =>
+  const known = [...lists.allowed, ...lists.refused].find((route) =>
     isRoutePath(route.path, path),
   )
   return { allowed: false, route: known?.path ?? null }

@@ -308,16 +308,25 @@ describe('auth catch-all allow list', () => {
     expect(mocks.handler).toHaveBeenCalledTimes(1)
     expect(mocks.handler.mock.calls[0]?.[0]).toBe(request)
     expect(mocks.warn).not.toHaveBeenCalled()
+    // Invariant 1 for every allowed POST, not only sign-in; a GET is not limited.
+    expect(mocks.check).toHaveBeenCalledTimes(method === 'POST' ? 1 : 0)
   })
 
   // Method and exact path, never a suffix, a prefix or a near miss. The old
   // refusal matched with endsWith; an allow list matched that way would serve
   // `/organization/get-session` and anything else that ends in an allowed path.
+  // HEAD is here because the framework hands a HEAD request to the GET handler
+  // (start-server-core createStartHandler), so one does arrive: a mail
+  // gateway probing a mailed link, for example. The provider has no HEAD
+  // route, and a GET entry does not allow one.
   it.each([
     ['POST', '/get-session', '/get-session'],
     ['GET', '/sign-in/email', '/sign-in/email'],
     ['GET', '/sign-out', '/sign-out'],
     ['POST', '/verify-email', '/verify-email'],
+    ['HEAD', '/get-session', '/get-session'],
+    ['HEAD', '/verify-email', '/verify-email'],
+    ['HEAD', '/reset-password/reset-token-1', '/reset-password/:token'],
     ['GET', '/get-session/', 'unlisted'],
     ['GET', '/GET-SESSION', 'unlisted'],
     ['GET', '//get-session', 'unlisted'],

@@ -6,7 +6,8 @@
 // An endpoint on neither list fails the suite, so an upgrade or a new plugin
 // cannot add a provider route that nobody decided on; an entry the provider no
 // longer has fails it too, so a renamed route the product depends on is caught
-// here and not by a user.
+// here and not by a user. It also proves the lists and the decision agree: a
+// route listed as refused is refused, even where an allowed pattern matches it.
 
 import { describe, expect, it } from 'vitest'
 import {
@@ -14,9 +15,20 @@ import {
   REFUSED_PROVIDER_ROUTES,
   classifyProviderRequest,
 } from './-provider-routes'
+import type { ProviderRoute } from './-provider-routes'
 
 const key = (route: Readonly<{ method: string; path: string }>): string =>
   `${route.method} ${route.path}`
+
+/** The method the provider's router mounts an endpoint under when it names none. */
+const ANY_METHOD = '*'
+
+/** Whether a request for this route, with a value in each path parameter, is served. */
+const isServed = (route: ProviderRoute): boolean =>
+  classifyProviderRequest(
+    route.method,
+    `/api/auth${route.path.replace(/:[^/]+/gu, 'parameter-value')}`,
+  ).allowed
 
 type ProviderEndpoint = Readonly<{
   path?: string
@@ -28,14 +40,16 @@ type ProviderEndpoint = Readonly<{
  * router registers the `auth.api` entries that carry a path, once per method
  * (better-auth dist/api/index.mjs, better-call dist/router.mjs). The router
  * skips an entry marked server-only; this does not, so such an entry has to be
- * listed as refused before it could ever be served.
+ * listed as refused before it could ever be served. An entry with a path and
+ * no method is mounted for every method; it is reported under `*`, which no
+ * list entry can match, so it always shows up as undecided.
  */
 async function exposedProviderRoutes(): Promise<ReadonlyArray<string>> {
   const { createAuth } = await import('#/shared/auth/auth')
   const api: Readonly<Record<string, ProviderEndpoint>> = createAuth().api
   return Object.values(api).flatMap((endpoint) => {
     if (!endpoint.path) return []
-    const methods = endpoint.options?.method ?? []
+    const methods = endpoint.options?.method ?? ANY_METHOD
     return (typeof methods === 'string' ? [methods] : methods).map((method) =>
       key({ method, path: endpoint.path ?? '' }),
     )
@@ -60,6 +74,33 @@ describe('provider route lists', () => {
     const listed = [...ALLOWED_PROVIDER_ROUTES, ...REFUSED_PROVIDER_ROUTES].map(key)
 
     expect(listed.filter((route, index) => listed.indexOf(route) !== index)).toEqual([])
+  })
+
+  // Listing a route is not the decision; classifyProviderRequest is. The two
+  // can part where an entry is a pattern: an allowed `/reset-password/:token`
+  // also matches a refused static sibling, and a refused pattern can cover an
+  // allowed route. Either way the entry would say one thing and the route do
+  // the other with every other case green.
+  it('refuse every route listed as refused and serve every route listed as allowed', () => {
+    expect({
+      refusedButServed: REFUSED_PROVIDER_ROUTES.filter(isServed).map(key),
+      allowedButRefused: ALLOWED_PROVIDER_ROUTES.filter((route) => !isServed(route)).map(
+        key,
+      ),
+    }).toEqual({ refusedButServed: [], allowedButRefused: [] })
+  })
+
+  // The classifier strips a base path of its own before it matches. It has to
+  // be the one the provider's router strips, which is the path of its base URL
+  // (better-auth dist/api/index.mjs), or the two would read different routes
+  // out of the same request.
+  it('decide on the path the provider itself routes on', async () => {
+    const { createAuth } = await import('#/shared/auth/auth')
+    const { baseURL } = await createAuth().$context
+
+    expect(
+      classifyProviderRequest('GET', `${new URL(baseURL).pathname}/get-session`),
+    ).toEqual({ allowed: true, route: '/get-session' })
   })
 
   it('serve exactly the routes the product needs over HTTP', () => {
@@ -126,6 +167,29 @@ describe('classifyProviderRequest', () => {
       allowed: false,
       route: '/callback/:id',
     })
+  })
+
+  // GET /reset-password/:token matches any one segment. Suppose an upgrade
+  // adds a static sibling: the drift guard reports it, and it is listed as
+  // refused. The provider's router looks a static segment up before a
+  // parameter (rou3 `_lookupTree`), so a request for the sibling would run the
+  // new endpoint, not the reset link. The refusal has to win.
+  it('refuses a route listed as refused even where an allowed pattern matches it', () => {
+    const lists = {
+      allowed: ALLOWED_PROVIDER_ROUTES,
+      refused: [
+        ...REFUSED_PROVIDER_ROUTES,
+        { method: 'GET', path: '/reset-password/validate' },
+      ],
+    } as const
+
+    expect(
+      classifyProviderRequest('GET', '/api/auth/reset-password/validate', lists),
+    ).toEqual({ allowed: false, route: '/reset-password/validate' })
+    // The mailed link is still served: any other segment is a token.
+    expect(
+      classifyProviderRequest('GET', '/api/auth/reset-password/abc123', lists),
+    ).toEqual({ allowed: true, route: '/reset-password/:token' })
   })
 
   it('refuses a path outside the base path or one that names no provider route', () => {
