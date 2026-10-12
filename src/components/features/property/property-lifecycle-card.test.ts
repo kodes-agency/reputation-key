@@ -4,6 +4,7 @@ import {
   getPropertyLifecycleActionStates,
   getPropertyLifecycleControls,
   propertyLifecycleLabel,
+  propertyRestoredMessage,
   propertyRestoreWindow,
 } from './property-lifecycle-model'
 
@@ -175,5 +176,38 @@ describe('removed property presentation', () => {
         ),
       ).toEqual({ kind: 'none' })
     }
+  })
+})
+
+describe('what Restore tells the manager about Google', () => {
+  it('says Google is ready only when the Property is linked and its review link is verified', () => {
+    expect(
+      propertyRestoredMessage({
+        googleBindingReadiness: 'ready',
+        property: { googleReviewDestination: { state: 'verified' } },
+      }),
+    ).toBe('Property restored. Google is ready for this Property.')
+  })
+
+  it('does not call Google ready for a linked Property that has no review link', () => {
+    for (const state of ['unavailable', 'awaiting_refresh'] as const) {
+      const message = propertyRestoredMessage({
+        googleBindingReadiness: 'ready',
+        property: { googleReviewDestination: { state } },
+      })
+
+      expect(message).toBe(
+        'Property restored. Google is connected, but this Property has no Google review link, so its portals offer private feedback only.',
+      )
+    }
+  })
+
+  it('asks for a reconnect when the Property is no longer linked', () => {
+    expect(
+      propertyRestoredMessage({
+        googleBindingReadiness: 'reconnect_required',
+        property: { googleReviewDestination: { state: 'awaiting_refresh' } },
+      }),
+    ).toBe('Property restored. Reconnect Google before restarting provider work.')
   })
 })

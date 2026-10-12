@@ -32,6 +32,8 @@ review destination snapshot, and effective-dated Responsible Manager history.
 Archive is a recoverable in-place transition with a fixed 30-day window. It
 preserves stable identity and history while fencing public and provider work.
 Restore is explicit; Google disconnect is a separate archived-Property action.
+A Property archived and restored with its Google binding untouched comes back as
+it was, its Google review destination included.
 
 ## Runtime
 
@@ -52,12 +54,18 @@ foreign keys deliberately stop cross-owner deletion.
 2. Only `verified` Google review destinations may be rendered; `awaiting_refresh`
    and `unavailable` fail closed.
 3. Destructive Property deletion is unreachable from the normal product in beta. The legacy `deleteProperty` server boundary and use case both fail closed before lookup, purge, provider fencing, or durable writes; `property.delete` maps to the permanently blocked `property.erase` capability.
-4. Archive mutates the existing Property row in place, records the initiating AccountAdmin/reason/deadline, increments `sourceEpoch`, invalidates the Google review destination to `awaiting_refresh` when one exists, and co-commits the content-free `property.archived` fact. It never deletes the Property or a dependent row.
+4. Archive mutates the existing Property row in place, records the initiating AccountAdmin/reason/deadline, increments `sourceEpoch`, fences the Google review destination as `awaiting_refresh` when one is held (the URI and its pin are kept), and co-commits the content-free `property.archived` fact. It never deletes the Property or a dependent row.
 5. Only an archived Property inside its original recovery window may be restored through the normal product. Restore revalidates at least one current eligible Responsible Manager, increments `sourceEpoch`, co-commits `property.restored`, and reports whether Google reconnection is required. It does not silently reconnect or resume provider work that current binding authorization still denies.
+   Restore returns a fenced destination to `verified` when, and only when, the Google binding is still `active` (`googleReviewDestinationStateAfterLifecycleTransition`). Nothing re-reads it from Google and nothing has to: every binding change (disconnect, relink, scrub) moves the binding off `active` or replaces the destination, so an `active` binding still holding a fenced destination is the generation that destination was accepted for. The URI and its pin are unchanged, so a Portal published against it offers the Google action again without republishing. Under any other binding the destination stays `awaiting_refresh` until a relink accepts a new one, and a Property with no destination keeps none.
 6. Property Google disconnect is a separate, idempotent action available only after Archive. It changes only the Property-owned binding generation and destination readiness; the Organization Google connection, stable Property identity, provider suffix history, and retained managerial data remain intact. Provider identity scrubbing and permanent erasure are not part of this action.
 7. An expired recovery window leaves the Property archived for support handling. There is no automatic purge, hard-delete path, or irreversible erasure in this slice; support-mediated permanent erasure remains separate LIF-01 work.
 8. A Google review destination is accepted only from provider discovery/import,
    restricted to approved HTTPS Google hosts, and pinned to the binding generation.
+   It carries no age limit and there is no background refresh: the destination
+   read at import or relink stands until the next relink. A Property imported
+   while Google returned no review URI is `unavailable` and stays so, through
+   Archive and Restore too; only a relink (Disconnect, then the Google import)
+   asks Google again.
 9. Disconnect preserves the last destination only as `awaiting_refresh`; credential scrub clears it. Neither state is a public rendering authority.
 10. Property creation never infers a Responsible Manager from the creator. Losing
     all eligible managers records `responsibilityNeededSince`; no replacement is
@@ -76,3 +84,6 @@ Unit tests stay beside domain rules, use cases, server contracts, public APIs, a
 responsibility/lifecycle behavior. PostgreSQL integration tests cover command
 atomicity, source-epoch fences, archive/restore/disconnect, denied deletion,
 closure readiness, restrictive purge order, export, and replay.
+`property-archive-restore-google-destination.integration.test.ts` runs Archive,
+Disconnect, Restore and relink as the product does and asserts what Portal
+publication and the guest page are then told about the Google destination.

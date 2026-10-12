@@ -98,6 +98,27 @@ export const propertyRestoreWindow = (
   return { kind: 'self_service', deadline }
 }
 
+/** What Restore reports back: whether Google is still linked, and the Property it left. */
+export type PropertyRestoreOutcome = Readonly<{
+  googleBindingReadiness: 'ready' | 'reconnect_required'
+  property: Readonly<{ googleReviewDestination?: Readonly<{ state: string }> }>
+}>
+
+/**
+ * What the manager is told once a Property is restored. "Google is ready" is
+ * said only for a linked Property whose review link is verified: a linked
+ * Property Google gave no review link still cannot send a guest there.
+ */
+export const propertyRestoredMessage = (outcome: PropertyRestoreOutcome): string => {
+  if (outcome.googleBindingReadiness === 'reconnect_required') {
+    return 'Property restored. Reconnect Google before restarting provider work.'
+  }
+  if (outcome.property.googleReviewDestination?.state === 'verified') {
+    return 'Property restored. Google is ready for this Property.'
+  }
+  return 'Property restored. Google is connected, but this Property has no Google review link, so its portals offer private feedback only.'
+}
+
 export type LifecyclePermissions = Readonly<{
   archive: boolean
   restore: boolean

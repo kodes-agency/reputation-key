@@ -1,4 +1,6 @@
 import { normalizeGoogleReviewDestination } from '#/shared/domain/google-review-destination'
+import type { GoogleBindingState } from './google-binding-contract'
+import type { PropertyLifecycleState } from './property-lifecycle'
 
 export const GOOGLE_REVIEW_DESTINATION_STATES = [
   'verified',
@@ -60,4 +62,29 @@ export function awaitingRefreshGoogleReviewDestination(
   return current.state === 'verified'
     ? { ...current, state: 'awaiting_refresh' }
     : current
+}
+
+/**
+ * The destination state a Property lifecycle transition commits. A transition
+ * never changes which destination is held: only provider discovery or import
+ * accepts one, and no state invents one where none is held.
+ *
+ * Leaving `active` fences a held destination as `awaiting_refresh`. Returning
+ * to `active` lifts that fence while the Google binding is still `active`:
+ * every binding change (disconnect, relink, scrub) either moves the binding off
+ * `active` or replaces the destination, so an `active` binding that still holds
+ * a fenced destination is the binding generation it was accepted for. Under any
+ * other binding it stays fenced until a relink accepts a new one.
+ */
+export function googleReviewDestinationStateAfterLifecycleTransition(
+  input: Readonly<{
+    held: GoogleReviewDestinationState
+    to: PropertyLifecycleState
+    googleBindingState: GoogleBindingState
+  }>,
+): GoogleReviewDestinationState {
+  if (input.held === 'unavailable') return 'unavailable'
+  return input.to === 'active' && input.googleBindingState === 'active'
+    ? 'verified'
+    : 'awaiting_refresh'
 }
