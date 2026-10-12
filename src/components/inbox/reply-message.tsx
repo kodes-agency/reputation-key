@@ -111,6 +111,16 @@ function actionRowKey(replyId: string, status: string): string {
   return `${replyId}:${status}`
 }
 
+/**
+ * The reply as a confirmation names it: which reply, at which state revision.
+ * A reply Google shows has no revision and offers no confirmation.
+ */
+function shownReply(reply: NonNullable<ReplyData>): ReplyOnScreen | null {
+  return 'stateRevision' in reply
+    ? { id: reply.id, stateRevision: reply.stateRevision }
+    : null
+}
+
 type Props = Readonly<{
   reply: ReplyData
   propertyName: string | null
@@ -278,12 +288,7 @@ export function ReplyMessage({
             key={actionRowKey(reply.id, reply.status)}
             actions={view.actions}
             text={reply.text}
-            // A reply Google shows has no revision and offers no confirmation.
-            shown={
-              'stateRevision' in reply
-                ? { id: reply.id, stateRevision: reply.stateRevision }
-                : null
-            }
+            shown={shownReply(reply)}
             isSaving={isSaving}
             isChecking={checkRun.isChecking}
             isEditing={isEditing}

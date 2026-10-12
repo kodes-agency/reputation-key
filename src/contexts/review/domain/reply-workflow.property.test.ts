@@ -47,6 +47,7 @@ import {
   PUBLICATION_EVENTS,
   type CommandEvidence,
   type ManagerCommand,
+  type ManagerVerdict,
   type OracleAuthorship,
   type OracleFailure,
   type OraclePublication,
@@ -695,14 +696,142 @@ function assertManagerMoveKeepsTheInvariants(
   }
 }
 
+type StoreLedger = ReturnType<typeof createStoreLedger>
+
+/**
+ * What the generated histories reached and what they were refused, counted
+ * across all of them: the generator is only worth its runs if both happened.
+ */
+function createCoverage() {
+  const reached = new Set<string>()
+  const reachedAsAiText = new Set<string>()
+  let refusals = 0
+  let staleAiRefusals = 0
+  let replacedRepliesRefused = 0
+  let staleAiClaimsWithheld = 0
+
+  return {
+    reached: (): string[] => [...reached].sort(),
+    reachedAsAiText: (): string[] => [...reachedAsAiText].sort(),
+    counts: () => ({
+      refusals,
+      staleAiRefusals,
+      replacedRepliesRefused,
+      staleAiClaimsWithheld,
+    }),
+    /** A manager command the workflow refused from `state`. */
+    refusal(
+      state: OracleState,
+      command: ManagerCommand,
+      code: Extract<ManagerVerdict, { accepted: false }>['code'],
+      stored: ReplyOnScreen | null,
+    ): void {
+      refusals += 1
+      if (code === 'ai_suggestion_stale') staleAiRefusals += 1
+      // The reply a number alone could not tell apart: pending, at the
+      // revision the screen shows, and another reply.
+      if (
+        command.kind === 'approve' &&
+        state?.status === 'pending_approval' &&
+        command.onScreen.revision === stored?.revision &&
+        command.onScreen.id !== stored.id
+      ) {
+        replacedRepliesRefused += 1
+      }
+    },
+    /** The reply a step left, with the evidence the next step would have. */
+    visit(state: OracleReply, evidence: CommandEvidence): void {
+      reached.add(`${state.status}/${String(state.publication)}`)
+      if (state.authorship === 'ai_assisted') reachedAsAiText.add(state.status)
+      if (state.publication === 'authorized' && !mayBeClaimed(state, evidence)) {
+        staleAiClaimsWithheld += 1
+      }
+    },
+  }
+}
+
+type Coverage = ReturnType<typeof createCoverage>
+
+/** The move a step makes: its wild command, from the screen it names, or one
+ * of the moves the workflow allows from here. */
+function moveOf(
+  step: Step,
+  state: OracleState,
+  evidence: CommandEvidence,
+  ledger: StoreLedger,
+): Move {
+  const moves = allowedMoves(state, step, evidence)
+  if (step.wild === null) return moves[step.pick % moves.length]!
+  return {
+    by: 'manager',
+    command:
+      step.wild.kind === 'approve'
+        ? { kind: 'approve', onScreen: ledger.screen(step.wild.screen) }
+        : step.wild,
+  }
+}
+
+/** The reply after a publication event chosen from those that apply to it. */
+function afterSystemMove(
+  before: OracleReply,
+  event: PublicationEvent,
+  evidence: CommandEvidence,
+): OracleState {
+  // Chosen from the moves that apply, so the event has a result.
+  const after = afterPublicationEvent(before, event)
+  if (event === 'claim' && before.authorship === 'ai_assisted') {
+    // The last gate: current, or these words went through before.
+    expect(evidence.aiBindingCurrent || evidence.textClaimedBefore).toBe(true)
+  }
+  return after
+}
+
+/**
+ * What production can be asked about a manager command: a reply command, sent
+ * from a screen that shows the reply (see `productionAccepts`). There it must
+ * answer as the workflow does.
+ */
+function assertProductionAgrees(
+  state: OracleState,
+  command: ManagerCommand,
+  evidence: CommandEvidence,
+  accepted: boolean,
+): void {
+  const fromAnotherScreen =
+    command.kind === 'approve' &&
+    !(
+      command.onScreen.id === evidence.stored?.id &&
+      command.onScreen.revision === evidence.stored.revision
+    )
+  if (state !== null && command.kind !== 'adopt_ai' && !fromAnotherScreen) {
+    expect(
+      productionAccepts(state, command, evidence),
+      `${command.kind} from ${state.authorship} ${state.status}/${String(state.publication)}`,
+    ).toBe(accepted)
+  }
+}
+
+/** The state after a manager command: the workflow's move, or, refused, the
+ * state as it was. */
+function afterManagerMove(
+  state: OracleState,
+  command: ManagerCommand,
+  evidence: CommandEvidence,
+  coverage: Coverage,
+): OracleState {
+  const verdict = managerVerdict(state, command, evidence)
+  assertProductionAgrees(state, command, evidence, verdict.accepted)
+  if (!verdict.accepted) {
+    coverage.refusal(state, command, verdict.code, evidence.stored)
+    return state
+  }
+  assertManagerMoveKeepsTheInvariants(state, verdict.next, command, evidence)
+  return verdict.next
+}
+
 describe('generated reply histories', () => {
   it('production rules and the hand-written workflow agree on every step, and the workflow keeps its invariants', () => {
-    const reached = new Set<string>()
-    const reachedAsAiText = new Set<string>()
-    let refusals = 0
-    let staleAiRefusals = 0
-    let replacedRepliesRefused = 0
-    let staleAiClaimsWithheld = 0
+    const coverage = createCoverage()
     fc.assert(
       // `size: 'max'`: by default fast-check keeps arrays near ten items, and
       // AI text needs most of that just to be adopted, confirmed and sent.
@@ -712,98 +841,35 @@ describe('generated reply histories', () => {
         for (const step of steps) {
           const before: OracleState = state
           const evidence = ledger.evidence(step, state)
-          const moves = allowedMoves(state, step, evidence)
-          const wild: ManagerCommand | null =
-            step.wild === null
-              ? null
-              : step.wild.kind === 'approve'
-                ? { kind: 'approve', onScreen: ledger.screen(step.wild.screen) }
-                : step.wild
-          const move: Move =
-            wild !== null
-              ? { by: 'manager', command: wild }
-              : moves[step.pick % moves.length]!
-          let claimed = false
-
-          if (move.by === 'system') {
-            // Chosen from the moves that apply, so the event has a result.
-            state = afterPublicationEvent(state!, move.event)
-            claimed = move.event === 'claim'
-            if (claimed && before?.authorship === 'ai_assisted') {
-              // The last gate: current, or these words went through before.
-              expect(evidence.aiBindingCurrent || evidence.textClaimedBefore).toBe(true)
-            }
-          } else {
-            const verdict = managerVerdict(state, move.command, evidence)
-            // What production can be asked here: a reply command, sent from a
-            // screen that shows the reply (see `productionAccepts`).
-            const { command } = move
-            const fromAnotherScreen =
-              command.kind === 'approve' &&
-              !(
-                command.onScreen.id === evidence.stored?.id &&
-                command.onScreen.revision === evidence.stored.revision
-              )
-            if (state !== null && command.kind !== 'adopt_ai' && !fromAnotherScreen) {
-              expect(
-                productionAccepts(state, command, evidence),
-                `${command.kind} from ${state.authorship} ${state.status}/${String(state.publication)}`,
-              ).toBe(verdict.accepted)
-            }
-            if (verdict.accepted) {
-              assertManagerMoveKeepsTheInvariants(
-                state,
-                verdict.next,
-                move.command,
-                evidence,
-              )
-              state = verdict.next
-            } else {
-              refusals += 1
-              if (verdict.code === 'ai_suggestion_stale') staleAiRefusals += 1
-              // The reply a number alone could not tell apart: pending, at the
-              // revision the screen shows, and another reply.
-              if (
-                command.kind === 'approve' &&
-                state?.status === 'pending_approval' &&
-                command.onScreen.revision === evidence.stored?.revision &&
-                command.onScreen.id !== evidence.stored.id
-              ) {
-                replacedRepliesRefused += 1
-              }
-            }
-          }
-          ledger.record(before, state, claimed)
-          if (state !== null) {
-            expect(isLegalReplyState(state), JSON.stringify(state)).toBe(true)
-            reached.add(`${state.status}/${String(state.publication)}`)
-            if (state.authorship === 'ai_assisted') reachedAsAiText.add(state.status)
-            if (
-              state.publication === 'authorized' &&
-              !mayBeClaimed(state, ledger.evidence(step, state))
-            ) {
-              staleAiClaimsWithheld += 1
-            }
-          }
+          const move = moveOf(step, state, evidence, ledger)
+          state =
+            move.by === 'system'
+              ? afterSystemMove(state!, move.event, evidence)
+              : afterManagerMove(state, move.command, evidence, coverage)
+          ledger.record(before, state, move.by === 'system' && move.event === 'claim')
+          if (state === null) continue
+          expect(isLegalReplyState(state), JSON.stringify(state)).toBe(true)
+          coverage.visit(state, ledger.evidence(step, state))
         }
       }),
       { numRuns: 2000, examples: [[REPLACED_UNDER_AN_OPEN_CONFIRMATION]] },
     )
+    const counts = coverage.counts()
     // The generator is only worth its runs if it reaches the whole workflow
     // and also asks for what the workflow refuses.
-    expect([...reached].sort()).toEqual(
+    expect(coverage.reached()).toEqual(
       LEGAL_REPLY_STATES.map(
         ([status, publication]) => `${status}/${String(publication)}`,
       ).sort(),
     )
-    expect(refusals).toBeGreaterThan(1000)
+    expect(counts.refusals).toBeGreaterThan(1000)
     // AI text went the whole way, and its binding was refused along it: at
     // submit and approval, and at the claim of text that was never claimed.
-    expect([...reachedAsAiText].sort()).toEqual([...STATUSES].sort())
-    expect(staleAiRefusals).toBeGreaterThan(100)
-    expect(staleAiClaimsWithheld).toBeGreaterThan(20)
+    expect(coverage.reachedAsAiText()).toEqual([...STATUSES].sort())
+    expect(counts.staleAiRefusals).toBeGreaterThan(100)
+    expect(counts.staleAiClaimsWithheld).toBeGreaterThan(20)
     // A confirmation met another reply at the revision its screen showed: the
     // scripted history at least, and whichever generated ones got there.
-    expect(replacedRepliesRefused).toBeGreaterThan(0)
+    expect(counts.replacedRepliesRefused).toBeGreaterThan(0)
   })
 })

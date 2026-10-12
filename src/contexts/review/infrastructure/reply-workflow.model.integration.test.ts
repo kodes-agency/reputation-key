@@ -49,6 +49,7 @@ import {
   sameReplyState,
   type CommandEvidence,
   type ManagerCommand,
+  type ManagerVerdict,
   type OraclePublication,
   type OracleReply,
   type OracleState,
@@ -345,6 +346,32 @@ const commandOf = (
   return kind === 'approve' ? { kind, onScreen: stored ?? NO_REPLY_ON_SCREEN } : { kind }
 }
 
+/** What an approval's screen shows when it is not the stored reply as stored. */
+type OtherScreen = 'another reply' | 'an earlier revision' | null
+
+function otherScreenOf(
+  command: ManagerCommand,
+  stored: ReplyOnScreen | null,
+): OtherScreen {
+  if (command.kind !== 'approve' || stored === null) return null
+  if (command.onScreen.id !== stored.id) return 'another reply'
+  return command.onScreen.revision !== stored.revision ? 'an earlier revision' : null
+}
+
+/** The trace line of one manager step: the command, and what the workflow
+ * says must become of it. */
+const commandLine = (
+  command: ManagerCommand,
+  otherScreen: OtherScreen,
+  staleAi: boolean,
+  verdict: ManagerVerdict,
+): string =>
+  `${command.kind}${'text' in command ? ` "${command.text}"` : ''}${
+    otherScreen ? ` (screen shows ${otherScreen})` : ''
+  }${staleAi ? ' [AI text, binding stale]' : ''} → expect ${
+    verdict.accepted ? 'accepted' : verdict.code
+  }`
+
 /** The events one execution of the publish job makes once it has called Google. */
 function jobEvents(outcome: GoogleWriteOutcome, final: boolean): PublicationEvent[] {
   switch (outcome) {
@@ -496,6 +523,59 @@ function createRun() {
     }
   }
 
+  /** The command a manager step sends: its wild one, from the screen it names,
+   * or one of those the workflow accepts from here. */
+  function commandFor(
+    step: Extract<Step, { act: 'manager' }>,
+    state: OracleState,
+    evidence: CommandEvidence,
+  ): ManagerCommand {
+    const { stored } = evidence
+    if (step.wild !== null) {
+      return step.wild.kind === 'approve'
+        ? { kind: 'approve', onScreen: screenOf(step.wild.screen, stored) }
+        : step.wild
+    }
+    const allowed = COMMAND_KINDS.map((kind) =>
+      commandOf(kind, step.text, stored),
+    ).filter((command) => managerVerdict(state, command, evidence).accepted)
+    return allowed[step.pick % Math.max(allowed.length, 1)] ?? { kind: 'submit' }
+  }
+
+  /** What the command threw, or null when it went through. */
+  async function failureOf(command: ManagerCommand): Promise<unknown> {
+    try {
+      await execute(command)
+      return null
+    } catch (error) {
+      return error
+    }
+  }
+
+  /** Which of the refusals the run must have met this one is. */
+  function noteRefusal(
+    command: ManagerCommand,
+    code: Extract<ManagerVerdict, { accepted: false }>['code'],
+    state: OracleState,
+    stored: ReplyOnScreen | null,
+  ): void {
+    if (code === 'ai_suggestion_stale' && command.kind !== 'adopt_ai') {
+      covered.add(`stale AI text refused: ${command.kind}`)
+    }
+    if (command.kind !== 'approve' || state?.status !== 'pending_approval' || !stored) {
+      return
+    }
+    const otherScreen = otherScreenOf(command, stored)
+    if (otherScreen === 'an earlier revision') covered.add('earlier revision refused')
+    // The case a revision alone cannot see: another reply, at this revision.
+    if (
+      otherScreen === 'another reply' &&
+      command.onScreen.revision === stored.revision
+    ) {
+      covered.add('replaced reply refused at the same revision')
+    }
+  }
+
   async function manager(
     step: Extract<Step, { act: 'manager' }>,
     before: ReplyEvidence,
@@ -503,41 +583,12 @@ function createRun() {
   ): Promise<void> {
     const state = toOracle(before.reply)
     const { stored } = evidence
-    const allowed = COMMAND_KINDS.map((kind) =>
-      commandOf(kind, step.text, stored),
-    ).filter((command) => managerVerdict(state, command, evidence).accepted)
-    const wild: ManagerCommand | null =
-      step.wild === null
-        ? null
-        : step.wild.kind === 'approve'
-          ? { kind: 'approve', onScreen: screenOf(step.wild.screen, stored) }
-          : step.wild
-    const command: ManagerCommand = wild ??
-      allowed[step.pick % Math.max(allowed.length, 1)] ?? { kind: 'submit' }
+    const command = commandFor(step, state, evidence)
     const verdict = managerVerdict(state, command, evidence)
     const staleAi = state?.authorship === 'ai_assisted' && !evidence.aiBindingCurrent
-    const otherScreen =
-      command.kind !== 'approve' || stored === null
-        ? null
-        : command.onScreen.id !== stored.id
-          ? 'another reply'
-          : command.onScreen.revision !== stored.revision
-            ? 'an earlier revision'
-            : null
-    say(
-      `${command.kind}${'text' in command ? ` "${command.text}"` : ''}${
-        otherScreen ? ` (screen shows ${otherScreen})` : ''
-      }${staleAi ? ' [AI text, binding stale]' : ''} → expect ${
-        verdict.accepted ? 'accepted' : verdict.code
-      }`,
-    )
+    say(commandLine(command, otherScreenOf(command, stored), staleAi, verdict))
 
-    let failure: unknown = null
-    try {
-      await execute(command)
-    } catch (error) {
-      failure = error
-    }
+    const failure = await failureOf(command)
     const after = await harness.evidence()
 
     if (verdict.accepted) {
@@ -549,19 +600,7 @@ function createRun() {
       if (staleAi) covered.add(`stale AI text: ${command.kind}`)
       return
     }
-    if (verdict.code === 'ai_suggestion_stale' && command.kind !== 'adopt_ai') {
-      covered.add(`stale AI text refused: ${command.kind}`)
-    }
-    if (command.kind === 'approve' && state?.status === 'pending_approval' && stored) {
-      if (otherScreen === 'an earlier revision') covered.add('earlier revision refused')
-      // The case a revision alone cannot see: another reply, at this revision.
-      if (
-        otherScreen === 'another reply' &&
-        command.onScreen.revision === stored.revision
-      ) {
-        covered.add('replaced reply refused at the same revision')
-      }
-    }
+    noteRefusal(command, verdict.code, state, stored)
     // A refusal is a tagged error the Inbox can show, never a database error,
     // and it leaves the reply and its evidence exactly as they were.
     const refusal = failure === null ? 'the command was accepted' : String(failure)

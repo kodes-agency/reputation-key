@@ -372,63 +372,91 @@ export const mayBeClaimed = (reply: OracleReply, evidence: CommandEvidence): boo
   is(reply, 'approved', 'authorized') &&
   (!staleAiText(reply, evidence) || evidence.textClaimedBefore)
 
+/** What one publication event does to a reply, or null when it does not apply. */
+type PublicationMove = (reply: OracleReply) => OracleReply | null
+
+// `sending`: RepKey's own authorizer refused the claimed write before anything
+// was sent (the Property moved on after the claim).
+const onCancel: PublicationMove = (reply) =>
+  is(reply, 'approved', 'authorized', 'sending') ? cancelled(reply) : null
+
+const onClaim: PublicationMove = (reply) =>
+  is(reply, 'approved', 'authorized')
+    ? { ...reply, publication: 'sending', attempts: reply.attempts + 1 }
+    : null
+
+const onProviderAccepted: PublicationMove = (reply) =>
+  is(reply, 'approved', 'sending')
+    ? { ...reply, publication: 'pending_observation' }
+    : null
+
+const onRequeue: PublicationMove = (reply) =>
+  is(reply, 'approved', 'sending') ? { ...reply, publication: 'authorized' } : null
+
+const onFailNotSent: PublicationMove = (reply) =>
+  is(reply, 'approved', 'sending') ? failed(reply, 'retryable') : null
+
+const onFailRejected: PublicationMove = (reply) =>
+  is(reply, 'approved', 'sending') ? failed(reply, 'terminal_rejection') : null
+
+const onFailUnknown: PublicationMove = (reply) =>
+  is(reply, 'approved', 'sending', 'pending_observation')
+    ? {
+        ...reply,
+        status: 'publish_failed',
+        publication: 'ambiguous',
+        lastFailure: 'ambiguous',
+      }
+    : null
+
+// Only an attempt whose outcome is still open can be confirmed.
+const onConfirm: PublicationMove = (reply) =>
+  is(reply, 'approved', 'sending', 'pending_observation') || outcomeUnknown(reply)
+    ? { ...reply, status: 'published', publication: 'published' }
+    : null
+
+const onSettleUnclaimed: PublicationMove = (reply) =>
+  is(reply, 'approved', 'authorized') ? failed(reply, 'retryable') : null
+
+const onSettleNeverSent: PublicationMove = (reply) =>
+  is(reply, 'approved', 'sending') || outcomeUnknown(reply)
+    ? failed(reply, 'retryable')
+    : null
+
+const onEndChecks: PublicationMove = (reply) =>
+  is(reply, 'publish_failed', 'ambiguous') ? failed(reply, 'ambiguous') : null
+
+// Terminal ambiguity only ended the automatic checks; its attempt is as open
+// as before and loses to a different live reply like any other.
+const onSupersede: PublicationMove = (reply) =>
+  is(reply, 'approved', 'authorized', 'sending', 'pending_observation') ||
+  outcomeUnknown(reply)
+    ? { ...cancelled(reply), lastFailure: null }
+    : null
+
+/** Which of the moves above each event makes. Every one is written out by
+ * hand; this only looks them up by name. */
+const PUBLICATION_MOVES: Readonly<Record<PublicationEvent, PublicationMove>> = {
+  cancel: onCancel,
+  claim: onClaim,
+  provider_accepted: onProviderAccepted,
+  requeue: onRequeue,
+  fail_not_sent: onFailNotSent,
+  fail_rejected: onFailRejected,
+  fail_unknown: onFailUnknown,
+  confirm: onConfirm,
+  settle_unclaimed: onSettleUnclaimed,
+  settle_never_sent: onSettleNeverSent,
+  end_checks: onEndChecks,
+  supersede: onSupersede,
+}
+
 /** The reply after `event`, or null when the event does not apply to it. */
 export function afterPublicationEvent(
   reply: OracleReply,
   event: PublicationEvent,
 ): OracleReply | null {
-  switch (event) {
-    case 'cancel':
-      // `sending`: RepKey's own authorizer refused the claimed write before
-      // anything was sent (the Property moved on after the claim).
-      return is(reply, 'approved', 'authorized', 'sending') ? cancelled(reply) : null
-    case 'claim':
-      return is(reply, 'approved', 'authorized')
-        ? { ...reply, publication: 'sending', attempts: reply.attempts + 1 }
-        : null
-    case 'provider_accepted':
-      return is(reply, 'approved', 'sending')
-        ? { ...reply, publication: 'pending_observation' }
-        : null
-    case 'requeue':
-      return is(reply, 'approved', 'sending')
-        ? { ...reply, publication: 'authorized' }
-        : null
-    case 'fail_not_sent':
-      return is(reply, 'approved', 'sending') ? failed(reply, 'retryable') : null
-    case 'fail_rejected':
-      return is(reply, 'approved', 'sending') ? failed(reply, 'terminal_rejection') : null
-    case 'fail_unknown':
-      return is(reply, 'approved', 'sending', 'pending_observation')
-        ? {
-            ...reply,
-            status: 'publish_failed',
-            publication: 'ambiguous',
-            lastFailure: 'ambiguous',
-          }
-        : null
-    case 'confirm':
-      // Only an attempt whose outcome is still open can be confirmed.
-      return is(reply, 'approved', 'sending', 'pending_observation') ||
-        outcomeUnknown(reply)
-        ? { ...reply, status: 'published', publication: 'published' }
-        : null
-    case 'settle_unclaimed':
-      return is(reply, 'approved', 'authorized') ? failed(reply, 'retryable') : null
-    case 'settle_never_sent':
-      return is(reply, 'approved', 'sending') || outcomeUnknown(reply)
-        ? failed(reply, 'retryable')
-        : null
-    case 'end_checks':
-      return is(reply, 'publish_failed', 'ambiguous') ? failed(reply, 'ambiguous') : null
-    case 'supersede':
-      // Terminal ambiguity only ended the automatic checks; its attempt is as
-      // open as before and loses to a different live reply like any other.
-      return is(reply, 'approved', 'authorized', 'sending', 'pending_observation') ||
-        outcomeUnknown(reply)
-        ? { ...cancelled(reply), lastFailure: null }
-        : null
-  }
+  return PUBLICATION_MOVES[event](reply)
 }
 
 /** The fields two replies must share to be the same reply state. The failure
