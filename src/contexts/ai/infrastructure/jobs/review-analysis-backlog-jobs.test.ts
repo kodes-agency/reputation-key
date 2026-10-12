@@ -7,8 +7,9 @@ import { createDrainReviewAnalysisBacklogJobHandler } from './drain-review-analy
 const job = (data: unknown) => ({ data }) as Job
 
 describe('review analysis backlog jobs', () => {
-  it('drains and logs only when something was claimed', async () => {
+  it('drains under the scope authorizer and logs only when something was claimed', async () => {
     const info = vi.fn()
+    const authorizeScope = vi.fn(async () => true)
     const drain = vi
       .fn()
       .mockResolvedValueOnce({
@@ -17,26 +18,31 @@ describe('review analysis backlog jobs', () => {
         rescheduled: 0,
         waitingForLane: 0,
         failed: 0,
+        denied: 0,
       })
       .mockResolvedValueOnce({
         claimed: 3,
-        completed: 2,
+        completed: 1,
         rescheduled: 0,
         waitingForLane: 1,
         failed: 0,
+        denied: 1,
       })
     const handler = createDrainReviewAnalysisBacklogJobHandler({
       drain,
+      authorizeScope,
       logger: { info },
     })
 
     await handler(job({}))
     await handler(job({}))
 
-    expect(drain).toHaveBeenCalledTimes(2)
+    // The drain decides its entries with the authorizer the worker gave the
+    // job, never with one of its own.
+    expect(drain.mock.calls).toEqual([[{ authorizeScope }], [{ authorizeScope }]])
     expect(info).toHaveBeenCalledOnce()
     expect(info).toHaveBeenCalledWith(
-      expect.objectContaining({ claimed: 3, waitingForLane: 1 }),
+      expect.objectContaining({ claimed: 3, waitingForLane: 1, denied: 1 }),
       'AI Review Analysis backlog drain completed',
     )
   })

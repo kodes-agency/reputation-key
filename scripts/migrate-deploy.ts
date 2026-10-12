@@ -32,6 +32,17 @@
 // tracks are idempotent, so the rerun converges (runbooks.md
 // §8). The only rollback path is PITR for data loss (runbooks.md §8).
 //
+// FORWARD-ONLY RECOVERY (ADR 0038, amended 2026-10-12): the state check
+// requires the applied migration count to EQUAL this image's journal. A
+// database with MORE applied migrations means this image is older than the
+// database; it is refused by design and no rerun converges. A bad release is
+// repaired by deploying a fix forward, never an earlier image (runbooks.md
+// §28). The count cannot tell an old image from a fix whose revert deleted an
+// applied migration, so the message names both. The check runs AFTER the
+// schema tracks: a refused image has already run its Better Auth track and
+// concurrent-index sidecar against the newer database. The messages live in
+// src/shared/db/migration-journal-state.ts.
+//
 // GUARD: Railway runs prove their exact built-in project, environment, and
 // service identity before DATABASE_URL is opened. Only cell-us and the
 // schema-migrator/web services are migration authorities. DEPLOY_MIGRATE=1 is
@@ -54,6 +65,10 @@ import { Client, type Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { authorizeDeployMigrationRuntime } from '../src/shared/db/deploy-migration-runtime'
+import {
+  deployFailureRecovery,
+  deployMigrationStateRefusal,
+} from '../src/shared/db/migration-journal-state'
 import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/review/infrastructure/provider-subject-key-initializer'
 import { buildRegisteredConcurrentIndexes } from '../src/shared/db/concurrent-index-sidecar'
 import type { Database } from '../src/shared/db'
@@ -222,23 +237,23 @@ async function main(): Promise<void> {
         has_auth: boolean
         has_provider_subject_key: boolean
       }
-      const complete =
-        row.has_auth &&
-        row.has_provider_subject_key &&
-        journal.applied === expectedJournalCount()
+      const journalExpected = expectedJournalCount()
       log('migration state', {
         tableCount: row.table_count,
         journalApplied: journal.applied,
-        journalExpected: expectedJournalCount(),
+        journalExpected,
         hasAuthTables: row.has_auth,
         hasProviderSubjectKey: row.has_provider_subject_key,
       })
-      if (!complete) {
-        throw new Error(
-          'Migration state incomplete after the schema tracks — see the state line above. ' +
-            'Fix forward and redeploy; the rerun converges.',
-        )
-      }
+      // Incomplete (a rerun converges) or an image older than the database
+      // (refused by design, no rerun converges) — see the FORWARD-ONLY note.
+      const refusal = deployMigrationStateRefusal({
+        applied: typeof journal.applied === 'number' ? journal.applied : null,
+        journalEntries: journalExpected,
+        hasAuthTables: row.has_auth,
+        hasProviderSubjectKey: row.has_provider_subject_key,
+      })
+      if (refusal) throw refusal
       log('OK — deploy migration state reached')
 
       // 4. Declared capability posture, still under the deploy lock. Its
@@ -258,11 +273,7 @@ async function main(): Promise<void> {
     }))
     console.error('[migrate-deploy] FAILED', err)
     console.error('[migrate-deploy] journal state at failure:', JSON.stringify(journal))
-    console.error(
-      '[migrate-deploy] Forward recovery: fix the failing migration SQL ' +
-        'and redeploy — every step is idempotent, the rerun converges. ' +
-        'Do NOT hand-roll partial schema state (runbooks.md §8).',
-    )
+    console.error(`[migrate-deploy] ${deployFailureRecovery(err)}`)
     process.exitCode = 1
   } finally {
     await client.end()
