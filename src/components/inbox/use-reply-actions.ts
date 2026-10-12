@@ -66,18 +66,26 @@ type Input = Readonly<{
  * deliberately excludes the draft, template-list and template-load mutations so
  * an autosave in flight never disables the action row.
  *
- * Every command a manager clicks reports its refusal: submit, reject, retry and
- * delete by `errorMessage`, approve and update by the confirmation they sit in,
- * which stays open and says it. `Action` is `mutateAsync`, so the call sites
- * guard the promise against an unhandled rejection. The draft and template
- * mutations stay silent — autosave reports its own state in the composer.
+ * Every command a manager clicks reports its refusal in a toast
+ * (`errorMessage`), and re-reads the reply when it is refused or fails
+ * (`reread`, `inboxCachePolicy.onReplyCommandFailed`): a refusal usually means
+ * the pane is behind, and the pane must not go on offering the command it was
+ * just refused. `Action` is `mutateAsync`, so the call sites guard the promise
+ * against an unhandled rejection.
  *
- * Every one of those clicked commands also re-reads the reply when it is
- * refused or fails (`reread`, `inboxCachePolicy.onReplyCommandFailed`): a
- * refusal usually means the pane is behind, and the pane must not go on
- * offering the command it was just refused. The draft and template mutations
- * do not: autosave runs on every pause in typing and fails for want of a
- * network far more often than for a stale pane.
+ * Approve and update are no exception, although they are confirmed in a
+ * dialog and a confirmation normally says its own refusal
+ * (`ui/confirmation-dialog.tsx`). The dialog holds that sentence in its own
+ * state, and it is drawn inside the reply it asks about: the action row is
+ * keyed by the reply's status and the editor is mounted only while its edit
+ * target is live, so the re-read that follows a refusal unmounts the dialog
+ * and the sentence with it. A toast outlives the re-read. Their call sites
+ * therefore settle the confirmation (`reply-message-actions.tsx`,
+ * `reply-editor-views.tsx`), so the dialog closes and the refusal is said once.
+ *
+ * The draft and template mutations stay silent and re-read nothing: autosave
+ * reports its own state in the composer, runs on every pause in typing, and
+ * fails for want of a network far more often than for a stale pane.
  */
 export function useReplyActions(input: Input): ReplyActions {
   const { reviewId, onReplyChanged } = input
@@ -108,10 +116,9 @@ export function useReplyActions(input: Input): ReplyActions {
     onError: reread,
     onSuccess: changed('state_changed'),
   })
-  // Approve and edit are confirmed in a dialog that stays open and says a refusal
-  // itself, so they pass no `errorMessage`: a toast as well would tell it twice.
   const approve = useActionMutation(approveReplyFn, {
     successMessage: 'Confirmation recorded. Waiting for Google',
+    errorMessage: actionErrorMessage,
     onError: reread,
     onSuccess: changed('state_changed'),
   })
@@ -144,6 +151,7 @@ export function useReplyActions(input: Input): ReplyActions {
   })
   const edit = useActionMutation(editPublishedReplyFn, {
     successMessage: 'Update confirmed. Waiting for Google',
+    errorMessage: actionErrorMessage,
     onError: reread,
     onSuccess: changed('state_changed'),
   })

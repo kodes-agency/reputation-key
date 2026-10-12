@@ -218,9 +218,12 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
             confirmLabel="Confirm & publish"
             pendingLabel="Confirming…"
             confirmDisabled={isSaving || publishBlockedReason !== null}
-            // A refusal stays in the dialog (the approve mutation passes no
-            // toast), so the manager reads it where they pressed the button.
-            onConfirm={onApprove}
+            // Settled either way, so the dialog closes and prints no refusal
+            // of its own: the approve mutation toasts it (use-reply-actions.ts)
+            // and re-reads the reply, and that read remounts this row under
+            // the reply's new status, which would take the dialog and a
+            // sentence held in it away before the manager had read it.
+            onConfirm={() => onApprove().catch(() => undefined)}
           />
         )}
         {canReject && (

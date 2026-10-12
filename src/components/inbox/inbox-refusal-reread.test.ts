@@ -13,6 +13,7 @@
 // facts a refusal turns on: where the reply is, and which command revision the
 // item is on.
 
+import { toast } from 'sonner'
 import { describe, expect, it, vi } from 'vitest'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
@@ -126,8 +127,12 @@ describe('a refused reply command', () => {
     { name: 'edit', serverFn: 'editPublishedReplyFn', run: (a) => a.saveEdit('Thanks!') },
   ]
 
+  // Approve and edit sit behind a confirmation, and a confirmation usually
+  // says its own refusal. Theirs cannot: the re-read asserted below replaces
+  // the action row and can close the editor, and the dialog is drawn inside
+  // them. So all six say it the same way, in a toast, which outlives the read.
   it.each(commands)(
-    '$name re-reads the reply, the lists and the counts',
+    '$name says the refusal in a toast and re-reads the reply, the lists and the counts',
     async ({ serverFn, run }) => {
       // The pane opened the reply while it waited for approval…
       const server = { reply: replyIn('pending_approval') }
@@ -146,6 +151,9 @@ describe('a refused reply command', () => {
       await pane.settle()
 
       expect(outcome).toBe(refusal)
+      expect(vi.mocked(toast.error).mock.calls).toEqual([
+        ['This reply is no longer waiting for approval.'],
+      ])
       expect(cachedDetail()?.reply?.status).toBe('rejected')
       expect(requests).toEqual({ detail: 2, list: 2, counts: 2 })
     },
@@ -171,25 +179,35 @@ describe('a refused reply command', () => {
     await pane.settle()
 
     expect(outcome).toBe(offline)
+    expect(vi.mocked(toast.error).mock.calls).toEqual([])
     expect(requests).toEqual({ detail: 1, list: 1, counts: 1 })
   })
 })
 
 describe('a refused feedback-handling command', () => {
+  type HandlingStatus = 'open' | 'closed'
   const open = makeInboxItem({ id: ITEM_ID, sourceType: 'feedback' })
-  const handling = (status: 'open' | 'closed') =>
+  /** A closed cycle carries the outcome a correction supersedes. */
+  const handling = (status: HandlingStatus) =>
     ({
       cycleNumber: 1,
       sourceRevision: 1,
       stateRevision: status === 'open' ? 1 : 2,
       status,
-      currentOutcome: null,
+      currentOutcome:
+        status === 'closed'
+          ? { id: '11111111-1111-4111-8111-111111111111', outcomeRevision: 1 }
+          : null,
       history: [],
     }) as unknown as FeedbackHandlingState
 
-  /** The item's fence on the server, and the command that checks it. */
-  function feedbackServer(initialRevision: number) {
-    const state = { revision: initialRevision, status: 'open' as 'open' | 'closed' }
+  /**
+   * The item's fence on the server, and the command that checks it. One
+   * function stands in for both commands: each is fenced on the same revision
+   * and leaves the cycle closed.
+   */
+  function feedbackServer(initialRevision: number, initialStatus: HandlingStatus) {
+    const state = { revision: initialRevision, status: initialStatus }
     const readDetail = () =>
       ({
         item: { ...open, commandRevision: state.revision, status: state.status },
@@ -235,10 +253,13 @@ describe('a refused feedback-handling command', () => {
   }
 
   /** The dialog's submit, built from what the pane shows at that moment. */
-  const markAsHandled = (mutations: ReturnType<typeof renderHandling>) => {
+  const submitDecision = (
+    mode: 'mark' | 'correct',
+    mutations: ReturnType<typeof renderHandling>,
+  ) => {
     const detail = cachedDetail()!
     return submitFeedbackHandlingDecision({
-      mode: 'mark',
+      mode,
       item: detail.item,
       state: detail.feedbackHandling!,
       decision: { outcome: 'follow_up_completed', internalNote: null },
@@ -247,40 +268,49 @@ describe('a refused feedback-handling command', () => {
     })
   }
 
-  it('re-reads the item, so the next attempt carries its current revision', async () => {
-    const server = feedbackServer(3)
-    const requests = mountPane(server.readDetail)
-    await pane.settle()
-    const mutations = renderHandling(server)
-    // A colleague added a note from another browser: the item is one further on.
-    server.state.revision = 4
+  it.each([
+    { mode: 'mark', before: 'open' },
+    { mode: 'correct', before: 'closed' },
+  ] as const)(
+    '$mode re-reads the item, so the next attempt carries its current revision',
+    async ({ mode, before }) => {
+      const server = feedbackServer(3, before)
+      const requests = mountPane(server.readDetail)
+      await pane.settle()
+      const mutations = renderHandling(server)
+      // A colleague added a note from another browser: the item is one further on.
+      server.state.revision = 4
 
-    const refused: unknown = await markAsHandled(mutations).catch(
-      (error: unknown) => error,
-    )
-    await pane.settle()
+      const refused: unknown = await submitDecision(mode, mutations).catch(
+        (error: unknown) => error,
+      )
+      await pane.settle()
 
-    expect(refused).toMatchObject({
-      code: 'revision_conflict',
-      currentCommandRevision: 4,
-    })
-    expect(cachedDetail()?.item.commandRevision).toBe(4)
-    expect(requests).toEqual({ detail: 2, list: 2, counts: 2 })
+      expect(refused).toMatchObject({
+        code: 'revision_conflict',
+        currentCommandRevision: 4,
+      })
+      expect(cachedDetail()?.item.commandRevision).toBe(4)
+      expect(requests).toEqual({ detail: 2, list: 2, counts: 2 })
 
-    await markAsHandled(mutations)
+      await submitDecision(mode, mutations)
 
-    expect(server.state).toEqual({ revision: 5, status: 'closed' })
-    expect(cachedDetail()?.item).toMatchObject({ commandRevision: 5, status: 'closed' })
-  })
+      expect(server.state).toEqual({ revision: 5, status: 'closed' })
+      expect(cachedDetail()?.item).toMatchObject({
+        commandRevision: 5,
+        status: 'closed',
+      })
+    },
+  )
 
   it('says the conflict in its own words, as a refusal and not a failure', async () => {
-    const server = feedbackServer(3)
+    const server = feedbackServer(3, 'open')
     mountPane(server.readDetail)
     await pane.settle()
     const mutations = renderHandling(server)
     server.state.revision = 4
 
-    const refused: unknown = await markAsHandled(mutations).catch(
+    const refused: unknown = await submitDecision('mark', mutations).catch(
       (error: unknown) => error,
     )
 

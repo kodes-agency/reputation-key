@@ -494,7 +494,9 @@ export const inboxCachePolicy = {
    * `check-reply-publication.ts` NOTHING_TO_CHECK), and nothing polls a reply
    * that waits for a person (`replyRefetchInterval`). So the review's detail,
    * the lists and the counts are re-read, and the pane shows the reply as it is
-   * next to the refusal instead of offering the refused command again.
+   * instead of offering the refused command again. The refusal itself is a
+   * toast (`use-reply-actions.ts`): this read replaces the action row and can
+   * close the editor, so nothing drawn inside either would outlive it.
    */
   onReplyCommandFailed(qc: QueryClient, reviewId: string): void {
     for (const itemId of cachedItemIdsForReview(qc, reviewId)) {

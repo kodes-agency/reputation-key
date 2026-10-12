@@ -22,6 +22,8 @@
  * - A DIALOG SUBMIT or CONFIRMATION is a form submit: `ConfirmationDialog` and the
  *   form dialogs stay open while it runs and show the refusal themselves
  *   (`DialogErrorBanner`), so the mutation behind one passes no `errorMessage`.
+ *   The exception is a confirmation drawn inside what its refusal re-reads
+ *   (`inbox/use-reply-actions.ts`): it toasts, and its dialog closes.
  * - A ROW or IMMEDIATE action (a switch, a menu item, a download) reports
  *   through a toast: pass `errorMessage` (`actionErrorMessage`, or
  *   `actionFailureMessage("Couldn't ….")` to name what failed) and render no

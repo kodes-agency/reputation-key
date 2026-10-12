@@ -32,6 +32,10 @@
 // answer here. A mutation behind this dialog therefore passes no `errorMessage`:
 // a toast as well would tell them twice. The error is held by the dialog's body,
 // which mounts when it opens, so a reopened dialog never greets with an old one.
+// That is also its limit: a dialog drawn inside something its own refusal
+// re-reads is unmounted with it, and the sentence goes too. Such a caller
+// settles `onConfirm` and reports by toast instead (the Inbox's reply
+// confirmations, `inbox/use-reply-actions.ts`).
 //
 // Two ways to open it, and the types make a caller pick one: pass a `trigger`
 // and it opens itself, or pass `open` with `onOpenChange` and the caller owns it.
