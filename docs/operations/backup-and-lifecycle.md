@@ -359,6 +359,13 @@ sealed.
 | `quarantine.ttl`                          | `quarantine` BullMQ queue                                                                            | `QUARANTINE_TTL_DAYS` (default 30d)                                                                                                                                                                                                                                                                                                                                                                  | quarantine-ttl-sweep                                                                                                                                                                       |
 | `retention_runs`                          | `retention_runs`                                                                                     | **indefinite-by-design** — the evidence chain FOR deletions; deleting it would erase the proof of erasure. Size monitored via the metrics snapshot; no rule exists by deliberation.                                                                                                                                                                                                                  | none (monitored)                                                                                                                                                                           |
 
+The Guest session identifier has two horizons in this table. Its own records end
+at 24h (`guest_response_session_bindings.expired` and the three
+`*.guest_session_pseudonym` redactions). The `idempotency_receipts` subject also
+covers the Guest scopes `guest_qualified_scan` and `guest_destination_action`,
+whose key and payload carry the same identifier, so those receipts keep it for
+30d. Privacy Notice version 2.1 states both figures (`docs/BETA.md` §2, §3).
+
 Version history: v1 (BQC-1.6) initial 9-rule registry + lifecycle purges; v2
 (BQC-7.8) + `audit_logs` at 365d, + `quarantine.ttl`, Google import lifecycle
 evidence, and `retention_runs`

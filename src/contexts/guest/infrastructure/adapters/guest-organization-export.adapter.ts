@@ -55,7 +55,8 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  *   not oblige it to, and permission cannot precede activation. Neither
  *   `guest_contact_requests` nor its reveal audits is queried here at all.
  * - Session bindings, qualified-scan receipts and destination-action receipts
- *   are signed-session pseudonyms kept only for a dedupe window. Bullet 7
+ *   are signed-session pseudonyms kept only for dedupe: the binding for 24
+ *   hours, the receipts for the shared 30-day receipt retention. Bullet 7
  *   excludes sessions and receipts, and exporting a pseudonym would re-link
  *   responses that were deliberately de-identified. The destination-action
  *   fact itself is content-free control plane and stays out with them.
