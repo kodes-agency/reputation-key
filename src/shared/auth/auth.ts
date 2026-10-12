@@ -32,10 +32,12 @@ import { generateBetterAuthDatabaseId } from './registration-user-id'
 
 /**
  * Better Auth remains the authentication provider, not the application write
- * authority for Organization membership. The HTTP adapter blocks these raw
- * routes; these provider hooks are the second, in-process fence for accidental
- * direct `auth.api` calls. App-owned Identity commands bind every required
- * lifecycle collaborator explicitly through the application container.
+ * authority for Organization membership. The HTTP adapter serves only an allow
+ * list of its routes (routes/api/auth/-provider-routes.ts), so none of these
+ * writes is reachable over HTTP; these provider hooks are the second,
+ * in-process fence for accidental direct `auth.api` calls. App-owned Identity
+ * commands bind every required lifecycle collaborator explicitly through the
+ * application container.
  */
 async function denyRawOrganizationLifecycleWrite(): Promise<never> {
   throw new Error(
@@ -142,7 +144,8 @@ export function createAuth() {
       // Consuming the invitation verifies the address (ADR 0062), so sign-up
       // mails nothing. The sender stays for the unverified-login recovery
       // path: resendVerificationEmail calls Better Auth in-process, and the
-      // raw send route is refused at the HTTP boundary (routes/api/auth/$.ts).
+      // raw send route is not on the HTTP allow list
+      // (routes/api/auth/-provider-routes.ts).
       sendOnSignUp: false,
       sendVerificationEmail: async ({ user, url }) => {
         await sendVerificationEmail(user.email, url)
@@ -219,11 +222,20 @@ export function createAuth() {
         dynamicAccessControl: {
           enabled: false,
         },
+        // Organizations are operator-provisioned (ADR 0065) and
+        // organization.create is beta_disabled, but the library lets any
+        // signed-in user create one unless told otherwise. With this off the
+        // provider refuses every session-bound creation, over HTTP and in
+        // process; only a system action (a server call that names the user
+        // and carries no session) creates, which is what createOrganizationFn
+        // does behind its capability gate. The operator console and
+        // ops:bootstrap-owner insert the Organization row themselves.
+        allowUserToCreateOrganization: false,
         invitationExpiresIn: INVITATION_EXPIRY_SECONDS, // 7 days
         // Use the same validated/defaulted policy as password signup. Reading
         // process.env here previously made an unset production variable mean
         // true above but false for invitation acceptance. Inert while the raw
-        // accept-invitation route stays blocked; kept aligned regardless.
+        // accept-invitation route is not served; kept aligned regardless.
         requireEmailVerificationOnInvitation: env.EMAIL_VERIFICATION_REQUIRED,
         // Custom fields on invitation (propertyIds) and supported Organization
         // settings (contact/response target).
@@ -231,10 +243,10 @@ export function createAuth() {
         // the same columns as the runtime (prevents drift).
         schema: organizationSchema,
         // No sendInvitationEmail: invitations are app-owned. invite-member and
-        // resend-invitation send the mail, and raw invite-member is blocked.
+        // resend-invitation send the mail, and raw invite-member is not served.
         // Membership and invitation lifecycle writes are app-owned. Keep the
-        // provider hooks fail-closed as defense in depth behind the raw-route
-        // HTTP refusal; no mutable composition callback lives in this module.
+        // provider hooks fail-closed as defense in depth behind the HTTP
+        // allow list; no mutable composition callback lives in this module.
         organizationHooks: {
           beforeAcceptInvitation: denyRawOrganizationLifecycleWrite,
           beforeRemoveMember: denyRawOrganizationLifecycleWrite,

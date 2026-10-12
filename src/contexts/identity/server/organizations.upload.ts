@@ -90,7 +90,8 @@ export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
 
 // ── User avatar upload ──────────────────────────────────────────────
 // Uses user-scoped S3 keys (avatars/${userId}/${uuid}).
-// No org-side side effects — the client persists via authClient.updateUser.
+// No org-side side effects — the client persists through updateUserImageFn
+// (the provider's raw /update-user route is not served).
 
 const requestAvatarUploadSchema = z.object({
   contentType: z.string(),
