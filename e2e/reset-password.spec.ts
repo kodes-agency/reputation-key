@@ -100,6 +100,9 @@ test.describe('Password Reset', () => {
 
     const resetLink = extractResetLink(send.html)
     await page.goto(resetLink)
+    // The fields are fillable before React hydrates them; hydration then resets
+    // them to empty and the save sends nothing.
+    await waitForHydration(page)
     await expect(page).toHaveURL(/\/reset-password\?token=[^&]+$/)
     await expect(page.getByText(/choose a new password/i)).toBeVisible()
 

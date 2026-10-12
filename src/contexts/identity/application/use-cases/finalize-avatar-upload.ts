@@ -1,7 +1,7 @@
 // Identity context — finalize user avatar upload use case.
 // Confirms the upload landed and returns the address the avatar is shown at (a
 // path on the app, see identity-assets.ts). Does NOT persist to any entity
-// (the caller persists via authClient.updateUser on the client side).
+// (the caller persists through the updateUserImageFn server function).
 
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'

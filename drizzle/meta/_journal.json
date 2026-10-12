@@ -379,6 +379,13 @@
       "when": 1793400000000,
       "tag": "0053_clear_legacy_asset_urls",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1793500000000,
+      "tag": "0054_goal_month_target",
+      "breakpoints": true
     }
   ]
 }

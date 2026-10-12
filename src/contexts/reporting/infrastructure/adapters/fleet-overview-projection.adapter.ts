@@ -517,7 +517,10 @@ export const createFleetOverviewProjectionAdapter = (
                 'portal_rating_count'
               )
               AND goal_monthly_results.value <
-                goal_program_versions.target_value
+                coalesce(
+                  goal_monthly_results.target_value,
+                  goal_program_versions.target_value
+                )
                 * greatest(
                   0,
                   least(

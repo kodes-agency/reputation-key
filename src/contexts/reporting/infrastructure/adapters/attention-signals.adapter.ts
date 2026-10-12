@@ -70,7 +70,10 @@ export const createAttentionSignalsAdapter = (
                 'qualified_scans',
                 'portal_rating_count'
               )
-              AND ${goalMonthlyResults.value} < ${goalProgramVersions.targetValue} *
+              AND ${goalMonthlyResults.value} < COALESCE(
+                  ${goalMonthlyResults.targetValue},
+                  ${goalProgramVersions.targetValue}
+                ) *
                 GREATEST(0, LEAST(1,
                   EXTRACT(EPOCH FROM (${now} - ${goalMonthlyResults.periodStart}))
                   / NULLIF(

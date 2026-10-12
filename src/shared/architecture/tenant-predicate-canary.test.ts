@@ -385,6 +385,25 @@ describe('canary: every tenant-owned repository query carries a tenant predicate
     expect(inspection.violations).toEqual(['synthetic-unscoped.repository.ts#findReview'])
   })
 
+  it('holds the goal month target log to the tenant predicate', () => {
+    const authority = tenantOwnedTables()
+    expect(authority.exportNames.has('goalMonthTargetChanges')).toBe(true)
+
+    // A Program id alone is not a tenant predicate: the log is keyed by
+    // organization, Property and Program together.
+    const inspection = inspectTenantPredicates(
+      'synthetic-target-log.repository.ts',
+      `const listTargetChanges = async (programId: string) =>
+        db.select().from(goalMonthTargetChanges)
+          .where(eq(goalMonthTargetChanges.programId, programId))`,
+      authority,
+    )
+
+    expect(inspection.violations).toEqual([
+      'synthetic-target-log.repository.ts#listTargetChanges',
+    ])
+  })
+
   it('matches every detected tenant-free query exactly to the reviewed registry', () => {
     const authority = tenantOwnedTables()
     const inspections = infrastructureFiles().map((absoluteFile) => {

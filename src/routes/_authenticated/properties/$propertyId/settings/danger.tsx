@@ -3,6 +3,7 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { PropertyLifecycleCard } from '#/components/features/property/property-lifecycle-card'
+import { propertyRestoredMessage } from '#/components/features/property/property-lifecycle-model'
 import {
   removePropertyFromWorkspace,
   type RemovePropertyInput,
@@ -44,13 +45,7 @@ function PropertyDangerSettings() {
   const restore = useActionMutation(restoreProperty, {
     invalidateKeys,
     onSuccess: (result) => {
-      if (result.googleBindingReadiness === 'reconnect_required') {
-        toast.success(
-          'Property restored. Reconnect Google before restarting provider work.',
-        )
-      } else {
-        toast.success('Property restored. Google is ready for this Property.')
-      }
+      toast.success(propertyRestoredMessage(result))
     },
   })
   const remove = useActionMutation(

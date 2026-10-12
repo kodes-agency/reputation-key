@@ -87,6 +87,37 @@ describe('scopeGoalProgramsForMember', () => {
   })
 })
 
+describe('scopeGoalProgramsForMember and the log of target changes', () => {
+  const change = (monthlyResultId: string) => ({
+    id: `change-${monthlyResultId}`,
+    monthlyResultId,
+  })
+
+  it('keeps only the target changes of the months the Member may see', () => {
+    const program = {
+      ...bundle('program-1', [
+        { kind: 'portal', portalId: 'portal-visible' },
+        { kind: 'portal', portalId: 'portal-hidden' },
+      ]),
+      targetChanges: [change('program-1-result-0'), change('program-1-result-1')],
+    } as unknown as GoalProgramBundle
+
+    const [visible] = scopeGoalProgramsForMember([program], ['portal-visible'], [])
+
+    expect(visible?.targetChanges).toEqual([change('program-1-result-0')])
+  })
+
+  it('leaves a Program read without its log without one', () => {
+    const [visible] = scopeGoalProgramsForMember(
+      [bundle('program-1', [{ kind: 'portal', portalId: 'portal-visible' }])],
+      ['portal-visible'],
+      [],
+    )
+
+    expect(visible).not.toHaveProperty('targetChanges')
+  })
+})
+
 describe('withGoalProgramVisibility', () => {
   it('returns every Program unscoped to an actor who can create Goals', async () => {
     const { reads, visibility, scoped } = setup([propertyWide, portalOnly, hiddenGroup])

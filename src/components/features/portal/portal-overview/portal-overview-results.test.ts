@@ -178,9 +178,9 @@ describe('indexOverviewResults', () => {
 
   it('names the window and the floor in the footer', () => {
     expect(index.strip('prop-1')?.footer).toBe(
-      'Last 30 days, Europe/Sofia time · an average needs 5 private ratings',
+      'Last 30 days, Sofia time · an average needs 5 private ratings',
     )
-    expect(index.strip('prop-1')?.caption).toBe('1–30 Sep, Europe/Sofia time')
+    expect(index.strip('prop-1')?.caption).toBe('1–30 Sep, Sofia time')
   })
 
   it('builds a group strip from the group row, in the window of the Property it sits in', () => {
@@ -200,9 +200,9 @@ describe('indexOverviewResults', () => {
     expect(strip?.cells.find((cell) => cell.key === 'googleOpens')?.detail).toBe(
       '17% of scans',
     )
-    expect(strip?.caption).toBe('1–30 Sep, Europe/Sofia time')
+    expect(strip?.caption).toBe('1–30 Sep, Sofia time')
     expect(strip?.footer).toBe(
-      'Last 30 days, Europe/Sofia time · an average needs 5 private ratings',
+      'Last 30 days, Sofia time · an average needs 5 private ratings',
     )
   })
 

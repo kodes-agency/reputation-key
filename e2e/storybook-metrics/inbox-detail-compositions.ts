@@ -169,6 +169,7 @@ export const COMPOSITION_GROUPS: ReadonlyArray<Group> = [
       'unsupported-language',
       'manual-edit-wins-over-delayed-suggestion',
       'ai-replies-not-enabled',
+      'ai-replies-not-enabled-for-manager',
       'public-display-name-missing',
       'public-display-name-missing-for-manager',
       'detected-language-survives-a-template',

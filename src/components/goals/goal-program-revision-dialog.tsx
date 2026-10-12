@@ -19,15 +19,26 @@ import { FormFieldFrame } from '#/components/forms/form-field-frame'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { goalRevisionReceipt, type GoalVersionStart } from './goal-revision-start'
+import {
+  goalRevisionDescription,
+  goalRevisionReceipt,
+  type GoalChangeSource,
+  type GoalVersionStart,
+} from './goal-revision-start'
+import { withGoalRefusals } from './goal-refusal'
 import { GoalProgramFormDialog } from './goal-program-form-dialog'
 import { GoalChangeReasonField, GoalSubjectsField } from './goal-program-fields'
 import { GoalMetricField } from './goal-metric-field'
 
 type GoalProgramRevisionDialogProps = Readonly<{
   reviseGoalProgramFn: typeof reviseGoalProgram
-  property: Readonly<{ id: string; name: string }>
+  /** The Property and its own zone: a revision is cut in the zone it has now. */
+  property: Readonly<{ id: string; name: string; timezone: string }>
   programId: string
+  /** The version the page shows. A goal that changed since refuses the save. */
+  currentVersion: number
+  /** What the day the revision applies from is read from. */
+  goal: GoalChangeSource
   metric: GoalMetric
   targetValue: number
   assignments: readonly GoalSubjectAssignment[]
@@ -41,10 +52,14 @@ type GoalProgramRevisionDialogProps = Readonly<{
 
 export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps) {
   const [open, setOpen] = useState(false)
-  // The start the server chose. It stays on screen: after the Property's
-  // timezone moved east it is a month later than "next month".
+  // The instant the dialog was last opened. The day the revision applies from
+  // is worked out from it, so a page left open over the end of a month still
+  // says the right month.
+  const [openedAt, setOpenedAt] = useState<Date | null>(null)
+  // The start the command answered. It stays on screen: after the Property's
+  // timezone moved east it is a month later than the next one.
   const [scheduled, setScheduled] = useState<GoalVersionStart | null>(null)
-  const mutation = useActionMutation(props.reviseGoalProgramFn, {
+  const mutation = useActionMutation(withGoalRefusals(props.reviseGoalProgramFn), {
     invalidateKeys: [goalKeys.all],
     // The dialog stays open on its receipt, which is the success: no toast.
     onSuccess: ({ version }) => setScheduled(version),
@@ -63,7 +78,9 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
         data: {
           propertyId: props.property.id,
           programId: props.programId,
+          expectedVersion: props.currentVersion,
           ...value,
+          reason: value.reason.trim() || undefined,
         },
       })
     },
@@ -74,6 +91,7 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
     if (next) {
       form.reset(initialFormValues())
       setScheduled(null)
+      setOpenedAt(new Date())
     }
     setOpen(next)
   }
@@ -85,7 +103,11 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
       busy={mutation.isPending}
       trigger="Revise"
       title="Revise goal"
-      description="The month in progress keeps the current version. This version starts with the first full month in the Property's timezone that begins after it ends."
+      description={
+        openedAt === null
+          ? ''
+          : goalRevisionDescription(props.goal, openedAt, props.property.timezone)
+      }
       onSubmit={() => void submitForm(form)}
     >
       <div className="grid gap-4 sm:grid-cols-2">
@@ -128,9 +150,9 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
           />
         )}
       </form.Field>
-      {scheduled ? (
+      {scheduled !== null && openedAt !== null ? (
         <Alert variant="success">
-          <AlertDescription>{goalRevisionReceipt(scheduled)}</AlertDescription>
+          <AlertDescription>{goalRevisionReceipt(scheduled, openedAt)}</AlertDescription>
         </Alert>
       ) : null}
       <DialogErrorBanner error={mutation.error} />

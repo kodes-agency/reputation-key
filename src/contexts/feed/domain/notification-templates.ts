@@ -34,6 +34,7 @@ import {
 } from './notification-templates-account'
 import type {
   NotificationActorRole,
+  NotificationGoalMarker,
   NotificationGoalOutcome,
   NotificationGoalSubjectKind,
   NotificationPayload,
@@ -319,6 +320,14 @@ const renderReplyPublishFailed = (p: NotificationPayload): RendererCopy => {
  * say so; a guest edit or a different live reply can stop one Google may
  * already hold, so neither claims it was not sent. The title never says
  * "your" — the same notice goes to the approvers who have to act on it.
+ *
+ * `ai_draft_withdrawn` is the one cause that leaves no draft behind: the AI
+ * draft purge removed an unedited AI reply that was awaiting approval or
+ * confirmed but not dispatched. So it says the draft is gone, not "returned".
+ * The fact does not say why the purge ran, so the copy states the rule every
+ * reason falls under: such a draft is publishable only for a few minutes, and
+ * only while what it was written from stays the same. Naming the changes alone
+ * would be false for a draft whose time simply ran out.
  */
 const PUBLICATION_CANCELLATION_BODIES = {
   disconnect:
@@ -329,17 +338,25 @@ const PUBLICATION_CANCELLATION_BODIES = {
     'The guest changed their review, so RepKey stopped publishing the approved text. Open it to check what Google shows, then reply to the new review.',
   provider_truth:
     'A different reply is live on Google, so this one is not. Open it to check.',
+  ai_draft_withdrawn:
+    'An AI draft nobody edited can only be published within minutes of being written, and only while the review, the property and its AI settings stay the same. That window closed, so nothing was posted to Google and RepKey removed the draft. Write a new reply.',
 } as const
 
 const renderReplyPublicationCancelled = (p: NotificationPayload): RendererCopy => {
   const cause = p.publicationCancellationCause
   const why = cause === undefined ? '' : PUBLICATION_CANCELLATION_BODIES[cause]
+  const draftRemoved = cause === 'ai_draft_withdrawn'
   return {
-    title: `Reply returned to draft${atProperty(p)}`,
+    title: `${draftRemoved ? 'AI draft removed' : 'Reply returned to draft'}${atProperty(p)}`,
     body: why === '' ? SEE_WHERE : why,
     detail: why,
-    actionLabel: cause === 'source_changed' ? 'Open review' : 'Open reply',
-    summary: factsAt(p, 'review', 'returned to draft'),
+    actionLabel:
+      cause === 'source_changed' || draftRemoved ? 'Open review' : 'Open reply',
+    summary: factsAt(
+      p,
+      'review',
+      draftRemoved ? 'AI draft removed' : 'returned to draft',
+    ),
   }
 }
 
@@ -760,11 +777,31 @@ const goalOutcomeTitle = (p: NotificationPayload, outcome: string): string => {
   return month === '' ? `Goal ${outcome}` : `${month} goal ${outcome}`
 }
 
+/**
+ * What a reader should know about a month whose target did not stand for all
+ * of it. "Met" against a goal set on the 20th is true and still needs saying.
+ */
+const GOAL_MARKER_CLAUSES: Record<NotificationGoalMarker, string> = {
+  set_in_month: 'The goal was set during the month.',
+  target_changed: 'The target was changed during the month.',
+}
+
+/** The marker's sentence, or nothing for a goal in place the whole month. */
+const goalMarkerClause = (p: NotificationPayload): string =>
+  p.goalMarker === undefined ? '' : GOAL_MARKER_CLAUSES[p.goalMarker]
+
 const renderGoalCompleted = (p: NotificationPayload): RendererCopy => ({
   title: goalTitle(goalOutcomeTitle(p, 'met'), p),
-  body: sentence(`${thisGoal(p)} hit its target.`, 'Open the goal to see the numbers.'),
+  body: sentence(
+    `${thisGoal(p)} hit its target.`,
+    goalMarkerClause(p),
+    'Open the goal to see the numbers.',
+  ),
   // Which of ten sibling results it is: the title says only "goal".
-  detail: p.goalSubjectKind === undefined ? '' : `${thisGoal(p)} hit its target.`,
+  detail: sentence(
+    p.goalSubjectKind === undefined ? '' : `${thisGoal(p)} hit its target.`,
+    goalMarkerClause(p),
+  ),
   actionLabel: 'View progress',
   summary: factsAt(
     p,
@@ -802,12 +839,15 @@ const renderGoalResultRevised = (p: NotificationPayload): RendererCopy => {
       outcome === undefined
         ? 'A monthly result changed.'
         : `${thisGoal(p)} ${GOAL_OUTCOME_CLAUSES[outcome]}.`,
+      goalMarkerClause(p),
       'Open the goal to see the current metrics.',
     ),
-    detail:
+    detail: sentence(
       outcome === undefined || p.goalSubjectKind === undefined
         ? ''
         : `${thisGoal(p)} ${GOAL_OUTCOME_CLAUSES[outcome]}.`,
+      goalMarkerClause(p),
+    ),
     actionLabel: 'View result',
     summary: factsAt(
       p,

@@ -47,11 +47,14 @@ export function GoalMetricField({
   id,
   field,
   withDescription = false,
+  disabled = false,
 }: Readonly<{
   id: string
   field: MetricFieldApi
   /** Say what the chosen metric counts, under the select. */
   withDescription?: boolean
+  /** Not to be changed now: a save for the metric it shows is running. */
+  disabled?: boolean
 }>) {
   return (
     <FormSelectField
@@ -60,6 +63,7 @@ export function GoalMetricField({
       value={field.state.value}
       options={GOAL_METRICS}
       description={withDescription ? goalMetricDescription(field.state.value) : undefined}
+      disabled={disabled}
       invalid={!field.state.meta.isValid}
       errors={field.state.meta.errors}
       onValueChange={field.handleChange}

@@ -33,6 +33,28 @@ action and scope; an unavailable or unknown policy input fails closed.
   tenant-cross sweep and the per-item work it discovers are separate actions:
   one Property-scoped job once made every Organization-scoped notification
   consumer that shared its action deny `missing_scope`.
+- An Organization- or Property-scoped job is enqueued with its `organizationId`
+  (and `propertyId`) in the payload, because the delayed gate reads a job's
+  scope from there and nowhere else. A producer that leaves them out is refused
+  by nothing: every job completes as a terminal `missing_scope` denial and the
+  work never runs. Property AI trends were enqueued with their schedule alone
+  and none was generated. `scoped-job-enqueue-scope.test.ts` drives every scoped
+  family's producer through the gate, and a new scoped family fails there until
+  it names how it is enqueued.
+- A tenant-cross schedule firing names no Organization, so the delayed policy
+  admits it before the capability check: it is the enumeration boundary only. A
+  schedule that holds a capability therefore decides each Organization and
+  Property it then acts for, with a scope authorizer for its own action
+  (`createScheduledScopeAuthorizer`), before any effect for them. The Review
+  Analysis backlog drain did not, and went on sending a stopped Organization's
+  queued reviews to the provider. `tenant-cross-schedule-authorization.test.ts`
+  is exhaustive over the scheduled job families, read as the gate reads a
+  firing: the schedule row, else the job row, and the capability by action, so
+  a family with no schedule row or an ungated one is covered too. A new
+  capability-gated tenant-cross schedule fails there until it names how its
+  candidates are decided, and one that names a scope authorizer must be given
+  it where the worker registers the job. The Response Target reminder release
+  is recorded there as the one schedule that still asks nothing.
 
 ## Amended 2026-10-01 — manager administration is AccountAdmin-only
 
@@ -52,3 +74,40 @@ about members, invitations or the Organization, and keeps it because Inbox
 assignment and Responsible managers read the member list. The Members page reads only what the
 viewer's role may read, so a PropertyManager's page issues no invitation or
 grant read.
+
+## Amended 2026-10-12 — the provider's HTTP routes are an allow list
+
+Better Auth serves every endpoint of its core and of its organization plugin
+from one handler, and those endpoints decide with the library's own checks:
+membership for the organization reads, the role table for its writes, and a
+session alone for creating an Organization. None of them asks `ExecutionPolicy`,
+so each one reachable over HTTP is a second authorization path. Refusing a list
+of paths did not hold. A PropertyManager could read every invitation of the
+Organization, ids included, and an invitation id is all that invited
+registration asks for besides the invited address. Any signed-in account could
+create an Organization and own it. An AccountAdmin could update the Organization
+with the kill switch pulled or the Organization suspended.
+
+`/api/auth/*` therefore serves an allow list
+(`src/routes/api/auth/-provider-routes.ts`). A request reaches the provider only
+when its method and exact path name a route the product needs over HTTP: reading
+one's own session, sign-in, sign-out, the password-reset steps and the mailed
+verification link. Every other request is refused with 404 before the provider
+sees it. A route is added only when it returns and changes nothing more than the
+caller already can through app-owned server functions, with that reason written
+beside it. The app keeps calling the provider in process, behind
+`requireExecutionAllowed`.
+
+The provider also refuses a session-bound Organization creation
+(`allowUserToCreateOrganization: false`), so a second mount of its handler would
+not reopen self-service. `createOrganizationFn`, dormant behind
+`organization.create`, creates as a provider system action.
+
+`src/routes/api/auth/-provider-routes.test.ts` enumerates the configured
+provider's endpoints and fails when one is neither allowed nor refused on
+purpose, so an upgrade or a new plugin cannot add a reachable route unnoticed.
+A refused route wins over an allowed one that also matches the request (the
+reset link's token segment matches any value), and the same test fails when a
+listed route is not decided the way its list says.
+`src/routes/api/auth/-$.integration.test.ts` proves the refusals against the
+real provider and database.

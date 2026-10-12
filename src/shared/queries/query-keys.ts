@@ -230,6 +230,12 @@ export const goalKeys = {
   /** The live month to date of the goals that target one subject (`portal_group:<id>`). */
   progress: (propertyId: string, subject: string) =>
     [...goalKeys.all, 'progress', propertyId, subject] as const,
+  /** The live month to date of every current subject of one goal. */
+  programProgress: (propertyId: string, goalId: string) =>
+    [...goalKeys.all, 'program-progress', propertyId, goalId] as const,
+  /** The month so far for one measure and subject (`portal:<id>`), before its goal exists. */
+  monthPreview: (propertyId: string, metric: string, subject: string) =>
+    [...goalKeys.all, 'month-preview', propertyId, metric, subject] as const,
 }
 
 // ── Staff participation and portal responsibility ────────────────────────

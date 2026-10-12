@@ -14,11 +14,18 @@ import {
   TableRow,
 } from '#/components/ui/table'
 import { AvailabilityLine } from '#/components/features/dashboard/availability-line'
-import { formatDate, formatMonthYear } from '#/lib/format'
+import { formatDate, formatMonthYear, formatShortDate } from '#/lib/format'
+import { goalTargetMarkerLine } from './goal-target-marker'
 
-type Props = Readonly<{ matrix: GoalResultsMatrixModel }>
+type Props = Readonly<{
+  matrix: GoalResultsMatrixModel
+  /** The instant the page was opened, which decides whether a day prints its year. */
+  now: Date
+  /** Who changed a month's target, by name; null where the directory cannot say. */
+  personName: (userId: string) => string | null
+}>
 
-export function GoalResultsMatrix({ matrix }: Props) {
+export function GoalResultsMatrix({ matrix, now, personName }: Props) {
   return (
     <Card>
       <CardHeader>
@@ -57,6 +64,8 @@ export function GoalResultsMatrix({ matrix }: Props) {
                       key={row.resultId}
                       row={row}
                       timezone={month.propertyTimezone}
+                      now={now}
+                      personName={personName}
                     />
                   ))}
                 </TableBody>
@@ -94,7 +103,11 @@ export function GoalResultsMatrix({ matrix }: Props) {
 function MatrixRow({
   row,
   timezone,
-}: Readonly<{ row: GoalResultsMatrixRow; timezone: string }>) {
+  now,
+  personName,
+}: Readonly<
+  { row: GoalResultsMatrixRow; timezone: string } & Pick<Props, 'now' | 'personName'>
+>) {
   return (
     <TableRow>
       <TableCell>
@@ -139,8 +152,20 @@ function MatrixRow({
           {shortVersion(row.targetProvenance.metricDefinitionVersionId)}
         </span>
         <span className="block text-xs text-muted-foreground">
-          Effective {formatDate(row.targetProvenance.effectiveFrom, timezone)}
+          Effective {formatDate(row.targetProvenance.effectiveFrom, timezone)} · set on{' '}
+          {formatShortDate(row.targetProvenance.setAt, timezone, now) ??
+            'an unknown date'}
         </span>
+        {/* The target above is the month's own once a manager changed it. */}
+        {row.monthTarget === null ? null : (
+          <span className="block text-xs text-muted-foreground">
+            {goalTargetMarkerLine(row.metric, row.monthTarget, {
+              timezone,
+              now,
+              personName,
+            })}
+          </span>
+        )}
       </TableCell>
     </TableRow>
   )
