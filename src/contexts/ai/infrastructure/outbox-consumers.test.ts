@@ -366,15 +366,20 @@ describe('AI review outbox consumer', () => {
     )
   })
 
-  it('enqueues the exact scheduled trend and records its receipt', async () => {
+  // The trend job is property-scoped: the delayed-execution gate reads the
+  // Organization and Property from the job payload, so the schedule alone is
+  // denied `missing_scope` and no trend is ever generated.
+  it('enqueues the exact scheduled trend with its scope and records its receipt', async () => {
     const test = harness({ status: 'completed' })
 
     await expect(
       handleAiPropertyTrendGenerationRequested(test.dependencies, trendEvent()),
     ).resolves.toEqual({ status: 'applied' })
-    expect(test.enqueuePropertyTrend).toHaveBeenCalledWith(
-      '71000000-0000-4000-8000-000000000204',
-    )
+    expect(test.enqueuePropertyTrend).toHaveBeenCalledExactlyOnceWith({
+      scheduleId: '71000000-0000-4000-8000-000000000204',
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+    })
     expect(test.insertReceipt).toHaveBeenCalledWith(
       EVENT_ID,
       AI_PROPERTY_TREND_GENERATION_CONSUMER,

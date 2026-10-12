@@ -12,6 +12,7 @@ import {
   type DeterministicTrendCandidate,
 } from '#/shared/ai-property-trend-contract'
 import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { addDays } from '../local-date'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type {
@@ -36,6 +37,9 @@ const PROFILE = AI_OPERATION_PROFILES.find(
 
 export type GeneratePropertyTrendInput = Readonly<{
   scheduleId: string
+  /** The scope the delayed-execution gate authorized this run for. */
+  organizationId: OrganizationId
+  propertyId: PropertyId
 }>
 
 export type GeneratePropertyTrendResult =
@@ -299,6 +303,14 @@ export function createGeneratePropertyTrend(
   return async (input) => {
     const schedule = await dependencies.schedules.read(input.scheduleId)
     if (schedule === null) return { status: 'stale' }
+    // The gate decided this run for the scope in the job; everything below runs
+    // for the schedule's. A mismatch is a producer defect, never stale work.
+    if (
+      schedule.organizationId !== input.organizationId ||
+      schedule.propertyId !== input.propertyId
+    ) {
+      throw new Error('AI property trend job scope does not match its schedule')
+    }
     if (schedule.outcomeDisposition !== null) {
       return {
         status: schedule.outcomeDisposition === 'ready' ? 'replayed' : 'no_data',
