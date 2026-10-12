@@ -12,6 +12,15 @@
 # this build carries 3.3.7-r1. Same Redis, newer Alpine packages.
 FROM redis:7.4.11-alpine@sha256:520775a41a63e77e06c73e35d2fd9cc15921a609516818796b4ecbb813078bc7
 
+# OpenSSL 3.3.7-r2 (Alpine v3.21, 2026-09-30) closes CVE-2026-72897 / -84782 /
+# -84784 (High) against the r1 above. Upstream has not rebuilt redis:7.4-alpine
+# on it yet (the tag still resolves to the 2026-09-17 build), so it is
+# installed here; redis-server links the system libssl3, so this patches the
+# TLS it serves, not only the scan. Exact so the build FAILS if the mirror stops
+# carrying r2 rather than silently drifting. Drop this RUN when re-pinning to an
+# upstream build that ships r2 or newer.
+RUN apk add --no-cache libssl3=3.3.7-r2 libcrypto3=3.3.7-r2
+
 ARG SOURCE_REVISION
 ENV IMAGE_SOURCE_REVISION=$SOURCE_REVISION
 LABEL org.opencontainers.image.source="https://github.com/kodes-agency/reputation-key" \
