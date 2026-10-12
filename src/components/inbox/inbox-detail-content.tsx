@@ -1,4 +1,3 @@
-import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { InboxCaseToolbar } from './inbox-case-toolbar'
@@ -12,7 +11,7 @@ import {
   useInboxComposerController,
   type ComposerFocusBox,
 } from './use-inbox-composer-controller'
-import { withFreshCommandRevision, type InboxDetailState } from './use-inbox-detail'
+import type { InboxDetailState } from './use-inbox-detail'
 import type { InboxAssignmentOption } from './inbox-owner-view'
 import type { InboxCurrentUser } from './inbox-case-toolbar-props'
 import type { NoteDraft } from './composer-policy'
@@ -90,7 +89,6 @@ export function InboxDetailContent({
     detail,
     notes,
     notesUnavailable,
-    onNoteAdded,
     onReplyMutated,
     updateStatus,
     escalate,
@@ -99,7 +97,6 @@ export function InboxDetailContent({
     markFeedbackHandled,
     correctFeedbackHandlingOutcome,
   } = detailState
-  const queryClient = useQueryClient()
   const { can } = usePermissions()
   useOnDemandReviewAnalysis({
     item: currentItem,
@@ -207,12 +204,6 @@ export function InboxDetailContent({
     correctFeedbackHandlingOutcome,
   })
 
-  const addInboxNote = withFreshCommandRevision(
-    queryClient,
-    currentItem.id,
-    detailFns.addInboxNote,
-  )
-
   return (
     <>
       {/* Region 2 (plan v2.1 rows 2-6). The bag is built by a pure selector
@@ -258,8 +249,7 @@ export function InboxDetailContent({
         replyActions={replyActions}
         noteDraft={noteDraft}
         setNoteDraft={setNoteDraft}
-        onNoteAdded={onNoteAdded}
-        addInboxNote={addInboxNote}
+        addInboxNote={detailFns.addInboxNote}
         canAddNotes={canAddNotes}
         handlingAction={feedback.action}
         feedbackPrimary={feedback.primary}

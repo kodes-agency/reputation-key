@@ -246,7 +246,6 @@ const BASE_DETAIL_STATE: InboxDetailState = {
   currentItem: reviewItem,
   refetch: () => {},
   retrying: false,
-  onNoteAdded: () => {},
   onReplyMutated: () => {},
   error: null,
   lastMarkedId: null,

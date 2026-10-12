@@ -218,7 +218,6 @@ const onSubmitReply = fn(async () => undefined).mockName('onSubmitReply')
 const onDeleteDraft = fn(async () => undefined).mockName('onDeleteDraft')
 const onSaveEdit = fn(async (_text: string) => undefined).mockName('onSaveEdit')
 const onEditDone = fn(() => {}).mockName('onEditDone')
-const onNoteAdded = fn((_revision: number) => {}).mockName('onNoteAdded')
 /** The two dialog openers row 10's primary calls. */
 const onMark = fn(() => {}).mockName('onMark')
 const onCorrect = fn(() => {}).mockName('onCorrect')
@@ -571,7 +570,6 @@ function ComposerInPane({
           <InboxNotesThread
             inboxItemId={ITEM_ID}
             expectedCommandRevision={1}
-            onNoteAdded={onNoteAdded}
             addInboxNote={addInboxNote}
             draftText={noteText}
             onDraftChange={setNoteText}

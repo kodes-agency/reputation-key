@@ -179,7 +179,7 @@ describe('inboxCachePolicy reply changes', () => {
     qc.setQueryData(inboxKeys.detail('item-a'), detailOf('item-a', 'review-a'))
     qc.setQueryData(inboxKeys.detail('item-b'), detailOf('item-b', 'review-b'))
 
-    inboxCachePolicy.onReplyCheckFailed(qc, 'review-a')
+    inboxCachePolicy.onReplyCommandFailed(qc, 'review-a')
 
     expect(invalidated).toEqual([
       inboxKeys.detail('item-a'),

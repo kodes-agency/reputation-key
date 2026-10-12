@@ -18,7 +18,7 @@
 // Lives in components/inbox/ (not shared/queries/) because the write-through
 // reply type comes from the inbox context — shared must not import a context.
 
-import type { QueryClient } from '@tanstack/react-query'
+import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { isUncertainReplyStillChecked } from '#/shared/domain/reply-queue-stage'
 import type {
@@ -280,7 +280,7 @@ function invalidateActivityAfterLag(qc: QueryClient, id: string): void {
  * `history(id)` and nothing else refreshes it: a command's result is
  * write-through patched into `detail(id)`, and the four item reads are
  * siblings rather than descendants of it (`query-keys.ts`), so even a path that
- * does re-read a detail (`onReplyCheckFailed`) never carries the refresh.
+ * does re-read a detail (`onReplyCommandFailed`) never carries the refresh.
  */
 function invalidateHistory(qc: QueryClient, id: string): void {
   qc.invalidateQueries({ queryKey: inboxKeys.history(id) })
@@ -334,6 +334,41 @@ function patchItem(qc: QueryClient, item: InboxItem): void {
   )
 }
 
+type InboxListCache = InfiniteData<Readonly<{ items: ReadonlyArray<InboxItem> }>>
+
+/** The item's fence brought forward to `commandRevision`, and never back. */
+const withCommandRevision =
+  (id: string, commandRevision: number) =>
+  <T extends InboxItem>(item: T): T =>
+    item.id === id && item.commandRevision < commandRevision
+      ? { ...item, commandRevision }
+      : item
+
+/**
+ * A command left the item on `commandRevision`: bring its row up to it in every
+ * cached list. The detail is one cached copy of the item; each list holds
+ * another, one per queue and filter the manager has opened, and the bulk
+ * commands take their fence from those rows (`buildBulkReopenCommands`), not
+ * from the detail. A row left behind is refused by the server on the next bulk
+ * command that includes it, and a bulk assign is refused whole.
+ *
+ * Written through rather than re-read: a list read is the heaviest request the
+ * Inbox makes, and the revision is the only thing a note or a correction
+ * changes on the row. Forward only, because a read that landed meanwhile may
+ * already hold a newer one.
+ */
+function advanceListRowFence(qc: QueryClient, id: string, commandRevision: number): void {
+  const advance = withCommandRevision(id, commandRevision)
+  qc.setQueriesData<InboxListCache>({ queryKey: inboxKeys.lists() }, (old) =>
+    old?.pages
+      ? {
+          ...old,
+          pages: old.pages.map((page) => ({ ...page, items: page.items.map(advance) })),
+        }
+      : old,
+  )
+}
+
 // ── The policy ──────────────────────────────────────────────────
 
 export const inboxCachePolicy = {
@@ -343,11 +378,12 @@ export const inboxCachePolicy = {
   },
 
   /**
-   * A bulk reopen completed, including a partial result. The response does not
-   * carry authoritative item snapshots, so every Inbox folder projection that
-   * can have moved is refreshed together.
+   * A bulk command settled: a reopen (complete or partial), an assignment, or
+   * an assignment the server refused whole because one row was behind. None of
+   * them returns item snapshots, so every Inbox folder projection is re-read,
+   * and the rows carry what the server holds before the next bulk command.
    */
-  onBulkReopened(qc: QueryClient): void {
+  onBulkCommandSettled(qc: QueryClient): void {
     invalidateFolderCaches(qc)
   },
 
@@ -359,6 +395,9 @@ export const inboxCachePolicy = {
    */
   onItemStatusChanged(qc: QueryClient, item: InboxItem): void {
     patchItem(qc, item)
+    // The lists are re-read below; until that read lands their rows would
+    // still send the revision this command just spent.
+    advanceListRowFence(qc, item.id, item.commandRevision)
     invalidateHistory(qc, item.id)
     invalidateActivityAfterLag(qc, item.id)
     invalidateFolderCaches(qc)
@@ -385,7 +424,9 @@ export const inboxCachePolicy = {
     )
     // A correction writes a new append-only outcome revision without moving
     // folders, so history goes stale on BOTH branches — before the early
-    // return, not after it.
+    // return, not after it. So does the row's fence, and after a correction no
+    // list is re-read to bring it forward.
+    advanceListRowFence(qc, result.item.id, result.item.commandRevision)
     invalidateHistory(qc, result.item.id)
     if (!statusChanged) return
     invalidateActivityAfterLag(qc, result.item.id)
@@ -417,14 +458,16 @@ export const inboxCachePolicy = {
   },
 
   /**
-   * "Check Google again" was refused or failed. The usual cause of a refusal is
-   * a pane that is behind: another manager or tab already moved the reply out
-   * of every checkable state (`check-reply-publication.ts` NOTHING_TO_CHECK),
-   * and nothing polls a reply that needs a check (`replyRefetchInterval`). So
-   * the review's detail, the lists and the counts are re-read, and the pane
-   * shows the reply as it is next to the toast.
+   * A reply command a manager issued was refused or failed: submit, confirm,
+   * reject, delete, retry, edit or "Check Google again". The usual cause of a
+   * refusal is a pane that is behind: another manager or tab already moved the
+   * reply (rejected it, published it, took it out of every checkable state,
+   * `check-reply-publication.ts` NOTHING_TO_CHECK), and nothing polls a reply
+   * that waits for a person (`replyRefetchInterval`). So the review's detail,
+   * the lists and the counts are re-read, and the pane shows the reply as it is
+   * next to the refusal instead of offering the refused command again.
    */
-  onReplyCheckFailed(qc: QueryClient, reviewId: string): void {
+  onReplyCommandFailed(qc: QueryClient, reviewId: string): void {
     for (const itemId of cachedItemIdsForReview(qc, reviewId)) {
       qc.invalidateQueries({ queryKey: inboxKeys.detail(itemId), exact: true })
     }
@@ -433,25 +476,32 @@ export const inboxCachePolicy = {
   },
 
   /**
+   * A feedback-handling command was refused or failed. Its four fences
+   * (command revision, cycle, source and state revision) are read from the
+   * detail, and it is never re-sent against a newer state
+   * (`use-feedback-handling-mutations.ts`), so a refusal means the detail is
+   * behind and stays behind: another manager recorded an outcome, a note moved
+   * the revision, the guest wrote again. The item, its history and the folders
+   * are re-read, and the next attempt is made against what the server holds.
+   */
+  onFeedbackHandlingFailed(qc: QueryClient, id: string): void {
+    qc.invalidateQueries({ queryKey: inboxKeys.detail(id), exact: true })
+    invalidateHistory(qc, id)
+    invalidateFolderCaches(qc)
+  },
+
+  /**
    * A note was added. The note command advances the Inbox command revision in
    * the same transaction, so carry that authoritative fence forward before a
-   * manager can issue another command from the still-open detail view.
+   * manager can issue another command — from the still-open detail view, or
+   * from the list with a bulk command that includes this row.
    */
   onNoteAdded(qc: QueryClient, id: string, resultingCommandRevision: number): void {
+    const advance = withCommandRevision(id, resultingCommandRevision)
     qc.setQueryData<InboxItemDetailResult>(inboxKeys.detail(id), (old) =>
-      old
-        ? {
-            ...old,
-            item: {
-              ...old.item,
-              commandRevision: Math.max(
-                old.item.commandRevision,
-                resultingCommandRevision,
-              ),
-            },
-          }
-        : old,
+      old ? { ...old, item: advance(old.item) } : old,
     )
+    advanceListRowFence(qc, id, resultingCommandRevision)
     qc.invalidateQueries({ queryKey: inboxKeys.notes(id) })
     invalidateActivityAfterLag(qc, id)
   },

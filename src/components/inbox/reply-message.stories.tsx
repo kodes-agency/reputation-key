@@ -769,7 +769,7 @@ type CheckAnswer = () => Promise<ReplyPublicationCheckResult>
 type HostReplies = Readonly<{
   /** A later detail poll: `Read the reply again` swaps it in. */
   polled?: Reply
-  /** The re-read a failed check triggers (`onReplyCheckFailed`). */
+  /** The re-read a failed check triggers (`onReplyCommandFailed`). */
   refetched?: Reply
   /**
    * Writes the check's reply this long after it settles. The pane's cache
@@ -785,7 +785,7 @@ type HostReplies = Readonly<{
  * standing in for `checkReplyPublicationFn`. The host is the detail cache — the
  * reply the check returns replaces the one on screen, as the pane's
  * `onReplyChanged` does, and a failed check re-reads it, as the pane's
- * `onReplyCheckFailed` does — and it mounts the app's `Toaster`, so every toast
+ * `onReplyCommandFailed` does — and it mounts the app's `Toaster`, so every toast
  * asserted below is the one a manager would see.
  */
 function ReplyCheckHost({

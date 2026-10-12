@@ -22,6 +22,12 @@ const makeFakeQc = () => {
     key: ReadonlyArray<unknown>
     updater: (old: unknown) => unknown
   }> = []
+  // Writes to every cached list at once (the row's command fence), kept apart
+  // from `setDataCalls` so those stay "the detail writes".
+  const listWrites: Array<{
+    key: ReadonlyArray<unknown>
+    updater: (old: unknown) => unknown
+  }> = []
   const qc = {
     invalidateQueries: (filters: { queryKey: ReadonlyArray<unknown> }) => {
       invalidated.push(filters.queryKey)
@@ -30,8 +36,14 @@ const makeFakeQc = () => {
     setQueryData: (key: ReadonlyArray<unknown>, updater: (old: unknown) => unknown) => {
       setDataCalls.push({ key, updater })
     },
+    setQueriesData: (
+      filters: { queryKey: ReadonlyArray<unknown> },
+      updater: (old: unknown) => unknown,
+    ) => {
+      listWrites.push({ key: filters.queryKey, updater })
+    },
   } as unknown as QueryClient
-  return { qc, invalidated, setDataCalls }
+  return { qc, invalidated, setDataCalls, listWrites }
 }
 
 const ID = 'item-1'
@@ -259,11 +271,36 @@ describe('inboxCachePolicy.onFeedbackHandlingChanged', () => {
   })
 })
 
-// ── onReplyChanged / onReplyCheckFailed: reply-result-routing.test.ts ──
+// ── onReplyChanged / onReplyCommandFailed: reply-result-routing.test.ts ──
 
 // ── onNoteAdded ─────────────────────────────────────────────────
 
 describe('inboxCachePolicy.onNoteAdded', () => {
+  it('advances the fence of every cached list row, and keeps a newer one', () => {
+    const { qc, listWrites } = makeFakeQc()
+
+    inboxCachePolicy.onNoteAdded(qc, ID, 5)
+
+    expect(listWrites.map((write) => write.key)).toEqual([inboxKeys.lists()])
+    const list = (revision: number) => ({
+      pages: [
+        {
+          items: [
+            { id: ID, commandRevision: revision, snippet: 'Late check-in' },
+            { id: 'item-2', commandRevision: 1 },
+          ],
+          nextCursor: null,
+          totalCount: 2,
+        },
+      ],
+      pageParams: [undefined],
+    })
+    expect(listWrites[0]!.updater(list(4))).toEqual(list(5))
+    expect(listWrites[0]!.updater(list(7))).toEqual(list(7))
+    // A list key that holds no pages (nothing read yet) is left as it is.
+    expect(listWrites[0]!.updater(undefined)).toBeUndefined()
+  })
+
   it('advances the cached command fence, invalidates notes, and retains a newer fence', () => {
     const { qc, invalidated, setDataCalls } = makeFakeQc()
 
@@ -331,11 +368,11 @@ describe('inboxCachePolicy.onListReplySettled', () => {
   })
 })
 
-describe('inboxCachePolicy.onBulkReopened', () => {
+describe('inboxCachePolicy.onBulkCommandSettled', () => {
   it('refreshes every folder projection after complete or partial results', () => {
     const { qc, invalidated } = makeFakeQc()
 
-    inboxCachePolicy.onBulkReopened(qc)
+    inboxCachePolicy.onBulkCommandSettled(qc)
 
     expect(invalidated).toEqual([
       inboxKeys.lists(),

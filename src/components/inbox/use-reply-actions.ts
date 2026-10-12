@@ -71,6 +71,13 @@ type Input = Readonly<{
  * which stays open and says it. `Action` is `mutateAsync`, so the call sites
  * guard the promise against an unhandled rejection. The draft and template
  * mutations stay silent — autosave reports its own state in the composer.
+ *
+ * Every one of those clicked commands also re-reads the reply when it is
+ * refused or fails (`reread`, `inboxCachePolicy.onReplyCommandFailed`): a
+ * refusal usually means the pane is behind, and the pane must not go on
+ * offering the command it was just refused. The draft and template mutations
+ * do not: autosave runs on every pause in typing and fails for want of a
+ * network far more often than for a stale pane.
  */
 export function useReplyActions(input: Input): ReplyActions {
   const { reviewId, onReplyChanged } = input
@@ -83,6 +90,9 @@ export function useReplyActions(input: Input): ReplyActions {
     (kind: InboxReplyCacheChange['kind']) =>
     (reply: InboxReplyCacheChange['reply'], command: CommandInput) =>
       onReplyChanged({ kind, reply, reviewId: command.data.reviewId })
+  // Likewise the review a refusal is about: the command's own input.
+  const reread = (_error: unknown, command: CommandInput) =>
+    inboxCachePolicy.onReplyCommandFailed(qc, command.data.reviewId)
   const draft = useActionMutation(draftReplyFn, {
     onSuccess: changed('draft_saved'),
   })
@@ -95,22 +105,26 @@ export function useReplyActions(input: Input): ReplyActions {
     successMessage:
       'Submitted for approval — nothing publishes until a manager approves it',
     errorMessage: actionErrorMessage,
+    onError: reread,
     onSuccess: changed('state_changed'),
   })
   // Approve and edit are confirmed in a dialog that stays open and says a refusal
   // itself, so they pass no `errorMessage`: a toast as well would tell it twice.
   const approve = useActionMutation(approveReplyFn, {
     successMessage: 'Confirmation recorded. Waiting for Google',
+    onError: reread,
     onSuccess: changed('state_changed'),
   })
   const reject = useActionMutation(rejectReplyFn, {
     successMessage: 'Reply rejected',
     errorMessage: actionErrorMessage,
+    onError: reread,
     onSuccess: changed('state_changed'),
   })
   const del = useActionMutation(deleteReplyFn, {
     successMessage: 'Reply deleted',
     errorMessage: actionErrorMessage,
+    onError: reread,
     onSuccess: (_deleted, command) => changed('state_changed')(null, command),
   })
   const check = useActionMutation(
@@ -119,16 +133,18 @@ export function useReplyActions(input: Input): ReplyActions {
       reviewId,
       onReplyChanged,
       onCheckFailed: (checkedReviewId) =>
-        inboxCachePolicy.onReplyCheckFailed(qc, checkedReviewId),
+        inboxCachePolicy.onReplyCommandFailed(qc, checkedReviewId),
     }),
   )
   const retry = useActionMutation(retryPublishFn, {
     successMessage: 'Publishing restarted',
     errorMessage: actionErrorMessage,
+    onError: reread,
     onSuccess: changed('state_changed'),
   })
   const edit = useActionMutation(editPublishedReplyFn, {
     successMessage: 'Update confirmed. Waiting for Google',
+    onError: reread,
     onSuccess: changed('state_changed'),
   })
   const listTemplates = useActionMutation(listReplyTemplatesFn)

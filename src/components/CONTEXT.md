@@ -501,6 +501,21 @@ work. `use-hydrated` provides an SSR-safe client signal;
 `use-page-visible` pauses sensitive polling while the page is hidden (focus is deliberately not part of it); `use-property-id` reads
 Property route scope; `use-theme-mode` owns persisted theme state.
 
+Two rules keep a cached page in step with the server it sends commands to.
+
+- **A revision lives wherever the entity is cached.** A command result that
+  advances a revision other commands are fenced on is written into every cached
+  copy, not only the one the command was issued from. An Inbox item's command
+  revision is in its detail and in its row in each cached list, and the bulk
+  commands read the row: a note that advanced only the detail made the next bulk
+  assign fail (`inbox/inbox-cache-policy.ts`, `advanceListRowFence`).
+- **A refused command re-reads what it was refused about.** A refusal usually
+  means the page is behind, and often nothing else will bring it forward (no
+  poll, no refetch until the window is refocused). Give the mutation an
+  `onError` that invalidates the entity it named, read from the command's own
+  input (`inboxCachePolicy.onReplyCommandFailed`, `onFeedbackHandlingFailed`),
+  and re-read the list when a bulk command changed nothing.
+
 Viewport breakpoints go through `useViewportBelow` (`useIsMobile`,
 `useInboxCompactLayout`). It reads `matchMedia` in the browser, and on the
 server, and during the hydration that must match it, it answers from the
