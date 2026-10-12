@@ -1,6 +1,14 @@
 import { existsSync, globSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import {
+  checkScopedCapability,
+  createEnvCapabilityPolicyStore,
+  initCapabilityPolicyStore,
+  resetCapabilityPolicyStore,
+  type Capability,
+} from '../../src/shared/auth/beta-capabilities'
+import { capabilityForPermission } from '../../src/shared/auth/capability-for-permission'
 import { GOOGLE_PROVIDER_OPERATOR_COMMANDS } from '../../src/shared/ops/google-provider-commands'
 import { COMMANDS } from './commands'
 
@@ -96,5 +104,132 @@ describe('operator commands that only report', () => {
           ?.includes('Report only: `--apply` is refused'),
     )
     expect(unmarked).toEqual([])
+  })
+})
+
+// What the report-only commands point to is gated like any other work, so the
+// stops the same runbooks use can refuse it. The runbooks sent the operator to
+// an in-app disconnect after suspending the Organization, and to two Google
+// reads after the targeted Google stop: each ends in a refusal.
+describe('what the report-only commands point to, under the runbook stops', () => {
+  const ORGANIZATION = 'org-under-incident'
+  const RUNBOOKS = readFileSync(resolve(ROOT, 'docs/operations/runbooks.md'), 'utf8')
+  const COMMAND_LIST = readFileSync(
+    resolve(ROOT, 'docs/operations/operator-commands.md'),
+    'utf8',
+  )
+
+  /** The targeted Google stop runbook §11 gives as its example. */
+  const TARGETED_GOOGLE_STOP =
+    /Targeted stop → set a comma list, e\.g\. `BETA_CAPABILITIES_OFF=([a-z_.,]+)`/.exec(
+      RUNBOOKS,
+    )?.[1] ?? 'runbook §11 no longer gives a targeted stop'
+
+  const STOPS = {
+    none: {},
+    organizationSuspended: { BETA_SUSPENDED_ORGS: ORGANIZATION },
+    targetedGoogleStop: { BETA_CAPABILITIES_OFF: TARGETED_GOOGLE_STOP },
+    fullStop: { BETA_CAPABILITIES_OFF: 'all' },
+  } as const
+
+  /** The in-app disconnect is an `integration.manage` action. */
+  const IN_APP_DISCONNECT = capabilityForPermission('integration.manage')
+  /** Check Google again is a reply command before it reads. */
+  const CHECK_GOOGLE_AGAIN = capabilityForPermission('reply.manage')
+  /** Both reconciliation reads are review-sync provider calls
+   * (google-review-sync-authorizer.ts returns this capability). */
+  const GOOGLE_READ: Capability = 'property.connect_gbp'
+
+  const decisionsFor = (capability: Capability) =>
+    Object.fromEntries(
+      Object.entries(STOPS).map(([stop, env]) => {
+        initCapabilityPolicyStore(
+          createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: '*', ...env }),
+        )
+        return [
+          stop,
+          checkScopedCapability({ organizationId: ORGANIZATION }, capability).reason,
+        ]
+      }),
+    )
+
+  /** Blocks of lines with no blank line in them, from both operator guides. */
+  const passagesNaming = (needle: string): string[] =>
+    [...RUNBOOKS.split(/\n\s*\n/), ...COMMAND_LIST.split('\n')].filter((passage) =>
+      passage.includes(needle),
+    )
+
+  const opening = (passage: string): string => passage.slice(0, 60)
+
+  /** Runbook section `number`, from its heading to the next one. */
+  const section = (number: number): string =>
+    new RegExp(`^## ${number}\\. [^]*?(?=^## )`, 'm').exec(RUNBOOKS)?.[0] ??
+    `runbook §${number} is missing`
+
+  afterEach(() => {
+    resetCapabilityPolicyStore()
+  })
+
+  it('the in-app disconnect survives the targeted Google stop and is refused by a suspension or the full stop', () => {
+    expect(decisionsFor(IN_APP_DISCONNECT)).toEqual({
+      none: 'allowed',
+      organizationSuspended: 'org_suspended',
+      targetedGoogleStop: 'allowed',
+      fullStop: 'capability_disabled',
+    })
+  })
+
+  it('the reconciliation reads and Check Google again are refused by every one of those stops', () => {
+    const refusedByAll = {
+      none: 'allowed',
+      organizationSuspended: 'org_suspended',
+      targetedGoogleStop: 'capability_disabled',
+      fullStop: 'capability_disabled',
+    }
+    expect(decisionsFor(GOOGLE_READ)).toEqual(refusedByAll)
+    expect(decisionsFor(CHECK_GOOGLE_AGAIN)).toEqual(refusedByAll)
+  })
+
+  it('every passage that sends the operator to the in-app disconnect says what refuses it and gives the order', () => {
+    const saysWhatRefusesIt = (passage: string): boolean =>
+      passage.includes(
+        'refuses that disconnect while the Organization is in `BETA_SUSPENDED_ORGS`',
+      ) &&
+      passage.includes(`names \`${IN_APP_DISCONNECT}\``) &&
+      passage.includes('disconnect before you suspend the Organization')
+    const passages = passagesNaming('Settings, Integrations')
+
+    // At least runbook §2 and §10, and the command list.
+    expect(passages.length).toBeGreaterThanOrEqual(3)
+    expect(
+      passages.filter((passage) => !saysWhatRefusesIt(passage)).map(opening),
+    ).toEqual([])
+  })
+
+  it('runbook §2 says what to do when the Organization is already suspended', () => {
+    expect(section(2)).toContain('If it is already suspended, or the full stop is on')
+    expect(section(2)).toContain(
+      'the stored credentials stay until the disconnect can run',
+    )
+  })
+
+  it('every passage that sends the operator to the reconciliation reads says which capabilities they need', () => {
+    const saysWhatTheyNeed = (passage: string): boolean =>
+      passage.includes(`\`${GOOGLE_READ}\``) &&
+      passage.includes(`\`${CHECK_GOOGLE_AGAIN}\``) &&
+      passage.includes('`BETA_SUSPENDED_ORGS`')
+    const passages = passagesNaming('Check Google again')
+
+    // At least runbook §6 and the command list.
+    expect(passages.length).toBeGreaterThanOrEqual(2)
+    expect(passages.filter((passage) => !saysWhatTheyNeed(passage)).map(opening)).toEqual(
+      [],
+    )
+  })
+
+  it('runbook §6 says what happens to a due reply while its read is refused, and what the operator does', () => {
+    expect(section(6)).toContain('each due check passes without a read')
+    expect(section(6)).toContain('stop `property.publish_reply` alone')
+    expect(section(6)).toContain('until the capabilities are back for that Organization')
   })
 })

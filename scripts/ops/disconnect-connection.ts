@@ -1,5 +1,6 @@
-// Operator CLI (BQC-7.5): name the Google connection a disconnect would act
-// on. REPORT ONLY: `--apply` is refused by the operator harness.
+// Operator CLI (BQC-7.5): echo the Google connection a disconnect would act
+// on, without reading it. REPORT ONLY: `--apply` is refused by the operator
+// harness.
 //
 // A disconnect revokes the Google grant, and operator commands run without the
 // Google provider runtime, so this command cannot do it
@@ -9,10 +10,14 @@
 //     (Settings, Integrations). That runs the disconnectGoogleAccount use case
 //     where the provider is available: imports cancelled, the governed revoke,
 //     one atomic disconnect + identifier/secret redaction, and a bounded
-//     source-content purge.
+//     source-content purge. It is an `integration.manage` action, so the app
+//     refuses it while the Organization is suspended, and while
+//     BETA_CAPABILITIES_OFF is all or names integration.use: disconnect
+//     first, suspend afterwards (runbook §2).
 //   - To stop the Organization's Google work without them, add its ID to
 //     BETA_SUSPENDED_ORGS on web and worker (runbook §1).
-//   - To stop Google for everyone, set BETA_CAPABILITIES_OFF (runbook §11).
+//   - To stop Google for everyone, set BETA_CAPABILITIES_OFF to the Google
+//     capabilities (runbook §11).
 //
 // Usage:
 //   pnpm ops disconnect-connection <connectionId> --operator <id> --org <id>

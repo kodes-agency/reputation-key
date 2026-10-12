@@ -21,6 +21,7 @@ import {
   type OperatorIO,
   type OperatorRuntime,
 } from './operator-command'
+import { googleProviderApplyRefusal } from './google-provider-commands'
 import type { DecisionRequest, ExecutionDecision } from '#/shared/auth/execution-policy'
 import { getRequestContext } from '#/shared/observability/request-context'
 
@@ -416,13 +417,15 @@ describe('runOperatorCommand', () => {
     expect(result.exitCode).toBe(1)
     expect(decide).not.toHaveBeenCalled()
     expect(action).not.toHaveBeenCalled()
+    // The sentence itself is pinned in google-provider-commands.test.ts.
     expect(io.errLines).toEqual([
-      'ops:reconcile-publication: --apply is refused: this command needs a call to Google, ' +
-        'and operator commands run without the Google provider runtime, so it only reports. ' +
-        "The worker's reconcile-ambiguous-publications job re-reads Google for every due reply every five minutes, " +
-        'and a manager can use Check Google again on the reply in the Inbox (docs/operations/runbooks.md §6).',
+      `ops:reconcile-publication: ${googleProviderApplyRefusal('ops:reconcile-publication')}`,
       'usage: pnpm ops reconcile-publication --all-ambiguous --operator <id>',
     ])
+    expect(io.errLines[0]).toContain(
+      '--apply is refused: this command needs a call to Google',
+    )
+    expect(io.errLines[0]).toContain('reconcile-ambiguous-publications')
   })
 
   it('a command that needs Google: every report ends by saying it is all the command does', async () => {

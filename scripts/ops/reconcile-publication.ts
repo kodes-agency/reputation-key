@@ -11,6 +11,11 @@
 //     publishes.
 //   - A manager, on demand: Check Google again on the reply in the Inbox.
 //
+// Both reads are review-sync provider calls under property.connect_gbp, and
+// Check Google again is a reply command first (property.publish_reply). A
+// stop of either, or a suspended Organization, refuses that read and the
+// reply stays ambiguous (runbook §6).
+//
 // Usage:
 //   pnpm ops reconcile-publication <replyId> --operator <id> --org <id>
 //   pnpm ops reconcile-publication --all-ambiguous --operator <id> [--batch-size <n>]
