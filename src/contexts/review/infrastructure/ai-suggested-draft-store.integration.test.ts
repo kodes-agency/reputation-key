@@ -4,7 +4,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { deleteAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
 import {
   aiExecutionControlHeads,
   aiExecutionControlTransitions,
@@ -364,6 +366,9 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     // Replies deliberately restrict Review deletion; remove test-owned child
     // rows before the Property cascade reaches the stable Review.
     await db.execute(sql`DELETE FROM replies WHERE organization_id = ${ORGANIZATION_ID}`)
+    await db.execute(
+      sql`DELETE FROM outbox_events WHERE organization_id = ${ORGANIZATION_ID}`,
+    )
     await db
       .delete(aiOrganizationCostWindows)
       .where(eq(aiOrganizationCostWindows.organizationId, ORGANIZATION_ID))
@@ -372,6 +377,9 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
   }
 
   beforeAll(async () => {
+    // The purge records a fact for a reply it withdraws while it awaits approval.
+    clearEventSchemas()
+    registerAllEventSchemas()
     await clear()
     const [replyControl] = await db
       .select()
@@ -549,6 +557,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
 
   afterAll(async () => {
     await clear()
+    clearEventSchemas()
     if (initialReplyControl) {
       await transitionReplyControl(
         initialReplyControl.executionState,
@@ -947,7 +956,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         .update(reviews)
         .set({ sourceRevision: SOURCE_REVISION + 1 })
         .where(eq(reviews.id, REVIEW_ID))
-      await deleteAiDraftsForReview(tx, {
+      await purgeAiDraftsForReview(tx, {
         organizationId: ORGANIZATION_ID,
         reviewId: REVIEW_ID,
       })

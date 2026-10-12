@@ -1,10 +1,14 @@
 // The AI draft binding: an AI-assisted reply is only publishable while every
 // input its draft was generated from is still the current one. WP3.3-B moved
 // this from assert_current_ai_draft_binding_v1 (PL/pgSQL) into the same
-// transaction as the write that depends on it. Explicit purges delete drafts
-// when a property, review, profile, authorization or control changes; what is
-// left to check here is the state those purges cannot see coming: the two
-// expiries, and the operation's settled receipt.
+// transaction as the write that depends on it. Explicit purges
+// (src/shared/db/ai/ai-draft-purge.ts) withdraw drafts when a property, a
+// Review's revision or source epoch, a profile, an authorization or a control
+// changes; what is left to check here is the state those purges cannot see
+// coming: the two expiries, the operation's settled receipt, and a
+// confirmation that commits while a purge is running. A draft whose own expiry
+// has passed stays refused here until the next observation of its Review
+// withdraws it.
 //
 // The binding gates AI text on its way to Google and nothing else: submit,
 // Confirm & Publish and the publish worker's claim read it

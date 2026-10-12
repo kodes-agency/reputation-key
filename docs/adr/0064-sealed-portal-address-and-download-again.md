@@ -98,15 +98,16 @@ token version]`. A ciphertext copied to another tenant, Portal, token or
   use up the day's budget before a print run; the refusal says so in Open page's
   words. A separate budget per purpose is the answer if that is ever observed.
 - **A release below this one is not a safe rollback once codes are sealed.**
-  Migration 0046 adds the CHECK of decision 3, and migrations only go forward.
+  Migration 0047 adds the CHECK of decision 3, and migrations only go forward.
   An image from before this release replaces, stops and deletes codes without
   clearing the sealed copy, so the database refuses those statements for every
   sealed code and "Stop all codes" fails. A forward deploy is safe because
-  nothing is sealed until ops set the keyring; a rollback has no such guard. The
-  runbook's "Rolling back below this release" step is therefore mandatory:
-  unset the keyring on web and worker, redeploy both, clear every sealed copy,
-  and only then deploy the older image. The cost is that those codes can no
-  longer be downloaded again; the codes themselves keep working.
+  nothing is sealed until ops set the keyring; a rollback has no such guard.
+  Amended 2026-10-12 (ADR 0038, recovery is forward-only): no older image is
+  deployed, so the runbook's "Rolling back below this release" procedure is
+  withdrawn. To take "Download again" away, unset the keyring on web and worker
+  and redeploy both: sealed codes stop offering it, and the codes themselves
+  keep working.
 - The ratcheted `portal-command-store.ts` is untouched apart from clearing the
   two columns on delete.
 
