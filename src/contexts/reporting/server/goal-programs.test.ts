@@ -46,6 +46,7 @@ vi.mock('#/shared/auth/execution-policy', () => ({
 import { GoalProgramError } from '../application/use-cases/goal-programs'
 import {
   changeGoalProgramAssignments,
+  changeGoalProgramStatus,
   createGoalProgram,
   createGoalProgramSchema,
   changeGoalProgramAssignmentsSchema,
@@ -56,6 +57,7 @@ import {
   listGoalPrograms,
   previewGoalMonth,
   previewGoalMonthSchema,
+  reviseGoalProgram,
 } from './goal-programs'
 
 const ORG_ID = '00000000-0000-4000-8000-000000000001'
@@ -299,6 +301,61 @@ describe('canonical Goal Program server functions', () => {
     await withStartContext(() => changeGoalProgramAssignments({ data: input }))
 
     expect(mocks.changeAssignments).toHaveBeenCalledWith(expect.any(Object), input, actor)
+  })
+
+  it('forwards a change without a note, and a revision with the version its form was opened on', async () => {
+    const programId = '00000000-0000-4000-8000-000000000004'
+    const revision = {
+      propertyId: PROPERTY_ID,
+      programId,
+      metric: 'qualified_scans' as const,
+      targetValue: 120,
+      subjects: [{ kind: 'portal' as const, portalId: PORTAL_ID }],
+      expectedVersion: 2,
+    }
+    const pause = { propertyId: PROPERTY_ID, programId, status: 'paused' as const }
+    mocks.revise.mockResolvedValue({ version: { version: 3 } })
+    mocks.changeStatus.mockResolvedValue({ id: programId, status: 'paused' })
+
+    await withStartContext(() => reviseGoalProgram({ data: revision }))
+    await withStartContext(() => changeGoalProgramStatus({ data: pause }))
+
+    expect(mocks.revise).toHaveBeenCalledWith(expect.any(Object), revision, actor)
+    expect(mocks.changeStatus).toHaveBeenCalledWith(expect.any(Object), pause, actor)
+  })
+
+  describe('a change that is refused', () => {
+    const identity = {
+      propertyId: PROPERTY_ID,
+      programId: '00000000-0000-4000-8000-000000000004',
+    }
+    const revise = (): Promise<unknown> =>
+      reviseGoalProgram({
+        data: {
+          ...identity,
+          metric: 'qualified_scans',
+          targetValue: 120,
+          subjects: [{ kind: 'portal', portalId: PORTAL_ID }],
+        },
+      })
+    const end = (): Promise<unknown> =>
+      changeGoalProgramStatus({ data: { ...identity, status: 'ended' } })
+    it.each([
+      ['a revision', 'revision_conflict', mocks.revise, revise],
+      ['a revision', 'subject_has_goal', mocks.revise, revise],
+      ['a status change', 'revision_conflict', mocks.changeStatus, end],
+    ] as const)(
+      'answers %s refused with %s as a conflict',
+      async (_name, code, mock, run) => {
+        mock.mockRejectedValue(new GoalProgramError(code))
+
+        await expect(withStartContext(run)).rejects.toMatchObject({
+          name: 'GoalProgramError',
+          code,
+          status: 409,
+        })
+      },
+    )
   })
 
   it('bounds the combined explicit bulk assignment request', () => {

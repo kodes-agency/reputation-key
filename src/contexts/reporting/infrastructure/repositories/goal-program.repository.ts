@@ -11,11 +11,16 @@ import {
 import type { Tx } from '#/shared/outbox/commit'
 import type {
   GoalAssignmentConflict,
+  GoalProgram,
   GoalProgramBundle,
   GoalProgramRepository,
 } from '../../application/ports/goal-program.repository'
 import { holdOutlasts } from '../../application/goal-subject-holds'
 import { goalSubjectIdentity } from '../../domain/goal-program'
+import {
+  createGoalMonthTargetRepository,
+  listTargetChanges,
+} from './goal-month-target.repository'
 import { createGoalMonthlyResultRepository } from './goal-monthly-result.repository'
 import {
   assignmentValues,
@@ -100,6 +105,29 @@ async function hydrateBundles(
 }
 
 /**
+ * The bundles a page or a command reads, each with the log of its months'
+ * target changes. The log is read here, for one tenant's Property, and not in
+ * the hydration above: that one loads children by parent id alone.
+ */
+async function withTargetChanges(
+  db: Database,
+  organizationId: string,
+  propertyId: string,
+  bundles: readonly GoalProgramBundle[],
+): Promise<readonly GoalProgramBundle[]> {
+  const changes = await listTargetChanges(
+    db,
+    organizationId,
+    propertyId,
+    bundles.map((bundle) => bundle.program.id),
+  )
+  return bundles.map((bundle) => ({
+    ...bundle,
+    targetChanges: changes.filter((change) => change.programId === bundle.program.id),
+  }))
+}
+
+/**
  * The body of `revise`, inside a transaction its caller owns. False when the
  * Program head moved; a month opened since the caller read the Program throws
  * GoalProgramRevisionConflict, which `revise` reports as false too.
@@ -110,7 +138,20 @@ async function reviseInTx(
 ): Promise<boolean> {
   const [program] = await tx
     .update(goalPrograms)
-    .set({ currentVersion: input.version.version, updatedAt: input.at })
+    .set({
+      currentVersion: input.version.version,
+      updatedAt: input.at,
+      // What a goal that has not started waits for follows its plan. A goal
+      // activated since the caller read it has no such reason any more, so
+      // only a Program still scheduled takes the new one.
+      ...(input.scheduledStatusReason === undefined
+        ? {}
+        : {
+            statusReason: sql`case when ${goalPrograms.status} = 'scheduled'
+              then ${input.scheduledStatusReason}
+              else ${goalPrograms.statusReason} end`,
+          }),
+    })
     .where(
       and(
         eq(goalPrograms.organizationId, input.version.organizationId),
@@ -122,12 +163,16 @@ async function reviseInTx(
     .returning({ id: goalPrograms.id })
   if (!program) return false
 
-  // The start was computed from a read taken before this transaction,
-  // and maintenance may have opened a month for this version since.
-  // appendResults locks the Program row first, as the update above
-  // does, so this read sees any such month. Closing the version inside
-  // it would leave the month outside its window for good.
-  const [monthPastStart] = await tx
+  // The caller decided from a read taken before this transaction, and
+  // maintenance may have opened a month for the expected version since.
+  // activate and appendResults lock the Program row first, as the update
+  // above does, so this read sees any such month.
+  //  - Following a head in force: a month still open or reconciling past the
+  //    new start refuses the revision. Closing the version inside that month
+  //    would leave the month outside its window for good.
+  //  - Replacing a head that had no month: any month at all refuses it. The
+  //    head is in force now and has to be followed, not replaced.
+  const [blockingMonth] = await tx
     .select({ id: goalMonthlyResults.id })
     .from(goalMonthlyResults)
     .where(
@@ -136,16 +181,27 @@ async function reviseInTx(
         eq(goalMonthlyResults.propertyId, input.version.propertyId),
         eq(goalMonthlyResults.programId, input.version.programId),
         eq(goalMonthlyResults.programVersionId, input.expectedVersion.id),
-        inArray(goalMonthlyResults.status, ['open', 'reconciling']),
-        gt(goalMonthlyResults.periodEnd, input.version.effectiveFrom),
+        input.supersedeRowlessHead
+          ? undefined
+          : and(
+              inArray(goalMonthlyResults.status, ['open', 'reconciling']),
+              gt(goalMonthlyResults.periodEnd, input.version.effectiveFrom),
+            ),
       ),
     )
     .limit(1)
-  if (monthPastStart) throw new GoalProgramRevisionConflict()
+  if (blockingMonth) throw new GoalProgramRevisionConflict()
 
+  // A head in force closes where the new version starts. A replaced head
+  // keeps the empty window [from, from): it stays in the history, overlaps no
+  // other version and holds no subject.
   const [closedVersion] = await tx
     .update(goalProgramVersions)
-    .set({ effectiveTo: input.version.effectiveFrom })
+    .set({
+      effectiveTo: input.supersedeRowlessHead
+        ? sql`${goalProgramVersions.effectiveFrom}`
+        : input.version.effectiveFrom,
+    })
     .where(
       and(
         eq(goalProgramVersions.id, input.expectedVersion.id),
@@ -158,7 +214,11 @@ async function reviseInTx(
   if (!closedVersion) throw new GoalProgramRevisionConflict()
   const closedAssignments = await tx
     .update(goalSubjectAssignments)
-    .set({ effectiveTo: input.version.effectiveFrom })
+    .set({
+      effectiveTo: input.supersedeRowlessHead
+        ? sql`${goalSubjectAssignments.effectiveFrom}`
+        : input.version.effectiveFrom,
+    })
     .where(
       and(
         eq(goalSubjectAssignments.programVersionId, input.expectedVersion.id),
@@ -190,7 +250,71 @@ async function reviseInTx(
   return true
 }
 
+/**
+ * Where an ending Program's open version and its assignments close, given the
+ * open version's start. The caller has locked the Program row, and the writers
+ * that open a month take that lock first, so no month appears after this read.
+ *
+ * - A Program that never started (still scheduled, with no month) closes where
+ *   it starts: the empty window [from, from), whatever the clock says. Its
+ *   start may already have passed while it waited for its metric source or for
+ *   the hourly job; it still counted nothing and must not hold its subjects.
+ * - A Program that has started closes at the latest of the command time, the
+ *   open version's start (a change still waiting for its month) and the end
+ *   of a month still open or reconciling. Ending must not strand such a month
+ *   outside its window; [from, to) then frees the subject for the next month.
+ */
+async function endingBoundary(
+  tx: Tx,
+  input: Parameters<GoalProgramRepository['changeStatus']>[0],
+  openVersionStart: Date,
+): Promise<Date> {
+  const ofProgram = and(
+    eq(goalMonthlyResults.organizationId, input.organizationId),
+    eq(goalMonthlyResults.propertyId, input.propertyId),
+    eq(goalMonthlyResults.programId, input.programId),
+  )
+  if (input.expectedStatus === 'scheduled') {
+    const [month] = await tx
+      .select({ id: goalMonthlyResults.id })
+      .from(goalMonthlyResults)
+      .where(ofProgram)
+      .limit(1)
+    if (!month) return openVersionStart
+  }
+  const [openResult] = await tx
+    .select({ periodEnd: goalMonthlyResults.periodEnd })
+    .from(goalMonthlyResults)
+    .where(and(ofProgram, inArray(goalMonthlyResults.status, ['open', 'reconciling'])))
+    .orderBy(desc(goalMonthlyResults.periodEnd))
+    .limit(1)
+  return new Date(
+    Math.max(
+      input.at.getTime(),
+      openVersionStart.getTime(),
+      openResult?.periodEnd?.getTime() ?? Number.NEGATIVE_INFINITY,
+    ),
+  )
+}
+
 export const createGoalProgramRepository = (db: Database): GoalProgramRepository => {
+  /**
+   * Runs a status change in a transaction. Ending a Program that finds its
+   * version history changed under it throws GoalProgramRevisionConflict; the
+   * transaction then wrote nothing, and the caller is told null, as for a
+   * status that had already moved.
+   */
+  const changeStatusOrConflict = async (
+    change: (tx: Tx) => Promise<GoalProgram | null>,
+  ): Promise<GoalProgram | null> => {
+    try {
+      return await db.transaction(change)
+    } catch (error) {
+      if (error instanceof GoalProgramRevisionConflict) return null
+      throw error
+    }
+  }
+
   return {
     async create(input) {
       const { bundle } = input
@@ -242,7 +366,8 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
           ),
         )
         .limit(1)
-      return (await hydrateBundles(db, rows))[0] ?? null
+      const bundles = await hydrateBundles(db, rows)
+      return (await withTargetChanges(db, organizationId, propertyId, bundles))[0] ?? null
     },
 
     async list(organizationId, propertyId) {
@@ -256,7 +381,8 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
           ),
         )
         .orderBy(asc(goalPrograms.name), asc(goalPrograms.id))
-      return hydrateBundles(db, rows)
+      const bundles = await hydrateBundles(db, rows)
+      return withTargetChanges(db, organizationId, propertyId, bundles)
     },
 
     async listOperational() {
@@ -273,7 +399,7 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
     },
 
     async changeStatus(input) {
-      return db.transaction(async (tx) => {
+      return changeStatusOrConflict(async (tx) => {
         const [row] = await tx
           .update(goalPrograms)
           .set({
@@ -292,11 +418,8 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
           .returning()
         if (!row) return null
         if (input.status === 'ended') {
-          // Ending stops future materialization but must not strand an already
-          // opened monthly result outside its immutable assignment/version
-          // window. Close at the latest of: command time, the planned start
-          // (an empty interval when cancelled before start), or an open result's
-          // month end. [from, to) then releases the subject for the next month.
+          // Ending stops future materialization and closes the open version
+          // and its assignments at one boundary (see endingBoundary).
           const [openVersion] = await tx
             .select({ effectiveFrom: goalProgramVersions.effectiveFrom })
             .from(goalProgramVersions)
@@ -310,26 +433,7 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
             )
             .limit(1)
           if (!openVersion) throw new GoalProgramRevisionConflict()
-          const [openResult] = await tx
-            .select({ periodEnd: goalMonthlyResults.periodEnd })
-            .from(goalMonthlyResults)
-            .where(
-              and(
-                eq(goalMonthlyResults.organizationId, input.organizationId),
-                eq(goalMonthlyResults.propertyId, input.propertyId),
-                eq(goalMonthlyResults.programId, input.programId),
-                inArray(goalMonthlyResults.status, ['open', 'reconciling']),
-              ),
-            )
-            .orderBy(desc(goalMonthlyResults.periodEnd))
-            .limit(1)
-          const boundary = new Date(
-            Math.max(
-              input.at.getTime(),
-              openVersion.effectiveFrom.getTime(),
-              openResult?.periodEnd?.getTime() ?? Number.NEGATIVE_INFINITY,
-            ),
-          )
+          const boundary = await endingBoundary(tx, input, openVersion.effectiveFrom)
           await tx
             .update(goalSubjectAssignments)
             .set({
@@ -369,7 +473,8 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
             propertyId: input.propertyId,
             previousStatus: input.expectedStatus,
             status: input.status,
-            reason: input.reason,
+            // A note is recorded only when the manager wrote one.
+            ...(input.reason === null ? {} : { reason: input.reason }),
           },
         })
         return mapProgram(row)
@@ -388,6 +493,51 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
         }
         throw error
       }
+    },
+
+    async rename(input) {
+      return db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(goalPrograms)
+          .set({
+            name: input.name,
+            description: input.description,
+            updatedAt: input.at,
+          })
+          .where(
+            and(
+              eq(goalPrograms.organizationId, input.organizationId),
+              eq(goalPrograms.propertyId, input.propertyId),
+              eq(goalPrograms.id, input.programId),
+              ne(goalPrograms.status, 'ended'),
+              // Only while the goal still says what the command read: a
+              // rename that landed in between is not undone, and the audit
+              // row below names the name this one really replaced.
+              eq(goalPrograms.name, input.previousName),
+              input.previousDescription === null
+                ? isNull(goalPrograms.description)
+                : eq(goalPrograms.description, input.previousDescription),
+            ),
+          )
+          .returning()
+        if (!row) return null
+        await tx.insert(auditLogs).values({
+          organizationId: input.organizationId,
+          userId: input.actorId,
+          action: 'goal.program.renamed',
+          resourceType: 'goal_program',
+          resourceId: input.programId,
+          details: {
+            propertyId: input.propertyId,
+            previousName: input.previousName,
+            name: input.name,
+            // The text of a description is not kept here; that it changed is,
+            // so an edit of the description alone does not read as no change.
+            descriptionChanged: input.description !== input.previousDescription,
+          },
+        })
+        return mapProgram(row)
+      })
     },
 
     async findAssignmentConflicts(input) {
@@ -505,5 +655,6 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
     },
 
     ...createGoalMonthlyResultRepository(db),
+    ...createGoalMonthTargetRepository(db, reviseInTx),
   }
 }

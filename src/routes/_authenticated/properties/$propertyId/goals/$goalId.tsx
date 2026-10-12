@@ -11,6 +11,13 @@ import {
   getGoalProgramProgress,
   reviseGoalProgram,
 } from '#/contexts/reporting/server/goal-programs'
+// Their own modules: only this page renames a goal or changes a month's target
+// (see the note in each module).
+import { renameGoalProgram } from '#/contexts/reporting/server/goal-program-details'
+import { changeGoalMonthTarget } from '#/contexts/reporting/server/goal-month-target'
+import { effectiveMonthTarget } from '#/contexts/reporting/application/goal-effective-month-target'
+import { monthTargetMarker } from '#/contexts/reporting/application/goal-month-target-marker'
+import { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
 import { goalTargetProvenance } from '#/contexts/reporting/application/goal-target-provenance'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
@@ -20,22 +27,26 @@ import {
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
 import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
-import { propertyQuery } from '#/routes/-queries/route-queries'
+import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
+import { GoalMonthTargetDialog } from '#/components/goals/goal-month-target-dialog'
+import { GoalProgramCard } from '#/components/goals/goal-program-card'
 import { GoalProgramRevisionDialog } from '#/components/goals/goal-program-revision-dialog'
 import { GoalProgramAssignmentsDialog } from '#/components/goals/goal-program-assignments-dialog'
+import { GoalProgramRenameDialog } from '#/components/goals/goal-program-rename-dialog'
 import { GoalStatusActions } from '#/components/goals/goal-status-actions'
 import { GOAL_STATUS, goalResultStatus } from '#/components/goals/goal-status'
+import { GoalTargetChanges } from '#/components/goals/goal-target-changes'
+import { goalPersonNames } from '#/components/goals/goal-target-marker'
+import { withGoalRefusals } from '#/components/goals/goal-refusal'
 import {
   goalDay,
   goalMonthNotes,
   goalNoResultsText,
-  goalStartLine,
-  goalStatusNote,
 } from '#/components/goals/goal-detail-view'
 import { goalSubjectKey } from '#/components/goals/goal-subject-picker'
 import { formatDate } from '#/lib/format'
@@ -92,15 +103,23 @@ function GoalDetailRoute() {
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalQuery(propertyId, goalId))
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
+  // Who changed a target, by name. A side read that never holds the page back:
+  // until it has been read, a change is told without a person.
+  const members = useQuery({
+    ...membersQuery,
+    enabled: can(ctx.role, 'member.list'),
+    retry: false,
+  })
   // Pause and Resume act at once, so a refusal (an invalid transition) is a
   // toast. End confirms first, in a dialog that stays open and says a refusal
-  // itself, so it is its own mutation with no toast.
-  const mutation = useActionMutation(changeGoalProgramStatus, {
+  // itself, so it is its own mutation with no toast. Both say a refusal as a
+  // sentence, not as the command's code.
+  const mutation = useActionMutation(withGoalRefusals(changeGoalProgramStatus), {
     successMessage: 'Goal status updated',
     errorMessage: actionErrorMessage,
     invalidateKeys: [goalKeys.all],
   })
-  const endMutation = useActionMutation(changeGoalProgramStatus, {
+  const endMutation = useActionMutation(withGoalRefusals(changeGoalProgramStatus), {
     successMessage: 'Goal status updated',
     invalidateKeys: [goalKeys.all],
   })
@@ -113,16 +132,17 @@ function GoalDetailRoute() {
     enabled: counting,
     retry: false,
   })
+  const soFarSubjects = (counting ? soFar.data?.subjects : undefined) ?? []
   const soFarBySubject = new Map(
-    (counting ? soFar.data?.subjects : undefined)?.map(({ subject, progress }) => [
-      goalSubjectKey(subject),
-      progress,
-    ]),
+    soFarSubjects.map(({ subject, progress }) => [goalSubjectKey(subject), progress]),
   )
-  const calendar = { timezone: version.propertyTimezone, now }
-  const provenance = goalTargetProvenance(data, version)
+  const calendar = {
+    timezone: version.propertyTimezone,
+    now,
+    personName: goalPersonNames(members.data?.members),
+  }
   const scheduled = program.status === 'scheduled'
-  const startsOn = goalDay(provenance.countsFrom, calendar)
+  const startsOn = goalDay(goalTargetProvenance(data, version).countsFrom, calendar)
   const currentAssignments = assignments.filter(
     (assignment) => assignment.programVersionId === version.id,
   )
@@ -130,22 +150,19 @@ function GoalDetailRoute() {
     (left, right) => right.periodStart.getTime() - left.periodStart.getTime(),
   )
   const canManage = can(ctx.role, 'goal.update')
-  // The toast above reports a refusal; settling here keeps it from escaping the
-  // click as an unhandled rejection.
+  // The month that is running, as the change command would plan it: its own
+  // target, and what the months after it are set to.
+  const monthPlan = monthTargetPlan(data, now, propData.property.timezone)
+  // A status change carries no note from here, so none is stored: the badge
+  // says the status. The toast above reports a refusal; settling here keeps it
+  // from escaping the click as an unhandled rejection.
   const updateStatus = (status: 'active' | 'paused') => {
-    void mutation({
-      data: { propertyId, programId: goalId, status, reason: `Goal ${status}` },
-    }).catch(() => undefined)
+    void mutation({ data: { propertyId, programId: goalId, status } }).catch(
+      () => undefined,
+    )
   }
   const endGoal = () =>
-    endMutation({
-      data: {
-        propertyId,
-        programId: goalId,
-        status: 'ended',
-        reason: 'Ended by manager',
-      },
-    })
+    endMutation({ data: { propertyId, programId: goalId, status: 'ended' } })
   const formatDay = (date: Date): string =>
     formatDate(date, version.propertyTimezone) ?? ''
   const subjectLabel = (subject: GoalSubject) => {
@@ -176,20 +193,45 @@ function GoalDetailRoute() {
         actions={
           canManage && program.status !== 'ended' ? (
             <>
+              <GoalProgramRenameDialog
+                renameGoalProgramFn={renameGoalProgram}
+                propertyId={propertyId}
+                programId={program.id}
+                name={program.name}
+                description={program.description}
+              />
               <GoalProgramAssignmentsDialog
                 changeAssignmentsFn={changeGoalProgramAssignments}
                 property={{ id: propertyId, name: propData.property.name }}
                 programId={program.id}
                 currentVersion={version.version}
                 propertyTimezone={version.propertyTimezone}
+                goal={data}
                 assignments={currentAssignments}
                 groups={subjectNames.groups}
                 portals={subjectNames.portals}
               />
+              {monthPlan === null ? null : (
+                <GoalMonthTargetDialog
+                  changeGoalMonthTargetFn={changeGoalMonthTarget}
+                  property={{ id: propertyId, timezone: propData.property.timezone }}
+                  goal={data}
+                  soFar={soFarSubjects.map(({ subject, progress }) => ({
+                    name: subjectLabel(subject),
+                    reading: progress.reading,
+                  }))}
+                />
+              )}
               <GoalProgramRevisionDialog
                 reviseGoalProgramFn={reviseGoalProgram}
-                property={{ id: propertyId, name: propData.property.name }}
+                property={{
+                  id: propertyId,
+                  name: propData.property.name,
+                  timezone: propData.property.timezone,
+                }}
                 programId={program.id}
+                currentVersion={version.version}
+                goal={data}
                 metric={version.metric}
                 targetValue={version.targetValue}
                 assignments={currentAssignments}
@@ -207,46 +249,13 @@ function GoalDetailRoute() {
           ) : undefined
         }
       />
-      <Card>
-        <CardHeader>
-          <CardTitle as="h2">Program</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 text-sm md:grid-cols-2">
-          <p>
-            <span className="text-muted-foreground">Metric:</span>{' '}
-            {metricLabel(version.metric)}
-          </p>
-          <p>
-            <span className="text-muted-foreground">Target:</span> {version.targetValue}
-          </p>
-          <p>
-            <span className="text-muted-foreground">Subjects:</span>{' '}
-            {currentAssignments.length}
-          </p>
-          <p>
-            <span className="text-muted-foreground">Timezone:</span>{' '}
-            {version.propertyTimezone}
-          </p>
-          <p>
-            {goalStartLine({
-              ended: program.status === 'ended',
-              months: results,
-              countsFrom: provenance.countsFrom,
-              setAt: provenance.setAt,
-              ...calendar,
-            })}
-          </p>
-          <p>
-            <span className="text-muted-foreground">Version:</span> {version.version}
-          </p>
-          {program.statusReason ? (
-            <p className="md:col-span-2">
-              <span className="text-muted-foreground">Status note:</span>{' '}
-              {goalStatusNote(program.statusReason, startsOn)}
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
+      <GoalProgramCard
+        goal={data}
+        plan={monthPlan}
+        subjectCount={currentAssignments.length}
+        canManage={canManage}
+        frame={calendar}
+      />
 
       <Card>
         <CardHeader>
@@ -278,6 +287,7 @@ function GoalDetailRoute() {
                         setAt: goalTargetProvenance(data, resultVersion).setAt,
                         progress:
                           soFarBySubject.get(goalSubjectKey(assignment.subject)) ?? null,
+                        marker: monthTargetMarker(data, result, resultVersion),
                         ...calendar,
                       })
                     : []
@@ -298,7 +308,9 @@ function GoalDetailRoute() {
                     <div>
                       <p>
                         {result.evaluation.value ?? '—'} /{' '}
-                        {resultVersion?.targetValue ?? '—'}
+                        {resultVersion
+                          ? effectiveMonthTarget(result, resultVersion)
+                          : '—'}
                       </p>
                       {notes.map((note) => (
                         <p key={note} className="text-muted-foreground">
@@ -316,19 +328,8 @@ function GoalDetailRoute() {
           )}
         </CardContent>
       </Card>
+
+      <GoalTargetChanges goal={data} frame={calendar} />
     </PageShell>
   )
-}
-
-function metricLabel(metric: string) {
-  switch (metric) {
-    case 'qualified_scans':
-      return 'Qualified scans'
-    case 'portal_rating_count':
-      return 'Private rating count'
-    case 'portal_rating_average':
-      return 'Private rating average'
-    default:
-      return metric
-  }
 }

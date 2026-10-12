@@ -14,6 +14,7 @@ import {
   stringValue,
   type ActivityFactPayload,
 } from './activity-fact-fields'
+import { goalMonthMarker } from './goal-month-marker'
 
 /**
  * Reporting's delivery-time read of a closed Goal month: the source of the one
@@ -69,9 +70,11 @@ const goalRevisionDetail = (payload: ActivityFactPayload): string => {
 
 /**
  * A month that closed as met also says, in the same closed token the Goal
- * notices use, when its goal was set after the month began: "met" against a
- * goal set on the 20th is true and still needs saying. Only a met month is
- * asked about; Reporting answers for the result as it stands now.
+ * notices use, when its target did not stand for the whole month: the goal was
+ * set after the month began, or its target was changed while it ran. "Met"
+ * against a goal set on the 20th, or against a target lowered on the 20th, is
+ * true and still needs saying. Only a met month is asked about; Reporting
+ * answers for the result as it stands now.
  */
 const goalClosedDetail = async (
   lookup: GoalResultFactsLookup,
@@ -85,9 +88,8 @@ const goalClosedDetail = async (
     assignmentId: stringValue(goalPayload, 'assignmentId'),
     monthlyResultId: stringValue(goalPayload, 'monthlyResultId'),
   })
-  return facts?.setDuringMonth === true
-    ? `${evaluationState}:set_in_month`
-    : evaluationState
+  const marker = facts ? goalMonthMarker(facts) : null
+  return marker === null ? evaluationState : `${evaluationState}:${marker}`
 }
 
 const goalResultTransition = async (

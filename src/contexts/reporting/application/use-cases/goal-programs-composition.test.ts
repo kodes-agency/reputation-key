@@ -14,6 +14,7 @@ import {
 
 const SERVICE_METHODS = [
   'changeAssignments',
+  'changeMonthTarget',
   'changeStatus',
   'create',
   'get',
@@ -21,6 +22,7 @@ const SERVICE_METHODS = [
   'maintain',
   'reconcileClosedResult',
   'reconcileResult',
+  'rename',
   'revise',
 ]
 

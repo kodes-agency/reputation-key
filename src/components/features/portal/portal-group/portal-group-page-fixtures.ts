@@ -68,6 +68,7 @@ export const RATINGS_GOAL: GoalProgress = {
   name: 'Private ratings',
   metric: 'portal_rating_count',
   targetValue: 250,
+  monthTarget: null,
   setBy: 'u-elena',
   setAt: new Date('2026-08-12T10:00:00.000Z'),
   status: 'active',

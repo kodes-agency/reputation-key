@@ -50,6 +50,29 @@ describe('createPortalGroupPublicApi', () => {
     expect(await api.portalGroupBelongsToProperty(org, prop, group)).toBe(false)
   })
 
+  it('reads a group by id as its minimal facts, within the organization', async () => {
+    const findById = vi.fn(async () => ({
+      id: group,
+      propertyId: prop,
+      name: 'North',
+      sortKey: 'a',
+    }))
+    const api = build({ findById } as never)
+
+    expect(await api.getGroupInfo(org, group)).toEqual({
+      id: group,
+      propertyId: prop,
+      name: 'North',
+    })
+    expect(findById).toHaveBeenCalledWith(org, group)
+  })
+
+  it('reads no facts for a group the organization does not have', async () => {
+    const api = build({ findById: vi.fn(async () => null) } as never)
+
+    expect(await api.getGroupInfo(org, group)).toBeNull()
+  })
+
   it('delegates the member reads to the repository', async () => {
     const getGroupPortalIds = vi.fn(async () => [portal])
     const findGroupIdsByPortalIds = vi.fn(async () => [group])

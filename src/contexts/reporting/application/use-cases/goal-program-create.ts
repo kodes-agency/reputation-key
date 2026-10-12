@@ -19,6 +19,7 @@ import {
 } from '../../domain/goal-program'
 import { resolveGoalStart, type GoalMonthlyPeriod } from '../../domain/goal-start'
 import {
+  assertSubjectsAreFree,
   assignmentFor,
   GoalProgramError,
   isMetricSourceInactive,
@@ -157,14 +158,13 @@ export async function createGoalCore(
     throw new GoalProgramError('start_month_changed')
   }
 
-  const conflicts = await deps.repository.findAssignmentConflicts({
+  await assertSubjectsAreFree(deps, {
     organizationId: actor.organizationId,
     propertyId: input.propertyId,
     metric: input.metric,
     effectiveFrom: period.start,
     subjects: input.subjects,
   })
-  if (conflicts.length > 0) throw new GoalProgramError('subject_has_goal')
 
   const sourceInactive = await isMetricSourceInactive(deps, {
     organizationId: actor.organizationId,

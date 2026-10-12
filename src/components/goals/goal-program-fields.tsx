@@ -1,10 +1,11 @@
 // The form fields every Goal Program change asks for: which subjects the goal
-// covers, and why it changes. Each takes the `field` its `form.Field` renders.
+// covers, and a note on the change for whoever wants to leave one. Each takes
+// the `field` its `form.Field` renders.
 
 import { useId, type ComponentProps } from 'react'
 import type { GoalSubject } from '#/contexts/reporting/application/public-api'
 import { Field, FieldError } from '#/components/ui/field'
-import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
+import { FormTextarea, type BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import {
   GoalSubjectPicker,
   goalSubjectKey,
@@ -50,11 +51,28 @@ export function GoalSubjectsField({
   )
 }
 
+/**
+ * The note on a change. A change needs no reason: without a note the version
+ * records what kind of change it was.
+ */
 export function GoalChangeReasonField({
   field,
   id,
-}: Readonly<{ field: BaseFieldApi; id: string }>) {
+  disabled,
+}: Readonly<{
+  field: BaseFieldApiTextarea
+  id: string
+  /** The change is saved: the note is shown as it was sent. */
+  disabled?: boolean
+}>) {
   return (
-    <FormTextField field={field} id={id} label="Reason for the change" maxLength={500} />
+    <FormTextarea
+      field={field}
+      id={id}
+      label="Note"
+      optional
+      maxLength={500}
+      disabled={disabled}
+    />
   )
 }

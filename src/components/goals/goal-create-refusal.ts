@@ -1,14 +1,15 @@
 // What the new-goal form says when the command refuses to create the goal.
 //
-// The command answers with a code. Three of them are about the choices on the
-// form (the start month, the subjects, the measure), so the form says what to
-// do next in its own words; "which goal holds this subject, and until when" is
-// read from the goals the page already has. Any other failure is handed on
-// untouched, and the banner applies its own rule to it.
-import { isServerFunctionError } from '#/shared/auth/server-function-error'
+// The command answers with a code, and every code has a sentence
+// (goal-refusal.ts). Two of them are about choices on this form (the subjects,
+// the measure), so here the form says more: which goal holds a subject and
+// until when, read from the goals the page already has, and that next month is
+// still open when this month's figure cannot be read. A failure that is not a
+// refusal is handed on untouched, and the banner applies its own rule to it.
 import type { GoalSubject } from '#/contexts/reporting/application/public-api'
 import type { GoalSubjectHold } from '#/contexts/reporting/application/goal-subject-holds'
 import { formatShortDate } from '#/lib/format'
+import { goalRefusal, goalRefusalCode } from './goal-refusal'
 import { goalSubjectKey } from './goal-subject-picker'
 
 export type GoalCreateRefusalContext = Readonly<{
@@ -23,15 +24,18 @@ export type GoalCreateRefusalContext = Readonly<{
   now: Date
 }>
 
-const MONTH_CHANGED = 'The month has changed. Check the start and save again.'
-const SUBJECT_HELD = 'A subject you chose already has a goal for this measure.'
-
-/** The code of a refusal the command sent; null for any other failure. */
-export function goalRefusalCode(error: unknown): string | null {
-  return isServerFunctionError(error) ? error.code : null
-}
-
-function heldSentence(hold: GoalSubjectHold, context: GoalCreateRefusalContext): string {
+/**
+ * Which goal holds a subject, and what frees it: the goal it is part of, or
+ * the day a goal that is ending lets it go. The table that sets several goals
+ * prints the same sentence on the row of a subject that is taken.
+ */
+export function goalHeldSentence(
+  hold: GoalSubjectHold,
+  context: Pick<
+    GoalCreateRefusalContext,
+    'startsThisMonth' | 'subjectName' | 'timezone' | 'now'
+  >,
+): string {
   const name = context.subjectName(hold.subject)
   if (hold.heldUntil === null) {
     // A subject taken out of a goal stays in it until the month ends, so it
@@ -48,35 +52,37 @@ function heldSentence(hold: GoalSubjectHold, context: GoalCreateRefusalContext):
     context.now,
   )
   const ends = `${name} has a goal for this measure that ends ${lastDay ?? 'this month'}.`
-  return context.startsThisMonth ? `${ends} Start the new goal next month.` : ends
+  if (!context.startsThisMonth) return ends
+  // A goal that goes on can still have its running month's target changed,
+  // which is the other way to a different number this month. One that has
+  // ended takes no change, so it is not offered.
+  return hold.goalEnded
+    ? `${ends} Start the new goal next month.`
+    : `${ends} Start the new goal next month, or change this month’s target.`
 }
 
-function heldSubjects(context: GoalCreateRefusalContext): string {
+/** One sentence per chosen subject another goal holds; null before those goals are read. */
+function heldSubjects(context: GoalCreateRefusalContext): string | null {
   const chosen = new Set(context.subjects.map(goalSubjectKey))
   const sentences = context.holds
     .filter((hold) => chosen.has(goalSubjectKey(hold.subject)))
-    .map((hold) => heldSentence(hold, context))
-  return sentences.length === 0 ? SUBJECT_HELD : sentences.join(' ')
+    .map((hold) => goalHeldSentence(hold, context))
+  return sentences.length === 0 ? null : sentences.join(' ')
 }
 
 /**
- * The sentence for the form's banner, or the failure itself when the form has
- * no words of its own for it.
+ * What the form's banner shows: the form's own sentence where it can say more
+ * than the refusal does, otherwise the refusal in its sentence, or the failure
+ * itself when it is not a refusal.
  */
 export function goalCreateRefusal(
   error: unknown,
   context: GoalCreateRefusalContext,
 ): unknown {
-  switch (goalRefusalCode(error)) {
-    case 'start_month_changed':
-      return MONTH_CHANGED
-    case 'subject_has_goal':
-      return heldSubjects(context)
-    case 'metric_unavailable':
-      return context.startsThisMonth
-        ? 'This measure can’t be read for this month right now. Start the goal next month, or try again later.'
-        : 'This measure can’t be read right now. Try again later.'
-    default:
-      return error
+  const code = goalRefusalCode(error)
+  if (code === 'subject_has_goal') return heldSubjects(context) ?? goalRefusal(error)
+  if (code === 'metric_unavailable' && context.startsThisMonth) {
+    return 'This measure can’t be read for this month right now. Start the goal next month, or try again later.'
   }
+  return goalRefusal(error)
 }

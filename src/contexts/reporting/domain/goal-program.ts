@@ -3,6 +3,9 @@ import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
 import { goalSubjectIdentity, type GoalSubject } from './goal-subject'
 
 export { goalSubjectIdentity, type GoalSubject } from './goal-subject'
+// Kept in goal-start.ts, out of this module: the dialogs that change a goal run
+// it in the browser, and this module is part of the first-paint bundle.
+export { firstFullMonthlyPeriodAtOrAfter } from './goal-start'
 
 export const GOAL_METRICS = [
   'qualified_scans',
@@ -56,7 +59,10 @@ export function validateGoalTarget(
   if (!Number.isFinite(target)) return { ok: false, reason: 'target_not_finite' }
 
   if (metric === 'qualified_scans' || metric === 'portal_rating_count') {
-    if (!Number.isInteger(target) || target <= 0) {
+    // A safe integer: a count a number holds exactly, and far inside what the
+    // target columns (numeric(30, 10)) store. A larger one would reach the
+    // database and fail there as an overflow instead of as an invalid target.
+    if (!Number.isSafeInteger(target) || target <= 0) {
       return { ok: false, reason: 'count_target_not_positive_integer' }
     }
     return { ok: true, normalizedTarget: target }
@@ -140,21 +146,6 @@ function validReadingValue(metric: GoalMetric, value: number | null): value is n
   if (value === null || !Number.isFinite(value)) return false
   if (metric === 'portal_rating_average') return value >= 1 && value <= 5
   return Number.isInteger(value) && value >= 0
-}
-
-/**
- * First complete property-local month that does not start before `at`. The
- * local month containing `at` can start after it: an instant inside a repeated
- * midnight hour belongs to the new local month, whose first instant is the
- * midnight's later occurrence.
- */
-export function firstFullMonthlyPeriodAtOrAfter(
-  at: Date,
-  timezone: string,
-): Readonly<{ start: Date; end: Date }> {
-  const current = calendarPeriodRange(at, timezone, 'monthly')
-  if (at.getTime() <= current.start.getTime()) return current
-  return calendarPeriodRange(current.end, timezone, 'monthly')
 }
 
 export function isCompleteMonthlyPeriod(

@@ -21,14 +21,23 @@ metric authority.
 - **Metric definition/version**: frozen code-reviewed measurement policy.
 - **Metric reading**: immutable, version-pinned fact with event-time attribution.
 - **Metric correction**: append-only retraction, replacement, or adjustment.
-- **Goal Program**: versioned monthly target over an approved metric and subject set.
+- **Goal Program**: versioned monthly target over an approved metric and subject set. A month
+  still running can carry its own target; once its period ends that target is locked.
 - **Goal monthly result**: evaluation head with append-only revision evidence.
 - **Goal progress**: the live month to date of the goals that target one subject (a Portal
   Group's goal card), read through the Program list's own authorisation and visibility and
   the same governed metric the monthly result uses, over the whole calendar month in the
-  Program's time zone. It is never a result: it evaluates nothing, is never stored, and an
+  Program's time zone. Its target is the one the running month is judged against, with who
+  changed it when it is no longer the one the month started with. It is never a result: it evaluates nothing, is never stored, and an
   average under the metric's minimum sample or a reading that cannot be trusted is shown as
   such, never as a zero.
+- **Goals for several subjects**: one save that creates one Goal Program per row, each for
+  one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
+  rows). It is authorised once and its start month is resolved once, so every goal of a save
+  starts in the same month; each goal is its own transaction and is named after its subject
+  and measure. A row that cannot be saved is reported with its reason and never holds back
+  the others, and a row reached after the chosen month has ended is not written. There is no
+  target that subjects share and no Property total.
 - **Dashboard read model**: content-minimal presentation assembled from governed sources.
 - **Portal lifetime aggregate**: anonymous all-time values with rebuild and seal evidence.
 - **Portal results measures**: the five figures on a Portal's Results view, each named for
@@ -82,12 +91,21 @@ metric authority.
 1. A metric read is eligible only under its immutable definition version and source policy.
 2. Goal evaluation uses half-open property-local monthly periods and approved Goal metrics.
    A goal starts in the current local month or the next one, chosen at creation; the metric
-   counts the whole month either way. A revision starts at the first local month that begins
-   at or after the end of every month still open or reconciling, so that month stays inside
-   its version's window. After the Property's timezone moves east, the next local month
+   counts the whole month either way. A month is judged against its own target when it has
+   one, otherwise its version's. A month's target may change only while the month is open and
+   before its period ends; every change is logged with who, when, old and new value. A
+   revision starts at the first local month that begins at or after the end of every month
+   still open or reconciling, so that month stays inside its version's window. After the Property's timezone moves east, the next local month
    begins before the open month ends, so the revision starts one local month later and the
-   skipped local month is not evaluated under either version. The start date is shown when
-   the revision is scheduled.
+   skipped local month is not evaluated under either version. The dialogs state the start
+   date before a change is saved, and the saved change states its own. A version with no monthly result (a goal that has not started,
+   or a change still waiting for its month) may be replaced by the next change; the replaced
+   version and its assignments keep an empty window, which holds no subject. A goal that has
+   not started is one still scheduled with no month, even after its planned start has passed.
+   Ended in that state it keeps the same empty window, so its subject is free at once; ended
+   after it started, it holds its subject until the month still open ends. While a goal is
+   scheduled its status reason says what its plan waits for (its metric source, or only its
+   first month), and a revision before the start states it again for the measure it now has.
 3. Goal assignment changes preserve at least one subject and never rewrite history.
 4. Corrections append; they never mutate the original reading or closed Goal result.
 5. Dashboard values preserve unavailable/updating/insufficient states instead of showing zero.
@@ -101,6 +119,9 @@ metric authority.
    current one that does carries the `measure_started_mid_period` note.
 6. Every tenant read includes organization and property scope or an explicit global authority.
 7. Clocks, identifiers, logging, storage, and upstream reads are injected by composition.
+8. A version's target is never updated in place. A different target for a month still
+   running is that month's own; a different target for the months after is a new version
+   (ADR 0066).
 
 ## Interfaces and dependencies
 

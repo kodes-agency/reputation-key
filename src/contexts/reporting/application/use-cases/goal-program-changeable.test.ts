@@ -1,9 +1,9 @@
-// Revising a Program and changing its subjects start from one shared step,
-// loadChangeableProgram: the Program must exist for the actor's organization
-// and Property, and an ended Program takes no further change. goal-programs.test.ts
-// pins only the ended refusal of changeAssignments; these cases pin the refusal
-// of each command on each of the two paths, so a later rewrite of the shared
-// step cannot loosen one of them unnoticed.
+// Revising a Program, changing its subjects, renaming it and changing its
+// running month's target start from one shared step, loadChangeableProgram: the Program must exist for the actor's
+// organization and Property, and an ended Program takes no further change.
+// goal-programs.test.ts pins only the ended refusal of changeAssignments; these
+// cases pin the refusal of each command on each of the two paths, so a later
+// rewrite of the shared step cannot loosen one of them unnoticed.
 import { describe, expect, it, vi } from 'vitest'
 import type {
   GoalProgram,
@@ -114,6 +114,31 @@ const COMMANDS: ReadonlyArray<
           remove: [],
           selectAllCurrentPortals: false,
           reason: 'Add a portal',
+        },
+        actor,
+      ),
+  ],
+  [
+    'rename',
+    (service, programId) =>
+      service.rename(
+        { propertyId: 'property-1', programId, name: 'April ratings' },
+        actor,
+      ),
+  ],
+  [
+    'changeMonthTarget',
+    (service, programId) =>
+      service.changeMonthTarget(
+        {
+          propertyId: 'property-1',
+          programId,
+          month: '2026-03',
+          targetValue: 30,
+          expectedTarget: 20,
+          expectedVersion: 1,
+          expectedFollowingMonth: '2026-04',
+          applyToFollowing: true,
         },
         actor,
       ),

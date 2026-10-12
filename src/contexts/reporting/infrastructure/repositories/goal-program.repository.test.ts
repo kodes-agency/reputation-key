@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
-import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import {
+  findMetricVersionById,
+  METRIC_DEFINITION_IDS,
+  METRIC_VERSION_IDS,
+} from '../../domain/metric-registry'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import type {
   GoalMonthlyResult,
@@ -10,6 +14,10 @@ import type {
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from '../../application/ports/goal-program.repository'
+import {
+  createGoalProgramService,
+  type GoalActor,
+} from '../../application/use-cases/goal-programs'
 import { firstFullMonthlyPeriodAtOrAfter } from '../../domain/goal-program'
 import { createGoalProgramRepository } from './goal-program.repository'
 
@@ -220,9 +228,12 @@ describe.sequential('Goal Program repository (integration)', () => {
       auditAction: 'goal.program.created',
     })
 
-    await expect(repository.get(organizationId, propertyId, programId)).resolves.toEqual(
-      bundle,
-    )
+    // The read a page works from also carries the log of the goal's month
+    // target changes: empty for a goal whose months kept their target.
+    await expect(repository.get(organizationId, propertyId, programId)).resolves.toEqual({
+      ...bundle,
+      targetChanges: [],
+    })
     await expect(
       repository.activate({
         bundle,
@@ -259,6 +270,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         expectedVersion: firstVersion,
         version: nextVersion,
         assignments: [nextAssignment],
+        supersedeRowlessHead: false,
         actorId: 'manager-1',
         at: nextAt,
       }),
@@ -350,6 +362,7 @@ describe.sequential('Goal Program repository (integration)', () => {
         assignments: [
           assignment(programId, staleVersion.id, staleVersion.effectiveFrom, nextAt),
         ],
+        supersedeRowlessHead: false,
         actorId: 'manager-1',
         at: nextAt,
       }),
@@ -410,6 +423,74 @@ describe.sequential('Goal Program repository (integration)', () => {
         bundle: replacement,
         auditAction: 'goal.program.created',
       }),
+    ).resolves.toBe('created')
+  })
+
+  // A goal can wait past its planned start: its metric source is not active,
+  // or the hourly job has not activated it yet. It has still never started, so
+  // ending it leaves the same empty window and its subject is free for the
+  // month that is running, not only from the moment it was ended.
+  it('ends a scheduled Program whose start has passed as an empty interval too', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const targetPropertyId = await createPropertyFixture('Overdue Goal Property')
+    const january = {
+      start: new Date('2026-01-01T00:00:00.000Z'),
+      end: new Date('2026-02-01T00:00:00.000Z'),
+    }
+    const overdue = programBundle({
+      propertyId: targetPropertyId,
+      status: 'scheduled',
+      effectiveFrom: january.start,
+      at: new Date('2025-12-15T12:00:00.000Z'),
+    })
+    await repository.create({ bundle: overdue, auditAction: 'goal.program.created' })
+
+    await expect(
+      repository.changeStatus({
+        organizationId,
+        propertyId: targetPropertyId,
+        programId: overdue.program.id,
+        expectedStatus: 'scheduled',
+        status: 'ended',
+        reason: null,
+        actorId: 'manager-1',
+        at: new Date('2026-01-12T09:00:00.000Z'),
+      }),
+    ).resolves.toMatchObject({ status: 'ended' })
+
+    const ended = await repository.get(
+      organizationId,
+      targetPropertyId,
+      overdue.program.id,
+    )
+    expect(ended?.version).toMatchObject({
+      effectiveFrom: january.start,
+      effectiveTo: january.start,
+    })
+    expect(ended?.assignments).toMatchObject([
+      { effectiveFrom: january.start, effectiveTo: january.start },
+    ])
+    expect(ended?.results).toEqual([])
+
+    // Set again the same day, for January.
+    await expect(
+      repository.findAssignmentConflicts({
+        organizationId,
+        propertyId: targetPropertyId,
+        metric: 'portal_rating_count',
+        effectiveFrom: january.start,
+        subjects: [{ kind: 'property', propertyId: targetPropertyId }],
+      }),
+    ).resolves.toEqual([])
+    const setAgain = programBundle({
+      propertyId: targetPropertyId,
+      status: 'active',
+      effectiveFrom: january.start,
+      at: new Date('2026-01-12T09:05:00.000Z'),
+      withOpenResult: { end: january.end },
+    })
+    await expect(
+      repository.create({ bundle: setAgain, auditAction: 'goal.program.created' }),
     ).resolves.toBe('created')
   })
 
@@ -790,6 +871,7 @@ describe.sequential('Goal Program repository (integration)', () => {
             targetPropertyId,
           ),
         ],
+        supersedeRowlessHead: false,
         actorId: 'manager-1',
         at: revisionAt,
       })
@@ -808,5 +890,1044 @@ describe.sequential('Goal Program repository (integration)', () => {
 
     // Retried from a fresh read, the revision starts after the open month.
     await expect(revise(revisedFrom(march.end))).resolves.toBe(true)
+  })
+
+  // A head with no month (a goal that has not started, or a change still
+  // waiting for its month) is replaced by the next change. The replaced version
+  // and its assignments keep the empty window [from, from).
+  describe('replacing a head that has no month', () => {
+    const january = {
+      start: new Date('2026-01-01T00:00:00.000Z'),
+      end: new Date('2026-02-01T00:00:00.000Z'),
+    }
+    const february = {
+      start: january.end,
+      end: new Date('2026-03-01T00:00:00.000Z'),
+    }
+    const march = { start: february.end, end: new Date('2026-04-01T00:00:00.000Z') }
+    const plannedAt = new Date('2026-01-15T12:00:00.000Z')
+    const editedAt = new Date('2026-01-20T12:00:00.000Z')
+
+    /** A goal set mid-January for February: scheduled, with no month yet. */
+    async function scheduledForFebruary(label: string) {
+      const repository = createGoalProgramRepository(getDb())
+      const targetPropertyId = await createPropertyFixture(label)
+      const bundle = programBundle({
+        propertyId: targetPropertyId,
+        status: 'scheduled',
+        effectiveFrom: february.start,
+        at: plannedAt,
+      })
+      await repository.create({ bundle, auditAction: 'goal.program.created' })
+      return { repository, targetPropertyId, bundle }
+    }
+
+    /** The next version of a Program, for its Property as the one subject. */
+    function following(
+      previous: GoalProgramVersion,
+      effectiveFrom: Date,
+      targetValue: number,
+    ) {
+      const version: GoalProgramVersion = {
+        ...previous,
+        id: randomUUID(),
+        version: previous.version + 1,
+        targetValue,
+        effectiveFrom,
+        effectiveTo: null,
+        changeReason: 'revised',
+        createdAt: editedAt,
+      }
+      const subjectAssignment = assignment(
+        previous.programId,
+        version.id,
+        effectiveFrom,
+        editedAt,
+        previous.propertyId,
+      )
+      return { version, assignments: [subjectAssignment] }
+    }
+
+    /** Each version's window, and each assignment's, by version number. */
+    const windowsOf = (bundle: GoalProgramBundle | null) => {
+      const numberOf = (versionId: string) =>
+        bundle?.versions.find(({ id }) => id === versionId)?.version ?? 0
+      return {
+        versions: bundle?.versions.map((version) => [
+          version.version,
+          version.effectiveFrom,
+          version.effectiveTo,
+        ]),
+        assignments: bundle?.assignments
+          .map((subjectAssignment) => ({
+            version: numberOf(subjectAssignment.programVersionId),
+            window: subjectAssignment,
+          }))
+          .sort((left, right) => left.version - right.version)
+          .map(({ version, window }) => [
+            version,
+            window.effectiveFrom,
+            window.effectiveTo,
+          ]),
+      }
+    }
+
+    it('superseding a rowless head leaves an empty version window and no overlap', async () => {
+      const { repository, targetPropertyId, bundle } = await scheduledForFebruary(
+        'Superseded Goal Property',
+      )
+      const second = following(bundle.version, february.start, 40)
+      await expect(
+        repository.revise({
+          expectedVersion: bundle.version,
+          ...second,
+          supersedeRowlessHead: true,
+          actorId: 'manager-1',
+          at: editedAt,
+        }),
+      ).resolves.toBe(true)
+      // A second change replaces the first one the same way, even when it
+      // starts a month later (the Property changed time zone, say): the
+      // replaced plan never covered the month in between.
+      const third = following(second.version, march.start, 55)
+      await expect(
+        repository.revise({
+          expectedVersion: second.version,
+          ...third,
+          supersedeRowlessHead: true,
+          actorId: 'manager-1',
+          at: editedAt,
+        }),
+      ).resolves.toBe(true)
+
+      const replaced = await repository.get(
+        organizationId,
+        targetPropertyId,
+        bundle.program.id,
+      )
+      expect(replaced).toMatchObject({
+        program: { status: 'scheduled', currentVersion: 3 },
+        version: { id: third.version.id, targetValue: 55 },
+        results: [],
+      })
+      // Two versions and two assignments of one subject share one start; the
+      // empty windows overlap nothing, so both no-overlap constraints hold.
+      expect(windowsOf(replaced)).toEqual({
+        versions: [
+          [1, february.start, february.start],
+          [2, february.start, february.start],
+          [3, march.start, null],
+        ],
+        assignments: [
+          [1, february.start, february.start],
+          [2, february.start, february.start],
+          [3, march.start, null],
+        ],
+      })
+    })
+
+    it('replaces a change still waiting for its month and leaves the version in force alone', async () => {
+      const repository = createGoalProgramRepository(getDb())
+      const targetPropertyId = await createPropertyFixture('Pending Change Property')
+      const running = programBundle({
+        propertyId: targetPropertyId,
+        status: 'active',
+        effectiveFrom: january.start,
+        at: january.start,
+        withOpenResult: { end: january.end },
+      })
+      await repository.create({ bundle: running, auditAction: 'goal.program.created' })
+      const pending = following(running.version, february.start, 40)
+      await expect(
+        repository.revise({
+          expectedVersion: running.version,
+          ...pending,
+          supersedeRowlessHead: false,
+          actorId: 'manager-1',
+          at: editedAt,
+        }),
+      ).resolves.toBe(true)
+
+      const replacement = following(pending.version, february.start, 55)
+      await expect(
+        repository.revise({
+          expectedVersion: pending.version,
+          ...replacement,
+          supersedeRowlessHead: true,
+          actorId: 'manager-1',
+          at: editedAt,
+        }),
+      ).resolves.toBe(true)
+
+      const replaced = await repository.get(
+        organizationId,
+        targetPropertyId,
+        running.program.id,
+      )
+      expect(windowsOf(replaced).versions).toEqual([
+        [1, january.start, january.end],
+        [2, february.start, february.start],
+        [3, february.start, null],
+      ])
+      // January stays open under the version it opened with.
+      expect(replaced?.results).toMatchObject([
+        { programVersionId: running.version.id, status: 'open' },
+      ])
+    })
+
+    it('refuses to replace a head that has a month, and changes nothing', async () => {
+      const repository = createGoalProgramRepository(getDb())
+      const targetPropertyId = await createPropertyFixture('Started Goal Property')
+      const running = programBundle({
+        propertyId: targetPropertyId,
+        status: 'active',
+        effectiveFrom: january.start,
+        at: january.start,
+        withOpenResult: { end: january.end },
+      })
+      await repository.create({ bundle: running, auditAction: 'goal.program.created' })
+
+      await expect(
+        repository.revise({
+          expectedVersion: running.version,
+          ...following(running.version, february.start, 40),
+          supersedeRowlessHead: true,
+          actorId: 'manager-1',
+          at: editedAt,
+        }),
+      ).resolves.toBe(false)
+      await expect(
+        repository.get(organizationId, targetPropertyId, running.program.id),
+      ).resolves.toMatchObject({
+        program: { currentVersion: 1 },
+        version: { id: running.version.id, effectiveTo: null },
+        versions: [{ id: running.version.id }],
+      })
+    })
+
+    it('a superseded assignment does not block another goal for that subject', async () => {
+      const { repository, targetPropertyId, bundle } = await scheduledForFebruary(
+        'Released Subject Property',
+      )
+      const portalId = randomUUID()
+      await lease.pool.query(
+        `INSERT INTO portals
+           (id, organization_id, property_id, entity_type, entity_id, name, slug)
+         VALUES ($1, $2, $3, 'property', $5, 'Lobby QR', $4)`,
+        [
+          portalId,
+          organizationId,
+          targetPropertyId,
+          `lobby-${randomUUID()}`,
+          targetPropertyId,
+        ],
+      )
+      // The change moves the goal from the whole Property to one Portal.
+      const moved = following(bundle.version, february.start, 25)
+      await expect(
+        repository.revise({
+          expectedVersion: bundle.version,
+          version: moved.version,
+          assignments: moved.assignments.map((subjectAssignment) => ({
+            ...subjectAssignment,
+            subject: { kind: 'portal', portalId },
+          })),
+          supersedeRowlessHead: true,
+          actorId: 'manager-1',
+          at: editedAt,
+        }),
+      ).resolves.toBe(true)
+
+      // The Property subject is free from February, as if never planned.
+      await expect(
+        repository.findAssignmentConflicts({
+          organizationId,
+          propertyId: targetPropertyId,
+          metric: 'portal_rating_count',
+          effectiveFrom: february.start,
+          subjects: [{ kind: 'property', propertyId: targetPropertyId }],
+        }),
+      ).resolves.toEqual([])
+      const other = programBundle({
+        propertyId: targetPropertyId,
+        status: 'scheduled',
+        effectiveFrom: february.start,
+        at: editedAt,
+      })
+      await expect(
+        repository.create({ bundle: other, auditAction: 'goal.program.created' }),
+      ).resolves.toBe('created')
+      // The Portal the goal moved to is held, by the new head.
+      await expect(
+        repository.findAssignmentConflicts({
+          organizationId,
+          propertyId: targetPropertyId,
+          metric: 'portal_rating_count',
+          effectiveFrom: february.start,
+          subjects: [{ kind: 'portal', portalId }],
+        }),
+      ).resolves.toEqual([
+        {
+          subject: { kind: 'portal', portalId },
+          programId: bundle.program.id,
+          effectiveTo: null,
+        },
+      ])
+    })
+
+    it('activation after a supersede activates the new head', async () => {
+      const { repository, targetPropertyId, bundle } = await scheduledForFebruary(
+        'Activated Head Property',
+      )
+      const second = following(bundle.version, february.start, 40)
+      await repository.revise({
+        expectedVersion: bundle.version,
+        ...second,
+        supersedeRowlessHead: true,
+        actorId: 'manager-1',
+        at: editedAt,
+      })
+      const current = await repository.get(
+        organizationId,
+        targetPropertyId,
+        bundle.program.id,
+      )
+      if (!current) throw new Error('expected the superseded Goal Program')
+
+      await expect(
+        repository.activate({
+          bundle: current,
+          results: [
+            result(second.assignments[0]!, february.start, february.end, february.start),
+          ],
+          at: february.start,
+        }),
+      ).resolves.toMatchObject({ status: 'active', currentVersion: 2 })
+      await expect(
+        repository.get(organizationId, targetPropertyId, bundle.program.id),
+      ).resolves.toMatchObject({
+        program: { status: 'active' },
+        version: { id: second.version.id, targetValue: 40 },
+        results: [
+          {
+            programVersionId: second.version.id,
+            periodStart: february.start,
+            status: 'open',
+          },
+        ],
+      })
+    })
+
+    it('a stale activation after a supersede changes nothing', async () => {
+      const { repository, targetPropertyId, bundle } = await scheduledForFebruary(
+        'Stale Activation Property',
+      )
+      // Maintenance read the goal, then the manager replaced its plan.
+      await repository.revise({
+        expectedVersion: bundle.version,
+        ...following(bundle.version, february.start, 40),
+        supersedeRowlessHead: true,
+        actorId: 'manager-1',
+        at: editedAt,
+      })
+
+      await expect(
+        repository.activate({
+          bundle,
+          results: [
+            result(bundle.assignments[0]!, february.start, february.end, february.start),
+          ],
+          at: february.start,
+        }),
+      ).resolves.toBeNull()
+      await expect(
+        repository.get(organizationId, targetPropertyId, bundle.program.id),
+      ).resolves.toMatchObject({
+        program: { status: 'scheduled', currentVersion: 2 },
+        results: [],
+      })
+    })
+
+    // What a scheduled goal waits for is decided from its plan, so a
+    // replacement states it again in the same update that moves the head.
+    it('a replacement of a scheduled goal states what it now waits for', async () => {
+      const { repository, targetPropertyId, bundle } = await scheduledForFebruary(
+        'Restated Reason Property',
+      )
+      expect(bundle.program.statusReason).toBe('awaiting_first_full_month')
+      const second = following(bundle.version, february.start, 40)
+      await expect(
+        repository.revise({
+          expectedVersion: bundle.version,
+          ...second,
+          supersedeRowlessHead: true,
+          scheduledStatusReason: 'metric_source_not_active',
+          actorId: 'manager-1',
+          at: editedAt,
+        }),
+      ).resolves.toBe(true)
+      await expect(
+        repository.get(organizationId, targetPropertyId, bundle.program.id),
+      ).resolves.toMatchObject({
+        program: {
+          status: 'scheduled',
+          statusReason: 'metric_source_not_active',
+          currentVersion: 2,
+        },
+      })
+
+      // A change that says nothing about the reason leaves it as it is.
+      const third = following(second.version, february.start, 55)
+      await repository.revise({
+        expectedVersion: second.version,
+        ...third,
+        supersedeRowlessHead: true,
+        actorId: 'manager-1',
+        at: editedAt,
+      })
+      await expect(
+        repository.get(organizationId, targetPropertyId, bundle.program.id),
+      ).resolves.toMatchObject({
+        program: { statusReason: 'metric_source_not_active', currentVersion: 3 },
+      })
+
+      await repository.revise({
+        expectedVersion: third.version,
+        ...following(third.version, february.start, 70),
+        supersedeRowlessHead: true,
+        scheduledStatusReason: 'awaiting_first_full_month',
+        actorId: 'manager-1',
+        at: editedAt,
+      })
+      await expect(
+        repository.get(organizationId, targetPropertyId, bundle.program.id),
+      ).resolves.toMatchObject({
+        program: { statusReason: 'awaiting_first_full_month', currentVersion: 4 },
+      })
+    })
+
+    // The reason of a goal that has started belongs to its status: nothing
+    // when it is active, the manager's note when it was paused. A caller that
+    // read the goal while it was still scheduled must not overwrite either.
+    it('a revision leaves the status reason of a goal that is not scheduled alone', async () => {
+      const repository = createGoalProgramRepository(getDb())
+      const targetPropertyId = await createPropertyFixture('Kept Reason Property')
+      const running = programBundle({
+        propertyId: targetPropertyId,
+        status: 'active',
+        effectiveFrom: january.start,
+        at: january.start,
+        withOpenResult: { end: january.end },
+      })
+      await repository.create({ bundle: running, auditAction: 'goal.program.created' })
+      const pending = following(running.version, february.start, 40)
+      await expect(
+        repository.revise({
+          expectedVersion: running.version,
+          ...pending,
+          supersedeRowlessHead: false,
+          scheduledStatusReason: 'awaiting_first_full_month',
+          actorId: 'manager-1',
+          at: editedAt,
+        }),
+      ).resolves.toBe(true)
+      await expect(
+        repository.get(organizationId, targetPropertyId, running.program.id),
+      ).resolves.toMatchObject({
+        program: { status: 'active', statusReason: null, currentVersion: 2 },
+      })
+
+      await repository.changeStatus({
+        organizationId,
+        propertyId: targetPropertyId,
+        programId: running.program.id,
+        expectedStatus: 'active',
+        status: 'paused',
+        reason: 'Closed for works',
+        actorId: 'manager-1',
+        at: editedAt,
+      })
+      await expect(
+        repository.revise({
+          expectedVersion: pending.version,
+          ...following(pending.version, february.start, 55),
+          supersedeRowlessHead: true,
+          scheduledStatusReason: 'metric_source_not_active',
+          actorId: 'manager-1',
+          at: editedAt,
+        }),
+      ).resolves.toBe(true)
+      await expect(
+        repository.get(organizationId, targetPropertyId, running.program.id),
+      ).resolves.toMatchObject({
+        program: {
+          status: 'paused',
+          statusReason: 'Closed for works',
+          currentVersion: 3,
+        },
+      })
+    })
+
+    // A replacement is decided from a read, and maintenance can open a month
+    // under the same head at that moment. Both writers take the Program row
+    // first, so whichever comes second sees what the first one wrote: the
+    // cases above run them one after the other, these run them together.
+    const RACES = 20
+    const RACE_TIMEOUT_MS = 60_000
+
+    it(
+      'an activation and a replacement racing for one head never both win',
+      async () => {
+        for (let attempt = 0; attempt < RACES; attempt += 1) {
+          const { repository, targetPropertyId, bundle } = await scheduledForFebruary(
+            `Raced Activation Property ${attempt}`,
+          )
+          const replacement = following(bundle.version, february.start, 40)
+
+          const [activated, replaced] = await Promise.all([
+            repository.activate({
+              bundle,
+              results: [
+                result(
+                  bundle.assignments[0]!,
+                  february.start,
+                  february.end,
+                  february.start,
+                ),
+              ],
+              at: february.start,
+            }),
+            repository.revise({
+              expectedVersion: bundle.version,
+              ...replacement,
+              supersedeRowlessHead: true,
+              actorId: 'manager-1',
+              at: editedAt,
+            }),
+          ])
+
+          const settled = await repository.get(
+            organizationId,
+            targetPropertyId,
+            bundle.program.id,
+          )
+          const outcome = {
+            activated: activated !== null,
+            replaced,
+            status: settled?.program.status,
+            currentVersion: settled?.program.currentVersion,
+            openVersions: settled?.versions
+              .filter((version) => version.effectiveTo === null)
+              .map((version) => version.id),
+            monthsUnder: settled?.results.map((monthly) => monthly.programVersionId),
+          }
+          expect([
+            // The activation won: the head is in force and was not replaced.
+            {
+              activated: true,
+              replaced: false,
+              status: 'active',
+              currentVersion: 1,
+              openVersions: [bundle.version.id],
+              monthsUnder: [bundle.version.id],
+            },
+            // The replacement won: the goal still waits, with no month at all.
+            {
+              activated: false,
+              replaced: true,
+              status: 'scheduled',
+              currentVersion: 2,
+              openVersions: [replacement.version.id],
+              monthsUnder: [],
+            },
+          ]).toContainEqual(outcome)
+        }
+      },
+      RACE_TIMEOUT_MS,
+    )
+
+    it(
+      'opening a month under a pending change and replacing that change never both win',
+      async () => {
+        for (let attempt = 0; attempt < RACES; attempt += 1) {
+          const repository = createGoalProgramRepository(getDb())
+          const targetPropertyId = await createPropertyFixture(
+            `Raced Pending Property ${attempt}`,
+          )
+          const running = programBundle({
+            propertyId: targetPropertyId,
+            status: 'active',
+            effectiveFrom: january.start,
+            at: january.start,
+            withOpenResult: { end: january.end },
+          })
+          await repository.create({
+            bundle: running,
+            auditAction: 'goal.program.created',
+          })
+          const pending = following(running.version, february.start, 40)
+          await repository.revise({
+            expectedVersion: running.version,
+            ...pending,
+            supersedeRowlessHead: false,
+            actorId: 'manager-1',
+            at: editedAt,
+          })
+          const replacement = following(pending.version, february.start, 55)
+
+          const [opened, replaced] = await Promise.all([
+            repository.appendResults({
+              program: { ...running.program, currentVersion: pending.version.version },
+              version: pending.version,
+              results: [
+                result(
+                  pending.assignments[0]!,
+                  february.start,
+                  february.end,
+                  february.start,
+                ),
+              ],
+              at: february.start,
+            }),
+            repository.revise({
+              expectedVersion: pending.version,
+              ...replacement,
+              supersedeRowlessHead: true,
+              actorId: 'manager-1',
+              at: editedAt,
+            }),
+          ])
+
+          const settled = await repository.get(
+            organizationId,
+            targetPropertyId,
+            running.program.id,
+          )
+          const outcome = {
+            opened,
+            replaced,
+            currentVersion: settled?.program.currentVersion,
+            pendingWindowEnds: settled?.versions.find(
+              (version) => version.id === pending.version.id,
+            )?.effectiveTo,
+            februaryUnder: settled?.results
+              .filter(
+                (monthly) => monthly.periodStart.getTime() === february.start.getTime(),
+              )
+              .map((monthly) => monthly.programVersionId),
+          }
+          expect([
+            // February opened under the pending change, which is now in force.
+            {
+              opened: 1,
+              replaced: false,
+              currentVersion: 2,
+              pendingWindowEnds: null,
+              februaryUnder: [pending.version.id],
+            },
+            // The change was replaced first: no month sits under its empty window.
+            {
+              opened: 0,
+              replaced: true,
+              currentVersion: 3,
+              pendingWindowEnds: february.start,
+              februaryUnder: [],
+            },
+          ]).toContainEqual(outcome)
+        }
+      },
+      RACE_TIMEOUT_MS,
+    )
+
+    it('maintenance activates a program whose history holds an empty version', async () => {
+      const repository = createGoalProgramRepository(getDb())
+      const targetPropertyId = await createPropertyFixture('Maintained Goal Property')
+      const clock = { now: plannedAt }
+      const actor: GoalActor = {
+        organizationId,
+        userId: 'manager-1',
+        role: 'PropertyManager',
+      }
+      const service = createGoalProgramService({
+        // Maintenance discovers Programs across tenants. This case narrows
+        // discovery to its own Property; every read and write is PostgreSQL's.
+        repository: {
+          ...repository,
+          listOperational: async () =>
+            (await repository.listOperational()).filter(
+              ({ program }) => program.propertyId === targetPropertyId,
+            ),
+          listDueResults: async () => [],
+        },
+        policy: { authorize: async () => undefined },
+        subjects: {
+          getTimezone: async () => 'UTC',
+          subjectBelongsToProperty: async () => true,
+          listCurrentPortalIds: async () => [],
+        },
+        metrics: {
+          queryGoalMetric: async (query) => ({
+            definitionVersionId: query.definitionVersionId,
+            metricKey: 'portal.rating_count',
+            state: 'updating',
+            exactValue: 0,
+            sampleCount: 0,
+            minimumSample: 0,
+            sourceCompleteThrough: null,
+            reason: 'source_reconciling',
+          }),
+          getApprovedGoalVersion: async (versionId) => findMetricVersionById(versionId),
+        },
+        id: randomUUID,
+        now: () => clock.now,
+      })
+      const definition = {
+        propertyId: targetPropertyId,
+        metric: 'portal_rating_count',
+        subjects: [{ kind: 'property', propertyId: targetPropertyId }],
+      } as const
+      const created = await service.create(
+        { ...definition, name: 'February ratings', targetValue: 25 },
+        actor,
+      )
+      expect(created.program.status).toBe('scheduled')
+      clock.now = editedAt
+      const revised = await service.revise(
+        { ...definition, programId: created.program.id, targetValue: 40 },
+        actor,
+      )
+      expect(revised.version).toMatchObject({
+        version: 2,
+        effectiveFrom: february.start,
+        changeReason: 'revised',
+      })
+
+      clock.now = new Date('2026-02-01T00:10:00.000Z')
+      await expect(service.maintain()).resolves.toMatchObject({
+        inspected: 1,
+        activated: 1,
+        scheduledResults: 1,
+        failed: 0,
+      })
+      const activated = await service.get(
+        { propertyId: targetPropertyId, programId: created.program.id },
+        actor,
+      )
+      expect(activated).toMatchObject({
+        program: { status: 'active', currentVersion: 2 },
+        version: { id: revised.version.id, targetValue: 40 },
+        results: [{ programVersionId: revised.version.id, periodStart: february.start }],
+      })
+      expect(windowsOf(activated).versions).toEqual([
+        [1, february.start, february.start],
+        [2, february.start, null],
+      ])
+
+      // March has begun and the hourly job has not opened it yet: the next
+      // revision opens it under the version in force and starts in April.
+      clock.now = new Date('2026-03-01T00:10:00.000Z')
+      const next = await service.revise(
+        { ...definition, programId: created.program.id, targetValue: 55 },
+        actor,
+      )
+      expect(next.version).toMatchObject({ version: 3, effectiveFrom: march.end })
+      const settled = await service.get(
+        { propertyId: targetPropertyId, programId: created.program.id },
+        actor,
+      )
+      expect(
+        settled.results.map((monthly) => [monthly.programVersionId, monthly.periodStart]),
+      ).toEqual([
+        [revised.version.id, february.start],
+        [revised.version.id, march.start],
+      ])
+      expect(windowsOf(settled).versions).toEqual([
+        [1, february.start, february.start],
+        [2, february.start, march.end],
+        [3, march.end, null],
+      ])
+    })
+  })
+
+  describe('a Program changed in place', () => {
+    const at = new Date('2026-01-15T12:00:00.000Z')
+    const februaryStart = new Date('2026-02-01T00:00:00.000Z')
+
+    async function scheduledGoal(label: string) {
+      const repository = createGoalProgramRepository(getDb())
+      const targetPropertyId = await createPropertyFixture(label)
+      const bundle = programBundle({
+        propertyId: targetPropertyId,
+        status: 'scheduled',
+        effectiveFrom: februaryStart,
+        at,
+      })
+      await repository.create({ bundle, auditAction: 'goal.program.created' })
+      return { repository, targetPropertyId, bundle }
+    }
+
+    const auditDetails = async (programId: string, action: string) => {
+      const { rows } = await lease.pool.query<{ details: Record<string, unknown> }>(
+        `SELECT details FROM audit_logs
+          WHERE organization_id = $1 AND resource_id = $2 AND action = $3
+          ORDER BY created_at`,
+        [organizationId, programId, action],
+      )
+      return rows.map(({ details }) => details)
+    }
+
+    it('renames a Program with an audit row and leaves its version alone', async () => {
+      const { repository, targetPropertyId, bundle } = await scheduledGoal(
+        'Renamed Goal Property',
+      )
+      const renamedAt = new Date('2026-01-16T09:00:00.000Z')
+      const rename = (tenant: string) =>
+        repository.rename({
+          organizationId: tenant,
+          propertyId: targetPropertyId,
+          programId: bundle.program.id,
+          name: 'Lobby ratings',
+          description: 'Counted at the desk',
+          previousName: bundle.program.name,
+          previousDescription: bundle.program.description,
+          actorId: 'manager-2',
+          at: renamedAt,
+        })
+
+      // Another organization cannot reach the Program by its id.
+      await expect(rename(`other-${randomUUID()}`)).resolves.toBeNull()
+      await expect(rename(organizationId)).resolves.toMatchObject({
+        id: bundle.program.id,
+        name: 'Lobby ratings',
+        description: 'Counted at the desk',
+        updatedAt: renamedAt,
+      })
+
+      await expect(
+        repository.get(organizationId, targetPropertyId, bundle.program.id),
+      ).resolves.toEqual({
+        ...bundle,
+        program: {
+          ...bundle.program,
+          name: 'Lobby ratings',
+          description: 'Counted at the desk',
+          updatedAt: renamedAt,
+        },
+        targetChanges: [],
+      })
+      await expect(
+        auditDetails(bundle.program.id, 'goal.program.renamed'),
+      ).resolves.toEqual([
+        {
+          propertyId: targetPropertyId,
+          previousName: bundle.program.name,
+          name: 'Lobby ratings',
+          descriptionChanged: true,
+        },
+      ])
+    })
+
+    // The audit row keeps no description text, so it says whether the
+    // description is what changed: an edit of the description alone would
+    // otherwise record the same name twice and nothing else.
+    it('says in the audit row whether a rename changed the description', async () => {
+      const { repository, targetPropertyId, bundle } = await scheduledGoal(
+        'Described Goal Property',
+      )
+      const edit = (
+        change: Readonly<{
+          name: string
+          description: string | null
+          previousName: string
+          previousDescription: string | null
+        }>,
+      ) =>
+        repository.rename({
+          organizationId,
+          propertyId: targetPropertyId,
+          programId: bundle.program.id,
+          ...change,
+          actorId: 'manager-1',
+          at,
+        })
+      const original = bundle.program.name
+
+      await edit({
+        name: original,
+        description: 'Counted at the desk',
+        previousName: original,
+        previousDescription: null,
+      })
+      await edit({
+        name: 'Lobby ratings',
+        description: 'Counted at the desk',
+        previousName: original,
+        previousDescription: 'Counted at the desk',
+      })
+      await edit({
+        name: 'Lobby ratings',
+        description: null,
+        previousName: 'Lobby ratings',
+        previousDescription: 'Counted at the desk',
+      })
+
+      await expect(
+        auditDetails(bundle.program.id, 'goal.program.renamed'),
+      ).resolves.toEqual([
+        {
+          propertyId: targetPropertyId,
+          previousName: original,
+          name: original,
+          descriptionChanged: true,
+        },
+        {
+          propertyId: targetPropertyId,
+          previousName: original,
+          name: 'Lobby ratings',
+          descriptionChanged: false,
+        },
+        {
+          propertyId: targetPropertyId,
+          previousName: 'Lobby ratings',
+          name: 'Lobby ratings',
+          descriptionChanged: true,
+        },
+      ])
+    })
+
+    // The command decides from a read. When another rename lands between that
+    // read and the write, the goal no longer says what the command read:
+    // writing anyway would undo the other rename and record a previous name
+    // the goal did not have.
+    it('refuses a rename decided on a name or description that has since changed', async () => {
+      const { repository, targetPropertyId, bundle } = await scheduledGoal(
+        'Twice Renamed Goal Property',
+      )
+      const rename = (
+        name: string,
+        read: Readonly<{ name: string; description: string | null }>,
+      ) =>
+        repository.rename({
+          organizationId,
+          propertyId: targetPropertyId,
+          programId: bundle.program.id,
+          name,
+          description: 'Counted at the desk',
+          previousName: read.name,
+          previousDescription: read.description,
+          actorId: 'manager-1',
+          at,
+        })
+      const asCreated = { name: bundle.program.name, description: null }
+
+      await expect(rename('Lobby ratings', asCreated)).resolves.toMatchObject({
+        name: 'Lobby ratings',
+        description: 'Counted at the desk',
+      })
+      // Decided on the name the goal had before the rename above.
+      await expect(rename('Front desk ratings', asCreated)).resolves.toBeNull()
+      // Decided on the right name and a description it no longer has.
+      await expect(
+        rename('Front desk ratings', { name: 'Lobby ratings', description: null }),
+      ).resolves.toBeNull()
+
+      await expect(
+        repository.get(organizationId, targetPropertyId, bundle.program.id),
+      ).resolves.toMatchObject({
+        program: { name: 'Lobby ratings', description: 'Counted at the desk' },
+      })
+      await expect(
+        auditDetails(bundle.program.id, 'goal.program.renamed'),
+      ).resolves.toHaveLength(1)
+    })
+
+    it('does not rename an ended Program', async () => {
+      const { repository, targetPropertyId, bundle } =
+        await scheduledGoal('Ended Goal Property')
+      await repository.changeStatus({
+        organizationId,
+        propertyId: targetPropertyId,
+        programId: bundle.program.id,
+        expectedStatus: 'scheduled',
+        status: 'ended',
+        reason: null,
+        actorId: 'manager-1',
+        at,
+      })
+
+      await expect(
+        repository.rename({
+          organizationId,
+          propertyId: targetPropertyId,
+          programId: bundle.program.id,
+          name: 'Too late',
+          description: null,
+          previousName: bundle.program.name,
+          previousDescription: bundle.program.description,
+          actorId: 'manager-1',
+          at,
+        }),
+      ).resolves.toBeNull()
+      await expect(
+        auditDetails(bundle.program.id, 'goal.program.renamed'),
+      ).resolves.toEqual([])
+    })
+
+    it('a status change without a note stores no status reason', async () => {
+      const { repository, targetPropertyId, bundle } = await scheduledGoal(
+        'Unexplained Goal Property',
+      )
+
+      await expect(
+        repository.changeStatus({
+          organizationId,
+          propertyId: targetPropertyId,
+          programId: bundle.program.id,
+          expectedStatus: 'scheduled',
+          status: 'ended',
+          reason: null,
+          actorId: 'manager-1',
+          at,
+        }),
+      ).resolves.toMatchObject({ status: 'ended', statusReason: null })
+      await expect(
+        auditDetails(bundle.program.id, 'goal.program.status_changed'),
+      ).resolves.toEqual([
+        { propertyId: targetPropertyId, previousStatus: 'scheduled', status: 'ended' },
+      ])
+    })
+
+    // Ending needs exactly one open version to close. Without one the version
+    // history changed under the command: a conflict to report, not a failure.
+    it('reports an ending that finds no open version as a conflict and writes nothing', async () => {
+      const { repository, targetPropertyId, bundle } = await scheduledGoal(
+        'Conflicting End Property',
+      )
+      await lease.pool.query(
+        `UPDATE goal_program_versions SET effective_to = effective_from WHERE id = $1`,
+        [bundle.version.id],
+      )
+
+      await expect(
+        repository.changeStatus({
+          organizationId,
+          propertyId: targetPropertyId,
+          programId: bundle.program.id,
+          expectedStatus: 'scheduled',
+          status: 'ended',
+          reason: 'Ended by manager',
+          actorId: 'manager-1',
+          at,
+        }),
+      ).resolves.toBeNull()
+      await expect(
+        repository.get(organizationId, targetPropertyId, bundle.program.id),
+      ).resolves.toMatchObject({
+        program: { status: 'scheduled', statusReason: 'awaiting_first_full_month' },
+      })
+      await expect(
+        auditDetails(bundle.program.id, 'goal.program.status_changed'),
+      ).resolves.toEqual([])
+    })
   })
 })

@@ -15,10 +15,16 @@ const NAMES: Readonly<Record<string, string>> = {
 const refusal = (code: string, status = 409) =>
   new ServerFunctionError('GoalProgramError', code, code, status)
 
+/** What the banner prints: a sentence the form wrote, or the refusal's own. */
+const said = (shown: unknown): unknown => (shown instanceof Error ? shown.message : shown)
+
 const hold = (overrides: Partial<GoalSubjectHold> = {}): GoalSubjectHold => ({
   subject: LOBBY,
+  programId: 'program-1',
   programName: 'Lobby ratings',
+  targetValue: 400,
   heldUntil: null,
+  goalEnded: false,
   ...overrides,
 })
 
@@ -37,9 +43,9 @@ const context = (
 
 describe('goalCreateRefusal', () => {
   it('says the month changed while the form was open', () => {
-    const message = goalCreateRefusal(refusal('start_month_changed'), context())
+    const shown = goalCreateRefusal(refusal('start_month_changed'), context())
 
-    expect(message).toBe('The month has changed. Check the start and save again.')
+    expect(said(shown)).toBe('The month has changed. Check the start and save again.')
   })
 
   it('names the goal that holds a subject and how to free it', () => {
@@ -66,15 +72,33 @@ describe('goalCreateRefusal', () => {
     )
   })
 
-  it('says when a goal that is ending frees its subject, and offers next month', () => {
-    // An ended goal holds its subject until the month it had open is over.
+  it('says when a goal that has ended frees its subject, and offers next month', () => {
+    // An ended goal holds its subject until the month it had open is over, and
+    // takes no further change: its month's target cannot be changed either.
+    const message = goalCreateRefusal(
+      refusal('subject_has_goal'),
+      context({
+        holds: [
+          hold({ heldUntil: new Date('2026-10-31T22:00:00.000Z'), goalEnded: true }),
+        ],
+      }),
+    )
+
+    expect(message).toBe(
+      'Lobby has a goal for this measure that ends Oct 31. Start the new goal next month.',
+    )
+  })
+
+  it('also offers this month’s target when the goal that holds the subject goes on', () => {
+    // The subject was taken out of a goal that is still live: it stays in that
+    // goal until the month ends, and that goal's running month can be changed.
     const message = goalCreateRefusal(
       refusal('subject_has_goal'),
       context({ holds: [hold({ heldUntil: new Date('2026-10-31T22:00:00.000Z') })] }),
     )
 
     expect(message).toBe(
-      'Lobby has a goal for this measure that ends Oct 31. Start the new goal next month.',
+      'Lobby has a goal for this measure that ends Oct 31. Start the new goal next month, or change this month’s target.',
     )
   })
 
@@ -101,6 +125,7 @@ describe('goalCreateRefusal', () => {
             subject: POOL,
             programName: 'Pool ratings',
             heldUntil: new Date('2026-10-31T22:00:00.000Z'),
+            goalEnded: true,
           }),
         ],
       }),
@@ -112,18 +137,18 @@ describe('goalCreateRefusal', () => {
   })
 
   it('leaves out a hold on a subject the form did not choose', () => {
-    const message = goalCreateRefusal(
+    const shown = goalCreateRefusal(
       refusal('subject_has_goal'),
       context({ subjects: [POOL], holds: [hold()] }),
     )
 
-    expect(message).toBe('A subject you chose already has a goal for this measure.')
+    expect(said(shown)).toBe('A subject you chose already has a goal for this measure.')
   })
 
   it('still says what is wrong before the goals have been read', () => {
-    const message = goalCreateRefusal(refusal('subject_has_goal'), context())
+    const shown = goalCreateRefusal(refusal('subject_has_goal'), context())
 
-    expect(message).toBe('A subject you chose already has a goal for this measure.')
+    expect(said(shown)).toBe('A subject you chose already has a goal for this measure.')
   })
 
   it('offers next month when the measure cannot be read for this one', () => {
@@ -135,19 +160,23 @@ describe('goalCreateRefusal', () => {
   })
 
   it('says a measure cannot be read when the goal starts next month', () => {
-    const message = goalCreateRefusal(
+    const shown = goalCreateRefusal(
       refusal('metric_unavailable'),
       context({ startsThisMonth: false }),
     )
 
-    expect(message).toBe('This measure can’t be read right now. Try again later.')
+    expect(said(shown)).toBe('This measure can’t be read right now. Try again later.')
   })
 
-  it('hands any other failure on untouched, for the banner’s own rule', () => {
-    const other = refusal('invalid_target', 400)
+  it('says any other refusal in its sentence, never as a code', () => {
+    const shown = goalCreateRefusal(refusal('invalid_target', 400), context())
+
+    expect(said(shown)).toBe('Enter a valid monthly target for this measure.')
+  })
+
+  it('hands a failure that is not a refusal on untouched, for the banner’s own rule', () => {
     const failure = new Error('socket hang up')
 
-    expect(goalCreateRefusal(other, context())).toBe(other)
     expect(goalCreateRefusal(failure, context())).toBe(failure)
     expect(goalCreateRefusal(null, context())).toBeNull()
   })
