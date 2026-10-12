@@ -11,43 +11,38 @@
 // authoritative detector: any component coupled to a server module must
 // value-import it.
 // Run as: node scripts/check-component-boundaries.mjs
+// A directory argument checks that tree in place of src/components; the
+// checker's own test uses it (src/shared/architecture/component-server-boundary.test.ts).
 
 import { readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const componentsDir = join(__dirname, '..', 'src', 'components')
+const componentsDir = process.argv[2]
+  ? resolve(process.argv[2])
+  : join(__dirname, '..', 'src', 'components')
 
-// Files allowed to value-import from contexts/*/server.
+// Files allowed to value-import from contexts/*/server. Each entry is one file,
+// never a directory: the exception belongs to the hook that owns five or more
+// related mutations, and a file added beside it gets no exemption with it.
 // - inbox/use-reply-actions.ts: 10 server functions (8 reply commands + 2 template reads) (documented under src/components/CONTEXT.md "Server-function boundary").
-// - features/portal/link-tree/**: the Linktree section's writes (create, update, delete,
-//   re-order, save texts, save settings; documented).
+// - features/portal/link-tree/use-linktree-mutations.ts: the Linktree section's writes
+//   (create, update, delete, re-order, save texts, save settings; documented).
 const ALLOWLIST = new Set([
   'inbox/use-reply-actions.ts',
   'features/portal/link-tree/use-linktree-mutations.ts',
 ])
-const ALLOWLIST_PREFIXES = ['features/portal/link-tree/']
 
 function isAllowlisted(rel) {
-  const norm = rel.split('\\').join('/')
-  if (ALLOWLIST.has(norm)) return true
-  return ALLOWLIST_PREFIXES.some((p) => norm.startsWith(p))
+  return ALLOWLIST.has(rel.split('\\').join('/'))
 }
 
-function walk(dir, relativePath = '') {
-  const entries = readdirSync(dir, { withFileTypes: true })
-  const files = []
-  for (const entry of entries) {
-    const full = join(dir, entry.name)
-    const rel = relativePath ? join(relativePath, entry.name) : entry.name
-    if (entry.isDirectory()) {
-      files.push(...walk(full, rel))
-    } else if (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) {
-      files.push(rel)
-    }
-  }
-  return files
+/** Every .ts/.tsx file below `dir`, as a path relative to it. */
+function sourceFiles(dir) {
+  return readdirSync(dir, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.tsx?$/.test(entry.name))
+    .map((entry) => relative(dir, join(entry.parentPath, entry.name)))
 }
 
 // Detect coupling to a contexts/<ctx>/server module. The path matcher is
@@ -110,7 +105,7 @@ function valueServerStatements(src) {
   return offenders
 }
 
-const files = walk(componentsDir)
+const files = sourceFiles(componentsDir)
 const violations = []
 
 for (const rel of files) {
