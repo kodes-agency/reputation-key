@@ -14,8 +14,10 @@ import type { GoogleContentCapability } from '#/shared/domain/google-content-cap
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
 import type { DeclaredCapabilityPosture } from '#/shared/release/declared-capability-posture'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { clearEventSchemas, isEventRegistered } from '#/shared/events/schema-registry'
 import {
   applyDeclaredCapabilityPosture,
+  createDeclaredCapabilityPostureStores,
   type DeclaredCapabilityPostureStores,
 } from './declared-capability-posture'
 
@@ -167,6 +169,20 @@ function posture(
 ): DeclaredCapabilityPosture {
   return { google, ai, candidateReleaseSha: ai.length > 0 ? SHA : null }
 }
+
+// An AI control transition can withdraw a reply somebody was waiting on, and
+// the fact it records must pass the outbox's schema check. The deploy step
+// never builds the container that normally registers those schemas.
+describe('createDeclaredCapabilityPostureStores', () => {
+  it('registers the event schemas an AI control transition may record facts with', () => {
+    clearEventSchemas()
+
+    createDeclaredCapabilityPostureStores({} as Database)
+
+    expect(isEventRegistered('review.reply.publication_cancelled', 1)).toBe(true)
+    clearEventSchemas()
+  })
+})
 
 describe('applyDeclaredCapabilityPosture', () => {
   it('touches no store when nothing is declared', async () => {

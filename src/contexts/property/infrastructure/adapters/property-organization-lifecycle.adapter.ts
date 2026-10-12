@@ -12,7 +12,7 @@
 
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { deleteAiDraftsForOrganization } from '#/shared/db/ai/ai-draft-purge'
+import { purgeAiDraftsForOrganization } from '#/shared/db/ai/ai-draft-purge'
 import {
   createOrganizationLifecycleContributorScaffold,
   validateContentFreeEvidenceRef,
@@ -122,7 +122,7 @@ const drizzlePropertyLifecycleWorkbench: PropertyLifecycleWorkbench = Object.fre
         ),
       )
       .returning({ id: properties.id })
-    await deleteAiDraftsForOrganization(tx, request.organizationId)
+    await purgeAiDraftsForOrganization(tx, request.organizationId)
     return fenced.length
   },
 
