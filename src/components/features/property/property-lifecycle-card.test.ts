@@ -189,17 +189,42 @@ describe('what Restore tells the manager about Google', () => {
     ).toBe('Property restored. Google is ready for this Property.')
   })
 
-  it('does not call Google ready for a linked Property that has no review link', () => {
-    for (const state of ['unavailable', 'awaiting_refresh'] as const) {
-      const message = propertyRestoredMessage({
+  it('tells a linked Property Google gave no review link that its portals cannot be published', () => {
+    expect(
+      propertyRestoredMessage({
+        googleBindingReadiness: 'ready',
+        property: { googleReviewDestination: { state: 'unavailable' } },
+      }),
+    ).toBe(
+      'Property restored. Google is connected, but Google gave this Property no review link, so its portals cannot be published.',
+    )
+  })
+
+  it('does not say Google gave no review link when the Property holds one that is on hold', () => {
+    expect(
+      propertyRestoredMessage({
+        googleBindingReadiness: 'ready',
+        property: { googleReviewDestination: { state: 'awaiting_refresh' } },
+      }),
+    ).toBe(
+      'Property restored. Google is connected, but the review link of this Property is on hold, so its portals cannot be published.',
+    )
+  })
+
+  it('never describes a linked Property without a verified review link by private feedback', () => {
+    // No Portal of such a Property can be published, so there may be no live
+    // Portal for "private feedback only" to describe.
+    const messages = (['unavailable', 'awaiting_refresh'] as const).map((state) =>
+      propertyRestoredMessage({
         googleBindingReadiness: 'ready',
         property: { googleReviewDestination: { state } },
-      })
+      }),
+    )
 
-      expect(message).toBe(
-        'Property restored. Google is connected, but this Property has no Google review link, so its portals offer private feedback only.',
-      )
-    }
+    expect(
+      messages.filter((message) => !message.includes('cannot be published')),
+    ).toEqual([])
+    expect(messages.filter((message) => message.includes('Google is ready'))).toEqual([])
   })
 
   it('asks for a reconnect when the Property is no longer linked', () => {

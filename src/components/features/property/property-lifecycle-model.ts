@@ -99,24 +99,31 @@ export const propertyRestoreWindow = (
 }
 
 /** What Restore reports back: whether Google is still linked, and the Property it left. */
-export type PropertyRestoreOutcome = Readonly<{
+type PropertyRestoreOutcome = Readonly<{
   googleBindingReadiness: 'ready' | 'reconnect_required'
   property: Readonly<{ googleReviewDestination?: Readonly<{ state: string }> }>
 }>
 
 /**
  * What the manager is told once a Property is restored. "Google is ready" is
- * said only for a linked Property whose review link is verified: a linked
- * Property Google gave no review link still cannot send a guest there.
+ * said only for a linked Property whose review link is verified. Without one no
+ * Portal of the Property can be published, so a linked Property is told that,
+ * and why: Google gave it no review link, or the link it holds is on hold.
+ * Restore lifts the hold of a linked Property, so the second is answered only
+ * for a Property that was already active and left on hold by an earlier Restore.
  */
 export const propertyRestoredMessage = (outcome: PropertyRestoreOutcome): string => {
   if (outcome.googleBindingReadiness === 'reconnect_required') {
     return 'Property restored. Reconnect Google before restarting provider work.'
   }
-  if (outcome.property.googleReviewDestination?.state === 'verified') {
+  const destinationState = outcome.property.googleReviewDestination?.state
+  if (destinationState === 'verified') {
     return 'Property restored. Google is ready for this Property.'
   }
-  return 'Property restored. Google is connected, but this Property has no Google review link, so its portals offer private feedback only.'
+  if (destinationState === 'awaiting_refresh') {
+    return 'Property restored. Google is connected, but the review link of this Property is on hold, so its portals cannot be published.'
+  }
+  return 'Property restored. Google is connected, but Google gave this Property no review link, so its portals cannot be published.'
 }
 
 export type LifecyclePermissions = Readonly<{

@@ -73,8 +73,9 @@ export function awaitingRefreshGoogleReviewDestination(
  * to `active` lifts that fence while the Google binding is still `active`:
  * every binding change (disconnect, relink, scrub) either moves the binding off
  * `active` or replaces the destination, so an `active` binding that still holds
- * a fenced destination is the binding generation it was accepted for. Under any
- * other binding it stays fenced until a relink accepts a new one.
+ * a fenced destination is the same binding (connection, account, location) it
+ * was accepted for. Under any other binding it stays fenced until a relink
+ * accepts a new one.
  */
 export function googleReviewDestinationStateAfterLifecycleTransition(
   input: Readonly<{

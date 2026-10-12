@@ -114,12 +114,36 @@ describe('portalAttention', () => {
       code({
         health: { status: 'degraded', reason: 'google_destination_awaiting_refresh' },
       }),
-    ).toEqual(['google_refreshing'])
+    ).toEqual(['google_on_hold'])
     expect(
       code({
         health: { status: 'degraded', reason: 'google_destination_unavailable' },
       }),
     ).toEqual(['google_unavailable'])
+  })
+
+  it('says a Google link on hold needs a relink and a republish, not that it clears by itself', () => {
+    // Nothing refreshes the link: a live Portal of an available Property is in
+    // this state only after Google was disconnected from the Property.
+    const attention = attentionOf({
+      health: { status: 'degraded', reason: 'google_destination_awaiting_refresh' },
+    })
+
+    expect(attention).toEqual({
+      kind: 'issues',
+      issues: [
+        {
+          code: 'google_on_hold',
+          title: 'The Google link is on hold',
+          detail:
+            'Guests are not sent to Google. Relink the property to Google, then publish this portal again.',
+          fix: 'google',
+        },
+      ],
+    })
+    if (attention.kind !== 'issues') throw new Error('expected issues')
+    const words = attention.issues.map((issue) => `${issue.title} ${issue.detail}`)
+    expect(words.filter((text) => /refresh|clears itself/i.test(text))).toEqual([])
   })
 
   it('counts each problem once, however many sources report it', () => {
