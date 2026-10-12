@@ -145,6 +145,19 @@ export function isOrgInAllowlist(
 // ── Default in-memory policy store ──────────────────────────────────
 
 /**
+ * True in a deployed process. Railway injects these opaque IDs into every
+ * deployment and nothing local or in CI sets them — the same pair refuses
+ * DEPLOY_MIGRATE=1 (shared/db/deploy-migration-runtime.ts).
+ */
+function isDeployedProcess(
+  env: Readonly<{ RAILWAY_PROJECT_ID?: string; RAILWAY_ENVIRONMENT_ID?: string }>,
+): boolean {
+  return [env.RAILWAY_PROJECT_ID, env.RAILWAY_ENVIRONMENT_ID].some(
+    (id) => (id ?? '').trim().length > 0,
+  )
+}
+
+/**
  * Creates a policy store from environment configuration.
  *
  * Environment variables:
@@ -160,6 +173,8 @@ export function isOrgInAllowlist(
  * - BETA_E2E_GLOBAL_CAPABILITIES — comma-separated non-core capabilities forced ON
  *   globally for E2E/CI only (never blocked capabilities). Used so Playwright
  *   can exercise register/login without changing production beta posture.
+ *   Ignored in a deployed process (isDeployedProcess): this factory is also
+ *   what the web process builds its store from, and no boot guard runs there.
  */
 export function createEnvCapabilityPolicyStore(
   env: Readonly<Record<string, string | undefined>>,
@@ -174,10 +189,12 @@ export function createEnvCapabilityPolicyStore(
       .filter(Boolean),
   )
   const e2eGlobalCapabilities = new Set(
-    (env.BETA_E2E_GLOBAL_CAPABILITIES ?? '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean),
+    isDeployedProcess(env)
+      ? []
+      : (env.BETA_E2E_GLOBAL_CAPABILITIES ?? '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
   )
 
   return {
@@ -235,6 +252,10 @@ export type CapabilityPolicyEnv = Readonly<{
   // BQC-7.5: named-operator allowlist — read by the policy-store init when
   // binding the ExecutionPolicy operator branch (parseOperatorIdentities).
   OPS_OPERATOR_IDENTITIES?: string
+  // Railway's deployment identity — read only by isDeployedProcess, to refuse
+  // every test-only override in a deployed process.
+  RAILWAY_PROJECT_ID?: string
+  RAILWAY_ENVIRONMENT_ID?: string
 }>
 
 /** Parse the override variable into non-empty, blocked-filtered capabilities. */
@@ -274,17 +295,38 @@ export function parseKilledCapabilities(env: CapabilityPolicyEnv): ReadonlyArray
  * an explicit test/CI execution identity — NODE_ENV=test, or
  * BETA_E2E_EXECUTION_IDENTITY naming the test runner (CI e2e runs a
  * production-mode app, so the identity var is what authorizes overrides there).
+ *
+ * A deployed process never has one. The identity is free text that travels
+ * with the hatches it authorizes (compose.local.yml sets them together), so a
+ * copy of the e2e stack's variables onto a deployed service would otherwise
+ * authorize itself.
  */
 function hasE2EExecutionIdentity(env: CapabilityPolicyEnv): boolean {
+  if (isDeployedProcess(env)) return false
   return (
     env.NODE_ENV === 'test' || (env.BETA_E2E_EXECUTION_IDENTITY ?? '').trim().length > 0
   )
 }
 
+/** How a refused override ends its sentence: why, and what the operator does. */
+function e2eOverrideRefusal(env: CapabilityPolicyEnv, variable: string): string {
+  if (isDeployedProcess(env)) {
+    return (
+      'is refused on Railway, whatever execution identity is set. ' +
+      `Unset ${variable} on the deployed service.`
+    )
+  }
+  return (
+    'refuses to boot outside an explicit test/CI execution identity ' +
+    `(NODE_ENV=${env.NODE_ENV ?? '(unset)'}; set NODE_ENV=test or ` +
+    `BETA_E2E_EXECUTION_IDENTITY for e2e runs, or unset ${variable}).`
+  )
+}
+
 /**
  * Refuse when BETA_E2E_GLOBAL_CAPABILITIES is non-empty outside an explicit
- * test/CI execution identity (see hasE2EExecutionIdentity). Throws on
- * violation.
+ * test/CI execution identity, or in any deployed process (see
+ * hasE2EExecutionIdentity). Throws on violation.
  */
 export function assertE2EOverrideIdentity(env: CapabilityPolicyEnv): void {
   const hasOverride = (env.BETA_E2E_GLOBAL_CAPABILITIES ?? '')
@@ -295,9 +337,7 @@ export function assertE2EOverrideIdentity(env: CapabilityPolicyEnv): void {
 
   throw new Error(
     '[CAPABILITY POLICY] BETA_E2E_GLOBAL_CAPABILITIES is a test-only override and ' +
-      `refuses to boot outside an explicit test/CI execution identity ` +
-      `(NODE_ENV=${env.NODE_ENV ?? '(unset)'}; set NODE_ENV=test or ` +
-      'BETA_E2E_EXECUTION_IDENTITY for e2e runs).',
+      e2eOverrideRefusal(env, 'BETA_E2E_GLOBAL_CAPABILITIES'),
   )
 }
 
@@ -328,7 +368,8 @@ export function claimsE2ERateLimitBypass(env: CapabilityPolicyEnv): boolean {
 /**
  * True when the auth brute-force limiters may stand down: E2E is exactly '1'
  * AND an explicit test/CI execution identity authorizes it. Every other
- * state — absent, any other value, or no identity — keeps both limiters ON.
+ * state — absent, any other value, no identity, or a deployed process —
+ * keeps both limiters ON.
  */
 export function isE2ERateLimitBypassAuthorized(env: CapabilityPolicyEnv): boolean {
   return (
@@ -338,8 +379,9 @@ export function isE2ERateLimitBypassAuthorized(env: CapabilityPolicyEnv): boolea
 
 /**
  * Refuse startup when E2E is set outside an explicit test/CI execution
- * identity (see hasE2EExecutionIdentity). The counterpart of
- * assertE2EOverrideIdentity for the rate-limit hatch. Throws on violation.
+ * identity, or in any deployed process (see hasE2EExecutionIdentity). The
+ * counterpart of assertE2EOverrideIdentity for the rate-limit hatch. Throws on
+ * violation.
  */
 export function assertE2ERateLimitBypassIdentity(env: CapabilityPolicyEnv): void {
   if (!claimsE2ERateLimitBypass(env)) return
@@ -347,9 +389,7 @@ export function assertE2ERateLimitBypassIdentity(env: CapabilityPolicyEnv): void
 
   throw new Error(
     '[AUTH RATE LIMIT] E2E is a test-only switch that disables BOTH auth ' +
-      'brute-force limiters and refuses to boot outside an explicit test/CI ' +
-      `execution identity (NODE_ENV=${env.NODE_ENV ?? '(unset)'}; set ` +
-      'NODE_ENV=test or BETA_E2E_EXECUTION_IDENTITY for e2e runs, or unset E2E).',
+      `brute-force limiters and ${e2eOverrideRefusal(env, 'E2E')}`,
   )
 }
 

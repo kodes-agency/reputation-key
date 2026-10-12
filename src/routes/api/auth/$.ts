@@ -45,7 +45,7 @@ function authRateLimitBypassed(): boolean {
     bypassRefusalLogged = true
     getLogger().error(
       { nodeEnv: env.NODE_ENV },
-      'auth.rate_limit_bypass_refused: E2E is set without a test/CI execution identity — the auth catch-all limiter stays ENABLED',
+      'auth.rate_limit_bypass_refused: E2E is set without an authorized test/CI execution identity (a deployed process never has one) — the auth catch-all limiter stays ENABLED',
     )
   }
   return false

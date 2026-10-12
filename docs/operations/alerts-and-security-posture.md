@@ -53,7 +53,8 @@ adapter-level timeouts exist where hangs are possible (e.g. the alert webhook
 POST at 3s) and the platform gateway owns the outer request deadline.
 
 **Rate controls.** better-auth's built-in limiter guards its native endpoints
-(disabled only under the authorized `E2E=1` test identity). When `REDIS_URL`
+(disabled only under the authorized `E2E=1` test identity, which a deployed
+Railway process never has: `e2e-override-deployed-refusal.test.ts`). When `REDIS_URL`
 is configured, its atomic custom storage shares the allowance across web
 replicas and stores only an HMAC-derived client/path bucket with the active
 window TTL. Redis command failure fails the auth request closed. The adapter is

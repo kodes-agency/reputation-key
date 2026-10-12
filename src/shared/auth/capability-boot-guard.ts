@@ -13,6 +13,9 @@
 //   2. Refuses startup when E2E — the sibling hatch that stands BOTH auth
 //      brute-force limiters down (review §5.1) — is set outside that same
 //      identity (assertE2ERateLimitBypassIdentity).
+//      A deployed process has no such identity: with a Railway project or
+//      environment id present, 1 and 2 refuse whatever
+//      BETA_E2E_EXECUTION_IDENTITY says.
 //   3. Asserts every blocked capability is not globally enabled (production
 //      boot assertion — blocked capabilities must never boot enabled).
 //   4. Eagerly initializes the global policy store and records the
@@ -31,7 +34,10 @@
 // rules (proven in dev and in the built production server, which 500s on any
 // request when the override leaks without an identity). The rate-limit hatch is
 // fail-closed the same way — an unauthorized E2E claim leaves both limiters ON
-// at the call sites, so it costs 429s rather than a refused boot.
+// at the call sites, so it costs 429s rather than a refused boot. The store the
+// web composition root builds (createEnvCapabilityPolicyStore) drops the
+// capability override in a deployed process, so the refusal there does not
+// depend on which read reaches the store first.
 //
 // Unit/component tests do not need the env backdoor: they inject policy
 // stores via initCapabilityPolicyStore (see beta-capabilities.ts).
