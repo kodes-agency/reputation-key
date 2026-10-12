@@ -30,6 +30,7 @@ import {
   LOBBY_ID,
   LOBBY_RATINGS,
   LOBBY_RATINGS_ENDED,
+  LOBBY_RATINGS_OCTOBER_CHANGED,
 } from './goal-bulk.stories.fixtures'
 
 const neverSaves = (() =>
@@ -165,6 +166,26 @@ describe('GoalBulkTable', () => {
 
     expect(fieldIn(november)).toContain(`id="goal-target-portal-${LOBBY_ID}"`)
     expect(november).not.toContain('Already has a goal')
+  })
+
+  it('a row whose goal changed this month’s target shows that target while the goals start this month', () => {
+    // On the 11th the goals start in October, which is counted against 450.
+    const october = rowOf(
+      table({ programs: [LOBBY_RATINGS_OCTOBER_CHANGED] }),
+      'Lobby QR',
+    )
+
+    expect(october).toContain('>450</p>')
+    expect(october).not.toContain('>400</p>')
+
+    // On the 21st they start in November, which the change did not reach.
+    const november = rowOf(
+      table({ programs: [LOBBY_RATINGS_OCTOBER_CHANGED], now: LATE_IN_OCTOBER }),
+      'Lobby QR',
+    )
+
+    expect(november).toContain('>400</p>')
+    expect(november).not.toContain('>450</p>')
   })
 
   it('a goal for another measure does not occupy the row', () => {
