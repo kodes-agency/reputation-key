@@ -10,6 +10,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { Job } from 'bullmq'
+import { ZodError } from 'zod/v4'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { GeneratePropertyTrendResult } from '../../application/use-cases/generate-property-trend'
 import { createGeneratePropertyTrendJobHandler } from './generate-property-trend.job'
@@ -49,7 +50,7 @@ describe('generate property AI trend job', () => {
   it('refuses a payload that names only the schedule', async () => {
     const test = createHarness()
 
-    await expect(test.handler(job({ scheduleId: SCHEDULE_ID }))).rejects.toThrow()
+    await expect(test.handler(job({ scheduleId: SCHEDULE_ID }))).rejects.toThrow(ZodError)
     expect(test.generatePropertyTrend).not.toHaveBeenCalled()
   })
 
@@ -58,7 +59,7 @@ describe('generate property AI trend job', () => {
 
     await expect(
       test.handler(job({ ...REQUEST, reviewText: 'must never travel in a job' })),
-    ).rejects.toThrow()
+    ).rejects.toThrow(ZodError)
     expect(test.generatePropertyTrend).not.toHaveBeenCalled()
   })
 

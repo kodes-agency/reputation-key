@@ -7,6 +7,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { Job } from 'bullmq'
+import { ZodError } from 'zod/v4'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import {
@@ -67,8 +68,10 @@ describe('property AI trend enqueue', () => {
     const queue = createQueue()
     const enqueue = createPropertyTrendEnqueue(queue)
 
-    await expect(enqueue({ ...TREND, organizationId: '' })).rejects.toThrow()
-    await expect(enqueue({ ...TREND, propertyId: 'not-a-property' })).rejects.toThrow()
+    await expect(enqueue({ ...TREND, organizationId: '' })).rejects.toThrow(ZodError)
+    await expect(enqueue({ ...TREND, propertyId: 'not-a-property' })).rejects.toThrow(
+      ZodError,
+    )
     expect(queue.add).not.toHaveBeenCalled()
   })
 
