@@ -1,362 +1,76 @@
 import { readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { getTableColumns, getTableName, isTable } from 'drizzle-orm'
-import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 import * as schema from '#/shared/db/schema'
 import { DATA_FATE_AUTHORITY } from '#/shared/governance/data-fate-authority'
 import { walk } from '#/shared/testing/source-tree'
 import {
-  isTenantPredicateExempt,
+  type CallableReport,
+  type SourceText,
+  type TenantTables,
+  inspectTenantStatements,
+} from './tenant-predicate-constraint'
+import {
+  type TenantPredicateExemption,
   TENANT_PREDICATE_EXEMPTIONS,
 } from './tenant-predicate-exemptions'
 
 const ROOT = process.cwd()
 const CONTEXTS_ROOT = join(ROOT, 'src', 'contexts')
+const SYNTHETIC = 'synthetic.repository.ts'
 
-type TenantTableAuthority = Readonly<{
-  exportNames: ReadonlySet<string>
-  databaseNames: ReadonlySet<string>
-}>
+function hasOrganizationColumn(table: Parameters<typeof getTableColumns>[0]): boolean {
+  return Object.values(getTableColumns(table)).some(
+    (column) => column.name === 'organization_id',
+  )
+}
 
-type NamedCallable = Readonly<{
-  symbol: string
-  node: ts.FunctionLikeDeclaration
-}>
+/**
+ * Every table with an `organization_id` column is tenant-owned unless the
+ * data-fate authority gives it to Identity or the platform, whose tables are
+ * outside this canary. A table the authority does not list is still held.
+ */
+function tenantTables(): TenantTables {
+  const outsideCanary = new Set(
+    DATA_FATE_AUTHORITY.filter(
+      (row) => row.owner === 'identity' || row.owner === 'platform',
+    ).map((row) => row.exportName),
+  )
+  const allExportNames = new Set<string>()
+  const tenantExportNames = new Set<string>()
+  const tenantDatabaseNames = new Set<string>()
 
-function tenantOwnedTables(): TenantTableAuthority {
-  const exportNames = new Set<string>()
-  const databaseNames = new Set<string>()
-
-  for (const row of DATA_FATE_AUTHORITY) {
-    if (row.owner === 'identity' || row.owner === 'platform') continue
-
-    const value = schema[row.exportName as keyof typeof schema]
+  for (const [exportName, value] of Object.entries(schema)) {
     if (!isTable(value)) continue
-    if (
-      !Object.values(getTableColumns(value)).some(
-        (column) => column.name === 'organization_id',
-      )
-    ) {
-      continue
-    }
-
-    exportNames.add(row.exportName)
-    databaseNames.add(getTableName(value))
+    allExportNames.add(exportName)
+    if (outsideCanary.has(exportName) || !hasOrganizationColumn(value)) continue
+    tenantExportNames.add(exportName)
+    tenantDatabaseNames.add(getTableName(value))
   }
 
-  return { exportNames, databaseNames }
+  return { allExportNames, tenantExportNames, tenantDatabaseNames }
 }
 
-function propertyName(name: ts.PropertyName): string | null {
-  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
-    return name.text
-  }
-  return null
+/** A callable is tenant-free when it queries a tenant-owned table and no statement of it is restricted. */
+function isTenantFree(report: CallableReport): boolean {
+  return report.tenantStatements > 0 && report.restrictedStatements === 0
 }
 
-function callableSymbol(node: ts.Node): string | null {
-  if (ts.isFunctionDeclaration(node)) return node.name?.text ?? null
-  if (ts.isMethodDeclaration(node)) return propertyName(node.name)
-  if (!ts.isArrowFunction(node) && !ts.isFunctionExpression(node)) return null
-
-  if (ts.isVariableDeclaration(node.parent) && ts.isIdentifier(node.parent.name)) {
-    return node.parent.name.text
-  }
-  if (ts.isPropertyAssignment(node.parent)) return propertyName(node.parent.name)
-  return ts.isFunctionExpression(node) ? (node.name?.text ?? null) : null
-}
-
-function namedCallables(sourceFile: ts.SourceFile): readonly NamedCallable[] {
-  const callables: NamedCallable[] = []
-  const visit = (node: ts.Node): void => {
-    const symbol = callableSymbol(node)
-    // ts.isFunctionLike also admits signature-only nodes (e.g. a constructor
-    // type), which carry no body to inspect.
-    if (symbol !== null && ts.isFunctionLike(node) && 'body' in node) {
-      callables.push({ symbol, node: node as ts.FunctionLikeDeclaration })
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(sourceFile)
-  return callables
-}
-
-function tableIdentifiersIn(
-  sourceFile: ts.SourceFile,
-  authority: TenantTableAuthority,
-): ReadonlySet<string> {
-  const identifiers = new Set(authority.exportNames)
-
-  const visit = (node: ts.Node): void => {
-    if (ts.isImportSpecifier(node)) {
-      const importedName = node.propertyName?.text ?? node.name.text
-      if (authority.exportNames.has(importedName)) identifiers.add(node.name.text)
-    }
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      node.initializer !== undefined &&
-      ts.isIdentifier(node.initializer) &&
-      identifiers.has(node.initializer.text)
-    ) {
-      identifiers.add(node.name.text)
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(sourceFile)
-  return identifiers
-}
-
-function sqlTargetsDatabaseTable(
-  text: string,
-  databaseNames: ReadonlySet<string>,
-): boolean {
-  for (const name of databaseNames) {
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
-    const target = `(?:(?:"?public"?\\.)?"?${escaped}"?)`
-    if (
-      new RegExp(
-        `\\b(?:delete\\s+from|from|join|update|into)\\s+${target}(?![A-Za-z0-9_])`,
-        'iu',
-      ).test(text)
-    ) {
-      return true
-    }
-  }
-  return false
-}
-
-function isWhereCall(node: ts.Node): node is ts.CallExpression {
+function inspectSynthetic(text: string): readonly CallableReport[] {
   return (
-    ts.isCallExpression(node) &&
-    ts.isPropertyAccessExpression(node.expression) &&
-    node.expression.name.text === 'where'
+    inspectTenantStatements([{ file: SYNTHETIC, text }], tenantTables()).get(SYNTHETIC) ??
+    []
   )
 }
 
-function isSqlTemplate(node: ts.Node): node is ts.TaggedTemplateExpression {
-  return (
-    ts.isTaggedTemplateExpression(node) &&
-    ts.isIdentifier(node.tag) &&
-    node.tag.text === 'sql'
-  )
+function tenantFreeSymbols(text: string): readonly string[] {
+  return inspectSynthetic(text)
+    .filter(isTenantFree)
+    .map((report) => report.symbol)
 }
 
-function isPotentialTenantScopeHelper(name: string): boolean {
-  return /where|scope|tenant|filter|predicate|condition/iu.test(name)
-}
-
-function hasTenantProof(
-  callable: NamedCallable,
-  sourceFile: ts.SourceFile,
-  helpers: ReadonlyMap<string, readonly NamedCallable[]>,
-  visited: Set<number> = new Set(),
-): boolean {
-  if (visited.has(callable.node.pos)) return false
-  visited.add(callable.node.pos)
-
-  let found = callable.node.parameters.some((parameter) => {
-    const name = parameter.name.getText(sourceFile)
-    const type = parameter.type?.getText(sourceFile) ?? ''
-    return (
-      /\b(?:organizationId|organizationIds|organization_id|orgId|orgIds)\b/u.test(name) ||
-      /\bOrganizationId\b/u.test(type) ||
-      ((name === 'scope' || name === 'where') &&
-        (type.includes('SQL') || /Where$/u.test(callable.symbol)))
-    )
-  })
-  const calledHelpers = new Set<string>()
-  const visit = (node: ts.Node): void => {
-    if (node !== callable.node && callableSymbol(node) !== null) return
-
-    if (
-      ts.isIdentifier(node) &&
-      (node.text === 'organizationId' ||
-        node.text === 'organizationIds' ||
-        node.text === 'organization_id' ||
-        node.text === 'orgId' ||
-        node.text === 'orgIds' ||
-        node.text === 'OrganizationId')
-    ) {
-      found = true
-    }
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-      const helperName = node.expression.text
-      if (helperName === 'baseWhere' || helperName === 'tenantWhere') found = true
-      if (isPotentialTenantScopeHelper(helperName)) calledHelpers.add(helperName)
-    }
-    if (
-      isSqlTemplate(node) &&
-      /\b(?:organizationId|organizationIds|organization_id|orgId|orgIds)\b/u.test(
-        node.template.getText(sourceFile),
-      )
-    ) {
-      found = true
-    }
-
-    ts.forEachChild(node, visit)
-  }
-  visit(callable.node)
-  if (found) return true
-
-  for (const helperName of calledHelpers) {
-    for (const helper of helpers.get(helperName) ?? []) {
-      if (hasTenantProof(helper, sourceFile, helpers, visited)) return true
-    }
-  }
-  return false
-}
-
-function containsTenantIdentifier(node: ts.Node): boolean {
-  let found = false
-  const visit = (current: ts.Node): void => {
-    if (
-      ts.isIdentifier(current) &&
-      /^(?:organizationId|organizationIds|organization_id|orgId|orgIds)$/u.test(
-        current.text,
-      )
-    ) {
-      found = true
-      return
-    }
-    ts.forEachChild(current, visit)
-  }
-  visit(node)
-  return found
-}
-
-function hasTenantPredicate(callable: NamedCallable): boolean {
-  let found = false
-  const visit = (node: ts.Node): void => {
-    if (node !== callable.node && callableSymbol(node) !== null) return
-    if (isWhereCall(node) && node.arguments.some(containsTenantIdentifier)) {
-      found = true
-      return
-    }
-    if (
-      isSqlTemplate(node) &&
-      ts.isTemplateExpression(node.template) &&
-      node.template.templateSpans.some((span) =>
-        containsTenantIdentifier(span.expression),
-      )
-    ) {
-      found = true
-      return
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(callable.node)
-  return found
-}
-
-function inspectCallable(
-  callable: NamedCallable,
-  sourceFile: ts.SourceFile,
-  authority: TenantTableAuthority,
-  tableIdentifiers: ReadonlySet<string>,
-  helpers: ReadonlyMap<string, readonly NamedCallable[]>,
-): Readonly<{
-  queriesTenantTable: boolean
-  hasTenantToken: boolean
-  hasTenantPredicate: boolean
-}> {
-  let hasWhere = false
-  let hasSqlStatement = false
-  let referencesTenantTable = false
-
-  const visit = (node: ts.Node): void => {
-    if (node !== callable.node && callableSymbol(node) !== null) return
-
-    if (isWhereCall(node)) hasWhere = true
-    if (ts.isIdentifier(node) && tableIdentifiers.has(node.text)) {
-      referencesTenantTable = true
-    }
-    if (
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      node.expression.name.text === 'resolvePortalContext'
-    ) {
-      hasSqlStatement = true
-      referencesTenantTable = true
-    }
-    if (isSqlTemplate(node)) {
-      const sqlText = node.template.getText(sourceFile)
-      if (/\b(?:select|update|delete\s+from|insert\s+into)\b/iu.test(sqlText)) {
-        hasSqlStatement = true
-      }
-      if (sqlTargetsDatabaseTable(sqlText, authority.databaseNames)) {
-        referencesTenantTable = true
-      }
-    }
-
-    ts.forEachChild(node, visit)
-  }
-  visit(callable.node)
-
-  return {
-    queriesTenantTable: (hasWhere || hasSqlStatement) && referencesTenantTable,
-    hasTenantToken: hasTenantProof(callable, sourceFile, helpers),
-    hasTenantPredicate: hasTenantPredicate(callable),
-  }
-}
-
-function inspectTenantPredicates(
-  file: string,
-  source: string,
-  authority: TenantTableAuthority,
-): Readonly<{ violations: readonly string[]; staleExemptions: readonly string[] }> {
-  const sourceFile = ts.createSourceFile(
-    file,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS,
-  )
-  const tableIdentifiers = tableIdentifiersIn(sourceFile, authority)
-  const callables = namedCallables(sourceFile)
-  const helpers = new Map<string, NamedCallable[]>()
-  for (const callable of callables) {
-    const parent = callable.node.parent
-    if (
-      !ts.isFunctionDeclaration(callable.node) &&
-      !(ts.isVariableDeclaration(parent) && parent.initializer === callable.node)
-    ) {
-      continue
-    }
-    const existing = helpers.get(callable.symbol) ?? []
-    existing.push(callable)
-    helpers.set(callable.symbol, existing)
-  }
-
-  const violations = new Set<string>()
-  const staleExemptions = new Set<string>()
-  for (const callable of callables) {
-    const inspection = inspectCallable(
-      callable,
-      sourceFile,
-      authority,
-      tableIdentifiers,
-      helpers,
-    )
-    if (!inspection.queriesTenantTable) continue
-    const key = `${file}#${callable.symbol}`
-    const exempt = isTenantPredicateExempt(file, callable.symbol)
-    if (exempt && inspection.hasTenantPredicate) {
-      staleExemptions.add(key)
-      continue
-    }
-    if (inspection.hasTenantToken && !exempt) continue
-    violations.add(key)
-  }
-
-  return {
-    violations: [...violations].sort(),
-    staleExemptions: [...staleExemptions].sort(),
-  }
-}
-
-function infrastructureFiles(): readonly string[] {
+function infrastructureSources(): readonly SourceText[] {
   return walk(CONTEXTS_ROOT)
     .filter(
       (file) =>
@@ -366,74 +80,307 @@ function infrastructureFiles(): readonly string[] {
         !file.endsWith('.d.ts'),
     )
     .sort()
+    .map((absoluteFile) => ({
+      file: relative(ROOT, absoluteFile).split(sep).join('/'),
+      text: readFileSync(absoluteFile, 'utf8'),
+    }))
+}
+
+function exemptionKey(entry: TenantPredicateExemption): string {
+  return `${entry.file}#${entry.symbol}`
+}
+
+/** What a category asserts about its callable beyond "no tenant value restricts it". */
+const CATEGORY_CLAIMS: Readonly<
+  Partial<
+    Record<TenantPredicateExemption['category'], (report: CallableReport) => boolean>
+  >
+> = {
+  'TENANT-CHECKED': (report) => report.comparesTenantValues,
+  'TENANT-CORRELATED': (report) => report.tiesTenantColumns,
+  'OWNER-LOOKUP': (report) => report.mentionsTenant,
 }
 
 describe('canary: every tenant-owned repository query carries a tenant predicate (S12)', () => {
   it('flags a synthetic unscoped tenant-owned query', () => {
-    const authority = tenantOwnedTables()
-    expect(authority.exportNames.has('reviews')).toBe(true)
+    const tables = tenantTables()
+    expect(tables.tenantExportNames.has('reviews')).toBe(true)
 
-    const inspection = inspectTenantPredicates(
-      'synthetic-unscoped.repository.ts',
-      `const findReview = async (reviewId: string) =>
-        db.select().from(reviews).where(eq(reviews.id, reviewId))`,
-      authority,
+    expect(
+      tenantFreeSymbols(
+        `const findReview = async (reviewId: string) =>
+          db.select().from(reviews).where(eq(reviews.id, reviewId))`,
+      ),
+    ).toEqual(['findReview'])
+  })
+
+  // R1A-01: a mention of the tenant is not a predicate. Each source names
+  // `organizationId` and restricts no statement to a tenant value.
+  it.each([
+    [
+      'a projection key',
+      `const findReply = async (replyId: string) =>
+        db.select({ id: replies.id, organizationId: replies.organizationId })
+          .from(replies).where(eq(replies.id, replyId))`,
+    ],
+    [
+      'a row mapper',
+      `const findReply = async (replyId: string) => {
+        const rows = await db.select().from(replies).where(eq(replies.id, replyId))
+        return rows.map((row) => ({ id: row.id, organizationId: row.organizationId }))
+      }`,
+    ],
+    [
+      'an unused parameter',
+      `const findReply = async (organizationId: string, replyId: string) =>
+        db.select().from(replies).where(eq(replies.id, replyId))`,
+    ],
+    [
+      'a tenant column tied to another tenant column',
+      `const findReply = async (replyId: string) =>
+        db.select().from(replies)
+          .innerJoin(reviews, eq(reviews.id, replies.reviewId))
+          .where(and(
+            eq(replies.id, replyId),
+            eq(reviews.organizationId, replies.organizationId),
+          ))`,
+    ],
+    [
+      'a keyset cursor',
+      `const findReply = async (cursor: { organizationId: string; id: string }) =>
+        db.select().from(replies).where(or(
+          gt(replies.organizationId, cursor.organizationId),
+          and(
+            eq(replies.organizationId, cursor.organizationId),
+            gt(replies.id, cursor.id),
+          ),
+        ))`,
+    ],
+    [
+      'a raw row-value cursor',
+      `const findReply = async (cursor: { organizationId: string; id: string }) =>
+        db.execute(sql\`
+          SELECT id FROM replies
+          WHERE (organization_id, id) > (\${cursor.organizationId}, \${cursor.id})
+          ORDER BY organization_id, id\`)`,
+    ],
+    [
+      'a predicate added only inside an if',
+      `const findReply = async (replyId: string, orgId?: string) => {
+        const conditions = [eq(replies.id, replyId)]
+        if (orgId) conditions.push(eq(replies.organizationId, orgId))
+        return db.select().from(replies).where(and(...conditions))
+      }`,
+    ],
+    [
+      'an optional predicate',
+      `const findReply = async (replyId: string, orgId?: string) =>
+        db.select().from(replies).where(and(
+          eq(replies.id, replyId),
+          orgId === undefined ? undefined : eq(replies.organizationId, orgId),
+        ))`,
+    ],
+    [
+      'a row that was read under the tenant',
+      `const findReply = async (orgId: string, reviewId: string) => {
+        const review = await loadReview(orgId, reviewId)
+        return db.select().from(replies).where(eq(replies.reviewId, review.id))
+      }`,
+    ],
+    [
+      'a correlated raw fragment',
+      `const findReply = () => sql\`EXISTS (
+        SELECT 1 FROM replies AS reply
+        WHERE reply.organization_id = review.organization_id
+          AND reply.review_id = review.id)\``,
+    ],
+  ])('flags a tenant-free query whose only tenant mention is %s', (_mention, source) => {
+    expect(tenantFreeSymbols(source)).toEqual(['findReply'])
+  })
+
+  it.each([
+    [
+      'in the where clause',
+      `const findReply = async (orgId: string, replyId: string) =>
+        db.select().from(replies)
+          .where(and(eq(replies.organizationId, orgId), eq(replies.id, replyId)))`,
+    ],
+    [
+      'in a condition list built before the query',
+      `const findReply = async (orgId: string, replyId?: string) => {
+        const conditions = [eq(replies.organizationId, orgId)]
+        if (replyId) conditions.push(eq(replies.id, replyId))
+        return db.select().from(replies).where(and(...conditions))
+      }`,
+    ],
+    [
+      'handed to the shared tenant helper',
+      `const findReply = async (orgId: string, replyId: string) =>
+        db.select().from(replies)
+          .where(and(...baseWhere(replies, orgId), eq(replies.id, replyId)))`,
+    ],
+    [
+      'in a helper of the same file',
+      `const scoped = (ctx: { organizationId: string }) =>
+        eq(replies.organizationId, ctx.organizationId)
+      const findReply = async (ctx: { organizationId: string }, replyId: string) =>
+        db.select().from(replies).where(and(scoped(ctx), eq(replies.id, replyId)))`,
+    ],
+    [
+      'bound to the tenant column of a raw statement',
+      `const findReply = async (tenant: string, replyId: string) =>
+        db.execute(sql\`
+          SELECT id FROM replies
+          WHERE organization_id = \${tenant} AND id = \${replyId}\`)`,
+    ],
+    [
+      'compared null-safely',
+      `const findReply = async (input: { organizationId: string | null; id: string }) =>
+        db.select().from(replies).where(and(
+          eq(replies.id, input.id),
+          input.organizationId === null
+            ? isNull(replies.organizationId)
+            : eq(replies.organizationId, input.organizationId),
+        ))`,
+    ],
+    [
+      'folded into the key the row is found by',
+      `const findReply = async (orgId: string, requestId: string) => {
+        const key = receiptKey(orgId, requestId)
+        return db.select().from(replies).where(eq(replies.idempotencyKey, key))
+      }`,
+    ],
+    [
+      'equal to a value under another name',
+      `const findReply = async (owner: { id: string }, replyId: string) =>
+        db.select().from(replies)
+          .where(and(eq(replies.organizationId, owner.id), eq(replies.id, replyId)))`,
+    ],
+  ])('accepts a query whose tenant value is %s', (_position, source) => {
+    const reports = inspectSynthetic(source).filter(
+      (report) => report.symbol === 'findReply',
     )
 
-    expect(inspection.staleExemptions).toEqual([])
-    expect(inspection.violations.length).toBeGreaterThan(0)
-    expect(inspection.violations).toEqual(['synthetic-unscoped.repository.ts#findReview'])
+    expect(reports).toHaveLength(1)
+    expect(reports[0]).toMatchObject({ tenantStatements: 1, restrictedStatements: 1 })
+  })
+
+  it('holds a predicate parameter to every caller in the file', () => {
+    const countWhere = `const countWhere = async (where: SQL) =>
+      db.select().from(replies).where(where)
+    const countForOrganization = (orgId: string) =>
+      countWhere(eq(replies.organizationId, orgId))`
+
+    expect(tenantFreeSymbols(countWhere)).toEqual([])
+    expect(
+      tenantFreeSymbols(
+        `${countWhere}
+        const countEverywhere = () => countWhere(isNotNull(replies.id))`,
+      ),
+    ).toEqual(['countWhere'])
+    expect(
+      tenantFreeSymbols(
+        `const countWhere = async (where: SQL) => db.select().from(replies).where(where)`,
+      ),
+    ).toEqual(['countWhere'])
+  })
+
+  it('holds an exported predicate parameter to the files that import it', () => {
+    const tables = tenantTables()
+    const facade: SourceText = {
+      file: 'read-facade.ts',
+      text: `export const readReplies = async (scope: SQL | undefined) =>
+        db.select().from(replies).where(and(scope, isNotNull(replies.publishedAt)))`,
+    }
+    const tenantFree = (caller: string): readonly string[] =>
+      (
+        inspectTenantStatements(
+          [facade, { file: 'adapter.ts', text: caller }],
+          tables,
+        ).get(facade.file) ?? []
+      )
+        .filter(isTenantFree)
+        .map((report) => report.symbol)
+
+    expect(
+      tenantFree(`import { readReplies } from './read-facade'
+        const forOrganization = (orgId: string) =>
+          readReplies(eq(replies.organizationId, orgId))`),
+    ).toEqual([])
+    expect(
+      tenantFree(`import { readReplies } from './read-facade'
+        const everywhere = () => readReplies(undefined)`),
+    ).toEqual(['readReplies'])
+  })
+
+  it('judges only the statements that name a tenant-owned table', () => {
+    const tables = tenantTables()
+    expect(tables.allExportNames.has('organizationExports')).toBe(true)
+    expect(tables.tenantExportNames.has('organizationExports')).toBe(false)
+    expect(tables.tenantExportNames.has('auditLogs')).toBe(true)
+
+    // The where clause is on a table outside the canary's authority; the
+    // tenant-owned table is only inserted into, with its Organization.
+    const reports = inspectSynthetic(
+      `const completeExport = async (exportId: string, organization: string) => {
+        await db.update(organizationExports).set({ state: 'ready' })
+          .where(eq(organizationExports.id, exportId))
+        await db.insert(auditLogs).values({ organizationId: organization })
+      }`,
+    )
+
+    expect(reports).toHaveLength(1)
+    expect(reports[0]).toMatchObject({ symbol: 'completeExport', tenantStatements: 0 })
   })
 
   it('holds the goal month target log to the tenant predicate', () => {
-    const authority = tenantOwnedTables()
-    expect(authority.exportNames.has('goalMonthTargetChanges')).toBe(true)
+    expect(tenantTables().tenantExportNames.has('goalMonthTargetChanges')).toBe(true)
 
     // A Program id alone is not a tenant predicate: the log is keyed by
     // organization, Property and Program together.
-    const inspection = inspectTenantPredicates(
-      'synthetic-target-log.repository.ts',
-      `const listTargetChanges = async (programId: string) =>
-        db.select().from(goalMonthTargetChanges)
-          .where(eq(goalMonthTargetChanges.programId, programId))`,
-      authority,
-    )
-
-    expect(inspection.violations).toEqual([
-      'synthetic-target-log.repository.ts#listTargetChanges',
-    ])
+    expect(
+      tenantFreeSymbols(
+        `const listTargetChanges = async (programId: string) =>
+          db.select().from(goalMonthTargetChanges)
+            .where(eq(goalMonthTargetChanges.programId, programId))`,
+      ),
+    ).toEqual(['listTargetChanges'])
   })
 
   it('matches every detected tenant-free query exactly to the reviewed registry', () => {
-    const authority = tenantOwnedTables()
-    const inspections = infrastructureFiles().map((absoluteFile) => {
-      const file = relative(ROOT, absoluteFile).split(sep).join('/')
-      return inspectTenantPredicates(file, readFileSync(absoluteFile, 'utf8'), authority)
-    })
-    const violations = inspections.flatMap((result) => result.violations).sort()
-    const staleExemptions = inspections.flatMap((result) => result.staleExemptions).sort()
-    const registered = TENANT_PREDICATE_EXEMPTIONS.map(
-      (entry) => `${entry.file}#${entry.symbol}`,
-    ).sort()
+    const reports = inspectTenantStatements(infrastructureSources(), tenantTables())
+    const tenantFree = new Set(
+      [...reports].flatMap(([file, callables]) =>
+        callables.filter(isTenantFree).map((report) => `${file}#${report.symbol}`),
+      ),
+    )
+    const registered = new Set(TENANT_PREDICATE_EXEMPTIONS.map(exemptionKey))
 
-    expect(staleExemptions).toEqual([])
     expect(
       TENANT_PREDICATE_EXEMPTIONS.filter(
         (entry) => entry.category === 'UNSCOPED-PENDING',
       ),
     ).toHaveLength(0)
-    expect(violations).toEqual(registered)
+    expect(tenantFree.size).toBeGreaterThan(0)
+    expect({
+      // A tenant-free query nobody reviewed: restrict it, or register it with its reason.
+      unregistered: [...tenantFree].filter((key) => !registered.has(key)).sort(),
+      // A registered query that is now restricted, or no longer queries a tenant-owned table.
+      stale: [...registered].filter((key) => !tenantFree.has(key)).sort(),
+    }).toEqual({ unregistered: [], stale: [] })
   })
 
   it('keeps every exemption unique, explained, and attached to a real callable', () => {
+    const reports = inspectTenantStatements(infrastructureSources(), tenantTables())
     const seen = new Set<string>()
     const duplicateEntries: string[] = []
     const shortReasons: string[] = []
     const invalidPendingReasons: string[] = []
     const staleEntries: string[] = []
+    const unprovenClaims: string[] = []
 
     for (const entry of TENANT_PREDICATE_EXEMPTIONS) {
-      const key = `${entry.file}#${entry.symbol}`
+      const key = exemptionKey(entry)
       if (seen.has(key)) duplicateEntries.push(key)
       seen.add(key)
       if (entry.reason.length < 40) shortReasons.push(key)
@@ -444,22 +391,14 @@ describe('canary: every tenant-owned repository query carries a tenant predicate
         invalidPendingReasons.push(key)
       }
 
-      let symbols: ReadonlySet<string>
-      try {
-        const source = readFileSync(join(ROOT, entry.file), 'utf8')
-        const sourceFile = ts.createSourceFile(
-          entry.file,
-          source,
-          ts.ScriptTarget.Latest,
-          true,
-          ts.ScriptKind.TS,
-        )
-        symbols = new Set(namedCallables(sourceFile).map((callable) => callable.symbol))
-      } catch {
-        staleEntries.push(key)
-        continue
+      const callables = (reports.get(entry.file) ?? []).filter(
+        (report) => report.symbol === entry.symbol,
+      )
+      if (callables.length === 0) staleEntries.push(key)
+      const claim = CATEGORY_CLAIMS[entry.category]
+      if (claim !== undefined && !callables.filter(isTenantFree).some(claim)) {
+        unprovenClaims.push(`${entry.category} ${key}`)
       }
-      if (!symbols.has(entry.symbol)) staleEntries.push(key)
     }
 
     expect({
@@ -467,11 +406,13 @@ describe('canary: every tenant-owned repository query carries a tenant predicate
       invalidPendingReasons,
       shortReasons,
       staleEntries,
+      unprovenClaims,
     }).toEqual({
       duplicateEntries: [],
       invalidPendingReasons: [],
       shortReasons: [],
       staleEntries: [],
+      unprovenClaims: [],
     })
   })
 })
