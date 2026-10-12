@@ -8,7 +8,7 @@
 // The form still owns its schema and its `onSubmit`; autosave only decides WHEN
 // `handleSubmit` runs.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePortalDraftAutosave } from './portal-draft-autosave-context'
 import {
   createDraftFormSaveTracker,
@@ -34,6 +34,21 @@ export function usePortalFormAutosave<T extends Readonly<Record<string, unknown>
     }),
     [autosave, key, tracker],
   )
+}
+
+/**
+ * Register edits that keep an explicit Save and live outside a TanStack Form
+ * (the responsible managers' ticks), so leaving the editor with them asks
+ * first. `isDirty` is read when a navigation asks, so it may read a ref; the
+ * registration ends when the caller unmounts.
+ */
+export function useExplicitDirtyGuard(key: string, isDirty: () => boolean) {
+  const autosave = usePortalDraftAutosave()
+  const latest = useRef(isDirty)
+  useEffect(() => {
+    latest.current = isDirty
+  })
+  useEffect(() => autosave.guardExplicit(key, () => latest.current()), [autosave, key])
 }
 
 /**

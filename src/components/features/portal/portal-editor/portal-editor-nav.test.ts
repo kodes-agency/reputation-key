@@ -48,7 +48,7 @@ function items(available: ReadonlyArray<PortalEditorSection> = ALL) {
   })
 }
 
-function render(active: PortalEditorSection, available = ALL): string {
+function render(active: PortalEditorSection, available = ALL, canEdit = true): string {
   const router = createRouter({
     routeTree: createRootRoute(),
     history: createMemoryHistory({
@@ -66,6 +66,7 @@ function render(active: PortalEditorSection, available = ALL): string {
           active,
           available,
           summaries: SUMMARIES,
+          canEdit,
         }),
       }),
     }),
@@ -142,6 +143,10 @@ describe('PortalEditorNav', () => {
     expect(render('welcome')).toContain(
       'Edits stay in this draft until you publish. Printed codes keep working.',
     )
+  })
+
+  it('leaves the draft note out for someone who cannot edit', () => {
+    expect(render('welcome', ALL, false)).not.toContain('Edits stay in this draft')
   })
 
   it('waits for a wide container before it is a column', () => {

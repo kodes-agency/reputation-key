@@ -6,32 +6,27 @@ import {
   type SearchSchemaInput,
 } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
-import { useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
-import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
-  canReviewAndPublish,
   derivePortalDetailView,
-  describePendingChanges,
-  describePortalStatus,
   normalizePortalWorkspaceSearch,
+  portalWorkspaceTitle,
   type PortalDetailTab,
 } from '#/components/features/portal/portal-detail/portal-detail-rules'
 import type { PortalEditorSection } from '#/components/features/portal/portal-editor/portal-editor-sections'
 import { PortalDraftAutosaveProvider } from '#/components/features/portal/portal-editor/portal-draft-autosave-context'
-import { PortalDraftSaveStatus } from '#/components/features/portal/portal-editor/portal-draft-save-status'
 import { PortalLinkIssuanceProvider } from '#/components/features/portal/portal-workspace/portal-link-issuance'
-import { PortalOpenPageControl } from '#/components/features/portal/portal-workspace/portal-open-page-control'
-import { PortalWorkspaceHeader } from '#/components/features/portal/portal-workspace/portal-workspace-header'
 import { isWorkspaceReviewRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
 import { PortalWorkspaceShell } from '#/components/features/portal/portal-workspace/portal-workspace-shell'
 import { PortalWorkspaceTabs } from '#/components/features/portal/portal-workspace/portal-workspace-tabs'
+import { documentTitle } from '#/components/layout/page-identity'
 import { RouteNotFound } from '#/components/layout/route-page-state'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
-import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
-import { usePortalOpenPageReveal } from './-portal-detail-actions'
+import { membersQuery } from '#/routes/-queries/route-queries'
+import { PortalWorkspaceHeaderSlot } from './-portal-workspace-header-slot'
+import { PortalWorkspaceNoticeSlot } from './-portal-workspace-notice-slot'
 import {
   findAuthorizedPortal,
   portalGroupsQuery,
@@ -105,6 +100,17 @@ export const Route = createFileRoute(
       ),
     ])
   },
+  // The tab is titled after the portal (the static title is the fallback while
+  // nothing is cached). Read from the cache the loader filled and every edit
+  // updates, so a renamed portal's tab follows on the next navigation.
+  head: ({ match, params }) => {
+    const name = match.context.queryClient.getQueryData(
+      portalQuery(params.portalId).queryKey,
+    )?.portal?.name
+    return name === undefined
+      ? {}
+      : { meta: [{ title: documentTitle(portalWorkspaceTitle(name, 'edit')) }] }
+  },
   component: PortalWorkspaceLayout,
   notFoundComponent: PortalNoLongerAvailable,
 })
@@ -138,47 +144,16 @@ function PortalWorkspaceLayout() {
   const { tab, section } = Route.useSearch()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { has } = useCapabilities()
-  const { can: canDo } = usePermissions()
-  const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
-  const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const { data: history } = useSuspenseQuery(portalPublicationHistoryQuery(portalId))
-  const revealForOpenPage = usePortalOpenPageReveal()
-  const { portal, tokenStatus } = portalData
-  if (!portal) throw notFound()
 
   const reviewing = isWorkspaceReviewRoute(pathname)
   const view = derivePortalDetailView(tab, has('dashboard.use'))
   const header = (
-    <PortalWorkspaceHeader
-      mode={reviewing ? 'review' : 'edit'}
+    <PortalWorkspaceHeaderSlot
       propertyId={propertyId}
       portalId={portalId}
-      portalName={portal.name}
-      propertyName={propData.property.name}
-      statusLine={describePortalStatus(
-        portal.publicationState,
-        history.current?.version ?? null,
-      )}
-      pendingNote={describePendingChanges(history)}
-      canReview={canReviewAndPublish(
-        { canUpdate: canDo('portal.update'), portalWriteEnabled: has('portal.write') },
-        portal.publicationState,
-      )}
+      reviewing={reviewing}
       activeTab={view.tab}
       activeSection={section}
-      saveStatus={<PortalDraftSaveStatus />}
-      openPage={
-        <PortalOpenPageControl
-          propertyId={propertyId}
-          portalId={portalId}
-          canUpdate={canDo('portal.update')}
-          portalWriteEnabled={has('portal.write')}
-          publicationState={portal.publicationState}
-          tokenStatus={tokenStatus}
-          activeTab={view.tab}
-          revealMutation={revealForOpenPage}
-        />
-      }
     />
   )
   const tabs = reviewing ? undefined : (
@@ -197,7 +172,15 @@ function PortalWorkspaceLayout() {
     // edits can never be written into another.
     <PortalLinkIssuanceProvider key={portalId}>
       <PortalDraftAutosaveProvider key={portalId}>
-        <PortalWorkspaceShell header={header} tabs={tabs}>
+        <PortalWorkspaceShell
+          header={header}
+          tabs={tabs}
+          notice={
+            reviewing ? undefined : (
+              <PortalWorkspaceNoticeSlot propertyId={propertyId} portalId={portalId} />
+            )
+          }
+        >
           <Outlet />
         </PortalWorkspaceShell>
       </PortalDraftAutosaveProvider>

@@ -2,9 +2,11 @@
 // layout normally provides. The story wraps the editor with the header's
 // save-status line so the play tests can watch what a manager would see.
 import type { Meta, StoryObj } from '@storybook/react'
+import { useRouterState } from '@tanstack/react-router'
 import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
 import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
+import { PortalUnsavedChangesPrompt } from '../portal-detail/portal-unsaved-changes-prompt'
 import { PortalEditor } from './portal-editor'
 import { PortalDraftAutosaveProvider } from './portal-draft-autosave-context'
 import { PortalDraftSaveStatus } from './portal-draft-save-status'
@@ -30,6 +32,15 @@ function EditorWithStatus({ resources, requestedSection }: EditorStoryProps) {
       <PortalEditor resources={resources} requestedSection={requestedSection} />
     </div>
   )
+}
+
+/** The editor on the section its address names, as the route renders it. */
+function EditorFollowingTheAddress({ resources }: EditorStoryProps) {
+  const section = useRouterState({
+    select: (state) =>
+      (state.location.search as Readonly<{ section?: PortalEditorSection }>).section,
+  })
+  return <EditorWithStatus resources={resources} requestedSection={section} />
 }
 
 const meta: Meta<typeof EditorWithStatus> = {
@@ -140,6 +151,21 @@ function makeResources(
   return {
     portal,
     propertyId: 'prop-1',
+    // Live version 5, with saved changes waiting to go live.
+    publicationHistory: {
+      current: {
+        activationSequence: 5,
+        version: 5,
+        kind: 'publish' as const,
+        activatedBy: { userId: 'u-1', displayName: 'Georgi Petrov' },
+        activatedAt: '2026-09-20T10:00:00.000Z',
+        deactivatedAt: null,
+        deactivationReason: null,
+      },
+      priorActivations: [],
+      hasPendingChanges: true,
+      nextCursor: null,
+    },
     googleReviewDestination: {
       state: 'verified' as const,
       retrievedAt: new Date('2026-08-20T10:00:00.000Z'),
@@ -328,6 +354,33 @@ function sectionStory(section: PortalEditorSection, heading: string): Story {
 // Every section opens from `?section=` and is the one the list marks current.
 export const LookSection: Story = sectionStory('look', 'Look')
 export const RatingSection: Story = sectionStory('rating', 'Rating & Google')
+
+// The link check names the page it covers, says changes waiting to go live are
+// not covered, and words the checkbox for what is checked.
+export const LinkCheckNamesTheLiveVersion: Story = {
+  args: {
+    resources: makeResources(action(async () => undefined)),
+    requestedSection: 'rating',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('heading', { name: 'Link check' })).toBeVisible()
+    await expect(
+      canvas.getByText(
+        /This check covers live version 5. Changes waiting to go live are not part of it/,
+      ),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('checkbox', {
+        name: /every Linktree link on live version 5, and each one opens the page it should/,
+      }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('button', { name: 'Record the link check' }),
+    ).toBeDisabled()
+    await expect(canvas.queryByText(/content review/i)).toBeNull()
+  },
+}
 export const LinktreeSection: Story = sectionStory('linktree', 'Linktree')
 
 async function openTileMenu(canvasElement: HTMLElement) {
@@ -447,16 +500,22 @@ export const WelcomeLinesPerLanguage: Story = {
     const canvas = within(canvasElement)
     const english = languageCard(canvasElement, /English/)
     await expect(
-      english.getByLabelText('Welcome line', { selector: '#portal-override-title-en' }),
+      english.getByLabelText('This portal’s welcome line', {
+        selector: '#portal-override-title-en',
+      }),
     ).toHaveValue('Pool & Terrace')
     await expect(
-      english.getByLabelText('Welcome line', { selector: '#portal-override-title-en' }),
+      english.getByLabelText('This portal’s welcome line', {
+        selector: '#portal-override-title-en',
+      }),
     ).toHaveAttribute('placeholder', 'Welcome to Avela')
     await expect(
-      english.getByLabelText('Welcome line', { selector: '#portal-override-title-en' }),
+      english.getByLabelText('This portal’s welcome line', {
+        selector: '#portal-override-title-en',
+      }),
     ).toHaveAccessibleDescription(/above Avela Resort/)
     await expect(
-      english.getByLabelText('Link preview', {
+      english.getByLabelText('This portal’s link preview', {
         selector: '#portal-override-description-en',
       }),
     ).toBeVisible()
@@ -477,7 +536,7 @@ export const PropertyWordingKeepsAnUnsavedEdit: Story = {
     const english = languageCard(canvasElement, /English/)
     const fold = english.getByRole('button', { name: /Property wording/ })
     await userEvent.click(fold)
-    const field = english.getByLabelText('Welcome line', {
+    const field = english.getByLabelText('Welcome line for every portal', {
       selector: '#portal-content-title-en',
     })
     await userEvent.clear(field)
@@ -486,7 +545,9 @@ export const PropertyWordingKeepsAnUnsavedEdit: Story = {
     await expect(fold).toHaveAttribute('aria-expanded', 'false')
     await userEvent.click(fold)
     await expect(
-      english.getByLabelText('Welcome line', { selector: '#portal-content-title-en' }),
+      english.getByLabelText('Welcome line for every portal', {
+        selector: '#portal-content-title-en',
+      }),
     ).toHaveValue('Welcome to the resort')
   },
 }
@@ -505,22 +566,29 @@ export const PropertyManagerReadsThePropertyWording: Story = {
     await expect(
       bulgarian.getByText('Only an account admin can change it.'),
     ).toBeVisible()
+    // Read-only, not disabled: the wording is shown at full contrast.
     await expect(
-      bulgarian.getByLabelText('Welcome line', { selector: '#portal-content-title-bg' }),
-    ).toBeDisabled()
+      bulgarian.getByLabelText('Welcome line for every portal', {
+        selector: '#portal-content-title-bg',
+      }),
+    ).toHaveAttribute('readonly')
     await expect(
       bulgarian.queryByRole('button', { name: 'Save property wording' }),
     ).toBeNull()
     // This portal's own lines are still the manager's to write.
     await expect(
-      bulgarian.getByLabelText('Welcome line', { selector: '#portal-override-title-bg' }),
+      bulgarian.getByLabelText('This portal’s welcome line', {
+        selector: '#portal-override-title-bg',
+      }),
     ).toBeEnabled()
   },
 }
 
 // Bulgarian is offered but the property has no Bulgarian wording, so this
-// portal's own Bulgarian lines would not count: the card says so and opens the
-// property's wording to be written.
+// portal's own Bulgarian lines would not count: the card says so, and the
+// property's wording comes first, open, right under the warning that points at
+// it; this portal's own lines follow, saying when they will count. Welcome in
+// the section list carries the flag too, not only Languages.
 export const LanguageWithoutPropertyWording: Story = {
   args: {
     resources: withoutBulgarianWording(makeResources(action(async () => undefined))),
@@ -534,6 +602,27 @@ export const LanguageWithoutPropertyWording: Story = {
     await expect(
       bulgarian.getByRole('button', { name: 'Save property wording' }),
     ).toBeVisible()
+    const propertyField = bulgarian.getByLabelText('Welcome line for every portal', {
+      selector: '#portal-content-title-bg',
+    })
+    const ownField = bulgarian.getByLabelText('This portal’s welcome line', {
+      selector: '#portal-override-title-bg',
+    })
+    await expect(
+      Boolean(
+        propertyField.compareDocumentPosition(ownField) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    ).toBe(true)
+    await expect(
+      bulgarian.getByText(/own lines count once the property wording above is saved/),
+    ).toBeVisible()
+    const nav = within(
+      within(canvasElement).getByRole('navigation', { name: 'Editor sections' }),
+    )
+    await expect(nav.getByRole('link', { name: /^Welcome/ })).toHaveTextContent(
+      /1 language without wording/,
+    )
   },
 }
 
@@ -584,7 +673,7 @@ export const PrivateNoteThreshold: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await userEvent.click(
-      canvas.getByRole('combobox', { name: /private feedback threshold/i }),
+      canvas.getByRole('combobox', { name: 'Offer a private note at' }),
     )
     await userEvent.click(
       await within(document.body).findByRole('option', { name: '2 stars or lower' }),
@@ -668,11 +757,35 @@ export const UnofferedSectionFallsBackToWelcome: Story = {
   },
 }
 
+// A viewer reads the values at full contrast (read-only, not greyed out), and
+// nothing on the page promises that edits save as they are typed.
 export const MemberSeesTheFieldsReadOnly: Story = {
   args: { resources: makeResources(action(async () => undefined)) },
   decorators: [withRole('Member')],
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByLabelText('Name')).toBeDisabled()
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('Name')).toHaveAttribute('readonly')
+    await expect(canvas.getByLabelText('Name')).toBeEnabled()
+    await expect(
+      canvas.getByLabelText('This portal’s welcome line', {
+        selector: '#portal-override-title-en',
+      }),
+    ).toHaveAttribute('readonly')
+    await expect(canvas.queryByText(/save as you type/)).toBeNull()
+    await expect(canvas.queryByText(/Edits stay in this draft/)).toBeNull()
+  },
+}
+
+// An archived portal is read-only for everyone, an account admin included.
+export const ArchivedPortalIsReadOnly: Story = {
+  args: {
+    resources: {
+      ...makeResources(action(async () => undefined)),
+      portal: { ...portal, publicationState: 'archived' as const },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByLabelText('Name')).toHaveAttribute('readonly')
   },
 }
 
@@ -717,5 +830,65 @@ export const LanguagesOpensTheSheetInThePreview: Story = {
     )
     await expect(languages).toHaveAttribute('aria-current', 'true')
     await expect(preview.getByText('Language', { selector: 'h2' })).toBeVisible()
+  },
+}
+
+// Below lg the preview stacks under the form, so a click on a part happens far
+// from the section it opens: the section is brought into view and focus lands
+// on its heading, not only the outline in the phone moving.
+export const PreviewClickRevealsTheSectionItOpens: Story = {
+  args: { resources: makeResources(action(async () => undefined)) },
+  decorators: [
+    withRole('AccountAdmin', {
+      at: '/properties/prop-1/portals/p-1?tab=page&section=linktree',
+    }),
+  ],
+  render: (args) => <EditorFollowingTheAddress {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const preview = within(
+      await canvas.findByRole('complementary', { name: 'Live preview' }),
+    )
+    await userEvent.click(
+      await preview.findByRole('button', { name: 'Edit Welcome' }, { timeout: 5000 }),
+    )
+    const heading = await canvas.findByRole('heading', { level: 2, name: 'Welcome' })
+    await waitFor(() => expect(heading).toHaveFocus())
+  },
+}
+
+// Responsible keeps an explicit Save (every save notifies people), so ticks
+// waiting for it are registered with the leave guard: switching section asks
+// instead of dropping them.
+export const UnsavedResponsibleTicksAskBeforeLeaving: Story = {
+  args: { resources: makeResources(action(async () => undefined)) },
+  decorators: [
+    withRole('AccountAdmin', {
+      at: '/properties/prop-1/portals/p-1?tab=page&section=responsible',
+    }),
+  ],
+  render: (args) => (
+    <>
+      <PortalUnsavedChangesPrompt />
+      <EditorFollowingTheAddress {...args} />
+    </>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const body = within(canvasElement.ownerDocument.body)
+    await expect(canvas.getByText(/Changes apply when you save them/)).toBeVisible()
+    await userEvent.click(canvas.getByRole('checkbox', { name: /Elena Petrova/ }))
+    const nav = within(canvas.getByRole('navigation', { name: 'Editor sections' }))
+    await userEvent.click(nav.getByRole('link', { name: /^Welcome/ }))
+    const dialog = await body.findByRole('alertdialog', { name: 'Leave without saving?' })
+    await expect(dialog).toBeVisible()
+    // It names what would be lost, once.
+    await expect(dialog).toHaveTextContent(
+      'Not saved: the responsible managers. If you go on, these changes are discarded.',
+    )
+    await userEvent.click(body.getByRole('button', { name: 'Keep editing' }))
+    await expect(
+      canvas.getByRole('checkbox', { name: /Elena Petrova/ }),
+    ).not.toBeChecked()
   },
 }

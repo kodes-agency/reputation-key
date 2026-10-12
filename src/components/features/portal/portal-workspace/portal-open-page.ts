@@ -1,11 +1,17 @@
-// "Open page": the workspace header's way to the live guest page.
+// "Open live page": the workspace header's way to the live guest page.
 //
 // The page's address is not kept in the clear. A manager gets it by revealing the
 // live code's sealed address (ADR 0064), which the server rate-limits and records
 // in History as a disclosure for the purpose "show". So the header offers that
 // only when it can work: the portal is live, a code is live, and the keyring
-// still holds the key that sealed it. In every other case it points to Share,
-// where the address is shown or made.
+// still holds the key that sealed it. Each other case is named for what it does:
+//
+// - live with a code whose address cannot be had again: "Get page link", which
+//   goes to Share, where the address is shown when the code is replaced;
+// - live with no code: nothing here, because the header's status line already
+//   says "no working code" and links to Share;
+// - a draft, a disabled or an archived portal: nothing, because guests cannot
+//   open it; the preview beside the editor shows the draft ("Try as guest").
 
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
@@ -14,7 +20,11 @@ import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
 import { directPortalAddress } from '../portal-share/portal-share-state'
 import type { PortalPublicationState } from '../shared/types'
 
-/** `hidden`: nothing useful to offer (no permission, or Share is already on screen). */
+/**
+ * `reveal` opens the live page in a new tab; `share` leads to Share for its
+ * address; `hidden` offers nothing (no permission, no page guests can open, no
+ * code, or Share is already on screen).
+ */
 export type OpenPageMode = 'reveal' | 'share' | 'hidden'
 
 export function deriveOpenPageMode(
@@ -32,9 +42,9 @@ export function deriveOpenPageMode(
 ): OpenPageMode {
   const { publicationState, tokenStatus, hasHeldAddress } = input
   if (!(input.canUpdate && input.portalWriteEnabled)) return 'hidden'
-  const live =
-    publicationState === 'published' && (tokenStatus.hasActiveToken || hasHeldAddress)
-  if (live && (tokenStatus.addressRecoverable || hasHeldAddress)) return 'reveal'
+  if (publicationState !== 'published') return 'hidden'
+  if (!(tokenStatus.hasActiveToken || hasHeldAddress)) return 'hidden'
+  if (tokenStatus.addressRecoverable || hasHeldAddress) return 'reveal'
   // On Share itself a link to Share would do nothing.
   return input.activeTab === 'share' ? 'hidden' : 'share'
 }
@@ -107,7 +117,7 @@ const ADDRESS_UNAVAILABLE_MESSAGE =
   'The page could not be opened from here. Open it from the Share tab instead.'
 
 /**
- * What a refused reveal says for "Open page". The server's own sentences are
+ * What a refused reveal says for "Open live page". The server's own sentences are
  * written for "Download again" ("Too many downloads…", "This code cannot be
  * downloaded again…"), which is not what the manager clicked.
  */

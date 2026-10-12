@@ -28,7 +28,7 @@ export function PortalLocalizedOverrideForm({
   titlePlaceholder,
   descriptionPlaceholder,
   action,
-  disabled,
+  readOnly,
 }: Readonly<{
   locale: OfferedGuestLocale
   portalId: string
@@ -39,7 +39,8 @@ export function PortalLocalizedOverrideForm({
   titlePlaceholder: string
   descriptionPlaceholder: string
   action: PortalExperienceActions['saveOverride']
-  disabled: boolean
+  /** Shown, never edited: the editor's `canEdit` is false. */
+  readOnly: boolean
 }>) {
   const defaults = { title: initialTitle, shortDescription: initialDescription }
   const autosave = usePortalFormAutosave(`override-${locale}`, defaults)
@@ -61,10 +62,10 @@ export function PortalLocalizedOverrideForm({
             <FormTextField
               field={field}
               id={`portal-override-title-${locale}`}
-              label="Welcome line"
+              label="This portal’s welcome line"
               placeholder={titlePlaceholder}
               maxLength={120}
-              disabled={disabled}
+              readOnly={readOnly}
               description={`The line guests read above ${propertyName ?? 'the property’s name'}, such as Spa reception.`}
             />
           )}
@@ -74,11 +75,11 @@ export function PortalLocalizedOverrideForm({
             <FormTextarea
               field={field}
               id={`portal-override-description-${locale}`}
-              label="Link preview"
+              label="This portal’s link preview"
               placeholder={descriptionPlaceholder}
               maxLength={500}
               rows={2}
-              disabled={disabled}
+              readOnly={readOnly}
               description="Shown with the page’s link when it is shared in a chat app."
             />
           )}

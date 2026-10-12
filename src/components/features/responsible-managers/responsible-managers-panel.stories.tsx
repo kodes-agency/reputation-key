@@ -4,7 +4,7 @@
 // removable while blocked from re-adding, and the Save button's dirty gate —
 // so a regression here is caught once instead of twice.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { ResponsibleManagersPanel } from './responsible-managers-panel'
 
@@ -15,11 +15,10 @@ const MEMBERS = [
 ]
 
 const COPY = {
-  description:
-    'Assigned managers receive this Portal’s workflow notifications. Responsibility does not grant Property access or Staff attribution.',
-  alertTitle: 'Responsible manager needed',
+  description: 'Choosing someone here doesn’t give them access to the property.',
+  alertTitle: 'No one is responsible',
   alertDescription:
-    'Assign at least one manager so Portal updates and feedback have a clear owner. Account admins remain available for recovery.',
+    'Choose at least one manager, so someone hears about this portal’s private feedback.',
 }
 
 const meta: Meta<typeof ResponsibleManagersPanel> = {
@@ -55,7 +54,7 @@ export const AssignedNoAlert: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.queryByText('Responsible manager needed')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('No one is responsible')).not.toBeInTheDocument()
     await expect(canvas.getByRole('checkbox', { name: /Avery Morgan/i })).toBeChecked()
     await expect(
       canvas.getByRole('button', { name: /save responsible managers/i }),
@@ -78,7 +77,7 @@ export const NeedsAManager: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Responsible manager needed')).toBeInTheDocument()
+    await expect(canvas.getByText('No one is responsible')).toBeInTheDocument()
     await expect(canvas.getByText(COPY.alertDescription)).toBeInTheDocument()
   },
 }
@@ -103,7 +102,7 @@ export const AssignedButNoLongerEligible: Story = {
     const staleAssignee = canvas.getByRole('checkbox', { name: /Jordan Blake/i })
     await expect(staleAssignee).toBeChecked()
     await expect(
-      canvas.getByText(/Eligibility changed; remove this assignment/i),
+      canvas.getByText(/can no longer be chosen; untick to remove/i),
     ).toBeInTheDocument()
 
     await userEvent.click(staleAssignee)
@@ -192,6 +191,53 @@ export const PropertyHeadingLevel: Story = {
         name: 'Responsible managers',
       }),
     ).toBeInTheDocument()
+  },
+}
+
+/**
+ * In the portal editor the section title already says "Responsible", so the
+ * panel draws no heading of its own; the names sit at the start of each row,
+ * beside their checkbox (the Label primitive centres its items otherwise).
+ */
+export const NoHeadingInsideTheEditor: Story = {
+  args: {
+    headingLevel: null,
+    state: {
+      assignments: [{ userId: 'user-1' }],
+      eligibleManagers: [{ userId: 'user-1' }],
+      revision: 1,
+      responsibilityNeeded: false,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.queryByRole('heading')).not.toBeInTheDocument()
+    await expect(canvas.getByText('Avery Morgan').closest('label')).toHaveClass(
+      'items-start',
+    )
+  },
+}
+
+const onDirtyChange = fn<(dirty: boolean) => void>()
+
+/** A page hears when ticks wait for Save, so its leave guard can ask before they are lost. */
+export const TellsThePageWhenTicksWaitForSave: Story = {
+  args: {
+    onDirtyChange,
+    state: {
+      assignments: [{ userId: 'user-1' }],
+      eligibleManagers: [{ userId: 'user-1' }, { userId: 'user-2' }],
+      revision: 1,
+      responsibilityNeeded: false,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(onDirtyChange).toHaveBeenLastCalledWith(false)
+    await userEvent.click(canvas.getByRole('checkbox', { name: /Jordan Blake/i }))
+    await expect(onDirtyChange).toHaveBeenLastCalledWith(true)
+    await userEvent.click(canvas.getByRole('checkbox', { name: /Jordan Blake/i }))
+    await expect(onDirtyChange).toHaveBeenLastCalledWith(false)
   },
 }
 

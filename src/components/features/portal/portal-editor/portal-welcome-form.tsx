@@ -7,7 +7,6 @@
 import { useForm } from '@tanstack/react-form'
 import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
 import type { Action } from '#/components/hooks/use-action'
-import { usePermissions } from '#/shared/hooks/usePermissions'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { usePortalFormAutosave } from './use-portal-form-autosave'
 import type { PortalData, UpdatePortalVariables } from '../shared/types'
@@ -17,7 +16,8 @@ const nameFormSchema = updatePortalInputSchema.pick({ name: true }).required()
 type Props = Readonly<{
   portal: PortalData
   mutation: Action<UpdatePortalVariables>
-  disabled?: boolean
+  /** Shown, never edited: the editor's `canEdit` is false (`portalEditAccess`). */
+  readOnly?: boolean
   /** Whether the property has a public name; without one guests read this name in its place. */
   propertyHasName?: boolean
 }>
@@ -25,12 +25,9 @@ type Props = Readonly<{
 export function PortalWelcomeForm({
   portal,
   mutation,
-  disabled = false,
+  readOnly = false,
   propertyHasName = true,
 }: Props) {
-  const { can } = usePermissions()
-  const isDisabled = disabled || !can('portal.update')
-
   const defaults = { name: portal.name }
   const autosave = usePortalFormAutosave('welcome', defaults)
 
@@ -53,7 +50,7 @@ export function PortalWelcomeForm({
             label="Name"
             id="edit-portal-name"
             maxLength={100}
-            disabled={isDisabled}
+            readOnly={readOnly}
             description={
               propertyHasName
                 ? 'Your team sees it in lists and menus.'

@@ -53,9 +53,10 @@ export function PortalPropertyContentForm({
             <FormTextField
               field={field}
               id={`portal-content-title-${locale}`}
-              label="Welcome line"
+              label="Welcome line for every portal"
               maxLength={120}
-              disabled={readOnly || action.isPending}
+              readOnly={readOnly}
+              disabled={action.isPending}
             />
           )}
         </form.Field>
@@ -64,10 +65,11 @@ export function PortalPropertyContentForm({
             <FormTextarea
               field={field}
               id={`portal-content-description-${locale}`}
-              label="Link preview"
+              label="Link preview for every portal"
               rows={2}
               maxLength={500}
-              disabled={readOnly || action.isPending}
+              readOnly={readOnly}
+              disabled={action.isPending}
             />
           )}
         </form.Field>
