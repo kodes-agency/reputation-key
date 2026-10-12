@@ -5,6 +5,7 @@ import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { purgeAiDraftsForProperty } from '#/shared/db/ai/ai-draft-purge'
 import { propertyError } from '../domain/errors'
+import { googleReviewDestinationStateAfterLifecycleTransition } from '../domain/google-review-destination'
 import { assertValidTransition } from '../domain/property-lifecycle'
 import type {
   PropertyLifecycleCommandStore,
@@ -78,11 +79,13 @@ export const createPropertyLifecycleCommandStore = (
           )
         }
 
-        const nextDestinationState =
-          current.googleReviewDestinationState === 'verified' ||
-          current.googleReviewDestinationState === 'awaiting_refresh'
-            ? 'awaiting_refresh'
-            : 'unavailable'
+        const held = propertyFromRow(current)
+        const googleReviewDestinationState =
+          googleReviewDestinationStateAfterLifecycleTransition({
+            held: held.googleReviewDestination?.state ?? 'unavailable',
+            to: command.to,
+            googleBindingState: held.googleBindingState,
+          })
         const [row] = await tx
           .update(properties)
           .set({
@@ -92,7 +95,7 @@ export const createPropertyLifecycleCommandStore = (
             purgeScheduledFor: command.recoveryDeadline,
             lifecycleInitiatedBy: command.initiatedBy,
             sourceEpoch: command.nextSourceEpoch,
-            googleReviewDestinationState: nextDestinationState,
+            googleReviewDestinationState,
             updatedAt: command.occurredAt,
           })
           .where(

@@ -4,6 +4,7 @@ import {
   getPropertyLifecycleActionStates,
   getPropertyLifecycleControls,
   propertyLifecycleLabel,
+  propertyRestoredMessage,
   propertyRestoreWindow,
 } from './property-lifecycle-model'
 
@@ -175,5 +176,63 @@ describe('removed property presentation', () => {
         ),
       ).toEqual({ kind: 'none' })
     }
+  })
+})
+
+describe('what Restore tells the manager about Google', () => {
+  it('says Google is ready only when the Property is linked and its review link is verified', () => {
+    expect(
+      propertyRestoredMessage({
+        googleBindingReadiness: 'ready',
+        property: { googleReviewDestination: { state: 'verified' } },
+      }),
+    ).toBe('Property restored. Google is ready for this Property.')
+  })
+
+  it('tells a linked Property Google gave no review link that its portals cannot be published', () => {
+    expect(
+      propertyRestoredMessage({
+        googleBindingReadiness: 'ready',
+        property: { googleReviewDestination: { state: 'unavailable' } },
+      }),
+    ).toBe(
+      'Property restored. Google is connected, but Google gave this Property no review link, so its portals cannot be published.',
+    )
+  })
+
+  it('does not say Google gave no review link when the Property holds one that is on hold', () => {
+    expect(
+      propertyRestoredMessage({
+        googleBindingReadiness: 'ready',
+        property: { googleReviewDestination: { state: 'awaiting_refresh' } },
+      }),
+    ).toBe(
+      'Property restored. Google is connected, but the review link of this Property is on hold, so its portals cannot be published.',
+    )
+  })
+
+  it('never describes a linked Property without a verified review link by private feedback', () => {
+    // No Portal of such a Property can be published, so there may be no live
+    // Portal for "private feedback only" to describe.
+    const messages = (['unavailable', 'awaiting_refresh'] as const).map((state) =>
+      propertyRestoredMessage({
+        googleBindingReadiness: 'ready',
+        property: { googleReviewDestination: { state } },
+      }),
+    )
+
+    expect(
+      messages.filter((message) => !message.includes('cannot be published')),
+    ).toEqual([])
+    expect(messages.filter((message) => message.includes('Google is ready'))).toEqual([])
+  })
+
+  it('asks for a reconnect when the Property is no longer linked', () => {
+    expect(
+      propertyRestoredMessage({
+        googleBindingReadiness: 'reconnect_required',
+        property: { googleReviewDestination: { state: 'awaiting_refresh' } },
+      }),
+    ).toBe('Property restored. Reconnect Google before restarting provider work.')
   })
 })

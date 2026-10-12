@@ -63,12 +63,15 @@ export function PortalNewLanguagesField({
   field,
   defaults,
   disabled,
+  copiedNote,
   onEdited,
 }: Readonly<{
   field: PortalNewField<OfferedGuestLocale[]>
   /** The Property's own languages: always drawn as chips. */
   defaults: readonly OfferedGuestLocale[]
   disabled: boolean
+  /** What a copy did to the languages (or that the person's own stay), or null. */
+  copiedNote: string | null
   /** Called when the person changes the languages, so a later default no longer replaces them. */
   onEdited: () => void
 }>) {
@@ -111,6 +114,11 @@ export function PortalNewLanguagesField({
         ) : null}
       </div>
       <p className="text-sm text-muted-foreground">{languageNote(selected)}</p>
+      {copiedNote ? (
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          {copiedNote}
+        </p>
+      ) : null}
     </fieldset>
   )
 }
