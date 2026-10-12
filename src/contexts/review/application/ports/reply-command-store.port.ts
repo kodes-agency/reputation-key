@@ -111,8 +111,9 @@ export type ReplyCommandStore = Readonly<{
   /**
    * Guarded transition + review.reply.submitted fact, one transaction. Starts
    * only from a draft with no open publication. Returns null when `reply` is
-   * anything else or the row moved since it was read — the caller throws
-   * invalid_transition.
+   * anything else or the row moved since it was read (its state revision
+   * included: the text submitted is the text that was read) — the caller
+   * throws invalid_transition.
    */
   submitReply(
     reply: Reply,

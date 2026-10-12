@@ -1128,6 +1128,26 @@ describe.sequential('AI draft purge (real PostgreSQL)', () => {
       expect(await cancellationFacts()).toEqual([policyFact(seeded)])
     })
 
+    // The emptying leaves the draft a draft, in the same cancelled cycle. A
+    // Submit that read the AI text before the purge names the reply it read,
+    // state revision included, so it does not hand an approver a reply with
+    // no text.
+    it('is not submitted, blank, by a Submit that read it before the purge', async () => {
+      const seeded = await seedCancelledAiReply()
+      const readBySubmit = await storedReply(seeded)
+      await db.transaction((tx) =>
+        purgeAiDraftsForProperty(tx, {
+          organizationId: ORG,
+          propertyId: seeded.property,
+        }),
+      )
+
+      const submitted = await submitForApproval(readBySubmit, seeded.property, new Date())
+
+      expect(submitted).toBeNull()
+      expect(await replyRows(seeded.review.id)).toEqual([WITHDRAWN])
+    })
+
     it('tells the people waiting on it when it had been submitted again', async () => {
       const seeded = await seedCancelledAiReply()
       const now = new Date()

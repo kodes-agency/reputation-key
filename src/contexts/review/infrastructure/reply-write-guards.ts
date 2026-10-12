@@ -14,6 +14,13 @@
 // which a manager writes the text records the reply as human-authored. The
 // worker's claim, the last gate before a request leaves, asks here too
 // (`aiTextMayBeClaimed`).
+//
+// Not every writer of a reply comes through here. The AI draft purge
+// (src/shared/db/ai/ai-draft-purge.ts) runs in other contexts' transactions
+// and empties a reply in place: a draft whose cycle was cancelled is the same
+// draft afterwards, in the same publication state and cycle, with no text. So
+// a command that puts the text forward compares the state revision as well,
+// which the database advances whenever text, status or authorship changes.
 
 import { and, eq, isNull, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -35,14 +42,19 @@ import { buildReplySetClause } from './reply-set-clause'
 type ReplyWriter = Pick<Database, 'update'>
 
 /**
- * The commands whose write authorizes sending the reply's text to Google. The
- * authorization digests whatever text the row holds at that moment, so these
- * writes also name the state revision the caller read. A reply that was
- * rejected, rewritten and submitted again is in the same status and the same
- * cycle as before, and it is a different reply: its revision moved, because the
- * database advances it on every change of text, status or authorship.
+ * The commands whose write puts the reply's text forward: submit hands it to
+ * an approver, and an approval, a retry and an edit authorize sending it to
+ * Google. Each acts on whatever text the row holds at that moment (the
+ * authorization digests it), so these writes also name the state revision the
+ * caller read. A reply that was rejected, rewritten and submitted again is in
+ * the same status and the same cycle as before, and it is a different reply.
+ * So is a draft the AI draft purge emptied since: without the revision, a
+ * submit that read the AI text would hand an approver a reply with no text.
+ * Its revision moved, because the database advances it on every change of
+ * text, status or authorship.
  */
-const AUTHORIZES_TEXT: ReadonlySet<ReplyCommand> = new Set([
+const PUTS_TEXT_FORWARD: ReadonlySet<ReplyCommand> = new Set([
+  'submit',
   'approve',
   'retry_publication',
   'edit_published',
@@ -58,8 +70,8 @@ function sameFailureWhere(reply: Reply): SQL {
 }
 
 /** The row is still the reply the caller read: same status, same publication
- * state (NULL included), same cycle; for a command that authorizes its text,
- * the same state revision too; for a retry, the same failure. */
+ * state (NULL included), same cycle; for a command that puts its text
+ * forward, the same state revision too; for a retry, the same failure. */
 function replySnapshotWhere(reply: Reply, command: ReplyCommand): SQL | undefined {
   return and(
     eq(replies.id, reply.id),
@@ -69,7 +81,7 @@ function replySnapshotWhere(reply: Reply, command: ReplyCommand): SQL | undefine
       ? isNull(replies.publicationState)
       : eq(replies.publicationState, reply.publicationState),
     eq(replies.publicationCycle, reply.publicationCycle),
-    AUTHORIZES_TEXT.has(command)
+    PUTS_TEXT_FORWARD.has(command)
       ? eq(replies.stateRevision, reply.stateRevision)
       : undefined,
     command === 'retry_publication' ? sameFailureWhere(reply) : undefined,

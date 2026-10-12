@@ -86,14 +86,18 @@ rejected reply that was never authorized. The use case refuses anything else
 with `invalid_transition`. The store does not trust the use case: every guarded
 write (`infrastructure/reply-write-guards.ts`) repeats the rule as its
 compare-and-set on status, publication state and cycle, and a publication write
-also on the exact state and attempt count it read. A second entry point, or a
-change between the read and the write, therefore matches no row and records no
-fact. The status table (`REPLY_TRANSITIONS`) only says which status may follow
-which; it has no `approved → draft`, because no reply command makes that move.
-A Reply returns to draft when its open cycle is cancelled (a disconnect, a
-policy stop, a refused claim: `cancelledPublication`) or superseded by what
+also on the exact state and attempt count it read. A write that puts the text
+forward (submit, an approval, a retry, an edit) compares the Reply's state
+revision too: the AI draft purge (below) empties a draft in place, in the same
+status, publication state and cycle, and a submit that had read the AI text
+would otherwise hand an approver a Reply with no text. A second entry point, or
+a change between the read and the write, therefore matches no row and records
+no fact. The status table (`REPLY_TRANSITIONS`) only says which status may
+follow which; it has no `approved → draft`, because no reply command makes that
+move. A Reply returns to draft when its open cycle is cancelled (a disconnect,
+a policy stop, a refused claim: `cancelledPublication`), superseded by what
 Google shows or by a changed Review (the observation and Review stores' own
-guarded writes).
+guarded writes), or withdrawn by the AI draft purge.
 
 Confirm & Publish is bound to the Reply the manager read. The Inbox sends
 which Reply its screen showed and that Reply's state revision, both as they
