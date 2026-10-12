@@ -87,6 +87,26 @@ previous one (100,000,000 ms) instead of stamping real time.
 cannot see an entry placed before ones a deployed database already applied; the
 deploy runner's count check refuses that deploy.
 
+Functions and triggers are compared by definition, not by name
+(`construct-definitions.ts`): signature, attributes and body of every function,
+and every trigger's statement, as `db-constructs.sql` states them. Both sides
+are PostgreSQL's own rendering, so state a new function or trigger the way
+`pg_get_functiondef` / `pg_get_triggerdef` print it. A migration that changes
+one restates it in three places with the same text: `db-constructs.sql`, its
+byte copy `drizzle/0001_db_constructs.sql`, and the new migration.
+`construct-definitions.test.ts` holds the copy and, with no database, that each
+construct's last migration creates what the comparator expects.
+
+One function is a named exception. `apply_merchant_ai_transition_v1` was changed
+by 0006 and 0016 without being restated, so `db-constructs.sql` still carries a
+26-argument text no database runs; `SUPERSEDED_CONSTRUCT_DEFINITIONS` makes the
+comparator expect 0016's statement instead. Do not edit or restate the file's
+text of that function: a `CREATE OR REPLACE` of the 26-argument signature adds a
+second overload beside the live 27-argument one. Bringing the file up to date
+needs 0016 changed from `CREATE FUNCTION` to `CREATE OR REPLACE FUNCTION`
+(otherwise an empty database fails at 0016 once 0001 creates the same
+signature), which is an open owner decision.
+
 Never run `pnpm db:push` against a shared database; it bypasses the journal.
 
 ## Seed and auth mirror

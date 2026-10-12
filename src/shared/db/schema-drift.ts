@@ -14,6 +14,9 @@
 //   - registered DB-only constructs (schema/db-only-constructs.ts) exist in
 //     pg_catalog, and no UNREGISTERED triggers/functions/indexes/checks/
 //     enum types lurk in pg_catalog (both directions closed).
+//   - every function and trigger is DEFINED as db-constructs.sql states it,
+//     signature, attributes and body (./construct-definitions.ts) — a name
+//     alone is not parity.
 //
 // Consumed by the integration test (migration-verification.test.ts) and by
 // scripts/check-schema-drift.ts. Shared/db may import drizzle-orm + pg.
@@ -23,6 +26,7 @@ import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core'
 import type { Index, PgColumn } from 'drizzle-orm/pg-core'
 import * as schema from './schema'
 import { DB_ONLY_CONSTRUCTS } from './schema/db-only-constructs'
+import { collectConstructDefinitionFaults } from './construct-definitions'
 import { collectMigrationJournalFaults } from './migration-journal-order'
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -1053,6 +1057,13 @@ function compareUnregistered(model: readonly ModelTable[], catalog: Catalog): Dr
   return drifts
 }
 
+// ─── Function and trigger definitions ───────────────────────────────
+
+async function compareDefinitions(q: Queryable): Promise<Drift[]> {
+  const faults = await collectConstructDefinitionFaults(q)
+  return faults.map(({ object, detail }) => drift('mismatch', object, detail))
+}
+
 // ─── Journal order and continuity ───────────────────────────────────
 
 function compareJournal(catalog: Catalog): Drift[] {
@@ -1078,6 +1089,7 @@ export async function collectSchemaDrift(q: Queryable): Promise<readonly Drift[]
   }
   drifts.push(...compareRegistered(catalog))
   drifts.push(...compareUnregistered(model, catalog))
+  drifts.push(...(await compareDefinitions(q)))
   drifts.push(...compareJournal(catalog))
   return drifts
 }
