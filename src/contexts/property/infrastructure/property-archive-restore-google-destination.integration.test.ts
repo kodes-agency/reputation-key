@@ -1,11 +1,16 @@
 // Archive then Restore, as the product runs them, and what a Portal of the
 // Property is then told: the destination's state, whether a Portal may be
-// published, and whether a guest is offered the Google review action.
+// published, whether a guest is offered the Google review action, and the
+// Portal Health the Portals list reads.
 
+import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { outboxEvents } from '#/shared/db/schema/outbox.schema'
+import { portalHealthIntervals } from '#/shared/db/schema/portal.schema'
 import {
   portalPublicationActivations,
   portalPublicationSnapshots,
@@ -20,11 +25,14 @@ import {
 } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { buildLegacyPortalPublicationSnapshot } from '#/contexts/portal/application/__fixtures__/legacy-snapshot-builder'
 import { loadVerifiedGoogleReviewDestination } from '#/contexts/portal/application/portal-publication-readiness'
 import { resolvePublicPortalToken } from '#/contexts/portal/application/use-cases/resolve-public-portal-token'
+import { handlePortalHealthDependencyChanged } from '#/contexts/portal/infrastructure/portal-health-outbox-consumers'
+import { createPortalHealthReconciliationStore } from '#/contexts/portal/infrastructure/portal-health-reconciliation-store'
 import { snapshotToRow } from '#/contexts/portal/infrastructure/portal-publication-commands'
 import { createPortalPublicationRepository } from '#/contexts/portal/infrastructure/repositories/portal-publication.repository'
 import { buildGoogleImportedProperty } from '../application/build-google-imported-property'
@@ -162,6 +170,13 @@ async function publishPortal(): Promise<void> {
       PUBLISHED_AT,
     ],
   )
+  // Someone is responsible for it, so Google is all its health can report.
+  await pool.query(
+    `INSERT INTO portal_responsible_managers
+       (organization_id, property_id, portal_id, user_id, effective_from, created_by)
+     VALUES ($1, $2, $3, $4, $5, $4)`,
+    [ORG, LINKED, PORTAL, ADMIN, PUBLISHED_AT],
+  )
   const snapshot = buildLegacyPortalPublicationSnapshot({
     id: 'f8500000-0000-4000-8000-000000000001',
     portalId: PORTAL,
@@ -251,6 +266,52 @@ const guestVisit = () =>
     clock: () => GUEST_VISIT_AT,
   })('raw-address-is-not-read-by-the-stub-codec')
 
+const portalHealth = createPortalHealthReconciliationStore(db, {
+  clock: () => now,
+  idGen: randomUUID,
+})
+
+/**
+ * The health the Portals list reads once Portal has consumed the Property's
+ * latest fact of that type, through the consumer the worker runs. Nothing else
+ * reconciles Portal Health with the Property.
+ */
+async function portalHealthAfter(
+  eventType: 'property.archived' | 'property.restored',
+): Promise<Readonly<{ status: string; reason: string }> | undefined> {
+  const [fact] = await db
+    .select()
+    .from(outboxEvents)
+    .where(
+      and(
+        eq(outboxEvents.organizationId, ORG),
+        eq(outboxEvents.propertyId, LINKED),
+        eq(outboxEvents.eventType, eventType),
+      ),
+    )
+    .orderBy(desc(outboxEvents.createdAt))
+    .limit(1)
+  if (!fact) throw new Error(`the Property recorded no ${eventType} fact`)
+  await handlePortalHealthDependencyChanged(
+    portalHealth,
+    buildConsumerEvent({ ...fact, recordedAt: fact.createdAt }),
+  )
+  const [current] = await db
+    .select({
+      status: portalHealthIntervals.status,
+      reason: portalHealthIntervals.reason,
+    })
+    .from(portalHealthIntervals)
+    .where(
+      and(
+        eq(portalHealthIntervals.organizationId, ORG),
+        eq(portalHealthIntervals.portalId, PORTAL),
+        isNull(portalHealthIntervals.effectiveTo),
+      ),
+    )
+  return current
+}
+
 async function cleanup(): Promise<void> {
   await pool.query(
     `DELETE FROM idempotency_receipts
@@ -258,6 +319,8 @@ async function cleanup(): Promise<void> {
     [ORG],
   )
   for (const table of [
+    'portal_health_intervals',
+    'portal_responsible_managers',
     'portal_publication_activations',
     'portal_publication_snapshots',
     'portal_tokens',
@@ -322,6 +385,10 @@ describe.sequential('Archive then Restore of a Property linked to Google', () =>
       state: 'awaiting_refresh',
     })
     await expect(guestVisit()).resolves.toEqual({ status: 'unavailable' })
+    await expect(portalHealthAfter('property.archived')).resolves.toEqual({
+      status: 'unavailable',
+      reason: 'property_unavailable',
+    })
 
     const restored = await restore(LINKED)
 
@@ -345,6 +412,47 @@ describe.sequential('Archive then Restore of a Property linked to Google', () =>
       data: {
         reviewGateway: { googleReview: { status: 'available', uri: REVIEW_URI } },
       },
+    })
+    // The Portals list has nothing left to say about Google.
+    await expect(portalHealthAfter('property.restored')).resolves.toEqual({
+      status: 'healthy',
+      reason: 'operational',
+    })
+  })
+
+  it('repairs a Property an earlier Restore left on hold: Archive it and Restore it again', async () => {
+    await importProperty(LINKED, {
+      locationId: 'location-linked',
+      googleReviewUri: REVIEW_URI,
+    })
+    await publishPortal()
+    const accepted = await property.publicApi.getGoogleReviewDestination(ORG, LINKED)
+    // What Restore used to leave behind: active, still linked, destination fenced.
+    await pool.query(
+      `UPDATE properties SET google_review_destination_state = 'awaiting_refresh'
+       WHERE organization_id = $1 AND id = $2`,
+      [ORG, LINKED],
+    )
+    await expect(guestVisit()).resolves.toMatchObject({
+      status: 'found',
+      data: { reviewGateway: { googleReview: { status: 'unavailable' } } },
+    })
+
+    await archive(LINKED)
+    const restored = await restore(LINKED)
+
+    expect(restored.googleBindingReadiness).toBe('ready')
+    expect(restored.property.googleReviewDestination).toEqual(accepted)
+    await expect(publicationReadiness(LINKED)).resolves.toEqual(accepted)
+    await expect(guestVisit()).resolves.toMatchObject({
+      status: 'found',
+      data: {
+        reviewGateway: { googleReview: { status: 'available', uri: REVIEW_URI } },
+      },
+    })
+    await expect(portalHealthAfter('property.restored')).resolves.toEqual({
+      status: 'healthy',
+      reason: 'operational',
     })
   })
 
@@ -373,6 +481,12 @@ describe.sequential('Archive then Restore of a Property linked to Google', () =>
     await expect(guestVisit()).resolves.toMatchObject({
       status: 'found',
       data: { reviewGateway: { googleReview: { status: 'unavailable' } } },
+    })
+    // The one case in which a live Portal of an active Property reports the
+    // Google link on hold: it waits for a relink, not for anything under way.
+    await expect(portalHealthAfter('property.restored')).resolves.toEqual({
+      status: 'degraded',
+      reason: 'google_destination_awaiting_refresh',
     })
   })
 
