@@ -10,8 +10,15 @@
 //   - migrations        — the applied set (drizzle.__drizzle_migrations row
 //                         count, the 5.4 comparator's query shape) must match
 //                         the on-disk journal entry count
-//                         (drizzle/meta/_journal.json). Mismatch = a deploy
-//                         whose migrations have not finished applying.
+//                         (drizzle/meta/_journal.json). Fewer applied = a
+//                         deploy whose migrations have not finished applying.
+//                         More applied = this image is older than the
+//                         database: never ready, by design — recovery is
+//                         forward-only (ADR 0038, amended 2026-10-12). The
+//                         outgoing container reads that way until the newer
+//                         release activates, and for good when that release
+//                         applied its migrations and never activated
+//                         (runbooks.md §28).
 //   - policy            — the process-static capability configuration parses
 //                         successfully and retains every hard-blocked
 //                         capability. Tenant grants/consent and the Google
@@ -34,6 +41,7 @@
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { migrationJournalPosition } from '#/shared/db/migration-journal-state'
 import { getPool } from '#/shared/db/pool'
 import { getLogger } from '#/shared/observability/logger'
 import { readyProbe, startupProbe, type ReadyProbe, type StartupProbe } from './probes'
@@ -56,12 +64,27 @@ function journalEntryCount(
   return (JSON.parse(raw) as { entries: readonly unknown[] }).entries.length
 }
 
-/** Applied migration set matches the on-disk journal (deploy finished). */
+/**
+ * Applied migration set matches the on-disk journal (deploy finished). False
+ * in both directions; the probe body cannot tell them apart, so the one that
+ * no waiting resolves — an image older than the database — is logged.
+ */
 export async function isMigrationJournalMatched(): Promise<boolean> {
   try {
-    const expected = journalEntryCount()
+    const journalEntries = journalEntryCount()
     const result = await getPool().query(MIGRATION_COUNT_SQL)
-    return Number(result.rows[0]?.count ?? -1) === expected
+    const applied = Number(result.rows[0]?.count ?? -1)
+    const position = migrationJournalPosition(applied, journalEntries)
+    if (position === 'database_ahead') {
+      getLogger().warn(
+        { applied, journalEntries },
+        '[health] this image is older than the database — more migrations are applied than its journal holds, ' +
+          'so it is never ready by design (forward-only recovery, ADR 0038). ' +
+          'Expected on the outgoing container until the newer release activates; ' +
+          'if that release never activates, this container cannot be redeployed (runbooks.md §28)',
+      )
+    }
+    return position === 'matched'
   } catch (err) {
     getLogger().warn({ err }, '[health] migration journal check failed')
     return false
