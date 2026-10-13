@@ -32,28 +32,20 @@ describe('buildInboxContext', () => {
   it('separates request, lifecycle, maintenance, and worker capabilities', () => {
     const context = build()
 
+    // LIF-01: the Organization export and lifecycle contributors are built by
+    // composition/organization-export-contributors.ts, never by this build: a
+    // second instance here would be read by nothing.
     expect(Object.keys(context).sort()).toEqual([
       // ARC-03-T12: named member-authority and scheduled-release capabilities.
       'assignments',
       'internal',
       'lifecycle',
       'maintenance',
-      // LIF-01: the Organization Export contribution is a named capability of
-      // its own, deliberately outside `publicApi` so no request path reaches it.
-      'organizationExport',
-      // LIF-01: the Organization lifecycle contribution is likewise a named
-      // capability outside `publicApi`; only Identity's coordinator calls it.
-      'organizationLifecycle',
       'publicApi',
       'runtime',
       'worker',
     ])
-    expect(Object.keys(context.organizationExport)).toEqual(['contributor'])
-    expect(context.organizationExport.contributor.context).toBe('inbox')
-    expect(Object.isFrozen(context.organizationExport)).toBe(true)
-    expect(Object.keys(context.organizationLifecycle)).toEqual(['contributor'])
-    expect(context.organizationLifecycle.contributor.context).toBe('inbox')
-    expect(Object.isFrozen(context.organizationLifecycle)).toBe(true)
+    expect(Object.keys(context.publicApi)).not.toContain('organizationExport')
     expect(Object.keys(context.publicApi)).not.toContain('organizationLifecycle')
     // No raw item creation: the durable source consumers create Inbox Items,
     // under their receipts and after their source checks (Invariant 1).

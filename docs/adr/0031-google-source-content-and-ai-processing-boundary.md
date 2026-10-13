@@ -64,3 +64,31 @@ production identifiers.
 - Phase 17/18 schemas must keep raw content and derivatives separate and record policy, prompt/schema/model, aspect-taxonomy, redaction, consent, provider deployment, and region versions without retaining prompt bodies.
 - Backups and restores need purge-ledger or approved erasure behavior so restoration cannot resurrect expired content into service.
 - Review-analysis contract changes bump the capability epoch and use the existing enrollment path to backfill eligible history. The exact raw-cache refresh semantics, durable previous-reply examples, and backup treatment remain conservative until a narrower written clarification or approved policy change supersedes this ADR.
+
+## Note 2026-10-13 — where the approved capability is decided
+
+The Decision requires, for every external AI operation, "an approved capability
+in the current `SourceContentPolicy`". No field of that object names a
+capability, and no AI operation reads the object when it is admitted or when its
+output is stored. `SourceContentPolicy` carries its source, two timings (the
+raw-content TTL and the refresh point before it) and the policy version, and
+nothing else (`src/shared/domain/source-content-policy.ts`;
+`source-content-policy.test.ts` pins the field list). Three booleans that read
+like such an approval (per-review analysis, per-Property aggregation, keeping
+derived metadata) were fixed at `true`, were consulted by no code, and were
+deleted on 2026-10-13 (`docs/BETA.md` §2).
+
+The approval that requirement asks for is decided in two other places:
+
+- the capability's fate in `src/shared/governance/capability-fate.ts`:
+  `ai.analyze`, `ai.generate_reply` and `ai.detect_trends` are controlled beta,
+  and `gbp.ai.cross_property_summary` and `gbp.reply.auto_publish` are
+  permanently denied (`docs/BETA.md` §2 and §4);
+- the Property's Merchant AI Authorization, whose capability set is the most an
+  operation may use (`AiMerchantAuthorizationSnapshot.capabilities`, AI CONTEXT
+  invariant 3). It is read when the operation starts and again, under a row
+  lock, when its output is stored (`docs/BETA.md` §2 and §3).
+
+The decision is unchanged: an external AI operation still needs an approved
+capability, and an unknown one is still denied. This note records where the code
+holds that approval and decides nothing.

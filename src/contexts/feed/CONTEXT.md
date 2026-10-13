@@ -43,7 +43,11 @@ projection is kept because the Organization export and recovery read it (with
 90-day replay facts), and whether it gets a UI or is re-graded is an open
 product decision. Do not remove the projection or its consumer before that
 decision; the unused `getActivityTimeline` plumbing in the inbox bundle is
-cleanup for after the in-flight inbox work lands. Operational Action History is append-oriented,
+cleanup for after the in-flight inbox work lands. An entry is written once per
+event and names its actor from the member lookup: a lookup that fails fails the
+delivery, which is retried, so an outage never leaves an entry that names System
+for something a person did (an actor the lookup does not find still gets the
+fallback name). Operational Action History is append-oriented,
 organization-scoped evidence with restricted list/export access and legal-hold
 handling. `listOperationalActionHistoryFn` and `exportOperationalActionHistoryFn`
 are that restricted AccountAdmin API and have no UI on purpose

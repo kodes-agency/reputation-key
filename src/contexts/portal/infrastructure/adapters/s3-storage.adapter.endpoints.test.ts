@@ -252,3 +252,90 @@ describe('against a local S3-compatible store (path style)', () => {
     expect(objects.get('/repkey-test/portal-media/a.webp')?.body.toString()).toBe('webp')
   })
 })
+
+// A bucket that accepts the connection and then goes quiet. The SDK sets no
+// request timeout of its own, so without a deadline each call waited for as
+// long as the socket lived, and the anonymous image read is one of them.
+describe('against a store that stops answering', () => {
+  const DEADLINE_MS = 200
+  /** Well past the deadline, well short of a hung test. */
+  const PATIENCE_MS = 3_000
+  type Adapter = ReturnType<typeof createS3StorageAdapter>
+  let server: Server
+  let config: S3StorageConfig
+
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      // `stalled-body` sends its headers and the first bytes, then nothing.
+      const { pathname } = new URL(req.url ?? '/', 'http://local')
+      if (pathname.endsWith('/stalled-body')) {
+        res.writeHead(200, { 'content-type': 'image/webp', 'content-length': '1024' })
+        res.write(Buffer.from('RIFF'))
+      }
+      // Every other request is read and never answered.
+      req.resume()
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    config = {
+      accessKey: 'access',
+      secretKey: 'secret',
+      bucketName: 'repkey-test',
+      region: 'auto',
+      internalEndpoint: origin,
+      presignEndpoint: origin,
+      forcePathStyle: true,
+      requestDeadlineMs: DEADLINE_MS,
+    }
+  })
+
+  afterAll(async () => {
+    server.closeAllConnections()
+    await new Promise((resolve) => server.close(resolve))
+  })
+
+  /** What a call rejected with, or the word for a call that did not reject. */
+  const rejectionOf = async (call: Promise<unknown>): Promise<unknown> => {
+    let giveUp: ReturnType<typeof setTimeout> | undefined
+    const stillWaiting = new Promise<string>((resolve) => {
+      giveUp = setTimeout(() => resolve('still waiting'), PATIENCE_MS)
+    })
+    const settled = call.then(
+      () => 'resolved',
+      (error: unknown) => error,
+    )
+    const outcome = await Promise.race([settled, stillWaiting])
+    clearTimeout(giveUp)
+    return outcome
+  }
+
+  it.each([
+    ['getObject', (adapter: Adapter) => adapter.getObject('k', 100)],
+    [
+      'putObject',
+      (adapter: Adapter) => adapter.putObject('k', Buffer.from('x'), 'image/webp'),
+    ],
+    ['confirmUpload', (adapter: Adapter) => adapter.confirmUpload('k')],
+    [
+      'inspectObject',
+      (adapter: Adapter) => adapter.inspectObject?.('k') ?? Promise.resolve(),
+    ],
+    ['deleteObject', (adapter: Adapter) => adapter.deleteObject('k')],
+  ] as const)('%s gives up at its deadline', async (_name, call) => {
+    const startedAt = Date.now()
+
+    const rejection = await rejectionOf(call(createS3StorageAdapter(config)))
+
+    expect(rejection).toMatchObject({ name: 'AbortError' })
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(DEADLINE_MS - 20)
+  })
+
+  it('gives up on a body that stops arriving after the headers', async () => {
+    const adapter = createS3StorageAdapter(config)
+
+    const rejection = await rejectionOf(adapter.getObject('stalled-body', 4096))
+
+    // The headers arrived in time; the deadline ended the read of the body.
+    expect(rejection).toMatchObject({ message: 'aborted' })
+  })
+})

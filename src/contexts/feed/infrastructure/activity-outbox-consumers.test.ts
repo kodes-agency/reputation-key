@@ -5,6 +5,7 @@ import {
 } from '#/shared/outbox/consumer-registry'
 import { recentActivityEntryId } from '#/shared/domain/ids'
 import { operationalActionHistoryRecordId } from '../domain/operational-action-history'
+import { activityError } from '../domain/activity-errors'
 import type { ConsumerEvent } from '#/shared/outbox'
 import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -133,6 +134,33 @@ describe('Activity durable Recent Activity consumer', () => {
     })
     expect(JSON.stringify(applyOnce.mock.calls)).not.toContain('Must not become')
     expect(JSON.stringify(applyOnce.mock.calls)).not.toContain('must-not-be-copied')
+  })
+
+  it('writes no entry and no receipt when the actor lookup fails, so the delivery is retried', async () => {
+    const { deps, applyOnce, recordObsolete } = dependencies()
+    deps.userLookup.lookup.mockRejectedValueOnce(
+      activityError('lookup_failed', 'User lookup failed', { cause: 'timeout' }),
+    )
+    const source = event(
+      'review.reply.published',
+      {
+        replyId: '00000000-0000-4000-8000-000000000401',
+        reviewId: '00000000-0000-4000-8000-000000000402',
+        organizationId: 'org-1',
+        propertyId: '00000000-0000-4000-8000-000000000403',
+        userId: 'user-dana',
+        source: 'web',
+        occurredAt: '2026-08-28T08:58:00.000Z',
+      },
+      { propertyId: '00000000-0000-4000-8000-000000000403' },
+    )
+
+    await expect(handleRecentActivityFact(deps, source)).rejects.toMatchObject({
+      _tag: 'ActivityError',
+      code: 'lookup_failed',
+    })
+    expect(applyOnce).not.toHaveBeenCalled()
+    expect(recordObsolete).not.toHaveBeenCalled()
   })
 
   it('marks a Reply fact obsolete when its governed Inbox relationship is gone', async () => {

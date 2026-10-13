@@ -175,7 +175,7 @@ function healthy(): MutableSnapshot {
 }
 
 const AUX: AlertAuxReads = {
-  retentionFailedSubjects: [],
+  retention: { monitorAvailable: true, failedSubjects: [] },
   betaFeedbackTriage: {
     monitorAvailable: true,
     deliveredUnresolvedCount: 0,
@@ -453,7 +453,7 @@ const READS_NO_HEALTH_SIGNAL: Readonly<Record<string, string>> = {
   'observability.snapshot-degraded': 'degraded — the page for the blindness itself',
   'ai.review-analysis-stalled': 'aux reads — fires when the monitor is unavailable',
   'ai.review-analysis-empty-enrollment': 'aux reads',
-  'retention.failure': 'aux reads',
+  'retention.failure': 'aux reads — fires when the monitor is unavailable',
   'beta-feedback.triage-backlog': 'aux reads — fires when the monitor is unavailable',
   'db.pool-exhaustion': 'runtime — the in-process pool gauge',
 }
@@ -1100,6 +1100,47 @@ describe('guest.observation-loss', () => {
       ratingLossCount: 0,
       ratingDisposition: 'not_applicable_durable',
     })
+  })
+})
+
+describe('retention.failure', () => {
+  it('fires naming every subject whose latest run failed', () => {
+    const event = evaluateOne('retention.failure', healthy(), {
+      ...AUX,
+      retention: {
+        monitorAvailable: true,
+        failedSubjects: ['reviews.purge', 'guest.contact_requests'],
+      },
+    })
+
+    expect(event).toMatchObject({
+      name: 'retention.failure',
+      severity: 'P1',
+      value: 2,
+      threshold: 0,
+      runbook: 'runbooks.md §8',
+    })
+    expect(event!.detail).toBe(
+      'latest retention run failed for: reviews.purge, guest.contact_requests',
+    )
+  })
+
+  it('stays quiet when every latest run was read and none failed', () => {
+    expect(evaluateOne('retention.failure', healthy())).toBeNull()
+  })
+
+  // A failed read of retention_runs used to hand the alert an empty list, which
+  // it could not tell from "every latest run succeeded".
+  it('fails visible when the run evidence could not be read', () => {
+    const event = evaluateOne('retention.failure', healthy(), {
+      ...AUX,
+      retention: { monitorAvailable: false, failedSubjects: [] },
+    })
+
+    expect(event).toMatchObject({ name: 'retention.failure', severity: 'P1', value: -1 })
+    expect(event!.detail).toBe(
+      'retention run monitor unavailable — whether the latest sweeps succeeded is unknown',
+    )
   })
 })
 

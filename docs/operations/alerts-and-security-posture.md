@@ -63,7 +63,9 @@ Postgres, not Redis. The shared Redis limiter
 (`src/shared/rate-limit/middleware.ts`) guards registration, sign-in, guest
 submissions, the auth catch-all, and app-owned invitation create/resend. The
 two invitation actions share one HMAC-derived budget of 20 sends per actor per
-hour and 100 per Organization per day. When Redis is absent or erroring it
+hour and 100 per Organization per day. A new verification link and a password
+reset request are each counted per HMAC-derived address as well as per IP,
+three an hour: the mail goes to whoever the caller names. When Redis is absent or erroring it
 **fails closed in production** (deny + error log) and fails open with a warn
 elsewhere.
 
@@ -144,7 +146,7 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `sync.failed-nonzero`                          | P2  | any coded sync failure whose retry is due                                                                                         | §13     |
 | `ai.review-analysis-stalled`                   | P2  | incomplete enabled coverage with no new settlement for > 15min; monitor failure also fires                                        | §22     |
 | `ai.review-analysis-empty-enrollment`          | P2  | any queued/running zero-snapshot enrollment while eligible reviews exist                                                          | §22     |
-| `retention.failure`                            | P1  | latest retention run failed for any subject                                                                                       | §8      |
+| `retention.failure`                            | P1  | latest retention run failed for any subject; monitor failure (the `retention_runs` read) also fires                               | §8      |
 | `reply.ambiguous-aging`                        | P2  | oldest ambiguous publication > 15min past reconcile_due                                                                           | §6      |
 | `db.pool-exhaustion`                           | P1  | any connection request queued behind a saturated pool                                                                             | §8      |
 | `notification.in-app-delivery-lag`             | P1  | oldest incomplete active-family delivery is over 60s from its durable source clock                                                | §15     |

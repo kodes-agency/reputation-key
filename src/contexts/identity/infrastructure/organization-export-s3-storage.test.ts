@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { createServer, type Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   buildEncryptedOrganizationExportPutInput,
   S3OrganizationExportStorage,
@@ -155,6 +157,73 @@ describe('Organization Export private S3 contract', () => {
       await expect(
         value.verifyStored({ objectKey: KEY, archiveSha256: SHA }),
       ).rejects.toThrow(/service unavailable/u)
+    })
+  })
+
+  // The SDK sets no request timeout of its own, so a store that accepts the
+  // connection and then goes quiet would hold the export worker for as long
+  // as the socket lived.
+  describe('against a store that stops answering', () => {
+    const KEY = `private/organization-exports/${ID}.zip`
+    const SHA = 'a'.repeat(64)
+    const DEADLINE_MS = 200
+    /** Well past the deadline, well short of a hung test. */
+    const PATIENCE_MS = 3_000
+    let server: Server
+    let value: S3OrganizationExportStorage
+
+    beforeAll(async () => {
+      // Every request is read and never answered.
+      server = createServer((req) => req.resume())
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      value = S3OrganizationExportStorage.create({
+        accessKey: 'access',
+        secretKey: 'secret',
+        bucketName: 'private-cell-us',
+        region: 'us-east-1',
+        internalEndpoint: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+        forcePathStyle: true,
+        requestDeadlineMs: DEADLINE_MS,
+      })
+    })
+
+    afterAll(async () => {
+      server.closeAllConnections()
+      await new Promise((resolve) => server.close(resolve))
+    })
+
+    /** What a call rejected with, or the word for a call that did not reject. */
+    const rejectionOf = async (call: Promise<unknown>): Promise<unknown> => {
+      let giveUp: ReturnType<typeof setTimeout> | undefined
+      const stillWaiting = new Promise<string>((resolve) => {
+        giveUp = setTimeout(() => resolve('still waiting'), PATIENCE_MS)
+      })
+      const settled = call.then(
+        () => 'resolved',
+        (error: unknown) => error,
+      )
+      const outcome = await Promise.race([settled, stillWaiting])
+      clearTimeout(giveUp)
+      return outcome
+    }
+
+    it.each([
+      [
+        'putEncrypted',
+        () =>
+          value.putEncrypted({
+            objectKey: KEY,
+            bytes: Uint8Array.from([0x50, 0x4b, 0x03, 0x04]),
+            archiveSha256: SHA,
+            contentType: 'application/zip',
+            deleteAfter: new Date('2026-09-04T12:00:00.000Z'),
+          }),
+      ],
+      ['verifyStored', () => value.verifyStored({ objectKey: KEY, archiveSha256: SHA })],
+      ['readEncrypted', () => value.readEncrypted(KEY)],
+      ['delete', () => value.delete(KEY)],
+    ] as const)('%s gives up at its deadline', async (_name, call) => {
+      expect(await rejectionOf(call())).toMatchObject({ name: 'AbortError' })
     })
   })
 })

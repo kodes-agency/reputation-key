@@ -7,6 +7,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 import { validateSlug, validateOrganizationName } from '../../domain/rules'
+import { identityAssetKeyFromPath } from '../identity-assets'
 import { buildOrganizationUpdatePatch } from '../organization-update-patch'
 import type { UpdateOrganizationInput } from '../organization-update-patch'
 import type { RetireReplacedIdentityAsset } from '../retire-replaced-identity-asset'
@@ -24,6 +25,18 @@ export type UpdateOrganizationDeps = Readonly<{
   retireReplaced: RetireReplacedIdentityAsset
 }>
 
+/**
+ * The address of an uploaded picture is not taken here. Its finalize step
+ * saves it, after holding the key to the Organization and reading the size the
+ * store holds; taking it here would be a way around both. A logo hosted
+ * elsewhere, and `null` to remove one, pass.
+ */
+const assertNotAnUploadedPicture = (logo: string | null | undefined): void => {
+  if (logo && identityAssetKeyFromPath(logo) !== null) {
+    throw identityError('validation_error', 'An uploaded logo is saved by its upload.')
+  }
+}
+
 export const updateOrganization =
   (deps: UpdateOrganizationDeps) =>
   async (input: UpdateOrganizationInput, ctx: AuthContext): Promise<void> => {
@@ -31,6 +44,7 @@ export const updateOrganization =
     if (!canForContext(ctx, 'organization.update')) {
       throw identityError('forbidden', 'Only AccountAdmin can update organization')
     }
+    assertNotAnUploadedPicture(input.logo)
     // 2. Validate slug/name if provided
     if (input.slug !== undefined) {
       const slugResult = validateSlug(input.slug)

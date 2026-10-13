@@ -65,10 +65,17 @@ export const DISCOVERY_WARM_AFTER_MS = 6 * 60 * 60 * 1000
 export const DISCOVERY_COLD_AFTER_MS = 3 * 24 * 60 * 60 * 1000
 
 /**
- * Hard cap on the computed interval. A quiet property is still polled four
- * times a day, so even with GBP push completely dark the worst-case latency
- * for a brand-new review on a long-silent property is six hours — not the
- * ~25 days the refresh sweep alone would give it.
+ * Cap on the computed interval. A quiet property is still polled about four
+ * times a day, so even with GBP push completely dark a brand-new review on a
+ * long-silent property is found in hours — not the ~25 days the refresh sweep
+ * alone would give it.
+ *
+ * Six hours is the interval, not the latency. The poll runs at the first
+ * discovery sweep at or after the due instant, and the sweep fires every 15
+ * minutes, so the review is found up to about six and a quarter hours after it
+ * was posted, plus the sync itself, and later when a sweep exhausts its
+ * per-run budget. A base interval configured above this cap wins over it
+ * (`discoveryIntervalMs` never returns less than the base).
  */
 export const DISCOVERY_MAX_INTERVAL_MS = 6 * 60 * 60 * 1000
 

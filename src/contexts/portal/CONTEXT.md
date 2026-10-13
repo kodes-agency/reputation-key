@@ -552,8 +552,17 @@ table, background job) was removed and is not coming back. The nullable
 `portals.hero_image_url` column and read path remain so published historical
 rows still render, while the shared arbitrary-key storage stack remains live
 for Identity avatar and organization-logo uploads through `container.assetStorage`.
-`confirmUpload` only confirms the object is there; Identity stores its own address
-for the image (`/api/public/identity-assets/<key>`), never a provider URL.
+The signed upload address carries no size bound, so Identity reads the stored
+size (`inspectObject`) at its finalize step, and again where an avatar's address
+is saved, and refuses and deletes an object over its 5 MB cap. The address stays
+valid for an hour and can replace the object after that check, so the bound that
+always holds is the read: Identity's image route asks `getObject` for at most
+5 MB and serves nothing larger. Identity stores its own address for the image
+(`/api/public/identity-assets/<key>`), never a provider URL.
+Every call the adapter makes to the store has a 15-second deadline, which also
+ends a read whose body stops arriving: the SDK sets none, and the anonymous
+media route would otherwise wait on a bucket that accepts the connection and
+goes quiet (`s3-storage.adapter.endpoints.test.ts`).
 
 ## Invariants
 

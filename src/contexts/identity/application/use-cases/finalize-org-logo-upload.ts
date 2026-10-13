@@ -5,6 +5,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { identityError } from '../../domain/errors'
 import { canForContext } from '#/shared/domain/permissions'
 import { identityAssetPath, isIdentityAssetKey } from '../identity-assets'
+import { assertStoredUploadAllowed } from '../upload-policy'
 import type { RetireReplacedIdentityAsset } from '../retire-replaced-identity-asset'
 
 export type FinalizeOrgLogoUploadInput = Readonly<{
@@ -43,7 +44,7 @@ export const finalizeOrgLogoUpload =
       throw identityError('validation_error', 'Upload key is not a logo key')
     }
 
-    await deps.storage.confirmUpload(input.key)
+    await assertStoredUploadAllowed(deps.storage, input.key)
     const logoUrl = identityAssetPath(input.key)
     const previous = await deps.currentLogo()
 

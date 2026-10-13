@@ -1,6 +1,12 @@
 // SourceContentPolicy — Google review-content lifecycle timing and policy version.
 //
-// Operational obligations are enforced at their owning boundaries.
+// Operational obligations are enforced at their owning boundaries. The policy
+// carries no permission flag: a field no code consults is a claim, not a
+// control (docs/BETA.md §2), and source-content-policy.test.ts pins the list.
+//
+// The whole object is hashed into the digest that binds a Review lifecycle
+// recovery approval (reviewLifecyclePolicySha256), so adding or removing a
+// field changes that digest and an approval prepared before it is refused.
 
 export type SourceContentPolicy = Readonly<{
   /** Content source identifier. */
@@ -12,15 +18,6 @@ export type SourceContentPolicy = Readonly<{
   /** Refresh is due before the TTL expires — safety margin for purge (ms). */
   readonly rawRefreshDueBeforeMs: number
 
-  /** Permitted: per-review sentiment, category, priority analysis (one property). */
-  readonly mayAnalyzePerReview: boolean
-
-  /** Permitted: per-property themes, trends, summaries (one property). */
-  readonly mayAggregatePerProperty: boolean
-
-  /** Permitted: retaining derived metadata beyond raw TTL (separate retention). */
-  readonly mayRetainDerivedMetadata: boolean
-
   /** Policy version — increment when rules change. Stored with derived data. */
   readonly policyVersion: number
 }>
@@ -31,16 +28,13 @@ const DAYS_MS = 24 * 60 * 60 * 1000
  * Production source content policy derived from Google's written response.
  *
  * Based on: google-business-profile-ai-policy-response-2026-07-14.md
- * ADR: 0031 (pending formal approval)
+ * ADR: 0031
  */
 export function createGoogleSourceContentPolicy(): SourceContentPolicy {
   return {
     source: 'google',
     rawContentTtlMs: 30 * DAYS_MS,
     rawRefreshDueBeforeMs: 25 * DAYS_MS,
-    mayAnalyzePerReview: true,
-    mayAggregatePerProperty: true,
-    mayRetainDerivedMetadata: true,
     policyVersion: 1,
   }
 }

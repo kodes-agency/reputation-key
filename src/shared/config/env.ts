@@ -276,9 +276,10 @@ const baseEnvSchema = z.object({
   // subscription's OIDC push identity). The webhook requires the verified
   // `email` claim to equal it, so a Google-issued token from any OTHER
   // project/service account is rejected 401 instead of being accepted on
-  // audience alone. Optional only because push itself is: UNSET (or with
-  // GBP_PUBSUB_TOPIC unset) the webhook accepts nothing and answers every
-  // push 503 (routes/api/webhooks/gbp/notifications.ts).
+  // audience alone. REQUIRED for push delivery: optional in the schema only so
+  // a deployment without push still boots. With a topic set and this unset the
+  // webhook answers every push 503 and logs an error (there is no unpinned
+  // mode), and new reviews arrive by polling.
   GBP_PUBSUB_PUSH_SERVICE_ACCOUNT: z.string().optional(),
   // Per-property minimum interval (minutes) between new-review discovery
   // polls. The discover-new-reviews sweep FIRES every 15 minutes on the
