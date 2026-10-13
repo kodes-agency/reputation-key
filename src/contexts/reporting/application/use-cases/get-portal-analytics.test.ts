@@ -1,7 +1,12 @@
 // Dashboard context — getPortalAnalytics use case unit tests
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { getPortalAnalytics } from './get-portal-analytics'
+import {
+  getPortalAnalytics as authorizedGetPortalAnalytics,
+  type GetPortalAnalyticsDeps,
+} from './get-portal-analytics'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
+import { asAccountAdmin } from '#/shared/testing/authorized-reads'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import type { PortalAnalyticsData } from '../../domain/dashboard-types'
 import { METRIC_VERSION_IDS, findMetricVersionById } from '../../domain/metric-registry'
 import type { SeriesReadingRow } from '../../domain/portal-results-series'
@@ -21,6 +26,12 @@ afterEach(() => vi.useRealTimers())
 const ORG = organizationId('org-test')
 const PROP = propertyId('a0000000-0000-0000-0000-000000000001')
 const PORT = portalId('b0000000-0000-0000-0000-000000000001')
+
+/** What the Results read returns, read as an AccountAdmin; who may read is tested last. */
+const getPortalAnalytics = (deps: Omit<GetPortalAnalyticsDeps, 'propertyAccess'>) =>
+  asAccountAdmin(
+    authorizedGetPortalAnalytics({ ...deps, propertyAccess: async () => null }),
+  )
 
 function createFakePortalMetrics(overrides?: {
   kpiSums?: readonly PortalMetricSumRow[]
@@ -1277,5 +1288,60 @@ describe('getPortalAnalytics: the Results tab', () => {
     expect(result.versionMarkers).toEqual([])
     expect(result.ratingLanguages.total).toBe(8)
     expect(deps.portalVersions.listPublicationActivationsBetween).not.toHaveBeenCalled()
+  })
+})
+
+describe('getPortalAnalytics authorization', () => {
+  const OTHER_PROPERTY = propertyId('a0000000-0000-0000-0000-000000000002')
+  const manager = buildTestAuthContext({ organizationId: ORG, role: 'PropertyManager' })
+  const last30Days = () => {
+    const endDate = new Date()
+    return {
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+      startDate: new Date(endDate.getTime() - 30 * 86_400_000),
+      endDate,
+      timeRange: '30d' as const,
+      propertyTimezone: 'UTC',
+    }
+  }
+  const readsFor = (propertyAccess: GetPortalAnalyticsDeps['propertyAccess']) => {
+    const metrics = createFakePortalMetrics()
+    const analytics = authorizedGetPortalAnalytics({
+      portalMetrics: metrics,
+      portalLifetime: createUnusedPortalLifetime(),
+      responseIntegrity: createFakeResponseIntegrity(),
+      portalVersions: createFakePortalVersions(),
+      propertyAccess,
+    })
+    return { metrics, analytics }
+  }
+
+  it('refuses a manager with no grant on the Property before anything is read', async () => {
+    const { metrics, analytics } = readsFor(async () => [OTHER_PROPERTY])
+
+    await expect(analytics(last30Days(), manager)).rejects.toMatchObject({
+      _tag: 'DashboardError',
+      code: 'forbidden',
+    })
+    expect(metrics.calls).toEqual([])
+  })
+
+  it('refuses the lifetime read the same way', async () => {
+    const { metrics, analytics } = readsFor(async () => [OTHER_PROPERTY])
+
+    await expect(
+      analytics({ ...last30Days(), startDate: new Date(0), timeRange: 'all' }, manager),
+    ).rejects.toMatchObject({ _tag: 'DashboardError', code: 'forbidden' })
+    expect(metrics.calls).toEqual([])
+  })
+
+  it('serves a manager granted the Property', async () => {
+    const { analytics } = readsFor(async () => [PROP])
+
+    const result = await analytics(last30Days(), manager)
+
+    expect(result.kpis.scans.value).toBe(100)
   })
 })

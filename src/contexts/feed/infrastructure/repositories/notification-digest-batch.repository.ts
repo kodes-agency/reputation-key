@@ -55,6 +55,19 @@ const IN_FLIGHT_OUTCOME_CLASS = 'in_flight'
  */
 const POSSIBLY_ACCEPTED_OUTCOME_CLASS = 'transient'
 
+/**
+ * A batch's `attempted_at` holds the start of the FIRST attempt the provider
+ * may have accepted: its 24-hour idempotency window opens there, so no later
+ * attempt or settlement moves it. Only an attempt that follows nothing but
+ * refusals does (`startDigestAttempt`): a refused request left the key
+ * nothing to protect.
+ */
+const keepFirstAttemptAt = (at: Date) =>
+  sql`COALESCE(${notificationDigestBatches.attemptedAt}, ${at})`
+
+const everyAttemptRefused = (row: DigestBatchRow): boolean =>
+  row.state === 'retryable' && row.outcomeClass === REFUSED_OUTCOME_CLASS
+
 const digestBatchFromRow = (row: DigestBatchRow): NotificationDigestBatch => ({
   id: notificationDigestBatchId(row.id),
   organizationId: toOrgId(row.organizationId),
@@ -67,8 +80,8 @@ const digestBatchFromRow = (row: DigestBatchRow): NotificationDigestBatch => ({
   unsubscribeKeyVersion: row.unsubscribeKeyVersion,
   state: row.state as NotificationDigestBatch['state'],
   retryCount: row.retryCount,
-  everyAttemptRefused:
-    row.state === 'retryable' && row.outcomeClass === REFUSED_OUTCOME_CLASS,
+  everyAttemptRefused: everyAttemptRefused(row),
+  possiblyAcceptedSince: everyAttemptRefused(row) ? null : row.attemptedAt,
   providerRequest: readFrozenDigestRequest(row.providerRequest, row.contentDigest),
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
@@ -157,7 +170,7 @@ async function settleAccepted(
       providerMessageId: settlement.providerMessageId,
       outcomeClass: null,
       terminalReason: null,
-      attemptedAt: settlement.acceptedAt,
+      attemptedAt: keepFirstAttemptAt(settlement.acceptedAt),
       acceptedAt: settlement.acceptedAt,
       updatedAt: settlement.acceptedAt,
     })
@@ -258,7 +271,7 @@ async function settleRejected(
           : settlement.classification,
       terminalReason: retryable ? null : 'provider_rejected',
       retryCount: sql`${notificationDigestBatches.retryCount} + 1`,
-      attemptedAt: settlement.failedAt,
+      attemptedAt: keepFirstAttemptAt(settlement.failedAt),
       failedAt: settlement.failedAt,
       updatedAt: settlement.failedAt,
     })
@@ -506,7 +519,14 @@ export const createNotificationDigestBatchStore = (db: Database) => ({
           THEN ${IN_FLIGHT_OUTCOME_CLASS}
           ELSE ${POSSIBLY_ACCEPTED_OUTCOME_CLASS}
         END`,
-        attemptedAt: input.startedAt,
+        // The same test as above: this attempt opens the provider's window
+        // when none before it could have been accepted, and never otherwise.
+        attemptedAt: sql`CASE
+          WHEN ${notificationDigestBatches.outcomeClass} IS NULL
+            OR ${notificationDigestBatches.outcomeClass} = ${REFUSED_OUTCOME_CLASS}
+          THEN ${input.startedAt}
+          ELSE ${keepFirstAttemptAt(input.startedAt)}
+        END`,
         updatedAt: input.startedAt,
       })
       .where(

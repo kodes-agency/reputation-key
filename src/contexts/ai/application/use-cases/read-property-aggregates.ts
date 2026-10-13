@@ -1,4 +1,5 @@
-import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiPropertyCalendarPort } from '../ports/ai-property-calendar.port'
 import type {
@@ -11,6 +12,10 @@ import type {
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
 import { addDays } from '../local-date'
 import { resolveAiReadGate } from '../ai-read-gate'
+import {
+  requireAiPropertyReadAccess,
+  type AiPropertyAccess,
+} from '../ai-property-read-access'
 import { ASPECT_IMPACT_VERSION, computeAspectImpact } from '#/shared/aspect-impact'
 import { isAiIssueLabel } from '#/shared/ai-issue-label'
 
@@ -67,6 +72,7 @@ export type AiPropertyAggregateWindowRead =
     }>
 
 export type ReadPropertyAggregatesDependencies = Readonly<{
+  propertyAccess: AiPropertyAccess
   authorization: AiAuthorizationPort
   processingProfiles: PropertyProcessingProfilePort
   aggregates: AiPropertyAggregateStorePort
@@ -77,7 +83,8 @@ export type ReadPropertyAggregatesDependencies = Readonly<{
 export type ReadPropertyAggregatesInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
-  actorUserId: UserId
+  /** The reader, authorized for the Property before anything is read. */
+  actor: AuthContext
   /** Window length in property-local days, inclusive of today. */
   days: number
 }>
@@ -86,6 +93,12 @@ export function createReadPropertyAggregates(
   dependencies: ReadPropertyAggregatesDependencies,
 ): (input: ReadPropertyAggregatesInput) => Promise<AiPropertyAggregateWindowRead> {
   return async (input) => {
+    await requireAiPropertyReadAccess(
+      dependencies.propertyAccess,
+      input.actor,
+      'dashboard.read',
+      input,
+    )
     // Aspect mentions and sentiment are review-analysis derivatives, so this
     // read is gated on `review_analysis` rather than `property_trends`.
     const gate = await resolveAiReadGate(dependencies, input, 'review_analysis')

@@ -19,8 +19,9 @@
 // readings, and the two would disagree.
 //
 // The caller passes the roster: the Portals in scope and the group each is in
-// today. Portal owns that list; Reporting owns the numbers. Authorisation is
-// the caller's (it has already narrowed the roster to what the person may see).
+// today. Portal owns that list; Reporting owns the numbers. The caller narrows
+// the roster to what the person may see, and this read still authorizes the
+// reader for every Property the roster names before it reads a window.
 //
 // Group figures follow the group each reading was recorded under (ADR 0040), so
 // a Portal that moved keeps its earlier results with its old group. A group's
@@ -28,6 +29,7 @@
 // group any of its readings in the window sit under.
 
 import { dashboardError } from '../../domain/dashboard-errors'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalGroupId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type {
   PortalResultsGroupRow,
@@ -42,6 +44,10 @@ import type {
   PortalResultsUngroupedRow,
 } from '../../domain/portal-results-overview'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
+import {
+  requireDashboardPropertyAccess,
+  type DashboardPropertyAccess,
+} from '../dashboard-property-access'
 import type { MetricPortalMetricEvidenceSet } from '../ports/portal-analytics.repository'
 import type {
   PortalResultsCell,
@@ -93,9 +99,22 @@ export type GetPortalResultsOverviewInput = Readonly<{
 export type GetPortalResultsOverviewDeps = Readonly<{
   results: PortalResultsOverviewRepository
   now: () => Date
+  propertyAccess: DashboardPropertyAccess
 }>
 
 export type GetPortalResultsOverview = ReturnType<typeof getPortalResultsOverview>
+
+/**
+ * Every Property the read answers for: the one asked about, each Portal's own
+ * (what is read is grouped by it) and each one a time zone is named for.
+ */
+function rosterPropertyIds(input: GetPortalResultsOverviewInput): readonly PropertyId[] {
+  const named = [
+    ...input.portals.map((portal) => portal.propertyId),
+    ...input.properties.map((zone) => zone.propertyId),
+  ]
+  return input.scope.propertyId === null ? named : [input.scope.propertyId, ...named]
+}
 
 function assertValidInput(input: GetPortalResultsOverviewInput): void {
   if ((input.timeRange as TimeRangePreset) === 'all') {
@@ -438,7 +457,16 @@ function totalReadings(
 
 export const getPortalResultsOverview =
   (deps: GetPortalResultsOverviewDeps) =>
-  async (input: GetPortalResultsOverviewInput): Promise<PortalResultsOverview> => {
+  async (
+    input: GetPortalResultsOverviewInput,
+    ctx: AuthContext,
+  ): Promise<PortalResultsOverview> => {
+    // Authorize first, by the Portals' own Properties: the decision must not
+    // lean on a validation rule to cover a Property the roster reads.
+    await requireDashboardPropertyAccess(deps.propertyAccess, ctx, {
+      organizationId: input.scope.organizationId,
+      propertyIds: rosterPropertyIds(input),
+    })
     assertValidInput(input)
     const now = deps.now()
     const properties = await readProperties(

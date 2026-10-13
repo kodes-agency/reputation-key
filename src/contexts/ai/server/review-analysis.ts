@@ -5,8 +5,10 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
+import { HTTP_STATUS } from '#/shared/http/status'
 import { propertyId, reviewId } from '#/shared/domain/ids'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { isAiError } from '../domain/errors'
 
 const requestReviewAnalysisNowDto = z.strictObject({ reviewId: z.uuid() })
 
@@ -76,8 +78,13 @@ export const getReviewAnalysisProgressFn = createServerFn({ method: 'GET' })
           return await getContainer().aiPublicApi.readReviewAnalysisProgress({
             organizationId: ctx.organizationId,
             propertyId: id,
+            actor: ctx,
           })
         } catch (error) {
+          // The use case authorizes the reader for the Property itself.
+          if (isAiError(error) && error.code === 'forbidden') {
+            throwContextError('AiError', error, HTTP_STATUS.FORBIDDEN)
+          }
           throw catchUntagged(error)
         }
       },

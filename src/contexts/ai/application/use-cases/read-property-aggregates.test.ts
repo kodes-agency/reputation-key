@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import {
   createReadPropertyAggregates,
   type ReadPropertyAggregatesDependencies,
@@ -7,7 +8,11 @@ import {
 
 const ORG = organizationId('11111111-1111-4111-8111-111111111111')
 const PROP = propertyId('22222222-2222-4222-8222-222222222222')
-const ACTOR = userId('33333333-3333-4333-8333-333333333333')
+const ADMIN = buildTestAuthContext({
+  organizationId: ORG,
+  userId: userId('33333333-3333-4333-8333-333333333333'),
+  role: 'AccountAdmin',
+})
 const NOW = Date.UTC(2026, 7, 20, 3, 0, 0)
 
 function day(
@@ -82,6 +87,8 @@ function harness(
     state?: string
     localDate?: string | null
     window?: unknown
+    /** The Properties a PropertyManager reader is granted. */
+    grants?: readonly (typeof PROP)[]
   }> = {},
 ) {
   const readWindow = vi.fn(async () => {
@@ -106,18 +113,20 @@ function harness(
   const resolveLocalDate = vi.fn(async () =>
     over.localDate === undefined ? '2026-08-20' : over.localDate,
   )
+  const readMerchantAuthorization = vi.fn(async () => ({
+    state: over.state ?? 'enabled',
+    authorizationLineageId: 'lineage-1',
+    capabilities: over.capabilities ?? ['review_analysis'],
+    authorizedSourceEpoch: 7,
+    capabilityEpochs: {
+      review_analysis: { epoch: 4 },
+      property_trends: { epoch: 9 },
+    },
+  }))
   const read = createReadPropertyAggregates({
+    propertyAccess: async () => over.grants ?? [],
     authorization: {
-      readMerchantAuthorization: vi.fn(async () => ({
-        state: over.state ?? 'enabled',
-        authorizationLineageId: 'lineage-1',
-        capabilities: over.capabilities ?? ['review_analysis'],
-        authorizedSourceEpoch: 7,
-        capabilityEpochs: {
-          review_analysis: { epoch: 4 },
-          property_trends: { epoch: 9 },
-        },
-      })),
+      readMerchantAuthorization,
     } as unknown as ReadPropertyAggregatesDependencies['authorization'],
     processingProfiles: {
       readForAi: vi.fn(async () => ({
@@ -133,10 +142,46 @@ function harness(
     } as unknown as ReadPropertyAggregatesDependencies['calendar'],
     nowEpochMillis: () => NOW,
   })
-  return { read, readWindow, resolveLocalDate }
+  return { read, readWindow, resolveLocalDate, readMerchantAuthorization }
 }
 
-const input = { organizationId: ORG, propertyId: PROP, actorUserId: ACTOR, days: 30 }
+const input = { organizationId: ORG, propertyId: PROP, actor: ADMIN, days: 30 }
+
+describe('readPropertyAggregates authorization', () => {
+  const OTHER_PROP = propertyId('22222222-2222-4222-8222-222222222223')
+  const manager = buildTestAuthContext({ organizationId: ORG, role: 'PropertyManager' })
+  const forbidden = { _tag: 'AiError', code: 'forbidden' }
+
+  it('refuses a manager with no grant on the Property before any AI state is read', async () => {
+    const { read, readWindow, readMerchantAuthorization } = harness({
+      grants: [OTHER_PROP],
+    })
+
+    await expect(read({ ...input, actor: manager })).rejects.toMatchObject(forbidden)
+    expect(readMerchantAuthorization).not.toHaveBeenCalled()
+    expect(readWindow).not.toHaveBeenCalled()
+  })
+
+  it('refuses a reader who belongs to another Organization', async () => {
+    const { read, readWindow } = harness()
+    const foreignAdmin = buildTestAuthContext({
+      organizationId: organizationId('11111111-1111-4111-8111-111111111112'),
+      role: 'AccountAdmin',
+    })
+
+    await expect(read({ ...input, actor: foreignAdmin })).rejects.toMatchObject(forbidden)
+    expect(readWindow).not.toHaveBeenCalled()
+  })
+
+  it('serves a manager granted the Property', async () => {
+    const { read } = harness({ grants: [PROP] })
+
+    await expect(read({ ...input, actor: manager })).resolves.toMatchObject({
+      status: 'ready',
+      reviewCount: 4,
+    })
+  })
+})
 
 describe('readPropertyAggregates capability gate', () => {
   it('is disabled without the review_analysis capability', async () => {

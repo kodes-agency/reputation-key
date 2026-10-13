@@ -1,13 +1,19 @@
 // Dashboard context — getAttentionSignals use case.
-// Aggregates the five attention-band reasons plus their distinct work total.
-// Authorization is enforced at the router/loader level (property ownership).
+// Authorizes the reader for the Property's overview (the band is work state a
+// `dashboard.read` holder without `dashboard.fleet_read` may not read), then
+// aggregates the five attention-band reasons plus their distinct work total.
 
 import type { AttentionSignalsPort } from '../ports/attention-signals.port'
 import type { AttentionSignals } from '../../domain/dashboard-types'
 import type { AttentionCounts } from '../ports/attention-signals.port'
 import type { ReviewStatsPort } from '../ports/review-stats.port'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
+import {
+  requirePropertyOverviewAccess,
+  type DashboardPropertyAccess,
+} from '../dashboard-property-access'
 import { priorPeriodDates, ratingComparison, RATING_DROP_THRESHOLD } from '../utils'
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
 
@@ -25,11 +31,13 @@ export type GetAttentionSignalsDeps = Readonly<{
   reviewStats: Pick<ReviewStatsPort, 'getPeriodStats'>
   inboxTargets: Pick<InboxPublicApi, 'getGoogleReviewTargetCountsByProperty'>
   clock: () => Date
+  propertyAccess: DashboardPropertyAccess
 }>
 
 /** Concrete handler type — the curried use case after dependency injection. */
 export type GetAttentionSignals = (
   input: GetAttentionSignalsInput,
+  ctx: AuthContext,
 ) => Promise<AttentionSignals>
 
 export function attentionSignalsFrom(
@@ -61,7 +69,7 @@ export function attentionSignalsFrom(
 
 export const getAttentionSignals =
   (deps: GetAttentionSignalsDeps): GetAttentionSignals =>
-  async (input) => {
+  async (input, ctx) => {
     const {
       organizationId,
       propertyId,
@@ -70,6 +78,10 @@ export const getAttentionSignals =
       timeRange,
       propertyTimezone,
     } = input
+    await requirePropertyOverviewAccess(deps.propertyAccess, ctx, {
+      organizationId,
+      propertyIds: [propertyId],
+    })
     const now = deps.clock()
 
     // Keep the attention band aligned with the KPI strip. An all-time window

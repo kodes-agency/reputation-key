@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import type {
   AiPropertyAnalyzedReview,
   AiPropertyUnavailableReview,
@@ -12,7 +13,11 @@ import {
 
 const ORGANIZATION_ID = organizationId('11111111-1111-4111-8111-111111111111')
 const PROPERTY_ID = propertyId('22222222-2222-4222-8222-222222222222')
-const ACTOR_USER_ID = userId('33333333-3333-4333-8333-333333333333')
+const ADMIN = buildTestAuthContext({
+  organizationId: ORGANIZATION_ID,
+  userId: userId('33333333-3333-4333-8333-333333333333'),
+  role: 'AccountAdmin',
+})
 const NOW = Date.UTC(2026, 7, 20, 3, 0, 0)
 
 function versionId(sequence: number) {
@@ -101,6 +106,8 @@ function harness(
     localDate?: string | null
     aggregate?: unknown
     population?: unknown
+    /** The Properties a PropertyManager reader is granted. */
+    grants?: readonly (typeof PROPERTY_ID)[]
   }> = {},
 ) {
   const readWindow = vi.fn(async () => {
@@ -135,18 +142,20 @@ function harness(
   const resolveLocalDate = vi.fn(async () =>
     options.localDate === undefined ? '2026-08-20' : options.localDate,
   )
+  const readMerchantAuthorization = vi.fn(async () => ({
+    state: 'enabled',
+    authorizationLineageId: 'lineage-1',
+    capabilities: options.capabilities ?? ['review_analysis'],
+    authorizedSourceEpoch: 7,
+    capabilityEpochs: {
+      review_analysis: { epoch: 4 },
+      property_trends: { epoch: 9 },
+    },
+  }))
   const read = createReadPropertyInsights({
+    propertyAccess: async () => options.grants ?? [],
     authorization: {
-      readMerchantAuthorization: vi.fn(async () => ({
-        state: 'enabled',
-        authorizationLineageId: 'lineage-1',
-        capabilities: options.capabilities ?? ['review_analysis'],
-        authorizedSourceEpoch: 7,
-        capabilityEpochs: {
-          review_analysis: { epoch: 4 },
-          property_trends: { epoch: 9 },
-        },
-      })),
+      readMerchantAuthorization,
     } as unknown as ReadPropertyInsightsDependencies['authorization'],
     processingProfiles: {
       readForAi: vi.fn(async () => ({
@@ -165,15 +174,67 @@ function harness(
     } as unknown as ReadPropertyInsightsDependencies['reviewSources'],
     nowEpochMillis: () => NOW,
   })
-  return { read, readWindow, readTrendPopulation }
+  return { read, readWindow, readTrendPopulation, readMerchantAuthorization }
 }
 
 const input = {
   organizationId: ORGANIZATION_ID,
   propertyId: PROPERTY_ID,
-  actorUserId: ACTOR_USER_ID,
+  actor: ADMIN,
   range: 30 as const,
 }
+
+describe('readPropertyInsights authorization', () => {
+  const OTHER_PROPERTY_ID = propertyId('22222222-2222-4222-8222-222222222223')
+  const manager = buildTestAuthContext({
+    organizationId: ORGANIZATION_ID,
+    role: 'PropertyManager',
+  })
+  const forbidden = { _tag: 'AiError', code: 'forbidden' }
+
+  it('refuses a manager with no grant on the Property before any AI state is read', async () => {
+    const { read, readWindow, readTrendPopulation, readMerchantAuthorization } = harness({
+      grants: [OTHER_PROPERTY_ID],
+    })
+
+    await expect(read({ ...input, actor: manager })).rejects.toMatchObject(forbidden)
+    expect(readMerchantAuthorization).not.toHaveBeenCalled()
+    expect(readWindow).not.toHaveBeenCalled()
+    expect(readTrendPopulation).not.toHaveBeenCalled()
+  })
+
+  it('refuses the all-time report the same way', async () => {
+    const { read, readTrendPopulation } = harness({ grants: [OTHER_PROPERTY_ID] })
+
+    await expect(read({ ...input, actor: manager, range: 'all' })).rejects.toMatchObject(
+      forbidden,
+    )
+    expect(readTrendPopulation).not.toHaveBeenCalled()
+  })
+
+  it('refuses a reader who belongs to another Organization', async () => {
+    const { read, readWindow } = harness()
+    const foreignAdmin = buildTestAuthContext({
+      organizationId: organizationId('11111111-1111-4111-8111-111111111112'),
+      role: 'AccountAdmin',
+    })
+
+    await expect(read({ ...input, actor: foreignAdmin })).rejects.toMatchObject(forbidden)
+    expect(readWindow).not.toHaveBeenCalled()
+  })
+
+  it('lets a manager granted the Property through to the AI gate', async () => {
+    const { read, readMerchantAuthorization } = harness({
+      grants: [PROPERTY_ID],
+      capabilities: ['property_trends'],
+    })
+
+    await expect(read({ ...input, actor: manager })).resolves.toEqual({
+      status: 'disabled',
+    })
+    expect(readMerchantAuthorization).toHaveBeenCalledTimes(1)
+  })
+})
 
 describe('readPropertyInsights gates and windows', () => {
   it('keeps the review-analysis capability gate ahead of every data read', async () => {

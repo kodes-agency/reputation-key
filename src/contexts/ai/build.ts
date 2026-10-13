@@ -28,6 +28,7 @@ import {
   createReadReviewAnalysis,
 } from './application/use-cases/read-ai-insights'
 import { createReadPropertyAggregates } from './application/use-cases/read-property-aggregates'
+import type { AiPropertyAccess } from './application/ai-property-read-access'
 import { createReadPropertyInsights } from './application/use-cases/read-property-insights'
 import { createAiAuthorizationAdapter } from './infrastructure/adapters/ai-authorization.adapter'
 import { createAiControlAdapter } from './infrastructure/adapters/ai-control.adapter'
@@ -100,6 +101,8 @@ export type AiContextBuildInput = Readonly<{
   outboxRepo: OutboxRepository
   redis: Redis | undefined
   reviewSources: AiReviewSourcePort
+  /** Identity's current grants: every reader-facing read authorizes its reader. */
+  propertyAccess: AiPropertyAccess
   propertyReplyLanguages: GenerateReplySuggestionDependencies['propertyReplyLanguages']
   replyBrandProfiles: PortalAiReplyBrandProfilePublicApi
   inference?: AiInferencePort
@@ -199,6 +202,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     advanceEnrollment: advanceReviewAnalysisEnrollments.advanceProperty,
   })
   const readReviewAnalysisProgress = createReadReviewAnalysisProgress({
+    propertyAccess: input.propertyAccess,
     authorization,
     processingProfiles,
     backlog,
@@ -224,6 +228,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   })
   const schedulePropertyTrends = createSchedulePropertyTrends({ schedules })
   const readDependencies = {
+    propertyAccess: input.propertyAccess,
     authorization,
     outputs,
     processingProfiles,

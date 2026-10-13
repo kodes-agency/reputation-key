@@ -32,7 +32,6 @@ import type {
   PortalResultsTimeRange,
 } from '../application/public-api'
 import { isDashboardError } from '../domain/dashboard-errors'
-import { assertDashboardPropertyAccessible } from './assert-property-access'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import { organizationRoster, readablePropertyIds } from './portal-results-roster'
 import { dashboardErrorStatus } from './dashboard-error-status'
@@ -73,10 +72,7 @@ async function readProperty(
     action: 'dashboard.read',
     propertyId: rawPropertyId,
   })
-  const { dashboardPublicApi, portalPublicApi, propertyPublicApi, identityPublicApi } =
-    getContainer()
-  // D6-001: non-admin callers may only read their assigned properties.
-  await assertDashboardPropertyAccessible(identityPublicApi.people, ctx, rawPropertyId)
+  const { dashboardPublicApi, portalPublicApi, propertyPublicApi } = getContainer()
   const pid = propertyId(rawPropertyId)
   const [rows, timezone] = await Promise.all([
     portalPublicApi.management.listPortalOverview(
@@ -99,13 +95,17 @@ async function readProperty(
     propertyId: pid,
     groupId: row.group ? portalGroupId(row.group.id) : null,
   }))
-  return await dashboardPublicApi.getPortalResultsOverview({
-    scope: { organizationId: ctx.organizationId, propertyId: pid },
-    portals,
-    properties: [{ propertyId: pid, timezone }],
-    timeRange: request.timeRange,
-    compare: request.compare,
-  })
+  // The use case authorizes this reader for the Property (D6-001).
+  return await dashboardPublicApi.getPortalResultsOverview(
+    {
+      scope: { organizationId: ctx.organizationId, propertyId: pid },
+      portals,
+      properties: [{ propertyId: pid, timezone }],
+      timeRange: request.timeRange,
+      compare: request.compare,
+    },
+    ctx,
+  )
 }
 
 async function readOrganization(request: OverviewRequest, ctx: AuthContext) {
@@ -167,13 +167,18 @@ async function readOrganization(request: OverviewRequest, ctx: AuthContext) {
     ).map(({ id, timezone }) => [id, timezone]),
   )
   const { portals, properties } = organizationRoster(rows, zones)
-  return await dashboardPublicApi.getPortalResultsOverview({
-    scope: { organizationId, propertyId: null },
-    portals,
-    properties,
-    timeRange: request.timeRange,
-    compare: request.compare,
-  })
+  // The roster above is what the reader may see; the use case still authorizes
+  // them for every Property it names.
+  return await dashboardPublicApi.getPortalResultsOverview(
+    {
+      scope: { organizationId, propertyId: null },
+      portals,
+      properties,
+      timeRange: request.timeRange,
+      compare: request.compare,
+    },
+    ctx,
+  )
 }
 
 export const getPortalResultsOverviewFn = createServerFn({ method: 'GET' })

@@ -31,7 +31,9 @@ const MAX_AGE_MS = {
  * retrying an attempt it may have accepted (a 5xx, a timeout, a lost answer)
  * sends a second email. The hour of margin covers clock skew and a retry
  * already in flight. A daily-digest row is retried through its batch, whose
- * attempts run on the hourly tick within a five-attempt budget.
+ * attempts run on the hourly tick within a five-attempt budget; the batch is
+ * held to the same horizon (`isPastRetryHorizon`), because a stopped worker
+ * or scheduler can stretch five attempts over more than a day.
  */
 const RETRY_HORIZON_MS = 23 * HOUR_MS
 
@@ -47,10 +49,20 @@ type QueuedEmail = Pick<
 const dueSince = (email: QueuedEmail): Date =>
   email.notBefore && email.notBefore > email.createdAt ? email.notBefore : email.createdAt
 
+/**
+ * Whether a retry now could reach the provider after it forgot the key: the
+ * attempt it may have accepted started a full retry horizon ago. `null` is an
+ * attempt that never started, which nothing can have accepted.
+ */
+export const isPastRetryHorizon = (
+  possiblyAcceptedSince: Date | null,
+  now: Date,
+): boolean =>
+  possiblyAcceptedSince !== null &&
+  now.getTime() - possiblyAcceptedSince.getTime() >= RETRY_HORIZON_MS
+
 const pastRetryHorizon = (email: QueuedEmail, now: Date): boolean =>
-  email.cadence === 'immediate' &&
-  email.attemptedAt !== null &&
-  now.getTime() - email.attemptedAt.getTime() >= RETRY_HORIZON_MS
+  email.cadence === 'immediate' && isPastRetryHorizon(email.attemptedAt, now)
 
 export function isStaleQueuedEmail(email: QueuedEmail, now: Date): boolean {
   const maxAge =

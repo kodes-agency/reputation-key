@@ -3,6 +3,11 @@ import type { AttentionSignals, DashboardData } from '../../domain/dashboard-typ
 import type { GetDashboardData, GetDashboardDataInput } from './get-dashboard-data'
 import { attentionSignalsFrom } from './get-attention-signals'
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import {
+  requirePropertyOverviewAccess,
+  type DashboardPropertyAccess,
+} from '../dashboard-property-access'
 
 export type PropertyOverviewData = Readonly<{
   dashboard: DashboardData
@@ -13,19 +18,28 @@ export type GetPropertyOverviewInput = GetDashboardDataInput
 
 export type GetPropertyOverview = (
   input: GetPropertyOverviewInput,
+  ctx: AuthContext,
 ) => Promise<PropertyOverviewData>
 
 export const getPropertyOverview =
   (deps: {
     getDashboardData: GetDashboardData
+    propertyAccess: DashboardPropertyAccess
     attention: AttentionSignalsPort
     inboxTargets: Pick<InboxPublicApi, 'getGoogleReviewTargetCountsByProperty'>
     clock: () => Date
   }): GetPropertyOverview =>
-  async (input) => {
+  async (input, ctx) => {
+    // Before the parallel reads: the attention counts are read beside the
+    // dashboard, so its own authorize step would not stop them. They also ask
+    // more than the dashboard does (`dashboard.fleet_read`).
+    await requirePropertyOverviewAccess(deps.propertyAccess, ctx, {
+      organizationId: input.organizationId,
+      propertyIds: [input.propertyId],
+    })
     const now = deps.clock()
     const [dashboard, counts, targetCounts] = await Promise.all([
-      deps.getDashboardData(input),
+      deps.getDashboardData(input, ctx),
       deps.attention.getAttentionCounts(input.organizationId, input.propertyId),
       deps.inboxTargets.getGoogleReviewTargetCountsByProperty({
         organizationId: input.organizationId,

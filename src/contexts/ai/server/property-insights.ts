@@ -4,9 +4,11 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { catchUntagged } from '#/shared/auth/server-errors'
+import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
+import { HTTP_STATUS } from '#/shared/http/status'
 import { propertyId } from '#/shared/domain/ids'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { isAiError } from '../domain/errors'
 
 const getPropertyInsightsDto = z.strictObject({
   propertyId: z.uuid(),
@@ -37,10 +39,14 @@ export const getPropertyInsightsFn = createServerFn({ method: 'GET' })
           return await getContainer().aiPublicApi.readPropertyInsights({
             organizationId: context.organizationId,
             propertyId: id,
-            actorUserId: context.userId,
+            actor: context,
             range: data.range,
           })
         } catch (error) {
+          // The use case authorizes the reader for the Property itself.
+          if (isAiError(error) && error.code === 'forbidden') {
+            throwContextError('AiError', error, HTTP_STATUS.FORBIDDEN)
+          }
           throw catchUntagged(error)
         }
       },

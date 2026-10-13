@@ -15,7 +15,6 @@ export type { PortalAnalyticsData } from '../domain/dashboard-types'
 import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/dashboard-errors'
 import { dashboardErrorStatus } from './dashboard-error-status'
-import { assertDashboardPropertyAccessible } from './assert-property-access'
 import { resolvePropertyPeriod } from './resolve-property-period'
 
 export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
@@ -31,14 +30,7 @@ export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
             action: 'dashboard.read',
             propertyId: data.propertyId,
           })
-          const { dashboardPublicApi, clock, identityPublicApi, propertyPublicApi } =
-            getContainer()
-          // D6-001: non-admin callers may only read their assigned properties.
-          await assertDashboardPropertyAccessible(
-            identityPublicApi.people,
-            ctx,
-            data.propertyId,
-          )
+          const { dashboardPublicApi, clock, propertyPublicApi } = getContainer()
           const pid = propertyId(data.propertyId)
           const { startDate, endDate, propertyTimezone } = await resolvePropertyPeriod(
             { propertyFacts: propertyPublicApi, clock },
@@ -50,16 +42,20 @@ export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
             },
           )
 
-          return await dashboardPublicApi.getPortalAnalytics({
-            organizationId: ctx.organizationId,
-            propertyId: pid,
-            portalId: portalId(data.portalId),
-            startDate,
-            endDate,
-            timeRange: data.timeRange,
-            propertyTimezone,
-            compare: data.compare,
-          })
+          // The use case authorizes this reader for the Property (D6-001).
+          return await dashboardPublicApi.getPortalAnalytics(
+            {
+              organizationId: ctx.organizationId,
+              propertyId: pid,
+              portalId: portalId(data.portalId),
+              startDate,
+              endDate,
+              timeRange: data.timeRange,
+              propertyTimezone,
+              compare: data.compare,
+            },
+            ctx,
+          )
         } catch (e) {
           if (isDashboardError(e))
             throwContextError('DashboardError', e, dashboardErrorStatus(e.code))

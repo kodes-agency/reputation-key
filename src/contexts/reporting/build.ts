@@ -87,6 +87,7 @@ import { createAttentionSignalsAdapter } from './infrastructure/adapters/attenti
 import { createFleetOverviewProjectionAdapter } from './infrastructure/adapters/fleet-overview-projection.adapter'
 import { createStaffPortalResolverAdapter } from './infrastructure/adapters/staff-portal-resolver.adapter'
 import { getDashboardData } from './application/use-cases/get-dashboard-data'
+import type { DashboardPropertyAccess } from './application/dashboard-property-access'
 import {
   getPortalAnalytics,
   type GetPortalAnalyticsDeps,
@@ -395,16 +396,22 @@ function buildDashboardModule(
   const dashboardRepo = createDashboardRepository(input.reviewServingStats, metricStats)
   const setupChecklistRepo = createSetupChecklistRepository(input.db)
   const propertySetupRepo = createPropertySetupRepository(input.db)
-  const getDashboard = getDashboardData({ repo: dashboardRepo })
+  // Identity's current grants: every Property-scoped dashboard read asks them
+  // about its own reader before it reads (application/dashboard-property-access).
+  const propertyAccess: DashboardPropertyAccess = (organizationId, userId, orgWide) =>
+    input.staffPublicApi.getAccessiblePropertyIds(organizationId, userId, orgWide)
+  const getDashboard = getDashboardData({ repo: dashboardRepo, propertyAccess })
   const getPortal = getPortalAnalytics({
     portalMetrics,
     portalLifetime,
     responseIntegrity: input.guestResponseIntegrity,
     portalVersions: input.portalApi,
+    propertyAccess,
   })
   const getResultsOverview = getPortalResultsOverview({
     results: createPortalResultsOverviewRepository(input.db, input.clock),
     now: input.clock,
+    propertyAccess,
   })
   const getStaffDashboard = getStaffDashboardData({
     repo: dashboardRepo,
@@ -416,9 +423,11 @@ function buildDashboardModule(
     reviewStats: input.reviewServingStats,
     inboxTargets: input.inboxTargets,
     clock: input.clock,
+    propertyAccess,
   })
   const getOverview: GetPropertyOverview = getPropertyOverview({
     getDashboardData: getDashboard,
+    propertyAccess,
     attention: attentionSignals,
     inboxTargets: input.inboxTargets,
     clock: input.clock,

@@ -53,7 +53,7 @@ import { closePool } from '../../src/shared/db/pool'
 import type { Database } from '../../src/shared/db'
 import { jobEnqueueOptions } from '../../src/shared/jobs/job-policy'
 import { getJobRedisUrl } from '../../src/shared/jobs/redis-topology'
-import { organizationId, propertyId } from '../../src/shared/domain/ids'
+import { organizationId, propertyId, userId } from '../../src/shared/domain/ids'
 import {
   SLOS,
   SCENARIOS,
@@ -558,19 +558,30 @@ async function runScenario(
     }
     const oid = organizationId(row.organization_id)
     const pid = propertyId(row.id)
+    // The read authorizes its reader: the probe reads as an AccountAdmin of
+    // the Property's own Organization, who reaches every Property without a
+    // grant lookup, so the measured path stays the read.
+    const reader = {
+      userId: userId('perf-dashboard-probe'),
+      organizationId: oid,
+      role: 'AccountAdmin' as const,
+    }
     dashboardProbe = async () => {
       const live = getContainer()
       const end = live.clock()
       const start = new Date(end.getTime() - 30 * 86_400_000)
-      await live.dashboardPublicApi.getDashboardData({
-        organizationId: oid,
-        propertyId: pid,
-        portalId: null,
-        startDate: start,
-        endDate: end,
-        timeRange: '30d',
-        propertyTimezone: row.timezone,
-      })
+      await live.dashboardPublicApi.getDashboardData(
+        {
+          organizationId: oid,
+          propertyId: pid,
+          portalId: null,
+          startDate: start,
+          endDate: end,
+          timeRange: '30d',
+          propertyTimezone: row.timezone,
+        },
+        reader,
+      )
     }
   }
   // dashboardCold cold-start seam: reset the container singleton — the next
