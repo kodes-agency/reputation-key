@@ -4,6 +4,7 @@ import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
   archiveStaffParticipation,
@@ -28,7 +29,9 @@ const participationsQuery = (propertyId: string) =>
 
 const portalsQuery = (propertyId: string) =>
   queryOptions({
-    queryKey: portalKeys.list(propertyId),
+    // Not `portalKeys.list`: the Portal pages fill that key with `{ portals }`,
+    // and this read adds `portalsDenied`. One key must hold one shape.
+    queryKey: portalKeys.listOrDenied(propertyId),
     // F-PEOPLE (BQC-6.7): portal.read is dark in the beta posture, and this
     // query's denial must not sink the ENABLED Staff surface
     // (Promise.all on the raw query rejected the whole loader → route 500).
@@ -74,7 +77,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
 
 function PeopleRoute() {
   const { propertyId } = Route.useParams()
-  const { role } = Route.useRouteContext() as AuthRouteContext
+  const { can: canDo } = usePermissions()
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: participationData } = useSuspenseQuery(participationsQuery(propertyId))
   const { data: portalsData } = useSuspenseQuery(portalsQuery(propertyId))
@@ -106,7 +109,7 @@ function PeopleRoute() {
       responsibilities={responsibilities}
       portals={portals}
       portalsDenied={portalsDenied}
-      canManageStaff={can(role, 'staff.manage')}
+      canManageStaff={canDo('staff.manage')}
       createParticipationMutation={createParticipationMutation}
       archiveParticipationMutation={archiveParticipationMutation}
       updateResponsibilitiesMutation={updateResponsibilitiesMutation}

@@ -7,10 +7,18 @@
 //   authorization into many erasures, and the blast radius of a bug in this job
 //   is permanent data loss.
 //
-//   RESUMABLE. Each context's erase writes an append-only receipt in the same
-//   transaction as its deletes. An interruption — a redeploy, a crash, a lost
-//   connection — resumes from the receipts rather than re-running contexts that
-//   already answered.
+//   ALL OR NOTHING PER PASS. A pass is one transaction: every context's deletes
+//   and receipt, the move to `purged` and the ledger entry commit together or
+//   not at all. An interruption — a redeploy, a crash, a lost connection — or
+//   one context that fails rolls the whole pass back, the receipts of the
+//   contexts that had already answered included, and the next pass asks every
+//   context again. Nothing is left half erased and nothing is resumed. A pass
+//   still reads the receipts first, so that a context is never asked twice
+//   should a pass ever commit short of `purged`.
+//
+//   A `purging` authority is always the next one picked (`nextAdvanceable`), so
+//   a context that keeps failing holds every other erasure behind this one
+//   until its cause is repaired. No authority yields.
 //
 //   LEDGERED. Completion appends a backup-erasure ledger entry (LIF-01-T15), so
 //   a later restore from a backup taken before this purge re-applies it instead
@@ -185,8 +193,10 @@ async function purgeContexts(
     (contributor) => !answered.has(contributor.context),
   )
   if (outstanding.length > 0) {
-    // Partial pass: stay in `purging` so the next pass resumes. The receipts
-    // written above are already durable in this transaction.
+    // A context has no receipt, which the loop above does not leave behind by
+    // itself. Stay in `purging` rather than declare an erasure that did not
+    // run: what this pass did commits with it, and the next pass asks only the
+    // contexts still without a receipt.
     return {
       authorityId: authority.id,
       fromState: 'purging',

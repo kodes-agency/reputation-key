@@ -13,8 +13,9 @@ import {
   reviewAnalysisProgressQuery,
 } from '#/routes/-queries/route-queries'
 
-// Old links carried `?propertyId=`; the editing now lives on the property.
-const aiOverviewSearch = z.object({ propertyId: z.uuid().optional() })
+// Old links carried `?propertyId=`; the editing now lives on the property. One
+// that is not a property id is dropped, and the overview opens.
+const aiOverviewSearch = z.object({ propertyId: z.uuid().optional().catch(undefined) })
 
 export const Route = createFileRoute('/_authenticated/settings/ai')({
   staticData: { page: { title: 'AI overview', under: 'settings' } },

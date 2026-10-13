@@ -145,6 +145,7 @@ describe('restoreProperty', () => {
       lifecycleInitiatedBy: 'admin-previous',
       googleBindingState: 'disconnected',
       sourceEpoch: 8,
+      responsibleManagerRevision: 6,
       responsibilityNeededSince: null,
     })
     propertyRepo.seed([property])
@@ -193,6 +194,9 @@ describe('restoreProperty', () => {
         to: 'active',
         expectedSourceEpoch: 8,
         nextSourceEpoch: 9,
+        // The revision the manager check was made against: the store refuses
+        // the Restore when a release or a save of the managers has moved it.
+        expectedResponsibleManagerRevision: 6,
         reason: null,
         recoveryDeadline: null,
         event: expect.objectContaining({

@@ -89,7 +89,8 @@ async function saveOverlapping(
 
 async function readRow() {
   const result = await db.execute(sql`
-    SELECT name, slug, timezone, default_reply_language, profile_version, source_epoch
+    SELECT name, slug, timezone, default_reply_language, profile_version, source_epoch,
+           country_code, country_source
     FROM properties WHERE id = ${PROPERTY_ID}
   `)
   return result.rows[0]
@@ -134,6 +135,8 @@ beforeEach(async () => {
         slug = 'harbour-hotel',
         timezone = 'UTC',
         default_reply_language = 'tr-Latn',
+        country_code = 'GB',
+        country_source = 'tenant_confirmed',
         profile_version = ${PROFILE_VERSION},
         updated_at = ${SEEDED_AT}
     WHERE id = ${PROPERTY_ID}
@@ -199,6 +202,41 @@ describe('Property update — two saves that overlap', () => {
       name: 'Harbour Hotel & Spa',
       default_reply_language: null,
     })
+  })
+
+  // The Profile form sends the country it was shown with every save.
+  it('keeps a country one admin saved while another saves the Profile form with a new timezone', async () => {
+    const { second } = await saveOverlapping(
+      { countryCode: 'IE' },
+      { name: 'Harbour Hotel', timezone: 'Europe/London', countryCode: 'GB' },
+    )
+
+    expect(second.ok).toBe(true)
+    expect(await readRow()).toMatchObject({
+      timezone: 'Europe/London',
+      country_code: 'IE',
+      country_source: 'tenant_confirmed',
+    })
+  })
+
+  it('leaves the row and the outbox alone when the Profile form is saved unchanged', async () => {
+    const saved = await saveWith(repo)(
+      {
+        propertyId: PROPERTY_ID,
+        name: 'Harbour Hotel',
+        timezone: 'UTC',
+        countryCode: 'GB',
+      },
+      ctx,
+    )
+
+    expect(saved).toMatchObject({ countryCode: 'GB', countrySource: 'tenant_confirmed' })
+    expect(await readRow()).toMatchObject({
+      country_code: 'GB',
+      country_source: 'tenant_confirmed',
+      profile_version: PROFILE_VERSION,
+    })
+    expect(await updatedFacts()).toEqual([])
   })
 
   it('still refuses a save that read the Property before a rename committed', async () => {

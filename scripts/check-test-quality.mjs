@@ -7,22 +7,34 @@
 //   src/**, services/**, e2e/**, scripts/**, server/**,
 //   .storybook/**                 *.test.ts(x) / *.spec.ts(x)
 //   src/** and .storybook/**      *.stories.tsx
+//   every root above              *.metrics.ts (added 2026-10-13). Only the
+//                                 twenty Storybook Playwright suites under
+//                                 e2e/storybook-metrics match today. They
+//                                 were a fourth hole; no workflow runs them
+//                                 either, so this gate is the only thing
+//                                 that reads them
 //
 // `services/**` is in the unit project's include (vitest.config.ts:91) — it is
 // the AI egress-gateway + execution-admission plane — and `*.stories.tsx` is a
 // hard CI gate (the `storybook-test` job). Both ran every day while being
 // unscanned by the gate that governs them.
 //
-// ── Five rules ──
+// ── Six rules (the line rules and the register audit live in
+//    ./test-quality-rules.mjs, tested by scripts/ci/test-quality-rules.test.ts) ──
 //
 //   1. Focused tests — `.only`, in every chained form vitest accepts
 //      (`describe.only(`, `it.concurrent.only(`, `test.only.each(`). ALWAYS
 //      fail; a focused test silently shrinks the suite in CI.
 //   2. Conditionally-absent tests — `.skip(` / `.todo(` / `.skipIf(` /
-//      `.runIf(`. Fail unless registered in SKIP_REGISTER with owner + reason
-//      and within the registered hit count. `runIf`/`skipIf` matter MORE than
-//      `skip`: they retire tests on a *runtime* predicate, so coverage
-//      disappears with the suite still green and exit 0.
+//      `.runIf(`, and Playwright's `.fixme(`. Fail unless registered in
+//      SKIP_REGISTER with owner + reason and within the registered hit
+//      count. `runIf`/`skipIf` matter MORE than `skip`: they retire tests on
+//      a *runtime* predicate, so coverage disappears with the suite still
+//      green and exit 0.
+//      A reason can stop being true while its entry stays, so an entry also
+//      carries `reviewBy` (YYYY-MM-DD, a day that exists) and fails the gate
+//      after that date until someone has checked the reason and moved it. The runtime fences
+//      need none: rule 5 checks them on every run.
 //   3. Generic-error acceptance — bare `.toThrow()` / `.toThrowError()` with
 //      NO argument: the test passes for ANY error, so it cannot distinguish
 //      the expected failure from an unrelated one. ALWAYS fail; assert the
@@ -40,8 +52,27 @@
 //      AI-language admission table stopped being verified while `pnpm test`
 //      still exited 0. Off CI it is a warning — developers legitimately run
 //      newer Node, and that is exactly why the drift must be caught in CI.
+//   6. Any-error acceptance after `.rejects` — `.rejects.toBeDefined()`,
+//      `.rejects.toBeTruthy()`, `.rejects.toBeInstanceOf(Error)`, and
+//      `.toThrow(Error)` in either spelling. Every failure satisfies them: a
+//      `TypeError` from an unconfigured mock passes a test titled "answers
+//      not found". ALWAYS fail; the 22 sites that existed on 2026-10-13 were
+//      narrowed the day the rule landed.
 //
-// ── SKIP/TODO/SKIPIF/RUNIF REGISTER (owner + reason + maxHits — keep narrow) ──
+// ── What the gate does NOT see ──
+//
+// It reads one line at a time and knows nothing about what an assertion
+// compares. Three kinds of weak test pass it, and only review catches them:
+// an assertion on a value the test built itself, a test that uses the code
+// under test as its own oracle, and a run that reaches no assertion at all (an
+// early return, or an absence asserted after a fixed sleep).
+//
+// ── SKIP/TODO/SKIPIF/RUNIF REGISTER (owner + reason + maxHits + reviewBy — keep narrow) ──
+//   - Every entry that is not a runtime fence carries `reviewBy`. The date is
+//     not an expiry of the skip: on the day after it the gate fails, whoever
+//     picks that up checks the reason against the product as it then is, and
+//     either re-enables the test or writes the next date. Three months is the
+//     horizon used so far.
 //   - The five ICU-fenced AI-language files (owner: engineering). Measured
 //     2026-08-21: these account for ALL 146 tests the unit project reports as
 //     skipped on a non-pinned runtime, per file —
@@ -78,6 +109,12 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, dirname, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  TEST_FILE,
+  isSkipSite,
+  lineFailures,
+  registerFailures,
+} from './test-quality-rules.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -95,7 +132,7 @@ const RUNTIME_DRIFT = Object.entries(PINNED_RUNTIME)
 /**
  * @type {ReadonlyArray<{
  *   file: string, owner: string, reason: string, maxHits: number,
- *   runtimeFence?: boolean, skippedTests?: number,
+ *   runtimeFence?: boolean, skippedTests?: number, reviewBy?: string,
  * }>}
  */
 const SKIP_REGISTER = [
@@ -103,17 +140,18 @@ const SKIP_REGISTER = [
     file: 'e2e/critical/workflows/dashboard-governance.spec.ts',
     owner: 'engineering',
     reason:
-      'Member login is a dark capability in the closed beta: 52635b32 made only owner/admin tokens beta-interactive, so a Member cannot resolve tenant context and the sign-in fails before any assertion. The test asserts Member-scoped dashboard governance, which is real coverage — it returns when the capability is activated, not by relaxing the fence',
+      'one case: reply state redacted for a reader who may not manage replies. It needs a login without reply.manage, and the closed beta has none: AccountAdmin and PropertyManager both hold it, and Member login is dark (isBetaInteractiveRole), so the sign-in fails before any assertion. The rule is held by get-dashboard-data.test.ts. The scoping and expiry halves of the old test run again as a PropertyManager. At review: does a role that signs in without reply.manage exist yet',
     maxHits: 1,
     skippedTests: 1,
+    reviewBy: '2027-01-13',
   },
   {
-    file: 'e2e/critical/workflows/property-access.spec.ts',
+    file: 'e2e/storybook-metrics/guest-vitals.metrics.ts',
     owner: 'engineering',
     reason:
-      'same dark capability as dashboard-governance: the test signs in as a Member to prove a property-scoped account cannot see another property. The scoping property is worth keeping and comes back with Member login',
+      'test.skip(STORYBOOK_STATIC_DIR === null, …) over the LCP and CLS describe: a paint time is only meaningful from the production Storybook build, which `pnpm test:guest:quality` serves (STORYBOOK_METRICS_STATIC); against the dev server the block is skipped. No workflow runs that script, so in CI these tests run nowhere: at review, either the guest quality run has a job or this entry says again why not',
     maxHits: 1,
-    skippedTests: 1,
+    reviewBy: '2027-01-13',
   },
   {
     file: 'src/shared/ai-review-language-catalogue.test.ts',
@@ -162,8 +200,6 @@ const SKIP_REGISTER = [
   },
 ]
 
-const TEST_FILE = /\.(?:test|spec)\.(?:ts|tsx)$|\.stories\.tsx$/
-
 function walk(dir, out = []) {
   for (const ent of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, ent.name)
@@ -185,22 +221,6 @@ const files = [
   ...walk(join(ROOT, '.storybook')),
 ]
 
-// `.only` in every chained form vitest accepts — `describe.only(`,
-// `it.concurrent.only(`, `test.only.each(`. The old regex required `.only(`
-// immediately after the global, so both chained forms evaded it.
-//
-// The previous `fdescribe|fit` alternation is gone. Those are Jest/Jasmine
-// globals and this repo has neither (vitest + playwright, no jest dependency),
-// so it could never match a real focus: 0 hits across all 867 files in scope
-// when measured on 2026-08-21. It was not merely dead, it was a liability —
-// its `[^\w]` prefix class admits `.`, so with `*.stories.tsx` now in scope an
-// ordinary `chart.fit(` call would have failed the gate.
-const FOCUSED_RE = /(?:^|[^\w.])(?:describe|it|test)(?:\.\w+)*\.only\s*[(.]/
-const SKIP_RE = /\.(?:skip|todo|skipIf|runIf)\(/
-const BARE_THROW_RE = /\.toThrow(?:Error)?\(\s*\)/
-const NOT_THROW_RE = /\.not\.toThrow(?:Error)?\(/
-const UNASSERTED_REJECTS_RE = /\.rejects\s*(?:;|$)/
-
 const skipRegister = new Map(SKIP_REGISTER.map((r) => [r.file, r]))
 const skipHits = new Map() // file -> count
 
@@ -211,50 +231,23 @@ for (const abs of files) {
   const lines = readFileSync(abs, 'utf-8').split('\n')
   lines.forEach((line, i) => {
     const at = `${file}:${i + 1}`
-    if (FOCUSED_RE.test(line)) {
-      failures.push(`focused test (.only) at ${at} — remove the focus`)
-    }
-    if (SKIP_RE.test(line)) {
+    failures.push(...lineFailures(line, at))
+    if (isSkipSite(line)) {
       skipHits.set(file, (skipHits.get(file) ?? 0) + 1)
       if (!skipRegister.has(file)) {
         failures.push(
-          `unregistered .skip/.todo/.skipIf/.runIf at ${at} — unskip, or register with owner+reason in scripts/check-test-quality.mjs`,
+          `unregistered .skip/.todo/.skipIf/.runIf/.fixme at ${at} — unskip, or register with owner+reason+reviewBy in scripts/check-test-quality.mjs`,
         )
       }
-    }
-    if (BARE_THROW_RE.test(line) && !NOT_THROW_RE.test(line)) {
-      failures.push(
-        `bare .toThrow() at ${at} accepts ANY error — assert the specific error class, tagged _tag/code, or message pattern`,
-      )
-    }
-    if (UNASSERTED_REJECTS_RE.test(line)) {
-      failures.push(
-        `unasserted async failure at ${at} — '.rejects' must be followed by a matcher naming the expected error`,
-      )
     }
   })
 }
 
-// Registered debt must stay within its registered count and must not go stale.
-// No register currently carries an expiry; if one is reintroduced, the expiring
-// exception pattern already exists in check-licenses.mjs.
-function auditRegister(label, entries, hits) {
-  for (const reg of entries) {
-    const n = hits.get(reg.file) ?? 0
-    if (n > reg.maxHits) {
-      failures.push(
-        `${reg.file}: ${n} ${label} hits exceed the registered ${reg.maxHits} (owner ${reg.owner})`,
-      )
-    }
-    if (n === 0) {
-      failures.push(
-        `stale ${label} register entry: ${reg.file} (owner ${reg.owner}) has no hits — remove the entry`,
-      )
-    }
-  }
-}
-
-auditRegister('skip/todo/skipIf/runIf', SKIP_REGISTER, skipHits)
+// Registered debt must stay within its registered count, must not go stale,
+// and must be looked at again by its review-by date. The date is read in UTC,
+// as the audit, license and container-scan gates read theirs.
+const today = new Date().toISOString().slice(0, 10)
+failures.push(...registerFailures(SKIP_REGISTER, skipHits, today))
 
 // Rule 5 — the fenced suites must actually be running, everywhere.
 //
@@ -310,5 +303,5 @@ if (failures.length > 0) {
   process.exit(1)
 }
 console.log(
-  '[test-quality] OK — no focused tests, no unregistered skips/fences, no generic-error acceptance, no unasserted async failures',
+  '[test-quality] OK — no focused tests, no unregistered or unreviewed skips/fences, no generic-error acceptance, no unasserted async failures',
 )

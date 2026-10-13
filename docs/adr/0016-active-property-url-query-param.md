@@ -48,7 +48,62 @@ Carry the active property as a **URL query parameter (`?propertyId=X`)** on cros
 - Cross-property URLs carry an extra param; navigations must thread it through (missed `validateSearch`/`search` mappings drop it silently).
 - The param is one more thing to keep consistent across the cross-property routes; a shared search-schema helper mitigates this.
 
+## Amended 2026-10-13 — the path carries the active Property; `?propertyId=` is a scope where it is read
+
+The Decision above describes the app before the Inbox workspace (ADR 0057,
+Inbox queues). Three of its statements no longer hold, and a page built from
+them would be wrong, so this section replaces them. `usePropertyId()` and its
+order (path first, then `?propertyId=`) stand.
+
+**The active Property is in the path.** The sidebar's property tile navigates by
+path and writes no query param (`ManagerSidebar`, `handlePropertySwitch`): to
+`/properties/$propertyId`, or, inside the Inbox, to that Property's Reviews page.
+Every page about one Property lives under `/properties/$propertyId/...`, so the
+shell (the tile, the nav links, the capability set `_authenticated` resolves in
+`beforeLoad`) reads the Property from there.
+
+**In the Inbox the Property is a scope, not context.** "All properties" is
+`/inbox`; one Property is `/properties/$propertyId/reviews`, the same workspace
+filtered to it. Changing the scope goes through `useInboxScopeNavigation`, which
+keeps the queue, the filters and the sort and drops `propertyId` and the open
+item. So the Inbox does not "carry and preserve the param", and the param is
+not "context, not a forced filter" there.
+
+**`?propertyId=` is still read, and it is never harmless.** `usePropertyId()`
+reads it from the address on every page that is not under a Property's path, so
+an address that carries the key makes that Property the shell's: the tile names
+it, the nav links lead to it, and the capability set is resolved for it. It
+must be a Property id; any other value is dropped. Three pages are linked with
+it today:
+
+- `/inbox?propertyId=X` is a deep link, written by notices and emails that are
+  about one Property (`notificationLink`) and by that Property's own pages (its
+  overview and attention band, its guest insights, its Portals' results). It
+  narrows the list and the queue counts to that Property (`use-inbox-page.ts`),
+  exactly as that Property's Reviews page does; it is a filter.
+- `/settings/notifications?propertyId=X` names the Property whose notification
+  preferences are being edited, and is honoured only while it names a Property
+  the reader can see.
+- `/settings/integrations?propertyId=X` is written by a Property's overview
+  (`overview-profile-views.tsx`). The page does not read the key; it only keeps
+  the shell on that Property.
+
+`/settings/ai?propertyId=X` and `/progress?propertyId=X` are old links that
+redirect to the Property's own page.
+
+**A cross-property page that only filters uses another key.** `/notifications`
+filters its feed with `?property=`, which `usePropertyId()` does not read: the
+feed is narrowed and the shell stays on "All properties". `/properties`,
+`/portals` and `/notifications` carry no active Property. A new cross-property
+page takes `?propertyId=` only if it means to move the shell's Property with
+it, and then says, as the Inbox does, that it is a scope.
+
+The fleet overview and leaderboards the Context names are gone (the dashboard
+path redirects to `/properties`); nothing else in the Context changed.
+
 ## Related
 
 - `src/routes/CONTEXT.md` (data-loading + `validateSearch` conventions)
 - `src/components/hooks/use-property-id.ts` (the hook this extends)
+- `src/components/inbox/use-inbox-scope-navigation.ts` (the Inbox scope change)
+- ADR 0057, Inbox queues (the workspace that made the Property a scope)

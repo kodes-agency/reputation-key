@@ -242,7 +242,6 @@ export const staffKeys = {
   all: ['staff'] as const,
   participations: (propertyId: string) =>
     [...staffKeys.all, 'participations', propertyId] as const,
-  portals: (propertyId: string) => [...staffKeys.all, 'portals', propertyId] as const,
 }
 
 // ── Reviews (staff recent activity) ──────────────────────────────────────
@@ -258,6 +257,14 @@ export const reviewKeys = {
 export const portalKeys = {
   all: ['portals'] as const,
   list: (propertyId: string) => [...portalKeys.all, 'list', propertyId] as const,
+  /**
+   * The Staff page's read of the same list, which answers "no portals, denied"
+   * where Portals are off for the reader instead of failing. A result of another
+   * shape, so a key of its own; under `list`, so every write that refreshes the
+   * list refreshes it.
+   */
+  listOrDenied: (propertyId: string) =>
+    [...portalKeys.list(propertyId), 'or-denied'] as const,
   detail: (portalId: string) => [...portalKeys.all, 'detail', portalId] as const,
   links: (portalId: string) => [...portalKeys.detail(portalId), 'links'] as const,
   /** The editor's Linktree section: switch, titles, and each link with its texts. */

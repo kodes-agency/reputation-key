@@ -74,7 +74,6 @@ const neverCalled = (name: string) =>
   })
 const importFns = {
   getGoogleAuthUrl: neverCalled('getGoogleAuthUrl'),
-  listGoogleConnections: neverCalled('listGoogleConnections'),
   listImportAccounts: neverCalled('listImportAccounts'),
   listImportCandidates: neverCalled('listImportCandidates'),
   renewImportAuthorizationLease: neverCalled('renewImportAuthorizationLease'),

@@ -515,10 +515,12 @@ describe('publish-reply job handler', () => {
           replyUpdatedAt: NOW,
         },
       })
-      deps.googleReviewApi.replyToReview.mockRejectedValueOnce(makeFailure())
+      const failure = makeFailure()
+      deps.googleReviewApi.replyToReview.mockRejectedValueOnce(failure)
       const handler = createPublishReplyHandler(deps as never)
 
-      await expect(handler(makeJob(0))).rejects.toBeInstanceOf(Error)
+      // The job fails with the provider failure itself, so BullMQ retries it.
+      await expect(handler(makeJob(0))).rejects.toBe(failure)
       await expect(handler(makeJob(1))).resolves.toBeUndefined()
 
       expect(deps.googleReviewApi.getReview).toHaveBeenCalledOnce()

@@ -119,12 +119,22 @@ describe('reply-template server functions', () => {
   })
 
   it.each([
-    ['list', listReplyTemplatesFn, { ...listInput, reviewText: 'must not cross' }],
-    ['load', loadReplyTemplateFn, { ...loadInput, templateId: 'not-a-uuid' }],
+    [
+      'list',
+      listReplyTemplatesFn,
+      { ...listInput, reviewText: 'must not cross' },
+      /unrecognized_keys/,
+    ],
+    [
+      'load',
+      loadReplyTemplateFn,
+      { ...loadInput, templateId: 'not-a-uuid' },
+      /Invalid UUID/,
+    ],
   ] as const)(
     'rejects invalid %s input before authorization',
-    async (_name, fn, data) => {
-      await expect(callUnchecked(fn, data)).rejects.toBeInstanceOf(Error)
+    async (_name, fn, data, refusal) => {
+      await expect(callUnchecked(fn, data)).rejects.toThrow(refusal)
       expect(mocks.resolveTenantContext).not.toHaveBeenCalled()
       expect(mocks.requireExecutionAllowed).not.toHaveBeenCalled()
       expect(mocks.listTemplates).not.toHaveBeenCalled()

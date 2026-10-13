@@ -8,6 +8,7 @@ import { savePropertyPublicDisplayName } from '#/contexts/portal/server/portals'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { can } from '#/shared/domain/permissions'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { inboxKeys, portalKeys, propertyKeys } from '#/shared/queries/query-keys'
 import { propertyPortalExperienceQuery } from '../-settings-queries'
 
@@ -25,11 +26,11 @@ export const Route = createFileRoute(
 
 function PropertyProfileSettings() {
   const { propertyId } = Route.useParams()
-  const { role } = Route.useRouteContext() as AuthRouteContext
+  const { can: canDo } = usePermissions()
   const { data } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: portalExperience } = useQuery({
     ...propertyPortalExperienceQuery(propertyId),
-    enabled: can(role, 'portal.read'),
+    enabled: canDo('portal.read'),
   })
   const displayName = portalExperience?.profile?.displayName ?? ''
   const saveProfile = useActionMutation(updateProperty, {
@@ -52,7 +53,7 @@ function PropertyProfileSettings() {
       <PropertyProfileCard
         key={`${propertyId}:${data.property.profileVersion}:${data.property.updatedAt}`}
         property={data.property}
-        canEdit={can(role, 'property.update')}
+        canEdit={canDo('property.update')}
         updateProperty={saveProfile}
       />
       {portalExperience ? (

@@ -78,8 +78,13 @@ function MismatchCard({
     <AuthCard title={copy.title} description={copy.description}>
       <div className="space-y-4">
         <FormErrorBanner error={error} />
-        <Button className="w-full" onClick={onSignOut} disabled={signingOut}>
-          {signingOut ? 'Signing out…' : 'Sign out'}
+        <Button
+          className="w-full"
+          onClick={onSignOut}
+          pending={signingOut}
+          pendingLabel="Signing out…"
+        >
+          Sign out
         </Button>
       </div>
     </AuthCard>

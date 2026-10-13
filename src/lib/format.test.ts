@@ -16,6 +16,7 @@ import {
   formatShortDate,
   formatTime,
   formatTimestamp,
+  formatZonedTimestamp,
   toInstant,
 } from './format'
 
@@ -172,6 +173,35 @@ describe("the viewer's own zone", () => {
     }).format(NOON_UTC)
 
     expect(formatTime(NOON_UTC, 'viewer')).toBe(viewer)
+  })
+})
+
+// A clock time is only exact with its zone beside it: "10:31 PM" in a hover
+// title read three hours early to a manager in Sofia.
+describe('formatZonedTimestamp', () => {
+  const LATE = '2026-09-12T22:31:00.000Z'
+
+  it('prints the instant on the clock of the zone it is given, and names that zone', () => {
+    expect(formatZonedTimestamp(LATE, 'UTC')).toBe('Sep 12, 2026, 10:31 PM UTC')
+    expect(formatZonedTimestamp(LATE, 'Europe/Sofia')).toBe('Sep 13, 2026, 1:31 AM GMT+3')
+    expect(formatZonedTimestamp(LATE, 'America/Los_Angeles')).toBe(
+      'Sep 12, 2026, 3:31 PM PDT',
+    )
+  })
+
+  it('names the zone the reader is in when asked for their clock', () => {
+    const zone = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' })
+      .formatToParts(new Date(LATE))
+      .find((part) => part.type === 'timeZoneName')?.value
+
+    expect(formatZonedTimestamp(LATE, 'viewer')).toBe(
+      `${formatTimestamp(LATE, 'viewer')} ${zone}`,
+    )
+  })
+
+  it('is null for something that is not an instant', () => {
+    expect(formatZonedTimestamp(null, 'UTC')).toBeNull()
+    expect(formatZonedTimestamp('not a date', 'UTC')).toBeNull()
   })
 })
 

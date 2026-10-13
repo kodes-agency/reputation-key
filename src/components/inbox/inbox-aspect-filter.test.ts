@@ -2,7 +2,6 @@
 // `/inbox?aspect=<aspect>&polarity=<positive|neutral|negative>`.
 
 import { describe, expect, it } from 'vitest'
-import { z } from 'zod/v4'
 import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
 import {
   ASPECT_LABELS,
@@ -25,15 +24,21 @@ describe('inboxSearchSchema aspect and polarity params', () => {
     expect(inboxSearchSchema.parse({ notAnAspect: 'wait_time' })).toEqual({})
   })
 
-  it('rejects unknown aspect, polarity, and attention values at their paths', () => {
-    for (const [input, path] of [
-      [{ aspect: 'brunch' }, 'aspect'],
-      [{ polarity: 'urgent' }, 'polarity'],
-      [{ attention: 'panic' }, 'attention'],
-    ] as const) {
-      expect(() => inboxSearchSchema.parse(input)).toThrow(z.ZodError)
-      expect(inboxSearchSchema.safeParse(input).error?.issues[0]?.path).toEqual([path])
+  // An unknown value never becomes a filter, and never refuses the page either:
+  // it is dropped, like an undeclared param, and what the address does name is
+  // kept. (It used to throw, which left the generic error page and a "Try
+  // again" that read the same address again.)
+  it('drops unknown aspect, polarity, and attention values rather than activating a filter', () => {
+    for (const input of [
+      { aspect: 'brunch' },
+      { polarity: 'urgent' },
+      { attention: 'panic' },
+    ]) {
+      expect(inboxSearchSchema.parse(input)).toEqual({})
     }
+    expect(inboxSearchSchema.parse({ aspect: 'brunch', polarity: 'negative' })).toEqual({
+      polarity: 'negative',
+    })
   })
 
   it('accepts every canonical aspect and polarity', () => {
@@ -66,8 +71,8 @@ describe('inboxSearchSchema sort param', () => {
     expect(inboxSearchSchema.parse({ sort: 'oldest' })).toEqual({ sort: 'oldest' })
   })
 
-  it('rejects unsupported sort orders', () => {
-    expect(() => inboxSearchSchema.parse({ sort: 'highest' })).toThrow(z.ZodError)
+  it('drops an unsupported sort order, so the list keeps its default order', () => {
+    expect(inboxSearchSchema.parse({ sort: 'highest' })).toEqual({})
   })
 })
 

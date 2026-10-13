@@ -1,4 +1,5 @@
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
+import { policyDenial } from '#/shared/testing/policy-denial'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -102,21 +103,21 @@ describe('portal version reads', () => {
   })
 
   it('reads nothing when the scope check refuses', async () => {
-    mocks.requirePortalResourceScope.mockRejectedValue(new Error('refused'))
+    mocks.requirePortalResourceScope.mockRejectedValue(policyDenial())
 
     await expect(
       withStartContext(() => getPortalVersions({ data: { portalId: 'portal-1' } })),
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({ name: 'AuthError', code: 'scope_denied', status: 403 })
     await expect(
       withStartContext(() =>
         getPortalVersion({ data: { portalId: 'portal-1', version: 1 } }),
       ),
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({ name: 'AuthError', code: 'scope_denied', status: 403 })
     await expect(
       withStartContext(() =>
         getPortalVersionPreview({ data: { portalId: 'portal-1', version: 1 } }),
       ),
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({ name: 'AuthError', code: 'scope_denied', status: 403 })
     expect(mocks.getVersions).not.toHaveBeenCalled()
     expect(mocks.getVersion).not.toHaveBeenCalled()
     expect(mocks.getVersionPreview).not.toHaveBeenCalled()

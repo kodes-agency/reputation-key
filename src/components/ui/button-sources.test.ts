@@ -156,8 +156,6 @@ describe('a pending button is the Button', () => {
   const SPINNER_ALLOWED: Readonly<Record<string, string>> = {
     'src/components/ui/region-error.tsx':
       'Try again stays aria-disabled, not disabled, so keyboard focus is kept',
-    'src/components/features/integration/google-import-manager/google-import-progress-view.tsx':
-      'the refresh icon of a progress heading spins while it reads',
     'src/components/features/integration/google-import-manager/google-import-progress-items.tsx':
       'the status glyph of a progress row, beside a Try again that is a pending Button',
     'src/components/inbox/composer-mode-row.tsx': 'a status glyph in the mode row',
@@ -175,6 +173,63 @@ describe('a pending button is the Button', () => {
 
   it('has no inert data-icon attribute: the Button already places and sizes its icon', () => {
     expect(offendersOf((file) => /data-icon=/u.test(file.text))).toEqual([])
+  })
+
+  // `{save.isPending ? 'Saving…' : 'Save access'}` as a label: the button then
+  // shows no spinner and is not `aria-busy`. The words belong in `pendingLabel`.
+  // Read by its shape (two strings, the first ending in an ellipsis), not by
+  // what the flag is called: `saving`, `isOpening` and `props.busy` are the
+  // same swap as `isPending`.
+  const SWAPPED_LABEL =
+    /(?<![=\w])\{\s*[^{}]*?\?\s*(['"`])[^'"`]*(?:…|\.{3})\1\s*:\s*(['"`])[^'"`]*\2\s*\}/u
+  /** A Button with children, from its opening tag to its closing one. */
+  const BUTTON_ELEMENT = /<Button\b(?:(?!<Button\b)[\s\S])*?<\/Button>/gu
+  const swapsLabelIn = (text: string) =>
+    (text.match(BUTTON_ELEMENT) ?? []).some((button) => SWAPPED_LABEL.test(button))
+  const swapsLabel = (file: SourceFile) => swapsLabelIn(file.text)
+  /** A swap `pendingLabel` cannot take over, because its words are not a bare string. */
+  const SWAP_ALLOWED: Readonly<Record<string, string>> = {
+    'src/components/inbox/reply-ai-menu.tsx':
+      'the label is a span that is screen-reader-only below md (the Button is `iconBelow`); a `pendingLabel` is a bare string and would print beside the icon on a phone',
+    'src/components/inbox/reply-template-menu.tsx':
+      'the label is a span that is screen-reader-only below md (the Button is `iconBelow`); a `pendingLabel` is a bare string and would print beside the icon on a phone',
+  }
+
+  it('takes its pending word from `pendingLabel`, not a label swapped on a flag', () => {
+    expect(offendersOf(swapsLabel, SWAP_ALLOWED)).toEqual([])
+  })
+
+  it('lists no file that no longer swaps a label', () => {
+    expect(staleIn(swapsLabel, SWAP_ALLOWED)).toEqual([])
+  })
+
+  it('catches the swap as a child, whatever the flag is called', () => {
+    expect(swapsLabelIn("<Button>{save.isPending ? 'Saving…' : 'Save'}</Button>")).toBe(
+      true,
+    )
+    expect(swapsLabelIn('<Button>{isPending ? "Saving…" : "Save"}</Button>')).toBe(true)
+    expect(
+      swapsLabelIn(
+        "<Button disabled={saving}>\n  <Icon /> {saving ? 'Saving...' : 'Save'}\n</Button>",
+      ),
+    ).toBe(true)
+    expect(
+      swapsLabelIn(
+        "<Button><span>{props.isOpening ? 'Opening…' : 'Open page'}</span></Button>",
+      ),
+    ).toBe(true)
+  })
+
+  it('leaves alone a prop, two labels that are not a pending word, and text that is not in a Button', () => {
+    expect(
+      swapsLabelIn(
+        "<Button pendingLabel={a.isPending ? 'Saving…' : 'Sending…'}>Save</Button>",
+      ),
+    ).toBe(false)
+    expect(swapsLabelIn("<Button>{isOpen ? 'Hide' : 'Show'}</Button>")).toBe(false)
+    expect(
+      swapsLabelIn("<p>{isLoading ? 'Loading templates…' : 'No templates'}</p>"),
+    ).toBe(false)
   })
 })
 

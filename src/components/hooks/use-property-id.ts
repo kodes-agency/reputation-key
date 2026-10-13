@@ -12,8 +12,9 @@ const validPropertyScope = (value: unknown): string | null => {
  * Resolve the active property id from a parsed location.
  *
  * The `/properties/$propertyId` path segment takes precedence; otherwise fall
- * back to a `?propertyId=` search param carried by cross-property pages
- * (inbox, fleet overview) — see ADR 0016.
+ * back to a `?propertyId=` search param, which the Inbox deep link and
+ * Notification settings carry. There it is a scope, not passing context: see
+ * ADR 0016 as amended on 2026-10-13.
  *
  * Pure so non-React callers share the same rule: `_authenticated`'s
  * `beforeLoad` resolves the property-scoped capability set from it, exactly as

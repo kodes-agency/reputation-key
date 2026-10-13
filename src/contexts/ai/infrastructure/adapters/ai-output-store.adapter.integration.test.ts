@@ -58,6 +58,12 @@ const SOURCE_REVISION = 1
 const REVIEW_A_SOURCE_DIGEST = 'a'.repeat(64)
 const REVIEW_B_SOURCE_DIGEST = 'b'.repeat(64)
 const SOURCE_BYTE_COUNT = 20
+// The notice before the current one. Its consent stays valid at its own version
+// (docs/BETA.md §2), so an operation claimed under it is a real state: the
+// Property's AI work from before it re-consented.
+const EARLIER_NOTICE_VERSION = 'merchant-ai-notice-2026-09-09.v1'
+const EARLIER_NOTICE_DIGEST =
+  'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1'
 
 const CONTROL_SCOPE_KEYS = [
   'global',
@@ -423,7 +429,12 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       .where(eq(aiPropertyAggregateSettlements.propertyId, PROPERTY_ID))
     await db
       .update(aiOperations)
-      .set({ state: 'executing', updatedAt: NOW })
+      .set({
+        state: 'executing',
+        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+        updatedAt: NOW,
+      })
       .where(eq(aiOperations.id, OPERATION_ID))
     await db
       .update(reviews)
@@ -476,6 +487,68 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       generatedAtEpochMillis: COMPLETED_AT.getTime(),
       expiresAtEpochMillis: ANALYSIS_EXPIRES_AT.getTime(),
     })
+
+  const readReviewA = () =>
+    outputs.readAnalysisForDelivery(
+      {
+        organizationId: ORGANIZATION_ID,
+        actorUserId: userId(ACTOR_USER_ID),
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_A_ID,
+        authorizationLineageId: LINEAGE_ID,
+        reviewAnalysisEpoch: 1,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: 1,
+        propertyProfileVersion: 1,
+        analysisProfileVersion: 'review-analysis-v2',
+        nowEpochMillis: COMPLETED_AT.getTime(),
+      },
+      async (result) => result,
+    )
+
+  /** The operation as one claimed under another notice, and nothing else moved. */
+  const claimUnderAnotherNotice = (
+    notice: Readonly<{ noticeVersion?: string; noticeDigest?: string }>,
+  ) => db.update(aiOperations).set(notice).where(eq(aiOperations.id, OPERATION_ID))
+
+  // Notice drift withholds stored output (docs/BETA.md §2). In production a
+  // re-consent also advances the capability epochs, and the epoch comparisons
+  // beside these would refuse first. Here the lineage, the epochs and the state
+  // version all stay where they were, so the notice comparison alone decides.
+  describe('an operation claimed under another notice', () => {
+    const DRIFTS = [
+      ['version', { noticeVersion: EARLIER_NOTICE_VERSION }],
+      ['digest', { noticeDigest: EARLIER_NOTICE_DIGEST }],
+    ] as const
+
+    it.each(DRIFTS)(
+      'withholds its stored analysis (notice %s)',
+      async (_field, notice) => {
+        await expect(storeReviewA()).resolves.toBe(true)
+        // The control: under the notice the Property consented to, it is read.
+        await expect(readReviewA()).resolves.toMatchObject({ status: 'ready' })
+
+        await claimUnderAnotherNotice(notice)
+
+        const withheld = await readReviewA()
+        expect(withheld.status).toBe('none')
+        expect(withheld).not.toHaveProperty('sentiment')
+      },
+    )
+
+    it.each(DRIFTS)('stores nothing for it (notice %s)', async (_field, notice) => {
+      await claimUnderAnotherNotice(notice)
+
+      await expect(storeReviewA()).resolves.toBe(false)
+
+      const stored = await db
+        .select({ reviewId: aiReviewAnalyses.reviewId })
+        .from(aiReviewAnalyses)
+        .where(eq(aiReviewAnalyses.propertyId, PROPERTY_ID))
+      expect(stored).toEqual([])
+    })
+  })
 
   it('stores a paid analysis when another review owns the property head sequence', async () => {
     await expect(storeReviewA()).resolves.toBe(true)

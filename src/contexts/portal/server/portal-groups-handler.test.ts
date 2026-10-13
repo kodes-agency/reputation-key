@@ -3,6 +3,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
+import { policyDenial } from '#/shared/testing/policy-denial'
 
 const mocks = vi.hoisted(() => ({
   movePortalToGroup: vi.fn(),
@@ -78,16 +79,26 @@ describe('movePortalToGroup server function', () => {
 
     await expect(
       withStartContext(() => movePortalToGroup({ data: move })),
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({
+      name: 'PortalError',
+      code: 'portal_not_in_group',
+      status: 404,
+    })
     expect(mocks.movePortalToGroup).not.toHaveBeenCalled()
   })
 
   it('does not move anything when the property is not allowed to be written', async () => {
-    mocks.requireExecutionAllowed.mockRejectedValue(new Error('property_disabled'))
+    mocks.requireExecutionAllowed.mockRejectedValue(
+      policyDenial('property_not_allowlisted'),
+    )
 
     await expect(
       withStartContext(() => movePortalToGroup({ data: move })),
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({
+      name: 'AuthError',
+      code: 'property_not_allowlisted',
+      status: 403,
+    })
     expect(mocks.movePortalToGroup).not.toHaveBeenCalled()
   })
 })
@@ -129,7 +140,7 @@ describe('listPortalGroupHistory server function', () => {
       withStartContext(() =>
         listPortalGroupHistory({ data: { portalGroupId: 'group-1' } }),
       ),
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({ name: 'PortalError', code: 'group_not_found', status: 404 })
     expect(mocks.listPortalGroupHistory).not.toHaveBeenCalled()
   })
 })

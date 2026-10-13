@@ -43,10 +43,12 @@ export function UnverifiedEmailNotice({ email, resendVerification }: Props) {
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={resend.isPending || email === ''}
+                disabled={email === ''}
+                pending={resend.isPending}
+                pendingLabel="Sending…"
                 onClick={() => void resend({ data: { email } }).catch(() => undefined)}
               >
-                {resend.isPending ? 'Sending…' : 'Send a new link'}
+                Send a new link
               </Button>
             </>
           )}

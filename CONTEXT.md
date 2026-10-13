@@ -166,6 +166,15 @@ rather than "may this role do it?" (ADR 0049). Never merge them into `can()`.
 - Never call `toDomainRole()` on an already-mapped domain role — `resolveTenantContext()` already returns domain roles
 - Never treat `useCapabilities()` as a boundary — it only prevents dead ends; the route gate and the server assert remain authoritative
 
+In a route file the split is mechanical: `can(role, …)` in `beforeLoad` and
+`loader`, `usePermissions()` in the component, so a page never answers from two
+authorities. `src/routes/route-permission-sources.test.ts` fails on a route
+component that asks the static table, on a helper beside a route that does and
+is not listed as a `beforeLoad` or `loader` helper, and on a `hasRole()` it
+does not list as a rank decision. A route still hands some presentational components the answer as
+a prop (`canEdit`, `permissions`): the value comes from `usePermissions()`, and
+a new component asks the hook itself.
+
 ## Client/Server Boundary
 
 TanStack Start builds **two bundles** — client and server. Server-only code that leaks into the client bundle **crashes hydration**: Vite externalizes Node builtins, and accessing them in the browser throws (`Module "crypto" has been externalized for browser compatibility`) before React hydrates — every page renders but nothing is interactive. This has bitten us twice (both recorded in ADR 0015, which absorbed the former ADR 0012 Nitro dev-mode exclusion).

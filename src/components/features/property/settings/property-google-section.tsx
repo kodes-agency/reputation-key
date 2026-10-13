@@ -13,7 +13,10 @@ import {
 } from '#/components/ui/card'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import type { GoogleBindingState } from '../property-lifecycle-model'
+import {
+  GOOGLE_BINDING_STATUS,
+  type GoogleBindingState,
+} from '../property-lifecycle-model'
 import {
   googleReviewDestinationText,
   type GoogleReviewDestinationSubject,
@@ -23,33 +26,13 @@ type Props = Readonly<{
   property: GoogleReviewDestinationSubject & Readonly<{ id: string }>
 }>
 
-const BINDING: Readonly<
-  Record<
-    GoogleBindingState,
-    Readonly<{ label: string; tone: 'ok' | 'attention'; detail: string }>
-  >
-> = {
-  active: {
-    label: 'Linked',
-    tone: 'ok',
-    detail: 'Reviews sync from this Business Profile and replies can be published to it.',
-  },
-  account_confirmation_required: {
-    label: 'Confirmation needed',
-    tone: 'attention',
-    detail:
-      'Google needs the Business Profile account confirmed before reviews sync again.',
-  },
-  disconnected: {
-    label: 'Disconnected',
-    tone: 'attention',
-    detail: 'Reviews no longer sync. Relink the Business Profile to resume.',
-  },
-  unbound: {
-    label: 'Not linked',
-    tone: 'attention',
-    detail: 'No Business Profile is linked to this property yet.',
-  },
+/** What each state of the link means for this property; the pill is `GOOGLE_BINDING_STATUS`. */
+const BINDING_DETAIL: Readonly<Record<GoogleBindingState, string>> = {
+  active: 'Reviews sync from this Business Profile and replies can be published to it.',
+  account_confirmation_required:
+    'Google needs the Business Profile account confirmed before reviews sync again.',
+  disconnected: 'Reviews no longer sync. Relink the Business Profile to resume.',
+  unbound: 'No Business Profile is linked to this property yet.',
 }
 
 /**
@@ -59,18 +42,15 @@ const BINDING: Readonly<
  */
 export function PropertyGoogleSection({ property }: Props) {
   const { can } = usePermissions()
-  const binding = BINDING[property.googleBindingState]
+  const isLinked = property.googleBindingState === 'active'
 
   return (
     <Card>
       <CardHeader className="border-b">
         <CardTitle as="h2">Google Business Profile</CardTitle>
-        <CardDescription>{binding.detail}</CardDescription>
+        <CardDescription>{BINDING_DETAIL[property.googleBindingState]}</CardDescription>
         <CardAction>
-          <StatusBadge
-            tone={binding.tone === 'ok' ? 'positive' : 'warn'}
-            label={binding.label}
-          />
+          <StatusBadge status={property.googleBindingState} map={GOOGLE_BINDING_STATUS} />
         </CardAction>
       </CardHeader>
       <CardContent>
@@ -82,15 +62,9 @@ export function PropertyGoogleSection({ property }: Props) {
       </CardContent>
       <CardFooter className="flex flex-wrap gap-2 border-t">
         {can('property.import_gbp_v2') ? (
-          <Button
-            asChild
-            variant={binding.tone === 'ok' ? 'outline' : 'default'}
-            size="sm"
-          >
+          <Button asChild variant={isLinked ? 'outline' : 'default'} size="sm">
             <Link to="/properties/import-google">
-              {property.googleBindingState === 'active'
-                ? 'Relink with Google import'
-                : 'Link with Google import'}
+              {isLinked ? 'Relink with Google import' : 'Link with Google import'}
             </Link>
           </Button>
         ) : null}
@@ -102,7 +76,7 @@ export function PropertyGoogleSection({ property }: Props) {
             </Link>
           </Button>
         ) : null}
-        {property.googleBindingState === 'active' ? (
+        {isLinked ? (
           <Button asChild variant="ghost" size="sm">
             <Link
               to="/properties/$propertyId/settings/danger"

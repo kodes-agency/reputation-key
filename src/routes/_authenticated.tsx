@@ -36,6 +36,7 @@ import { ManagerSidebar } from '#/components/layout/manager-sidebar'
 import { SettingsSidebar } from '#/components/layout/settings-sidebar'
 import { AppTopBar } from '#/components/layout/app-top-bar'
 import { hasRole } from '#/shared/domain/roles'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
 import { partitionWorkspaceProperties } from '#/components/features/property/property-workspace'
@@ -228,6 +229,9 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
   // (see `shell-continuity`), and a collapsed sidebar must not open again.
   const [sidebarOpen, setSidebarOpen] = useSidebarOpen()
   useKeepSidebarFocus()
+  // The launcher is offered to whoever the server lets report, which is a
+  // permission and not a rank.
+  const mayReportBeta = usePermissions().can('feedback.beta_report')
 
   const content = (
     <SidebarProvider
@@ -265,12 +269,8 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
           sidebarLocked={isFullBleed}
           organizationId={ctx.activeOrganization?.id ?? 'no-active-organization'}
           notificationFns={notificationFns}
-          submitBetaFeedback={
-            hasRole(ctx.role, 'PropertyManager') ? submitBetaFeedbackFn : undefined
-          }
-          listBetaFeedback={
-            hasRole(ctx.role, 'PropertyManager') ? listMyBetaFeedbackFn : undefined
-          }
+          submitBetaFeedback={mayReportBeta ? submitBetaFeedbackFn : undefined}
+          listBetaFeedback={mayReportBeta ? listMyBetaFeedbackFn : undefined}
         />
         {/* The only element that pads a page (PAGE_GUTTER); nothing below adds a second gutter. */}
         <main

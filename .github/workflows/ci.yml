@@ -311,9 +311,16 @@ jobs:
       # The worker build is part of `pnpm build`; the single tsup invocation
       # emits the web preload and worker/migration bundles.
 
+      # The forbidden-source rules read source maps and nothing else, so the
+      # two places that must carry maps are named: without them a build that
+      # stopped emitting maps would pass with nothing inspected. This step is
+      # the only run that reads the client maps: the image build's may already
+      # be deleted by the Sentry upload.
       - name: Production artifact boundary
         run: >-
           pnpm check:production-artifacts
+          --require-source-maps .output/client-source-maps
+          --require-source-maps dist-worker
           .output
           dist-worker
 

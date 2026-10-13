@@ -17,9 +17,8 @@ import { ReplyMessageActions, type ReplyOnScreen } from './reply-message-actions
 import { presentReplyMessage, type ReplyMessageTone } from './reply-message-view'
 import { resolveReplyView, type ReplyData } from './reply-status-view'
 import { useReplyCheckRun, useReplyFocusReturn } from './use-reply-check-run'
-import { formatRelativeTime } from './utils'
+import { formatExactTime, formatRelativeTime } from './utils'
 import { useRef, type ReactNode } from 'react'
-import { formatTimestamp } from '#/lib/format'
 
 /**
  * Chip tone. `accent` is NOT the purple `--accent` token: purple is
@@ -251,7 +250,7 @@ export function ReplyMessage({
               {view.meta.label} ·{' '}
               <time
                 dateTime={view.meta.at.toISOString()}
-                title={formatTimestamp(view.meta.at) ?? undefined}
+                title={formatExactTime(view.meta.at)}
               >
                 {formatRelativeTime(view.meta.at)}
               </time>

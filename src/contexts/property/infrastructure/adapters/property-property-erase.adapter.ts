@@ -1,14 +1,29 @@
 // LIF-01-T19 — the Property context's own contribution to a permanent erase.
 //
 // Property deliberately does NOT delete its `properties` row. `purged` is a
-// declared lifecycle state (BETA-1 B1.5: "no data remains; only evidence
-// records"), and the tombstone is what keeps every content-free receipt,
-// audit row and ledger entry that names this Property resolvable. Deleting the
-// row would cascade parts of that evidence away and would make the erase
-// unprovable — the opposite of what an irreversible operation needs.
+// declared lifecycle state, and the tombstone is what keeps every content-free
+// receipt, audit row and ledger entry that names this Property resolvable.
+// Deleting the row would cascade parts of that evidence away and would make the
+// erase unprovable — the opposite of what an irreversible operation needs.
 //
-// What Property DOES erase is its own descriptive content: the name, slug and
-// address-shaped fields a person could be identified by.
+// What Property DOES erase is the name, the slug and the address, and its
+// Responsible Manager rows.
+//
+// What the tombstone STILL KEEPS, and an owner decision has to settle before
+// this path is armed (docs/operations/backup-and-lifecycle.md §9):
+//
+//   - the archive note (`lifecycle_reason`): 3 to 500 characters of free text
+//     an AccountAdmin typed, so it can name a person;
+//   - the Google binding: the account and location suffixes, the Organization
+//     connection reference, the binding state (still `active` if the Property
+//     was never disconnected) and the review URI with its pin.
+//
+// The location suffix has a second effect. Its unique index is per
+// Organization and leaves out only rows with `deleted_at` set, which a
+// tombstone never has, so the same Google location cannot be imported into
+// that Organization again: `createBoundProperty` answers
+// `location_already_bound`. `scrubProviderIdentity` on the binding store clears
+// exactly these binding columns and has no caller yet.
 
 import { sql } from 'drizzle-orm'
 import type {
@@ -52,9 +67,10 @@ export const createPropertyPropertyEraseContributor = (): PropertyEraseContribut
         AND organization_id = ${scope.organizationId}
       RETURNING id
     `)
-    // The row survives as a tombstone; its descriptive content does not. The
-    // slug is randomised rather than nulled because it is NOT NULL and unique,
-    // and a predictable placeholder would collide across erased Properties.
+    // The row survives as a tombstone; its name, slug and address do not (the
+    // header lists what it still keeps). The slug is derived from the id rather
+    // than nulled because it is NOT NULL and unique, and one shared placeholder
+    // would collide across erased Properties.
     const scrubbed = await tx.execute(sql`
       UPDATE properties
       SET name = 'erased-property',
