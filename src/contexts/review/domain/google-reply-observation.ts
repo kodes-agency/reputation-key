@@ -304,6 +304,31 @@ export function decideGoogleReplyObservation(input: DecideGoogleReplyObservation
     })
   }
 
+  // Never stored: the read restates the head, so the store appends no row,
+  // records no fact and leaves the head as it was. The text is RepKey's own;
+  // the matched fields stay empty because they name the attempt an
+  // observation confirms, and this one confirms none. Asked before the
+  // whitespace rule below: an edit that changes only spacing or line breaks
+  // equals the earlier text once collapsed, and the earlier text is then the
+  // earlier publication, digest for digest, not an echo of the edit to record.
+  if (
+    candidate !== null &&
+    currentCandidate &&
+    showsEarlierPublicationUnchanged(candidate, observed, input.previous, input)
+  ) {
+    return Object.freeze({
+      state,
+      change,
+      resolution: 'earlier_publication_live' as const,
+      provenance: 'repkey_confirmed' as const,
+      normalizedText,
+      normalizedDigest,
+      matchedReplyId: null,
+      matchedPublicationCycle: null,
+      matchedAttemptNumber: null,
+    })
+  }
+
   // The only resolution the observation check constraints allow for live text
   // that neither confirms nor closes the handling target is `diverged`
   // (review.schema.ts google_reply_observations_semantics_valid); the store
@@ -320,28 +345,6 @@ export function decideGoogleReplyObservation(input: DecideGoogleReplyObservation
       change,
       resolution: 'diverged' as const,
       provenance: 'external_or_unknown' as const,
-      normalizedText,
-      normalizedDigest,
-      matchedReplyId: null,
-      matchedPublicationCycle: null,
-      matchedAttemptNumber: null,
-    })
-  }
-
-  // Never stored: the read restates the head, so the store appends no row,
-  // records no fact and leaves the head as it was. The text is RepKey's own;
-  // the matched fields stay empty because they name the attempt an
-  // observation confirms, and this one confirms none.
-  if (
-    candidate !== null &&
-    currentCandidate &&
-    showsEarlierPublicationUnchanged(candidate, observed, input.previous, input)
-  ) {
-    return Object.freeze({
-      state,
-      change,
-      resolution: 'earlier_publication_live' as const,
-      provenance: 'repkey_confirmed' as const,
       normalizedText,
       normalizedDigest,
       matchedReplyId: null,

@@ -237,6 +237,62 @@ describe('Google reply observation decision', () => {
         }),
       ).toMatchObject({ change: 'unchanged', resolution: 'unchanged' })
     })
+
+    // An edit may change nothing but spacing or line breaks. Collapsed, the
+    // earlier reply then equals the edit, which is also how a reformatted echo
+    // of the edit looks (D6, below). But it is the text the head already
+    // holds and RepKey confirmed, digest for digest: the earlier publication.
+    // Read as an echo it would be recorded, and the Inbox would show the
+    // manager their own earlier reply as one RepKey did not write.
+    describe('when the edit changes only whitespace', () => {
+      const ONE_LINE = 'Thank you, Anna! We hope to see you again.'
+      const TWO_PARAGRAPHS = 'Thank you, Anna!\n\nWe hope to see you again.'
+      const oneLineIsTheHead = { ...earlierIsTheHead, normalizedDigest: digest(ONE_LINE) }
+      const reflowed = {
+        ...candidate,
+        expectedReplyDigest: digest(TWO_PARAGRAPHS),
+        expectedReplyText: TWO_PARAGRAPHS,
+        earlierConfirmedDigest: digest(ONE_LINE),
+      }
+
+      it('reads the earlier text as the earlier publication, not as an echo of the edit', () => {
+        expect(digest(ONE_LINE)).not.toBe(digest(TWO_PARAGRAPHS))
+        expect(
+          decideGoogleReplyObservation({
+            ...scope,
+            observedText: ONE_LINE,
+            previous: oneLineIsTheHead,
+            candidate: reflowed,
+          }),
+        ).toMatchObject({
+          change: 'unchanged',
+          resolution: 'earlier_publication_live',
+          matchedReplyId: null,
+        })
+      })
+
+      it('still reads any other spacing of the edit as its reformatted echo', () => {
+        expect(
+          decideGoogleReplyObservation({
+            ...scope,
+            observedText: 'Thank you, Anna!\nWe hope to see you again.',
+            previous: oneLineIsTheHead,
+            candidate: reflowed,
+          }),
+        ).toMatchObject({ change: 'edited', resolution: 'diverged' })
+      })
+
+      it('confirms the edit once Google shows it exactly', () => {
+        expect(
+          decideGoogleReplyObservation({
+            ...scope,
+            observedText: TWO_PARAGRAPHS,
+            previous: oneLineIsTheHead,
+            candidate: reflowed,
+          }),
+        ).toMatchObject({ change: 'edited', resolution: 'confirmed_on_google' })
+      })
+    })
   })
 
   const staleCandidates: ReadonlyArray<

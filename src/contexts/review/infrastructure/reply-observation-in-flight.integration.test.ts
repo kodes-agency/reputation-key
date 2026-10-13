@@ -36,6 +36,15 @@ import {
 const FIRST_TEXT = 'Thanks!'
 const EDITED_TEXT = 'Thank you, Anna!'
 const OTHER_TEXT = 'A reply someone posted directly on Google.'
+/** A published reply and the text it is edited to. */
+type EditedReply = Readonly<{ first: string; edited: string }>
+const REWORDED: EditedReply = { first: FIRST_TEXT, edited: EDITED_TEXT }
+/** An edit that changes line breaks only: with whitespace collapsed the two
+ * texts are equal, which is how a reformatted echo of the edit looks too. */
+const REFLOWED: EditedReply = {
+  first: 'Thank you, Anna! We hope to see you again.',
+  edited: 'Thank you, Anna!\n\nWe hope to see you again.',
+}
 const MINUTE_MS = 60_000
 /** Review CONTEXT, Invariant 9: the propagation grace is fifteen minutes. */
 const PAST_THE_GRACE_MINUTES = 16
@@ -77,15 +86,15 @@ async function storedReply(): Promise<Reply> {
 
 /** A reply that is published and confirmed, then edited: the edit is
  * authorized as cycle 2 and its job is queued. */
-async function editPublishedReply(): Promise<void> {
-  await harness.commands.draft(FIRST_TEXT)
+async function editPublishedReply(texts: EditedReply = REWORDED): Promise<void> {
+  await harness.commands.draft(texts.first)
   await harness.commands.submit()
   await harness.commands.approve()
   await harness.runPublishJob(0, 'accepted')
   await harness.observeGoogle()
-  expect(await storedReply()).toMatchObject({ status: 'published', text: FIRST_TEXT })
+  expect(await storedReply()).toMatchObject({ status: 'published', text: texts.first })
   harness.advance(60 * MINUTE_MS)
-  await harness.commands.editPublished(EDITED_TEXT)
+  await harness.commands.editPublished(texts.edited)
 }
 
 /** What the Inbox reads to decide whose reply Google shows: the head
@@ -134,13 +143,14 @@ async function cancellationCauses(): Promise<ReadonlyArray<string>> {
  */
 async function expectEditStillInFlight(
   publicationState: 'sending' | 'pending_observation',
+  texts: EditedReply = REWORDED,
 ): Promise<void> {
   const reply = await storedReply()
   expect(reply).toMatchObject({
     status: 'approved',
     publicationState,
     publicationCycle: 2,
-    text: EDITED_TEXT,
+    text: texts.edited,
   })
   expect(reply.reconcileDueAt).not.toBeNull()
   expect((await harness.evidence()).attempts).toMatchObject([
@@ -152,7 +162,7 @@ async function expectEditStillInFlight(
   ])
   expect(await cancellationCauses()).toEqual([])
   expect(await googleReplyOnRecord()).toEqual({
-    text: FIRST_TEXT,
+    text: texts.first,
     provenance: 'repkey_confirmed',
     matched_reply_id: reply.id,
   })
@@ -163,14 +173,14 @@ async function expectEditStillInFlight(
 }
 
 /** RepKey records what Google shows: the edit, published, and its own. */
-async function expectEditPublished(): Promise<void> {
+async function expectEditPublished(texts: EditedReply = REWORDED): Promise<void> {
   const reply = await storedReply()
-  expect(harness.google.live?.text).toBe(EDITED_TEXT)
+  expect(harness.google.live?.text).toBe(texts.edited)
   expect(reply).toMatchObject({
     status: 'published',
     publicationState: 'published',
     publicationCycle: 2,
-    text: EDITED_TEXT,
+    text: texts.edited,
     reconcileDueAt: null,
   })
   expect((await harness.evidence()).attempts).toMatchObject([
@@ -179,12 +189,15 @@ async function expectEditPublished(): Promise<void> {
   ])
   expect(await cancellationCauses()).toEqual([])
   expect(await googleReplyOnRecord()).toEqual({
-    text: EDITED_TEXT,
+    text: texts.edited,
     provenance: 'repkey_confirmed',
     matched_reply_id: reply.id,
   })
   // One request for the first reply, one for the edit: nothing was sent twice.
-  expect(harness.google.sent.map((sent) => sent.text)).toEqual([FIRST_TEXT, EDITED_TEXT])
+  expect(harness.google.sent.map((sent) => sent.text)).toEqual([
+    texts.first,
+    texts.edited,
+  ])
 }
 
 describe.sequential('a read of Google while an edit is in flight (PostgreSQL)', () => {
@@ -267,6 +280,31 @@ describe.sequential('a read of Google while an edit is in flight (PostgreSQL)', 
       await harness.runSweep()
 
       await expectEditPublished()
+    })
+
+    // Collapsed, the earlier reply equals this edit, as a reformatted echo of
+    // the edit would. Read as that echo, a targeted read recorded it, and the
+    // reply on record stopped being RepKey's own until the edit showed.
+    it('reads the earlier reply as the earlier reply when the edit changes only line breaks: nothing is recorded by any reader', async () => {
+      await editPublishedReply(REFLOWED)
+      const reads = harness.holdGoogleReads()
+      await harness.runPublishJob(EDIT_JOB, 'accepted')
+
+      harness.advance(2 * MINUTE_MS)
+      await harness.runSweep()
+      await expectEditStillInFlight('pending_observation', REFLOWED)
+
+      await expect(harness.commands.checkGoogle()).resolves.toMatchObject({
+        outcome: 'not_on_google',
+      })
+      await harness.observeGoogle()
+      await expectEditStillInFlight('pending_observation', REFLOWED)
+
+      reads.release()
+      harness.advance(5 * MINUTE_MS)
+      await harness.runSweep()
+
+      await expectEditPublished(REFLOWED)
     })
   })
 
@@ -409,6 +447,47 @@ describe.sequential('a read of Google while an edit is in flight (PostgreSQL)', 
         _tag: 'ReviewError',
         code: 'invalid_transition',
       })
+    })
+
+    // Review CONTEXT, Invariant 9: what an edit Google never applied ends as.
+    it('leaves a lost edit where no reply command moves it: Check Google again reads and changes nothing, the rest refuse', async () => {
+      await editPublishedReply()
+      await harness.runPublishJob(EDIT_JOB, 'timeout_lost')
+      harness.advance(LADDER_END_MINUTES * MINUTE_MS)
+      await harness.runSweep()
+      harness.advance(30 * MINUTE_MS)
+      await harness.runSweep()
+      const ended = await storedReply()
+      expect(ended).toMatchObject({
+        status: 'publish_failed',
+        publicationState: 'terminal',
+        publicationLastErrorClass: 'ambiguous',
+      })
+
+      const checked = await harness.commands.checkGoogle()
+      expect(checked).toMatchObject({
+        outcome: 'not_on_google',
+        nextAutomaticCheckAt: null,
+      })
+      for (const command of [
+        () => harness.commands.retry(),
+        () => harness.commands.editPublished(OTHER_TEXT),
+        () => harness.commands.draft(OTHER_TEXT),
+        () => harness.commands.submit(),
+        () => harness.commands.approve(),
+        () => harness.commands.delete(),
+      ]) {
+        await expect(command()).rejects.toMatchObject({
+          _tag: 'ReviewError',
+          code: 'invalid_transition',
+        })
+      }
+
+      expect(await storedReply()).toEqual(ended)
+      expect(await cancellationCauses()).toEqual([])
+      expect(harness.google.live?.text).toBe(FIRST_TEXT)
+      expect(harness.google.sent.map((sent) => sent.landed)).toEqual([true, false])
+      expect(await observationsOnRecord()).toBe(1)
     })
   })
 })

@@ -387,13 +387,23 @@ overwrites the renamed template.
    confirmed for this Reply.) That read resolves `earlier_publication_live`,
    which is never stored: no observation, no fact, and the head stays as it
    was, whichever reader made it (a sync, the worker's read-back, the sweep,
-   Check Google again). All of these wait out a
+   Check Google again). The earlier text is recognised before the whitespace
+   rule, so an edit that changes only spacing or line breaks is read the same
+   way and not as its own reformatted echo. All of these wait out a
    15-minute propagation grace (due in one minute, re-read on the sweep's next
    five-minute run), then the row becomes `ambiguous` and is read again at the
    next of 15 min, 30 min, 1 h, 2 h, 4 h, 8 h, 24 h, 48 h and 72 h after the
    attempt started; only the end of that ladder (or a missing attempt start on
-   pre-RPL rows) makes it terminal ambiguity. A missing Review is lifecycle evidence, not propagation,
-   so it does not wait out the grace.
+   pre-RPL rows) makes it terminal ambiguity. An edit Google never applies
+   (lost on the wire, or accepted and never shown) ends there too, as a first
+   reply does: `publish_failed` holding the edit's text while Google keeps the
+   earlier reply, and no reply command leaves that state. Try publishing again
+   refuses it (its permit exists, so nothing proves it never left), it is no
+   draft to rewrite, submit or delete and no published reply to edit, and Check
+   Google again reads and changes nothing. It ends when a read shows the edit
+   or a different reply, or when a guest edit takes the Reply back. A missing
+   Review is lifecycle evidence, not propagation, so it does not wait out the
+   grace.
    No read outcome permits a second write for that attempt. RepKey may resend
    only on positive non-dispatch evidence: no `authorization_execution_permits`
    row with `route_key = 'reviews.reply'` and this reply, cycle and attempt number
@@ -475,7 +485,9 @@ away for an edit-and-republish: a sync page fetched before the write and
 recorded after the claim, and reads that still show the earlier reply after
 Google accepted the edit, at the sweep, the worker's read-back and Check Google
 again. In each the edit stays in flight, nothing is recorded, and it is
-published once Google shows it; a reply that is neither text still ends it.
+published once Google shows it, an edit that changes only line breaks
+included; a reply that is neither text still ends it, and an edit that never
+reached Google ends as terminal ambiguity that no reply command moves.
 
 `domain/reply-publication-workflow.property.test.ts` checks every cell of the
 two publication tables (the saga, and the persisted machine of state by event)
