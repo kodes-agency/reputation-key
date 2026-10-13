@@ -28,6 +28,15 @@ export type InvitationAdmissionDeps = Readonly<{
  * Refuse, before anything is written, an invitation whose Organization may not
  * gain members now. An invitation that does not exist passes: the stores
  * refuse it in their own words, and no membership can come of it.
+ *
+ * The Organization is asked before the invitation is judged, like every other
+ * gated action, which answers the gate before it validates its target. So
+ * while an Organization is stopped, one of its invitations that is spent,
+ * cancelled, lapsed or addressed to somebody else gets the paused message too.
+ * "Try again later" is wrong advice for such a link, and the answer tells the
+ * holder of an invitation id that the Organization is stopped. Both are
+ * accepted: no membership can result either way, and the stores give the exact
+ * answer once the Organization may gain members again.
  */
 export async function assertInvitationOrganizationAdmits(
   deps: InvitationAdmissionDeps,

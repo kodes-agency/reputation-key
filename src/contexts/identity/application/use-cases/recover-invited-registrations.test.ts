@@ -224,8 +224,14 @@ describe('recoverInvitedRegistrations', () => {
 
     await expect(fixture.run()).resolves.toMatchObject({ accepted: 1, failures: 0 })
     expect(fixture.logger.error).toHaveBeenCalledTimes(1)
+    // The job has no request to correlate with, so the line names the
+    // registration record, as its sibling lines do.
     expect(fixture.logger.error).toHaveBeenCalledWith(
-      { failedPropertyCount: 1, requestedPropertyCount: 1 },
+      {
+        registrationVerificationId: VERIFICATION_ID,
+        failedPropertyCount: 1,
+        requestedPropertyCount: 1,
+      },
       'Invited property access was only partly provisioned',
     )
   })

@@ -115,7 +115,9 @@ async function acceptReadyRegistration(
           occurredAt: acceptanceNow,
         }),
     })
-    reportUngrantedInvitedProperties(deps.logger, accepted)
+    reportUngrantedInvitedProperties(deps.logger, accepted, {
+      registrationVerificationId: registration.verificationId,
+    })
   } catch (error) {
     // The acceptance transaction may have committed before its caller
     // observed success. Re-read exact authority before deciding.

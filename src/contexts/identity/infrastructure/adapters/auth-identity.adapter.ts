@@ -6,8 +6,7 @@
 // BQC-3.5: the invitation/member/org write paths moved to the atomic
 // identity command store (app-owned direct transactions, the precedent the
 // old acceptInvitation set here). What remains are reads, session/org
-// management, custom roles, and an explicitly injected post-acceptance
-// provisioner scoped to this adapter/container.
+// management and custom roles.
 
 import type { Database } from '#/shared/db'
 import { and, eq } from 'drizzle-orm'
