@@ -124,7 +124,9 @@ and a caught-up enrollment; incomplete settlement coverage reports
 
 Unit tests stay beside admission, lineage, lifecycle, enrollment, trend, drafting,
 worker, server, and public-boundary subjects. PostgreSQL integration tests cover
-transactional fences, replay, erasure, lifecycle, and export behavior.
+transactional fences, replay, erasure, lifecycle, and export behavior, and which
+Properties the Property Trend scheduler picks and whose outcome it still accepts
+(`ai-property-trend-schedule-store.adapter.integration.test.ts`).
 
 The context contains substantial control, admission, lifecycle, analysis, drafting, aggregate, and schedule infrastructure. That does not mean every beta capability is release-ready. The comprehensive program status ledger is the completion authority; live provider/cell drills, full product-facing enrollment progress, and deployed lifecycle/recovery evidence remain required until their packages are evidence-complete.
 

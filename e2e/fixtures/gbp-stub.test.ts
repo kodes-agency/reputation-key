@@ -293,6 +293,34 @@ describe('GBP stub Performance scripting', () => {
   })
 })
 
+describe('GBP stub recorded calls', () => {
+  const REPLY_PATH = `/v4/${LOC_A}/reviews/r1/reply`
+
+  async function recordedReplyWrites(pathPrefix: string): Promise<readonly string[]> {
+    const params = new URLSearchParams({ method: 'PUT', pathPrefix })
+    const res = await fetch(`${BASE}/__control/calls?${params.toString()}`)
+    const body = (await res.json()) as { calls: ReadonlyArray<{ path: string }> }
+    return body.calls.map((call) => call.path)
+  }
+
+  // The reply route is the v4 API, so a recorded reply write starts `/v4/`. A
+  // spec that filtered by the bare location name counted nothing and read that
+  // as "no reply was sent".
+  it('finds a reply write by the versioned path the app calls, not by the bare resource name', async () => {
+    const reply = await fetch(`${BASE}${REPLY_PATH}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ comment: 'Thank you' }),
+    })
+    expect(reply.status).toBe(200)
+
+    expect(await recordedReplyWrites(`/v4/${LOC_A}`)).toEqual([REPLY_PATH])
+    expect(await recordedReplyWrites(`v4/${LOC_A}`)).toEqual([REPLY_PATH])
+    expect(await recordedReplyWrites(`/v4/${LOC_B}`)).toEqual([])
+    expect(await recordedReplyWrites(LOC_A)).toEqual([])
+  })
+})
+
 describe('GBP stub target binding', () => {
   it('serves the control health check when bound to every interface', async () => {
     const targetStub = await startGbpStub(4201, '0.0.0.0')

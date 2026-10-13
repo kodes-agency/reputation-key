@@ -1739,38 +1739,42 @@ export async function enqueueReviewSync(data: {
   })
 }
 
-/** A queued publish-reply job, optionally delayed (deterministic "queued
- * protected work" for the disconnect test — the delay guarantees the job is
- * still waiting when the disconnect lands). The id lets the spec promote the
- * job and wait for it to settle instead of sleeping past the delay. */
-export async function enqueuePublishReply(data: {
-  replyId: string
-  organizationId: string
-  initiatorUserId: string
-  delayMs?: number
-}): Promise<{ jobId: string }> {
-  const job = await fixtureQueue('default').add(
-    'publish-reply',
-    {
-      replyId: data.replyId,
-      organizationId: data.organizationId,
-      policy: { initiator: { kind: 'user', id: data.initiatorUserId } },
-    },
-    {
-      delay: data.delayMs ?? 0,
-      removeOnComplete: { count: 100 },
-      removeOnFail: { count: 50 },
-    },
-  )
-  if (!job.id) throw new Error('publish-reply fixture job was enqueued without an id')
-  return { jobId: job.id }
+/**
+ * Stop the worker taking new jobs from a queue. A job added meanwhile, by the
+ * app or by a fixture, waits on the queue until `resumeFixtureQueue`. This is
+ * how a spec holds real protected work still: the job is the one production
+ * enqueued, with its payload, and nothing has started it.
+ *
+ * The pause is a flag in the queue Redis, so it outlives the test that set it:
+ * always pair it with `resumeFixtureQueue` in an `afterEach`.
+ */
+export async function pauseFixtureQueue(name: string): Promise<void> {
+  await fixtureQueue(name).pause()
 }
 
-/** Move a delayed fixture job to waiting, so the worker takes it now. */
-export async function promoteFixtureJob(name: string, jobId: string): Promise<void> {
-  const job = await fixtureQueue(name).getJob(jobId)
-  if (!job) throw new Error(`fixture job ${jobId} is not on the ${name} queue`)
-  await job.promote()
+/** Let the worker take jobs from a queue again. Safe when it is not paused. */
+export async function resumeFixtureQueue(name: string): Promise<void> {
+  await fixtureQueue(name).resume()
+}
+
+/**
+ * The job of one name whose payload matches and that no worker has started
+ * yet; null when there is none. Found by what it carries, not by its id, so a
+ * spec does not repeat how production names its jobs.
+ */
+export async function findUnstartedFixtureJob(
+  name: string,
+  jobName: string,
+  matches: (data: Record<string, unknown>) => boolean,
+): Promise<{ jobId: string } | null> {
+  const jobs = await fixtureQueue(name).getJobs(['waiting', 'delayed', 'prioritized'])
+  const job = jobs.find(
+    (candidate) =>
+      candidate.name === jobName &&
+      !candidate.processedOn &&
+      matches(candidate.data as Record<string, unknown>),
+  )
+  return job?.id ? { jobId: job.id } : null
 }
 
 /**

@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Database } from '#/shared/db'
+import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ReconcileMetricCorrection } from '../application/use-cases/reconcile-metric-correction'
 
 const mocks = vi.hoisted(() => ({
   registerConsumer: vi.fn(),
@@ -47,6 +50,44 @@ const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
   ...overrides,
 })
 
+const reconciled = {
+  impactCount: 2,
+  candidateCount: 1,
+  revised: 1,
+  unchanged: 0,
+}
+
+type Handler = (event: ConsumerEvent) => Promise<{ status: string }>
+
+/**
+ * Registers the consumer over a receipt store that records what was written.
+ * `steps` is the order in which reconciliation and the receipt happened.
+ */
+function registerWith(reconcile: ReconcileMetricCorrection) {
+  const steps: string[] = []
+  const receipts: Array<Readonly<{ table: unknown; row: unknown }>> = []
+  const db = {
+    insert: (table: unknown) => ({
+      values: (row: unknown) => ({
+        onConflictDoNothing: async () => {
+          steps.push('receipt')
+          receipts.push({ table, row })
+        },
+      }),
+    }),
+  } as unknown as Database
+  registerGoalMetricCorrectionConsumer(consumerRegistry, {
+    reconcile: async (input) => {
+      const result = await reconcile(input)
+      steps.push('reconciled')
+      return result
+    },
+    db,
+  })
+  const handler = mocks.registerConsumer.mock.calls.at(-1)?.[0].handler as Handler
+  return { handler, steps, receipts }
+}
+
 describe('Goal Metric correction durable consumer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -56,18 +97,12 @@ describe('Goal Metric correction durable consumer', () => {
   })
 
   it('registers a stable consumer and invokes the Goal-owned command', async () => {
-    const reconcile = vi.fn(async () => ({
-      impactCount: 2,
-      candidateCount: 1,
-      revised: 1,
-      unchanged: 0,
-    }))
-    registerGoalMetricCorrectionConsumer(consumerRegistry, reconcile)
+    const reconcile = vi.fn(async () => reconciled)
+    const { handler } = registerWith(reconcile)
     const registration = mocks.registerConsumer.mock.calls[0]?.[0] as {
       eventType: string
       consumerName: string
       module: string
-      handler: (event: ConsumerEvent) => Promise<{ status: string }>
     }
 
     expect(registration).toMatchObject({
@@ -75,7 +110,7 @@ describe('Goal Metric correction durable consumer', () => {
       consumerName: GOAL_METRIC_CORRECTION_CONSUMER,
       module: GOAL_METRIC_CORRECTION_CONSUMER,
     })
-    await expect(registration.handler(event())).resolves.toEqual({ status: 'applied' })
+    await expect(handler(event())).resolves.toEqual({ status: 'applied' })
     expect(mocks.validateEventPayload).toHaveBeenCalledWith(
       'metric.corrected',
       2,
@@ -90,12 +125,27 @@ describe('Goal Metric correction durable consumer', () => {
     })
   })
 
+  it('records its own receipt for the delivered fact, after reconciliation has completed', async () => {
+    const { handler, steps, receipts } = registerWith(async () => reconciled)
+
+    await handler(event())
+
+    expect(steps).toEqual(['reconciled', 'receipt'])
+    expect(receipts).toEqual([
+      {
+        table: eventConsumerReceipts,
+        row: {
+          eventId: event().eventId,
+          consumerName: GOAL_METRIC_CORRECTION_CONSUMER,
+          status: 'applied',
+        },
+      },
+    ])
+  })
+
   it('rejects missing or mismatched property attribution before reconciliation', async () => {
-    const reconcile = vi.fn()
-    registerGoalMetricCorrectionConsumer(consumerRegistry, reconcile)
-    const handler = mocks.registerConsumer.mock.calls[0]?.[0].handler as (
-      event: ConsumerEvent,
-    ) => Promise<unknown>
+    const reconcile = vi.fn(async () => reconciled)
+    const { handler, receipts } = registerWith(reconcile)
 
     await expect(handler(event({ propertyId: null }))).rejects.toThrow(
       'Goal metric-correction envelope attribution mismatch',
@@ -104,19 +154,17 @@ describe('Goal Metric correction durable consumer', () => {
       'Goal metric-correction envelope attribution mismatch',
     )
     expect(reconcile).not.toHaveBeenCalled()
+    expect(receipts).toEqual([])
   })
 
   it('does not acknowledge the event when closed-result reconciliation must retry', async () => {
-    const reconcile = vi.fn(async () => {
+    const { handler, receipts } = registerWith(async () => {
       throw new Error('Goal metric correction reconciliation is pending')
     })
-    registerGoalMetricCorrectionConsumer(consumerRegistry, reconcile)
-    const handler = mocks.registerConsumer.mock.calls[0]?.[0].handler as (
-      event: ConsumerEvent,
-    ) => Promise<unknown>
 
     await expect(handler(event())).rejects.toThrow(
       'Goal metric correction reconciliation is pending',
     )
+    expect(receipts).toEqual([])
   })
 })

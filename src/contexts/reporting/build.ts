@@ -303,14 +303,14 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     policy: GoalExecutionPolicy,
   ): void => {
     const goalPrograms = buildGoalPrograms(policy)
-    registerGoalMetricCorrectionConsumer(
-      consumerRegistry,
-      reconcileMetricCorrection({
+    registerGoalMetricCorrectionConsumer(consumerRegistry, {
+      reconcile: reconcileMetricCorrection({
         findImpacts: metricApi.findGoalMetricCorrectionImpacts,
         findCandidates: goalProgramRepo.findClosedResultIdsForMetricImpact,
         reconcileClosedResult: goalPrograms.reconcileClosedResult,
       }),
-    )
+      db: input.db,
+    })
   }
   const goalProgressDeps = (policy: GoalExecutionPolicy) => ({
     reads: readGoalPrograms(policy),
