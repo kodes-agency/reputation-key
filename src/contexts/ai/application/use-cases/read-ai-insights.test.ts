@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  propertyId,
+  reviewId,
+  userId,
+  type PropertyId,
+} from '#/shared/domain/ids'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import { MERCHANT_AI_NOTICE_VERSION } from '#/shared/merchant-ai-notice-contract'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import {
@@ -33,6 +41,12 @@ const ORGANIZATION_ID = organizationId('ai-insight-read-test')
 const PROPERTY_ID = propertyId('71000000-0000-4000-8000-000000000301')
 const REVIEW_ID = reviewId('71000000-0000-4000-8000-000000000302')
 const ACTOR_USER_ID = userId('71000000-0000-4000-8000-000000000303')
+/** An Organization-wide reader: what the reads return is tested as this one. */
+const ADMIN = buildTestAuthContext({
+  organizationId: ORGANIZATION_ID,
+  userId: ACTOR_USER_ID,
+  role: 'AccountAdmin',
+})
 const LINEAGE_ID = '71000000-0000-4000-8000-000000000304'
 const SHA = 'a'.repeat(64)
 
@@ -100,7 +114,7 @@ const ANALYSIS_INPUT = Object.freeze({
   organizationId: ORGANIZATION_ID,
   propertyId: PROPERTY_ID,
   reviewId: REVIEW_ID,
-  actorUserId: ACTOR_USER_ID,
+  actor: ADMIN,
   sourceEpoch: 0,
   sourceRevision: 1,
   analysisSequence: 1,
@@ -109,7 +123,7 @@ const ANALYSIS_INPUT = Object.freeze({
 const TREND_INPUT = Object.freeze({
   organizationId: ORGANIZATION_ID,
   propertyId: PROPERTY_ID,
-  actorUserId: ACTOR_USER_ID,
+  actor: ADMIN,
 })
 
 const CURRENTNESS = Object.freeze({
@@ -224,6 +238,8 @@ function createHarness(
     trendRead?: AiTrendReportRead
     storeFailure?: Error
     clock?: () => number
+    /** The Properties a PropertyManager reader is granted. */
+    grants?: readonly PropertyId[]
   }> = {},
 ) {
   const authorization =
@@ -248,6 +264,7 @@ function createHarness(
   )
 
   const dependencies = {
+    propertyAccess: async () => options.grants ?? [],
     authorization: { readMerchantAuthorization },
     outputs: {
       storeAnalysis: vi.fn(),
@@ -288,6 +305,107 @@ const UNAVAILABLE_RUNTIMES = [
   'routing_policy_changed',
   'policy_unavailable',
 ] as const
+
+const OTHER_PROPERTY_ID = propertyId('71000000-0000-4000-8000-000000000305')
+const MANAGER = buildTestAuthContext({
+  organizationId: ORGANIZATION_ID,
+  role: 'PropertyManager',
+})
+const FOREIGN_ADMIN = buildTestAuthContext({
+  organizationId: organizationId('ai-insight-read-other-organization'),
+  role: 'AccountAdmin',
+})
+const FORBIDDEN = { _tag: 'AiError', code: 'forbidden' }
+
+describe('who may read a review analysis', () => {
+  it('refuses a manager with no grant on the Property before any AI state is read', async () => {
+    const harness = createHarness({ grants: [OTHER_PROPERTY_ID] })
+
+    await expect(
+      harness.readReviewAnalysis({ ...ANALYSIS_INPUT, actor: MANAGER }),
+    ).rejects.toMatchObject(FORBIDDEN)
+    expect(harness.mocks.readMerchantAuthorization).not.toHaveBeenCalled()
+    expect(harness.mocks.readForAi).not.toHaveBeenCalled()
+    expect(harness.mocks.readAnalysisForDelivery).not.toHaveBeenCalled()
+  })
+
+  it('refuses a reader who belongs to another Organization', async () => {
+    const harness = createHarness()
+
+    await expect(
+      harness.readReviewAnalysis({ ...ANALYSIS_INPUT, actor: FOREIGN_ADMIN }),
+    ).rejects.toMatchObject(FORBIDDEN)
+    expect(harness.mocks.readAnalysisForDelivery).not.toHaveBeenCalled()
+  })
+
+  it('refuses a reader who may read the dashboard but not the Inbox', async () => {
+    const harness = createHarness()
+    const dashboardOnly = createScopedAuthContext({
+      organizationId: ORGANIZATION_ID,
+      userId: ACTOR_USER_ID,
+      permissions: [['dashboard.read', 'organization']],
+    })
+
+    await expect(
+      harness.readReviewAnalysis({ ...ANALYSIS_INPUT, actor: dashboardOnly }),
+    ).rejects.toMatchObject(FORBIDDEN)
+    expect(harness.mocks.readAnalysisForDelivery).not.toHaveBeenCalled()
+  })
+
+  it('serves a manager granted the Property, naming that manager to the store', async () => {
+    const harness = createHarness({ grants: [PROPERTY_ID] })
+
+    await expect(
+      harness.readReviewAnalysis({ ...ANALYSIS_INPUT, actor: MANAGER }),
+    ).resolves.toBe(ANALYSIS_READY)
+    expect(harness.mocks.readAnalysisForDelivery.mock.calls[0]?.[0]).toMatchObject({
+      actorUserId: MANAGER.userId,
+    })
+  })
+})
+
+describe('who may read a property trend', () => {
+  it('refuses a manager with no grant on the Property before any AI state is read', async () => {
+    const harness = createHarness({ grants: [OTHER_PROPERTY_ID] })
+
+    await expect(
+      harness.readPropertyTrend({ ...TREND_INPUT, actor: MANAGER }),
+    ).rejects.toMatchObject(FORBIDDEN)
+    expect(harness.mocks.readMerchantAuthorization).not.toHaveBeenCalled()
+    expect(harness.mocks.readForAi).not.toHaveBeenCalled()
+    expect(harness.mocks.readTrendReportForDelivery).not.toHaveBeenCalled()
+  })
+
+  it('refuses a reader who belongs to another Organization', async () => {
+    const harness = createHarness()
+
+    await expect(
+      harness.readPropertyTrend({ ...TREND_INPUT, actor: FOREIGN_ADMIN }),
+    ).rejects.toMatchObject(FORBIDDEN)
+    expect(harness.mocks.readTrendReportForDelivery).not.toHaveBeenCalled()
+  })
+
+  it('refuses a Member, who reads the dashboard but holds no ai.trends.read', async () => {
+    const harness = createHarness({ grants: [PROPERTY_ID] })
+    const member = buildTestAuthContext({
+      organizationId: ORGANIZATION_ID,
+      role: 'Member',
+    })
+
+    await expect(
+      harness.readPropertyTrend({ ...TREND_INPUT, actor: member }),
+    ).rejects.toMatchObject(FORBIDDEN)
+    expect(harness.mocks.readTrendReportForDelivery).not.toHaveBeenCalled()
+  })
+
+  it('serves a manager granted the Property', async () => {
+    const harness = createHarness({ grants: [PROPERTY_ID] })
+
+    await expect(
+      harness.readPropertyTrend({ ...TREND_INPUT, actor: MANAGER }),
+    ).resolves.toBe(TREND_READY)
+  })
+})
 
 describe('read review analysis', () => {
   it('reads through the store with the authorization epoch and catalogued profile version', async () => {

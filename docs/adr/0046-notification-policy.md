@@ -59,10 +59,11 @@ Any other batch may already have been accepted, so it is never re-keyed: its
 retry re-sends the exact provider request stored when it was frozen, under the
 same key, even when a line was read or settled since. It closes unsent only
 when the recipient's authorization, standing, preference, address suppression
-or address changed, or every member was settled elsewhere (amended
-2026-09-28). Each attempt is recorded as started before the provider call, so
-an attempt whose worker never reported back counts as possibly accepted, and
-no later refusal makes the batch look safe to re-key.
+or address changed, every member was settled elsewhere (amended
+2026-09-28), or its retry horizon has passed (amended 2026-10-13, below). Each
+attempt is recorded as started before the provider call, so an attempt whose
+worker never reported back counts as possibly accepted, and no later refusal
+makes the batch look safe to re-key.
 
 In the queue, `delayed` (r.6) is the pre-send quiet-hours deferral and stays
 sendable. A delivery delay the provider reports after acceptance is recorded
@@ -98,7 +99,9 @@ immediate row, a mandatory notice included, is also retired 23 hours after its
 first attempt, which is recorded before the provider call: the provider keeps
 an idempotency key for 24 hours, and a retry after that of an attempt it may
 have accepted would be a second email. An open digest batch was fresh when it
-was frozen and is left to its bounded retries. `cancelled` rows
+was frozen, so the age bound does not apply to it, but the retry horizon does:
+a batch the provider may have accepted is closed unsent 23 hours after the
+first such attempt started (amended 2026-10-13). `cancelled` rows
 are terminal and age out with the other terminal states after 90 days.
 
 The unsubscribe guard takes `MailClass = 'mandatory' | 'optional'`; a digest is
@@ -834,7 +837,8 @@ still waiting: a settled row counts in no badge and sits under "Earlier".
 **Digests and quiet hours.** A frozen digest the provider may already hold is
 re-sent exactly as frozen (the stored request, migration 0038; see the
 corrected digest paragraph above): one stale line surprises less than losing
-the day's digest. It waits out quiet hours without touching its members. A
+the day's digest. It waits out quiet hours without touching its members, but
+never past its retry horizon (amended 2026-10-13). A
 quiet-hours hold on an immediate email schedules its own release for the
 minute the window ends; the hourly sweep is only the fallback.
 
@@ -1033,6 +1037,70 @@ cancelled, AI text removed, authorization and attempts kept) and records
 cycle the claim refused, and a retry is only ever authorized for a reply whose
 last attempt is settled as not on Google. The audience is the cause's own: the
 author and everyone who can approve.
+
+## Amended 2026-10-13 — a guest edit also returns a reply that was put forward to draft
+
+`source_changed` used to be recorded only for a reply whose open publication a
+guest edit stopped. A reply a manager had written and that was still awaiting
+approval stayed where it was, and so did one whose publication had failed.
+Confirm & Publish, or Try publishing again, then published text written for
+the review as it stood before the edit. Review now returns both to draft in
+the transaction that records the edit (Review CONTEXT, Model) and records the
+same fact for each. The fact and its audience are unchanged: the author, and
+the people who can approve. Two things follow for Feed.
+
+The copy no longer says "approved". It read "RepKey stopped publishing the
+approved text", which is false of a reply nobody had approved yet. It now
+reads "RepKey stopped the reply that was written before the change", which is
+true of all three: a publication in flight, a reply awaiting approval and a
+failed one. It still says nothing about delivery, because the first of the
+three may already be on Google, and so may a failed one whose outcome RepKey
+never learned: a guest edit returns that reply to draft too (its attempt can
+no longer be confirmed for the edited review), and the notice sends its reader
+to check what Google shows.
+
+The fact now meets open requests. It retires the approval request of the reply
+it returned to draft, and the "Reply not published" or "Reply not confirmed on
+Google" notice of the failed one, through the mapping the fact already had
+(`reply.returned_to_draft` settles `reply.publish_failed` and
+`reply.pending_approval`); the work-state check still keeps a request made
+again since. The 2026-10-12 amendment says the four
+older causes cancel a reply somebody already approved and so meet no open
+request. That holds for `disconnect`, `policy` and `provider_truth`, and no
+longer for `source_changed`.
+
+## Amended 2026-10-13 — a digest the provider may hold stops retrying before its key lapses
+
+An open digest batch was left to "its bounded retries", and the bound was a
+count: five attempts, at most an hour apart. That is a time bound only while
+the hourly sweep runs. When the worker or the scheduler stops for more than a
+day (a deploy gone wrong, or the stop procedure of `docs/BETA.md` §7), a batch
+whose first attempt the provider may have accepted (a timeout, a 5xx, a worker
+lost between the call and the record of its answer) was re-sent on restart
+under its frozen key. The provider forgets an idempotency key after 24 hours,
+so that retry was a second copy of the same digest. Quiet hours could hold
+such a batch with no limit either.
+
+A batch the provider may have accepted now has the retry horizon an immediate
+email has: 23 hours from the start of the first attempt that may have been
+accepted. Past it the batch is closed unsent as `digest_retry_horizon_passed`
+and its remaining rows are suppressed with that reason, before quiet hours are
+consulted. The horizon is counted from that attempt and no later one: the
+batch records it when the attempt starts, a later attempt or settlement never
+moves it, and only an attempt that follows nothing but refusals opens it
+anew. A batch the provider refused on every attempt is not bounded this way,
+because its key protects no delivered mail; it keeps its five attempts. A
+batch no attempt was started for has no horizon and is sent.
+
+A batch already open when this was deployed is the one exception to "that
+attempt and no later one": until then the batch recorded its latest attempt,
+not its first, so for such a batch the 23 hours are counted from its latest
+attempt. The first sweep after the deploy closes any of them already past it.
+
+The cost is the reverse error: when that first attempt did not reach the
+provider and the sweep then stops for a day, the day's digest is not sent at
+all. Its in-app notifications are untouched, and a day-old digest is worth
+less than a duplicate costs.
 
 ## Consequences
 

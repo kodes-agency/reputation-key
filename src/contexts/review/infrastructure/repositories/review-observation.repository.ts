@@ -198,6 +198,7 @@ async function insertOrRestoreMaterialRevision(
     })
     .where(
       and(
+        eq(materialReviewRevisions.organizationId, input.review.organizationId),
         eq(materialReviewRevisions.reviewId, input.review.id),
         eq(materialReviewRevisions.revision, input.materialRevision),
         eq(materialReviewRevisions.sourceEpoch, input.review.sourceEpoch),

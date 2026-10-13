@@ -2,6 +2,7 @@
 // (`updateProfile`, `updateUserImage`, `removeUserImage`) plus two plain async fn props
 // for the presigned avatar upload flow. Stories construct mock Actions for the
 // reactive props and plain async fns for the upload helpers.
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { ToasterDecorator } from '../../../../.storybook/ToasterDecorator'
@@ -24,7 +25,9 @@ function makeAction<TInput>(
   }) as Action<TInput, unknown>
 }
 
-const user = { name: 'Jane Doe', email: 'jane@example.com', image: null }
+type ProfileUser = { name: string; email: string; image: string | null }
+
+const user: ProfileUser = { name: 'Jane Doe', email: 'jane@example.com', image: null }
 
 const meta: Meta<typeof ProfileSettingsForm> = {
   title: 'Identity/ProfileSettingsForm',
@@ -172,6 +175,74 @@ export const RemovingTheAvatarIsSaved: Story = {
       expect(removalSpy).toHaveBeenCalledWith({ data: { imageUrl: null } })
     })
     expect(await canvas.findByRole('button', { name: 'Upload avatar' })).toBeVisible()
+  },
+}
+
+/**
+ * The form the way the page drives it: a save that lands comes back as the `user` the
+ * form is handed, because the route reads the signed-in identity again. The name's save
+ * waits for that; an avatar's does not, so its new `user` arrives after the save resolved.
+ */
+function SavedProfile({ initial }: Readonly<{ initial: ProfileUser }>) {
+  const [saved, setSaved] = useState(initial)
+  const afterTheSave = (next: Partial<ProfileUser>) =>
+    setTimeout(() => setSaved((current) => ({ ...current, ...next })), 0)
+  return (
+    <ProfileSettingsForm
+      user={saved}
+      updateProfile={makeAction<NameInput>(async ({ data }) => {
+        setSaved((current) => ({ ...current, name: data.name }))
+      })}
+      updateUserImage={makeAction<ImageInput>(async ({ data }) => {
+        afterTheSave({ image: data.imageUrl })
+      })}
+      removeUserImage={makeAction<RemoveImageInput>(async () => {
+        afterTheSave({ image: null })
+      })}
+      requestAvatarUpload={noopRequestUpload}
+      finalizeAvatarUpload={noopFinalizeUpload}
+    />
+  )
+}
+
+// A saved name is the form's new baseline: nothing is left to reset, and a later Reset
+// puts back the name that was saved, never the one before it (the form used to stay
+// "dirty" after its own save, and Reset then restored a name the server no longer held).
+export const ASavedNameIsTheNewBaseline: Story = {
+  render: () => <SavedProfile initial={user} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const nameField = () => canvas.getByLabelText(/^name$/i)
+    await userEvent.type(nameField(), ' Smith')
+    await userEvent.click(canvas.getByRole('button', { name: /save profile/i }))
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument(),
+    )
+    expect(nameField()).toHaveValue('Jane Doe Smith')
+
+    await userEvent.type(nameField(), ' Jr')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    expect(nameField()).toHaveValue('Jane Doe Smith')
+  },
+}
+
+// The avatar saves on its own: when its save comes back, a name still being typed is
+// kept (and still unsaved), and the focus that left with Remove stays on Upload.
+export const AnAvatarSaveKeepsAnUnsavedName: Story = {
+  render: () => <SavedProfile initial={{ ...user, image: PICTURE }} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const nameField = canvas.getByLabelText(/^name$/i)
+    await userEvent.type(nameField, ' Smith')
+    await userEvent.click(canvas.getByRole('button', { name: 'Remove avatar' }))
+    const upload = await canvas.findByRole('button', { name: 'Upload avatar' })
+    // Past the moment the page hands the removal back.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(upload).toHaveFocus()
+    expect(nameField).toBeInTheDocument()
+    expect(nameField).toHaveValue('Jane Doe Smith')
+    expect(canvas.getByRole('button', { name: 'Reset' })).toBeInTheDocument()
   },
 }
 

@@ -461,26 +461,51 @@ export const createOrganizationExportRepository = (
 
   async claimNextExpiredDeletion(input: {
     now: Date
+    reclaimClaimedBefore: Date
   }): Promise<OrganizationExportStatus | null> {
     return db.transaction(async (tx) => {
       const rows = await tx
         .select()
         .from(organizationExports)
         .where(
-          and(
-            inArray(organizationExports.state, [
-              'ready',
-              'retrieval_issued',
-              'retrieved',
-            ]),
-            lte(organizationExports.objectExpiresAt, input.now),
+          or(
+            and(
+              inArray(organizationExports.state, [
+                'ready',
+                'retrieval_issued',
+                'retrieved',
+              ]),
+              lte(organizationExports.objectExpiresAt, input.now),
+            ),
+            // A deletion that was claimed and never completed. The claim wrote
+            // `updated_at` and nothing has written the row since, so its age is
+            // the claim's age: the row itself cannot carry a lease.
+            and(
+              eq(organizationExports.state, 'delete_pending'),
+              lte(organizationExports.updatedAt, input.reclaimClaimedBefore),
+            ),
           ),
         )
-        .orderBy(asc(organizationExports.objectExpiresAt), asc(organizationExports.id))
+        .orderBy(
+          // First claims before reclaims (false sorts first).
+          sql`${organizationExports.state} = 'delete_pending'`,
+          // A reclaim writes nothing, so a fixed order would hand every pass
+          // the same row for as long as its object cannot be deleted, and no
+          // other reclaim would ever be reached. Reclaims are drawn at random
+          // instead; first claims (NULL here) keep the deadline order below.
+          sql`CASE WHEN ${organizationExports.state} = 'delete_pending' THEN random() END`,
+          asc(organizationExports.objectExpiresAt),
+          asc(organizationExports.id),
+        )
         .limit(1)
         .for('update', { skipLocked: true })
       const row = rows[0]
       if (!row) return null
+      // The transition guard admits only delete_pending -> deleted, so a
+      // reclaim hands the row back as it is. The object delete and
+      // `completeDeletion` are both idempotent, so two passes that reclaim
+      // the same row converge.
+      if (row.state === 'delete_pending') return status(row)
       const updated = await tx
         .update(organizationExports)
         .set({

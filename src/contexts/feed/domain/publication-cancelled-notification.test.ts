@@ -13,8 +13,21 @@ describe('reply.publication_cancelled copy', () => {
       publicationCancellationCause: 'source_changed',
     })
     expect(rendered.body).toBe(
-      'The guest changed their review, so RepKey stopped publishing the approved text. Open it to check what Google shows, then reply to the new review.',
+      'The guest changed their review, so RepKey stopped the reply that was written before the change. Open it to check what Google shows, then reply to the new review.',
     )
+  })
+
+  // A guest edit also returns to draft a reply that was still awaiting
+  // approval, and one whose publication had failed. Neither was "the approved
+  // text" on its way out, so the one sentence all three share may not say so.
+  it('does not call a reply returned to draft by a guest edit approved', () => {
+    const rendered = renderNotification('reply.publication_cancelled', {
+      propertyName: 'Riverside Hotel',
+      publicationCancellationCause: 'source_changed',
+    })
+    expect(rendered.title).toBe('Reply returned to draft at Riverside Hotel')
+    expect(rendered.body).not.toMatch(/approved/)
+    expect(rendered.body).not.toMatch(NON_DELIVERY)
   })
 
   it('does not claim a reply overtaken by a different live reply was never sent', () => {

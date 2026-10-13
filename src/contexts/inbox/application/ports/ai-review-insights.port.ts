@@ -1,5 +1,6 @@
 import type { AspectPolarityV1, AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
-import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 
 export type ReviewAttention = 'urgent' | 'high' | 'medium' | 'low'
 export type ReviewAspect = AspectTaxonomyV1Id
@@ -30,7 +31,8 @@ export type AiReviewInsightsPort = Readonly<{
       organizationId: OrganizationId
       propertyId: PropertyId
       reviewId: ReviewId
-      actorUserId: UserId
+      /** The reader of the item; the AI context authorizes it again itself. */
+      actor: AuthContext
     }>,
   ): Promise<InboxReviewAnalysis>
   findCurrentReviewIdsByAttention(

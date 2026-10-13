@@ -18,21 +18,13 @@ import type {
   MemberPropertyAccessStore,
   SetPropertyAccessCommand,
 } from '../application/ports/member-property-access.port'
-import {
-  grantPropertyAccess,
-  revokePropertyAccess,
-} from './repositories/property-access-grant.repository'
-import {
-  lockPropertyGrant,
-  lockPropertyInOrganization,
-  lockUnrevokedGrant,
-} from './property-grant-locks'
+import { revokePropertyAccess } from './repositories/property-access-grant.repository'
+import { lockPropertyGrant, lockPropertyInOrganization } from './property-grant-locks'
+import { writePropertyGrant } from './property-grant-write'
 
 /** The Better Auth role token of a PropertyManager. */
 const PROPERTY_MANAGER_ROLE_TOKEN = 'admin'
 
-/** Why a grant this edit replaced was retired. */
-const SUPERSEDED_REASON = 'superseded'
 /** Why an edit revoked a grant. */
 const MEMBER_ACCESS_EDIT_REASON = 'member_access_edit'
 
@@ -75,18 +67,15 @@ async function grantOne(
       'A selected property is not in this organization',
     )
   }
-  const current = await lockUnrevokedGrant(tx, key)
-  if (current && (current.expiresAt === null || current.expiresAt > command.now)) {
-    return false
-  }
-  // A lapsed grant still holds the one-active-grant slot: retire it first.
-  if (current) await revokePropertyAccess(tx, { ...key, reason: SUPERSEDED_REASON })
-  await grantPropertyAccess(tx, {
+  // The edit names no expiry: it grants access now, without one, and leaves a
+  // grant that already gives access alone.
+  return writePropertyGrant(tx, {
     ...key,
-    source: 'operator',
     createdBy: command.actorUserId,
+    expiresAt: null,
+    replacesActiveTerm: false,
+    now: command.now,
   })
-  return true
 }
 
 async function applyPropertyAccess(

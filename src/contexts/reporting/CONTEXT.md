@@ -131,10 +131,29 @@ interfaces from Property, Portal, Staff, Review, Inbox, and Guest; none of their
 are imported. Metric-to-Goal and Metric-to-Dashboard collaboration is internal and follows
 the normal domain/application/infrastructure layer rules.
 
+The Property-scoped dashboard reads authorize their own reader. `getDashboardData`,
+`getPropertyOverview`, `getAttentionSignals`, `getPortalAnalytics` and
+`getPortalResultsOverview` take the caller's `AuthContext` beside their input and first ask
+`application/dashboard-property-access.ts`: the reader belongs to the Organization, holds
+`dashboard.read`, and reaches every Property the read names (an Organization-wide holder
+all of them, a manager only those currently granted). A refusal is a tagged `DashboardError`
+`forbidden`, raised before anything is read. `getPropertyOverview` and `getAttentionSignals`
+ask for more: their attention band is work state (reply targets past due, items to triage,
+escalations), so the reader must also hold `dashboard.fleet_read` and reach the Property with
+it. A Member, who holds `dashboard.read` for the staff dashboard, is refused the overview
+whether or not the Property is granted. `getDashboardData` also hides reply state from a
+reader without `reply.manage` (`domain/reply-workflow-redaction.ts`); that covers the
+`dashboard` half of the overview, and the `dashboard.fleet_read` requirement covers its
+`signals` half. The server functions still ask the execution policy first, with the same
+permissions and the Property (capability, suspension, kill switch, and the policy's own grant
+check); the use case's decision is the one a caller that is not a server function cannot skip.
+
 `getDashboardDataFn` is the one server function no route calls: the Property dashboard
 moved to `getPropertyOverviewFn`. It stays because the dashboard-governance and
-review-expiry e2e specs call it by export name to prove the governed read (grant
-filtering, reply redaction, expired-Review exclusion).
+review-expiry e2e specs call it by export name to prove the governed read: grant
+filtering and expired-Review exclusion, as a PropertyManager with one grant. Reply
+redaction has no session that can ask for it in the beta (both interactive roles may
+manage replies), so that e2e case is parked and `get-dashboard-data.test.ts` holds the rule.
 
 The unified `buildReportingContext` returns one public interface, one combined outbox
 registration function, Goal maintenance, metric maintenance, and named lifecycle/export
@@ -152,7 +171,15 @@ aggregate and read purpose even though they share a bounded context.
 
 Metric and Goal event modules are named `metric-events.ts` and `goal-events.ts`. Their event
 tags remain stable for outbox replay compatibility. Reporting consumes Guest, Portal, Review,
-and metric-correction facts through the shared durable consumer registry.
+and metric-correction facts through the shared durable consumer registry. Each
+consumer holds a receipt for a fact it has finished. The Goal correction consumer
+writes its receipt after a complete reconciliation pass, outside the result
+transactions, which is the second form the consumer contract allows
+(`ConsumerRegistration.handler` in `src/shared/outbox/consumer-registry.ts`):
+each closed result is revised by its own compare-and-set, so a delivery repeated
+after a crash finds every result unchanged and only adds the receipt. A pending
+result throws before the receipt, and the fact is delivered again
+(`metric-correction-outbox-consumers.integration.test.ts`).
 
 ## Verification
 

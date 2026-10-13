@@ -28,6 +28,7 @@ import {
   createReadReviewAnalysis,
 } from './application/use-cases/read-ai-insights'
 import { createReadPropertyAggregates } from './application/use-cases/read-property-aggregates'
+import type { AiPropertyAccess } from './application/ai-property-read-access'
 import { createReadPropertyInsights } from './application/use-cases/read-property-insights'
 import { createAiAuthorizationAdapter } from './infrastructure/adapters/ai-authorization.adapter'
 import { createAiControlAdapter } from './infrastructure/adapters/ai-control.adapter'
@@ -43,7 +44,10 @@ import { createAiReviewAnalysisReopenAdapter } from './infrastructure/adapters/a
 import { createRedisAiLaneAdmissionAdapter } from './infrastructure/adapters/ai-lane-admission.adapter'
 import { createAiReviewAnalysisBacklogAdapter } from './infrastructure/adapters/ai-review-analysis-backlog.adapter'
 import { createAiOrganizationSpendAdapter } from './infrastructure/adapters/ai-organization-spend.adapter'
-import { createDrainReviewAnalysisBacklog } from './application/use-cases/drain-review-analysis-backlog'
+import {
+  createDrainReviewAnalysisBacklog,
+  type AuthorizeReviewAnalysisScope,
+} from './application/use-cases/drain-review-analysis-backlog'
 import { createReadReviewAnalysisProgress } from './application/use-cases/read-review-analysis-progress'
 import {
   createRequestReviewAnalysisNow,
@@ -97,6 +101,8 @@ export type AiContextBuildInput = Readonly<{
   outboxRepo: OutboxRepository
   redis: Redis | undefined
   reviewSources: AiReviewSourcePort
+  /** Identity's current grants: every reader-facing read authorizes its reader. */
+  propertyAccess: AiPropertyAccess
   propertyReplyLanguages: GenerateReplySuggestionDependencies['propertyReplyLanguages']
   replyBrandProfiles: PortalAiReplyBrandProfilePublicApi
   inference?: AiInferencePort
@@ -106,6 +112,13 @@ export type AiContextBuildInput = Readonly<{
   enqueuePropertyTrend?: RegisterAiConsumersInput['enqueuePropertyTrend']
   /** Hands one waiting review to the worker's on-demand analysis job. */
   enqueueReviewAnalysisNow?: RequestReviewAnalysisNowDependencies['enqueueReviewAnalysisNow']
+  /**
+   * Current platform policy for one Organization and Property, asked by the
+   * review event consumer before it analyses a review on delivery. Without it
+   * the consumer queues every review for the backlog drain, which asks the
+   * same question of each entry.
+   */
+  authorizeReviewAnalysisScope?: AuthorizeReviewAnalysisScope
   /**
    * Records Review Analysis backlog entries whose attempt threw. Optional so
    * existing constructions keep working; without it the drain says nothing.
@@ -189,6 +202,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     advanceEnrollment: advanceReviewAnalysisEnrollments.advanceProperty,
   })
   const readReviewAnalysisProgress = createReadReviewAnalysisProgress({
+    propertyAccess: input.propertyAccess,
     authorization,
     processingProfiles,
     backlog,
@@ -214,6 +228,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   })
   const schedulePropertyTrends = createSchedulePropertyTrends({ schedules })
   const readDependencies = {
+    propertyAccess: input.propertyAccess,
     authorization,
     outputs,
     processingProfiles,
@@ -244,6 +259,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       advanceEnrollment: advanceReviewAnalysisEnrollments.advanceProperty,
       receipts: input.outboxRepo,
       backlog,
+      authorizeScope: input.authorizeReviewAnalysisScope,
       nowEpochMillis,
       logger: input.logger,
     })

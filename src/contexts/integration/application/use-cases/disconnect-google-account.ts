@@ -33,11 +33,12 @@ export type DisconnectGoogleAccountDeps = Readonly<{
   /**
    * Best-effort hook to unsubscribe from GBP notifications before the token is
    * revoked (Pub/Sub lifecycle step 3 — token is still valid at this point).
+   * It reports and logs its own outcome; the disconnect goes on whatever it is.
    */
   unsubscribeFromNotifications?: (
     organizationId: OrganizationId,
     connectionId: string,
-  ) => Promise<void>
+  ) => Promise<unknown>
   /**
    * BQC-1.7: bounded lifecycle purge of the connection's source content.
    * Optional until wired in composition (kept out of older test fixtures).

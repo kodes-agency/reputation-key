@@ -86,6 +86,30 @@ const firstAuthority = (
 }
 
 /**
+ * A forward erase transition found the Property outside the lifecycle state the
+ * erase last left it in. Out of `archived` it has a name of its own, because it
+ * is the one case with an ordinary cause (the Property was restored) and the
+ * job answers it by calling the erase off.
+ */
+function propertyOutsideEraseLifecycle(
+  expected: ReturnType<typeof propertyLifecycleStateForErase>,
+  input: PropertyEraseTransitionInput,
+) {
+  const context = { from: input.from, to: input.to, expected }
+  return expected === 'archived'
+    ? propertyEraseError(
+        'property_not_archived',
+        'Permanent erase requires an archived Property; this one is no longer archived',
+        context,
+      )
+    : propertyEraseError(
+        'invalid_transition',
+        `erase transition ${input.from} -> ${input.to} found the Property outside "${expected}"`,
+        context,
+      )
+}
+
+/**
  * `db` for the ordinary command path; a caller inside an existing transaction
  * (the advance job) passes its own `Tx` to `withTx`.
  */
@@ -200,41 +224,63 @@ function build(
   /**
    * Every other transition. The `from` guard is what makes a concurrent second
    * caller lose rather than double-cross the irreversible boundary; the
-   * lifecycle column on `properties` moves in the same statement pair so the
-   * Property never advertises a state its authority has not reached.
+   * lifecycle column on `properties` moves in the same transaction (a savepoint
+   * inside the job's pass), so the Property never advertises a state its
+   * authority has not reached, and never keeps one its authority has left.
+   *
+   * The Property moves between the lifecycle states the two ends of the
+   * transition imply. A cancel from `purge_pending` therefore returns it to
+   * `archived`, the only state Restore, a new erase request and support can
+   * start from; a cancel from an earlier state implies no move, because a
+   * request, a preview and a confirmation never touched the Property.
+   *
+   * The Property moves only FROM the state the erase last left it in. A
+   * Property stays restorable until `purge_pending`, so the move into it is
+   * where gate 1 (archived) is settled: the UPDATE takes the row lock Restore
+   * takes, and whichever commits second finds the other's state and is refused.
+   * A forward transition that does not find its state changes nothing, the
+   * authority included. A cancel never waits on the Property: one that is not
+   * in `purge_pending` has nothing to hand back.
    */
   const transition = async (
     input: PropertyEraseTransitionInput,
-  ): Promise<PropertyEraseAuthority> => {
-    const at = input.occurredAt.toISOString()
-    const result = await runner.execute(sql`
-      UPDATE property_erase_authorities
-      SET state = ${input.to},
-          purge_started_at = CASE WHEN ${input.to} = 'purging' THEN ${at}::timestamptz ELSE purge_started_at END,
-          purged_at = CASE WHEN ${input.to} = 'purged' THEN ${at}::timestamptz ELSE purged_at END,
-          cancelled_at = CASE WHEN ${input.to} = 'cancelled' THEN ${at}::timestamptz ELSE cancelled_at END,
-          cancel_reason_code = COALESCE(${input.reasonCode ?? null}, cancel_reason_code),
-          state_changed_at = ${at}::timestamptz,
-          updated_at = ${at}::timestamptz
-      WHERE id = ${input.authorityId}::uuid AND state = ${input.from}
-      RETURNING *
-    `)
-    const authority = firstAuthority(
-      result.rows,
-      `erase transition ${input.from} -> ${input.to}`,
-    )
-    if (input.to !== 'cancelled') {
-      await runner.execute(sql`
+  ): Promise<PropertyEraseAuthority> =>
+    runner.transaction(async (pair) => {
+      const at = input.occurredAt.toISOString()
+      const result = await pair.execute(sql`
+        UPDATE property_erase_authorities
+        SET state = ${input.to},
+            purge_started_at = CASE WHEN ${input.to} = 'purging' THEN ${at}::timestamptz ELSE purge_started_at END,
+            purged_at = CASE WHEN ${input.to} = 'purged' THEN ${at}::timestamptz ELSE purged_at END,
+            cancelled_at = CASE WHEN ${input.to} = 'cancelled' THEN ${at}::timestamptz ELSE cancelled_at END,
+            cancel_reason_code = COALESCE(${input.reasonCode ?? null}, cancel_reason_code),
+            state_changed_at = ${at}::timestamptz,
+            updated_at = ${at}::timestamptz
+        WHERE id = ${input.authorityId}::uuid AND state = ${input.from}
+        RETURNING *
+      `)
+      const authority = firstAuthority(
+        result.rows,
+        `erase transition ${input.from} -> ${input.to}`,
+      )
+      const lifecycleBefore = propertyLifecycleStateForErase(input.from)
+      const lifecycleAfter = propertyLifecycleStateForErase(input.to)
+      if (lifecycleAfter === lifecycleBefore) return authority
+      const moved = await pair.execute(sql`
         UPDATE properties
-        SET lifecycle_state = ${propertyLifecycleStateForErase(input.to)},
+        SET lifecycle_state = ${lifecycleAfter},
             lifecycle_state_changed_at = ${at}::timestamptz,
             updated_at = ${at}::timestamptz
         WHERE id = ${authority.propertyId}::uuid
           AND organization_id = ${authority.organizationId}
+          AND lifecycle_state = ${lifecycleBefore}
+        RETURNING id
       `)
-    }
-    return authority
-  }
+      if (moved.rows.length === 0 && input.to !== 'cancelled') {
+        throw propertyOutsideEraseLifecycle(lifecycleBefore, input)
+      }
+      return authority
+    })
 
   const recordContextReceipt = async (
     receipt: PropertyEraseContextReceipt,

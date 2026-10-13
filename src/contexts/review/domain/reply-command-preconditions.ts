@@ -85,22 +85,31 @@ const endedWithoutAnAnswer = (reply: ReplyCommandSubject): boolean =>
 export const hasPublicationRecord = (reply: ReplyCommandSubject): boolean =>
   reply.publicationCycle > 0 || reply.publicationState !== null
 
+/** Whether the reply is in the status and publication state `command` names. */
+function isAtCommandStart(command: ReplyCommand, reply: ReplyCommandSubject): boolean {
+  const start = REPLY_COMMAND_STARTS[command]
+  return (
+    start.statuses.includes(reply.status) &&
+    start.publicationStates.includes(reply.publicationState)
+  )
+}
+
 /** Whether `command` may start from this reply. */
 export function replyCommandMayStart(
   command: ReplyCommand,
   reply: ReplyCommandSubject,
 ): boolean {
-  const start = REPLY_COMMAND_STARTS[command]
-  if (
-    !start.statuses.includes(reply.status) ||
-    !start.publicationStates.includes(reply.publicationState)
-  ) {
-    return false
-  }
+  if (!isAtCommandStart(command, reply)) return false
   if (command === 'retry_publication') return !endedWithoutAnAnswer(reply)
   if (command === 'delete') return !hasPublicationRecord(reply)
   return true
 }
+
+/** A failed Reply whose cycle has ended. Try publishing again starts from it
+ * as it stands, or, for terminal ambiguity, once its attempt is proved never
+ * to have left RepKey: the use case settles it first (Invariant 9). */
+const mayBeTriedAgainNowOrOnProof = (reply: ReplyCommandSubject): boolean =>
+  isAtCommandStart('retry_publication', reply)
 
 const REPLY_KEPT_WITH_ITS_RECORD =
   'This reply was confirmed for publishing before, so RepKey keeps it with its publication record. Edit it and submit it again, or leave it as a draft.'
@@ -154,4 +163,62 @@ export function cancelledPublication(
 ): CancelledPublication | null {
   const publicationState = nextPublicationState(reply.publicationState, 'cancel')
   return publicationState === 'cancelled' ? { status: 'draft', publicationState } : null
+}
+
+/** What a guest edit leaves of a Reply it takes back: a draft that keeps the
+ * text its manager wrote. A cycle that had failed is closed as cancelled; a
+ * Reply that never had one still has none. */
+export type TakenBackByGuestEdit = Readonly<{
+  status: Extract<ReplyStatus, 'draft'>
+  publicationState: Extract<PublicationStateInput, 'cancelled' | null>
+  /** The Reply's last attempt is of unknown outcome, and is closed as
+   * superseded with it: no read of the edited review can settle it. */
+  supersedesAttempt: boolean
+}>
+
+/**
+ * What a guest edit does to a Reply a manager wrote and put forward for the
+ * review as it stood (docs/BETA.md §3 "Inbox"; ADR 0055 decision 11). A Reply
+ * written for one Material Review Revision does not answer the next, and two
+ * commands would still publish its stored text with one click: Confirm &
+ * Publish, and Try publishing again, which keeps the approval the Reply got
+ * for the earlier review. So the edit takes back the Replies either command
+ * may start from, and each returns to draft: its text is the manager's and
+ * stays, and it is published only once it is submitted and confirmed again,
+ * for the review as it is now.
+ *
+ * Terminal ambiguity is taken back with them. Try publishing again does not
+ * start from it as it stands, but proof that the attempt never left RepKey
+ * settles it as a failure the retry does start from, and that proof may be
+ * found after the edit, by the retry itself or by Check Google again. Nor is
+ * its attempt evidence any longer. The observation authority confirms or
+ * supersedes an attempt only for the revision it was authorized at
+ * (`isConfirmableCurrentAttempt`, domain/google-reply-observation.ts), and
+ * every read after the edit is recorded for the new one. So the Reply returns
+ * to draft and its attempt is closed with it, as the Review store closes an
+ * ambiguous attempt that is still on its read ladder.
+ *
+ * Null for everything else. A draft or a rejected Reply is in nobody's queue,
+ * and a published one is what Google shows. An open cycle is cancelled by the
+ * Review store's own stale-publication write. Unedited AI text is the AI
+ * draft purge's: the purge runs with the same observation, and the claim of a
+ * retried cycle withdraws what it left (src/shared/db/ai/ai-draft-purge.ts).
+ */
+export function takenBackByGuestEdit(
+  reply: ReplyCommandSubject & Pick<Reply, 'aiGenerated'>,
+): TakenBackByGuestEdit | null {
+  if (reply.aiGenerated) return null
+  if (replyCommandMayStart('approve', reply)) {
+    return {
+      status: 'draft',
+      publicationState: reply.publicationState === null ? null : 'cancelled',
+      supersedesAttempt: false,
+    }
+  }
+  if (!mayBeTriedAgainNowOrOnProof(reply)) return null
+  return {
+    status: 'draft',
+    publicationState: 'cancelled',
+    supersedesAttempt: endedWithoutAnAnswer(reply),
+  }
 }

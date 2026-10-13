@@ -25,6 +25,12 @@ import { EXECUTION_POLICY_VERSION } from '../../src/shared/auth/execution-policy
 import { computeAiReviewSourceProvenance } from '../../src/contexts/review/application/ai-review-source'
 import { googleReplyTextDigest } from '../../src/shared/domain/google-reply-text'
 import { serverFunctionErrorAdapter } from '../../src/shared/auth/server-function-error'
+import {
+  fixtureJobOutcomesSince,
+  settledFixtureJobOutcome,
+  unfinishedFixtureJobs,
+  type FixtureJobOutcome,
+} from './fixture-jobs'
 
 /**
  * Unique-per-run marker for every fixture-created external identifier.
@@ -607,11 +613,13 @@ export async function getUserByEmail(
  * (assignInboxItemFn validates assignedToUserId as uuid — Better Auth's own
  * nanoid ids fail it; see the slice report).
  *
- * `role` defaults to 'member' (→ Member permissions), which is what
- * property-access.spec.ts and dashboard-governance.spec.ts want: a login that
- * is deliberately NOT beta-interactive, so they can assert property scoping.
+ * `role` defaults to 'member' (→ Member permissions): a login that is
+ * deliberately NOT beta-interactive, so it cannot sign in. Only the parked
+ * reply-redaction case of dashboard-governance.spec.ts still asks for it.
  *
- * Inbox specs must pass 'admin' (a grant-only PropertyManager) or 'owner'.
+ * A spec that needs a property-scoped login that works passes 'admin' (a
+ * grant-only PropertyManager): property-access.spec.ts, the scoped test of
+ * dashboard-governance.spec.ts and the Inbox specs do. 'owner' is an AccountAdmin.
  * Assignment authorizes the ASSIGNEE as its own principal, and Member is not a
  * beta-interactive role, so handing an Inbox item to a Member user is refused
  * with "Inbox command authority is no longer current" before any permission or
@@ -1739,82 +1747,131 @@ export async function enqueueReviewSync(data: {
   })
 }
 
-/** A queued publish-reply job, optionally delayed (deterministic "queued
- * protected work" for the disconnect test — the delay guarantees the job is
- * still waiting when the disconnect lands). The id lets the spec promote the
- * job and wait for it to settle instead of sleeping past the delay. */
-export async function enqueuePublishReply(data: {
-  replyId: string
-  organizationId: string
-  initiatorUserId: string
-  delayMs?: number
-}): Promise<{ jobId: string }> {
-  const job = await fixtureQueue('default').add(
-    'publish-reply',
-    {
-      replyId: data.replyId,
-      organizationId: data.organizationId,
-      policy: { initiator: { kind: 'user', id: data.initiatorUserId } },
-    },
-    {
-      delay: data.delayMs ?? 0,
-      removeOnComplete: { count: 100 },
-      removeOnFail: { count: 50 },
-    },
-  )
-  if (!job.id) throw new Error('publish-reply fixture job was enqueued without an id')
-  return { jobId: job.id }
+/**
+ * Stop the worker taking new jobs from a queue. A job added meanwhile, by the
+ * app or by a fixture, waits on the queue until `resumeFixtureQueue`. This is
+ * how a spec holds real protected work still: the job is the one production
+ * enqueued, with its payload, and nothing has started it.
+ *
+ * The pause is a flag in the queue Redis, so it outlives the test that set it:
+ * always pair it with `resumeFixtureQueue` in an `afterEach`.
+ */
+export async function pauseFixtureQueue(name: string): Promise<void> {
+  await fixtureQueue(name).pause()
 }
 
-/** Move a delayed fixture job to waiting, so the worker takes it now. */
-export async function promoteFixtureJob(name: string, jobId: string): Promise<void> {
-  const job = await fixtureQueue(name).getJob(jobId)
-  if (!job) throw new Error(`fixture job ${jobId} is not on the ${name} queue`)
-  await job.promote()
+/** Let the worker take jobs from a queue again. Safe when it is not paused. */
+export async function resumeFixtureQueue(name: string): Promise<void> {
+  await fixtureQueue(name).resume()
 }
 
 /**
- * Wait until the worker has settled a fixture job. BullMQ stamps `finishedOn`
- * only on completion or on a failure with no attempts left, so a job waiting
- * out a retry backoff is not settled yet.
+ * The job of one name whose payload matches and that no worker has started
+ * yet; null when there is none. Found by what it carries, not by its id, so a
+ * spec does not repeat how production names its jobs.
+ */
+export async function findUnstartedFixtureJob(
+  name: string,
+  jobName: string,
+  matches: (data: Record<string, unknown>) => boolean,
+): Promise<{ jobId: string } | null> {
+  const jobs = await fixtureQueue(name).getJobs(['waiting', 'delayed', 'prioritized'])
+  const job = jobs.find(
+    (candidate) =>
+      candidate.name === jobName &&
+      !candidate.processedOn &&
+      matches(candidate.data as Record<string, unknown>),
+  )
+  return job?.id ? { jobId: job.id } : null
+}
+
+/**
+ * Wait until the worker has settled a fixture job, and say how. BullMQ stamps
+ * `finishedOn` only on completion or on a failure with no attempts left, so a
+ * job waiting out a retry backoff is not settled yet.
+ *
+ * Settled is not "ran": a job that failed for good is settled, and so is one
+ * the delayed-execution gate refused, which BullMQ completes without calling
+ * the handler. A spec that needs the job to have run asserts the outcome is
+ * `completed`.
  */
 export async function waitForFixtureJobSettled(
   name: string,
   jobId: string,
   description: string,
-): Promise<void> {
+): Promise<FixtureJobOutcome> {
   const queue = fixtureQueue(name)
-  await waitFor(
-    async () => {
+  return waitFor(() => settledFixtureJobOutcome(queue, jobId), {
+    description,
+    diagnose: async () => {
       const job = await queue.getJob(jobId)
-      return job?.finishedOn ? job : null
+      if (!job) return { state: 'missing' }
+      return {
+        state: await job.getState(),
+        attemptsMade: job.attemptsMade,
+        failedReason: job.failedReason,
+      }
     },
-    {
-      description,
-      diagnose: async () => {
-        const job = await queue.getJob(jobId)
-        if (!job) return { state: 'missing' }
-        return {
-          state: await job.getState(),
-          attemptsMade: job.attemptsMade,
-          failedReason: job.failedReason,
-        }
-      },
-    },
-  )
+  })
 }
 
-/** The daily retention purge, invoked on demand through the real worker path
- * (same bare payload the recurring schedule enqueues). */
-export async function enqueuePurgeExpiredReviews(): Promise<void> {
-  await fixtureQueue('background').add(
-    'purge-expired-reviews',
+/**
+ * Wait until no job of one name is queued, backing off or running on a queue,
+ * then say how each one that finished at or after `since` ended.
+ *
+ * For work that continues itself: a job that reads one page and enqueues the
+ * next page under a new id before it returns. Waiting for the job a spec
+ * enqueued covers the first page only. Once that job has settled, "none left
+ * that can still run" is the end of the whole chain, because every page adds
+ * its continuation while it is still running.
+ *
+ * `since` is the first job's `startedAt`, so the outcomes are this chain's and
+ * not a failure kept from an earlier run.
+ */
+export async function waitForFixtureJobsFinished(
+  name: string,
+  jobName: string,
+  options: { since: number; description: string },
+): Promise<ReadonlyArray<FixtureJobOutcome>> {
+  const queue = fixtureQueue(name)
+  await waitFor(async () => (await unfinishedFixtureJobs(queue, jobName)).length === 0, {
+    description: options.description,
+    diagnose: () => unfinishedFixtureJobs(queue, jobName),
+  })
+  return fixtureJobOutcomesSince(queue, jobName, options.since)
+}
+
+const PURGE_EXPIRED_REVIEWS_JOB = 'purge-expired-reviews'
+
+/**
+ * The retention purge, invoked on demand through the real worker path with a
+ * bare payload. Returns the job's id and name so the caller can wait for the
+ * worker.
+ *
+ * That takes two waits, because this job is only the first page. It reads 100
+ * reviews, oldest first, across every tenant, and hands the rest to a
+ * continuation job under another id (the purge handler in
+ * src/contexts/review/infrastructure/worker-runtime.ts). The e2e seed inserts
+ * 100 reviews before any spec runs, so the first page is the seed's and a
+ * review a spec has just created is read by a continuation.
+ * `waitForFixtureJobSettled('background', jobId, …)` says how the first page
+ * ended; `waitForFixtureJobsFinished('background', jobName, …)` waits for the
+ * rest. An assertion that the purge removed nothing means nothing before both.
+ */
+export async function enqueuePurgeExpiredReviews(): Promise<{
+  jobId: string
+  jobName: string
+}> {
+  const job = await fixtureQueue('background').add(
+    PURGE_EXPIRED_REVIEWS_JOB,
     {},
     {
       removeOnComplete: { count: 100 },
       removeOnFail: { count: 50 },
     },
   )
+  if (!job.id) throw new Error('purge-expired-reviews was enqueued without a job id')
+  return { jobId: job.id, jobName: PURGE_EXPIRED_REVIEWS_JOB }
 }
 
 /** The canonical Goal maintenance sweep, invoked through its production queue. */

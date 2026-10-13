@@ -314,18 +314,21 @@ describe('getInboxItemDetail', () => {
       findCurrentReviewIdsByAspect: vi.fn(async () => []),
     }
 
+    const reader = ctxFor('AccountAdmin')
     const result = await getInboxItemDetail({
       repo,
       staffPublicApi: staffApi,
       replyLookup,
       aiInsights,
-    })({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+    })({ inboxItemId: ITEM_ID }, reader)
 
+    // The AI context authorizes the reader for the review's Property itself,
+    // so it is handed the whole reader, not a user id.
     expect(readCurrentReviewAnalysis).toHaveBeenCalledWith({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
       reviewId: reviewId('rev-1'),
-      actorUserId: USER_ID,
+      actor: reader,
     })
     expect(result.analysis).toEqual({
       status: 'ready',

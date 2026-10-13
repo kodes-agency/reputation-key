@@ -70,9 +70,11 @@ export type SystemAction =
   | 'system:outbox.redeliver'
   | 'system:portal.health_reconcile'
   | 'system:portal.responsibility_reannounce'
+  | 'system:portal.release_member_responsibility'
   | 'system:portal.destination_revalidate'
   | 'system:portal.media_sweep'
   | 'system:property.import_v2'
+  | 'system:property.release_member_responsibility'
   | 'system:review.sync'
   | 'system:review.refresh_sweep'
   | 'system:review.discovery_sweep'
@@ -291,7 +293,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   job(
     'recover-invited-registrations',
     'system:identity.accept_invitation',
-    'none',
+    'identity.invite',
     'tenant_cross',
   ),
   job(
@@ -370,6 +372,15 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:portal.responsibility_reannounce',
     'portal.write',
     'property',
+  ),
+  // Releasing what a removed member still holds is cleanup: ungated, because a
+  // denied consumer is never retried, and scoped to the Organization, because
+  // the removal fact carries no Property.
+  consumer(
+    'portal.member-offboarding',
+    'system:portal.release_member_responsibility',
+    'none',
+    'organization',
   ),
   // Its own action: 'system:inbox.update' is the tenant-cross reminder sweep.
   // 'inbox.use' is the gate the shared action has always applied here.
@@ -521,19 +532,34 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'property.import_gbp_v2',
     'organization',
   ),
-  // AI consumers are gated per capability, so one capability's stop never
-  // obsoletes another's deliveries: Review Analysis on ai.analyze, like the
-  // jobs that run the same analysis, and trend generation on ai.detect_trends.
+  // Releasing what a removed member still holds is cleanup: ungated, because a
+  // denied consumer is never retried, and scoped to the Organization, because
+  // the removal fact carries no Property.
+  consumer(
+    'property.member-offboarding',
+    'system:property.release_member_responsibility',
+    'none',
+    'organization',
+  ),
+  // The analysis consumer records that a review is owed an analysis: ungated,
+  // because a denied consumer is never retried and a review that arrives
+  // during a stop must be analysed once the stop is lifted. It never analyses
+  // a stopped review itself: before a provider call on delivery it asks
+  // current policy about the review's Organization and Property (the
+  // backlog-drain job's own question) and queues a refused review in the
+  // backlog. The provider work stays gated on ai.analyze there, by the
+  // backlog-drain and on-demand jobs. Each AI consumer has its own row, so one
+  // capability's stop never obsoletes another's deliveries.
   consumer(
     'ai.review-analysis-consumers',
     'system:ai.review_analysis_event',
-    'ai.analyze',
+    'none',
     'property',
   ),
   // Enrollment records a merchant's enable, disable or revoke: ungated,
   // because a denied consumer is never retried and that record must survive
-  // any stop. The provider work it leads to is gated on ai.analyze by the
-  // analysis consumer and the backlog-drain job.
+  // any stop. The provider work it leads to is gated on ai.analyze as the
+  // analysis consumer's is.
   consumer(
     'ai.review-analysis-enrollment',
     'system:ai.review_analysis_enrollment',
@@ -696,7 +722,7 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
   schedule(
     'recover-invited-registrations-recurring',
     'system:identity.accept_invitation',
-    'none',
+    'identity.invite',
     'tenant_cross',
   ),
   schedule(

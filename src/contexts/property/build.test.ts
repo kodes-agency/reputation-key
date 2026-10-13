@@ -76,6 +76,7 @@ const GOOGLE_BINDING_MEMBERS = Object.keys({
 >
 const runtimeDeps = {
   idGen: () => '81000000-0000-4000-8000-000000000099',
+  outboxRepo: { insertReceipt: async () => undefined },
   logger: {
     info: () => {},
     warn: () => {},

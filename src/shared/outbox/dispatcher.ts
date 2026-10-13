@@ -7,7 +7,9 @@
 //   2. Resolves registered consumers by event type
 //   3. For each consumer, checks the receipt — if already applied, skip
 //   4. If not applied, invokes the consumer's handler
-//   5. The handler commits its state change + receipt atomically
+//   5. The handler records its own receipt: in the transaction of its state
+//      change, or after an effect that is safe to repeat (the rule is stated
+//      on ConsumerRegistration.handler)
 //   6. If the source no longer exists, commits an 'obsolete' receipt
 //
 // One consumer's failure does NOT prevent other consumers from receiving the
@@ -114,9 +116,9 @@ async function invokeConsumer(
       throw new PolicyUnavailableError(gate.decision.reason)
     }
 
-    // Invoke the consumer handler
-    // The handler is responsible for committing its state change
-    // AND the receipt atomically (via its command store)
+    // Invoke the consumer handler. The handler records its own receipt, with
+    // its state change or after an effect that is safe to repeat; nothing
+    // below records one for it (ConsumerRegistration.handler states the rule).
     const result = await runWithContext(eventId, () => consumer.handler(event), {
       causationId: event.eventId,
       ...(typeof event.commandId === 'string' ? { commandId: event.commandId } : {}),

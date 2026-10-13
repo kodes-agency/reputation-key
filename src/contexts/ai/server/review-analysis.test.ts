@@ -117,6 +117,7 @@ import {
   requestReviewAnalysisNowFn,
 } from './review-analysis'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import { aiError } from '../domain/errors'
 
 // ── Sourced fixtures ────────────────────────────────────────────────
 
@@ -346,8 +347,21 @@ describe('getReviewAnalysisProgressFn — a dashboard read of one Property', () 
     expect(mocks.readReviewAnalysisProgress).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
+      actor: ACTOR,
     })
     expect(mocks.readCurrentSource).not.toHaveBeenCalled()
+  })
+
+  it('answers a 403 when the use case refuses the reader for the Property', async () => {
+    mocks.readReviewAnalysisProgress.mockRejectedValue(
+      aiError('forbidden', 'Property is not readable by this caller'),
+    )
+
+    expect(await rejection(readProgress())).toMatchObject({
+      _tag: 'AiError',
+      code: 'forbidden',
+      status: 403,
+    })
   })
 
   it('returns the content-free counts unchanged', async () => {

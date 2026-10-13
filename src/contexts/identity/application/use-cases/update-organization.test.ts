@@ -19,7 +19,11 @@ const setup = () => {
     updateCalls.push(data)
   }
 
-  const deps = { updateOrg }
+  const deps = {
+    updateOrg,
+    currentLogo: async () => null,
+    retireReplaced: async () => {},
+  }
   const useCase = updateOrganization(deps)
 
   return { useCase, updateCalls }
@@ -114,6 +118,14 @@ describe('updateOrganization removing the logo', () => {
       kind: 'logo',
       ownerId: ctx.organizationId,
     })
+  })
+
+  it("reads the caller's own Organization for the logo it frees", async () => {
+    const { useCase, currentLogo } = setupRemoval()
+
+    await useCase({ logo: null }, ctx)
+
+    expect(currentLogo).toHaveBeenCalledExactlyOnceWith(ctx.organizationId)
   })
 
   it('keeps the stored logo when the removal could not be saved', async () => {

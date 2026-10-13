@@ -6,10 +6,13 @@
 // command store and the deps buildIdentityContext received.
 
 import type { Database } from '#/shared/db'
+import type { Capability } from '#/shared/auth/beta-capabilities'
+import { decidePublicExecution } from '#/shared/auth/execution-policy'
 import type { Clock } from '#/shared/domain/clock'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { invitationId } from '#/shared/domain/ids'
+import { invitationId, type OrganizationId } from '#/shared/domain/ids'
+import type { SystemAction } from '#/shared/governance/entry-point-catalogue'
 import type { IdentityPort } from './application/ports/identity.port'
 import type { IdentityCommandStore } from './application/ports/identity-command-store.port'
 import type { InvitationEmailSender } from './application/ports/invitation-email.port'
@@ -40,10 +43,31 @@ export type InvitationUseCaseDeps = Readonly<{
   resolveOrganizationName: (ctx: AuthContext) => Promise<string>
 }>
 
+/** Consuming an invitation creates a member, under the capability that sends it. */
+const INVITATION_CAPABILITY: Capability = 'identity.invite'
+/** The catalogue action of acceptance; the recovery job is governed under it too. */
+const ACCEPT_INVITATION_ACTION: SystemAction = 'system:identity.accept_invitation'
+
 export function buildInvitationUseCases(deps: InvitationUseCaseDeps) {
   const invitations = createInvitationReadModel(deps.db)
   const registrationStore = createInvitedRegistrationStore(deps.db)
   const { commandStore, clock, logger } = deps
+  // A joiner has no tenant context yet, so the execution policy decides for
+  // the invitation's Organization (ADR 0032): the kill switch, an Organization
+  // suspension and isolated restore mode refuse acceptance and registration.
+  // The recovery job brings the authorizer of its own schedule to each pass.
+  const admission = {
+    invitations,
+    authorizeOrganization: async (organizationId: OrganizationId) => {
+      const decision = await decidePublicExecution({
+        action: ACCEPT_INVITATION_ACTION,
+        capability: INVITATION_CAPABILITY,
+        organizationId,
+        now: clock(),
+      })
+      return decision.allowed
+    },
+  } as const
   // What both sends (invite, resend) need to compose and mail the invitation.
   const emailDelivery = {
     identity: deps.identityPort,
@@ -69,9 +93,11 @@ export function buildInvitationUseCases(deps: InvitationUseCaseDeps) {
     }),
     resendInvitation: resendInvitation({ ...emailDelivery, commandStore, clock }),
     acceptInvitation: acceptInvitation({
+      ...admission,
       identity: deps.identityPort,
       commandStore,
       clock,
+      logger,
     }),
     cancelInvitation: cancelInvitation({ commandStore, clock }),
     getInvitationPreview: getInvitationPreview({
@@ -81,18 +107,17 @@ export function buildInvitationUseCases(deps: InvitationUseCaseDeps) {
     }),
     registerUser: registerUser({ identity: deps.identityPort }),
     registerInvitedUser: registerInvitedUser({
+      ...admission,
       commandStore,
       registrationStore,
       signUp: deps.identityPort.signUp,
       idGen: deps.idGen,
-      runOnAccepted: deps.identityPort.runOnAcceptInvitation,
       clock,
       logger,
     }),
     recoverInvitedRegistrations: recoverInvitedRegistrations({
       commandStore,
       registrationStore,
-      runOnAccepted: deps.identityPort.runOnAcceptInvitation,
       clock,
       logger,
     }),

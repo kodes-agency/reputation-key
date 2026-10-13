@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest'
-import { getAttentionSignals } from './get-attention-signals'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  getAttentionSignals as authorizedGetAttentionSignals,
+  type GetAttentionSignalsDeps,
+} from './get-attention-signals'
 import { organizationId, propertyId } from '#/shared/domain/ids'
+import { asAccountAdmin } from '#/shared/testing/authorized-reads'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import type { AttentionSignalsPort } from '../ports/attention-signals.port'
 import type { ReviewPeriodStats } from '../ports/review-stats.port'
 
@@ -22,6 +27,12 @@ const inboxTargets = {
   getGoogleReviewTargetCountsByProperty: async () =>
     new Map([[PROPERTY, { activeCount: 0, overdueCount: 0 }]]),
 }
+
+/** What the signals say, read as an AccountAdmin; who may read is tested last. */
+const getAttentionSignals = (deps: Omit<GetAttentionSignalsDeps, 'propertyAccess'>) =>
+  asAccountAdmin(
+    authorizedGetAttentionSignals({ ...deps, propertyAccess: async () => null }),
+  )
 
 function reviewPeriods(
   current: ReviewPeriodStats,
@@ -123,5 +134,78 @@ describe('getAttentionSignals', () => {
     })
 
     expect(result).toMatchObject({ ratingDrop: false, needsAttention: 0 })
+  })
+})
+
+describe('getAttentionSignals authorization', () => {
+  const OTHER_PROPERTY = propertyId('a0000000-0000-4000-8000-000000000002')
+  const manager = buildTestAuthContext({ organizationId: ORG, role: 'PropertyManager' })
+  const last30Days = {
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    startDate: new Date('2026-07-26T12:00:00.000Z'),
+    endDate: NOW,
+    timeRange: '30d' as const,
+    propertyTimezone: 'UTC',
+  }
+
+  it('refuses a manager with no grant on the Property before anything is read', async () => {
+    const getAttentionCounts = vi.fn(signals.getAttentionCounts)
+    const getPeriodStats = vi.fn(async () => ({ count: 10, avgRating: 4 }))
+    const getSignals = authorizedGetAttentionSignals({
+      reviewStats: { getPeriodStats },
+      signals: { getAttentionCounts },
+      inboxTargets,
+      clock: () => NOW,
+      propertyAccess: async () => [OTHER_PROPERTY],
+    })
+
+    await expect(getSignals(last30Days, manager)).rejects.toMatchObject({
+      _tag: 'DashboardError',
+      code: 'forbidden',
+    })
+    expect(getAttentionCounts).not.toHaveBeenCalled()
+    expect(getPeriodStats).not.toHaveBeenCalled()
+  })
+
+  // The band is reply- and Inbox-derived work state: dashboard.read alone,
+  // which a Member holds for the staff dashboard, does not reach it.
+  it('refuses a Member granted the Property before anything is read', async () => {
+    const getAttentionCounts = vi.fn(signals.getAttentionCounts)
+    const getGoogleReviewTargetCountsByProperty = vi.fn(
+      inboxTargets.getGoogleReviewTargetCountsByProperty,
+    )
+    const getPeriodStats = vi.fn(async () => ({ count: 10, avgRating: 4 }))
+    const getSignals = authorizedGetAttentionSignals({
+      reviewStats: { getPeriodStats },
+      signals: { getAttentionCounts },
+      inboxTargets: { getGoogleReviewTargetCountsByProperty },
+      clock: () => NOW,
+      propertyAccess: async () => [PROPERTY],
+    })
+    const member = buildTestAuthContext({ organizationId: ORG, role: 'Member' })
+
+    await expect(getSignals(last30Days, member)).rejects.toMatchObject({
+      _tag: 'DashboardError',
+      code: 'forbidden',
+    })
+    expect(getAttentionCounts).not.toHaveBeenCalled()
+    expect(getGoogleReviewTargetCountsByProperty).not.toHaveBeenCalled()
+    expect(getPeriodStats).not.toHaveBeenCalled()
+  })
+
+  it('serves a manager granted the Property', async () => {
+    const getSignals = authorizedGetAttentionSignals({
+      reviewStats: reviewPeriods({ count: 10, avgRating: 4 }),
+      signals,
+      inboxTargets,
+      clock: () => NOW,
+      propertyAccess: async () => [PROPERTY],
+    })
+
+    await expect(getSignals(last30Days, manager)).resolves.toMatchObject({
+      ratingDrop: false,
+      needsAttention: 0,
+    })
   })
 })

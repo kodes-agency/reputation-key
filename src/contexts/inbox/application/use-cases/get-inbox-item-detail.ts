@@ -182,7 +182,7 @@ export const getInboxItemDetail =
             organizationId: ctx.organizationId,
             propertyId: detail.item.propertyId,
             reviewId: detail.item.sourceId as ReviewId,
-            actorUserId: ctx.userId,
+            actor: ctx,
           })
         : null,
       isReview && canForContext(ctx, 'reply.manage')

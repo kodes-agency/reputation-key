@@ -73,6 +73,7 @@ vi.mock('#/shared/auth/execution-policy', async (importOriginal) => {
 })
 
 import { getPropertyInsightsFn } from './property-insights'
+import { aiError } from '../domain/errors'
 
 const DASHBOARD_READ: Permission = 'dashboard.read'
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000021'
@@ -121,7 +122,7 @@ describe('getPropertyInsightsFn tenant and gate wiring', () => {
     expect(mocks.readPropertyInsights).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
-      actorUserId: ACTOR.userId,
+      actor: ACTOR,
       range: 90,
     })
   })
@@ -132,6 +133,18 @@ describe('getPropertyInsightsFn tenant and gate wiring', () => {
     await rejection(call())
 
     expect(mocks.readPropertyInsights).not.toHaveBeenCalled()
+  })
+
+  it('answers a 403 when the use case refuses the reader for the Property', async () => {
+    mocks.readPropertyInsights.mockRejectedValue(
+      aiError('forbidden', 'Property is not readable by this caller'),
+    )
+
+    expect(await rejection(call())).toMatchObject({
+      _tag: 'AiError',
+      code: 'forbidden',
+      status: 403,
+    })
   })
 })
 

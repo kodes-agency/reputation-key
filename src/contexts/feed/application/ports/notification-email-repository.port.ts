@@ -84,6 +84,13 @@ export type NotificationDigestBatch = Readonly<{
    */
   everyAttemptRefused: boolean
   /**
+   * When the first attempt the provider may have accepted started: its
+   * 24-hour idempotency window opens there, so a retry is safe only for a
+   * bounded time after it. `null` while no attempt has started, or the
+   * provider refused every one.
+   */
+  possiblyAcceptedSince: Date | null
+  /**
    * Kept only while the batch is open, and `null` for a batch frozen before
    * requests were stored: such a batch is re-rendered and compared instead.
    */

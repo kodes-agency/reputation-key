@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isStaleQueuedEmail } from './email-freshness'
+import { isPastRetryHorizon, isStaleQueuedEmail } from './email-freshness'
 
 const NOW = new Date('2026-09-22T12:00:00.000Z')
 const HOUR = 60 * 60_000
@@ -79,7 +79,7 @@ describe('queued email freshness', () => {
       expect(isStaleQueuedEmail(released, NOW)).toBe(true)
     })
 
-    it('leaves digest rows to their batch, whose retries are bounded apart', () => {
+    it('leaves digest rows to their batch, which is held to the horizon as a whole', () => {
       const daily = queued({
         category: 'workflow_collaboration',
         cadence: 'daily',
@@ -88,6 +88,16 @@ describe('queued email freshness', () => {
       })
 
       expect(isStaleQueuedEmail(daily, NOW)).toBe(false)
+    })
+
+    it('puts the horizon 23 hours after the attempt the provider may have accepted', () => {
+      expect(isPastRetryHorizon(ago(22.99), NOW)).toBe(false)
+      expect(isPastRetryHorizon(ago(23), NOW)).toBe(true)
+      expect(isPastRetryHorizon(ago(48), NOW)).toBe(true)
+    })
+
+    it('has no horizon for an attempt that never started', () => {
+      expect(isPastRetryHorizon(null, NOW)).toBe(false)
     })
   })
 

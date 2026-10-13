@@ -156,7 +156,9 @@ of any Organization that has no AccountAdmin yet.
   invitation, and (for an invitation) only while the Organization is active. After
   an AccountAdmin accepts, the Organization's own admins manage invitations and
   the console stops showing its invitee addresses. Closing an empty Organization
-  is still an ops task.
+  is still an ops task. While such an Organization is in `BETA_SUSPENDED_ORGS`
+  its admins cannot cancel an invitation either; runbooks §1 gives the statement
+  that cancels one before the suspension is lifted.
 - **One live admin invitation.** Every open AccountAdmin invitation stays
   acceptable after the first one is accepted, so two live invitations can give
   the Organization two AccountAdmins, and once one has joined the console can no

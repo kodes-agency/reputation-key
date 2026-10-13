@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createInMemoryDashboardRepository } from '#/shared/testing/in-memory-dashboard-repo'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { AttentionSignalsPort } from '../ports/attention-signals.port'
@@ -7,6 +8,18 @@ import { getPropertyOverview } from './get-property-overview'
 import type { MetricKPIValue } from '../../domain/dashboard-types'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
+const ORG = organizationId('org-overview')
+const PROPERTY = propertyId('a0000000-0000-4000-8000-000000000001')
+const ADMIN = buildTestAuthContext({ organizationId: ORG, role: 'AccountAdmin' })
+const last30Days = {
+  organizationId: ORG,
+  propertyId: PROPERTY,
+  portalId: null,
+  startDate: new Date('2026-07-26T12:00:00.000Z'),
+  endDate: NOW,
+  timeRange: '30d' as const,
+  propertyTimezone: 'UTC',
+}
 
 const metricKpi = (value: number, priorValue: number, trend: number): MetricKPIValue => ({
   value,
@@ -64,7 +77,8 @@ describe('getPropertyOverview', () => {
       }),
     }
     const getOverview = getPropertyOverview({
-      getDashboardData: getDashboardData({ repo }),
+      getDashboardData: getDashboardData({ repo, propertyAccess: async () => null }),
+      propertyAccess: async () => null,
       attention,
       inboxTargets: {
         getGoogleReviewTargetCountsByProperty: async (input) => {
@@ -84,15 +98,7 @@ describe('getPropertyOverview', () => {
       clock: () => NOW,
     })
 
-    const result = await getOverview({
-      organizationId: organizationId('org-overview'),
-      propertyId: propertyId('a0000000-0000-4000-8000-000000000001'),
-      portalId: null,
-      startDate: new Date('2026-07-26T12:00:00.000Z'),
-      endDate: NOW,
-      timeRange: '30d',
-      propertyTimezone: 'UTC',
-    })
+    const result = await getOverview(last30Days, ADMIN)
 
     expect(result.dashboard.kpis).toBe(repo.kpisOverride)
     expect(result.signals).toEqual({
@@ -104,5 +110,81 @@ describe('getPropertyOverview', () => {
       needsAttention: 6,
     })
     expect(repo.calls.filter((call) => call === 'getKPIs')).toHaveLength(1)
+  })
+
+  it('refuses a manager with no grant on the Property before anything is read', async () => {
+    const repo = createInMemoryDashboardRepository()
+    const getAttentionCounts = vi.fn<AttentionSignalsPort['getAttentionCounts']>()
+    const getGoogleReviewTargetCountsByProperty = vi.fn(async () => new Map())
+    const grantsElsewhere = async () => [
+      propertyId('a0000000-0000-4000-8000-000000000002'),
+    ]
+    const getOverview = getPropertyOverview({
+      getDashboardData: getDashboardData({ repo, propertyAccess: grantsElsewhere }),
+      propertyAccess: grantsElsewhere,
+      attention: { getAttentionCounts },
+      inboxTargets: { getGoogleReviewTargetCountsByProperty },
+      clock: () => NOW,
+    })
+    const manager = buildTestAuthContext({ organizationId: ORG, role: 'PropertyManager' })
+
+    await expect(getOverview(last30Days, manager)).rejects.toMatchObject({
+      _tag: 'DashboardError',
+      code: 'forbidden',
+    })
+    expect(repo.calls).toEqual([])
+    expect(getAttentionCounts).not.toHaveBeenCalled()
+    expect(getGoogleReviewTargetCountsByProperty).not.toHaveBeenCalled()
+  })
+
+  // A Member holds dashboard.read for the staff dashboard, not
+  // dashboard.fleet_read: the attention band (reply targets past due, items to
+  // triage, escalations) is not theirs to read, grant or no grant.
+  it('refuses a Member granted the Property before anything is read', async () => {
+    const repo = createInMemoryDashboardRepository()
+    const getAttentionCounts = vi.fn<AttentionSignalsPort['getAttentionCounts']>()
+    const getGoogleReviewTargetCountsByProperty = vi.fn(async () => new Map())
+    const grantsHere = async () => [PROPERTY]
+    const getOverview = getPropertyOverview({
+      getDashboardData: getDashboardData({ repo, propertyAccess: grantsHere }),
+      propertyAccess: grantsHere,
+      attention: { getAttentionCounts },
+      inboxTargets: { getGoogleReviewTargetCountsByProperty },
+      clock: () => NOW,
+    })
+    const member = buildTestAuthContext({ organizationId: ORG, role: 'Member' })
+
+    await expect(getOverview(last30Days, member)).rejects.toMatchObject({
+      _tag: 'DashboardError',
+      code: 'forbidden',
+    })
+    expect(repo.calls).toEqual([])
+    expect(getAttentionCounts).not.toHaveBeenCalled()
+    expect(getGoogleReviewTargetCountsByProperty).not.toHaveBeenCalled()
+  })
+
+  it('serves a manager granted the Property', async () => {
+    const repo = createInMemoryDashboardRepository()
+    const grantsHere = async () => [PROPERTY]
+    const getOverview = getPropertyOverview({
+      getDashboardData: getDashboardData({ repo, propertyAccess: grantsHere }),
+      propertyAccess: grantsHere,
+      attention: {
+        getAttentionCounts: async () => ({
+          overdue: 0,
+          itemsToTriage: 7,
+          escalated: 2,
+          goalsBehindPace: 0,
+          attentionWork: 9,
+        }),
+      },
+      inboxTargets: { getGoogleReviewTargetCountsByProperty: async () => new Map() },
+      clock: () => NOW,
+    })
+    const manager = buildTestAuthContext({ organizationId: ORG, role: 'PropertyManager' })
+
+    const overview = await getOverview(last30Days, manager)
+
+    expect(overview.signals).toMatchObject({ itemsToTriage: 7, escalated: 2 })
   })
 })

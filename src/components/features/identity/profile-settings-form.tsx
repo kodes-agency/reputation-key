@@ -46,16 +46,6 @@ export function ProfileSettingsForm({
   requestAvatarUpload,
   finalizeAvatarUpload,
 }: Props) {
-  const form = useForm({
-    defaultValues: {
-      name: user.name,
-    } satisfies UpdateProfileInput,
-    validators: { onSubmit: updateProfileInputSchema },
-    onSubmit: async ({ value }) => {
-      await updateProfile({ data: { name: value.name } })
-    },
-  })
-
   // Avatar upload handler
   async function handleAvatarUpload(
     file: File,
@@ -82,44 +72,61 @@ export function ProfileSettingsForm({
         disabled={updateProfile.isPending}
       />
 
-      {/* Profile information card */}
-      <Card>
-        <CardHeader>
-          <CardTitle as="h2">Your details</CardTitle>
-          <CardDescription>Update your name and view your email.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={submitHandler(form)} className="space-y-6">
-            <div className="space-y-6">
-              <form.Field
-                name="name"
-                validators={{
-                  onChangeAsync: updateProfileInputSchema.shape.name,
-                }}
-              >
-                {(field: BaseFieldApi) => (
-                  <FormTextField
-                    field={field}
-                    label="Name"
-                    id="name"
-                    autoComplete="name"
-                  />
-                )}
-              </form.Field>
-
-              <DescriptionList stacked aria-label="Sign-in email">
-                <DescriptionItem term="Email">{user.email}</DescriptionItem>
-              </DescriptionList>
-            </div>
-
-            <FormActions form={form} error={updateProfile.error}>
-              <SubmitButton mutation={updateProfile} form={form}>
-                Save profile
-              </SubmitButton>
-            </FormActions>
-          </form>
-        </CardContent>
-      </Card>
+      {/* Keyed on the saved name, the one value this form saves: a save that changes
+          it remounts the form, so the saved name is its baseline. The avatar saves on
+          its own and is no part of the key, or its save would drop a name being typed. */}
+      <ProfileDetailsCard key={user.name} user={user} updateProfile={updateProfile} />
     </div>
+  )
+}
+
+/** The name form and the email it sits beside. */
+function ProfileDetailsCard({
+  user,
+  updateProfile,
+}: Pick<Props, 'user' | 'updateProfile'>) {
+  const form = useForm({
+    defaultValues: {
+      name: user.name,
+    } satisfies UpdateProfileInput,
+    validators: { onSubmit: updateProfileInputSchema },
+    onSubmit: async ({ value }) => {
+      await updateProfile({ data: { name: value.name } })
+    },
+  })
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle as="h2">Your details</CardTitle>
+        <CardDescription>Update your name and view your email.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submitHandler(form)} className="space-y-6">
+          <div className="space-y-6">
+            <form.Field
+              name="name"
+              validators={{
+                onChangeAsync: updateProfileInputSchema.shape.name,
+              }}
+            >
+              {(field: BaseFieldApi) => (
+                <FormTextField field={field} label="Name" id="name" autoComplete="name" />
+              )}
+            </form.Field>
+
+            <DescriptionList stacked aria-label="Sign-in email">
+              <DescriptionItem term="Email">{user.email}</DescriptionItem>
+            </DescriptionList>
+          </div>
+
+          <FormActions form={form} error={updateProfile.error}>
+            <SubmitButton mutation={updateProfile} form={form}>
+              Save profile
+            </SubmitButton>
+          </FormActions>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

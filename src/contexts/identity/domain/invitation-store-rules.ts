@@ -63,6 +63,28 @@ export const consumedInvitation = (
   inviterId: row.inviterId ? toUserId(row.inviterId) : null,
 })
 
+// ── Invited Property access ─────────────────────────────────────────
+
+/** A Property id as the database stores it; the invitation row keeps free text. */
+const PROPERTY_ID_SHAPE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
+
+/**
+ * The Properties an acceptance tries to grant: each id once, in one stable
+ * order so two acceptances take their locks the same way. An id that cannot
+ * name a Property is set aside and never reaches the database.
+ */
+export function invitedPropertySelection(propertyIds: ReadonlyArray<string>): Readonly<{
+  candidateIds: ReadonlyArray<string>
+  malformedIds: ReadonlyArray<string>
+}> {
+  const selected = [...new Set(propertyIds)].sort()
+  return {
+    candidateIds: selected.filter((id) => PROPERTY_ID_SHAPE.test(id)),
+    malformedIds: selected.filter((id) => !PROPERTY_ID_SHAPE.test(id)),
+  }
+}
+
 // ── Read-only registration preflight ────────────────────────────────
 
 /**

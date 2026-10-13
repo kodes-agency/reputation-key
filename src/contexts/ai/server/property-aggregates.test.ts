@@ -88,6 +88,7 @@ vi.mock('#/shared/auth/execution-policy', async (importOriginal) => {
 })
 
 import { getPropertyAiAggregatesFn } from './property-aggregates'
+import { aiError } from '../domain/errors'
 
 /**
  * Compile-time sourced, so a typo stops type-checking. This is `dashboard.read`
@@ -148,9 +149,21 @@ describe('getPropertyAiAggregatesFn — tenant + gate wiring', () => {
       expect.objectContaining({
         organizationId: ORGANIZATION_ID,
         propertyId: PROPERTY_ID,
-        actorUserId: ACTOR.userId,
+        actor: ACTOR,
       }),
     )
+  })
+
+  it('answers a 403 when the use case refuses the reader for the Property', async () => {
+    mocks.readPropertyAiAggregates.mockRejectedValue(
+      aiError('forbidden', 'Property is not readable by this caller'),
+    )
+
+    expect(await rejection(call())).toMatchObject({
+      _tag: 'AiError',
+      code: 'forbidden',
+      status: 403,
+    })
   })
 
   it('authorizes dashboard.read scoped to the requested property', async () => {

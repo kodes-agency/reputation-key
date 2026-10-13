@@ -111,6 +111,7 @@ vi.mock('#/shared/auth/execution-policy', async (importOriginal) => {
 })
 
 import { getPropertyAiTrendFn } from './property-trend'
+import { aiError } from '../domain/errors'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   EXECUTION_POLICY_VERSION,
@@ -264,14 +265,27 @@ describe('getPropertyAiTrendFn — tenant + gate wiring', () => {
   it('reads the trend for exactly the resolved tenant, never the client payload', async () => {
     await call()
 
-    // organizationId and actorUserId come from resolveTenantContext — the caller
+    // organizationId and the reader come from resolveTenantContext — the caller
     // cannot name another tenant, and propertyId is the only client-supplied input.
     expect(mocks.readPropertyAiTrend).toHaveBeenCalledTimes(1)
     expect(mocks.readPropertyAiTrend).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
-      actorUserId: ACTOR.userId,
+      actor: ACTOR,
     })
+  })
+
+  it('answers a 403 when the use case refuses the reader for the Property', async () => {
+    mocks.readPropertyAiTrend.mockRejectedValue(
+      aiError('forbidden', 'Property is not readable by this caller'),
+    )
+
+    expect(await rejection(call())).toMatchObject({
+      _tag: 'AiError',
+      code: 'forbidden',
+      status: 403,
+    })
+    expect(mocks.getReviewInboxItemIds).not.toHaveBeenCalled()
   })
 
   it('gates on the ai.trends.read permission scoped to the requested property', async () => {

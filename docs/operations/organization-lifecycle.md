@@ -360,6 +360,30 @@ its seven-day deadline; the prior digest stops authorizing retrieval. Export
 objects have a maximum seven-day deadline; deletion is only complete after
 object deletion/absence is verified and content-free evidence is committed.
 
+The deletion pass commits its claim (`delete_pending`) before it deletes the
+object. If the delete fails, or the worker dies before the evidence is
+committed, the row stays `delete_pending`, and a later pass claims it again once
+the claim is 15 minutes old. The row is handed back unchanged (the transition
+guard admits only `delete_pending → deleted`, so the claim instant in
+`updated_at` is the lease); deleting an object that is already gone still
+verifies its absence, and the completion accepts its own replay.
+
+Each pass deletes one object, in this order:
+
+- A newly expired object is claimed before any retried one, oldest deadline
+  first. A retry therefore never delays a first deletion, and a retry is only
+  attempted on a pass that finds no newly expired object: each newly expired
+  object waiting postpones every retry by one pass.
+- Among retried objects the pass picks one at random. An object that cannot be
+  deleted fails each pass that picks it with `export_deletion_failed`, but it is
+  not picked every time, so the other retried objects are still deleted. With
+  one object that keeps failing and one that does not, each pass is an even
+  draw between them.
+
+A pass that fails with `export_deletion_failed` means the object it picked could
+not be deleted; it does not mean that object is the only one waiting. Every
+`organization_exports` row in state `delete_pending` is a deletion still owed.
+
 ## Member offboarding
 
 The app-owned member-removal flow refuses removal of the final AccountAdmin.
@@ -369,6 +393,23 @@ access grants. The Identity transaction then locks the exact membership,
 verifies the durable fact names that same user, deletes all Better Auth sessions
 for the departing user, deletes membership, and appends
 `identity.member.removed`.
+
+The release before the Identity command is not the last one. Until the
+membership is deleted the member is still an eligible manager, so an assignment
+another admin saves in between is accepted. Property and Portal therefore
+release again from `identity.member.removed` (worker consumers
+`property.on-member-removed` and `portal.on-member-removed`): whatever the
+member still holds and may no longer hold. A "Responsible Manager needed" notice
+can follow a removal by a few seconds for that reason, and it is correct. A
+save of a Property's or Portal's managers also reads eligibility again after it
+commits and releases, and refuses, a manager who was removed while it ran.
+
+When these two consumers are first deployed, the five-minute redelivery sweep
+hands them every published `identity.member.removed` fact older than two hours
+that is still in the outbox: such a fact has no receipt for them yet. That
+releases a Responsible Manager who was removed earlier and is still assigned; a
+member who is back keeps what they may hold; a fact with nothing left to
+release only records its receipt.
 
 ### Transfer-first leave (LIF-01-T21)
 

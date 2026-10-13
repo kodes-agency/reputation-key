@@ -7,7 +7,8 @@ import {
   getExecutionPolicy,
   requireExecutionAllowed,
 } from '#/shared/auth/execution-policy'
-import { catchUntagged } from '#/shared/auth/server-errors'
+import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
+import { HTTP_STATUS } from '#/shared/http/status'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   propertyId,
@@ -20,6 +21,7 @@ import {
   trendSupportingReviewIds,
   withSupportingReviewItems,
 } from '../application/trend-report-view'
+import { isAiError } from '../domain/errors'
 
 const getPropertyAiTrendDto = z.object({ propertyId: z.uuid() })
 
@@ -64,7 +66,7 @@ export const getPropertyAiTrendFn = createServerFn({ method: 'GET' })
           const read = await getContainer().aiPublicApi.readPropertyTrend({
             organizationId: ctx.organizationId,
             propertyId: id,
-            actorUserId: ctx.userId,
+            actor: ctx,
           })
           const itemIds = await supportingReviewItems(
             ctx,
@@ -73,6 +75,10 @@ export const getPropertyAiTrendFn = createServerFn({ method: 'GET' })
           )
           return withSupportingReviewItems(read, itemIds)
         } catch (error) {
+          // The use case authorizes the reader for the Property itself.
+          if (isAiError(error) && error.code === 'forbidden') {
+            throwContextError('AiError', error, HTTP_STATUS.FORBIDDEN)
+          }
           throw catchUntagged(error)
         }
       },

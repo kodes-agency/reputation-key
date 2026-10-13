@@ -15,6 +15,13 @@ export const INVITATION_INACTIVE_MESSAGE =
 export const INVITATION_OTHER_ADDRESS_MESSAGE =
   'This invitation was sent to a different email address. Sign out and open the link again.'
 
+/**
+ * The invitation's Organization may not gain members now: it is suspended, or
+ * invitations are switched off. The reason is the operator's, never shown.
+ */
+export const INVITATION_PAUSED_MESSAGE =
+  'This invitation cannot be accepted right now. Try again later.'
+
 /** Resend on an invitation that is no longer open. */
 export const INVITATION_CONSUMED_MESSAGE =
   'This invitation was already accepted or cancelled.'

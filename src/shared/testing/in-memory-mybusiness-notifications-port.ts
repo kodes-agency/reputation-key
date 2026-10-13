@@ -18,7 +18,7 @@ export type InMemoryMyBusinessNotificationsPort = MyBusinessNotificationsPort &
     subscribeCalls: ReadonlyArray<SubscribeInput>
     unsubscribeCalls: ReadonlyArray<UnsubscribeInput>
     setError: (operation: 'subscribe' | 'unsubscribe', error: Error) => void
-    /** Fail only this account's subscribe. */
+    /** Fail only this account's subscribe or unsubscribe. */
     setAccountError: (gbpAccountId: string, error: Error) => void
     /** Pretend Google already publishes this account to a topic. */
     seedSetting: (gbpAccountId: string, setting: Setting) => void
@@ -52,7 +52,7 @@ export const createInMemoryMyBusinessNotificationsPort =
         return 'subscribed'
       },
       unsubscribe: async (input) => {
-        const err = errors.get('unsubscribe')
+        const err = errors.get('unsubscribe') ?? accountErrors.get(input.gbpAccountId)
         if (err) throw err
         unsubscribeCalls = [...unsubscribeCalls, input]
         settings.delete(input.gbpAccountId)

@@ -1,4 +1,5 @@
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
+import { policyDenial } from '#/shared/testing/policy-denial'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -53,10 +54,14 @@ describe('takeDownPortalMedia handler', () => {
   })
 
   it('does not run the use case when the capability refuses', async () => {
-    mocks.requireExecutionAllowed.mockRejectedValue(new Error('refused'))
+    mocks.requireExecutionAllowed.mockRejectedValue(policyDenial('capability_blocked'))
     await expect(
       withStartContext(() => takeDownPortalMedia({ data: { assetId: ASSET } })),
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({
+      name: 'AuthError',
+      code: 'capability_blocked',
+      status: 403,
+    })
     expect(mocks.takeDown).not.toHaveBeenCalled()
   })
 })

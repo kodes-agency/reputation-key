@@ -129,6 +129,26 @@ export function ReplySuggestionControls(props: Props) {
   )
 }
 
+/**
+ * The fixes made on the Property's AI settings page: what an account admin is
+ * offered, and what anyone else is told to ask for.
+ */
+const AI_SETTINGS_FIX: Readonly<
+  Record<
+    Exclude<ReplySuggestionFixTarget, 'public_display_name'>,
+    Readonly<{ action: string; askAdmin: string }>
+  >
+> = {
+  ai_settings: {
+    action: 'Turn on AI replies',
+    askAdmin: 'Ask an account admin to enable AI reply drafting for this property.',
+  },
+  ai_notice: {
+    action: 'Review the AI notice',
+    askAdmin: 'Ask an account admin to confirm the updated AI notice.',
+  },
+}
+
 type SuggestionErrorLineProps = Pick<
   Props,
   | 'templateError'
@@ -153,6 +173,10 @@ function SuggestionErrorLine(props: SuggestionErrorLineProps) {
   const { can } = usePermissions()
   const canManagePortalBrand = can('portal.admin')
   const canManageAi = can('ai.manage')
+  const aiSettingsFix =
+    props.errorFixTarget == null || props.errorFixTarget === 'public_display_name'
+      ? null
+      : AI_SETTINGS_FIX[props.errorFixTarget]
   return (
     <>
       {props.templateError && <p>{props.templateError}</p>}
@@ -198,18 +222,18 @@ function SuggestionErrorLine(props: SuggestionErrorLineProps) {
         ) : (
           <p>Ask an account admin to set this property&rsquo;s public display name.</p>
         ))}
-      {props.errorFixTarget === 'ai_settings' &&
+      {aiSettingsFix &&
         (canManageAi ? (
           <Button asChild size="xs" touch variant="link">
             <Link
               to="/properties/$propertyId/settings/ai"
               params={{ propertyId: props.propertyId }}
             >
-              Turn on AI replies
+              {aiSettingsFix.action}
             </Link>
           </Button>
         ) : (
-          <p>Ask an account admin to enable AI reply drafting for this property.</p>
+          <p>{aiSettingsFix.askAdmin}</p>
         ))}
     </>
   )

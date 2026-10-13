@@ -12,7 +12,7 @@
 import type { OrganizationId, PropertyId, UserId } from './ids'
 import type { AuthContext } from './auth-context'
 import type { Permission } from './permissions'
-import { scopeForPermission } from './permissions'
+import { canForContext, scopeForPermission } from './permissions'
 
 /**
  * Returns the property IDs accessible to a user, or null when the caller is org-wide
@@ -57,6 +57,47 @@ export const getAccessiblePropertyIdsForPermission = async (
   if (scope === 'none') return []
   return lookup(ctx.organizationId, ctx.userId, false)
 }
+
+/**
+ * The whole Property decision a use case makes first (docs/standards.md §2.2
+ * step 1): the caller belongs to the Organization asked about, holds every one
+ * of `permissions`, and each of them reaches every one of `propertyIds`. The
+ * owning context turns `false` into its own tagged `forbidden`. One lookup,
+ * however many permissions and Properties are asked about: a caller's grants
+ * are the same whichever permission consults them, so an Organization-wide
+ * permission never widens an assigned one beside it.
+ */
+export const mayUsePermissionsOnProperties = async (
+  lookup: PropertyAccessLookup,
+  ctx: AuthContext,
+  permissions: readonly [Permission, ...Permission[]],
+  scope: Readonly<{
+    organizationId: OrganizationId
+    propertyIds: ReadonlyArray<PropertyId>
+  }>,
+): Promise<boolean> => {
+  if (ctx.organizationId !== scope.organizationId) return false
+  if (!permissions.every((permission) => canForContext(ctx, permission))) return false
+  const reach = permissions.map((permission) => scopeForPermission(ctx, permission))
+  if (reach.every((dataScope) => dataScope === 'organization')) return true
+  const accessible = reach.includes('none')
+    ? []
+    : await lookup(ctx.organizationId, ctx.userId, false)
+  if (accessible === null) return true
+  const granted = new Set<PropertyId>(accessible)
+  return scope.propertyIds.every((id) => granted.has(id))
+}
+
+/** {@link mayUsePermissionsOnProperties} for a read one permission governs. */
+export const mayUsePermissionOnProperties = (
+  lookup: PropertyAccessLookup,
+  ctx: AuthContext,
+  permission: Permission,
+  scope: Readonly<{
+    organizationId: OrganizationId
+    propertyIds: ReadonlyArray<PropertyId>
+  }>,
+): Promise<boolean> => mayUsePermissionsOnProperties(lookup, ctx, [permission], scope)
 
 /**
  * Low-level orgWide-based accessibility check. Callers that still resolve scope from a

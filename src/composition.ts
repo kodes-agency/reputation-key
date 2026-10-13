@@ -16,6 +16,7 @@ import { getDb } from '#/shared/db'
 import { getPool } from '#/shared/db/pool'
 import { getLogger } from '#/shared/observability/logger'
 import { getRedis } from '#/shared/cache/redis'
+import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import { closeJobQueueConnections } from '#/shared/jobs/queue'
 import { createAlertDispatcher } from '#/shared/observability/alert-dispatcher'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
@@ -28,10 +29,7 @@ import {
   bindProcessPolicies,
   registerProcessPolicyColdBoot,
 } from '#/shared/auth/process-policy-binding'
-import {
-  buildIdentityContext,
-  createInvitationPropertyAccessProvisioner,
-} from '#/contexts/identity/build'
+import { buildIdentityContext } from '#/contexts/identity/build'
 import { buildPlatformConsole } from '#/contexts/identity/build-platform'
 import { INVITATION_EXPIRY_SECONDS } from '#/shared/auth/auth'
 import { sendInvitationEmail } from '#/shared/auth/emails'
@@ -175,15 +173,7 @@ function buildContainer(
     domainEventsQueue: options?.opsDomainEventsQueue,
   })
 
-  // Identity port (adapter). Invitation property-access provisioning is a
-  // context-owned capability injected into this adapter instance; it is not a
-  // process-global Better Auth callback and cannot be replaced by another
-  // independently constructed process fixture.
-  const invitationPropertyAccessProvisioner = createInvitationPropertyAccessProvisioner({
-    db,
-    clock,
-    logger,
-  })
+  // Identity port (adapter).
   // ARC-03-T13: the framework/provider seam is selected HERE and injected
   // everywhere else. No context and no other root line calls getRequest() or
   // the better-auth process singleton.
@@ -199,9 +189,7 @@ function buildContainer(
     createBetterAuthIdentityAdapter(db, {
       clock,
       idGen: randomUUID,
-      logger,
       requestContext,
-      onAcceptInvitation: invitationPropertyAccessProvisioner,
     })
   // ARC-03-T9: the Identity/Property/Portal/Inbox member-authority seam.
   // Identity is upstream of the three contexts holding the authorities it
@@ -230,6 +218,8 @@ function buildContainer(
     clock,
     idGen: randomUUID,
     authSession,
+    // Late-bound: the shared object store is built with Portal, below.
+    deleteAssetObject: (key) => portal.uploads.storage.deleteObject(key),
     sendEmail: options?.email ?? sendInvitationEmail,
     baseUrl: env.BETTER_AUTH_URL,
     invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,
@@ -311,6 +301,7 @@ function buildContainer(
   const property = buildPropertyContext({
     db,
     repo: createPropertyRepository(db),
+    outboxRepo,
     clock,
     idGen: randomUUID,
     staffPublicApi: identity.publicApi.people,
@@ -465,6 +456,8 @@ function buildContainer(
     idGen: randomUUID,
     nowEpochMillis: () => clock().getTime(),
     reviewSources: review.publicApi.aiReviewSource,
+    propertyAccess: (orgId, uid, orgWide) =>
+      identity.publicApi.people.getAccessiblePropertyIds(orgId, uid, orgWide),
     propertyReplyLanguages: {
       readDefaultReplyLanguage: ({ organizationId: orgId, propertyId: pid }) =>
         property.publicApi.getPropertyReplyLanguage(orgId, pid),
@@ -478,6 +471,12 @@ function buildContainer(
     enqueueReviewAnalysisNow: infra.jobQueue
       ? createAnalyzeReviewNowEnqueue(infra.jobQueue)
       : undefined,
+    // The review event consumer is ungated at the dispatcher, so that a review
+    // arriving during a stop is queued instead of lost. It asks the backlog
+    // drain's own policy question before analysing a review on delivery.
+    authorizeReviewAnalysisScope: createScheduledScopeAuthorizer(
+      'system:ai.review_analysis_backlog_drain',
+    ),
   })
 
   const inbox = buildInboxContext({

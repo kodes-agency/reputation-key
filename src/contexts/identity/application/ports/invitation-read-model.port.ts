@@ -36,6 +36,8 @@ export type OrganizationInvitationRow = Readonly<{
 
 export type InvitationReadModel = Readonly<{
   findForPreview(id: InvitationId): Promise<InvitationPreviewRow | null>
+  /** The Organization an invitation belongs to, whatever its status; null when unknown. */
+  findOrganizationId(id: InvitationId): Promise<OrganizationId | null>
   /** Stored status IN ('pending','expired'), newest first. */
   listOpenForOrganization(
     orgId: OrganizationId,

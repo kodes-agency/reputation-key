@@ -135,6 +135,49 @@ describe('propertyRepository (integration)', () => {
     })
   })
 
+  // The one cross-tenant read: a Google notification names a location before
+  // any tenant is known, and a location is unique only within an Organization.
+  describe('listByGbpLocationId', () => {
+    const holding = (id: string, org: typeof ORG_A, location: string) =>
+      buildTestProperty({
+        id,
+        organizationId: org,
+        slug: id,
+        googleBindingState: 'account_confirmation_required',
+        gbpLocationId: location,
+      })
+
+    it('returns every Property that holds the location, in every Organization, in a fixed order', async () => {
+      const repo = createPropertyRepository(getDb())
+      const inB = holding('prop-loc-b', ORG_B, 'location-shared')
+      const inA = holding('prop-loc-a', ORG_A, 'location-shared')
+      const elsewhere = holding('prop-loc-other', ORG_A, 'location-other')
+      const deleted = {
+        ...holding('prop-loc-deleted', ORG_B, 'location-shared'),
+        deletedAt: new Date('2026-04-11T12:00:00Z'),
+      }
+      // Inserted in the opposite order to the one the answer must have.
+      await repo.insert(ORG_B, inB)
+      await repo.insert(ORG_B, deleted)
+      await repo.insert(ORG_A, elsewhere)
+      await repo.insert(ORG_A, inA)
+
+      const holders = await repo.listByGbpLocationId('location-shared')
+
+      expect(holders.map((property) => [property.organizationId, property.id])).toEqual([
+        [ORG_A, inA.id],
+        [ORG_B, inB.id],
+      ])
+    })
+
+    it('returns nothing for a location no Property holds', async () => {
+      const repo = createPropertyRepository(getDb())
+      await repo.insert(ORG_A, holding('prop-loc-only', ORG_A, 'location-held'))
+
+      await expect(repo.listByGbpLocationId('location-unheld')).resolves.toEqual([])
+    })
+  })
+
   describe('hardDelete', () => {
     it('removes property row entirely', async () => {
       const db = getDb()

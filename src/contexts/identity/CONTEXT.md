@@ -30,12 +30,29 @@ adapter; no other context reads its tables directly.
 - Better Auth membership is Organization authority. An interactive login belongs
   to exactly one Organization, and the final AccountAdmin cannot leave or be removed.
 - Invitation-bound registration is the only beta account-creation path. Invitation
-  acceptance locks and rechecks membership before provisioning selected grants.
+  acceptance locks and rechecks membership, then creates it and grants the
+  invitation's Properties in one transaction: the three acceptance paths (signed
+  in, registration, registration recovery) do nothing to Property access after
+  the commit, so a member is never accepted without the invited access.
   Consuming the emailed invitation verifies the address: acceptance sets the
   user's email verified in the same transaction that creates the membership, and
   the new member is signed in (ADR 0062). An invitation reads as expired once its
   expiry passes; Resend renews the same invitation for another 7 days, and
   inviting that address to another Organization marks the stale row expired.
+- Consuming an invitation asks the capability gate (`identity.invite`, ADR 0032)
+  for the Organization the invitation names, because the joiner has no tenant
+  context yet. While that Organization is suspended, the kill switch is on or
+  restore mode is isolated, the signed-in acceptance and invited registration
+  refuse with one fixed message before anything is written: no account, no
+  recovery record, no membership. Registration recovery runs under the same
+  capability: its schedule is tenant-cross, so it asks before each acceptance,
+  leaves a refused registration for a later pass and counts it as `denied`; it
+  still compensates a half-created account whose invitation is gone. The
+  invitation itself stays pending through a suspension, and nobody can cancel it
+  in the app meanwhile, because Cancel is gated like every other AccountAdmin
+  action. An operator who must stop one from being accepted when the suspension
+  lifts cancels it by statement first (`docs/operations/runbooks.md` §1;
+  `invitation-capability-gate.integration.test.ts` runs that statement).
 - Platform operators create Organizations from `/operator` without joining them,
   and invite the first AccountAdmin. They act on an Organization only while it
   has no AccountAdmin (ADR 0065).
@@ -78,15 +95,36 @@ under `infrastructure/`. Beta-feedback requests reach the triage store only
 through the build's `betaFeedback` capability (`submit`, `listMine`); the
 operator triage workflow stays with `scripts/ops`.
 
+`updateOrganization` is composed once, in `build-organization-settings.ts`, with the
+logo cleanup it needs (the object delete is late-bound: the object store is built
+with Portal, after Identity); its server function calls `requests.updateOrganization`
+and composes nothing. Residual gap: the logo and avatar upload requests
+(`server/organizations.upload.ts`) and the avatar replacement in
+`server/auth-settings.ts` are still composed in `server/`, because they need the
+whole object store rather than one late-bound call.
+
 Three `server/policy-admin.ts` functions have no UI caller on purpose:
 
 - `explainPolicyDecisionFn` is the live, read-only policy and capability-refusal
-  diagnostic for an operator holding `policy.admin`;
-  `scripts/ops/report-capability-refusal.ts` is its local-stack twin (#403/#408).
+  diagnostic for whoever holds `policy.admin`, which is every AccountAdmin, so it
+  is a tenant surface. It reads the member's stored role token and maps it as
+  tenant resolution does (`owner`, `admin`; any other token resolves no tenant and
+  reads `beta_role_inactive`), and its Google permit record counts the asking
+  Organization's permits only. `scripts/ops/report-capability-refusal.ts` is its
+  local-stack twin (#403/#408) and the only reader of the permit tally across
+  Organizations.
 - `grantPropertyAccessFn` and `revokePropertyAccessFn` remain the operator surface for
-  changing a PropertyManager's Property scope; they have no UI caller.
-  Follow-up: a grant requires `reason` and `ticketRef` but persists neither (a revoke
-  keeps its `reason` as `revoke_reason`).
+  changing a PropertyManager's Property scope; they have no UI caller, and the grant
+  is the only command that can give a grant an expiry. A grant that has lapsed is
+  retired and granted again; asking for another expiry (or none) on an active grant
+  replaces it; the same grant asked again changes nothing. Each change commits with
+  the `identity.member.property_access_changed` fact the Members edit records, so the
+  member hears about it; a command that changes nothing records none.
+  Follow-ups: a grant requires `reason` and `ticketRef` but persists neither (a revoke
+  keeps its `reason` as `revoke_reason`). The grant accepts any member of the
+  Organization as its target, where the Members edit requires a PropertyManager and
+  refuses the caller: a grant to an AccountAdmin changes nothing they can do and still
+  sends them the access-changed notice.
 
 AccountAdmins change a PropertyManager's Property scope from Settings → Members
 through `setMemberPropertyAccess` (`server/organizations.member-access.ts`; the
@@ -94,9 +132,16 @@ current grants come from `listMemberPropertyAccess`). Its grants and revokes com
 atomically with one `identity.member.property_access_changed` fact (identifiers
 only), and a change that alters nothing records none. A grant from a person uses
 `source='operator'` with `createdBy` = that person, and takes the same per-Property
-lock as the operator's grant; an invitation's grants record the inviter as
-`createdBy`, and a Property that could not be granted is logged, never silent. An
-AccountAdmin may change another AccountAdmin's role; nobody changes their own role;
+lock and the same grant write as the operator's grant
+(`infrastructure/property-grant-write.ts`; the rule is `decidePropertyGrant` in
+`domain/property-access-grant.ts`): a lapsed grant still holds the one-active-grant
+slot, so it is retired as `superseded` before the new one is written. The Members edit
+names no expiry and leaves a grant that already gives access alone. An invitation's
+grants take that lock too, inside the acceptance transaction, and record the inviter
+as `createdBy`. An invited Property that is deleted, belongs to another Organization
+or names no Property is not granted and never holds the acceptance back; it is logged
+by count, never silent. An AccountAdmin may change another AccountAdmin's role; nobody
+changes their own role;
 the last-AccountAdmin guard holds under the Organization lock. Only an AccountAdmin
 invites, cancels or resends invitations, creates members, edits a PropertyManager's
 Property scope and edits Organization settings; a PropertyManager holds `member.list`

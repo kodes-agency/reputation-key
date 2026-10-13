@@ -8,11 +8,14 @@
 //
 // The cause is a closed vocabulary that Review's event type
 // (`ReviewReplyPublicationCancelled`) and Feed's notice copy share. Review
-// records the first four when it stops a cycle. `ai_draft_withdrawn` is
-// recorded by the AI draft purge (src/shared/db/ai/ai-draft-purge.ts), which
-// runs inside other contexts' transactions: this schema is what checks the
-// fact it builds. Review's publish claim records the same cause when it
-// withdraws a reply whose AI text it refuses to send.
+// records the first four when it stops a cycle; `source_changed` also when a
+// guest edit returns to draft a reply that was awaiting approval, or one whose
+// publication had failed (review/infrastructure/review-command-store.ts).
+// `ai_draft_withdrawn` is recorded by the AI draft purge
+// (src/shared/db/ai/ai-draft-purge.ts), which runs inside other contexts'
+// transactions: this schema is what checks the fact it builds. Review's
+// publish claim records the same cause when it withdraws a reply whose AI text
+// it refuses to send.
 
 import { z } from 'zod/v4'
 

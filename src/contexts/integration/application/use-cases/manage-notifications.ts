@@ -93,18 +93,61 @@ export type GbpSubscribeResult = Readonly<{
   accounts: GbpAccountTally
 }>
 
+/**
+ * Why `unsubscribe` reports an outcome too. It swallows every failure by design:
+ * a disconnect and an Organization closing go on whether or not Google was
+ * told. A void return therefore read the same for "every account was cleared",
+ * "the unsubscribe was refused", "there was no account to target" and "Google
+ * refused the write", and the closing evidence counted all four as stopped.
+ *
+ * `unsubscribed`: every bound account's setting was cleared and read back. The
+ * refusal codes mean nothing was sent. `provider_failed`: at least one bound
+ * account was not cleared (Google refused, the write could not be confirmed, or
+ * no Property could authorize the account).
+ */
+export type GbpUnsubscribeOutcome =
+  | 'unsubscribed'
+  | 'connection_missing'
+  | 'connection_inactive'
+  | 'token_unavailable'
+  | 'authorization_unavailable'
+  | 'account_unresolved'
+  | 'provider_failed'
+
+/** What happened to each exact GBP account the unsubscribe reached. Counts and codes only. */
+export type GbpUnsubscribeTally = Readonly<{
+  unsubscribed: number
+  failed: number
+  /** Failure code → accounts, as in `GbpAccountTally`. */
+  failureCodes: Readonly<Record<string, number>>
+}>
+
+export type GbpUnsubscribeResult = Readonly<{
+  outcome: GbpUnsubscribeOutcome
+  accounts: GbpUnsubscribeTally
+}>
+
 /** Lifecycle API returned by the use case. Both methods are best-effort. */
 export type ManageNotificationsApi = Readonly<{
   subscribe: (
     organizationId: OrganizationId,
     connectionId: string,
   ) => Promise<GbpSubscribeResult>
-  unsubscribe: (organizationId: OrganizationId, connectionId: string) => Promise<void>
+  unsubscribe: (
+    organizationId: OrganizationId,
+    connectionId: string,
+  ) => Promise<GbpUnsubscribeResult>
 }>
 
 export const NO_GBP_ACCOUNTS: GbpAccountTally = Object.freeze({
   subscribed: 0,
   alreadySubscribed: 0,
+  failed: 0,
+  failureCodes: Object.freeze({}),
+})
+
+const NO_GBP_ACCOUNTS_UNSUBSCRIBED: GbpUnsubscribeTally = Object.freeze({
+  unsubscribed: 0,
   failed: 0,
   failureCodes: Object.freeze({}),
 })
@@ -228,31 +271,77 @@ export const manageNotifications = (
     return { outcome, accounts }
   }
 
+  /** Clear every bound account's setting; never throws, always says what happened. */
+  const clearBoundAccounts = async (
+    organizationId: OrganizationId,
+    connectionId: string,
+  ): Promise<GbpUnsubscribeResult> => {
+    let authorized: NotificationProviderAuthorizationResult
+    try {
+      authorized = await deps.authorizeProviderCall(organizationId, connectionId)
+    } catch {
+      return {
+        outcome: 'authorization_unavailable',
+        accounts: NO_GBP_ACCOUNTS_UNSUBSCRIBED,
+      }
+    }
+    if (!authorized.ok) {
+      return { outcome: authorized.code, accounts: NO_GBP_ACCOUNTS_UNSUBSCRIBED }
+    }
+
+    const targets = distinctTargets(authorized)
+    if (targets.length === 0) {
+      return { outcome: 'account_unresolved', accounts: NO_GBP_ACCOUNTS_UNSUBSCRIBED }
+    }
+
+    let unsubscribed = 0
+    const failureCodes: Record<string, number> = {}
+    if (authorized.unauthorizedAccounts) {
+      failureCodes.authorization_denied = authorized.unauthorizedAccounts
+    }
+    for (const target of targets) {
+      try {
+        await deps.notifications.unsubscribe({
+          accessToken: target.accessToken,
+          authorization: target.authorization,
+          gbpAccountId: target.gbpAccountId,
+        })
+        unsubscribed += 1
+      } catch (err) {
+        const code = gbpNotificationFailureCode(err)
+        failureCodes[code] = (failureCodes[code] ?? 0) + 1
+        // Code and error class only, as the subscribe path logs a failed account.
+        deps.logger.warn(
+          { code, errorName: err instanceof Error ? err.name : 'unknown' },
+          'GBP notifications unsubscribe failed — continuing',
+        )
+      }
+    }
+    const failed = Object.values(failureCodes).reduce((sum, count) => sum + count, 0)
+    return {
+      outcome: failed > 0 ? 'provider_failed' : 'unsubscribed',
+      accounts: { unsubscribed, failed, failureCodes },
+    }
+  }
+
   const unsubscribe: ManageNotificationsApi['unsubscribe'] = async (
     organizationId,
     connectionId,
   ) => {
-    try {
-      const authorized = await deps.authorizeProviderCall(organizationId, connectionId)
-      if (!authorized.ok) return
-
-      const targets = distinctTargets(authorized)
-      if (targets.length === 0) return
-      for (const target of targets) {
-        try {
-          await deps.notifications.unsubscribe({
-            accessToken: target.accessToken,
-            authorization: target.authorization,
-            gbpAccountId: target.gbpAccountId,
-          })
-        } catch (err) {
-          deps.logger.warn({ err }, 'GBP notifications unsubscribe failed — continuing')
-        }
-      }
-      deps.logger.info('GBP notifications: unsubscribed')
-    } catch (err) {
-      deps.logger.warn({ err }, 'GBP notifications unsubscribe failed — continuing')
+    const result = await clearBoundAccounts(organizationId, connectionId)
+    if (result.outcome === 'unsubscribed') {
+      deps.logger.info(
+        { unsubscribed: result.accounts.unsubscribed },
+        'GBP notifications: unsubscribed',
+      )
+    } else {
+      // Outcome, counts and codes only. The caller goes on regardless.
+      deps.logger.warn(
+        { outcome: result.outcome, ...result.accounts },
+        'GBP notifications not unsubscribed — continuing',
+      )
     }
+    return result
   }
 
   return { subscribe, unsubscribe }

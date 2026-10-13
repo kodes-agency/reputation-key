@@ -166,6 +166,31 @@ the `portal.on-property-restored` worker consumer raises the fact for each of it
 live Portals (not deleted, not archived) that still has no manager, because
 Restore itself checks only the Property's manager (ADR 0052).
 
+Removing a member releases their Portal responsibilities twice. The removal
+itself releases them before the membership is deleted, in a commit of its own,
+and until that delete the member is still an eligible manager, so an assignment
+another admin saves in between is accepted. The `portal.on-member-removed`
+worker consumer therefore releases again from `identity.member.removed`, the
+fact every removal path records with the membership delete: every assignment
+the member is no longer eligible for, with the gap recorded and announced as
+for any release. Eligibility is asked at delivery, so a member invited again in
+the meantime keeps what they may hold.
+
+A save of a Portal's managers reads eligibility twice: before its write, and
+again once the write has committed. The first read is not under the write's
+lock, so a removal, role change or lost access that commits in between is seen
+by neither that read nor a release that ran before the assignment existed.
+Whichever of the two commits second is therefore followed by a check that sees
+the other: the save's second read, or the release from the fact (after a
+removal) or the reconciliation (after a role or access change). A manager the
+second read finds no longer eligible is released with reason
+`manager_became_ineligible`, the gap is recorded and announced with no actor
+left out, and the save answers `responsible_manager_ineligible`; the rest of the
+selection stays saved. Creating a Portal names its first managers from one read
+before its write and makes no second one: a manager removed in that instant is
+released by `portal.on-member-removed` unless the fact was consumed before the
+create committed.
+
 ## Media
 
 An uploaded image is a `portal_media_assets` row plus one WebP object in the

@@ -25,13 +25,21 @@ import {
   reviewAiAnalysisHeads,
   reviews,
 } from '#/shared/db/schema'
-import { organizationId, propertyId } from '#/shared/domain/ids'
+import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import {
+  analysisExecutionBinding,
+  analysisOperationIdentity,
+} from '../../application/ai-operation-binding'
+import { aiRequestFingerprint } from '../../application/ai-workflow-support'
+import { resolveAnalysisClaimConflict } from '../../application/analysis-claim-conflict'
 import { AI_REVIEW_ANALYSIS_MAX_REOPENS } from '../../domain/review-analysis-reopen'
+import type { AiExecutionStopFence } from '../../domain/types'
+import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 import { createAiReviewAnalysisReopenAdapter } from './ai-review-analysis-reopen.adapter'
 import { createReviewAnalysisEnrollmentAdapter } from './ai-review-analysis-enrollment.adapter'
 
@@ -626,5 +634,192 @@ describe('Review Analysis enrollment catch-up with an abandoned review (real Pos
       eligibleRevisionCount: 3,
     })
     expect(await fixture.analysisSequenceOf(refusedReview)).toBe(refusedSequence)
+  })
+})
+
+// An operator kills an AI execution control and restores it. Each transition
+// moves the control's generation, the operation's request fingerprint covers
+// the generations, and its idempotency key is the review's event. So a review
+// whose operation was claimed before the stop can only meet `conflict` after
+// the restore. The analysis closes that operation as suspended; this suite
+// runs what the store and the reopen pass then do with it.
+describe('reopening a review whose operation was claimed before a control stop (real PostgreSQL)', () => {
+  const scope: Scope = {
+    organizationId: organizationId('ai-reopen-control-stop-test-org'),
+    propertyId: propertyId('77100000-0000-4000-8000-000000000001'),
+    lineageId: '77100000-0000-4000-8000-000000000002',
+  }
+  const heldReview = '77100000-0000-4000-8000-000000000003'
+  const heldEvent = '77100000-0000-4000-8000-000000000004'
+  const operationIds = [
+    '77100000-0000-4000-8000-000000000005',
+    '77100000-0000-4000-8000-000000000006',
+  ]
+  const db = getDb()
+  const operations = createAiOperationStoreAdapter(db, () => {
+    const next = operationIds.shift()
+    if (next === undefined) throw new Error('No operation id left for this test')
+    return next
+  })
+  const reopen = createAiReviewAnalysisReopenAdapter(db)
+  const fixture = reviewFixture(scope)
+  const provenance = { digest: 'c'.repeat(64), byteCount: 24 }
+
+  /** The stop fence the seeded control heads give an operation claimed now. */
+  async function currentStopFence(): Promise<AiExecutionStopFence> {
+    const heads = await db
+      .select({
+        scopeKey: aiExecutionControlHeads.scopeKey,
+        controlId: aiExecutionControlHeads.controlId,
+        generation: aiExecutionControlHeads.generation,
+      })
+      .from(aiExecutionControlHeads)
+    const head = (scopeKey: string) => {
+      const found = heads.find((candidate) => candidate.scopeKey === scopeKey)
+      if (!found) throw new Error(`AI execution control ${scopeKey} is not seeded`)
+      return found
+    }
+    const global = head('global')
+    const provider = head(`provider:${AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion}`)
+    const capability = head('capability:review_analysis')
+    return {
+      globalControlId: global.controlId,
+      globalGeneration: global.generation,
+      providerControlId: provider.controlId,
+      providerGeneration: provider.generation,
+      capabilityControlId: capability.controlId,
+      capabilityGeneration: capability.generation,
+    }
+  }
+
+  /** The held review's analysis request as the use case builds and fingerprints it. */
+  function requestUnder(stopFence: AiExecutionStopFence) {
+    const event = {
+      organizationId: organizationId(scope.organizationId),
+      propertyId: propertyId(scope.propertyId),
+      reviewId: reviewId(heldReview),
+      eventEnvelopeId: heldEvent,
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
+    }
+    const subject = { digest: 'd'.repeat(64), keyVersion: 'ai-reopen-test-v1' }
+    const identity = analysisOperationIdentity(event, subject, NOW.getTime())
+    const binding = analysisExecutionBinding({
+      input: event,
+      authorization: authorizationHead(scope),
+      authorizationLineageId: scope.lineageId,
+      operationProfile: {
+        profileVersion: 'review-analysis-v2',
+        capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
+      },
+      reviewAnalysisEpoch: 1,
+      evaluatedLanguage: 'en',
+      reviewedAtEpochMillis: NOW.getTime(),
+      profile: {
+        organizationId: event.organizationId,
+        propertyId: event.propertyId,
+        countryCode: 'BG',
+        timezone: 'Europe/Sofia',
+        processingRegion: 'global',
+        routingPolicyVersion: 1,
+        sourceEpoch: 0,
+        profileVersion: 1,
+        lifecycleState: 'active',
+      },
+      subjectHmacKeyVersion: subject.keyVersion,
+      stopFence,
+    })
+    return { identity, binding, provenance }
+  }
+
+  function claim(request: ReturnType<typeof requestUnder>, at: Date) {
+    return operations.claim({
+      identity: request.identity,
+      binding: request.binding,
+      idempotencyKey: `analysis:${heldEvent}`,
+      requestFingerprint: aiRequestFingerprint(request),
+      sourceProvenance: request.provenance,
+      nowEpochMillis: at.getTime(),
+      expiresAtEpochMillis: at.getTime() + 24 * 60 * 60_000,
+    })
+  }
+
+  async function storedOperation(id: string) {
+    const [row] = await db
+      .select({ state: aiOperations.state, failureCode: aiOperations.failureCode })
+      .from(aiOperations)
+      .where(eq(aiOperations.id, id))
+    return row
+  }
+
+  beforeAll(async () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    await clearScope(scope)
+    await seedEnabledProperty(scope)
+    await fixture.review({ id: heldReview, analysisSequence: 1 })
+    await fixture.setHead(1)
+  })
+
+  afterAll(async () => {
+    await clearScope(scope)
+    clearEventSchemas()
+  })
+
+  it('answers conflict with the stored operation, closes it as suspended, and reopens the review', async () => {
+    const claimedUnder = await currentStopFence()
+    const created = await claim(requestUnder(claimedUnder), NOW)
+    // The kill and the restore: two transitions of the capability control.
+    const restored = requestUnder({
+      ...claimedUnder,
+      capabilityGeneration: claimedUnder.capabilityGeneration + 2,
+    })
+
+    const afterRestore = await claim(restored, LATER)
+
+    expect(created).toMatchObject({ status: 'created', operation: { state: 'pending' } })
+    expect(afterRestore).toMatchObject({
+      status: 'conflict',
+      operation: {
+        id: created.operation.id,
+        state: 'pending',
+        executionAttempt: 0,
+        failureCode: null,
+        binding: { stopFence: claimedUnder },
+      },
+    })
+    if (afterRestore.status !== 'conflict') return
+
+    await expect(
+      resolveAnalysisClaimConflict(operations, {
+        existing: afterRestore.operation,
+        request: restored,
+        organizationId: organizationId(scope.organizationId),
+        nowEpochMillis: LATER.getTime(),
+      }),
+    ).resolves.toEqual({
+      operationId: afterRestore.operation.id,
+      dispositionCode: 'operation_abandoned',
+    })
+    await expect(storedOperation(afterRestore.operation.id)).resolves.toEqual({
+      state: 'failed',
+      failureCode: 'execution_suspended',
+    })
+
+    // The analysis settles the sequence and the drain removes the backlog
+    // entry; the reopen pass then takes the review at its next sweep.
+    await fixture.settle(heldReview, 1)
+    await expect(
+      reopen.reopenAbandoned({ limit: 50, occurredAt: LATER }),
+    ).resolves.toEqual({ reopened: 1, leftUnanalysed: 0 })
+    expect(await fixture.analysisSequenceOf(heldReview)).toBe(2)
+    expect(await fixture.backfillEvents()).toEqual([
+      expect.objectContaining({
+        reviewId: heldReview,
+        analysisSequence: 2,
+        correlationId: afterRestore.operation.id,
+      }),
+    ])
   })
 })

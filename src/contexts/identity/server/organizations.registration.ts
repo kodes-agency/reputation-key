@@ -59,7 +59,9 @@ export const registerMemberHandler = createServerOnlyFn(
   > => {
     // This is the sole beta account-creation route. The use case requires
     // and consumes an exact email-bound manager invitation; the separate
-    // public-registration capability remains permanently blocked.
+    // public-registration capability remains permanently blocked. Before it
+    // creates anything it asks the capability gate for the invitation's
+    // Organization, so a suspended or stopped Organization gains no member.
     const { reqHeaders, logger } = await admitAuthAttempt(
       'register',
       'Too many registration attempts',
