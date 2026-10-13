@@ -1,5 +1,5 @@
-// `reviewId` is the idempotency key the browser makes for one review act
-// (`crypto.randomUUID()`), and it is written into three durable facts and their
+// `reviewId` is the idempotency key the browser makes for one review act, a
+// random UUID, and it is written into three durable facts and their
 // `source_aggregate_id`; a superseded id is the event id of one of those facts.
 // The request is held to that shape, so no fact carries text of a caller's
 // choosing and size.
