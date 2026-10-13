@@ -7,8 +7,9 @@
 //   1. Better Auth track — getMigrations() from better-auth (the same code
 //      `pnpm auth:migrate` wraps through the repository-pinned schema runner).
 //      Idempotent: creates only missing tables/columns.
-//   2. Drizzle journal track — applies the baseline, DB-only constructs, and
-//      control-plane seed. `pnpm db:migrate` uses the same journal bookkeeping.
+//   2. Drizzle journal track — applies the baseline, DB-only constructs,
+//      control-plane seed and every migration appended since. `pnpm db:migrate`
+//      uses the same journal bookkeeping.
 //   3. Concurrent-index sidecar (src/shared/db/concurrent-index-sidecar.ts) —
 //      advisory-locked CREATE INDEX CONCURRENTLY outside Drizzle's
 //      transaction, for indexes on tables too large to hold a share lock for
@@ -194,8 +195,8 @@ async function main(): Promise<void> {
       await authMigrations.runMigrations()
       log('auth track applied')
 
-      // 2. Apply the three-entry Drizzle journal: baseline, DB-only constructs,
-      // and control-plane seed.
+      // 2. Apply the Drizzle journal: baseline, DB-only constructs,
+      // control-plane seed, then every migration appended since.
       await migrate(migrationDb, { migrationsFolder: MIGRATIONS_FOLDER })
       log('drizzle track applied')
 

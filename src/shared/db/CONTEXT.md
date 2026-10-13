@@ -15,10 +15,13 @@ while it opens a second transaction reserves both clients first
 
 ## Schema tracks
 
-1. **Drizzle journal** — `0000_baseline.sql` contains every application table,
+1. **Drizzle journal** — `drizzle/meta/_journal.json` and one SQL file per
+   entry. The first three entries were generated at the squash of 2026-09-05:
+   `0000_baseline.sql` holds every application table as of that day,
    `0001_db_constructs.sql` copies `db-constructs.sql`, and `0002_db_seed.sql`
-   copies `db-seed.sql`. `pnpm db:migrate` applies this generated three-entry
-   journal, including functions, triggers, and DDL on Better Auth tables.
+   copies `db-seed.sql`. Every entry after them was appended by hand, one per
+   schema or data change. `pnpm db:migrate` applies the whole journal,
+   including functions, triggers, and DDL on Better Auth tables.
 2. **Better Auth** — `pnpm auth:migrate` owns `user`, `session`, `account`,
    `verification`, `organization`, `member`, `invitation`, and
    `organizationRole`. `schema/auth.ts` is a read-only Drizzle query mirror.
@@ -29,20 +32,36 @@ Schema, journal, barrel, auth-mirror, DB-only construct, and deploy-runner parit
 ## Change loop
 
 ```bash
-$EDITOR src/shared/db/schema/<context>.schema.ts
-pnpm db:baseline
-pnpm db:reset
+$EDITOR src/shared/db/schema/<context>.schema.ts   # the model
+$EDITOR drizzle/NNNN_<name>.sql                    # the migration, written by hand
+$EDITOR drizzle/meta/_journal.json                 # its entry, appended last
+DEPLOY_MIGRATE=1 pnpm db:migrate-deploy            # apply it to the local database
 pnpm check:schema-drift
+pnpm check:migration-journal
 ```
 
-`db:baseline` regenerates the journal and hoists unique indexes required by
-composite foreign keys. Edit `db-constructs.sql` directly for functions, triggers,
-EXCLUDE constraints, and DDL on Better Auth tables; its parser derives the
-register. Put every construct expressible by Drizzle in the model instead.
+A schema change is a migration appended to the journal. The journal is history:
+the beta database started empty on 2026-09-05, has applied every entry since and
+keeps its data between deploys, so the journal is never regenerated and an
+applied entry keeps its position, `idx` and `when`. Write the SQL by hand beside
+the model change and append the journal entry under the rules of "Deploy and
+recovery" below (the next `idx`, a `when` stepped from the entry before it, last
+in the file). `pnpm check:schema-drift` then compares the migrated catalogue
+with the model, and `pnpm db:reset` proves the whole journal still applies from
+empty, as CI applies it.
 
-Every environment currently starts from an empty database. A regenerated journal
-cannot be applied over a database that recorded the old entries; if preservation
-becomes necessary, append a migration instead of re-baselining.
+Two commands that look like this loop are not it. `pnpm db:baseline` deletes
+`drizzle/` and writes the three generated entries again. It was the loop while
+every environment started from an empty database; it now refuses while
+`drizzle/` holds an appended migration (`scripts/local/db-baseline.test.ts`).
+`pnpm db:generate` diffs the model against drizzle-kit's newest snapshot, and
+the snapshots in `drizzle/meta/` stop at `0013`, so it would restate every
+change the hand-written migrations have made since.
+
+Edit `db-constructs.sql` directly for functions, triggers, EXCLUDE constraints,
+and DDL on Better Auth tables; its parser derives the register, and the
+migration that changes one restates it (below). Put every construct expressible
+by Drizzle in the model instead.
 
 ## Deploy and recovery
 

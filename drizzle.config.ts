@@ -32,7 +32,8 @@ export default defineConfig({
   // application tables, DB-only constructs, and control-plane seed data. The
   // Drizzle model is verified semantically against migrated metadata by
   // src/shared/db/migration-verification.test.ts. Migrate-based workflow:
-  // edit schema -> `pnpm db:baseline` -> commit drizzle/ -> `pnpm db:migrate`.
+  // edit schema -> append a hand-written migration to drizzle/ -> `pnpm db:migrate`
+  // (src/shared/db/CONTEXT.md, "Change loop"; the journal is never regenerated).
   // Do NOT use db:push — it bypasses the journal and concealed prior drift.
   // Deploy order is `pnpm auth:migrate` -> `pnpm db:migrate`, so constructs
   // targeting Better Auth tables resolve. BQC-7.1 runs both tracks inside the
