@@ -54,7 +54,11 @@ export const createAnalyzeReviewNowEnqueue =
         jobId: `ai-analysis-now-${request.reviewId}`,
         ...jobEnqueueOptions(ANALYZE_REVIEW_NOW_JOB_NAME),
         removeOnComplete: true,
-        removeOnFail: { count: 50 },
+        // BullMQ ignores an add under an id it still holds, and the family has
+        // one attempt: a failed job kept in the failed set would swallow every
+        // later request for its review while the caller is told `queued`. The
+        // dead letter stays in quarantine; the review stays in the backlog.
+        removeOnFail: true,
       },
     )
   }

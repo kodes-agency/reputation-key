@@ -104,7 +104,9 @@ describe('on-demand review analysis enqueue', () => {
         jobId: `ai-analysis-now-${REVIEW_ID}`,
         ...jobEnqueueOptions(ANALYZE_REVIEW_NOW_JOB_NAME),
         removeOnComplete: true,
-        removeOnFail: { count: 50 },
+        // A kept failed job would hold the review's id and swallow the next
+        // request (ai-job-enqueue.integration.test.ts).
+        removeOnFail: true,
       },
     )
   })
