@@ -19,7 +19,7 @@ cp .env.example .env.local
 # Edit .env.local with your DATABASE_URL and BETTER_AUTH_SECRET
 
 # 3. Set up the database through the production-equivalent authority
-# (pinned Better Auth schema, three-entry Drizzle journal, and provider-subject
+# (pinned Better Auth schema, the Drizzle journal, and provider-subject
 # initialization). DEPLOY_MIGRATE=1 is the explicit local/CI authority;
 # Railway deployments use platform identity instead.
 # On an empty database, also set one sealed
@@ -44,7 +44,7 @@ DEPLOY_MIGRATE=1 pnpm db:migrate-deploy
 It provisions the pinned Better Auth tables, applies the Drizzle journal, performs provider-subject initialization, and then applies the declared capability posture (a no-op unless `GOOGLE_CONTENT_CAPABILITIES_ALLOWED` / `AI_CAPABILITIES_ENABLED` are set — see "Capability kill switches after a database reset" below). Railway invokes the same runner under platform identity instead of setting `DEPLOY_MIGRATE`. Use this same journaled workflow in development, CI and production. **Never** run `pnpm db:push` against this schema — it bypasses the authoritative journal and conceals deploy-time drift.
 
 - **Auth schema change:** edit `src/shared/auth/org-schema.ts` (the single source for `additionalFields`), then `pnpm auth:migrate`.
-- **Business schema change:** edit `src/shared/db/schema/`, run `pnpm db:baseline`, review and commit `drizzle/`, then run `pnpm db:migrate`.
+- **Business schema change:** edit `src/shared/db/schema/`, write the migration by hand as the next `drizzle/NNNN_<name>.sql`, append its entry to `drizzle/meta/_journal.json`, then run `DEPLOY_MIGRATE=1 pnpm db:migrate-deploy` and `pnpm check:schema-drift`. The journal is history: the deployed database has applied it and keeps its data, so never regenerate it. `pnpm db:baseline` refuses while an appended migration exists. Steps and journal rules: `src/shared/db/CONTEXT.md`, "Change loop".
 
 CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migration parity). Schema authority and current deploy order: `src/shared/db/CONTEXT.md`.
 

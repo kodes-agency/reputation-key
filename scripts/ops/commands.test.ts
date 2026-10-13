@@ -20,17 +20,22 @@ const OPERATOR_DOCS = [
   ...globSync(['docs/operations/**/*.md', 'docs/agents/**/*.md'], { cwd: ROOT }),
 ]
 
-const INVOCATION = /pnpm ops ([a-z][a-z0-9-]*)/g
+/**
+ * Both spellings the guides use for a command: the shell invocation
+ * `pnpm ops <name>` and the command's own name, `ops:<name>`.
+ */
+const INVOCATION = /(?:pnpm ops |(?<![A-Za-z])ops:)([a-z][a-z0-9-]*)/g
 
 describe('pnpm ops command table', () => {
   // README documented `pnpm ops deploy-ci-images` as THE deploy step while
-  // the dispatcher had no such entry, so the release command exited 1.
-  it('resolves every documented `pnpm ops <name>` invocation', () => {
+  // the dispatcher had no such entry, so the release command exited 1. The
+  // retention registry and the backup guide then named two commands in the
+  // `ops:<name>` spelling, which nothing checked, and neither exists.
+  it('resolves every documented `pnpm ops <name>` and `ops:<name>` command', () => {
     const unresolved = OPERATOR_DOCS.flatMap((path) =>
       [...readFileSync(resolve(ROOT, path), 'utf8').matchAll(INVOCATION)]
-        .map((match) => match[1])
-        .filter((name) => !Object.hasOwn(COMMANDS, name))
-        .map((name) => `${path}: pnpm ops ${name}`),
+        .filter((match) => !Object.hasOwn(COMMANDS, match[1] ?? ''))
+        .map((match) => `${path}: ${match[0]}`),
     )
     expect(unresolved).toEqual([])
   })

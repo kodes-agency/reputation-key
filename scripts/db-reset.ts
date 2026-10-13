@@ -1,12 +1,12 @@
-// Drop the database, create it empty, and bring it to the deploy migration
-// state. This is the schema-change loop's second half:
+// Drop the local database, create it empty, and bring it to the deploy
+// migration state: the whole journal applied from nothing, as CI applies it.
 //
-//   edit src/shared/db/schema/*.ts  ->  pnpm db:baseline  ->  pnpm db:reset
-//   ->  pnpm check:schema-drift
-//
-// It exists because the journal is regenerated rather than appended: a
-// re-baselined journal cannot be applied on top of a database that already
-// recorded the old entries, so the only correct move is to start empty.
+// Use it to start a local database again, for example when the checkout is
+// behind the migrations the database has applied, and to prove that a newly
+// appended migration still applies from empty before
+// `pnpm check:schema-drift`. It is not how a schema change reaches a database
+// that keeps its data: that is the appended migration itself
+// (src/shared/db/CONTEXT.md, "Change loop").
 //
 // Destructive by design, so the target is guarded: localhost only, unless
 // ALLOW_REMOTE_TEST_DB=1 says otherwise out loud.
