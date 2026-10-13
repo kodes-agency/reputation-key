@@ -5,7 +5,7 @@ import type { Portal, PortalTheme } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdatePortalInput } from '../dto/update-portal.dto'
 export type { UpdatePortalInput }
-import { canForContext } from '#/shared/domain/permissions'
+import { canForContext, type Permission } from '#/shared/domain/permissions'
 import { portalId as toPortalId, unbrand, type OrganizationId } from '#/shared/domain/ids'
 import {
   validatePortalName,
@@ -347,11 +347,26 @@ function buildUpdatedPortal(
   }
 }
 
+/**
+ * Archive is the Portal's removal (recoverable, `docs/BETA.md` §3), so it asks
+ * the removal permission the Portals pages offer it on; every other change,
+ * Disable and Restore included, is an update. Decided on what the caller asks
+ * for, so an archive bundled with an edit is held to it too.
+ */
+const requiredPermission = (input: UpdatePortalInput): Permission =>
+  input.publicationState === 'archived' ? 'portal.delete' : 'portal.update'
+
 export const updatePortal =
   (deps: UpdatePortalDeps) =>
   async (input: UpdatePortalInput, ctx: AuthContext): Promise<Portal> => {
-    if (!canForContext(ctx, 'portal.update')) {
-      throw portalError('forbidden', 'this role cannot edit portals')
+    const permission = requiredPermission(input)
+    if (!canForContext(ctx, permission)) {
+      throw portalError(
+        'forbidden',
+        permission === 'portal.delete'
+          ? 'this role cannot archive portals'
+          : 'this role cannot edit portals',
+      )
     }
 
     const pid = toPortalId(input.portalId)
@@ -360,12 +375,7 @@ export const updatePortal =
       throw portalError('portal_not_found', 'portal not found in this organization')
     }
     // Enforce property-assignment scoping (D6-001.)
-    await assertPropertyAccess(
-      deps.staffPublicApi,
-      ctx,
-      'portal.update',
-      existing.propertyId,
-    )
+    await assertPropertyAccess(deps.staffPublicApi, ctx, permission, existing.propertyId)
 
     assertArchivedMutationIsRestore(input, existing)
 

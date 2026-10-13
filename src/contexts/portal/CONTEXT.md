@@ -39,6 +39,14 @@ Activations are append-only effective-dated routes from a stable token to one
 snapshot; publish, republish and rollback append activations, while disable/archive
 close one. Groups remain Property-scoped, and one Portal has at most one active group.
 
+Archive is the Portal's removal, so it asks `portal.delete` (an AccountAdmin), the
+permission the Portals pages offer Archive on and the one a group's archive asks.
+`updatePortal` decides that itself from what it is asked to do (a patch that names
+`publicationState: 'archived'`, alone or bundled with an edit), so the rule holds
+whichever server function carries the patch. Disable and Restore are updates
+(`portal.update`): a PropertyManager can take a live page down and bring an archived
+Portal back to Disabled.
+
 A Portal changes group in one commit: `movePortalToGroup` (and create-with-move,
 where a new group takes Portals that are in another group) ends the old
 `portal_group_memberships` row with `end_reason = 'moved_to_group'` and begins the
