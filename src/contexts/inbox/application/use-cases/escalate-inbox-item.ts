@@ -48,10 +48,12 @@ export const escalateInboxItem =
       input.inboxItemId,
       ctx.organizationId,
     )
-    assertExpectedCommandRevision(item, input.expectedCommandRevision)
     if (!canHandleInboxSource(ctx, item.sourceType)) {
       throw inboxError('forbidden', 'No permission to handle this inbox source')
     }
+    // Scope before the revision fence: a conflict names the item's current
+    // revision and status, which a caller with no access to its Property must
+    // not be told.
     await assertInboxSourcePropertyAccessible(
       deps.staffPublicApi,
       ctx,
@@ -59,6 +61,7 @@ export const escalateInboxItem =
       item.sourceType,
       item.propertyId,
     )
+    assertExpectedCommandRevision(item, input.expectedCommandRevision)
 
     // 2. Idempotent: already escalated (active flag) — no-op return
     if (item.isEscalated && item.escalationResolvedAt === null) {
