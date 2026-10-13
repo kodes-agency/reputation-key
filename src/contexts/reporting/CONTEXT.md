@@ -152,7 +152,15 @@ aggregate and read purpose even though they share a bounded context.
 
 Metric and Goal event modules are named `metric-events.ts` and `goal-events.ts`. Their event
 tags remain stable for outbox replay compatibility. Reporting consumes Guest, Portal, Review,
-and metric-correction facts through the shared durable consumer registry.
+and metric-correction facts through the shared durable consumer registry. Each
+consumer holds a receipt for a fact it has finished. The Goal correction consumer
+writes its receipt after a complete reconciliation pass, outside the result
+transactions, which is the second form the consumer contract allows
+(`ConsumerRegistration.handler` in `src/shared/outbox/consumer-registry.ts`):
+each closed result is revised by its own compare-and-set, so a delivery repeated
+after a crash finds every result unchanged and only adds the receipt. A pending
+result throws before the receipt, and the fact is delivered again
+(`metric-correction-outbox-consumers.integration.test.ts`).
 
 ## Verification
 
