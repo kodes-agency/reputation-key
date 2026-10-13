@@ -19,6 +19,11 @@
 // without Property Trends, a consent given again while the enrollment is still
 // the earlier one, an analysis that has not caught up, and a Property before
 // its local run time.
+//
+// The three capability epochs are separate counters. Enabling a Property sets
+// them alike, and they part when Property Trends is added to a standing
+// authorization: only that capability's epoch advances. Two fixtures hold that
+// shape, so a clause that reads one epoch where it means the other is caught.
 
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -49,7 +54,10 @@ import {
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import type { AiTrendEvidence } from '../../application/ports/ai-output-store.port'
+import type {
+  AiTrendEvidence,
+  AiTrendReport,
+} from '../../application/ports/ai-output-store.port'
 import { createAiPropertyTrendScheduleStore } from './ai-property-trend-schedule-store.adapter'
 
 const ORGANIZATION_ID = 'ai-trend-schedule-store-test'
@@ -67,10 +75,17 @@ const MAX_DRAIN_BATCHES = 50
 
 const TRENDS = ['review_analysis', 'property_trends'] as const
 const ANALYSIS_ONLY = ['review_analysis'] as const
-type Capabilities = typeof TRENDS | typeof ANALYSIS_ONLY | readonly []
+const TRENDS_AND_DRAFTING = [
+  'review_analysis',
+  'reply_drafting',
+  'property_trends',
+] as const
+type Capabilities =
+  typeof TRENDS | typeof ANALYSIS_ONLY | typeof TRENDS_AND_DRAFTING | readonly []
 
 const RUNTIME_PROFILES = {
   review_analysis: 'review-analysis-runtime-v1',
+  reply_drafting: 'reply-drafting-runtime-v1',
   property_trends: 'property-trends-runtime-v1',
 } as const
 
@@ -111,6 +126,9 @@ const RECONSENTED = fixture(5)
 const ANALYSIS_BEHIND = fixture(6)
 const BEFORE_LOCAL_RUN_TIME = fixture(7)
 const OTHER_TENANT_DUE = fixture(8, OTHER_ORGANIZATION_ID)
+const TRENDS_ADDED_LATER = fixture(9)
+const TRENDS_ADDED_NOT_REENROLLED = fixture(10)
+const DUE_THEN_DRAFTING_ADDED = fixture(11)
 const ALL = [
   DUE,
   DUE_THEN_REVOKED,
@@ -120,6 +138,9 @@ const ALL = [
   ANALYSIS_BEHIND,
   BEFORE_LOCAL_RUN_TIME,
   OTHER_TENANT_DUE,
+  TRENDS_ADDED_LATER,
+  TRENDS_ADDED_NOT_REENROLLED,
+  DUE_THEN_DRAFTING_ADDED,
 ] as const
 const ORGANIZATIONS = [ORGANIZATION_ID, OTHER_ORGANIZATION_ID] as const
 
@@ -133,12 +154,24 @@ const store = createAiPropertyTrendScheduleStore(db, () => {
   return id
 })
 
+type CapabilityEpochs = Readonly<{
+  reviewAnalysis: number
+  replyDrafting: number
+  propertyTrends: number
+}>
+
+const everyEpochAt = (epoch: number): CapabilityEpochs => ({
+  reviewAnalysis: epoch,
+  replyDrafting: epoch,
+  propertyTrends: epoch,
+})
+
 type AuthorizationState = Readonly<{
   stateVersion: number
   transitionKind: 'enable' | 'change' | 'revoke'
   state: 'enabled' | 'revoked'
   capabilities: Capabilities
-  epoch: number
+  epochs: CapabilityEpochs
 }>
 
 /**
@@ -156,9 +189,9 @@ async function applyAuthorization(
     state: next.state,
     capabilities: [...next.capabilities],
     capabilityRuntimeProfileVersions: runtimeProfilesOf(next.capabilities),
-    reviewAnalysisEpoch: next.epoch,
-    replyDraftingEpoch: next.epoch,
-    propertyTrendsEpoch: next.epoch,
+    reviewAnalysisEpoch: next.epochs.reviewAnalysis,
+    replyDraftingEpoch: next.epochs.replyDrafting,
+    propertyTrendsEpoch: next.epochs.propertyTrends,
     authorizedSourceEpoch: 0,
     analysisStartSequence: 0,
     stateVersion: next.stateVersion,
@@ -197,7 +230,7 @@ const enabledFor = (capabilities: Capabilities): AuthorizationState => ({
   transitionKind: 'enable',
   state: 'enabled',
   capabilities,
-  epoch: 1,
+  epochs: everyEpochAt(1),
 })
 
 const REVOKE: AuthorizationState = {
@@ -205,7 +238,7 @@ const REVOKE: AuthorizationState = {
   transitionKind: 'revoke',
   state: 'revoked',
   capabilities: [],
-  epoch: 2,
+  epochs: everyEpochAt(2),
 }
 
 /** Consent given again under a changed notice: every epoch advances. */
@@ -214,7 +247,31 @@ const RECONSENT: AuthorizationState = {
   transitionKind: 'change',
   state: 'enabled',
   capabilities: TRENDS,
-  epoch: 2,
+  epochs: everyEpochAt(2),
+}
+
+/**
+ * Property Trends added to an authorization that held Review Analysis only.
+ * The capability that joined advances its epoch; the others keep theirs.
+ */
+const TRENDS_ADDED: AuthorizationState = {
+  stateVersion: 2,
+  transitionKind: 'change',
+  state: 'enabled',
+  capabilities: TRENDS,
+  epochs: { reviewAnalysis: 1, replyDrafting: 1, propertyTrends: 2 },
+}
+
+/**
+ * Reply Drafting added to an authorization that already held Property Trends.
+ * Neither epoch a trend schedule is bound to moves; the state version does.
+ */
+const DRAFTING_ADDED: AuthorizationState = {
+  stateVersion: 2,
+  transitionKind: 'change',
+  state: 'enabled',
+  capabilities: TRENDS_AND_DRAFTING,
+  epochs: { reviewAnalysis: 1, replyDrafting: 2, propertyTrends: 1 },
 }
 
 async function seedAggregateHead(target: Fixture, epoch: number): Promise<void> {
@@ -228,6 +285,43 @@ async function seedAggregateHead(target: Fixture, epoch: number): Promise<void> 
     terminalAnalysisSequence: 0,
     settledAnalysisCount: 0,
     updatedAt: new Date(),
+  })
+}
+
+/**
+ * Review Analysis caught up under one state of the authorization. An earlier
+ * enrollment stays as it ended, so a Property whose authorization changed holds
+ * one row per state version it was enrolled under.
+ */
+async function seedCaughtUpEnrollment(
+  target: Fixture,
+  authorization: AuthorizationState,
+): Promise<void> {
+  const now = new Date()
+  const index = ALL.indexOf(target) + 1
+  await db.insert(aiReviewAnalysisEnrollments).values({
+    id: uuid(`4${authorization.stateVersion}`, index),
+    organizationId: target.organizationId,
+    propertyId: target.propertyId,
+    authorizationLineageId: target.lineageId,
+    authorizationStateVersion: authorization.stateVersion,
+    sourceEpoch: 0,
+    reviewAnalysisEpoch: authorization.epochs.reviewAnalysis,
+    analysisStartSequence: 0,
+    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    triggerEventEnvelopeId: uuid(`5${authorization.stateVersion}`, index),
+    state: 'caught_up',
+    snapshotRevisionCount: 0,
+    snapshotRevisionSetDigest: EMPTY_SET_DIGEST,
+    snapshotCapturedAt: now,
+    caughtUpEligibleRevisionCount: 0,
+    caughtUpAnalysisSequence: 0,
+    caughtUpRevisionSetDigest: EMPTY_SET_DIGEST,
+    caughtUpAt: now,
+    terminalReason: 'eligible_revision_set_caught_up',
+    terminalAt: now,
+    createdAt: now,
+    updatedAt: now,
   })
 }
 
@@ -265,7 +359,8 @@ async function seedProperty(
     createdAt: now,
     updatedAt: now,
   })
-  await applyAuthorization(target, enabledFor(options.capabilities))
+  const authorization = enabledFor(options.capabilities)
+  await applyAuthorization(target, authorization)
   await db.insert(aiPropertyProcessingProfiles).values({
     propertyId: target.propertyId,
     organizationId: target.organizationId,
@@ -279,31 +374,8 @@ async function seedProperty(
     lifecycleState: 'active',
     updatedAt: now,
   })
-  await db.insert(aiReviewAnalysisEnrollments).values({
-    id: uuid('40', index),
-    organizationId: target.organizationId,
-    propertyId: target.propertyId,
-    authorizationLineageId: target.lineageId,
-    authorizationStateVersion: 1,
-    sourceEpoch: 0,
-    reviewAnalysisEpoch: 1,
-    analysisStartSequence: 0,
-    providerDeploymentProfileVersion: 'private-beta-global-v1',
-    triggerEventEnvelopeId: uuid('50', index),
-    state: 'caught_up',
-    snapshotRevisionCount: 0,
-    snapshotRevisionSetDigest: EMPTY_SET_DIGEST,
-    snapshotCapturedAt: now,
-    caughtUpEligibleRevisionCount: 0,
-    caughtUpAnalysisSequence: 0,
-    caughtUpRevisionSetDigest: EMPTY_SET_DIGEST,
-    caughtUpAt: now,
-    terminalReason: 'eligible_revision_set_caught_up',
-    terminalAt: now,
-    createdAt: now,
-    updatedAt: now,
-  })
-  await seedAggregateHead(target, 1)
+  await seedCaughtUpEnrollment(target, authorization)
+  await seedAggregateHead(target, authorization.epochs.reviewAnalysis)
 }
 
 async function clearFixture(): Promise<void> {
@@ -391,6 +463,16 @@ async function schedulesOfFixture() {
     .orderBy(aiPropertyTrendSchedules.propertyId)
 }
 
+/** How many of the ids this run minted are stored as schedules. */
+async function storedMintedScheduleCount(): Promise<number> {
+  if (mintedScheduleIds.length === 0) return 0
+  const stored = await db
+    .select({ id: aiPropertyTrendSchedules.id })
+    .from(aiPropertyTrendSchedules)
+    .where(inArray(aiPropertyTrendSchedules.id, mintedScheduleIds))
+  return stored.length
+}
+
 async function scheduleOf(target: Fixture) {
   const [schedule] = await db
     .select({ id: aiPropertyTrendSchedules.id })
@@ -429,6 +511,16 @@ function evidenceFor(timezone: string): AiTrendEvidence {
   }
 }
 
+const READY_REPORT = {
+  signalKey: 'service.staff',
+  direction: 'improving',
+  changeMagnitudeBasisPoints: 1_200,
+  supportingReviewCount: 3,
+  headline: 'Review signals improved',
+  sentences: ['Guests mention the staff more often than before.'],
+  summary: 'Guests mention the staff more often than before.',
+} as const satisfies AiTrendReport
+
 describe.sequential('Property Trend scheduler store (real PostgreSQL)', () => {
   const startedAt = new Date()
   const dueZone = zoneWhereLocalHourIs(NOON, startedAt)
@@ -448,6 +540,10 @@ describe.sequential('Property Trend scheduler store (real PostgreSQL)', () => {
 
     await seedProperty(DUE, { timezone: dueZone, capabilities: TRENDS })
     await seedProperty(DUE_THEN_REVOKED, { timezone: dueZone, capabilities: TRENDS })
+    await seedProperty(DUE_THEN_DRAFTING_ADDED, {
+      timezone: dueZone,
+      capabilities: TRENDS,
+    })
     await seedProperty(OTHER_TENANT_DUE, { timezone: dueZone, capabilities: TRENDS })
 
     await seedProperty(REVOKED, { timezone: dueZone, capabilities: TRENDS })
@@ -459,7 +555,7 @@ describe.sequential('Property Trend scheduler store (real PostgreSQL)', () => {
     // enrollment taken under the earlier one keeps this Property out.
     await seedProperty(RECONSENTED, { timezone: dueZone, capabilities: TRENDS })
     await applyAuthorization(RECONSENTED, RECONSENT)
-    await seedAggregateHead(RECONSENTED, RECONSENT.epoch)
+    await seedAggregateHead(RECONSENTED, RECONSENT.epochs.reviewAnalysis)
 
     await seedProperty(ANALYSIS_BEHIND, {
       timezone: dueZone,
@@ -470,6 +566,24 @@ describe.sequential('Property Trend scheduler store (real PostgreSQL)', () => {
       timezone: notYetDueZone,
       capabilities: TRENDS,
     })
+
+    // The ordinary way a Property gets trends: added to a standing Review
+    // Analysis authorization, with the analysis enrolled again under the new
+    // state version at the epoch it already had.
+    await seedProperty(TRENDS_ADDED_LATER, {
+      timezone: dueZone,
+      capabilities: ANALYSIS_ONLY,
+    })
+    await applyAuthorization(TRENDS_ADDED_LATER, TRENDS_ADDED)
+    await seedCaughtUpEnrollment(TRENDS_ADDED_LATER, TRENDS_ADDED)
+
+    // The same change before that second enrollment: the epochs all match, and
+    // only the state version the enrollment names keeps this Property out.
+    await seedProperty(TRENDS_ADDED_NOT_REENROLLED, {
+      timezone: dueZone,
+      capabilities: ANALYSIS_ONLY,
+    })
+    await applyAuthorization(TRENDS_ADDED_NOT_REENROLLED, TRENDS_ADDED)
   })
 
   afterAll(async () => {
@@ -487,10 +601,13 @@ describe.sequential('Property Trend scheduler store (real PostgreSQL)', () => {
     expect(
       schedules.map(({ organizationId, propertyId }) => ({ organizationId, propertyId })),
     ).toEqual(
-      [DUE, DUE_THEN_REVOKED, OTHER_TENANT_DUE].map(({ organizationId, propertyId }) => ({
-        organizationId,
-        propertyId,
-      })),
+      [
+        DUE,
+        DUE_THEN_REVOKED,
+        OTHER_TENANT_DUE,
+        TRENDS_ADDED_LATER,
+        DUE_THEN_DRAFTING_ADDED,
+      ].map(({ organizationId, propertyId }) => ({ organizationId, propertyId })),
     )
     const [dueLocalDate] = (
       await db.execute<{ today: string }>(sql`
@@ -502,6 +619,13 @@ describe.sequential('Property Trend scheduler store (real PostgreSQL)', () => {
       reviewAnalysisEpoch: 1,
       propertyTrendsEpoch: 1,
       timezone: dueZone,
+    })
+    // Each epoch is stored from its own column of the authorization.
+    expect(
+      schedules.find(({ propertyId }) => propertyId === TRENDS_ADDED_LATER.propertyId),
+    ).toMatchObject({
+      reviewAnalysisEpoch: TRENDS_ADDED.epochs.reviewAnalysis,
+      propertyTrendsEpoch: TRENDS_ADDED.epochs.propertyTrends,
     })
   })
 
@@ -536,6 +660,9 @@ describe.sequential('Property Trend scheduler store (real PostgreSQL)', () => {
     await scheduleEverythingDue()
 
     expect(await schedulesOfFixture()).toEqual(before)
+    // The unique index would refuse a second schedule by itself. The statement
+    // must not offer one either: every id it minted is a schedule it stored.
+    expect(await storedMintedScheduleCount()).toBe(mintedScheduleIds.length)
   })
 
   it('answers busy and schedules nothing while another worker holds the lease', async () => {
@@ -571,6 +698,47 @@ describe.sequential('Property Trend scheduler store (real PostgreSQL)', () => {
     })
   })
 
+  it('stores the outcome of a Property whose trends were added to a standing authorization', async () => {
+    const schedule = await scheduleOf(TRENDS_ADDED_LATER)
+
+    const result = await store.recordProviderFreeOutcome({
+      scheduleId: schedule.id,
+      disposition: 'no_material_change',
+      evidence: evidenceFor(dueZone),
+    })
+
+    expect(result).toBe('recorded')
+    expect(await store.read(schedule.id)).toMatchObject({
+      reviewAnalysisEpoch: TRENDS_ADDED.epochs.reviewAnalysis,
+      propertyTrendsEpoch: TRENDS_ADDED.epochs.propertyTrends,
+      outcomeDisposition: 'no_material_change',
+    })
+  })
+
+  it('stores a ready report while the authorization is current, and replays the same one', async () => {
+    const schedule = await scheduleOf(OTHER_TENANT_DUE)
+    const outcome = {
+      scheduleId: schedule.id,
+      selectedSignalIds: ['signal-1'],
+      report: READY_REPORT,
+      evidence: evidenceFor(dueZone),
+    }
+
+    expect(await store.recordDeterministicReport(outcome)).toBe('recorded')
+    expect(await store.recordDeterministicReport(outcome)).toBe('replayed')
+    expect(
+      await store.recordDeterministicReport({
+        ...outcome,
+        report: { ...READY_REPORT, direction: 'declining' },
+      }),
+    ).toBe('stale')
+    expect(await store.read(schedule.id)).toMatchObject({
+      organizationId: OTHER_ORGANIZATION_ID,
+      propertyId: OTHER_TENANT_DUE.propertyId,
+      outcomeDisposition: 'ready',
+    })
+  })
+
   it('refuses the outcome of a schedule whose authorization was revoked after scheduling', async () => {
     const schedule = await scheduleOf(DUE_THEN_REVOKED)
     await applyAuthorization(DUE_THEN_REVOKED, REVOKE)
@@ -583,5 +751,25 @@ describe.sequential('Property Trend scheduler store (real PostgreSQL)', () => {
 
     expect(result).toBe('stale')
     expect(await store.read(schedule.id)).toMatchObject({ outcomeDisposition: null })
+  })
+
+  it('refuses the outcome of a schedule whose authorization changed before the analysis was enrolled under it', async () => {
+    const schedule = await scheduleOf(DUE_THEN_DRAFTING_ADDED)
+    // Both epochs of the schedule still match the authorization. What no
+    // longer holds is Review Analysis caught up under its current state.
+    await applyAuthorization(DUE_THEN_DRAFTING_ADDED, DRAFTING_ADDED)
+
+    const result = await store.recordProviderFreeOutcome({
+      scheduleId: schedule.id,
+      disposition: 'insufficient_data',
+      evidence: evidenceFor(dueZone),
+    })
+
+    expect(result).toBe('stale')
+    expect(await store.read(schedule.id)).toMatchObject({
+      reviewAnalysisEpoch: DRAFTING_ADDED.epochs.reviewAnalysis,
+      propertyTrendsEpoch: DRAFTING_ADDED.epochs.propertyTrends,
+      outcomeDisposition: null,
+    })
   })
 })
