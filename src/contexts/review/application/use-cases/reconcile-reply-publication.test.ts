@@ -296,6 +296,36 @@ describe('reconcileReplyPublication', () => {
     }
   })
 
+  // An edit-and-republish whose echo has not arrived: Google still shows the
+  // reply it was written over. The authority recorded nothing and decided
+  // nothing, and the read says so in its own word, not as another author's
+  // reply (which is what a plain `unchanged` live read is reported as).
+  it('observation authority saw the earlier publication still live → reports it, not a different reply', async () => {
+    const { deps, observationStore } = makeDeps({
+      reply: makeReply(),
+      review: makeReview(),
+      googleReview: makeGoogleReview({ replyText: 'The reply before the edit' }),
+    })
+    observationStore.record.mockResolvedValueOnce({
+      observationRevision: 1,
+      change: 'unchanged',
+      resolution: 'earlier_publication_live',
+      matchedReplyId: null,
+      matchedPublicationCycle: null,
+      duplicate: true,
+    })
+
+    const result = await reconcileReplyPublication(deps)({
+      replyId: REPLY_ID,
+      organizationId: ORG_ID,
+    })
+
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value).toEqual({ outcome: 'earlier_publication_live' })
+    }
+  })
+
   it('binds the targeted observation identity to the current source fences', async () => {
     const first = makeDeps({
       reply: makeReply(),

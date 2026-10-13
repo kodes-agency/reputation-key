@@ -33,8 +33,9 @@
 //           (publish_failed / retryable), without reading Google;
 //        b. otherwise one targeted read. A live exact or different reply is
 //           recorded and the observation authority confirms or supersedes;
-//        c. D3: an absent reply, a failed read, a reply RepKey cannot read, or
-//           a whitespace-only difference is not a result. Inside the 15-minute
+//        c. D3: an absent reply, a failed read, a reply RepKey cannot read, a
+//           whitespace-only difference, or (for an edit) the reply it was
+//           written over, still shown, is not a result. Inside the 15-minute
 //           propagation grace the row stays `sending` and is due again in one
 //           minute (the sweep reads it next); past the grace it becomes
 //           ambiguous, due at the next rung of the 72-hour read ladder.
@@ -396,7 +397,11 @@ type AttemptStart = Date | null
 
 /** Why an uncertain attempt's read decided nothing (logged, content-free). */
 type InconclusiveReason =
-  'absent' | 'read_failed' | 'reply_unreadable' | 'whitespace_only_difference'
+  | 'absent'
+  | 'read_failed'
+  | 'reply_unreadable'
+  | 'whitespace_only_difference'
+  | 'earlier_publication_live'
 
 /** What one targeted read of an uncertain attempt established. */
 type UncertainReadback =
@@ -588,6 +593,12 @@ async function readUncertainAttempt(
   // this attempt only by whitespace; it neither confirmed nor superseded it.
   if (observation.resolution === 'diverged') {
     return { kind: 'inconclusive', reason: 'whitespace_only_difference' }
+  }
+  // Google still shows the reply this edit was written over: a read from
+  // before the write landed, or one its read path has not caught up with. The
+  // authority recorded nothing and decided nothing.
+  if (observation.resolution === 'earlier_publication_live') {
+    return { kind: 'inconclusive', reason: 'earlier_publication_live' }
   }
   return { kind: 'recorded' }
 }

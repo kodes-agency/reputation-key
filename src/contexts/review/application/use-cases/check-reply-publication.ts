@@ -36,7 +36,9 @@ import {
 export type ReplyPublicationCheckOutcome =
   /** Confirmed now, or already published. */
   | 'live_on_google'
-  /** Absent; the attempt may still have been sent, so it stays check-only. */
+  /** Not showing: Google has no reply there, or still shows the one an edit
+   * was written over. The attempt may still have been sent, so it stays
+   * check-only. */
   | 'not_on_google'
   /** Positive evidence settled it as never sent; publishing again is safe. */
   | 'never_sent'
@@ -99,6 +101,9 @@ const READ_OUTCOMES: Readonly<
   diverged: 'different_reply_on_google',
   provider_review_missing: 'review_missing_on_google',
   unreadable: 'unreadable_on_google',
+  // Google still shows the reply this edit was written over. The edit is not
+  // showing there, which is what `not_on_google` says of a first reply too.
+  earlier_publication_live: 'not_on_google',
 }
 
 /**

@@ -39,8 +39,19 @@ export type RecordGoogleReplyObservation = GoogleReplyObservationBase &
 export type GoogleReplyObservationResult = Readonly<{
   observationRevision: number
   change: 'added' | 'edited' | 'deleted' | 'unchanged'
+  /**
+   * `earlier_publication_live` is the one resolution that is never stored. The
+   * read showed the Reply's own earlier publication while its edit is in
+   * flight: no observation was appended, `observationRevision` is the head's,
+   * and nothing was decided about the attempt.
+   */
   resolution:
-    'confirmed_on_google' | 'external_current_live' | 'diverged' | 'absent' | 'unchanged'
+    | 'confirmed_on_google'
+    | 'external_current_live'
+    | 'diverged'
+    | 'absent'
+    | 'unchanged'
+    | 'earlier_publication_live'
   matchedReplyId: ReplyId | null
   matchedPublicationCycle: number | null
   duplicate: boolean

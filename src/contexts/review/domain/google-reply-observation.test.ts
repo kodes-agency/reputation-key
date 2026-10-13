@@ -41,6 +41,7 @@ describe('Google reply observation decision', () => {
     materialReviewRevision: 4,
     expectedReplyDigest: '',
     expectedReplyText: null,
+    earlierConfirmedDigest: null,
     outcome: 'provider_outcome_pending' as const,
   }
 
@@ -115,6 +116,182 @@ describe('Google reply observation decision', () => {
       resolution: 'external_current_live',
       provenance: 'external_or_unknown',
       matchedReplyId: null,
+    })
+  })
+
+  // An edit-and-republish is written over the reply RepKey published before.
+  // Until Google shows the edit, a read answers with that earlier reply: a
+  // read taken before the write landed, or one Google serves before its read
+  // path has caught up. It is RepKey's own text, not another author's, and it
+  // says nothing about the edit, as an absent reply says nothing about a
+  // first one.
+  describe('the earlier publication of a reply whose edit is in flight', () => {
+    const digest = (text: string) => compareObservedGoogleReply(text, text).observedDigest
+    const EARLIER = 'Thanks!'
+    const EDIT = 'Thank you, Anna!'
+    const earlierIsTheHead = {
+      state: 'live' as const,
+      normalizedDigest: digest(EARLIER),
+      ...scope,
+    }
+    const edit = {
+      ...candidate,
+      expectedReplyDigest: digest(EDIT),
+      expectedReplyText: EDIT,
+      earlierConfirmedDigest: digest(EARLIER),
+    }
+
+    it.each([
+      ['an edit on the wire', 'sending'],
+      ['an edit Google accepted', 'provider_outcome_pending'],
+      ['an edit of unknown outcome', 'ambiguous'],
+    ] as const)(
+      'decides nothing about %s while Google still shows it',
+      (_label, outcome) => {
+        expect(
+          decideGoogleReplyObservation({
+            ...scope,
+            observedText: ` ${EARLIER}\r\n`,
+            previous: earlierIsTheHead,
+            candidate: { ...edit, outcome },
+          }),
+        ).toMatchObject({
+          state: 'live',
+          change: 'unchanged',
+          resolution: 'earlier_publication_live',
+          matchedReplyId: null,
+          matchedPublicationCycle: null,
+          matchedAttemptNumber: null,
+        })
+      },
+    )
+
+    it('confirms the edit once Google shows it', () => {
+      expect(
+        decideGoogleReplyObservation({
+          ...scope,
+          observedText: EDIT,
+          previous: earlierIsTheHead,
+          candidate: edit,
+        }),
+      ).toMatchObject({ change: 'edited', resolution: 'confirmed_on_google' })
+    })
+
+    it('still closes a reply that is neither the edit nor the earlier one as external', () => {
+      expect(
+        decideGoogleReplyObservation({
+          ...scope,
+          observedText: 'Someone else answered on Google.',
+          previous: earlierIsTheHead,
+          candidate: edit,
+        }),
+      ).toMatchObject({ change: 'edited', resolution: 'external_current_live' })
+    })
+
+    it('still closes an unchanged head RepKey never confirmed for this reply as external', () => {
+      expect(
+        decideGoogleReplyObservation({
+          ...scope,
+          observedText: EARLIER,
+          previous: earlierIsTheHead,
+          candidate: { ...edit, earlierConfirmedDigest: null },
+        }),
+      ).toMatchObject({ change: 'unchanged', resolution: 'external_current_live' })
+      expect(
+        decideGoogleReplyObservation({
+          ...scope,
+          observedText: EARLIER,
+          previous: earlierIsTheHead,
+          candidate: { ...edit, earlierConfirmedDigest: digest('Another reply') },
+        }),
+      ).toMatchObject({ change: 'unchanged', resolution: 'external_current_live' })
+    })
+
+    it('does not read the earlier text as "nothing changed" when the head does not hold it', () => {
+      // The head says Google showed no reply, or a head from another source
+      // scope cannot witness one: the earlier text is then a change to record.
+      const absentHead = { ...earlierIsTheHead, state: 'absent' as const }
+      for (const previous of [
+        { ...absentHead, normalizedDigest: null },
+        { ...earlierIsTheHead, sourceEpoch: scope.sourceEpoch - 1 },
+        null,
+      ]) {
+        expect(
+          decideGoogleReplyObservation({
+            ...scope,
+            observedText: EARLIER,
+            previous,
+            candidate: edit,
+          }),
+        ).toMatchObject({ change: 'added', resolution: 'external_current_live' })
+      }
+    })
+
+    it('does not shield an attempt that is no longer in flight', () => {
+      expect(
+        decideGoogleReplyObservation({
+          ...scope,
+          observedText: EARLIER,
+          previous: earlierIsTheHead,
+          candidate: { ...edit, outcome: 'superseded' },
+        }),
+      ).toMatchObject({ change: 'unchanged', resolution: 'unchanged' })
+    })
+
+    // An edit may change nothing but spacing or line breaks. Collapsed, the
+    // earlier reply then equals the edit, which is also how a reformatted echo
+    // of the edit looks (D6, below). But it is the text the head already
+    // holds and RepKey confirmed, digest for digest: the earlier publication.
+    // Read as an echo it would be recorded, and the Inbox would show the
+    // manager their own earlier reply as one RepKey did not write.
+    describe('when the edit changes only whitespace', () => {
+      const ONE_LINE = 'Thank you, Anna! We hope to see you again.'
+      const TWO_PARAGRAPHS = 'Thank you, Anna!\n\nWe hope to see you again.'
+      const oneLineIsTheHead = { ...earlierIsTheHead, normalizedDigest: digest(ONE_LINE) }
+      const reflowed = {
+        ...candidate,
+        expectedReplyDigest: digest(TWO_PARAGRAPHS),
+        expectedReplyText: TWO_PARAGRAPHS,
+        earlierConfirmedDigest: digest(ONE_LINE),
+      }
+
+      it('reads the earlier text as the earlier publication, not as an echo of the edit', () => {
+        expect(digest(ONE_LINE)).not.toBe(digest(TWO_PARAGRAPHS))
+        expect(
+          decideGoogleReplyObservation({
+            ...scope,
+            observedText: ONE_LINE,
+            previous: oneLineIsTheHead,
+            candidate: reflowed,
+          }),
+        ).toMatchObject({
+          change: 'unchanged',
+          resolution: 'earlier_publication_live',
+          matchedReplyId: null,
+        })
+      })
+
+      it('still reads any other spacing of the edit as its reformatted echo', () => {
+        expect(
+          decideGoogleReplyObservation({
+            ...scope,
+            observedText: 'Thank you, Anna!\nWe hope to see you again.',
+            previous: oneLineIsTheHead,
+            candidate: reflowed,
+          }),
+        ).toMatchObject({ change: 'edited', resolution: 'diverged' })
+      })
+
+      it('confirms the edit once Google shows it exactly', () => {
+        expect(
+          decideGoogleReplyObservation({
+            ...scope,
+            observedText: TWO_PARAGRAPHS,
+            previous: oneLineIsTheHead,
+            candidate: reflowed,
+          }),
+        ).toMatchObject({ change: 'edited', resolution: 'confirmed_on_google' })
+      })
     })
   })
 
