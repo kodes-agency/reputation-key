@@ -553,12 +553,16 @@ is refused with `irreversible_state` in the application and
 `irreversible once purging has begun` in direct SQL.
 
 **Asynchronous purge.** `advance-property-erase.job.ts` advances at most ONE
-Property per pass. Each context's erase writes an append-only receipt in the
-same transaction as its deletes, so an interruption resumes from the receipts
-rather than re-running contexts that already answered. A `no_data` receipt is
-still evidence — a context with nothing to erase must be distinguishable from a
-context that was never asked. Completion appends the backup-erasure ledger entry
-described in §8.
+Property per pass, and a pass is one transaction. Every context's deletes and
+its append-only receipt, the move to `purged` and the backup-erasure ledger
+entry described in §8 commit together or not at all. An interruption, or one
+context that fails, rolls the whole pass back, the receipts of the contexts
+that had already answered included, and the next pass asks every context
+again: nothing is left half erased and nothing is resumed from receipts. A
+`purging` authority is always the next one picked, so a context that keeps
+failing stops erasure at that Property, ahead of every other, until its cause
+is repaired. A `no_data` receipt is still evidence — a context with nothing to
+erase must be distinguishable from a context that was never asked.
 
 **What survives.** The `properties` row survives as a tombstone with its
 descriptive content scrubbed: `purged` is a declared lifecycle state and the

@@ -93,7 +93,10 @@ export type PropertyEraseCommandStore = Readonly<{
   recordPreview(input: PropertyErasePreviewInput): Promise<PropertyEraseAuthority>
   confirm(input: PropertyEraseConfirmInput): Promise<PropertyEraseAuthority>
   transition(input: PropertyEraseTransitionInput): Promise<PropertyEraseAuthority>
-  /** Append-only; a replay after an interruption reads these back. */
+  /**
+   * Append-only, in the transaction of the job's pass: a receipt commits with
+   * its context's deletes and with the rest of the pass, or not at all.
+   */
   recordContextReceipt(receipt: PropertyEraseContextReceipt): Promise<void>
   completedContexts(
     authorityId: string,
