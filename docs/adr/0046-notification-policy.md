@@ -1061,6 +1061,11 @@ anew. A batch the provider refused on every attempt is not bounded this way,
 because its key protects no delivered mail; it keeps its five attempts. A
 batch no attempt was started for has no horizon and is sent.
 
+A batch already open when this was deployed is the one exception to "that
+attempt and no later one": until then the batch recorded its latest attempt,
+not its first, so for such a batch the 23 hours are counted from its latest
+attempt. The first sweep after the deploy closes any of them already past it.
+
 The cost is the reverse error: when that first attempt did not reach the
 provider and the sweep then stops for a day, the day's digest is not sent at
 all. Its in-app notifications are untouched, and a day-old digest is worth

@@ -94,6 +94,26 @@ describe('retrying a frozen digest after a long stop', () => {
     expectClosedUnsent(deps, new Date(NOW.getTime() + 30 * HOUR))
   })
 
+  // The worker died between the provider call and the record of its answer:
+  // the batch never left `prepared` and its members are still `pending`, but
+  // the attempt was recorded as started, and the provider may hold it.
+  it('closes a batch whose worker was lost mid-call, still prepared with pending members', async () => {
+    const openBatch: NotificationDigestBatch = {
+      ...(await possiblyAcceptedAt0800()),
+      state: 'prepared',
+      retryCount: 0,
+    }
+    const deps = baseDeps({
+      now: new Date(NOW.getTime() + 30 * HOUR),
+      openBatch,
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+    })
+
+    await runHandler(deps)
+
+    expectClosedUnsent(deps, new Date(NOW.getTime() + 30 * HOUR))
+  })
+
   it('still re-sends it under the frozen key a minute before the horizon', async () => {
     const openBatch = await possiblyAcceptedAt0800()
     const deps = retryAfter(RETRY_HORIZON - MINUTE, openBatch)
