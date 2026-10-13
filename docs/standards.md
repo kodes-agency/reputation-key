@@ -318,7 +318,7 @@ instead. A unit test for a `repositories/` source sits one level up
 
 ## 9. Code Quality Tooling (Invariant gates plus Maintainability migration)
 
-Fallow (dead-code, complexity, boundaries) is a devDependency. Config + regression baseline: `.fallowrc.json` (audit.gate: new-only).
+Fallow (dead-code, complexity, boundaries) is a devDependency. Config: `.fallowrc.json` (audit.gate: new-only). No count of the issues main already carries is kept: its `regression.baseline` block is all zeroes.
 
 Self-check a changeset before committing:
 
@@ -328,9 +328,9 @@ pnpm exec fallow dead-code --changed-since origin/main --format json
 
 Clean → proceed. A newly-orphaned export/file → remove it, but **confirm reachability first** with `pnpm exec fallow dead-code --trace <file>:<export> --format json`. Never delete to silence a finding.
 
-**CI gate:** `.github/workflows/fallow.yml` runs `fallow audit --gate new-only` on every PR — the shared source of truth. It fails only on issues a PR introduces; the regression baseline never blocks.
+**CI gate:** `.github/workflows/fallow.yml` runs `fallow audit --gate new-only` on every PR — the shared source of truth. It fails only on issues a PR introduces; the issues main already carries never block.
 
-**WIP caution:** the baseline may include unused exports/files in active work. Do not delete flagged WIP symbols without a `trace` confirming they are truly dead. Prefer `@expected-unused` or leave them for the feature to complete.
+**WIP caution:** the issues main already carries may include unused exports/files in active work. Do not delete flagged WIP symbols without a `trace` confirming they are truly dead. Prefer `@expected-unused` or leave them for the feature to complete.
 
 **File-length ratchet** (`pnpm check:file-length`, run by `lint:ci`): a production module under `src/contexts`, `src/shared`, `src/routes`, `scripts` or `server` may hold at most 800 counted lines, counted as ESLint `max-lines` counts them (blank and comment-only lines are free). The modules already past it are grandfathered in `scripts/ci/file-length.baseline.json` and may not grow. Split them one per change and lower the baseline with `pnpm check:file-length --write-baseline`; never raise an entry to get a change through. `src/components` keeps its stricter ESLint limit (300).
 
