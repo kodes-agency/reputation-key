@@ -304,6 +304,15 @@ public token resolution returns only the current open, digest-verified snapshot.
 Portal, Group, content, responsibility, and token commands use Portal-owned stores
 that commit state, revisions, receipts, and identifier-only outbox facts together.
 
+A server function resolves the Portal, group, category or link it was handed to its
+Organization and Property (`portal-scope.repository.ts`) before it asks the policy. The
+request schemas take those ids as any non-empty string, so the lookup answers "no such
+row" for one that is not a UUID, and the caller gets the same 404 as for an unknown id;
+PostgreSQL is never asked to compare it with a `uuid` column. Residual gap: an id that
+travels in the payload beside the addressed entity (a `propertyId`, a destination, a
+group to join) is not checked that way, so a malformed one from a caller the policy
+admits still fails as a database error and a sanitized 500.
+
 `listPortalOverview` is the batched read behind the Portals overview. For a Property
 or for the Organization it returns one row per Portal (languages, Health and its
 reason, pending-change count, current group, responsible-manager user ids, token
@@ -490,7 +499,9 @@ left, and "no_visible_change" when changes were recorded but the draft says what
 A Portal that is not live has no change list: it has no live version to differ from.
 
 A content review (`completeContentReview`, a live Portal only) records three facts at
-once. The configuration completeness counts five fields on the working copy Publish reads,
+once. Its `reviewId` is the browser's idempotency key and becomes the facts'
+`source_aggregate_id`; the request schema holds it, and the three event ids a correction
+supersedes, to a UUID, so a fact never carries text of a caller's choosing. The configuration completeness counts five fields on the working copy Publish reads,
 under the Portal lock (`portal-configuration-completeness.ts`): the Portal name; the
 primary language's welcome line, link preview and link labels (what the `primary_text`
 check asks); the Property look (a Brand Profile with a display name and an accent); a
