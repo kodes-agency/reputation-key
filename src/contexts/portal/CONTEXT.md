@@ -323,6 +323,25 @@ lookup and ask the policy on the id they were given), a destination id, or the
 `portalIds` of a group to join. A malformed one from a caller the policy admits still
 fails as a database error and a sanitized 500.
 
+`publicApi.management` is Portal's request surface (`docs/standards.md` §3.1). Its
+exceptions to that section's rules:
+
+- Five members are reads of `portal-scope.repository.ts` published as they are, not
+  application functions: `resolvePortalManagementScope`,
+  `resolvePortalGroupManagementScope`, `resolvePortalCategoryManagementScope`,
+  `resolvePortalLinkManagementScope` and `listPortalManagementPropertyIds`. They take no
+  caller and decide nothing. The four `resolve…` reads answer for an id of any
+  Organization, which is why `server/property-scope.ts` compares the Organization
+  before it asks the policy; the list is scoped by the Organization it is given.
+- `revalidatePortalApprovedDestinations` is the worker's control, the same function as
+  `worker.revalidateApprovedDestinations`. It takes its scope decision from its caller,
+  and no server function calls it.
+- One other context calls the surface: Reporting's Portal results adapter
+  (`reporting/server/portal-results-overview.ts`) reads the roster through
+  `listPortalOverview`, which authorizes the caller itself, and
+  `listPortalManagementPropertyIds`, whose answer it filters by the caller's Properties
+  and the policy.
+
 `listPortalOverview` is the batched read behind the Portals overview. For a Property
 or for the Organization it returns one row per Portal (languages, Health and its
 reason, pending-change count, current group, responsible-manager user ids, token

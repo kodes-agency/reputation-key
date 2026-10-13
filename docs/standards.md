@@ -212,22 +212,37 @@ type ContextApi<T> = Readonly<{
 ```
 
 - `publicApi` — the ONLY cross-context boundary. Types, query functions, ports.
-- `publicApi` is also what the context's own `server/` adapters call through the
-  container, so it carries the context's **request surface**: the application
-  functions a server function invokes, under a named member where a context has
-  many (`management` in Property and Portal, `requests` in Identity and Guest,
-  `reply` in Review, `imports` and `performance` in Integration). Three rules keep
-  that from being a leak:
-  - a request-surface member holds application functions only: never a
-    repository, a command store, a worker control or an irreversible lifecycle
-    phase;
+- `publicApi` is also what a context's own server adapters (its `server/`
+  functions and its API routes) call through the container, so it carries the
+  context's **request surface**: the application functions those adapters
+  invoke, under a named member where a context has many (`management` in
+  Property and Portal, `requests` in Identity and Guest, `reply` in Review,
+  `connections`, `oauth`, `imports` and `performance` in Integration). Three
+  rules keep that from being a leak. Each has exceptions in the code today, and
+  an exception stands only where the owning `CONTEXT.md` names it:
+  - a request-surface member holds application functions: not a repository, a
+    command store, a worker control or an irreversible lifecycle phase. The
+    named exceptions are single reads and edge controls published as they are:
+    Portal's scope lookups and its destination revalidation, Integration's
+    `imports.findInitiator` and OAuth callback controls, Guest's session and
+    abuse controls;
   - a function on it that acts for a signed-in member is held to §2.2 and
-    authorizes that member itself, so calling it without its server function gains
-    nothing; a function that cannot (a public-edge control, an internal integrity
-    control) is named as such in the owning `CONTEXT.md`;
-  - another context is handed the narrow `…PublicApi` type from
-    `application/public-api.ts`, which does not name the request surface. It is
-    not a cross-context API, and no context calls another's.
+    authorizes that member itself, so calling it without its server function
+    gains nothing. The named exceptions: Integration's
+    `oauth.getAuthorizationUrl` leaves authorization to its server function, and
+    Guest's internal integrity control takes its actor as data and has no
+    caller. A function with no member to authorize (a guest's request, an
+    invited registration) is admitted by its adapter instead, which
+    `src/shared/architecture/server-function-policy-exemptions.ts` lists with
+    what admits it;
+  - the request surface is not a cross-context API. Another context's
+    application code is typed against a narrow `…PublicApi` type from
+    `application/public-api.ts`, or against a port the composition root fills,
+    and neither names it. A server adapter reads the whole container, so only
+    this rule keeps one from calling another context's surface. The named
+    exceptions: Reporting's Portal results adapter calls two reads on Portal's
+    `management`, and the composition root fills one of Feed's ports from
+    Integration's `imports.findInitiator`.
 - Every other group is named for the CAPABILITY it grants, not for the layer it
   came from. `portal.responsibility.releaseForUser` is a capability;
   `portal.internal.repos.portalResponsibleManagerRepo` is a leaked repository.
