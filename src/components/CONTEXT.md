@@ -234,7 +234,10 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   values must reach the form as its `defaultValues` and a save that changes them
   must remount it (key the component on the saved values): TanStack keeps a
   touched form's dirtiness from before its defaults moved, so a form that is not
-  remounted stays "dirty" after a save. Reset hands the focus to the group's first
+  remounted stays "dirty" after a save. The key is the values that form saves and
+  nothing else: the Profile name form is keyed on the name, not on the avatar beside
+  it, which saves on its own and would otherwise drop a name being typed. Reset
+  hands the focus to the group's first
   field (its own button leaves with the edits; a row in a Card footer outside a form
   looks in the Card, and with no field at all the focus goes to another button of the
   row, never to the page) and drops the refusal of the save it discarded. Save is not
@@ -493,7 +496,10 @@ function directly or hand-roll submission state. Shared building blocks include
 SSR-critical route data is primed by the route and read with the same
 `useSuspenseQuery` options. Interactive reads use `useQuery`; cursor lists use
 `useInfiniteQuery`. Use key factories from `src/shared/queries/query-keys.ts` and
-invalidate the narrow parent key rather than the router.
+invalidate the narrow parent key rather than the router. The signed-in `user` in
+the route context is not a Query: the route that saves it has `_authenticated`
+alone read it again (`src/routes/CONTEXT.md`, "Server-function bundles and
+mutations").
 
 `use-action-mutation` wraps `useMutation` with the shared `Action` shape, success
 toasts, and targeted invalidation. `use-action` covers non-form fire-and-forget

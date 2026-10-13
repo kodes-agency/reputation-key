@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
@@ -42,17 +42,31 @@ export const Route = createFileRoute('/_authenticated/settings/profile')({
 
 function ProfileSettings() {
   const ctx = Route.useRouteContext() as AuthRouteContext
+  const router = useRouter()
   const organizationId = ctx.activeOrganization?.id ?? NO_ACTIVE_ORGANIZATION
+  // The name and avatar are not a Query: the form's saved values and the top bar's
+  // account menu are the `user` that `_authenticated`'s `beforeLoad` puts in the route
+  // context. A save therefore has that route read the session again. Only it is marked
+  // stale, so every other page keeps the data it loaded.
+  const readSignedInUserAgain = () =>
+    router.invalidate({ filter: (match) => match.routeId === '/_authenticated' })
   const updateProfile = useActionMutation(updateProfileFn, {
     successMessage: 'Profile saved',
+    // Awaited: the save resolves with the saved name already the form's baseline, so
+    // the form never shows saved edits as unsaved (dirty, with a Reset to the old name).
+    onSuccess: readSignedInUserAgain,
   })
   // Both are immediate actions: the avatar setting says a refusal, so neither passes an
-  // `errorMessage`.
+  // `errorMessage`. Neither waits for the read: the setting draws its own outcome the
+  // moment the save lands and hands the focus on when Remove leaves with the picture,
+  // and the top bar follows.
   const updateUserImage = useActionMutation(updateUserImageFn, {
     successMessage: 'Avatar updated',
+    onSuccess: () => void readSignedInUserAgain(),
   })
   const removeUserImage = useActionMutation(updateUserImageFn, {
     successMessage: 'Avatar removed',
+    onSuccess: () => void readSignedInUserAgain(),
   })
   const requestUpload = useServerFn(requestAvatarUpload)
   const finalizeUpload = useServerFn(finalizeAvatarUpload)
@@ -73,7 +87,6 @@ function ProfileSettings() {
       />
       <div className="mt-6 space-y-6">
         <ProfileSettingsPage
-          key={`${ctx.user.id}:${ctx.user.name}:${ctx.user.image ?? 'no-image'}`}
           user={ctx.user}
           updateProfile={updateProfile}
           updateUserImage={updateUserImage}

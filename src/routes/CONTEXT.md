@@ -86,6 +86,19 @@ pass the resulting `Action` to forms/components. Silent fire-and-forget work use
 `useAction`. Components may use type-only server imports to spell bundle/action
 props; runtime imports follow the component exception policy.
 
+What the route context holds is not a Query, so no key reaches it. The signed-in
+`user` (name, avatar) is written only by `_authenticated`'s `beforeLoad`, and the
+shell's account menu and the Profile form read it from there. A mutation that
+changes it (Profile's name and avatar saves) therefore has that one route read the
+session again, in its `onSuccess`:
+`router.invalidate({ filter: (match) => match.routeId === '/_authenticated' })`.
+The filter marks only that route stale, so this is not the whole router. A form's
+save awaits it, so the saved value is the form's baseline when the save resolves; an
+image setting's save does not, because the setting draws its own outcome and hands
+the focus on. The Organization name in the context needs no such read: the page
+that saves it draws it from a Query, and every page that draws it from the context
+is a navigation away, which runs `beforeLoad` again.
+
 ## Boundaries
 
 Routes may import context `server/` functions, components, route-local helpers, and
