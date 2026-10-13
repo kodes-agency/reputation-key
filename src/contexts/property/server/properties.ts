@@ -13,6 +13,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
+import { toBrowserProperty } from '../application/dto/browser-property.dto'
 import { updatePropertyInputSchema } from '../application/dto/update-property.dto'
 import { isPropertyError } from '../domain/errors'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
@@ -36,7 +37,7 @@ export const updateProperty = createServerFn({ method: 'POST' })
         try {
           const { management } = getContainer().propertyPublicApi
           const property = await management.updateProperty(data, ctx)
-          return { property }
+          return { property: toBrowserProperty(property) }
         } catch (e) {
           if (isPropertyError(e))
             throwContextError('PropertyError', e, propertyErrorStatus(e.code))

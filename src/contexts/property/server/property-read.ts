@@ -8,6 +8,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
+import { toBrowserProperty } from '../application/dto/browser-property.dto'
 import {
   isPropertyError,
   PROPERTY_DELETION_UNAVAILABLE_MESSAGE,
@@ -34,7 +35,7 @@ export const listProperties = createServerFn({ method: 'GET' }).handler(
       try {
         const { management } = getContainer().propertyPublicApi
         const properties = await management.listProperties(ctx)
-        return { properties }
+        return { properties: properties.map(toBrowserProperty) }
       } catch (e) {
         if (isPropertyError(e))
           throwContextError('PropertyError', e, propertyErrorStatus(e.code))
@@ -64,7 +65,7 @@ export const getProperty = createServerFn({ method: 'GET' })
         try {
           const { management } = getContainer().propertyPublicApi
           const property = await management.getProperty(data, ctx)
-          return { property }
+          return { property: toBrowserProperty(property) }
         } catch (e) {
           if (isPropertyError(e))
             throwContextError('PropertyError', e, propertyErrorStatus(e.code))

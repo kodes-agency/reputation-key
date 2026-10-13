@@ -394,7 +394,7 @@ describe('updateProperty', () => {
     ).resolves.toMatchObject({ countryCode: 'GB', countrySource: 'tenant_confirmed' })
   })
 
-  it('does not expose or alter the protected Google binding on profile edits', async () => {
+  it('does not alter the protected Google binding on profile edits', async () => {
     const { useCase, propertyRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const prop = buildTestProperty({

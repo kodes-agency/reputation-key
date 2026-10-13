@@ -22,6 +22,11 @@ Property lookups.
   destination, and lifecycle facts; repositories and command stores remain
   internal.
 - Export and irreversible lifecycle contributors remain outside `publicApi`.
+- A Property server function answers with `BrowserProperty`
+  (`application/dto/browser-property.dto.ts`), never with the aggregate its use
+  case returns. The Google account and location suffixes, the Organization
+  connection reference and the review URI stay on the server; the manager app is
+  given the binding state and the destination's state and read time (ADR 0050).
 
 ## Model
 
