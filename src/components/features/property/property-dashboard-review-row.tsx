@@ -8,12 +8,15 @@ import { cn } from '#/lib/utils'
 /**
  * Format a review date, or render nothing when it is not a real instant.
  *
- * `reviewedAt` is typed `Date`, and the type does not survive the wire: a null
- * or unparsable provider timestamp deserializes across the server-function
- * boundary as an Invalid Date, and `Intl.DateTimeFormat#format` throws
- * `RangeError: Invalid time value` on one. That threw during render, so the
- * whole property page died rather than one row losing its date — which is what
- * the e2e error gate caught on /properties/$id. `formatDate` answers null for it.
+ * `reviewedAt` is typed `Date`, and for a while it was not one: Review's
+ * serving read selected the column through a raw `sql` template, which decodes
+ * nothing, so the row carried the database driver's text for the timestamp.
+ * `Intl.DateTimeFormat#format` throws `RangeError: Invalid time value` on a
+ * value that is not an instant. That threw during render, so the whole
+ * property page died rather than one row losing its date — which is what the
+ * e2e error gate caught on /properties/$id. The read returns a Date now
+ * (`review/infrastructure/serving-stats.ts`); this guard stays, because
+ * `formatDate` answers null for anything that is not a real instant.
  */
 export function formatReviewedAt(value: Date): string | null {
   return formatDate(value)

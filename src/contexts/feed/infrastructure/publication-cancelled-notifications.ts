@@ -44,12 +44,16 @@ export type PublicationCancelledNotificationDeps = InboxPayloadDeps &
 /**
  * A publication that was cancelled after approval is silent everywhere else:
  * the reply is back in draft, and the author was last told it was queued to
- * publish to Google. So the author hears it, and so do the people who can
- * approve it again — the same people `reply.pending_approval` asks: the
- * Property's responsible managers who may approve, and the AccountAdmins only
- * when none of them can (I5.3). It used to go to every AccountAdmin in the
- * Organization, however many hotels they look after, while the responsible
- * approver who had just approved it was never told it went back to draft.
+ * publish to Google. The same holds for a reply a guest edit returned to
+ * draft (`source_changed`) while it was still awaiting approval or after its
+ * publication had failed: the author was last told it was waiting for an
+ * approver, or that it had failed. So the author hears it, and so do the
+ * people who can approve it again — the same people `reply.pending_approval`
+ * asks: the Property's responsible managers who may approve, and the
+ * AccountAdmins only when none of them can (I5.3). It used to go to every
+ * AccountAdmin in the Organization, however many hotels they look after, while
+ * the responsible approver who had just approved it was never told it went
+ * back to draft.
  *
  * The author is removed before that fallback is considered, as a submitter
  * is: they cannot approve their own reply, so when they are the only
