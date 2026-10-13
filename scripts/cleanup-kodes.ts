@@ -1,13 +1,21 @@
 // Delete KODES agency property and its reviews so you can re-import
 // Run: pnpm exec tsx scripts/cleanup-kodes.ts
+//
+// Local development only. The deletes commit on their own, so the script
+// first proves the target is this developer's own database
+// (scripts/local/local-only-database.ts) and refuses a deployed one before a
+// connection is opened.
 
 import 'dotenv/config'
 import { eq } from 'drizzle-orm'
 import { getDb } from '../src/shared/db/index.js'
 import { reviews } from '../src/shared/db/schema/review.schema.js'
 import { properties } from '../src/shared/db/schema/property.schema.js'
+import { assertLocalOnlyDatabase } from './local/local-only-database'
 
 async function main() {
+  const target = assertLocalOnlyDatabase(process.env)
+  console.log(`Target: database ${target.database} on ${target.host}`)
   const db = getDb()
 
   // Delete reviews for the KODES property

@@ -1,13 +1,19 @@
-// Regenerate the whole Drizzle journal from the pgTable declarations.
+// Regenerate the whole Drizzle journal from the pgTable declarations: the
+// schema Drizzle can derive from `src/shared/db/schema/`, the constructs it
+// cannot express (the functions and triggers kept by hand in
+// `src/shared/db/db-constructs.sql`) and the control-plane seed.
 //
-// The journal is not history any more. It is two files: the schema Drizzle can
-// derive from `src/shared/db/schema/`, plus the constructs it cannot express —
-// the functions and triggers kept by hand in `src/shared/db/db-constructs.sql`.
-// Run this after any schema edit, then `pnpm db:reset`.
+// NOT the schema change loop. This was run after every schema edit while every
+// environment started from an empty database. That stopped being true: the
+// beta database keeps its data between deploys and has applied the journal, so
+// the journal is history again and a schema change is a migration appended to
+// it by hand (src/shared/db/CONTEXT.md, "Change loop"). Rewriting the journal
+// orphans the rows a populated database already applied, and the deploy runner
+// refuses the result.
 //
-// This is only safe because every environment starts from an empty database.
-// If that ever stops being true, append a migration instead of re-baselining:
-// rewriting the journal orphans the rows a populated database already applied.
+// So the script refuses while `drizzle/` holds a migration it did not write.
+// It still squashes a journal that has nothing appended, which is only right
+// when every database that applied the old one is created empty again.
 
 import { execFileSync } from 'node:child_process'
 import {
@@ -76,6 +82,28 @@ function hoistUniqueIndexes(sql: string): string {
     .join(`\n${BREAKPOINT}\n`)
 }
 
+/**
+ * Migrations in `drizzle/` this script did not write: appended by hand, and
+ * applied by the deployed database. A re-baseline would delete them.
+ */
+function appendedMigrations(): readonly string[] {
+  if (!existsSync(DRIZZLE_DIR)) return []
+  return readdirSync(DRIZZLE_DIR, { encoding: 'utf8' })
+    .filter((entry) => entry.endsWith('.sql') && !EXPECTED.includes(entry))
+    .sort()
+}
+
+function refuseToDeleteAppendedMigrations(): void {
+  const appended = appendedMigrations()
+  if (appended.length === 0) return
+  throw new Error(
+    `[db:baseline] refused: drizzle/ holds ${appended.length} migration(s) appended after the ` +
+      `generated three (${appended.at(0)} to ${appended.at(-1)}). A re-baseline deletes them, and a ` +
+      'database that has applied them cannot take the regenerated journal. ' +
+      'Append a migration instead: src/shared/db/CONTEXT.md, "Change loop".',
+  )
+}
+
 function main(): void {
   for (const source of [CONSTRUCTS, SEED]) {
     if (!existsSync(source)) {
@@ -83,6 +111,7 @@ function main(): void {
     }
   }
 
+  refuseToDeleteAppendedMigrations()
   rmSync(DRIZZLE_DIR, { recursive: true, force: true })
   drizzleKit(['generate', '--name', 'baseline'])
   drizzleKit(['generate', '--custom', '--name', 'db_constructs'])

@@ -1,10 +1,11 @@
 // Register of intentional DB-only constructs.
 //
 // `../db-constructs.sql` is the authority for functions and triggers: it is the
-// second migration, it is what creates them, and it is regenerated into
-// `drizzle/0001_db_constructs.sql` by `pnpm db:baseline`. Listing those names a
-// second time by hand is how the old 1,863-line register drifted, so they are
-// PARSED from that file instead — one source, no copy to keep in sync.
+// second migration, and it is what creates them. `drizzle/0001_db_constructs.sql`
+// is its byte copy, kept by hand and held by `../construct-definitions.test.ts`.
+// Listing those names a second time by hand is how the old 1,863-line register
+// drifted, so they are PARSED from that file instead — one source, no second
+// list of names to keep in sync.
 //
 // The remaining dozen entries cannot be parsed from it: they are btree_gist
 // exclusion indexes, CHECK constraints and one legacy table that live in the
