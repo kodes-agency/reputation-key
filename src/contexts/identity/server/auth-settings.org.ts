@@ -7,32 +7,15 @@ import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
 import { requireAuth } from '#/shared/auth/middleware'
 import { assertGlobalCapability } from '#/shared/auth/beta-capabilities'
-import { z } from 'zod/v4'
-import { validateSlug } from '../domain/rules'
+import { createOrganizationInputSchema } from '../application/dto/create-organization.dto'
 import { handleAuthError } from './auth-settings.helpers'
 
 // ── Create organization ────────────────────────────────────────────
 // F045 NOTE: No rate limiting on createOrganization. If abuse is detected
 // (e.g., automated org spamming), add a per-IP or per-user rate limit here.
 
-const createOrganizationSchema = z.object({
-  name: z.string().min(1, 'Organization name is required'),
-  slug: z
-    .string()
-    .min(1, 'Slug is required')
-    .superRefine((s, ctx) => {
-      // Route through the domain rule so this server fn cannot persist slugs
-      // the domain rejects (the old inline regex accepted single-char slugs
-      // and leading/trailing hyphens — weaker than validateSlug).
-      const result = validateSlug(s)
-      if (result.isErr()) {
-        ctx.addIssue({ code: 'custom', message: result.error.message })
-      }
-    }),
-})
-
 export const createOrganizationFn = createServerFn({ method: 'POST' })
-  .validator(createOrganizationSchema)
+  .validator(createOrganizationInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
