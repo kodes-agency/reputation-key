@@ -239,7 +239,7 @@ describe('updatePortal', () => {
 
   it('archives a Portal with a dedicated actor-attributed lifecycle fact', async () => {
     const { useCase, portalRepo, lastUpdateCommand } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const disabled = buildTestPortal({ publicationState: 'disabled' })
     portalRepo.seed([disabled])
 
@@ -258,6 +258,64 @@ describe('updatePortal', () => {
       sourceAggregateVersion: NEXT_TIME.toISOString(),
       occurredAt: FIXED_TIME,
     })
+  })
+
+  // Archive is the Portal's removal: it asks `portal.delete`, the permission
+  // the Portals pages offer Archive on, whichever command carries it.
+  it.each(['draft', 'published', 'disabled'] as const)(
+    'refuses a PropertyManager archiving a %s Portal and writes nothing',
+    async (publicationState) => {
+      const { useCase, portalRepo, commandWrites, outbox } = setup()
+      const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+      const portal = buildTestPortal({ publicationState })
+      portalRepo.seed([portal])
+
+      await expect(
+        useCase({ portalId: portal.id, publicationState: 'archived' }, ctx),
+      ).rejects.toMatchObject({
+        _tag: 'PortalError',
+        code: 'forbidden',
+        message: 'this role cannot archive portals',
+      })
+
+      expect(commandWrites()).toBe(0)
+      expect(outbox.facts).toEqual([])
+      expect(portalRepo.all()[0]?.publicationState).toBe(publicationState)
+    },
+  )
+
+  it('refuses a PropertyManager an archive bundled with an edit', async () => {
+    const { useCase, portalRepo, commandWrites } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'disabled', name: 'Reception' })
+    portalRepo.seed([portal])
+
+    await expect(
+      useCase(
+        { portalId: portal.id, name: 'Renamed', publicationState: 'archived' },
+        ctx,
+      ),
+    ).rejects.toMatchObject({ _tag: 'PortalError', code: 'forbidden' })
+
+    expect(commandWrites()).toBe(0)
+    expect(portalRepo.all()[0]).toMatchObject({
+      name: 'Reception',
+      publicationState: 'disabled',
+    })
+  })
+
+  it('still lets a PropertyManager take a live page down: Disable is an update', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const live = buildTestPortal({ publicationState: 'published' })
+    portalRepo.seed([live])
+
+    const disabled = await useCase(
+      { portalId: live.id, publicationState: 'disabled' },
+      ctx,
+    )
+
+    expect(disabled.publicationState).toBe('disabled')
   })
 
   it('keeps an archived Portal read-only until it is restored', async () => {

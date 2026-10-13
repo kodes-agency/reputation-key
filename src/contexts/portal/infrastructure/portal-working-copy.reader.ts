@@ -14,10 +14,19 @@
 // Brand Profile has no look. Filling those gaps is the resolver's job, so the
 // same rule applies whether Publish, the comparison or a preview asks.
 //
-// The LOCK TABLE list lives here too: it names exactly the working-copy tables
-// the publish transaction must hold still while it reads them.
+// The reader takes no lock of its own. A publish reads through it after it has
+// locked the Portal row, and that row is what holds the working copy still:
+// every command that writes a link, a category or a link text updates the
+// Portal row first, under a compare-and-set on its revision
+// (`fencePortalContent`, ADR 0060), so it waits for the publish and is then
+// refused. Publishing used to lock the three link tables as well. That lock
+// added nothing for those writers and made every Organization's link writes
+// and publishes wait for each other (it conflicts with the table lock any
+// INSERT, UPDATE or DELETE holds until it commits). A writer that does not
+// take the Portal row first would not be stopped by anything here: do not add
+// one.
 
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { z } from 'zod/v4'
 import type { Database } from '#/shared/db'
 import {
@@ -57,20 +66,6 @@ export type PortalWorkingCopyScope = Readonly<{
   /** When given, the Portal must belong to this Property (the command store knows it). */
   propertyId?: string
 }>
-
-/**
- * Holds the working-copy child tables still for the rest of the transaction.
- * Every content path locks the Portal aggregate first (ADR 0060); taking these
- * table locks second keeps that order while stopping child writers from
- * crossing the committed comparison of a publish.
- */
-export async function lockPortalWorkingCopyTables(
-  tx: Pick<Database, 'execute'>,
-): Promise<void> {
-  await tx.execute(
-    sql`LOCK TABLE ${portalLinkCategories}, ${portalLinks}, ${portalLinkTexts} IN SHARE ROW EXCLUSIVE MODE`,
-  )
-}
 
 type PortalRow = typeof portals.$inferSelect
 

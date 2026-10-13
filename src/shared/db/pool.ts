@@ -157,6 +157,17 @@ export function configurePoolMaxConnections(max: number): void {
 export const SESSION_LOCK_TIMEOUT_MS = 10_000
 export const SESSION_IDLE_IN_TRANSACTION_TIMEOUT_MS = 30_000
 
+/**
+ * The zone every session computes in. PostgreSQL adds `interval 'N days'` to a
+ * `timestamptz` in the session's zone, and six CHECK constraints compare such
+ * a sum with a deadline the application counted in fixed milliseconds (Network
+ * Pressure's seven days, an import parent's and a snapshot run's thirty). The
+ * two agree only where a day is always 24 hours. A server, role or database
+ * default that observes daylight saving would refuse those inserts for the
+ * week before each change, so the pool does not rely on the default.
+ */
+const SESSION_TIME_ZONE = 'UTC'
+
 /** Bound on opening a connection: pg-pool's connect, then the session guards. */
 const CONNECTION_TIMEOUT_MS = 15_000
 
@@ -174,7 +185,8 @@ const CONNECTION_TIMEOUT_MS = 15_000
 async function applySessionGuards(client: Pick<ClientBase, 'query'>): Promise<void> {
   const guards = client.query(
     `SET lock_timeout = ${SESSION_LOCK_TIMEOUT_MS}; ` +
-      `SET idle_in_transaction_session_timeout = ${SESSION_IDLE_IN_TRANSACTION_TIMEOUT_MS}`,
+      `SET idle_in_transaction_session_timeout = ${SESSION_IDLE_IN_TRANSACTION_TIMEOUT_MS}; ` +
+      `SET TIME ZONE '${SESSION_TIME_ZONE}'`,
   )
   // Once the timeout closes the client this query fails too; nobody awaits it.
   guards.catch(() => undefined)

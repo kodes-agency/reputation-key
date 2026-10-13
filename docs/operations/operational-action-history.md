@@ -49,7 +49,8 @@ canonical export bodies are byte-equivalent.
   tenant/filter scope and observation time into the canonical fingerprint.
 - A successful read/export appends its access record in the same database
   transaction before any result is returned. Denied/failed attempts append a
-  content-free outcome and return no history rows.
+  content-free outcome and return no history rows: a caller who is not a
+  current AccountAdmin is answered 403, an unreadable authority or store 503.
 - Both restricted GET boundaries emit private/no-store response policy, Cookie
   variance, and no-referrer policy; intermediaries must not cache exports.
 - Authenticated list/export server boundaries are catalogued, and production

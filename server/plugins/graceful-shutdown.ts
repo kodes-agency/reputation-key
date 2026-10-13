@@ -35,9 +35,8 @@ export default definePlugin(() => {
     void closeWebResources(
       [
         // ARC-03-T6: closeContainer runs the container's own shutdown seam
-        // (identity policy poller and any future container-owned background
-        // work) BEFORE detaching the BullMQ queues, so the web process no
-        // longer leaves a live policy-refresh interval behind on SIGTERM.
+        // (container-owned background work; none is registered today) BEFORE
+        // detaching the BullMQ queues and quitting their tracked connections.
         { name: 'container-shutdown', close: closeContainer },
         { name: 'redis', close: closeRedis },
         { name: 'pg-pool', close: closePool },

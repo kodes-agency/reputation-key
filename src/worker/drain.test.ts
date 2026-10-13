@@ -1,8 +1,9 @@
 // BQC-7.1 — worker drain budget tests.
 //
 // Pins the graceful-shutdown contract extracted from src/worker/index.ts:
-//   1. happy path — workers close in order, then queues, with the same log
-//      messages the pre-extraction inline loop emitted; no timeout;
+//   1. happy path — every worker is asked to close at once, then the queues
+//      close in order, with the same log messages the pre-extraction inline
+//      loop emitted; no timeout;
 //   2. a rejecting close is logged and does not stop the sequence;
 //   3. a hung close (a job that never finishes makes BullMQ's Worker.close()
 //      hang) fires the budget — the drain reports the still-open labels so
@@ -57,6 +58,59 @@ describe('drainWorkerResources', () => {
     expect(logger.info).toHaveBeenCalledWith(
       { queue: 'default' },
       'Queue closed successfully',
+    )
+  })
+
+  // close() is what stops a BullMQ worker fetching. A worker waiting its turn
+  // behind a long drain keeps starting jobs, and every one of them is cut off
+  // when the budget ends the process.
+  it('asks every worker to stop before the first has finished draining', async () => {
+    const logger = makeLogger()
+    const asked: string[] = []
+    const longJob = Promise.withResolvers<void>()
+    const drain = drainWorkerResources({
+      workers: [
+        closeable('default', () => {
+          asked.push('default')
+          return longJob.promise
+        }),
+        closeable('background', async () => void asked.push('background')),
+        closeable('domain-events', async () => void asked.push('domain-events')),
+      ],
+      queues: [],
+      budgetMs: 5_000,
+      logger,
+    })
+
+    await new Promise((resolve) => setImmediate(resolve))
+    const askedWhileDefaultDrains = [...asked]
+    longJob.resolve()
+
+    await expect(drain).resolves.toEqual({ timedOut: false, stuck: [] })
+    expect(askedWhileDefaultDrains).toEqual(['default', 'background', 'domain-events'])
+  })
+
+  it('leaves only the worker whose job outlasts the budget unfinished', async () => {
+    const logger = makeLogger()
+    const result = await drainWorkerResources({
+      workers: [
+        closeable('default', never),
+        closeable('background'),
+        closeable('domain-events'),
+      ],
+      queues: [closeable('quarantine')],
+      budgetMs: 50,
+      logger,
+    })
+
+    expect(result).toEqual({ timedOut: true, stuck: ['default', 'quarantine'] })
+    expect(logger.info).toHaveBeenCalledWith(
+      { queue: 'background' },
+      'Worker drained successfully',
+    )
+    expect(logger.info).toHaveBeenCalledWith(
+      { queue: 'domain-events' },
+      'Worker drained successfully',
     )
   })
 

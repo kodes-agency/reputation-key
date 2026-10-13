@@ -64,6 +64,18 @@ export const removeMember =
       throw identityError('member_not_found', 'Member not found in this organization')
     }
 
+    // 2a. Nobody removes themselves. Removal releases what the member held
+    // because another AccountAdmin is present to reassign it; a member who
+    // goes of their own accord uses `leaveOrganization`, which refuses until
+    // every responsibility is handed over. Before the last-owner guard, so a
+    // sole AccountAdmin is told this and not that.
+    if (targetMember.userId === ctx.userId) {
+      throw identityError(
+        'forbidden',
+        'You cannot remove yourself; leaving the organization is a separate action',
+      )
+    }
+
     // 2b. Last-owner UX guard — cannot remove the last owner. Detected via the raw
     // role string so a multi-role owner ('owner,editor') still counts as an owner.
     // The command store re-checks this under the advisory lock (TOCTOU backstop).

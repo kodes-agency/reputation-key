@@ -26,6 +26,18 @@
 // concurrent deploys — a second runner blocks on the lock until the first
 // finishes, then converges instantly (every step is idempotent).
 //
+// LOCK WAIT: both schema tracks wait at most MIGRATION_LOCK_TIMEOUT_MS (5 s,
+// src/shared/db/migration-lock-timeout.ts) for any lock. A statement blocked
+// by another session fails the deploy instead of queueing the application's
+// statements behind its request, and a rerun converges. The Better Auth track
+// runs on the pool of src/shared/auth/auth-cli.ts, which bounds each of its
+// connections; it commits statement by statement, so it keeps what it added
+// before the wait and adds the rest on the rerun. The journal is bounded on
+// this runner's session and is one transaction, so nothing of it is applied.
+// That bound is lifted again before the concurrent-index sidecar, which may
+// wait for an old transaction. Both bound the wait only: a lock the journal
+// has taken is held until the last pending file commits.
+//
 // FORWARD-RECOVERY POLICY: on ANY failure the script logs the failing step
 // plus the reachable journal state and exits non-zero, so Railway blocks the
 // deploy and keeps serving the previous container. Never roll the schema
@@ -69,9 +81,11 @@ import { authorizeDeployMigrationRuntime } from '../src/shared/db/deploy-migrati
 import {
   deployFailureRecovery,
   deployMigrationStateRefusal,
+  type DeploySchemaTrack,
 } from '../src/shared/db/migration-journal-state'
 import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/review/infrastructure/provider-subject-key-initializer'
 import { buildRegisteredConcurrentIndexes } from '../src/shared/db/concurrent-index-sidecar'
+import { withMigrationLockTimeout } from '../src/shared/db/migration-lock-timeout'
 import type { Database } from '../src/shared/db'
 import {
   formatDeclaredCapabilityPostureReport,
@@ -181,12 +195,16 @@ async function main(): Promise<void> {
   const lockKey = advisoryLockKey()
   const client = new Client({ connectionString: url })
   const migrationDb = drizzle(client)
+  // The schema track reached so far: a lock wait leaves a different state
+  // behind in each, and the recovery line says which.
+  let track: DeploySchemaTrack = 'better_auth'
   await client.connect()
   try {
     await client.query('SELECT pg_advisory_lock($1::bigint)', [lockKey.toString()])
     log('advisory lock acquired', { key: lockKey.toString() })
     try {
-      // 1. Better Auth track
+      // 1. Better Auth track. Its statements run on auth-cli.ts's pool, whose
+      // connections carry the same lock-wait bound as the journal below.
       const authMigrations = await getMigrations(auth.options)
       log('auth track pending', {
         toBeCreated: authMigrations.toBeCreated.length,
@@ -196,8 +214,14 @@ async function main(): Promise<void> {
       log('auth track applied')
 
       // 2. Apply the Drizzle journal: baseline, DB-only constructs,
-      // control-plane seed, then every migration appended since.
-      await migrate(migrationDb, { migrationsFolder: MIGRATIONS_FOLDER })
+      // control-plane seed, then every migration appended since. A statement
+      // that cannot take its lock gives up instead of holding the
+      // application's statements in the queue behind it
+      // (src/shared/db/migration-lock-timeout.ts).
+      track = 'journal'
+      await withMigrationLockTimeout(client, () =>
+        migrate(migrationDb, { migrationsFolder: MIGRATIONS_FOLDER }),
+      )
       log('drizzle track applied')
 
       // 3. Autocommit-only concurrent-index sidecar. The migrator's
@@ -274,7 +298,7 @@ async function main(): Promise<void> {
     }))
     console.error('[migrate-deploy] FAILED', err)
     console.error('[migrate-deploy] journal state at failure:', JSON.stringify(journal))
-    console.error(`[migrate-deploy] ${deployFailureRecovery(err)}`)
+    console.error(`[migrate-deploy] ${deployFailureRecovery(err, track)}`)
     process.exitCode = 1
   } finally {
     await client.end()

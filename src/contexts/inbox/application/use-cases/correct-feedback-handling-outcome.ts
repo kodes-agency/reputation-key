@@ -42,13 +42,9 @@ export const correctFeedbackHandlingOutcome =
       input.inboxItemId,
       ctx.organizationId,
     )
-    assertExpectedCommandRevision(item, input.expected.commandRevision)
-    if (item.sourceType !== 'feedback') {
-      throw inboxError(
-        'invalid_input',
-        'Handling outcome correction is available only for private feedback',
-      )
-    }
+    // Scope before the revision fence: a conflict names the item's current
+    // revision and status, which a caller with no access to its Property must
+    // not be told.
     await assertInboxSourcePropertyAccessible(
       deps.staffPublicApi,
       ctx,
@@ -56,6 +52,13 @@ export const correctFeedbackHandlingOutcome =
       'feedback',
       item.propertyId,
     )
+    assertExpectedCommandRevision(item, input.expected.commandRevision)
+    if (item.sourceType !== 'feedback') {
+      throw inboxError(
+        'invalid_input',
+        'Handling outcome correction is available only for private feedback',
+      )
+    }
     return deps.store.correctOutcome({
       item,
       expected: input.expected,

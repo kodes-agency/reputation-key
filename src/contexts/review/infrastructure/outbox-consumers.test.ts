@@ -8,6 +8,7 @@
 import type { Job } from 'bullmq'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { integrationGoogleAccountDisconnected } from '#/contexts/integration/domain/events'
+import { propertyArchived } from '#/contexts/property/domain/events'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
@@ -19,7 +20,12 @@ import {
   initDelayedExecutionPolicy,
   resetDelayedExecutionPolicy,
 } from '#/shared/auth/system-execution-policy'
-import { googleConnectionId, organizationId } from '#/shared/domain/ids'
+import {
+  googleConnectionId,
+  organizationId,
+  propertyId,
+  userId,
+} from '#/shared/domain/ids'
 import type { DomainEvent } from '#/shared/events/events'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -298,6 +304,22 @@ describe('google account disconnected durable consumer', () => {
   })
 })
 
+/** The envelope the relay builds from the fact's outbox row. */
+const delivered = (fact: DomainEvent): ConsumerEvent => {
+  const row = toOutboxEvent(fact)
+  return buildConsumerEvent({
+    id: fact.eventId,
+    eventType: row.eventType,
+    eventVersion: row.eventVersion ?? 1,
+    payload: JSON.parse(JSON.stringify(row.payload)),
+    organizationId: row.organizationId,
+    propertyId: row.propertyId ?? null,
+    sourceContext: row.sourceContext,
+    sourceAggregateId: row.sourceAggregateId,
+    recordedAt: NOW,
+  })
+}
+
 // The dispatcher authorizes each consumer under its own catalogue row, and a
 // terminal denial records an obsolete receipt that is never retried. The
 // disconnect fact names no Property (the connection is the Organization's), so
@@ -316,22 +338,6 @@ describe('google account disconnected consumer authorization', () => {
       userId: null,
       occurredAt: NOW,
     })
-
-  /** The envelope the relay builds from the fact's outbox row. */
-  const delivered = (fact: DomainEvent): ConsumerEvent => {
-    const row = toOutboxEvent(fact)
-    return buildConsumerEvent({
-      id: fact.eventId,
-      eventType: row.eventType,
-      eventVersion: row.eventVersion ?? 1,
-      payload: JSON.parse(JSON.stringify(row.payload)),
-      organizationId: row.organizationId,
-      propertyId: row.propertyId ?? null,
-      sourceContext: row.sourceContext,
-      sourceAggregateId: row.sourceAggregateId,
-      recordedAt: NOW,
-    })
-  }
 
   beforeEach(() => {
     // Every capability is granted, so the gate judges only the scope the
@@ -484,5 +490,111 @@ describe('property archived durable consumer', () => {
     ).rejects.toThrow('attribution mismatch')
     expect(subject.cancelPublicationsForProperty).not.toHaveBeenCalled()
     expect(subject.receipts.insertReceipt).not.toHaveBeenCalled()
+  })
+})
+
+// Cancelling an archived Property's queued publications is cleanup too. It
+// used to share the publish row, which is gated on `property.publish_reply`:
+// with that capability stopped (the stop procedure's comma list, or a
+// suspended Organization) the dispatcher denied the consumer terminally,
+// wrote an obsolete receipt, and the cancellation never ran. The reply then
+// waited for the reconciliation sweep, which told its author it failed to
+// send. Inbox's consumer for the same fact has always been ungated.
+describe('property archived consumer authorization', () => {
+  const ORGANIZATION = 'org-publication-recovery'
+  const PROPERTY = '97000000-0000-4000-8000-000000000004'
+
+  const produced = () =>
+    propertyArchived({
+      organizationId: organizationId(ORGANIZATION),
+      propertyId: propertyId(PROPERTY),
+      userId: userId('manager-publication-recovery'),
+      previousState: 'active',
+      sourceEpoch: 1,
+      recoveryDeadline: new Date(NOW.getTime() + 86_400_000),
+      occurredAt: NOW,
+    })
+
+  beforeEach(() => {
+    // The Organization is admitted, and reply publication is stopped.
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({
+        BETA_ALLOWLIST_ORGS: ORGANIZATION,
+        BETA_CAPABILITIES_OFF: 'property.publish_reply',
+      }),
+    )
+    initDelayedExecutionPolicy(
+      createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
+    )
+  })
+
+  afterEach(() => {
+    resetDelayedExecutionPolicy()
+    resetCapabilityPolicyStore()
+  })
+
+  it('runs under its own ungated, Property-scoped catalogue row', () => {
+    registerReplyPublicationConsumers(consumerRegistry, deps() as never)
+
+    const registrations = consumerRegistry.listFor('property.archived')
+    expect(registrations).toHaveLength(1)
+    const row = ENTRY_POINT_CATALOGUE.find(
+      (candidate) =>
+        candidate.kind === 'consumer' && candidate.name === registrations[0]!.module,
+    )
+
+    expect(row).toEqual({
+      kind: 'consumer',
+      name: 'review.property-lifecycle',
+      action: 'system:review.cancel_property_publications',
+      capability: 'none',
+      resourceScope: 'property',
+      externalEffect: false,
+    })
+    expect(capabilityForSystemAction(row!.action)).toBe('none')
+  })
+
+  it('cancels the Property publications while reply publication is stopped', async () => {
+    const subject = deps()
+    registerReplyPublicationConsumers(consumerRegistry, subject as never)
+    const fact = produced()
+    const envelope = delivered(fact)
+    // The dispatcher writes a receipt itself only for a terminal gate denial.
+    const gateDenials = vi.fn(async () => undefined)
+    const repo = {
+      hasReceipt: async () => false,
+      insertReceipt: gateDenials,
+    } as unknown as OutboxRepository
+
+    await createDispatcherHandler(repo, { consumers: consumerRegistry })({
+      id: envelope.eventId,
+      name: envelope.eventType,
+      data: envelope,
+    } as unknown as Job)
+
+    expect(gateDenials.mock.calls).toEqual([])
+    expect(subject.cancelPublicationsForProperty).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION,
+      propertyId: PROPERTY,
+      cause: 'policy',
+    })
+    expect(subject.receipts.insertReceipt).toHaveBeenCalledWith(
+      fact.eventId,
+      ON_PROPERTY_ARCHIVED_CONSUMER,
+      'applied',
+    )
+  })
+
+  it('leaves the publish consumer itself gated by the same stop', async () => {
+    registerReplyPublicationConsumers(consumerRegistry, deps() as never)
+    const [publish] = consumerRegistry.listFor('review.reply.publication_requested')
+
+    const outcome = await gateDispatcherConsumer(publish!.consumerName, publish!.module, {
+      ...delivered(produced()),
+      eventType: 'review.reply.publication_requested',
+    })
+
+    expect(publish!.module).toBe('review.outbox-consumers')
+    expect(outcome.decision.allowed).toBe(false)
   })
 })

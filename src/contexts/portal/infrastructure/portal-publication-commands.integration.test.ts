@@ -9,8 +9,9 @@ import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { userId } from '#/shared/domain/ids'
+import { portalLinkCategoryId, portalLinkId, userId } from '#/shared/domain/ids'
 import { portalPublicationPublished, portalUpdated } from '../domain/events'
+import { portalLinkDeleted } from '../domain/portal-link-events'
 import { buildPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
 import type { RepublishPortalCommand } from '../application/ports/portal-command-store.port'
 import { createAtomicPortalCommandStore } from './portal-command-store'
@@ -723,6 +724,144 @@ describe.sequential('republishPortal (real PostgreSQL)', () => {
     }
   })
 
+  // Publishing used to take SHARE ROW EXCLUSIVE on the three link tables. That
+  // conflicts with the ROW EXCLUSIVE lock every INSERT, UPDATE and DELETE on
+  // them holds until it commits, in any Organization, so one tenant's open link
+  // write held up every other tenant's publish, and a publish held up every
+  // link write. The Portal row a publish locks is what protects its comparison.
+  it('does not wait for a link write another Organization has open', async () => {
+    await changeWording('Хотел Рила, обновен')
+    const command = await republishCommand()
+    const otherTenant = await getPool().connect()
+    let republish: Promise<void> | undefined
+    try {
+      await otherTenant.query('BEGIN')
+      // The table lock a link write of any tenant holds until it commits.
+      await otherTenant.query('LOCK TABLE portal_links IN ROW EXCLUSIVE MODE')
+
+      republish = store().republishPortal(command)
+
+      expect(await settledOrBlocked(republish)).toBe('settled')
+      expect((await activations()).map((row) => row.version)).toEqual([1, 2])
+    } finally {
+      await otherTenant.query('ROLLBACK')
+      otherTenant.release()
+      await republish?.catch(() => undefined)
+    }
+  })
+
+  it('holds a link edit of its own Portal back until it commits, then the edit is refused', async () => {
+    await changeWording('Хотел Рила, обновен')
+    const command = await republishCommand()
+    const linkId = SCENARIO.links[0]!.id
+    const lockClass = 43_822
+    const lockObject = 11
+    const pool = getPool()
+    const [link] = (
+      await pool.query<{ category_id: string }>(
+        'SELECT category_id FROM portal_links WHERE id = $1',
+        [linkId],
+      )
+    ).rows
+    const gate = await pool.connect()
+    const pending: Promise<unknown>[] = []
+    let gateOpen = false
+    try {
+      // The publish stops where it writes its snapshot: after it has locked the
+      // Portal row and compared the working copy, before it commits.
+      await pool.query(`
+        DROP TRIGGER IF EXISTS portal_republish_commit_gate ON portal_publication_snapshots;
+        DROP FUNCTION IF EXISTS portal_republish_commit_gate();
+        CREATE FUNCTION portal_republish_commit_gate()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $function$
+        BEGIN
+          IF NEW.id = '${command.snapshot.id}' THEN
+            PERFORM pg_advisory_xact_lock(${lockClass}, ${lockObject});
+          END IF;
+          RETURN NEW;
+        END;
+        $function$;
+        CREATE TRIGGER portal_republish_commit_gate
+          BEFORE INSERT ON portal_publication_snapshots
+          FOR EACH ROW EXECUTE FUNCTION portal_republish_commit_gate();
+      `)
+      await gate.query('BEGIN')
+      gateOpen = true
+      await gate.query('SELECT pg_advisory_xact_lock($1, $2)', [lockClass, lockObject])
+
+      const publish = store().republishPortal(command)
+      pending.push(publish)
+      await waitFor('the publish to reach its snapshot', async () => {
+        const waits = await pool.query<{ waiters: number }>(
+          `SELECT COUNT(*)::int AS waiters FROM pg_locks
+            WHERE locktype = 'advisory' AND granted = false
+              AND classid::bigint = $1 AND objid::bigint = $2`,
+          [lockClass, lockObject],
+        )
+        return waits.rows[0]?.waiters === 1
+      })
+
+      // A manager deletes a link the snapshot carries, from the revision the
+      // publish started from.
+      const edit = store().deletePortalLink({
+        organizationId: SCENARIO.organizationId,
+        propertyId: SCENARIO.propertyId,
+        portalId: SCENARIO.portalId,
+        actorUserId: MANAGER,
+        expectedPortalUpdatedAt: PUBLISHED_AT,
+        revision: EDITED_AT,
+        occurredAt: EDITED_AT,
+        linkId: portalLinkId(linkId),
+        categoryId: portalLinkCategoryId(link!.category_id),
+        event: portalLinkDeleted({
+          portalId: SCENARIO.portalId,
+          linkId: portalLinkId(linkId),
+          categoryId: portalLinkCategoryId(link!.category_id),
+          organizationId: SCENARIO.organizationId,
+          propertyId: SCENARIO.propertyId,
+          sourceAggregateVersion: EDITED_AT.toISOString(),
+          occurredAt: EDITED_AT,
+        }),
+      })
+      pending.push(edit)
+      await waitFor('the edit to wait for the Portal row', async () => {
+        const waits = await pool.query<{ waiters: number }>(`
+          SELECT COUNT(*)::int AS waiters FROM pg_stat_activity
+           WHERE datname = current_database()
+             AND cardinality(pg_blocking_pids(pid)) > 0
+             AND query ILIKE '%update "portals"%'`)
+        return (waits.rows[0]?.waiters ?? 0) === 1
+      })
+
+      await gate.query('COMMIT')
+      gateOpen = false
+      const [publishResult, editResult] = await Promise.allSettled([publish, edit])
+      pending.length = 0
+
+      expect(publishResult).toMatchObject({ status: 'fulfilled' })
+      expect(editResult).toMatchObject({
+        status: 'rejected',
+        reason: { code: 'revision_conflict' },
+      })
+      // The link the published version shows is still in the working copy.
+      const remaining = await pool.query('SELECT id FROM portal_links WHERE id = $1', [
+        linkId,
+      ])
+      expect(remaining.rows).toEqual([{ id: linkId }])
+      expect((await activations()).map((row) => row.version)).toEqual([1, 2])
+    } finally {
+      if (gateOpen) await gate.query('ROLLBACK')
+      await Promise.allSettled(pending)
+      gate.release()
+      await pool.query(`
+        DROP TRIGGER IF EXISTS portal_republish_commit_gate ON portal_publication_snapshots;
+        DROP FUNCTION IF EXISTS portal_republish_commit_gate();
+      `)
+    }
+  })
+
   it('after an edit that went in first, a republish built on the new revision commits', async () => {
     await changeWording('Хотел Рила, обновен')
     await getPool().query(`UPDATE portals SET updated_at = $2 WHERE id = $1`, [
@@ -736,6 +875,61 @@ describe.sequential('republishPortal (real PostgreSQL)', () => {
     expect((await activations()).map((row) => row.version)).toEqual([1, 2])
   })
 })
+
+describe.sequential('first publication (real PostgreSQL)', () => {
+  beforeEach(async () => {
+    await seedPortalWorkingCopy(getPool(), SCENARIO)
+  })
+
+  it('does not wait for a link write another Organization has open', async () => {
+    const otherTenant = await getPool().connect()
+    let publish: Promise<void> | undefined
+    try {
+      await otherTenant.query('BEGIN')
+      // The table lock a link write of any tenant holds until it commits.
+      await otherTenant.query('LOCK TABLE portal_links IN ROW EXCLUSIVE MODE')
+
+      publish = publishFirstVersion()
+
+      expect(await settledOrBlocked(publish)).toBe('settled')
+      expect(await activations()).toEqual(LIVE_ONLY_FIRST)
+    } finally {
+      await otherTenant.query('ROLLBACK')
+      otherTenant.release()
+      await publish?.catch(() => undefined)
+    }
+  })
+})
+
+/**
+ * Whether the command finished or is waiting for a table lock. A wait is seen
+ * in the catalogue, not inferred from a timeout; the caller's `finally`
+ * releases the holder, so a command that waited still ends.
+ */
+async function settledOrBlocked(
+  command: Promise<unknown>,
+): Promise<'settled' | 'blocked'> {
+  let settled = false
+  const done = command.then(
+    () => {
+      settled = true
+    },
+    () => {
+      settled = true
+    },
+  )
+  const deadline = Date.now() + 5_000
+  while (!settled && Date.now() < deadline) {
+    const waits = await getPool().query<{ waiters: number }>(`
+      SELECT COUNT(*)::int AS waiters FROM pg_stat_activity
+       WHERE datname = current_database()
+         AND wait_event_type = 'Lock' AND wait_event = 'relation'`)
+    if ((waits.rows[0]?.waiters ?? 0) > 0) return 'blocked'
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  await done
+  return 'settled'
+}
 
 async function waitFor(
   description: string,

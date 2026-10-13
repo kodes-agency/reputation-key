@@ -165,15 +165,15 @@ export const getInboxQueueCountsFn = createServerFn({ method: 'GET' })
           action: 'inbox.read',
           propertyId: data?.propertyId,
         })
+        const { clock, inboxPublicApi } = getContainer()
         const replyDecision = await getExecutionPolicy().decide({
           principal: { kind: 'user', ctx },
           action: 'reply.manage',
           organizationId: ctx.organizationId,
           propertyId: data?.propertyId,
           executionKind: 'interactive',
-          now: new Date(),
+          now: clock(),
         })
-        const { inboxPublicApi } = getContainer()
         try {
           return await inboxPublicApi.getInboxQueueCounts(
             { propertyId: data?.propertyId, replyQueuesEnabled: replyDecision.allowed },

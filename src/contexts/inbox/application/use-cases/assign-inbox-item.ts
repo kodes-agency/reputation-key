@@ -48,7 +48,6 @@ export const assignInboxItem =
       input.inboxItemId,
       ctx.organizationId,
     )
-    assertExpectedCommandRevision(item, input.expectedCommandRevision)
     if (!canHandleInboxSource(ctx, item.sourceType)) {
       throw inboxError('forbidden', 'No permission to handle this inbox source')
     }
@@ -79,6 +78,10 @@ export const assignInboxItem =
         item.propertyId,
       )
     }
+    // The revision fence comes after scope: a conflict names the item's
+    // current revision and status, which a caller with no access to its
+    // Property must not be told.
+    assertExpectedCommandRevision(item, input.expectedCommandRevision)
 
     // Assignment grants no authority. The command store re-evaluates both
     // actor and assignee against Identity + Staff inside the write transaction.

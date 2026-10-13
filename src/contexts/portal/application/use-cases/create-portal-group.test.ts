@@ -149,7 +149,6 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
       getSourceEpoch: async () => ({ sourceEpoch: 0 }),
       findIdsByGoogleConnection: async () => [],
       findGoogleNotificationAnchor: async () => null,
-      clearGoogleConnectionRef: async () => {},
     },
     commandStore: createInMemoryPortalCommandStore({
       portalRepo,
