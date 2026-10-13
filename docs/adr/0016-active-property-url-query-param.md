@@ -73,15 +73,20 @@ not "context, not a forced filter" there.
 reads it from the address on every page that is not under a Property's path, so
 an address that carries the key makes that Property the shell's: the tile names
 it, the nav links lead to it, and the capability set is resolved for it. It
-must be a Property id; any other value is dropped. Two pages use it today:
+must be a Property id; any other value is dropped. Three pages are linked with
+it today:
 
 - `/inbox?propertyId=X` is a deep link, written by notices and emails that are
-  about one Property (`notificationLink`). It narrows the list and the queue
-  counts to that Property (`use-inbox-page.ts`), exactly as that Property's
-  Reviews page does; it is a filter.
+  about one Property (`notificationLink`) and by that Property's own pages (its
+  overview and attention band, its guest insights, its Portals' results). It
+  narrows the list and the queue counts to that Property (`use-inbox-page.ts`),
+  exactly as that Property's Reviews page does; it is a filter.
 - `/settings/notifications?propertyId=X` names the Property whose notification
   preferences are being edited, and is honoured only while it names a Property
   the reader can see.
+- `/settings/integrations?propertyId=X` is written by a Property's overview
+  (`overview-profile-views.tsx`). The page does not read the key; it only keeps
+  the shell on that Property.
 
 `/settings/ai?propertyId=X` and `/progress?propertyId=X` are old links that
 redirect to the Property's own page.
