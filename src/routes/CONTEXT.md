@@ -70,10 +70,13 @@ read the same `queryOptions` with `useSuspenseQuery`, so hydration reuses the pr
 cache. Parent Property queries live in `-queries/route-queries.ts`; derived values
 needed by `head()` may also be returned by the loader. A query's options are
 written once: a leaf route defines its own data inline, and a read that a second
-route makes moves to a shared module (`-queries/route-queries.ts`, or a `-*-queries.ts`
-beside the routes that share it) which both import. One key holds one result
-shape, so a read that answers differently takes a key of its own.
-`route-query-definitions.test.ts` fails on a key defined in two places.
+route makes is defined in one shared module (`-queries/route-queries.ts`, or a
+`-*-queries.ts` that already sits beside the routes) which both import. One key
+holds one result shape, so a read that answers differently takes a key of its
+own. `route-query-definitions.test.ts` fails on a key defined in two places. It
+lists two goal reads that stay per route because sharing them costs first-paint
+bytes (the measurement is beside the list), and holds their copies to the same
+read.
 
 Interactive or action-triggered reads may use `useQuery`; cursor lists use
 `useInfiniteQuery`. Query keys come from `src/shared/queries/query-keys.ts`.
