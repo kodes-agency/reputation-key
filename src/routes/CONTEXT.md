@@ -95,9 +95,12 @@ session again, in its `onSuccess`:
 The filter marks only that route stale, so this is not the whole router. A form's
 save awaits it, so the saved value is the form's baseline when the save resolves; an
 image setting's save does not, because the setting draws its own outcome and hands
-the focus on. The Organization name in the context needs no such read: the page
-that saves it draws it from a Query, and every page that draws it from the context
-is a navigation away, which runs `beforeLoad` again.
+the focus on. The same name is also in two Query caches, the member list and the
+invitations' "Invited by", so the name save lists `identityKeys.members()` and
+`identityKeys.organizationInvitations()` in its `invalidateKeys` too. The
+Organization name in the context needs no such read: the page that saves it draws
+it from a Query, and every page that draws it from the context is a navigation
+away, which runs `beforeLoad` again.
 
 ## Boundaries
 

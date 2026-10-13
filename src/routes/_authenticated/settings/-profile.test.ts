@@ -91,6 +91,7 @@ vi.mock('#/components/features/identity', () => ({
 import { Route as AuthenticatedRoute } from '#/routes/_authenticated'
 import { Route as SettingsRoute } from '#/routes/_authenticated/settings'
 import { Route as ProfileRoute } from './profile'
+import { identityKeys } from '#/shared/queries/query-keys'
 
 const AVATAR = '/api/public/identity-assets/avatars/user-1/3f1b2c4d'
 
@@ -160,7 +161,7 @@ async function openSettings(at: '/settings/profile' | '/settings/organization') 
     router.state.matches.find((match) => match.routeId === '/_authenticated')?.context
       .user
 
-  return { router, page, shellUser }
+  return { router, queryClient, page, shellUser }
 }
 
 const openProfile = () => openSettings('/settings/profile')
@@ -214,6 +215,29 @@ describe('saving the profile', () => {
 
     await vi.waitFor(() => expect(shellUser()).toMatchObject({ image: null }))
   })
+
+  // The name is also drawn from Query caches, which no route context reaches. Members
+  // loads both and keeps them for 30 seconds; neither is on screen on Profile.
+  it.each([
+    ['the member list', identityKeys.members()],
+    ['the "Invited by" of the invitations', identityKeys.organizationInvitations()],
+  ])(
+    'has the next page that shows %s read the saved name, not the one it loaded',
+    async (_cache, queryKey) => {
+      const { page, queryClient } = await openProfile()
+      const readFromServer = vi.fn(async () => [{ name: server.account.current.name }])
+      const asMembersHoldsIt = { queryKey, queryFn: readFromServer, staleTime: 30_000 }
+      await queryClient.fetchQuery(asMembersHoldsIt)
+
+      await page().updateProfile({ data: { name: 'Ana Petrova' } })
+
+      // Off screen, so the save itself asks the server for nothing.
+      expect(readFromServer).toHaveBeenCalledTimes(1)
+      await expect(queryClient.fetchQuery(asMembersHoldsIt)).resolves.toEqual([
+        { name: 'Ana Petrova' },
+      ])
+    },
+  )
 
   it('reads the identity again and leaves another page the data it loaded', async () => {
     const { router, page } = await openSettings('/settings/organization')

@@ -16,7 +16,7 @@ import { updateNotificationUserSettingsFn } from '#/contexts/feed/server/notific
 import { ProfileSettingsPage } from '#/components/features/identity'
 import { TimezoneAndFormatCard } from '#/components/features/settings'
 import { notificationUserSettingsQuery } from '#/routes/-queries/route-queries'
-import { notificationKeys } from '#/shared/queries/query-keys'
+import { identityKeys, notificationKeys } from '#/shared/queries/query-keys'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 
 const NO_ACTIVE_ORGANIZATION = 'no-active-organization'
@@ -52,6 +52,11 @@ function ProfileSettings() {
     router.invalidate({ filter: (match) => match.routeId === '/_authenticated' })
   const updateProfile = useActionMutation(updateProfileFn, {
     successMessage: 'Profile saved',
+    // Two Query caches hold the name as well: the member list, which Members, Inbox,
+    // Portals and Goals name a member from, and the invitations' "Invited by". Neither
+    // is on screen here, so this asks the server for nothing: the next page to show them
+    // reads again, where it would have drawn the old name for the rest of its 30 seconds.
+    invalidateKeys: [identityKeys.members(), identityKeys.organizationInvitations()],
     // Awaited: the save resolves with the saved name already the form's baseline, so
     // the form never shows saved edits as unsaved (dirty, with a Reset to the old name).
     onSuccess: readSignedInUserAgain,
