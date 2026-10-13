@@ -43,19 +43,38 @@ const page = vi.hoisted(() => ({
   readManagers: vi.fn<(propertyId: string) => Promise<Managers>>(),
   /** What the route handed its card. */
   updateAction: null as ((input: SaveInput) => Promise<unknown>) | null,
+  cardDisabled: null as boolean | null,
+  /** The permissions the server resolved for the reader; null while none were. */
+  resolvedPermissions: null as readonly string[] | null,
 }))
 
-vi.mock('@tanstack/react-router', () => ({
-  createFileRoute: () => (options: unknown) => ({
-    options,
-    useParams: () => ({ propertyId: page.propertyId }),
-    useRouteContext: () => ({ role: 'AccountAdmin' }),
-  }),
-  useRouter: () => ({ navigate: vi.fn() }),
-  // `server-function-error.ts` builds its wire adapter at module load; only the
-  // class is used here.
-  createSerializationAdapter: (adapter: unknown) => adapter,
-}))
+vi.mock('@tanstack/react-router', () => {
+  /** The authenticated layout's context: the role and, when resolved, the member's permissions. */
+  const routeContext = () => ({
+    role: 'AccountAdmin',
+    ...(page.resolvedPermissions === null
+      ? {}
+      : {
+          authz: {
+            effectivePermissions: page.resolvedPermissions,
+            scopeByPermission: {},
+          },
+        }),
+  })
+  return {
+    createFileRoute: () => (options: unknown) => ({
+      options,
+      useParams: () => ({ propertyId: page.propertyId }),
+      useRouteContext: routeContext,
+    }),
+    // What `usePermissions()` reads.
+    useRouteContext: routeContext,
+    useRouter: () => ({ navigate: vi.fn() }),
+    // `server-function-error.ts` builds its wire adapter at module load; only the
+    // class is used here.
+    createSerializationAdapter: (adapter: unknown) => adapter,
+  }
+})
 vi.mock('sonner', () => ({
   toast: { error: vi.fn(), info: vi.fn(), success: vi.fn() },
 }))
@@ -83,8 +102,10 @@ vi.mock('../-settings-queries', async () => {
 vi.mock('#/components/features/property/property-responsible-managers-card', () => ({
   PropertyResponsibleManagersCard: (props: {
     updateAction: (input: SaveInput) => Promise<unknown>
+    disabled: boolean
   }) => {
     page.updateAction = props.updateAction
+    page.cardDisabled = props.disabled
     return null
   },
 }))
@@ -112,6 +133,7 @@ afterEach(() => {
   environmentManager.setIsServer(() => typeof window === 'undefined')
   vi.clearAllMocks()
   vi.useRealTimers()
+  page.resolvedPermissions = null
 })
 
 const settle = () => vi.advanceTimersByTimeAsync(0)
@@ -219,5 +241,30 @@ describe('a responsible-managers save the server refused, on the people tab', ()
       a: 2,
       b: 1,
     })
+  })
+})
+
+// The page asks what the server resolved for this member, as every component
+// does (`usePermissions()`), not the static table of their role: the card beside
+// it on a settings page must not answer from another authority.
+describe('who may edit the responsible managers, on the people tab', () => {
+  it('follows the permissions resolved for the member, not the table of their role', async () => {
+    installManagersServer(['property-a'])
+    showManagers('property-a')
+    // An Account Admin by role, whose resolved set does not hold property.update.
+    page.resolvedPermissions = ['property.read']
+
+    await openPeopleTab('property-a')
+
+    expect(page.cardDisabled).toBe(true)
+  })
+
+  it('falls back to the role while no permissions were resolved', async () => {
+    installManagersServer(['property-a'])
+    showManagers('property-a')
+
+    await openPeopleTab('property-a')
+
+    expect(page.cardDisabled).toBe(false)
   })
 })

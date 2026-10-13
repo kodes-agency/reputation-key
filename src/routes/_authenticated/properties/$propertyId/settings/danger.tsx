@@ -13,9 +13,8 @@ import {
   disconnectPropertyGoogleBinding,
   restoreProperty,
 } from '#/contexts/property/server/properties'
-import type { AuthRouteContext } from '#/routes/_authenticated'
 import { propertyQuery } from '#/routes/-queries/route-queries'
-import { can } from '#/shared/domain/permissions'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { propertyKeys } from '#/shared/queries/query-keys'
 import { responsibleManagersQuery } from '../-settings-queries'
 
@@ -29,7 +28,7 @@ export const Route = createFileRoute(
 
 function PropertyDangerSettings() {
   const { propertyId } = Route.useParams()
-  const { role } = Route.useRouteContext() as AuthRouteContext
+  const { can: canDo } = usePermissions()
   const { data } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: responsibleManagers } = useSuspenseQuery(
     responsibleManagersQuery(propertyId),
@@ -81,9 +80,9 @@ function PropertyDangerSettings() {
       responsibilityNeeded={responsibleManagers.responsibilityNeeded}
       actions={{ archive, remove, restore, disconnect }}
       permissions={{
-        archive: can(role, 'property.archive'),
-        restore: can(role, 'property.restore'),
-        disconnect: can(role, 'property.disconnect'),
+        archive: canDo('property.archive'),
+        restore: canDo('property.restore'),
+        disconnect: canDo('property.disconnect'),
       }}
     />
   )

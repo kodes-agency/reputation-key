@@ -182,7 +182,7 @@ function MembersSettingsRoute() {
         description="Invite people, manage their roles and the properties they can work."
         breadcrumbs={trailCrumbs('settings', {}, 'Members')}
         actions={
-          canDo('invitation.create') && hasRole(role, 'AccountAdmin') ? (
+          canDo('invitation.create') ? (
             <Dialog
               open={inviteOpen}
               busy={inviteMutation.isPending}

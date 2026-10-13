@@ -4,6 +4,7 @@ import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
   archiveStaffParticipation,
@@ -76,7 +77,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
 
 function PeopleRoute() {
   const { propertyId } = Route.useParams()
-  const { role } = Route.useRouteContext() as AuthRouteContext
+  const { can: canDo } = usePermissions()
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: participationData } = useSuspenseQuery(participationsQuery(propertyId))
   const { data: portalsData } = useSuspenseQuery(portalsQuery(propertyId))
@@ -108,7 +109,7 @@ function PeopleRoute() {
       responsibilities={responsibilities}
       portals={portals}
       portalsDenied={portalsDenied}
-      canManageStaff={can(role, 'staff.manage')}
+      canManageStaff={canDo('staff.manage')}
       createParticipationMutation={createParticipationMutation}
       archiveParticipationMutation={archiveParticipationMutation}
       updateResponsibilitiesMutation={updateResponsibilitiesMutation}
