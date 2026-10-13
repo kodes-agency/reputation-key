@@ -40,6 +40,14 @@ composite foreign keys. Edit `db-constructs.sql` directly for functions, trigger
 EXCLUDE constraints, and DDL on Better Auth tables; its parser derives the
 register. Put every construct expressible by Drizzle in the model instead.
 
+An index on a table that is written continuously is not journalled: a plain
+`CREATE INDEX` holds a SHARE lock for the whole build. Add it to
+`concurrent-index-registry.ts`, leave it out of the `pgTable` and note it at the
+table; the deploy runner's sidecar builds it with `CREATE INDEX CONCURRENTLY`.
+The retention sweep orders every batch by its rule's timestamp, so each rule
+needs an index that leads with that column;
+`retention/retention-rule-indexes.test.ts` fails on a rule without one.
+
 Every environment currently starts from an empty database. A regenerated journal
 cannot be applied over a database that recorded the old entries; if preservation
 becomes necessary, append a migration instead of re-baselining.

@@ -175,3 +175,57 @@ describe('metric_readings property/portal/group index sidecar (database-04)', ()
     }
   })
 })
+
+// The retention sweep orders every batch by its rule's timestamp. These seven
+// tables had no index leading with it, so each batch read the whole table.
+const RETENTION_INDEXES = [
+  ['guest_responses_retention_deadline_idx', 'retention_deadline'],
+  ['scan_events_created_at_idx', 'created_at'],
+  ['guest_qualified_scans_occurred_at_idx', 'occurred_at'],
+  ['outbox_events_published_at_idx', 'published_at'],
+  ['notifications_coalesced_latest_at_idx', 'coalesced_latest_at'],
+  ['recent_activity_entries_created_at_idx', 'created_at'],
+  ['audit_logs_created_at_idx', 'created_at'],
+] as const
+
+describe('retention sweep index sidecar', () => {
+  let lease: TestLease
+
+  beforeAll(async () => {
+    lease = await acquireTestLease(getEnv().DATABASE_URL)
+  })
+
+  afterAll(async () => {
+    await lease?.release()
+  })
+
+  it.each(RETENTION_INDEXES)(
+    'builds %s concurrently, valid and leading with %s',
+    async (name, column) => {
+      const spec = specFor(name)
+      // Idempotent by name: leave no stale index from a previous failed run.
+      await lease.pool.query(`DROP INDEX CONCURRENTLY IF EXISTS "${spec.name}"`)
+
+      await expect(buildConcurrentIndex(lease.pool, spec)).resolves.toEqual({
+        name,
+        ok: true,
+        code: 'created',
+      })
+      await expect(buildConcurrentIndex(lease.pool, spec)).resolves.toEqual({
+        name,
+        ok: true,
+        code: 'ready',
+      })
+
+      const index = await readIndex(lease.pool, name)
+      expect(index).toMatchObject({ indisvalid: true, indisready: true })
+      expect(index?.indexdef).toContain(`ON public.${spec.table} USING btree (${column})`)
+    },
+  )
+
+  it('keeps the re-raised notification index to the rows its rule reads', async () => {
+    const index = await readIndex(lease.pool, 'notifications_coalesced_latest_at_idx')
+
+    expect(index?.indexdef).toMatch(/WHERE \(coalesced_latest_at IS NOT NULL\)$/)
+  })
+})

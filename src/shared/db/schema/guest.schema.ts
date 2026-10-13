@@ -39,6 +39,9 @@ export const scanEvents = pgTable(
   (t) => [
     index('scan_events_session_idx').on(t.sessionId),
     index('scan_events_portal_idx').on(t.portalId),
+    // scan_events_created_at_idx (the retention sweep's order) is absent here on
+    // purpose: the concurrent-index sidecar builds it
+    // (src/shared/db/concurrent-index-registry.ts).
   ],
 )
 
@@ -82,6 +85,9 @@ export const guestQualifiedScans = pgTable(
       t.portalId,
       t.occurredAt,
     ),
+    // guest_qualified_scans_occurred_at_idx (the retention sweep's order) is absent here on
+    // purpose: the concurrent-index sidecar builds it
+    // (src/shared/db/concurrent-index-registry.ts).
     foreignKey({
       name: 'guest_qualified_scans_participant_scope_fk',
       columns: [
@@ -314,6 +320,9 @@ export const guestResponses = pgTable(
       t.portalId,
       t.integrityOutcome,
     ),
+    // guest_responses_retention_deadline_idx (the retention sweep's order) is absent here on
+    // purpose: the concurrent-index sidecar builds it
+    // (src/shared/db/concurrent-index-registry.ts).
     foreignKey({
       name: 'guest_responses_participant_scope_fk',
       columns: [
