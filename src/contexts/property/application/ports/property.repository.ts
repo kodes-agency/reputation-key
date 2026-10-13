@@ -24,11 +24,14 @@ export type PropertyRepository = Readonly<{
     patch: Readonly<Partial<Property>>,
   ) => Promise<void>
   hardDelete: (orgId: OrganizationId, id: PropertyId) => Promise<void>
-  /** Cross-tenant only for the JWT-verified GBP webhook handler. */
-  findByGbpLocationId: (
-    gbpLocationId: string,
-    orgId?: OrganizationId,
-  ) => Promise<Property | null>
+  /**
+   * Every non-deleted Property that holds this Google location, in every
+   * Organization, ordered by Organization then id. Cross-tenant on purpose and
+   * only for the JWT-verified GBP webhook handler: a push names a location
+   * before any tenant is known, and a location is unique only within an
+   * Organization, so more than one Organization can hold it.
+   */
+  listByGbpLocationId: (gbpLocationId: string) => Promise<ReadonlyArray<Property>>
 
   /** Find IDs of non-deleted properties linked to a Google connection within an org. */
   findIdsByGoogleConnection: (

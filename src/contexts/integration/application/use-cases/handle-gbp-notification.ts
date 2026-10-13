@@ -6,7 +6,10 @@ import {
   integrationGoogleReviewPushAccepted,
   type GoogleReviewPushNotificationKind,
 } from '../../domain/events'
-import type { GbpReviewPushReceiptStore } from '../ports/gbp-review-push-receipt.port'
+import type {
+  GbpReviewPushDelivery,
+  GbpReviewPushReceiptStore,
+} from '../ports/gbp-review-push-receipt.port'
 import type { GoogleReviewPushReferenceStore } from '../ports/google-review-push-reference.port'
 
 export type PropertyLookup = Readonly<{
@@ -32,19 +35,24 @@ export type HandleGbpNotificationInput = Readonly<{
 export type HandleGbpNotificationResult = Readonly<{
   accepted: true
   duplicate: boolean
+  /** `reconciliation` when any Property's handoff fell back to a full sync. */
   handoff: 'targeted' | 'reconciliation' | 'ignored'
-  propertyId?: string
+  /** Every Property the push was handed to; empty when it was ignored. */
+  propertyIds: ReadonlyArray<string>
 }>
 
 export type HandleGbpNotificationDeps = Readonly<{
-  propertyLookup: Pick<PropertyPublicApi, 'findByGbpLocationId'>
+  propertyLookup: Pick<PropertyPublicApi, 'listByGbpLocationId'>
   references: GoogleReviewPushReferenceStore
   receipts: GbpReviewPushReceiptStore
   clock: () => Date
   logger: LoggerPort
 }>
 
-function exactProviderTarget(input: HandleGbpNotificationInput) {
+type ProviderTarget = ReturnType<typeof parseReviewProviderResource>
+type BoundProperty = PropertyLookup & Readonly<{ googleConnectionId: string }>
+
+function exactProviderTarget(input: HandleGbpNotificationInput): ProviderTarget {
   const resource = parseReviewProviderResource(input.reviewName)
   const canonicalLocation = `accounts/${resource.accountId}/locations/${resource.locationId}`
   if (
@@ -56,101 +64,142 @@ function exactProviderTarget(input: HandleGbpNotificationInput) {
   return resource
 }
 
-export const handleGbpNotification =
-  (deps: HandleGbpNotificationDeps) =>
-  async (input: HandleGbpNotificationInput): Promise<HandleGbpNotificationResult> => {
+/** The push is for this Property: its current binding is the account and location named. */
+const isBoundTo =
+  (resource: ProviderTarget) =>
+  (property: PropertyLookup): property is BoundProperty =>
+    property.googleBindingState === 'active' &&
+    property.googleConnectionId !== null &&
+    property.gbpAccountId === resource.accountId &&
+    property.gbpLocationId === resource.locationId &&
+    Number.isSafeInteger(property.sourceEpoch) &&
+    property.sourceEpoch >= 0
+
+export const handleGbpNotification = (deps: HandleGbpNotificationDeps) => {
+  const ignore = async (
+    input: HandleGbpNotificationInput,
+    receivedAt: Date,
+    delivery: GbpReviewPushDelivery,
+  ): Promise<HandleGbpNotificationResult> => {
+    const receipt = await deps.receipts.record({
+      topic: input.topic,
+      messageId: input.messageId,
+      receivedAt,
+      acceptedAt: deps.clock(),
+      notificationKind: input.notificationKind,
+      deliveries: [delivery],
+    })
+    return {
+      accepted: true,
+      duplicate: receipt.status === 'duplicate',
+      handoff: 'ignored',
+      propertyIds: [],
+    }
+  }
+
+  /** Publish the short-lived reference one Property's targeted fetch will resolve. */
+  const publishReference = async (
+    input: HandleGbpNotificationInput,
+    property: BoundProperty,
+  ) => {
+    const published = await deps.references.publish({
+      scope: {
+        organizationId: property.organizationId,
+        propertyId: property.id,
+        connectionId: property.googleConnectionId,
+        sourceEpoch: property.sourceEpoch,
+      },
+      locationName: input.locationName,
+      reviewName: input.reviewName,
+    })
+    return { property, referenceRef: published.ok ? published.referenceRef : null }
+  }
+
+  /** One Property's receipt and handoff fact, under its own Organization. */
+  const deliveryAt =
+    (input: HandleGbpNotificationInput, occurredAt: Date) =>
+    ({
+      property,
+      referenceRef,
+    }: Awaited<ReturnType<typeof publishReference>>): GbpReviewPushDelivery => ({
+      resolvedPropertyId: property.id,
+      outcome: referenceRef === null ? 'accepted_reconciliation' : 'accepted_targeted',
+      event: integrationGoogleReviewPushAccepted({
+        organizationId: organizationId(property.organizationId),
+        propertyId: property.id,
+        connectionId: googleConnectionId(property.googleConnectionId),
+        sourceEpoch: property.sourceEpoch,
+        referenceRef,
+        notificationKind: input.notificationKind,
+        occurredAt,
+      }),
+    })
+
+  return async (
+    input: HandleGbpNotificationInput,
+  ): Promise<HandleGbpNotificationResult> => {
     const receivedAt = deps.clock()
     const resource = exactProviderTarget(input)
-    const property = await deps.propertyLookup.findByGbpLocationId(input.locationId)
+    // A location is unique only within an Organization: every Property that
+    // holds it is a candidate, and the push is for each one whose binding is
+    // the account it names. Picking a single row here would hand the push to
+    // one Organization and silently drop it for the others.
+    const holders = await deps.propertyLookup.listByGbpLocationId(input.locationId)
+    const [firstHolder] = holders
 
-    if (!property) {
-      const receipt = await deps.receipts.record({
-        topic: input.topic,
-        messageId: input.messageId,
-        receivedAt,
-        acceptedAt: deps.clock(),
-        notificationKind: input.notificationKind,
+    if (!firstHolder) {
+      const ignored = await ignore(input, receivedAt, {
         resolvedPropertyId: null,
         outcome: 'ignored_property_not_found',
         event: null,
       })
       deps.logger.info(
-        { duplicate: receipt.status === 'duplicate' },
+        { duplicate: ignored.duplicate },
         'GBP review push accepted for an unimported location',
       )
-      return {
-        accepted: true,
-        duplicate: receipt.status === 'duplicate',
-        handoff: 'ignored',
-      }
+      return ignored
     }
 
-    const exactBinding =
-      property.googleBindingState === 'active' &&
-      property.googleConnectionId !== null &&
-      property.gbpAccountId === resource.accountId &&
-      property.gbpLocationId === resource.locationId &&
-      Number.isSafeInteger(property.sourceEpoch) &&
-      property.sourceEpoch >= 0
-    if (!exactBinding) {
-      const receipt = await deps.receipts.record({
-        topic: input.topic,
-        messageId: input.messageId,
-        receivedAt,
-        acceptedAt: deps.clock(),
-        notificationKind: input.notificationKind,
-        resolvedPropertyId: property.id,
+    const [firstBound, ...furtherBound] = holders.filter(isBoundTo(resource))
+    if (!firstBound) {
+      const ignored = await ignore(input, receivedAt, {
+        resolvedPropertyId: firstHolder.id,
         outcome: 'ignored_binding_mismatch',
         event: null,
       })
       deps.logger.warn(
-        { duplicate: receipt.status === 'duplicate' },
+        { duplicate: ignored.duplicate },
         'GBP review push did not match the current Property binding',
       )
-      return {
-        accepted: true,
-        duplicate: receipt.status === 'duplicate',
-        handoff: 'ignored',
-      }
+      return ignored
     }
 
-    const scope = {
-      organizationId: property.organizationId,
-      propertyId: property.id,
-      connectionId: property.googleConnectionId!,
-      sourceEpoch: property.sourceEpoch,
+    // Each Property is handed the push under its own Organization, connection
+    // and source epoch; nothing of one tenant reaches another.
+    const firstReference = await publishReference(input, firstBound)
+    const furtherReferences = []
+    for (const property of furtherBound) {
+      furtherReferences.push(await publishReference(input, property))
     }
-    const published = await deps.references.publish({
-      scope,
-      locationName: input.locationName,
-      reviewName: input.reviewName,
-    })
-    const referenceRef = published.ok ? published.referenceRef : null
-    const handoff = published.ok ? 'targeted' : 'reconciliation'
+    const references = [firstReference, ...furtherReferences]
     const occurredAt = deps.clock()
-    const event = integrationGoogleReviewPushAccepted({
-      organizationId: organizationId(property.organizationId),
-      propertyId: property.id,
-      connectionId: googleConnectionId(property.googleConnectionId!),
-      sourceEpoch: property.sourceEpoch,
-      referenceRef,
-      notificationKind: input.notificationKind,
-      occurredAt,
-    })
+    const delivery = deliveryAt(input, occurredAt)
     const receipt = await deps.receipts.record({
       topic: input.topic,
       messageId: input.messageId,
       receivedAt,
       acceptedAt: occurredAt,
       notificationKind: input.notificationKind,
-      resolvedPropertyId: property.id,
-      outcome: published.ok ? 'accepted_targeted' : 'accepted_reconciliation',
-      event,
+      deliveries: [delivery(firstReference), ...furtherReferences.map(delivery)],
     })
+    const handoff = references.every(({ referenceRef }) => referenceRef !== null)
+      ? 'targeted'
+      : 'reconciliation'
     deps.logger.info(
       {
         duplicate: receipt.status === 'duplicate',
         handoff,
+        properties: references.length,
       },
       'GBP review push durably accepted',
     )
@@ -158,8 +207,9 @@ export const handleGbpNotification =
       accepted: true,
       duplicate: receipt.status === 'duplicate',
       handoff,
-      propertyId: property.id,
+      propertyIds: references.map(({ property }) => property.id),
     }
   }
+}
 
 export type HandleGbpNotification = ReturnType<typeof handleGbpNotification>

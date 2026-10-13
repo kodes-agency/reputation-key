@@ -53,14 +53,16 @@ export const createInMemoryPropertyRepo = (): InMemoryPropertyRepo => {
       store.delete(id)
     },
 
-    findByGbpLocationId: async (gbpLocationId) => {
-      for (const property of store.values()) {
-        if (property.gbpLocationId === gbpLocationId && property.deletedAt === null) {
-          return property
-        }
-      }
-      return null
-    },
+    listByGbpLocationId: async (gbpLocationId) =>
+      [...store.values()]
+        .filter(
+          (property) =>
+            property.gbpLocationId === gbpLocationId && property.deletedAt === null,
+        )
+        .sort(
+          (a, b) =>
+            a.organizationId.localeCompare(b.organizationId) || a.id.localeCompare(b.id),
+        ),
 
     findIdsByGoogleConnection: async (connectionId, orgId) =>
       [...store.values()]

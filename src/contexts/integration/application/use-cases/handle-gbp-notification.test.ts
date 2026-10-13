@@ -29,25 +29,36 @@ const PROPERTY: PropertyLookup = {
   sourceEpoch: 5,
 }
 
+const OTHER_ORGANIZATION_ID = 'org-google-push-other'
+const OTHER_PROPERTY_ID = '00000000-0000-4000-8000-000000000011'
+const OTHER_CONNECTION_ID = '00000000-0000-4000-8000-000000000012'
+
+/** The same location held by a Property of another Organization. */
+const OTHER_PROPERTY: PropertyLookup = {
+  ...PROPERTY,
+  id: OTHER_PROPERTY_ID,
+  organizationId: OTHER_ORGANIZATION_ID,
+  googleConnectionId: OTHER_CONNECTION_ID,
+  sourceEpoch: 2,
+}
+
 function setup(
   input: Readonly<{
-    property?: PropertyLookup | null
-    publish?: Awaited<ReturnType<GoogleReviewPushReferenceStore['publish']>>
+    /** Every Property that holds the location, in the lookup's order. */
+    holders?: readonly PropertyLookup[]
+    publish?: GoogleReviewPushReferenceStore['publish']
     receiptStatus?: 'recorded' | 'duplicate'
   }> = {},
 ) {
-  const publish = vi.fn<GoogleReviewPushReferenceStore['publish']>(async () =>
-    Promise.resolve(
-      input.publish ?? ({ ok: true, referenceRef: REFERENCE_REF } as const),
-    ),
+  const publish = vi.fn<GoogleReviewPushReferenceStore['publish']>(
+    input.publish ?? (async () => ({ ok: true, referenceRef: REFERENCE_REF })),
   )
   const record = vi.fn<GbpReviewPushReceiptStore['record']>(async () => ({
     status: input.receiptStatus ?? 'recorded',
   }))
   const useCase = handleGbpNotification({
     propertyLookup: {
-      findByGbpLocationId: async () =>
-        input.property === undefined ? PROPERTY : input.property,
+      listByGbpLocationId: async () => input.holders ?? [PROPERTY],
     },
     references: { publish, resolve: vi.fn() },
     receipts: { record },
@@ -74,7 +85,7 @@ describe('handleGbpNotification', () => {
       accepted: true,
       duplicate: false,
       handoff: 'targeted',
-      propertyId: PROPERTY_ID,
+      propertyIds: [PROPERTY_ID],
     })
     expect(publish).toHaveBeenCalledWith({
       scope: {
@@ -92,18 +103,122 @@ describe('handleGbpNotification', () => {
       topic: INPUT.topic,
       messageId: INPUT.messageId,
       notificationKind: 'NEW_REVIEW',
+    })
+    expect(receipt.deliveries).toHaveLength(1)
+    expect(receipt.deliveries[0]).toMatchObject({
       resolvedPropertyId: PROPERTY_ID,
       outcome: 'accepted_targeted',
+      event: {
+        _tag: 'integration.google_review_push.accepted',
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        connectionId: CONNECTION_ID,
+        sourceEpoch: 5,
+        referenceRef: REFERENCE_REF,
+      },
     })
-    expect(receipt.event).toMatchObject({
-      _tag: 'integration.google_review_push.accepted',
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-      connectionId: CONNECTION_ID,
-      sourceEpoch: 5,
-      referenceRef: REFERENCE_REF,
+    expect(JSON.stringify(receipt.deliveries)).not.toContain('accounts/')
+  })
+
+  // A location is unique only within an Organization. One row is not "the"
+  // Property: the push is for every Property bound to the account it names.
+  it('hands the push to the bound Property when another Organization holds the location too', async () => {
+    const { useCase, publish, record } = setup({
+      holders: [
+        { ...OTHER_PROPERTY, googleBindingState: 'disconnected' },
+        { ...OTHER_PROPERTY, id: 'other-account', gbpAccountId: 'different-account' },
+        PROPERTY,
+      ],
     })
-    expect(JSON.stringify(receipt.event)).not.toContain('accounts/')
+
+    await expect(useCase(INPUT)).resolves.toEqual({
+      accepted: true,
+      duplicate: false,
+      handoff: 'targeted',
+      propertyIds: [PROPERTY_ID],
+    })
+    expect(publish).toHaveBeenCalledTimes(1)
+    expect(record.mock.calls[0]![0].deliveries).toMatchObject([
+      { resolvedPropertyId: PROPERTY_ID, outcome: 'accepted_targeted' },
+    ])
+  })
+
+  it('hands one push to every Organization bound to the same account and location', async () => {
+    const { useCase, publish, record } = setup({ holders: [OTHER_PROPERTY, PROPERTY] })
+
+    await expect(useCase(INPUT)).resolves.toEqual({
+      accepted: true,
+      duplicate: false,
+      handoff: 'targeted',
+      propertyIds: [OTHER_PROPERTY_ID, PROPERTY_ID],
+    })
+
+    // Each reference is published under its own tenant's scope.
+    expect(publish.mock.calls.map(([call]) => call.scope)).toEqual([
+      {
+        organizationId: OTHER_ORGANIZATION_ID,
+        propertyId: OTHER_PROPERTY_ID,
+        connectionId: OTHER_CONNECTION_ID,
+        sourceEpoch: 2,
+      },
+      {
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        connectionId: CONNECTION_ID,
+        sourceEpoch: 5,
+      },
+    ])
+    // One receipt call, so the message is deduplicated once for all of them.
+    expect(record).toHaveBeenCalledTimes(1)
+    expect(record.mock.calls[0]![0].deliveries).toMatchObject([
+      {
+        resolvedPropertyId: OTHER_PROPERTY_ID,
+        outcome: 'accepted_targeted',
+        event: {
+          organizationId: OTHER_ORGANIZATION_ID,
+          propertyId: OTHER_PROPERTY_ID,
+          connectionId: OTHER_CONNECTION_ID,
+          sourceEpoch: 2,
+        },
+      },
+      {
+        resolvedPropertyId: PROPERTY_ID,
+        outcome: 'accepted_targeted',
+        event: {
+          organizationId: ORGANIZATION_ID,
+          propertyId: PROPERTY_ID,
+          connectionId: CONNECTION_ID,
+          sourceEpoch: 5,
+        },
+      },
+    ])
+  })
+
+  it('records each Property its own outcome when only one reference could be published', async () => {
+    const { useCase, record } = setup({
+      holders: [OTHER_PROPERTY, PROPERTY],
+      publish: async ({ scope }) =>
+        scope.propertyId === PROPERTY_ID
+          ? { ok: true, referenceRef: REFERENCE_REF }
+          : { ok: false, code: 'capacity_exceeded' },
+    })
+
+    await expect(useCase(INPUT)).resolves.toMatchObject({
+      handoff: 'reconciliation',
+      propertyIds: [OTHER_PROPERTY_ID, PROPERTY_ID],
+    })
+    expect(record.mock.calls[0]![0].deliveries).toMatchObject([
+      {
+        resolvedPropertyId: OTHER_PROPERTY_ID,
+        outcome: 'accepted_reconciliation',
+        event: { referenceRef: null },
+      },
+      {
+        resolvedPropertyId: PROPERTY_ID,
+        outcome: 'accepted_targeted',
+        event: { referenceRef: REFERENCE_REF },
+      },
+    ])
   })
 
   it('acknowledges a duplicate without creating a second durable handoff', async () => {
@@ -117,7 +232,7 @@ describe('handleGbpNotification', () => {
 
   it('durably requests a full reconciliation when the short-lived reference store is unavailable', async () => {
     const { useCase, record } = setup({
-      publish: { ok: false, code: 'unavailable' },
+      publish: async () => ({ ok: false, code: 'unavailable' }),
     })
 
     await expect(useCase(INPUT)).resolves.toMatchObject({
@@ -125,39 +240,43 @@ describe('handleGbpNotification', () => {
       duplicate: false,
       handoff: 'reconciliation',
     })
-    expect(record.mock.calls[0]![0]).toMatchObject({
-      outcome: 'accepted_reconciliation',
-      event: { referenceRef: null },
-    })
+    expect(record.mock.calls[0]![0].deliveries).toMatchObject([
+      { outcome: 'accepted_reconciliation', event: { referenceRef: null } },
+    ])
   })
 
   it('durably ignores an unimported location and emits no handoff fact', async () => {
-    const { useCase, publish, record } = setup({ property: null })
+    const { useCase, publish, record } = setup({ holders: [] })
 
     await expect(useCase(INPUT)).resolves.toEqual({
       accepted: true,
       duplicate: false,
       handoff: 'ignored',
+      propertyIds: [],
     })
     expect(publish).not.toHaveBeenCalled()
-    expect(record.mock.calls[0]![0]).toMatchObject({
-      outcome: 'ignored_property_not_found',
-      resolvedPropertyId: null,
-      event: null,
-    })
+    expect(record.mock.calls[0]![0].deliveries).toEqual([
+      { outcome: 'ignored_property_not_found', resolvedPropertyId: null, event: null },
+    ])
   })
 
   it('does not route a stale account/location binding to another property', async () => {
     const { useCase, publish, record } = setup({
-      property: { ...PROPERTY, gbpAccountId: 'different-account' },
+      holders: [{ ...PROPERTY, gbpAccountId: 'different-account' }],
     })
 
-    await expect(useCase(INPUT)).resolves.toMatchObject({ handoff: 'ignored' })
-    expect(publish).not.toHaveBeenCalled()
-    expect(record.mock.calls[0]![0]).toMatchObject({
-      outcome: 'ignored_binding_mismatch',
-      event: null,
+    await expect(useCase(INPUT)).resolves.toMatchObject({
+      handoff: 'ignored',
+      propertyIds: [],
     })
+    expect(publish).not.toHaveBeenCalled()
+    expect(record.mock.calls[0]![0].deliveries).toEqual([
+      {
+        outcome: 'ignored_binding_mismatch',
+        resolvedPropertyId: PROPERTY_ID,
+        event: null,
+      },
+    ])
   })
 
   it('rejects a non-canonical cross-location review resource before writing a receipt', async () => {

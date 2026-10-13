@@ -164,10 +164,9 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       const properties = await deps.repo.findByIds(orgId, propertyIds)
       return properties.map((p) => ({ id: p.id as string, timezone: p.timezone }))
     },
-    findByGbpLocationId: async (gbpLocationId: string) => {
-      const p = await deps.repo.findByGbpLocationId(gbpLocationId)
-      if (!p) return null
-      return {
+    listByGbpLocationId: async (gbpLocationId: string) => {
+      const holders = await deps.repo.listByGbpLocationId(gbpLocationId)
+      return holders.map((p) => ({
         id: p.id,
         organizationId: p.organizationId,
         googleConnectionId: p.googleConnectionId,
@@ -175,7 +174,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         gbpLocationId: p.gbpLocationId,
         googleBindingState: p.googleBindingState,
         sourceEpoch: p.sourceEpoch,
-      }
+      }))
     },
     getSourceEpoch: async (orgId: OrganizationId, pid: PropertyId) => {
       const property = await deps.repo.findById(orgId, pid)

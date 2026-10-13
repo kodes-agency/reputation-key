@@ -57,6 +57,16 @@ organization with an active connection that current policy allows, reading each
 account's setting first and writing only on a difference, so accounts imported
 while push was off or broken and a changed topic converge without an operator.
 
+A push names an account and a location, and no tenant. A location is unique only
+within an Organization, so it is handed to every Property, in any Organization,
+whose current binding is `active` on that account and location, each under its
+own Organization, connection and source epoch. A Property that holds the
+location through another account, or whose binding is no longer active, gets
+nothing from it, and nothing of one tenant reaches another. The message's
+receipt decides a redelivery once for all of them; each Property handed the push
+gets a receipt row and an identifier-only handoff fact of its own, committed in
+that one transaction.
+
 The callback preserves one encrypted provider response behind a leased,
 server-generated exchange-attempt identifier. Refresh uses a renewable Redis
 single-flight lease and credential-generation compare-and-swap. A refresh Google

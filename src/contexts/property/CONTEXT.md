@@ -50,7 +50,10 @@ foreign keys deliberately stop cross-owner deletion.
 ## Invariants
 
 1. Property slugs and canonical GBP location suffixes are unique within an
-   Organization.
+   Organization. Two Organizations can hold the same Google location, so the
+   one lookup by location alone (`listByGbpLocationId`, for a verified Google
+   notification) answers with every Property that holds it, in a fixed order,
+   and never with a single arbitrary row.
 2. Only `verified` Google review destinations may be rendered; `awaiting_refresh`
    and `unavailable` fail closed.
 3. Destructive Property deletion is unreachable from the normal product in beta. The legacy `deleteProperty` server boundary and use case both fail closed before lookup, purge, provider fencing, or durable writes; `property.delete` maps to the permanently blocked `property.erase` capability.

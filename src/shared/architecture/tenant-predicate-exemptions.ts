@@ -622,9 +622,9 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
   },
   {
     file: 'src/contexts/property/infrastructure/repositories/property.repository.ts',
-    symbol: 'findByGbpLocationId',
+    symbol: 'listByGbpLocationId',
     reason:
-      'A verified Google notification names a location before any tenant is known, and the lookup answers with one Property bound to it; the Organization filter is optional and that caller, the only one, omits it. A location is unique only within an Organization, so when two Organizations bind the same one the lookup answers with either: an open question for the owner, not settled here.',
+      "A verified Google notification names a location before any tenant is known. A location is unique only within an Organization, so the lookup answers with every Property that holds it, each with its own Organization, in a fixed order; the one caller, the notification handler, hands the notification to each Property whose binding matches the account it names, under that Property's own Organization and connection.",
     category: 'LEGITIMATE-GLOBAL',
   },
   {
