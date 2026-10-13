@@ -81,24 +81,21 @@ export function GoogleImportProgressView({
               type="button"
               variant="outline"
               onClick={onCancel}
-              disabled={isCancelling}
+              pending={isCancelling}
+              pendingLabel="Cancelling…"
             >
-              {isCancelling ? 'Cancelling…' : 'Cancel import'}
+              Cancel import
             </Button>
           ) : null}
           <Button
             type="button"
             variant="outline"
             onClick={onRefresh}
-            disabled={isRefreshing}
+            pending={isRefreshing}
+            pendingLabel="Refreshing…"
           >
-            <RefreshCcw
-              className={
-                isRefreshing ? 'animate-spin motion-reduce:animate-none' : undefined
-              }
-              aria-hidden="true"
-            />
-            {isRefreshing ? 'Refreshing…' : 'Refresh status'}
+            <RefreshCcw aria-hidden="true" />
+            Refresh status
           </Button>
         </div>
       </div>

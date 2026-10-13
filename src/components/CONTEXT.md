@@ -65,14 +65,15 @@ and actions supply server state.
   is `iconBelow="md"` (or `"sm"`): no caller spells `--control-touch`. `Button` owns `pending` / `pendingLabel` (a
   spinner that stops for reduced motion, `aria-busy`, disabled, an optional label
   swap) and `SubmitButton` is that Button wired to a mutation: never draw a
-  spinner beside a Button or swap its label on `isPending`. An icon-only control is
+  spinner beside a Button or swap its label while it runs. An icon-only control is
   an `IconButton` (a required `label` that is its name and its tooltip; the root
   mounts the one `TooltipProvider`; one that opens a menu or popover shows no
   tooltip), a link set in a sentence is `InlineLink`, text that explains itself on
   request is `ExplainTrigger` (a Popover with the one dotted-underline cue,
   `EXPLAIN_UNDERLINE`), a key hint prints the modifier this platform has
   (`useShortcutModifier`), and a control that is not a Button wears `focus-ring`. `button-sources.test.ts` fails
-  on a per-file height, a hand-placed spinner, a label swapped on `isPending`, an
+  on a per-file height, a hand-placed spinner, a Button label swapped for a pending
+  word (`{saving ? 'Saving…' : 'Save'}`, whatever the flag is called), an
   icon-only Button, the old ring,
   a hand-typed inline link or dotted underline, a `--control-touch` class and a
   hand-copied form submit.

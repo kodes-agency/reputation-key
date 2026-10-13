@@ -81,12 +81,12 @@ export function PortalPrintKitSection({
         <Button
           type="button"
           className="self-start"
-          disabled={
-            view === null || choice === null || unavailableReason !== null || isWorking
-          }
+          disabled={view === null || choice === null || unavailableReason !== null}
+          pending={isWorking}
+          pendingLabel="Making the PDF…"
           onClick={onDownload}
         >
-          <Download /> {isWorking ? 'Making the PDF…' : 'Download print kit (PDF)'}
+          <Download /> Download print kit (PDF)
         </Button>
         {choice !== null && (
           <p className="text-sm text-muted-foreground">

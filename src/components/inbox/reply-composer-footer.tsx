@@ -122,6 +122,8 @@ export function ReplyComposerFooter({
             <Button
               size="sm"
               disabled={disabled || (!canSubmit && submitBlockedReason === null)}
+              pending={isSubmitting}
+              pendingLabel="Submitting…"
               aria-disabled={submitBlockedReason !== null}
               // Both descriptions, spelled here rather than left to Radix.
               // `TooltipTrigger asChild` merges through `Slot`, where the
@@ -147,7 +149,7 @@ export function ReplyComposerFooter({
                 void onSubmit()
               }}
             >
-              {isSubmitting ? 'Submitting…' : 'Submit for approval'}
+              Submit for approval
             </Button>
           </TooltipTrigger>
           <TooltipContent id={guaranteeId}>{PUBLICATION_GUARANTEE}</TooltipContent>
