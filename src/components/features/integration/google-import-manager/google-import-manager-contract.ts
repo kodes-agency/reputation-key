@@ -20,10 +20,7 @@ import type {
   retryPropertyImportItem,
   startPropertyImportV2,
 } from '#/contexts/integration/server/gbp-import'
-import type {
-  getGoogleAuthUrl,
-  listGoogleConnections,
-} from '#/contexts/integration/server/google-connections'
+import type { getGoogleAuthUrl } from '#/contexts/integration/server/google-connections'
 import type { PropertySetupFns } from '#/components/features/property-setup'
 
 export type GoogleImportStep = 'discover' | 'review' | 'progress'
@@ -31,7 +28,6 @@ export type GoogleImportGetAuthUrl = typeof getGoogleAuthUrl
 
 export type GoogleImportFns = Readonly<{
   getGoogleAuthUrl: typeof getGoogleAuthUrl
-  listGoogleConnections: typeof listGoogleConnections
   listImportAccounts: typeof listImportAccounts
   listImportCandidates: typeof listImportCandidates
   renewImportAuthorizationLease: typeof renewImportAuthorizationLease

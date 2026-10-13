@@ -15,6 +15,7 @@ import {
 } from '#/components/ui/table'
 import { AvailabilityLine } from '#/components/features/dashboard/availability-line'
 import { formatDate, formatMonthYear, formatShortDate } from '#/lib/format'
+import { goalMetricLabel } from './goal-metric-label'
 import { goalTargetMarkerLine } from './goal-target-marker'
 
 type Props = Readonly<{
@@ -115,7 +116,7 @@ function MatrixRow({
         <span className="block text-xs text-muted-foreground">{scopeLabel(row)}</span>
       </TableCell>
       <TableCell className="max-w-72 whitespace-normal">
-        <span className="block font-medium">{metricLabel(row.metric)}</span>
+        <span className="block font-medium">{goalMetricLabel(row.metric)}</span>
         <span className="block text-xs text-muted-foreground">
           {evidenceLabel(row.evidence, row.metric)}
         </span>
@@ -187,12 +188,6 @@ function scopeLabel(row: GoalResultsMatrixRow): string {
   if (row.scope === 'property') return 'Property'
   if (row.scope === 'portal_group') return 'Portal group'
   return row.ungroupedPortal ? 'Ungrouped portal' : 'Portal'
-}
-
-function metricLabel(metric: string): string {
-  if (metric === 'qualified_scans') return 'Qualified scans'
-  if (metric === 'portal_rating_count') return 'Private rating count'
-  return 'Private rating average'
 }
 
 function formatTarget(value: number, metric: string): string {

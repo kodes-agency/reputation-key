@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { createFileRoute, getRouteApi } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
   changeGoalProgramAssignments,
   changeGoalProgramStatus,
@@ -51,7 +52,6 @@ import {
 import { goalSubjectKey } from '#/components/goals/goal-subject-picker'
 import { formatDate } from '#/lib/format'
 
-const authRoute = getRouteApi('/_authenticated')
 const goalQuery = (propertyId: string, programId: string) =>
   queryOptions({
     queryKey: goalKeys.detail(propertyId, programId),
@@ -98,7 +98,7 @@ export const Route = createFileRoute(
 
 function GoalDetailRoute() {
   const { propertyId, goalId } = Route.useParams()
-  const ctx = authRoute.useRouteContext() as AuthRouteContext
+  const { can: canDo } = usePermissions()
   const [now] = useState(() => new Date())
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalQuery(propertyId, goalId))
@@ -107,7 +107,7 @@ function GoalDetailRoute() {
   // until it has been read, a change is told without a person.
   const members = useQuery({
     ...membersQuery,
-    enabled: can(ctx.role, 'member.list'),
+    enabled: canDo('member.list'),
     retry: false,
   })
   // Pause and Resume act at once, so a refusal (an invalid transition) is a
@@ -149,7 +149,7 @@ function GoalDetailRoute() {
   const results = [...data.results].sort(
     (left, right) => right.periodStart.getTime() - left.periodStart.getTime(),
   )
-  const canManage = can(ctx.role, 'goal.update')
+  const canManage = canDo('goal.update')
   // The month that is running, as the change command would plan it: its own
   // target, and what the months after it are set to.
   const monthPlan = monthTargetPlan(data, now, propData.property.timezone)

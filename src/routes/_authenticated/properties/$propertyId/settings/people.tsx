@@ -3,8 +3,7 @@ import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { PropertyResponsibleManagersCard } from '#/components/features/property/property-responsible-managers-card'
 import { updatePropertyResponsibleManagers } from '#/contexts/property/server/property-responsible-managers'
-import type { AuthRouteContext } from '#/routes/_authenticated'
-import { can } from '#/shared/domain/permissions'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { propertyKeys } from '#/shared/queries/query-keys'
 import { membersQuery, responsibleManagersQuery } from '../-settings-queries'
 
@@ -21,7 +20,7 @@ export const Route = createFileRoute(
 
 function PropertyPeopleSettings() {
   const { propertyId } = Route.useParams()
-  const { role } = Route.useRouteContext() as AuthRouteContext
+  const { can: canDo } = usePermissions()
   const { data: responsibleManagers } = useSuspenseQuery(
     responsibleManagersQuery(propertyId),
   )
@@ -51,7 +50,7 @@ function PropertyPeopleSettings() {
       state={responsibleManagers}
       members={membersData.members}
       updateAction={updateAction}
-      disabled={!can(role, 'property.update')}
+      disabled={!canDo('property.update')}
     />
   )
 }

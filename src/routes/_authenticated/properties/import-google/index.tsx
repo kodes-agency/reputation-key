@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import type { AuthRouteContext } from '#/routes/_authenticated'
-import { integrationKeys } from '#/shared/queries/query-keys'
+import { googleConnectionsQuery } from '#/routes/-queries/route-queries'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { importFns, importSetupFns } from './-import-fns'
 import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
@@ -19,12 +19,6 @@ const importSearchSchema = z.object({
     .enum(['denied', 'connection_failed', 'account_already_connected'])
     .optional()
     .catch(undefined),
-})
-
-const connectionsQuery = queryOptions({
-  queryKey: integrationKeys.connections(),
-  queryFn: () => importFns.listGoogleConnections(),
-  staleTime: 60_000,
 })
 
 export const Route = createFileRoute('/_authenticated/properties/import-google/')({
@@ -47,14 +41,14 @@ export const Route = createFileRoute('/_authenticated/properties/import-google/'
   },
   staleTime: 60_000,
   loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData(connectionsQuery)
+    await context.queryClient.ensureQueryData(googleConnectionsQuery)
   },
   component: ImportPage,
 })
 
 function ImportPage() {
   const search = Route.useSearch()
-  const { data } = useSuspenseQuery(connectionsQuery)
+  const { data } = useSuspenseQuery(googleConnectionsQuery)
   const { activeOrganization, user } = Route.useRouteContext()
 
   return (

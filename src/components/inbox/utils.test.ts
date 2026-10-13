@@ -75,14 +75,24 @@ describe('formatRelativeTime', () => {
 })
 
 describe('formatCompactAge', () => {
-  const NOW = new Date('2026-09-14T12:00:00.000Z')
+  /**
+   * Local noon, built from local calendar parts, for the reason `NOW` above
+   * gives: past a week the row prints the reader's own day, and an instant fixed
+   * in UTC names another day far enough east or west.
+   */
+  const NOW = new Date(2026, 8, 14, 12)
+  const HOUR = 3_600_000
 
   it('uses the fixed-width row clock', () => {
     expect(formatCompactAge(NOW, NOW)).toBe('now')
-    expect(formatCompactAge('2026-09-14T10:00:00.000Z', NOW)).toBe('2h')
-    expect(formatCompactAge('2026-09-11T12:00:00.000Z', NOW)).toBe('3d')
-    expect(formatCompactAge('2026-09-01T12:00:00.000Z', NOW)).toBe('Sep 1')
-    expect(formatCompactAge('2025-09-01T12:00:00.000Z', NOW)).toBe('Sep 1, 2025')
+    expect(formatCompactAge(new Date(NOW.getTime() - 2 * HOUR), NOW)).toBe('2h')
+    expect(formatCompactAge(new Date(2026, 8, 11, 12), NOW)).toBe('3d')
+    expect(formatCompactAge(new Date(2026, 8, 1, 12), NOW)).toBe('Sep 1')
+    expect(formatCompactAge(new Date(2025, 8, 1, 12), NOW)).toBe('Sep 1, 2025')
+  })
+
+  it('accepts the string a Date becomes after server-function serialization', () => {
+    expect(formatCompactAge(new Date(2026, 8, 1, 12).toISOString(), NOW)).toBe('Sep 1')
   })
 
   // The list formats every row through this clock, so a row older than a week
@@ -90,8 +100,8 @@ describe('formatCompactAge', () => {
   it('builds no formatter per call', () => {
     const construct = vi.spyOn(Intl, 'DateTimeFormat')
     try {
-      expect(formatCompactAge('2026-09-01T12:00:00.000Z', NOW)).toBe('Sep 1')
-      expect(formatCompactAge('2025-09-01T12:00:00.000Z', NOW)).toBe('Sep 1, 2025')
+      expect(formatCompactAge(new Date(2026, 8, 1, 12), NOW)).toBe('Sep 1')
+      expect(formatCompactAge(new Date(2025, 8, 1, 12), NOW)).toBe('Sep 1, 2025')
       expect(construct).not.toHaveBeenCalled()
     } finally {
       construct.mockRestore()

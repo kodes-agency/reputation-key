@@ -10,22 +10,33 @@ import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxono
 
 export const INBOX_PAGE_SIZE = 50
 
+/**
+ * One key of the address. A value the page cannot read (an old vocabulary, a
+ * hand-edited URL, a number where the router found only digits) is dropped and
+ * the rest of the address is kept, as the Properties and Portals lists do:
+ * refusing the page left the generic error and a "Try again" that read the
+ * same address again.
+ */
+const readable = <Schema extends z.ZodType>(schema: Schema) =>
+  schema.optional().catch(undefined)
+
 export const inboxSearchObjectSchema = z.object({
-  queue: z.enum(INBOX_QUEUES).optional(),
-  folder: z.enum(['open', 'escalated', 'closed']).optional(),
-  itemId: z.uuid().optional(),
-  propertyId: z.string().optional(),
-  sourceType: z.enum(['review', 'feedback']).optional(),
-  ratingMin: z.coerce.number().int().min(1).max(5).optional(),
-  ratingMax: z.coerce.number().int().min(1).max(5).optional(),
-  attention: z.enum(['urgent', 'high', 'medium', 'low']).optional(),
+  queue: readable(z.enum(INBOX_QUEUES)),
+  folder: readable(z.enum(['open', 'escalated', 'closed'])),
+  itemId: readable(z.uuid()),
+  // An id or nothing: any other text used to pass as a property scope.
+  propertyId: readable(z.uuid()),
+  sourceType: readable(z.enum(['review', 'feedback'])),
+  ratingMin: readable(z.coerce.number().int().min(1).max(5)),
+  ratingMax: readable(z.coerce.number().int().min(1).max(5)),
+  attention: readable(z.enum(['urgent', 'high', 'medium', 'low'])),
   // Aspect and polarity remain separate URL keys so dashboard drill-downs are
   // readable (`?aspect=wait_time&polarity=negative`) and either dimension can
   // be widened without inventing a second composite vocabulary.
-  aspect: z.enum(ASPECT_TAXONOMY_V1).optional(),
-  polarity: z.enum(ASPECT_POLARITIES_V1).optional(),
-  q: z.string().optional(),
-  sort: z.enum(['newest', 'oldest']).optional(),
+  aspect: readable(z.enum(ASPECT_TAXONOMY_V1)),
+  polarity: readable(z.enum(ASPECT_POLARITIES_V1)),
+  q: readable(z.string()),
+  sort: readable(z.enum(['newest', 'oldest'])),
 })
 
 type InboxSearchObject = z.infer<typeof inboxSearchObjectSchema>

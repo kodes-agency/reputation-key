@@ -156,7 +156,7 @@ describe('authenticated route', () => {
       redirect({
         to: '/unavailable',
         search: {
-          feature: 'Capability',
+          feature: 'Goals',
           category: 'needs_admin_enablement',
           propertyId: 'property-1',
         },
@@ -172,7 +172,7 @@ describe('authenticated route', () => {
       options: {
         to: '/unavailable',
         search: {
-          feature: 'Capability',
+          feature: 'Goals',
           category: 'needs_admin_enablement',
           propertyId: 'property-1',
         },
