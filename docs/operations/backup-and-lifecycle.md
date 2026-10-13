@@ -522,7 +522,13 @@ verification.
 **Gates, in order.**
 
 1. the Property is already `archived` — erasure is not a shortcut past the
-   recoverable lifecycle;
+   recoverable lifecycle. A Property stays restorable until its erase reaches
+   `purge_pending`, so the gate is asked three times: at the request, at the
+   confirmation, and by the job when it starts the grace period, where the
+   Property is moved only from `archived` and under the row lock Restore takes.
+   A Property restored after the confirmation is left as it is and its erase is
+   cancelled with reason `property_not_archived`; once the Property is
+   `purge_pending`, Restore refuses it until the erase is cancelled;
 2. the requester is a **current** AccountAdmin;
 3. an independent, content-free support authorization reference is supplied;
 4. the dependency inventory (every owning context's row counts, content-free)
@@ -531,7 +537,14 @@ verification.
    the inventory revision the admin was shown. A stale revision is refused.
 
 **State machine.** `requested → previewed → confirmed → purge_pending → purging
-→ purged`, with `cancelled` reachable from every state before `purging`.
+→ purged`, with `cancelled` reachable from every state before `purging`. The
+Property's own `lifecycle_state` follows the authority from `purge_pending` on,
+in the same transaction. A cancel from `purge_pending` returns the Property to
+`archived`, so it can be restored (inside its recovery window), handled by
+support or requested again; a cancel from an earlier state does not touch the
+Property, which that request never moved. Every forward step moves the
+Property only from the state the erase last left it in, and changes nothing,
+the authority included, when it finds another.
 
 **The irreversible boundary is `purge_pending → purging`**, guarded three
 independent times: the domain transition table, the store's `from` predicate,

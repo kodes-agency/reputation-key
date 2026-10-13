@@ -394,6 +394,23 @@ verifies the durable fact names that same user, deletes all Better Auth sessions
 for the departing user, deletes membership, and appends
 `identity.member.removed`.
 
+The release before the Identity command is not the last one. Until the
+membership is deleted the member is still an eligible manager, so an assignment
+another admin saves in between is accepted. Property and Portal therefore
+release again from `identity.member.removed` (worker consumers
+`property.on-member-removed` and `portal.on-member-removed`): whatever the
+member still holds and may no longer hold. A "Responsible Manager needed" notice
+can follow a removal by a few seconds for that reason, and it is correct. A
+save of a Property's or Portal's managers also reads eligibility again after it
+commits and releases, and refuses, a manager who was removed while it ran.
+
+When these two consumers are first deployed, the five-minute redelivery sweep
+hands them every published `identity.member.removed` fact older than two hours
+that is still in the outbox: such a fact has no receipt for them yet. That
+releases a Responsible Manager who was removed earlier and is still assigned; a
+member who is back keeps what they may hold; a fact with nothing left to
+release only records its receipt.
+
 ### Transfer-first leave (LIF-01-T21)
 
 Self-service leave is a SEPARATE command from removal, because the two need

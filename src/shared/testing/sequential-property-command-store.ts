@@ -44,7 +44,15 @@ export function createSequentialPropertyCommandStore(deps: {
         throw propertyError('stale_property', 'property changed before test update')
       }
       await deps.repo.update(command.organizationId, command.propertyId, command.patch)
-      await recordAndEmit(command.event)
+      const committed = await deps.repo.findById(
+        command.organizationId,
+        command.propertyId,
+      )
+      if (!committed) {
+        throw propertyError('property_not_found', 'property vanished during test update')
+      }
+      await recordAndEmit(command.event(committed))
+      return committed
     },
 
     deleteProperty: async (command) => {

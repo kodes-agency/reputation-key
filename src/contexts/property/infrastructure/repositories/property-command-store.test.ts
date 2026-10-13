@@ -185,15 +185,23 @@ describe.sequential('propertyCommandStore (integration)', () => {
       slug: 'propcmd-renamed',
       occurredAt: NOW,
     })
-    await store.updateProperty({
+    const committed = await store.updateProperty({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
       expectedSourceEpoch: 0,
       expectedProfileVersion: 1,
       patch: { name: 'Renamed Hotel', slug: 'propcmd-renamed', updatedAt: NOW },
-      event,
+      event: () => event,
     })
 
+    // The store answers with the row as committed: patched and untouched columns.
+    expect(committed).toMatchObject({
+      id: PROP_ID,
+      name: 'Renamed Hotel',
+      slug: 'propcmd-renamed',
+      timezone: 'UTC',
+      profileVersion: 1,
+    })
     const rows = await pool.query('SELECT name, slug FROM properties WHERE id = $1', [
       PROP_ID,
     ])

@@ -24,6 +24,16 @@ Shared-area dependency and production/test fences are enforced by `eslint.config
 
 The shared root is not a general placement target. Its retained files are narrow multi-owner contracts: AI/provider schemas and pinned vectors, canonical JSON, closed JSON validation, merchant-AI notices, Reply language, responsible-manager eligibility, Google Review/Performance wire normalization, and provider-subject bindings. New workflow orchestration belongs in an owning context.
 
+Responsible-manager eligibility has two owners, Property and Portal, and its
+contract includes the one rule both follow when a member is removed: release
+again, from `identity.member.removed`, what the member still holds and may no
+longer hold (`releaseRemovedMemberResponsibilities`), through the one handler
+that reads the fact and records the receipt after the release
+(`removed-member-consumer.ts`). The root holds only that rule and that handler.
+Each owner registers the consumer under its own name and catalogue row and binds
+the rule to its own store, and the check an assignment makes after it commits
+stays in the owner's use case.
+
 AI and Google contracts state their semantic owner explicitly. Browser-safe
 catalogues must not pull Node crypto, provider clients, configuration, queues, or
 persistence into the client graph. Raw provider/review content and credentials do

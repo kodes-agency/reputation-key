@@ -144,7 +144,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
       getPropertyName: async () => null,
       getPropertyNames: async () => [],
       getPropertyTimezones: async () => [],
-      findByGbpLocationId: async () => null,
+      listByGbpLocationId: async () => [],
       findBySlug: async () => null,
       getSourceEpoch: async () => ({ sourceEpoch: 0 }),
       findIdsByGoogleConnection: async () => [],

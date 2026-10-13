@@ -113,11 +113,15 @@ export type PropertyPublicApi = Readonly<{
   ) => Promise<ReadonlyArray<{ id: string; timezone: string }>>
 
   /**
-   * Find a non-deleted property by its Google Business Profile location ID.
-   * Used by the integration context for GBP webhook handling (push-based,
-   * no organizationId available at call time).
+   * Every non-deleted Property that holds a Google Business Profile location,
+   * in every Organization, ordered by Organization then id. Used by the
+   * integration context for GBP webhook handling (push-based, no
+   * organizationId available at call time). A location is unique only within
+   * an Organization, so the answer can name more than one.
    */
-  findByGbpLocationId: (gbpLocationId: string) => Promise<PropertyLookupResult | null>
+  listByGbpLocationId: (
+    gbpLocationId: string,
+  ) => Promise<ReadonlyArray<PropertyLookupResult>>
 
   /**
    * Find all non-deleted property IDs linked to a Google connection within an org.

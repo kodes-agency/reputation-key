@@ -1073,7 +1073,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   // The JWT-verified GBP webhook may resolve the canonical location ID without
   // an organization ID. The lookup still delegates through the Property public API.
   const propertyLookup: HandleGbpNotificationDeps['propertyLookup'] = {
-    findByGbpLocationId: deps.propertyApi.findByGbpLocationId,
+    listByGbpLocationId: deps.propertyApi.listByGbpLocationId,
   }
 
   const googleReviewCursorStore =

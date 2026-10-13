@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id AND deleted_at IS NULL via baseWhere().
 
-import { and, eq, inArray, isNull, not } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, not } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import { properties } from '#/shared/db/schema/property.schema'
@@ -137,22 +137,24 @@ export const createPropertyRepository = (db: Database): PropertyRepository => {
       })
     },
 
-    /** Cross-tenant only for the JWT-verified GBP webhook handler. */
-    findByGbpLocationId: async (gbpLocationId, orgId) => {
-      return trace('property.findByGbpLocationId', async () => {
-        const conditions = [
-          eq(properties.gbpLocationId, gbpLocationId),
-          isNull(properties.deletedAt),
-        ]
-        if (orgId) {
-          conditions.push(eq(properties.organizationId, orgId as string))
-        }
+    /**
+     * Cross-tenant only for the JWT-verified GBP webhook handler. All of them,
+     * in a fixed order: the location is unique per Organization, not globally,
+     * and the caller decides which bindings the push is for.
+     */
+    listByGbpLocationId: async (gbpLocationId) => {
+      return trace('property.listByGbpLocationId', async () => {
         const rows = await db
           .select()
           .from(properties)
-          .where(and(...conditions))
-          .limit(1)
-        return rows[0] ? propertyFromRow(rows[0]) : null
+          .where(
+            and(
+              eq(properties.gbpLocationId, gbpLocationId),
+              isNull(properties.deletedAt),
+            ),
+          )
+          .orderBy(asc(properties.organizationId), asc(properties.id))
+        return rows.map(propertyFromRow)
       })
     },
 

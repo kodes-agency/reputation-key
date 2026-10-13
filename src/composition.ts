@@ -300,6 +300,7 @@ function buildContainer(
   const property = buildPropertyContext({
     db,
     repo: createPropertyRepository(db),
+    outboxRepo,
     clock,
     idGen: randomUUID,
     staffPublicApi: identity.publicApi.people,

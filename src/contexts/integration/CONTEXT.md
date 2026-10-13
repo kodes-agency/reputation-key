@@ -57,6 +57,16 @@ organization with an active connection that current policy allows, reading each
 account's setting first and writing only on a difference, so accounts imported
 while push was off or broken and a changed topic converge without an operator.
 
+A push names an account and a location, and no tenant. A location is unique only
+within an Organization, so it is handed to every Property, in any Organization,
+whose current binding is `active` on that account and location, each under its
+own Organization, connection and source epoch. A Property that holds the
+location through another account, or whose binding is no longer active, gets
+nothing from it, and nothing of one tenant reaches another. The message's
+receipt decides a redelivery once for all of them; each Property handed the push
+gets a receipt row and an identifier-only handoff fact of its own, committed in
+that one transaction.
+
 The callback preserves one encrypted provider response behind a leased,
 server-generated exchange-attempt identifier. Refresh uses a renewable Redis
 single-flight lease and credential-generation compare-and-swap. A refresh Google
@@ -88,7 +98,7 @@ without resending the token.
 10. A bound callback replay carries no code verifier and can only claim that preserved response; it never re-exchanges the provider code. Claims use a 30-second lease, ciphertext expires after ten minutes, and every terminal path erases it. The five-minute provider-recovery sweep bounds abandoned ciphertext retention and records an unpreserved started exchange as ambiguous.
 11. Provider success, provable not-sent, and ambiguous outcomes commit with local token/subject redaction; an elapsed attempt reconciles the linked permit and never sends the token again. An elapsed attempt whose connection has already moved on is closed with that outcome, without redaction or a fact of its own. The attempt window is 60 seconds and the same five-minute sweep bounds crash recovery. Neither route may fall back to a direct credential socket.
 12. Coordination ambiguity denies the refresh before credential decryption or database mutation.
-13. Lifecycle `prepareClosing` stops provider effects and deletes nothing. `verifyPurgeReadiness` is read-only and fails closed while credential, work, attempt, operation, or discovery evidence remains live.
+13. Lifecycle `prepareClosing` stops provider effects and deletes nothing. `verifyPurgeReadiness` is read-only and fails closed while credential, work, attempt, operation, or discovery evidence remains live. The closing evidence counts a connection's notification subscriptions as stopped only when every bound account's setting was cleared and read back: the notifications unsubscribe answers with an outcome, and a refusal or a connection with no account to target is recorded `not_sent`, a provider failure or a partly cleared connection `ambiguous`. Closing redacts the refresh token in the same transaction, so a subscription counted as stopped could never be stopped afterwards.
 14. An Organization that never connected Google answers `no_data` — affirmative evidence, never an omitted contributor.
 15. A `reauth_required` connection is never refreshed, and no sync, reply, import or Performance authorization admits it; only a fresh consent (reconnect) returns it to `active`. Credential refusals (the active-connection token provider and the refresh) say `reauthorization_required`, not `connection_disconnected`, and the review API adapter reports a reply refused for it the same way. The sync, import and Performance authorizers keep their own refusal codes (`authorization_denied`, `connection_unavailable`, `reauthentication_required`).
 16. A local disconnect is idempotent and never takes a row from a governed revoke. A connection an overlapping disconnect already finished comes back as it is, with no second `integration.google_account.disconnected` fact. While a `disconnecting` connection's cleanup window is open, another disconnect is refused as in progress (`invalid_transition`); once the window has closed it finishes locally. It is not fenced on the credential it read, so a refresh that commits meanwhile cannot make it fail. A reconnect commits only against the exact lifecycle, access and credential versions its OAuth ceremony was approved for, and otherwise fails `oauth_failed` with nothing written.

@@ -50,7 +50,10 @@ foreign keys deliberately stop cross-owner deletion.
 ## Invariants
 
 1. Property slugs and canonical GBP location suffixes are unique within an
-   Organization.
+   Organization. Two Organizations can hold the same Google location, so the
+   one lookup by location alone (`listByGbpLocationId`, for a verified Google
+   notification) answers with every Property that holds it, in a fixed order,
+   and never with a single arbitrary row.
 2. Only `verified` Google review destinations may be rendered; `awaiting_refresh`
    and `unavailable` fail closed.
 3. Destructive Property deletion is unreachable from the normal product in beta. The legacy `deleteProperty` server boundary and use case both fail closed before lookup, purge, provider fencing, or durable writes; `property.delete` maps to the permanently blocked `property.erase` capability.
@@ -80,11 +83,41 @@ foreign keys deliberately stop cross-owner deletion.
     guessed and offboarding is not blocked. Only an active Property also raises
     `property.responsibility_became_needed`: an archived one needs a manager to
     be restored, not an urgent notice (ADR 0052).
+    Removing a member releases their Property responsibilities twice: before
+    the membership is deleted, in a commit of its own, and again from
+    `identity.member.removed` (`property.on-member-removed`), the fact every
+    removal path records with the membership delete. Until that delete the
+    member is still eligible, so an assignment saved in between is accepted,
+    and only the second release sees it. Eligibility is asked at delivery, so a
+    member invited again in the meantime keeps what they may hold.
+    A save of the managers reads eligibility twice: before its write, and again
+    once the write has committed. The first read is not under the write's lock,
+    so a removal, role change or lost access that commits in between is seen by
+    neither that read nor a release that ran before the assignment existed.
+    Whichever of the two commits second is therefore followed by a check that
+    sees the other: the save's second read, or the release from the fact (after
+    a removal) or the reconciliation (after a role or access change). A manager
+    the second read finds no longer eligible is released with reason
+    `manager_became_ineligible`, the gap is recorded and announced with no actor
+    left out, and the save answers `responsible_manager_ineligible`; the rest
+    of the selection stays saved.
 11. Responsible Manager history is owned by the Property aggregate. Its behavior at permanent erasure remains part of the future support-mediated LIF-01 workflow; normal product actions cannot erase it.
 12. `verifyPurgeReadiness` fails closed while any Property is still `active` or
     `disconnecting`.
 13. Portal and Guest rows RESTRICT Property deletion until their own purge receipts
     exist. It is never converted into a cascade that erases another owner's rows without that owner's receipt.
+14. A Property update writes only the columns the request changes, and answers
+    and records `property.updated` from the row as committed. Country is the
+    exception: it is written, with `countrySource: 'manual'`, whenever the
+    request carries it, changed or not, and the Profile form always carries it.
+    The request reads
+    the Property without a lock and its fence covers the Google binding
+    (`sourceEpoch`) and the name and timezone (`profileVersion`) only, so a slug
+    or reply language repeated from that read would undo another admin's save of
+    it. A save that read the Property before a rename or timezone change
+    committed is refused (`stale_property`); two saves of the same other column
+    are last-write-wins, and so is a country edit against a later Profile save
+    that read the old country.
 
 ## Verification
 
@@ -95,3 +128,5 @@ closure readiness, restrictive purge order, export, and replay.
 `property-archive-restore-google-destination.integration.test.ts` runs Archive,
 Disconnect, Restore and relink as the product does and asserts what Portal
 publication and the guest page are then told about the Google destination.
+`property-update-overlap.integration.test.ts` overlaps two Property saves and
+asserts that neither undoes the other.
