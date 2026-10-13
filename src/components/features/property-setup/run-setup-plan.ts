@@ -1,4 +1,5 @@
 import type { CurrentMerchantAiCapability } from '#/contexts/identity/application/public-api'
+import { actionFailureMessage } from '#/components/hooks/use-action-mutation'
 import type { SetupPlan } from './setup-plan'
 
 export type SetupTaskKind = 'displayName' | 'language' | 'managers' | 'ai'
@@ -44,10 +45,14 @@ export type RunSetupPlanOptions = Readonly<{
 
 const DEFAULT_CONCURRENCY = 4
 
-function failureMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) return error.message
-  return 'This setting could not be saved.'
-}
+/**
+ * The results list prints this beside the Property and the setting, so it
+ * follows the one rule for failure text: the server's own sentence for a 4xx
+ * refusal, and one generic sentence for anything else (a 5xx, a dropped
+ * connection, a payload the validator rejected), whose message was never
+ * written for a reader.
+ */
+const failureMessage = actionFailureMessage("Couldn't save this setting.")
 
 async function settle(
   task: Readonly<{ propertyId: string; kind: SetupTaskKind }>,

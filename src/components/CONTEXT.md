@@ -326,7 +326,9 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   server's own sentence only for a 4xx refusal, and a success says what changed
   without "successfully". `FormErrorBanner` follows the same rule (a 4xx
   refusal's sentence, a rejected schema's issue list, one generic sentence for
-  anything else), so hand it the mutation's error as it is. A Goal command's
+  anything else), so hand it the mutation's error as it is. The setup wizard's
+  results list is neither a toast nor a banner and words each failed write by
+  the same rule (`property-setup/run-setup-plan.ts`). A Goal command's
   refusal is worded first: it arrives with its code as the message, so
   `goals/goal-refusal.ts` gives each code its sentence and the banner or the
   toast prints that. An autosaved portal
