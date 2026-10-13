@@ -192,7 +192,7 @@ Guest browser → Signed session → Rating/Feedback → PostgreSQL (IP hashed)
 
 - Structured logs (Pino) redact: tokens, cookies, authorization headers, review text, reviewer names, emails, presigned URLs.
 - Traces (`src/shared/observability/trace.ts`) record operation name + duration only — no payload data.
-- Sentry error monitoring (active for beta) uses a Germany-only DSN guard and
+- Sentry error monitoring (active for beta) uses a US-only DSN guard and
   outbound allowlist scrubbers for error events, transactions, and breadcrumbs.
 - Native beta feedback sends the manager-entered report, Bug/Suggestion
   classification, controlled route template, broad viewport category, role,
@@ -216,9 +216,9 @@ Guest browser → Signed session → Rating/Feedback → PostgreSQL (IP hashed)
 - [x] Initialize Sentry SDK with outbound allowlist scrubbers, a text-only
       Suggestion boundary, and a separately consented Bug-only masked-layout
       boundary; ordinary screenshots and replay remain prohibited (deployment
-      uses a mandatory Germany DSN)
+      uses a mandatory US DSN)
 - [x] Persist a content-free local feedback receipt and revision-fenced,
       append-only triage evidence without report text or attachment bytes
 - [ ] Approve and evidence the exact Sentry event/feedback retention setting,
       attachment expiry (no more than 30 days), operator access, inbound project
-      scrubbers, and Germany project in the RC
+      scrubbers, and US project in the RC

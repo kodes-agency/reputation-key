@@ -2,14 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-corrected_on: 2026-10-12
+corrected_on: 2026-10-13
 ---
 
 # Privacy Notice — Reputation Key Closed Beta
 
 **Status:** Accepted for publication
-**Effective date:** 2026-10-12
-**Version:** 2.1
+**Effective date:** 2026-10-13
+**Version:** 2.2
 **Accountable owner:** Bozhidar Denev
 
 ## 1. About this notice
@@ -119,8 +119,9 @@ Guest media submission is unavailable.
 The Service uses content-minimized request, error, performance, health, job,
 and security signals. Repository controls prohibit request/response bodies,
 cookies, credentials, raw tenant content, and unapproved identifiers from
-ordinary monitoring. Native feedback text is submitted deliberately and held
-separately from application telemetry.
+ordinary monitoring. Native feedback text is submitted deliberately. It is sent
+to the error-monitoring provider as a beta feedback report, as explained below
+the provider table.
 
 The Service uses the following providers:
 
@@ -130,7 +131,38 @@ The Service uses the following providers:
 | OpenAI   | AI inference                                   | Global API endpoint with no residency commitment; prompt cache up to 24 hours; ordinary abuse-monitoring retention generally no more than 30 days, subject to documented legal or safety exceptions; API data is not used for training unless Reputation Key's OpenAI organization opts in |
 | Google   | Business Profile APIs and OAuth                | Independent controller of Business Profile data                                                                                                                                                                                                                                            |
 | Resend   | Transactional email                            | United States                                                                                                                                                                                                                                                                              |
-| Sentry   | Error monitoring                               | United States; used only when a DSN is configured, and no DSN is configured today                                                                                                                                                                                                          |
+| Sentry   | Error monitoring and beta feedback reports     | United States; required: the deployed Service does not start unless it is configured; receives error, timing, and health reports from its servers, error reports and page-load records from Participant and Guest browsers, and beta feedback reports, as explained below this table       |
+
+Error monitoring is part of the deployed Service. Its web and worker processes
+do not start unless error monitoring is configured, and they accept only the
+provider's United States ingestion service. The Service's servers send the
+provider error reports, operational alerts, timing reports for a share of the
+work they handle, and health reports. The browser of a Participant or Guest
+sends the provider, directly, an error report when a page fails and a page-load
+record each time it opens a page of the Service or moves to another one. A
+page-load record holds a random identifier for that page view, the time, the
+software version, whether an error occurred, and the browser's user-agent text.
+These reports are content-minimized as described above the table; in
+particular, the text of an error message is replaced before a report is sent.
+Because a browser sends its reports itself, the provider's servers also see the
+network address of that connection, as any website does. The Service does not
+add a network address to a report.
+
+A beta feedback report holds the text the Participant wrote, of at most 6,000
+characters. The Service automatically removes email addresses and some forms of
+password, token, and key from that text. It cannot recognise other personal
+data, such as a name, so the rest is sent as written. With the text the
+provider receives the report type and impact the Participant chose, the area of
+the application the report was sent from as a category and not an address, a
+broad screen-size category, the Participant's role, a random report reference,
+the time, the software version, and two pseudonyms: codes derived with a secret
+key from the internal identifiers of the Participant and of the Organization,
+the same on every report from that Participant or Organization. If the
+Participant chose to attach them, the report also names the error report it
+refers to and gives the size and block counts of the masked Bug layout. The
+Service does not add the Participant's name or email address to the report and
+does not send the layout itself. The Service's own database keeps a record of
+each report without its text.
 
 ## 3. Why information is used
 
@@ -310,10 +342,22 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-10-12 and is version 2.1. It replaces version
-2.0, which took effect on 2026-09-08. Material changes will be announced to
-Participants by email at least 14 days before they take effect. The version and
-effective date will remain shown on this page.
+This notice takes effect on 2026-10-13 and is version 2.2. It replaces version
+2.1, which took effect on 2026-10-12 and had replaced version 2.0, which took
+effect on 2026-09-08. Material changes will be announced to Participants by
+email at least 14 days before they take effect. The version and effective date
+will remain shown on this page.
+
+Version 2.2 corrects the provider table in section 2 and the sentence about
+beta feedback text above it. Versions 2.0 and 2.1 said that the
+error-monitoring provider was used only when it was configured and that it was
+not configured, and they did not say that beta feedback text is sent to that
+provider. In fact the deployed Service does not start unless error monitoring
+is configured, and beta feedback text is sent to that provider. Both have been
+so since before version 2.0 was published; version 2.2 describes them correctly
+and says what the provider receives. Because it corrects a description and
+changes nothing about what the Service does, it is not a material change and
+takes effect on the day it is published.
 
 Version 2.1 corrects section 6. Version 2.0 gave one expiry, no more than 24
 hours, for the Guest response session and the destination-action receipt

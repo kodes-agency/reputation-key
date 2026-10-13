@@ -366,7 +366,8 @@ at 24h (`guest_response_session_bindings.expired` and the three
 `*.guest_session_pseudonym` redactions). The `idempotency_receipts` subject also
 covers the Guest scopes `guest_qualified_scan` and `guest_destination_action`,
 whose key and payload carry the same identifier, so those receipts keep it for
-30d. Privacy Notice version 2.1 states both figures (`docs/BETA.md` §2, §3).
+30d. The Privacy Notice has stated both figures since version 2.1
+(`docs/BETA.md` §2, §3).
 
 Version history: v1 (BQC-1.6) initial 9-rule registry + lifecycle purges; v2
 (BQC-7.8) + `audit_logs` at 365d, + `quarantine.ttl`, Google import lifecycle
