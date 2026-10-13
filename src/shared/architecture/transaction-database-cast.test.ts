@@ -23,8 +23,11 @@ import { describe, expect, it } from 'vitest'
 
 const ROOT = process.cwd()
 
-/** Assembled from fragments so no source file holds it by quoting this one. */
-const DOUBLE_CAST = ['as unknown', 'as Database'].join(' ')
+/**
+ * The cast, to the type `Database` exactly. Any whitespace may separate the two
+ * halves, because Prettier breaks a long expression between them.
+ */
+const DOUBLE_CAST = /\bas unknown\s+as Database\b/gu
 
 /**
  * The sites that remain, and what each waits for. This list only shrinks:
@@ -62,7 +65,7 @@ function productionSources(directory: string): string[] {
 function doubleCastSites(): Record<string, number> {
   const sites: Record<string, number> = {}
   for (const file of productionSources(join(ROOT, 'src'))) {
-    const count = readFileSync(file, 'utf8').split(DOUBLE_CAST).length - 1
+    const count = [...readFileSync(file, 'utf8').matchAll(DOUBLE_CAST)].length
     if (count > 0) sites[relative(ROOT, file).split(sep).join('/')] = count
   }
   return sites

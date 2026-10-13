@@ -115,6 +115,32 @@ describe('the contributor sets are the only place a contributor is built', () =>
     'integration: createIntegrationOrganizationLifecycleContributor(',
   ]
 
+  /** `build.ts` and the `build-*.ts` modules a large build is split into. */
+  const BUILD_MODULE = /^build(?:-[a-z-]+)?\.ts$/u
+
+  type BuildScan = Readonly<{
+    modules: ReadonlyArray<string>
+    constructed: ReadonlyArray<string>
+  }>
+
+  async function scanContextBuild(contextsUrl: URL, context: string): Promise<BuildScan> {
+    const contextUrl = new URL(`${context}/`, contextsUrl)
+    const files = (await readdir(contextUrl))
+      .filter((file) => BUILD_MODULE.test(file))
+      .sort()
+    const sources = await Promise.all(
+      files.map((file) => readFile(new URL(file, contextUrl), 'utf8')),
+    )
+    return {
+      modules: files.map((file) => `${context}/${file}`),
+      constructed: sources.flatMap((source) =>
+        [...source.matchAll(CONTRIBUTOR_CONSTRUCTION)].map(
+          ([construction]) => `${context}: ${construction}`,
+        ),
+      ),
+    }
+  }
+
   it('no context build constructs one, except the two a set cannot build itself', async () => {
     const contextsUrl = new URL('../contexts/', import.meta.url)
     const contexts = (await readdir(contextsUrl, { withFileTypes: true }))
@@ -122,15 +148,18 @@ describe('the contributor sets are the only place a contributor is built', () =>
       .map((entry) => entry.name)
       .sort()
 
-    const constructed: string[] = []
-    for (const context of contexts) {
-      const build = await readFile(new URL(`${context}/build.ts`, contextsUrl), 'utf8')
-      for (const [construction] of build.matchAll(CONTRIBUTOR_CONSTRUCTION)) {
-        constructed.push(`${context}: ${construction}`)
-      }
-    }
+    const scans = await Promise.all(
+      contexts.map((context) => scanContextBuild(contextsUrl, context)),
+    )
 
-    expect(contexts).toEqual(expect.arrayContaining(['inbox', 'reporting', 'review']))
-    expect(constructed).toEqual(BUILT_BY_ITS_OWN_CONTEXT)
+    expect(scans.flatMap((scan) => scan.modules)).toEqual(
+      expect.arrayContaining([
+        'inbox/build-use-cases.ts',
+        'inbox/build.ts',
+        'reporting/build.ts',
+        'review/build.ts',
+      ]),
+    )
+    expect(scans.flatMap((scan) => scan.constructed)).toEqual(BUILT_BY_ITS_OWN_CONTEXT)
   })
 })
