@@ -1,13 +1,15 @@
 // Identity context — finalize user avatar upload use case.
-// Confirms the upload landed and returns the address the avatar is shown at (a
-// path on the app, see identity-assets.ts). Does NOT persist to any entity
-// (the caller persists through the updateUserImageFn server function).
+// Confirms the upload landed within the size cap and returns the address the
+// avatar is shown at (a path on the app, see identity-assets.ts). Does NOT
+// persist to any entity (the caller persists through the updateUserImageFn
+// server function).
 
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 import { identityAssetPath, isIdentityAssetKey } from '../identity-assets'
+import { assertStoredUploadAllowed } from '../upload-policy'
 
 export type FinalizeAvatarUploadInput = Readonly<{
   key: string
@@ -36,7 +38,7 @@ export const finalizeAvatarUpload =
       throw identityError('validation_error', 'Upload key is not an avatar key')
     }
 
-    await deps.storage.confirmUpload(input.key)
+    await assertStoredUploadAllowed(deps.storage, input.key)
     return { avatarUrl: identityAssetPath(input.key) }
   }
 

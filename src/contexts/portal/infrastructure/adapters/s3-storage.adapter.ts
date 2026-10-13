@@ -108,6 +108,10 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
   const withinDeadline = () => ({ abortSignal: AbortSignal.timeout(deadlineMs) })
 
   return {
+    // The size bound is not part of the signature: a signed PUT cannot carry
+    // a maximum length, and binding the exact length is unproven against the
+    // stores this adapter talks to. The caller checks the stored size instead
+    // (Identity's assertStoredUploadAllowed, when the picture is saved).
     createPresignedUploadUrl: async (key, contentType, _maxSizeBytes) => {
       const command = new PutObjectCommand({
         Bucket: bucketName,

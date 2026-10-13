@@ -3,7 +3,15 @@
 // The avatar and org-logo upload use cases share the same acceptance rules:
 // an allowlist of image content types and a 5 MB size cap. The portal hero
 // upload policy (10 MB) is a separate, portal-owned rule.
+//
+// The cap is checked twice. `assertUploadAllowed` judges the size the browser
+// declares when it asks for an upload address; that address carries no length
+// bound, so the bytes that arrive can be any size. `assertStoredUploadAllowed`
+// judges the size the store reports when the upload is saved, and removes an
+// object over the cap. An upload that is never saved is not checked at all:
+// see docs/operations/backup-and-lifecycle.md ("What stays in the bucket").
 
+import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { canForContext } from '#/shared/domain/permissions'
@@ -43,4 +51,27 @@ export function assertUploadAllowed(
   if (input.fileSize > MAX_UPLOAD_BYTES) {
     throw identityError('validation_error', 'File size exceeds 5 MB limit')
   }
+}
+
+/**
+ * Read the size of the stored object and refuse one that is over the cap, or
+ * whose size the store does not report. A refused object is removed first:
+ * nothing will ever point at it. Rejects with the store's own error when the
+ * upload never arrived, or when the refused object could not be removed.
+ */
+export async function assertStoredUploadAllowed(
+  storage: Pick<StoragePort, 'inspectObject' | 'deleteObject'>,
+  key: string,
+): Promise<void> {
+  const stored = await storage.inspectObject?.(key)
+  const sizeBytes = stored?.sizeBytes ?? null
+  if (sizeBytes !== null && sizeBytes <= MAX_UPLOAD_BYTES) return
+
+  await storage.deleteObject(key)
+  throw identityError(
+    'validation_error',
+    sizeBytes === null
+      ? 'The uploaded file could not be checked. Upload it again.'
+      : 'File size exceeds 5 MB limit',
+  )
 }

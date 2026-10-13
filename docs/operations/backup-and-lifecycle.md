@@ -249,6 +249,12 @@ How each path works against it:
   removal hold no storage and delete none). Set a bucket lifecycle rule that
   expires `avatars/` and `organizations/` objects nothing refers to, or sweep
   them by key, when the storage policy is decided.
+  **The 5 MB cap is the app's, not the store's.** The signed upload address
+  carries no length bound and stays valid for an hour, so the bytes a signed-in
+  member sends to it can be any size the bucket accepts. Saving the picture
+  reads the stored size and refuses and deletes an object over 5 MB, so nothing
+  over the cap is ever referenced or served; an upload that is never saved is
+  not checked and stays, at whatever size, until the rule above exists.
   Values stored before this change (an `s3.<region>.amazonaws.com` address) never
   loaded; migration 0053 clears them so the UI shows initials, and the person
   uploads again (detection query in `docs/operations/operator-commands.md`).

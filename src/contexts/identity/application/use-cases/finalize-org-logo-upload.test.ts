@@ -3,6 +3,7 @@ import { initPermissionTable } from '#/shared/auth/permissions'
 import { setPermissionLookup } from '#/shared/domain/permissions'
 import { finalizeOrgLogoUpload } from './finalize-org-logo-upload'
 import { identityAssetPath } from '../identity-assets'
+import { MAX_UPLOAD_BYTES } from '../upload-policy'
 import { organizationId, userId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -35,6 +36,7 @@ const mockStorage = {
     key: 'test',
   }),
   confirmUpload: async () => {},
+  inspectObject: async () => ({ contentType: 'image/png', sizeBytes: 1024 }),
   deleteObject: async () => {},
   getObject: async () => null,
   putObject: async () => {},
@@ -83,13 +85,16 @@ describe('finalizeOrgLogoUpload', () => {
     }
   })
 
-  it('rejects PropertyManager, confirming no upload and persisting no logo', async () => {
+  it('rejects PropertyManager, reading no upload and persisting no logo', async () => {
     // The logo is an Organization setting (ADR 0033): run the real role table.
     initPermissionTable()
-    const confirmUpload = vi.fn(async (_key: string) => undefined)
+    const inspectObject = vi.fn(async (_key: string) => ({
+      contentType: 'image/png',
+      sizeBytes: 1024,
+    }))
     const updateOrg = vi.fn().mockResolvedValue(undefined)
     const useCase = finalizeOrgLogoUpload(
-      deps({ storage: { ...mockStorage, confirmUpload }, updateOrg }),
+      deps({ storage: { ...mockStorage, inspectObject }, updateOrg }),
     )
 
     await expect(
@@ -102,8 +107,8 @@ describe('finalizeOrgLogoUpload', () => {
       code: 'forbidden',
       message: 'Insufficient permissions to finalize organization logo upload',
     })
-    // The refusal comes before the object is confirmed, so none is orphaned.
-    expect(confirmUpload).not.toHaveBeenCalled()
+    // The refusal comes before the object is read, so none is removed either.
+    expect(inspectObject).not.toHaveBeenCalled()
     expect(updateOrg).not.toHaveBeenCalled()
   })
 
@@ -162,7 +167,7 @@ describe('finalizeOrgLogoUpload', () => {
       deps({
         storage: {
           ...mockStorage,
-          confirmUpload: async () => {
+          inspectObject: async () => {
             throw new Error('NotFound')
           },
         },
@@ -177,6 +182,39 @@ describe('finalizeOrgLogoUpload', () => {
       ),
     ).rejects.toThrow('NotFound')
     expect(updateOrg).not.toHaveBeenCalled()
+  })
+
+  // The 5 MB rule was only ever checked against the size the browser declared
+  // when it asked for the upload address; the address itself carries no bound.
+  it('refuses a stored object over the cap, removes it, and stores no logo', async () => {
+    const key = `organizations/${adminCtx.organizationId}/logo/${ASSET}`
+    const deleteObject = vi.fn(async () => {})
+    const updateOrg = vi.fn().mockResolvedValue(undefined)
+    const retireReplaced = vi.fn().mockResolvedValue(undefined)
+    const useCase = finalizeOrgLogoUpload(
+      deps({
+        storage: {
+          ...mockStorage,
+          inspectObject: async () => ({
+            contentType: 'image/png',
+            sizeBytes: MAX_UPLOAD_BYTES + 1,
+          }),
+          deleteObject,
+        },
+        updateOrg,
+        retireReplaced,
+      }),
+    )
+
+    await expect(useCase({ key }, adminCtx)).rejects.toMatchObject({
+      _tag: 'IdentityError',
+      code: 'validation_error',
+      message: 'File size exceeds 5 MB limit',
+    })
+    expect(deleteObject).toHaveBeenCalledExactlyOnceWith(key)
+    expect(updateOrg).not.toHaveBeenCalled()
+    // The logo in use is untouched: only the refused upload is removed.
+    expect(retireReplaced).not.toHaveBeenCalled()
   })
 
   it('frees the logo it replaces, after the new one is saved', async () => {
