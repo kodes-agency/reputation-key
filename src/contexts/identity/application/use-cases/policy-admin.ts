@@ -1,8 +1,13 @@
 // Administration for the surviving PropertyAccessGrant authority.
+//
+// A grant or revoke commits with the identity.member.property_access_changed
+// fact the Members access edit records, so the member hears about either.
 
 import type { PolicyAdminExplanation } from '../ports/property-access-grant.port'
 import type { PolicyAdminCommandStore } from '../ports/policy-admin-command-store.port'
 import type { Permission } from '#/shared/domain/permissions'
+import { organizationId, userId } from '#/shared/domain/ids'
+import { identityMemberPropertyAccessChanged } from '../../domain/events'
 
 export type PolicyAdminDeps = Readonly<{
   explainPolicyDecision: (input: {
@@ -28,6 +33,27 @@ function requireTicket(ticketRef: string): void {
   if (ticketRef.trim().length < 2) throw new Error('ticket/reference is required')
 }
 
+/** The fact for one Property the operator granted or revoked. */
+function propertyAccessChanged(
+  input: Readonly<{
+    organizationId: string
+    propertyId: string
+    userId: string
+    actorUserId: string
+    now: Date
+  }>,
+  change: 'granted' | 'revoked',
+) {
+  return identityMemberPropertyAccessChanged({
+    organizationId: organizationId(input.organizationId),
+    memberUserId: userId(input.userId),
+    userId: userId(input.actorUserId),
+    grantedPropertyIds: change === 'granted' ? [input.propertyId] : [],
+    revokedPropertyIds: change === 'revoked' ? [input.propertyId] : [],
+    occurredAt: input.now,
+  })
+}
+
 export function createPolicyAdminOps(deps: PolicyAdminDeps) {
   async function grantPropertyAccessOp(
     input: Readonly<{
@@ -50,9 +76,10 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       userId: input.userId,
-      source: 'operator',
       createdBy: input.actorUserId,
       expiresAt: input.expiresAt,
+      now: input.now,
+      buildEvent: () => propertyAccessChanged(input, 'granted'),
     })
   }
 
@@ -63,6 +90,7 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
       userId: string
       reason: string
       actorUserId: string
+      now: Date
     }>,
   ): Promise<void> {
     requireReason(input.reason)
@@ -71,6 +99,7 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
       propertyId: input.propertyId,
       userId: input.userId,
       reason: input.reason,
+      buildEvent: () => propertyAccessChanged(input, 'revoked'),
     })
     await deps.reconcileResponsibleManagerEligibility?.(
       input.organizationId,

@@ -12,6 +12,11 @@ import type {
 import { validateLifecycleEvidenceRef } from '../../domain/organization-lifecycle'
 
 const GENERATION_LEASE_MS = 15 * 60 * 1000
+/**
+ * How long a deletion claim is left to the pass that made it. After that the
+ * object delete is taken to have failed or died, and a later pass repeats it.
+ */
+const DELETION_LEASE_MS = 15 * 60 * 1000
 /** The object store cannot confirm the archive the pre-egress evidence names. */
 const EGRESS_EVIDENCE_MISMATCH = 'egress_evidence_mismatch'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
@@ -276,10 +281,20 @@ export const createOrganizationExportService = (
     return archive
   }
 
-  /** Bounded, idempotent storage deletion; never treats expiry as proof. */
+  /**
+   * Bounded, idempotent storage deletion; never treats expiry as proof.
+   *
+   * The claim commits before the object is deleted, so a storage error or a
+   * crash here leaves the row `delete_pending`. A later pass claims it again
+   * once the lease has run out: deleting an object that is already gone still
+   * verifies its absence, and the completion accepts its own replay.
+   */
   const purgeNextExpired = async (): Promise<boolean> => {
     const now = deps.clock()
-    const request = await deps.repository.claimNextExpiredDeletion({ now })
+    const request = await deps.repository.claimNextExpiredDeletion({
+      now,
+      reclaimClaimedBefore: new Date(now.getTime() - DELETION_LEASE_MS),
+    })
     if (!request) return false
     if (!request.objectKey)
       throw new Error('Expired Organization Export has no object key')

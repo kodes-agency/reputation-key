@@ -106,7 +106,7 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     file: 'src/contexts/identity/infrastructure/repositories/capability-refusal.repository.ts',
     symbol: 'loadPermitOutcomes',
     reason:
-      'The refusal-control health read intentionally aggregates permit outcomes across tenants by global capability and correlation identifiers only.',
+      'The operator command (scripts/ops/report-capability-refusal.ts) reads refusal-control health across tenants by global capability and correlation identifiers only; the tenant request surface binds loadOrganizationPermitOutcomes, which is restricted to the asking Organization.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {

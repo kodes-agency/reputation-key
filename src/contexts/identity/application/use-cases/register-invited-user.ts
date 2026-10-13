@@ -7,6 +7,11 @@ import {
   REGISTRATION_FAILED_MESSAGE,
 } from '../../domain/invitation-copy'
 import { identityInvitationAccepted } from '../../domain/events'
+import {
+  assertInvitationOrganizationAdmits,
+  type InvitationAdmissionDeps,
+} from '../invitation-admission'
+import { reportUngrantedInvitedProperties } from '../invited-property-access'
 import { providerRefusalCode } from '../provider-refusal'
 import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
 import type {
@@ -22,58 +27,26 @@ export type RegisterInvitedUserInput = Readonly<{
   password: string
 }>
 
-export type RegisterInvitedUserDeps = Readonly<{
-  commandStore: IdentityCommandStore
-  registrationStore: InvitedRegistrationStore
-  signUp: (
-    name: string,
-    email: string,
-    password: string,
-    expectedAuthIds: RegistrationAuthIds,
-  ) => Promise<string>
-  idGen: () => string
-  runOnAccepted: (input: {
-    userId: string
-    organizationId: string
-    propertyIds: ReadonlyArray<string>
-    /** Who sent the invitation, when this path read it under the lock. */
-    inviterId?: string
-    displayName?: string
-  }) => Promise<void>
-  clock: () => Date
-  logger: { error: (obj: object, message?: string) => void }
-}>
+export type RegisterInvitedUserDeps = InvitationAdmissionDeps &
+  Readonly<{
+    commandStore: IdentityCommandStore
+    registrationStore: InvitedRegistrationStore
+    signUp: (
+      name: string,
+      email: string,
+      password: string,
+      expectedAuthIds: RegistrationAuthIds,
+    ) => Promise<string>
+    idGen: () => string
+    clock: () => Date
+    logger: { error: (obj: object, message?: string) => void }
+  }>
 
 export type RegisterInvitedUserResult = Readonly<{
   organizationId: OrganizationId
 }>
 
 export type RegisterInvitedUser = ReturnType<typeof registerInvitedUser>
-
-/**
- * Acceptance is already authoritative when this runs. A derivative
- * property-assignment hook must never undo the account, membership, or
- * invitation, so its failure is observed and swallowed.
- */
-async function runPostAcceptHook(
-  deps: RegisterInvitedUserDeps,
-  hookInput: Readonly<{
-    userId: string
-    organizationId: string
-    propertyIds: ReadonlyArray<string>
-    inviterId?: string
-    displayName?: string
-  }>,
-): Promise<void> {
-  try {
-    await deps.runOnAccepted(hookInput)
-  } catch (hookError) {
-    deps.logger.error(
-      { err: hookError },
-      '[identity] invited registration post-accept hook failed',
-    )
-  }
-}
 
 async function completeRegistrationVerification(
   deps: RegisterInvitedUserDeps,
@@ -189,7 +162,6 @@ function invitedSignUpFailure(
  */
 async function recoverFromSignUpFailure(
   deps: RegisterInvitedUserDeps,
-  input: RegisterInvitedUserInput,
   prepared: PreparedInvitedRegistration,
   error: unknown,
 ): Promise<SignUpRecovery> {
@@ -215,12 +187,6 @@ async function recoverFromSignUpFailure(
     }
   }
   if (recovery.kind === 'accepted') {
-    await runPostAcceptHook(deps, {
-      userId: recovery.userId,
-      organizationId: recovery.organizationId as string,
-      propertyIds: recovery.propertyIds,
-      displayName: input.name,
-    })
     return { kind: 'accepted', organizationId: recovery.organizationId }
   }
   throw invitedSignUpFailure(deps, prepared.verificationId, error, {
@@ -235,7 +201,6 @@ async function recoverFromSignUpFailure(
  */
 async function recoverFromAcceptanceFailure(
   deps: RegisterInvitedUserDeps,
-  input: RegisterInvitedUserInput,
   activeRegistration: PreparedInvitedRegistration,
   acceptanceNow: Date,
 ): Promise<RegisterInvitedUserResult | null> {
@@ -246,12 +211,6 @@ async function recoverFromAcceptanceFailure(
       nextRecoveryAt: new Date(acceptanceNow.getTime() + 5 * 60 * 1_000),
     })
     if (recovery.kind === 'accepted') {
-      await runPostAcceptHook(deps, {
-        userId: recovery.userId,
-        organizationId: recovery.organizationId as string,
-        propertyIds: recovery.propertyIds,
-        displayName: input.name,
-      })
       return { organizationId: recovery.organizationId }
     }
   } catch (reconciliationError) {
@@ -269,14 +228,19 @@ async function recoverFromAcceptanceFailure(
 /**
  * Invitation-bound account creation saga.
  *
- * A short-lived Better Auth verification row is committed before sign-up;
- * acceptance then locks and revalidates the invitation. Any interrupted
+ * The invitation's Organization must be allowed to gain members now (the
+ * capability gate); a refusal comes before any account or recovery record
+ * exists. A short-lived Better Auth verification row is then committed before
+ * sign-up; acceptance locks and revalidates the invitation, and commits the
+ * membership together with the invited Property access. Any interrupted
  * boundary is reconciled only against the exact preallocated provider IDs,
- * so recovery can resume, safely compensate, or stop for review.
+ * so recovery can resume, safely compensate, or stop for review. Nothing is
+ * left to do once the acceptance has committed.
  */
 export const registerInvitedUser =
   (deps: RegisterInvitedUserDeps) =>
   async (input: RegisterInvitedUserInput): Promise<RegisterInvitedUserResult> => {
+    await assertInvitationOrganizationAdmits(deps, input.invitationId)
     const preflightNow = deps.clock()
     const proposedVerificationId = deps.idGen()
     const proposedAuthIds: RegistrationAuthIds = {
@@ -304,7 +268,7 @@ export const registerInvitedUser =
         expectedAuthIds,
       )
     } catch (error) {
-      const recovery = await recoverFromSignUpFailure(deps, input, prepared, error)
+      const recovery = await recoverFromSignUpFailure(deps, prepared, error)
       if (recovery.kind === 'accepted') {
         return { organizationId: recovery.organizationId }
       }
@@ -349,7 +313,6 @@ export const registerInvitedUser =
     } catch (error) {
       const recovered = await recoverFromAcceptanceFailure(
         deps,
-        input,
         activeRegistration,
         acceptanceNow,
       )
@@ -358,13 +321,7 @@ export const registerInvitedUser =
       throw identityError('registration_failed', 'Invitation registration failed')
     }
 
+    reportUngrantedInvitedProperties(deps.logger, accepted)
     await completeRegistrationVerification(deps, activeRegistration.verificationId)
-    await runPostAcceptHook(deps, {
-      userId: createdUserId,
-      organizationId: accepted.organizationId as string,
-      propertyIds: accepted.propertyIds,
-      ...(accepted.inviterId ? { inviterId: accepted.inviterId as string } : {}),
-      displayName: input.name,
-    })
     return { organizationId: accepted.organizationId }
   }

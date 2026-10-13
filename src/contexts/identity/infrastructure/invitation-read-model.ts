@@ -50,6 +50,17 @@ export const createInvitationReadModel = (db: Database): InvitationReadModel => 
       }
     }),
 
+  findOrganizationId: async (id) =>
+    trace('identity.invitations.findOrganizationId', async () => {
+      const rows = await db
+        .select({ organizationId: invitation.organizationId })
+        .from(invitation)
+        .where(eq(invitation.id, id as string))
+        .limit(1)
+      const row = rows[0]
+      return row ? toOrganizationId(row.organizationId) : null
+    }),
+
   listOpenForOrganization: async (orgId) =>
     trace('identity.invitations.listOpenForOrganization', async () => {
       const rows = await db

@@ -3,8 +3,8 @@
 // and maps data between better-auth's format and our domain records.
 // Mocks getAuth() and getRequest() to control the better-auth surface.
 // BQC-3.5: the invitation/member/org write paths moved to the atomic
-// identity command store; this adapter keeps reads, session/org management,
-// and the post-acceptance hook bridge.
+// identity command store; this adapter keeps reads and session/org
+// management.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -14,18 +14,12 @@ import { organizationId, userId } from '#/shared/domain/ids'
 const mockSignUpEmail = vi.fn()
 const mockListMembers = vi.fn()
 const mockGetSession = vi.fn()
-const mockOnAcceptInvitation = vi.fn().mockResolvedValue(undefined)
 const mockListUserInvitations = vi.fn()
 const mockSetActiveOrganization = vi.fn()
 const FIXED_NOW = new Date('2026-08-28T12:00:00.000Z')
 const adapterDeps = {
   clock: vi.fn(() => FIXED_NOW),
   idGen: vi.fn(() => 'generated-role-id'),
-  logger: {
-    debug: vi.fn(),
-    warn: vi.fn(),
-  },
-  onAcceptInvitation: mockOnAcceptInvitation,
   // ARC-03-T13: the adapter takes the ambient request context as a port; it no
   // longer dynamically imports the web framework.
   requestContext: { currentRequestHeaders: async () => new Headers() },
@@ -294,87 +288,6 @@ describe('createBetterAuthIdentityAdapter', () => {
       const session = await adapter.getSessionUser(new Headers())
 
       expect(session).toBeNull()
-    })
-  })
-
-  describe('runOnAcceptInvitation', () => {
-    it('keeps invitation provisioning scoped to the adapter that owns it', async () => {
-      const firstProvisioner = vi.fn(async () => undefined)
-      const secondProvisioner = vi.fn(async () => undefined)
-      const firstAdapter = createBetterAuthIdentityAdapter(db, {
-        ...adapterDeps,
-        onAcceptInvitation: firstProvisioner,
-      })
-      const secondAdapter = createBetterAuthIdentityAdapter(db, {
-        ...adapterDeps,
-        onAcceptInvitation: secondProvisioner,
-      })
-
-      await firstAdapter.runOnAcceptInvitation({
-        userId: 'user-1',
-        organizationId: 'org-1',
-        propertyIds: ['prop-1'],
-      })
-      await secondAdapter.runOnAcceptInvitation({
-        userId: 'user-2',
-        organizationId: 'org-2',
-        propertyIds: ['prop-2'],
-      })
-
-      expect(firstProvisioner).toHaveBeenCalledTimes(1)
-      expect(firstProvisioner).toHaveBeenCalledWith({
-        userId: 'user-1',
-        organizationId: 'org-1',
-        propertyIds: ['prop-1'],
-      })
-      expect(secondProvisioner).toHaveBeenCalledTimes(1)
-      expect(secondProvisioner).toHaveBeenCalledWith({
-        userId: 'user-2',
-        organizationId: 'org-2',
-        propertyIds: ['prop-2'],
-      })
-    })
-
-    it('invokes the injected provisioner with the accepted context', async () => {
-      await adapter.runOnAcceptInvitation({
-        userId: 'user-1',
-        organizationId: 'org-1',
-        propertyIds: ['prop-1'],
-        inviterId: 'user-inviter',
-      })
-
-      expect(mockOnAcceptInvitation).toHaveBeenCalledWith({
-        userId: 'user-1',
-        organizationId: 'org-1',
-        propertyIds: ['prop-1'],
-        inviterId: 'user-inviter',
-      })
-    })
-
-    it('skips the hook when no properties were invited', async () => {
-      await adapter.runOnAcceptInvitation({
-        userId: 'user-1',
-        organizationId: 'org-1',
-        propertyIds: [],
-      })
-
-      expect(mockOnAcceptInvitation).not.toHaveBeenCalled()
-    })
-
-    it('isolates hook failures (post-commit side effect)', async () => {
-      mockOnAcceptInvitation.mockRejectedValueOnce(new Error('hook down'))
-
-      await expect(
-        adapter.runOnAcceptInvitation({
-          userId: 'user-1',
-          organizationId: 'org-1',
-          propertyIds: ['prop-1'],
-        }),
-      ).resolves.toBeUndefined()
-      expect(adapterDeps.logger.warn).toHaveBeenCalledWith(
-        { err: expect.any(Error) },
-        'Failed to provision invited property access',
-      )
     })
   })
 

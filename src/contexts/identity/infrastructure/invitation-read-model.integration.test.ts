@@ -122,6 +122,31 @@ describe.sequential('invitation read model (integration)', () => {
     ).resolves.toBeNull()
   })
 
+  it('names the Organization an invitation belongs to, whatever its status', async () => {
+    await insertInvitation({
+      id: 'inv-invread-org-pending',
+      email: 'invread-pending@test.com',
+      createdAt: '2026-09-30T10:00:00.000Z',
+    })
+    await insertInvitation({
+      id: 'inv-invread-org-accepted',
+      organizationId: OTHER_ORG_ID,
+      email: 'invread-accepted@test.com',
+      status: 'accepted',
+      createdAt: '2026-09-30T10:00:00.000Z',
+    })
+
+    await expect(
+      Promise.all(
+        [
+          'inv-invread-org-pending',
+          'inv-invread-org-accepted',
+          'inv-invread-missing',
+        ].map((id) => readModel.findOrganizationId(invitationId(id))),
+      ),
+    ).resolves.toEqual([ORG_ID, OTHER_ORG_ID, null])
+  })
+
   it("lists one Organization's open invitations, newest first", async () => {
     await insertInvitation({
       id: 'inv-invread-older',

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -7,10 +7,18 @@ import { getEnv } from '#/shared/config/env'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import type { OrganizationExportRepository } from '../application/ports/organization-export.port'
+import type {
+  OrganizationExportRepository,
+  OrganizationExportStorage,
+} from '../application/ports/organization-export.port'
+import { createOrganizationExportService } from '../application/use-cases/organization-export'
 import { createOrganizationExportRepository } from './organization-export.repository'
 
 const NOW = new Date('2026-08-28T12:00:00.000Z')
+/** How long a deletion claim is left to its claimer (the service's lease). */
+const DELETION_LEASE_MS = 15 * 60 * 1000
+/** Passes allowed for a retry that is drawn at random to come up. */
+const RETRY_PASS_LIMIT = 40
 const organizations = new Set<string>()
 const requests = new Set<string>()
 const users = new Set<string>()
@@ -131,6 +139,76 @@ async function publishReady(
   })
   return ready.revision
 }
+
+/** A published export; `objectExpiresAt` defaults to the seven-day deadline. */
+async function readyExport(objectExpiresAt?: Date) {
+  const input = {
+    ...(await requestInput()),
+    ...(objectExpiresAt ? { objectExpiresAt } : {}),
+  }
+  await repository.request(input)
+  const claimed = await repository.claimNextGeneration({
+    now: NOW,
+    leaseExpiresAt: new Date(NOW.getTime() + 1000),
+  })
+  await publishReady(input.id, claimed!.revision, new Date(NOW.getTime() + 1000))
+  return input
+}
+
+async function exportRow(id: string) {
+  const rows = await lease.pool.query(
+    `SELECT state, revision, deletion_evidence_ref, updated_at
+     FROM organization_exports WHERE id = $1`,
+    [id],
+  )
+  return rows.rows[0] as {
+    state: string
+    revision: number
+    deletion_evidence_ref: string | null
+    updated_at: Date
+  }
+}
+
+const notUsedByDeletion = async (): Promise<never> => {
+  throw new Error('not used by deletion')
+}
+
+/** The export service over the real repository and one object-store delete. */
+function deletionService(
+  deleteObject: OrganizationExportStorage['delete'],
+  clock: () => Date,
+) {
+  return createOrganizationExportService({
+    repository,
+    contributors: [],
+    archiveWriter: { writeZip: notUsedByDeletion },
+    storage: {
+      putEncrypted: notUsedByDeletion,
+      verifyStored: notUsedByDeletion,
+      readEncrypted: notUsedByDeletion,
+      delete: deleteObject,
+    },
+    authority: { isCurrentAccountAdmin: async () => true },
+    deriveRetrievalSecret: () => new Uint8Array(32),
+    clock,
+  })
+}
+
+/** One claim at `now`; a deletion claimed a lease or more before it is retried. */
+const claimDeletionAt = (now: Date) =>
+  repository.claimNextExpiredDeletion({
+    now,
+    reclaimClaimedBefore: new Date(now.getTime() - DELETION_LEASE_MS),
+  })
+
+/** One deletion pass: the service's answer, or the message of its failure. */
+const deletionPassOutcome = (
+  service: ReturnType<typeof deletionService>,
+): Promise<boolean | string> =>
+  service.purgeNextExpired().then(
+    (deleted) => deleted,
+    (error: unknown) => (error instanceof Error ? error.message : String(error)),
+  )
 
 async function auditActions(organizationId: string): Promise<string[]> {
   const rows = await lease.pool.query(
@@ -683,6 +761,7 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
     await publishReady(input.id, claimed!.revision, new Date(NOW.getTime() + 1000))
     const pending = await repository.claimNextExpiredDeletion({
       now: input.objectExpiresAt,
+      reclaimClaimedBefore: new Date(input.objectExpiresAt.getTime() - DELETION_LEASE_MS),
     })
     expect(pending).toMatchObject({ state: 'delete_pending', revision: 5 })
     await repository.completeDeletion({
@@ -697,6 +776,141 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
     )
     expect(rows.rows[0]).toMatchObject({ state: 'deleted', revision: 6 })
     expect(rows.rows[0]!.deleted_at).toEqual(input.objectExpiresAt)
+  })
+
+  it('finishes a deletion whose object delete failed once, on a later pass', async () => {
+    const input = await readyExport()
+    let now = input.objectExpiresAt
+    const deleteObject = vi
+      .fn<OrganizationExportStorage['delete']>()
+      .mockRejectedValueOnce(new Error('object store unavailable'))
+      .mockResolvedValue({ deletionEvidenceRef: `s3:delete-verified:${input.id}` })
+    const service = deletionService(deleteObject, () => now)
+
+    await expect(service.purgeNextExpired()).rejects.toThrow('object store unavailable')
+    expect(await exportRow(input.id)).toMatchObject({
+      state: 'delete_pending',
+      revision: 5,
+    })
+
+    // The retry that follows at once leaves the claim to whoever holds it.
+    await expect(service.purgeNextExpired()).resolves.toBe(false)
+    expect(deleteObject).toHaveBeenCalledTimes(1)
+
+    now = new Date(now.getTime() + DELETION_LEASE_MS)
+    await expect(service.purgeNextExpired()).resolves.toBe(true)
+
+    expect(deleteObject).toHaveBeenCalledTimes(2)
+    expect(deleteObject).toHaveBeenLastCalledWith(objectKeyFor(input.id))
+    expect(await exportRow(input.id)).toMatchObject({
+      state: 'deleted',
+      revision: 6,
+      deletion_evidence_ref: `s3:delete-verified:${input.id}`,
+    })
+    // Nothing is left to claim.
+    await expect(service.purgeNextExpired()).resolves.toBe(false)
+  })
+
+  it('claims an aged deletion again without rewriting the row, and takes a completion replay', async () => {
+    const input = await readyExport()
+    const claimedAt = input.objectExpiresAt
+    const pending = await repository.claimNextExpiredDeletion({
+      now: claimedAt,
+      reclaimClaimedBefore: new Date(claimedAt.getTime() - DELETION_LEASE_MS),
+    })
+    expect(pending).toMatchObject({ state: 'delete_pending', revision: 5 })
+
+    const later = new Date(claimedAt.getTime() + DELETION_LEASE_MS)
+    const reclaimed = await repository.claimNextExpiredDeletion({
+      now: later,
+      reclaimClaimedBefore: claimedAt,
+    })
+
+    // delete_pending admits only → deleted, so a reclaim reads and never writes.
+    expect(reclaimed).toMatchObject({
+      id: input.id,
+      state: 'delete_pending',
+      revision: 5,
+      objectKey: objectKeyFor(input.id),
+    })
+    expect(await exportRow(input.id)).toMatchObject({
+      state: 'delete_pending',
+      revision: 5,
+      updated_at: claimedAt,
+    })
+
+    // Two passes that both reclaimed it converge: the second completion with
+    // the same evidence is a replay, not a conflict.
+    const completion = {
+      id: input.id,
+      expectedRevision: reclaimed!.revision,
+      deletionEvidenceRef: `s3:delete-verified:${input.id}`,
+      now: later,
+    }
+    await repository.completeDeletion(completion)
+    await repository.completeDeletion(completion)
+    expect(await exportRow(input.id)).toMatchObject({ state: 'deleted', revision: 6 })
+  })
+
+  it('takes a newly expired export before one whose deletion is being retried', async () => {
+    const sixDays = new Date(NOW.getTime() + 6 * 24 * 60 * 60 * 1000)
+    const stuck = await readyExport(sixDays)
+    await repository.claimNextExpiredDeletion({
+      now: sixDays,
+      reclaimClaimedBefore: new Date(sixDays.getTime() - DELETION_LEASE_MS),
+    })
+    const fresh = await readyExport()
+    const now = new Date(fresh.objectExpiresAt.getTime() + DELETION_LEASE_MS)
+    const claim = () =>
+      repository.claimNextExpiredDeletion({
+        now,
+        reclaimClaimedBefore: new Date(now.getTime() - DELETION_LEASE_MS),
+      })
+
+    // A retried deletion never delays a first one. The reverse does not hold:
+    // the retry is reached only once no newly expired export is left to claim.
+    await expect(claim()).resolves.toMatchObject({ id: fresh.id, revision: 5 })
+    await expect(claim()).resolves.toMatchObject({ id: stuck.id, revision: 5 })
+  })
+
+  it('still deletes a retried export while an older retried one keeps failing', async () => {
+    const sixDays = new Date(NOW.getTime() + 6 * 24 * 60 * 60 * 1000)
+    const failing = await readyExport(sixDays)
+    await expect(claimDeletionAt(sixDays)).resolves.toMatchObject({ id: failing.id })
+    const deletable = await readyExport()
+    await expect(claimDeletionAt(deletable.objectExpiresAt)).resolves.toMatchObject({
+      id: deletable.id,
+    })
+    // Both claims are now older than the lease and neither deletion completed.
+    const now = new Date(deletable.objectExpiresAt.getTime() + DELETION_LEASE_MS)
+    const deleteObject = vi.fn<OrganizationExportStorage['delete']>(async (objectKey) => {
+      if (objectKey === objectKeyFor(failing.id)) {
+        throw new Error('object store unavailable')
+      }
+      return { deletionEvidenceRef: `s3:delete-verified:${deletable.id}` }
+    })
+    const service = deletionService(deleteObject, () => now)
+
+    // A retry is picked at random among the stuck deletions, so the one that
+    // keeps failing cannot be first on every pass. Each pass is an even draw
+    // between the two; the limit puts a false failure at one in 2^40.
+    const outcomes: Array<boolean | string> = []
+    while (outcomes.at(-1) !== true && outcomes.length < RETRY_PASS_LIMIT) {
+      outcomes.push(await deletionPassOutcome(service))
+    }
+
+    expect(outcomes.filter((outcome) => outcome !== 'object store unavailable')).toEqual([
+      true,
+    ])
+    expect(await exportRow(deletable.id)).toMatchObject({
+      state: 'deleted',
+      revision: 6,
+      deletion_evidence_ref: `s3:delete-verified:${deletable.id}`,
+    })
+    expect(await exportRow(failing.id)).toMatchObject({
+      state: 'delete_pending',
+      revision: 5,
+    })
   })
 
   it('rechecks current AccountAdmin authority in the same transaction as request and retrieval access', async () => {

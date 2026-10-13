@@ -33,6 +33,7 @@ const setup = (
   const listOpenForOrganization = vi.fn(async () => rows)
   const invitations: InvitationReadModel = {
     findForPreview: vi.fn(async () => null),
+    findOrganizationId: vi.fn(async () => null),
     listOpenForOrganization,
   }
   const propertyNames = vi.fn<PropertyNameLookup>(async () => names)

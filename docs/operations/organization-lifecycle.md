@@ -360,6 +360,30 @@ its seven-day deadline; the prior digest stops authorizing retrieval. Export
 objects have a maximum seven-day deadline; deletion is only complete after
 object deletion/absence is verified and content-free evidence is committed.
 
+The deletion pass commits its claim (`delete_pending`) before it deletes the
+object. If the delete fails, or the worker dies before the evidence is
+committed, the row stays `delete_pending`, and a later pass claims it again once
+the claim is 15 minutes old. The row is handed back unchanged (the transition
+guard admits only `delete_pending → deleted`, so the claim instant in
+`updated_at` is the lease); deleting an object that is already gone still
+verifies its absence, and the completion accepts its own replay.
+
+Each pass deletes one object, in this order:
+
+- A newly expired object is claimed before any retried one, oldest deadline
+  first. A retry therefore never delays a first deletion, and a retry is only
+  attempted on a pass that finds no newly expired object: each newly expired
+  object waiting postpones every retry by one pass.
+- Among retried objects the pass picks one at random. An object that cannot be
+  deleted fails each pass that picks it with `export_deletion_failed`, but it is
+  not picked every time, so the other retried objects are still deleted. With
+  one object that keeps failing and one that does not, each pass is an even
+  draw between them.
+
+A pass that fails with `export_deletion_failed` means the object it picked could
+not be deleted; it does not mean that object is the only one waiting. Every
+`organization_exports` row in state `delete_pending` is a deletion still owed.
+
 ## Member offboarding
 
 The app-owned member-removal flow refuses removal of the final AccountAdmin.
