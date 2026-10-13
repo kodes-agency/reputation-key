@@ -6,6 +6,7 @@ import {
   createLinkInputSchema,
   updateLinkInputSchema,
   reorderLinksInputSchema,
+  MAX_REORDER_LINKS,
 } from '#/contexts/portal/application/dto/portal-link.dto'
 import {
   saveLinktreeSettingsInputSchema,
@@ -299,5 +300,47 @@ describe('reorderLinks input validation', () => {
       items: [{ id: 'link-1', sortKey: 'a0' }],
     })
     expect(result.success).toBe(false)
+  })
+
+  // The server function looks each named link up before it can ask the policy,
+  // so the list is bounded where the request is read: nobody reorders more
+  // links than a category can hold.
+  const reorderOf = (count: number) => ({
+    categoryId: 'cat-123',
+    portalId: 'portal-123',
+    items: Array.from({ length: count }, (_, index) => ({
+      id: `link-${index}`,
+      sortKey: 'a0',
+    })),
+  })
+
+  it('accepts as many items as the bound allows', () => {
+    expect(reorderLinksInputSchema.safeParse(reorderOf(MAX_REORDER_LINKS)).success).toBe(
+      true,
+    )
+  })
+
+  it('rejects one item more than the bound, and a request-sized list', () => {
+    const overBound = reorderLinksInputSchema.safeParse(reorderOf(MAX_REORDER_LINKS + 1))
+    expect(overBound.success).toBe(false)
+    expect(overBound.error?.issues[0]).toMatchObject({
+      code: 'too_big',
+      path: ['items'],
+      maximum: MAX_REORDER_LINKS,
+    })
+    expect(reorderLinksInputSchema.safeParse(reorderOf(30_000)).success).toBe(false)
+  })
+
+  it('rejects a sort key longer than its column', () => {
+    const tooLong = reorderLinksInputSchema.safeParse({
+      categoryId: 'cat-123',
+      portalId: 'portal-123',
+      items: [{ id: 'link-1', sortKey: 'a'.repeat(51) }],
+    })
+    expect(tooLong.success).toBe(false)
+    expect(tooLong.error?.issues[0]).toMatchObject({
+      code: 'too_big',
+      path: ['items', 0, 'sortKey'],
+    })
   })
 })
