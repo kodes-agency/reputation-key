@@ -33,9 +33,10 @@
 // (`?.`, `??`, an explicit check) rather than raising the entry.
 
 import { dirname, relative, resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { INVOKED_TYPESCRIPT_PROJECTS } from './check-typescript-project-coverage'
+import { isEntryPoint } from './entry-point'
 import {
   runRatchetGate,
   type RatchetChange,
@@ -167,6 +168,6 @@ function main(args: readonly string[]): number {
   )
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+if (isEntryPoint(import.meta.url)) {
   process.exitCode = main(process.argv.slice(2))
 }

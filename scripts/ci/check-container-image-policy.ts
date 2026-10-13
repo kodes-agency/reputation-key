@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, posix, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isEntryPoint } from './entry-point'
 import { validateGrypeExceptionExpiry } from './grype-exception-expiry'
 
 export const CONTAINER_IMAGE_CLASSIFICATIONS = [
@@ -749,7 +750,6 @@ export function runContainerImagePolicyCli(
   return 0
 }
 
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : undefined
-if (invokedPath === fileURLToPath(import.meta.url)) {
+if (isEntryPoint(import.meta.url)) {
   process.exitCode = runContainerImagePolicyCli(process.argv.slice(2))
 }

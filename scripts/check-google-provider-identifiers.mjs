@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs'
 import { readFile, readdir } from 'node:fs/promises'
 import { extname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -169,7 +170,14 @@ export async function checkGoogleProviderIdentifiers(root = ROOT) {
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Real paths, not paths compared as text: started through a symbolic link the
+// text differed, and the scan did not run and exited 0 (the check of
+// scripts/ci/entry-point.ts, which a plain `.mjs` script cannot import).
+const startedScript = process.argv[1]
+if (
+  startedScript !== undefined &&
+  realpathSync(startedScript) === realpathSync(fileURLToPath(import.meta.url))
+) {
   checkGoogleProviderIdentifiers().catch((error) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
     process.exitCode = 1
