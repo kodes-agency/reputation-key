@@ -99,13 +99,14 @@ export const revokePropertyAccessFn = createServerFn({ method: 'POST' })
         })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           await policyAdmin.revokePropertyAccessOp({
             organizationId: ctx.organizationId as string,
             propertyId: data.propertyId,
             userId: data.userId,
             reason: data.reason,
             actorUserId: ctx.userId as string,
+            now: clock(),
           })
           return { ok: true }
         } catch (e) {

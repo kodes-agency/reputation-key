@@ -4,6 +4,16 @@
 // configuration: per-layer capability/permission/scope outcomes as ids,
 // booleans, and stable reason codes. Lives in shared/auth (decision-layer
 // composition, not business orchestration); persistence is injected.
+//
+// The membership read returns the role as Better Auth stores it (`owner`,
+// `admin`, `member`). The permission table is keyed by domain role, so the
+// token is mapped here with the two steps tenant resolution uses: a token that
+// is not an active beta manager role resolves no tenant, and the diagnostic
+// says so instead of looking it up. The answer is the same for every token a
+// write path stores. One label differs: a built-in token in another case or
+// with padding (`Owner`) passes the first step and fails the second; tenant
+// resolution refuses it as an unsupported role, and the diagnostic reports it
+// as `beta_role_inactive` with the other tokens that resolve no tenant.
 
 import '#/shared/auth/permissions' // side effect: initializes the static permission lookup
 import { checkBetaCapability } from './beta-capabilities'
@@ -14,7 +24,8 @@ import {
 } from '#/shared/domain/permissions'
 import { capabilityForPermission } from './capability-for-permission'
 import { organizationId, userId } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
+import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
+import { toDomainRole, type Role } from '#/shared/domain/roles'
 
 export type PolicyDecisionExplanation = Readonly<{
   allowed: boolean
@@ -31,6 +42,7 @@ export type PolicyDecisionExplanation = Readonly<{
 }>
 
 export type PolicyDiagnosticDeps = Readonly<{
+  /** The member's role token as Better Auth stores it, or null for no membership. */
   getMemberRole: (organizationId: string, userId: string) => Promise<string | null>
   hasActiveGrant: (input: {
     organizationId: string
@@ -40,21 +52,34 @@ export type PolicyDiagnosticDeps = Readonly<{
   }) => Promise<boolean>
 }>
 
-function notAMemberExplanation(
+/** Why no layer was asked: the user resolves no tenant in this Organization. */
+type NoTenantReason = 'not_a_member' | 'beta_role_inactive'
+
+function noTenantExplanation(
+  reason: NoTenantReason,
   action: string,
   capability: string,
 ): PolicyDecisionExplanation {
   return {
     allowed: false,
-    reason: 'not_a_member',
+    reason,
     action,
     capability,
     checks: {
-      capability: { allowed: false, reason: 'not_a_member' },
+      capability: { allowed: false, reason },
       permission: { allowed: false },
       scope: { outcome: 'not_applicable' },
     },
   }
+}
+
+/**
+ * The domain role tenant resolution gives a stored role token, or null when it
+ * gives none: the retained `member` role, a custom role and a multi-role
+ * token are refused before any permission is read.
+ */
+function activeDomainRole(roleToken: string): Role | null {
+  return isBetaInteractiveMemberRoleToken(roleToken) ? toDomainRole(roleToken) : null
 }
 
 type ScopeOutcome = PolicyDecisionExplanation['checks']['scope']['outcome']
@@ -102,11 +127,12 @@ export function createPolicyDiagnostic(deps: PolicyDiagnosticDeps) {
     }>,
   ): Promise<PolicyDecisionExplanation> {
     const capability = capabilityForPermission(input.action)
-    const role = (await deps.getMemberRole(
-      input.organizationId,
-      input.userId,
-    )) as Role | null
-    if (!role) return notAMemberExplanation(input.action, capability)
+    const roleToken = await deps.getMemberRole(input.organizationId, input.userId)
+    if (!roleToken) return noTenantExplanation('not_a_member', input.action, capability)
+    const role = activeDomainRole(roleToken)
+    if (!role) {
+      return noTenantExplanation('beta_role_inactive', input.action, capability)
+    }
 
     const ctx = {
       userId: userId(input.userId),

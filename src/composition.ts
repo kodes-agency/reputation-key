@@ -217,6 +217,8 @@ function buildContainer(
     clock,
     idGen: randomUUID,
     authSession,
+    // Late-bound: the shared object store is built with Portal, below.
+    deleteAssetObject: (key) => portal.uploads.storage.deleteObject(key),
     sendEmail: options?.email ?? sendInvitationEmail,
     baseUrl: env.BETTER_AUTH_URL,
     invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,

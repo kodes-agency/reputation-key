@@ -31,15 +31,15 @@ import {
   type MemberOffboarding,
 } from './application/use-cases/leave-organization'
 import { identityError } from './domain/errors'
-import { updateOrganization } from './application/use-cases/update-organization'
 import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
 import { buildInvitationUseCases, type InvitationUseCaseDeps } from './build-invitations'
 import { buildMemberAccessUseCases } from './build-member-access'
+import { buildOrganizationSettingsUseCases } from './build-organization-settings'
 import { buildCapabilityPolicyHandle } from './infrastructure/policy-store-init'
 import { createPolicyAdminOps } from './application/use-cases/policy-admin'
 import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
 import { createCapabilityRefusalExplainer } from '#/shared/governance/capability-refusal'
-import { createCapabilityRefusalReaders } from './infrastructure/repositories/capability-refusal.repository'
+import { createOrganizationCapabilityRefusalReaders } from './infrastructure/repositories/capability-refusal.repository'
 import {
   checkScopedCapability,
   type CapabilityPolicyEnv,
@@ -191,6 +191,11 @@ type IdentityContextDeps = Readonly<{
    * Identity-owned structural contract.
    */
   authSession: AuthSession
+  /**
+   * Deletes one stored avatar or logo object. Late-bound by the composition
+   * root: the object store is built with Portal, after Identity.
+   */
+  deleteAssetObject: (key: string) => Promise<void>
   /** Send an invitation email. */
   sendEmail: InvitationUseCaseDeps['sendEmail']
   /** Base URL for building invitation links. */
@@ -600,6 +605,13 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     resolveOrganizationName,
   })
   const memberAccess = buildMemberAccessUseCases(deps)
+  const assetReferences = createIdentityAssetReferences(deps.db)
+  const organizationSettings = buildOrganizationSettingsUseCases({
+    saveOrganization: deps.authSession.updateOrganization,
+    assetReferences,
+    deleteAssetObject: deps.deleteAssetObject,
+    logger: deps.logger,
+  })
 
   // Capability fate and environment controls are process-static. Tenant
   // grants, consent, and the execution kill switch retain their live reads.
@@ -700,8 +712,9 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     hasActiveGrant: (input) => hasActiveGrant(deps.db, input),
   })
   const policyAdminCommandStore = createPostgresPolicyAdminCommandStore(deps.db)
+  // Every AccountAdmin reaches this report, so its permit tally is tenant-bound.
   const explainCapabilityRefusal = createCapabilityRefusalExplainer(
-    createCapabilityRefusalReaders(deps.db),
+    createOrganizationCapabilityRefusalReaders(deps.db),
   )
   const policyAdmin = Object.freeze({
     ...createPolicyAdminOps({
@@ -796,9 +809,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       cancelGoogleImportsForUser: deps.cancelGoogleImportsForUser,
       prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
     }),
-    updateOrganization: updateOrganization({
-      updateOrg: deps.authSession.updateOrganization,
-    }),
+    ...organizationSettings,
     createCustomRole: createCustomRole({ identity: deps.identityPort }),
     updateCustomRole: updateCustomRole({ identity: deps.identityPort }),
     deleteCustomRole: deleteCustomRole({ identity: deps.identityPort }),
@@ -916,6 +927,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
      * kept off `publicApi`, which other contexts receive. */
     betaFeedback: buildBetaFeedbackRequests(deps),
     /** What still points at an uploaded avatar or logo. Request-facing, so kept off `publicApi`. */
-    assetReferences: createIdentityAssetReferences(deps.db),
+    assetReferences,
   } as const
 }

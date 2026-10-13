@@ -183,6 +183,7 @@ describe('Identity self-service leave availability', () => {
         currentOrganizationName: async () => null,
         verifyPassword: async () => false,
       },
+      deleteAssetObject: async () => {},
       sendEmail: async () => {},
       baseUrl: 'https://app.example.test',
       invitationExpiresInMs: 60_000,
