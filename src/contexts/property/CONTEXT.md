@@ -107,17 +107,18 @@ foreign keys deliberately stop cross-owner deletion.
 13. Portal and Guest rows RESTRICT Property deletion until their own purge receipts
     exist. It is never converted into a cascade that erases another owner's rows without that owner's receipt.
 14. A Property update writes only the columns the request changes, and answers
-    and records `property.updated` from the row as committed. Country is the
-    exception: it is written, with `countrySource: 'manual'`, whenever the
-    request carries it, changed or not, and the Profile form always carries it.
-    The request reads
-    the Property without a lock and its fence covers the Google binding
-    (`sourceEpoch`) and the name and timezone (`profileVersion`) only, so a slug
-    or reply language repeated from that read would undo another admin's save of
-    it. A save that read the Property before a rename or timezone change
-    committed is refused (`stale_property`); two saves of the same other column
-    are last-write-wins, and so is a country edit against a later Profile save
-    that read the old country.
+    and records `property.updated` from the row as committed. The country is no
+    exception, although the Profile form sends it with every save: a country
+    that repeats the stored one is left out, so a save that changes nothing
+    writes nothing and records no fact, and the source the country was recorded
+    under stays as it is. A country or a timezone the manager does change is
+    recorded with source `tenant_confirmed`, the one source Reporting's setup
+    facts accept for either. The request reads the Property without a lock and
+    its fence covers the Google binding (`sourceEpoch`) and the name and
+    timezone (`profileVersion`) only, so a slug, reply language or country
+    repeated from that read would undo another admin's save of it. A save that
+    read the Property before a rename or timezone change committed is refused
+    (`stale_property`); two saves of the same other column are last-write-wins.
 
 ## Verification
 

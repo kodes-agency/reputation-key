@@ -140,7 +140,7 @@ describe('updateProperty', () => {
     ])
   })
 
-  it('leaves the slug and reply language out of a Profile save that renames the Property', async () => {
+  it('leaves the slug, reply language and country out of a Profile save that renames the Property', async () => {
     const { useCase, propertyRepo, updates } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const prop = buildTestProperty({
@@ -158,8 +158,6 @@ describe('updateProperty', () => {
     expect(updates.map((command) => command.patch)).toEqual([
       {
         name: 'New Name',
-        countryCode: 'US',
-        countrySource: 'manual',
         profileVersion: prop.profileVersion + 1,
         updatedAt: FIXED_TIME,
       },
@@ -314,8 +312,11 @@ describe('updateProperty', () => {
     )
   })
 
-  it('updates country as a business fact', async () => {
-    const { useCase, propertyRepo } = setup()
+  // A manager's edit of the country is the tenant confirming it, as their edit
+  // of the timezone is: Reporting's setup facts read both sources and accept
+  // `tenant_confirmed` only.
+  it('records a country the manager changes as tenant-confirmed', async () => {
+    const { useCase, propertyRepo, updates } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const prop = buildTestProperty({
       countryCode: 'US',
@@ -326,7 +327,71 @@ describe('updateProperty', () => {
     const updated = await useCase({ propertyId: prop.id, countryCode: 'de' }, ctx)
 
     expect(updated.countryCode).toBe('DE')
-    expect(updated.countrySource).toBe('manual')
+    expect(updated.countrySource).toBe('tenant_confirmed')
+    expect(updates.map((command) => command.patch)).toEqual([
+      { countryCode: 'DE', countrySource: 'tenant_confirmed', updatedAt: FIXED_TIME },
+    ])
+  })
+
+  // The Profile form always sends the country. Repeating the stored one is not
+  // an edit: it moves neither the row, nor its provenance, nor the outbox.
+  it('writes nothing when the Profile form repeats the stored name, timezone and country', async () => {
+    const { useCase, propertyRepo, outbox, updates } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({
+      name: 'Harbour Hotel',
+      timezone: 'Europe/London',
+      countryCode: 'GB',
+      countrySource: 'tenant_confirmed',
+    })
+    propertyRepo.seed([prop])
+
+    const result = await useCase(
+      {
+        propertyId: prop.id,
+        name: 'Harbour Hotel',
+        timezone: 'Europe/London',
+        countryCode: 'gb',
+      },
+      ctx,
+    )
+
+    expect(updates).toEqual([])
+    expect(outbox.byTag('property.updated')).toHaveLength(0)
+    expect(result.countrySource).toBe('tenant_confirmed')
+  })
+
+  it('keeps an imported country and its source when a Profile save only renames the Property', async () => {
+    const { useCase, propertyRepo, updates } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({
+      name: 'Harbor Hotel',
+      timezone: 'Europe/London',
+      countryCode: 'GB',
+      countrySource: 'tenant_confirmed',
+    })
+    propertyRepo.seed([prop])
+
+    await useCase(
+      {
+        propertyId: prop.id,
+        name: 'Harbour Hotel',
+        timezone: 'Europe/London',
+        countryCode: 'GB',
+      },
+      ctx,
+    )
+
+    expect(updates.map((command) => command.patch)).toEqual([
+      {
+        name: 'Harbour Hotel',
+        profileVersion: prop.profileVersion + 1,
+        updatedAt: FIXED_TIME,
+      },
+    ])
+    await expect(
+      propertyRepo.findById(ctx.organizationId, prop.id),
+    ).resolves.toMatchObject({ countryCode: 'GB', countrySource: 'tenant_confirmed' })
   })
 
   it('does not expose or alter the protected Google binding on profile edits', async () => {
