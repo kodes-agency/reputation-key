@@ -43,7 +43,10 @@ Archive is the Portal's removal, so it asks `portal.delete` (an AccountAdmin), t
 permission the Portals pages offer Archive on and the one a group's archive asks.
 `updatePortal` decides that itself from what it is asked to do (a patch that names
 `publicationState: 'archived'`, alone or bundled with an edit), so the rule holds
-whichever server function carries the patch. Disable and Restore are updates
+whichever server function carries the patch. The `updatePortal` server function asks
+the policy for `portal.update` before the use case reads the patch, so an archive sent
+that way needs both: the two built-in roles are unaffected, and a custom role holding
+`portal.delete` without `portal.update` is refused there. Disable and Restore are updates
 (`portal.update`): a PropertyManager can take a live page down and bring an archived
 Portal back to Disabled.
 

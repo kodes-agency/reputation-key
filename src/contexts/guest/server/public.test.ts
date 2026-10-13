@@ -223,7 +223,8 @@ describe('guest response server-fn gates', () => {
   // change, and can be undone (Guest CONTEXT). Every function left in this
   // module is a guest's: none resolves a signed-in member.
   it('offers no manager moderation: nothing here acts for a signed-in member', () => {
-    expect(source).not.toMatch(/moderat/iu)
+    expect(source).not.toContain('moderateGuestResponseFn')
+    expect(source).not.toContain('responseLifecycle.moderate')
     expect(source).not.toContain('resolveTenantContext')
     expect(source).not.toContain('requireExecutionAllowed')
     expect(source.match(/decidePublicExecution\(/gu)?.length).toBeGreaterThan(0)

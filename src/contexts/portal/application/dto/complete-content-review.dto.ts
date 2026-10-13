@@ -4,7 +4,9 @@
 // random UUID. It becomes the `source_aggregate_id` and a payload field of the
 // three facts a review records, and a superseded id is the event id of one of
 // those facts. Both are held to a UUID here, where the request is read, so no
-// fact carries text of a caller's choosing and size.
+// fact carries text of a caller's choosing and size. The check is strict about
+// the version and variant, which every id the product makes has; an id seeded
+// by hand in a fixture shape would be refused as a superseded id.
 
 import { z } from 'zod/v4'
 
