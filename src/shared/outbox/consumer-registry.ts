@@ -43,7 +43,19 @@ export type ConsumerRegistration = Readonly<{
    * row, which is exactly the mis-attribution this field exists to prevent.
    */
   module: string
-  /** Handler function. Must commit state + receipt atomically. */
+  /**
+   * Handler function. It records its own receipt: the dispatcher records none
+   * for a handler that ran, and a fact that lacks a catalogued consumer's
+   * receipt is redelivered and then counted as an exhausted delivery.
+   *
+   * The receipt must commit in the transaction of the state change, or follow
+   * an effect that is safe to repeat. Never before the effect: a receipt for
+   * work not done is work lost. A handler that takes the second form says why
+   * a repeat changes nothing, as `removedMemberConsumerHandler` does (a second
+   * release finds nothing left to release) and Reporting's Goal
+   * metric-correction consumer does (a second pass finds every closed result
+   * unchanged).
+   */
   handler: ConsumerHandler
 }>
 
