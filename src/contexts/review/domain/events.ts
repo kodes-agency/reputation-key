@@ -460,6 +460,13 @@ export type ReviewReplyPublicationCancelled = Readonly<{
    */
   authorId: UserId | null
   /**
+   * `source_changed` is a newer source for the Review, most often a guest
+   * edit (`infrastructure/review-command-store.ts`). It names a reply whose
+   * open publication was stopped, and also a reply a manager wrote that had no
+   * open publication and was returned to draft by a guest edit: one awaiting
+   * approval, or one whose publication had failed. So it does not mean the
+   * reply had been approved.
+   *
    * `ai_draft_withdrawn` is the AI draft purge's cause
    * (`src/shared/db/ai/ai-draft-purge.ts`): an unedited AI-assisted reply that
    * was awaiting approval or confirmed but not dispatched was withdrawn because

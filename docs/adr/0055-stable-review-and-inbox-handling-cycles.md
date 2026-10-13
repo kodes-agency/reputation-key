@@ -70,6 +70,19 @@ the required Google, retention, reply-publication, or private-feedback behavior.
     on a process-local event or retain provider/private content without their own
     authorized lifecycle.
 
+## Note 2026-10-13 — what decision 11 fences on a guest edit
+
+Decision 11 says a material source change fences "stale drafts/publications".
+As implemented, the fence is on what was put forward, not on every draft. When
+a guest edit is recorded, Review cancels an open publication, returns to draft
+a reply a manager wrote that was awaiting approval or whose publication had
+failed, and withdraws unedited AI text. A manager's own draft and a rejected
+reply are in nobody's queue: they stay as they are, are not marked as written
+before the edit, and reach Google only through a submission and a Confirm &
+Publish made after it (`docs/BETA.md` §3 "Inbox"; Review CONTEXT, Model).
+Marking such a draft would need a revision on a human-written reply, which the
+schema keeps for AI-assisted replies only, and is an open product choice.
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,

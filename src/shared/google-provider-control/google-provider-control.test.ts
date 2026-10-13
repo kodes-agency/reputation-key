@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { GoogleExecutionAdmissionRequest } from './contracts'
+import {
+  GOOGLE_PROVIDER_ROUTE_KEYS,
+  type GoogleExecutionAdmissionRequest,
+  type GoogleProviderRouteKey,
+} from './contracts'
 import {
   createDenyAllGoogleExecutionAdmission,
   createInMemoryGoogleExecutionAdmission,
@@ -12,7 +16,10 @@ import {
   hashBoundedRequestBody,
   parseGoogleRetryAfterMs,
 } from './provider-call'
-import { GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION } from './route-catalogue'
+import {
+  GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
+  GOOGLE_PROVIDER_ROUTE_POLICIES,
+} from './route-catalogue'
 
 const request = (
   override: Partial<GoogleExecutionAdmissionRequest> = {},
@@ -137,6 +144,76 @@ describe('Google execution admission', () => {
         10_000,
       ),
     ).toBeNull()
+  })
+
+  // Which capability may use which route, written by hand: docs/BETA.md §2
+  // rests on the last line (a reply is written only under the reply-publication
+  // capability, and that capability does nothing else). The OAuth routes
+  // belong to no capability. Before this table no test put another capability
+  // on `reviews.reply`, so giving review sync the write route failed nothing.
+  const ROUTES_OF: Readonly<
+    Record<GoogleExecutionAdmissionRequest['capability'], ReadonlyArray<string>>
+  > = {
+    'property.import_gbp_v2': [
+      'account-management.accounts.list',
+      'business-information.locations.list',
+    ],
+    'property.read_gbp_performance': ['performance.fetch'],
+    'property.connect_gbp': [
+      'reviews.list',
+      'reviews.get',
+      'notifications.get',
+      'notifications.subscribe',
+      'notifications.unsubscribe',
+    ],
+    'property.publish_reply': ['reviews.reply'],
+  }
+
+  /** A request that is right for `routeKey` in everything but, perhaps, its capability. */
+  const requestFor = (
+    capability: GoogleExecutionAdmissionRequest['capability'],
+    routeKey: GoogleProviderRouteKey,
+  ) => {
+    const policy = GOOGLE_PROVIDER_ROUTE_POLICIES[routeKey]
+    return request({
+      capability,
+      propertyId: 'property-1',
+      routeKey,
+      endpointClass: policy.endpointClass,
+      requestClass: policy.requestClass,
+      maxRequestBytes: policy.maxRequestBytes,
+      maxResponseBytes: policy.maxResponseBytes,
+      quotaPolicyId: policy.quotaPolicyId,
+      inFlightPolicyId: policy.inFlightPolicyId,
+    })
+  }
+
+  it.each(Object.keys(ROUTES_OF) as Array<keyof typeof ROUTES_OF>)(
+    'admits %s on its own routes and on no other',
+    (capability) => {
+      for (const routeKey of GOOGLE_PROVIDER_ROUTE_KEYS) {
+        expect(
+          validateGoogleExecutionAdmissionRequest(
+            requestFor(capability, routeKey),
+            10_000,
+          ),
+          `${capability} on ${routeKey}`,
+        ).toBe(ROUTES_OF[capability].includes(routeKey) ? null : 'route_mismatch')
+      }
+    },
+  )
+
+  it.each([
+    'property.import_gbp_v2',
+    'property.read_gbp_performance',
+    'property.connect_gbp',
+  ] as const)('refuses the review write route to %s', (capability) => {
+    expect(
+      validateGoogleExecutionAdmissionRequest(
+        requestFor(capability, 'reviews.reply'),
+        10_000,
+      ),
+    ).toBe('route_mismatch')
   })
 
   it('denies by default', async () => {

@@ -47,8 +47,10 @@ const ACTIVE_PUBLICATION_STATES: ReadonlySet<ReplyPublicationState> = new Set([
   'retryable',
 ])
 
-/** Valid transitions. Exported (read-only) as the declared oracle for the BQC-6.9 property tests. */
-export const VALID_PUBLICATION_TRANSITIONS: Readonly<
+/** Valid transitions. Not exported: a test that read this table to decide what
+ * to expect could not fail when an edge was added to it. The tests hold it to
+ * tables written by hand (reply-publication-workflow.property.test.ts). */
+const VALID_PUBLICATION_TRANSITIONS: Readonly<
   Record<ReplyPublicationState, readonly ReplyPublicationState[]>
 > = {
   idle: ['publish_requested'],
@@ -224,8 +226,9 @@ export type PublicationStateEvent =
   | 'requeue' // classified retryable — back to 'authorized' for the next attempt
   | 'cancel' // policy/disconnect cancellation
 
-// Exported (read-only) as the declared oracle for the BQC-6.9 property tests.
-export const PERSISTED_PUBLICATION_TRANSITIONS: Readonly<
+// Not exported, for the same reason as the saga table above: its tests state
+// the expected moves by hand, one rule per event.
+const PERSISTED_PUBLICATION_TRANSITIONS: Readonly<
   Record<
     PersistedPublicationState,
     Readonly<Partial<Record<PublicationStateEvent, PersistedPublicationState>>>
@@ -267,6 +270,13 @@ export const PERSISTED_PUBLICATION_TRANSITIONS: Readonly<
  * The single authority for persisted publication transitions (BQC-3.8).
  * Returns the next state, or null when the event does not apply to the
  * current state (the store treats null like a guard miss — no write, no fact).
+ *
+ * Two closing moves are not events of this table. The observation and Review
+ * stores make them by guarded writes of their own, each marking the attempt
+ * superseded: `ambiguous → cancelled`, when Google shows another reply or the
+ * Review changed, and `terminal → cancelled`, when a guest edit returns a
+ * failed Reply to draft or a different reply ends terminal ambiguity
+ * (Review CONTEXT, Model).
  *
  * From NULL (no workflow): only 'authorize' (approval starts a cycle) and
  * 'publish' (legacy pre-0015 heal — provider confirmation is authoritative

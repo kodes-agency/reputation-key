@@ -421,6 +421,69 @@ describe('atomic review re-observation', () => {
     ])
   })
 
+  // The other store entry that records a guest edit: the Review's content had
+  // expired, and the re-observation finds the guest rewrote it meanwhile.
+  it.each([
+    ['rewritten', 'The guest rewrote it', 'draft', ['source_changed']],
+    ['as it was', 'Original review', 'pending_approval', []],
+  ] as const)(
+    'returns a reply awaiting approval to draft only when the expired review comes back %s',
+    async (_how, reobservedText, status, causes) => {
+      const store = createAtomicReviewCommandStore(getDb(), () => new Date())
+      const initial = review(EXPIRED_AT)
+      await store.upsertAndRecord(
+        initial,
+        (persisted) =>
+          reviewCreated({
+            reviewId: persisted.id,
+            propertyId: persisted.propertyId,
+            organizationId: persisted.organizationId,
+            platform: persisted.platform,
+            sourceEpoch: persisted.sourceEpoch,
+            sourceRevision: persisted.sourceRevision,
+            analysisSequence: persisted.analysisSequence,
+            occurredAt: OBSERVED_AT,
+          }),
+        OBSERVED_AT,
+      )
+      await getPool().query(
+        `INSERT INTO replies (
+           id, review_id, organization_id, text, status, source, created_by,
+           submitted_by, ai_generated, authorship, state_revision
+         ) VALUES ($1, $2, $3, 'Sorry about the room', 'pending_approval',
+           'internal', 'staff-user-1', 'staff-user-2', false, 'human', 1)`,
+        [REPLY, REVIEW, ORG],
+      )
+
+      await store.reobserveExpiredAndRecord(
+        {
+          ...initial,
+          text: reobservedText,
+          lastFetchedAt: OBSERVED_AT,
+          contentExpiresAt: REFRESHED_UNTIL,
+        },
+        OBSERVED_AT,
+      )
+
+      const reply = await getPool().query<{ status: string; text: string }>(
+        `SELECT status::text AS status, text FROM replies
+          WHERE id = $1 AND organization_id = $2`,
+        [REPLY, ORG],
+      )
+      expect(reply.rows).toEqual([{ status, text: 'Sorry about the room' }])
+      const cancelled = await getPool().query<{ cause: string; author_id: string }>(
+        `SELECT payload->>'cause' AS cause, payload->>'authorId' AS author_id
+           FROM outbox_events
+          WHERE organization_id = $1
+            AND event_type = 'review.reply.publication_cancelled'`,
+        [ORG],
+      )
+      expect(cancelled.rows).toEqual(
+        causes.map((cause) => ({ cause, author_id: 'staff-user-2' })),
+      )
+    },
+  )
+
   it('versions every observation but advances material revision only for rating or normalized original text', async () => {
     const store = createAtomicReviewCommandStore(getDb(), () => new Date())
     const initial = {

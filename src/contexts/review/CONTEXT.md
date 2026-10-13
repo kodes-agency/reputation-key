@@ -97,7 +97,8 @@ follow which; it has no `approved → draft`, because no reply command makes tha
 move. A Reply returns to draft when its open cycle is cancelled (a disconnect,
 a policy stop, a refused claim: `cancelledPublication`), superseded by what
 Google shows or by a changed Review (the observation and Review stores' own
-guarded writes), or withdrawn by the AI draft purge.
+guarded writes), or withdrawn by the AI draft purge. A guest edit also returns
+to draft a Reply that was put forward and has no open cycle (below).
 
 Confirm & Publish is bound to the Reply the manager read. The Inbox sends
 which Reply its screen showed and that Reply's state revision, both as they
@@ -250,6 +251,59 @@ revision, or a RepKey reply confirmed for it answers the edit. A head from
 another source epoch keeps the old reading, because Inbox carries its head on
 that observation.
 
+A guest edit takes back what was put forward for the review it replaced
+(docs/BETA.md §3 "Inbox"; ADR 0055 decision 11). The transaction that records
+the observation does it (`infrastructure/review-command-store.ts`), in three
+parts:
+
+- A publication cycle authorized for an older source that is still open or of
+  unknown outcome (`requested`, `authorized`, `sending`, `pending_observation`,
+  `ambiguous`) is cancelled, its attempt marked superseded, and the Reply
+  returns to draft. The authorization names the source it was given for, so
+  this part runs on any applied observation that moves the source, a
+  source-epoch carry included.
+- A Reply a manager wrote that has no open cycle and was still put forward
+  returns to draft: one awaiting approval, and one whose publication failed
+  and whose cycle has ended (`publish_failed`, `terminal`). These are the
+  Replies Confirm & Publish and Try publishing again may start from
+  (`domain/reply-command-preconditions.ts`, `takenBackByGuestEdit`), the two
+  commands that publish stored text with one click, the second under the
+  approval the Reply got for the earlier review. The Reply keeps its text, and
+  the authorization and attempts of a failed cycle stay as they are, except
+  the attempt of unknown outcome described below. This part runs only on a
+  guest edit, a changed rating or changed normalized text (`isGuestEdit`):
+  after a carry of unchanged material the review the Reply answers is the
+  same.
+- Unedited AI text is withdrawn by the AI draft purge (above).
+
+Terminal ambiguity (`terminal`, last error `ambiguous`: the read ladder ended
+without an answer) is taken back with the other failures, and its attempt is
+marked superseded, as the first part does for an attempt still on the ladder.
+Try publishing again does not start from it as it stands, but proof that the
+attempt never left RepKey settles it as a failure the retry does start from
+(Invariant 9), and that proof can be found after the edit, by the retry itself
+or by Check Google again. Nor is the attempt evidence any longer. The
+observation authority confirms or supersedes an attempt only for the source
+epoch and revision it was authorized at (`isConfirmableCurrentAttempt`,
+`domain/google-reply-observation.ts`), and every read after the edit is
+recorded for the new revision. Left as it was, such a Reply could not be
+confirmed by any later read and, without that proof, could not be tried
+again, edited or deleted, so the edited review could not be answered from
+RepKey at all. Once it is submitted and confirmed again the write is an upsert
+on Google: if the earlier request did land, the new reply replaces it.
+
+Each Reply the first two parts return to draft records one
+`review.reply.publication_cancelled` fact with cause `source_changed`. Its
+author and the people who can approve are told, and the approval request or
+failure notice that was waiting on it is retired (ADR 0046, amended
+2026-10-13). It is published only once it is submitted and confirmed again,
+for the review as it is now.
+
+A manager's draft and a rejected Reply are in nobody's queue and stay as they
+are, text and all; a published Reply is what Google shows and stays published.
+Nothing marks such a draft as written before the edit: that would take a
+revision on a human Reply, which the schema keeps for AI-assisted ones only.
+
 A failed provider write is classified by what actually reached Google (the
 provider plane's `dispatch`: `not_sent`, `answered` with a status, or `unknown`).
 A request RepKey refused before sending is retryable, except a malformed request,
@@ -365,6 +419,13 @@ creates a separate row and never overwrites the renamed template.
     withdrawn is blank, and a blank Reply is only ever a draft: no command
     submits, confirms or sends it
     (`infrastructure/reply-ai-withdrawal.integration.test.ts`).
+17. A guest edit leaves no Reply a manager wrote awaiting approval, and none
+    whose publication failed, whether or not its outcome was ever learned:
+    each is a draft again, with its text and one `source_changed` fact, and an
+    attempt of unknown outcome is closed as superseded. Confirm & Publish, Try
+    publishing again and Check Google again refuse it until it is submitted
+    and confirmed for the review as it is now
+    (`infrastructure/guest-edit-reply-fence.integration.test.ts`).
 
 ## Verification
 
@@ -390,5 +451,10 @@ inputs changed, may leave RepKey. The AI draft purge is a step of the
 PostgreSQL histories (for every AI draft when an input changes, and for those
 past their window when a sync sees the Review), and the oracle states by hand
 what it deletes, empties and leaves alone.
+
+`domain/reply-publication-workflow.property.test.ts` checks every cell of the
+two publication tables (the saga, and the persisted machine of state by event)
+against moves written by hand in that file. Neither table is exported, so no
+test can ask a table what it should say.
 
 Recurring activation remains quarantined until the external shadow-parity/cutover audit is complete.

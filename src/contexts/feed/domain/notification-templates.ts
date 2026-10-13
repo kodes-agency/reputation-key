@@ -313,13 +313,18 @@ const renderReplyPublishFailed = (p: NotificationPayload): RendererCopy => {
 }
 
 /**
- * An approved reply whose publication RepKey stopped. Each cause takes a
- * different next step, so the cause decides the whole sentence: reconnect,
- * nothing to do here, write a new reply, or just look. A disconnect or a
- * policy stop only ever cancels a cycle that never went out, so only those
- * say so; a guest edit or a different live reply can stop one Google may
- * already hold, so neither claims it was not sent. The title never says
- * "your" — the same notice goes to the approvers who have to act on it.
+ * A reply RepKey stopped on its way to Google. Each cause takes a different
+ * next step, so the cause decides the whole sentence: reconnect, nothing to
+ * do here, write a new reply, or just look. A disconnect or a policy stop
+ * only ever cancels a cycle that never went out, so only those say so; a
+ * guest edit or a different live reply can stop one Google may already hold,
+ * so neither claims it was not sent. The title never says "your" — the same
+ * notice goes to the approvers who have to act on it.
+ *
+ * `source_changed` does not say "approved". A guest edit also returns to
+ * draft a reply that was still awaiting approval, and one whose publication
+ * had failed (Review CONTEXT, Model), so its sentence names what all three
+ * have in common: the reply was written before the guest changed the review.
  *
  * `ai_draft_withdrawn` is the one cause that leaves no draft behind: the AI
  * draft purge removed an unedited AI reply that was awaiting approval or
@@ -335,7 +340,7 @@ const PUBLICATION_CANCELLATION_BODIES = {
   policy:
     'This property can no longer publish to Google, so it was never sent. The draft is saved.',
   source_changed:
-    'The guest changed their review, so RepKey stopped publishing the approved text. Open it to check what Google shows, then reply to the new review.',
+    'The guest changed their review, so RepKey stopped the reply that was written before the change. Open it to check what Google shows, then reply to the new review.',
   provider_truth:
     'A different reply is live on Google, so this one is not. Open it to check.',
   ai_draft_withdrawn:
