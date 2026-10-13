@@ -228,6 +228,11 @@ If nothing arrives, in order of likelihood:
   `{"type":"NEW_REVIEW","location":"accounts/…/locations/…","review":"accounts/…/locations/…/reviews/…"}`
   with no attributes (captured 2026-09-29). Pub/Sub retries a rejected message
   until it is acknowledged, so fixing and deploying the webhook delivers it.
+- Pub/Sub shows 5xx delivery failures on the subscription and the web log says
+  `Webhook durable acceptance failed` — the failure is on the app's side (the
+  database, the reference store, Google's signing keys could not be fetched, or
+  a defect), not in the message. It is reported to error monitoring, and
+  Pub/Sub retries the message until it is acknowledged.
 - Step 3 was skipped or the principal is misspelled — Google drops the publish
   silently. Check the topic's Permissions page.
 - The subscription's audience does not match `GBP_PUBSUB_AUDIENCE` — the app

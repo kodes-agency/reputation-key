@@ -7,6 +7,7 @@ import { verifyPubSubJwt } from '#/shared/auth/pubsub-jwt.verifier'
 import type { Env } from '#/shared/config/env'
 import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
 import { getLogger } from '#/shared/observability/logger'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { trace } from '#/shared/observability/trace'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
 import type { GoogleReviewPushNotificationKind } from '#/contexts/integration/application/public-api'
@@ -142,6 +143,36 @@ async function readPushNotification(
   }
 }
 
+/**
+ * Read the push, or answer 400 for one that cannot be read. Reading is the
+ * only step that judges what the sender sent, so it is the only place a
+ * `TypeError` means a malformed payload: the acceptance that follows throws
+ * the same class for its own internal faults.
+ */
+async function readPushOrRefuse(
+  request: Request,
+  env: Env,
+  logger: pino.Logger,
+): Promise<GbpPushNotification | Response> {
+  try {
+    return await readPushNotification(request, env)
+  } catch (error) {
+    const malformed =
+      error instanceof ZodError ||
+      error instanceof SyntaxError ||
+      error instanceof TypeError
+    if (!malformed) throw error
+    logger.warn(
+      { errorType: error.constructor.name },
+      'Webhook received malformed provider identifiers or payload',
+    )
+    return Response.json(
+      { error: 'Bad Request', message: 'Malformed webhook payload' },
+      { status: 400 },
+    )
+  }
+}
+
 export async function handleGbpWebhookPost(request: Request): Promise<Response> {
   return trace('webhook.gbpNotifications', async () => {
     const logger = getLogger()
@@ -149,7 +180,8 @@ export async function handleGbpWebhookPost(request: Request): Promise<Response> 
     try {
       const rejection = await rejectInauthenticPush(request, env, logger)
       if (rejection) return rejection
-      const notification = await readPushNotification(request, env)
+      const notification = await readPushOrRefuse(request, env, logger)
+      if (notification instanceof Response) return notification
       const result =
         await getContainer().integrationWebhookRuntime.handleNotification(notification)
       return Response.json(
@@ -164,21 +196,13 @@ export async function handleGbpWebhookPost(request: Request): Promise<Response> 
           { status: 401 },
         )
       }
-      if (
-        error instanceof ZodError ||
-        error instanceof SyntaxError ||
-        error instanceof TypeError
-      ) {
-        logger.warn(
-          { errorType: error.constructor.name },
-          'Webhook received malformed provider identifiers or payload',
-        )
-        return Response.json(
-          { error: 'Bad Request', message: 'Malformed webhook payload' },
-          { status: 400 },
-        )
-      }
+      // Ours, whatever its class: the key fetch behind verification, the
+      // lookup, the reference store or the receipt failed, or a defect threw.
+      // Pub/Sub retries any non-2xx, so the status changes no delivery; it is
+      // answered, not thrown, so neither the Nitro error hook nor Sentry's
+      // request middleware sees it, and the capture has to happen here.
       logger.error({ error }, 'Webhook durable acceptance failed')
+      captureObservabilityException(error, { source: 'nitro' })
       return Response.json(
         {
           error: 'Internal Server Error',

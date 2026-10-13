@@ -15,6 +15,7 @@ const TOPIC = 'projects/rk-project/topics/gbp-reviews'
 const mocks = vi.hoisted(() => ({
   verifyPubSubJwt: vi.fn(),
   handleGbpNotification: vi.fn(),
+  capture: vi.fn(),
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   env: {
     GBP_PUBSUB_AUDIENCE: 'https://test.example/webhooks/gbp',
@@ -27,6 +28,9 @@ vi.mock('#/shared/observability/trace', () => ({
   trace: (_name: string, fn: () => Promise<unknown>) => fn(),
 }))
 vi.mock('#/shared/observability/logger', () => ({ getLogger: () => mocks.logger }))
+vi.mock('#/shared/observability/telemetry', () => ({
+  captureObservabilityException: mocks.capture,
+}))
 vi.mock('#/shared/config/env', () => ({ getEnv: () => mocks.env }))
 vi.mock('#/shared/auth/pubsub-jwt.verifier', () => ({
   verifyPubSubJwt: mocks.verifyPubSubJwt,
@@ -69,6 +73,7 @@ describe('POST /api/webhooks/gbp/notifications', () => {
   beforeEach(() => {
     mocks.verifyPubSubJwt.mockReset()
     mocks.handleGbpNotification.mockReset()
+    mocks.capture.mockReset()
     mocks.logger.warn.mockReset()
     mocks.logger.error.mockReset()
     mocks.env.GBP_PUBSUB_TOPIC = TOPIC
@@ -228,8 +233,55 @@ describe('POST /api/webhooks/gbp/notifications', () => {
   })
 
   it('returns 500 so Pub/Sub retries when durable receipt commit fails', async () => {
-    mocks.handleGbpNotification.mockRejectedValue(new Error('database unavailable'))
+    const failure = new Error('database unavailable')
+    mocks.handleGbpNotification.mockRejectedValue(failure)
     const response = await handleGbpWebhookPost(mkRequest(validBody))
     expect(response.status).toBe(500)
+    expect(mocks.capture).toHaveBeenCalledWith(failure, { source: 'nitro' })
+  })
+
+  // The acceptance code throws TypeError for its own internal faults (a
+  // malformed scope or nonce in the reference store), and so does any ordinary
+  // defect. Once the payload has been read, none of them is the sender's.
+  it('answers a TypeError raised while accepting a valid push as a failure, not a bad payload', async () => {
+    const failure = new TypeError('Google review push scope is malformed')
+    mocks.handleGbpNotification.mockRejectedValue(failure)
+
+    const response = await handleGbpWebhookPost(mkRequest(validBody))
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({
+      error: 'Internal Server Error',
+      message: 'Unexpected error processing webhook notification',
+    })
+    expect(mocks.logger.error).toHaveBeenCalledWith(
+      { error: failure },
+      'Webhook durable acceptance failed',
+    )
+    expect(mocks.logger.warn).not.toHaveBeenCalled()
+    expect(mocks.capture).toHaveBeenCalledWith(failure, { source: 'nitro' })
+  })
+
+  it('answers a failed key fetch during verification as a failure, not a bad payload', async () => {
+    const failure = new TypeError('fetch failed')
+    mocks.verifyPubSubJwt.mockRejectedValue(failure)
+
+    const response = await handleGbpWebhookPost(mkRequest(validBody))
+
+    expect(response.status).toBe(500)
+    expect(mocks.handleGbpNotification).not.toHaveBeenCalled()
+    expect(mocks.capture).toHaveBeenCalledWith(failure, { source: 'nitro' })
+  })
+
+  it('leaves a refused push out of the error monitor', async () => {
+    const malformed = await handleGbpWebhookPost(
+      mkRequest({ message: { data: '!!!!', messageId: 'm-malformed' } }),
+    )
+    mocks.verifyPubSubJwt.mockRejectedValue(new JOSEError('bad signature'))
+    const unauthenticated = await handleGbpWebhookPost(mkRequest(validBody))
+
+    expect(malformed.status).toBe(400)
+    expect(unauthenticated.status).toBe(401)
+    expect(mocks.capture).not.toHaveBeenCalled()
   })
 })
