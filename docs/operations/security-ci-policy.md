@@ -36,7 +36,7 @@ and do not read them as a review verdict.
 
 | Gate                                     | Where (step / job)                                                 | Script / action                                                              | Threshold (fails on)                                                                                              | Artifact / output                                |
 | ---------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| Dependency vulnerability audit           | `check` job, step "Dependency vulnerability audit"                 | `pnpm check:dependency-audit` → `scripts/check-dependency-audit.mjs`         | prod tree: **high+critical**; full tree: **critical** (highs in dev tooling are printed every run, do not fail)   | Step log (advisory ids, paths, patched versions) |
+| Dependency vulnerability audit           | `check` job, step "Dependency vulnerability audit"                 | `pnpm check:dependency-audit` → `scripts/check-dependency-audit.mjs`         | prod tree: **high+critical**; full tree: **critical** (dev highs are printed, not failed); an unreadable audit    | Step log (advisory ids, paths, patched versions) |
 | Secret scanning (history + diffs)        | `secrets` job, step "Gitleaks"                                     | `docker run zricethezav/gitleaks@<digest> git /repo` (fetch-depth: 0)        | **any** finding — PRs scan the PR range (`base..HEAD`); pushes/dispatch scan all refs (full history)              | Step log (redacted findings)                     |
 | Static security analysis — eslint        | `check` job, step "Lint"                                           | `eslint-plugin-security` recommended as **errors** in `eslint.config.js`     | any recommended-rule finding on production code                                                                   | Step log                                         |
 | Static security analysis — CodeQL        | `codeql.yml` workflow (push/PR to main + weekly)                   | `github/codeql-action` init+analyze, `security-extended` queries             | analysis **failure** fails; findings become code-scanning alerts                                                  | SARIF → Security tab (code scanning)             |
@@ -85,6 +85,31 @@ stay CI-only.
   (storybook/jest, eslint, shadcn CLI) with no production exposure; a hard
   dev-high gate would force immediate risky overrides for zero runtime gain.
   Revisit at the quarterly review.
+- **Dependency audit that could not be read:** the gate passes only on an
+  audit report it could read. pnpm answers a failed request (registry
+  unreachable, a 4xx or 5xx, a body that is no audit report) with exit 1 and
+  an error object on stdout, which is also how it exits when it found
+  something, and until 2026-10-13 the gate read that object as "no
+  advisories" and printed OK. Now a run fails with exit 2 and
+  `the <scope> audit could not be read` when pnpm reports an error, prints
+  anything but a report, leaves out the advisories or the count of a severity
+  the run fails on, lists an advisory whose severity the gate cannot rank,
+  counts a vulnerability of a severity the run fails on while listing no
+  advisory of that severity (the counts are what pnpm's exit status follows,
+  the advisories are what the gate judges, so a counted severity with nothing
+  listed is an advisory the gate was never shown), or exits with a status
+  that disagrees with the report's own counts (pnpm 10.6.5 exits 1 when they
+  add up to anything and 0 when they add up to nothing; a pnpm upgrade that
+  changes this turns the gate red on the upgrade itself). Exit 1 stays what
+  an advisory or an exception that breaks the policy gets. No exception
+  covers an unread audit and none is judged in that run; what the run before
+  it found is still printed. pnpm retries a refused connection and a 5xx
+  twice on its own, about 70 seconds in all (measured 2026-10-13), so by the
+  time the gate fails the registry has been asked three times: rerun the job
+  when it answers. There is no switch that skips the audit; one would be the
+  soft gate the hard rule forbids.
+  `scripts/ci/check-dependency-audit.test.ts` runs the gate against each
+  recorded failure and against the real pnpm with an unreachable registry.
 - **Secrets:** any finding fails — secrets have no acceptable severity.
 - **CodeQL:** analysis failure fails the workflow; query findings land as
   code-scanning alerts (Security tab) and are triaged there. (Branch/ruleset
@@ -134,6 +159,15 @@ Rules, enforced by the gates themselves:
 4. **Review cadence:** every exception is re-justified at least quarterly
    (dates are set ≤ ~3 months out), and the full exception set is re-audited
    during BQC-8 release-candidate promotion.
+5. **`security/audit-exceptions.json` is the only route for a dependency
+   audit exception.** pnpm has one of its own: an advisory named in
+   `pnpm.auditConfig.ignoreCves` or `pnpm.auditConfig.ignoreGhsas` of
+   `package.json` is dropped from the advisories `pnpm audit` prints, and its
+   count stays. Such an entry has no owner, no reason and no expiry and the
+   register never sees it, so the gate fails (exit 1, before any audit runs)
+   on a manifest that carries either list. Measured with pnpm 10.6.5 on
+   2026-10-13: with two production Highs, one named there and the other
+   excepted in the register, the gate printed OK until this rule existed.
 
 ### Current exceptions (2026-09-07)
 

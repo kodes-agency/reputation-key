@@ -25,6 +25,15 @@
 // An exception that no longer matches a firing advisory is STALE and also
 // fails the gate — remove it in the same change that fixed the advisory.
 // There is no continue-on-error anywhere: a red gate blocks the PR.
+//
+// That register is the only exception route. pnpm has one of its own, the
+// `pnpm.auditConfig` ignore lists of package.json, and a manifest that carries
+// one fails the gate — see "pnpm's own ignore lists" below.
+//
+// The gate passes only on an audit it could read. A run whose request failed,
+// or whose output is not an audit report, fails with exit 2 and says the audit
+// could not be read; exit 1 is kept for an advisory or an exception that
+// breaks the policy. See "A run counts only when" below.
 
 import { copyFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -33,7 +42,9 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const MANIFEST_FILE = join(ROOT, 'package.json')
 const EXCEPTIONS_FILE = join(ROOT, 'security/audit-exceptions.json')
+const STDERR_EXCERPT_CHARS = 500
 
 const SEVERITY_ORDER = ['info', 'low', 'moderate', 'high', 'critical']
 const severityAtLeast = (severity, threshold) =>
@@ -44,7 +55,154 @@ const RUNS = [
   { scope: 'full', args: ['audit', '--json'], failAt: 'critical' },
 ]
 
-function runAudit(args) {
+/** What the runs have found so far: lines to print, and violations of the policy. */
+const reports = []
+const failures = []
+
+function printFindings() {
+  for (const line of reports) console.log(line)
+  if (failures.length === 0) return
+  console.error(`[dependency-audit] FAILED — ${failures.length} violation(s):`)
+  for (const f of failures) console.error(f)
+}
+
+// A run counts only when pnpm printed an audit report this gate can read.
+//
+// pnpm 10.6.5 answers a request that failed (the registry unreachable, a 4xx
+// or 5xx, a 200 whose body is no audit report) with exit 1 and
+// `{ "error": { "code", "message" } }` on stdout, and nothing on stderr. It
+// exits 1 for an audit that found something too, so the status alone settles
+// nothing, and the error object parses as JSON. Until 2026-10-13 this gate
+// read that object as a report with no advisories and printed OK for as long
+// as the registry stayed down.
+//
+// Each rule below names one way the output is not a report this run can
+// judge, and returns why. They run in order and the first that answers fails
+// the gate, so a later rule may rely on what an earlier one established.
+
+const isRecord = (value) =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const isCount = (value) => Number.isInteger(value) && value >= 0
+
+function notAnObject({ report }) {
+  return isRecord(report) ? undefined : 'the output is not a JSON object'
+}
+
+function reportedError({ report }) {
+  if (!('error' in report)) return undefined
+  const { code, message } = isRecord(report.error) ? report.error : {}
+  return `pnpm reported ${code ?? 'an error'}: ${message ?? JSON.stringify(report.error)}`
+}
+
+function noAdvisories({ report }) {
+  return isRecord(report.advisories) ? undefined : 'the output has no `advisories` map'
+}
+
+// An advisory is judged by its severity; one this gate cannot rank would be
+// reported as below every threshold.
+function unrankedAdvisory({ report }) {
+  const advisories = Object.values(report.advisories)
+  const unranked = advisories.find((a) => !SEVERITY_ORDER.includes(a?.severity))
+  if (unranked === undefined) return undefined
+  return `an advisory has severity ${JSON.stringify(unranked?.severity)}, which this gate cannot rank`
+}
+
+function noCounts({ report }) {
+  const counts = report.metadata?.vulnerabilities
+  return isRecord(counts) && Object.values(counts).every(isCount)
+    ? undefined
+    : 'the output has no `metadata.vulnerabilities` counts'
+}
+
+function uncountedSeverity({ report, failAt }) {
+  const counts = report.metadata.vulnerabilities
+  const uncounted = SEVERITY_ORDER.find(
+    (severity) => severityAtLeast(severity, failAt) && !(severity in counts),
+  )
+  if (uncounted === undefined) return undefined
+  return `the output does not count \`${uncounted}\` vulnerabilities, which this run fails on`
+}
+
+// The counts are what pnpm's exit status follows; the advisories are what this
+// gate judges. A severity this run fails on that is counted and not listed is
+// an advisory the gate was never shown, whoever left it out: the registry, or
+// pnpm, which drops an advisory it was told to ignore and keeps its count.
+function countedButNotListed({ report, failAt }) {
+  const counts = report.metadata.vulnerabilities
+  const listed = new Set(Object.values(report.advisories).map((a) => a.severity))
+  const hidden = SEVERITY_ORDER.find(
+    (severity) =>
+      severityAtLeast(severity, failAt) && counts[severity] > 0 && !listed.has(severity),
+  )
+  if (hidden === undefined) return undefined
+  return (
+    `the report's \`${hidden}\` count is ${counts[hidden]} and it lists no advisory of that severity. ` +
+    "An advisory left out of the list is not excepted: pnpm's `auditConfig` ignore lists " +
+    'are not an exception route, security/audit-exceptions.json is the only one'
+  )
+}
+
+// pnpm's own rule for `audit --json`: exit 1 when the counts add up to
+// anything, at any severity, and 0 when they add up to nothing. A report that
+// looks complete beside a status that contradicts it is not believed.
+function statusDisagrees({ report, status }) {
+  const counted = Object.values(report.metadata.vulnerabilities).reduce(
+    (sum, count) => sum + count,
+    0,
+  )
+  if (status === (counted > 0 ? 1 : 0)) return undefined
+  return (
+    `the exit status disagrees with the report, whose counts add up to ${counted}: ` +
+    'pnpm exits 1 when it counts any vulnerability and 0 when it counts none'
+  )
+}
+
+const UNREADABLE_RULES = [
+  notAnObject,
+  reportedError,
+  noAdvisories,
+  unrankedAdvisory,
+  noCounts,
+  uncountedSeverity,
+  countedButNotListed,
+  statusDisagrees,
+]
+
+// What an earlier run found is printed first: a production High is not held
+// back until the registry answers the run after it. Exceptions are not judged
+// stale here, since the run that would have matched them may be the unread one.
+function failUnreadable(run, res, reason) {
+  printFindings()
+  const ended = res.status === null ? `killed by ${res.signal}` : `exit ${res.status}`
+  console.error(
+    `[dependency-audit] FAILED — the ${run.scope} audit could not be read: ` +
+      `\`pnpm ${run.args.join(' ')}\` (${ended}): ${reason}`,
+  )
+  if (res.stderr) console.error(res.stderr.slice(0, STDERR_EXCERPT_CHARS))
+  console.error(
+    '[dependency-audit] the audit was not completed, so this run is a failure and not a pass. ' +
+      'Rerun the job when the registry answers — see docs/operations/security-ci-policy.md',
+  )
+  process.exit(2)
+}
+
+function readReport(run, res) {
+  let report
+  try {
+    report = JSON.parse(res.stdout)
+  } catch {
+    return failUnreadable(run, res, 'pnpm printed no JSON')
+  }
+  const context = { report, status: res.status, failAt: run.failAt }
+  for (const rule of UNREADABLE_RULES) {
+    const reason = rule(context)
+    if (reason) return failUnreadable(run, res, reason)
+  }
+  return report
+}
+
+function runAudit(run) {
   // pnpm prefers the installed virtual lockfile when node_modules exists.
   // Run from an isolated manifest directory so local agent/tooling packages
   // cannot contaminate the committed dependency graph that CI evaluates.
@@ -53,7 +211,7 @@ function runAudit(args) {
   try {
     copyFileSync(join(ROOT, 'package.json'), join(auditRoot, 'package.json'))
     copyFileSync(join(ROOT, 'pnpm-lock.yaml'), join(auditRoot, 'pnpm-lock.yaml'))
-    res = spawnSync('pnpm', args, {
+    res = spawnSync('pnpm', run.args, {
       cwd: auditRoot,
       encoding: 'utf8',
       shell: false,
@@ -65,15 +223,39 @@ function runAudit(args) {
     console.error(`[dependency-audit] failed to spawn pnpm: ${res.error.message}`)
     process.exit(2)
   }
+  return readReport(run, res)
+}
+
+// pnpm's own ignore lists. `pnpm audit` drops an advisory named in
+// `pnpm.auditConfig.ignoreCves` or `.ignoreGhsas` of the manifest from the
+// advisories it prints and keeps its count (pnpm 10.6.5; this gate copies the
+// manifest into the directory it audits from). Such an entry has no owner, no
+// reason and no expiry, and the register never sees it. `countedButNotListed`
+// catches it only when it hides every advisory of a severity: with two
+// production Highs, one named there and one excepted in the register, the
+// gate printed OK. So the manifest may not carry either list at all.
+const PNPM_IGNORE_LISTS = ['ignoreCves', 'ignoreGhsas']
+
+function refuseManifestIgnoreLists() {
+  let manifest
   try {
-    return JSON.parse(res.stdout)
-  } catch {
-    console.error(
-      `[dependency-audit] could not parse \`pnpm ${args.join(' ')}\` output ` +
-        `(exit ${res.status}) — audit backend unreachable or output shape changed:\n${res.stderr?.slice(0, 500)}`,
-    )
+    manifest = JSON.parse(readFileSync(MANIFEST_FILE, 'utf8'))
+  } catch (err) {
+    console.error(`[dependency-audit] cannot read ${MANIFEST_FILE}: ${err.message}`)
     process.exit(2)
   }
+  const auditConfig = manifest?.pnpm?.auditConfig
+  const carried = PNPM_IGNORE_LISTS.filter(
+    (list) => isRecord(auditConfig) && list in auditConfig,
+  )
+  if (carried.length === 0) return
+  console.error(
+    `[dependency-audit] FAILED — package.json sets ${carried.map((list) => `pnpm.auditConfig.${list}`).join(' and ')}. ` +
+      'pnpm hides an advisory named there from this gate, with no owner, reason or expiry. ' +
+      'Remove it and fix the dependency, or add a dated, owned exception to ' +
+      'security/audit-exceptions.json — see docs/operations/security-ci-policy.md',
+  )
+  process.exit(1)
 }
 
 function loadExceptions() {
@@ -114,15 +296,14 @@ const advisoryIds = (a) =>
 
 const firstPath = (a) => a.findings?.[0]?.paths?.[0] ?? '(no dependency path reported)'
 
+refuseManifestIgnoreLists()
 const exceptions = loadExceptions()
 const matchedExceptions = new Set()
-const failures = []
-const reports = []
 
 for (const run of RUNS) {
-  const report = runAudit(run.args)
-  const advisories = Object.values(report.advisories ?? {})
-  const counts = report.metadata?.vulnerabilities ?? {}
+  const report = runAudit(run)
+  const advisories = Object.values(report.advisories)
+  const counts = report.metadata.vulnerabilities
   reports.push(
     `[dependency-audit] ${run.scope} tree: ${JSON.stringify(counts)} (fail threshold: ${run.failAt})`,
   )
@@ -160,11 +341,9 @@ for (const e of exceptions) {
   }
 }
 
-for (const line of reports) console.log(line)
+printFindings()
 
 if (failures.length > 0) {
-  console.error(`[dependency-audit] FAILED — ${failures.length} violation(s):`)
-  for (const f of failures) console.error(f)
   console.error(
     '[dependency-audit] fix by upgrading/overriding the dependency (preferred) or add a ' +
       'dated, owned exception to security/audit-exceptions.json — see docs/operations/security-ci-policy.md',

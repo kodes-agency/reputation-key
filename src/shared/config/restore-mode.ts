@@ -29,7 +29,14 @@
 // RESTORE_MODE is parsed by the env schema (src/shared/config/env.ts): the
 // only accepted non-empty value is 'isolated' — anything else fails boot.
 
-/** The Railway environment the beta deployment runs in; restore drills bind to it. */
+/**
+ * The Railway environment restore drills bind to: `cell-us`, the dedicated
+ * cell. Despite this constant's name the closed beta does not run there. It
+ * runs in `closed-beta-v2` (src/shared/release/railway-deployment-profile.ts),
+ * where an in-platform restore target is therefore refused. Whether drills
+ * bind to that environment is the owner's decision, recorded as open in
+ * docs/operations/backup-and-lifecycle.md §1.
+ */
 const BETA_RAILWAY_ENVIRONMENT = 'cell-us'
 
 /** Structural env shape the restore-mode checks read (parsed Env fits). */
@@ -123,9 +130,9 @@ export function isRailwayPitrDatabaseUrl(databaseUrl: string | undefined): boole
  * Local drills are restricted to exact loopback hostnames. Railway PITR is
  * different: the platform creates a new `<source>-restored-YYYYMMDD-HHMM`
  * sibling in the source environment. A Railway target is accepted only when
- * all platform identity variables exist, the environment is the beta
- * deployment's environment, the operator names a PITR-shaped service, and
- * DATABASE_URL uses that exact service's private Railway DNS.
+ * all platform identity variables exist, the environment is the one drills
+ * bind to (BETA_RAILWAY_ENVIRONMENT above), the operator names a PITR-shaped
+ * service, and DATABASE_URL uses that exact service's private Railway DNS.
  * Public proxies, the source database, malformed URLs, and partial attestations
  * all fail closed.
  */
