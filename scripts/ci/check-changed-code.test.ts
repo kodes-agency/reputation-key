@@ -119,6 +119,35 @@ describe('changed-code gate', () => {
     expect(gate.status).toBe(0)
   })
 
+  // The one relaxation, pinned so the header and the workflow comment cannot
+  // call it a test of the module: a test that imports the importer is enough.
+  it('passes a new module that is one import away from a test, with no test of its own', () => {
+    const gate = runGate(
+      repositoryAdding({
+        'src/contexts/review/infrastructure/store.ts': RUNTIME_MODULE,
+        'src/contexts/review/build.ts': importing('./infrastructure/store'),
+        'src/contexts/review/build.test.ts': importing('./build'),
+      }),
+    )
+
+    expect(gate.output).toContain('2 runtime-gated')
+    expect(gate.status).toBe(0)
+  })
+
+  it('fails a new module that is two imports away from a test', () => {
+    const gate = runGate(
+      repositoryAdding({
+        'src/contexts/review/infrastructure/query.ts': RUNTIME_MODULE,
+        'src/contexts/review/infrastructure/store.ts': importing('./query'),
+        'src/contexts/review/build.ts': importing('./infrastructure/store'),
+        'src/contexts/review/build.test.ts': importing('./build'),
+      }),
+    )
+
+    expect(gate.output).toContain('✗ src/contexts/review/infrastructure/query.ts')
+    expect(gate.status).toBe(1)
+  })
+
   // R1A-07: nothing in CI writes a coverage report, so a report left behind by
   // a local run must not let a file through that CI would refuse.
   it('does not take a coverage report in the working tree as evidence', () => {
@@ -139,5 +168,39 @@ describe('changed-code gate', () => {
 
     expect(gate.output).toContain('✗ src/contexts/review/domain/rule.ts')
     expect(gate.status).toBe(1)
+  })
+
+  // R1A-11: an API route is a server handler, not a page.
+  it('fails a new API route that no test imports', () => {
+    const gate = runGate(
+      repositoryAdding({ 'src/routes/api/webhooks/provider/events.ts': RUNTIME_MODULE }),
+    )
+
+    expect(gate.output).toContain('✗ src/routes/api/webhooks/provider/events.ts')
+    expect(gate.status).toBe(1)
+  })
+
+  it('passes a new API route with a test beside it', () => {
+    const gate = runGate(
+      repositoryAdding({
+        'src/routes/api/webhooks/provider/events.ts': RUNTIME_MODULE,
+        'src/routes/api/webhooks/provider/-events.test.ts': importing('./events'),
+      }),
+    )
+
+    expect(gate.output).toContain('1 runtime-gated')
+    expect(gate.status).toBe(0)
+  })
+
+  it('leaves pages and components to their own checks', () => {
+    const gate = runGate(
+      repositoryAdding({
+        'src/routes/_authenticated/thing.tsx': RUNTIME_MODULE,
+        'src/components/features/thing/thing.tsx': RUNTIME_MODULE,
+      }),
+    )
+
+    expect(gate.output).toContain('0 source candidate(s)')
+    expect(gate.status).toBe(0)
   })
 })

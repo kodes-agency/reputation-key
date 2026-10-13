@@ -3,17 +3,27 @@
 // as the first CI step of the artifacts job (ci.yml, before the web build).
 //
 // Master-plan changed-code budget: every NEW production source module with
-// runtime behavior under src/** must have executable contract evidence: a
-// test that imports it at runtime.
+// runtime behavior under src/** must be within one import of a test: a test
+// imports it at runtime, or a test imports a module that imports or re-exports
+// it.
+//
+// The second hop is a relaxation (2026-08-19) and it is wide. It lets a test
+// reach a module through a barrel, and it equally passes anything a context's
+// `build.ts` wires once a test imports that build, with no assertion about the
+// new module. So this gate proves a test can load the module. It does not
+// prove a test exercises it, and nothing else in CI does.
 //
 // Scope (deliberately narrow: this gate owns new decision code and nothing
 // else. No coverage is measured anywhere: the coverage ratchet,
 // scripts/check-coverage.mjs, was deleted on 2026-09-05, and with it the
 // per-file coverage this gate once accepted in place of a test):
 //   included : files ADDED by this branch vs the main merge-base
-//              (`git diff --diff-filter=A <base>...HEAD -- 'src/**'`)
+//              (`git diff --diff-filter=A <base>...HEAD -- 'src/**'`),
+//              API routes (src/routes/api/**) among them: they are server
+//              handlers, not pages
 //   excluded : test files (*.test.ts(x)), stories (*.stories.*),
-//              UI routes (src/routes/**), components (src/components/**),
+//              UI routes (the rest of src/routes/**), components
+//              (src/components/**),
 //              test-only helpers/fixtures, barrels, generated sources, and
 //              config modules. Type/interface-only modules are detected with
 //              the TypeScript parser and excluded because they have no runtime
@@ -25,8 +35,8 @@
 // directions, because a dead entry is not harmless: it silently pre-authorises
 // the file to LOSE its evidence again without the gate noticing.
 //   stale     — the file no longer exists            → remove the entry
-//   redundant — the file is now test-owned (a test does a runtime import of
-//               it), so the gate would pass it anyway → remove the entry
+//   redundant — the file is now within one import of a test, so the gate
+//               would pass it anyway → remove the entry
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
@@ -61,11 +71,16 @@ const EXEMPT = [
   },
 ]
 
+// Pages are excluded with the components they render. `src/routes/api/**` holds
+// server handlers (webhooks, the auth provider's routes, health), so it is not.
+const isUiRoute = (file) =>
+  file.startsWith('src/routes/') && !file.startsWith('src/routes/api/')
+
 const EXCLUDED = (file) =>
   !/\.(ts|tsx)$/.test(file) ||
   /\.(test|spec)\.(ts|tsx)$/.test(file) ||
   /\.stories\.(ts|tsx)$/.test(file) ||
-  file.startsWith('src/routes/') ||
+  isUiRoute(file) ||
   file.startsWith('src/components/') ||
   file.startsWith('src/shared/testing/') ||
   file.startsWith('src/test-fixtures/') ||
@@ -278,8 +293,9 @@ for (const file of runtimeGated) {
   if (testOwners.has(file)) continue
   if (exemptFiles.has(file)) continue
   failures.push(
-    `${file} — added without runtime contract evidence; expected a runtime import from a test ` +
-      'or a registered exemption with owner and reason in scripts/check-changed-code.mjs',
+    `${file} — added without runtime contract evidence; expected a runtime import from a test, ` +
+      'or from a module a test imports, or a registered exemption with owner and reason in ' +
+      'scripts/check-changed-code.mjs',
   )
 }
 
@@ -298,7 +314,7 @@ for (const e of EXEMPT) {
   const owners = testOwners.get(e.file)
   if (owners?.length) {
     failures.push(
-      `exemption no longer needed — remove: ${e.file} (owner ${e.owner}) is test-owned by ` +
+      `exemption no longer needed — remove: ${e.file} (owner ${e.owner}) is within one import of ` +
         `${owners.join(', ')}, so the gate already passes it on evidence. A dead exemption ` +
         'is not harmless: it pre-authorises the file to lose that evidence unnoticed.',
     )
@@ -308,7 +324,7 @@ for (const e of EXEMPT) {
 console.log(
   `[changed-code] base ${base} (merge-base ${mergeBase.slice(0, 12)}): ` +
     `${added.length} added src file(s), ${gated.length} source candidate(s), ` +
-    `${runtimeGated.length} runtime-gated, ${testOwners.size} directly test-owned, ` +
+    `${runtimeGated.length} runtime-gated, ${testOwners.size} module(s) within one import of a test, ` +
     `${EXEMPT.length} exempt`,
 )
 
@@ -318,5 +334,5 @@ if (failures.length > 0) {
   process.exit(1)
 }
 console.log(
-  '[changed-code] OK — every added runtime production module carries a contract test',
+  '[changed-code] OK — every added runtime production module is imported by a test, or by a module a test imports',
 )
