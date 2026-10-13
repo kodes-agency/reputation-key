@@ -5,7 +5,7 @@ import type { Portal, PortalTheme } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdatePortalInput } from '../dto/update-portal.dto'
 export type { UpdatePortalInput }
-import { canForContext, type Permission } from '#/shared/domain/permissions'
+import type { Permission } from '#/shared/domain/permissions'
 import { portalId as toPortalId, unbrand, type OrganizationId } from '#/shared/domain/ids'
 import {
   validatePortalName,
@@ -25,7 +25,7 @@ import {
 import type { Result } from '#/shared/domain'
 import type { PortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { assertPropertyAccess } from '../assert-property-access'
+import { loadPortalOrThrow } from '../load-accessible-portal'
 import { transitionPortalPublication } from '../../domain/portal-publication'
 import type {
   PropertyGoogleReviewDestinationPublicApi,
@@ -353,29 +353,22 @@ function buildUpdatedPortal(
  * Disable and Restore included, is an update. Decided on what the caller asks
  * for, so an archive bundled with an edit is held to it too.
  */
-const requiredPermission = (input: UpdatePortalInput): Permission =>
-  input.publicationState === 'archived' ? 'portal.delete' : 'portal.update'
+const requiredPermission = (
+  input: UpdatePortalInput,
+): Readonly<{ permission: Permission; forbiddenMessage: string }> =>
+  input.publicationState === 'archived'
+    ? {
+        permission: 'portal.delete',
+        forbiddenMessage: 'this role cannot archive portals',
+      }
+    : { permission: 'portal.update', forbiddenMessage: 'this role cannot edit portals' }
 
 export const updatePortal =
   (deps: UpdatePortalDeps) =>
   async (input: UpdatePortalInput, ctx: AuthContext): Promise<Portal> => {
-    const permission = requiredPermission(input)
-    if (!canForContext(ctx, permission)) {
-      throw portalError(
-        'forbidden',
-        permission === 'portal.delete'
-          ? 'this role cannot archive portals'
-          : 'this role cannot edit portals',
-      )
-    }
-
     const pid = toPortalId(input.portalId)
-    const existing = await deps.portalRepo.findById(ctx.organizationId, pid)
-    if (!existing) {
-      throw portalError('portal_not_found', 'portal not found in this organization')
-    }
-    // Enforce property-assignment scoping (D6-001.)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, permission, existing.propertyId)
+    // Role, then the Portal, then the Property scope (D6-001), on that permission.
+    const existing = await loadPortalOrThrow(deps, ctx, pid, requiredPermission(input))
 
     assertArchivedMutationIsRestore(input, existing)
 
