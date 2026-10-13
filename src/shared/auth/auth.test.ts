@@ -200,11 +200,7 @@ describe('Auth configuration', () => {
       const { createAuth } = await import('#/shared/auth/auth')
       const sendResetPassword = createAuth().options.emailAndPassword?.sendResetPassword
 
-      const answered = sendResetPassword?.({
-        user: { email: 'dana@example.test' } as never,
-        url: 'https://app.test/r/tok',
-        token: 'tok',
-      })
+      const answered = sendResetPassword?.(data)
 
       expect(await stateOf(Promise.resolve(answered))).toBe('settled')
       expect(never).toHaveBeenCalledExactlyOnceWith(
