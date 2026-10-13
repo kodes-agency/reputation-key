@@ -74,6 +74,18 @@ Interactive or action-triggered reads may use `useQuery`; cursor lists use
 `useInfiniteQuery`. Query keys come from `src/shared/queries/query-keys.ts`.
 Invalidate the narrow parent key whose descendants changed—never the whole router.
 
+## Search params
+
+Anyone can type an address, and a bookmark outlives the vocabulary it was made
+with. So every search key is optional and tolerant: a value the page cannot
+read is dropped (`.optional().catch(undefined)`, or `.catch(<default>)` for a
+key that always has one) and the rest of the address is kept. A schema that
+throws replaces the page with the generic error, reports it, and offers a "Try
+again" that reads the same address again. The router reads a value made only of
+digits as a number, so a string key needs the `.catch` too. A key that names an
+entity is checked for its shape (`z.uuid()`), and still against what the reader
+may see before anything is done with it.
+
 ## Server-function bundles and mutations
 
 Routes are the sanctioned delivery layer for importing context server functions.

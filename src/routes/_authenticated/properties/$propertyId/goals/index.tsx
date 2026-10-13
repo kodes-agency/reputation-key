@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { z } from 'zod/v4'
 import { Target } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -40,12 +39,8 @@ import { GoalViewTabs } from '#/components/goals/goal-view-tabs'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { formatShortDate } from '#/lib/format'
 import { goalForResult } from './-goal-for-result'
+import { goalListSearchSchema } from './-goal-list-search'
 
-const goalsSearchSchema = z.object({
-  view: z.enum(['active', 'history']).default('active'),
-  // A goal notice's monthly result (notificationLink): open its goal.
-  result: z.string().optional(),
-})
 const goalsQuery = (propertyId: string) =>
   queryOptions({
     queryKey: goalKeys.list({ propertyId, model: 'program' }),
@@ -90,7 +85,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
       throw roleUnavailable('Goals', 'properties')
     }
   },
-  validateSearch: goalsSearchSchema,
+  validateSearch: goalListSearchSchema,
   loader: async ({ params: { propertyId }, context }) => {
     await Promise.all([
       context.queryClient.ensureQueryData(goalsQuery(propertyId)),

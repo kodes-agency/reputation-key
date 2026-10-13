@@ -193,6 +193,17 @@ describe('unavailable route presentation', () => {
     expect(UNAVAILABLE_FEATURE_LABELS).toContain('Workspace')
   })
 
+  // This is the page an account with no workspace recovers from, so an address
+  // it cannot read must still draw it.
+  it('drops a reason, a category or a property it cannot read', () => {
+    expect(
+      unavailableSearch.parse({ reason: 'expired', category: 'gone', propertyId: 7 }),
+    ).toEqual({})
+    expect(
+      unavailablePageContent(unavailableSearch.parse({ category: 'gone' })).title,
+    ).toBe('Not available in this beta')
+  })
+
   it('keeps the rest of the address when the feature is dropped', () => {
     expect(
       unavailableSearch.parse({ feature: 'x'.repeat(200), category: 'not_in_beta' }),

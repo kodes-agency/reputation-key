@@ -41,9 +41,11 @@ export const UNAVAILABLE_FEATURE_LABELS = [
 
 export const unavailableSearch = z.object({
   feature: z.enum(UNAVAILABLE_FEATURE_LABELS).optional().catch(undefined),
-  reason: z.literal('workspace_access').optional(),
-  category: z.enum(CAPABILITY_REFUSAL_CATEGORIES).optional(),
-  propertyId: z.string().optional(),
+  // A value this page cannot read is dropped, never an error: it is where an
+  // account with no workspace recovers, so it has to draw.
+  reason: z.literal('workspace_access').optional().catch(undefined),
+  category: z.enum(CAPABILITY_REFUSAL_CATEGORIES).optional().catch(undefined),
+  propertyId: z.string().optional().catch(undefined),
 })
 
 type UnavailableSearch = z.infer<typeof unavailableSearch>
