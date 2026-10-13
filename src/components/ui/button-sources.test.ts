@@ -176,6 +176,33 @@ describe('a pending button is the Button', () => {
   it('has no inert data-icon attribute: the Button already places and sizes its icon', () => {
     expect(offendersOf((file) => /data-icon=/u.test(file.text))).toEqual([])
   })
+
+  // `{save.isPending ? 'Saving…' : 'Save access'}` as a label: the button then
+  // shows no spinner and is not `aria-busy`. The words belong in `pendingLabel`.
+  const SWAPPED_LABEL =
+    /(?<![=\w])\{\s*[\w.]*\bisPending\s*\?\s*(['"`])[^'"`]*\1\s*:\s*(['"`])[^'"`]*\2\s*\}/u
+  const swapsLabel = (file: SourceFile) => SWAPPED_LABEL.test(file.text)
+
+  it('takes its pending word from `pendingLabel`, not a label swapped on `isPending`', () => {
+    expect(offendersOf(swapsLabel)).toEqual([])
+  })
+
+  it('catches the swap as a child and leaves a prop or a longer expression alone', () => {
+    expect(
+      SWAPPED_LABEL.test("<Button>{save.isPending ? 'Saving…' : 'Save'}</Button>"),
+    ).toBe(true)
+    expect(SWAPPED_LABEL.test('<Button>{isPending ? "Saving…" : "Save"}</Button>')).toBe(
+      true,
+    )
+    expect(
+      SWAPPED_LABEL.test(
+        "<Button pendingLabel={a.isPending ? 'Saving…' : 'Sending…'} />",
+      ),
+    ).toBe(false)
+    expect(
+      SWAPPED_LABEL.test("key={failed ? 'error' : read.isPending ? 'loading' : 'ready'}"),
+    ).toBe(false)
+  })
 })
 
 describe('an icon-only control is an IconButton', () => {

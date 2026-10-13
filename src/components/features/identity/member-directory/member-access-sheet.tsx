@@ -198,9 +198,11 @@ function AccessForm({
         <Button
           type="button"
           onClick={save}
-          disabled={change.isEmpty || saveAction.isPending}
+          disabled={change.isEmpty}
+          pending={saveAction.isPending}
+          pendingLabel="Saving…"
         >
-          {saveAction.isPending ? 'Saving…' : 'Save access'}
+          Save access
         </Button>
       </SheetFooter>
     </div>

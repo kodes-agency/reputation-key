@@ -72,7 +72,8 @@ and actions supply server state.
   request is `ExplainTrigger` (a Popover with the one dotted-underline cue,
   `EXPLAIN_UNDERLINE`), a key hint prints the modifier this platform has
   (`useShortcutModifier`), and a control that is not a Button wears `focus-ring`. `button-sources.test.ts` fails
-  on a per-file height, a hand-placed spinner, an icon-only Button, the old ring,
+  on a per-file height, a hand-placed spinner, a label swapped on `isPending`, an
+  icon-only Button, the old ring,
   a hand-typed inline link or dotted underline, a `--control-touch` class and a
   hand-copied form submit.
   A notice is an `Alert`: `destructive`, `warning`, `success` and `info` each
