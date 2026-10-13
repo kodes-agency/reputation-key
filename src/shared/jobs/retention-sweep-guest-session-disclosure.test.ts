@@ -24,6 +24,9 @@ const GUEST_RECEIPT_SCOPES = ['guest_qualified_scan', 'guest_destination_action'
 function ruleHorizonDays(subject: string): number {
   const rule = RETENTION_RULES.find((candidate) => candidate.subject === subject)
   if (!rule) throw new Error(`No retention rule has the subject ${subject}`)
+  if (rule.olderThanMs === undefined) {
+    throw new Error(`The retention rule ${subject} is not stated in days`)
+  }
   return rule.olderThanMs / DAY_MS
 }
 

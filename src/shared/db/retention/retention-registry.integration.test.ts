@@ -187,6 +187,8 @@ describe('retention registry report-only mode', () => {
       'guest.optional_contact',
       'guest.private_feedback_text',
       'guest.deidentified_facts',
+      'guest.deidentified_qualified_scan_facts',
+      'guest.deidentified_visit_record_facts',
       'notification.delivery_records',
       'notification.coalesced_delivery_records',
       'notification.terminal_digest_batches',
@@ -210,14 +212,18 @@ describe('retention registry report-only mode', () => {
     )
     expect(uncountable).toEqual({
       'google.source_content': 'no counsel-approved horizon exists',
-      'guest.deidentified_qualified_scan_facts': 'no counsel-approved horizon exists',
-      'metric.deidentified_destination_click_facts': 'no counsel-approved horizon exists',
+      'metric.deidentified_visit_reading_facts':
+        'the accepted 24-month horizon has no executing rule',
+      'metric.deidentified_response_reading_facts':
+        'the accepted 24-month horizon has no executing rule',
+      'metric.deidentified_destination_click_facts':
+        'the accepted 24-month horizon has no executing rule',
       'metric.deidentified_correction_withdrawal_facts':
         'no counsel-approved horizon exists',
       'metric.lifetime_aggregates': 'retained while its owning aggregate exists',
       'activity.operational_action_history': 'no counsel-approved horizon exists',
       'platform.logs_sentry_replay_screenshots': 'no counsel-approved horizon exists',
-      'ai.local_derivatives': 'no counsel-approved horizon exists',
+      'ai.local_derivatives': 'the accepted 24-month horizon has no executing rule',
       'platform.uploads': 'no counsel-approved horizon exists',
       'lifecycle.organization_exports':
         'object_store sources are not countable from PostgreSQL',

@@ -4,6 +4,7 @@ import {
   DEFAULT_MAX_BATCHES_PER_RUN,
   type RetentionRule,
 } from './execute-retention-rule'
+import { retentionRuleCutoff } from './retention-cutoff'
 
 export type RetentionRuleReport = Readonly<{
   subject: string
@@ -61,7 +62,7 @@ export async function buildRetentionRuleReport(
   const countCandidates = input.countCandidates ?? countRetentionRuleCandidates
   const rules: RetentionRuleReport[] = []
   for (const rule of input.rules) {
-    const cutoff = new Date(input.generatedAt.getTime() - rule.olderThanMs)
+    const cutoff = retentionRuleCutoff(rule, input.generatedAt)
     const eligibleRows = await countCandidates(input.db, rule, cutoff)
     const estimatedBatches = Math.ceil(eligibleRows / batchSize)
     rules.push({

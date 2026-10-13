@@ -16,8 +16,11 @@ import type { Database } from '#/shared/db'
  *   6: + canonical seven-day Guest network-pressure record deletion.
  *   7: + exact retired-generation local AI derivative erasure evidence.
  *   8: + scheduled, bounded Contact Request encrypted-material expiry evidence.
+ *   9: − the event_consumer_receipts subject: a receipt is deleted with its
+ *      outbox event (outbox_events.published), never by a rule of its own;
+ *      + 24-month deletion of the counted Guest visit and the visit record.
  */
-const RETENTION_POLICY_VERSION = 8
+const RETENTION_POLICY_VERSION = 9
 
 export async function openRetentionRun(
   db: Database,

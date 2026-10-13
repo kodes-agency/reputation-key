@@ -5,18 +5,21 @@
 // or let reading a row silently extend its content deadline.
 
 import { describe, expect, it } from 'vitest'
+import { METRIC_KEYS } from '#/shared/domain/metric-keys'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 import {
   assertRetentionRegistryApplyAllowed,
   DEADLINE_NEUTRAL_COLUMNS,
   LEGACY_MIRROR_PSEUDONYM_REDACTIONS,
-  RETENTION_DATA_CLASSES,
   RETENTION_REGISTRY,
   retentionRegistryClassCoverage,
   retentionRegistryDeadlineExtensionViolations,
   retentionRegistryReportOnlyPlan,
-  type RetentionRegistryRule,
 } from './retention-registry'
+import {
+  RETENTION_DATA_CLASSES,
+  type RetentionRegistryRule,
+} from './retention-registry-model'
 
 const ruleById = (id: string): RetentionRegistryRule => {
   const rule = RETENTION_REGISTRY.find((entry) => entry.id === id)
@@ -25,6 +28,23 @@ const ruleById = (id: string): RetentionRegistryRule => {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Metric keys no Guest fact produces: the imported Google review aggregate and
+ * the three Portal content-review measures. Every other key is the reading
+ * Reporting records from a Guest visit, rating, private feedback or destination
+ * selection (`record-portal-metric.ts`), so it is a second copy of that fact.
+ */
+const METRIC_KEYS_NOT_FROM_GUEST_FACTS: ReadonlyArray<string> = [
+  'property.review',
+  'portal.content_review.completed',
+  'portal.configuration_completeness',
+  'portal.approved_destination_ratio',
+]
+
+/** The metric keys a registry predicate names, e.g. `metric_key IN ('a', 'b')`. */
+const metricKeysNamedBy = (predicate: string | null): ReadonlyArray<string> =>
+  (predicate?.match(/'[^']+'/g) ?? []).map((quoted) => quoted.slice(1, -1))
 
 describe('retention registry — matrix completeness', () => {
   it('gives every rule an owner, a source, an eligibility query, evidence and a restore implication', () => {
@@ -131,32 +151,178 @@ describe('retention registry — §3.3.10 default horizons', () => {
     })
   })
 
-  it('keeps the live rating fact at 24 months and marks separately stored facts undecided', () => {
-    const facts = ruleById('guest.deidentified_facts')
-    expect(facts.eligibility.horizon).toEqual({ kind: 'months', months: 24 })
-    expect(facts.coveredFacts).toEqual(['rating'])
-
-    for (const [id, source, coveredFacts] of [
+  it('holds the rating fact, the counted visit and the visit record at 24 months', () => {
+    for (const [id, source, anchorColumn, coveredFacts] of [
+      ['guest.deidentified_facts', 'guest_responses', 'retention_deadline', ['rating']],
       [
         'guest.deidentified_qualified_scan_facts',
         'guest_qualified_scans',
+        'occurred_at',
         ['qualified_scan'],
       ],
       [
-        'metric.deidentified_destination_click_facts',
-        'metric_readings',
-        ['destination_click'],
-      ],
-      [
-        'metric.deidentified_correction_withdrawal_facts',
-        'metric_corrections',
-        ['correction', 'withdrawal'],
+        'guest.deidentified_visit_record_facts',
+        'scan_events',
+        'created_at',
+        ['visit_record'],
       ],
     ] as const) {
       const rule = ruleById(id)
       expect(rule.source, id).toBe(source)
-      expect(rule.eligibility.horizon, id).toEqual({ kind: 'counsel_undecided' })
+      expect(rule.operation ?? 'delete', id).toBe('delete')
+      expect(rule.eligibility.anchorColumn, id).toBe(anchorColumn)
+      expect(rule.eligibility.horizon, id).toEqual({ kind: 'months', months: 24 })
       expect(rule.coveredFacts, id).toEqual(coveredFacts)
+    }
+  })
+
+  it('names every accepted horizon that no rule executes yet', () => {
+    // The accepted Privacy Notice states 24 months for these classes and the
+    // sweep has no rule for them (docs/BETA.md §3, UNENFORCED). A rule leaves
+    // this list when its deletion ships, never by relabelling it.
+    const unexecuted = RETENTION_REGISTRY.filter(
+      (rule) => rule.eligibility.horizon.kind === 'accepted_unexecuted',
+    ).map(({ id, source, eligibility }) => ({ id, source, horizon: eligibility.horizon }))
+
+    expect(unexecuted).toEqual([
+      {
+        id: 'metric.deidentified_visit_reading_facts',
+        source: 'metric_readings',
+        horizon: { kind: 'accepted_unexecuted', months: 24 },
+      },
+      {
+        id: 'metric.deidentified_response_reading_facts',
+        source: 'metric_readings',
+        horizon: { kind: 'accepted_unexecuted', months: 24 },
+      },
+      {
+        id: 'metric.deidentified_destination_click_facts',
+        source: 'metric_readings',
+        horizon: { kind: 'accepted_unexecuted', months: 24 },
+      },
+      {
+        id: 'ai.local_derivatives',
+        source: 'ai_review_analyses',
+        horizon: { kind: 'accepted_unexecuted', months: 24 },
+      },
+    ])
+  })
+
+  it('names every Metric reading recorded from a Guest fact, each exactly once', () => {
+    // Deleting the Guest row does not delete the fact while Reporting still
+    // holds the reading recorded from it: the same Portal, instant and source
+    // event. Each such reading is therefore listed under the 24 months, and a
+    // new metric key must be placed here or in the list of keys that are not
+    // Guest facts before this passes.
+    const readingRules = RETENTION_REGISTRY.filter(
+      (rule) => rule.source === 'metric_readings',
+    )
+    const namedKeys = readingRules.flatMap((rule) =>
+      metricKeysNamedBy(rule.eligibility.predicate),
+    )
+
+    expect([...namedKeys].sort()).toEqual(
+      METRIC_KEYS.filter((key) => !METRIC_KEYS_NOT_FROM_GUEST_FACTS.includes(key)).sort(),
+    )
+    expect(readingRules.map(({ id, eligibility }) => [id, eligibility.horizon])).toEqual(
+      readingRules.map(({ id }) => [id, { kind: 'accepted_unexecuted', months: 24 }]),
+    )
+  })
+
+  it('says which Guest-derived readings wait for the lifetime seal and which do not', () => {
+    // The seal covers the four keys the Portal lifetime aggregate is built
+    // from (`portal-lifetime-aggregate.ts`). The other three feed no aggregate,
+    // so "sealed first" is not what keeps them, and the entry must not say so.
+    const boundaryNaming = (metricKey: string): string => {
+      const rule = RETENTION_REGISTRY.find(
+        (candidate) =>
+          candidate.source === 'metric_readings' &&
+          metricKeysNamedBy(candidate.eligibility.predicate).includes(metricKey),
+      )
+      if (!rule) throw new Error(`no registry rule names the metric key '${metricKey}'`)
+      return rule.eligibility.implementedBoundary
+    }
+
+    for (const sealed of [
+      'portal.qualified_scan',
+      'portal.rating',
+      'portal.feedback',
+      'portal.review_link_click',
+    ]) {
+      expect(boundaryNaming(sealed), sealed).toContain('sealThrough')
+    }
+    expect(boundaryNaming('portal.scan')).toContain(
+      'A portal.scan reading feeds no aggregate',
+    )
+    expect(boundaryNaming('portal.rating_count')).toContain(
+      'portal.rating_count and portal.rating_average readings feed no aggregate',
+    )
+  })
+
+  it('gives a correction no horizon apart from the reading it corrects', () => {
+    const corrections = ruleById('metric.deidentified_correction_withdrawal_facts')
+
+    expect(corrections.source).toBe('metric_corrections')
+    expect(corrections.coveredFacts).toEqual(['correction', 'withdrawal'])
+    expect(corrections.eligibility.horizon).toEqual({ kind: 'counsel_undecided' })
+    expect(corrections.eligibility.query).toContain(
+      'deleted with the reading it corrects or not at all',
+    )
+  })
+})
+
+describe('retention registry — compatibility mirrors', () => {
+  const rulesOver = (source: string) =>
+    RETENTION_REGISTRY.filter((rule) => rule.source === source).map(
+      ({ id, operation }) => ({ id, operation: operation ?? 'delete' }),
+    )
+
+  it('names the mirrors the beta no longer writes only in row-preserving redactions', () => {
+    for (const source of ['ratings', 'feedback']) {
+      expect(rulesOver(source), source).toEqual([
+        { id: `guest.legacy_${source}.abuse_pseudonym`, operation: 'redact' },
+        { id: `guest.legacy_${source}.session_pseudonym`, operation: 'redact' },
+      ])
+    }
+  })
+
+  it('deletes from scan_events only the visit record, at the horizon of a visit fact', () => {
+    expect(rulesOver('scan_events')).toEqual([
+      { id: 'guest.legacy_scan_events.abuse_pseudonym', operation: 'redact' },
+      { id: 'guest.legacy_scan_events.session_pseudonym', operation: 'redact' },
+      { id: 'guest.deidentified_visit_record_facts', operation: 'delete' },
+    ])
+  })
+
+  it('promises to keep every row only for a table no rule deletes from', () => {
+    const deletedFrom = new Set(
+      RETENTION_REGISTRY.filter((rule) => (rule.operation ?? 'delete') === 'delete').map(
+        ({ source }) => source,
+      ),
+    )
+    const promisesToKeepEveryRow = RETENTION_REGISTRY.filter(({ eligibility }) =>
+      /retain every/i.test(eligibility.query),
+    )
+
+    expect(promisesToKeepEveryRow.map(({ id }) => id)).toEqual([
+      'guest.legacy_ratings.abuse_pseudonym',
+      'guest.legacy_ratings.session_pseudonym',
+      'guest.legacy_feedback.abuse_pseudonym',
+      'guest.legacy_feedback.session_pseudonym',
+    ])
+    expect(
+      promisesToKeepEveryRow.filter(({ source }) => deletedFrom.has(source)),
+    ).toEqual([])
+  })
+
+  it('says of each scan_events redaction which rule later deletes the row', () => {
+    for (const id of [
+      'guest.legacy_scan_events.abuse_pseudonym',
+      'guest.legacy_scan_events.session_pseudonym',
+    ]) {
+      expect(ruleById(id).eligibility.query, id).toContain(
+        'guest.deidentified_visit_record_facts',
+      )
     }
   })
 })

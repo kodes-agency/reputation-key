@@ -36,7 +36,10 @@ export type DataFateRow = Readonly<{
   disposition: DataFateDisposition
   /** Package or accepted authority responsible for this decision. */
   authority: string
-  /** Required for every non-active row; names the condition that bounds it. */
+  /**
+   * Required for every non-active row; names the condition that bounds it. An
+   * active row states one when its rows have a lifecycle worth recording here.
+   */
   exitCriteria: string
 }>
 
@@ -272,11 +275,23 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'guest.schema.ts',
-    exportNames: ['feedback', 'ratings', 'scanEvents'],
+    exportNames: ['feedback', 'ratings'],
     owner: 'guest',
     disposition: 'compatibility_read',
     authority: 'GST-01/MET-01/CNV-01',
     exitCriteria: COMPATIBILITY_EXIT,
+  }),
+  ...rows({
+    schemaFile: 'guest.schema.ts',
+    // Not a compatibility mirror like `feedback` and `ratings`: every Portal
+    // visit writes a row here and the visit command reads it to accept one
+    // visit per session, so its rows are current visit facts with a lifecycle.
+    exportNames: ['scanEvents'],
+    owner: 'guest',
+    disposition: 'active_authority',
+    authority: 'GST-01/LIF-01/BETA.md §3',
+    exitCriteria:
+      'Each row is bounded by the retention sweep: scan_events.guest_session_pseudonym clears session_id after 24 hours, scan_events.abuse_pseudonym clears ip_hash after seven days, and scan_events.deidentified_fact deletes the row 24 UTC calendar months after the visit, the horizon the accepted Privacy Notice gives a Guest visit fact. An Organization purge deletes its rows sooner. The table itself stays.',
   }),
   ...rows({
     schemaFile: 'guest.schema.ts',

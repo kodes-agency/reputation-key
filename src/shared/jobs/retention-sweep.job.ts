@@ -15,10 +15,9 @@ import {
   type RetentionRule,
 } from '#/shared/db/retention/execute-retention-rule'
 import { closeRetentionRun, openRetentionRun } from '#/shared/db/retention/evidence'
-import {
-  assertRetentionRegistryApplyAllowed,
-  type RetentionRegistryRule,
-} from '#/shared/db/retention/retention-registry'
+import { retentionRuleCutoff } from '#/shared/db/retention/retention-cutoff'
+import { assertRetentionRegistryApplyAllowed } from '#/shared/db/retention/retention-registry'
+import type { RetentionRegistryRule } from '#/shared/db/retention/retention-registry-model'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
@@ -40,6 +39,14 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const AUDIT_EVIDENCE_RETENTION_MS = 365 * DAY_MS
 
 /**
+ * Privacy Notice §6: base Guest visit facts are kept for 24 months. The rating
+ * fact carries its own deadline (retention_deadline, stamped 24 calendar months
+ * out at submission). The counted visit and the visit record carry none, so
+ * their rules count the same calendar months back from the run.
+ */
+const GUEST_VISIT_FACT_RETENTION_MONTHS = 24
+
+/**
  * The retention rule registry. Durations per table docs:
  * outbox/sync/webhook ~30d operational history; notifications/activity 90d
  * (documented in their CONTEXT docs); cache expires per-entry; audit
@@ -50,6 +57,13 @@ const AUDIT_EVIDENCE_RETENTION_MS = 365 * DAY_MS
  * proof of erasure; table size is monitored via the metrics snapshot
  * instead. Documented in docs/operations/backup-and-lifecycle.md.
  *
+ * DELIBERATELY ABSENT — event_consumer_receipts: a receipt is the dispatcher's
+ * only proof that a consumer handled a fact, and redelivery replays every
+ * published fact that lacks one, whatever its age. The table cascades from
+ * outbox_events, so the outbox_events.published rule removes a receipt in the
+ * statement that removes its fact and never before it. A rule of its own (its
+ * own cutoff, per-run cap and failure isolation) could remove the receipt
+ * first, and the fact was then delivered to its consumers again.
  */
 export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
   {
@@ -114,6 +128,25 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     redactColumns: ['session_id'],
   })),
   {
+    // The counted visit (Qualified Scan): identifiers and a time, no content.
+    subject: 'guest_qualified_scans.deidentified_fact',
+    table: 'guest_qualified_scans',
+    keyColumns: ['id'],
+    tsColumn: 'occurred_at',
+    olderThanMonths: GUEST_VISIT_FACT_RETENTION_MONTHS,
+  },
+  {
+    // The visit record. Unlike `ratings` and `feedback`, this table is still
+    // written on every Portal visit, so its rows are current visit facts, not
+    // pre-beta inventory: the two redactions above clear its pseudonyms early
+    // and this removes what is left of the row at the published horizon.
+    subject: 'scan_events.deidentified_fact',
+    table: 'scan_events',
+    keyColumns: ['id'],
+    tsColumn: 'created_at',
+    olderThanMonths: GUEST_VISIT_FACT_RETENTION_MONTHS,
+  },
+  {
     subject: 'outbox_events.published',
     table: 'outbox_events',
     keyColumns: ['id'],
@@ -122,16 +155,10 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     // created_at keying deleted it ~1d after publication. 30d is BQC-1.6's
     // deliberate value; the applied migration file's comment says 7d/90d —
     // that comment drift is NOT fixed here (applied migrations are immutable).
+    // Deleting a fact also deletes its consumer receipts (see the header).
     tsColumn: 'published_at',
     olderThanMs: 30 * DAY_MS,
     extraWhere: 'published_at IS NOT NULL',
-  },
-  {
-    subject: 'event_consumer_receipts',
-    table: 'event_consumer_receipts',
-    keyColumns: ['event_id', 'consumer_name'],
-    tsColumn: 'created_at',
-    olderThanMs: 30 * DAY_MS,
   },
   {
     subject: 'review_sync_runs',
@@ -389,7 +416,7 @@ async function sweepRetentionRules(
 ): Promise<void> {
   for (const rule of rules) {
     const startedAt = deps.clock()
-    const cutoff = new Date(startedAt.getTime() - rule.olderThanMs)
+    const cutoff = retentionRuleCutoff(rule, startedAt)
     const runId = await openRetentionRun(deps.db, rule.subject, batchSize, startedAt)
     try {
       const result = await executeRetentionRule(deps.db, rule, { cutoff, batchSize })

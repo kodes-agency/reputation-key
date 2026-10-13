@@ -70,20 +70,39 @@ to prevent.
 
 ---
 
-## 3. Compatibility mirrors remain row-preserving
+## 3. Compatibility mirrors: two stay row-preserving, one holds live visit facts
 
-The live `scan_events`, `ratings` and `feedback` compatibility tables are not
-deleted by the retention sweep. The migration that called for one-off
-contraction inventories was struck, so retention governance no longer depends
-on a dedicated inventory command. The tables and their retention rules remain.
+The `ratings` and `feedback` compatibility tables are not deleted by the
+retention sweep. The beta no longer writes them, so whatever rows they hold
+predate the response model. The migration that called for one-off contraction
+inventories was struck, so retention governance no longer depends on a
+dedicated inventory command. The tables and their retention rules remain.
+
+`scan_events` is not in that position. Every Portal visit still writes a row to
+it, so its rows are current visit facts, and the accepted Privacy Notice keeps
+base Guest visit facts for 24 months. The sweep subject
+`scan_events.deidentified_fact` therefore deletes a visit record 24 UTC calendar
+months after the visit, beside `guest_qualified_scans.deidentified_fact`, which
+does the same for the counted visit. Neither table stamps a deadline, so both
+rules count the months back from the run; the rating fact keeps its own stamped
+`retention_deadline`.
+
+The persisted-model lifecycle authority
+(`src/shared/governance/data-fate-authority.ts`) files the three tables the same
+way: `ratings` and `feedback` are `compatibility_read`, kept read-only;
+`scan_events` is a live Guest table whose exit criteria name its three sweep
+subjects. `data-fate-authority.test.ts` fails if a table the sweep deletes from
+is filed as kept read-only.
 
 ### The declared redactions
 
-Six sweep rules touch those three mirrors: the `ip_hash` and `session_id`
-pseudonym redactions on each table. They are `redact`, never `delete`. Every row
-survives, while the §3.3.10 seven-day pseudonym default still reaches the
-mirrors. `LEGACY_MIRROR_PSEUDONYM_REDACTIONS` aligns those executable sweep
-subjects with the counsel-facing registry horizons.
+Six sweep rules redact on the three tables: the `ip_hash` and `session_id`
+pseudonym redactions on each. They are `redact`, never `delete`. Every row
+survives them, while the §3.3.10 seven-day pseudonym default still reaches the
+tables. For `ratings` and `feedback` that is all that happens to a row; a
+`scan_events` row is deleted later by the rule above, and its two redaction
+entries in the registry say so. `LEGACY_MIRROR_PSEUDONYM_REDACTIONS` aligns
+those executable sweep subjects with the counsel-facing registry horizons.
 
 ---
 
@@ -131,6 +150,37 @@ This is currently a documented ordering constraint recorded in the registry
 (`metric.lifetime_aggregates` restore implication), not an enforced one. It must
 be enforced before the fact purge is ever armed in apply mode.
 
+It is also why the Metric side of the 24 months has no sweep rule. The Guest
+rules of §3 delete Guest rows only. Reporting records a `metric_readings` row
+from every Guest fact, and those rows stay, so the visit or rating is still
+stored after its Guest row has gone:
+
+| Guest fact            | Metric keys recorded from it                                 | Feeds the lifetime aggregate |
+| --------------------- | ------------------------------------------------------------ | ---------------------------- |
+| Visit record          | `portal.scan`                                                | no                           |
+| Counted visit         | `portal.qualified_scan`                                      | yes                          |
+| Rating                | `portal.rating`                                              | yes                          |
+| Rating                | `portal.rating_count`, `portal.rating_average` (Goal copies) | no                           |
+| Private feedback      | `portal.feedback` (a count, never the text)                  | yes                          |
+| Destination selection | `portal.review_link_click`                                   | yes                          |
+
+A reading that feeds the aggregate may be deleted only after its Portal's
+lifetime aggregate has been sealed through that day (`sealThrough` in the
+Reporting lifetime repository): the seal moves the reading's contribution into
+the anonymous baseline, and without it the aggregate would hold more than its
+sources add up to, which is the mismatch the parity check before Organization
+closure refuses. Nothing calls the seal yet. The three keys that feed no
+aggregate need no seal and have no rule either. A correction cannot be deleted
+on its own: removing it would restore the uncorrected value of a reading that is
+still stored, and `metric_corrections.reading_id` is `ON DELETE RESTRICT`.
+
+Reporting's own metric definitions carry a `retentionClass`: `guest_gateway_24_month`
+for `portal.qualified_scan`, `portal.rating_count` and `portal.rating_average`,
+and `short` for the other four. No code reads the field and `short` names no
+number. The registry therefore holds all seven to the notice's 24 months, as
+`accepted_unexecuted`; whether the four `short` keys should go sooner is an
+owner decision that nothing depends on today.
+
 ---
 
 ## 6. Running the report
@@ -139,10 +189,16 @@ The registry report is content-free — rule id, class, owner, source, cutoff, a
 integer count and apply status — and is safe to attach to a counsel review or an
 operational ticket.
 
-Rules with a `counsel_undecided` horizon, an object-store source or an external
+Rules with a `counsel_undecided`, `accepted_unexecuted` or
+`retained_no_age_expiry` horizon, an object-store source or an external
 processor source report `eligibleRows: null` with a stated
 `notCountableReason`. They are never silently omitted: a class that cannot be
 counted is itself a finding.
+
+One counted entry is an approximation. `platform.event_consumer_receipts` has no
+rule of its own (a receipt leaves with its outbox event), and the report counts
+it by the receipt's own `created_at`. A receipt whose event is still stored is
+in that count and stays.
 
 `ops:report-retention` is registered as a read-only operator command. Its
 builder is callable and covered by the report-only integration path.
@@ -158,10 +214,28 @@ those reports does not migrate, archive or delete their source rows.
 
 ---
 
-## 8. Known gaps in this change
+## 8. Known gaps
 
 1. **The lifetime-aggregate ordering constraint is documented, not enforced**
    (§5).
 2. **`docs/operations/runbooks.md` and
    `docs/operations/backup-and-lifecycle.md` still list `gbp_cache.expired`** as
    a live retention subject. That table row is now stale.
+3. **Three classes the accepted 24 months reach have no executing rule.** The
+   registry carries them as `accepted_unexecuted` and binds corrections to their
+   reading, and `docs/BETA.md` §3 marks all three UNENFORCED:
+   - Reporting's readings of Guest facts (`metric_readings`, the seven keys in
+     the table of §5). Three registry entries name them: visit readings
+     (`portal.scan`, `portal.qualified_scan`), response readings
+     (`portal.rating`, `portal.rating_count`, `portal.rating_average`,
+     `portal.feedback`) and destination selections
+     (`portal.review_link_click`). This is the copy that outlives the Guest
+     rows the sweep now deletes. The four keys that feed the lifetime aggregate
+     need the seal-then-delete sweep of §5. The other three need no seal, but a
+     rule for them must take their corrections with it, and what Goal history
+     reads once a reading is gone has not been examined;
+   - corrections and withdrawals (`metric_corrections`): go with their reading,
+     so they wait for that sweep;
+   - AI derivatives (`ai_review_analyses` and what is built from it): the
+     analysis and trend-outcome reads withhold a row after `expires_at`, but
+     nothing deletes it, and the daily aggregates have no age to measure.

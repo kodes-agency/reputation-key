@@ -13,11 +13,9 @@
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import {
-  retentionRegistryApprovalBlockers,
-  type RetentionHorizon,
-  type RetentionRegistryRule,
-} from './retention-registry'
+import { subtractUtcMonths } from './retention-cutoff'
+import { retentionRegistryApprovalBlockers } from './retention-registry'
+import type { RetentionHorizon, RetentionRegistryRule } from './retention-registry-model'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -49,24 +47,6 @@ export type RetentionRegistryReport = Readonly<{
   rules: ReadonlyArray<RetentionRegistryRuleReport>
 }>
 
-/**
- * Calendar-month subtraction, not 30-day arithmetic: the 24-month Guest fact
- * horizon is stated in calendar months, and `retention_deadline` is computed
- * the same way. Using 730 days here would move the reported cutoff off the
- * stored deadline by up to two days.
- */
-function subtractMonths(from: Date, months: number): Date {
-  const result = new Date(from.getTime())
-  const targetDay = result.getUTCDate()
-  result.setUTCDate(1)
-  result.setUTCMonth(result.getUTCMonth() - months)
-  const lastDayOfTargetMonth = new Date(
-    Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0),
-  ).getUTCDate()
-  result.setUTCDate(Math.min(targetDay, lastDayOfTargetMonth))
-  return result
-}
-
 type Cutoff =
   | Readonly<{ countable: true; cutoff: Date }>
   | Readonly<{ countable: false; reason: string }>
@@ -79,7 +59,13 @@ function resolveCutoff(horizon: RetentionHorizon, generatedAt: Date): Cutoff {
         cutoff: new Date(generatedAt.getTime() - horizon.days * DAY_MS),
       }
     case 'months':
-      return { countable: true, cutoff: subtractMonths(generatedAt, horizon.months) }
+      // Calendar months, not 30-day arithmetic: the 24-month Guest fact horizon
+      // is stated in calendar months and the sweep counts it the same way.
+      // Using 730 days would move the reported cutoff by up to two days.
+      return {
+        countable: true,
+        cutoff: subtractUtcMonths(generatedAt, horizon.months),
+      }
     case 'row_deadline':
       // The deadline is stamped on the row, so the cutoff is simply "now".
       return { countable: true, cutoff: generatedAt }
@@ -87,6 +73,11 @@ function resolveCutoff(horizon: RetentionHorizon, generatedAt: Date): Cutoff {
       return { countable: false, reason: 'retained while its owning aggregate exists' }
     case 'counsel_undecided':
       return { countable: false, reason: 'no counsel-approved horizon exists' }
+    case 'accepted_unexecuted':
+      return {
+        countable: false,
+        reason: `the accepted ${horizon.months}-month horizon has no executing rule`,
+      }
   }
 }
 
