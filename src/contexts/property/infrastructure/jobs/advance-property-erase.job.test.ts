@@ -223,11 +223,13 @@ describe('advance property erase job (LIF-01-T19)', () => {
     expect(erasedFor).toEqual([`guest:${PROPERTY_A}`])
   })
 
-  it('replays from persisted receipts after an interruption', async () => {
+  it('does not ask a context that already has a receipt', async () => {
     const { deps, erasedFor, receipts } = harness({
       queue: [authority('purging')],
       contributors: [contributor('guest', 2), contributor('review', 5)],
-      // `guest` already answered before the process died.
+      // A receipt outlives its pass only if that pass committed short of
+      // `purged`. An interrupted pass leaves none: its transaction rolls back
+      // (property-erase-command-store.integration.test.ts).
       existingReceipts: ['guest'],
     })
     const result = await advancePropertyErase(deps)

@@ -16,6 +16,7 @@ import {
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { can } from '#/shared/domain/permissions'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { inboxKeys, propertyKeys, reviewKeys } from '#/shared/queries/query-keys'
 import { propertyReplyLibraryQuery } from '../-settings-queries'
 
@@ -33,9 +34,9 @@ export const Route = createFileRoute(
 
 function PropertyRepliesSettings() {
   const { propertyId } = Route.useParams()
-  const { role } = Route.useRouteContext() as AuthRouteContext
+  const { can: canDo } = usePermissions()
   const { data } = useSuspenseQuery(propertyQuery(propertyId))
-  const canManageReplies = can(role, 'reply.manage')
+  const canManageReplies = canDo('reply.manage')
   const { data: library } = useQuery({
     ...propertyReplyLibraryQuery(propertyId),
     enabled: canManageReplies,
@@ -69,7 +70,7 @@ function PropertyRepliesSettings() {
 
   return (
     <>
-      {can(role, 'property.update') ? (
+      {canDo('property.update') ? (
         <PropertyReplyLanguageCard
           key={`${propertyId}:${data.property.defaultReplyLanguage ?? 'unconfigured'}`}
           property={data.property}

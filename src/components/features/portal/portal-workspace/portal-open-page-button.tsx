@@ -78,10 +78,11 @@ export function PortalOpenPageButton(props: PortalOpenPageButtonProps) {
       type="button"
       variant="ghost"
       size="sm"
-      disabled={isOpening}
+      pending={isOpening}
+      pendingLabel="Opening…"
       onClick={() => void open()}
     >
-      <ExternalLink aria-hidden /> {isOpening ? 'Opening…' : 'Open page'}{' '}
+      <ExternalLink aria-hidden /> Open page{' '}
       <span className="sr-only">(opens in a new tab)</span>
     </Button>
   )

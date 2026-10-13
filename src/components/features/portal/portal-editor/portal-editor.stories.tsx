@@ -193,7 +193,6 @@ function makeResources(
         ),
       ],
     },
-    updateMutation: action(async (_input: UpdatePortalVariables) => undefined),
     autosaveUpdateMutation,
     completeReviewMutation: action(async (_input: CompleteReviewVariables) => ({
       status: 'recorded' as const,

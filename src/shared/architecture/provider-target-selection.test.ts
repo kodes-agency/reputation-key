@@ -6,9 +6,11 @@
 // These static scans prove the two no-fallback properties the runtime tests
 // cannot see:
 //
-//   1. Google/GBP endpoint URLs exist ONLY in the composition provider
-//      mapping (providerConfigFor) — no context adapter hardcodes a Google
-//      URL, so no adapter can silently call an alternate endpoint/region.
+//   1. Google/GBP endpoint URLs — any address on `googleapis.com` (fonts
+//      aside) or `accounts.google.com` — exist ONLY in the composition
+//      provider mapping (providerConfigFor) and in the files listed below with
+//      a reason each; no context adapter hardcodes a Google URL, so no adapter
+//      can silently call an alternate endpoint/region.
 //   2. No adapter carries a fallback identifier or a second endpoint
 //      constant — provider unavailability must surface as
 //      retry/degraded/blocked (3.3/3.6/3.7), never another-region execution.
@@ -62,19 +64,54 @@ const ALL_SOURCE = walkSource(SRC).filter(
   (f) => !rel(f).startsWith('src/shared/testing/'),
 )
 
-// Font CSS is a browser stylesheet, not a provider execution endpoint.
-const GOOGLE_PROVIDER_HOST = /(?<!fonts\.)googleapis\.com/
+// The hosts that serve Google's API and OAuth endpoints. Font CSS is a browser
+// stylesheet, not a provider execution endpoint. Other `google.com` hosts
+// (search, maps, business, `g.page`) are guest destinations: review links a
+// guest's browser opens, held to their own allow lists by
+// `google-review-destination.ts` and Portal's `safe-link.ts`. They are not
+// provider endpoints, and this scan does not look for them.
+//
+// The scan reads every dotted name out of the text and compares its labels,
+// instead of searching the text with a host pattern: a host is then never
+// taken for part of a longer name, and the check holds no unanchored host
+// expression for a code scanner to question.
+const DOTTED_NAME = /[a-z0-9-]+(?:\.[a-z0-9-]+)+/gi
+
+function isGoogleProviderName(name: string): boolean {
+  const labels = name.toLowerCase().split('.')
+  return labels.some((label, index) => {
+    const next = labels[index + 1]
+    if (label === 'googleapis' && next === 'com') return labels[index - 1] !== 'fonts'
+    return label === 'accounts' && next === 'google' && labels[index + 2] === 'com'
+  })
+}
+
+function namesGoogleProviderHost(text: string): boolean {
+  return (text.match(DOTTED_NAME) ?? []).some(isGoogleProviderName)
+}
 
 describe('BQC-4.3: Google endpoint URLs live only in the composition provider mapping', () => {
+  // R1A-10: the scan knew `googleapis.com` only, so an OAuth endpoint on
+  // `accounts.google.com` was outside it in any file.
+  it('knows the hosts that serve Google endpoints, and leaves guest links alone', () => {
+    const matched = namesGoogleProviderHost
+    expect(matched('https://mybusiness.googleapis.com/v4')).toBe(true)
+    expect(matched('https://accounts.google.com/o/oauth2/v2/auth')).toBe(true)
+    expect(matched('https://fonts.googleapis.com/css2')).toBe(false)
+    expect(matched('https://search.google.com/local/writereview?placeid=p')).toBe(false)
+    // A host with no scheme in front is read too, in either case.
+    expect(matched("const host = 'OAuth2.GoogleAPIs.com'")).toBe(true)
+    expect(matched('https://accounts.google.com.example.test/')).toBe(true)
+    expect(matched('https://www.google.com/maps')).toBe(false)
+  })
+
   it('no source file outside the approved exceptions contains a Google endpoint URL', () => {
     const APPROVED_EXCEPTIONS = new Set([
       // The providerConfigFor mapping itself — the ONE place endpoint URLs exist.
       'src/composition/provider-runtime.ts',
-      // OAuth SCOPE identifiers (https://www.googleapis.com/auth/...) — permission
-      // grant names, not endpoints an adapter could fall back to.
-      'src/contexts/integration/application/use-cases/get-google-auth-url.ts',
-      // OAuth scopes and OIDC issuer identifiers are validation contracts, not
-      // executable provider endpoints.
+      // OAuth SCOPE identifiers (https://www.googleapis.com/auth/...) are
+      // permission grant names, and OIDC issuer identifiers are validation
+      // contracts: neither is an endpoint an adapter could fall back to.
       'src/contexts/integration/application/google-provider-contract.ts',
       // The egress gateway's frozen route compiler owns the exact approved
       // methods, origins, paths, and queries for every provider route key.
@@ -86,10 +123,15 @@ describe('BQC-4.3: Google endpoint URLs live only in the composition provider ma
       // outbound provider execution; shared/auth cannot import the composition
       // root (zone boundary), documented in the data-flow map.
       'src/shared/auth/pubsub-jwt.verifier.ts',
+      // Google's consent-screen address. The app builds the authorize URL and
+      // hands it to the browser as a redirect; it never requests it. The one
+      // caller that does is the operator's deploy preflight
+      // (scripts/ops/google-oauth-preflight.ts), outside the running app.
+      'src/contexts/integration/application/google-authorize-request.ts',
     ])
 
     const offenders = ALL_SOURCE.filter((f) =>
-      GOOGLE_PROVIDER_HOST.test(readFileSync(f, 'utf-8')),
+      namesGoogleProviderHost(readFileSync(f, 'utf-8')),
     )
       .map(rel)
       .filter((path) => !APPROVED_EXCEPTIONS.has(path))
@@ -97,6 +139,12 @@ describe('BQC-4.3: Google endpoint URLs live only in the composition provider ma
     expect(offenders, `Google endpoint URLs outside composition: ${offenders}`).toEqual(
       [],
     )
+
+    // An entry for a file that no longer holds one lets it gain one unseen.
+    const stale = [...APPROVED_EXCEPTIONS].filter(
+      (path) => !namesGoogleProviderHost(readFileSync(join(ROOT, path), 'utf-8')),
+    )
+    expect(stale, `approved exceptions with no Google endpoint URL: ${stale}`).toEqual([])
   })
 
   it('the composition mapping really contains the GBP/Google endpoint URLs (guard is not vacuous)', () => {
@@ -140,7 +188,7 @@ describe('BQC-4.3: provider adapters carry no hardcoded URL and no fallback path
     const violations: string[] = []
     for (const file of adapterFiles) {
       const body = stripComments(readFileSync(file, 'utf-8'))
-      if (GOOGLE_PROVIDER_HOST.test(body))
+      if (namesGoogleProviderHost(body))
         violations.push(`${rel(file)}: hardcoded Google URL`)
       if (/fallback/i.test(body)) violations.push(`${rel(file)}: 'fallback' identifier`)
       if (ALTERNATE_ENDPOINT.test(body))

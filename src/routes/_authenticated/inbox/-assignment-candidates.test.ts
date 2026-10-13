@@ -1,17 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import '#/shared/auth/permissions'
-import {
-  canListInboxAssignmentCandidates,
-  toInboxAssignmentOptions,
-} from './-assignment-candidates'
+import { toInboxAssignmentOptions } from './-assignment-candidates'
 
 describe('Inbox assignment candidates', () => {
-  it('never requests the member directory for a role without member.list', () => {
-    expect(canListInboxAssignmentCandidates('AccountAdmin')).toBe(true)
-    expect(canListInboxAssignmentCandidates('PropertyManager')).toBe(true)
-    expect(canListInboxAssignmentCandidates('Member')).toBe(false)
-  })
-
   it('uses the canonical beta interactive-role guard and neutral name fallback', () => {
     expect(
       toInboxAssignmentOptions([

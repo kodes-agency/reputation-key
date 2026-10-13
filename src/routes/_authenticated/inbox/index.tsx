@@ -4,6 +4,7 @@ import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { InboxPageV2 } from '#/components/inbox/inbox-page-v2'
 import {
   inboxSearchSchema,
@@ -11,10 +12,7 @@ import {
 } from '#/components/inbox/inbox-search-schema'
 import { inboxFns } from '#/routes/_authenticated/-inbox-fns'
 import { membersQuery } from '#/routes/-queries/route-queries'
-import {
-  canListInboxAssignmentCandidates,
-  toInboxAssignmentOptions,
-} from './-assignment-candidates'
+import { toInboxAssignmentOptions } from './-assignment-candidates'
 import { useInboxRouteScope } from './-property-scope'
 
 const authRoute = getRouteApi('/_authenticated')
@@ -34,10 +32,11 @@ export const Route = createFileRoute('/_authenticated/inbox/')({
 
 function InboxRoute() {
   const ctx = authRoute.useRouteContext() as AuthRouteContext
-  const mayListAssignmentCandidates = canListInboxAssignmentCandidates(ctx.role)
+  const { can: canDo } = usePermissions()
+  // Member-directory access is separate from Inbox management authority.
   const { data: membersData } = useQuery({
     ...membersQuery,
-    enabled: mayListAssignmentCandidates,
+    enabled: canDo('member.list'),
   })
   const search = Route.useSearch() as InboxSearchParams
   const navigate = Route.useNavigate()

@@ -2,6 +2,7 @@ import { readdirSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { isEntryPoint } from './entry-point'
 
 export const INVOKED_TYPESCRIPT_PROJECTS = [
   'tsconfig.json',
@@ -139,7 +140,6 @@ export function runTypeScriptProjectCoverageCli(args: readonly string[]): number
   return 0
 }
 
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : undefined
-if (invokedPath === fileURLToPath(import.meta.url)) {
+if (isEntryPoint(import.meta.url)) {
   process.exitCode = runTypeScriptProjectCoverageCli(process.argv.slice(2))
 }

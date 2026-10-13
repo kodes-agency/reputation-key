@@ -44,13 +44,19 @@ export function ConfirmInvitationView({
             variant="link"
             className="h-auto p-0 align-baseline"
             onClick={onSignOut}
-            disabled={signingOut}
+            pending={signingOut}
+            pendingLabel="Signing out…"
           >
-            {signingOut ? 'Signing out…' : 'Sign out'}
+            Sign out
           </Button>
         </p>
-        <Button className="w-full" onClick={onAccept} disabled={accepting}>
-          {accepting ? 'Joining…' : 'Accept and join'}
+        <Button
+          className="w-full"
+          onClick={onAccept}
+          pending={accepting}
+          pendingLabel="Joining…"
+        >
+          Accept and join
         </Button>
       </div>
       {joiningNotice}

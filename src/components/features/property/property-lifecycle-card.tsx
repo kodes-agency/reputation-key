@@ -62,7 +62,11 @@ export function PropertyLifecycleCard({
             for recovery.
           </p>
         </div>
-        <StatusBadge status={property.googleBindingState} map={GOOGLE_BINDING_STATUS} />
+        {/* The pill's words do not name Google, and this card is not about it. */}
+        <p className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
+          Google
+          <StatusBadge status={property.googleBindingState} map={GOOGLE_BINDING_STATUS} />
+        </p>
       </div>
 
       <div className="space-y-4 p-4">

@@ -1,5 +1,4 @@
 import type { Role } from '#/shared/domain/roles'
-import { can } from '#/shared/domain/permissions'
 import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 
 export type InboxAssignmentCandidate = Readonly<{
@@ -8,10 +7,6 @@ export type InboxAssignmentCandidate = Readonly<{
   name: string | null
   email: string
 }>
-
-/** Member-directory access is separate from Inbox management authority. */
-export const canListInboxAssignmentCandidates = (role: Role): boolean =>
-  can(role, 'member.list')
 
 /** The final per-property eligibility decision remains transaction-authoritative. */
 export const toInboxAssignmentOptions = (

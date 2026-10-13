@@ -1,41 +1,49 @@
 #!/usr/bin/env node
 // BQC-6.9 — changed-code budget gate. Wired as `pnpm check:changed-code` and
-// as a CI step in the check job (ci.yml, after the test step).
+// as the first CI step of the artifacts job (ci.yml, before the web build).
 //
 // Master-plan changed-code budget: every NEW production source module with
-// runtime behavior under src/** must have executable contract evidence: a
-// colocated/direct test, or fresh per-file coverage at the enforced threshold.
+// runtime behavior under src/** must be within one import of a test: a test
+// imports it, or a test imports a module that imports or re-exports it.
 //
-// Scope (deliberately narrow — the coverage ratchet in check-coverage.mjs
-// owns the overall floor; this gate owns new decision code):
+// An import here is a top-level `import` declaration that is not type-only.
+// `await import()` is not read, so a module a test loads only that way is
+// refused.
+//
+// The second hop is a relaxation (2026-08-19) and it is wide. It lets a test
+// reach a module through a barrel, and it equally passes anything a context's
+// `build.ts` wires once a test imports that build, with no assertion about the
+// new module. So this gate proves a test can load the module. It does not
+// prove a test exercises it, and nothing else in CI does.
+//
+// Scope (deliberately narrow: this gate owns new decision code and nothing
+// else. No coverage is measured anywhere: the coverage ratchet,
+// scripts/check-coverage.mjs, was deleted on 2026-09-05, and with it the
+// per-file coverage this gate once accepted in place of a test):
 //   included : files ADDED by this branch vs the main merge-base
-//              (`git diff --diff-filter=A <base>...HEAD -- 'src/**'`)
+//              (`git diff --diff-filter=A <base>...HEAD -- 'src/**'`),
+//              API routes (src/routes/api/**) among them, an `index.ts`
+//              route too: they are server handlers, not pages
 //   excluded : test files (*.test.ts(x)), stories (*.stories.*),
-//              UI routes (src/routes/**), components (src/components/**),
-//              test-only helpers/fixtures, barrels, generated sources, and
+//              UI routes (the rest of src/routes/**), components
+//              (src/components/**),
+//              test-only helpers/fixtures, barrels (an `index.ts` outside
+//              src/routes/api/**), generated sources, and
 //              config modules. Type/interface-only modules are detected with
 //              the TypeScript parser and excluded because they have no runtime
 //              behavior to exercise.
-//   modified files are NOT gated here (the ratchet owns their coverage).
+//   modified files are NOT gated, here or anywhere else.
 //
 // EXEMPT register — a new file may ship without executable contract evidence
 // ONLY with owner + reason recorded here. The register is rot-checked in two
 // directions, because a dead entry is not harmless: it silently pre-authorises
 // the file to LOSE its evidence again without the gate noticing.
 //   stale     — the file no longer exists            → remove the entry
-//   redundant — the file is now test-owned (a test does a runtime import of
-//               it) or carries fresh per-file coverage at the enforced
-//               threshold, so the gate would pass it anyway → remove the entry
+//   redundant — the file is now within one import of a test, so the gate
+//               would pass it anyway → remove the entry
 
 import { spawnSync } from 'node:child_process'
-import {
-  closeSync,
-  existsSync,
-  fstatSync,
-  openSync,
-  readFileSync,
-  statSync,
-} from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join, dirname, basename, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
@@ -67,16 +75,25 @@ const EXEMPT = [
   },
 ]
 
+// Pages are excluded with the components they render. `src/routes/api/**` holds
+// server handlers (webhooks, the auth provider's routes, health), so it is not.
+const isApiRoute = (file) => file.startsWith('src/routes/api/')
+const isUiRoute = (file) => file.startsWith('src/routes/') && !isApiRoute(file)
+
+// An `index.ts` is a barrel everywhere but under `src/routes/api/**`, where it
+// is the route of its own directory (src/routes/api/health/index.ts).
+const isBarrel = (file) => basename(file) === 'index.ts' && !isApiRoute(file)
+
 const EXCLUDED = (file) =>
   !/\.(ts|tsx)$/.test(file) ||
   /\.(test|spec)\.(ts|tsx)$/.test(file) ||
   /\.stories\.(ts|tsx)$/.test(file) ||
-  file.startsWith('src/routes/') ||
+  isUiRoute(file) ||
   file.startsWith('src/components/') ||
   file.startsWith('src/shared/testing/') ||
   file.startsWith('src/test-fixtures/') ||
   file.includes('/generated/') ||
-  basename(file) === 'index.ts' ||
+  isBarrel(file) ||
   /\.(gen|generated)\.ts$/.test(file) ||
   /\.config\.ts$/.test(file)
 
@@ -234,47 +251,6 @@ const twoHopTestOwners = (directOwners) => {
   return owners
 }
 
-const coveredRuntimeModules = (files) => {
-  const report = join(ROOT, 'coverage/coverage-summary.json')
-  // ONE handle for stat + read. exists → stat → read is a TOCTOU race
-  // (CodeQL js/file-system-race) and not academic here: a concurrent
-  // `pnpm check:coverage` in the same tree rewrites this very file, so the
-  // freshness decision must be made against the bytes actually read.
-  let raw
-  let reportMtimeMs
-  try {
-    const handle = openSync(report, 'r')
-    try {
-      reportMtimeMs = fstatSync(handle).mtimeMs
-      raw = readFileSync(handle, 'utf8')
-    } finally {
-      closeSync(handle)
-    }
-  } catch {
-    return new Set()
-  }
-  const newestSource = Math.max(
-    ...files.map((file) => statSync(join(ROOT, file)).mtimeMs),
-  )
-  if (reportMtimeMs < newestSource) return new Set()
-  const summary = JSON.parse(raw)
-  const covered = new Set()
-  for (const [absolutePath, metrics] of Object.entries(summary)) {
-    if (absolutePath === 'total') continue
-    const file = relative(ROOT, absolutePath)
-    const statements = metrics?.statements
-    const functions = metrics?.functions
-    if (
-      statements?.total > 0 &&
-      statements.pct >= 80 &&
-      (functions?.total === 0 || functions?.pct >= 80)
-    ) {
-      covered.add(file)
-    }
-  }
-  return covered
-}
-
 // Resolve the diff base: explicit env override (CI), then origin/main, then main.
 function resolveBase() {
   const candidates = [process.env.CHANGED_CODE_BASE, 'origin/main', 'main'].filter(
@@ -318,32 +294,24 @@ const added = diff.stdout ? diff.stdout.split('\0').filter(Boolean) : []
 const gated = added.filter((f) => !EXCLUDED(f))
 const runtimeGated = gated.filter(hasRuntimeBehavior)
 const testOwners = twoHopTestOwners(directTestOwners())
-const coverageOwners = coveredRuntimeModules(runtimeGated)
 const exemptFiles = new Map(EXEMPT.map((e) => [e.file, e]))
-// Coverage lookup used only by the exemption-rot check below. Computed with its
-// own freshness window so that touching an exempt file cannot invalidate the
-// window used to judge the ADDED files.
-const exemptPresent = EXEMPT.map((e) => e.file).filter((f) => existsSync(join(ROOT, f)))
-const exemptCovered =
-  exemptPresent.length > 0 ? coveredRuntimeModules(exemptPresent) : new Set()
 
 const failures = []
 for (const file of runtimeGated) {
   if (testOwners.has(file)) continue
-  if (coverageOwners.has(file)) continue
   if (exemptFiles.has(file)) continue
   failures.push(
-    `${file} — added without runtime contract evidence; expected a runtime import from a test, ` +
-      `fresh per-file coverage of at least 80% statements/functions, or a registered exemption ` +
+    `${file} — added without contract evidence; expected a static, non-type import of it in a test ` +
+      '(`await import()` is not read), or in a module a test imports, or a registered exemption ' +
       'with owner and reason in scripts/check-changed-code.mjs',
   )
 }
 
 // Register rot fails the gate in BOTH directions (see the header): an entry for
 // a file that is gone, and an entry for a file the gate would now pass on its
-// own evidence. The redundancy arm uses exactly the same owner/coverage sets as
-// the pass loop above, so it can only fire on exemptions that are provably
-// doing no work.
+// own evidence. The redundancy arm uses exactly the same owner set as the pass
+// loop above, so it can only fire on exemptions that are provably doing no
+// work.
 for (const e of EXEMPT) {
   if (!existsSync(join(ROOT, e.file))) {
     failures.push(
@@ -354,17 +322,9 @@ for (const e of EXEMPT) {
   const owners = testOwners.get(e.file)
   if (owners?.length) {
     failures.push(
-      `exemption no longer needed — remove: ${e.file} (owner ${e.owner}) is test-owned by ` +
+      `exemption no longer needed — remove: ${e.file} (owner ${e.owner}) is within one import of ` +
         `${owners.join(', ')}, so the gate already passes it on evidence. A dead exemption ` +
         'is not harmless: it pre-authorises the file to lose that evidence unnoticed.',
-    )
-    continue
-  }
-  if (exemptCovered.has(e.file)) {
-    failures.push(
-      `exemption no longer needed — remove: ${e.file} (owner ${e.owner}) already carries ` +
-        'fresh per-file coverage at or above the enforced 80% statements/functions ' +
-        'threshold, so the gate already passes it on evidence.',
     )
   }
 }
@@ -372,7 +332,7 @@ for (const e of EXEMPT) {
 console.log(
   `[changed-code] base ${base} (merge-base ${mergeBase.slice(0, 12)}): ` +
     `${added.length} added src file(s), ${gated.length} source candidate(s), ` +
-    `${runtimeGated.length} runtime-gated, ${testOwners.size} directly test-owned, ` +
+    `${runtimeGated.length} runtime-gated, ${testOwners.size} module(s) within one import of a test, ` +
     `${EXEMPT.length} exempt`,
 )
 
@@ -382,5 +342,5 @@ if (failures.length > 0) {
   process.exit(1)
 }
 console.log(
-  '[changed-code] OK — every added runtime production module carries a contract test',
+  '[changed-code] OK — every added runtime production module is imported by a test, or by a module a test imports',
 )

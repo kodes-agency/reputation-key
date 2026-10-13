@@ -7,9 +7,12 @@ import { ResetPasswordForm, SetNewPasswordForm } from '#/components/features/ide
 import { useAction } from '#/components/hooks/use-action'
 import { InlineLink } from '#/components/ui/inline-link'
 
+// A value this page cannot read is dropped, never an error: the router reads
+// `?token=123456` as a number, and this is where a locked-out person starts
+// over. Without a readable token the page offers to send a new link.
 const resetPasswordSearch = z.object({
-  token: z.string().optional(),
-  error: z.string().optional(),
+  token: z.string().optional().catch(undefined),
+  error: z.string().optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/reset-password')({

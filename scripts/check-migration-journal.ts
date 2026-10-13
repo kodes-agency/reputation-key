@@ -27,7 +27,8 @@
 // gate fails in CI and runs check 1 alone locally.
 
 import { spawnSync } from 'node:child_process'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { realpathSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import {
   listMigrationSqlTags,
   parseMigrationJournal,
@@ -188,6 +189,14 @@ function main(): number {
   return result.exitCode
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+// Real paths, not addresses compared as text: started through a symbolic link
+// the text differed, and the gate printed nothing and exited 0. This is the
+// check of scripts/ci/entry-point.ts, written out because the boundary policy
+// keeps a script outside scripts/ci from importing that module.
+const startedScript = process.argv[1]
+if (
+  startedScript !== undefined &&
+  realpathSync(startedScript) === realpathSync(fileURLToPath(import.meta.url))
+) {
   process.exitCode = main()
 }

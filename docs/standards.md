@@ -318,7 +318,7 @@ instead. A unit test for a `repositories/` source sits one level up
 
 ## 9. Code Quality Tooling (Invariant gates plus Maintainability migration)
 
-Fallow (dead-code, complexity, boundaries) is a devDependency. Config + regression baseline: `.fallowrc.json` (audit.gate: new-only).
+Fallow (dead-code, complexity, boundaries) is a devDependency. Config: `.fallowrc.json` (audit.gate: new-only). No count of the issues main already carries is kept: its `regression.baseline` block is all zeroes.
 
 Self-check a changeset before committing:
 
@@ -328,11 +328,13 @@ pnpm exec fallow dead-code --changed-since origin/main --format json
 
 Clean → proceed. A newly-orphaned export/file → remove it, but **confirm reachability first** with `pnpm exec fallow dead-code --trace <file>:<export> --format json`. Never delete to silence a finding.
 
-**CI gate:** `.github/workflows/fallow.yml` runs `fallow audit --gate new-only` on every PR — the shared source of truth. It fails only on issues a PR introduces; the regression baseline never blocks.
+**CI gate:** `.github/workflows/fallow.yml` runs `fallow audit --gate new-only` on every PR — the shared source of truth. It fails only on issues a PR introduces; the issues main already carries never block.
 
-**WIP caution:** the baseline may include unused exports/files in active work. Do not delete flagged WIP symbols without a `trace` confirming they are truly dead. Prefer `@expected-unused` or leave them for the feature to complete.
+**WIP caution:** the issues main already carries may include unused exports/files in active work. Do not delete flagged WIP symbols without a `trace` confirming they are truly dead. Prefer `@expected-unused` or leave them for the feature to complete.
 
 **File-length ratchet** (`pnpm check:file-length`, run by `lint:ci`): a production module under `src/contexts`, `src/shared`, `src/routes`, `scripts` or `server` may hold at most 800 counted lines, counted as ESLint `max-lines` counts them (blank and comment-only lines are free). The modules already past it are grandfathered in `scripts/ci/file-length.baseline.json` and may not grow. Split them one per change and lower the baseline with `pnpm check:file-length --write-baseline`; never raise an entry to get a change through. `src/components` keeps its stricter ESLint limit (300).
+
+**Lint warning cap** (`eslint . --max-warnings <n>`, the first step of `pnpm lint`; the number is written once, in the `lint` script of `package.json`): the cap is the baseline of the `ui-pattern/*` rules that guard the pattern index in `src/components/CONTEXT.md` and are set to `warn`. The number is how many sites those rules still have, so a new site fails lint with "too many warnings". ESLint counts every warning it prints, so two other things fail the same way: an `eslint-disable` comment that no longer suppresses anything, and a site of `@tanstack/query/no-rest-destructuring`, the one other rule at `warn` (it arrives at that severity with the TanStack Query recommended set, and has no site). The cap counts all rules together, so it does not stop one site being traded for another. Remove a site and lower the number in `package.json` in the same change; never raise it to get a change through. A rule with no site left becomes `error` in `eslint.config.js`, which only the owner edits.
 
 **Unchecked-index ratchet** (`pnpm check:unchecked-indexed-access`, run by `lint:ci`): `tsconfig.json` does not set `noUncheckedIndexedAccess` yet, so this gate type-checks the repository with it and fails when a file gains an index-access diagnostic beyond `scripts/ci/unchecked-indexed-access.baseline.json`. Guard new reads (`?.`, `??`, an explicit check) instead of raising an entry, and lower the baseline with `pnpm check:unchecked-indexed-access --write-baseline` as files are fixed. When the baseline is empty, set the flag in `tsconfig.json` and delete the gate.
 

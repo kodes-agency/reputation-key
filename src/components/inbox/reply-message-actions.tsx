@@ -92,12 +92,13 @@ function SimpleAction({
       return (
         <Button
           size="sm"
-          disabled={isSaving}
+          pending={isSaving}
+          pendingLabel="Starting…"
           // The retry mutation toasts a refusal (use-reply-actions.ts
           // `errorMessage`); the catch only keeps the rejection handled.
           onClick={() => void onRetry().catch(() => undefined)}
         >
-          {isSaving ? 'Starting…' : 'Try publishing again'}
+          Try publishing again
         </Button>
       )
     case 'editPublished':

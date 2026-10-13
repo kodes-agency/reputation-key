@@ -23,6 +23,7 @@ import {
   type ErasePropertyDeps,
 } from '../application/use-cases/erase-property'
 import type { PropertyEraseCommandStore } from '../application/ports/property-erase-command-store.port'
+import type { PropertyEraseContributor } from '../application/ports/property-erase-contributor.port'
 import { advancePropertyErase } from './jobs/advance-property-erase.job'
 import { createPropertyPropertyEraseContributor } from './adapters/property-property-erase.adapter'
 import { createPropertyEraseCommandStore } from './property-erase-command-store'
@@ -177,10 +178,15 @@ async function runFullErase(tx: Tx, fixture: Fixture): Promise<string> {
 
 const HOUR_MS = 60 * 60 * 1_000
 
-/** Request, preview and confirm: an erase waiting for the job's next pass. */
+/**
+ * Request, preview and confirm: an erase waiting for the job's next pass. By
+ * default still inside the grace period at NOW, where a cancel is the
+ * documented way out.
+ */
 async function confirmErase(
   tx: Tx,
   fixture: Fixture,
+  graceExpiresAt: Date = new Date(NOW.getTime() + HOUR_MS),
 ): Promise<Readonly<{ store: PropertyEraseCommandStore; authorityId: string }>> {
   const store = createPropertyEraseCommandStore(tx as unknown as Database).withTx(tx)
   const authority = await store.request({
@@ -207,8 +213,7 @@ async function confirmErase(
     organizationId: fixture.organizationId,
     confirmationDigest: 'b'.repeat(64),
     inventoryRevision: 1,
-    // Still inside the grace period at NOW: a cancel is the documented way out.
-    graceExpiresAt: new Date(NOW.getTime() + HOUR_MS),
+    graceExpiresAt,
     occurredAt: NOW,
   })
   return { store, authorityId: authority.id }
@@ -221,6 +226,34 @@ const advanceDeps = (tx: Tx, store: PropertyEraseCommandStore) => ({
   runInTransaction: async <T>(work: (inner: Tx) => Promise<T>) => work(tx),
   appendLedgerEntry: appendBackupErasureLedgerEntry,
   now: () => NOW,
+})
+
+const CONTEXT_FAILURE = new Error('a context could not erase its rows')
+
+/** A context whose erase fails, as a RESTRICT foreign key or a lock timeout would. */
+const failingContributor: PropertyEraseContributor = {
+  context: 'review',
+  inventory: async () => [],
+  erase: async () => {
+    throw CONTEXT_FAILURE
+  },
+}
+
+/**
+ * The job as its deps contract states it: one transaction per pass. Here that
+ * transaction is a savepoint inside the proof's outer one, so a pass that
+ * throws is rolled back alone and the proof can read what it left.
+ */
+const passInItsOwnTransaction = (
+  tx: Tx,
+  passContributors: readonly PropertyEraseContributor[],
+) => ({
+  ...advanceDeps(tx, createPropertyEraseCommandStore(tx as unknown as Database)),
+  storeIn: (inner: Tx) =>
+    createPropertyEraseCommandStore(inner as unknown as Database).withTx(inner),
+  contributors: passContributors,
+  runInTransaction: <T>(work: (inner: Tx) => Promise<T>) =>
+    tx.transaction((inner) => work(inner as unknown as Tx)),
 })
 
 /** The cancel use case over the real store; a cancel needs nothing else. */
@@ -524,6 +557,65 @@ describe('permanent Property Erase command store (LIF-01-T19)', () => {
           state: 'cancelled',
           cancel_reason_code: 'operator_recall',
         })
+
+        proofCompleted = true
+        throw ROLLBACK
+      }),
+    ).rejects.toBe(ROLLBACK)
+
+    expect(proofCompleted).toBe(true)
+  })
+
+  it('keeps nothing of a pass that one context fails, and starts every context again', async () => {
+    let proofCompleted = false
+
+    await expect(
+      db.transaction(async (raw) => {
+        const tx = raw as unknown as Tx
+        const fixture = await seed(tx)
+        const { store, authorityId } = await confirmErase(
+          tx,
+          fixture,
+          new Date(NOW.getTime() - 1_000),
+        )
+        const guestRows = () =>
+          count(
+            tx,
+            sql`SELECT COUNT(*)::int AS "rows" FROM guest_responses
+                WHERE property_id = ${fixture.targetPropertyId}::uuid`,
+          )
+        expect(await advancePropertyErase(advanceDeps(tx, store))).toMatchObject({
+          toState: 'purge_pending',
+        })
+        expect(await advancePropertyErase(advanceDeps(tx, store))).toMatchObject({
+          toState: 'purging',
+        })
+
+        // Guest answers first; the context after it fails.
+        await expect(
+          advancePropertyErase(
+            passInItsOwnTransaction(tx, [
+              createGuestPropertyEraseContributor(),
+              failingContributor,
+            ]),
+          ),
+        ).rejects.toBe(CONTEXT_FAILURE)
+
+        // Neither Guest's deletes nor its receipt outlived the pass.
+        expect(await store.completedContexts(authorityId, 'purge')).toEqual([])
+        expect(await guestRows()).toBe(1)
+        expect(await authorityRow(tx, authorityId)).toMatchObject({ state: 'purging' })
+
+        // The same erase is first in line again, and every context is asked.
+        expect(
+          await advancePropertyErase(passInItsOwnTransaction(tx, contributors)),
+        ).toMatchObject({
+          authorityId,
+          toState: 'purged',
+          contextsErased: contributors.length,
+          contextsSkippedAsReplayed: 0,
+        })
+        expect(await guestRows()).toBe(0)
 
         proofCompleted = true
         throw ROLLBACK

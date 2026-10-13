@@ -153,7 +153,12 @@
     },
     {
       "file": "src/contexts/guest/application/public-api.ts",
-      "exports": ["guestFeedbackRetracted"]
+      "exports": [
+        "guestFeedbackRetracted",
+        "guestFeedbackSubmitted",
+        "guestRatingSubmitted",
+        "guestScanRecorded"
+      ]
     },
     {
       "file": "src/contexts/identity/server/organizations.registration.ts",
@@ -181,7 +186,12 @@
     },
     {
       "file": "src/contexts/review/application/public-api.ts",
-      "exports": ["reviewReplyPublicationRequested"]
+      "exports": [
+        "reviewExpired",
+        "reviewReplyPublicationRequested",
+        "reviewReplyPublished",
+        "reviewUpdated"
+      ]
     },
     {
       "file": "src/shared/db/schema/property-erase.schema.ts",
@@ -220,10 +230,6 @@
     {
       "file": "src/shared/db/schema/auth.ts",
       "exports": ["member", "organization", "session", "account", "verification"]
-    },
-    {
-      "file": "src/contexts/*/domain/*errors.ts",
-      "exports": ["isActivityError", "isLeaderboardError", "isMetricError"]
     },
     {
       "file": "src/contexts/inbox/server/inbox-queries.ts",
@@ -271,45 +277,6 @@
         "bqcStateSchema",
         "bqcEntrySchema",
         "bqcStatusManifestSchema"
-      ]
-    },
-    {
-      "file": "src/contexts/*/application/public-api.ts",
-      "exports": [
-        "badgeAwarded",
-        "goalCompleted",
-        "guestScanRecorded",
-        "guestRatingSubmitted",
-        "guestFeedbackSubmitted",
-        "guestReviewLinkClicked",
-        "identityOrganizationCreated",
-        "identityMemberInvited",
-        "identityInvitationAccepted",
-        "identityInvitationCanceled",
-        "identityMemberRemoved",
-        "identityMemberRoleChanged",
-        "isInboxError",
-        "integrationGoogleAccountConnected",
-        "integrationGoogleAccountDisconnected",
-        "URGENT_TYPES",
-        "isUrgent",
-        "notificationError",
-        "propertyCreated",
-        "reviewCreated",
-        "reviewUpdated",
-        "reviewExpired",
-        "reviewReplyPublished",
-        "reviewReplySubmitted",
-        "reviewReplyApproved",
-        "reviewReplyRejected",
-        "reviewReplyPublishFailed",
-        "reviewReplyUpdated",
-        "reviewReplyPublicationCancelled",
-        "staffAssigned",
-        "staffUnassigned",
-        "teamCreated",
-        "teamDeleted",
-        "teamUpdated"
       ]
     }
   ],

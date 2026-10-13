@@ -60,7 +60,6 @@ function PortalWorkspaceEditor() {
       linktree={data.linktree}
       activeTab={tab}
       activeSection={section}
-      updateMutation={actions.update}
       autosaveUpdateMutation={actions.autosaveUpdate}
       portalGroups={data.groupsData.groups}
       organizationName={ctx.activeOrganization?.name ?? 'Your Organization'}

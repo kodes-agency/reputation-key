@@ -2,9 +2,10 @@
 //
 // PROPERTY_ERASE_CONTEXTS is the closed set of stable data-owner slots the
 // erase path answers for: the preview the AccountAdmin confirms is assembled
-// per slot, and receipts are keyed by that slot so an interrupted purge can
-// resume. A bounded context missing all of its slots is one nobody waits on,
-// which is exactly the "partial erasure looks complete" failure the port names.
+// per slot, and receipts are keyed by that slot so a purge completes only when
+// every one has answered. A bounded context missing all of its slots is one
+// nobody waits on, which is exactly the "partial erasure looks complete"
+// failure the port names.
 
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'

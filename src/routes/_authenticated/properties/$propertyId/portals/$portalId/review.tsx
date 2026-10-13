@@ -67,8 +67,8 @@ function PortalWorkspaceReview() {
   const actions = usePortalDetailActions(propertyId, portalId)
   const { portal } = portalData
   if (!portal) throw notFound()
-  // The update that makes a portal live reports through the page, not through
-  // its own "Portal updated" toast, so the silent one is used.
+  // The update that makes a portal live reports through the page: the portal
+  // patch is silent on success.
   const goLive = actions.autosaveUpdate
   const isPublishing = actions.publishChanges.isPending || goLive.isPending
 
