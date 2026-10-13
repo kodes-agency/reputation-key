@@ -222,7 +222,6 @@ export const aiKeys = {
 // ── Goals ────────────────────────────────────────────────────────────────
 export const goalKeys = {
   all: ['goals'] as const,
-  staff: (propertyId: string) => [...goalKeys.all, 'staff', propertyId] as const,
   list: (args: Readonly<Record<string, unknown>>) =>
     [...goalKeys.all, 'list', args] as const,
   detail: (propertyId: string, goalId: string) =>
