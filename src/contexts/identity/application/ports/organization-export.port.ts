@@ -133,7 +133,18 @@ export type OrganizationExportRepository = Readonly<{
     tokenDigest: string
     now: Date
   }): Promise<OrganizationExportStatus>
-  claimNextExpiredDeletion(input: { now: Date }): Promise<OrganizationExportStatus | null>
+  /**
+   * Claims one export whose object is past its deadline. A first claim commits
+   * `delete_pending`. A row already `delete_pending` is claimed again, unchanged,
+   * once it was claimed at or before `reclaimClaimedBefore`: the deletion that
+   * claimed it failed or died between the claim and `completeDeletion`, and no
+   * other state leads back to it. First claims come before reclaims, so one
+   * object that cannot be deleted does not hold up the others.
+   */
+  claimNextExpiredDeletion(input: {
+    now: Date
+    reclaimClaimedBefore: Date
+  }): Promise<OrganizationExportStatus | null>
   completeDeletion(input: {
     id: string
     expectedRevision: number
