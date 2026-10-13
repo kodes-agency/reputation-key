@@ -13,6 +13,7 @@ vi.mock('#/shared/auth/execution-policy', () => ({
 import {
   requireMatchingPortalResourceScopes,
   requirePortalResourceScope,
+  requireResourcesInPortalScope,
 } from './property-scope'
 
 const ACTOR = {
@@ -140,5 +141,46 @@ describe('Portal property execution scope', () => {
 
     expect(effects).toBe(0)
     expect(mocks.requireExecutionAllowed).not.toHaveBeenCalled()
+  })
+})
+
+describe('resources named beside an admitted Portal scope', () => {
+  const admitted = {
+    organizationId: 'org-a',
+    propertyId: 'property-p1',
+    portalId: 'portal-p1',
+  }
+  const notFound = portalError('link_not_found', 'portal link resource not found')
+  const inScope = async () => ({ ...admitted })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('accepts resources of the admitted Portal without asking the policy again', async () => {
+    await expect(
+      requireResourcesInPortalScope({
+        scope: admitted,
+        notFound,
+        lookups: [inScope, inScope],
+      }),
+    ).resolves.toBeUndefined()
+
+    expect(mocks.requireExecutionAllowed).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['names no row', null],
+    ['sits in another Portal', { ...admitted, portalId: 'portal-p2' }],
+    ['sits in another Property', { ...admitted, propertyId: 'property-p2' }],
+    ['sits in another Organization', { ...admitted, organizationId: 'org-b' }],
+  ])('answers not found for a resource that %s', async (_case, stray) => {
+    await expect(
+      requireResourcesInPortalScope({
+        scope: admitted,
+        notFound,
+        lookups: [inScope, async () => stray, inScope],
+      }),
+    ).rejects.toBe(notFound)
   })
 })

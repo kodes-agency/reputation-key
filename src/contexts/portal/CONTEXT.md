@@ -304,14 +304,24 @@ public token resolution returns only the current open, digest-verified snapshot.
 Portal, Group, content, responsibility, and token commands use Portal-owned stores
 that commit state, revisions, receipts, and identifier-only outbox facts together.
 
-A server function resolves the Portal, group, category or link it was handed to its
-Organization and Property (`portal-scope.repository.ts`) before it asks the policy. The
-request schemas take those ids as any non-empty string, so the lookup answers "no such
-row" for one that is not a UUID, and the caller gets the same 404 as for an unknown id;
-PostgreSQL is never asked to compare it with a `uuid` column. Residual gap: an id that
-travels in the payload beside the addressed entity (a `propertyId`, a destination, a
-group to join) is not checked that way, so a malformed one from a caller the policy
-admits still fails as a database error and a sanitized 500.
+A server function that is addressed by a Portal, group, category or link resolves it to
+its Organization and Property (`portal-scope.repository.ts`) before it asks the policy,
+because the Property the policy decides on comes from that row: one lookup, or two where
+a request names a pair that must match (a Portal and its category, a group and a
+Portal). A request that names many rows does not read them all first.
+`publishPortalsChanges` (at most 50 Portals) resolves them one at a time and asks the
+policy on each one it finds, so a refusal ends it; `reorderLinks` asks the policy on the
+Portal and the category, and reads the links it names (at most 100) only once the policy
+has admitted the caller, answering `link_not_found` for one that sits elsewhere or names
+no row. The request schemas take those ids as any
+non-empty string, so the lookup answers "no such row" for one that is not a UUID, and
+the caller gets the same 404 as for an unknown id; PostgreSQL is never asked to compare
+it with a `uuid` column. Residual gap: any other id is not checked that way. That is a
+`propertyId` (the functions addressed by a Property, such as `listPortals`,
+`createPortal`, the group list and create and the Property look functions, do no scope
+lookup and ask the policy on the id they were given), a destination id, or the
+`portalIds` of a group to join. A malformed one from a caller the policy admits still
+fails as a database error and a sanitized 500.
 
 `listPortalOverview` is the batched read behind the Portals overview. For a Property
 or for the Organization it returns one row per Portal (languages, Health and its

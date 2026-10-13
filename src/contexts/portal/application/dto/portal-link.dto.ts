@@ -36,9 +36,10 @@ export const updateLinkInputSchema = z.object({
 
 /**
  * The most links one reorder may name. The server function looks each one up
- * before it can ask the policy (the Property comes from those lookups), so the
- * list is bounded where the request is read. A new Portal carries at most four
- * links and an older one keeps what it had; this is far above either.
+ * once the policy has admitted the caller, and the command writes one row per
+ * link, so the list is bounded where the request is read. A new Portal carries
+ * at most four links and an older one keeps what it had; this is far above
+ * either.
  */
 export const MAX_REORDER_LINKS = 100
 

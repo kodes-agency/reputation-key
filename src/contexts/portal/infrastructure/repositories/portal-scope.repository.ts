@@ -26,8 +26,9 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 /**
  * An id that is not a UUID names no row. The request schemas take ids as any
  * non-empty string, and PostgreSQL refuses to compare one with a `uuid`
- * column: every Portal server function resolves its entity here first, so
- * without this a mistyped id was answered as a server failure, not "not found".
+ * column: a server function addressed by a Portal, group, category or link
+ * resolves it here first, so without this a mistyped id was answered as a
+ * server failure, not "not found".
  */
 const namesNoRow = (id: string): boolean => !UUID_PATTERN.test(id)
 
