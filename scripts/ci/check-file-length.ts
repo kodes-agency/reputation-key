@@ -26,8 +26,9 @@
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { isEntryPoint } from './entry-point'
 import { formatChanges, runRatchetGate, type RatchetCounts } from './ratchet-baseline'
 
 export const MAX_LINES = 800
@@ -191,6 +192,6 @@ function main(args: readonly string[]): number {
   )
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+if (isEntryPoint(import.meta.url)) {
   process.exitCode = main(process.argv.slice(2))
 }

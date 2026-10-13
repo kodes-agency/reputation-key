@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { isEntryPoint } from './entry-point'
 
 export type ProductStateSource = Readonly<{
   path: string
@@ -845,4 +846,4 @@ function main(): void {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) main()
+if (isEntryPoint(import.meta.url)) main()

@@ -65,14 +65,15 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    // BQC-6.9: coverage is OFF by default (bare `vitest run` / `pnpm test`
-    // stay fast). The coverage gate (scripts/check-coverage.mjs →
-    // `pnpm check:coverage`) runs the unit project itself with
-    // `--coverage.enabled=true`; these defaults shape that run.
+    // Coverage is OFF by default (bare `vitest run` / `pnpm test` stay fast)
+    // and nothing in CI turns it on: the BQC-6.9 coverage gate
+    // (scripts/check-coverage.mjs, `pnpm check:coverage`) was deleted on
+    // 2026-09-05. These defaults shape a manual run with
+    // `--coverage.enabled=true`.
     coverage: {
       provider: 'v8',
       // An explicit include makes untouched matching files part of Vitest 4's
-      // report; an untested file must lower the baseline, not vanish from it.
+      // report; an untested file must show as uncovered, not vanish from it.
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/**/*.test.ts',

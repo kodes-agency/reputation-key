@@ -30,6 +30,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isEntryPoint } from './entry-point'
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url))
 const SNAPSHOT_PATH = resolve(
@@ -150,6 +151,6 @@ function main(argv: readonly string[]): number {
   return 1
 }
 
-if (import.meta.url === `file://${process.argv[1] ?? ''}`) {
+if (isEntryPoint(import.meta.url)) {
   process.exit(main(process.argv.slice(2)))
 }

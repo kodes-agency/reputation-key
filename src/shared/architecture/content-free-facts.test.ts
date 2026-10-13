@@ -11,12 +11,21 @@
 //   1. Parse each context's `domain/events.ts` and `domain/*-events.ts` files
 //      for `export type X = Readonly<{…}>` blocks (payloads are flat).
 //   2. Ignore envelope fields: _tag, eventId, occurredAt, correlationId.
-//   3. A field is "free-text-ish" when its name matches FREE_TEXTISH below.
-//      Ids, enums, numbers, booleans, and dates never match and pass
-//      unregistered. The register also documents known non-identifier facts
-//      (names, the 1–5 rating value) so the inventory is complete.
+//   3. A field is "free-text-ish" when its name matches FREE_TEXTISH below:
+//      a prose word (text, comment, reason, …) or a name word (name, slug,
+//      title, label, note, …). A field named neither way passes unregistered,
+//      whatever it holds.
 //   4. Register entries must reference real payload fields — stale entries
 //      fail too.
+//
+// What this does not do. It reads field NAMES, so the register is the list of
+// exceptions to that heuristic, not an inventory of every non-identifier
+// fact: plain strings such as `publicationDigest`, `sourceAggregateVersion`,
+// `tokenIdentifier` and `reference` are never asked about, and one entry
+// (`GuestRatingSubmitted.value`) is there by choice, not because the pattern
+// found it. And it reads the TypeScript payload types, not the Zod schemas in
+// `src/shared/events/schema-registrations.ts` that decide which fields an
+// outbox row keeps.
 
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
@@ -33,6 +42,20 @@ const REGISTER: Readonly<Record<string, string>> = {
   // By-design non-sensitive display names (no PII, no review content).
   'PortalGroupCreated.name': 'by-design non-sensitive display name',
   'PortalGroupUpdated.name': 'by-design non-sensitive display name',
+  // Business names a manager entered and the URL slugs made from them: no
+  // guest, reviewer or review content. ADR 0030 names them neither among the
+  // facts a payload may carry nor among the content it must not. The log
+  // policy (`sensitive-field-policy.ts`) redacts `slug`, and a business name
+  // only where the field is spelled `businessName`: `name` and
+  // `organizationName`, the spellings here, are not on its list. So these
+  // entries record that the durable facts carry them; they do not record a
+  // decision.
+  'IdentityOrganizationCreated.organizationName': 'Organization display name',
+  'IdentityOrganizationCreated.slug': 'Organization URL slug, made from its name',
+  'PropertyCreated.name': 'Property display name',
+  'PropertyCreated.slug': 'Property URL slug, made from its name',
+  'PropertyUpdated.name': 'Property display name',
+  'PropertyUpdated.slug': 'Property URL slug, made from its name',
   // 1–5 star rating value — a numeric fact, not content.
   'GuestRatingSubmitted.value': '1-5 numeric fact',
   // Closed Portal Health vocabulary — enum codes, never operator/guest prose.
@@ -51,7 +74,9 @@ const REGISTER: Readonly<Record<string, string>> = {
 }
 
 const ENVELOPE_FIELDS = new Set(['_tag', 'eventId', 'occurredAt', 'correlationId'])
-const FREE_TEXTISH = /text|comment|email|reason|body|content|description|message/i
+// Prose words, then name words. `note` stops short of `noteId`: an id is a fact.
+const FREE_TEXTISH =
+  /text|comment|email|reason|body|content|description|message|name|slug|title|label|summary|phone|note(?!Id)/i
 const EVENT_TYPE_BLOCK = /export type (\w+) = Readonly<\{([\s\S]*?)\}>/g
 const FIELD_LINE = /(\w+)\??:/g
 
@@ -101,6 +126,26 @@ describe('architecture: event payloads are content-free facts (BQC-5.6)', () => 
       unregistered,
       'new free-text-ish event payload fields must be registered with justification:\n' +
         unregistered.join('\n'),
+    ).toEqual([])
+  })
+
+  // R1A-09: the pattern saw prose words only, so a display name was never asked
+  // for a register entry and the header's "names" were not an inventory.
+  it('reads a field named like a name or a note as free-text-ish, and an id as not', () => {
+    const named = [
+      'name',
+      'organizationName',
+      'reviewerDisplayName',
+      'slug',
+      'title',
+      'label',
+      'summary',
+      'phone',
+      'internalNote',
+    ]
+    expect(named.filter((field) => !FREE_TEXTISH.test(field))).toEqual([])
+    expect(
+      ['noteId', 'noteIds', 'propertyId'].filter((id) => FREE_TEXTISH.test(id)),
     ).toEqual([])
   })
 

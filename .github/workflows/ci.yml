@@ -208,10 +208,10 @@ jobs:
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
         run: pnpm check:schema-drift
 
-      # Pull requests and main run the identical governed test pair.
-      # `check:coverage` owns the unit project under v8 coverage; pairing it
-      # with the integration project covers the complete suite once and applies
-      # the BQC-6.9 floor + staleness ratchet before merge and after promotion.
+      # Pull requests and main run the identical test pair: the unit project
+      # in the four test-unit shards above, the integration project here.
+      # Neither runs under coverage and no coverage floor is enforced: the
+      # BQC-6.9 `check:coverage` ratchet was deleted on 2026-09-05.
       - name: Test
         env:
           NODE_ENV: test
@@ -266,11 +266,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # BQC-6.9: changed-code budget — every src production file added by the
-      # branch must carry a colocated test (diffs against origin/main; the
-      # checkout above uses fetch-depth: 0). Measured 2-3s: the cheapest gate in
-      # this job, and the only thing keeping new production code from landing
-      # untested. See scripts/check-changed-code.mjs.
+      # BQC-6.9: changed-code budget — every src production module added by the
+      # branch (API routes included; pages and components are not) must be
+      # imported by a test, or by a module a test imports (diffs against
+      # origin/main; the checkout above uses fetch-depth: 0). That proves a test
+      # can load the module, not that one asserts anything about it, and it is
+      # still the only check on new production code landing untested. Measured
+      # 2-3s. See scripts/check-changed-code.mjs.
       - name: Changed-code budget
         run: pnpm check:changed-code
 
