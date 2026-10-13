@@ -110,8 +110,10 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
   return {
     // The size bound is not part of the signature: a signed PUT cannot carry
     // a maximum length, and binding the exact length is unproven against the
-    // stores this adapter talks to. The caller checks the stored size instead
-    // (Identity's assertStoredUploadAllowed, when the picture is saved).
+    // stores this adapter talks to. The caller reads the stored size instead
+    // (Identity's assertStoredUploadAllowed, at its finalize step and at the
+    // avatar save). The address outlives that check: for the rest of its hour
+    // it can replace the object, so a reader bounds its own read (`getObject`).
     createPresignedUploadUrl: async (key, contentType, _maxSizeBytes) => {
       const command = new PutObjectCommand({
         Bucket: bucketName,

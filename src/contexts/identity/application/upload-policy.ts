@@ -7,9 +7,16 @@
 // The cap is checked twice. `assertUploadAllowed` judges the size the browser
 // declares when it asks for an upload address; that address carries no length
 // bound, so the bytes that arrive can be any size. `assertStoredUploadAllowed`
-// judges the size the store reports when the upload is saved, and removes an
-// object over the cap. An upload that is never saved is not checked at all:
-// see docs/operations/backup-and-lifecycle.md ("What stays in the bucket").
+// judges the size the store reports, and removes an object over the cap. It
+// runs at the finalize step of both uploads and again where an avatar's
+// address is saved, because a caller can skip the finalize step (a logo's
+// address is saved only by its finalize step).
+//
+// What the second check does not give: the upload address stays valid for an
+// hour and can replace the object after it was judged, and an upload that is
+// never saved is not checked at all. The bound that always holds is the image
+// route's read of at most `MAX_UPLOAD_BYTES`. See
+// docs/operations/backup-and-lifecycle.md ("The 5 MB cap is the app's").
 
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'

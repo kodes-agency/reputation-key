@@ -2,7 +2,8 @@
 // Confirms the upload landed within the size cap and returns the address the
 // avatar is shown at (a path on the app, see identity-assets.ts). Does NOT
 // persist to any entity (the caller persists through the updateUserImageFn
-// server function).
+// server function). Nothing makes a caller run this step before that one, so
+// the save makes the same checks itself (`assertOwnStoredAvatar`).
 
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -19,6 +20,28 @@ export type FinalizeAvatarUploadDeps = Readonly<{
   storage: StoragePort
 }>
 
+/**
+ * What an uploaded avatar passes before its address is handed out or saved:
+ * the key is this user's own, it has the avatar key shape, and the object the
+ * store holds is within the size cap. The owner is checked first, because an
+ * object over the cap is removed.
+ */
+export const assertOwnStoredAvatar = async (
+  storage: Pick<StoragePort, 'inspectObject' | 'deleteObject'>,
+  key: string,
+  userId: string,
+): Promise<void> => {
+  if (!key.startsWith(`avatars/${userId}/`)) {
+    throw identityError('forbidden', 'Upload key is not scoped to this user')
+  }
+
+  if (!isIdentityAssetKey(key)) {
+    throw identityError('validation_error', 'Upload key is not an avatar key')
+  }
+
+  await assertStoredUploadAllowed(storage, key)
+}
+
 export const finalizeAvatarUpload =
   (deps: FinalizeAvatarUploadDeps) =>
   async (
@@ -29,16 +52,7 @@ export const finalizeAvatarUpload =
       throw identityError('forbidden', 'Insufficient permissions to upload avatar')
     }
 
-    const expectedPrefix = `avatars/${ctx.userId}/`
-    if (!input.key.startsWith(expectedPrefix)) {
-      throw identityError('forbidden', 'Upload key is not scoped to this user')
-    }
-
-    if (!isIdentityAssetKey(input.key)) {
-      throw identityError('validation_error', 'Upload key is not an avatar key')
-    }
-
-    await assertStoredUploadAllowed(deps.storage, input.key)
+    await assertOwnStoredAvatar(deps.storage, input.key, ctx.userId)
     return { avatarUrl: identityAssetPath(input.key) }
   }
 
