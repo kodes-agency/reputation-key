@@ -212,15 +212,20 @@ describe('the environment schema (BQC-7.6)', () => {
   }
   const isSecretName = (name: string) =>
     /SECRET|SALT|TOKEN|PRIVATE_KEY/.test(name) || /_KEYS?$/.test(name)
+  // The name and its colon, and nothing after: a declaration the formatter
+  // wraps has a line break there, not a space.
   const schemaFields = [
     ...readFileSync(resolve(import.meta.dirname, 'env.ts'), 'utf8').matchAll(
-      /^ {2}([A-Z][A-Z0-9_]*): /gm,
+      /^ {2}([A-Z][A-Z0-9_]*):/gm,
     ),
   ].flatMap((match) => (match[1] ? [match[1]] : []))
 
   it('reads the schema', () => {
     expect(schemaFields).toContain('BETTER_AUTH_SECRET')
     expect(schemaFields).toContain('AI_PROVENANCE_ED25519_PRIVATE_KEY_B64')
+    // Declared as `NAME:` and a line break (a production/development ternary
+    // the formatter wraps): the shape with a development default.
+    expect(schemaFields).toContain('GUEST_SESSION_SALT')
     expect(schemaFields.filter((name) => name in NOT_INSPECTED).sort()).toEqual(
       Object.keys(NOT_INSPECTED).sort(),
     )
