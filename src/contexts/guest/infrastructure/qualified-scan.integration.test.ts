@@ -28,6 +28,7 @@ import {
   type ReportingContextBuildInput,
 } from '#/contexts/reporting/build'
 import { METRIC_VERSION_IDS } from '#/contexts/reporting/application/public-api'
+import { createMetricRepository } from '#/contexts/reporting/infrastructure/repositories/metric.repository'
 import {
   createConsumerRegistry,
   type ConsumerEvent,
@@ -605,7 +606,8 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
   })
 
   it('projects one replay-safe Metric contribution and removes it by correction', async () => {
-    const { context, registry } = buildReportingFixture()
+    const { registry } = buildReportingFixture()
+    const readings = createMetricRepository(getDb(), () => EVENT_TIME)
     const fact = guestQualifiedScanRecorded({
       qualifiedScanId: qualifiedScanId('73000000-0000-4000-8000-000000000023'),
       organizationId: ORG,
@@ -665,13 +667,11 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
       periodStart: new Date('2026-08-01T00:00:00.000Z'),
       periodEnd: new Date('2026-09-01T00:00:00.000Z'),
     }
-    await expect(context.publicApi.queryAggregate(aggregateQuery)).resolves.toMatchObject(
-      {
-        sum: 1,
-        count: 1,
-        sampleCount: 1,
-      },
-    )
+    await expect(readings.queryAggregate(aggregateQuery)).resolves.toMatchObject({
+      sum: 1,
+      count: 1,
+      sampleCount: 1,
+    })
 
     const correction = guestQualifiedScanRetracted({
       qualifiedScanId: fact.qualifiedScanId,
@@ -724,13 +724,11 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
     await retractedHandler(retractedEnvelope)
     await retractedHandler(retractedEnvelope)
 
-    await expect(context.publicApi.queryAggregate(aggregateQuery)).resolves.toMatchObject(
-      {
-        sum: 0,
-        count: 0,
-        sampleCount: 0,
-      },
-    )
+    await expect(readings.queryAggregate(aggregateQuery)).resolves.toMatchObject({
+      sum: 0,
+      count: 0,
+      sampleCount: 0,
+    })
     expect(
       await getPool().query(
         `SELECT count(*)::int AS count

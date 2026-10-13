@@ -20,6 +20,7 @@ import type {
   ReplyProfileWrite,
   ReplyTemplateRepository,
   ReplyTemplateEnabledUpdate,
+  ReplyTemplateTitleTaken,
   ReplyTemplateUpdate,
   ReplyTemplateWrite,
 } from '../../application/ports/reply-template.repository'
@@ -190,6 +191,34 @@ async function persistTemplateChanges(
     .returning()
   if (!updated) throw reviewError('repo_upsert_failed', 'Reply template update raced')
   return { disposition: 'updated', value: templateFromRow(updated) }
+}
+
+const TITLE_UNIQUE_INDEX = 'property_reply_templates_property_title_unique'
+const TITLE_TAKEN: ReplyTemplateTitleTaken = { disposition: 'title_taken' }
+
+/**
+ * A write PostgreSQL refused because the Property already has a template with
+ * that title. drizzle wraps the driver error, so the SQLSTATE and the index
+ * name are on the cause.
+ */
+function isTitleTaken(error: unknown): boolean {
+  const driverError: unknown =
+    typeof error === 'object' && error !== null && 'cause' in error ? error.cause : error
+  if (typeof driverError !== 'object' || driverError === null) return false
+  const { code, constraint } = driverError as { code?: unknown; constraint?: unknown }
+  return code === '23505' && constraint === TITLE_UNIQUE_INDEX
+}
+
+/** Settings writes answer a taken title as an outcome, never as a database error. */
+async function orTitleTaken<T>(
+  write: () => Promise<T>,
+): Promise<T | ReplyTemplateTitleTaken> {
+  try {
+    return await write()
+  } catch (error) {
+    if (isTitleTaken(error)) return TITLE_TAKEN
+    throw error
+  }
 }
 
 async function updateTemplateRow(
@@ -372,12 +401,25 @@ export const createReplyTemplateRepository = (
       }
       return updateTemplateRow(db, clock, current, input)
     }),
+  createTemplate: (input) =>
+    trace('replyTemplate.createTemplate', async () => {
+      validateTemplate(input)
+      return orTitleTaken(async () => {
+        const [created] = await db
+          .insert(propertyReplyTemplates)
+          .values(input)
+          .returning()
+        if (!created)
+          throw reviewError('repo_upsert_failed', 'Reply template insert failed')
+        return { disposition: 'inserted' as const, value: templateFromRow(created) }
+      })
+    }),
   updateTemplate: (input: ReplyTemplateUpdate) =>
     trace('replyTemplate.updateTemplate', async () => {
       validateTemplate(input)
       const current = await readTemplateRow(db, input)
       if (!current) return null
-      return updateTemplateRow(db, clock, current, input)
+      return orTitleTaken(() => updateTemplateRow(db, clock, current, input))
     }),
   setTemplateEnabled: (input: ReplyTemplateEnabledUpdate) =>
     trace('replyTemplate.setTemplateEnabled', async () => {

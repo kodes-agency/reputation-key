@@ -18,6 +18,7 @@ vi.mock('#/composition', () => ({
       getInboxPropertyCounts: mocks.getInboxPropertyCounts,
     },
     logger: { warn: vi.fn() },
+    clock: () => CONTAINER_NOW,
   })),
 }))
 vi.mock('#/shared/auth/headers', () => ({
@@ -42,6 +43,8 @@ import {
 import { getInboxPropertyCountsDto } from '../application/dto/inbox.dto'
 
 const PROPERTY_ID = '750e8400-e29b-41d4-a716-446655440000'
+/** Not the wall clock: a simulated or backdated container reads this one. */
+const CONTAINER_NOW = new Date('2031-02-03T04:05:06.000Z')
 const MANAGER = {
   organizationId: '00000000-0000-4000-8000-000000000001',
   userId: 'user-admin-1',
@@ -97,6 +100,16 @@ describe('inbox query authorization', () => {
       { propertyId: PROPERTY_ID, replyQueuesEnabled: true },
       MANAGER,
     )
+  })
+
+  it('asks the reply policy at the container clock, not the wall clock (ADR 0017)', async () => {
+    await withStartContext(() =>
+      getInboxQueueCountsFn({ data: { propertyId: PROPERTY_ID } }),
+    )
+
+    expect(mocks.decideExecution.mock.calls.map(([request]) => request.now)).toEqual([
+      CONTAINER_NOW,
+    ])
   })
 
   it('keeps non-reply manager counts available when reply publication is disabled', async () => {

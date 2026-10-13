@@ -386,5 +386,8 @@ export function createSequentialInboxCommandStore(deps: {
     },
 
     recordReceipt: receipt,
+    // Sequential: no delivery is ever in flight beside another, so there is
+    // nothing to settle against. The PostgreSQL store holds the real fence.
+    settleSupersededDelivery: async () => undefined,
   }
 }

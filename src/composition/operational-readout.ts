@@ -173,8 +173,10 @@ export function buildOperationalReadout(input: OperationalReadoutInput) {
     domainEventsQueue: opsQueues.domainEvents,
   })
   const jobRuntimeReport = buildJobRuntimeReport(input, opsQueues)
-  // No context starts a background policy poller; retain the container-owned
-  // shutdown seam for deployable resources added by other composition slices.
+  // No context starts a background policy poller, so the container-owned
+  // shutdown seam is built with no hooks and releases nothing today. The queue
+  // and Redis handles opened above are not registered on it: see the STATE
+  // note in container-lifecycle.ts for what closes them in each process.
   const containerShutdown: ContainerShutdown = createContainerShutdown([], input.logger)
 
   return Object.freeze({

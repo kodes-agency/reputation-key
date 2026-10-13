@@ -45,16 +45,8 @@ export async function requireMatchingPortalResourceScopes(
   const authoritative = scopes[0]
   if (
     !authoritative ||
-    scopes.some(
-      (scope) =>
-        !scope ||
-        scope.organizationId !== input.actor.organizationId ||
-        scope.organizationId !== authoritative.organizationId ||
-        scope.propertyId !== authoritative.propertyId ||
-        (authoritative.portalId !== undefined &&
-          scope.portalId !== undefined &&
-          scope.portalId !== authoritative.portalId),
-    )
+    authoritative.organizationId !== input.actor.organizationId ||
+    scopes.some((scope) => !sitsInScope(authoritative, scope))
   ) {
     throw input.notFound
   }
@@ -66,4 +58,37 @@ export async function requireMatchingPortalResourceScopes(
     propertyId: authoritative.propertyId,
   })
   return authoritative
+}
+
+/**
+ * Resources a caller named beside a scope the policy has already admitted: each
+ * must exist and sit in that scope. It asks no policy, so it runs only after
+ * `requirePortalResourceScope` or `requireMatchingPortalResourceScopes` has
+ * returned that scope. A request that names many rows (a link reorder) is read
+ * this way, so a caller the policy refuses never costs a lookup per row.
+ */
+export async function requireResourcesInPortalScope(
+  input: Readonly<{
+    scope: PortalResourceScope
+    notFound: PortalError
+    lookups: readonly (() => Promise<PortalResourceScope | null>)[]
+  }>,
+): Promise<void> {
+  const scopes = await Promise.all(input.lookups.map((lookup) => lookup()))
+  if (scopes.some((scope) => !sitsInScope(input.scope, scope))) throw input.notFound
+}
+
+/** Same Organization and Property, and the same Portal where both name one. */
+function sitsInScope(
+  authoritative: PortalResourceScope,
+  scope: PortalResourceScope | null,
+): boolean {
+  if (!scope) return false
+  return (
+    scope.organizationId === authoritative.organizationId &&
+    scope.propertyId === authoritative.propertyId &&
+    (authoritative.portalId === undefined ||
+      scope.portalId === undefined ||
+      scope.portalId === authoritative.portalId)
+  )
 }

@@ -119,7 +119,10 @@ Three `server/policy-admin.ts` functions have no UI caller on purpose:
   retired and granted again; asking for another expiry (or none) on an active grant
   replaces it; the same grant asked again changes nothing. Each change commits with
   the `identity.member.property_access_changed` fact the Members edit records, so the
-  member hears about it; a command that changes nothing records none.
+  member hears about it; a command that changes nothing records none. A refusal is a
+  tagged `IdentityError` (`validation_error`, or `member_not_found` for a user outside
+  the Organization), mapped once in the server function; any other failure is answered
+  as a sanitized internal error.
   Follow-ups: a grant requires `reason` and `ticketRef` but persists neither (a revoke
   keeps its `reason` as `revoke_reason`). The grant accepts any member of the
   Organization as its target, where the Members edit requires a PropertyManager and
@@ -141,7 +144,10 @@ grants take that lock too, inside the acceptance transaction, and record the inv
 as `createdBy`. An invited Property that is deleted, belongs to another Organization
 or names no Property is not granted and never holds the acceptance back; it is logged
 by count, never silent. An AccountAdmin may change another AccountAdmin's role; nobody
-changes their own role;
+changes their own role, and nobody removes themselves: `removeMember` refuses the
+caller as its own target, because removal releases what the member held with no
+successor, and a member who goes of their own accord uses `leaveOrganization`, which
+requires every responsibility to be handed over first;
 the last-AccountAdmin guard holds under the Organization lock. Only an AccountAdmin
 invites, cancels or resends invitations, creates members, edits a PropertyManager's
 Property scope and edits Organization settings; a PropertyManager holds `member.list`

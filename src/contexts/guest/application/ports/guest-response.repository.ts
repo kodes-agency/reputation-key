@@ -99,5 +99,4 @@ export type GuestResponseRepository = Readonly<{
     startAt: Date,
     endAt: Date,
   ): Promise<PortalRatingLanguageBreakdown>
-  saveModeration(response: GuestResponse): Promise<boolean>
 }>

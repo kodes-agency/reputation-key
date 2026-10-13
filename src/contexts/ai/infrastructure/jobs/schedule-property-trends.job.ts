@@ -1,10 +1,14 @@
 import type { Job } from 'bullmq'
 import { z } from 'zod/v4'
+import { redriveMetadataSchema } from '#/shared/jobs/failure-quarantine'
 import type { SchedulePropertyTrendsResult } from '../../application/use-cases/schedule-property-trends'
 
 export const SCHEDULE_PROPERTY_TRENDS_JOB_NAME = 'schedule-property-ai-trends'
 
-const schedulePropertyTrendsJobData = z.object({}).strict()
+// Empty but for what a quarantine redrive adds (the family's repair command).
+const schedulePropertyTrendsJobData = z
+  .object({ redriveMetadata: redriveMetadataSchema.optional() })
+  .strict()
 
 export type SchedulePropertyTrendsJobDependencies = Readonly<{
   idGen: () => string

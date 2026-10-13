@@ -35,6 +35,13 @@ describe('buildReportingContext', () => {
     expect(typeof context.publicApi.listPropertySetupSummaries).toBe('function')
   })
 
+  it('publishes governed metric reads only, never the raw aggregate query', () => {
+    // The aggregate query takes any consumer and any metric key and asks no
+    // authority; Goals read through queryGoalMetric, which admits one approved
+    // version. Nothing in production called the raw one.
+    expect(Object.keys(build().publicApi)).not.toContain('queryAggregate')
+  })
+
   it('owns both reporting consumer families and Goal maintenance', () => {
     const context = build()
 

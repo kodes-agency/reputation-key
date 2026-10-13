@@ -7,7 +7,6 @@ import {
   withdrawPrivateFeedback,
   withdrawResponse,
   correctResponse,
-  moderateResponse,
   deleteResponse,
   MAX_TEXT_LENGTH,
   MAX_RATING,
@@ -471,27 +470,6 @@ describe('GuestResponse', () => {
         text: null,
         feedbackSubmissionRevision: 1,
       })
-    })
-  })
-
-  describe('moderateResponse', () => {
-    it('moderates a submitted response', () => {
-      const r = submitResponse(
-        createResponse(baseParams),
-        { rating: 5 },
-        NOW,
-      ) as GuestResponse
-      const result = moderateResponse(r, NOW)
-      expect(result).toHaveProperty('status', 'moderated')
-      if (!('code' in result)) {
-        expect(result.moderatedAt).toEqual(NOW)
-      }
-    })
-
-    it('rejects moderating a deleted response', () => {
-      const r = deleteResponse(createResponse(baseParams), NOW) as GuestResponse
-      const result = moderateResponse(r, NOW)
-      expect(result).toHaveProperty('code', 'already_deleted')
     })
   })
 

@@ -10,22 +10,20 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { capabilityForPermission } from '#/shared/auth/capability-for-permission'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
+import { catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import type { Permission } from '#/shared/domain/permissions'
+import { isIdentityError } from '../domain/errors'
+import { throwIdentityError } from './organizations.errors.server'
 
-// ── Validation error mapping ─────────────────────────────────────────
-
-const VALIDATION_PATTERN = /required|not a member|not found in organization|in the future/
+// ── Error mapping ────────────────────────────────────────────────────
+// A refusal is a tagged IdentityError and is mapped by its code. Anything else
+// is an internal failure and is sanitized, whatever its message says: a
+// database fault quotes its statement and parameters, the caller's reason
+// among them.
 
 function mapPolicyAdminError(e: unknown): never {
-  if (e instanceof Error && VALIDATION_PATTERN.test(e.message)) {
-    throwContextError(
-      'PolicyAdminError',
-      { code: 'invalid_operation', message: e.message },
-      400,
-    )
-  }
+  if (isIdentityError(e)) throwIdentityError(e)
   throw catchUntagged(e)
 }
 
