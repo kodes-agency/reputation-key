@@ -102,60 +102,6 @@ export function getActiveVersion(
 }
 
 /**
- * Check if a source policy class is allowed for a metric version.
- * Per ADR 0041: the registry fails closed.
- */
-export function isSourcePolicyAllowed(
-  version: MetricDefinitionVersion,
-  sourceClass: SourcePolicyClass,
-): boolean {
-  return version.sourcePolicyAllowlist.includes(sourceClass)
-}
-
-/**
- * Check if a consumer is permitted for a metric version.
- */
-export function isConsumerPermitted(
-  version: MetricDefinitionVersion,
-  consumer: PermittedConsumer,
-): boolean {
-  return version.permittedConsumers.includes(consumer)
-}
-
-/**
- * Check if a scope is allowed for a metric version.
- */
-export function isScopeAllowed(
-  version: MetricDefinitionVersion,
-  scope: MetricScope,
-): boolean {
-  return version.allowedScopes.includes(scope)
-}
-
-/**
- * Determine the result when sample is insufficient.
- * Per ADR 0041: missing data is 'unavailable', never silently zero.
- */
-export function evaluateInsufficientData(
-  version: MetricDefinitionVersion,
-  sampleSize: number,
-): { insufficient: boolean; behavior: InsufficientDataBehavior; result: number | null } {
-  if (sampleSize >= version.minimumSample) {
-    return {
-      insufficient: false,
-      behavior: version.insufficientDataBehavior,
-      result: null,
-    }
-  }
-  switch (version.insufficientDataBehavior) {
-    case 'unavailable':
-      return { insufficient: true, behavior: 'unavailable', result: null }
-    case 'quarantine':
-      return { insufficient: true, behavior: 'quarantine', result: null }
-  }
-}
-
-/**
  * Architectural constraint: certain source classes are NEVER eligible
  * for Goals — even if they appear in a metric definition's permitted
  * consumers.
