@@ -144,7 +144,7 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `sync.failed-nonzero`                          | P2  | any coded sync failure whose retry is due                                                                                         | §13     |
 | `ai.review-analysis-stalled`                   | P2  | incomplete enabled coverage with no new settlement for > 15min; monitor failure also fires                                        | §22     |
 | `ai.review-analysis-empty-enrollment`          | P2  | any queued/running zero-snapshot enrollment while eligible reviews exist                                                          | §22     |
-| `retention.failure`                            | P1  | latest retention run failed for any subject                                                                                       | §8      |
+| `retention.failure`                            | P1  | latest retention run failed for any subject; monitor failure (the `retention_runs` read) also fires                               | §8      |
 | `reply.ambiguous-aging`                        | P2  | oldest ambiguous publication > 15min past reconcile_due                                                                           | §6      |
 | `routing.region-attempts`                      | P2  | any quarantined wrong/unresolved/denied-region attempt                                                                            | §12     |
 | `db.pool-exhaustion`                           | P1  | any connection request queued behind a saturated pool                                                                             | §8      |
