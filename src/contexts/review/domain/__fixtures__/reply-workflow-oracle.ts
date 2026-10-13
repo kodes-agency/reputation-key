@@ -594,25 +594,37 @@ export function afterAiDraftPurge(
  * What a guest edit does to a reply a manager wrote and put forward before it,
  * or null when it leaves the reply as it is. A reply written for the review
  * as it stood does not answer the edited one, so one that a single click
- * would still publish is taken back to draft, with its text: a reply awaiting
- * approval, and one whose publication failed and is settled as not on Google
- * (trying it again keeps the approval it got for the earlier review). The
- * cycle count and the attempts stay: they are the record.
+ * could still publish is taken back to draft, with its text: a reply awaiting
+ * approval, and one whose publication failed and whose cycle has ended
+ * (trying it again keeps the approval it got for the earlier review). That
+ * includes the failure whose outcome was never learned: proof that it never
+ * left RepKey would let a retry send it, and nothing else can move it once
+ * the review has changed. The cycle count and the attempts stay: they are the
+ * record.
  *
  * Everything else is left to its owner. A draft or a rejected reply is in
- * nobody's queue. A published reply is what Google shows. An open cycle is
- * cancelled by Review's own write for stale publications. A failure of unknown
- * outcome keeps its attempt for whoever reads Google next. Unedited AI text is
- * the AI draft purge's, above.
+ * nobody's queue. A published reply is what Google shows. An open cycle, one
+ * whose read ladder is still running among them, is cancelled by Review's own
+ * write for stale publications. Unedited AI text is the AI draft purge's,
+ * above.
  */
 export const afterGuestEdit = (reply: OracleReply): OracleReply | null => {
   if (reply.authorship !== 'human') return null
   if (reply.status === 'pending_approval' && outsidePublication(reply)) {
     return { ...reply, status: 'draft' }
   }
-  const settledAsNotOnGoogle =
-    reply.status === 'publish_failed' &&
-    reply.publication === 'terminal' &&
-    reply.lastFailure !== 'ambiguous'
-  return settledAsNotOnGoogle ? { ...cancelled(reply), lastFailure: null } : null
+  const failedAndEnded =
+    reply.status === 'publish_failed' && reply.publication === 'terminal'
+  return failedAndEnded ? { ...cancelled(reply), lastFailure: null } : null
 }
+
+/**
+ * Whether a guest edit also closes the last attempt of the reply it takes
+ * back. An attempt is confirmed, or loses to another reply, only by a read of
+ * Google made for the review revision it was sent for. After the edit every
+ * read is made for the new revision, so an attempt whose outcome is still
+ * unknown can never be settled by one, and it is closed with the reply. An
+ * attempt that already says how it ended keeps saying so.
+ */
+export const guestEditClosesTheAttempt = (reply: OracleReply): boolean =>
+  afterGuestEdit(reply) !== null && outcomeUnknown(reply)

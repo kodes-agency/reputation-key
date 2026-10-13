@@ -264,16 +264,33 @@ parts:
   source-epoch carry included.
 - A Reply a manager wrote that has no open cycle and was still put forward
   returns to draft: one awaiting approval, and one whose publication failed
-  and is settled as not on Google. These are exactly the Replies Confirm &
-  Publish and Try publishing again may start from
+  and whose cycle has ended (`publish_failed`, `terminal`). These are the
+  Replies Confirm & Publish and Try publishing again may start from
   (`domain/reply-command-preconditions.ts`, `takenBackByGuestEdit`), the two
   commands that publish stored text with one click, the second under the
   approval the Reply got for the earlier review. The Reply keeps its text, and
-  the authorization and attempts of a failed cycle stay as they are. This part
-  runs only on a guest edit, a changed rating or changed normalized text
-  (`isGuestEdit`): after a carry of unchanged material the review the Reply
-  answers is the same.
+  the authorization and attempts of a failed cycle stay as they are, except
+  the attempt of unknown outcome described below. This part runs only on a
+  guest edit, a changed rating or changed normalized text (`isGuestEdit`):
+  after a carry of unchanged material the review the Reply answers is the
+  same.
 - Unedited AI text is withdrawn by the AI draft purge (above).
+
+Terminal ambiguity (`terminal`, last error `ambiguous`: the read ladder ended
+without an answer) is taken back with the other failures, and its attempt is
+marked superseded, as the first part does for an attempt still on the ladder.
+Try publishing again does not start from it as it stands, but proof that the
+attempt never left RepKey settles it as a failure the retry does start from
+(Invariant 9), and that proof can be found after the edit, by the retry itself
+or by Check Google again. Nor is the attempt evidence any longer. The
+observation authority confirms or supersedes an attempt only for the source
+epoch and revision it was authorized at (`isConfirmableCurrentAttempt`,
+`domain/google-reply-observation.ts`), and every read after the edit is
+recorded for the new revision. Left as it was, such a Reply could not be
+confirmed by any later read and, without that proof, could not be tried
+again, edited or deleted, so the edited review could not be answered from
+RepKey at all. Once it is submitted and confirmed again the write is an upsert
+on Google: if the earlier request did land, the new reply replaces it.
 
 Each Reply the first two parts return to draft records one
 `review.reply.publication_cancelled` fact with cause `source_changed`. Its
@@ -286,12 +303,6 @@ A manager's draft and a rejected Reply are in nobody's queue and stay as they
 are, text and all; a published Reply is what Google shows and stays published.
 Nothing marks such a draft as written before the edit: that would take a
 revision on a human Reply, which the schema keeps for AI-assisted ones only.
-One put-forward Reply is also left: a failure of unknown outcome whose
-automatic checks have ended (`publish_failed`, `terminal`, last error
-`ambiguous`). Try publishing again may not start from it, its attempt is still
-evidence the observation authority reads, and it is sent again only on proof
-that it never left RepKey (Invariant 9). A retry that finds that proof after a
-guest edit is not held to the revision the Reply was approved for.
 
 A failed provider write is classified by what actually reached Google (the
 provider plane's `dispatch`: `not_sent`, `answered` with a status, or `unknown`).
@@ -409,9 +420,11 @@ creates a separate row and never overwrites the renamed template.
     submits, confirms or sends it
     (`infrastructure/reply-ai-withdrawal.integration.test.ts`).
 17. A guest edit leaves no Reply a manager wrote awaiting approval, and none
-    failed and settled as not on Google: each is a draft again, with its text
-    and one `source_changed` fact. Confirm & Publish and Try publishing again
-    refuse it until it is submitted and confirmed for the review as it is now
+    whose publication failed, whether or not its outcome was ever learned:
+    each is a draft again, with its text and one `source_changed` fact, and an
+    attempt of unknown outcome is closed as superseded. Confirm & Publish, Try
+    publishing again and Check Google again refuse it until it is submitted
+    and confirmed for the review as it is now
     (`infrastructure/guest-edit-reply-fence.integration.test.ts`).
 
 ## Verification

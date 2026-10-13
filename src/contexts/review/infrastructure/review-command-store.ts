@@ -46,6 +46,39 @@ const SOURCE_ACTIVE_PUBLICATION_STATES = [
   'ambiguous',
 ] as const
 
+type CurrentAttemptRef = Readonly<{
+  id: string
+  organizationId: string
+  publicationCycle: number
+  publicationAttempts: number
+}>
+
+/** Close the Reply's newest attempt as superseded. It stays as append-only
+ * evidence of what was tried and can no longer be confirmed. A cycle no worker
+ * claimed has no attempt to close. */
+async function supersedeCurrentAttempt(
+  tx: Tx,
+  reply: CurrentAttemptRef,
+  occurredAt: Date,
+): Promise<void> {
+  if (reply.publicationAttempts < 1) return
+  await tx
+    .update(replyPublicationAttempts)
+    .set({
+      outcome: 'superseded',
+      confirmedObservationRevision: null,
+      updatedAt: occurredAt,
+    })
+    .where(
+      and(
+        eq(replyPublicationAttempts.organizationId, reply.organizationId),
+        eq(replyPublicationAttempts.replyId, reply.id),
+        eq(replyPublicationAttempts.publicationCycle, reply.publicationCycle),
+        eq(replyPublicationAttempts.attemptNumber, reply.publicationAttempts),
+      ),
+    )
+}
+
 /** Settle publication work whose immutable authorization names an older
  * Review source. The attempt remains append-only evidence but can no longer
  * be confirmed or resent.
@@ -104,23 +137,7 @@ async function supersedeStaleReviewPublications(
 
   let returnedToDraft = 0
   for (const stale of staleRows) {
-    if (stale.publicationAttempts > 0) {
-      await tx
-        .update(replyPublicationAttempts)
-        .set({
-          outcome: 'superseded',
-          confirmedObservationRevision: null,
-          updatedAt: occurredAt,
-        })
-        .where(
-          and(
-            eq(replyPublicationAttempts.organizationId, stale.organizationId),
-            eq(replyPublicationAttempts.replyId, stale.id),
-            eq(replyPublicationAttempts.publicationCycle, stale.publicationCycle),
-            eq(replyPublicationAttempts.attemptNumber, stale.publicationAttempts),
-          ),
-        )
-    }
+    await supersedeCurrentAttempt(tx, stale, occurredAt)
     const cancelled = await tx
       .update(replies)
       .set({
@@ -172,7 +189,9 @@ async function supersedeStaleReviewPublications(
  * `source_changed`) tells its author and the people who can approve, and
  * retires the approval request or the failure notice that was waiting on it.
  * The authorization and attempts of a failed cycle say how it ended and are
- * left as they are.
+ * left as they are, with one exception: an attempt whose outcome was never
+ * learned is closed as superseded, as the stale-publication write closes one
+ * that is still being checked. No read of the edited review can confirm it.
  *
  * Runs after the stale-publication write above, so an open cycle is already
  * cancelled. A Review holds one internal Reply; the state revision in the
@@ -200,7 +219,8 @@ async function takeBackReplyPutForwardBeforeGuestEdit(
     const returned = await tx
       .update(replies)
       .set({
-        ...takenBack,
+        status: takenBack.status,
+        publicationState: takenBack.publicationState,
         publicationLastErrorClass: null,
         reconcileDueAt: null,
         updatedAt: occurredAt,
@@ -214,6 +234,7 @@ async function takeBackReplyPutForwardBeforeGuestEdit(
       )
       .returning({ id: replies.id })
     if (!returned[0]) continue
+    if (takenBack.supersedesAttempt) await supersedeCurrentAttempt(tx, row, occurredAt)
     await insertOutboxRow(
       tx,
       reviewReplyPublicationCancelled({

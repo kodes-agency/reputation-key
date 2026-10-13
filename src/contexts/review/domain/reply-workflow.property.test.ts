@@ -50,6 +50,7 @@ import {
   afterGuestEdit,
   afterPublicationEvent,
   afterRefusedClaim,
+  guestEditClosesTheAttempt,
   isLegalReplyState,
   LEGAL_REPLY_STATES,
   managerVerdict,
@@ -464,28 +465,48 @@ describe('a guest edit against the hand-written workflow', () => {
       aiGenerated: reply.authorship === 'ai_assisted',
     })
 
+  /** Whether the command, pressed once, would publish the reply as it stands. */
+  const publishesItAsWritten = (
+    reply: OracleReply,
+    kind: 'approve' | 'retry',
+    evidence: CommandEvidence,
+  ): boolean => {
+    const verdict = managerVerdict(reply, commandOf(kind), evidence)
+    return verdict.accepted && verdict.next?.cycle === reply.cycle + 1
+  }
+
   it('takes back what the workflow says from every legal reply state, AI text included', () => {
     for (const reply of everyReplyState().filter(isLegalReplyState)) {
       const after = afterGuestEdit(reply)
       expect(production(reply), `${reply.authorship} ${stateOf(reply)}`).toEqual(
         after === null
           ? null
-          : { status: after.status, publicationState: after.publication },
+          : {
+              status: after.status,
+              publicationState: after.publication,
+              supersedesAttempt: guestEditClosesTheAttempt(reply),
+            },
       )
     }
   })
 
-  it('returns to draft a reply awaiting approval and a settled failure, and nothing else', () => {
-    const takenBack = new Set(
-      written.filter((reply) => production(reply) !== null).map(stateOf),
-    )
+  it('returns to draft a reply awaiting approval and a failed one whose cycle has ended, and nothing else', () => {
+    const takenBack = written.filter((reply) => production(reply) !== null)
     // Written out by hand from the Review CONTEXT, Model.
-    expect([...takenBack].sort()).toEqual([
+    expect([...new Set(takenBack.map(stateOf))].sort()).toEqual([
       'pending_approval/cancelled',
       'pending_approval/null',
+      'publish_failed/terminal/ambiguous',
       'publish_failed/terminal/null',
       'publish_failed/terminal/retryable',
       'publish_failed/terminal/terminal_rejection',
+    ])
+    // Only the attempt nobody learned the outcome of is closed with its reply.
+    const closesTheAttempt = takenBack.filter(
+      (reply) => production(reply)?.supersedesAttempt,
+    )
+    expect([...new Set(closesTheAttempt.map(stateOf))]).toEqual([
+      'publish_failed/terminal/ambiguous',
     ])
     // Never AI text: the AI draft purge runs with the same observation.
     for (const reply of everyReplyState().filter(isLegalReplyState)) {
@@ -493,17 +514,23 @@ describe('a guest edit against the hand-written workflow', () => {
     }
   })
 
-  it('takes back exactly the replies one click would still have published as they were written', () => {
-    // Judged without proof that an uncertain attempt never left RepKey. With
-    // that proof Try publishing again is accepted for a failure of unknown
-    // outcome, and a guest edit does not take that reply back (Review CONTEXT,
-    // Model): its attempt is still evidence for whoever reads Google next.
+  it('takes back every reply one click could still publish as it was written, and no other', () => {
+    // One click is Confirm & Publish or Try publishing again, with or without
+    // proof that an attempt of unknown outcome never left RepKey: the proof can
+    // turn up after the edit. A failure whose read ladder is still running is
+    // such a reply too and is not this rule's: its cycle is open, and Review's
+    // write for stale publications cancels it with the same observation
+    // (Review CONTEXT, Model).
     for (const reply of written) {
-      const oneClickPublishesIt = (['approve', 'retry'] as const).some((kind) => {
-        const verdict = managerVerdict(reply, commandOf(kind), MAYBE_SENT)
-        return verdict.accepted && verdict.next?.cycle === reply.cycle + 1
-      })
-      expect(afterGuestEdit(reply) !== null, stateOf(reply)).toBe(oneClickPublishesIt)
+      const oneClickCouldPublishIt = [NEVER_SENT, MAYBE_SENT].some(
+        (evidence) =>
+          publishesItAsWritten(reply, 'approve', evidence) ||
+          publishesItAsWritten(reply, 'retry', evidence),
+      )
+      const stillOnTheReadLadder = reply.publication === 'ambiguous'
+      expect(production(reply) !== null, stateOf(reply)).toBe(
+        oneClickCouldPublishIt && !stillOnTheReadLadder,
+      )
     }
   })
 

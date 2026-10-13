@@ -1050,13 +1050,17 @@ approved text", which is false of a reply nobody had approved yet. It now
 reads "RepKey stopped the reply that was written before the change", which is
 true of all three: a publication in flight, a reply awaiting approval and a
 failed one. It still says nothing about delivery, because the first of the
-three may already be on Google.
+three may already be on Google, and so may a failed one whose outcome RepKey
+never learned: a guest edit returns that reply to draft too (its attempt can
+no longer be confirmed for the edited review), and the notice sends its reader
+to check what Google shows.
 
 The fact now meets open requests. It retires the approval request of the reply
-it returned to draft, and the "Reply not published" notice of the failed one,
-through the mapping the fact already had (`reply.returned_to_draft` settles
-`reply.publish_failed` and `reply.pending_approval`); the work-state check
-still keeps a request made again since. The 2026-10-12 amendment says the four
+it returned to draft, and the "Reply not published" or "Reply not confirmed on
+Google" notice of the failed one, through the mapping the fact already had
+(`reply.returned_to_draft` settles `reply.publish_failed` and
+`reply.pending_approval`); the work-state check still keeps a request made
+again since. The 2026-10-12 amendment says the four
 older causes cancel a reply somebody already approved and so meet no open
 request. That holds for `disconnect`, `policy` and `provider_truth`, and no
 longer for `source_changed`.
