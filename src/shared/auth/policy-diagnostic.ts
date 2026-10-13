@@ -7,9 +7,13 @@
 //
 // The membership read returns the role as Better Auth stores it (`owner`,
 // `admin`, `member`). The permission table is keyed by domain role, so the
-// token is mapped here exactly as tenant resolution maps it: a token that is
-// not an active beta manager role resolves no tenant, and the diagnostic says
-// so instead of looking it up.
+// token is mapped here with the two steps tenant resolution uses: a token that
+// is not an active beta manager role resolves no tenant, and the diagnostic
+// says so instead of looking it up. The answer is the same for every token a
+// write path stores. One label differs: a built-in token in another case or
+// with padding (`Owner`) passes the first step and fails the second; tenant
+// resolution refuses it as an unsupported role, and the diagnostic reports it
+// as `beta_role_inactive` with the other tokens that resolve no tenant.
 
 import '#/shared/auth/permissions' // side effect: initializes the static permission lookup
 import { checkBetaCapability } from './beta-capabilities'

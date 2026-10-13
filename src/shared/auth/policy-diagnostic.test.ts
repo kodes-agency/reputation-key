@@ -107,6 +107,18 @@ describe('policy diagnostic', () => {
     },
   )
 
+  it('refuses a built-in token stored in another case or with padding, as an inactive role', async () => {
+    // Tenant resolution refuses it too, one step later, as an unsupported role:
+    // it is never read as the AccountAdmin it resembles.
+    await expect(
+      ask({ roleToken: ' Owner ', hasGrant: true }, 'property.read'),
+    ).resolves.toMatchObject({
+      allowed: false,
+      reason: 'beta_role_inactive',
+      checks: { permission: { allowed: false }, scope: { outcome: 'not_applicable' } },
+    })
+  })
+
   it('says a user with no membership is not a member', async () => {
     await expect(ask({ roleToken: null }, 'property.read')).resolves.toMatchObject({
       allowed: false,
