@@ -31,12 +31,17 @@ import type {
 import type { AiOutputStorePort } from '../ports/ai-output-store.port'
 import type { AiAdmissionPort } from '../ports/ai-admission.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
-import type { AiOperationId } from '../../domain/types'
+import type {
+  AiExecutionStopFence,
+  AiOperationId,
+  AiPropertyProcessingProfile,
+} from '../../domain/types'
 import type { AiErrorCode } from '../../domain/errors'
 import {
   aiRequestFingerprint,
   aiRetryAt,
   aiReviewSourceProvenance,
+  isAiAuthorizationUnderServedContract,
   resolveAiExecutionStopFence,
 } from '../ai-workflow-support'
 import { replyExecutionBinding, replyOperationIdentity } from '../ai-operation-binding'
@@ -98,6 +103,9 @@ export type GenerateReplySuggestionResult =
       status: 'unavailable'
       code:
         | 'not_authorized'
+        // AI is enabled, under a notice older than the served one. Drafting
+        // resumes once an AccountAdmin confirms the served notice.
+        | 'consent_renewal_required'
         | 'source_changed'
         // A language exists in the catalogue but has no reply templates.
         | 'language_not_supported'
@@ -511,6 +519,78 @@ function isReplyDraftingAuthorized(
   )
 }
 
+type ReplyBrandProfile = NonNullable<
+  Awaited<
+    ReturnType<
+      GenerateReplySuggestionDependencies['replyBrandProfiles']['readCurrentAiReplyBrandProfile']
+    >
+  >
+>
+
+type DraftingGrant =
+  // The refusal the manager is shown.
+  | Readonly<{ kind: 'refused'; result: GenerateReplySuggestionResult }>
+  | Readonly<{
+      kind: 'granted'
+      authorization: ReplyDraftingAuthorization
+      profile: AiPropertyProcessingProfile
+      brandProfile: ReplyBrandProfile
+      stopFence: AiExecutionStopFence
+    }>
+
+const refusedWith = (...refusal: Parameters<typeof unavailable>): DraftingGrant => ({
+  kind: 'refused',
+  result: unavailable(...refusal),
+})
+
+/**
+ * Everything a personalized draft runs under, read before an operation is
+ * claimed: the AccountAdmin authorization and the notice it was recorded
+ * under, the Property's processing profile and public display name, and the AI
+ * execution controls. The first one that is missing is the refusal.
+ */
+async function resolveDraftingGrant(
+  dependencies: Pick<
+    GenerateReplySuggestionDependencies,
+    'authorization' | 'processingProfiles' | 'replyBrandProfiles' | 'control'
+  >,
+  input: GenerateReplySuggestionInput,
+): Promise<DraftingGrant> {
+  const [authorization, runtime, brandProfile] = await Promise.all([
+    dependencies.authorization.readMerchantAuthorization(input),
+    dependencies.processingProfiles.readForAi(input),
+    dependencies.replyBrandProfiles.readCurrentAiReplyBrandProfile(
+      input.organizationId,
+      input.propertyId,
+    ),
+  ])
+  if (
+    !isReplyDraftingAuthorized(authorization, input) ||
+    runtime.status !== 'available'
+  ) {
+    return refusedWith('not_authorized')
+  }
+  // Enabled, but under a notice this build no longer serves. The gateway would
+  // refuse the request by throwing once an attempt is claimed, so the manager
+  // is told here what the Property needs.
+  if (!isAiAuthorizationUnderServedContract(authorization, 'reply_drafting')) {
+    return refusedWith('consent_renewal_required')
+  }
+  if (brandProfile === null) return refusedWith('brand_profile_unavailable')
+  const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
+    providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
+    capability: 'reply_drafting',
+  })
+  if (stopFence === null) return refusedWith('policy_unavailable')
+  return {
+    kind: 'granted',
+    authorization,
+    profile: runtime.profile,
+    brandProfile,
+    stopFence,
+  }
+}
+
 /**
  * A claimed operation that already produced its draft. The draft is
  * session-ephemeral and never stored, so it cannot be delivered again.
@@ -547,27 +627,10 @@ export function createGenerateReplySuggestion(
     if (language.kind === 'settled') return language.result
     const { reviewText, concreteReplyLanguage } = language
 
-    const [authorization, runtime, brandProfile] = await Promise.all([
-      dependencies.authorization.readMerchantAuthorization(input),
-      dependencies.processingProfiles.readForAi(input),
-      dependencies.replyBrandProfiles.readCurrentAiReplyBrandProfile(
-        input.organizationId,
-        input.propertyId,
-      ),
-    ])
-    if (
-      !isReplyDraftingAuthorized(authorization, input) ||
-      runtime.status !== 'available'
-    ) {
-      return unavailable('not_authorized')
-    }
-    if (brandProfile === null) return unavailable('brand_profile_unavailable')
+    const grant = await resolveDraftingGrant(dependencies, input)
+    if (grant.kind === 'refused') return grant.result
+    const { authorization, profile, brandProfile, stopFence } = grant
     const nowEpochMillis = dependencies.nowEpochMillis()
-    const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
-      providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
-      capability: 'reply_drafting',
-    })
-    if (stopFence === null) return unavailable('policy_unavailable')
 
     const canonicalSource = encodeCanonicalAiReviewSource({
       text: reviewText,
@@ -577,7 +640,6 @@ export function createGenerateReplySuggestion(
     })
     const sourceProvenance = aiReviewSourceProvenance(canonicalSource.bytes)
     canonicalSource.bytes.fill(0)
-    const profile = runtime.profile
     const replyDraftingEpoch = authorization.capabilityEpochs.reply_drafting.epoch
     const currentnessFence = {
       authorizationLineageId: authorization.authorizationLineageId,

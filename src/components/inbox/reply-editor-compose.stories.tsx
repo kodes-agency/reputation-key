@@ -1146,6 +1146,52 @@ export const AiRepliesNotEnabledForManager: Story = {
   },
 }
 
+const onGenerateConsentRenewalRequired = fn(async (): Promise<ReplySuggestionResult> => ({
+  status: 'unavailable',
+  code: 'consent_renewal_required',
+  retryAfterEpochMillis: null,
+})).mockName('onGenerateConsentRenewalRequired')
+
+// AI is on for the Property, under a notice older than the one now served. The
+// refusal names the notice, not "AI is off", and the template stays on offer.
+export const AiNoticeNeedsConfirming: Story = {
+  decorators: [withRole('AccountAdmin')],
+  args: {
+    initialText: 'Thank you for sharing your experience.',
+    onGenerateSuggestion: onGenerateConsentRenewalRequired,
+  },
+  play: async ({ canvas }) => {
+    onGenerateConsentRenewalRequired.mockClear()
+
+    await expectDraftRefusedWith(canvas, /the ai notice for this property was updated/i)
+    expect(canvas.getByRole('link', { name: 'Review the AI notice' })).toHaveAttribute(
+      'href',
+      expect.stringContaining(
+        '/properties/10000000-0000-4000-8000-000000000101/settings/ai',
+      ),
+    )
+    expect(canvas.getByRole('button', { name: /use a template instead/i })).toBeVisible()
+    expect(canvas.queryByText(/AI is off for this property/i)).toBeNull()
+  },
+}
+
+// Confirming the notice is an AccountAdmin's decision, like turning AI on.
+export const AiNoticeNeedsConfirmingForManager: Story = {
+  args: {
+    initialText: 'Thank you for sharing your experience.',
+    onGenerateSuggestion: onGenerateConsentRenewalRequired,
+  },
+  play: async ({ canvas }) => {
+    onGenerateConsentRenewalRequired.mockClear()
+
+    await expectDraftRefusedWith(canvas, /the ai notice for this property was updated/i)
+    expect(
+      canvas.getByText('Ask an account admin to confirm the updated AI notice.'),
+    ).toBeVisible()
+    expect(canvas.queryByRole('link', { name: 'Review the AI notice' })).toBeNull()
+  },
+}
+
 // A busy interactive lane is our own capacity, not a failure: the composer
 // says so, counts down to the retry time the server gave, and offers the
 // governed template as a separate choice. Nothing is substituted.
