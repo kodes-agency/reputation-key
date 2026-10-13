@@ -553,23 +553,40 @@ is refused with `irreversible_state` in the application and
 `irreversible once purging has begun` in direct SQL.
 
 **Asynchronous purge.** `advance-property-erase.job.ts` advances at most ONE
-Property per pass. Each context's erase writes an append-only receipt in the
-same transaction as its deletes, so an interruption resumes from the receipts
-rather than re-running contexts that already answered. A `no_data` receipt is
-still evidence — a context with nothing to erase must be distinguishable from a
-context that was never asked. Completion appends the backup-erasure ledger entry
-described in §8.
+Property per pass, and a pass is one transaction. Every context's deletes and
+its append-only receipt, the move to `purged` and the backup-erasure ledger
+entry described in §8 commit together or not at all. An interruption, or one
+context that fails, rolls the whole pass back, the receipts of the contexts
+that had already answered included, and the next pass asks every context
+again: nothing is left half erased and nothing is resumed from receipts. A
+`purging` authority is always the next one picked, so a context that keeps
+failing stops erasure at that Property, ahead of every other, until its cause
+is repaired. A `no_data` receipt is still evidence — a context with nothing to
+erase must be distinguishable from a context that was never asked.
 
-**What survives.** The `properties` row survives as a tombstone with its
-descriptive content scrubbed: `purged` is a declared lifecycle state and the
+**What survives.** The `properties` row survives as a tombstone with its name,
+slug and address scrubbed: `purged` is a declared lifecycle state and the
 tombstone keeps every receipt, audit row and ledger entry that names the
 Property resolvable. Sibling Properties in the same Organization are
 byte-identical, and independently retained managerial work (replies to reviews
 of other Properties, org-level `audit_logs`) is untouched.
 
+The tombstone is not yet content-free. The Property contributor does not scrub
+the archive note (`lifecycle_reason`, 3 to 500 characters of free text an
+AccountAdmin typed) or the Google binding: the account and location suffixes,
+the Organization connection reference, the binding state (still `active` when
+the Property was never disconnected) and the review URI. Because the
+per-Organization unique index on the location suffix leaves out only rows with
+`deleted_at` set, the erased Property's Google location also cannot be imported
+into that Organization again (`location_already_bound`).
+
 **Not yet armed.** `scripts/ops/property-erase.ts` refuses `--apply` and says so.
 Only the Guest and Property erase contributors exist; the remaining fourteen
-contexts, the container composition and the job registration are pending.
+contexts, the container composition and the job registration are pending. So is
+one owner decision: whether the erase clears the archive note and the Google
+binding from the tombstone, and with them the block on importing the location
+again. It changes which stored data an erase removes, so it is not made in
+code until it is decided.
 
 ---
 

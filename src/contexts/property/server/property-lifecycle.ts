@@ -5,6 +5,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { toBrowserProperty } from '../application/dto/browser-property.dto'
 import {
   archivePropertyInputSchema,
   propertyLifecycleTargetSchema,
@@ -29,7 +30,7 @@ export const archivePropertyHandler = createServerOnlyFn(
         data,
         ctx,
       )
-      return { property }
+      return { property: toBrowserProperty(property) }
     } catch (error) {
       if (isPropertyError(error)) {
         throwContextError('PropertyError', error, propertyErrorStatus(error.code))
@@ -56,7 +57,11 @@ export const restorePropertyHandler = createServerOnlyFn(
       propertyId: data.propertyId,
     })
     try {
-      return await getContainer().propertyPublicApi.management.restoreProperty(data, ctx)
+      const restored = await getContainer().propertyPublicApi.management.restoreProperty(
+        data,
+        ctx,
+      )
+      return { ...restored, property: toBrowserProperty(restored.property) }
     } catch (error) {
       if (isPropertyError(error)) {
         throwContextError('PropertyError', error, propertyErrorStatus(error.code))

@@ -13,7 +13,9 @@
 // - 'disconnecting' revokes Google access, stops reconciliation, resolves in-flight work.
 // - 'purge_pending' is operator-confirmed; a grace period applies before purging.
 // - 'purging' is the active deletion process; retryable by resource class.
-// - 'purged' is terminal — no data remains; only evidence records.
+// - 'purged' is terminal. The Property row stays as a tombstone so that the
+//   evidence records naming it resolve; what the erase scrubs from it, and what
+//   it still keeps, is stated in property-property-erase.adapter.ts.
 //
 // The irreversible boundary is purge_pending → purging. Before that, recovery
 // to 'active' is possible. After purging starts, there is no rollback.

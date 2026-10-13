@@ -22,6 +22,11 @@ Property lookups.
   destination, and lifecycle facts; repositories and command stores remain
   internal.
 - Export and irreversible lifecycle contributors remain outside `publicApi`.
+- A Property server function answers with `BrowserProperty`
+  (`application/dto/browser-property.dto.ts`), never with the aggregate its use
+  case returns. The Google account and location suffixes, the Organization
+  connection reference and the review URI stay on the server; the manager app is
+  given the binding state and the destination's state and read time (ADR 0050).
 
 ## Model
 
@@ -59,6 +64,7 @@ foreign keys deliberately stop cross-owner deletion.
 3. Destructive Property deletion is unreachable from the normal product in beta. The legacy `deleteProperty` server boundary and use case both fail closed before lookup, purge, provider fencing, or durable writes; `property.delete` maps to the permanently blocked `property.erase` capability.
 4. Archive mutates the existing Property row in place, records the initiating AccountAdmin/reason/deadline, increments `sourceEpoch`, fences the Google review destination as `awaiting_refresh` when one is held (the URI and its pin are kept), and co-commits the content-free `property.archived` fact. It never deletes the Property or a dependent row.
 5. Only an archived Property inside its original recovery window may be restored through the normal product. Restore revalidates at least one current eligible Responsible Manager, increments `sourceEpoch`, co-commits `property.restored`, and reports whether Google reconnection is required. It does not silently reconnect or resume provider work that current binding authorization still denies.
+   The manager check runs before the transition's transaction, so the transition is fenced on `responsibleManagerRevision` as well as on `sourceEpoch` and `profileVersion`. A release or a save of the managers that commits after the check moves the revision under the Property's row lock, and the Restore is refused with `stale_property`: a release of an archived Property raises no notice (invariant 10), so a Restore committed over it would bring back an active Property with a gap nobody was told of. Asked again, Restore answers `property_restore_not_ready`. A release that commits after the Restore finds the Property active and announces the gap itself.
    Restore returns a fenced destination to `verified` when, and only when, the Google binding is still `active` (`googleReviewDestinationStateAfterLifecycleTransition`). Nothing re-reads it from Google and nothing has to: every binding change (disconnect, relink, scrub) moves the binding off `active` or replaces the destination, so an `active` binding still holding a fenced destination is the same binding (connection, account, location) that destination was accepted for. The URI and its pin are unchanged, so a Portal published against it offers the Google action again without republishing. Under any other binding the destination stays `awaiting_refresh` until a relink accepts a new one, and a Property with no destination keeps none.
 6. Property Google disconnect is a separate, idempotent action available only after Archive. It changes only the Property-owned binding generation and destination readiness; the Organization Google connection, stable Property identity, provider suffix history, and retained managerial data remain intact. Provider identity scrubbing and permanent erasure are not part of this action.
 7. An expired recovery window leaves the Property archived for support handling. There is no automatic purge, hard-delete path, or irreversible erasure in this slice; support-mediated permanent erasure remains separate LIF-01 work.
@@ -107,17 +113,18 @@ foreign keys deliberately stop cross-owner deletion.
 13. Portal and Guest rows RESTRICT Property deletion until their own purge receipts
     exist. It is never converted into a cascade that erases another owner's rows without that owner's receipt.
 14. A Property update writes only the columns the request changes, and answers
-    and records `property.updated` from the row as committed. Country is the
-    exception: it is written, with `countrySource: 'manual'`, whenever the
-    request carries it, changed or not, and the Profile form always carries it.
-    The request reads
-    the Property without a lock and its fence covers the Google binding
-    (`sourceEpoch`) and the name and timezone (`profileVersion`) only, so a slug
-    or reply language repeated from that read would undo another admin's save of
-    it. A save that read the Property before a rename or timezone change
-    committed is refused (`stale_property`); two saves of the same other column
-    are last-write-wins, and so is a country edit against a later Profile save
-    that read the old country.
+    and records `property.updated` from the row as committed. The country is no
+    exception, although the Profile form sends it with every save: a country
+    that repeats the stored one is left out, so a save that changes nothing
+    writes nothing and records no fact, and the source the country was recorded
+    under stays as it is. A country or a timezone the manager does change is
+    recorded with source `tenant_confirmed`, the one source Reporting's setup
+    facts accept for either. The request reads the Property without a lock and
+    its fence covers the Google binding (`sourceEpoch`) and the name and
+    timezone (`profileVersion`) only, so a slug, reply language or country
+    repeated from that read would undo another admin's save of it. A save that
+    read the Property before a rename or timezone change committed is refused
+    (`stale_property`); two saves of the same other column are last-write-wins.
 
 ## Verification
 
@@ -130,3 +137,5 @@ Disconnect, Restore and relink as the product does and asserts what Portal
 publication and the guest page are then told about the Google destination.
 `property-update-overlap.integration.test.ts` overlaps two Property saves and
 asserts that neither undoes the other.
+`property-restore-manager-fence.integration.test.ts` releases the last
+Responsible Manager between Restore's check and its commit, and after it.

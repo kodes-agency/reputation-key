@@ -186,6 +186,9 @@ export const restoreProperty =
       expectedSourceEpoch: property.sourceEpoch,
       nextSourceEpoch,
       expectedProfileVersion: property.profileVersion,
+      // Read before the manager check above, so a release or a save of the
+      // managers that commits after that check is refused by the store.
+      expectedResponsibleManagerRevision: property.responsibleManagerRevision,
       reason: null,
       recoveryDeadline: null,
       initiatedBy: ctx.userId,

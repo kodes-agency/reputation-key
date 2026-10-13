@@ -8,7 +8,9 @@
 //   count, never a review body, a guest rating or a staff member's name.
 //
 //   erase() is IRREVERSIBLE and runs after confirmation, asynchronously, one
-//   Property at a time, resuming from persisted receipts.
+//   Property at a time, inside the transaction of the job's pass. A context
+//   that throws undoes the whole pass, every other context's erase and receipt
+//   included, and is asked again by the next one.
 //
 // A contributor that answers `no_data` still answers. An omitted contributor
 // would make a partial erasure look complete, which is the same failure the

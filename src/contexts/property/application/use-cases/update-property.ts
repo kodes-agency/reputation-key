@@ -63,13 +63,23 @@ async function assertSlugAvailable(
   return newSlug
 }
 
+/**
+ * The country this request changes, or null when it carries none or repeats the
+ * stored one. The Profile form sends the country with every save, so repeating
+ * it is not an edit: it must not rewrite the row or the source the country was
+ * recorded under. A country the manager does change is the tenant confirming
+ * it, as a timezone they change is, and Reporting's setup facts accept no other
+ * source for either.
+ */
 function resolveCountryUpdate(
+  existing: Property,
   countryCodeInput: string | undefined,
-): Readonly<{ countryCode: string; countrySource: 'manual' }> | null {
+): Readonly<{ countryCode: string; countrySource: 'tenant_confirmed' }> | null {
   if (countryCodeInput === undefined) return null
   const countryResult = normalizeCountryCode(countryCodeInput)
   if (countryResult.isErr()) throw countryResult.error
-  return { countryCode: countryResult.value, countrySource: 'manual' }
+  if (countryResult.value === existing.countryCode) return null
+  return { countryCode: countryResult.value, countrySource: 'tenant_confirmed' }
 }
 
 async function validateUpdateFields(
@@ -101,7 +111,7 @@ async function validateUpdateFields(
     newTimezone = tzResult.value
   }
 
-  const country = resolveCountryUpdate(input.countryCode)
+  const country = resolveCountryUpdate(existing, input.countryCode)
 
   return {
     newName,
@@ -125,10 +135,8 @@ type ValidatedUpdateFields = Awaited<ReturnType<typeof validateUpdateFields>>
  * the timezone alone (it pins reply drafts and the Google destination), so a
  * slug or reply language repeated here from that read would silently undo
  * another admin's save of it that committed in between. A column the request
- * leaves as it found it is therefore left out of the write.
- *
- * Country is the exception: it is written whenever the request carries it,
- * changed or not, so that the source becomes `manual`.
+ * leaves as it found it is therefore left out of the write, the country the
+ * Profile form always sends included (`resolveCountryUpdate`).
  */
 function changedColumns(
   existing: Property,
