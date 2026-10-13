@@ -25,30 +25,63 @@ import {
   portalLinkCategoryId as toCategoryId,
   portalLinkId as toLinkId,
 } from '#/shared/domain/ids'
-import { requireMatchingPortalResourceScopes } from './property-scope'
+import {
+  requireMatchingPortalResourceScopes,
+  requireResourcesInPortalScope,
+  type PortalResourceScope,
+} from './property-scope'
+
+const linkResourceNotFound = () =>
+  portalError('link_not_found', 'portal link resource not found')
+
+/** A scope refusal is answered the way a use-case refusal is. */
+function throwScopeRefusal(error: unknown): never {
+  if (isPortalError(error))
+    throwContextError('PortalError', error, portalErrorStatus(error.code))
+  throw error
+}
 
 // Re-export domain rules for route-layer consumption (boundary compliance)
 async function authorizePortalLinkScopes(
   ctx: AuthContext,
   action: 'portal.create' | 'portal.read' | 'portal.update' | 'portal.delete',
-  lookups: readonly (() => Promise<{
-    organizationId: string
-    propertyId: string
-    portalId?: string
-  } | null>)[],
-): Promise<void> {
+  lookups: readonly (() => Promise<PortalResourceScope | null>)[],
+): Promise<PortalResourceScope> {
   try {
-    await requireMatchingPortalResourceScopes({
+    return await requireMatchingPortalResourceScopes({
       actor: ctx,
       action,
       capability: action === 'portal.read' ? 'portal.read' : 'portal.write',
-      notFound: portalError('link_not_found', 'portal link resource not found'),
+      notFound: linkResourceNotFound(),
       lookups,
     })
   } catch (error) {
-    if (isPortalError(error))
-      throwContextError('PortalError', error, portalErrorStatus(error.code))
-    throw error
+    throwScopeRefusal(error)
+  }
+}
+
+/**
+ * The links a request names beside a Portal the policy has admitted the caller
+ * to. Each is still looked up: a link of another Portal, or an id that names no
+ * row (a malformed one included), is "not found" before the use case runs.
+ */
+async function requireLinksInScope(
+  scope: PortalResourceScope,
+  linkIds: readonly string[],
+): Promise<void> {
+  try {
+    await requireResourcesInPortalScope({
+      scope,
+      notFound: linkResourceNotFound(),
+      lookups: linkIds.map(
+        (linkId) => () =>
+          getContainer().portalPublicApi.management.resolvePortalLinkManagementScope(
+            toLinkId(linkId),
+          ),
+      ),
+    })
+  } catch (error) {
+    throwScopeRefusal(error)
   }
 }
 
@@ -155,7 +188,11 @@ export const reorderLinks = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await authorizePortalLinkScopes(ctx, 'portal.update', [
+        // The Portal and the category decide the Property, so the policy is
+        // asked on those two alone. The links the caller named are read only
+        // once it has admitted the caller: a refused request costs two lookups,
+        // however many links it names.
+        const scope = await authorizePortalLinkScopes(ctx, 'portal.update', [
           () =>
             getContainer().portalPublicApi.management.resolvePortalManagementScope(
               toPortalId(data.portalId),
@@ -164,13 +201,11 @@ export const reorderLinks = createServerFn({ method: 'POST' })
             getContainer().portalPublicApi.management.resolvePortalCategoryManagementScope(
               toCategoryId(data.categoryId),
             ),
-          ...data.items.map(
-            (item) => () =>
-              getContainer().portalPublicApi.management.resolvePortalLinkManagementScope(
-                toLinkId(item.id),
-              ),
-          ),
         ])
+        await requireLinksInScope(
+          scope,
+          data.items.map((item) => item.id),
+        )
         try {
           const { management: useCases } = getContainer().portalPublicApi
           await useCases.reorderLinks(data, ctx)

@@ -22,7 +22,7 @@ describe('Integration infrastructure time authority', () => {
     const build = read('src/contexts/integration/build.ts')
 
     expect(build).toMatch(
-      /createGoogleConnectionRepository\(\s*deps\.db,\s*propertyFkCleanup,\s*deps\.clock,?\s*\)/u,
+      /createGoogleConnectionRepository\(\s*deps\.db,\s*deps\.clock,?\s*\)/u,
     )
     expect(build).toMatch(
       /createAtomicIntegrationCommandStore\(\s*deps\.db,\s*deps\.clock,?\s*\)/u,
