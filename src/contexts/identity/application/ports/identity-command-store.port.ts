@@ -26,6 +26,16 @@ export type AcceptedInvitation = Readonly<{
   inviterId: UserId | null
 }>
 
+/**
+ * What an acceptance committed: the consumed invitation, with its Properties
+ * granted in the same transaction as the membership. `ungrantedPropertyIds`
+ * names the invited Properties that were not granted: deleted since the
+ * invitation was sent, not a Property of this Organization, or an id that
+ * names none. They never hold the acceptance back.
+ */
+export type InvitationAcceptance = AcceptedInvitation &
+  Readonly<{ ungrantedPropertyIds: ReadonlyArray<string> }>
+
 /** Read-only invitation preflight before an account is created. */
 export type ValidateInvitationRegistrationCommand = Readonly<{
   invitationId: InvitationId
@@ -57,10 +67,10 @@ export type InviteMemberCommand = Readonly<{
 
 /**
  * Accept an invitation: FOR UPDATE lock + email/lifecycle/role re-validation
- * + member insert + invitation status update + invitation.accepted fact in
- * one transaction. The fact depends on invitation-row data read inside the
- * transaction (org id, property ids), so the caller supplies a factory that
- * the store invokes under the lock.
+ * + member insert + invitation status update + the invited Property access
+ * grants + invitation.accepted fact in one transaction. The fact depends on
+ * invitation-row data read inside the transaction (org id, property ids), so
+ * the caller supplies a factory that the store invokes under the lock.
  */
 export type AcceptInvitationCommand = Readonly<{
   invitationId: InvitationId
@@ -145,7 +155,7 @@ export type IdentityCommandStore = Readonly<{
     command: ValidateInvitationRegistrationCommand,
   ): Promise<void>
   inviteMember(command: InviteMemberCommand): Promise<void>
-  acceptInvitation(command: AcceptInvitationCommand): Promise<AcceptedInvitation>
+  acceptInvitation(command: AcceptInvitationCommand): Promise<InvitationAcceptance>
   renewInvitation(command: RenewInvitationCommand): Promise<RenewedInvitation>
   cancelInvitation(command: CancelInvitationCommand): Promise<void>
   removeMember(command: RemoveMemberCommand): Promise<void>

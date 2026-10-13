@@ -97,21 +97,6 @@ export type IdentityPort = Readonly<{
   ) => Promise<Readonly<{ id: string; email: string; name?: string }> | null>
 
   /**
-   * Post-acceptance hook — provision the explicitly invited Property access
-   * grants (replaces BA's afterAcceptInvitation hook, which the app-owned
-   * accept path bypasses). It never creates Staff participation or attribution.
-   * Failure-isolated inside the adapter. `inviterId` is who sent the
-   * invitation, when the accepting path knows it; grants record them as their
-   * creator.
-   */
-  runOnAcceptInvitation: (ctx: {
-    userId: string
-    organizationId: string
-    propertyIds: ReadonlyArray<string>
-    inviterId?: string
-  }) => Promise<void>
-
-  /**
    * Create a custom role definition (organizationRole + organization_role_policy) in one
    * atomic transaction. App-owned write path — the raw BA create-role endpoint is blocked.
    * Throws `already_exists` on a duplicate (case-insensitive) role name in the org.

@@ -9,6 +9,7 @@ import { APIError } from 'better-auth'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { identityError } from '../domain/errors'
+import { INVITATION_PAUSED_MESSAGE } from '../domain/invitation-copy'
 
 const mocks = vi.hoisted(() => ({
   registerInvitedUser: vi.fn(),
@@ -197,6 +198,22 @@ describe('registerMember', () => {
       name: 'IdentityError',
       code: 'account_exists',
       status: 409,
+    })
+    expect(mocks.signInEmail).not.toHaveBeenCalled()
+  })
+
+  it('answers a stopped Organization with 403 and the fixed copy, and does not sign in', async () => {
+    mocks.registerInvitedUser.mockRejectedValue(
+      identityError('forbidden', INVITATION_PAUSED_MESSAGE),
+    )
+
+    await expect(
+      withStartContext(() => registerMemberHandler({ data: REGISTRATION })),
+    ).rejects.toMatchObject({
+      name: 'IdentityError',
+      code: 'forbidden',
+      status: 403,
+      message: 'This invitation cannot be accepted right now. Try again later.',
     })
     expect(mocks.signInEmail).not.toHaveBeenCalled()
   })

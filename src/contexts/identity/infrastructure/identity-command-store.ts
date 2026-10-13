@@ -3,7 +3,9 @@
 // One PostgreSQL transaction per command commits the better-auth-owned state
 // mutation (invitation / member rows — the app-owned write path, the same
 // precedent as the pre-existing acceptInvitation transaction and the
-// custom-role writes) together with its outbox_events fact.
+// custom-role writes) together with its outbox_events fact. Acceptance also
+// commits the invitation's Property access grants there: Identity owns that
+// table, and an accepted invitation cannot be accepted again to add them.
 //
 // Crash contract:
 // - Crash anywhere inside the transaction rolls back BOTH the state mutation
@@ -44,6 +46,7 @@ import {
   toOpenInvitations,
   type OpenInvitation,
 } from '../domain/invitation-store-rules'
+import { grantInvitedPropertyAccess } from './invited-property-access'
 import { revokeAllPropertyAccessForUser } from './repositories/property-access-grant.repository'
 import type {
   AcceptedInvitation,
@@ -409,11 +412,24 @@ export const createAtomicIdentityCommandStore = (
             .update(invitation)
             .set({ status: 'accepted' })
             .where(eq(invitation.id, inv.id))
-          // 8. The fact carries invitation-row data read under the lock.
+          // 8. The invited Property access, with the membership it belongs
+          //    to. A step after the commit could fail or never run, and an
+          //    accepted invitation cannot be accepted again to repeat it.
           const accepted: AcceptedInvitation = consumedInvitation(inv)
+          const ungrantedPropertyIds = await grantInvitedPropertyAccess(tx, {
+            organizationId: inv.organizationId,
+            userId: command.acceptorUserId as string,
+            propertyIds: accepted.propertyIds,
+            inviterId: inv.inviterId,
+            now: command.now,
+          })
+          // 9. The fact carries invitation-row data read under the lock.
           const fact = command.buildEvent(accepted)
           await insertOutboxRow(tx, fact)
-          return { kind: 'accepted' as const, result: accepted }
+          return {
+            kind: 'accepted' as const,
+            result: { ...accepted, ungrantedPropertyIds },
+          }
         })
         if (outcome.kind === 'rejected') {
           throw identityError('forbidden', outcome.message)

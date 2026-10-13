@@ -1,6 +1,7 @@
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { identityError } from '../domain/errors'
+import { INVITATION_PAUSED_MESSAGE } from '../domain/invitation-copy'
 
 const mocks = vi.hoisted(() => ({
   acceptInvitation: vi.fn(),
@@ -53,6 +54,26 @@ describe('invitation server handlers', () => {
       name: 'IdentityError',
       code: 'invitation_not_found',
       status: 404,
+    })
+    expect(mocks.resetTenantCache).not.toHaveBeenCalled()
+  })
+
+  it('answers a stopped Organization with 403 and the fixed copy', async () => {
+    mocks.acceptInvitation.mockRejectedValue(
+      identityError('forbidden', INVITATION_PAUSED_MESSAGE),
+    )
+
+    await expect(
+      withStartContext(() =>
+        acceptInvitation({
+          data: { invitationId: '0198db6a-dc93-7d85-aa08-d75669070e80' },
+        }),
+      ),
+    ).rejects.toMatchObject({
+      name: 'IdentityError',
+      code: 'forbidden',
+      status: 403,
+      message: 'This invitation cannot be accepted right now. Try again later.',
     })
     expect(mocks.resetTenantCache).not.toHaveBeenCalled()
   })
