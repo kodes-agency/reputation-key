@@ -465,6 +465,7 @@ way.
 | Colour | The tokens in `src/styles.css` | Every colour: no palette class, no `oklch()` or hex in a component. Red text is `text-negative` | | The guest renderer keeps its own colours | `ui/tone-sources.test.ts`, `ui/token-contrast.test.ts` |
 | Links | `InlineLink` from `#/components/ui/inline-link`<br>`NavLink` from `#/components/ui/nav-link` | A plain `<a>` or `Link` is a content link in the accent ink; a link with its own ink opts out by `data-slot` | | | `ui/link-ink.test.ts` |
 | Dates and numbers | `formatDate`, `formatNumber` from `#/lib/format` | The one place a date or a number becomes text | | Notifications and the guest renderer honour a person's or a guest's own locale | `src/lib/format-usage.test.ts` |
+| Goal measure names | `goalMetricLabel` from `#/components/goals/goal-metric-label`<br>`goalPageMetricLabel` from `#/components/goals/goal-detail-view` | What a goal's measure is called: the first on the Goals page, in its results matrix, on a group's goal card and in a goal's name; the second on a goal's own page and in its forms | | The two wordings ("Private ratings", "Private rating count") are the month-target work's; making them one is an owner decision | `goals/goal-metric-label-sources.test.ts` |
 | Action copy | The Action copy section of this file | The words of a button, a confirmation and a crumb | | Domain verbs (Archive, Remove, Restore) and "Keep X" cancel labels | `ui/copy-sources.test.ts` |
 
 ## Server-function boundary
