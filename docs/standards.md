@@ -222,10 +222,10 @@ type ContextApi<T> = Readonly<{
   an exception stands only where the owning `CONTEXT.md` names it:
   - a request-surface member holds application functions: not a repository, a
     command store, a worker control or an irreversible lifecycle phase. The
-    named exceptions are single reads and edge controls published as they are:
-    Portal's scope lookups and its destination revalidation, Integration's
-    `imports.findInitiator` and OAuth callback controls, Guest's session and
-    abuse controls;
+    named exceptions: Portal's scope lookups (repository reads published as
+    they are) and its destination revalidation (the worker's control),
+    Integration's `imports.findInitiator` (a store read) and OAuth callback
+    controls, Guest's session and abuse controls;
   - a function on it that acts for a signed-in member is held to §2.2 and
     authorizes that member itself, so calling it without its server function
     gains nothing. The named exceptions: Integration's
