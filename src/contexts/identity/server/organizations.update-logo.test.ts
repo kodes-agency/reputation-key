@@ -84,7 +84,10 @@ describe('updateOrganization removing the logo', () => {
   it('keeps the object when the removal could not be saved', async () => {
     mocks.saveOrganization.mockRejectedValue(new Error('provider down'))
 
-    await expect(update({ logo: null })).rejects.toBeDefined()
+    await expect(update({ logo: null })).rejects.toMatchObject({
+      name: 'InternalError',
+      status: 500,
+    })
 
     expect(mocks.deleteObject).not.toHaveBeenCalled()
   })

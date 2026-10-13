@@ -190,7 +190,7 @@ describe('listPortals handler (executable)', () => {
 
     await expect(
       withStartContext(() => getPortalHistory({ data: { portalId: 'portal-p2' } })),
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({ _tag: 'AuthError', code: 'property_disabled', status: 403 })
     expect(mocks.getPortalHistory).not.toHaveBeenCalled()
   })
 

@@ -150,8 +150,10 @@ check); the use case's decision is the one a caller that is not a server functio
 
 `getDashboardDataFn` is the one server function no route calls: the Property dashboard
 moved to `getPropertyOverviewFn`. It stays because the dashboard-governance and
-review-expiry e2e specs call it by export name to prove the governed read (grant
-filtering, reply redaction, expired-Review exclusion).
+review-expiry e2e specs call it by export name to prove the governed read: grant
+filtering and expired-Review exclusion, as a PropertyManager with one grant. Reply
+redaction has no session that can ask for it in the beta (both interactive roles may
+manage replies), so that e2e case is parked and `get-dashboard-data.test.ts` holds the rule.
 
 The unified `buildReportingContext` returns one public interface, one combined outbox
 registration function, Goal maintenance, metric maintenance, and named lifecycle/export

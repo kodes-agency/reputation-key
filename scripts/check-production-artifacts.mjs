@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { readdir, readFile, stat } from 'node:fs/promises'
-import { extname, relative, resolve } from 'node:path'
+import { extname, relative, resolve, sep } from 'node:path'
 
 const TEXT_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.map', '.json'])
 
@@ -23,6 +23,22 @@ const FORBIDDEN_CONTENT = Object.freeze([
 // documents operator paths as inert data; treating those labels as imports
 // would produce a false positive. A matching source-map entry, by contrast,
 // proves the source was actually bundled.
+//
+// The other side of that choice: these rules read source maps and nothing
+// else, so a tree with no map passes them without their having looked at
+// anything. A caller that knows where maps must be names each such directory
+// with `--require-source-maps <directory>`, and a named directory in which no
+// map names a source is a violation. CI names the client maps and the worker
+// bundle. The image build names the worker bundle and runs before it deletes
+// the maps; its client maps may already be gone, uploaded and deleted by the
+// Sentry plugin when a token is present.
+//
+// One bundle is out of reach either way: Nitro writes no source map for the
+// server chunks under `.output/server` (measured 2026-10-13, a build with CI's
+// environment: 325 client maps, 3 worker maps, and under `server/` only the
+// tsup preload's). No run of this script reads what was bundled into the web
+// server; the ESLint boundary that keeps `src` from importing `scripts/` is
+// the only guard there.
 const FORBIDDEN_SOURCES = Object.freeze([
   {
     label: 'E2E seeder source',
@@ -70,6 +86,9 @@ async function filesBelow(root) {
 /**
  * A source map that cannot be read is itself a violation: an unreadable map
  * cannot prove that no forbidden source was bundled.
+ *
+ * Answers whether the map named a source, which is what makes it evidence: a
+ * map with an empty `sources` list says nothing about what was bundled.
  */
 function collectSourceMapViolations(name, contents, violations) {
   let sourceMap
@@ -77,36 +96,58 @@ function collectSourceMapViolations(name, contents, violations) {
     sourceMap = JSON.parse(contents)
   } catch {
     violations.push(`${name}: invalid source map JSON`)
-    return
+    return false
   }
   if (!Array.isArray(sourceMap.sources)) {
     violations.push(`${name}: source map has no sources array`)
-    return
+    return false
   }
+  let namedSource = false
   for (const source of sourceMap.sources) {
     if (typeof source !== 'string') {
       violations.push(`${name}: source map contains a non-string source`)
       continue
     }
+    namedSource = true
     for (const rule of FORBIDDEN_SOURCES) {
       if (rule.pattern.test(source)) {
         violations.push(`${name}: ${rule.label} (${source})`)
       }
     }
   }
+  return namedSource
 }
 
-/** Grade one artifact by its name, and — when it is text — by its contents. */
+/**
+ * Grade one artifact by its name, and — when it is text — by its contents.
+ * Answers whether it was a source map that named a source.
+ */
 function collectFileViolations(name, path, bytes, violations) {
   for (const pattern of FORBIDDEN_NAMES) {
     if (pattern.test(name)) violations.push(`${name}: forbidden executable/source name`)
   }
-  if (!TEXT_EXTENSIONS.has(extname(path))) return
+  if (!TEXT_EXTENSIONS.has(extname(path))) return false
   const contents = bytes.toString('utf8')
   for (const rule of FORBIDDEN_CONTENT) {
     if (rule.pattern.test(contents)) violations.push(`${name}: ${rule.label}`)
   }
-  if (extname(path) === '.map') collectSourceMapViolations(name, contents, violations)
+  if (extname(path) !== '.map') return false
+  return collectSourceMapViolations(name, contents, violations)
+}
+
+/**
+ * A directory the caller says must carry source maps, in which none named a
+ * source, gave the forbidden-source rules nothing to read.
+ */
+function collectMissingSourceMapViolations(directories, sourceMapPaths, violations) {
+  for (const directory of directories) {
+    const within = `${resolve(directory)}${sep}`
+    if (sourceMapPaths.some((path) => path.startsWith(within))) continue
+    const name = relative(process.cwd(), resolve(directory)).replaceAll('\\', '/')
+    violations.push(
+      `${name}: no source map names a source here, so the forbidden-source rules read nothing`,
+    )
+  }
 }
 
 // Nitro bundles its static-asset manifest (`#nitro/virtual/public-assets-data`)
@@ -180,9 +221,10 @@ async function collectPublicAssetViolations(root, violations) {
   }
 }
 
-async function inspect(roots) {
+async function inspect(roots, requiredSourceMapDirectories) {
   const digest = createHash('sha256')
   const violations = []
+  const sourceMapPaths = []
   let fileCount = 0
   for (const root of roots) {
     for (const path of await filesBelow(root)) {
@@ -191,33 +233,59 @@ async function inspect(roots) {
       const bytes = await readFile(path)
       digest.update(`${name}\0`)
       digest.update(bytes)
-      collectFileViolations(name, path, bytes, violations)
+      if (collectFileViolations(name, path, bytes, violations)) sourceMapPaths.push(path)
     }
     await collectPublicAssetViolations(root, violations)
   }
   if (fileCount === 0) throw new Error('Artifact roots contain no files')
+  collectMissingSourceMapViolations(
+    requiredSourceMapDirectories,
+    sourceMapPaths,
+    violations,
+  )
   return {
     digest: digest.digest('hex'),
     fileCount,
+    sourceMapCount: sourceMapPaths.length,
     violations: [...new Set(violations)].sort(),
   }
 }
 
-async function main() {
-  const roots = process.argv.slice(2)
-  if (roots.length === 0) {
-    throw new Error(
-      'Usage: node scripts/check-production-artifacts.mjs <artifact-root> [...]',
-    )
+const REQUIRE_SOURCE_MAPS = '--require-source-maps'
+const USAGE = `Usage: node scripts/check-production-artifacts.mjs [${REQUIRE_SOURCE_MAPS} <directory>]... <artifact-root> [...]`
+
+/** Artifact roots, and the directories the caller says must carry source maps. */
+function parseArguments(args) {
+  const roots = []
+  const requiredSourceMapDirectories = []
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] !== REQUIRE_SOURCE_MAPS) {
+      roots.push(args[index])
+      continue
+    }
+    index += 1
+    const directory = args[index]
+    if (directory === undefined || directory.startsWith('--')) {
+      throw new Error(`${REQUIRE_SOURCE_MAPS} needs a directory\n${USAGE}`)
+    }
+    requiredSourceMapDirectories.push(directory)
   }
-  const result = await inspect(roots)
+  return { roots, requiredSourceMapDirectories }
+}
+
+async function main() {
+  const { roots, requiredSourceMapDirectories } = parseArguments(process.argv.slice(2))
+  if (roots.length === 0) throw new Error(USAGE)
+  const result = await inspect(roots, requiredSourceMapDirectories)
   if (result.violations.length > 0) {
     throw new Error(
       `Production artifact policy violation:\n${result.violations.map((item) => `- ${item}`).join('\n')}`,
     )
   }
+  // `source-maps` is how many maps named a source: the only evidence the
+  // forbidden-source rules have. Zero means they read nothing.
   process.stdout.write(
-    `[production-artifact] OK sha256:${result.digest} files=${result.fileCount}\n`,
+    `[production-artifact] OK sha256:${result.digest} files=${result.fileCount} source-maps=${result.sourceMapCount}\n`,
   )
 }
 

@@ -81,7 +81,7 @@ describe('updateUserImageFn', () => {
 
     await expect(
       save(`/api/public/identity-assets/avatars/user-1/${NEW}`),
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({ name: 'InternalError', status: 500 })
 
     expect(mocks.deleteObject).not.toHaveBeenCalled()
   })
@@ -132,7 +132,7 @@ describe('updateUserImageFn', () => {
       Object.assign(new Error('nope'), { statusCode: 500 }),
     )
 
-    await expect(save(null)).rejects.toBeDefined()
+    await expect(save(null)).rejects.toMatchObject({ name: 'InternalError', status: 500 })
 
     expect(mocks.deleteObject).not.toHaveBeenCalled()
   })
