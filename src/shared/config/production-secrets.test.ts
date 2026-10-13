@@ -110,7 +110,6 @@ describe('findPlaceholderSecrets (BQC-7.6)', () => {
       ['AI_SAFETY_IDENTIFIER_HMAC_KEYS', `safety-v1:${'55'.repeat(32)}`],
       ['AI_ADMISSION_ED25519_PRIVATE_KEY_B64', 'A'.repeat(64)],
       ['AI_PROVENANCE_ED25519_PRIVATE_KEY_B64', 'A'.repeat(64)],
-      ['OPENAI_API_KEY', 'sk-placeholder'],
       ['RESEND_WEBHOOK_SECRET', 'whsec_placeholder'],
       ['AWS_S3_SECRET_ACCESS_KEY', 'x'.repeat(40)],
     ]
@@ -130,7 +129,6 @@ describe('findPlaceholderSecrets (BQC-7.6)', () => {
           'subject-v1:bae857a2ccaa77786a33cca7939076b40db34123ba18d2568ae1e114b068d407',
         AI_ADMISSION_ED25519_PRIVATE_KEY_B64:
           'MC4CAQAwBQYDK2VwBCIEIJ1hsZ3v/VpguoRK9JLsLMREScVpezJpGXA7rAMcrn9g',
-        OPENAI_API_KEY: 'sk-proj-9f4c2e7a1b8d4e6f0a3c5b7d9e2f4a6c8b1d3e5f',
         RESEND_WEBHOOK_SECRET: 'whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw',
         AWS_S3_SECRET_ACCESS_KEY: '6831f3f16002293886e31c0974fe7c8f',
       }),
@@ -201,14 +199,16 @@ describe('assertProductionSecrets (BQC-7.6)', () => {
 describe('the environment schema (BQC-7.6)', () => {
   // The guard's field list is kept by hand beside a schema that grows. Six
   // Google keyrings, three AI keyrings, two AI signing keys, the mail-webhook
-  // secret, the AI provider key and the object-store secret were all in the
-  // schema and not in the list. A field the schema names like a secret is
-  // inspected, or is listed here with why it is not one.
-  const NOT_A_SECRET: Readonly<Record<string, string>> = {
+  // secret and the object-store secret were all in the schema and not in the
+  // list. A field the schema names like a secret is inspected, or is listed
+  // here with why it is not.
+  const NOT_INSPECTED: Readonly<Record<string, string>> = {
     AWS_S3_ACCESS_KEY: 'an access key id; AWS_S3_SECRET_ACCESS_KEY is its secret',
     GOOGLE_OAUTH_TOKEN_URL: 'an address',
     SENTRY_AUTH_TOKEN:
       'the source-map upload credential of the build; the running app never reads it',
+    OPENAI_API_KEY:
+      'issued by the provider, which refuses any other value, and it signs nothing of ours; naming it here would make the guard a second reader of a key that only the module that builds the client may read (provider-client-singleton.test.ts)',
   }
   const isSecretName = (name: string) =>
     /SECRET|SALT|TOKEN|PRIVATE_KEY/.test(name) || /_KEYS?$/.test(name)
@@ -221,14 +221,14 @@ describe('the environment schema (BQC-7.6)', () => {
   it('reads the schema', () => {
     expect(schemaFields).toContain('BETTER_AUTH_SECRET')
     expect(schemaFields).toContain('AI_PROVENANCE_ED25519_PRIVATE_KEY_B64')
-    expect(schemaFields.filter((name) => name in NOT_A_SECRET).sort()).toEqual(
-      Object.keys(NOT_A_SECRET).sort(),
+    expect(schemaFields.filter((name) => name in NOT_INSPECTED).sort()).toEqual(
+      Object.keys(NOT_INSPECTED).sort(),
     )
   })
 
   it('inspects every field the schema names like a secret', () => {
     const uninspected = schemaFields
-      .filter((name) => isSecretName(name) && !(name in NOT_A_SECRET))
+      .filter((name) => isSecretName(name) && !(name in NOT_INSPECTED))
       .filter((name) => {
         const lowEntropy = name.endsWith('_KEYS')
           ? `v1:${'0'.repeat(64)}`
