@@ -137,16 +137,7 @@ const SKIP_REGISTER = [
     file: 'e2e/critical/workflows/dashboard-governance.spec.ts',
     owner: 'engineering',
     reason:
-      'Member login is a dark capability in the closed beta: 52635b32 made only owner/admin tokens beta-interactive, so a Member cannot resolve tenant context and the sign-in fails before any assertion. The test asserts Member-scoped dashboard governance, which is real coverage — it returns when the capability is activated, not by relaxing the fence',
-    maxHits: 1,
-    skippedTests: 1,
-    reviewBy: '2027-01-13',
-  },
-  {
-    file: 'e2e/critical/workflows/property-access.spec.ts',
-    owner: 'engineering',
-    reason:
-      'same dark capability as dashboard-governance: the test signs in as a Member to prove a property-scoped account cannot see another property. The scoping property is worth keeping and comes back with Member login',
+      'one case: reply state redacted for a reader who may not manage replies. It needs a login without reply.manage, and the closed beta has none: AccountAdmin and PropertyManager both hold it, and Member login is dark (isBetaInteractiveRole), so the sign-in fails before any assertion. The rule is held by get-dashboard-data.test.ts. The scoping and expiry halves of the old test run again as a PropertyManager. At review: does a role that signs in without reply.manage exist yet',
     maxHits: 1,
     skippedTests: 1,
     reviewBy: '2027-01-13',

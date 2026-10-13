@@ -607,11 +607,13 @@ export async function getUserByEmail(
  * (assignInboxItemFn validates assignedToUserId as uuid — Better Auth's own
  * nanoid ids fail it; see the slice report).
  *
- * `role` defaults to 'member' (→ Member permissions), which is what
- * property-access.spec.ts and dashboard-governance.spec.ts want: a login that
- * is deliberately NOT beta-interactive, so they can assert property scoping.
+ * `role` defaults to 'member' (→ Member permissions): a login that is
+ * deliberately NOT beta-interactive, so it cannot sign in. Only the parked
+ * reply-redaction case of dashboard-governance.spec.ts still asks for it.
  *
- * Inbox specs must pass 'admin' (a grant-only PropertyManager) or 'owner'.
+ * A spec that needs a property-scoped login that works passes 'admin' (a
+ * grant-only PropertyManager): property-access.spec.ts, the scoped test of
+ * dashboard-governance.spec.ts and the Inbox specs do. 'owner' is an AccountAdmin.
  * Assignment authorizes the ASSIGNEE as its own principal, and Member is not a
  * beta-interactive role, so handing an Inbox item to a Member user is refused
  * with "Inbox command authority is no longer current" before any permission or
