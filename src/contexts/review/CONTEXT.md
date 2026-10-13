@@ -319,9 +319,12 @@ the reply.
 
 A Property reply library has at most one rendering profile and a retained set of
 enabled or disabled templates. Settings edits templates by ID, so a title rename
-updates in place. The operations importer deliberately remains title-keyed for
-repeatability: re-importing a manager-renamed template&rsquo;s former source title
-creates a separate row and never overwrites the renamed template.
+updates in place, and creates by insert: a title another template of the
+Property already holds is refused as `invalid_input`, on create and on rename,
+and never overwrites that template. The operations importer deliberately
+remains title-keyed for repeatability: re-importing a manager-renamed
+template&rsquo;s former source title creates a separate row and never
+overwrites the renamed template.
 
 ## Runtime
 
