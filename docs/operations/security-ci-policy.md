@@ -85,6 +85,26 @@ stay CI-only.
   (storybook/jest, eslint, shadcn CLI) with no production exposure; a hard
   dev-high gate would force immediate risky overrides for zero runtime gain.
   Revisit at the quarterly review.
+- **Dependency audit that could not be read:** the gate passes only on an
+  audit report it could read. pnpm answers a failed request (registry
+  unreachable, a 4xx or 5xx, a body that is no audit report) with exit 1 and an
+  error object on stdout, which is also how it exits when it found something,
+  and until 2026-10-13 the gate read that object as "no advisories" and printed
+  OK. Now a run fails with exit 2 and `the <scope> audit could not be read`
+  when pnpm reports an error, prints anything but a report, leaves out the
+  advisories or the count of a severity the run fails on, lists an advisory
+  whose severity the gate cannot rank, or exits with a status that disagrees
+  with the report's own counts (pnpm 10.6.5 exits 1 when they add up to
+  anything and 0 when they add up to nothing; a pnpm upgrade that changes this
+  turns the gate red on the upgrade itself). Exit 1 stays what an advisory or
+  an exception that breaks the policy gets. No exception covers an unread
+  audit and none is judged in that run. pnpm retries a refused connection and a
+  5xx twice on its own, about 70 seconds in all (measured 2026-10-13), so by
+  the time the gate fails the registry has been asked three times: rerun the
+  job when it answers. There is no switch that skips the audit; one would be
+  the soft gate the hard rule forbids. `scripts/ci/check-dependency-audit.test.ts`
+  runs the gate against each recorded failure and against the real pnpm with
+  an unreachable registry.
 - **Secrets:** any finding fails — secrets have no acceptable severity.
 - **CodeQL:** analysis failure fails the workflow; query findings land as
   code-scanning alerts (Security tab) and are triaged there. (Branch/ruleset
