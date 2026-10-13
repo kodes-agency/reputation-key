@@ -385,6 +385,10 @@ way.
   `src/components/` unless it starts with `src/`. **Review** means nothing enforces
   the family yet, so a reviewer does. A guard's allowlist grows only with a reason
   written beside the entry.
+- The `ui-pattern/*` ESLint rules flag the commonest ways around a family as you
+  type (a raw `<button>`, a height typed on a control, a route drawing its own
+  state). They warn, and `pnpm lint` fails on any warning beyond the 23 sites
+  already there (`docs/standards.md`, section 9), so a new one does not land.
 - `pattern-index.test.ts` checks that every path and guard named here exists.
 
 ### Page frame and states
