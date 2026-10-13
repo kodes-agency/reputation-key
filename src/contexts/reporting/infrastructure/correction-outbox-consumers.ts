@@ -1,3 +1,19 @@
+// Metric's own consumer of `metric.corrected`.
+//
+// Despite its name it reconciles nothing. It checks that the fact's envelope
+// and payload name the same Organization and Property, and records a receipt.
+// The reconciliation a correction needs is Goal's, the revision of closed
+// monthly results, and `goal.metric-correction-reconciliation` does it
+// (metric-correction-outbox-consumers.ts) and writes its own receipt. A
+// receipt under this consumer's name therefore says that Metric saw a
+// well-formed fact, never that the correction was reconciled.
+//
+// Nothing depends on it running. It is kept because its name is stored in
+// `event_consumer_receipts` and is a row in both governance catalogues (the
+// consumer in event-job-catalogue.ts, and `system:metric.record` in
+// entry-point-catalogue.ts, an action no other entry point uses): removing it
+// is a change to those tables, not a local edit.
+
 import type { Database } from '#/shared/db'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { validateEventPayload } from '#/shared/events/schema-registry'
