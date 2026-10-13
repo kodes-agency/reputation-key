@@ -27,6 +27,13 @@ export type PropertyLifecycleTransitionCommand = PropertyLifecycleTransitionBase
         to: 'active'
         reason: null
         recoveryDeadline: null
+        /**
+         * The Responsible Manager revision of the Property the caller checked
+         * for an eligible manager. Every change of the assignments moves it
+         * under the Property's row lock, so a Restore committed against another
+         * revision is refused: its check no longer describes the Property.
+         */
+        expectedResponsibleManagerRevision: number
         event: PropertyRestored
       }>
   )

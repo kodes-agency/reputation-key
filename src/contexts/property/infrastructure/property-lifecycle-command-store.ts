@@ -45,6 +45,21 @@ const assertCommandIntegrity = (command: PropertyLifecycleTransitionCommand): vo
 }
 
 /**
+ * Restore was allowed because an eligible Responsible Manager was assigned when
+ * the use case looked, before this transaction. A release or a save of the
+ * managers that committed since moved the revision under this row's lock, and a
+ * release of an archived Property announces nothing, so committing the Restore
+ * over it would leave an active Property with a gap nobody was told of. Archive
+ * asks nothing of the managers.
+ */
+const responsibleManagersChanged = (
+  command: PropertyLifecycleTransitionCommand,
+  currentRevision: number,
+): boolean =>
+  command.to === 'active' &&
+  currentRevision !== command.expectedResponsibleManagerRevision
+
+/**
  * Property lifecycle mutation authority. The stable Property row is updated
  * in place; no dependent row or provider identity is erased here.
  */
@@ -71,7 +86,8 @@ export const createPropertyLifecycleCommandStore = (
         if (
           current.lifecycleState !== command.from ||
           current.sourceEpoch !== command.expectedSourceEpoch ||
-          current.profileVersion !== command.expectedProfileVersion
+          current.profileVersion !== command.expectedProfileVersion ||
+          responsibleManagersChanged(command, current.responsibleManagerRevision)
         ) {
           throw propertyError(
             'stale_property',
