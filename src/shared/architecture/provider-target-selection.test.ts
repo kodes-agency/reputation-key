@@ -70,17 +70,39 @@ const ALL_SOURCE = walkSource(SRC).filter(
 // guest's browser opens, held to their own allow lists by
 // `google-review-destination.ts` and Portal's `safe-link.ts`. They are not
 // provider endpoints, and this scan does not look for them.
-const GOOGLE_PROVIDER_HOST = /(?<!fonts\.)googleapis\.com|accounts\.google\.com/
+//
+// The scan reads every dotted name out of the text and compares its labels,
+// instead of searching the text with a host pattern: a host is then never
+// taken for part of a longer name, and the check holds no unanchored host
+// expression for a code scanner to question.
+const DOTTED_NAME = /[a-z0-9-]+(?:\.[a-z0-9-]+)+/gi
+
+function isGoogleProviderName(name: string): boolean {
+  const labels = name.toLowerCase().split('.')
+  return labels.some((label, index) => {
+    const next = labels[index + 1]
+    if (label === 'googleapis' && next === 'com') return labels[index - 1] !== 'fonts'
+    return label === 'accounts' && next === 'google' && labels[index + 2] === 'com'
+  })
+}
+
+function namesGoogleProviderHost(text: string): boolean {
+  return (text.match(DOTTED_NAME) ?? []).some(isGoogleProviderName)
+}
 
 describe('BQC-4.3: Google endpoint URLs live only in the composition provider mapping', () => {
   // R1A-10: the scan knew `googleapis.com` only, so an OAuth endpoint on
   // `accounts.google.com` was outside it in any file.
   it('knows the hosts that serve Google endpoints, and leaves guest links alone', () => {
-    const matched = (url: string): boolean => GOOGLE_PROVIDER_HOST.test(url)
+    const matched = namesGoogleProviderHost
     expect(matched('https://mybusiness.googleapis.com/v4')).toBe(true)
     expect(matched('https://accounts.google.com/o/oauth2/v2/auth')).toBe(true)
     expect(matched('https://fonts.googleapis.com/css2')).toBe(false)
     expect(matched('https://search.google.com/local/writereview?placeid=p')).toBe(false)
+    // A host with no scheme in front is read too, in either case.
+    expect(matched("const host = 'OAuth2.GoogleAPIs.com'")).toBe(true)
+    expect(matched('https://accounts.google.com.example.test/')).toBe(true)
+    expect(matched('https://www.google.com/maps')).toBe(false)
   })
 
   it('no source file outside the approved exceptions contains a Google endpoint URL', () => {
@@ -109,7 +131,7 @@ describe('BQC-4.3: Google endpoint URLs live only in the composition provider ma
     ])
 
     const offenders = ALL_SOURCE.filter((f) =>
-      GOOGLE_PROVIDER_HOST.test(readFileSync(f, 'utf-8')),
+      namesGoogleProviderHost(readFileSync(f, 'utf-8')),
     )
       .map(rel)
       .filter((path) => !APPROVED_EXCEPTIONS.has(path))
@@ -120,7 +142,7 @@ describe('BQC-4.3: Google endpoint URLs live only in the composition provider ma
 
     // An entry for a file that no longer holds one lets it gain one unseen.
     const stale = [...APPROVED_EXCEPTIONS].filter(
-      (path) => !GOOGLE_PROVIDER_HOST.test(readFileSync(join(ROOT, path), 'utf-8')),
+      (path) => !namesGoogleProviderHost(readFileSync(join(ROOT, path), 'utf-8')),
     )
     expect(stale, `approved exceptions with no Google endpoint URL: ${stale}`).toEqual([])
   })
@@ -166,7 +188,7 @@ describe('BQC-4.3: provider adapters carry no hardcoded URL and no fallback path
     const violations: string[] = []
     for (const file of adapterFiles) {
       const body = stripComments(readFileSync(file, 'utf-8'))
-      if (GOOGLE_PROVIDER_HOST.test(body))
+      if (namesGoogleProviderHost(body))
         violations.push(`${rel(file)}: hardcoded Google URL`)
       if (/fallback/i.test(body)) violations.push(`${rel(file)}: 'fallback' identifier`)
       if (ALTERNATE_ENDPOINT.test(body))
