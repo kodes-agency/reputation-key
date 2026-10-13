@@ -18,6 +18,11 @@ import { createGuestPropertyEraseContributor } from '#/contexts/guest/infrastruc
 import { getDb, type Database } from '#/shared/db'
 import { appendBackupErasureLedgerEntry } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type { Tx } from '#/shared/outbox/commit'
+import {
+  cancelPropertyErase,
+  type ErasePropertyDeps,
+} from '../application/use-cases/erase-property'
+import type { PropertyEraseCommandStore } from '../application/ports/property-erase-command-store.port'
 import { advancePropertyErase } from './jobs/advance-property-erase.job'
 import { createPropertyPropertyEraseContributor } from './adapters/property-property-erase.adapter'
 import { createPropertyEraseCommandStore } from './property-erase-command-store'
@@ -170,6 +175,92 @@ async function runFullErase(tx: Tx, fixture: Fixture): Promise<string> {
   return authority.id
 }
 
+const HOUR_MS = 60 * 60 * 1_000
+
+/** Request, preview and confirm: an erase waiting for the job's next pass. */
+async function confirmErase(
+  tx: Tx,
+  fixture: Fixture,
+): Promise<Readonly<{ store: PropertyEraseCommandStore; authorityId: string }>> {
+  const store = createPropertyEraseCommandStore(tx as unknown as Database).withTx(tx)
+  const authority = await store.request({
+    organizationId: fixture.organizationId,
+    propertyId: fixture.targetPropertyId,
+    requestedByUserId: fixture.userId,
+    identityVerificationRef: 'identity:webauthn:2027-06-01',
+    supportOperatorId: 'ops-erase',
+    supportAuthorizationRef: 'support:auth:zd-99003',
+    evidenceRef: 'erase:request:zd-99003',
+    correlationId: 'corr-erase-grace',
+    requestedAt: NOW,
+  })
+  await store.recordPreview({
+    authorityId: authority.id,
+    organizationId: fixture.organizationId,
+    inventoryRevision: 1,
+    inventoryDigest: 'a'.repeat(64),
+    retentionPreviewRef: 'retention:preview:2027-06-01',
+    occurredAt: NOW,
+  })
+  await store.confirm({
+    authorityId: authority.id,
+    organizationId: fixture.organizationId,
+    confirmationDigest: 'b'.repeat(64),
+    inventoryRevision: 1,
+    // Still inside the grace period at NOW: a cancel is the documented way out.
+    graceExpiresAt: new Date(NOW.getTime() + HOUR_MS),
+    occurredAt: NOW,
+  })
+  return { store, authorityId: authority.id }
+}
+
+const advanceDeps = (tx: Tx, store: PropertyEraseCommandStore) => ({
+  store,
+  storeIn: () => store,
+  contributors,
+  runInTransaction: async <T>(work: (inner: Tx) => Promise<T>) => work(tx),
+  appendLedgerEntry: appendBackupErasureLedgerEntry,
+  now: () => NOW,
+})
+
+/** The cancel use case over the real store; a cancel needs nothing else. */
+const cancelDeps = (store: PropertyEraseCommandStore): ErasePropertyDeps => ({
+  store,
+  authority: {
+    readLifecycleState: async () => null,
+    isCurrentAccountAdmin: async () => false,
+  },
+  contributors,
+  runInventory: async () => {
+    throw new Error('a cancel takes no inventory')
+  },
+  now: () => NOW,
+})
+
+async function lifecycleState(tx: Tx, propertyId: string): Promise<unknown> {
+  const result = await tx.execute(sql`
+    SELECT lifecycle_state FROM properties WHERE id = ${propertyId}::uuid
+  `)
+  return (result.rows[0] as { lifecycle_state?: unknown } | undefined)?.lifecycle_state
+}
+
+async function authorityRow(tx: Tx, authorityId: string): Promise<unknown> {
+  const result = await tx.execute(sql`
+    SELECT state, cancel_reason_code FROM property_erase_authorities
+    WHERE id = ${authorityId}::uuid
+  `)
+  return result.rows[0]
+}
+
+/** What Restore does to the lifecycle column; the erase store never sees it. */
+async function restoreToActive(tx: Tx, propertyId: string): Promise<void> {
+  await tx.execute(sql`
+    UPDATE properties
+    SET lifecycle_state = 'active', lifecycle_state_changed_at = clock_timestamp()
+    WHERE id = ${propertyId}::uuid
+  `)
+}
+
 async function count(tx: Tx, statement: ReturnType<typeof sql>): Promise<number> {
   const result = await tx.execute(statement)
   return Number((result.rows[0] as { rows: number | string }).rows)
@@ -320,5 +411,82 @@ describe('permanent Property Erase command store (LIF-01-T19)', () => {
         throw ROLLBACK
       }),
     ).rejects.toBe(ROLLBACK)
+  })
+
+  it('returns the Property to archived when the erase is cancelled during the grace period', async () => {
+    let proofCompleted = false
+
+    await expect(
+      db.transaction(async (raw) => {
+        const tx = raw as unknown as Tx
+        const fixture = await seed(tx)
+        const { store, authorityId } = await confirmErase(tx, fixture)
+        expect(await advancePropertyErase(advanceDeps(tx, store))).toMatchObject({
+          toState: 'purge_pending',
+        })
+        expect(await lifecycleState(tx, fixture.targetPropertyId)).toBe('purge_pending')
+
+        await cancelPropertyErase(cancelDeps(store), {
+          authorityId,
+          organizationId: fixture.organizationId,
+          reasonCode: 'operator_recall',
+        })
+
+        expect(await authorityRow(tx, authorityId)).toEqual({
+          state: 'cancelled',
+          cancel_reason_code: 'operator_recall',
+        })
+        // Archived again: Restore, Archive's own window and a new request all
+        // start from here. `purge_pending` is a state no command can leave.
+        expect(await lifecycleState(tx, fixture.targetPropertyId)).toBe('archived')
+        expect(await lifecycleState(tx, fixture.siblingPropertyId)).toBe('active')
+        // Nothing was erased, and the next pass has nothing left to advance.
+        expect(
+          await count(
+            tx,
+            sql`SELECT COUNT(*)::int AS "rows" FROM guest_responses
+                WHERE property_id = ${fixture.targetPropertyId}::uuid`,
+          ),
+        ).toBe(1)
+        expect(await advancePropertyErase(advanceDeps(tx, store))).toMatchObject({
+          authorityId: null,
+        })
+
+        proofCompleted = true
+        throw ROLLBACK
+      }),
+    ).rejects.toBe(ROLLBACK)
+
+    expect(proofCompleted).toBe(true)
+  })
+
+  it('does not archive a restored Property when its erase is cancelled before the grace period', async () => {
+    let proofCompleted = false
+
+    await expect(
+      db.transaction(async (raw) => {
+        const tx = raw as unknown as Tx
+        const fixture = await seed(tx)
+        const { store, authorityId } = await confirmErase(tx, fixture)
+        await restoreToActive(tx, fixture.targetPropertyId)
+
+        await cancelPropertyErase(cancelDeps(store), {
+          authorityId,
+          organizationId: fixture.organizationId,
+          reasonCode: 'operator_recall',
+        })
+
+        expect(await lifecycleState(tx, fixture.targetPropertyId)).toBe('active')
+        expect(await authorityRow(tx, authorityId)).toEqual({
+          state: 'cancelled',
+          cancel_reason_code: 'operator_recall',
+        })
+
+        proofCompleted = true
+        throw ROLLBACK
+      }),
+    ).rejects.toBe(ROLLBACK)
+
+    expect(proofCompleted).toBe(true)
   })
 })

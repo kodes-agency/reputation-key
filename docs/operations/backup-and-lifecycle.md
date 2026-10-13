@@ -531,7 +531,12 @@ verification.
    the inventory revision the admin was shown. A stale revision is refused.
 
 **State machine.** `requested → previewed → confirmed → purge_pending → purging
-→ purged`, with `cancelled` reachable from every state before `purging`.
+→ purged`, with `cancelled` reachable from every state before `purging`. The
+Property's own `lifecycle_state` follows the authority from `purge_pending` on,
+in the same transaction. A cancel from `purge_pending` returns the Property to
+`archived`, so it can be restored (inside its recovery window), handled by
+support or requested again; a cancel from an earlier state does not touch the
+Property, which that request never moved.
 
 **The irreversible boundary is `purge_pending → purging`**, guarded three
 independent times: the domain transition table, the store's `from` predicate,
