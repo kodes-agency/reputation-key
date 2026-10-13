@@ -41,6 +41,16 @@ session whose response holds a durable rating and to one whose response the gues
 (`canStartNewGuestResponse`): a session takes one response, so a withdrawn one can only be
 replaced by a fresh session. Google and link actions still need a rating.
 
+No command moderates a response. `moderated` stays a stored status that the staff reads
+honour (the text of a moderated response is withheld from Inbox snippets and content
+filters), but nothing writes it. The manager moderation server function, which no screen
+called, was removed: it took no actor, committed no fact, could not be undone, and a
+guest's own rating correction overwrote it, because `moderated` shares the lifecycle
+`status` a correction sets. A moderation command needs an actor, a fact committed with the
+change through the command store, a way back and a state a correction cannot overwrite
+before it returns; its Operational Action History kind (`guest_feedback.moderated`) stays
+reserved (`docs/operations/operational-action-history.md`).
+
 A Qualified Scan is a server-verified QR/NFC Access Artifact observation, accepted
 once per signed session and Portal in a rolling 24-hour window. Its correction path
 is reserved: `GuestObservationStore.retractQualifiedScan` appends

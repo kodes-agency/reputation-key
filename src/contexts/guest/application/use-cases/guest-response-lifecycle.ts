@@ -8,7 +8,6 @@ import {
   DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS,
   DEFAULT_RESPONSE_SESSION_WINDOW_MS,
   DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS,
-  moderateResponse,
   submitPrivateFeedback,
   submitResponse,
   withdrawPrivateFeedback,
@@ -640,7 +639,7 @@ export function guestResponseLifecycle(
 
     /**
      * Internal integrity control. Delivery layers must keep this unavailable to
-     * Property managers: their moderation path may hide text/media only.
+     * Property managers; no server function reaches it.
      */
     changeIntegrity: async (
       scope: GuestResponseScope,
@@ -690,24 +689,6 @@ export function guestResponseLifecycle(
         throw new GuestResponseLifecycleError('response_unavailable')
       }
       return toView(deleted, deps.clock())
-    },
-
-    moderate: async (
-      scope: GuestResponseScope,
-      responseId: GuestResponseId,
-      action: 'quarantine' | 'delete',
-    ): Promise<GuestResponseView> => {
-      const current = await deps.repo.findById(scope, responseId)
-      if (!current) throw new GuestResponseLifecycleError('response_not_found')
-      // Both legacy moderation actions now mean manager-side quarantine/hide.
-      // A manager may hide abusive text/media but can never retract or erase the
-      // guest's numeric rating; only signed guest withdrawal owns that fact.
-      void action
-      const moderated = unwrap(moderateResponse(current, deps.clock()))
-      if (!(await deps.repo.saveModeration(moderated))) {
-        throw new GuestResponseLifecycleError('response_not_found')
-      }
-      return toView(moderated, deps.clock())
     },
   } as const
 }

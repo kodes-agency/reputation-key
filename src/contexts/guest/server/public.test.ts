@@ -28,7 +28,6 @@ describe('guest response server-fn gates', () => {
     'selectGoogleReviewFn',
     'selectSecondaryLinkFn',
     'withdrawGuestResponseFn',
-    'moderateGuestResponseFn',
   ] as const
   const slice = (fnName: string): string => {
     const start = source.indexOf(`export const ${fnName} =`)
@@ -217,10 +216,17 @@ describe('guest response server-fn gates', () => {
     expect(fn).not.toContain('ipHash,')
   })
 
-  it('gates staff moderation on portal.write, not the guest collection capability', () => {
-    const fn = slice('moderateGuestResponseFn')
-    expect(fn).toContain("capability: 'portal.write'")
-    expect(fn).not.toContain("capability: 'portal.guest_response'")
+  // Manager moderation had a server function here and no screen. It hid a
+  // guest's private note with no actor, no fact and no way back, and the
+  // guest's own rating correction showed the note again. It is gone until a
+  // moderation command exists that records who, commits its fact with the
+  // change, and can be undone (Guest CONTEXT). Every function left in this
+  // module is a guest's: none resolves a signed-in member.
+  it('offers no manager moderation: nothing here acts for a signed-in member', () => {
+    expect(source).not.toMatch(/moderat/iu)
+    expect(source).not.toContain('resolveTenantContext')
+    expect(source).not.toContain('requireExecutionAllowed')
+    expect(source.match(/decidePublicExecution\(/gu)?.length).toBeGreaterThan(0)
   })
 
   it('keeps portal.guest_response on the public-facing paths', () => {
