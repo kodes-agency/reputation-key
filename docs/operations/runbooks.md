@@ -78,9 +78,9 @@ definitions and security controls live in
 
 **Trigger:** Import job running too long, stuck at a checkpoint, or reporting failure.
 **Impact:** P2 — delayed first-time setup for a property.
-**Diagnostics:** Check `gbp_import_jobs` status. Check `review_sync_state` checkpoint. Check worker logs for errors.
-**Containment:** Cancel the stuck job. Property remains in `active` lifecycle state.
-**Recovery:** Restart import from last checkpoint (durable — resumes, doesn't restart). Check Google API connectivity first.
+**Diagnostics:** Read the import's rows: the saga root in `gbp_import_sagas`, its batches of at most 100 in `gbp_import_requests` (`status` and the per-status counts), and one row per location in `gbp_import_request_items` (`status`, `outcome_code`, `claim_lease_expires_at`). Check `review_sync_state` checkpoint. Check worker logs for errors.
+**Containment:** No operator command cancels an import (§10). An AccountAdmin of the Organization can cancel it in the app, which cancels the whole saga; that cancel is gated like any other manager action (`integration.manage`, capability `property.import_gbp_v2`). Otherwise contain it as §10 describes, preserve the request identifiers, and never edit the rows by hand. Property remains in `active` lifecycle state.
+**Recovery:** Nothing is restarted by hand, and an item keeps its checkpoint (durable — resumes, doesn't restart). An item left `processing` by a worker that died is found by the `google-import-claim-reaper` job once its 60-second claim lease has elapsed: the claim is released for the next attempt, or the item ends as `temporarily_unavailable` when its attempts are spent, which the AccountAdmin can retry in the app. Check Google API connectivity first.
 **Verification:** Import progresses past the stuck checkpoint. Review count increases.
 **Escalation:** Bozhidar Denev if import fails after retry.
 
@@ -155,7 +155,7 @@ definitions and security controls live in
 **Diagnostics:** Check the Property `lifecycle_state`, its Google connection state, active import/sync jobs, pending publications, and Inbox work through the ordinary read-only health and database surfaces. Before a general retention apply, run `pnpm ops purge retention --operator <id>` and retain its content-free per-rule backlog/cutoff report.
 **Containment:** There is no standalone Property suspend/restore operator command. For an immediate processing stop, add the affected capability names to `BETA_CAPABILITIES_OFF` and restart web and worker; this is a global stop, not a scoped Property mutation. There is no operator command that fences one Google connection: `pnpm ops disconnect-connection` only reports and refuses `--apply`. An AccountAdmin of the Organization can disconnect Google in the app (Settings, Integrations), which cancels that connection's imports, disconnects the local authority and stops its provider work. The app refuses that disconnect while the Organization is in `BETA_SUSPENDED_ORGS`, and while `BETA_CAPABILITIES_OFF` is `all` or names `integration.use`, so have the AccountAdmin disconnect before you suspend the Organization (§2 says what to do when it is already suspended). To stop one Organization without them, add its Organization ID to `BETA_SUSPENDED_ORGS` on web and worker (§1); otherwise stop the Google capabilities for everyone as above. Provider revocation still requires the approved Google surface described in §2. A stuck import request has no direct cancel command: have the connection disconnected or the Organization suspended, preserve the request identifiers, and escalate rather than mutating lifecycle rows by hand.
 **Recovery:** Archive preserves data and may return to `active` only through the application lifecycle authority. General retention purge is irreversible: review the dry-run report, then run `pnpm ops purge retention --operator <id> --reason <text> --apply --yes ops:purge`. Review expiry purge remains unavailable while SAFE-03 quarantine is active; escalation cannot bypass that fence. Property/member/connection/Organization removal fences matching import parents/items and invalidates provider references before authority disappears.
-**Verification:** Confirm the intended lifecycle/connection state, no outstanding import or provider authority, and no newly claimed jobs for the fenced scope. Retention evidence must include `integration.google_import_v2.lifecycle`; do not substitute a local row edit or an unimplemented command for that evidence.
+**Verification:** Confirm the intended lifecycle/connection state, no outstanding import or provider authority, and no newly claimed jobs for the fenced scope. Retention evidence for the import lifecycle is the `retention_runs` row the daily retention sweep writes under subject `integration.google_import_v2.lifecycle`. The dry-run report of `pnpm ops purge retention` no longer counts that backlog: it names the subject under `separatelyInspectedSubjects` and nothing more, and no operator command inspects it. Do not substitute a local row edit or an unimplemented command for that evidence.
 **Escalation:** Purge requires operator confirmation + evidence report. Review raw-content erasure additionally requires the reviewed REV-01 cutover; until then it blocks release. Bozhidar Denev signs off.
 
 ---
@@ -177,7 +177,7 @@ definitions and security controls live in
 **Impact:** P1 — service degraded or unavailable for US properties.
 **Prerequisites:** Name both operating roles; record the exact `cell-us` project/environment, affected services/dependencies, release/config heads, first failed external probe, and provider incident identifiers.
 **Diagnostics:** Compare external web availability and worker job-runtime readiness with PostgreSQL, Cache Redis, Queue Redis, provider-status, release-SHA, and configuration-drift signals. Confirm that every denied `europe` or `global` routing attempt remains a refusal rather than a fallback.
-**Containment:** Do NOT fail over to another region (policy: no silent cross-region data movement). Set readiness to 503. Show honest "service unavailable" state.
+**Containment:** Do NOT fail over to another region (policy: no silent cross-region data movement). Readiness has no switch to set: `/api/health/ready` is computed from four probes (PostgreSQL, both Redis, the migration journal, the policy configuration) and answers 503 by itself while one of them fails. Show honest "service unavailable" state.
 **Recovery:** Wait for provider recovery. Outbox accumulates events (no data loss). Resume normally when infrastructure recovers.
 **Verification:** All dependencies healthy. Backlog drained. Freshness indicators return to normal.
 **Escalation:** Bozhidar Denev. Provider support tickets (Railway, Redis provider, Google Cloud).
@@ -214,7 +214,7 @@ definitions and security controls live in
 **First three things to check:**
 
 1. `ops:quarantine list` — what is in there (the oldest 100 entries, oldest first, so the entry the age alerts page about is always listed; redrive and discard look their target up by id, so any entry is reachable, listed or not), how many distinct job names, and is each entry `confirmed_failed`? One entry is a poison payload; a growing pile of one job name is a systemic handler failure. `pending_failure` means the worker staged evidence before rejecting but did not observe BullMQ's completed failed transition; redrive requires fresh proof that the original remains failed, so a recovered/completed original cannot be duplicated.
-2. The quarantine reason. Region/routing denials (`routing_blocked:*`, `wrong_cell`) are a policy problem, not a handler bug — see §12 and the `routing.region-attempts` alert. Anything else is a handler that threw past its retry budget.
+2. The quarantine reason. `ops:quarantine list` prints it under each entry: the error name and its first message line, followed by `(policy: policy_unavailable)` when the attempt that exhausted the job was refused by the delayed-execution gate because it could not read the policy. That one is a policy outage, not a handler bug: restore the policy read before any redrive. Anything else is a handler that threw past its retry budget. No region or routing reason exists, and no alert watches for one.
 3. `queue.quarantine.oldest_age_ms` versus `QUARANTINE_TTL_DAYS`. This tells you how much time is left before the TTL sweep deletes the evidence along with the work. The gauge, the listing, and the TTL sweep all read the quarantine oldest-first, so a burst of fresh dead letters cannot hide an aged one.
 
 **Remediate:** fix the underlying handler failure FIRST (a redrive into a broken handler just re-quarantines), then match each entry's job family to the event-job catalogue. For an enabled family, first run `ops:quarantine redrive <id> --operator <registered-operator>` for the dry-run report, then add `--reason <incident-reason> --apply`; redrive returns the job to its original queue. For a blocked or quarantined family, never redrive: first run `ops:quarantine discard <id> --operator <registered-operator>`, record the identifiers and disposition in the incident, then add `--reason <incident-reason> --apply --yes ops:quarantine`. Discard permanently removes the quarantined job without executing or re-enqueuing it, which is why it alone needs the typed confirmation. For `pending_failure`, the redrive apply path first reads the original job and proceeds only when BullMQ still reports it as `failed`; that proof idempotently confirms the staged copy. A recovered, active, waiting, completed, or missing original is refused and must not be force-redriven. Invitation-event and invitation-Activity payloads are sanitized again at the redrive boundary, so a concurrent privacy-verification scan cannot miss content moved between queues.
@@ -890,20 +890,26 @@ decision—never review or reviewer content.
 review (ADR 0046, amended 2026-09-28) and the follow-up decisions, or any later
 change to notification routing, email or reminders.
 
-**Migrations first.** The 2026-09-28 release adds `0035` (the Organization
+**Migrations first.** They run in web's predeploy, before the new web container
+serves and before the worker moves. The 2026-09-28 release adds `0035` (the Organization
 fallback branch of `notifications_mandatory_scope_check`), `0036` (the unread
 coalescing index narrowed to unsettled rows), `0037` (`replies.submitted_by`,
 nullable, no backfill) and `0038` (`notification_digest_batches.provider_request`,
 nullable). All are additive or narrowing; every row the old index admitted
 satisfies the new one.
 
-**Order: workers before web.** A reauthorization notice carries a cause an older
-worker's schema refuses. Refusing it is terminal for that dispatch, and the fact
-only returns through the published-event redelivery sweep, so the notice can be
-up to two hours late. Rolling workers first avoids that window; rolling web
-first is safe only if a late reconnect notice is acceptable. An older worker
-strips `removedBy` from `identity.member.removed` rather than refusing it, so a
-member who leaves during the roll is told their access was removed.
+**Order: web first, then the worker.** `pnpm ops deploy-ci-images` rolls web,
+then the worker, then provider Redis, each settling healthy at its digest before
+the next moves. It takes `--sha` and `--apply` and has no option for another
+order, and it is the only supported deploy path (`docs/BETA.md` §7). So a release
+whose new facts an older worker refuses has a window between the two, and the
+command cannot roll the worker first to avoid it. In the 2026-09-28 release a
+reauthorization notice carries a cause an older worker's schema refuses.
+Refusing it is terminal for that dispatch, and the fact only returns through the
+published-event redelivery sweep, so a reconnect notice raised while web is new
+and the worker is old can be up to two hours late. An older worker strips
+`removedBy` from `identity.member.removed` rather than refusing it, so a member
+who leaves during the roll is told their access was removed.
 
 **Provider webhook.** Create or confirm the Resend endpoint
 `https://<BETTER_AUTH_URL host>/api/webhooks/resend/events`, subscribed to

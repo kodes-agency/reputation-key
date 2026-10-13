@@ -200,8 +200,11 @@ rule of its own (a receipt leaves with its outbox event), and the report counts
 it by the receipt's own `created_at`. A receipt whose event is still stored is
 in that count and stays.
 
-`ops:report-retention` is registered as a read-only operator command. Its
-builder is callable and covered by the report-only integration path.
+No operator command runs this report. Its builder, `buildRetentionRegistryReport`,
+is called only by `retention-registry.integration.test.ts`; the read-only command
+that once wrapped it was deleted with the release ceremony. What an operator can
+run is `pnpm ops purge retention --operator <id>`: its dry run reports the
+executing sweep's rules (count and cutoff per rule), not this registry.
 
 ---
 

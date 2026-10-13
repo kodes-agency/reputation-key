@@ -386,9 +386,10 @@ the counted Guest visit and the Guest visit record. `pnpm ops purge
 retention --operator <id>` reports content-free per-rule counts and exact
 cutoffs without requiring Redis or changing business rows; `--apply` remains a
 separately confirmed bounded enqueue. The report identifies Google import
-lifecycle as separately inspected; use `ops:google-import-lifecycle inspect`
-for that receipt/parent lifecycle rather than treating the static-rule total as
-the whole sweep.
+lifecycle as separately inspected and does not count it. No operator command
+inspects that receipt/parent lifecycle: read the `retention_runs` rows the daily
+sweep writes under subject `integration.google_import_v2.lifecycle`, and do not
+treat the static-rule total as the whole sweep.
 
 ## 6. Evidence retention
 
