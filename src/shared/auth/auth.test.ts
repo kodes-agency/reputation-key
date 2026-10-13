@@ -138,6 +138,83 @@ describe('Auth configuration', () => {
     expect(JSON.stringify(fields)).not.toContain('user-reset-2')
   })
 
+  // Better Auth awaits its reset sender before it answers, and calls it only
+  // for an address that has an account. A sender that waits for the mail
+  // provider makes the answer for a member one HTTPS round trip slower than
+  // the answer for a stranger: the difference the uniform reply exists to hide.
+  describe('the reset mail and the reply to the request', () => {
+    const data = { user: { email: 'dana@example.test' }, url: 'https://app.test/r/tok' }
+    /** How a promise stands once every microtask queued so far has run. */
+    const stateOf = async (promise: Promise<unknown>) => {
+      const flushed = new Promise<'pending'>((resolve) =>
+        setImmediate(() => resolve('pending')),
+      )
+      return Promise.race([promise.then(() => 'settled' as const), flushed])
+    }
+
+    it('answers without waiting for the mail provider', async () => {
+      const { detachedResetPasswordSender } = await import('#/shared/auth/auth')
+      const send = vi.fn(() => new Promise<void>(() => {}))
+      const logger = { warn: vi.fn() }
+
+      const answered = detachedResetPasswordSender(send, logger)(data)
+
+      expect(await stateOf(answered)).toBe('settled')
+      expect(send).toHaveBeenCalledExactlyOnceWith(
+        'dana@example.test',
+        'https://app.test/r/tok',
+      )
+    })
+
+    it('logs a send that fails, without the address, and fails nothing', async () => {
+      const { detachedResetPasswordSender } = await import('#/shared/auth/auth')
+      const failure = Object.assign(new Error('Failed to send email: rate limited'), {
+        context: { to: 'dana@example.test' },
+      })
+      const send = vi.fn(() => Promise.reject(failure))
+      const logger = { warn: vi.fn() }
+
+      await expect(
+        detachedResetPasswordSender(send, logger)(data),
+      ).resolves.toBeUndefined()
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+      const [fields, message] = logger.warn.mock.calls[0] as [
+        Record<string, unknown>,
+        string,
+      ]
+      expect(fields).toEqual({ errorName: 'Error' })
+      expect(message).toMatch(/auth\.password_reset_mail_failed/)
+      expect(JSON.stringify(logger.warn.mock.calls)).not.toContain('dana@example.test')
+    })
+
+    it('is how the provider is configured to send the reset mail', async () => {
+      const never = vi.fn(() => new Promise<void>(() => {}))
+      vi.doMock('#/shared/auth/emails', () => ({
+        sendResetPasswordEmail: never,
+        sendVerificationEmail: vi.fn(),
+      }))
+      const { resetEnv } = await import('#/shared/config/env')
+      resetEnv()
+      const { createAuth } = await import('#/shared/auth/auth')
+      const sendResetPassword = createAuth().options.emailAndPassword?.sendResetPassword
+
+      const answered = sendResetPassword?.({
+        user: { email: 'dana@example.test' } as never,
+        url: 'https://app.test/r/tok',
+        token: 'tok',
+      })
+
+      expect(await stateOf(Promise.resolve(answered))).toBe('settled')
+      expect(never).toHaveBeenCalledExactlyOnceWith(
+        'dana@example.test',
+        'https://app.test/r/tok',
+      )
+      vi.doUnmock('#/shared/auth/emails')
+    })
+  })
+
   it('keeps verification tokens valid for the 24-hour email promise', async () => {
     const { resetEnv } = await import('#/shared/config/env')
     resetEnv()

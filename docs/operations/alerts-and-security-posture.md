@@ -63,7 +63,9 @@ Postgres, not Redis. The shared Redis limiter
 (`src/shared/rate-limit/middleware.ts`) guards registration, sign-in, guest
 submissions, the auth catch-all, and app-owned invitation create/resend. The
 two invitation actions share one HMAC-derived budget of 20 sends per actor per
-hour and 100 per Organization per day. When Redis is absent or erroring it
+hour and 100 per Organization per day. A new verification link and a password
+reset request are each counted per HMAC-derived address as well as per IP,
+three an hour: the mail goes to whoever the caller names. When Redis is absent or erroring it
 **fails closed in production** (deny + error log) and fails open with a warn
 elsewhere.
 

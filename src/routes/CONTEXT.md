@@ -167,7 +167,9 @@ path are on the allow list in `api/auth/-provider-routes.ts`; every other reques
 under `/api/auth/*` is a 404. The provider's own routes authorize with the
 library's checks, not the execution policy, so a route is allowed there only with
 a written reason, and the colocated test fails on a provider endpoint that is on
-neither list (ADR 0033, amended 2026-10-12).
+neither list (ADR 0033, amended 2026-10-12). Allowed POSTs are limited per IP;
+the password reset request, which mails an address the caller names, is also
+counted per address.
 
 ## Invitation links
 
