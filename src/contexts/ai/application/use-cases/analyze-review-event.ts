@@ -798,8 +798,8 @@ export function createAnalyzeReviewEvent(
         // The merchant notice promises the issue label never reproduces review
         // text. The output schema, the server-side shape check and the SQL
         // CHECK all validate shape only, so a lowercase quotation satisfies
-        // every layer. Refuse a multi-word label that appears verbatim in the
-        // source; the aspects are the expensive part of the call and stay.
+        // every layer. Refuse a multi-word label whose words follow one another
+        // in the source; the aspects are the expensive part of the call and stay.
         // Refused content is never logged — recording the label would leak the
         // very excerpt the rule exists to keep out of storage.
         const reproducesSource =

@@ -20,16 +20,43 @@ export function isAiIssueLabel(value: string): boolean {
  * discard the discovery signal the open label exists to provide. Two or more
  * words appearing contiguously in the source is quotation, and is refused.
  *
- * Comparison is NFKC-folded, lowercased and whitespace-collapsed on both sides,
- * and both are space-padded so matching is token-aligned rather than an
- * incidental substring hit.
+ * Both sides are compared as words. A label holds only `a-z` and single
+ * spaces, so a phrase copied from a review can never carry what touched it
+ * there: the full stop or comma after it, a quotation mark, an accent, the
+ * apostrophe in `didn't`. The review is therefore reduced to the words a label
+ * could spell before matching, and both are space-padded so a match is whole
+ * words in a row, never an incidental substring.
+ *
+ * Punctuation does not keep two words apart: `Dirty. Staff were kind` refuses
+ * `dirty staff`. Telling a sentence break from a clause break would need a
+ * grammar, and erring this way costs one optional label, never an excerpt.
  */
 export function issueLabelReproducesSource(label: string, sourceText: string): boolean {
-  const foldedLabel = foldForComparison(label)
-  if (foldedLabel.split(' ').length < 2) return false
-  return ` ${foldForComparison(sourceText)} `.includes(` ${foldedLabel} `)
+  const labelWords = wordsForComparison(label)
+  if (labelWords.split(' ').length < 2) return false
+  return ` ${wordsForComparison(sourceText)} `.includes(` ${labelWords} `)
 }
 
-function foldForComparison(value: string): string {
-  return value.normalize('NFKC').toLowerCase().replace(/\s+/gu, ' ').trim()
+const COMBINING_MARKS = /\p{M}+/gu
+/**
+ * The apostrophe inside a word, which a label drops: `didn't`, and the same
+ * word typed with U+2019 (right single quotation mark) or U+02BC (modifier
+ * letter apostrophe).
+ */
+const IN_WORD_APOSTROPHE = /(?<=\p{L})['\u2019\u02bc](?=\p{L})/gu
+const NOT_A_WORD_CHARACTER = /[^\p{L}\p{N}]+/gu
+
+/**
+ * Lowercase words separated by single spaces: compatibility forms folded
+ * (NFKD), diacritics removed, in-word apostrophes dropped, and every other run
+ * that is not a letter or a digit read as one word break.
+ */
+function wordsForComparison(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(COMBINING_MARKS, '')
+    .toLowerCase()
+    .replace(IN_WORD_APOSTROPHE, '')
+    .replace(NOT_A_WORD_CHARACTER, ' ')
+    .trim()
 }

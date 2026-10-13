@@ -632,6 +632,34 @@ describe('analyze review event', () => {
       },
     )
 
+    // The review reads "The kitchen made several guests sick." A label is
+    // letters and spaces, so a phrase copied from the end of that sentence
+    // arrives without its full stop.
+    it.each([
+      ['in the middle of a sentence', 'kitchen made several'],
+      ['at the end of a sentence', 'guests sick'],
+    ])(
+      'stores the analysis without an issue label quoted from the review %s',
+      async (_case, issueLabel) => {
+        const harness = createHarness({
+          analysisResult: { ...VALID_ANALYSIS_RESULT, issueLabel },
+        })
+
+        await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
+        expect(harness.mocks.storeAnalysis).toHaveBeenCalledWith(
+          expect.objectContaining({
+            result: {
+              status: 'ready',
+              derivative: expect.objectContaining({
+                aspects: [{ aspect: 'service', polarity: 'negative', intensity: -90 }],
+                issueLabel: null,
+              }),
+            },
+          }),
+        )
+      },
+    )
+
     it('finishes an idempotent aggregate replay when its outcome is already terminal', async () => {
       const harness = createHarness({
         operationState: 'succeeded_pending_delivery',
