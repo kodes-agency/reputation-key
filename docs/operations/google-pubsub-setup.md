@@ -105,7 +105,7 @@ projects get this through `roles/pubsub.serviceAgent` automatically.
 | --------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------- |
 | `GBP_PUBSUB_TOPIC`                | `projects/<PROJECT_ID>/topics/gbp-notifications`       | Empty (the default) means push is disabled and `subscribe` no-ops |
 | `GBP_PUBSUB_AUDIENCE`             | `https://reputationkey.app/webhooks/gbp`               | Must equal the subscription's audience                            |
-| `GBP_PUBSUB_PUSH_SERVICE_ACCOUNT` | `gbp-push-caller@<PROJECT_ID>.iam.gserviceaccount.com` | Optional but recommended — see below                              |
+| `GBP_PUBSUB_PUSH_SERVICE_ACCOUNT` | `gbp-push-caller@<PROJECT_ID>.iam.gserviceaccount.com` | Required for push delivery — see below                            |
 | `GBP_PUBSUB_NOTIFICATION_TYPES`   | `NEW_REVIEW`                                           | Default. `NEW_REVIEW,UPDATED_REVIEW` also catches edits           |
 
 Set these on **both** the web and worker services: the web process serves the
@@ -116,10 +116,14 @@ Set a topic in **one** environment per set of GBP accounts. Google stores one
 topic per account, so two environments connected to the same accounts with
 different topics re-point each other on every import and every daily run.
 
-Leaving `GBP_PUBSUB_PUSH_SERVICE_ACCOUNT` unset is accepted, and the webhook logs
-a warning once per process saying the pushing identity is unpinned. Unpinned
-means _any_ Google-issued OIDC token carrying the right audience is accepted, not
-only your subscription's. Set it.
+`GBP_PUBSUB_PUSH_SERVICE_ACCOUNT` is required. The webhook accepts a push only
+when its verified `email` claim is this account; a Google-issued OIDC token that
+merely carries the right audience is not enough, and there is no unpinned mode.
+With the topic set and this variable unset the app still boots, but the webhook
+answers every push 503 (`GBP push delivery is not configured`) and logs
+`GBP webhook is not configured for exact authenticated push delivery` at error,
+Pub/Sub retries and backs off, and new reviews arrive on the discovery sweep
+only.
 
 ## 6. Subscribe the accounts
 
@@ -230,6 +234,9 @@ If nothing arrives, in order of likelihood:
   returns 401 and Pub/Sub will show delivery failures on the subscription.
 - `GBP_PUBSUB_PUSH_SERVICE_ACCOUNT` does not match the subscription's service
   account — same 401.
+- `GBP_PUBSUB_PUSH_SERVICE_ACCOUNT` (or the topic) is not set on the web
+  service — the app returns 503 to every push and the web log says
+  `GBP webhook is not configured for exact authenticated push delivery`.
 - Google was never told to publish for that account. Look for the daily
   `GBP notification subscriptions reconciled` line, or the per-account
   `GBP notifications subscribe failed — continuing` warning with its `code`:
