@@ -25,7 +25,7 @@ const personOf = (entry: PortalHistoryEntry): string | null =>
 
 const HEALTH_DETAIL: Readonly<Record<string, string>> = {
   responsibility_needed: 'no one is responsible for it',
-  google_destination_awaiting_refresh: 'the Google link is being refreshed',
+  google_destination_awaiting_refresh: 'the Google link is on hold',
   google_destination_unavailable: 'the Google link is not available',
   publication_draft: 'it is not published',
   publication_disabled: 'it is turned off',

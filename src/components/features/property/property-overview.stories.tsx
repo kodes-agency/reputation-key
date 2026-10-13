@@ -254,6 +254,46 @@ export const Ready: Story = {
   },
 }
 
+// A portal guests cannot use is the exception that matters most, and the band
+// said "Nothing needs your attention" about it. One chip, first, counting only what
+// stops guests, that opens the Portals list on the filter that shows them first.
+export const PortalsGuestsCannotUse: Story = {
+  args: { blockedPortals: 2 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const chip = canvas.getByRole('link', { name: /2\s*portals guests can’t use/ })
+    const chips = canvas.getAllByRole('link').filter((link) => link.closest('section'))
+    expect(chips[0]).toBe(chip)
+    const href = new URL(chip.getAttribute('href') ?? '', 'http://localhost')
+    expect(href.pathname).toBe(`/properties/${property.id}/portals`)
+    expect(href.searchParams.get('show')).toBe('attention')
+    expect(href.searchParams.get('sort')).toBe('attention')
+    // It is not named "Needs attention": the Portals toggle of that name keeps more.
+    expect(chip).not.toHaveTextContent(/needs attention/i)
+  },
+}
+
+export const OnePortalGuestsCannotUse: Story = {
+  args: { signals: calmSignals, blockedPortals: 1 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByRole('link', { name: /1\s*portal guests can’t use/ }),
+    ).toBeVisible()
+    // The calm sentence goes: something does need attention.
+    expect(canvas.queryByText('Nothing needs your attention.')).toBeNull()
+  },
+}
+
+export const NoPortalChipWhenGuestsCanUseThemAll: Story = {
+  args: { signals: calmSignals, blockedPortals: 0 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('link', { name: /guests can’t use/ })).toBeNull()
+    expect(canvas.getByText('Nothing needs your attention.')).toBeVisible()
+  },
+}
+
 export const WeekOne: Story = {
   args: {
     lifetime: weekOne,

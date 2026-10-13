@@ -29,6 +29,10 @@ import {
   portalContentReviewCompletedV2Schema,
 } from './portal-workflow-event-schemas'
 import { registerIdentityAccessEventSchemas } from './identity-access-event-schemas'
+import {
+  databaseUuidSchema,
+  replyPublicationCancelledSchema,
+} from './reply-publication-cancelled-schema'
 
 // ── Review event schemas ────────────────────────────────────────────
 
@@ -70,10 +74,6 @@ const reviewSourceTransitionedSchema = z.object({
   change: z.enum(['source_expired', 'provider_deleted']),
   occurredAt: z.string().optional(),
 })
-
-const databaseUuidSchema = z
-  .string()
-  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu)
 
 /** The Property source-epoch scope both provider-snapshot run facts are keyed by. */
 const reviewSnapshotRunScope = {
@@ -211,20 +211,6 @@ const primaryStaffAttributionSchema = z
       })
     }
   })
-
-// BQC-3.8: publication cancellation — identifier-only (reply/review/property/
-// org + cause). No reply text, no actor content. `authorId` is the one person
-// who was told the reply was queued to publish, so the notice can reach them;
-// optional because rows recorded before it existed carry no author.
-const replyPublicationCancelledSchema = z.object({
-  replyId: databaseUuidSchema,
-  reviewId: databaseUuidSchema,
-  organizationId: z.string().trim().min(1),
-  propertyId: databaseUuidSchema,
-  authorId: z.string().nullable().optional(),
-  cause: z.enum(['disconnect', 'policy', 'source_changed', 'provider_truth']),
-  occurredAt: z.iso.datetime(),
-})
 
 const replyPublicationRequestedV1Schema = z.object({
   replyId: z.string(),

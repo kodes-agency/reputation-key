@@ -10,7 +10,10 @@ import type {
   CapabilityPolicyEnv,
   CapabilityPolicyStore,
 } from '#/shared/auth/beta-capabilities'
-import { createEnvCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
+import {
+  createEnvCapabilityPolicyStore,
+  ignoresE2EGlobalOverride,
+} from '#/shared/auth/beta-capabilities'
 import {
   createExecutionPolicy,
   parseOperatorIdentities,
@@ -65,6 +68,15 @@ export function buildCapabilityPolicyHandle(deps: {
   logger: PolicyStoreLogger
 }): PolicyStoreHandle {
   const capabilityPolicyStore = Object.freeze(createEnvCapabilityPolicyStore(deps.env))
+  // The web process builds its store here and runs no capability boot guard, so
+  // this line is the only trace that a deployed service carries the test-only
+  // override. The store has already ignored it.
+  if (ignoresE2EGlobalOverride(deps.env)) {
+    deps.logger.warn(
+      { variable: 'BETA_E2E_GLOBAL_CAPABILITIES' },
+      'capability.e2e_override_refused: BETA_E2E_GLOBAL_CAPABILITIES is set on a deployed process and is IGNORED — unset it on the deployed service',
+    )
+  }
 
   // BQC-2.4: build the ExecutionPolicy with identity-owned dependencies —
   // the grant adapter (property scope) and consent reader (purpose classes).

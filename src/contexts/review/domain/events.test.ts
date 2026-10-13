@@ -334,6 +334,25 @@ describe('review domain events', () => {
     },
   )
 
+  // Review's constructor and the AI draft purge (which builds the fact itself,
+  // in shared/db) must agree on the closed cause vocabulary.
+  it('accepts the cause the AI draft purge records', () => {
+    expect(
+      reviewReplyPublicationCancelled({
+        replyId: OBSERVED_REPLY_ID,
+        reviewId: OBSERVED_REVIEW_ID,
+        propertyId: OBSERVED_PROPERTY_ID,
+        organizationId: organizationId('organization-1'),
+        authorId: null,
+        cause: 'ai_draft_withdrawn',
+        occurredAt,
+      }),
+    ).toMatchObject({
+      _tag: 'review.reply.publication_cancelled',
+      cause: 'ai_draft_withdrawn',
+    })
+  })
+
   it.each([
     ['invalid occurredAt', { occurredAt: new Date(Number.NaN) }, 'valid Date'],
     ['empty organizationId', { organizationId: organizationId('') }, 'nonempty'],

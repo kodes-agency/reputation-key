@@ -25,6 +25,7 @@ import {
   DOCK_TEXT_ROW_CLASS,
   DOCK_TEXTAREA_CLASS,
 } from './composer-dock-rows'
+import { useReplyConfirmationHold } from './use-reply-confirmation-hold'
 
 /**
  * Puts the caret in a reply editing surface as it opens, and brings it just
@@ -114,6 +115,7 @@ export function ReviewReplyPublishedEditor({
   // This editor exists only because someone pressed Edit reply, so it always
   // takes the focus on mount.
   const openRef = useEditorOpenFocus()
+  const holdReply = useReplyConfirmationHold()
 
   return (
     // The dock's two writing rows (plan v2.1 row 14, `composer-dock-rows.ts`).
@@ -204,6 +206,11 @@ export function ReviewReplyPublishedEditor({
             confirmLabel="Confirm & update"
             pendingLabel="Confirming…"
             confirmDisabled={!canSave}
+            // The pane keeps the reply it shows while this dialog is open. A
+            // refused update re-reads the reply, and once it is no longer
+            // `published` the pane's edit target is not live and this editor
+            // goes, with the dialog drawn inside it.
+            onOpenChange={holdReply}
             // A refused update stays in the dialog (the edit mutation passes no
             // toast) and the editor stays open on the text
             // (`reply-published-edit.tsx` closes only after a save resolves).

@@ -42,12 +42,15 @@ vi.mock('#/shared/observability/logger', () => ({
 }))
 
 const IDENTITY = 'local-playwright-e2e'
-const MANAGED = ['NODE_ENV', 'E2E', 'BETA_E2E_EXECUTION_IDENTITY'] as const
-const ORIGINAL: Record<string, string | undefined> = {
-  NODE_ENV: process.env.NODE_ENV,
-  E2E: process.env.E2E,
-  BETA_E2E_EXECUTION_IDENTITY: process.env.BETA_E2E_EXECUTION_IDENTITY,
-}
+const MANAGED = [
+  'NODE_ENV',
+  'E2E',
+  'BETA_E2E_EXECUTION_IDENTITY',
+  'RAILWAY_PROJECT_ID',
+] as const
+const ORIGINAL: Record<string, string | undefined> = Object.fromEntries(
+  MANAGED.map((key) => [key, process.env[key]]),
+)
 /**
  * Rebuild the module graph under a given process env. env.ts builds its zod
  * schema at module load (its production branches read process.env.NODE_ENV),
@@ -112,6 +115,20 @@ describe('better-auth rate limiting (review §5.1)', () => {
     expect(createAuth().options.rateLimit?.enabled).toBe(false)
     expect(logs.warn.mock.calls[0]?.[1]).toMatch(/auth\.rate_limit_bypass_active/)
     expect(logs.error).not.toHaveBeenCalled()
+  })
+
+  it('stays enabled on Railway even when the e2e stack variables are copied over', async () => {
+    const { createAuth } = await reloadWith({
+      NODE_ENV: 'development',
+      E2E: '1',
+      BETA_E2E_EXECUTION_IDENTITY: IDENTITY,
+      RAILWAY_PROJECT_ID: 'project-1',
+    })
+
+    expect(createAuth().options.rateLimit?.enabled).toBe(true)
+    expect(logs.warn).not.toHaveBeenCalled()
+    expect(logs.error).toHaveBeenCalledTimes(1)
+    expect(logs.error.mock.calls[0]?.[1]).toMatch(/auth\.rate_limit_bypass_refused/)
   })
 })
 

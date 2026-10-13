@@ -75,6 +75,51 @@ the full model in both directions: columns, types, defaults, keys, checks, forei
 keys/actions, indexes, predicates, enums, registered constructs, and journal
 continuity. `pnpm check:schema-drift` exposes the same comparator for operators.
 
+The journal is appended by hand, so the comparator checks the file before it
+looks at a database (`migration-journal-order.ts`): each entry's `idx` is its
+position, its `when` is above the entry before it, a tag is journalled once, and
+every entry has its SQL file and every SQL file its entry. drizzle applies an
+entry only when its `when` is greater than the newest applied row, so an entry
+that does not rise is applied on CI's empty database and skipped on a migrated
+one. The last `when` is dated ahead of the calendar: step a new entry from the
+previous one (100,000,000 ms) instead of stamping real time.
+`migration-journal-order.test.ts` runs the file check with no database.
+
+The journal is append-only: an entry already on `main` keeps its position, `idx`
+and `when`, and a new entry goes after them, last. The file alone cannot show a
+breach, because it cannot tell a new entry from one a deployed database has
+applied. `pnpm check:migration-journal` (`scripts/check-migration-journal.ts`,
+run by `lint:ci`) reads the journal at the merge base with `main` and fails when
+one of its entries moved, changed or is gone. The case it exists for is a rebase
+that keeps the branch's entry before the one `main` gained and raises that
+entry's `when` so the file still rises: the deployed database would run `main`'s
+migration a second time and skip the new one, and its row count would equal the
+journal's, so the deploy runner's count check passes. After a journal conflict,
+take `main`'s entries as they are and re-step only your own.
+
+Functions and triggers are compared by definition, not by name
+(`construct-definitions.ts`): signature, attributes and body of every function,
+and every trigger's statement, as `db-constructs.sql` states them. Both sides
+are PostgreSQL's own rendering, so state a new function or trigger the way
+`pg_get_functiondef` / `pg_get_triggerdef` print it. A migration that changes
+one restates it in three places with the same text: `db-constructs.sql`, its
+byte copy `drizzle/0001_db_constructs.sql`, and the new migration.
+`construct-definitions.test.ts` holds the copy and, with no database, that each
+construct's last migration creates what the comparator expects.
+
+One function is a named exception. `apply_merchant_ai_transition_v1` was changed
+by 0006 and 0016 without being restated, so `db-constructs.sql` still carries a
+26-argument text no database runs; `SUPERSEDED_CONSTRUCT_DEFINITIONS` makes the
+comparator expect 0016's statement instead. Do not edit or restate the file's
+text of that function: a `CREATE OR REPLACE` of the 26-argument signature adds a
+second overload beside the live 27-argument one. Bringing the file up to date
+is an open owner decision between two changes to the rule in `docs/BETA.md` §6.
+Either the file and 0001 take the live text and 0016 changes from
+`CREATE FUNCTION` to `CREATE OR REPLACE FUNCTION` (otherwise an empty database
+fails at 0016 once 0001 creates the same signature), which makes 0016 a second
+edited migration. Or the file alone takes the live text and no migration is
+edited, which leaves 0001 a byte copy in all but that one statement.
+
 Never run `pnpm db:push` against a shared database; it bypasses the journal.
 
 ## Seed and auth mirror

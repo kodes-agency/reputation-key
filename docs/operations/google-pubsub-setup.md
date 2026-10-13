@@ -123,7 +123,7 @@ only your subscription's. Set it.
 
 ## 6. Subscribe the accounts
 
-Nothing to run. Three paths tell Google to publish, all through the same
+Nothing to run. Two paths tell Google to publish, both through the same
 `subscribe` use case
 (`src/contexts/integration/application/use-cases/manage-notifications.ts`):
 
@@ -138,20 +138,20 @@ Nothing to run. Three paths tell Google to publish, all through the same
    interval scheduler with no offset, so it **first runs right after the worker
    boots on the deploy that installs it**, then every 24 hours from that moment.
    It does nothing when `GBP_PUBSUB_TOPIC` is empty.
-3. **On demand**, from a host that can reach the app's database (not from
-   outside Railway's private network):
 
-   ```bash
-   # dry run: lists the candidate connections and their statuses, calls Google zero times
-   pnpm ops gbp-subscribe --operator <your-user-id> --org <organization-id>
+No operator command subscribes an account. `pnpm ops gbp-subscribe` refuses
+`--apply`: operator commands run without the Google provider runtime, so the
+command cannot call Google. It still reports, from a host that can reach the app's database (not
+from outside Railway's private network), which connections of one organization
+the daily job would cover:
 
-   # execute
-   pnpm ops gbp-subscribe --operator <your-user-id> --org <organization-id> \
-     --reason "enable GBP push" --apply
-   ```
+```bash
+# lists the candidate connections and their statuses, calls Google zero times
+pnpm ops gbp-subscribe --operator <your-user-id> --org <organization-id>
+```
 
-   `--apply` requires `--reason`; the reason lands in the operator audit trail
-   with the actor and the decision.
+Restarting the worker does not bring the next daily run forward: a later boot
+keeps the pending run.
 
 **Which accounts.** Notification settings are per **Google Business Profile
 account**, not per location, and RepKey touches an account only through a
@@ -207,7 +207,10 @@ refusal in `correlation_id`, e.g. `authorization_changed`.
 ## 7. Verify
 
 1. `GET /api/health/metrics` → `sync.gbp_push_enabled` should be `1`.
-2. Post a review on a connected test property.
+2. Post a review on a connected test property whose account is subscribed. An
+   account imported before the variables were set is subscribed by the next
+   daily run (§6), up to 24 hours away, and nothing brings that run forward:
+   until then its reviews arrive on the discovery sweep, not within seconds.
 3. Within seconds: a `sync-property-reviews` job with initiator
    `webhook:gbp`, then the review row, the inbox item, and the notification.
 4. `review_sync_state.last_notification_at` for that property should be ~now, and

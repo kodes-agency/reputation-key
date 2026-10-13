@@ -7,7 +7,7 @@ import {
 import { createActivityDbUserLookupAdapter } from './adapters/activity-db-user-lookup.adapter'
 import { createActivityRecoveryStore } from './activity-recovery-store'
 
-/** Shared construction seam for the web context and the audited operator CLI. */
+/** Shared construction seam for the web context and the operator CLI. */
 export const createRecentActivityRecoveryRuntime = (db: Database, logger: LoggerPort) => {
   const store = createActivityRecoveryStore(db)
   return {

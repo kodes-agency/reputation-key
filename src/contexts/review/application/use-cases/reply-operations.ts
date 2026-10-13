@@ -21,11 +21,8 @@ import {
   requireReplyManager as requireManager,
 } from './reply-access'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
-import {
-  assertReplySlotsFilled,
-  replyTextProblemMessage,
-  transitionReply,
-} from '../../domain/rules'
+import { assertReplySlotsFilled, replyTextProblemMessage } from '../../domain/rules'
+import { assertReplyCommandMayStart } from '../../domain/reply-command-preconditions'
 import {
   buildIdempotencyKey,
   nextPublicationCycle,
@@ -33,7 +30,7 @@ import {
 import { reviewError } from '../../domain/errors'
 import { replyAuthor } from '../../domain/reply-author'
 import { settleIfNeverDispatched } from './settle-never-dispatched-attempt'
-import { commitTransition } from '../reply-commit'
+import { commitTransition, replyChangedConcurrently } from '../reply-commit'
 import {
   reviewReplySubmitted,
   reviewReplyApproved,
@@ -170,10 +167,27 @@ async function assertPropertyAcceptsPublication(
   }
 }
 
+/** A stale AI draft is refused with the way out: only the person who can take
+ * the next step differs. */
+const STALE_AI_DRAFT = {
+  submit:
+    'This AI draft is no longer current, so RepKey will not submit it as it is. Edit it, then submit it again.',
+  approve:
+    'This AI draft is no longer current, so RepKey will not publish it as it is. Reject it so it can be edited and submitted again.',
+} as const
+
+/**
+ * Unedited AI text moves toward Google only while everything it was generated
+ * from is still current and its ten-minute adoption window is open
+ * (domain/reply-ai-text.ts). Only the two commands that move it ask: submit and
+ * Confirm & Publish. The store repeats the check in the transaction of its
+ * write; this one exists to say why, and what to do next.
+ */
 async function assertCurrentAiDraftBinding(
   deps: ReplyDeps,
   ctx: AuthContext,
   reply: Reply,
+  command: keyof typeof STALE_AI_DRAFT,
 ): Promise<void> {
   if (!reply.aiGenerated) return
   if (!deps.aiSuggestedDraftStore) {
@@ -187,7 +201,7 @@ async function assertCurrentAiDraftBinding(
     replyId: reply.id,
   })
   if (status === 'stale') {
-    throw reviewError('ai_suggestion_stale', 'The AI-assisted draft is no longer current')
+    throw reviewError('ai_suggestion_stale', STALE_AI_DRAFT[command])
   }
 }
 
@@ -359,20 +373,21 @@ export const draftReply =
       input.reviewId,
       ctx.organizationId,
     )
-    if (existing && input.templateId === undefined)
-      await assertCurrentAiDraftBinding(deps, ctx, existing)
 
     if (existing) {
-      // Validate the (re-)draft transition through the single authority.
-      // `draft → draft` covers in-place edits; `rejected → draft` covers re-drafts.
-      const transitioned = transitionReply(existing, 'draft', now)
-      if (transitioned.isErr()) throw transitioned.error
-      const redrafted = await deps.replyRepo.conditionalUpdate(
-        existing.id,
-        ctx.organizationId,
-        [existing.status],
+      // Only a draft or a rejected reply is rewritten, and only while no
+      // publication is open. A reply that is waiting for approval, being
+      // published or published keeps its text: a save from a stale composer
+      // would otherwise change what a manager confirmed, or what RepKey says
+      // is on Google. The store repeats this as the guard of its write.
+      //
+      // A save never asks whether an AI draft is still current: typing over AI
+      // text, or loading a template over it, makes the reply the manager's own
+      // (domain/reply-ai-text.ts), however long ago it was generated.
+      assertReplyCommandMayStart('save_draft', existing)
+      const redrafted = await deps.replyRepo.saveDraft(
+        existing,
         {
-          status: 'draft',
           text: input.text,
           ...(input.replyLanguageTag !== undefined
             ? { replyLanguageTag: input.replyLanguageTag }
@@ -383,47 +398,43 @@ export const draftReply =
                 templateVersion: input.templateVersion,
               }
             : {}),
-          rejectedBy: null,
-          rejectionReason: null,
-          aiGenerated: false,
         },
         now,
       )
-      if (!redrafted) {
-        throw reviewError('invalid_transition', 'Reply status changed concurrently')
-      }
+      if (!redrafted) throw replyChangedConcurrently()
       return redrafted
     }
 
-    return deps.replyRepo.upsert(
-      {
-        id: deps.idGen(),
-        reviewId: input.reviewId,
-        organizationId: ctx.organizationId,
-        text: input.text,
-        replyLanguageTag: input.replyLanguageTag ?? null,
-        templateId: input.templateId ?? null,
-        templateVersion: input.templateVersion ?? null,
-        status: 'draft',
-        source: 'internal',
-        createdBy: ctx.userId,
-        approvedBy: null,
-        rejectedBy: null,
-        rejectionReason: null,
-        aiGenerated: false,
-        stateRevision: 1,
-        submittedAt: null,
-        approvedAt: null,
-        publishedAt: null,
-        // BQC-3.8: a fresh draft has no publication workflow.
-        publicationState: null,
-        publicationCycle: 0,
-        publicationAttempts: 0,
-        publicationLastErrorClass: null,
-        reconcileDueAt: null,
-      },
-      now,
-    )
+    const created = await deps.replyRepo.createDraft({
+      id: deps.idGen(),
+      reviewId: input.reviewId,
+      organizationId: ctx.organizationId,
+      text: input.text,
+      replyLanguageTag: input.replyLanguageTag ?? null,
+      templateId: input.templateId ?? null,
+      templateVersion: input.templateVersion ?? null,
+      status: 'draft',
+      source: 'internal',
+      createdBy: ctx.userId,
+      approvedBy: null,
+      rejectedBy: null,
+      rejectionReason: null,
+      aiGenerated: false,
+      stateRevision: 1,
+      submittedAt: null,
+      approvedAt: null,
+      publishedAt: null,
+      // BQC-3.8: a fresh draft has no publication workflow.
+      publicationState: null,
+      publicationCycle: 0,
+      publicationAttempts: 0,
+      publicationLastErrorClass: null,
+      reconcileDueAt: null,
+    })
+    // A reply appeared for this review after the read above. The insert does
+    // not overwrite it; the manager's next save meets it as an existing reply.
+    if (!created) throw replyChangedConcurrently()
+    return created
   }
 
 // ── Submit for approval ───────────────────────────────────────────────
@@ -442,11 +453,12 @@ export const submitReply =
       input.reviewId,
       'No draft reply found for this review',
     )
+    assertReplyCommandMayStart('submit', reply)
     // Stored text is checked again: a draft saved under the old character cap
     // can still be too long in bytes.
     assertReplyTextSendable(reply.text)
     assertReplySlotsFilled(reply.text)
-    await assertCurrentAiDraftBinding(deps, ctx, reply)
+    await assertCurrentAiDraftBinding(deps, ctx, reply, 'submit')
 
     const now = deps.clock()
     // BQC-3.3: guarded status update and submitted fact commit in one transaction.
@@ -473,8 +485,22 @@ export const submitReply =
 
 // ── Approve reply ─────────────────────────────────────────────────────
 
+/**
+ * The reply a manager's screen showed: which reply, and at which state
+ * revision. Both, because a revision is counted per reply and starts again at
+ * 1 for every new one. A reply that was deleted and written anew is another
+ * reply that can stand at the very revision the first one stood at.
+ */
+export type ReplyOnScreen = Readonly<{ id: ReplyId; stateRevision: number }>
+
 export type ApproveReplyInput = Readonly<{
   reviewId: ReviewId
+  /**
+   * The reply the manager's screen showed when they opened the confirmation.
+   * The Inbox always sends it. A caller with no screen (a seed, a script)
+   * leaves it out and confirms the reply as it is stored.
+   */
+  expectedReply?: ReplyOnScreen
 }>
 
 export const approveReply =
@@ -482,10 +508,30 @@ export const approveReply =
   async (input: ApproveReplyInput, ctx: AuthContext): Promise<Reply> => {
     // D6-001: scope reply mutations to the caller's assigned properties.
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
+    // Approval is the move out of `pending_approval` and nothing else. A reply
+    // that failed to publish is sent again by retryPublish, which first proves
+    // that an attempt of unknown outcome never reached Google (Invariant 9);
+    // approving it here would skip that proof.
+    assertReplyCommandMayStart('approve', reply)
+    // The manager confirms the reply they read, not whatever is stored by now.
+    // A reply that was rejected, rewritten and submitted again while the
+    // confirmation was open is pending again in the same cycle, at a later
+    // state revision. One that was deleted and written anew is another reply,
+    // which can be pending at the same revision. So the confirmation names
+    // both, and either difference refuses it. The store carries the reply read
+    // here, id and revision, as the compare-and-set of its write, so a rewrite
+    // or a replacement after this line loses too.
+    if (
+      input.expectedReply !== undefined &&
+      (input.expectedReply.id !== reply.id ||
+        input.expectedReply.stateRevision !== reply.stateRevision)
+    ) {
+      throw replyChangedConcurrently()
+    }
     await assertPropertyAcceptsPublication(deps, review)
     assertReplyTextSendable(reply.text)
     assertReplySlotsFilled(reply.text)
-    await assertCurrentAiDraftBinding(deps, ctx, reply)
+    await assertCurrentAiDraftBinding(deps, ctx, reply, 'approve')
 
     return authorizeAndEnqueuePublication(
       deps,
@@ -557,12 +603,7 @@ export const editPublishedReply =
     if (!reply) {
       throw reviewError('reply_not_found', 'No reply found for this review')
     }
-    if (reply.status !== 'published') {
-      throw reviewError(
-        'invalid_transition',
-        'Only a published reply can be edited and republished',
-      )
-    }
+    assertReplyCommandMayStart('edit_published', reply)
 
     const review = await requireAccessibleReview(deps, ctx, input.reviewId)
 
@@ -614,6 +655,7 @@ export const rejectReply =
   async (input: RejectReplyInput, ctx: AuthContext): Promise<Reply> => {
     // D6-001: scope reply mutations to the caller's assigned properties.
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
+    assertReplyCommandMayStart('reject', reply)
 
     const now = deps.clock()
     // BQC-3.3: guarded status update + rejected fact commit in one tx.
@@ -655,11 +697,15 @@ export const deleteReply =
     // D6-001: scope reply mutations to the caller's assigned properties.
     const { reply } = await requireAccessibleReply(deps, ctx, input.reviewId)
 
-    if (reply.status !== 'draft' && reply.status !== 'rejected') {
-      throw reviewError('invalid_transition', 'Can only delete draft or rejected replies')
-    }
+    // A draft or a rejected reply that was never confirmed for publishing. One
+    // that was (a cancelled publication returns it to draft) has authorization
+    // and attempt rows behind it: they are evidence, the database keeps the
+    // reply for them, and the manager is told why instead of meeting the
+    // foreign key as an unexplained failure.
+    assertReplyCommandMayStart('delete', reply)
 
-    await deps.replyRepo.deleteById(reply.id, ctx.organizationId)
+    const deleted = await deps.replyRepo.deleteDraft(reply)
+    if (!deleted) throw replyChangedConcurrently()
   }
 
 // ── Retry publish ─────────────────────────────────────────────────────
@@ -689,6 +735,15 @@ export const retryPublish =
       ? await reconcileUncertainPublicationBeforeRetry(deps, reply, review)
       : reply
     if (isSettledPublishedReply(retryable)) return retryable
+    // Only a publication that failed is tried again. A reply still waiting for
+    // approval would otherwise be published here with no approver and no
+    // approved fact: approval is approveReply's move.
+    assertReplyCommandMayStart('retry_publication', retryable)
+    // Stored text is checked again, as submit and approval check it: a retry
+    // authorizes the text as it stands, and must not reserve a cycle for text
+    // the worker cannot send or that still holds an unfilled slot.
+    assertReplyTextSendable(retryable.text)
+    assertReplySlotsFilled(retryable.text)
 
     return authorizeAndEnqueuePublication(
       deps,

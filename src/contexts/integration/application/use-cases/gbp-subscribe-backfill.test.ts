@@ -2,9 +2,9 @@
 //
 // The backfill re-asserts push for every usable connection of one
 // organization: the daily reconciliation job runs it for every tenant, and
-// ops:gbp-subscribe runs it on demand. Its two load-bearing properties: it
-// writes nothing without --apply, and it is safe to run again after a partial
-// run.
+// ops:gbp-subscribe reports what it would do for one. Its two load-bearing
+// properties: a plan calls Google zero times, and an apply is safe to run
+// again after a partial run.
 
 import { describe, it, expect, vi } from 'vitest'
 import {
@@ -161,7 +161,7 @@ describe('ops:gbp-subscribe action', () => {
     const { backfill, subscribe } = setup([connection(CONN_A, 'active')])
     const { io, lines } = captureIO()
 
-    const exit = await createGbpSubscribeOperatorAction(backfill, 'ops:gbp-subscribe')(
+    const exit = await createGbpSubscribeOperatorAction(backfill)(
       { organizationId: ORG, dryRun: true },
       {},
       io,
@@ -173,7 +173,9 @@ describe('ops:gbp-subscribe action', () => {
       action: 'would_subscribe',
       candidates: 1,
     })
-    expect(lines[1]).toBe('re-run with --reason <text> --apply to ops:gbp-subscribe')
+    // The harness, not the action, says what happens next: the action used to
+    // end with "re-run with --reason <text> --apply", which is refused.
+    expect(lines).toHaveLength(1)
   })
 
   it('exits 0 when every candidate is subscribed, already was, or has no account yet', async () => {
@@ -188,7 +190,7 @@ describe('ops:gbp-subscribe action', () => {
     )
     const { io, lines } = captureIO()
 
-    const exit = await createGbpSubscribeOperatorAction(backfill, 'ops:gbp-subscribe')(
+    const exit = await createGbpSubscribeOperatorAction(backfill)(
       { organizationId: ORG, dryRun: false },
       {},
       io,
@@ -206,7 +208,7 @@ describe('ops:gbp-subscribe action', () => {
     const { backfill } = setup([connection(CONN_A, 'active')], ['topic_unset'])
     const { io, lines } = captureIO()
 
-    const exit = await createGbpSubscribeOperatorAction(backfill, 'ops:gbp-subscribe')(
+    const exit = await createGbpSubscribeOperatorAction(backfill)(
       { organizationId: ORG, dryRun: false },
       {},
       io,
@@ -219,9 +221,10 @@ describe('ops:gbp-subscribe action', () => {
   })
 })
 
-// Through the REAL harness: "dry-run by default" and "--apply needs --reason"
-// are the harness's contract, not the action's, and the operator-facing promise
-// in the script header is only true if the spec the script passes earns them.
+// Through the REAL harness, with the spec the script passes. The command needs
+// a call to Google and operator commands run without the Google provider
+// runtime, so the harness lets it report and refuses --apply; the action's
+// apply branch above is reachable only from a provider-enabled path.
 describe('ops:gbp-subscribe through the operator harness', () => {
   const SPEC = {
     name: 'ops:gbp-subscribe',
@@ -244,7 +247,7 @@ describe('ops:gbp-subscribe through the operator harness', () => {
     const err: string[] = []
     const result = await runOperatorCommand(
       SPEC,
-      createGbpSubscribeOperatorAction(backfill, SPEC.name),
+      createGbpSubscribeOperatorAction(backfill),
       runtime,
       argv,
       { out: (line) => out.push(line), err: (line) => err.push(line) },
@@ -252,40 +255,36 @@ describe('ops:gbp-subscribe through the operator harness', () => {
     return { result, subscribe, out, err }
   }
 
-  it('calls Google zero times without --apply', async () => {
+  it('reports the candidates, calls Google zero times, and says the worker subscribes them', async () => {
     const { result, subscribe, out } = await run(['--operator', 'op-1', '--org', ORG])
 
     expect(result.exitCode).toBe(0)
     expect(subscribe).not.toHaveBeenCalled()
     expect(out.join('\n')).toContain('"action": "would_subscribe"')
+    expect(out.at(-1)).toContain('ops:gbp-subscribe only reports: --apply is refused.')
+    expect(out.at(-1)).toContain('reconcile-gbp-notification-subscriptions')
   })
 
-  it('refuses --apply without --reason', async () => {
-    const { result, subscribe } = await run([
+  it.each([
+    ['without a reason', []],
+    [
+      'with a reason',
+      ['--reason', 'GCP topic configured; backfilling closed-beta tenants'],
+    ],
+  ])('refuses --apply %s and never calls Google', async (_label, reason) => {
+    const { result, subscribe, out, err } = await run([
       '--operator',
       'op-1',
       '--org',
       ORG,
+      ...reason,
       '--apply',
     ])
 
     expect(result.exitCode).toBe(1)
     expect(subscribe).not.toHaveBeenCalled()
-  })
-
-  it('subscribes with --apply --reason', async () => {
-    const { result, subscribe, out } = await run([
-      '--operator',
-      'op-1',
-      '--org',
-      ORG,
-      '--reason',
-      'GCP topic configured; backfilling closed-beta tenants',
-      '--apply',
-    ])
-
-    expect(result.exitCode).toBe(0)
-    expect(subscribe).toHaveBeenCalledWith(ORG, CONN_A)
-    expect(out.join('\n')).toContain('"action": "subscribe"')
+    expect(out).toEqual([])
+    expect(err[0]).toContain('ops:gbp-subscribe: --apply is refused')
+    expect(err[0]).toContain('reconcile-gbp-notification-subscriptions')
   })
 })

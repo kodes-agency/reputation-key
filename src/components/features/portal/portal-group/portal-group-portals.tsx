@@ -12,6 +12,7 @@ import type { PortalArchiveMutations } from '../portal-overview/portal-archive-d
 import type { PortalOverviewResultsControls } from '../portal-overview/portal-overview-results-strip'
 import type { PortalOverviewResultsState } from '../portal-overview/portal-overview-results'
 import { PortalOverviewTable } from '../portal-overview/portal-overview-table'
+import { sortFiguresWithoutUncounted } from '../portal-overview/portal-overview-uncounted'
 import {
   buildPortalOverview,
   type PortalManagerName,
@@ -70,7 +71,9 @@ export function PortalGroupPortals({
     byScans ? { groupBy: 'none', sort: 'scans' } : { groupBy: 'none' },
     members,
     Math.max(rows.length, 1),
-    byScans ? resultsState.index.sortFigures : undefined,
+    byScans
+      ? sortFiguresWithoutUncounted(resultsState.index.sortFigures, rows)
+      : undefined,
   )
   const basis = basisLine(resultsState, group.id)
   return (

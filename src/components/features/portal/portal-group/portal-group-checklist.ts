@@ -92,3 +92,10 @@ export function describeSelection(count: number): string {
   if (count === 0) return 'No portals selected'
   return `${count} ${count === 1 ? 'portal' : 'portals'} selected`
 }
+
+/** The note beside "Create group": a group needs only a name, so none ticked says portals are optional. */
+export function describeNewGroupSelection(count: number): string {
+  return count === 0
+    ? 'Portals are optional. You can add them later.'
+    : describeSelection(count)
+}

@@ -143,10 +143,16 @@ describe('allPropertiesSearchSchema', () => {
     ).toEqual({ q: 'bar', sort: 'scans', dir: 'asc', page: 2 })
   })
 
-  it('drops the filter and the grouping, which the page has no control for', () => {
-    expect(
-      allPropertiesSearchSchema.parse({ show: 'attention', groupBy: 'none', q: 'bar' }),
-    ).toEqual({ q: 'bar' })
+  it('reads the Needs attention filter, which the page offers as the Portals page does', () => {
+    expect(allPropertiesSearchSchema.parse({ show: 'attention' })).toEqual({
+      show: 'attention',
+    })
+  })
+
+  it('drops the grouping, which the page has no control for', () => {
+    expect(allPropertiesSearchSchema.parse({ groupBy: 'none', q: 'bar' })).toEqual({
+      q: 'bar',
+    })
   })
 
   it('drops values a hand-edited URL cannot mean instead of refusing the page', () => {

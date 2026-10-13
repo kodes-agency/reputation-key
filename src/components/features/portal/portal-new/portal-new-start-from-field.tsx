@@ -1,6 +1,6 @@
 // New portal — what to start from: the Property's own welcome wording, or a
-// copy of another portal's wording, links and languages. A copy never takes
-// codes. The copy choice is left out while the Property has no other portal.
+// copy of another portal's wording and links (and, unless the person chose their
+// own, its languages: the Languages field says so). A copy never takes codes. The copy choice is left out while the Property has no other portal.
 import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group'
 import { Label } from '#/components/ui/label'
 import {
@@ -99,7 +99,8 @@ export function PortalNewStartFromField({
                 </p>
               ) : null}
               <span className="text-sm text-muted-foreground">
-                Wording, links and languages. Never codes.
+                Wording and links, and its languages unless you chose your own. Never
+                codes.
               </span>
             </div>
           </div>

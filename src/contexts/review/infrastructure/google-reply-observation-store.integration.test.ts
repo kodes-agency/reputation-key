@@ -16,8 +16,10 @@ import { sha256Hex } from '#/shared/domain/sha256'
 import type { Reply, Review } from '../domain/types'
 import { compareObservedGoogleReply } from '../domain/google-reply-observation'
 import {
+  reviewReplyApproved,
   reviewReplyPublicationCancelled,
   reviewReplyPublicationRequested,
+  reviewReplySubmitted,
   reviewUpdated,
 } from '../domain/events'
 import { createReviewRepository } from './repositories/review.repository'
@@ -181,7 +183,15 @@ async function seedReviewAndReply(input: {
     originalReply,
     { status: 'approved', approvedBy: USER, approvedAt: NOW },
     {
-      lifecycleEvent: null,
+      lifecycleEvent: reviewReplyApproved({
+        replyId: rId,
+        reviewId: id,
+        propertyId: property,
+        organizationId: ORG,
+        userId: USER,
+        authorId: USER,
+        occurredAt: NOW,
+      }),
       publicationIntent: reviewReplyPublicationRequested({
         replyId: rId,
         reviewId: id,
@@ -694,12 +704,35 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     )
     expect(cancelled).toMatchObject({ status: 'draft', publicationState: 'cancelled' })
 
+    // A cancelled reply is a draft again: it is submitted and approved anew
+    // before its next cycle is authorized.
     const commandStore = createTestReplyCommandStore()
-    const authorized = await commandStore.markPublicationAuthorized(
+    const resubmitted = await commandStore.submitReply(
       cancelled!,
+      { status: 'pending_approval', submittedAt: NOW, submittedBy: USER },
+      reviewReplySubmitted({
+        replyId: REPLY_A,
+        reviewId: REVIEW_A,
+        propertyId: PROP_A,
+        organizationId: ORG,
+        userId: USER,
+        occurredAt: NOW,
+      }),
+      NOW,
+    )
+    const authorized = await commandStore.markPublicationAuthorized(
+      resubmitted!,
       { status: 'approved', approvedBy: USER, approvedAt: NOW },
       {
-        lifecycleEvent: null,
+        lifecycleEvent: reviewReplyApproved({
+          replyId: REPLY_A,
+          reviewId: REVIEW_A,
+          propertyId: PROP_A,
+          organizationId: ORG,
+          userId: USER,
+          authorId: USER,
+          occurredAt: NOW,
+        }),
         publicationIntent: reviewReplyPublicationRequested({
           replyId: REPLY_A,
           reviewId: REVIEW_A,

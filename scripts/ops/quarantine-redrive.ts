@@ -8,12 +8,14 @@
 //   pnpm ops quarantine redrive <quarantineJobId> --operator <id>  — show what would be redriven
 //   pnpm ops quarantine redrive <quarantineJobId> --operator <id> --reason <text> --apply
 //   pnpm ops quarantine discard <quarantineJobId> --operator <id>  — show what would be discarded
-//   pnpm ops quarantine discard <quarantineJobId> --operator <id> --reason <text> --apply
+//   pnpm ops quarantine discard <quarantineJobId> --operator <id> --reason <text> --apply --yes ops:quarantine
 //
 // Redrive moves the job back to its ORIGINAL queue with a fresh attempt
 // budget (catalogue policy) and redriveMetadata in the payload — the BQC-3
 // runtime contract (createRedriveJob); handlers are never invoked directly.
 // Discard removes the quarantined job without executing or re-enqueuing it.
+// DESTRUCTIVE: the dead-lettered work is gone for good, so --apply on a
+// discard also requires the typed confirmation --yes ops:quarantine.
 // Redacted envelopes (unknown job families) cannot be redriven, but can be
 // discarded after operator review. Requires QUEUE_REDIS_URL + DATABASE_URL.
 
@@ -24,11 +26,33 @@ import {
   type QuarantinedEntry,
   type QuarantinedJobHandle,
 } from '../../src/shared/jobs/failure-quarantine'
-import { positionalArgs } from '../../src/shared/ops/operator-command'
+import { pathToFileURL } from 'node:url'
+import {
+  positionalArgs,
+  type OperatorCommandSpec,
+} from '../../src/shared/ops/operator-command'
 import { runOperatorCommand } from './operator-command'
 
+const COMMAND_NAME = 'ops:quarantine'
 const USAGE =
-  'pnpm ops quarantine <list|redrive <quarantineJobId>|discard <quarantineJobId>> --operator <id> [--reason <text> --apply]'
+  'pnpm ops quarantine <list|redrive <quarantineJobId>|discard <quarantineJobId>> --operator <id> [--reason <text> --apply] (discard --apply also needs --yes ops:quarantine)'
+
+export type QuarantineAction = 'list' | 'redrive' | 'discard'
+
+/**
+ * The invocation contract of one `ops:quarantine` action. Only discard is
+ * destructive: a redrive returns the job to its queue, a discard removes the
+ * dead-lettered work without executing it and nothing can bring it back.
+ */
+export function quarantineCommandSpec(action: QuarantineAction): OperatorCommandSpec {
+  return {
+    name: COMMAND_NAME,
+    scope: 'global',
+    mutation: action !== 'list',
+    destructive: action === 'discard',
+    usage: USAGE,
+  }
+}
 
 function usage(): never {
   console.error(`Usage: ${USAGE}`)
@@ -55,15 +79,9 @@ async function main(): Promise<void> {
   const [action, id] = positionalArgs(process.argv.slice(2))
   if (action !== 'list' && action !== 'redrive' && action !== 'discard') usage()
   if (action !== 'list' && !id) usage()
-  const mutation = action !== 'list'
 
   const result = await runOperatorCommand(
-    {
-      name: 'ops:quarantine',
-      scope: 'global',
-      mutation,
-      usage: USAGE,
-    },
+    quarantineCommandSpec(action),
     async (ctx, _args, io) => {
       const quarantine = ctx.container.opsQueues.quarantine
       if (!quarantine) {
@@ -104,7 +122,7 @@ async function main(): Promise<void> {
       if (ctx.dryRun) {
         if (action === 'discard') {
           io.out(
-            `\nreport only — re-run with --apply to discard '${entry.quarantineJobId}' without executing it\n`,
+            `\nreport only — re-run with --reason <text> --apply --yes ${COMMAND_NAME} to discard '${entry.quarantineJobId}' for good, without executing it\n`,
           )
           return
         }
@@ -153,7 +171,10 @@ async function main(): Promise<void> {
   process.exit(result.exitCode)
 }
 
-main().catch((err) => {
-  console.error('ops:quarantine failed', err)
-  process.exit(1)
-})
+const entrypoint = process.argv[1]
+if (entrypoint && pathToFileURL(entrypoint).href === import.meta.url) {
+  main().catch((err) => {
+    console.error('ops:quarantine failed', err)
+    process.exit(1)
+  })
+}
