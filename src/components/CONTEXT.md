@@ -324,7 +324,10 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   server's own sentence only for a 4xx refusal, and a success says what changed
   without "successfully". `FormErrorBanner` follows the same rule (a 4xx
   refusal's sentence, a rejected schema's issue list, one generic sentence for
-  anything else), so hand it the mutation's error as it is. An autosaved portal
+  anything else), so hand it the mutation's error as it is. A Goal command's
+  refusal is worded first: it arrives with its code as the message, so
+  `goals/goal-refusal.ts` gives each code its sentence and the banner or the
+  toast prints that. An autosaved portal
   form (`usePortalFormAutosave`) has no actions to sit above and renders no
   banner: the editor header's save status reports its failure.
   `feedback-ownership.test.ts` reads the sources and fails on a file that does
