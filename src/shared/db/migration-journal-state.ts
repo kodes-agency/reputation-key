@@ -89,12 +89,42 @@ export function deployMigrationStateRefusal(state: DeployMigrationState): Error 
 }
 
 /**
+ * The schema track the runner had reached when it failed. The Better Auth
+ * track runs first and commits statement by statement; the journal is one
+ * transaction, and every later step runs with it applied.
+ */
+export type DeploySchemaTrack = 'better_auth' | 'journal'
+
+const LOCK_WAIT_SECONDS = MIGRATION_LOCK_TIMEOUT_MS / 1_000
+
+/** What a lock wait left behind differs by track, so each gets its own line. */
+const LOCK_WAIT_RECOVERY: Readonly<Record<DeploySchemaTrack, string>> = {
+  better_auth:
+    `Lock wait: a Better Auth schema statement waited ${LOCK_WAIT_SECONDS} s for a lock ` +
+    'another session holds and gave up, so that the application does not queue behind it. ' +
+    'That track commits statement by statement, so what it added before the wait stays, ' +
+    'and the journal was not started. It adds only what is missing: redeploy; if it ' +
+    'happens again, find the session holding the lock (pg_stat_activity, pg_blocking_pids) ' +
+    'first (runbooks.md §8).',
+  journal:
+    `Lock wait: a migration statement waited ${LOCK_WAIT_SECONDS} s for a lock ` +
+    'another session holds and gave up, so that the application does not queue behind it. ' +
+    'The journal runs in one transaction, so nothing of it was applied. Redeploy; if it ' +
+    'happens again, find the session holding the lock (pg_stat_activity, pg_blocking_pids) ' +
+    'first (runbooks.md §8).',
+}
+
+/**
  * The recovery line the runner prints after a failure. An image older than the
  * database is repaired only by a newer release. A lock wait has nothing to
- * repair: the journal gave up waiting for another session and applied nothing.
- * Every other failure is repaired by fixing what failed and rerunning.
+ * repair: the track gave up waiting for another session, and a rerun converges
+ * from whatever it left. Every other failure is repaired by fixing what failed
+ * and rerunning.
  */
-export function deployFailureRecovery(failure: unknown): string {
+export function deployFailureRecovery(
+  failure: unknown,
+  track: DeploySchemaTrack,
+): string {
   if (failure instanceof ImageOlderThanDatabaseError) {
     return (
       'Forward-only recovery: do not rerun this image, and do not edit ' +
@@ -103,15 +133,7 @@ export function deployFailureRecovery(failure: unknown): string {
       'a migration file or its journal entry (runbooks.md §28).'
     )
   }
-  if (isMigrationLockTimeout(failure)) {
-    return (
-      `Lock wait: a migration statement waited ${MIGRATION_LOCK_TIMEOUT_MS / 1_000} s for a lock ` +
-      'another session holds and gave up, so that the application does not queue behind it. ' +
-      'The journal runs in one transaction, so nothing of it was applied. Redeploy; if it ' +
-      'happens again, find the session holding the lock (pg_stat_activity, pg_blocking_pids) ' +
-      'first (runbooks.md §8).'
-    )
-  }
+  if (isMigrationLockTimeout(failure)) return LOCK_WAIT_RECOVERY[track]
   return (
     'Forward recovery: fix the failing migration SQL ' +
     'and redeploy — every step is idempotent, the rerun converges. ' +

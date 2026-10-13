@@ -1,4 +1,5 @@
-// The lock wait of the deploy migrator's journal track (scripts/migrate-deploy.ts).
+// The lock wait of the deploy migrator's two schema tracks
+// (scripts/migrate-deploy.ts).
 //
 // A statement that waits for a lock keeps its request queued, and PostgreSQL
 // queues every later request on the same object behind it. A migration's
@@ -7,7 +8,12 @@
 // SESSION_LOCK_TIMEOUT_MS (10 s, pool.ts) and fails the statement; the
 // migrator had no bound, so it kept the queue in place for as long as the
 // holder ran. With this bound the migrator gives up first and the deploy
-// fails, which leaves the previous release serving an unchanged schema.
+// fails, which leaves the previous release serving.
+//
+// The two tracks run on different sessions. The journal runs on the runner's
+// own session (`withMigrationLockTimeout`). The Better Auth track runs each
+// statement on the pool of `src/shared/auth/auth-cli.ts`, which bounds every
+// connection it opens (`boundMigrationLockWait`).
 //
 // What it does not bound is how long the migrator HOLDS a lock: drizzle
 // applies every pending file in one transaction, so the first file's locks
@@ -21,6 +27,16 @@ export const MIGRATION_LOCK_TIMEOUT_MS = 5_000
 const LOCK_NOT_AVAILABLE = '55P03'
 
 type MigrationSession = Readonly<{ query: (text: string) => Promise<unknown> }>
+
+/**
+ * Bounds the lock wait of one session for as long as it lives. For a session
+ * that only ever manages schema: the Better Auth track's pool sets it on each
+ * connection, because that track sends `ALTER TABLE` on `user`, `session`,
+ * `member` and `organization`, which every request reads.
+ */
+export async function boundMigrationLockWait(session: MigrationSession): Promise<void> {
+  await session.query(`SET lock_timeout = ${MIGRATION_LOCK_TIMEOUT_MS}`)
+}
 
 /**
  * Applies the journal with the lock wait bounded, then lifts the bound: the
@@ -37,7 +53,7 @@ export async function withMigrationLockTimeout<T>(
   session: MigrationSession,
   applyJournal: () => Promise<T>,
 ): Promise<T> {
-  await session.query(`SET lock_timeout = ${MIGRATION_LOCK_TIMEOUT_MS}`)
+  await boundMigrationLockWait(session)
   const applied = await applyJournal()
   await session.query('RESET lock_timeout')
   return applied

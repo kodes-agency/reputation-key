@@ -73,16 +73,20 @@ The signed web image runs that sequence under a deployment advisory lock only
 after proving its exact cell/project/environment/service identity. Recovery is
 fix-forward-and-rerun—never hand-roll partial schema state.
 
-The runner's journal track waits at most 5 seconds for a lock
+Both of the runner's schema tracks wait at most 5 seconds for a lock
 (`migration-lock-timeout.ts`), half the bound a pooled application session has.
 A statement waiting for a lock holds every later statement on that object in
 the queue behind it, so a migration blocked by one long query would stall the
 application on that table; the runner gives up first, fails the deploy with
-`[migrate-deploy] Lock wait:`, and a rerun converges because the journal is one
-transaction. The bound is on the wait, not the hold: every pending file runs in
-that one transaction, so a lock the first file takes is kept until the last
-file's statements finish. Keep long backfills out of a release that also alters
-a hot table.
+`[migrate-deploy] Lock wait:` and names the track, and a rerun converges. The
+journal is bounded on the runner's own session and is one transaction, so
+nothing of it is applied. The Better Auth track runs on the pool of
+`src/shared/auth/auth-cli.ts`, which bounds every connection it opens; it
+commits statement by statement, so it keeps what it added before the wait and
+adds only what is missing on the rerun. The bound is on the wait, not the hold:
+every pending journal file runs in that one transaction, so a lock the first
+file takes is kept until the last file's statements finish. Keep long backfills
+out of a release that also alters a hot table.
 
 Recovery is also forward-only (ADR 0038, amended 2026-10-12). The deploy runner
 and the readiness probe require the applied migration count to equal the image's

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  boundMigrationLockWait,
   isMigrationLockTimeout,
   MIGRATION_LOCK_TIMEOUT_MS,
   withMigrationLockTimeout,
@@ -18,6 +19,18 @@ function recordingSession() {
     },
   }
 }
+
+describe('boundMigrationLockWait', () => {
+  // The Better Auth track's pool calls this for each connection it opens and
+  // never lifts it: those sessions only manage schema.
+  it('sets the bound on the session and leaves it there', async () => {
+    const { session, statements } = recordingSession()
+
+    await boundMigrationLockWait(session)
+
+    expect(statements).toEqual(['SET lock_timeout = 5000'])
+  })
+})
 
 describe('withMigrationLockTimeout', () => {
   it('bounds the lock wait for the journal and lifts the bound afterwards', async () => {

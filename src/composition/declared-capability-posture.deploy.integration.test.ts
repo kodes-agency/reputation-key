@@ -392,6 +392,31 @@ describe('a deploy whose migration cannot take its lock', () => {
   // holder lets go by itself, so a runner that waits without bound still ends.
   const HOLD_MS = 45_000
 
+  /** Deploys while another session holds the lock, as a long query holds its table. */
+  async function deployWhileLocked(
+    lockStatement: string,
+  ): Promise<Readonly<{ run: DeployRun; holderLetGo: boolean }>> {
+    const holder = new Client({ connectionString: scratchUrl })
+    await holder.connect()
+    let holderLetGo = false
+    let release: ReturnType<typeof setTimeout> | undefined
+    try {
+      await holder.query('BEGIN')
+      await holder.query(lockStatement)
+      release = setTimeout(() => {
+        holderLetGo = true
+        void holder.query('ROLLBACK')
+      }, HOLD_MS)
+
+      const run = await deploy({})
+      return { run, holderLetGo }
+    } finally {
+      clearTimeout(release)
+      await holder.query('ROLLBACK').catch(() => undefined)
+      await holder.end()
+    }
+  }
+
   it(
     'gives up with a lock timeout instead of queueing behind the holder',
     async () => {
@@ -399,38 +424,59 @@ describe('a deploy whose migration cannot take its lock', () => {
         REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS: MIGRATOR_KEY,
       })
       expect(current.code).toBe(0)
+
       // Another session holds what the journal track reads first. Every
       // statement the migrator sends waits for it, as an ALTER TABLE waits for
       // a long report query on its table.
-      const holder = new Client({ connectionString: scratchUrl })
-      await holder.connect()
-      let holderLetGo = false
-      let release: ReturnType<typeof setTimeout> | undefined
-      try {
-        await holder.query('BEGIN')
-        await holder.query(
-          'LOCK TABLE drizzle.__drizzle_migrations IN ACCESS EXCLUSIVE MODE',
-        )
-        release = setTimeout(() => {
-          holderLetGo = true
-          void holder.query('ROLLBACK')
-        }, HOLD_MS)
+      const { run, holderLetGo } = await deployWhileLocked(
+        'LOCK TABLE drizzle.__drizzle_migrations IN ACCESS EXCLUSIVE MODE',
+      )
 
-        const run = await deploy({})
-
-        expect({ code: run.code, holderLetGo }).toEqual({ code: 1, holderLetGo: false })
-        expect(run.stderr).toContain('canceling statement due to lock timeout')
-        expect(run.stderr).toContain('[migrate-deploy] Lock wait:')
-        expect(run.stderr).not.toContain('fix the failing migration SQL')
-        expect(postureLine(run)).toBeUndefined()
-      } finally {
-        clearTimeout(release)
-        await holder.query('ROLLBACK').catch(() => undefined)
-        await holder.end()
-      }
+      expect({ code: run.code, holderLetGo }).toEqual({ code: 1, holderLetGo: false })
+      expect(run.stderr).toContain('canceling statement due to lock timeout')
+      expect(run.stderr).toContain(
+        '[migrate-deploy] Lock wait: a migration statement waited 5 s',
+      )
+      expect(run.stderr).not.toContain('fix the failing migration SQL')
+      expect(postureLine(run)).toBeUndefined()
       // Nothing was applied and nothing is left to repair: the rerun converges.
       const rerun = await deploy({})
       expect(rerun.code).toBe(0)
+    },
+    DEPLOY_TIMEOUT_MS,
+  )
+
+  // The Better Auth track runs first, statement by statement on a pool of its
+  // own, and its tables are the ones every request reads.
+  it(
+    'gives up the same way when the Better Auth track cannot take its lock',
+    async () => {
+      const current = await deploy({
+        REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS: MIGRATOR_KEY,
+      })
+      expect(current.code).toBe(0)
+      // What a Better Auth upgrade is to this database: a column the track has
+      // to add. Nothing in the journal reads `user.image`.
+      await db.query('ALTER TABLE "user" DROP COLUMN "image"')
+
+      const { run, holderLetGo } = await deployWhileLocked(
+        'LOCK TABLE "user" IN ACCESS SHARE MODE',
+      )
+
+      expect({ code: run.code, holderLetGo }).toEqual({ code: 1, holderLetGo: false })
+      expect(run.stderr).toContain('canceling statement due to lock timeout')
+      expect(run.stderr).toContain(
+        '[migrate-deploy] Lock wait: a Better Auth schema statement waited 5 s',
+      )
+      expect(run.stdout).not.toContain('auth track applied')
+      // The track adds only what is missing, so the rerun adds the column.
+      const rerun = await deploy({})
+      expect(rerun.code).toBe(0)
+      const column = await db.query(
+        `SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'user' AND column_name = 'image'`,
+      )
+      expect(column.rowCount).toBe(1)
     },
     DEPLOY_TIMEOUT_MS,
   )
