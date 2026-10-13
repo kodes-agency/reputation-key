@@ -84,7 +84,12 @@ Three `server/policy-admin.ts` functions have no UI caller on purpose:
   diagnostic for an operator holding `policy.admin`;
   `scripts/ops/report-capability-refusal.ts` is its local-stack twin (#403/#408).
 - `grantPropertyAccessFn` and `revokePropertyAccessFn` remain the operator surface for
-  changing a PropertyManager's Property scope; they have no UI caller.
+  changing a PropertyManager's Property scope; they have no UI caller, and the grant
+  is the only command that can give a grant an expiry. A grant that has lapsed is
+  retired and granted again; asking for another expiry (or none) on an active grant
+  replaces it; the same grant asked again changes nothing. Each change commits with
+  the `identity.member.property_access_changed` fact the Members edit records, so the
+  member hears about it; a command that changes nothing records none.
   Follow-up: a grant requires `reason` and `ticketRef` but persists neither (a revoke
   keeps its `reason` as `revoke_reason`).
 
@@ -94,8 +99,13 @@ current grants come from `listMemberPropertyAccess`). Its grants and revokes com
 atomically with one `identity.member.property_access_changed` fact (identifiers
 only), and a change that alters nothing records none. A grant from a person uses
 `source='operator'` with `createdBy` = that person, and takes the same per-Property
-lock as the operator's grant; an invitation's grants record the inviter as
-`createdBy`, and a Property that could not be granted is logged, never silent. An
+lock and the same grant write as the operator's grant
+(`infrastructure/property-grant-write.ts`; the rule is `decidePropertyGrant` in
+`domain/property-access-grant.ts`): a lapsed grant still holds the one-active-grant
+slot, so it is retired as `superseded` before the new one is written. The Members edit
+names no expiry and leaves a grant that already gives access alone. An invitation's
+grants record the inviter as `createdBy`, and a Property that could not be granted is
+logged, never silent. An
 AccountAdmin may change another AccountAdmin's role; nobody changes their own role;
 the last-AccountAdmin guard holds under the Organization lock. Only an AccountAdmin
 invites, cancels or resends invitations, creates members, edits a PropertyManager's
