@@ -674,10 +674,11 @@ function buildContainer(
       webhookUrl: env.ALERT_WEBHOOK_URL,
       report: reportAlertToObservability,
     }),
-    // ARC-03-T6: the container's owned release seam. Everything a build()
-    // starts for the life of the process registers here, so the web
-    // graceful-shutdown plugin, the worker drain and closeContainer() all stop
-    // the same resources through one capability instead of leaking them.
+    // ARC-03-T6: the container's owned release seam, for background work a
+    // build() starts for the life of the process, so the web graceful-shutdown
+    // plugin, the worker drain and closeContainer() stop it through one
+    // capability. Nothing is registered on it today, and it does not release
+    // queue or Redis connections (container-lifecycle.ts, STATE).
     shutdown: containerShutdown,
     // ARC-03-T8: the policy trio this container owns. Constructing it installs
     // nothing process-wide — an entry point calls bindProcessPolicies(container)
@@ -928,12 +929,13 @@ export async function closeContainer(): Promise<void> {
   store[CONTAINER_KEY] = undefined
   releaseProcessContainer()
   if (!container) return
-  // ARC-03-T6: release container-owned background work FIRST. The policy
-  // poller re-reads the database on every tick, so stopping it before the
-  // connections go away is what keeps shutdown quiet instead of logging a
-  // refresh failure against a closing pool. Optional because the singleton is
-  // keyed by Symbol.for and shared across the two composition bundles the
-  // production build emits — an older bundle's container may predate the seam.
+  // ARC-03-T6: release container-owned background work FIRST, so nothing a
+  // build() started is left reading the database while the connections below
+  // go away. No build registers any today (the identity policy poller this
+  // order was written for is gone), so the call releases nothing. Optional
+  // because the singleton is keyed by Symbol.for and shared across the two
+  // composition bundles the production build emits — an older bundle's
+  // container may predate the seam.
   await container.shutdown?.run()
   await Promise.all([
     container.jobQueue?.close(),

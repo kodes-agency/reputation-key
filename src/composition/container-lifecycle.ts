@@ -12,6 +12,19 @@
 // it started cannot be proved process-scoped, which is the precondition for
 // retiring the remaining process globals.
 //
+// STATE (2026-10-13): the rule is not held for connections, and the seam is
+// empty. No build starts background work any more (the poller above is gone),
+// so the shutdown capability is built from an empty hook list
+// (operational-readout.ts) and `run()` releases nothing. The queue and Redis
+// connections a container opens, the operational readout's quarantine read
+// handle, job-runtime observation connection and worker barrier queue
+// included, are released elsewhere: the web process quits every tracked
+// connection through closeJobQueueConnections() (shared/jobs/queue.ts), the
+// worker closes the queues it names in its drain and then exits, and a
+// container built directly (a simulation, an operator command) leaves them to
+// its process's exit. Register a hook here before a build starts background
+// work again; do not read this seam as covering a resource it was never given.
+//
 // The seam is deliberately tiny: ONE key (`run`), frozen, idempotent. Hooks
 // run in registration order and a throwing hook never prevents the rest from
 // running — a shutdown path that aborts halfway leaks exactly the resources

@@ -408,9 +408,9 @@ async function main() {
         namedCloseable('background', backgroundWorker),
         namedCloseable('domain-events', domainEventsWorker),
       ],
-      // ARC-03-T6: the worker built this container, so the worker releases
-      // what it started — the process no longer relies on exit() to clean up
-      // background work.
+      // ARC-03-T6: the worker built this container, so the worker runs its
+      // release seam. The seam holds no hooks today; connections the drain
+      // does not name below end with process.exit (container-lifecycle.ts).
       shutdown: container.shutdown,
       queues: [
         namedCloseable('default', container.jobQueue),
