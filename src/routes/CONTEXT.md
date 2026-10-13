@@ -91,8 +91,13 @@ key that always has one) and the rest of the address is kept. A schema that
 throws replaces the page with the generic error, reports it, and offers a "Try
 again" that reads the same address again. The router reads a value made only of
 digits as a number, so a string key needs the `.catch` too. A key that names an
-entity is checked for its shape (`z.uuid()`), and still against what the reader
-may see before anything is done with it.
+entity is checked for the shape of its id: `z.uuid()` for a Property, an Inbox
+item or anything else the database keys by UUID. A plain string is right only
+where the id is not a UUID (an invitation's, a goal subject's `kind:id`; both
+carry a length bound) or where the page does nothing with the value but look it
+up in a list it already loaded (the goal result a notice links to). Either way
+the entity is still checked against what the reader may see before anything is
+done with it.
 
 ## Server-function bundles and mutations
 

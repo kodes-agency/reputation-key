@@ -35,7 +35,7 @@ const preferencesQuery = (organizationId: string) =>
  * "the first property by name" pointed the whole page — including its save
  * buttons — at a property the operator had not chosen. */
 const notificationsSearchSchema = z.object({
-  propertyId: z.string().optional().catch(undefined),
+  propertyId: z.uuid().optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/_authenticated/settings/notifications')({

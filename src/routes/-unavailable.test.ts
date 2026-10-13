@@ -204,6 +204,21 @@ describe('unavailable route presentation', () => {
     ).toBe('Not available in this beta')
   })
 
+  // A Property's id is a UUID, and this one becomes the link to its settings.
+  it('reads a property id and drops text that is not one', () => {
+    const propertyId = '0b9d7c1a-3e5f-4b2a-8c6d-1e2f3a4b5c6d'
+
+    expect(
+      unavailableSearch.parse({ category: 'needs_admin_enablement', propertyId }),
+    ).toEqual({ category: 'needs_admin_enablement', propertyId })
+    expect(
+      unavailableSearch.parse({
+        category: 'needs_admin_enablement',
+        propertyId: 'property-1',
+      }),
+    ).toEqual({ category: 'needs_admin_enablement' })
+  })
+
   it('keeps the rest of the address when the feature is dropped', () => {
     expect(
       unavailableSearch.parse({ feature: 'x'.repeat(200), category: 'not_in_beta' }),

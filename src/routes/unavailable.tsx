@@ -45,7 +45,7 @@ export const unavailableSearch = z.object({
   // account with no workspace recovers, so it has to draw.
   reason: z.literal('workspace_access').optional().catch(undefined),
   category: z.enum(CAPABILITY_REFUSAL_CATEGORIES).optional().catch(undefined),
-  propertyId: z.string().optional().catch(undefined),
+  propertyId: z.uuid().optional().catch(undefined),
 })
 
 type UnavailableSearch = z.infer<typeof unavailableSearch>
