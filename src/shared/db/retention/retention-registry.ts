@@ -116,7 +116,7 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       query:
         'SELECT review_id FROM review_source_contents WHERE content_expires_at < now(). The anchor is deliberately NOT last_fetched_at: a re-observation refreshes the cache, and keying expiry on the fetch would let RepKey hold provider text for as long as it keeps looking at it.',
       implementedBoundary:
-        'content_expires_at is stamped and enforced per row today, but no scheduled rule deletes on it yet and the 30-day figure is not a published commitment.',
+        "content_expires_at is stamped per row and enforced on every serving read today, but no scheduled rule deletes on it yet. The 30-day figure is Google's cache policy and the intended maximum the accepted Privacy Notice states (docs/BETA.md §2, UNENFORCED for stored rows), not a horizon any rule executes.",
     },
     evidenceSubject: 'review_source_contents.expired',
     restoreImplication: RESTORE_REPLAYS_DELETION,
