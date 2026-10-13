@@ -131,6 +131,18 @@ interfaces from Property, Portal, Staff, Review, Inbox, and Guest; none of their
 are imported. Metric-to-Goal and Metric-to-Dashboard collaboration is internal and follows
 the normal domain/application/infrastructure layer rules.
 
+The Property-scoped dashboard reads authorize their own reader. `getDashboardData`,
+`getPropertyOverview`, `getAttentionSignals`, `getPortalAnalytics` and
+`getPortalResultsOverview` take the caller's `AuthContext` beside their input and first ask
+`application/dashboard-property-access.ts`: the reader belongs to the Organization, holds
+`dashboard.read`, and reaches every Property the read names (an Organization-wide holder
+all of them, a manager only those currently granted). A refusal is a tagged `DashboardError`
+`forbidden`, raised before anything is read. `getDashboardData` also hides reply state from a
+reader without `reply.manage` (`domain/reply-workflow-redaction.ts`), so the overview that
+composes it does too. The server functions still ask the execution policy first (capability,
+suspension, kill switch); they no longer make the Property decision themselves, and a caller
+that is not a server function cannot skip it.
+
 `getDashboardDataFn` is the one server function no route calls: the Property dashboard
 moved to `getPropertyOverviewFn`. It stays because the dashboard-governance and
 review-expiry e2e specs call it by export name to prove the governed read (grant

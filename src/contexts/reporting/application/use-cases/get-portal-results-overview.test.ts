@@ -7,6 +7,7 @@ import {
   type PortalGroupId,
   type PortalId,
 } from '#/shared/domain/ids'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
 import type {
   MetricPortalMetricEvidence,
@@ -150,16 +151,24 @@ const ask = (
   extra: Partial<GetPortalResultsOverviewInput> = {},
   now: Date = NOW,
 ) =>
-  getPortalResultsOverview({ results: repo.results, now: () => now })({
-    scope,
-    portals,
-    properties: [{ propertyId: PROP, timezone: UTC }],
-    timeRange: '30d',
-    compare: false,
-    ...extra,
-  })
+  getPortalResultsOverview({
+    results: repo.results,
+    now: () => now,
+    propertyAccess: async () => null,
+  })(
+    {
+      scope,
+      portals,
+      properties: [{ propertyId: PROP, timezone: UTC }],
+      timeRange: '30d',
+      compare: false,
+      ...extra,
+    },
+    ADMIN,
+  )
 
 const scope = { organizationId: ORG, propertyId: PROP }
+const ADMIN = buildTestAuthContext({ organizationId: ORG, role: 'AccountAdmin' })
 const inProperty = (
   property: typeof PROP,
   entries: readonly [PortalId, PortalGroupId | null][],
@@ -877,5 +886,62 @@ describe('getPortalResultsOverview', () => {
       }
       await expect(ask({ results }, roster([[P1, null]]))).rejects.toThrow('no evidence')
     })
+  })
+})
+
+describe('getPortalResultsOverview authorization', () => {
+  const manager = buildTestAuthContext({ organizationId: ORG, role: 'PropertyManager' })
+  const readAs = (
+    propertyAccess: () => Promise<readonly (typeof PROP)[]>,
+    input: Partial<GetPortalResultsOverviewInput> = {},
+  ) => {
+    const repo = fakeRepository({})
+    const read = getPortalResultsOverview({
+      results: repo.results,
+      now: () => NOW,
+      propertyAccess,
+    })(
+      {
+        scope,
+        portals: inProperty(PROP, [[P1, null]]),
+        properties: [{ propertyId: PROP, timezone: UTC }],
+        timeRange: '30d',
+        compare: false,
+        ...input,
+      },
+      manager,
+    )
+    return { read, readWindow: repo.readWindow }
+  }
+  const forbidden = { _tag: 'DashboardError', code: 'forbidden' }
+
+  it('refuses a manager with no grant on the Property before any window is read', async () => {
+    const { read, readWindow } = readAs(async () => [OTHER_PROP])
+
+    await expect(read).rejects.toMatchObject(forbidden)
+    expect(readWindow).not.toHaveBeenCalled()
+  })
+
+  it('refuses an Organization read whose roster names one Property the manager lacks', async () => {
+    const { read, readWindow } = readAs(async () => [PROP], {
+      scope: { organizationId: ORG, propertyId: null },
+      portals: [
+        ...inProperty(PROP, [[P1, null]]),
+        ...inProperty(OTHER_PROP, [[P2, null]]),
+      ],
+      properties: [
+        { propertyId: PROP, timezone: UTC },
+        { propertyId: OTHER_PROP, timezone: UTC },
+      ],
+    })
+
+    await expect(read).rejects.toMatchObject(forbidden)
+    expect(readWindow).not.toHaveBeenCalled()
+  })
+
+  it('serves a manager granted every Property of the roster', async () => {
+    const { read } = readAs(async () => [PROP])
+
+    await expect(read).resolves.toMatchObject({ total: { portalIds: [P1] } })
   })
 })

@@ -1,7 +1,8 @@
 // Invoking a server fn outside the server runtime skips `.validator()`, so
 // these tests pass complete input and assert what the handler asks of the gates
 // and what it hands the use case: the roster Portal gave, the Property's own
-// time zone, and nothing taken from the browser.
+// time zone, the reader the use case authorizes, and nothing taken from the
+// browser.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,7 +16,6 @@ const mocks = vi.hoisted(() => ({
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
   decide: vi.fn(),
-  assertDashboardPropertyAccessible: vi.fn(),
 }))
 
 const ORG_ID = '00000000-0000-4000-8000-0000000000a1'
@@ -56,14 +56,12 @@ vi.mock('#/shared/auth/execution-policy', () => ({
   requireExecutionAllowed: mocks.requireExecutionAllowed,
   getExecutionPolicy: () => ({ decide: mocks.decide }),
 }))
-vi.mock('./assert-property-access', () => ({
-  assertDashboardPropertyAccessible: mocks.assertDashboardPropertyAccessible,
-}))
 vi.mock('#/shared/observability/traced-server-fn', () => ({
   tracedHandler: (handler: unknown) => handler,
 }))
 
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import { dashboardError } from '../domain/dashboard-errors'
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { getPortalResultsOverviewFn } from './portal-results-overview'
 
@@ -97,7 +95,6 @@ describe('getPortalResultsOverviewFn', () => {
     vi.clearAllMocks()
     mocks.resolveTenantContext.mockResolvedValue(ctx)
     mocks.requireExecutionAllowed.mockResolvedValue(undefined)
-    mocks.assertDashboardPropertyAccessible.mockResolvedValue(undefined)
     mocks.getPropertyTimezone.mockResolvedValue('Europe/Sofia')
     mocks.listPortalOverview.mockResolvedValue([
       overviewRow(PORTAL_A, GROUP_ID),
@@ -114,16 +111,19 @@ describe('getPortalResultsOverviewFn', () => {
       ctx,
     )
     expect(mocks.getPropertyTimezone).toHaveBeenCalledWith(ORG_ID, PROPERTY_ID)
-    expect(mocks.getPortalResultsOverview).toHaveBeenCalledWith({
-      scope: { organizationId: ORG_ID, propertyId: PROPERTY_ID },
-      portals: [
-        { portalId: PORTAL_A, propertyId: PROPERTY_ID, groupId: GROUP_ID },
-        { portalId: PORTAL_B, propertyId: PROPERTY_ID, groupId: null },
-      ],
-      properties: [{ propertyId: PROPERTY_ID, timezone: 'Europe/Sofia' }],
-      timeRange: '60d',
-      compare: false,
-    })
+    expect(mocks.getPortalResultsOverview).toHaveBeenCalledWith(
+      {
+        scope: { organizationId: ORG_ID, propertyId: PROPERTY_ID },
+        portals: [
+          { portalId: PORTAL_A, propertyId: PROPERTY_ID, groupId: GROUP_ID },
+          { portalId: PORTAL_B, propertyId: PROPERTY_ID, groupId: null },
+        ],
+        properties: [{ propertyId: PROPERTY_ID, timezone: 'Europe/Sofia' }],
+        timeRange: '60d',
+        compare: false,
+      },
+      ctx,
+    )
   })
 
   it('asks the gates for both the Portals and the results of this Property', async () => {
@@ -140,11 +140,6 @@ describe('getPortalResultsOverviewFn', () => {
       action: 'dashboard.read',
       propertyId: PROPERTY_ID,
     })
-    expect(mocks.assertDashboardPropertyAccessible).toHaveBeenCalledWith(
-      expect.anything(),
-      ctx,
-      PROPERTY_ID,
-    )
   })
 
   it('reads nothing when the Portal gate refuses', async () => {
@@ -175,23 +170,24 @@ describe('getPortalResultsOverviewFn', () => {
     expect(mocks.getPortalResultsOverview).not.toHaveBeenCalled()
   })
 
-  it('reads nothing when the caller may not see this Property (D6-001)', async () => {
-    mocks.assertDashboardPropertyAccessible.mockRejectedValue(
-      new ServerFunctionError('DashboardError', 'Forbidden', 'forbidden', 403),
+  it('answers a 403 when the use case refuses this reader for the Property (D6-001)', async () => {
+    mocks.getPortalResultsOverview.mockRejectedValue(
+      dashboardError('forbidden', 'Property not assigned to caller'),
     )
 
-    await expect(read()).rejects.toMatchObject({ code: 'forbidden', status: 403 })
-    expect(mocks.listPortalOverview).not.toHaveBeenCalled()
-    expect(mocks.getPortalResultsOverview).not.toHaveBeenCalled()
+    await expect(read()).rejects.toMatchObject({
+      _tag: 'DashboardError',
+      code: 'forbidden',
+      status: 403,
+    })
+    // The decision is the use case's: it is handed the reader, never skipped.
+    expect(mocks.getPortalResultsOverview).toHaveBeenCalledWith(expect.anything(), ctx)
   })
 
   it('asks every gate before it reads anything', async () => {
     await read()
 
-    const gateOrders = [
-      ...mocks.requireExecutionAllowed.mock.invocationCallOrder,
-      ...mocks.assertDashboardPropertyAccessible.mock.invocationCallOrder,
-    ]
+    const gateOrders = [...mocks.requireExecutionAllowed.mock.invocationCallOrder]
     const readOrders = [
       ...mocks.listPortalOverview.mock.invocationCallOrder,
       ...mocks.getPropertyTimezone.mock.invocationCallOrder,
@@ -256,6 +252,7 @@ describe('getPortalResultsOverviewFn', () => {
 
     expect(mocks.getPortalResultsOverview).toHaveBeenCalledWith(
       expect.objectContaining({ portals: [] }),
+      ctx,
     )
   })
 
@@ -295,20 +292,23 @@ describe('getPortalResultsOverviewFn', () => {
         { scope: 'organization', propertyIds: [PROPERTY_ID, PROPERTY_B] },
         ctx,
       )
-      expect(mocks.getPortalResultsOverview).toHaveBeenCalledWith({
-        scope: { organizationId: ORG_ID, propertyId: null },
-        portals: [
-          { portalId: PORTAL_A, propertyId: PROPERTY_ID, groupId: GROUP_ID },
-          { portalId: PORTAL_B, propertyId: PROPERTY_ID, groupId: null },
-          { portalId: PORTAL_C, propertyId: PROPERTY_B, groupId: null },
-        ],
-        properties: [
-          { propertyId: PROPERTY_ID, timezone: 'Europe/Sofia' },
-          { propertyId: PROPERTY_B, timezone: 'America/New_York' },
-        ],
-        timeRange: '7d',
-        compare: true,
-      })
+      expect(mocks.getPortalResultsOverview).toHaveBeenCalledWith(
+        {
+          scope: { organizationId: ORG_ID, propertyId: null },
+          portals: [
+            { portalId: PORTAL_A, propertyId: PROPERTY_ID, groupId: GROUP_ID },
+            { portalId: PORTAL_B, propertyId: PROPERTY_ID, groupId: null },
+            { portalId: PORTAL_C, propertyId: PROPERTY_B, groupId: null },
+          ],
+          properties: [
+            { propertyId: PROPERTY_ID, timezone: 'Europe/Sofia' },
+            { propertyId: PROPERTY_B, timezone: 'America/New_York' },
+          ],
+          timeRange: '7d',
+          compare: true,
+        },
+        ctx,
+      )
     })
 
     it('asks the Portal and dashboard gates for the Organization before it reads', async () => {
@@ -418,7 +418,6 @@ describe('getPortalResultsOverviewFn', () => {
         'manager-1',
         false,
       )
-      expect(mocks.assertDashboardPropertyAccessible).not.toHaveBeenCalled()
     })
 
     it('does not look anyone’s assignments up for an Organization-wide role', async () => {
@@ -466,6 +465,7 @@ describe('getPortalResultsOverviewFn', () => {
           ],
           properties: [{ propertyId: PROPERTY_ID, timezone: 'Europe/Sofia' }],
         }),
+        ctx,
       )
     })
 
@@ -476,6 +476,7 @@ describe('getPortalResultsOverviewFn', () => {
 
       expect(mocks.getPortalResultsOverview).toHaveBeenCalledWith(
         expect.objectContaining({ portals: [], properties: [] }),
+        ctx,
       )
     })
 

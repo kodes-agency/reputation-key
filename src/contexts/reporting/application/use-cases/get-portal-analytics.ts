@@ -1,7 +1,8 @@
 // Dashboard context — getPortalAnalytics use case
-// Orchestrates portal-scoped queries into a single PortalAnalyticsData response.
-// Authorization is enforced at the router/loader level (property ownership). No auth logic here.
+// Authorizes the reader for the Property, then orchestrates portal-scoped
+// queries into a single PortalAnalyticsData response.
 
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 import type {
   PortalAnalyticsData,
@@ -12,6 +13,10 @@ import type {
   PortalMetricSumRow,
 } from '../ports/portal-analytics.repository'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
+import {
+  requireDashboardPropertyAccess,
+  type DashboardPropertyAccess,
+} from '../dashboard-property-access'
 import { priorPeriodDates } from '../utils'
 import { portalPeriodKpis } from './portal-period-kpis'
 import { qualifiedScansSince } from './qualified-scans-since'
@@ -60,12 +65,16 @@ export type GetPortalAnalyticsDeps = Readonly<{
   }>
   /** Portal-owned: the versions that went live in a window. */
   portalVersions: Pick<PortalPublicApi, 'listPublicationActivationsBetween'>
+  propertyAccess: DashboardPropertyAccess
 }>
 export type GetPortalAnalytics = ReturnType<typeof getPortalAnalytics>
 
 export const getPortalAnalytics =
   (deps: GetPortalAnalyticsDeps) =>
-  async (input: GetPortalAnalyticsInput): Promise<PortalAnalyticsData> => {
+  async (
+    input: GetPortalAnalyticsInput,
+    ctx: AuthContext,
+  ): Promise<PortalAnalyticsData> => {
     const {
       organizationId,
       propertyId,
@@ -75,6 +84,10 @@ export const getPortalAnalytics =
       timeRange,
       propertyTimezone,
     } = input
+    await requireDashboardPropertyAccess(deps.propertyAccess, ctx, {
+      organizationId,
+      propertyIds: [propertyId],
+    })
     const scope = { organizationId, propertyId, portalId }
 
     if (timeRange === 'all') {

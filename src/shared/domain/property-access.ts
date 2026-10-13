@@ -12,7 +12,7 @@
 import type { OrganizationId, PropertyId, UserId } from './ids'
 import type { AuthContext } from './auth-context'
 import type { Permission } from './permissions'
-import { scopeForPermission } from './permissions'
+import { canForContext, scopeForPermission } from './permissions'
 
 /**
  * Returns the property IDs accessible to a user, or null when the caller is org-wide
@@ -56,6 +56,30 @@ export const getAccessiblePropertyIdsForPermission = async (
   if (scope === 'organization') return null
   if (scope === 'none') return []
   return lookup(ctx.organizationId, ctx.userId, false)
+}
+
+/**
+ * The whole Property decision a use case makes first (docs/standards.md §2.2
+ * step 1): the caller belongs to the Organization asked about, holds
+ * `permission`, and that permission reaches every one of `propertyIds`. The
+ * owning context turns `false` into its own tagged `forbidden`. One lookup,
+ * however many Properties are asked about.
+ */
+export const mayUsePermissionOnProperties = async (
+  lookup: PropertyAccessLookup,
+  ctx: AuthContext,
+  permission: Permission,
+  scope: Readonly<{
+    organizationId: OrganizationId
+    propertyIds: ReadonlyArray<PropertyId>
+  }>,
+): Promise<boolean> => {
+  if (ctx.organizationId !== scope.organizationId) return false
+  if (!canForContext(ctx, permission)) return false
+  const accessible = await getAccessiblePropertyIdsForPermission(lookup, ctx, permission)
+  if (accessible === null) return true
+  const granted = new Set<PropertyId>(accessible)
+  return scope.propertyIds.every((id) => granted.has(id))
 }
 
 /**

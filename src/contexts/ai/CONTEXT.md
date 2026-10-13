@@ -16,7 +16,12 @@ Reply publication, Portal/Guest data, metrics, goals, or notifications.
   `application/public-api.ts`.
 - `build.ts` is the composition-root boundary. Other contexts do not construct AI repositories, provider adapters, jobs, or control stores.
 - Server functions are authenticated delivery adapters; they call the built
-  `publicApi` and are not domain authority.
+  `publicApi` and are not domain authority. The Property aggregate and insights
+  reads (`readPropertyAggregates`, `readPropertyInsights`) take the reader's
+  `AuthContext` and authorize it for the Property themselves
+  (`application/ai-property-read-access.ts`: same Organization, `dashboard.read`,
+  current Property access) before the merchant-authorization gate is read; a
+  refusal is a tagged `AiError` `forbidden`.
 - Review supplies one admitted current source snapshot. Portal supplies only the
   exact public display name, profile version, digest, and boolean currentness.
 - Lifecycle export and purge contributors are never on `publicApi`; composing one

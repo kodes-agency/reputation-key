@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { reviewId } from '#/shared/domain/ids'
-import type { DashboardData, MetricKPIValue } from '../domain/dashboard-types'
+import type { DashboardData, MetricKPIValue } from './dashboard-types'
 import { hideReplyWorkflowWithoutAuthority } from './reply-workflow-redaction'
 
 const COMPUTED_AT = new Date('2026-09-01T12:00:00.000Z')

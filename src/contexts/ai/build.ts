@@ -28,6 +28,7 @@ import {
   createReadReviewAnalysis,
 } from './application/use-cases/read-ai-insights'
 import { createReadPropertyAggregates } from './application/use-cases/read-property-aggregates'
+import type { AiPropertyAccess } from './application/ai-property-read-access'
 import { createReadPropertyInsights } from './application/use-cases/read-property-insights'
 import { createAiAuthorizationAdapter } from './infrastructure/adapters/ai-authorization.adapter'
 import { createAiControlAdapter } from './infrastructure/adapters/ai-control.adapter'
@@ -97,6 +98,8 @@ export type AiContextBuildInput = Readonly<{
   outboxRepo: OutboxRepository
   redis: Redis | undefined
   reviewSources: AiReviewSourcePort
+  /** Identity's current grants: the dashboard-facing reads authorize their reader. */
+  propertyAccess: AiPropertyAccess
   propertyReplyLanguages: GenerateReplySuggestionDependencies['propertyReplyLanguages']
   replyBrandProfiles: PortalAiReplyBrandProfilePublicApi
   inference?: AiInferencePort
@@ -296,11 +299,13 @@ export const buildAiContext = (input: AiContextBuildInput) => {
         }),
       readPropertyAggregates: createReadPropertyAggregates({
         ...readDependencies,
+        propertyAccess: input.propertyAccess,
         aggregates,
         calendar,
       }),
       readPropertyInsights: createReadPropertyInsights({
         ...readDependencies,
+        propertyAccess: input.propertyAccess,
         aggregates,
         calendar,
         reviewSources: input.reviewSources,

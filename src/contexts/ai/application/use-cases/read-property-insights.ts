@@ -7,8 +7,13 @@ import type {
 import { ASPECT_IMPACT_VERSION, computeAspectImpact } from '#/shared/aspect-impact'
 import { isAiIssueLabel } from '#/shared/ai-issue-label'
 import type { AspectPolarityV1, AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
-import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { DERIVATIVE_RETENTION_MILLIS } from '../../domain/types'
+import {
+  requireAiPropertyReadAccess,
+  type AiPropertyAccess,
+} from '../ai-property-read-access'
 import { resolveAiReadGate } from '../ai-read-gate'
 import { addDays } from '../local-date'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
@@ -151,6 +156,7 @@ export type AiPropertyInsightsRead =
   | AiPropertyInsightsAllTimeReady
 
 export type ReadPropertyInsightsDependencies = Readonly<{
+  propertyAccess: AiPropertyAccess
   authorization: AiAuthorizationPort
   processingProfiles: PropertyProcessingProfilePort
   aggregates: AiPropertyAggregateStorePort
@@ -162,7 +168,8 @@ export type ReadPropertyInsightsDependencies = Readonly<{
 export type ReadPropertyInsightsInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
-  actorUserId: UserId
+  /** The reader, authorized for the Property before anything is read. */
+  actor: AuthContext
   range: PropertyInsightsRange
 }>
 
@@ -685,6 +692,7 @@ export function createReadPropertyInsights(
   dependencies: ReadPropertyInsightsDependencies,
 ): (input: ReadPropertyInsightsInput) => Promise<AiPropertyInsightsRead> {
   return async (input) => {
+    await requireAiPropertyReadAccess(dependencies.propertyAccess, input.actor, input)
     if (!isPropertyInsightsRange(input.range)) {
       throw new TypeError('Property insights range must be 30, 90, 180, or all')
     }

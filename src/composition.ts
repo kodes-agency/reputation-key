@@ -455,6 +455,8 @@ function buildContainer(
     idGen: randomUUID,
     nowEpochMillis: () => clock().getTime(),
     reviewSources: review.publicApi.aiReviewSource,
+    propertyAccess: (orgId, uid, orgWide) =>
+      identity.publicApi.people.getAccessiblePropertyIds(orgId, uid, orgWide),
     propertyReplyLanguages: {
       readDefaultReplyLanguage: ({ organizationId: orgId, propertyId: pid }) =>
         property.publicApi.getPropertyReplyLanguage(orgId, pid),

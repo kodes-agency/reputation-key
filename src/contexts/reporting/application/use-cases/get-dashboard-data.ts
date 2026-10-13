@@ -1,11 +1,19 @@
 // Dashboard context — getDashboardData use case
-// Orchestrates all repo queries into a single DashboardData response.
-// Authorization is enforced at the router/loader level (property ownership). No auth logic here.
+// Authorizes the reader for the Property, orchestrates all repo queries into a
+// single DashboardData response, and hides reply state from a reader who may
+// not manage replies.
 
 import type { DashboardRepository } from '../ports/dashboard.repository'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
+import { canForContext } from '#/shared/domain/permissions'
 import type { DashboardData } from '../../domain/dashboard-types'
+import { hideReplyWorkflowWithoutAuthority } from '../../domain/reply-workflow-redaction'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
+import {
+  requireDashboardPropertyAccess,
+  type DashboardPropertyAccess,
+} from '../dashboard-property-access'
 import { DEFAULT_RECENT_REVIEWS_LIMIT, priorPeriodDates } from '../utils'
 
 export type GetDashboardDataInput = Readonly<{
@@ -20,12 +28,16 @@ export type GetDashboardDataInput = Readonly<{
 
 export type GetDashboardDataDeps = Readonly<{
   repo: DashboardRepository
+  propertyAccess: DashboardPropertyAccess
 }>
-export type GetDashboardData = (input: GetDashboardDataInput) => Promise<DashboardData>
+export type GetDashboardData = (
+  input: GetDashboardDataInput,
+  ctx: AuthContext,
+) => Promise<DashboardData>
 
 export const getDashboardData =
-  (deps: GetDashboardDataDeps) =>
-  async (input: GetDashboardDataInput): Promise<DashboardData> => {
+  (deps: GetDashboardDataDeps): GetDashboardData =>
+  async (input, ctx) => {
     const {
       organizationId,
       propertyId,
@@ -35,6 +47,10 @@ export const getDashboardData =
       timeRange,
       propertyTimezone,
     } = input
+    await requireDashboardPropertyAccess(deps.propertyAccess, ctx, {
+      organizationId,
+      propertyIds: [propertyId],
+    })
 
     const comparisonPeriod = priorPeriodDates(
       timeRange,
@@ -84,7 +100,10 @@ export const getDashboardData =
         : Promise.resolve(null),
     ])
 
-    return {
+    // §9: reply-derived fields (the reply aggregates and each review's reply
+    // status) must not reach a reader without reply.manage. dashboard.read is
+    // granted to roles the Reply glossary keeps reply state from.
+    return hideReplyWorkflowWithoutAuthority(canForContext(ctx, 'reply.manage'), {
       kpis,
       ratingDistribution,
       ratingTrend,
@@ -92,5 +111,5 @@ export const getDashboardData =
       replyPerformance,
       engagementFunnel,
       recentReviews,
-    }
+    })
   }

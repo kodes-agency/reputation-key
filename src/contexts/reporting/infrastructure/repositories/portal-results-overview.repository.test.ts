@@ -16,6 +16,7 @@ import { Pool } from 'pg'
 import type { Database } from '#/shared/db'
 import * as schema from '#/shared/db/schema'
 import { getEnv } from '#/shared/config/env'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   organizationId,
@@ -558,8 +559,12 @@ describe('Portal results overview repository (integration)', () => {
     // Results view would not, with the prior window and its trends included, and
     // with each Property read through its own time zone.
     const now = () => WINDOW.endAt
-    const results = getPortalResultsOverview({ results: overview(), now })
+    // Both reads authorize their reader; an AccountAdmin reaches every Property.
+    const reader = buildTestAuthContext({ organizationId: ORG, role: 'AccountAdmin' })
+    const propertyAccess = async () => null
+    const results = getPortalResultsOverview({ results: overview(), now, propertyAccess })
     const resultsView = getPortalAnalytics({
+      propertyAccess,
       portalMetrics: single(),
       portalLifetime: { get: async () => null },
       responseIntegrity: {
@@ -582,29 +587,35 @@ describe('Portal results overview repository (integration)', () => {
       [PROP_B, 'Pacific/Auckland'],
     ])
 
-    const rows = await results({
-      scope: { organizationId: ORG, propertyId: null },
-      portals: ROSTER.map((portal) => ({ ...portal, groupId: null })),
-      properties: [...zones].map(([property, timezone]) => ({
-        propertyId: property,
-        timezone,
-      })),
-      timeRange: '30d',
-      compare: true,
-    })
+    const rows = await results(
+      {
+        scope: { organizationId: ORG, propertyId: null },
+        portals: ROSTER.map((portal) => ({ ...portal, groupId: null })),
+        properties: [...zones].map(([property, timezone]) => ({
+          propertyId: property,
+          timezone,
+        })),
+        timeRange: '30d',
+        compare: true,
+      },
+      reader,
+    )
 
     for (const { portalId: target, propertyId: property } of ROSTER) {
       const timezone = zones.get(property) ?? 'UTC'
       const { startDate, endDate } = localDaysWindow('30d', now(), timezone)
-      const view = await resultsView({
-        organizationId: ORG,
-        propertyId: property,
-        portalId: target,
-        startDate,
-        endDate,
-        timeRange: '30d',
-        propertyTimezone: timezone,
-      })
+      const view = await resultsView(
+        {
+          organizationId: ORG,
+          propertyId: property,
+          portalId: target,
+          startDate,
+          endDate,
+          timeRange: '30d',
+          propertyTimezone: timezone,
+        },
+        reader,
+      )
       const row = rows.portals.find((candidate) => candidate.portalId === target)
       expect(row?.kpis, target).toEqual(view.kpis)
       expect(row?.engagementFunnel, target).toEqual(view.engagementFunnel)
