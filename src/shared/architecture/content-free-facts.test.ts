@@ -44,9 +44,12 @@ const REGISTER: Readonly<Record<string, string>> = {
   'PortalGroupUpdated.name': 'by-design non-sensitive display name',
   // Business names a manager entered and the URL slugs made from them: no
   // guest, reviewer or review content. ADR 0030 names them neither among the
-  // facts a payload may carry nor among the content it must not, and the log
-  // policy redacts both (`sensitive-field-policy.ts`), so these entries record
-  // that the durable facts carry them; they do not record a decision.
+  // facts a payload may carry nor among the content it must not. The log
+  // policy (`sensitive-field-policy.ts`) redacts `slug`, and a business name
+  // only where the field is spelled `businessName`: `name` and
+  // `organizationName`, the spellings here, are not on its list. So these
+  // entries record that the durable facts carry them; they do not record a
+  // decision.
   'IdentityOrganizationCreated.organizationName': 'Organization display name',
   'IdentityOrganizationCreated.slug': 'Organization URL slug, made from its name',
   'PropertyCreated.name': 'Property display name',
