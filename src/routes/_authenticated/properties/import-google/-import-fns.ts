@@ -10,10 +10,7 @@ import {
   retryPropertyImportItem,
   startPropertyImportV2,
 } from '#/contexts/integration/server/gbp-import'
-import {
-  getGoogleAuthUrl,
-  listGoogleConnections,
-} from '#/contexts/integration/server/google-connections'
+import { getGoogleAuthUrl } from '#/contexts/integration/server/google-connections'
 import {
   deferMerchantAiDecisionFn,
   enableMerchantAiForPropertiesFn,
@@ -39,9 +36,6 @@ import type {
 export const importFns: GoogleImportFns = {
   get getGoogleAuthUrl() {
     return getGoogleAuthUrl
-  },
-  get listGoogleConnections() {
-    return listGoogleConnections
   },
   get listImportAccounts() {
     return listImportAccounts
