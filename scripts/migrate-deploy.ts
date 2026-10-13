@@ -25,6 +25,15 @@
 // concurrent deploys — a second runner blocks on the lock until the first
 // finishes, then converges instantly (every step is idempotent).
 //
+// LOCK WAIT: the journal track waits at most MIGRATION_LOCK_TIMEOUT_MS (5 s,
+// src/shared/db/migration-lock-timeout.ts) for any lock. A migration blocked
+// by another session fails the deploy instead of queueing the application's
+// statements behind its request; the journal is one transaction, so nothing
+// of it is applied and a rerun converges. The bound is lifted again before
+// the concurrent-index sidecar, which may wait for an old transaction. It
+// bounds the wait only: a lock the migrator has taken is held until the last
+// pending file commits.
+//
 // FORWARD-RECOVERY POLICY: on ANY failure the script logs the failing step
 // plus the reachable journal state and exits non-zero, so Railway blocks the
 // deploy and keeps serving the previous container. Never roll the schema
@@ -71,6 +80,7 @@ import {
 } from '../src/shared/db/migration-journal-state'
 import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/review/infrastructure/provider-subject-key-initializer'
 import { buildRegisteredConcurrentIndexes } from '../src/shared/db/concurrent-index-sidecar'
+import { withMigrationLockTimeout } from '../src/shared/db/migration-lock-timeout'
 import type { Database } from '../src/shared/db'
 import {
   formatDeclaredCapabilityPostureReport,
@@ -195,8 +205,12 @@ async function main(): Promise<void> {
       log('auth track applied')
 
       // 2. Apply the three-entry Drizzle journal: baseline, DB-only constructs,
-      // and control-plane seed.
-      await migrate(migrationDb, { migrationsFolder: MIGRATIONS_FOLDER })
+      // and control-plane seed. A statement that cannot take its lock gives
+      // up instead of holding the application's statements in the queue
+      // behind it (src/shared/db/migration-lock-timeout.ts).
+      await withMigrationLockTimeout(client, () =>
+        migrate(migrationDb, { migrationsFolder: MIGRATIONS_FOLDER }),
+      )
       log('drizzle track applied')
 
       // 3. Autocommit-only concurrent-index sidecar. The migrator's

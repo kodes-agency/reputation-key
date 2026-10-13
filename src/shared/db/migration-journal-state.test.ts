@@ -127,4 +127,23 @@ describe('deployFailureRecovery', () => {
   ])('keeps the fix-and-rerun line for %s', (_case, failure) => {
     expect(deployFailureRecovery(failure)).toBe(RERUN)
   })
+
+  it('tells the operator of a lock wait to redeploy, with nothing to fix in the SQL', () => {
+    const lockTimeout = Object.assign(
+      new Error('canceling statement due to lock timeout'),
+      { code: '55P03' },
+    )
+
+    const recovery = deployFailureRecovery(
+      new Error('Failed query: ALTER TABLE "portal_links"', { cause: lockTimeout }),
+    )
+
+    expect(recovery).toBe(
+      'Lock wait: a migration statement waited 5 s for a lock another session holds and ' +
+        'gave up, so that the application does not queue behind it. The journal runs in one ' +
+        'transaction, so nothing of it was applied. Redeploy; if it happens again, find the ' +
+        'session holding the lock (pg_stat_activity, pg_blocking_pids) first (runbooks.md §8).',
+    )
+    expect(recovery).not.toContain('fix the failing migration SQL')
+  })
 })

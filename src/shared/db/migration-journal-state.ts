@@ -17,6 +17,11 @@
 //                     migration (a revert that deleted one). Refused by
 //                     design, and no rerun converges (runbooks.md §28).
 
+import {
+  isMigrationLockTimeout,
+  MIGRATION_LOCK_TIMEOUT_MS,
+} from './migration-lock-timeout'
+
 type MigrationJournalPosition = 'matched' | 'database_behind' | 'database_ahead'
 
 /**
@@ -84,17 +89,32 @@ export function deployMigrationStateRefusal(state: DeployMigrationState): Error 
 }
 
 /**
- * The recovery line the runner prints after a failure. Every failure but one
- * is repaired by fixing what failed and rerunning; an image older than the
- * database is repaired only by a newer release.
+ * The recovery line the runner prints after a failure. An image older than the
+ * database is repaired only by a newer release. A lock wait has nothing to
+ * repair: the journal gave up waiting for another session and applied nothing.
+ * Every other failure is repaired by fixing what failed and rerunning.
  */
 export function deployFailureRecovery(failure: unknown): string {
-  return failure instanceof ImageOlderThanDatabaseError
-    ? 'Forward-only recovery: do not rerun this image, and do not edit ' +
-        'drizzle.__drizzle_migrations to make it pass. Deploy a release whose journal carries ' +
-        'every applied migration — a fix committed on current main, never a revert that deletes ' +
-        'a migration file or its journal entry (runbooks.md §28).'
-    : 'Forward recovery: fix the failing migration SQL ' +
-        'and redeploy — every step is idempotent, the rerun converges. ' +
-        'Do NOT hand-roll partial schema state (runbooks.md §8).'
+  if (failure instanceof ImageOlderThanDatabaseError) {
+    return (
+      'Forward-only recovery: do not rerun this image, and do not edit ' +
+      'drizzle.__drizzle_migrations to make it pass. Deploy a release whose journal carries ' +
+      'every applied migration — a fix committed on current main, never a revert that deletes ' +
+      'a migration file or its journal entry (runbooks.md §28).'
+    )
+  }
+  if (isMigrationLockTimeout(failure)) {
+    return (
+      `Lock wait: a migration statement waited ${MIGRATION_LOCK_TIMEOUT_MS / 1_000} s for a lock ` +
+      'another session holds and gave up, so that the application does not queue behind it. ' +
+      'The journal runs in one transaction, so nothing of it was applied. Redeploy; if it ' +
+      'happens again, find the session holding the lock (pg_stat_activity, pg_blocking_pids) ' +
+      'first (runbooks.md §8).'
+    )
+  }
+  return (
+    'Forward recovery: fix the failing migration SQL ' +
+    'and redeploy — every step is idempotent, the rerun converges. ' +
+    'Do NOT hand-roll partial schema state (runbooks.md §8).'
+  )
 }
