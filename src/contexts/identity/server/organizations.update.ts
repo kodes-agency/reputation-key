@@ -8,7 +8,6 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged } from '#/shared/auth/server-errors'
-import { identityAssetKeyFromPath } from '../application/identity-assets'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
 
@@ -24,22 +23,11 @@ const nullableEmailInput = z
   .optional()
   .transform((value) => (value === '' ? null : value))
 
-// `null` removes the logo. The address of an uploaded picture is not taken
-// here: its finalize step saves it, after holding the key to the Organization
-// and reading the size the store holds, and this would be a way around both.
-const logoInput = z
-  .string()
-  .refine((address) => identityAssetKeyFromPath(address) === null, {
-    message: 'An uploaded logo is saved by its upload.',
-  })
-  .nullable()
-  .optional()
-
 export const updateOrganizationInputSchema = z
   .object({
     name: z.string().min(1).optional(),
     slug: z.string().min(1).optional(),
-    logo: logoInput,
+    logo: z.string().nullable().optional(),
     contactEmail: nullableEmailInput,
   })
   .strict()
