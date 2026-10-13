@@ -10,6 +10,15 @@ export type ReviewMaterialComparison =
   | 'normalization_shadow_match'
   | 'baseline_unavailable'
 
+/**
+ * A guest edit: the comparison found a changed rating or changed normalized
+ * text. A source-epoch carry of unchanged material gets the next numbered
+ * revision too and is not one (Review CONTEXT, Model), so the revision number
+ * moving is not the test. Takes the wider comparison an observation records.
+ */
+export const isGuestEdit = (comparison: string): boolean =>
+  comparison === ('material_change' satisfies ReviewMaterialComparison)
+
 export type ReviewMaterialDescription = Readonly<{
   rating: StarRating
   originalText: string | null

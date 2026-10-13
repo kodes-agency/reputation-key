@@ -17,10 +17,12 @@
 // The last is identity, which a state cannot carry: a reply that is deleted
 // and written anew is another reply in the very same state.
 //
-// One writer is not a command and not a publication event: the AI draft purge
-// (Review CONTEXT, Model; AI CONTEXT, Invariant 4). It withdraws unedited AI
-// text that may no longer be published, from outside the reply workflow, and
-// is written out at the end of this file.
+// Two writers are not commands and not publication events. The AI draft purge
+// (Review CONTEXT, Model; AI CONTEXT, Invariant 4) withdraws unedited AI text
+// that may no longer be published, from outside the reply workflow. A guest
+// edit takes back a reply a manager had put forward for the review as it stood
+// (Review CONTEXT, Model; docs/BETA.md §3 "Inbox"). Both are written out at the
+// end of this file.
 
 export type OracleStatus =
   'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'publish_failed'
@@ -584,4 +586,33 @@ export function afterAiDraftPurge(
   if (scope === 'replies_past_their_window' && !pastItsWindow) return state
   if (state.publication === null) return null
   return confirmedAndNotDispatched(state) ? withdrawn(state) : state
+}
+
+// ── A guest edit ──────────────────────────────────────────────────────
+
+/**
+ * What a guest edit does to a reply a manager wrote and put forward before it,
+ * or null when it leaves the reply as it is. A reply written for the review
+ * as it stood does not answer the edited one, so one that a single click
+ * would still publish is taken back to draft, with its text: a reply awaiting
+ * approval, and one whose publication failed and is settled as not on Google
+ * (trying it again keeps the approval it got for the earlier review). The
+ * cycle count and the attempts stay: they are the record.
+ *
+ * Everything else is left to its owner. A draft or a rejected reply is in
+ * nobody's queue. A published reply is what Google shows. An open cycle is
+ * cancelled by Review's own write for stale publications. A failure of unknown
+ * outcome keeps its attempt for whoever reads Google next. Unedited AI text is
+ * the AI draft purge's, above.
+ */
+export const afterGuestEdit = (reply: OracleReply): OracleReply | null => {
+  if (reply.authorship !== 'human') return null
+  if (reply.status === 'pending_approval' && outsidePublication(reply)) {
+    return { ...reply, status: 'draft' }
+  }
+  const settledAsNotOnGoogle =
+    reply.status === 'publish_failed' &&
+    reply.publication === 'terminal' &&
+    reply.lastFailure !== 'ambiguous'
+  return settledAsNotOnGoogle ? { ...cancelled(reply), lastFailure: null } : null
 }

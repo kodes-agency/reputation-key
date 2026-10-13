@@ -16,7 +16,8 @@
 //
 // A fifth block holds the oracle's own account of withdrawn AI text (the AI
 // draft purge, and a claim the last gate refuses) to the rules it is written
-// from, and the commands to what a withdrawal leaves.
+// from, and the commands to what a withdrawal leaves. A sixth holds what a
+// guest edit takes back (takenBackByGuestEdit) to the workflow's account of it.
 //
 // Then generated sequences of commands and publication events walk the
 // workflow. At every step the production preconditions and AI text rules are
@@ -31,6 +32,7 @@ import * as fc from 'fast-check'
 import {
   cancelledPublication,
   replyCommandMayStart,
+  takenBackByGuestEdit,
   type ReplyCommand,
   type ReplyCommandSubject,
 } from './reply-command-preconditions'
@@ -45,6 +47,7 @@ import {
 import type { ReplyStatus } from './types'
 import {
   afterAiDraftPurge,
+  afterGuestEdit,
   afterPublicationEvent,
   afterRefusedClaim,
   isLegalReplyState,
@@ -442,6 +445,94 @@ describe('withdrawn AI text against the hand-written workflow', () => {
         edit: 'invalid_transition',
         // Its authorization is evidence, and the evidence keeps the reply.
         delete: 'invalid_transition',
+      })
+    }
+  })
+})
+
+describe('a guest edit against the hand-written workflow', () => {
+  const written = everyReplyState().filter(
+    (reply) => isLegalReplyState(reply) && reply.authorship === 'human',
+  )
+  const stateOf = (reply: OracleReply): string =>
+    reply.publication === 'terminal'
+      ? `${reply.status}/terminal/${String(reply.lastFailure)}`
+      : `${reply.status}/${String(reply.publication)}`
+  const production = (reply: OracleReply) =>
+    takenBackByGuestEdit({
+      ...subject(reply),
+      aiGenerated: reply.authorship === 'ai_assisted',
+    })
+
+  it('takes back what the workflow says from every legal reply state, AI text included', () => {
+    for (const reply of everyReplyState().filter(isLegalReplyState)) {
+      const after = afterGuestEdit(reply)
+      expect(production(reply), `${reply.authorship} ${stateOf(reply)}`).toEqual(
+        after === null
+          ? null
+          : { status: after.status, publicationState: after.publication },
+      )
+    }
+  })
+
+  it('returns to draft a reply awaiting approval and a settled failure, and nothing else', () => {
+    const takenBack = new Set(
+      written.filter((reply) => production(reply) !== null).map(stateOf),
+    )
+    // Written out by hand from the Review CONTEXT, Model.
+    expect([...takenBack].sort()).toEqual([
+      'pending_approval/cancelled',
+      'pending_approval/null',
+      'publish_failed/terminal/null',
+      'publish_failed/terminal/retryable',
+      'publish_failed/terminal/terminal_rejection',
+    ])
+    // Never AI text: the AI draft purge runs with the same observation.
+    for (const reply of everyReplyState().filter(isLegalReplyState)) {
+      if (reply.authorship === 'ai_assisted') expect(production(reply)).toBeNull()
+    }
+  })
+
+  it('takes back exactly the replies one click would still have published as they were written', () => {
+    // Judged without proof that an uncertain attempt never left RepKey. With
+    // that proof Try publishing again is accepted for a failure of unknown
+    // outcome, and a guest edit does not take that reply back (Review CONTEXT,
+    // Model): its attempt is still evidence for whoever reads Google next.
+    for (const reply of written) {
+      const oneClickPublishesIt = (['approve', 'retry'] as const).some((kind) => {
+        const verdict = managerVerdict(reply, commandOf(kind), MAYBE_SENT)
+        return verdict.accepted && verdict.next?.cycle === reply.cycle + 1
+      })
+      expect(afterGuestEdit(reply) !== null, stateOf(reply)).toBe(oneClickPublishesIt)
+    }
+  })
+
+  it('leaves a draft that keeps its text and its record, and that only a new submission moves', () => {
+    for (const reply of written) {
+      const after = afterGuestEdit(reply)
+      if (after === null) continue
+      expect(isLegalReplyState(after), stateOf(reply)).toBe(true)
+      expect(after).toMatchObject({
+        status: 'draft',
+        text: reply.text,
+        cycle: reply.cycle,
+        attempts: reply.attempts,
+        authorship: 'human',
+      })
+      const verdicts = Object.fromEntries(
+        (['approve', 'retry', 'draft', 'submit'] as const).map((kind) => {
+          const accepted = managerVerdict(after, commandOf(kind), NEVER_SENT).accepted
+          expect(productionAccepts(after, commandOf(kind), NEVER_SENT), kind).toBe(
+            accepted,
+          )
+          return [kind, accepted]
+        }),
+      )
+      expect(verdicts, stateOf(reply)).toEqual({
+        approve: false,
+        retry: false,
+        draft: true,
+        submit: true,
       })
     }
   })

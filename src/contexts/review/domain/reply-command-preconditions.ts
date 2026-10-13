@@ -155,3 +155,46 @@ export function cancelledPublication(
   const publicationState = nextPublicationState(reply.publicationState, 'cancel')
   return publicationState === 'cancelled' ? { status: 'draft', publicationState } : null
 }
+
+/** What a guest edit leaves of a Reply it takes back: a draft that keeps the
+ * text its manager wrote. A cycle that had failed is closed as cancelled; a
+ * Reply that never had one still has none. */
+export type TakenBackByGuestEdit = Readonly<{
+  status: Extract<ReplyStatus, 'draft'>
+  publicationState: Extract<PublicationStateInput, 'cancelled' | null>
+}>
+
+/**
+ * What a guest edit does to a Reply a manager wrote and put forward for the
+ * review as it stood (docs/BETA.md §3 "Inbox"; ADR 0055 decision 11). A Reply
+ * written for one Material Review Revision does not answer the next, and two
+ * commands would still publish its stored text with one click: Confirm &
+ * Publish, and Try publishing again, which keeps the approval the Reply got
+ * for the earlier review. So the edit takes back exactly the Replies either
+ * command may start from, and each returns to draft: its text is the
+ * manager's and stays, and it is published only once it is submitted and
+ * confirmed again, for the review as it is now.
+ *
+ * Null for everything else. A draft or a rejected Reply is in nobody's queue,
+ * and a published one is what Google shows. An open cycle is cancelled by the
+ * Review store's own stale-publication write. A failure of unknown outcome
+ * keeps its attempt, which the observation authority may still confirm or
+ * supersede, and it is sent again only on proof that it never left RepKey
+ * (Invariant 9). Unedited AI text is the AI draft purge's: the purge runs with
+ * the same observation, and the claim of a retried cycle withdraws what it
+ * left (src/shared/db/ai/ai-draft-purge.ts).
+ */
+export function takenBackByGuestEdit(
+  reply: ReplyCommandSubject & Pick<Reply, 'aiGenerated'>,
+): TakenBackByGuestEdit | null {
+  if (reply.aiGenerated) return null
+  if (replyCommandMayStart('approve', reply)) {
+    return {
+      status: 'draft',
+      publicationState: reply.publicationState === null ? null : 'cancelled',
+    }
+  }
+  return replyCommandMayStart('retry_publication', reply)
+    ? { status: 'draft', publicationState: 'cancelled' }
+    : null
+}

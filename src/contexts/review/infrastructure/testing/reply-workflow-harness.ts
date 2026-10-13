@@ -29,8 +29,8 @@ import { sha256Hex } from '#/shared/domain/sha256'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { deleteTestOrganizationsWithExecutor } from '#/shared/db/testing/test-organization-cleanup'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { Reply, Review } from '../../domain/types'
-import { reviewReplyPublicationCancelled } from '../../domain/events'
+import type { Reply, Review, StarRating } from '../../domain/types'
+import { reviewReplyPublicationCancelled, reviewUpdated } from '../../domain/events'
 import { replyAuthor } from '../../domain/reply-author'
 import { googleReplyTextDigest } from '../../domain/google-reply-observation'
 import type {
@@ -53,6 +53,7 @@ import { reconcileReplyPublication } from '../../application/use-cases/reconcile
 import { createReviewRepository } from '../repositories/review.repository'
 import { createReplyRepository } from '../repositories/reply.repository'
 import { createAtomicReplyCommandStore } from '../reply-command-store'
+import { createAtomicReviewCommandStore } from '../review-command-store'
 import { createGoogleReplyObservationStore } from '../google-reply-observation-store'
 import { createReplyPublicationDispatchEvidence } from '../reply-publication-dispatch-evidence'
 import { createPublishReplyHandler } from '../jobs/publish-reply.job'
@@ -216,6 +217,7 @@ export async function createReplyWorkflowHarness(
   const reviewRepo = createReviewRepository(db, clock)
   const replyRepo = createReplyRepository(db, clock)
   const commandStore = createAtomicReplyCommandStore(db, clock, async () => true)
+  const reviewCommandStore = createAtomicReviewCommandStore(db, clock)
   const observationStore = createGoogleReplyObservationStore(db)
   const dispatchEvidence = createReplyPublicationDispatchEvidence(db)
   const ai = createReplyWorkflowAiFixture({
@@ -693,6 +695,46 @@ export async function createReplyWorkflowHarness(
     })
   }
 
+  /**
+   * A review sync that reads the Review with `change` applied and records it
+   * through the store sync uses for a Review whose content differs, with its
+   * `review.updated` fact. A changed rating or text is a guest edit: Review
+   * records the next Material Review Revision. Anything else is the same
+   * revision observed again.
+   */
+  async function observeReviewChange(
+    change: Partial<Pick<Review, 'rating' | 'text' | 'reviewerName'>>,
+  ): Promise<Review> {
+    const observedAt = clock()
+    return reviewCommandStore.upsertAndRecord(
+      {
+        ...seedReview(locationName),
+        ...change,
+        sourceUpdatedAt: observedAt,
+        lastFetchedAt: observedAt,
+      },
+      (review) =>
+        reviewUpdated({
+          reviewId: review.id,
+          organizationId: WORKFLOW_ORG,
+          propertyId: WORKFLOW_PROPERTY,
+          platform: 'google',
+          sourceEpoch: review.sourceEpoch,
+          sourceRevision: review.sourceRevision,
+          analysisSequence: review.analysisSequence,
+          occurredAt: observedAt,
+        }),
+      observedAt,
+      sha256Hex(`reply-workflow-review-change:${JSON.stringify(change)}`),
+      'ongoing',
+    )
+  }
+
+  /** The guest rewrote the review: a new rating, new text, or both. */
+  const observeGuestEdit = (
+    edit: Readonly<{ rating: StarRating; text: string }>,
+  ): Promise<Review> => observeReviewChange(edit)
+
   return {
     seed,
     reset,
@@ -712,6 +754,8 @@ export async function createReplyWorkflowHarness(
     runSweep,
     cancelUndispatched,
     observeGoogle,
+    observeReviewChange,
+    observeGuestEdit,
     /** Hold the next reply write open after its request has left RepKey. */
     holdNextWrite: () => {
       let entered!: () => void

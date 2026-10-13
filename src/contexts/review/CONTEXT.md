@@ -97,7 +97,8 @@ follow which; it has no `approved → draft`, because no reply command makes tha
 move. A Reply returns to draft when its open cycle is cancelled (a disconnect,
 a policy stop, a refused claim: `cancelledPublication`), superseded by what
 Google shows or by a changed Review (the observation and Review stores' own
-guarded writes), or withdrawn by the AI draft purge.
+guarded writes), or withdrawn by the AI draft purge. A guest edit also returns
+to draft a Reply that was put forward and has no open cycle (below).
 
 Confirm & Publish is bound to the Reply the manager read. The Inbox sends
 which Reply its screen showed and that Reply's state revision, both as they
@@ -250,6 +251,48 @@ revision, or a RepKey reply confirmed for it answers the edit. A head from
 another source epoch keeps the old reading, because Inbox carries its head on
 that observation.
 
+A guest edit takes back what was put forward for the review it replaced
+(docs/BETA.md §3 "Inbox"; ADR 0055 decision 11). The transaction that records
+the observation does it (`infrastructure/review-command-store.ts`), in three
+parts:
+
+- A publication cycle authorized for an older source that is still open or of
+  unknown outcome (`requested`, `authorized`, `sending`, `pending_observation`,
+  `ambiguous`) is cancelled, its attempt marked superseded, and the Reply
+  returns to draft. The authorization names the source it was given for, so
+  this part runs on any applied observation that moves the source, a
+  source-epoch carry included.
+- A Reply a manager wrote that has no open cycle and was still put forward
+  returns to draft: one awaiting approval, and one whose publication failed
+  and is settled as not on Google. These are exactly the Replies Confirm &
+  Publish and Try publishing again may start from
+  (`domain/reply-command-preconditions.ts`, `takenBackByGuestEdit`), the two
+  commands that publish stored text with one click, the second under the
+  approval the Reply got for the earlier review. The Reply keeps its text, and
+  the authorization and attempts of a failed cycle stay as they are. This part
+  runs only on a guest edit, a changed rating or changed normalized text
+  (`isGuestEdit`): after a carry of unchanged material the review the Reply
+  answers is the same.
+- Unedited AI text is withdrawn by the AI draft purge (above).
+
+Each Reply the first two parts return to draft records one
+`review.reply.publication_cancelled` fact with cause `source_changed`. Its
+author and the people who can approve are told, and the approval request or
+failure notice that was waiting on it is retired (ADR 0046, amended
+2026-10-13). It is published only once it is submitted and confirmed again,
+for the review as it is now.
+
+A manager's draft and a rejected Reply are in nobody's queue and stay as they
+are, text and all; a published Reply is what Google shows and stays published.
+Nothing marks such a draft as written before the edit: that would take a
+revision on a human Reply, which the schema keeps for AI-assisted ones only.
+One put-forward Reply is also left: a failure of unknown outcome whose
+automatic checks have ended (`publish_failed`, `terminal`, last error
+`ambiguous`). Try publishing again may not start from it, its attempt is still
+evidence the observation authority reads, and it is sent again only on proof
+that it never left RepKey (Invariant 9). A retry that finds that proof after a
+guest edit is not held to the revision the Reply was approved for.
+
 A failed provider write is classified by what actually reached Google (the
 provider plane's `dispatch`: `not_sent`, `answered` with a status, or `unknown`).
 A request RepKey refused before sending is retryable, except a malformed request,
@@ -365,6 +408,11 @@ creates a separate row and never overwrites the renamed template.
     withdrawn is blank, and a blank Reply is only ever a draft: no command
     submits, confirms or sends it
     (`infrastructure/reply-ai-withdrawal.integration.test.ts`).
+17. A guest edit leaves no Reply a manager wrote awaiting approval, and none
+    failed and settled as not on Google: each is a draft again, with its text
+    and one `source_changed` fact. Confirm & Publish and Try publishing again
+    refuse it until it is submitted and confirmed for the review as it is now
+    (`infrastructure/guest-edit-reply-fence.integration.test.ts`).
 
 ## Verification
 

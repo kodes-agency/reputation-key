@@ -4,6 +4,7 @@ import {
   compareMaterialReviewRevision,
   computeReviewSourceObservationDigest,
   describeReviewMaterial,
+  isGuestEdit,
   normalizeOriginalReviewText,
 } from './material-review-revision'
 
@@ -138,5 +139,42 @@ describe('Material Review Revision comparison', () => {
       materialRevision: 4,
       createsMaterialRevision: false,
     })
+  })
+})
+
+describe('a guest edit', () => {
+  it('is a changed rating or changed text, whichever source epoch it is first seen in', () => {
+    const previous = {
+      materialRevision: 3,
+      normalizationVersion: REVIEW_MATERIAL_NORMALIZATION_VERSION,
+      sourceDigest: describeReviewMaterial({ rating: 1, text: 'Dirty room' })
+        .sourceDigest,
+      normalizedDigest: describeReviewMaterial({ rating: 1, text: 'Dirty room' })
+        .normalizedDigest,
+      rating: 1 as const,
+      originalText: 'Dirty room',
+    }
+    const comparisonOf = (incoming: { rating: 1 | 5; text: string }) =>
+      compareMaterialReviewRevision({ previous, incoming }).comparison
+
+    expect(isGuestEdit(comparisonOf({ rating: 5, text: 'Dirty room' }))).toBe(true)
+    expect(isGuestEdit(comparisonOf({ rating: 1, text: 'They fixed it' }))).toBe(true)
+    // Whitespace alone is not what the guest wrote.
+    expect(isGuestEdit(comparisonOf({ rating: 1, text: ' Dirty  room ' }))).toBe(false)
+  })
+
+  it('is no other comparison an observation records', () => {
+    // A source-epoch carry of unchanged material is recorded as `unchanged`
+    // and still gets the next numbered revision: the number is not the test.
+    for (const comparison of [
+      'initial_material_revision',
+      'unchanged',
+      'normalization_shadow_match',
+      'baseline_unavailable',
+      'backfilled_unverified',
+      'out_of_order_ignored',
+    ]) {
+      expect(isGuestEdit(comparison), comparison).toBe(false)
+    }
   })
 })
