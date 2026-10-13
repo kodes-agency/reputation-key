@@ -5,10 +5,12 @@
 // gate print nothing and exit 0. Comparing `import.meta.url` with
 // `process.argv[1]` as text is wrong in two ordinary cases: Node resolves the
 // entry module to its real path and percent-encodes the address, and does
-// neither to `process.argv[1]`. A checkout reached through a symbolic link
-// (macOS `/tmp`), or kept under a directory with a space in its name, passed
-// every gate without running one. Real paths are compared instead, and a
-// started script that is not a file throws rather than answer "not me".
+// neither to `process.argv[1]`. Started through a symbolic link (macOS
+// `/tmp`), every gate passed without running. Under a directory with a space
+// in its name one did, the gate that built its `file://` address by hand; the
+// others encoded or decoded the path first, and ran. Real paths are compared
+// instead, and a started script that is not a file throws rather than answer
+// "not me".
 
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'

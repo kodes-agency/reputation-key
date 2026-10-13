@@ -112,8 +112,19 @@ describe('isEntryPoint', () => {
     expect(isEntryPoint(pathToFileURL(scriptIn(directory)).href, other)).toBe(false)
   })
 
+  // `node -e` starts no script. A process is spawned because passing
+  // `undefined` here would only select the default, this test run's own start.
   it('is false when the process was started with no script', () => {
-    expect(isEntryPoint(import.meta.url, undefined)).toBe(false)
+    const answer =
+      "import { isEntryPoint } from './scripts/ci/entry-point.ts'\n" +
+      'console.log(JSON.stringify([process.argv[1] ?? null, isEntryPoint(import.meta.url)]))'
+    const result = spawnSync(
+      process.execPath,
+      ['--import', 'tsx', '--input-type=module', '-e', answer],
+      { cwd: ROOT, encoding: 'utf8' },
+    )
+
+    expect(result.stdout.trim()).toBe('[null,false]')
   })
 
   it('is false inside this test run, which a test runner started', () => {
