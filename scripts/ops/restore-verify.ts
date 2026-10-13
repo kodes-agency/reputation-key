@@ -20,8 +20,8 @@
 //   pnpm ops restore-verify --operator <id> --reason <text> --apply --yes ops:restore-verify
 //
 // Requires DATABASE_URL (pointed at the ISOLATED restore target) and
-// RESTORE_MODE=isolated. Policy-evaluated + audited like every operator
-// command. Cutover afterwards = pin the printed recovery run/generation,
+// RESTORE_MODE=isolated. Policy-evaluated like every operator command (the
+// decision is printed, not stored). Cutover afterwards = pin the printed recovery run/generation,
 // UNSET RESTORE_MODE, and redeploy; normal PITR sibling boot re-verifies it.
 
 import { sql } from 'drizzle-orm'

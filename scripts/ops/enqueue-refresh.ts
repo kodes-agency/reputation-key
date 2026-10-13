@@ -10,8 +10,9 @@
 // Target (background queue, bounded internally by the sweep):
 //   reviews — refresh-expiring-reviews (hourly sweep, cursor-bounded)
 //
-// Requires QUEUE_REDIS_URL + DATABASE_URL. The enqueue is audited by the harness
-// (decision row) and re-authorized by the BQC-3 dispatch gate at execution.
+// Requires QUEUE_REDIS_URL + DATABASE_URL. The enqueue is policy-evaluated by
+// the harness (decision printed, not stored) and re-authorized by the BQC-3
+// dispatch gate at execution.
 
 import { createJobQueue } from '../../src/shared/jobs/queue'
 import { jobEnqueueOptions } from '../../src/shared/jobs/job-policy'

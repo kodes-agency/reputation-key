@@ -239,7 +239,7 @@ export const NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS = 5 * 60 * 1000
 export const SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS = 2 * 24 * 60 * 60
 
 /** An ambiguous reply publication past reconcile_due by more than 15min —
- *  the 30-min reconcile sweep should have picked it up. */
+ *  the five-minute reconcile sweep should have picked it up. */
 export const REPLY_AMBIGUOUS_ALERT_MS = 15 * 60 * 1000
 
 /**
@@ -1017,7 +1017,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       }
       return {
         value: oldestAmbiguousAgeMs,
-        detail: `oldest ambiguous reply publication is ${oldestAmbiguousAgeMs}ms past reconcile_due — the 30-min reconcile sweep is not keeping up`,
+        detail: `oldest ambiguous reply publication is ${oldestAmbiguousAgeMs}ms past reconcile_due — the five-minute reconcile sweep is not keeping up`,
       }
     },
   }),

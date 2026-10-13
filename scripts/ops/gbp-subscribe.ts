@@ -1,49 +1,34 @@
-// Operator CLI (BQC-7.5): subscribe an organization's Google connections to the
-// shared GBP Pub/Sub topic — the on-demand counterpart of the import path's
-// automatic subscribe and of the worker's daily
-// `reconcile-gbp-notification-subscriptions` job, which runs this same backfill
-// for every organization.
+// Operator CLI (BQC-7.5): report which of an organization's Google
+// connections a GBP Pub/Sub subscribe would cover. REPORT ONLY: `--apply` is
+// refused by the operator harness.
 //
-// Two jobs, one operation:
+// Subscribing calls Google, and operator commands run without the Google
+// provider runtime, so this command cannot do it
+// (src/shared/ops/google-provider-commands.ts). The worker does, by itself:
 //
-//   1. BACKFILL. The import path calls `subscribe` for every property that goes
-//      live. Accounts imported while push was off or broken were never
-//      subscribed, so Google publishes nothing for them and their new reviews
-//      arrive only on the discovery sweep's cadence. The daily job repairs them
-//      within a day; run this to repair one organization now.
+//   1. ON IMPORT. The import path calls `subscribe` for every property that
+//      goes live.
 //
-//   2. TOPIC CHANGE. Google stores the Pub/Sub topic on the GBP account, not in
-//      our config: changing GBP_PUBSUB_TOPIC leaves every existing subscription
-//      pointing at the OLD topic until the account is re-PATCHed. The daily job
-//      re-points every account within a day; running this with the new topic
-//      exported does it immediately for one organization.
+//   2. DAILY. The `reconcile-gbp-notification-subscriptions` job runs the same
+//      backfill for every organization: it subscribes accounts imported while
+//      push was off or broken, and re-points every account after a
+//      GBP_PUBSUB_TOPIC change (Google stores the topic on the GBP account,
+//      not in our config). It first runs right after the worker boots on the
+//      deploy that installs it, then every 24 hours.
 //
-// DRY-RUN by default: without --apply it lists the candidate connections and
-// their statuses and calls Google zero times. --apply requires --reason.
-//
-// Safely re-runnable. `subscribe` reads the account's single
-// `notificationSetting` resource and PATCHes it only when it differs, and the
-// use case never throws — so a partially-failed run is repaired by running it
-// again, and a fully-successful run repeated reports `already_subscribed`.
+// The report lists the candidate connections and their statuses and calls
+// Google zero times.
 //
 // Usage:
-//   pnpm ops gbp-subscribe --operator <id> --org <id>                      — dry-run report
-//   pnpm ops gbp-subscribe --operator <id> --org <id> --reason <text> --apply
+//   pnpm ops gbp-subscribe --operator <id> --org <id>
 //
-// Requires DATABASE_URL + QUEUE_REDIS_URL (composition wires the job queue)
-// and the Google provider env — subscribing decrypts/refreshes the connection's
-// access token and calls Google, so this must run where those are reachable
-// (not from outside a private network — that is why the daily job exists).
-// Exits 1 when an applied run left any candidate short of `subscribed` or
-// `already_subscribed`; the JSON report names the per-connection outcome and
-// account tallies. `topic_unset` there means
-// GBP_PUBSUB_TOPIC is empty in THIS process's environment.
+// Requires DATABASE_URL + QUEUE_REDIS_URL (composition wires the job queue).
 
 import { createGbpSubscribeOperatorAction } from '../../src/contexts/integration/application/use-cases/gbp-subscribe-backfill'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:gbp-subscribe'
-const USAGE = `pnpm ${COMMAND_NAME} --operator <id> --org <id> [--reason <text> --apply]`
+const USAGE = 'pnpm ops gbp-subscribe --operator <id> --org <id>'
 
 async function main(): Promise<void> {
   const result = await runOperatorCommand(
@@ -57,7 +42,6 @@ async function main(): Promise<void> {
       const { container } = ctx
       return createGbpSubscribeOperatorAction(
         container.integrationMaintenanceRuntime.subscribeNotifications,
-        COMMAND_NAME,
       )(ctx, args, io)
     },
   )

@@ -178,3 +178,82 @@ describe('Google OAuth content authorization', () => {
     })
   })
 })
+
+// A reply reconciliation (the worker's sweep, or a manager's Check Google
+// again) reads the review as the review-sync system principal. The stops an
+// operator uses in an incident refuse that read here, before any query, which
+// is why runbook §6 says nothing re-reads Google under them.
+describe('Google review read for a reply reconciliation, under the operator stops', () => {
+  const ORGANIZATION = 'org-reply-reconciliation'
+  const reviewRead = {
+    capability: 'property.connect_gbp' as const,
+    scope: {
+      organizationId: ORGANIZATION,
+      propertyId: '00000000-0000-4000-8000-000000000601',
+      connectionId: '00000000-0000-4000-8000-000000000602',
+      initiatorUserId: null,
+    },
+    operationKey: 'provider.reviews.get',
+  }
+  const control = [{ emergency_kill_version: 3 }]
+  const connection = [
+    { lifecycle_version: 1, access_version: 1, credential_generation: 1 },
+  ]
+  const property = [
+    {
+      source_epoch: 0,
+      profile_version: 1,
+      google_binding_state: 'active',
+      lifecycle_state: 'active',
+      profile_source: 'tenant_confirmed',
+      profile_confirmed_at: null,
+    },
+  ]
+
+  async function readUnder(stop: Readonly<Record<string, string>>) {
+    resetCapabilityPolicyStore()
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: '*', ...stop }),
+    )
+    const execute = vi.fn()
+    for (const rows of [control, connection, property]) {
+      execute.mockResolvedValueOnce({ rows })
+    }
+    const decision = await createGoogleContentAuthorizationCheck({
+      clock: () => new Date('2026-08-28T00:00:00Z'),
+      hasActivePropertyGrant: vi.fn(async () => false),
+    })({ execute } as unknown as Database, reviewRead)
+    return { decision, queries: execute.mock.calls.length }
+  }
+
+  it.each([
+    ['no stop', {}],
+    [
+      'a stop of reply publishing alone',
+      { BETA_CAPABILITIES_OFF: 'property.publish_reply' },
+    ],
+  ])('is authorized under %s', async (_label, stop) => {
+    const { decision, queries } = await readUnder(stop)
+
+    expect(decision).toMatchObject({
+      allowed: true,
+      vector: { principalKind: 'system', role: 'System', propertySourceEpoch: 0 },
+    })
+    expect(queries).toBe(3)
+  })
+
+  it.each([
+    ['a suspended Organization', { BETA_SUSPENDED_ORGS: ORGANIZATION }],
+    ['a stop of property.connect_gbp', { BETA_CAPABILITIES_OFF: 'property.connect_gbp' }],
+    [
+      'the targeted Google stop',
+      { BETA_CAPABILITIES_OFF: 'property.connect_gbp,property.publish_reply' },
+    ],
+    ['the full stop', { BETA_CAPABILITIES_OFF: 'all' }],
+  ])('is denied before any query under %s', async (_label, stop) => {
+    const { decision, queries } = await readUnder(stop)
+
+    expect(decision).toEqual({ allowed: false, code: 'authorization_denied' })
+    expect(queries).toBe(0)
+  })
+})

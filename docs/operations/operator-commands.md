@@ -1,7 +1,8 @@
 # Operator commands (BQC-7.5)
 
-Invoke commands as `pnpm ops <name> ...`; `ops:<name>` below is the audited
-operation identity. Section references point to [Operational runbooks](runbooks.md).
+Invoke commands as `pnpm ops <name> ...`; `ops:<name>` below is the operation
+identity the harness evaluates and prints. Section references point to
+[Operational runbooks](runbooks.md).
 
 Every `ops:*` command runs through the operator-command harness
 (`scripts/ops/operator-command.ts`). The invocation contract:
@@ -11,24 +12,38 @@ Every `ops:*` command runs through the operator-command harness
 - Every invocation (reads included) is evaluated through the ExecutionPolicy
   operator branch. Its typed allow/deny decision and correlation id are printed
   on every run.
+- The harness stores none of that. No table holds the operator, the decision,
+  the reason or the ticket of an invocation, so the printed line is the only
+  trace the harness leaves: copy it, with the reason, into the incident record.
+  A fact a command commits carries the correlation id as its command id, and
+  some commands keep the operator or the ticket in their own write (for
+  example `ops:republish-legacy-portals` and `ops:triage-beta-feedback`).
+  `--reason` is required with `--apply` and no command reads it.
 - Mutations are DRY-RUN by default; `--apply` executes and requires
   `--reason <text>` (`--ticket <ref>` where the op needs one). Destructive
   commands additionally require the typed confirmation `--yes <command>`.
 - Commands that enqueue or redrive work go through the BQC-3 contract
   (`jobEnqueueOptions` / `createRedriveJob`) — never direct handler calls;
   dispatch re-authorizes at execution.
+- The harness gives a command a container built without the Google provider
+  runtime (provider Redis, keyrings, the governed executor), so no command can
+  make a call on a tenant's Google connection. Three commands whose work is
+  such a call (`ops:disconnect-connection`, `ops:gbp-subscribe`,
+  `ops:reconcile-publication`) are report only: `--apply` on them is a usage
+  error that says what does the work instead, and every report ends with the
+  same pointer. Their entries below say what that is.
 
 The commands:
 
 - `ops:bootstrap-owner <owner email> <owner name> <organization name>` — create the first Organization and its AccountAdmin (role `owner`) on an EMPTY database, initial password on stdin; refuses once any Organization or membership exists, or any user besides the lone owner an interrupted run left behind. Everything after the Better Auth sign-up commits in one transaction, so re-running the same command after a failure resumes that owner (`ownerAccount: reuse` in the dry run) instead of refusing. The one operator-authored account: every other account is invited from the app. Destructive-class confirmation. Both the dry run and the apply report `controlledBetaCapabilities`: a new Organization is dark for every controlled-beta capability unless `BETA_ALLOWLIST_ORGS` is `*` or names its ID, on web AND worker (ADR 0032, 2026-09-27).
 - `ops:storage-cors [--apply]` — check, or with `--apply` set, the object-store bucket's CORS rule that lets the app origin (`BETTER_AUTH_URL`) `PUT` a presigned avatar or logo upload from the browser. Reads the bucket and origin from the web service's Railway variables (no `--operator`; it does not touch the database), uses the pinned S3 SDK, keeps the bucket's existing rules, reads the rule back, and exits 1 unless it is in place. `deploy-ci-images` runs it after every deploy. See `backup-and-lifecycle.md` §3.
 - `ops:queue <status|pause|resume> <queue>` — pause/resume a BullMQ queue (containment; jobs preserved). §3/§7
-- `ops:quarantine <list|redrive <id>|discard <id>>` — inspect failure quarantine, redrive enabled work, or discard blocked/quarantined work without execution. §4/§7
+- `ops:quarantine <list|redrive <id>|discard <id>>` — inspect failure quarantine, redrive enabled work, or discard blocked/quarantined work without execution. Discard removes the dead-lettered work for good, so its `--apply` is destructive and requires `--yes ops:quarantine`; redrive does not. §4/§7/§14
 - `ops:refresh reviews` — enqueue one bounded Review refresh-sweep run. §3/§4
 - `ops:purge <reviews|reviews-shadow|retention>` — report Review lifecycle eligibility, Review expand/cache parity, or the static-rule retention backlog. Review targets are content-free and report-only even when enqueued; they never grant destructive apply. `retention --apply` remains destructive and requires typed confirmation. Do not treat local Review reports as production erasure or parity evidence. Inspect Google import lifecycle through the read-only health/database surfaces in runbook §10.
 - `ops:rebuild-projection --org <id> [--property <id>]` — repair the inbox projection (bounded, dry-run report first). §5
 - `ops:rebuild-metric-projection <portalId> --org <id> --property <id>` — inspect or repair one anonymous Portal lifetime projection from its sealed baseline plus retained governed facts. Dry-run is the default; apply requires `--reason`. §7
-- `ops:reconcile-publication <replyId> | --all-ambiguous [--resume <token>]` — reconcile ambiguous Google reply publication (one frozen keyset page; provider re-read, never a send). §6
+- `ops:reconcile-publication <replyId> | --all-ambiguous [--resume <token>]` — list ambiguous Google reply publication that is due for reconciliation (one frozen keyset page across tenants, every row `not_evaluated`; no Google read). Report only: `--apply` is refused. The worker's `reconcile-ambiguous-publications` job re-reads Google for every due reply every five minutes, and a manager can use Check Google again on one reply in the Inbox; neither sends a reply. Both reads need `property.connect_gbp` for the Organization, and Check Google again needs `property.publish_reply` as well: while `BETA_CAPABILITIES_OFF` or `BETA_SUSPENDED_ORGS` stops one, that read is refused and the reply stays `ambiguous`. §6
 - `ops:republish-legacy-portals --org <id> [--property <id>] [--batch-size <n>] [--include-pending-edits]` — republish every live Portal whose active version is a v1 or v2 page as the current design (snapshot v3, the Immersive Hub), so every guest sees it and the legacy renderer can be removed. Each Portal goes through the ordinary publish-while-live use case: the same readiness gates, a new version, the previous activation closed as `replaced`, the same facts; the actor on the snapshot, the activation and the fact is `ops:<operator>` (use a short non-personal handle: it is stored in immutable snapshots). The Operational Action History files it as an `operator` row and managers read it as "Reputation Key" in the version history. Dry-run is the default and reports per Portal what would be republished and which would be skipped, with the reason; `--reason <text> --apply` writes. A Portal whose manager has unpublished edits is skipped as `pending_edits` (the republish would put those drafts live under the operator's name; the manager should publish or discard them); `--include-pending-edits` publishes them anyway and the report says how many went live. Idempotent: a republished Portal is on v3 and is not selected again, and a skipped one reports the same reason until it is fixed. Draft-only, disabled, archived and deleted Portals are never selected. Output is identifiers, versions and reason codes only. Exits 1 only if the run stopped at a fault that is not a Portal refusal; the report shows how far it got (`processed` in the totals), the cause is logged to stderr, and a rerun is safe. To see which organisations still have live v1/v2 Portals (the question slice 44 waits on), run this read-only SQL against the database:
 
   ```sql
@@ -105,8 +120,8 @@ The commands:
   `operational-action-history.md`; counsel approval is required before any
   destructive retention path is designed or enabled.
 - `ops:inspect policy <permission> <userId> --org <id> [--property <id>] --operator <id>` — explain one read-only ExecutionPolicy decision.
-- `ops:disconnect-connection <connectionId> --org <id>` — revoke Google connection credentials (destructive; reconnect completes rotation). §2/§10
-- `ops:gbp-subscribe --org <id>` — re-assert the organization's GBP `notificationSetting` at `GBP_PUBSUB_TOPIC` for every account bound to its usable connections (reads each setting, PATCHes only on a difference). Dry-run by default; `--reason <text> --apply` executes. The worker's daily `reconcile-gbp-notification-subscriptions` job runs the same backfill for every organization, so this is only for doing it at once — backfilling accounts imported while push was off, or re-pointing after a `GBP_PUBSUB_TOPIC` change — from a host that reaches the database. Exits 1 on any candidate short of `subscribed` or `already_subscribed`, other than one skipped as inactive or with no bound Property yet (`account_unresolved`). §2
+- `ops:disconnect-connection <connectionId> --org <id>` — echo the connection and Organization a disconnect would act on; it reads neither. Report only: `--apply` is refused. An AccountAdmin of the Organization disconnects Google in the app (Settings, Integrations), which attempts the governed revoke and redacts the stored credentials; reconnecting completes a rotation. The app refuses that disconnect while the Organization is in `BETA_SUSPENDED_ORGS`, and while `BETA_CAPABILITIES_OFF` is `all` or names `integration.use`: have them disconnect before you suspend the Organization, or lift the suspension for the disconnect. To stop the Organization's Google work without them, add its ID to `BETA_SUSPENDED_ORGS` on web and worker; to stop Google for everyone, set `BETA_CAPABILITIES_OFF` to the Google capabilities. §2/§10/§11
+- `ops:gbp-subscribe --org <id>` — list the organization's Google connections and which of them a GBP `notificationSetting` subscribe at `GBP_PUBSUB_TOPIC` would cover; calls Google zero times. Report only: `--apply` is refused. The worker subscribes accounts by itself: an import subscribes its own, and the daily `reconcile-gbp-notification-subscriptions` job re-asserts every organization's (reads each setting, PATCHes only on a difference), which is what backfills accounts imported while push was off and follows a `GBP_PUBSUB_TOPIC` change within a day. See `google-pubsub-setup.md` §6.
 - `ops:restore-preflight` — guided runbook §8 restore preflight (isolated-target check, journal readability, backup-window checklist); NOT a PITR executor — restore is platform-owned. §8
 - `ops:restore-verify` — restore-drill report and sealed apply surface (requires `RESTORE_MODE=isolated` plus an attested loopback/Railway PITR sibling target). Dry-run emits the bounded inventories and exact aggregate-only Review approval artifacts. Apply remains unavailable unless an independently reviewed, current, trusted Ed25519 bundle binds the exact target/run/generation/policy/report; a one-shot durable receipt rejects retargeting and reuse. See `review-lifecycle-recovery-approval.md`. Local code/tests are not a Railway drill or serving proof. §8
 - Current on Google has no operator mutation or standalone rebuild command. Review publishes its content-minimal aggregate only after a double-scan-verified provider run and bounded reconciliation; Metric stores it outside bounded-period readings and hides it after a source-epoch rebind.
