@@ -151,6 +151,23 @@ describe('auth catch-all rate limiting (review §5.1)', () => {
     expect(mocks.error).not.toHaveBeenCalled()
     expect(response.status).toBe(200)
   })
+
+  it('keeps the limiter on in a deployed Railway process, whatever identity is set', async () => {
+    useEnv({
+      E2E: '1',
+      BETA_E2E_EXECUTION_IDENTITY: IDENTITY,
+      RAILWAY_ENVIRONMENT_ID: 'environment-1',
+    })
+    mocks.check.mockResolvedValue({ allowed: false })
+    const { handleAuthRequest } = await loadRoute()
+
+    const response = await handleAuthRequest(signInPost(), { rateLimit: true })
+
+    expect(mocks.check).toHaveBeenCalledWith('auth:native:203.0.113.5')
+    expect(response.status).toBe(429)
+    expect(mocks.handler).not.toHaveBeenCalled()
+    expect(mocks.error.mock.calls[0]?.[1]).toMatch(/auth\.rate_limit_bypass_refused/)
+  })
 })
 
 describe('auth catch-all allow list', () => {

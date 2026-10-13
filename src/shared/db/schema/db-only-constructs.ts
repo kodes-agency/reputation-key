@@ -14,7 +14,9 @@
 // The drift test (../schema-drift.ts) enforces both directions:
 //   - every entry here must EXIST in pg_catalog;
 //   - every trigger/function in pg_catalog must appear here;
-//   - entries here are exempt from model-vs-catalog comparison.
+//   - entries here are exempt from model-vs-catalog comparison;
+//   - a function or trigger must also be DEFINED as that file states it
+//     (../construct-definitions.ts) — the name alone is not parity.
 
 import { readFileSync } from 'node:fs'
 import { CONCURRENT_INDEX_REGISTRY } from '../concurrent-index-registry'
