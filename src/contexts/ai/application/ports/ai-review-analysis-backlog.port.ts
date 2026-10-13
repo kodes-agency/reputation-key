@@ -5,7 +5,11 @@ import type { AiAdmissionLane } from '../../domain/admission-lanes'
 export type AiReviewAnalysisBacklogOrigin =
   | 'historical_onboarding'
   | 'backfill'
-  /** A live event whose background lane was busy when it was delivered. */
+  /**
+   * A live event that could not run when it was delivered: its background lane
+   * was busy, current policy refused its Organization or Property, or an AI
+   * execution control was stopped.
+   */
   | 'deferred_live'
 
 export type AiReviewAnalysisBacklogEntry = Readonly<{
@@ -91,9 +95,10 @@ export type AiReviewAnalysisBacklogPort = Readonly<{
   ): Promise<void>
   /**
    * Return a claimed entry to the queue until `nextAttemptAtEpochMillis`
-   * without its work having been tried. Unlike `reschedule` it counts no
-   * attempt, and it clears the entry's first start, so the operation horizon
-   * begins when a drainer next takes it: time spent refused is not a stuck
+   * without its work having been tried: current policy refused it, or an AI
+   * execution control was stopped. Unlike `reschedule` it counts no attempt,
+   * and it clears the entry's first start, so the operation horizon begins
+   * when a drainer next takes it: time spent held by a stop is not a stuck
    * attempt.
    */
   release(

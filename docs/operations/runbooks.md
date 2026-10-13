@@ -817,6 +817,19 @@ re-run the enrollment eligibility predicate at its stored fence and compare the
 eligible count with its snapshot count; never copy review text into the
 incident record.
 
+First rule out a stop, because a stopped Property's reviews wait on purpose and
+this alert fires for them after fifteen minutes. Review Analysis is stopped for
+a Property while `BETA_CAPABILITIES_OFF` names `ai.analyze` or `all`, while its
+Organization is in `BETA_SUSPENDED_ORGS` or off `BETA_ALLOWLIST_ORGS`, or while
+an AI execution control (global, provider or the `review_analysis` capability)
+is not `enabled`/`accepting` (§25). Reviews that were queued and reviews that
+arrive during the stop both wait in `ai_review_analysis_backlog`. The worker's
+`AI Review Analysis backlog drain completed` line counts them as `denied`
+(platform policy) or `stopped` (AI execution controls) each time it asks, about
+once a minute per review. Nothing is lost and nothing needs repair: lift the
+stop and the drain analyses them within about a minute of the worker running
+under the lifted stop, and the alert clears as the settlements arrive.
+
 **Containment/Recovery:** Restore the failing ordinary path first. Let an
 in-horizon analysis retry or the execution reaper terminal-settle through the
 normal consumer. If the durable consumer receipt is missing, let the bounded

@@ -27,6 +27,7 @@ import type {
   AiReviewAnalysisBacklogOrigin,
   AiReviewAnalysisBacklogPort,
 } from '../application/ports/ai-review-analysis-backlog.port'
+import type { AuthorizeReviewAnalysisScope } from '../application/use-cases/drain-review-analysis-backlog'
 
 export const AI_REVIEW_ANALYSIS_CONSUMER = 'ai.analyze-review-event'
 export const AI_PROPERTY_TREND_GENERATION_CONSUMER = 'ai.generate-property-trend'
@@ -77,8 +78,20 @@ export type RegisterAiConsumersInput = Readonly<{
     input: AnalyzeReviewEventInput,
   ) => Promise<AnalyzeReviewEventResult>
   receipts: OutboxRepository
-  /** Where analysis that waits for the background lane is queued (ADR 0058). */
+  /**
+   * Where analysis that waits is queued (ADR 0058): for the background lane,
+   * or for a stop to be lifted.
+   */
   backlog: Pick<AiReviewAnalysisBacklogPort, 'enqueue'>
+  /**
+   * Current platform policy for one Organization and Property (ADR 0032): the
+   * question the backlog drain asks of each entry. This consumer's catalogue
+   * row is ungated, so that a review arriving during a stop is queued rather
+   * than lost, and this is what keeps it from analysing such a review on
+   * delivery. Without it nothing is analysed on delivery: every review is
+   * queued for the drain, which decides.
+   */
+  authorizeScope?: AuthorizeReviewAnalysisScope
   nowEpochMillis: () => number
   /**
    * Queues one scheduled trend with the Organization and Property it belongs
@@ -156,41 +169,85 @@ function backlogOriginFor(
   return null
 }
 
+/**
+ * Whether this delivery may make the provider call itself. History never does:
+ * it is paced through the backlog. An ongoing review does only while current
+ * platform policy allows Review Analysis for its Organization and Property. A
+ * review the drain would refuse is queued for it instead, and analysed once the
+ * stop is lifted. A source transition is settled without a provider call, so
+ * nothing is asked about it.
+ */
+async function analysesOnDelivery(
+  dependencies: Pick<RegisterAiConsumersInput, 'authorizeScope'>,
+  delivery: Readonly<{
+    origin: AiReviewAnalysisBacklogOrigin | null
+    disposition: AnalyzeReviewEventInput['disposition']
+    organizationId: OrganizationId
+    propertyId: PropertyId
+  }>,
+): Promise<boolean> {
+  if (delivery.origin !== null) return false
+  if (delivery.disposition !== 'pending') return true
+  const allowed = await dependencies.authorizeScope?.(
+    delivery.organizationId,
+    delivery.propertyId,
+  )
+  return allowed ?? false
+}
+
+/**
+ * Provider work that must wait: queued history, a live review whose lane was
+ * busy, a review current policy refuses, or one that met a stopped AI
+ * execution control. The drain returns the last two untried until the stop is
+ * lifted.
+ */
+function waitsInBacklog(result: AnalyzeReviewEventResult): boolean {
+  return (
+    result.status === 'deferred' ||
+    result.status === 'stopped' ||
+    (result.status === 'retry' && result.code === 'admission_busy')
+  )
+}
+
 export async function handleAiReviewEvent(
   dependencies: RegisterAiConsumersInput,
   event: ConsumerEvent,
 ): Promise<ConsumerResult> {
   const payload = reviewEventPayloadSchema.parse(event.payload)
   const origin = backlogOriginFor(event, payload)
-  const result = await dependencies.analyzeReviewEvent({
+  const scope = {
     organizationId: organizationId(payload.organizationId),
     propertyId: propertyId(payload.propertyId),
+  }
+  const disposition = dispositionFor(event, payload.change)
+  const executes = await analysesOnDelivery(dependencies, {
+    origin,
+    disposition,
+    ...scope,
+  })
+  const result = await dependencies.analyzeReviewEvent({
+    ...scope,
     reviewId: reviewId(payload.reviewId),
     sourceEpoch: payload.sourceEpoch,
     sourceRevision: payload.sourceRevision,
     analysisSequence: payload.analysisSequence,
     eventEnvelopeId: event.eventId,
-    disposition: dispositionFor(event, payload.change),
+    disposition,
     eventRecordedAtEpochMillis: envelopeRecordedAtEpochMillis(event),
     operationHorizonMillis:
       event.eventType === 'ai.review_analysis.backfill_requested'
         ? AI_BACKFILL_OPERATION_HORIZON_MILLIS
         : AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
-    execution: origin === null ? 'execute' : 'defer',
+    execution: executes ? 'execute' : 'defer',
     lane: 'background',
   })
 
-  // Provider work that must wait: queued history, or a live review whose lane
-  // was busy. The backlog row becomes the durable authority for that work, so
+  // The backlog row becomes the durable authority for work that must wait, so
   // the event is receipted now instead of redelivered on BullMQ backoff.
-  if (
-    result.status === 'deferred' ||
-    (result.status === 'retry' && result.code === 'admission_busy')
-  ) {
+  if (waitsInBacklog(result)) {
     await dependencies.backlog.enqueue({
       eventEnvelopeId: event.eventId,
-      organizationId: organizationId(payload.organizationId),
-      propertyId: propertyId(payload.propertyId),
+      ...scope,
       reviewId: reviewId(payload.reviewId),
       sourceEpoch: payload.sourceEpoch,
       sourceRevision: payload.sourceRevision,

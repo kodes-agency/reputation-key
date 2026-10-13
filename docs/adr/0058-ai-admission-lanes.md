@@ -202,3 +202,50 @@ retry and a repeated click reuse it, and any finished answer rotates it.
      picked less often. The follow-up is to park every ready entry of a
      refused Organization and Property in one statement, so that a refused
      Property costs one slot a minute.
+- **2026-10-13** — A review that arrives during a stop waits in the backlog.
+  The 2026-10-12 amendment made queued reviews wait out a platform stop and
+  left the review that arrives during one lost: policy refused the analysis
+  consumer at the dispatcher, a refused consumer gets an obsolete receipt and
+  is never retried, and nothing analysed the review once the stop was lifted. A
+  stop through the AI execution controls lost arrivals another way: the
+  analysis use case settled the review `policy_disabled` with no operation, and
+  the reopen pass selects by a failed operation, so a restore re-admitted
+  nothing. A queued entry drained during such a stop was settled the same way.
+  1. A stopped AI execution control is an answer, not a settlement. When a
+     review needs a provider call and the global, provider or capability
+     control does not accept work, or a control head is missing, the analysis
+     use case answers `stopped` and writes nothing. What needs no provider call
+     is still settled first: a source transition, a merchant who switched AI
+     off, a review without text, an unsupported language.
+  2. The consumer queues a stopped review under its origin and receipts the
+     event. The drain returns an entry whose analysis answers `stopped` with
+     `release`, as it returns a refused one: no attempt counted, nothing
+     settled, its first start cleared, asked again after a minute. It reports
+     the count as `stopped`. The on-demand job leaves the entry queued the same
+     way.
+  3. The analysis consumer's catalogue row is ungated, like the enrollment
+     consumer's, so policy no longer refuses it at the dispatcher. It never
+     analyses a stopped Organization's review on delivery: before an ongoing
+     review's provider call it asks current policy about the review's
+     Organization and Property, with the scope authorizer of the drain's own
+     action, and a refused review runs only the checks that need no provider
+     call and is queued. Provider work stays gated on `ai.analyze` at the drain,
+     for each entry, and at the on-demand job, by the dispatch gate. A consumer
+     that was given no authorizer analyses nothing on delivery and queues every
+     review.
+  4. A source transition is settled under a platform stop too. It needs no
+     authorization, profile or provider call, and exact coverage counts its
+     sequence. Under the gated row a platform stop obsoleted it and its
+     sequence was never settled.
+  5. Nothing bounds the wait. A review held by either stop is analysed when the
+     stop lifts, however long that is, and an Organization taken off the
+     allowlist for good keeps the new reviews of its AI-enabled Properties
+     queued. A Property that never enabled AI queues nothing. While reviews
+     wait, the Property's coverage is incomplete: its insights carry the
+     provisional marker, and `ai.review-analysis-stalled` fires after fifteen
+     minutes without a settlement and clears once the stop is lifted
+     (runbooks §22).
+  6. This supersedes the last sentence of item 2 of 2026-10-12: a reopen raised
+     while a stop holds is queued and waits like any other review. The
+     operation window of that item is unchanged, and applies to an entry held
+     by a stopped control as well.

@@ -104,6 +104,15 @@ export type AnalyzeReviewEventResult =
   | Readonly<{ status: 'retry'; retryAtEpochMillis: number; code: string }>
   /** Provider work is still needed and the caller asked to queue it. */
   | Readonly<{ status: 'deferred' }>
+  /**
+   * Provider work is still needed and an AI execution control does not accept
+   * it: an operator killed or drained the global, provider or capability
+   * control, or a control head is missing. Nothing was claimed or settled. The
+   * caller holds the review in the backlog until the control accepts work
+   * again; settling it here would leave it unanalysed after the restore, since
+   * nothing reopens a settlement that has no operation.
+   */
+  | Readonly<{ status: 'stopped' }>
 
 /** Content-free record of a governed refusal. Carries identifiers and the rule
  *  only: the refused label and the matched excerpt are deliberately absent. */
@@ -610,16 +619,11 @@ export function createAnalyzeReviewEvent(
       providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
       capability: 'review_analysis',
     })
-    if (stopFence === null) {
-      return settleWithoutResult(
-        input,
-        reviewAnalysisEpoch,
-        profile.profileVersion,
-        'policy_disabled',
-      )
-    }
     // Everything above settles without a provider call. From here on the
-    // review needs one, so a deferring caller queues it for its lane instead.
+    // review needs one. A stopped control says nothing about the review and
+    // nothing about the merchant, so it is answered, never settled; a
+    // deferring caller queues the work for its lane instead.
+    if (stopFence === null) return { status: 'stopped' }
     if (input.execution === 'defer') return { status: 'deferred' }
     const subject = dependencies.subjectHmac.sign(input.reviewId)
     const identity = analysisOperationIdentity(

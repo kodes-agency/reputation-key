@@ -541,19 +541,25 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'organization',
   ),
-  // AI consumers are gated per capability, so one capability's stop never
-  // obsoletes another's deliveries: Review Analysis on ai.analyze, like the
-  // jobs that run the same analysis, and trend generation on ai.detect_trends.
+  // The analysis consumer records that a review is owed an analysis: ungated,
+  // because a denied consumer is never retried and a review that arrives
+  // during a stop must be analysed once the stop is lifted. It never analyses
+  // a stopped review itself: before a provider call on delivery it asks
+  // current policy about the review's Organization and Property (the
+  // backlog-drain job's own question) and queues a refused review in the
+  // backlog. The provider work stays gated on ai.analyze there, by the
+  // backlog-drain and on-demand jobs. Each AI consumer has its own row, so one
+  // capability's stop never obsoletes another's deliveries.
   consumer(
     'ai.review-analysis-consumers',
     'system:ai.review_analysis_event',
-    'ai.analyze',
+    'none',
     'property',
   ),
   // Enrollment records a merchant's enable, disable or revoke: ungated,
   // because a denied consumer is never retried and that record must survive
-  // any stop. The provider work it leads to is gated on ai.analyze by the
-  // analysis consumer and the backlog-drain job.
+  // any stop. The provider work it leads to is gated on ai.analyze as the
+  // analysis consumer's is.
   consumer(
     'ai.review-analysis-enrollment',
     'system:ai.review_analysis_enrollment',

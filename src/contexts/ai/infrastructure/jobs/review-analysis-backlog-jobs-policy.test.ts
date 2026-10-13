@@ -13,9 +13,19 @@
 // the real drain and the real analysis use case. The provider is the
 // observation point, and the backlog is a small in-memory queue whose rows the
 // assertions read back.
+//
+// The second half is the review that ARRIVES during a stop. The backlog is
+// where a stopped review waits, so its event has to reach the backlog: the
+// real outbox dispatcher delivers a fact from Review's own constructor to the
+// AI consumers, registered as composition registers them. That holds for both
+// kinds of stop: platform policy, and the AI execution controls an operator
+// kills and restores.
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Job } from 'bullmq'
+import { reviewCreated } from '#/contexts/review/application/public-api'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
@@ -32,6 +42,9 @@ import {
 } from '#/shared/ai-review-language-catalogue'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { DomainEvent } from '#/shared/events/events'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { AI_REVIEW_LANGUAGE_REGION_NODE_VERSION } from '#/shared/generated/ai-review-language-canonical-regions-v1'
 import {
   createGatedJobHandler,
@@ -42,9 +55,14 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
+import { createConsumerRegistry, type OutboxRepository } from '#/shared/outbox'
+import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
+import { buildConsumerEvent } from '#/shared/outbox/envelope'
+import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type {
   AiReviewAnalysisBacklogEntry,
+  AiReviewAnalysisBacklogOrigin,
   AiReviewAnalysisBacklogPort,
 } from '../../application/ports/ai-review-analysis-backlog.port'
 import {
@@ -52,6 +70,7 @@ import {
   type AnalyzeReviewEventDependencies,
 } from '../../application/use-cases/analyze-review-event'
 import { createDrainReviewAnalysisBacklog } from '../../application/use-cases/drain-review-analysis-backlog'
+import { AI_REVIEW_ANALYSIS_CONSUMER, registerAiConsumers } from '../outbox-consumers'
 import {
   ANALYZE_REVIEW_NOW_JOB_NAME,
   createAnalyzeReviewNowJobHandler,
@@ -64,9 +83,15 @@ import {
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => createMockLogger(),
 }))
+vi.mock('#/shared/observability/trace', () => ({
+  trace: vi.fn((_name: string, work: () => unknown) => work()),
+}))
 
 const NOW = Date.parse('2026-10-12T09:00:00.000Z')
-/** How long the drain holds an entry it was refused (its DENIED_RETRY_DELAY_MILLIS). */
+/**
+ * How long the drain holds an entry it could not run: refused by policy (its
+ * DENIED_RETRY_DELAY_MILLIS) or stopped by an AI control (STOPPED_RETRY_DELAY_MILLIS).
+ */
 const REFUSAL_HOLD_MILLIS = 60_000
 const SHA = 'a'.repeat(64)
 const STOPPED_ORGANIZATION = organizationId('drain-policy-stopped-org')
@@ -83,22 +108,28 @@ type QueuedEntry = {
   attempts: number
   nextAttemptAtEpochMillis: number
   firstStartedAtEpochMillis: number | null
+  origin: AiReviewAnalysisBacklogOrigin
 }
 
-function queued(
-  index: number,
-  scope: Readonly<{ org: OrganizationId; prop: PropertyId }>,
-) {
+type Scope = Readonly<{ org: OrganizationId; prop: PropertyId }>
+
+const STOPPED_SCOPE: Scope = { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY }
+
+const reviewIdFor = (index: number) =>
+  reviewId(`7f000000-0000-4000-8000-${String(index).padStart(12, '0')}`)
+
+function queued(index: number, scope: Scope) {
   const suffix = String(index).padStart(12, '0')
   return {
     eventEnvelopeId: `7e000000-0000-4000-8000-${suffix}`,
     organizationId: scope.org,
     propertyId: scope.prop,
-    reviewId: reviewId(`7f000000-0000-4000-8000-${suffix}`),
+    reviewId: reviewIdFor(index),
     state: 'queued',
     attempts: 0,
     nextAttemptAtEpochMillis: NOW,
     firstStartedAtEpochMillis: null,
+    origin: 'historical_onboarding',
   } satisfies QueuedEntry
 }
 
@@ -121,14 +152,28 @@ function inMemoryBacklog(rows: QueuedEntry[]) {
       sourceEpoch: 2,
       sourceRevision: 5,
       analysisSequence: 7,
-      origin: 'historical_onboarding',
+      origin: row.origin,
       priority,
       attempts: row.attempts,
       firstStartedAtEpochMillis: row.firstStartedAtEpochMillis,
     }
   }
   const port: AiReviewAnalysisBacklogPort = {
-    enqueue: async () => {},
+    // Idempotent by origin event, like the table's primary key.
+    enqueue: async (input) => {
+      if (find(input.eventEnvelopeId)) return
+      rows.push({
+        eventEnvelopeId: input.eventEnvelopeId,
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        reviewId: input.reviewId,
+        state: 'queued',
+        attempts: 0,
+        nextAttemptAtEpochMillis: input.nowEpochMillis,
+        firstStartedAtEpochMillis: null,
+        origin: input.origin,
+      })
+    },
     claimReady: async (input) =>
       rows
         .filter(
@@ -172,13 +217,22 @@ function inMemoryBacklog(rows: QueuedEntry[]) {
   return port
 }
 
+/** What an operator and a merchant can switch, as the tests move it. */
+type AiSwitches = {
+  /** The Review Analysis capability head of the AI execution controls. */
+  reviewAnalysisControl: 'enabled' | 'killed'
+  /** Properties whose merchant never enabled AI: no enablement row at all. */
+  neverEnabled: ReadonlySet<PropertyId>
+}
+
 /**
- * The analysis use case with every gate it owns open: the merchant has enabled
- * Review Analysis and the AI control heads accept work. Whatever stops a review
- * here is therefore the platform policy and nothing else. The provider answers
- * "unavailable", which is all the path after the call needs.
+ * The analysis use case with every gate it owns open unless a test closes one:
+ * the merchant has enabled Review Analysis and the AI control heads accept
+ * work. With them open, whatever stops a review is the platform policy and
+ * nothing else. The provider answers "unavailable", which is all the path after
+ * the call needs.
  */
-function analysisWithOpenGates(clock: Readonly<{ now: number }>) {
+function analysisWithOpenGates(clock: Readonly<{ now: number }>, switches: AiSwitches) {
   const analyzeReview = vi.fn(
     async (
       _request: Readonly<{
@@ -197,42 +251,49 @@ function analysisWithOpenGates(clock: Readonly<{ now: number }>) {
     terminalAnalysisSequence: 7,
     aggregateRevision: 1,
   }))
-  const head = (scope: Readonly<Record<string, string>>, index: number) => ({
+  const head = (
+    scope: Readonly<Record<string, string>>,
+    index: number,
+    executionState: 'enabled' | 'killed' = 'enabled',
+  ) => ({
     scope,
     controlId: `7c000000-0000-4000-8000-00000000000${index}`,
     generation: 1,
-    executionState: 'enabled' as const,
+    executionState,
     admissionState: 'accepting' as const,
     updatedAtEpochMillis: NOW,
+  })
+  const enabledFor = (
+    scope: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
+  ) => ({
+    organizationId: scope.organizationId,
+    propertyId: scope.propertyId,
+    state: 'enabled' as const,
+    stateVersion: 1,
+    authorizationLineageId: '7b000000-0000-4000-8000-000000000001',
+    authorizedSourceEpoch: 2,
+    capabilities: ['review_analysis'] as const,
+    capabilityRuntimeProfileVersions: {
+      review_analysis: 'review-analysis-runtime-v1',
+    },
+    capabilityEpochs: {
+      review_analysis: { epoch: 1, changedAtEpochMillis: NOW },
+      reply_drafting: { epoch: 1, changedAtEpochMillis: NOW },
+      property_trends: { epoch: 1, changedAtEpochMillis: NOW },
+    },
+    reviewAnalysisStartSequence: 1,
+    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    sourcePolicyId: 'google-business-profile-source-policy-v1',
+    sourceCanonicalizerDigest: SHA,
+    redactionProfileFamily: 'gbp-review-global-v1',
+    providerDeploymentProfileVersion: 'private-beta-global-v1',
   })
   const dependencies = {
     authorization: {
       readMerchantAuthorization: async (
         scope: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
-      ) => ({
-        organizationId: scope.organizationId,
-        propertyId: scope.propertyId,
-        state: 'enabled' as const,
-        stateVersion: 1,
-        authorizationLineageId: '7b000000-0000-4000-8000-000000000001',
-        authorizedSourceEpoch: 2,
-        capabilities: ['review_analysis'] as const,
-        capabilityRuntimeProfileVersions: {
-          review_analysis: 'review-analysis-runtime-v1',
-        },
-        capabilityEpochs: {
-          review_analysis: { epoch: 1, changedAtEpochMillis: NOW },
-          reply_drafting: { epoch: 1, changedAtEpochMillis: NOW },
-          property_trends: { epoch: 1, changedAtEpochMillis: NOW },
-        },
-        reviewAnalysisStartSequence: 1,
-        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-        sourcePolicyId: 'google-business-profile-source-policy-v1',
-        sourceCanonicalizerDigest: SHA,
-        redactionProfileFamily: 'gbp-review-global-v1',
-        providerDeploymentProfileVersion: 'private-beta-global-v1',
-      }),
+      ) => (switches.neverEnabled.has(scope.propertyId) ? null : enabledFor(scope)),
     },
     control: {
       readHeads: async () => [
@@ -244,7 +305,11 @@ function analysisWithOpenGates(clock: Readonly<{ now: number }>) {
           },
           2,
         ),
-        head({ kind: 'capability', capability: 'review_analysis' }, 3),
+        head(
+          { kind: 'capability', capability: 'review_analysis' },
+          3,
+          switches.reviewAnalysisControl,
+        ),
       ],
     },
     inference: { analyzeReview },
@@ -341,7 +406,92 @@ function analysisWithOpenGates(clock: Readonly<{ now: number }>) {
   }
 }
 
-/** The worker's dispatch of both backlog jobs, under `env` as policy. */
+/** The envelope the relay builds from a fact's outbox row. */
+function delivered(fact: DomainEvent, recordedAtEpochMillis: number) {
+  const row = toOutboxEvent(fact)
+  return buildConsumerEvent({
+    id: fact.eventId,
+    eventType: row.eventType,
+    eventVersion: row.eventVersion ?? 1,
+    payload: JSON.parse(JSON.stringify(row.payload)),
+    organizationId: row.organizationId,
+    propertyId: row.propertyId ?? null,
+    sourceContext: row.sourceContext,
+    sourceAggregateId: row.sourceAggregateId,
+    recordedAt: new Date(recordedAtEpochMillis),
+  })
+}
+
+/**
+ * The worker's delivery of review events: the real outbox dispatcher over the
+ * AI consumers, which get the drain's own policy question, as composition
+ * gives it to them (asserted on the source at the end of this file).
+ */
+function reviewEventDelivery(
+  wiring: Readonly<{
+    analyzeReviewEvent: ReturnType<typeof createAnalyzeReviewEvent>
+    backlog: AiReviewAnalysisBacklogPort
+    clock: Readonly<{ now: number }>
+  }>,
+) {
+  const receipts = new Map<string, string>()
+  const receiptKey = (eventId: string, consumerName: string) =>
+    `${eventId}:${consumerName}`
+  const receiptStore = {
+    hasReceipt: async (eventId: string, consumerName: string) =>
+      receipts.has(receiptKey(eventId, consumerName)),
+    insertReceipt: async (eventId: string, consumerName: string, status: string) => {
+      receipts.set(receiptKey(eventId, consumerName), status)
+    },
+  } as unknown as OutboxRepository
+  const consumers = createConsumerRegistry()
+  registerAiConsumers(consumers, {
+    analyzeReviewEvent: wiring.analyzeReviewEvent,
+    receipts: receiptStore,
+    backlog: wiring.backlog,
+    nowEpochMillis: () => wiring.clock.now,
+    enqueuePropertyTrend: async () => {},
+    authorizeScope: createScheduledScopeAuthorizer(
+      'system:ai.review_analysis_backlog_drain',
+    ),
+  })
+  const dispatchEvent = createDispatcherHandler(receiptStore, { consumers })
+  /**
+   * Google shows RepKey a new review and Review commits `review.created`. The
+   * answer says what became of the delivery: the receipt the analysis
+   * consumer holds, and whether the dispatch job completed or will be retried.
+   */
+  return async (index: number, scope: Scope) => {
+    const fact = reviewCreated({
+      reviewId: reviewIdFor(index),
+      organizationId: scope.org,
+      propertyId: scope.prop,
+      platform: 'google',
+      sourceEpoch: 2,
+      sourceRevision: 5,
+      analysisSequence: 7,
+      observationOrigin: 'ongoing',
+      occurredAt: new Date(wiring.clock.now),
+    })
+    const envelope = delivered(fact, wiring.clock.now)
+    const job = {
+      id: envelope.eventId,
+      name: envelope.eventType,
+      data: envelope,
+    } as unknown as Job
+    const delivery = await dispatchEvent(job).then(
+      () => 'completed' as const,
+      () => 'retried' as const,
+    )
+    return {
+      eventId: fact.eventId,
+      delivery,
+      receipt: receipts.get(receiptKey(fact.eventId, AI_REVIEW_ANALYSIS_CONSUMER)),
+    }
+  }
+}
+
+/** The worker's dispatch of both backlog jobs and of review events, under `env` as policy. */
 function worker(env: Readonly<Record<string, string>>, rows: QueuedEntry[]) {
   /** The environment policy store is read at boot: a change is a restart. */
   const restartUnder = (policy: Readonly<Record<string, string>>) =>
@@ -351,11 +501,21 @@ function worker(env: Readonly<Record<string, string>>, rows: QueuedEntry[]) {
     createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
   )
   const clock = { now: NOW }
-  const analysis = analysisWithOpenGates(clock)
+  const switches: AiSwitches = {
+    reviewAnalysisControl: 'enabled',
+    neverEnabled: new Set(),
+  }
+  const analysis = analysisWithOpenGates(clock, switches)
+  const backlog = inMemoryBacklog(rows)
   const drainer = createDrainReviewAnalysisBacklog({
-    backlog: inMemoryBacklog(rows),
+    backlog,
     analyzeReviewEvent: analysis.analyzeReviewEvent,
     nowEpochMillis: () => clock.now,
+  })
+  const arrive = reviewEventDelivery({
+    analyzeReviewEvent: analysis.analyzeReviewEvent,
+    backlog,
+    clock,
   })
   const registry = createJobRegistry()
   // As bootstrap registers it.
@@ -396,54 +556,14 @@ function worker(env: Readonly<Record<string, string>>, rows: QueuedEntry[]) {
   const advance = (millis: number) => {
     clock.now += millis
   }
-  return { fire, analyzeNow, restartUnder, advance, ...analysis }
+  return { fire, analyzeNow, arrive, restartUnder, advance, switches, ...analysis }
 }
 
 const ACTUAL_VERSIONS = process.versions
 
-describe('Review Analysis backlog jobs under platform policy', () => {
-  beforeEach(() => {
-    // The analysis fails closed on a language runtime other than the pinned
-    // one, which would hide the provider call this suite is looking for.
-    Object.defineProperty(process, 'versions', {
-      value: {
-        ...ACTUAL_VERSIONS,
-        node: AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
-        icu: AI_REVIEW_LANGUAGE_ICU_VERSION,
-        unicode: AI_REVIEW_LANGUAGE_UNICODE_VERSION.replace(/\.0$/u, ''),
-      },
-      configurable: true,
-      writable: false,
-      enumerable: true,
-    })
-  })
-
-  afterEach(() => {
-    Object.defineProperty(process, 'versions', {
-      value: ACTUAL_VERSIONS,
-      configurable: true,
-      writable: false,
-      enumerable: true,
-    })
-    resetDelayedExecutionPolicy()
-    resetCapabilityPolicyStore()
-  })
-
-  it('sends a queued review to the provider when policy allows its Organization', async () => {
-    const rows = [queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY })]
-    const run = worker({ BETA_ALLOWLIST_ORGS: STOPPED_ORGANIZATION }, rows)
-
-    await run.fire()
-
-    expect(run.analyzeReview).toHaveBeenCalledTimes(1)
-    expect(run.analyzeReview.mock.calls[0]?.[0]).toMatchObject({
-      organizationId: STOPPED_ORGANIZATION,
-      propertyId: STOPPED_PROPERTY,
-      internalSubjectId: '7f000000-0000-4000-8000-000000000001',
-    })
-  })
-
-  it.each([
+/** The four ways platform policy stops Review Analysis for one Organization. */
+const PLATFORM_STOPS: ReadonlyArray<readonly [string, Readonly<Record<string, string>>]> =
+  [
     [
       'ai.analyze is switched off',
       { BETA_ALLOWLIST_ORGS: '*', BETA_CAPABILITIES_OFF: 'ai.analyze' },
@@ -460,7 +580,53 @@ describe('Review Analysis backlog jobs under platform policy', () => {
       'the Organization is no longer allowlisted',
       { BETA_ALLOWLIST_ORGS: OTHER_ORGANIZATION },
     ],
-  ])(
+  ]
+
+beforeEach(() => {
+  registerAllEventSchemas()
+  // The analysis fails closed on a language runtime other than the pinned
+  // one, which would hide the provider call this suite is looking for.
+  Object.defineProperty(process, 'versions', {
+    value: {
+      ...ACTUAL_VERSIONS,
+      node: AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
+      icu: AI_REVIEW_LANGUAGE_ICU_VERSION,
+      unicode: AI_REVIEW_LANGUAGE_UNICODE_VERSION.replace(/\.0$/u, ''),
+    },
+    configurable: true,
+    writable: false,
+    enumerable: true,
+  })
+})
+
+afterEach(() => {
+  Object.defineProperty(process, 'versions', {
+    value: ACTUAL_VERSIONS,
+    configurable: true,
+    writable: false,
+    enumerable: true,
+  })
+  resetDelayedExecutionPolicy()
+  resetCapabilityPolicyStore()
+  clearEventSchemas()
+})
+
+describe('Review Analysis backlog jobs under platform policy', () => {
+  it('sends a queued review to the provider when policy allows its Organization', async () => {
+    const rows = [queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY })]
+    const run = worker({ BETA_ALLOWLIST_ORGS: STOPPED_ORGANIZATION }, rows)
+
+    await run.fire()
+
+    expect(run.analyzeReview).toHaveBeenCalledTimes(1)
+    expect(run.analyzeReview.mock.calls[0]?.[0]).toMatchObject({
+      organizationId: STOPPED_ORGANIZATION,
+      propertyId: STOPPED_PROPERTY,
+      internalSubjectId: '7f000000-0000-4000-8000-000000000001',
+    })
+  })
+
+  it.each(PLATFORM_STOPS)(
     'sends nothing to the provider and leaves the review queued while %s',
     async (_stop, env) => {
       const rows = [queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY })]
@@ -563,5 +729,195 @@ describe('Review Analysis backlog jobs under platform policy', () => {
     expect(rows).toEqual([
       queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY }),
     ])
+  })
+})
+
+// Everything above starts from a review already in the backlog. A review
+// Google shows RepKey during the stop used to never get there: platform
+// policy refused its consumer at the dispatcher, which records an obsolete
+// receipt and is never retried, and a stopped AI control settled it as
+// "not analysable" with no operation, which nothing reopens. Either way the
+// review stayed outside the Property's analysis after the stop was lifted.
+describe('Review Analysis for a review that arrives during a stop', () => {
+  it('analyses a new review on delivery when nothing is stopped', async () => {
+    const rows: QueuedEntry[] = []
+    const run = worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
+
+    await run.arrive(1, STOPPED_SCOPE)
+
+    expect(run.analyzeReview).toHaveBeenCalledTimes(1)
+    expect(run.analyzeReview.mock.calls[0]?.[0]).toMatchObject({
+      organizationId: STOPPED_ORGANIZATION,
+      propertyId: STOPPED_PROPERTY,
+      internalSubjectId: reviewIdFor(1),
+    })
+    expect(rows).toEqual([])
+  })
+
+  it.each(PLATFORM_STOPS)(
+    'queues a review that arrives while %s, and analyses it once the stop is lifted',
+    async (_stop, env) => {
+      const rows: QueuedEntry[] = []
+      const run = worker(env, rows)
+
+      const arrival = await run.arrive(1, STOPPED_SCOPE)
+      await run.fire()
+
+      // Nothing left for the provider, nothing was settled "not analysable",
+      // and the review waits as an untried entry the drain has already been
+      // refused once.
+      expect(run.analyzeReview).not.toHaveBeenCalled()
+      expect(run.settleOutcome).not.toHaveBeenCalled()
+      expect(arrival).toMatchObject({ delivery: 'completed', receipt: 'applied' })
+      expect(rows).toEqual([
+        {
+          eventEnvelopeId: arrival.eventId,
+          organizationId: STOPPED_ORGANIZATION,
+          propertyId: STOPPED_PROPERTY,
+          reviewId: reviewIdFor(1),
+          state: 'queued',
+          attempts: 0,
+          nextAttemptAtEpochMillis: NOW + REFUSAL_HOLD_MILLIS,
+          firstStartedAtEpochMillis: null,
+          origin: 'deferred_live',
+        },
+      ])
+
+      run.restartUnder({ BETA_ALLOWLIST_ORGS: '*' })
+      run.advance(REFUSAL_HOLD_MILLIS)
+      await run.fire()
+
+      expect(run.analyzeReview).toHaveBeenCalledTimes(1)
+      expect(run.analyzeReview.mock.calls[0]?.[0]).toMatchObject({
+        organizationId: STOPPED_ORGANIZATION,
+        propertyId: STOPPED_PROPERTY,
+        internalSubjectId: reviewIdFor(1),
+      })
+    },
+  )
+
+  it('keeps analysing another Organization on delivery while one is suspended', async () => {
+    const rows: QueuedEntry[] = []
+    const run = worker(
+      { BETA_ALLOWLIST_ORGS: '*', BETA_SUSPENDED_ORGS: STOPPED_ORGANIZATION },
+      rows,
+    )
+
+    await run.arrive(1, STOPPED_SCOPE)
+    await run.arrive(2, { org: OTHER_ORGANIZATION, prop: OTHER_PROPERTY })
+
+    expect(
+      run.analyzeReview.mock.calls.map(([request]) => request.organizationId),
+    ).toEqual([OTHER_ORGANIZATION])
+    expect(rows.map((row) => row.organizationId)).toEqual([STOPPED_ORGANIZATION])
+  })
+
+  // An Organization that is off the allowlist is refused for good, and most of
+  // its Properties never enabled AI. Their reviews must not pile up in the
+  // backlog waiting for a stop that is not one.
+  it('queues nothing for a Property that never enabled AI, refused or not', async () => {
+    const rows: QueuedEntry[] = []
+    const run = worker({ BETA_ALLOWLIST_ORGS: OTHER_ORGANIZATION }, rows)
+    run.switches.neverEnabled = new Set([STOPPED_PROPERTY, OTHER_PROPERTY])
+
+    const refused = await run.arrive(1, STOPPED_SCOPE)
+    const allowed = await run.arrive(2, { org: OTHER_ORGANIZATION, prop: OTHER_PROPERTY })
+
+    expect([refused, allowed]).toMatchObject([
+      { delivery: 'completed', receipt: 'applied' },
+      { delivery: 'completed', receipt: 'applied' },
+    ])
+    expect(rows).toEqual([])
+    expect(run.analyzeReview).not.toHaveBeenCalled()
+  })
+
+  it('holds a review that arrives while the Review Analysis control is killed, and analyses it after the restore', async () => {
+    const rows: QueuedEntry[] = []
+    const run = worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
+    run.switches.reviewAnalysisControl = 'killed'
+
+    const arrival = await run.arrive(1, STOPPED_SCOPE)
+    const queuedOnArrival = rows.map((row) => ({ ...row }))
+    await run.fire()
+
+    expect(run.analyzeReview).not.toHaveBeenCalled()
+    expect(run.settleOutcome).not.toHaveBeenCalled()
+    expect(arrival).toMatchObject({ delivery: 'completed', receipt: 'applied' })
+    const waiting = {
+      eventEnvelopeId: arrival.eventId,
+      organizationId: STOPPED_ORGANIZATION,
+      propertyId: STOPPED_PROPERTY,
+      reviewId: reviewIdFor(1),
+      state: 'queued',
+      attempts: 0,
+      firstStartedAtEpochMillis: null,
+      origin: 'deferred_live',
+    }
+    expect(queuedOnArrival).toEqual([{ ...waiting, nextAttemptAtEpochMillis: NOW }])
+    // The drain asked, was told the control is stopped, and put it back
+    // untried: no attempt counted and no horizon running against it.
+    expect(rows).toEqual([
+      { ...waiting, nextAttemptAtEpochMillis: NOW + REFUSAL_HOLD_MILLIS },
+    ])
+
+    run.switches.reviewAnalysisControl = 'enabled'
+    run.advance(REFUSAL_HOLD_MILLIS - 1)
+    await run.fire()
+    const callsWhileHeld = run.analyzeReview.mock.calls.length
+    run.advance(1)
+    await run.fire()
+
+    expect(callsWhileHeld).toBe(0)
+    expect(run.analyzeReview).toHaveBeenCalledTimes(1)
+    expect(run.analyzeReview.mock.calls[0]?.[0]).toMatchObject({
+      organizationId: STOPPED_ORGANIZATION,
+      propertyId: STOPPED_PROPERTY,
+      internalSubjectId: reviewIdFor(1),
+    })
+  })
+
+  it('leaves a review that was already queued untried while the control is killed', async () => {
+    const rows = [queued(1, STOPPED_SCOPE)]
+    const run = worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
+    run.switches.reviewAnalysisControl = 'killed'
+
+    await run.fire()
+
+    expect(run.analyzeReview).not.toHaveBeenCalled()
+    expect(run.settleOutcome).not.toHaveBeenCalled()
+    expect(rows).toEqual([
+      {
+        ...queued(1, STOPPED_SCOPE),
+        nextAttemptAtEpochMillis: NOW + REFUSAL_HOLD_MILLIS,
+      },
+    ])
+  })
+
+  it('leaves an opened review queued when its on-demand analysis meets a killed control', async () => {
+    const rows = [queued(1, STOPPED_SCOPE)]
+    const run = worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
+    run.switches.reviewAnalysisControl = 'killed'
+
+    await run.analyzeNow(queued(1, STOPPED_SCOPE))
+
+    expect(run.analyzeReview).not.toHaveBeenCalled()
+    expect(run.settleOutcome).not.toHaveBeenCalled()
+    expect(rows).toMatchObject([
+      { state: 'queued', attempts: 0, firstStartedAtEpochMillis: null },
+    ])
+  })
+
+  // The consumer's catalogue row is ungated so that the review above can be
+  // queued. What keeps it from analysing a stopped Organization's review on
+  // delivery is the policy question it is handed, so the worker's composition
+  // must hand it the drain's own.
+  it('is given the scope authorizer of the drain where the worker is composed', () => {
+    const composition = readFileSync(join(process.cwd(), 'src/composition.ts'), 'utf8')
+    const build = readFileSync(join(process.cwd(), 'src/contexts/ai/build.ts'), 'utf8')
+
+    expect(composition).toMatch(
+      /authorizeReviewAnalysisScope: createScheduledScopeAuthorizer\(\s*'system:ai\.review_analysis_backlog_drain',?\s*\)/u,
+    )
+    expect(build).toMatch(/authorizeScope: input\.authorizeReviewAnalysisScope,/u)
   })
 })

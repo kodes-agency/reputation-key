@@ -121,6 +121,56 @@ const agedBackfillInput = Object.freeze({
   operationHorizonMillis: AI_BACKFILL_OPERATION_HORIZON_MILLIS,
 })
 
+type ControlHeadFixture = Readonly<{
+  scope: Readonly<Record<string, string>>
+  controlId: string
+  generation: number
+  executionState: 'enabled' | 'killed'
+  admissionState: 'accepting' | 'draining'
+  updatedAtEpochMillis: number
+}>
+
+const CONTROL_SCOPES: ReadonlyArray<ControlHeadFixture['scope']> = [
+  { kind: 'global' },
+  {
+    kind: 'provider_deployment_profile',
+    providerDeploymentProfileVersion: 'private-beta-global-v1',
+  },
+  { kind: 'capability', capability: 'review_analysis' },
+]
+
+/** The three AI execution control heads Review Analysis runs under, all open. */
+const OPEN_CONTROL_HEADS: ReadonlyArray<ControlHeadFixture> = CONTROL_SCOPES.map(
+  (scope, index) => ({
+    scope,
+    controlId: `71000000-0000-4000-8000-00000000011${index + 1}`,
+    generation: 1,
+    executionState: 'enabled',
+    admissionState: 'accepting',
+    updatedAtEpochMillis: NOW,
+  }),
+)
+
+/** One way an operator's stop, or a seed defect, shows in the control heads. */
+const STOPPED_CONTROL_HEADS = {
+  'the capability is killed': OPEN_CONTROL_HEADS.map((head) =>
+    head.scope.kind === 'capability'
+      ? { ...head, generation: 2, executionState: 'killed' as const }
+      : head,
+  ),
+  'the global control is draining': OPEN_CONTROL_HEADS.map((head) =>
+    head.scope.kind === 'global'
+      ? { ...head, generation: 2, admissionState: 'draining' as const }
+      : head,
+  ),
+  'the provider control is killed': OPEN_CONTROL_HEADS.map((head) =>
+    head.scope.kind === 'provider_deployment_profile'
+      ? { ...head, generation: 2, executionState: 'killed' as const }
+      : head,
+  ),
+  'a control head is missing': OPEN_CONTROL_HEADS.slice(0, 2),
+} satisfies Readonly<Record<string, ReadonlyArray<ControlHeadFixture>>>
+
 function createHarness(
   options: Readonly<{
     languageCode?: string | null
@@ -142,6 +192,10 @@ function createHarness(
     operationFailureCode?: AiErrorCode
     /** Make the provider answer with this error instead of a result. */
     providerError?: Readonly<{ code: AiErrorCode; retryAfterEpochMillis: number | null }>
+    /** The AI execution control heads. Defaults to all three open. */
+    controlHeads?: ReadonlyArray<ControlHeadFixture>
+    /** The merchant's AI authorization state. Defaults to enabled. */
+    authorizationState?: 'enabled' | 'disabled'
     /** The notice the Property's consent was recorded under. Defaults to the served one. */
     consentNotice?: Readonly<{ noticeVersion: string; noticeDigest: string }>
     /**
@@ -299,7 +353,7 @@ function createHarness(
           : {
               organizationId: ORGANIZATION_ID,
               propertyId: PROPERTY_ID,
-              state: 'enabled' as const,
+              state: options.authorizationState ?? ('enabled' as const),
               stateVersion: 1,
               authorizationLineageId: LINEAGE_ID,
               authorizedSourceEpoch: 2,
@@ -324,35 +378,7 @@ function createHarness(
       ),
     },
     control: {
-      readHeads: vi.fn(async () => [
-        {
-          scope: { kind: 'global' as const },
-          controlId: '71000000-0000-4000-8000-000000000111',
-          generation: 1,
-          executionState: 'enabled' as const,
-          admissionState: 'accepting' as const,
-          updatedAtEpochMillis: NOW,
-        },
-        {
-          scope: {
-            kind: 'provider_deployment_profile' as const,
-            providerDeploymentProfileVersion: 'private-beta-global-v1',
-          },
-          controlId: '71000000-0000-4000-8000-000000000112',
-          generation: 1,
-          executionState: 'enabled' as const,
-          admissionState: 'accepting' as const,
-          updatedAtEpochMillis: NOW,
-        },
-        {
-          scope: { kind: 'capability' as const, capability: 'review_analysis' as const },
-          controlId: '71000000-0000-4000-8000-000000000113',
-          generation: 1,
-          executionState: 'enabled' as const,
-          admissionState: 'accepting' as const,
-          updatedAtEpochMillis: NOW,
-        },
-      ]),
+      readHeads: vi.fn(async () => options.controlHeads ?? OPEN_CONTROL_HEADS),
       transition: vi.fn(),
     },
     inference: {
@@ -1090,5 +1116,64 @@ describe('analyze review event: a consent recorded under an earlier notice', () 
       status: 'terminal',
     })
     expect(harness.mocks.readReviewSource).not.toHaveBeenCalled()
+  })
+})
+
+// An operator stops Review Analysis with the AI execution controls (kill or
+// drain, at the global, provider or capability scope) and restores it later.
+// A review that arrives in between used to be settled "disabled" with no
+// operation, which nothing reopens: the reopen pass selects by a failed
+// operation and on-demand analysis only hurries a queued review. It stayed
+// "not analysable" until the guest edited it or the AccountAdmin consented
+// again.
+describe('analyze review event: a stopped AI execution control', () => {
+  beforeEach(withPinnedLanguageRuntime)
+
+  describe.each(Object.entries(STOPPED_CONTROL_HEADS))(
+    'while %s',
+    (_stop, controlHeads) => {
+      it.each(['execute', 'defer'] as const)(
+        'answers stopped and settles nothing when the caller asks to %s',
+        async (execution) => {
+          const harness = createHarness({ controlHeads })
+
+          await expect(harness.analyze({ ...input, execution })).resolves.toEqual({
+            status: 'stopped',
+          })
+          expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+          expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+          expect(harness.mocks.claim).not.toHaveBeenCalled()
+          expect(harness.mocks.acquire).not.toHaveBeenCalled()
+          expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
+        },
+      )
+    },
+  )
+
+  // A stop holds provider work. What needs no provider call is still decided,
+  // so the review does not wait for a restore that would change nothing.
+  it('still settles a review the merchant switched AI off for', async () => {
+    const harness = createHarness({
+      controlHeads: STOPPED_CONTROL_HEADS['the capability is killed'],
+      authorizationState: 'disabled',
+    })
+
+    await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
+    expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ dispositionCode: 'policy_disabled', operationId: null }),
+    )
+  })
+
+  it('still settles a source transition', async () => {
+    const harness = createHarness({
+      controlHeads: STOPPED_CONTROL_HEADS['the capability is killed'],
+    })
+
+    await expect(
+      harness.analyze({ ...input, disposition: 'provider_deleted' }),
+    ).resolves.toEqual({ status: 'terminal' })
+    expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ dispositionCode: 'provider_deleted' }),
+    )
   })
 })

@@ -40,6 +40,11 @@ const DEFERRED_RETRY_DELAY_MILLIS = 30_000
  * again, so lifting a stop resumes the analysis within a minute.
  */
 const DENIED_RETRY_DELAY_MILLIS = 60_000
+/**
+ * How long an entry waits after the analysis found an AI execution control
+ * stopped, so a restore resumes the analysis within a minute.
+ */
+const STOPPED_RETRY_DELAY_MILLIS = 60_000
 
 export type DrainReviewAnalysisBacklogResult = Readonly<{
   claimed: number
@@ -53,6 +58,12 @@ export type DrainReviewAnalysisBacklogResult = Readonly<{
    * Property. Not attempted and not settled: they run once the stop is lifted.
    */
   denied: number
+  /**
+   * Entries left queued because an AI execution control (global, provider or
+   * capability) does not accept work. Not attempted and not settled: they run
+   * once the control is restored.
+   */
+  stopped: number
 }>
 
 /**
@@ -109,6 +120,7 @@ type EntryOutcome =
   | Readonly<{ kind: 'completed' }>
   | Readonly<{ kind: 'rescheduled'; retryAtEpochMillis: number }>
   | Readonly<{ kind: 'busy'; retryAtEpochMillis: number }>
+  | Readonly<{ kind: 'stopped'; retryAtEpochMillis: number }>
   | Readonly<{ kind: 'failed' }>
 
 type DrainCounts = {
@@ -118,6 +130,7 @@ type DrainCounts = {
   waitingForLane: number
   failed: number
   denied: number
+  stopped: number
 }
 
 const NOTHING_DRAINED: DrainReviewAnalysisBacklogResult = Object.freeze({
@@ -127,6 +140,7 @@ const NOTHING_DRAINED: DrainReviewAnalysisBacklogResult = Object.freeze({
   waitingForLane: 0,
   failed: 0,
   denied: 0,
+  stopped: 0,
 })
 
 /**
@@ -163,7 +177,8 @@ async function forEachConcurrently<T>(
  * through the ordinary analysis use case in their lane, a few at a time; the
  * drain keeps claiming rounds while they settle work, up to its time budget.
  * An entry whose Organization or Property current policy refuses is returned
- * to the queue untried. A busy lane returns the property's remaining entries
+ * to the queue untried, and so is one whose analysis finds an AI execution
+ * control stopped. A busy lane returns the property's remaining entries
  * to the queue at the lane's retry time without asking again; any settled
  * outcome removes the entry.
  */
@@ -195,6 +210,19 @@ export function createDrainReviewAnalysisBacklog(
           : {}),
       })
       const now = dependencies.nowEpochMillis()
+      if (result.status === 'stopped') {
+        // An operator stopped the AI execution controls. The analysis claimed
+        // and settled nothing, so the entry goes back as a policy refusal
+        // does: no attempt counted, and no horizon running while it waits.
+        const retryAtEpochMillis = now + STOPPED_RETRY_DELAY_MILLIS
+        await dependencies.backlog.release({
+          eventEnvelopeId: entry.eventEnvelopeId,
+          organizationId: entry.organizationId,
+          nextAttemptAtEpochMillis: retryAtEpochMillis,
+          nowEpochMillis: now,
+        })
+        return { kind: 'stopped', retryAtEpochMillis }
+      }
       if (result.status === 'retry') {
         await dependencies.backlog.reschedule({
           eventEnvelopeId: entry.eventEnvelopeId,
@@ -298,9 +326,9 @@ export function createDrainReviewAnalysisBacklog(
       // entries not yet reached then stay claimed until their lease lapses.
       if (!(await input.authorizeScope(entry.organizationId, entry.propertyId))) {
         // The analysis use case checks the merchant's consent and the AI
-        // controls, not platform policy, and it settles what it refuses. So a
-        // refused entry never reaches it: it goes back untried and is
-        // analysed once the stop is lifted.
+        // controls, not platform policy: with those open it would make the
+        // provider call. So a refused entry never reaches it: it goes back
+        // untried and is analysed once the stop is lifted.
         counts.denied += 1
         const refusedAt = dependencies.nowEpochMillis()
         await dependencies.backlog.release({
@@ -339,6 +367,8 @@ export function createDrainReviewAnalysisBacklog(
         counts.rescheduled += 1
       } else if (outcome.kind === 'failed') {
         counts.failed += 1
+      } else if (outcome.kind === 'stopped') {
+        counts.stopped += 1
       } else {
         counts.waitingForLane += 1
         parked.set(
@@ -370,7 +400,8 @@ export function createDrainReviewAnalysisBacklog(
         do {
           round = await drainRound(input, parked, counts)
           // Stop once a round settles nothing: the backlog is empty, or every
-          // lane it reached is refused, busy or failing and has its retry time.
+          // lane it reached is refused, stopped, busy or failing and has its
+          // retry time.
         } while (
           round.completed > 0 &&
           dependencies.nowEpochMillis() - startedAt < AI_BACKLOG_DRAIN_TIME_BUDGET_MILLIS
@@ -384,9 +415,10 @@ export function createDrainReviewAnalysisBacklog(
     /**
      * Analyse one waiting review now, ahead of the queue, on the interactive
      * lane with headroom left for reply drafts. A busy lane leaves the entry
-     * queued with interactive priority, so the next drain takes it first. Its
-     * job is Property-scoped, so the dispatch gate has already decided policy
-     * for this Organization and Property.
+     * queued with interactive priority, so the next drain takes it first, and
+     * a stopped AI execution control leaves it queued untried. Its job is
+     * Property-scoped, so the dispatch gate has already decided policy for
+     * this Organization and Property.
      */
     async drainReview(
       input: Readonly<{

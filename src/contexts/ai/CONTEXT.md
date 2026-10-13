@@ -62,7 +62,15 @@ queue. The drain's schedule is tenant-cross, so it asks current platform policy
 about each claimed entry's own Organization and Property before analysing it
 (ADR 0032): an entry refused by the kill switch, a suspension or the allowlist
 goes back to the queue untried, with no attempt counted and nothing settled,
-and is analysed once the stop is lifted. The sweep also reopens a text review
+and is analysed once the stop is lifted. A review that arrives during a stop
+waits in the backlog as well (ADR 0058, 2026-10-13). The analysis consumer's
+catalogue row is ungated, because a refused consumer is never retried: before
+it analyses an ongoing review on delivery it asks the drain's policy question,
+and a review policy refuses is queued after the checks that need no provider
+call. A stopped AI execution control (killed or draining at the global,
+provider or capability scope, or a missing head) is answered `stopped`, never
+settled: the consumer queues the review, and the drain and the on-demand job
+return it untried until the control accepts work again. The sweep also reopens a text review
 whose analysis settled without a
 result because its operation gave up on a transient failure (ADR 0058,
 2026-09-29): a fresh analysis sequence and a backfill event, at most three times
