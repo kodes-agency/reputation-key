@@ -14,6 +14,7 @@ import type {
   GoogleImportV2SagaIntent,
 } from '../application/ports/google-import-v2-store.port'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { createGoogleImportV2ClaimReaper } from '../application/google-import-v2-claim-reaper'
 import { createGoogleImportV2Lifecycle } from '../application/google-import-v2-lifecycle'
 import { createGoogleImportV2Store } from './google-import-v2-store'
 
@@ -389,6 +390,115 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       }),
     ).resolves.toBe('released')
     await expect(store.listStaleClaimItems(leaseExpiresAt, 100)).resolves.toEqual([])
+  })
+
+  // A worker died holding the claim. The reaper runs every minute and BullMQ
+  // returns a stalled job to the queue after 90 seconds or more, so the reaper
+  // usually gets there first. The job BullMQ then runs is the SAME attempt: a
+  // stall does not raise `attemptsMade`, so its ordinal is the dead one's.
+  it('lets the stalled attempt take the item back after the reaper released its claim', async () => {
+    await resetIntent()
+    const deadFence = '10000000-0000-4000-8000-00000000000b'
+    const recoveredFence = '10000000-0000-4000-8000-00000000000c'
+    const leaseExpiresAt = new Date(NOW.getTime() + 60_000)
+    await store.claimItem({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+      claimFence: deadFence,
+      now: NOW,
+      leaseExpiresAt,
+    })
+
+    const reaped = await createGoogleImportV2ClaimReaper({
+      store,
+      clock: () => leaseExpiresAt,
+    })()
+    expect(reaped).toMatchObject({ claimsReleased: 1, itemsTerminalized: 0 })
+
+    const recoveredAt = new Date(leaseExpiresAt.getTime() + 30_000)
+    await expect(
+      store.claimItem({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        attemptOrdinal: 1,
+        claimFence: recoveredFence,
+        now: recoveredAt,
+        leaseExpiresAt: new Date(recoveredAt.getTime() + 60_000),
+      }),
+    ).resolves.toMatchObject({
+      kind: 'claimed',
+      item: { claimFence: recoveredFence, attemptOrdinal: 1 },
+    })
+    // The dead attempt's fence owns nothing any more.
+    const effect = vi.fn(async () => 'must-not-run')
+    await expect(
+      store.runClaimedEffect(
+        {
+          organizationId: ORG_ID,
+          itemId: ITEM_ID,
+          retryRevision: 0,
+          attemptOrdinal: 1,
+          claimFence: deadFence,
+          now: recoveredAt,
+        },
+        effect,
+      ),
+    ).resolves.toEqual({ kind: 'lost' })
+    expect(effect).not.toHaveBeenCalled()
+  })
+
+  it('still refuses an attempt older than the one whose claim was released', async () => {
+    await resetIntent()
+    const firstFence = '10000000-0000-4000-8000-00000000000d'
+    const secondFence = '10000000-0000-4000-8000-00000000000e'
+    const lease = (from: Date) => new Date(from.getTime() + 60_000)
+    await store.claimItem({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+      claimFence: firstFence,
+      now: NOW,
+      leaseExpiresAt: lease(NOW),
+    })
+    await store.releaseClaimForRetry({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      claimFence: firstFence,
+      now: NOW,
+    })
+    await store.claimItem({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 2,
+      claimFence: secondFence,
+      now: NOW,
+      leaseExpiresAt: lease(NOW),
+    })
+    await store.releaseClaimForRetry({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      claimFence: secondFence,
+      now: NOW,
+    })
+
+    await expect(
+      store.claimItem({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        attemptOrdinal: 1,
+        claimFence: '10000000-0000-4000-8000-00000000000f',
+        now: NOW,
+        leaseExpiresAt: lease(NOW),
+      }),
+    ).resolves.toEqual({ kind: 'ignored', reason: 'stale_attempt' })
   })
 
   it('rejects an out-of-range stale-claim sweep limit', async () => {
