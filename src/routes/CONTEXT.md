@@ -86,6 +86,27 @@ pass the resulting `Action` to forms/components. Silent fire-and-forget work use
 `useAction`. Components may use type-only server imports to spell bundle/action
 props; runtime imports follow the component exception policy.
 
+What the route context holds is not a Query, so no key reaches it. The signed-in
+`user` (name, avatar) is written only by `_authenticated`'s `beforeLoad`, and the
+shell's account menu and the Profile form read it from there. A mutation that
+changes it (Profile's name and avatar saves) therefore has the router load again,
+in its `onSuccess`:
+`router.invalidate({ filter: (match) => match.routeId === '/_authenticated' })`.
+Any load runs every `beforeLoad` on the open page, and that is what reads the
+session again. The filter decides what goes stale, and keeps this from being the
+whole router: only `_authenticated` is marked (its own loader reads from the Query
+cache), so every other page, open or cached, keeps the data it loaded. A form's
+save awaits it, so the saved value is the form's baseline when the save resolves; an
+image setting's saves do not, because the setting draws its own outcome, and after
+a removal hands the focus on when the save resolves: a page that had already handed
+back "no picture" by then has taken the Remove button away first. The same name is
+also in two Query caches, the member list and the invitations' "Invited by", so the
+name save lists `identityKeys.members()` and
+`identityKeys.organizationInvitations()` in its `invalidateKeys` too. The
+Organization name in the context needs no such read: the page that saves it draws
+it from a Query, and every page that draws it from the context is a navigation
+away, which runs `beforeLoad` again.
+
 ## Boundaries
 
 Routes may import context `server/` functions, components, route-local helpers, and

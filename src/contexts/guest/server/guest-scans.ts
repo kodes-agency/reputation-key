@@ -54,6 +54,15 @@ export const guestErrorStatus = (code: GuestErrorCode): number =>
 
 // ── Helpers ───────────────────────────────────────────────────────
 
+/**
+ * The one answer to a failed Guest use case: a tagged refusal with the status its
+ * code maps to, anything else as a sanitised 500.
+ */
+function throwGuestFailure(e: unknown): never {
+  if (isGuestError(e)) throwContextError('GuestError', e, guestErrorStatus(e.code))
+  throw catchUntagged(e)
+}
+
 // ── recordScan ────────────────────────────────────────────────────
 
 const recordScanSchema = z.object({
@@ -72,7 +81,13 @@ export const recordScanFn = createServerFn({ method: 'POST' })
         const useCases = container.guestPublicApi.requests
         const { rateLimiter, clock } = container
         const headers = await headersFromContext()
-        const portal = await useCases.getPublicPortal({ token: data.token })
+        // A Portal that is not there (unknown token, closed Portal, replaced code) is
+        // the tagged `portal_not_found`: a 404 with the body a session that does not
+        // fit gets below, not an untagged 500. The lookup comes before every limiter
+        // because the limiter keys are derived from the Portal it resolves.
+        const portal = await useCases
+          .getPublicPortal({ token: data.token })
+          .catch(throwGuestFailure)
         const scope = {
           organizationId: organizationId(portal.organizationId),
           propertyId: propertyId(portal.propertyId),
@@ -189,9 +204,7 @@ export const recordScanFn = createServerFn({ method: 'POST' })
             retryable: outcome === 'failed' || outcome === 'retryable',
           }
         } catch (e) {
-          if (isGuestError(e))
-            throwContextError('GuestError', e, guestErrorStatus(e.code))
-          throw catchUntagged(e)
+          throwGuestFailure(e)
         }
       },
       'POST',
@@ -313,9 +326,7 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
             },
           })
         } catch (e) {
-          if (isGuestError(e))
-            throwContextError('GuestError', e, guestErrorStatus(e.code))
-          throw catchUntagged(e)
+          throwGuestFailure(e)
         }
       },
       'GET',
@@ -345,9 +356,7 @@ export const resolvePublicPortalLink = createServerFn({ method: 'GET' })
             linkId: portalLinkId(data.linkId),
           })
         } catch (e) {
-          if (isGuestError(e))
-            throwContextError('GuestError', e, guestErrorStatus(e.code))
-          throw catchUntagged(e)
+          throwGuestFailure(e)
         }
       },
       'GET',

@@ -1506,6 +1506,12 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await nameInput.fill(`${seed.managerName} Persisted`)
     await clickWhenReady(page.getByRole('button', { name: 'Save profile' }))
     await expect(page.getByText('Profile saved')).toBeVisible()
+    // The save is on screen before any reload: the saved name is the form's
+    // baseline, so nothing is left to reset, and the account menu holds it. (The
+    // form used to stay dirty and the shell kept the old name until a navigation.)
+    await expect(page.getByRole('button', { name: 'Reset', exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Account menu' }).click()
+    await expect(page.getByRole('menu')).toContainText(`${seed.managerName} Persisted`)
     await page.reload()
     await expect(nameInput).toHaveValue(`${seed.managerName} Persisted`)
     // The reloaded form is server-rendered before React hydrates: a fill in
