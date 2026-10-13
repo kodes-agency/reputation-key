@@ -222,7 +222,8 @@ retry and a repeated click reuse it, and any finished answer rotates it.
      `release`, as it returns a refused one: no attempt counted, nothing
      settled, its first start cleared, asked again after a minute. It reports
      the count as `stopped`. The on-demand job leaves the entry queued the same
-     way.
+     way. Once the control accepts work again, an entry no drain had tried is
+     analysed by the drain; one that was tried before the stop is item 7.
   3. The analysis consumer's catalogue row is ungated, like the enrollment
      consumer's, so policy no longer refuses it at the dispatcher. It never
      analyses a stopped Organization's review on delivery: before an ongoing
@@ -247,5 +248,25 @@ retry and a repeated click reuse it, and any finished answer rotates it.
      (runbooks §22).
   6. This supersedes the last sentence of item 2 of 2026-10-12: a reopen raised
      while a stop holds is queued and waits like any other review. The
-     operation window of that item is unchanged, and applies to an entry held
-     by a stopped control as well.
+     operation window of that item is unchanged, and runs for an entry held by
+     a stopped control as well: in a stop longer than 24 hours the reaper
+     abandons a tried entry's pending operation and the review is owed to the
+     reopen pass.
+  7. An entry that was tried before an AI control stop cannot resume its
+     operation, however short the stop. A full lane or a provider's "later" is
+     enough to claim an operation, and it is claimed under the control
+     generations of that moment. Every kill, drain and restore moves a
+     generation and the request fingerprint covers them, so after the restore
+     the claim under the same event answers `conflict`. The store hands the
+     recorded operation back with that answer, and the analysis recognises its
+     own request by fingerprinting it under that operation's stop fence
+     (`isSameAiRequestUnderOtherControls`). It closes the pending operation as
+     `execution_suspended`, a reopen code, and settles the review against it;
+     the drain then removes the entry, and the reopen pass (2026-09-29, once a
+     minute) queues the review again under a fresh sequence and a fresh
+     operation. So such a review is analysed a few minutes after the restore,
+     not when the reaper would have abandoned the stale operation at its
+     24-hour expiry, and it spends one of the revision's three reopens. A
+     conflict that differs in anything else is settled as not analysable as
+     before, and an operation that is executing or finished is left to its
+     owner.

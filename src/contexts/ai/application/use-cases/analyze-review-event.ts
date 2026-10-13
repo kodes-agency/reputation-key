@@ -39,6 +39,7 @@ import {
   isAiAuthorizationUnderServedContract,
   resolveAiExecutionStopFence,
 } from '../ai-workflow-support'
+import { resolveAnalysisClaimConflict } from '../analysis-claim-conflict'
 import {
   analysisExecutionBinding,
   analysisOperationIdentity,
@@ -312,11 +313,16 @@ export function createAnalyzeReviewEvent(
     aggregates: dependencies.aggregates,
   }
 
+  /**
+   * `operationId` names the operation the settlement closes. It is null when
+   * the review is settled before any operation of its own exists.
+   */
   function settleWithoutResult(
     input: AnalyzeReviewEventInput,
     reviewAnalysisEpoch: number,
     propertyProfileVersion: number,
     dispositionCode: AiReviewAnalysisTerminalDisposition,
+    operationId: string | null = null,
   ): Promise<AnalyzeReviewEventResult> {
     return settleReviewAnalysisWithoutResult(settlementDependencies, {
       organizationId: input.organizationId,
@@ -326,7 +332,7 @@ export function createAnalyzeReviewEvent(
       reviewAnalysisEpoch,
       analysisSequence: input.analysisSequence,
       propertyProfileVersion,
-      operationId: null,
+      operationId,
       dispositionCode,
     })
   }
@@ -654,11 +660,18 @@ export function createAnalyzeReviewEvent(
       expiresAtEpochMillis: nowEpochMillis + 24 * 60 * 60 * 1_000,
     })
     if (claimed.status === 'conflict') {
+      const resolved = await resolveAnalysisClaimConflict(dependencies.operations, {
+        existing: claimed.operation,
+        request: { identity, binding, provenance },
+        organizationId: input.organizationId,
+        nowEpochMillis,
+      })
       return settleWithoutResult(
         input,
         reviewAnalysisEpoch,
         profile.profileVersion,
-        'policy_disabled',
+        resolved.dispositionCode,
+        resolved.operationId,
       )
     }
     const operation = claimed.operation

@@ -93,6 +93,8 @@ const NOW = Date.parse('2026-10-12T09:00:00.000Z')
  * DENIED_RETRY_DELAY_MILLIS) or stopped by an AI control (STOPPED_RETRY_DELAY_MILLIS).
  */
 const REFUSAL_HOLD_MILLIS = 60_000
+/** When a full lane tells an analysis to ask again. */
+const LANE_RETRY_MILLIS = 15_000
 const SHA = 'a'.repeat(64)
 const STOPPED_ORGANIZATION = organizationId('drain-policy-stopped-org')
 const STOPPED_PROPERTY = propertyId('7d000000-0000-4000-8000-000000000001')
@@ -217,12 +219,134 @@ function inMemoryBacklog(rows: QueuedEntry[]) {
   return port
 }
 
+/** The Review Analysis capability head of the AI execution controls. */
+type ReviewAnalysisControl = Readonly<{
+  executionState: 'enabled' | 'killed'
+  generation: number
+}>
+
+/**
+ * An operator's transition of the control. Every one moves its generation by
+ * one, a restore as much as a kill (`transition_ai_execution_control_v1`).
+ */
+function transitioned(
+  control: ReviewAnalysisControl,
+  executionState: ReviewAnalysisControl['executionState'],
+): ReviewAnalysisControl {
+  return { executionState, generation: control.generation + 1 }
+}
+
+const NEVER_TRANSITIONED: ReviewAnalysisControl = {
+  executionState: 'enabled',
+  generation: 1,
+}
+
 /** What an operator and a merchant can switch, as the tests move it. */
 type AiSwitches = {
-  /** The Review Analysis capability head of the AI execution controls. */
-  reviewAnalysisControl: 'enabled' | 'killed'
+  reviewAnalysisControl: ReviewAnalysisControl
   /** Properties whose merchant never enabled AI: no enablement row at all. */
   neverEnabled: ReadonlySet<PropertyId>
+  /** The background lane has no room: an analysis claims its operation and waits. */
+  laneBusy: boolean
+}
+
+type StoredOperation = {
+  id: string
+  idempotencyKey: string
+  requestFingerprint: string
+  binding: unknown
+  state: 'pending' | 'executing' | 'failed'
+  executionAttempt: number
+  executionPermitId: string | null
+  failureCode: string | null
+  createdAtEpochMillis: number
+}
+
+const PERMIT_ID = '7a000000-0000-4000-8000-0000000000ff'
+
+/**
+ * The operations table as a list, with the store's own rules: one operation
+ * per idempotency key, a later claim under that key a replay only when its
+ * request fingerprint is the recorded one, and every write a compare-and-set
+ * on state, attempt and failure code. The answers are copies, as rows are.
+ */
+function inMemoryOperations() {
+  const operations: StoredOperation[] = []
+  const byId = (operationId: string) =>
+    operations.find((operation) => operation.id === operationId)
+  const port = {
+    claim: async (
+      request: Readonly<{
+        idempotencyKey: string
+        requestFingerprint: string
+        binding: unknown
+        nowEpochMillis: number
+      }>,
+    ) => {
+      const existing = operations.find(
+        (operation) => operation.idempotencyKey === request.idempotencyKey,
+      )
+      if (existing !== undefined) {
+        const status =
+          existing.requestFingerprint === request.requestFingerprint
+            ? ('replayed' as const)
+            : ('conflict' as const)
+        return { status, operation: { ...existing } }
+      }
+      const operation: StoredOperation = {
+        id: `7a000000-0000-4000-8000-${String(operations.length + 1).padStart(12, '0')}`,
+        idempotencyKey: request.idempotencyKey,
+        requestFingerprint: request.requestFingerprint,
+        binding: request.binding,
+        state: 'pending',
+        executionAttempt: 0,
+        executionPermitId: null,
+        failureCode: null,
+        createdAtEpochMillis: request.nowEpochMillis,
+      }
+      operations.push(operation)
+      return { status: 'created' as const, operation: { ...operation } }
+    },
+    claimExecution: async (
+      input: Readonly<{ operationId: string; expectedAttempt: number }>,
+    ) => {
+      const operation = byId(input.operationId)
+      if (
+        operation?.state !== 'pending' ||
+        operation.executionAttempt !== input.expectedAttempt - 1
+      ) {
+        return null
+      }
+      operation.state = 'executing'
+      operation.executionAttempt = input.expectedAttempt
+      operation.executionPermitId = PERMIT_ID
+      operation.failureCode = null
+      return { ...operation }
+    },
+    recordFailure: async (
+      input: Readonly<{
+        operationId: string
+        expectedAttempt: number
+        expectedState?: StoredOperation['state']
+        expectedFailureCode?: string | null
+        failureCode: string
+        retryAtEpochMillis: number | null
+      }>,
+    ) => {
+      const operation = byId(input.operationId)
+      if (
+        operation?.state !== (input.expectedState ?? 'executing') ||
+        operation.executionAttempt !== input.expectedAttempt ||
+        operation.failureCode !== (input.expectedFailureCode ?? null)
+      ) {
+        return false
+      }
+      operation.state = input.retryAtEpochMillis === null ? 'failed' : 'pending'
+      operation.failureCode = input.failureCode
+      return true
+    },
+  }
+  return { port, stored: () => operations.map((operation) => ({ ...operation })) }
 }
 
 /**
@@ -254,15 +378,16 @@ function analysisWithOpenGates(clock: Readonly<{ now: number }>, switches: AiSwi
   const head = (
     scope: Readonly<Record<string, string>>,
     index: number,
-    executionState: 'enabled' | 'killed' = 'enabled',
+    control: ReviewAnalysisControl = NEVER_TRANSITIONED,
   ) => ({
     scope,
     controlId: `7c000000-0000-4000-8000-00000000000${index}`,
-    generation: 1,
-    executionState,
+    generation: control.generation,
+    executionState: control.executionState,
     admissionState: 'accepting' as const,
     updatedAtEpochMillis: NOW,
   })
+  const operations = inMemoryOperations()
   const enabledFor = (
     scope: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
   ) => ({
@@ -313,30 +438,20 @@ function analysisWithOpenGates(clock: Readonly<{ now: number }>, switches: AiSwi
       ],
     },
     inference: { analyzeReview },
-    operations: {
-      claim: async (request: Readonly<Record<string, unknown>>) => ({
-        status: 'created' as const,
-        operation: {
-          id: '7a000000-0000-4000-8000-000000000001',
-          state: 'pending' as const,
-          executionAttempt: 0,
-          executionPermitId: null,
-          failureCode: null,
-          createdAtEpochMillis: request.nowEpochMillis,
-        },
-      }),
-      claimExecution: async () => ({
-        id: '7a000000-0000-4000-8000-000000000001',
-        executionPermitId: '7a000000-0000-4000-8000-000000000002',
-      }),
-      recordFailure: async () => true,
-    },
+    operations: operations.port,
     admission: {
-      acquire: async () => ({
-        ok: true as const,
-        admissionId: 'admission-1',
-        expiresAtEpochMillis: clock.now + 90_000,
-      }),
+      acquire: async () =>
+        switches.laneBusy
+          ? {
+              ok: false as const,
+              code: 'admission_busy' as const,
+              retryAfterEpochMillis: clock.now + LANE_RETRY_MILLIS,
+            }
+          : {
+              ok: true as const,
+              admissionId: 'admission-1',
+              expiresAtEpochMillis: clock.now + 90_000,
+            },
       release: async () => {},
     },
     reviewEvents: {
@@ -403,6 +518,7 @@ function analysisWithOpenGates(clock: Readonly<{ now: number }>, switches: AiSwi
     analyzeReviewEvent: createAnalyzeReviewEvent(dependencies),
     analyzeReview,
     settleOutcome,
+    operations: operations.stored,
   }
 }
 
@@ -502,8 +618,22 @@ function worker(env: Readonly<Record<string, string>>, rows: QueuedEntry[]) {
   )
   const clock = { now: NOW }
   const switches: AiSwitches = {
-    reviewAnalysisControl: 'enabled',
+    reviewAnalysisControl: NEVER_TRANSITIONED,
     neverEnabled: new Set(),
+    laneBusy: false,
+  }
+  /** `pnpm ops ai-control kill capability review_analysis`, and its restore. */
+  const killReviewAnalysis = () => {
+    switches.reviewAnalysisControl = transitioned(
+      switches.reviewAnalysisControl,
+      'killed',
+    )
+  }
+  const restoreReviewAnalysis = () => {
+    switches.reviewAnalysisControl = transitioned(
+      switches.reviewAnalysisControl,
+      'enabled',
+    )
   }
   const analysis = analysisWithOpenGates(clock, switches)
   const backlog = inMemoryBacklog(rows)
@@ -556,7 +686,17 @@ function worker(env: Readonly<Record<string, string>>, rows: QueuedEntry[]) {
   const advance = (millis: number) => {
     clock.now += millis
   }
-  return { fire, analyzeNow, arrive, restartUnder, advance, switches, ...analysis }
+  return {
+    fire,
+    analyzeNow,
+    arrive,
+    restartUnder,
+    advance,
+    switches,
+    killReviewAnalysis,
+    restoreReviewAnalysis,
+    ...analysis,
+  }
 }
 
 const ACTUAL_VERSIONS = process.versions
@@ -834,7 +974,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
   it('holds a review that arrives while the Review Analysis control is killed, and analyses it after the restore', async () => {
     const rows: QueuedEntry[] = []
     const run = worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
-    run.switches.reviewAnalysisControl = 'killed'
+    run.killReviewAnalysis()
 
     const arrival = await run.arrive(1, STOPPED_SCOPE)
     const queuedOnArrival = rows.map((row) => ({ ...row }))
@@ -860,7 +1000,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
       { ...waiting, nextAttemptAtEpochMillis: NOW + REFUSAL_HOLD_MILLIS },
     ])
 
-    run.switches.reviewAnalysisControl = 'enabled'
+    run.restoreReviewAnalysis()
     run.advance(REFUSAL_HOLD_MILLIS - 1)
     await run.fire()
     const callsWhileHeld = run.analyzeReview.mock.calls.length
@@ -879,7 +1019,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
   it('leaves a review that was already queued untried while the control is killed', async () => {
     const rows = [queued(1, STOPPED_SCOPE)]
     const run = worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
-    run.switches.reviewAnalysisControl = 'killed'
+    run.killReviewAnalysis()
 
     await run.fire()
 
@@ -896,7 +1036,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
   it('leaves an opened review queued when its on-demand analysis meets a killed control', async () => {
     const rows = [queued(1, STOPPED_SCOPE)]
     const run = worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
-    run.switches.reviewAnalysisControl = 'killed'
+    run.killReviewAnalysis()
 
     await run.analyzeNow(queued(1, STOPPED_SCOPE))
 
@@ -906,6 +1046,92 @@ describe('Review Analysis for a review that arrives during a stop', () => {
       { state: 'queued', attempts: 0, firstStartedAtEpochMillis: null },
     ])
   })
+
+  // A review that was tried before the stop already has an operation, claimed
+  // under the control generations of that moment. The kill moves a generation
+  // and the restore moves it again, the request fingerprint covers them, and
+  // the idempotency key is the review's event, so after the restore the same
+  // claim can only answer `conflict`. Settled "disabled" with no operation, the
+  // review waited for the reaper to abandon the stale operation at its 24-hour
+  // expiry. Closed as suspended, it is the reopen pass's at the next sweep
+  // (`ai-review-analysis-reopen.adapter.integration.test.ts`).
+  describe.each([
+    [
+      'its lane was full',
+      { laneBusy: true },
+      { executionAttempt: 0, failureCode: null, providerCalls: 0 },
+    ],
+    [
+      'the provider said to come back later',
+      { laneBusy: false },
+      { executionAttempt: 1, failureCode: 'provider_unavailable', providerCalls: 1 },
+    ],
+  ])(
+    'for a queued review that was tried before the kill, when %s',
+    (_case, before, tried) => {
+      async function triedThenKilledThenRestored() {
+        const rows = [queued(1, STOPPED_SCOPE)]
+        const run = worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
+        run.switches.laneBusy = before.laneBusy
+        await run.fire()
+        const beforeTheKill = run.operations()
+
+        run.killReviewAnalysis()
+        run.advance(REFUSAL_HOLD_MILLIS)
+        await run.fire()
+        const duringTheStop = {
+          operations: run.operations(),
+          settlements: run.settleOutcome.mock.calls.length,
+          rows: rows.map((row) => ({ ...row })),
+        }
+
+        run.switches.laneBusy = false
+        run.restoreReviewAnalysis()
+        run.advance(REFUSAL_HOLD_MILLIS)
+        await run.fire()
+        return { run, rows, beforeTheKill, duringTheStop }
+      }
+
+      it('holds the review and its operation untouched while the control is killed', async () => {
+        const { beforeTheKill, duringTheStop } = await triedThenKilledThenRestored()
+
+        expect(beforeTheKill).toMatchObject([
+          {
+            state: 'pending',
+            executionAttempt: tried.executionAttempt,
+            failureCode: tried.failureCode,
+          },
+        ])
+        expect(duringTheStop.operations).toEqual(beforeTheKill)
+        expect(duringTheStop.settlements).toBe(0)
+        expect(duringTheStop.rows).toMatchObject([
+          { state: 'queued', firstStartedAtEpochMillis: null },
+        ])
+      })
+
+      it('closes that operation as suspended at the restore and settles the review against it', async () => {
+        const { run, rows, beforeTheKill } = await triedThenKilledThenRestored()
+
+        // What the reopen pass selects: the review's operation failed with a
+        // reopen code, its sequence settled, and no backlog entry left.
+        expect(run.operations()).toEqual([
+          { ...beforeTheKill[0], state: 'failed', failureCode: 'execution_suspended' },
+        ])
+        expect(run.settleOutcome.mock.calls).toEqual([
+          [
+            expect.objectContaining({
+              state: 'terminal_no_result',
+              operationId: beforeTheKill[0]?.id,
+              dispositionCode: 'operation_abandoned',
+            }),
+          ],
+        ])
+        expect(rows).toEqual([])
+        // Nothing was sent under the stale operation.
+        expect(run.analyzeReview).toHaveBeenCalledTimes(tried.providerCalls)
+      })
+    },
+  )
 
   // The consumer's catalogue row is ungated so that the review above can be
   // queued. What keeps it from analysing a stopped Organization's review on

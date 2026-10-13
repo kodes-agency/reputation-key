@@ -5,7 +5,8 @@ import { AI_REVIEW_SOURCE_CONTRACT_VERSION } from '#/shared/ai-review-source-con
 import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import type { AiMerchantAuthorizationSnapshot } from './ports/ai-authorization.port'
 import type { AiControlPort } from './ports/ai-control.port'
-import type { AiExecutionStopFence } from '../domain/types'
+import type { AiOperationRecord } from './ports/ai-operation-store.port'
+import type { AiExecutionBinding, AiExecutionStopFence } from '../domain/types'
 
 export function aiRequestFingerprint(value: unknown): string {
   return createHash('sha256')
@@ -93,6 +94,31 @@ export async function resolveAiExecutionStopFence(
     capabilityControlId: capability.controlId,
     capabilityGeneration: capability.generation,
   }
+}
+
+/**
+ * Whether `operation` holds this same request, claimed under AI execution
+ * controls that have since moved. The binding's stop fence pins the generation
+ * of the global, provider and capability controls, every kill, drain and
+ * restore moves one, and the request fingerprint covers the binding. So after
+ * a stop and its restore an unchanged request has another fingerprint and its
+ * idempotency key answers `conflict`, exactly as a foreign request would.
+ * Fingerprinting the request under the operation's own stop fence tells the
+ * two apart: only a request that differs in nothing else matches.
+ */
+export function isSameAiRequestUnderOtherControls<
+  Request extends Readonly<{ binding: AiExecutionBinding }>,
+>(
+  operation: Pick<AiOperationRecord, 'requestFingerprint' | 'binding'>,
+  request: Request,
+): boolean {
+  return (
+    operation.requestFingerprint ===
+    aiRequestFingerprint({
+      ...request,
+      binding: { ...request.binding, stopFence: operation.binding.stopFence },
+    })
+  )
 }
 
 /**

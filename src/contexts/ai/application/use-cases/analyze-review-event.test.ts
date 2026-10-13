@@ -336,6 +336,10 @@ function createHarness(
       : { status: options.profileStatus },
   )
 
+  const readHeads = vi.fn(
+    async (): Promise<ReadonlyArray<ControlHeadFixture>> =>
+      options.controlHeads ?? OPEN_CONTROL_HEADS,
+  )
   const consumeNext = vi.fn(async () =>
     options.consumeStatus === 'generation_changed'
       ? { status: 'generation_changed' as const }
@@ -378,7 +382,7 @@ function createHarness(
       ),
     },
     control: {
-      readHeads: vi.fn(async () => options.controlHeads ?? OPEN_CONTROL_HEADS),
+      readHeads,
       transition: vi.fn(),
     },
     inference: {
@@ -459,6 +463,7 @@ function createHarness(
       claim,
       claimExecution,
       acquire: dependencies.admission.acquire,
+      readHeads,
     },
   }
 }
@@ -1174,6 +1179,163 @@ describe('analyze review event: a stopped AI execution control', () => {
     ).resolves.toEqual({ status: 'terminal' })
     expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ dispositionCode: 'provider_deleted' }),
+    )
+  })
+})
+
+// Every kill, drain and restore of an AI execution control moves that
+// control's generation, and the request fingerprint covers the generations. So
+// an operation claimed before a stop can never be claimed again after the
+// restore: the same idempotency key now answers `conflict`. That used to be
+// settled "disabled" with no operation, like a foreign request, and the stale
+// operation stayed pending until the reaper abandoned it at its 24-hour expiry.
+describe('analyze review event: an operation claimed before the AI execution controls moved', () => {
+  beforeEach(withPinnedLanguageRuntime)
+
+  /** The operator killed the capability control and restored it: two transitions. */
+  const RESTORED_CONTROL_HEADS = OPEN_CONTROL_HEADS.map((head) =>
+    head.scope.kind === 'capability' ? { ...head, generation: 3 } : head,
+  )
+
+  /**
+   * A claim that answers as the store does: the first request is recorded, and
+   * a later one under its idempotency key is a replay only when its fingerprint
+   * is the recorded one. `recorded` is what earlier attempts left on it.
+   */
+  function claimsByFingerprint(
+    harness: ReturnType<typeof createHarness>,
+    recorded: Partial<AiOperationRecord> = {},
+  ): void {
+    let stored: AiOperationRecord | undefined
+    harness.mocks.claim.mockImplementation(async (request) => {
+      if (stored === undefined) {
+        stored = {
+          id: OPERATION_ID,
+          identity: request.identity,
+          binding: request.binding,
+          idempotencyKey: request.idempotencyKey,
+          requestFingerprint: request.requestFingerprint,
+          sourceProvenance: request.sourceProvenance,
+          state: 'pending',
+          executionAttempt: 0,
+          executionPermitId: null,
+          nextAttemptAtEpochMillis: null,
+          failureCode: null,
+          createdAtEpochMillis: request.nowEpochMillis,
+          updatedAtEpochMillis: request.nowEpochMillis,
+          expiresAtEpochMillis: request.expiresAtEpochMillis,
+          ...recorded,
+        }
+        return { status: 'created', operation: stored }
+      }
+      return stored.requestFingerprint === request.requestFingerprint
+        ? { status: 'replayed', operation: stored }
+        : { status: 'conflict', operation: stored }
+    })
+  }
+
+  /** The lane is full, so the first delivery claims its operation and waits. */
+  async function claimedBeforeTheStop(recorded: Partial<AiOperationRecord> = {}) {
+    const harness = createHarness({ admissionCode: 'admission_busy' })
+    claimsByFingerprint(harness, recorded)
+    await expect(harness.analyze(input)).resolves.toMatchObject({
+      status: 'retry',
+      code: 'admission_busy',
+    })
+    return harness
+  }
+
+  it('claims the same operation again while the controls have not moved', async () => {
+    const harness = await claimedBeforeTheStop()
+
+    await expect(harness.analyze(input)).resolves.toMatchObject({
+      status: 'retry',
+      code: 'admission_busy',
+    })
+    expect(harness.mocks.recordFailure).not.toHaveBeenCalled()
+    expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['its lane was full', {}, { expectedAttempt: 0, expectedFailureCode: null }],
+    [
+      'the provider said to come back later',
+      { executionAttempt: 2, failureCode: 'provider_rate_limited' as const },
+      { expectedAttempt: 2, expectedFailureCode: 'provider_rate_limited' },
+    ],
+  ])(
+    'closes the operation it claimed when %s as suspended, and settles against it',
+    async (_case, recorded, expected) => {
+      const harness = await claimedBeforeTheStop(recorded)
+      harness.mocks.readHeads.mockResolvedValue(RESTORED_CONTROL_HEADS)
+
+      await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
+
+      // `execution_suspended` is a code the reopen pass selects, so the review
+      // gets a fresh sequence and a fresh operation at the next sweep.
+      expect(harness.mocks.recordFailure).toHaveBeenCalledExactlyOnceWith({
+        operationId: OPERATION_ID,
+        organizationId: ORGANIZATION_ID,
+        expectedState: 'pending',
+        ...expected,
+        failureCode: 'execution_suspended',
+        retryAtEpochMillis: null,
+        failedAtEpochMillis: NOW,
+      })
+      expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          state: 'terminal_no_result',
+          operationId: OPERATION_ID,
+          dispositionCode: 'operation_abandoned',
+        }),
+      )
+      expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledOnce()
+      expect(harness.mocks.claimExecution).not.toHaveBeenCalled()
+      expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
+    },
+  )
+
+  it('still settles the review when the operation moved on before it could be closed', async () => {
+    const harness = await claimedBeforeTheStop()
+    harness.mocks.readHeads.mockResolvedValue(RESTORED_CONTROL_HEADS)
+    harness.mocks.recordFailure.mockResolvedValue(false)
+
+    await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
+    expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ state: 'terminal_no_result', operationId: OPERATION_ID }),
+    )
+  })
+
+  // Only its own request, claimed under earlier controls, is the analysis's to
+  // close. Anything else under the key stays as it was: settled as not
+  // analysable, with the operation left to whoever owns it.
+  it.each([
+    ['is being executed', { state: 'executing' as const, executionAttempt: 1 }],
+    [
+      'already failed',
+      { state: 'failed' as const, failureCode: 'output_invalid' as const },
+    ],
+  ])('leaves an operation that %s alone', async (_case, recorded) => {
+    const harness = await claimedBeforeTheStop(recorded)
+    harness.mocks.readHeads.mockResolvedValue(RESTORED_CONTROL_HEADS)
+
+    await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
+    expect(harness.mocks.recordFailure).not.toHaveBeenCalled()
+    expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ operationId: null, dispositionCode: 'policy_disabled' }),
+    )
+  })
+
+  it('leaves an operation alone when the request differs in more than the controls', async () => {
+    const harness = await claimedBeforeTheStop()
+    harness.mocks.readHeads.mockResolvedValue(RESTORED_CONTROL_HEADS)
+
+    await expect(harness.analyze({ ...input, sourceRevision: 6 })).resolves.toEqual({
+      status: 'terminal',
+    })
+    expect(harness.mocks.recordFailure).not.toHaveBeenCalled()
+    expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ operationId: null, dispositionCode: 'policy_disabled' }),
     )
   })
 })

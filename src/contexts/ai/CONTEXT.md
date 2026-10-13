@@ -70,14 +70,18 @@ and a review policy refuses is queued after the checks that need no provider
 call. A stopped AI execution control (killed or draining at the global,
 provider or capability scope, or a missing head) is answered `stopped`, never
 settled: the consumer queues the review, and the drain and the on-demand job
-return it untried until the control accepts work again. The sweep also reopens a text review
-whose analysis settled without a
-result because its operation gave up on a transient failure (ADR 0058,
-2026-09-29): a fresh analysis sequence and a backfill event, at most three times
-per revision. An enrollment is not caught up while one of its replayed reviews
-still owes an analysis. The replay and the reopen pass lock the Property's
-source fence before their enrollment row and reviews, the order Review writers
-and authorization changes take (ADR 0060).
+return it untried until the control accepts work again. A review that was
+tried before such a stop cannot resume its operation, which is bound to the
+control generations it was claimed under: after the restore its claim answers
+`conflict`, the analysis closes that pending operation as `execution_suspended`
+and settles the review against it, and the reopen pass queues it again
+(`application/analysis-claim-conflict.ts`). The sweep also reopens a text
+review whose analysis settled without a result because its operation gave up
+on a transient failure (ADR 0058, 2026-09-29): a fresh analysis sequence and a
+backfill event, at most three times per revision. An enrollment is not caught
+up while one of its replayed reviews still owes an analysis. The replay and the
+reopen pass lock the Property's source fence before their enrollment row and
+reviews, the order Review writers and authorization changes take (ADR 0060).
 `readReviewAnalysisProgress` reports queued, running, analysed and
 not-analysable counts. Reply Draft provider output remains session-ephemeral until an explicit,
 atomically revalidated adoption creates Review-owned draft content.

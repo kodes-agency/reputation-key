@@ -997,7 +997,26 @@ describe('generate reply suggestion: refusals before provider work', () => {
 
   it('answers policy_unavailable when the operation claim conflicts', async () => {
     const harness = createHarness()
-    portClaim(harness).mockResolvedValueOnce({ status: 'conflict' })
+    // The idempotency key already holds a request with another fingerprint.
+    portClaim(harness).mockImplementationOnce(async (request) => ({
+      status: 'conflict',
+      operation: {
+        id: OPERATION_ID,
+        identity: request.identity,
+        binding: request.binding,
+        idempotencyKey: request.idempotencyKey,
+        requestFingerprint: 'f'.repeat(64),
+        sourceProvenance: request.sourceProvenance,
+        state: 'pending',
+        executionAttempt: 0,
+        executionPermitId: null,
+        nextAttemptAtEpochMillis: null,
+        failureCode: null,
+        createdAtEpochMillis: request.nowEpochMillis,
+        updatedAtEpochMillis: request.nowEpochMillis,
+        expiresAtEpochMillis: request.expiresAtEpochMillis,
+      },
+    }))
 
     await expect(harness.generate(INPUT)).resolves.toEqual({
       status: 'unavailable',
