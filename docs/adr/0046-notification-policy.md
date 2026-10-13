@@ -1038,6 +1038,37 @@ cycle the claim refused, and a retry is only ever authorized for a reply whose
 last attempt is settled as not on Google. The audience is the cause's own: the
 author and everyone who can approve.
 
+## Amended 2026-10-13 — a guest edit also returns a reply that was put forward to draft
+
+`source_changed` used to be recorded only for a reply whose open publication a
+guest edit stopped. A reply a manager had written and that was still awaiting
+approval stayed where it was, and so did one whose publication had failed.
+Confirm & Publish, or Try publishing again, then published text written for
+the review as it stood before the edit. Review now returns both to draft in
+the transaction that records the edit (Review CONTEXT, Model) and records the
+same fact for each. The fact and its audience are unchanged: the author, and
+the people who can approve. Two things follow for Feed.
+
+The copy no longer says "approved". It read "RepKey stopped publishing the
+approved text", which is false of a reply nobody had approved yet. It now
+reads "RepKey stopped the reply that was written before the change", which is
+true of all three: a publication in flight, a reply awaiting approval and a
+failed one. It still says nothing about delivery, because the first of the
+three may already be on Google, and so may a failed one whose outcome RepKey
+never learned: a guest edit returns that reply to draft too (its attempt can
+no longer be confirmed for the edited review), and the notice sends its reader
+to check what Google shows.
+
+The fact now meets open requests. It retires the approval request of the reply
+it returned to draft, and the "Reply not published" or "Reply not confirmed on
+Google" notice of the failed one, through the mapping the fact already had
+(`reply.returned_to_draft` settles `reply.publish_failed` and
+`reply.pending_approval`); the work-state check still keeps a request made
+again since. The 2026-10-12 amendment says the four
+older causes cancel a reply somebody already approved and so meet no open
+request. That holds for `disconnect`, `policy` and `provider_truth`, and no
+longer for `source_changed`.
+
 ## Amended 2026-10-13 — a digest the provider may hold stops retrying before its key lapses
 
 An open digest batch was left to "its bounded retries", and the bound was a

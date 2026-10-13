@@ -328,8 +328,9 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     'reply.pending_approval',
     'reply.publish_failed',
   ]),
-  // The AI draft purge withdraws a reply that may still be awaiting approval
-  // (cause `ai_draft_withdrawn`), so the request is retired with it.
+  // A guest edit returns a reply that was awaiting approval to draft (cause
+  // `source_changed`), and the AI draft purge withdraws one (cause
+  // `ai_draft_withdrawn`), so the request is retired with either.
   settles(
     'review.reply.publication_cancelled',
     'notification.settle-on-review-reply-publication-cancelled',

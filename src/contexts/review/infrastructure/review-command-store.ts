@@ -17,13 +17,16 @@ import {
 import { trace } from '#/shared/observability/trace'
 import type { Review } from '../domain/types'
 import { reviewError } from '../domain/errors'
+import { isGuestEdit } from '../domain/material-review-revision'
 import { rowReplyAuthor } from '../domain/reply-author'
+import { takenBackByGuestEdit } from '../domain/reply-command-preconditions'
 import type { ReviewCommandStore } from '../application/ports/review-command-store.port'
 import {
   reviewReplyPublicationCancelled,
   reviewSourceTransitioned,
   reviewUpdated,
 } from '../domain/events'
+import { replyFromRow } from './mappers/reply.mapper'
 import { eraseReviewSourceContent } from './review-source-content-store'
 import { organizationId, propertyId, replyId, reviewId } from '#/shared/domain/ids'
 import {
@@ -42,6 +45,39 @@ const SOURCE_ACTIVE_PUBLICATION_STATES = [
   'pending_observation',
   'ambiguous',
 ] as const
+
+type CurrentAttemptRef = Readonly<{
+  id: string
+  organizationId: string
+  publicationCycle: number
+  publicationAttempts: number
+}>
+
+/** Close the Reply's newest attempt as superseded. It stays as append-only
+ * evidence of what was tried and can no longer be confirmed. A cycle no worker
+ * claimed has no attempt to close. */
+async function supersedeCurrentAttempt(
+  tx: Tx,
+  reply: CurrentAttemptRef,
+  occurredAt: Date,
+): Promise<void> {
+  if (reply.publicationAttempts < 1) return
+  await tx
+    .update(replyPublicationAttempts)
+    .set({
+      outcome: 'superseded',
+      confirmedObservationRevision: null,
+      updatedAt: occurredAt,
+    })
+    .where(
+      and(
+        eq(replyPublicationAttempts.organizationId, reply.organizationId),
+        eq(replyPublicationAttempts.replyId, reply.id),
+        eq(replyPublicationAttempts.publicationCycle, reply.publicationCycle),
+        eq(replyPublicationAttempts.attemptNumber, reply.publicationAttempts),
+      ),
+    )
+}
 
 /** Settle publication work whose immutable authorization names an older
  * Review source. The attempt remains append-only evidence but can no longer
@@ -101,23 +137,7 @@ async function supersedeStaleReviewPublications(
 
   let returnedToDraft = 0
   for (const stale of staleRows) {
-    if (stale.publicationAttempts > 0) {
-      await tx
-        .update(replyPublicationAttempts)
-        .set({
-          outcome: 'superseded',
-          confirmedObservationRevision: null,
-          updatedAt: occurredAt,
-        })
-        .where(
-          and(
-            eq(replyPublicationAttempts.organizationId, stale.organizationId),
-            eq(replyPublicationAttempts.replyId, stale.id),
-            eq(replyPublicationAttempts.publicationCycle, stale.publicationCycle),
-            eq(replyPublicationAttempts.attemptNumber, stale.publicationAttempts),
-          ),
-        )
-    }
+    await supersedeCurrentAttempt(tx, stale, occurredAt)
     const cancelled = await tx
       .update(replies)
       .set({
@@ -157,6 +177,93 @@ async function supersedeStaleReviewPublications(
       organizationId: review.organizationId,
       reviewId: review.id,
     })
+  }
+}
+
+/**
+ * A guest edit also takes back the Reply a manager wrote and put forward for
+ * the review as it stood: one awaiting approval, or one whose publication
+ * failed and that Try publishing again would send under the approval it got
+ * for the earlier review (`takenBackByGuestEdit`). It returns to draft with
+ * its text. One `review.reply.publication_cancelled` fact (cause
+ * `source_changed`) tells its author and the people who can approve, and
+ * retires the approval request or the failure notice that was waiting on it.
+ * The authorization and attempts of a failed cycle say how it ended and are
+ * left as they are, with one exception: an attempt whose outcome was never
+ * learned is closed as superseded, as the stale-publication write closes one
+ * that is still being checked. No read of the edited review can confirm it.
+ *
+ * Runs after the stale-publication write above, so an open cycle is already
+ * cancelled. A Review holds one internal Reply; the state revision in the
+ * write is the row this transaction locked.
+ */
+async function takeBackReplyPutForwardBeforeGuestEdit(
+  tx: Tx,
+  review: Review,
+  occurredAt: Date,
+): Promise<void> {
+  const rows = await tx
+    .select()
+    .from(replies)
+    .where(
+      and(
+        eq(replies.organizationId, review.organizationId),
+        eq(replies.reviewId, review.id),
+        eq(replies.source, 'internal'),
+      ),
+    )
+    .for('update')
+  for (const row of rows) {
+    const takenBack = takenBackByGuestEdit(replyFromRow(row))
+    if (!takenBack) continue
+    const returned = await tx
+      .update(replies)
+      .set({
+        status: takenBack.status,
+        publicationState: takenBack.publicationState,
+        publicationLastErrorClass: null,
+        reconcileDueAt: null,
+        updatedAt: occurredAt,
+      })
+      .where(
+        and(
+          eq(replies.id, row.id),
+          eq(replies.organizationId, row.organizationId),
+          eq(replies.stateRevision, row.stateRevision),
+        ),
+      )
+      .returning({ id: replies.id })
+    if (!returned[0]) continue
+    if (takenBack.supersedesAttempt) await supersedeCurrentAttempt(tx, row, occurredAt)
+    await insertOutboxRow(
+      tx,
+      reviewReplyPublicationCancelled({
+        replyId: replyId(row.id),
+        reviewId: review.id,
+        propertyId: review.propertyId,
+        organizationId: review.organizationId,
+        authorId: rowReplyAuthor(row),
+        cause: 'source_changed',
+        occurredAt,
+      }),
+    )
+  }
+}
+
+/**
+ * What an applied observation means for the Replies written before it. Any
+ * observation settles publication work authorized for an older source. A guest
+ * edit also takes back what a manager had put forward; a source-epoch carry
+ * of unchanged material does not, because the review it answers is the same.
+ */
+async function fenceRepliesWrittenForAnOlderSource(
+  tx: Tx,
+  observation: Pick<PersistedReviewObservation, 'review' | 'comparison'>,
+  occurredAt: Date,
+): Promise<void> {
+  await supersedeStaleReviewPublications(tx, observation.review, occurredAt)
+  if (isGuestEdit(observation.comparison)) {
+    await takeBackReplyPutForwardBeforeGuestEdit(tx, observation.review, occurredAt)
   }
 }
 
@@ -344,7 +451,7 @@ export const createAtomicReviewCommandStore = (
                 }
               : candidateEvent
           await insertOutboxRow(tx, recordedEvent)
-          await supersedeStaleReviewPublications(tx, saved, updatedAt)
+          await fenceRepliesWrittenForAnOlderSource(tx, observation, updatedAt)
 
           return saved
         })
@@ -424,7 +531,7 @@ export const createAtomicReviewCommandStore = (
             occurredAt,
           })
           await insertOutboxRow(tx, updatedEvent)
-          await supersedeStaleReviewPublications(tx, observation.review, occurredAt)
+          await fenceRepliesWrittenForAnOlderSource(tx, observation, occurredAt)
           return observation.review
         })
       })

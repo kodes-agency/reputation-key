@@ -20,7 +20,10 @@ import { and, count, avg, eq, gte, gt, lt, desc, isNotNull, sql } from 'drizzle-
 import type { SQL } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
 import type { Clock } from '#/shared/domain/clock'
-import type { ReviewServingStats } from '../application/ports/serving-stats.port'
+import type {
+  ReviewServingStats,
+  ServingRecentReviewRow,
+} from '../application/ports/serving-stats.port'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
 /**
@@ -95,6 +98,21 @@ async function queryDailySeries(
     value: r.value != null ? Number(r.value) : null,
   }))
 }
+
+/** A recent review as selected: both columns are nullable in the schema. */
+type RecentReviewSelection = Omit<ServingRecentReviewRow, 'rating' | 'reviewedAt'> &
+  Readonly<{ rating: number | null; reviewedAt: Date | null }>
+
+/**
+ * The serving row of a selected recent review. `contentEligible` already
+ * requires a rating and a review instant, so every selected row has both; this
+ * says so to the type, where a `sql<T>` cast used to. A row without one is not
+ * servable content and is left out.
+ */
+const servableRecentReview = (row: RecentReviewSelection): ServingRecentReviewRow[] =>
+  row.rating === null || row.reviewedAt === null
+    ? []
+    : [{ ...row, rating: row.rating, reviewedAt: row.reviewedAt }]
 
 export const createServingStats = (deps: {
   db: Database
@@ -217,12 +235,17 @@ export const createServingStats = (deps: {
     return trace('review.servingStats.getRecentReviews', async () => {
       // F138: Replaced O(n) per-row EXISTS subqueries with a single LEFT JOIN.
       // COALESCE picks the most advanced reply status per review.
+      //
+      // `rating` and `reviewedAt` are the columns themselves. A raw
+      // `sql<Date>` template is a type annotation with no decoder, and the
+      // driver returns a timestamptz as text, so the dashboard was handed
+      // "2026-09-12 11:30:00+03" typed as a Date.
       const rows = await deps.db
         .select({
           id: reviews.id,
-          rating: sql<number>`${reviews.rating}`,
+          rating: reviews.rating,
           text: reviews.text,
-          reviewedAt: sql<Date>`${reviews.reviewedAt}`,
+          reviewedAt: reviews.reviewedAt,
           replyStatus: sql<string>`
             COALESCE(
               (SELECT CASE
@@ -249,7 +272,7 @@ export const createServingStats = (deps: {
         .orderBy(desc(reviews.reviewedAt))
         .limit(limit)
 
-      return rows
+      return rows.flatMap(servableRecentReview)
     })
   },
 })

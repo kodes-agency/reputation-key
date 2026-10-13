@@ -1024,7 +1024,7 @@ describe('durable workflow notification consumers', () => {
       ],
       [
         'source_changed',
-        'The guest changed their review, so RepKey stopped publishing the approved text. Open it to check what Google shows, then reply to the new review.',
+        'The guest changed their review, so RepKey stopped the reply that was written before the change. Open it to check what Google shows, then reply to the new review.',
       ],
       [
         'provider_truth',
