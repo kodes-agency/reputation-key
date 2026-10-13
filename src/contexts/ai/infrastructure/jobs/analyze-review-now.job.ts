@@ -1,6 +1,7 @@
 import type { Job } from 'bullmq'
 import { z } from 'zod/v4'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import { redriveMetadataSchema } from '#/shared/jobs/failure-quarantine'
 import type { RequestReviewAnalysisResult } from '../../application/use-cases/drain-review-analysis-backlog'
 
 /**
@@ -15,6 +16,9 @@ const analyzeReviewNowJobData = z
     organizationId: z.string().min(1).max(255),
     propertyId: z.uuid(),
     reviewId: z.uuid(),
+    // Added by a quarantine redrive, the family's repair command. Read by
+    // nothing here.
+    redriveMetadata: redriveMetadataSchema.optional(),
   })
   .strict()
 

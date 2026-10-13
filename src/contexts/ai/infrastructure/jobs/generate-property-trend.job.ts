@@ -1,6 +1,7 @@
 import type { Job } from 'bullmq'
 import { z } from 'zod/v4'
 import { organizationId, propertyId } from '#/shared/domain/ids'
+import { redriveMetadataSchema } from '#/shared/jobs/failure-quarantine'
 import type {
   GeneratePropertyTrendInput,
   GeneratePropertyTrendResult,
@@ -19,6 +20,9 @@ const propertyTrendJobData = z
     scheduleId: z.uuid(),
     organizationId: z.string().min(1).max(255),
     propertyId: z.uuid(),
+    // Added by a quarantine redrive, the family's repair command. Read by
+    // nothing here.
+    redriveMetadata: redriveMetadataSchema.optional(),
   })
   .strict()
 

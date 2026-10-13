@@ -1,5 +1,6 @@
 import type { Job } from 'bullmq'
 import { z } from 'zod/v4'
+import { redriveMetadataSchema } from '#/shared/jobs/failure-quarantine'
 import type {
   AuthorizeReviewAnalysisScope,
   DrainReviewAnalysisBacklog,
@@ -19,7 +20,10 @@ import type {
  */
 export const DRAIN_REVIEW_ANALYSIS_BACKLOG_JOB_NAME = 'ai-review-analysis-backlog-drain'
 
-const drainJobData = z.object({}).strict()
+// Empty but for what a quarantine redrive adds (the family's repair command).
+const drainJobData = z
+  .object({ redriveMetadata: redriveMetadataSchema.optional() })
+  .strict()
 
 export type DrainReviewAnalysisBacklogJobDependencies = Readonly<{
   drain: DrainReviewAnalysisBacklog['drain']
