@@ -564,16 +564,29 @@ failing stops erasure at that Property, ahead of every other, until its cause
 is repaired. A `no_data` receipt is still evidence — a context with nothing to
 erase must be distinguishable from a context that was never asked.
 
-**What survives.** The `properties` row survives as a tombstone with its
-descriptive content scrubbed: `purged` is a declared lifecycle state and the
+**What survives.** The `properties` row survives as a tombstone with its name,
+slug and address scrubbed: `purged` is a declared lifecycle state and the
 tombstone keeps every receipt, audit row and ledger entry that names the
 Property resolvable. Sibling Properties in the same Organization are
 byte-identical, and independently retained managerial work (replies to reviews
 of other Properties, org-level `audit_logs`) is untouched.
 
+The tombstone is not yet content-free. The Property contributor does not scrub
+the archive note (`lifecycle_reason`, 3 to 500 characters of free text an
+AccountAdmin typed) or the Google binding: the account and location suffixes,
+the Organization connection reference, the binding state (still `active` when
+the Property was never disconnected) and the review URI. Because the
+per-Organization unique index on the location suffix leaves out only rows with
+`deleted_at` set, the erased Property's Google location also cannot be imported
+into that Organization again (`location_already_bound`).
+
 **Not yet armed.** `scripts/ops/property-erase.ts` refuses `--apply` and says so.
 Only the Guest and Property erase contributors exist; the remaining fourteen
-contexts, the container composition and the job registration are pending.
+contexts, the container composition and the job registration are pending. So is
+one owner decision: whether the erase clears the archive note and the Google
+binding from the tombstone, and with them the block on importing the location
+again. It changes which stored data an erase removes, so it is not made in
+code until it is decided.
 
 ---
 
