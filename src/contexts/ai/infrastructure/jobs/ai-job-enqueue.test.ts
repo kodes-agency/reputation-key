@@ -75,6 +75,24 @@ describe('property AI trend enqueue', () => {
     expect(queue.add).not.toHaveBeenCalled()
   })
 
+  // The handler's schema admits `redriveMetadata` so that a quarantine redrive
+  // can run. That key marks a redrive; a new job never carries one.
+  it('queues the identifiers alone, never a redrive marker of its own', async () => {
+    const queue = createQueue()
+
+    await createPropertyTrendEnqueue(queue)({
+      ...TREND,
+      redriveMetadata: {
+        redrivenAt: '2026-10-13T10:00:00.000Z',
+        redrivenFrom: 'quarantine',
+        originalQuarantineId: 'quarantine-1',
+      },
+    } as typeof TREND)
+    const [, enqueued] = queue.add.mock.calls[0]!
+
+    expect(enqueued).toEqual(TREND)
+  })
+
   it('queues exactly what the trend handler accepts', async () => {
     const queue = createQueue()
     const generatePropertyTrend = vi.fn(async () => ({ status: 'completed' as const }))
