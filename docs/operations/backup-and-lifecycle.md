@@ -71,14 +71,34 @@ not run in.
 - **What it retains.** The one inspection quoted above. It predates this
   database, so it is not a reading of it, and nothing newer is kept here. No
   restore drill against this database is recorded either.
+- **What the restore procedure below cannot do for it.** The procedure and
+  the check it rests on (`isIsolatedRestoreTarget`,
+  `src/shared/config/restore-mode.ts`) are bound to `cell-us`: a restore
+  target inside Railway is admitted only when the injected environment name
+  is `cell-us`. So an in-platform verifier is refused in `closed-beta-v2`: the
+  web process of step 8 does not boot there with `RESTORE_MODE=isolated`, and
+  neither restore command runs there against the sibling's private hostname
+  (step 3). The tunnel path of step 3 is bound to the sibling's name and to no
+  environment, so this check does not stop `ops:restore-preflight` or
+  `ops:restore-verify` run from a reviewed checkout against a `closed-beta-v2`
+  sibling; the procedure still stops at step 8, short of the "full restore to
+  operational state" that verifies the RTO (`docs/BETA.md` §7). As written it
+  cannot be completed for the beta database. Whether restore drills bind to
+  `closed-beta-v2` is the owner's decision: it changes that check, which is
+  behaviour, and it is not made here. `cell-us` also stands for the deployment
+  in §7 of this page and in `runbooks.md`; that naming is part of the same
+  decision. `src/shared/db/beta-database-documents.test.ts` fails if the check
+  starts admitting `closed-beta-v2` while this bullet still says it does not.
 - **What the owner reads off**, in Railway under `reputation-key` →
-  `closed-beta-v2` → the PostgreSQL service → **Backups**, and writes here in
-  place of this paragraph, with the time of the observation: whether a backup
-  schedule is on and what it is, the latest successful backup, whether PITR is
-  on and its earliest and latest restore point, and whether a restore of this
-  database has ever been carried out and verified, with its date. A "no" is
-  written down as a "no": it is then a finding against `docs/BETA.md` §6 and
-  §7, not a reason to keep the marker.
+  `closed-beta-v2` → the PostgreSQL service → **Backups**, and writes into
+  this paragraph in place of the **UNVERIFIED** marker and the sentence after
+  it, with the time of the observation (the heading line and the environment's
+  name stay; the test named below reads both): whether a backup schedule is on
+  and what it is, the latest successful backup, whether PITR is on and its
+  earliest and latest restore point, and whether a restore of this database
+  has ever been carried out and verified, with its date. A "no" is written
+  down as a "no": it is then a finding against `docs/BETA.md` §6 and §7, not a
+  reason to keep the marker.
 - **Then** the two **UNVERIFIED** markers in `docs/BETA.md` §6 and §7 are
   replaced with what was found, with a line in its change log.
   `src/shared/db/beta-database-documents.test.ts` fails while the three
