@@ -83,6 +83,23 @@ Publish made after it (`docs/BETA.md` §3 "Inbox"; Review CONTEXT, Model).
 Marking such a draft would need a revision on a human-written reply, which the
 schema keeps for AI-assisted replies only, and is an open product choice.
 
+## Note 2026-10-13 — what decision 5's six hours measure
+
+Decision 5 says a quiet healthy Property "must be reconciled within six hours".
+As implemented, six hours is the longest interval a Property's next discovery
+poll is dated ahead (`DISCOVERY_MAX_INTERVAL_MS`), not the longest a review can
+wait. The poll runs at the first discovery sweep at or after that instant and
+the sweep fires every 15 minutes, so with Pub/Sub dark a review posted just
+after one poll is found up to about six and a quarter hours later, plus the
+sync itself. Two things stretch it further: a sweep that finds more than 2,000
+Properties due leaves the rest to the next one, and a base interval the
+operator sets above six hours (`REVIEW_DISCOVERY_INTERVAL_MINUTES`, up to 1,440)
+wins over the cap, because no Property is polled more often than the base
+(`docs/BETA.md` §3 "Google and Review"; `discovery-backoff.test.ts`). Holding
+the decision to the letter would mean dating the poll one sweep short of six
+hours and capping the base at 360 minutes. Neither is done, and whether to do
+it is an open choice: this note records the difference and decides nothing.
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,
