@@ -2,10 +2,6 @@
 // and dashboard reads. Implementation modules inside this context import one
 // another directly through the normal layer rules rather than through this file.
 
-import type {
-  MetricReadingsAggregate,
-  MetricReadingsQuery,
-} from './ports/metric.repository'
 import type { GoalMetricCorrectionImpactLookup } from './ports/goal-metric-correction-impact.lookup'
 import type { CurrentGoogleReputationSnapshotStore } from './ports/current-google-reputation-snapshot.port'
 import type { PortalLifetimeAggregatePort } from './ports/portal-lifetime-aggregate.port'
@@ -17,7 +13,6 @@ import type {
 import type { GovernedMetricVersion } from '../domain/metric-registry'
 
 // Metric contracts.
-export type { MetricReadingsQuery, MetricReadingsAggregate }
 export type { GovernedGoalMetricQuery, GovernedGoalMetricResult }
 export type {
   MetricPortalMetricEvidence,
@@ -46,7 +41,6 @@ export type {
 } from './ports/goal-metric-correction-impact.lookup'
 
 export type MetricPublicApi = Readonly<{
-  queryAggregate: (query: MetricReadingsQuery) => Promise<MetricReadingsAggregate>
   queryGoalMetric: (query: GovernedGoalMetricQuery) => Promise<GovernedGoalMetricResult>
   portalAnalytics: PortalAnalyticsQueries
   portalLifetime: PortalLifetimeReadApi
