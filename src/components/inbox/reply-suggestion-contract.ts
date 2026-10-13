@@ -73,19 +73,22 @@ export type ReplyComposerInput = Readonly<{
   ) => Promise<LoadedReplyTemplateDraft>
 }>
 
-export type ReplySuggestionFixTarget = 'public_display_name' | 'ai_settings'
+export type ReplySuggestionFixTarget = 'public_display_name' | 'ai_settings' | 'ai_notice'
 
 /**
  * A refusal with an operator-clearable requirement. Imported properties often
  * have neither AI enablement nor a Portal brand profile. Both requirements are
  * Property-wide: AI enablement lives in AI settings, while the public display
- * name lives in Property settings and does not require creating a Portal.
+ * name lives in Property settings and does not require creating a Portal. A
+ * Property enabled under an earlier AI notice is fixed on the same AI settings
+ * page, by an account admin confirming the notice now served.
  */
 export const replySuggestionFixTarget = (
   code: string,
 ): ReplySuggestionFixTarget | null => {
   if (code === 'brand_profile_unavailable') return 'public_display_name'
   if (code === 'not_authorized') return 'ai_settings'
+  if (code === 'consent_renewal_required') return 'ai_notice'
   return null
 }
 
@@ -119,6 +122,8 @@ export const replySuggestionUnavailableMessage = (code: string): string => {
   if (code === 'target_language_unavailable')
     return 'Set a property default reply language in property settings before loading a template.'
   if (code === 'not_authorized') return 'AI is off for this property.'
+  if (code === 'consent_renewal_required')
+    return 'The AI notice for this property was updated. AI drafting is paused until it is confirmed.'
   if (code === 'source_changed') return 'The review changed. Reload and try again.'
   if (code === 'brand_profile_unavailable')
     return "Reply suggestions need this property's public display name before they can be generated."
@@ -135,4 +140,7 @@ export const replySuggestionUnavailableMessage = (code: string): string => {
  * point, offered as the manager's explicit choice — never substituted.
  */
 export const replySuggestionOffersTemplate = (code: string): boolean =>
-  code === 'busy' || code === 'provider_unavailable' || code === 'not_authorized'
+  code === 'busy' ||
+  code === 'provider_unavailable' ||
+  code === 'not_authorized' ||
+  code === 'consent_renewal_required'

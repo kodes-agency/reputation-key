@@ -1275,9 +1275,10 @@ export const aiReviewAnalysisEnrollments = pgTable(
 )
 
 /**
- * Review Analysis work that waits for the background lane (ADR 0058). One row
- * per origin event: a historical onboarding observation, a first-enablement
- * backfill, or a live event whose lane was busy. The origin event is receipted
+ * Review Analysis work that waits (ADR 0058): for the background lane, or for
+ * a stop to be lifted. One row per origin event: a historical onboarding
+ * observation, a first-enablement backfill, or a live event whose lane was
+ * busy or whose analysis was stopped. The origin event is receipted
  * when its row is written, so this table — not BullMQ redelivery — is the
  * durable authority for the remaining work. Rows are identifier-only and
  * deleted when the analysis reaches any settled outcome.

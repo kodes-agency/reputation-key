@@ -205,6 +205,7 @@ const callTemplateOnly = () =>
 const RETRY_AT = 1_700_000_000_000
 const UNAVAILABLE_RETRY_AFTER: Readonly<Record<UnavailableCode, number | null>> = {
   not_authorized: null,
+  consent_renewal_required: null,
   source_changed: null,
   brand_profile_unavailable: null,
   brand_profile_changed: null,
@@ -221,6 +222,7 @@ const HOOK_DISTINGUISHED_CODES: ReadonlyArray<UnavailableCode> = [
   'language_not_supported',
   'target_language_unavailable',
   'not_authorized',
+  'consent_renewal_required',
   'source_changed',
   'brand_profile_unavailable',
   'brand_profile_changed',
