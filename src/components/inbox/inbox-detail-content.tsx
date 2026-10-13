@@ -1,4 +1,3 @@
-import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { InboxCaseToolbar } from './inbox-case-toolbar'
@@ -7,12 +6,13 @@ import { InboxReopenDialog } from './inbox-reopen-dialog'
 import { offeredModes } from './composer-policy'
 import { resolveReplyView } from './reply-status-view'
 import { useReplyActions } from './use-reply-actions'
+import { ReplyConfirmationHold, useHeldReplyDetail } from './use-reply-confirmation-hold'
 import { useOnDemandReviewAnalysis } from './use-on-demand-review-analysis'
 import {
   useInboxComposerController,
   type ComposerFocusBox,
 } from './use-inbox-composer-controller'
-import { withFreshCommandRevision, type InboxDetailState } from './use-inbox-detail'
+import type { InboxDetailState } from './use-inbox-detail'
 import type { InboxAssignmentOption } from './inbox-owner-view'
 import type { InboxCurrentUser } from './inbox-case-toolbar-props'
 import type { NoteDraft } from './composer-policy'
@@ -87,10 +87,8 @@ export function InboxDetailContent({
   composerFocusRef,
 }: DetailContentProps) {
   const {
-    detail,
     notes,
     notesUnavailable,
-    onNoteAdded,
     onReplyMutated,
     updateStatus,
     escalate,
@@ -99,11 +97,19 @@ export function InboxDetailContent({
     markFeedbackHandled,
     correctFeedbackHandlingOutcome,
   } = detailState
-  const queryClient = useQueryClient()
+  // The detail the pane SHOWS. A reply confirmation is drawn inside the reply
+  // it asks about, so while one is open the pane keeps the detail it was opened
+  // on: the re-read that follows a refusal would otherwise take the dialog, and
+  // the refusal in it, away (`use-reply-confirmation-hold.ts`).
+  const { detail, onConfirmationOpenChange } = useHeldReplyDetail(
+    currentItem.id,
+    detailState.detail,
+  )
   const { can } = usePermissions()
   useOnDemandReviewAnalysis({
     item: currentItem,
-    detail,
+    // A request for work, not a view: it follows the detail as read.
+    detail: detailState.detail,
     request: detailFns.requestReviewAnalysisNow,
   })
   const [reopenOpen, setReopenOpen] = useState(false)
@@ -207,14 +213,8 @@ export function InboxDetailContent({
     correctFeedbackHandlingOutcome,
   })
 
-  const addInboxNote = withFreshCommandRevision(
-    queryClient,
-    currentItem.id,
-    detailFns.addInboxNote,
-  )
-
   return (
-    <>
+    <ReplyConfirmationHold value={onConfirmationOpenChange}>
       {/* Region 2 (plan v2.1 rows 2-6). The bag is built by a pure selector
           rather than inline: this file was at 296 of 300 counted lines, and row
           5 routes `escalate` / `resolveEscalation` here from the header. */}
@@ -258,8 +258,7 @@ export function InboxDetailContent({
         replyActions={replyActions}
         noteDraft={noteDraft}
         setNoteDraft={setNoteDraft}
-        onNoteAdded={onNoteAdded}
-        addInboxNote={addInboxNote}
+        addInboxNote={detailFns.addInboxNote}
         canAddNotes={canAddNotes}
         handlingAction={feedback.action}
         feedbackPrimary={feedback.primary}
@@ -283,6 +282,6 @@ export function InboxDetailContent({
           })
         }
       />
-    </>
+    </ReplyConfirmationHold>
   )
 }

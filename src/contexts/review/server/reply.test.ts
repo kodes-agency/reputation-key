@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import {
+  approveReplyDto,
   reviewErrorStatus,
   reviewIdDto,
   draftReplyDto,
@@ -30,6 +31,42 @@ describe('reviewIdDto', () => {
   it('rejects missing reviewId', () => {
     const result = reviewIdDto.safeParse({})
     expect(result.success).toBe(false)
+  })
+})
+
+describe('approveReplyDto', () => {
+  const reviewId = '550e8400-e29b-41d4-a716-446655440000'
+  const id = '550e8400-e29b-41d4-a716-446655440001'
+
+  it('carries the reply the manager confirmed: which reply, at which state revision', () => {
+    const expectedReply = { id, stateRevision: 4 }
+
+    expect(approveReplyDto.parse({ reviewId, expectedReply })).toEqual({
+      reviewId,
+      expectedReply,
+    })
+  })
+
+  it('accepts a caller that read no screen and so names no reply', () => {
+    expect(approveReplyDto.parse({ reviewId })).toEqual({ reviewId })
+  })
+
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '4', null])(
+    'rejects %s as a state revision',
+    (stateRevision) => {
+      expect(
+        approveReplyDto.safeParse({ reviewId, expectedReply: { id, stateRevision } })
+          .success,
+      ).toBe(false)
+    },
+  )
+
+  it.each([
+    ['a revision that names no reply', { stateRevision: 4 }],
+    ['a reply with no revision', { id }],
+    ['a reply id that is not one', { id: 'reply-1', stateRevision: 4 }],
+  ])('rejects %s: a revision is counted per reply', (_name, expectedReply) => {
+    expect(approveReplyDto.safeParse({ reviewId, expectedReply }).success).toBe(false)
   })
 })
 

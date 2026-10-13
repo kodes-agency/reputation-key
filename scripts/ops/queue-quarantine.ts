@@ -5,9 +5,9 @@
 //   pnpm ops queue pause <queue> --operator <id> --reason <text> --apply   — stop processing, preserve all jobs
 //   pnpm ops queue resume <queue> --operator <id> --reason <text> --apply  — restore processing
 // Queues: default, background, domain-events. Requires QUEUE_REDIS_URL + DATABASE_URL.
-// Every invocation is policy-evaluated + audited (allow rows carry the
-// reason; reads audit as 'read'). pause/resume are report-first since
-// BQC-7.5 — --apply executes.
+// Every invocation is policy-evaluated and its decision printed; the harness
+// stores neither the decision nor the reason. pause/resume are report-first
+// since BQC-7.5 — --apply executes.
 
 import { createJobQueue } from '../../src/shared/jobs/queue'
 import {

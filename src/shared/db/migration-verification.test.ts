@@ -7,8 +7,9 @@
 //      better-auth mirror) compared against the migrated PostgreSQL catalog —
 //      columns/types/nullability/defaults, PK/unique/check/FK constraints incl.
 //      actions, indexes incl. order/direction/expressions/predicates, enum
-//      labels, journal continuity, and the DB-only register (both directions
-//      closed). See ./CONTEXT.md and ./schema-drift.ts.
+//      labels, journal order and continuity, the DB-only register (both
+//      directions closed) and the definition of every function and trigger in
+//      it. See ./CONTEXT.md and ./schema-drift.ts.
 //
 // In CI this runs after `auth:migrate && db:migrate` + the registered deploy
 // sidecar against a fresh database. Locally it requires a migrated test
@@ -196,7 +197,9 @@ describe('semantic schema parity (BQC-5.4)', () => {
       `Schema drift detected (${drifts.length}):\n${formatDrifts(drifts)}\n\n` +
         'Fix the model in src/shared/db/schema/*.ts to match the migrated DB, ' +
         'or register intentional DB-only constructs in ' +
-        'src/shared/db/schema/db-only-constructs.ts (see src/shared/db/CONTEXT.md).',
+        'src/shared/db/schema/db-only-constructs.ts (see src/shared/db/CONTEXT.md). ' +
+        'A function or trigger whose definition differs is restated in ' +
+        'db-constructs.sql, its 0001 copy and the migration that changes it.',
     ).toEqual([])
   })
 })

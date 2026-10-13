@@ -4,7 +4,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { deleteAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
 import {
   aiExecutionControlHeads,
   aiExecutionControlTransitions,
@@ -37,6 +39,8 @@ import { createPropertyProcessingProfileAdapter } from '#/contexts/ai/infrastruc
 import { createReviewRepository } from './repositories/review.repository'
 import { createReplyRepository } from './repositories/reply.repository'
 import { createAiSuggestedDraftStore } from './ai-suggested-draft-store'
+import { createAtomicReplyCommandStore } from './reply-command-store'
+import { reviewReplyApproved, reviewReplyPublicationRequested } from '../domain/events'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
 
@@ -362,6 +366,9 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     // Replies deliberately restrict Review deletion; remove test-owned child
     // rows before the Property cascade reaches the stable Review.
     await db.execute(sql`DELETE FROM replies WHERE organization_id = ${ORGANIZATION_ID}`)
+    await db.execute(
+      sql`DELETE FROM outbox_events WHERE organization_id = ${ORGANIZATION_ID}`,
+    )
     await db
       .delete(aiOrganizationCostWindows)
       .where(eq(aiOrganizationCostWindows.organizationId, ORGANIZATION_ID))
@@ -370,6 +377,9 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
   }
 
   beforeAll(async () => {
+    // The purge records a fact for a reply it withdraws while it awaits approval.
+    clearEventSchemas()
+    registerAllEventSchemas()
     await clear()
     const [replyControl] = await db
       .select()
@@ -547,6 +557,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
 
   afterAll(async () => {
     await clear()
+    clearEventSchemas()
     if (initialReplyControl) {
       await transitionReplyControl(
         initialReplyControl.executionState,
@@ -860,39 +871,75 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         .limit(1),
     ).resolves.toEqual([{ disposition: 'adopted' }])
 
-    // The repository's guarded write runs the same binding check inside its
-    // own transaction: the adopted draft advances, an expired one is refused
-    // without a row change.
+    // Confirm & Publish runs the same binding check inside the transaction of
+    // its write: once the draft's expiry has passed, the approval is refused
+    // without a row change. (reply-ai-adoption.integration.test.ts covers the
+    // rest of the lifecycle: a draft save, a reject, a retry and an edit do not
+    // read the binding.)
     const replyRepository = createReplyRepository(db, () => new Date())
-    await expect(
-      replyRepository.conditionalUpdate(
-        accepted.reply.id,
-        ORGANIZATION_ID,
-        ['draft'],
-        { status: 'pending_approval', submittedAt: new Date() },
-        new Date(),
-      ),
-    ).resolves.toMatchObject({ id: accepted.reply.id, status: 'pending_approval' })
     await db
       .update(replies)
-      .set({ aiDraftExpiresAt: new Date(NOW.getTime() - 1) })
+      .set({
+        status: 'pending_approval',
+        submittedAt: NOW,
+        aiDraftExpiresAt: new Date(NOW.getTime() - 1),
+      })
       .where(eq(replies.id, accepted.reply.id))
+    const pending = await replyRepository.findById(accepted.reply.id, ORGANIZATION_ID)
+    if (!pending) throw new Error('Expected the adopted reply to be stored')
     await expect(
-      replyRepository.conditionalUpdate(
-        accepted.reply.id,
-        ORGANIZATION_ID,
-        ['pending_approval'],
-        { status: 'approved', approvedBy: ACTOR_USER_ID, approvedAt: new Date() },
-        new Date(),
+      store.assertCurrentBinding({
+        organizationId: ORGANIZATION_ID,
+        replyId: accepted.reply.id,
+      }),
+    ).resolves.toBe('stale')
+    const approval = {
+      replyId: pending.id,
+      reviewId: REVIEW_ID,
+      propertyId: PROPERTY_ID,
+      organizationId: ORGANIZATION_ID,
+      userId: ACTOR_USER_ID,
+      occurredAt: NOW,
+    }
+    await expect(
+      createAtomicReplyCommandStore(
+        db,
+        () => new Date(),
+        async () => true,
+      ).markPublicationAuthorized(
+        pending,
+        { status: 'approved' },
+        {
+          lifecycleEvent: reviewReplyApproved({ ...approval, authorId: ACTOR_USER_ID }),
+          publicationIntent: reviewReplyPublicationRequested({
+            ...approval,
+            publicationCycle: 1,
+            sourceEpoch: SOURCE_EPOCH,
+            materialReviewRevision: SOURCE_REVISION,
+            baseObservationRevision: 0,
+          }),
+        },
       ),
     ).resolves.toBeNull()
     await expect(
       db
-        .select({ status: replies.status })
+        .select({
+          text: replies.text,
+          authorship: replies.authorship,
+          status: replies.status,
+          publicationState: replies.publicationState,
+        })
         .from(replies)
         .where(eq(replies.id, accepted.reply.id))
         .limit(1),
-    ).resolves.toEqual([{ status: 'pending_approval' }])
+    ).resolves.toEqual([
+      {
+        text: SUGGESTION,
+        authorship: 'ai_assisted',
+        status: 'pending_approval',
+        publicationState: null,
+      },
+    ])
     brandProfileCurrent = true
   })
 
@@ -909,7 +956,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         .update(reviews)
         .set({ sourceRevision: SOURCE_REVISION + 1 })
         .where(eq(reviews.id, REVIEW_ID))
-      await deleteAiDraftsForReview(tx, {
+      await purgeAiDraftsForReview(tx, {
         organizationId: ORGANIZATION_ID,
         reviewId: REVIEW_ID,
       })

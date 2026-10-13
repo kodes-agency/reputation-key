@@ -1,8 +1,7 @@
 // The Identity policy dependency slice (BQC-2.2/2.7).
 //
-// Identity owns the policy store, the admin operations and the operator audit
-// sink; the composition root only supplies env plus the late-bound property
-// membership check.
+// Identity owns the policy store and the admin operations; the composition
+// root only supplies env plus the late-bound property membership check.
 //
 // This lives outside `src/composition.ts` because the root has a hard line
 // budget (`composition-container-boundary.test.ts`) whose whole purpose is to

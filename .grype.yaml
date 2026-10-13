@@ -12,9 +12,16 @@
 # remains is marked won't-fix / not-fixed by Debian for trixie as well; the
 # base swap did not clear these, it only moved their package versions. Every
 # entry carries owner/reason/expiresAt and is re-justified at the quarterly
-# review and on every base-image bump. grype has no native expiry — the dates
-# are enforced by the documented review cadence, not by the tool. A new entry
-# needs the finding named (package, CVE, grype's own identity line).
+# review and on every base-image bump. grype has no native expiry, so the
+# dates are enforced by `pnpm check:container-images`
+# (scripts/ci/grype-exception-expiry.ts): each rule takes the one
+# `expiresAt: YYYY-MM-DD` in the comment block directly above it — no blank
+# line between — and the gate fails the day after that date, or when a rule
+# has no such date. The gate reads lines while grype reads YAML, so keep the
+# one shape below: this plain `ignore:` key, then one `- ` item per rule on
+# its own line. A flow list, an alias, a quoted key or a line that belongs to
+# no rule fails the gate. A new entry needs the finding named (package, CVE,
+# grype's own identity line).
 
 ignore:
   # ── Debian trixie base packages, perl-base 5.40.1-6 (13 CVEs) ─────────

@@ -104,7 +104,7 @@ export function createAuth() {
   } else if (claimsE2ERateLimitBypass(env)) {
     getLogger().error(
       { nodeEnv: env.NODE_ENV },
-      'auth.rate_limit_bypass_refused: E2E is set without a test/CI execution identity — better-auth rate limiting stays ENABLED',
+      'auth.rate_limit_bypass_refused: E2E is set without an authorized test/CI execution identity (a deployed process never has one) — better-auth rate limiting stays ENABLED',
     )
   }
 

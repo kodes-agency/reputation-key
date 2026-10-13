@@ -61,7 +61,7 @@ import {
 } from '../src/shared/config/local-stack-contract'
 import { GOOGLE_CONTENT_CAPABILITIES } from '../src/shared/domain/google-content-capability'
 import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
-import { createAiControlAdapter } from '../src/contexts/ai/infrastructure/adapters/ai-control.adapter'
+import { createDeclaredCapabilityPostureStores } from '../src/composition/declared-capability-posture'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../src/shared/ai-operation-profiles'
 import { CURRENT_MERCHANT_AI_CAPABILITIES } from '../src/shared/domain/merchant-ai-capability'
 
@@ -1219,7 +1219,11 @@ async function ensureLocalGoogleContentCapabilitiesAllowed(): Promise<void> {
  * `ops:ai-control` step. Mirrors the Google content acceptance above.
  */
 async function ensureLocalAiCapabilitiesEnabled(): Promise<void> {
-  const control = createAiControlAdapter(getDb())
+  // The deploy step's control store, not a bare adapter: a control transition
+  // runs the AI draft purge, which records a fact for a reply it withdraws
+  // while someone waits on it, and that wiring registers the event schemas the
+  // outbox checks the fact against. This script builds no container.
+  const control = createDeclaredCapabilityPostureStores(getDb()).ai
   const profile = AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion
   const candidateReleaseSha = execFileSync('git', ['rev-parse', 'HEAD'], {
     encoding: 'utf8',

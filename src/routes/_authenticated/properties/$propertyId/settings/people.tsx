@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { PropertyResponsibleManagersCard } from '#/components/features/property/property-responsible-managers-card'
 import { updatePropertyResponsibleManagers } from '#/contexts/property/server/property-responsible-managers'
@@ -26,12 +26,23 @@ function PropertyPeopleSettings() {
     responsibleManagersQuery(propertyId),
   )
   const { data: membersData } = useSuspenseQuery(membersQuery)
+  const queryClient = useQueryClient()
   const updateAction = useActionMutation(updatePropertyResponsibleManagers, {
     successMessage: 'Responsible managers saved',
     invalidateKeys: [
       propertyKeys.detail(propertyId),
       propertyKeys.responsibleManagers(propertyId),
     ],
+    // A refused save means another admin changed the managers since this page
+    // read them. The card keeps the refused edit and Reset is the way out, but
+    // Reset shows that change only once the page has read it, and nothing else
+    // reads it soon (the read is fresh for 30 seconds). So the managers are
+    // re-read: those of the Property the command named, because this route is
+    // not remounted when its params change.
+    onError: (_error, input) =>
+      void queryClient.invalidateQueries({
+        queryKey: propertyKeys.responsibleManagers(input.data.propertyId),
+      }),
   })
 
   return (

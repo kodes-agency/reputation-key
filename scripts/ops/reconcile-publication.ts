@@ -1,18 +1,33 @@
-// Operator CLI (BQC-7.5): reconcile ambiguous Google reply publication via
-// the reconcileReplyPublication use case (BQC-3.8). The use case re-reads
-// provider state and heals provider-confirmed rows to published — it NEVER
-// publishes.
+// Operator CLI (BQC-7.5): list ambiguous Google reply publication waiting for
+// reconciliation. REPORT ONLY: `--apply` is refused by the operator harness.
+//
+// Reconciling re-reads the reply on Google, and operator commands run without
+// the Google provider runtime, so this command cannot do it
+// (src/shared/ops/google-provider-commands.ts). What does:
+//
+//   - The worker's `reconcile-ambiguous-publications` job, every five minutes:
+//     it re-reads Google for every due reply (reconcileReplyPublication,
+//     BQC-3.8) and heals provider-confirmed rows to published. It never
+//     publishes.
+//   - A manager, on demand: Check Google again on the reply in the Inbox.
+//
+// Both reads are review-sync provider calls under property.connect_gbp, and
+// Check Google again is a reply command first (property.publish_reply). A
+// stop of either, or a suspended Organization, refuses that read and the
+// reply stays ambiguous (runbook §6).
 //
 // Usage:
-//   pnpm ops reconcile-publication <replyId> --operator <id> --org <id> [--reason <text> --apply]
-//   pnpm ops reconcile-publication --all-ambiguous --operator <id> [--batch-size <n>] [--reason <text> --apply]
-//   pnpm ops reconcile-publication --all-ambiguous --resume <token> --operator <id> [--reason <text> --apply]
+//   pnpm ops reconcile-publication <replyId> --operator <id> --org <id>
+//   pnpm ops reconcile-publication --all-ambiguous --operator <id> [--batch-size <n>]
+//   pnpm ops reconcile-publication --all-ambiguous --resume <token> --operator <id>
 //
 // Bounded: a single reply, or ONE keyset page of due ambiguous rows per
 // invocation (default 100, max 500). A full page reports partial and returns
 // an opaque --resume token. Resuming preserves the original due-through
-// boundary and starts strictly after the prior page; it must stay in the same
-// dry-run/apply mode. Dry-run lists only; --apply re-reads provider truth.
+// boundary and starts strictly after the prior page. Every row is listed as
+// `not_evaluated`: no provider truth is read. The apply branches below are
+// kept for a provider-enabled operator path; none exists today, and the
+// harness never reaches them.
 // Requires DATABASE_URL.
 // Identifier-only output (reply/org ids + outcomes) — content-free.
 
@@ -27,7 +42,7 @@ import type {
 import { runOperatorCommand } from './operator-command'
 
 const USAGE =
-  'pnpm ops reconcile-publication [<replyId> --org <id> | --all-ambiguous [--resume <token>]] --operator <id> [--batch-size <n>] [--reason <text> --apply]'
+  'pnpm ops reconcile-publication [<replyId> --org <id> | --all-ambiguous [--resume <token>]] --operator <id> [--batch-size <n>]'
 
 const RESUME_VERSION = 1 as const
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
@@ -392,7 +407,7 @@ async function main(): Promise<void> {
       if (singleReplyId) {
         if (ctx.dryRun) {
           io.out(
-            `would reconcile replyId=${singleReplyId} org=${ctx.organizationId} — re-run with --apply`,
+            `a reconciliation of replyId=${singleReplyId} org=${ctx.organizationId} would re-read the reply on Google`,
           )
           return
         }

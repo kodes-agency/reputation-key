@@ -7,7 +7,7 @@ import {
 } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
-import { deleteAiDraftsForProperty } from '#/shared/db/ai/ai-draft-purge'
+import { purgeAiDraftsForProperty } from '#/shared/db/ai/ai-draft-purge'
 import {
   googleConnectionId,
   organizationId,
@@ -573,7 +573,7 @@ export const createPropertyGoogleBindingStore = (
               )
               .returning({ id: properties.id })
             if (!updated) deny('stale_binding')
-            await deleteAiDraftsForProperty(tx, {
+            await purgeAiDraftsForProperty(tx, {
               organizationId: input.organizationId,
               propertyId: input.propertyId,
             })
@@ -682,7 +682,7 @@ export const createPropertyGoogleBindingStore = (
             )
             .returning()
           if (!updated) deny('stale_binding')
-          await deleteAiDraftsForProperty(tx, {
+          await purgeAiDraftsForProperty(tx, {
             organizationId: input.organizationId,
             propertyId: input.propertyId,
           })
@@ -756,7 +756,7 @@ export const createPropertyGoogleBindingStore = (
             )
             .returning()
           if (!updated) deny('stale_binding')
-          await deleteAiDraftsForProperty(tx, {
+          await purgeAiDraftsForProperty(tx, {
             organizationId: input.organizationId,
             propertyId: input.propertyId,
           })

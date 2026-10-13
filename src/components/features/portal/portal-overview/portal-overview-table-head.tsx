@@ -4,15 +4,23 @@
 // where each row is a card (42 rem in a group's page).
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { DataTableHead, DataTableHeader } from '#/components/ui/data-table'
+import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { useOverviewClasses } from './portal-overview-density'
 import { MEASURE_COLUMNS } from './portal-overview-measure-cells'
+import type { GlossaryTermKey } from '#/shared/dashboard-glossary'
 import type { PortalOverviewResultsState } from './portal-overview-results'
 import type { SortDirection } from '#/components/ui/list-sort'
 
 function MeasureHeader({
   label,
   order,
-}: Readonly<{ label: string; order: SortDirection | undefined }>) {
+  term,
+}: Readonly<{
+  label: string
+  order: SortDirection | undefined
+  /** The glossary term that defines the column, where it has one. */
+  term?: GlossaryTermKey
+}>) {
   const classes = useOverviewClasses()
   const Arrow = order === 'asc' ? ArrowUp : ArrowDown
   return (
@@ -26,7 +34,7 @@ function MeasureHeader({
       {order === undefined ? null : (
         <Arrow aria-hidden="true" className="mr-1 inline size-3 align-[-1px]" />
       )}
-      {label}
+      {term === undefined ? label : <GlossaryTerm term={term}>{label}</GlossaryTerm>}
     </DataTableHead>
   )
 }
@@ -48,6 +56,7 @@ export function PortalOverviewTableHead({ results, scansOrder }: Props) {
               key={key}
               label={label}
               order={key === 'scans' ? scansOrder : undefined}
+              term={key === 'scans' ? 'qualified-scans' : undefined}
             />
           ))}
       <DataTableHead>Responsible</DataTableHead>

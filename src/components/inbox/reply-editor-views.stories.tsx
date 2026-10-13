@@ -7,9 +7,12 @@
 // region. Between them they made the one sentence naming an unfilled template
 // placeholder unreachable by every reader who needed it.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import { ReviewReplyPublishedEditor } from './reply-editor-views'
-import { expectNeutralCounterAtTheByteLimit } from './reply-editor.stories.play'
+import {
+  expectNeutralCounterAtTheByteLimit,
+  openConfirmation,
+} from './reply-editor.stories.play'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 
 const onSave = fn(async (_text: string) => undefined)
@@ -42,13 +45,10 @@ export const PublishedEditRequiresConfirmation: Story = {
   },
   play: async ({ canvasElement }) => {
     onSave.mockClear()
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /review update/i }))
-    const dialog = await within(document.body).findByRole('alertdialog')
-    await waitFor(() =>
-      expect(
-        within(dialog).getByText(/keeps the update pending until google confirms/i),
-      ).toBeVisible(),
+    const dialog = await openConfirmation(
+      canvasElement,
+      /review update/i,
+      /keeps the update pending until google confirms/i,
     )
     expect(onSave).not.toHaveBeenCalled()
     await userEvent.click(

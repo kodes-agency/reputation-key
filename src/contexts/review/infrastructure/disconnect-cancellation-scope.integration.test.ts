@@ -23,7 +23,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { Reply, Review } from '../domain/types'
-import { reviewReplyPublicationRequested } from '../domain/events'
+import { reviewReplyApproved, reviewReplyPublicationRequested } from '../domain/events'
 import { createReviewRepository } from './repositories/review.repository'
 import { createReplyRepository } from './repositories/reply.repository'
 import { createAtomicReplyCommandStore } from './reply-command-store'
@@ -152,7 +152,15 @@ async function replyAt(stage: 'authorized' | 'sending' | 'pending_observation') 
     await replyRepo.upsert(pendingReply()),
     { status: 'approved', approvedBy: USER_A, approvedAt: NOW },
     {
-      lifecycleEvent: null,
+      lifecycleEvent: reviewReplyApproved({
+        replyId: REPLY_A,
+        reviewId: REVIEW_A,
+        propertyId: PROP_A,
+        organizationId: ORG_A,
+        userId: USER_A,
+        authorId: USER_A,
+        occurredAt: NOW,
+      }),
       publicationIntent: reviewReplyPublicationRequested({
         replyId: REPLY_A,
         reviewId: REVIEW_A,

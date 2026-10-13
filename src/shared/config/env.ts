@@ -340,7 +340,10 @@ const baseEnvSchema = z.object({
   BETA_E2E_GLOBAL_CAPABILITIES: z.string().optional(),
   // Explicit test/CI execution identity that authorizes the E2E capability
   // override above (e.g. 'playwright-e2e'). Meaningless in production — the
-  // boot guard never requires it and production must never set it.
+  // boot guard never requires it and production must never set it. A deployed
+  // process does not honour it: with RAILWAY_PROJECT_ID or
+  // RAILWAY_ENVIRONMENT_ID present, both overrides it authorizes are refused
+  // whatever it says (hasE2EExecutionIdentity in shared/auth/beta-capabilities.ts).
   BETA_E2E_EXECUTION_IDENTITY: z.string().optional(),
   // Review §5.1 / BQC-6.8 — TEST-ONLY. Stands BOTH auth brute-force layers
   // down: the shared Redis limiter on the /api/auth/* catch-all
@@ -351,7 +354,8 @@ const baseEnvSchema = z.object({
   // override above, with startup refused without one (see
   // isE2ERateLimitBypassAuthorized / assertE2ERateLimitBypassIdentity in
   // shared/auth/beta-capabilities.ts). The Playwright stack sets E2E=1
-  // (compose.local.yml); production must never set it.
+  // (compose.local.yml); production must never set it, and a deployed Railway
+  // process refuses it even with an execution identity.
   E2E: z.literal('1').optional(),
   // Organizations suspended from the beta (B0.5 operator controls):
   // comma-separated Organization IDs — not slugs; a slug matches nothing.

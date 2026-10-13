@@ -29,7 +29,10 @@ async function main() {
       console.error(
         '\nFix the model in src/shared/db/schema/*.ts or register intentional ' +
           'DB-only constructs in src/shared/db/schema/db-only-constructs.ts ' +
-          '(see src/shared/db/CONTEXT.md).',
+          '(see src/shared/db/CONTEXT.md). A function or trigger whose definition ' +
+          'differs is restated, never renamed: src/shared/db/db-constructs.sql, ' +
+          'its copy drizzle/0001_db_constructs.sql and the migration that changes ' +
+          'it carry the same statement.',
       )
       process.exit(1)
     }

@@ -29,6 +29,7 @@ import {
 } from '#/shared/domain/ids'
 import type { Reply, Review } from '../domain/types'
 import {
+  reviewReplyApproved,
   reviewReplyPublicationRequested,
   reviewReplyPublishFailed,
 } from '../domain/events'
@@ -182,7 +183,15 @@ async function claimOneAttempt() {
     pending,
     { status: 'approved', approvedBy: USER_A, approvedAt: STARTED_AT },
     {
-      lifecycleEvent: null,
+      lifecycleEvent: reviewReplyApproved({
+        replyId: REPLY_A,
+        reviewId: REVIEW_A,
+        propertyId: PROP_A,
+        organizationId: ORG_A,
+        userId: USER_A,
+        authorId: USER_A,
+        occurredAt: STARTED_AT,
+      }),
       publicationIntent: reviewReplyPublicationRequested({
         replyId: REPLY_A,
         reviewId: REVIEW_A,
