@@ -13,3 +13,17 @@
  *  convention already used by badge evaluation, health-check, and the
  *  review/goal jobs. */
 export type Clock = () => Date
+
+/** The smallest step a `Date` can tell apart. */
+const SMALLEST_CLOCK_STEP_MS = 1
+
+/**
+ * `now`, or the instant just after `earlier` when the clock has not moved past
+ * it. For a write that has to be stamped later than the one it follows: an
+ * interval cannot end at the instant it began.
+ */
+export function strictlyAfter(earlier: Date, now: Date): Date {
+  return now.getTime() > earlier.getTime()
+    ? now
+    : new Date(earlier.getTime() + SMALLEST_CLOCK_STEP_MS)
+}

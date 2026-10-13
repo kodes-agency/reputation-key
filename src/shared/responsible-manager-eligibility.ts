@@ -65,6 +65,50 @@ export async function isEligibleResponsibleManager(
 }
 
 /**
+ * Why a responsibility ended without anyone reassigning it. Both owners
+ * (Property, Portal) record the same reason for the same cause: the member was
+ * removed from the Organization, or stopped being an eligible manager.
+ */
+export const MANAGER_OFFBOARDED_END_REASON = 'manager_offboarded'
+export const MANAGER_BECAME_INELIGIBLE_END_REASON = 'manager_became_ineligible'
+
+/** Of these users, those who are not an eligible manager of the Property now. */
+export async function listIneligibleResponsibleManagers(
+  deps: ResponsibleManagerEligibilityDeps,
+  organizationId: OrganizationId,
+  propertyId: PropertyId,
+  userIds: readonly string[],
+): Promise<readonly string[]> {
+  const eligible = await listEligibleResponsibleManagers(deps, organizationId, propertyId)
+  const eligibleIds = new Set(eligible.map((membership) => membership.userId))
+  return userIds.filter((userId) => !eligibleIds.has(userId))
+}
+
+/**
+ * Of the Properties a user holds a responsibility at, those where they are not
+ * an eligible manager now.
+ */
+export async function listPropertyIdsNoLongerEligible(
+  deps: ResponsibleManagerEligibilityDeps,
+  organizationId: OrganizationId,
+  userId: string,
+  heldPropertyIds: readonly string[],
+): Promise<ReadonlySet<string>> {
+  const distinct = [...new Set(heldPropertyIds)]
+  const stillEligible = await Promise.all(
+    distinct.map((heldPropertyId) =>
+      isEligibleResponsibleManager(
+        deps,
+        organizationId,
+        toPropertyId(heldPropertyId),
+        userId,
+      ),
+    ),
+  )
+  return new Set(distinct.filter((_, index) => !stillEligible[index]))
+}
+
+/**
  * A member whose removal was recorded: `identity.member.removed`, the fact
  * every removal path commits with the membership delete.
  */
@@ -75,9 +119,6 @@ export type RemovedMember = Readonly<{
   removedBy: string | null
 }>
 
-/** Why an interval ended: the same reason the removal's own release records. */
-const MANAGER_OFFBOARDED_END_REASON = 'manager_offboarded'
-
 /** When, why and by whom a removed member's responsibilities are ended. */
 export type RemovedMemberRelease = Readonly<{
   organizationId: string
@@ -86,29 +127,6 @@ export type RemovedMemberRelease = Readonly<{
   endReason: string
   actorId: string | null
 }>
-
-/**
- * Of the Properties a removed member still holds a responsibility at, those
- * where they are not an eligible manager now.
- */
-async function listPropertyIdsNoLongerEligible(
-  deps: ResponsibleManagerEligibilityDeps,
-  member: RemovedMember,
-  heldPropertyIds: readonly string[],
-): Promise<ReadonlySet<string>> {
-  const distinct = [...new Set(heldPropertyIds)]
-  const stillEligible = await Promise.all(
-    distinct.map((heldPropertyId) =>
-      isEligibleResponsibleManager(
-        deps,
-        toOrganizationId(member.organizationId),
-        toPropertyId(heldPropertyId),
-        member.userId,
-      ),
-    ),
-  )
-  return new Set(distinct.filter((_, index) => !stillEligible[index]))
-}
 
 /**
  * End the responsibilities a removed member still holds and may no longer hold.
@@ -145,7 +163,8 @@ export const releaseRemovedMemberResponsibilities =
     const held = await deps.listHeld(member.organizationId, member.userId)
     const lostAt = await listPropertyIdsNoLongerEligible(
       deps.eligibility,
-      member,
+      toOrganizationId(member.organizationId),
+      member.userId,
       held.map((responsibility) => responsibility.propertyId),
     )
     return deps.releaseHeld(

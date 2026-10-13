@@ -90,6 +90,17 @@ foreign keys deliberately stop cross-owner deletion.
     member is still eligible, so an assignment saved in between is accepted,
     and only the second release sees it. Eligibility is asked at delivery, so a
     member invited again in the meantime keeps what they may hold.
+    A save of the managers reads eligibility twice: before its write, and again
+    once the write has committed. The first read is not under the write's lock,
+    so a removal, role change or lost access that commits in between is seen by
+    neither that read nor a release that ran before the assignment existed.
+    Whichever of the two commits second is therefore followed by a check that
+    sees the other: the save's second read, or the release from the fact (after
+    a removal) or the reconciliation (after a role or access change). A manager
+    the second read finds no longer eligible is released with reason
+    `manager_became_ineligible`, the gap is recorded and announced with no actor
+    left out, and the save answers `responsible_manager_ineligible`; the rest
+    of the selection stays saved.
 11. Responsible Manager history is owned by the Property aggregate. Its behavior at permanent erasure remains part of the future support-mediated LIF-01 workflow; normal product actions cannot erase it.
 12. `verifyPurgeReadiness` fails closed while any Property is still `active` or
     `disconnecting`.

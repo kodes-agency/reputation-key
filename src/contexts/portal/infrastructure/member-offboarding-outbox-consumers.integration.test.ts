@@ -24,10 +24,12 @@ import {
   releaseRemovedMemberResponsibilities,
   type ResponsibleManagerMembership,
 } from '#/shared/responsible-manager-eligibility'
-import { buildTestPortal } from '#/shared/testing/fixtures'
+import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { policyDeps } from '../application/portal-manager-eligibility'
+import { updatePortalResponsibleManagers } from '../application/use-cases/portal-responsible-managers'
 import { registerPortalMemberOffboardingConsumers } from './member-offboarding-outbox-consumers'
+import { createPortalRepository } from './repositories/portal.repository'
 import { createPortalResponsibleManagerRepository } from './repositories/portal-responsible-manager.repository'
 import { createPostgresPortalFixtureStore } from './testing/postgres-portal-fixture-store'
 
@@ -42,6 +44,7 @@ const CREATED = new Date('2026-10-01T09:00:00.000Z')
 const ASSIGNED_AT = new Date('2026-10-13T09:00:00.000Z')
 const REMOVED_AT = new Date('2026-10-13T09:00:01.000Z')
 const DELIVERED_AT = new Date('2026-10-13T09:00:05.000Z')
+const COMMITTED_AT = new Date('2026-10-13T09:00:06.000Z')
 
 const db = getDb()
 const outbox = createOutboxRepository(db)
@@ -50,6 +53,37 @@ let pool: Pool
 /** Identity's current managers of the Organization, and the Properties a PropertyManager may reach. */
 let members: readonly ResponsibleManagerMembership[] = []
 let accessibleProperties: readonly string[] = []
+/**
+ * Runs once, after Identity's next answer was read and before its caller goes
+ * on: how a removal is made to commit between an assignment's eligibility read
+ * and its own commit.
+ */
+let afterNextManagerRead: (() => Promise<void>) | null = null
+
+/** Identity's facts as the Portal context reads them. */
+const identityFacts = {
+  identityPublicApi: {
+    listActiveManagers: async () => {
+      const read = members
+      const interleaved = afterNextManagerRead
+      afterNextManagerRead = null
+      await interleaved?.()
+      return read
+    },
+  },
+  staffPublicApi: {
+    getAccessiblePropertyIds: async () => accessibleProperties.map(propertyId),
+    getAssignedPortals: async () => [],
+  },
+}
+
+/** The save another admin makes, as the Portal context builds it. */
+const saveManagers = updatePortalResponsibleManagers({
+  ...identityFacts,
+  portalRepo: createPortalRepository(db),
+  managerRepo: managers,
+  clock: () => COMMITTED_AT,
+})
 
 const accountAdmin = (id: string): ResponsibleManagerMembership => ({
   userId: id,
@@ -100,13 +134,7 @@ function removalConsumer() {
   registerPortalMemberOffboardingConsumers(registry, {
     // Bound as buildPortalContext binds it.
     release: releaseRemovedMemberResponsibilities({
-      eligibility: policyDeps({
-        identityPublicApi: { listActiveManagers: async () => members },
-        staffPublicApi: {
-          getAccessiblePropertyIds: async () => accessibleProperties.map(propertyId),
-          getAssignedPortals: async () => [],
-        },
-      }),
+      eligibility: policyDeps(identityFacts),
       listHeld: managers.listActiveForUser,
       releaseHeld: (release, lost) =>
         managers.releaseForUser({
@@ -187,6 +215,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await clean()
+  afterNextManagerRead = null
   members = [accountAdmin(ADMIN), accountAdmin(DEPARTING)]
   accessibleProperties = []
   await pool.query(
@@ -287,6 +316,51 @@ describe.sequential('Portal responsibility across a member removal (PostgreSQL)'
       },
     ])
     expect(await gapFacts()).toEqual([{ portal_id: OTHER_PROPERTY_PORTAL, actor: ADMIN }])
+  })
+
+  it('ends an assignment that commits after the removal was already consumed, and refuses the save', async () => {
+    // The other admin's save has read the member as eligible. Before it
+    // commits, the membership delete commits and the worker consumes its fact:
+    // nothing is held yet, so nothing is released, and the receipt is written.
+    // No later delivery will look again.
+    const consumed: ConsumerEvent[] = []
+    afterNextManagerRead = async () => {
+      const removed = await removeMembership()
+      await removalConsumer().handler(removed)
+      consumed.push(removed)
+    }
+
+    await expect(
+      saveManagers(
+        { portalId: PORTAL, managerUserIds: [DEPARTING], expectedRevision: 1 },
+        buildTestAuthContext({
+          userId: userId(ADMIN),
+          organizationId: organizationId(ORG),
+          role: 'AccountAdmin',
+        }),
+      ),
+    ).rejects.toMatchObject({
+      _tag: 'PortalError',
+      code: 'responsible_manager_ineligible',
+    })
+
+    expect(consumed).toHaveLength(1)
+    expect(await receipts(consumed[0]!.eventId)).toEqual([
+      { consumer_name: 'portal.on-member-removed', status: 'applied' },
+    ])
+    // The clock has not moved since the assignment was stamped, and an
+    // interval ends after it began.
+    const releasedAt = new Date(COMMITTED_AT.getTime() + 1)
+    expect(await assignments()).toEqual([
+      {
+        portal_id: PORTAL,
+        effective_to: releasedAt,
+        end_reason: 'manager_became_ineligible',
+      },
+    ])
+    // Nobody chose this gap, so nobody is left out of the notice.
+    expect(await neededSince(PORTAL)).toEqual(releasedAt)
+    expect(await gapFacts()).toEqual([{ portal_id: PORTAL, actor: null }])
   })
 
   it('runs under its own ungated, Organization-scoped catalogue row', () => {

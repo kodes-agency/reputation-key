@@ -33,6 +33,7 @@ const DEPARTING = userId('departing-property-offboarding-gap')
 const ASSIGNED_AT = new Date('2026-10-13T09:00:00.000Z')
 const REMOVED_AT = new Date('2026-10-13T09:00:01.000Z')
 const DELIVERED_AT = new Date('2026-10-13T09:00:05.000Z')
+const COMMITTED_AT = new Date('2026-10-13T09:00:06.000Z')
 
 const manager = (id: string): ResponsibleManagerMembership => ({
   userId: id,
@@ -46,6 +47,20 @@ let pool: Pool
 let now = ASSIGNED_AT
 /** Identity's current managers of the Organization. */
 let members: readonly ResponsibleManagerMembership[] = []
+/**
+ * Runs once, after Identity's next answer was read and before its caller goes
+ * on: how a removal is made to commit between an assignment's eligibility read
+ * and its own commit.
+ */
+let afterNextManagerRead: (() => Promise<void>) | null = null
+
+async function listActiveManagers(): Promise<readonly ResponsibleManagerMembership[]> {
+  const read = members
+  const interleaved = afterNextManagerRead
+  afterNextManagerRead = null
+  await interleaved?.()
+  return read
+}
 
 const property = buildPropertyContext({
   db,
@@ -57,7 +72,7 @@ const property = buildPropertyContext({
     getAccessiblePropertyIds: async () => null,
     getAssignedPortals: async () => [],
   },
-  identityManagerFacts: { listActiveManagers: async () => members },
+  identityManagerFacts: { listActiveManagers },
   logger: { info: () => {}, warn: () => {} },
 })
 
@@ -181,6 +196,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await clean()
+  afterNextManagerRead = null
   members = [manager(ADMIN), manager(DEPARTING)]
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt") VALUES ($1, $1, $1, NOW())`,
@@ -243,6 +259,96 @@ describe.sequential(
       ])
       expect(await neededSince()).toBeNull()
       expect(await gapFacts()).toEqual([])
+    })
+
+    it('ends an assignment that commits after the removal was already consumed, and refuses the save', async () => {
+      now = ASSIGNED_AT
+      const { revision } =
+        await property.publicApi.management.listPropertyResponsibleManagers(
+          { propertyId: PROPERTY },
+          admin,
+        )
+      // The other admin's save has read the member as eligible. Before it
+      // commits, the membership delete commits and the worker consumes its
+      // fact: nothing is held yet, so nothing is released, and the receipt is
+      // written. No later delivery will look again.
+      const consumed: ConsumerEvent[] = []
+      afterNextManagerRead = async () => {
+        const removed = await removeMembership()
+        await deliver(removed)
+        consumed.push(removed)
+        now = COMMITTED_AT
+      }
+
+      await expect(
+        property.publicApi.management.updatePropertyResponsibleManagers(
+          {
+            propertyId: PROPERTY,
+            managerUserIds: [DEPARTING],
+            expectedRevision: revision,
+          },
+          admin,
+        ),
+      ).rejects.toMatchObject({
+        _tag: 'PropertyError',
+        code: 'responsible_manager_ineligible',
+      })
+
+      expect(consumed).toHaveLength(1)
+      expect(await receipts(consumed[0]!.eventId)).toEqual([
+        { consumer_name: 'property.on-member-removed', status: 'applied' },
+      ])
+      // The clock has not moved since the assignment was stamped, and an
+      // interval ends after it began.
+      const releasedAt = new Date(COMMITTED_AT.getTime() + 1)
+      expect(await assignments()).toEqual([
+        {
+          user_id: DEPARTING,
+          effective_to: releasedAt,
+          end_reason: 'manager_became_ineligible',
+        },
+      ])
+      // Nobody chose this gap, so nobody is left out of the notice.
+      expect(await neededSince()).toEqual(releasedAt)
+      expect(await gapFacts()).toEqual([{ actor: null }])
+    })
+
+    it('announces the gap once when the save sees the removal before the worker delivers it', async () => {
+      now = ASSIGNED_AT
+      const { revision } =
+        await property.publicApi.management.listPropertyResponsibleManagers(
+          { propertyId: PROPERTY },
+          admin,
+        )
+      // The membership delete commits after the save read the member as
+      // eligible; the worker has not reached its fact when the save commits.
+      const undelivered: ConsumerEvent[] = []
+      afterNextManagerRead = async () => {
+        undelivered.push(await removeMembership())
+        now = COMMITTED_AT
+      }
+      await expect(
+        property.publicApi.management.updatePropertyResponsibleManagers(
+          {
+            propertyId: PROPERTY,
+            managerUserIds: [DEPARTING],
+            expectedRevision: revision,
+          },
+          admin,
+        ),
+      ).rejects.toMatchObject({ code: 'responsible_manager_ineligible' })
+
+      await expect(deliver(undelivered[0]!)).resolves.toEqual([{ status: 'applied' }])
+
+      // The save's own check released them; the fact finds nothing left.
+      expect(await assignments()).toEqual([
+        {
+          user_id: DEPARTING,
+          effective_to: new Date(COMMITTED_AT.getTime() + 1),
+          end_reason: 'manager_became_ineligible',
+        },
+      ])
+      expect(await gapFacts()).toEqual([{ actor: null }])
     })
 
     it('runs under its own ungated, Organization-scoped catalogue row', () => {

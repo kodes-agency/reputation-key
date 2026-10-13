@@ -3,6 +3,8 @@ import { organizationId, propertyId, userId, type PropertyId } from '#/shared/do
 import {
   isEligibleResponsibleManager,
   listEligibleResponsibleManagers,
+  listIneligibleResponsibleManagers,
+  listPropertyIdsNoLongerEligible,
   releaseRemovedMemberResponsibilities,
   type RemovedMemberRelease,
   type ResponsibleManagerEligibilityDeps,
@@ -116,6 +118,65 @@ describe('responsible manager eligibility policy', () => {
     await expect(
       isEligibleResponsibleManager(deps, ORG, PROPERTY, 'stranger'),
     ).resolves.toBe(false)
+  })
+})
+
+describe('who is no longer an eligible manager', () => {
+  it('names the selected users who are not eligible at the Property, in the order given', async () => {
+    const ungranted: ResponsibleManagerMembership = { ...manager, userId: 'manager-2' }
+    const { deps } = depsWith([admin, manager, ungranted], {
+      'manager-1': [PROPERTY],
+      'manager-2': [OTHER_PROPERTY],
+    })
+
+    await expect(
+      listIneligibleResponsibleManagers(deps, ORG, PROPERTY, [
+        'stranger',
+        'admin-1',
+        'manager-2',
+        'manager-1',
+      ]),
+    ).resolves.toEqual(['stranger', 'manager-2'])
+  })
+
+  it('names nobody when every selected user is eligible', async () => {
+    const { deps } = depsWith([admin, manager], { 'manager-1': [PROPERTY] })
+
+    await expect(
+      listIneligibleResponsibleManagers(deps, ORG, PROPERTY, ['admin-1', 'manager-1']),
+    ).resolves.toEqual([])
+  })
+
+  it('names every Property a user who is gone held a responsibility at, once each', async () => {
+    const { deps } = depsWith([admin], {})
+
+    const lostAt = await listPropertyIdsNoLongerEligible(deps, ORG, 'manager-1', [
+      'property-1',
+      'property-1',
+      'property-2',
+    ])
+
+    expect([...lostAt]).toEqual(['property-1', 'property-2'])
+  })
+
+  it('keeps the Properties a user may still manage, Property by Property', async () => {
+    // Removed, then invited again as a PropertyManager of one Property.
+    const { deps } = depsWith([admin, manager], { 'manager-1': [PROPERTY] })
+
+    const lostAt = await listPropertyIdsNoLongerEligible(deps, ORG, 'manager-1', [
+      'property-1',
+      'property-2',
+    ])
+
+    expect([...lostAt]).toEqual(['property-2'])
+  })
+
+  it('names nothing for a user who holds nothing', async () => {
+    const { deps } = depsWith([admin], {})
+
+    const lostAt = await listPropertyIdsNoLongerEligible(deps, ORG, 'manager-1', [])
+
+    expect(lostAt.size).toBe(0)
   })
 })
 

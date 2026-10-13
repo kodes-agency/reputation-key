@@ -3,6 +3,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import {
   isEligibleResponsibleManager,
   listEligibleResponsibleManagers,
+  listIneligibleResponsibleManagers,
 } from '#/shared/responsible-manager-eligibility'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
@@ -29,3 +30,12 @@ export const isEligiblePropertyManager = (
   propertyId: PropertyId,
   userId: string,
 ) => isEligibleResponsibleManager(policyDeps(deps), organizationId, propertyId, userId)
+
+/** Of these users, those who are not an eligible manager of the Property now. */
+export const listIneligiblePropertyManagers = (
+  deps: PropertyManagerEligibilityDeps,
+  organizationId: OrganizationId,
+  propertyId: PropertyId,
+  userIds: readonly string[],
+) =>
+  listIneligibleResponsibleManagers(policyDeps(deps), organizationId, propertyId, userIds)
