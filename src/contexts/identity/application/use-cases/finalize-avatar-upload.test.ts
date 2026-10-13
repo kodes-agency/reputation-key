@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setPermissionLookup } from '#/shared/domain/permissions'
 import { finalizeAvatarUpload } from './finalize-avatar-upload'
 import { identityAssetPath } from '../identity-assets'
+import { MAX_UPLOAD_BYTES } from '../upload-policy'
 import { organizationId, userId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -27,6 +28,7 @@ const mockStorage = {
     key: 'test',
   }),
   confirmUpload: async () => {},
+  inspectObject: async () => ({ contentType: 'image/png', sizeBytes: 1024 }),
   deleteObject: async () => {},
   getObject: async () => null,
   putObject: async () => {},
@@ -79,15 +81,79 @@ describe('finalizeAvatarUpload', () => {
     expect(avatarUrl).not.toContain('amazonaws')
   })
 
-  it('confirms the object it names, and nothing else', async () => {
-    const confirmUpload = vi.fn(async () => {})
+  it('reads the stored object it names, and nothing else', async () => {
+    const inspectObject = vi.fn(async () => ({
+      contentType: 'image/png',
+      sizeBytes: 1024,
+    }))
     const useCase = finalizeAvatarUpload({
-      storage: { ...mockStorage, confirmUpload },
+      storage: { ...mockStorage, inspectObject },
     })
 
     await useCase({ key: `avatars/${adminCtx.userId}/${ASSET}` }, adminCtx)
 
-    expect(confirmUpload).toHaveBeenCalledWith(`avatars/${adminCtx.userId}/${ASSET}`)
+    expect(inspectObject).toHaveBeenCalledWith(`avatars/${adminCtx.userId}/${ASSET}`)
+  })
+
+  // The 5 MB rule was only ever checked against the size the browser declared
+  // when it asked for the upload address; the address itself carries no bound.
+  it('refuses a stored object over the cap, whatever size was declared, and removes it', async () => {
+    const key = `avatars/${adminCtx.userId}/${ASSET}`
+    const deleteObject = vi.fn(async () => {})
+    const useCase = finalizeAvatarUpload({
+      storage: {
+        ...mockStorage,
+        inspectObject: async () => ({
+          contentType: 'image/png',
+          sizeBytes: MAX_UPLOAD_BYTES + 1,
+        }),
+        deleteObject,
+      },
+    })
+
+    await expect(useCase({ key }, adminCtx)).rejects.toMatchObject({
+      _tag: 'IdentityError',
+      code: 'validation_error',
+      message: 'File size exceeds 5 MB limit',
+    })
+    expect(deleteObject).toHaveBeenCalledExactlyOnceWith(key)
+  })
+
+  it('accepts a stored object exactly at the cap and removes nothing', async () => {
+    const deleteObject = vi.fn(async () => {})
+    const useCase = finalizeAvatarUpload({
+      storage: {
+        ...mockStorage,
+        inspectObject: async () => ({
+          contentType: 'image/png',
+          sizeBytes: MAX_UPLOAD_BYTES,
+        }),
+        deleteObject,
+      },
+    })
+
+    const result = await useCase({ key: `avatars/${adminCtx.userId}/${ASSET}` }, adminCtx)
+
+    expect(result.avatarUrl).toBe(`/api/public/identity-assets/avatars/user-1/${ASSET}`)
+    expect(deleteObject).not.toHaveBeenCalled()
+  })
+
+  it('refuses a stored object whose size the store does not report, and removes it', async () => {
+    const key = `avatars/${adminCtx.userId}/${ASSET}`
+    const deleteObject = vi.fn(async () => {})
+    const useCase = finalizeAvatarUpload({
+      storage: {
+        ...mockStorage,
+        inspectObject: async () => ({ contentType: 'image/png', sizeBytes: null }),
+        deleteObject,
+      },
+    })
+
+    await expect(useCase({ key }, adminCtx)).rejects.toMatchObject({
+      code: 'validation_error',
+      message: 'The uploaded file could not be checked. Upload it again.',
+    })
+    expect(deleteObject).toHaveBeenCalledExactlyOnceWith(key)
   })
 
   it('refuses a key under another user', async () => {
@@ -110,7 +176,7 @@ describe('finalizeAvatarUpload', () => {
     const useCase = finalizeAvatarUpload({
       storage: {
         ...mockStorage,
-        confirmUpload: async () => {
+        inspectObject: async () => {
           throw new Error('NotFound')
         },
       },

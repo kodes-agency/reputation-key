@@ -231,8 +231,9 @@ How each path works against it:
   `getObject`) and served from `/api/public/portal-media/:assetId`. No browser
   ever talks to the bucket and no CORS rule is involved.
 - **Avatars and organization logos** are uploaded by the browser with a presigned
-  `PUT` (`avatars/<user>/<uuid>`, `organizations/<org>/logo/<uuid>`), confirmed by
-  the server (`confirmUpload` is a `HEAD`; it returns no URL), and stored as a
+  `PUT` (`avatars/<user>/<uuid>`, `organizations/<org>/logo/<uuid>`), checked by
+  the server (`inspectObject` is a `HEAD` that reads the stored size; it returns
+  no URL), and stored as a
   root-relative path on the app, `/api/public/identity-assets/<key>`. No provider
   or AWS URL and no host is stored, so the value survives a change of endpoint,
   region, provider or domain. The route reads the object back and serves it, for
@@ -249,6 +250,20 @@ How each path works against it:
   removal hold no storage and delete none). Set a bucket lifecycle rule that
   expires `avatars/` and `organizations/` objects nothing refers to, or sweep
   them by key, when the storage policy is decided.
+  **The 5 MB cap is the app's, not the store's.** The signed upload address
+  carries no length bound and stays valid for an hour, so the bytes a signed-in
+  member sends to it can be any size the bucket accepts. The app reads the
+  stored size, and refuses and deletes an object over 5 MB, at the finalize step
+  of both uploads and again where an avatar's address is saved
+  (`updateUserImageFn`), because a caller can skip the finalize step. A logo's
+  address is saved only by its finalize step (`updateOrganization` refuses the
+  address of an uploaded picture). That check judges the object as it is at
+  that moment: the signed address can still replace it, at any size, until its
+  hour ends, so an object over the cap can end up referenced. What holds
+  whatever was sent is that nothing over the cap is served: the image route
+  reads at most 5 MB and answers 404 for a larger object. An upload that is
+  never saved is not checked and stays, at whatever size, until the rule above
+  exists.
   Values stored before this change (an `s3.<region>.amazonaws.com` address) never
   loaded; migration 0053 clears them so the UI shows initials, and the person
   uploads again (detection query in `docs/operations/operator-commands.md`).

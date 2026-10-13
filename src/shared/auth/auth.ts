@@ -81,6 +81,39 @@ export const markEmailVerifiedOnPasswordReset =
     }
   }
 
+type ResetMailFailureLog = Readonly<{
+  warn: (fields: Readonly<Record<string, unknown>>, message: string) => void
+}>
+
+/**
+ * Better Auth awaits its reset sender before it answers the request, and it
+ * calls the sender only for an address that has an account. A sender that
+ * waits for the mail provider therefore makes the answer for a member one
+ * HTTPS round trip slower than the answer for a stranger, and that difference
+ * is what the uniform "if an account exists" reply is there to hide. So the
+ * send is started and not awaited.
+ *
+ * Nothing is lost by not waiting: the provider never failed a request for a
+ * failed send, it only logged it. The failure is logged here instead, by name
+ * only, because a send error carries the recipient's address; the mail adapter
+ * logs its own detail with the address masked. A process that stops before the
+ * send finishes loses that one mail, and the person asks again.
+ */
+export const detachedResetPasswordSender =
+  (send: (to: string, url: string) => Promise<void>, logger: ResetMailFailureLog) =>
+  ({
+    user,
+    url,
+  }: Readonly<{ user: Readonly<{ email: string }>; url: string }>): Promise<void> => {
+    void send(user.email, url).catch((error: unknown) => {
+      logger.warn(
+        { errorName: error instanceof Error ? error.name : typeof error },
+        'auth.password_reset_mail_failed: the reset mail was not sent; the request was answered as usual',
+      )
+    })
+    return Promise.resolve()
+  }
+
 export function createAuth() {
   const env = getEnv()
   const pool = getPool()
@@ -134,9 +167,7 @@ export function createAuth() {
       // synthetic user when this is false; registration refuses that address
       // before sign-up (account_exists) and acceptance fences the user row.
       autoSignIn: false,
-      sendResetPassword: async ({ user, url }) => {
-        await sendResetPasswordEmail(user.email, url)
-      },
+      sendResetPassword: detachedResetPasswordSender(sendResetPasswordEmail, getLogger()),
       onPasswordReset: markEmailVerifiedOnPasswordReset(pool, getLogger()),
     },
     emailVerification: {

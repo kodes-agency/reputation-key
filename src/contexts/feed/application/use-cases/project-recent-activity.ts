@@ -62,29 +62,22 @@ export const prepareRecentActivityEntry = async (
 
   const { organizationId } = activityFields
 
-  // Resolve actor info — fall back to system defaults on lookup failure.
+  // Resolve the actor. A fact that names no user is the system's own. One that
+  // names a user is looked up, and a lookup that FAILS fails the projection:
+  // the entry is written once per event, so naming System for an action a
+  // person took could never be corrected by a redelivery. The durable consumer
+  // retries instead, as it does for a failed Inbox item lookup. An actor the
+  // lookup does not find is not a failure: the adapter answers with its
+  // fallback and the entry keeps the user's id.
   let actorName = 'System'
   let actorAvatarUrl: string | null = null
   let actorRole: Role = 'Member'
-  // ACT-011: track whether the real user was resolved. When lookup fails,
-  // actorId must be SYSTEM_USER_ID (not the real userId) so the record is
-  // consistently attributed to 'system' — actorName/actorRole already fall
-  // back to system defaults, so actorId should match.
-  let resolvedUserId: UserId | null = userId
 
   if (userId) {
-    try {
-      const user = await deps.userLookup.lookup(
-        userId as string,
-        organizationId as string,
-      )
-      actorName = user.name
-      actorAvatarUrl = user.avatarUrl
-      actorRole = user.role ?? 'Member'
-    } catch (e) {
-      deps.logger.warn({ error: e }, 'Activity user lookup failed, using system defaults')
-      resolvedUserId = null
-    }
+    const user = await deps.userLookup.lookup(userId as string, organizationId as string)
+    actorName = user.name
+    actorAvatarUrl = user.avatarUrl
+    actorRole = user.role ?? 'Member'
   }
 
   const projectionTime =
@@ -100,7 +93,7 @@ export const prepareRecentActivityEntry = async (
   return createRecentActivityEntry(
     {
       id: deps.idGen(),
-      actorId: resolvedUserId || SYSTEM_USER_ID,
+      actorId: userId || SYSTEM_USER_ID,
       actorName,
       actorAvatarUrl,
       actorRole,

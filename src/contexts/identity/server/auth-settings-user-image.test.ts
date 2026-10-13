@@ -1,8 +1,11 @@
 // Saving a new avatar: the image is stored, the one it replaces is freed, and a
 // path on the app is a valid address while a foreign object never is deleted.
+// The address of an uploaded avatar is saved only for the member's own object,
+// and only after its stored size has been read.
 
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_UPLOAD_BYTES } from '../application/upload-policy'
 
 const OLD = '3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
 const NEW = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'
@@ -10,6 +13,7 @@ const NEW = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'
 const mocks = vi.hoisted(() => ({
   updateUser: vi.fn(),
   currentUserImage: vi.fn(),
+  inspectObject: vi.fn(),
   deleteObject: vi.fn(),
   warn: vi.fn(),
   resolveTenantContext: vi.fn(),
@@ -33,7 +37,10 @@ vi.mock('#/shared/observability/traced-server-fn', () => ({
 }))
 vi.mock('#/composition', () => ({
   getContainer: () => ({
-    assetStorage: { deleteObject: mocks.deleteObject },
+    assetStorage: {
+      inspectObject: mocks.inspectObject,
+      deleteObject: mocks.deleteObject,
+    },
     identityAssetReferences: { currentUserImage: mocks.currentUserImage },
     logger: { warn: mocks.warn, error: vi.fn(), info: vi.fn() },
   }),
@@ -54,6 +61,7 @@ describe('updateUserImageFn', () => {
     })
     mocks.requireExecutionAllowed.mockResolvedValue(undefined)
     mocks.updateUser.mockResolvedValue({ status: true })
+    mocks.inspectObject.mockResolvedValue({ contentType: 'image/png', sizeBytes: 1024 })
     mocks.deleteObject.mockResolvedValue(undefined)
   })
 
@@ -86,6 +94,67 @@ describe('updateUserImageFn', () => {
     expect(mocks.deleteObject).not.toHaveBeenCalled()
   })
 
+  // The finalize step reads the stored size, but nothing makes a caller run it:
+  // a member could ask for an upload address declaring one byte, send any size
+  // and call this function with the path. The save is the step that cannot be
+  // skipped, so the size is read here too.
+  it('refuses an uploaded avatar the store holds over the cap, removes it, and saves nothing', async () => {
+    mocks.currentUserImage.mockResolvedValue(
+      `/api/public/identity-assets/avatars/user-1/${OLD}`,
+    )
+    mocks.inspectObject.mockResolvedValue({
+      contentType: 'image/png',
+      sizeBytes: MAX_UPLOAD_BYTES + 1,
+    })
+
+    await expect(
+      save(`/api/public/identity-assets/avatars/user-1/${NEW}`),
+    ).rejects.toMatchObject({
+      name: 'IdentityError',
+      code: 'validation_error',
+      status: 400,
+      message: 'File size exceeds 5 MB limit',
+    })
+
+    expect(mocks.inspectObject).toHaveBeenCalledExactlyOnceWith(`avatars/user-1/${NEW}`)
+    expect(mocks.deleteObject).toHaveBeenCalledExactlyOnceWith(`avatars/user-1/${NEW}`)
+    expect(mocks.updateUser).not.toHaveBeenCalled()
+  })
+
+  it('saves nothing when the upload never arrived or the store cannot be read', async () => {
+    mocks.currentUserImage.mockResolvedValue(null)
+    mocks.inspectObject.mockRejectedValue(new Error('NotFound'))
+
+    await expect(
+      save(`/api/public/identity-assets/avatars/user-1/${NEW}`),
+    ).rejects.toMatchObject({ name: 'InternalError', status: 500 })
+
+    expect(mocks.updateUser).not.toHaveBeenCalled()
+    expect(mocks.deleteObject).not.toHaveBeenCalled()
+  })
+
+  // The schema accepts any user's avatar path, and the size check deletes what
+  // it refuses, so the key is held to the caller before the store is touched.
+  it('refuses another user’s avatar path without reading or deleting their object', async () => {
+    mocks.currentUserImage.mockResolvedValue(null)
+    mocks.inspectObject.mockResolvedValue({
+      contentType: 'image/png',
+      sizeBytes: MAX_UPLOAD_BYTES + 1,
+    })
+
+    await expect(
+      save(`/api/public/identity-assets/avatars/someone-else/${NEW}`),
+    ).rejects.toMatchObject({
+      name: 'IdentityError',
+      code: 'forbidden',
+      status: 403,
+    })
+
+    expect(mocks.inspectObject).not.toHaveBeenCalled()
+    expect(mocks.deleteObject).not.toHaveBeenCalled()
+    expect(mocks.updateUser).not.toHaveBeenCalled()
+  })
+
   it('never deletes another user’s object, even if that is what was stored', async () => {
     mocks.currentUserImage.mockResolvedValue(
       `/api/public/identity-assets/avatars/someone-else/${OLD}`,
@@ -104,6 +173,7 @@ describe('updateUserImageFn', () => {
     await save('https://cdn.example.com/me.png')
 
     expect(mocks.updateUser).toHaveBeenCalledOnce()
+    expect(mocks.inspectObject).not.toHaveBeenCalled()
     expect(mocks.deleteObject).not.toHaveBeenCalled()
   })
 
@@ -121,6 +191,7 @@ describe('updateUserImageFn', () => {
       headers: expect.any(Headers),
       body: { image: null },
     })
+    expect(mocks.inspectObject).not.toHaveBeenCalled()
     expect(mocks.deleteObject).toHaveBeenCalledExactlyOnceWith(`avatars/user-1/${OLD}`)
   })
 

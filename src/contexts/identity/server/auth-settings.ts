@@ -8,7 +8,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { handleAuthError } from './auth-settings.helpers'
+import { assertSavableAvatar, handleAuthError } from './auth-settings.helpers'
 import { identityAssetKeyFromPath } from '../application/identity-assets'
 import { retireReplacedIdentityAsset } from '../application/retire-replaced-identity-asset'
 import { changePasswordCommandSchema } from '../application/dto/change-password.dto'
@@ -103,6 +103,11 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
         const { getContainer } = await import('#/composition')
         const { assetStorage, identityAssetReferences, logger } = getContainer()
         const previous = await identityAssetReferences.currentUserImage(ctx.userId)
+        // The object behind the new address, when it is one of ours. Its owner
+        // and its stored size are checked here, at the step no caller can skip.
+        const nextKey =
+          data.imageUrl === null ? null : identityAssetKeyFromPath(data.imageUrl)
+        if (nextKey) await assertSavableAvatar(assetStorage, nextKey, ctx.userId)
 
         try {
           // `null` removes the avatar: it is saved, so it stays removed on reload.
@@ -122,8 +127,6 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
 
         // The picture it replaces, or the one that was removed, is no longer shown
         // anywhere; free its bytes. An address that is not one of ours has none.
-        const nextKey =
-          data.imageUrl === null ? null : identityAssetKeyFromPath(data.imageUrl)
         if (data.imageUrl === null || nextKey) {
           await retireReplacedIdentityAsset({ storage: assetStorage, logger })({
             previous,

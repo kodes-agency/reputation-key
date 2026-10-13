@@ -320,9 +320,12 @@ export const RetryAFailedAnswer: Story = {
     await userEvent.click(await canvas.findByRole('button', { name: 'Save setup' }))
 
     await expect(canvas.findByText('Some answers were not saved')).resolves.toBeVisible()
+    // The fixture's failure is not a refusal the server worded, so the list
+    // prints the one generic sentence and not the error's own text.
     await expect(
-      canvas.getByText(/Reply language: The property could not be reached/),
+      canvas.getByText(/Reply language: Couldn't save this setting\. Try again\./),
     ).toBeVisible()
+    await expect(canvas.queryByText(/could not be reached/)).toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: /try again/i }))
 
     await expect(canvas.findByText('Setup saved')).resolves.toBeVisible()

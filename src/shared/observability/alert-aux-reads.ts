@@ -13,9 +13,11 @@
 //
 // Same operational-monitoring seam as health-metrics.ts (raw aggregate SQL
 // via Drizzle — the eslint exemption sits next to it). Every sub-read
-// degrades independently: a failed read logs a warn and falls back to EMPTY
-// (never a fabricated breach) so one hiccup cannot mute the snapshot-based
-// alerts — the same degraded-section posture as the operations snapshot.
+// degrades independently, so one hiccup cannot mute the snapshot-based alerts:
+// a failed read logs a warn and reports `monitorAvailable: false` with empty
+// values, and its alert fires "monitor unavailable". It never falls back to a
+// reading that looks healthy: an empty list of failed retention runs said
+// "every sweep succeeded" when nothing had been read.
 
 import { sql } from 'drizzle-orm'
 import type pino from 'pino'
@@ -38,7 +40,9 @@ export type AlertAuxReaderDeps = Readonly<{
 }>
 
 /** retention_runs subjects whose LATEST sweep run failed (DISTINCT ON). */
-async function readRetentionFailedSubjects(db: Database): Promise<readonly string[]> {
+async function readRetentionFailedSubjects(
+  db: Database,
+): Promise<AlertAuxReads['retention']> {
   const result = await db.execute(sql`
     SELECT DISTINCT ON (${retentionRuns.subject})
       ${retentionRuns.subject} AS subject,
@@ -46,9 +50,12 @@ async function readRetentionFailedSubjects(db: Database): Promise<readonly strin
     FROM ${retentionRuns}
     ORDER BY ${retentionRuns.subject}, ${retentionRuns.startedAt} DESC
   `)
-  return result.rows
-    .filter((row) => (row as { outcome?: string }).outcome === 'failed')
-    .map((row) => String((row as { subject?: string }).subject))
+  return {
+    monitorAvailable: true,
+    failedSubjects: result.rows
+      .filter((row) => (row as { outcome?: string }).outcome === 'failed')
+      .map((row) => String((row as { subject?: string }).subject)),
+  }
 }
 
 async function readBetaFeedbackTriage(
@@ -317,43 +324,42 @@ async function readReviewAnalysisHealth(
 export function createAlertAuxReader(deps: AlertAuxReaderDeps): AlertAuxReader {
   return {
     read: async () => {
-      const [retentionFailedSubjects, betaFeedbackTriage, reviewAnalysis] =
-        await Promise.all([
-          readRetentionFailedSubjects(deps.db).catch((err: unknown) => {
-            deps.logger.warn(
-              { err },
-              '[alert-aux] retention_runs read failed — empty fallback',
-            )
-            return [] as readonly string[]
-          }),
-          readBetaFeedbackTriage(deps.db).catch((err: unknown) => {
-            deps.logger.warn(
-              { err },
-              '[alert-aux] beta-feedback triage read failed — unavailable fallback',
-            )
-            return {
-              monitorAvailable: false,
-              deliveredUnresolvedCount: 0,
-              oldestDeliveredUnresolvedAgeMs: null,
-            } as const
-          }),
-          readReviewAnalysisHealth(deps.db).catch((err: unknown) => {
-            deps.logger.warn(
-              { err },
-              '[alert-aux] Review Analysis health read failed — unavailable fallback',
-            )
-            return {
-              monitorAvailable: false,
-              incompletePropertyCount: 0,
-              pendingSettlementCount: 0,
-              oldestNoProgressAgeMs: null,
-              zeroSnapshotEnrollmentCount: 0,
-              eligibleReviewCountMissed: 0,
-            } as const
-          }),
-        ])
+      const [retention, betaFeedbackTriage, reviewAnalysis] = await Promise.all([
+        readRetentionFailedSubjects(deps.db).catch((err: unknown) => {
+          deps.logger.warn(
+            { err },
+            '[alert-aux] retention_runs read failed — unavailable fallback',
+          )
+          return { monitorAvailable: false, failedSubjects: [] } as const
+        }),
+        readBetaFeedbackTriage(deps.db).catch((err: unknown) => {
+          deps.logger.warn(
+            { err },
+            '[alert-aux] beta-feedback triage read failed — unavailable fallback',
+          )
+          return {
+            monitorAvailable: false,
+            deliveredUnresolvedCount: 0,
+            oldestDeliveredUnresolvedAgeMs: null,
+          } as const
+        }),
+        readReviewAnalysisHealth(deps.db).catch((err: unknown) => {
+          deps.logger.warn(
+            { err },
+            '[alert-aux] Review Analysis health read failed — unavailable fallback',
+          )
+          return {
+            monitorAvailable: false,
+            incompletePropertyCount: 0,
+            pendingSettlementCount: 0,
+            oldestNoProgressAgeMs: null,
+            zeroSnapshotEnrollmentCount: 0,
+            eligibleReviewCountMissed: 0,
+          } as const
+        }),
+      ])
 
-      return { retentionFailedSubjects, betaFeedbackTriage, reviewAnalysis }
+      return { retention, betaFeedbackTriage, reviewAnalysis }
     },
   }
 }

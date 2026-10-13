@@ -2,7 +2,9 @@
 // Nitro error hook and Sentry's request middleware never see it. Two answer a
 // mail provider and a mail client, which retry or give up in silence; the third
 // is the image upload, where a broken bucket would otherwise be a quiet 500:
-// the capture has to happen where the 500 is chosen.
+// the capture has to happen where the 500 is chosen. The Google push webhook
+// and the public link redirect hold the same rule in their own test files
+// (webhooks/gbp/-notifications.test.ts, public/p/$token/click/-$linkId.test.ts).
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createOneClickUnsubscribeToken } from '#/contexts/feed/application/one-click-unsubscribe-token'
