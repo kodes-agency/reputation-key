@@ -4,7 +4,7 @@
 // not announce itself: an archive missing one context still opens, still has a
 // manifest, and still looks complete to whoever receives it.
 
-import { readFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import { ORGANIZATION_LIFECYCLE_CONTEXTS } from '#/contexts/identity/domain/organization-lifecycle'
 import type { Database } from '#/shared/db'
@@ -92,5 +92,45 @@ describe('organization lifecycle contributor set', () => {
     const source = await readFile(new URL('../composition.ts', import.meta.url), 'utf8')
     expect(source).not.toContain('buildOrganizationLifecycleContributors')
     expect(source).not.toContain('lifecycleContributors:')
+  })
+})
+
+describe('the contributor sets are the only place a contributor is built', () => {
+  // A context build that constructs its own export or lifecycle contributor
+  // publishes a second instance nothing reads: both sets above are assembled
+  // from `db` and never from a built context. An engineer who changes how that
+  // instance is constructed changes nothing in production, and the build test
+  // still passes.
+  const CONTRIBUTOR_CONSTRUCTION =
+    /\bcreate[A-Za-z]+Organization(?:Export|Lifecycle)(?:Contributor|Adapter)\(/gu
+
+  /**
+   * The two a set cannot build for itself, and why. Identity supplies its own
+   * export contributor and refuses a supplied one. Integration's lifecycle
+   * contributor needs the provider port its own build wires, so the build
+   * hands it over as the `integration` argument above.
+   */
+  const BUILT_BY_ITS_OWN_CONTEXT = [
+    'identity: createIdentityOrganizationExportContributor(',
+    'integration: createIntegrationOrganizationLifecycleContributor(',
+  ]
+
+  it('no context build constructs one, except the two a set cannot build itself', async () => {
+    const contextsUrl = new URL('../contexts/', import.meta.url)
+    const contexts = (await readdir(contextsUrl, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+
+    const constructed: string[] = []
+    for (const context of contexts) {
+      const build = await readFile(new URL(`${context}/build.ts`, contextsUrl), 'utf8')
+      for (const [construction] of build.matchAll(CONTRIBUTOR_CONSTRUCTION)) {
+        constructed.push(`${context}: ${construction}`)
+      }
+    }
+
+    expect(contexts).toEqual(expect.arrayContaining(['inbox', 'reporting', 'review']))
+    expect(constructed).toEqual(BUILT_BY_ITS_OWN_CONTEXT)
   })
 })
