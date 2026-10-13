@@ -1,6 +1,7 @@
 // Dashboard context — getAttentionSignals use case.
-// Authorizes the reader for the Property, then aggregates the five
-// attention-band reasons plus their distinct work total.
+// Authorizes the reader for the Property's overview (the band is work state a
+// `dashboard.read` holder without `dashboard.fleet_read` may not read), then
+// aggregates the five attention-band reasons plus their distinct work total.
 
 import type { AttentionSignalsPort } from '../ports/attention-signals.port'
 import type { AttentionSignals } from '../../domain/dashboard-types'
@@ -10,7 +11,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
 import {
-  requireDashboardPropertyAccess,
+  requirePropertyOverviewAccess,
   type DashboardPropertyAccess,
 } from '../dashboard-property-access'
 import { priorPeriodDates, ratingComparison, RATING_DROP_THRESHOLD } from '../utils'
@@ -77,7 +78,7 @@ export const getAttentionSignals =
       timeRange,
       propertyTimezone,
     } = input
-    await requireDashboardPropertyAccess(deps.propertyAccess, ctx, {
+    await requirePropertyOverviewAccess(deps.propertyAccess, ctx, {
       organizationId,
       propertyIds: [propertyId],
     })

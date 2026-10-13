@@ -60,12 +60,36 @@ export const getAccessiblePropertyIdsForPermission = async (
 
 /**
  * The whole Property decision a use case makes first (docs/standards.md §2.2
- * step 1): the caller belongs to the Organization asked about, holds
- * `permission`, and that permission reaches every one of `propertyIds`. The
+ * step 1): the caller belongs to the Organization asked about, holds every one
+ * of `permissions`, and each of them reaches every one of `propertyIds`. The
  * owning context turns `false` into its own tagged `forbidden`. One lookup,
- * however many Properties are asked about.
+ * however many permissions and Properties are asked about: a caller's grants
+ * are the same whichever permission consults them, so an Organization-wide
+ * permission never widens an assigned one beside it.
  */
-export const mayUsePermissionOnProperties = async (
+export const mayUsePermissionsOnProperties = async (
+  lookup: PropertyAccessLookup,
+  ctx: AuthContext,
+  permissions: readonly [Permission, ...Permission[]],
+  scope: Readonly<{
+    organizationId: OrganizationId
+    propertyIds: ReadonlyArray<PropertyId>
+  }>,
+): Promise<boolean> => {
+  if (ctx.organizationId !== scope.organizationId) return false
+  if (!permissions.every((permission) => canForContext(ctx, permission))) return false
+  const reach = permissions.map((permission) => scopeForPermission(ctx, permission))
+  if (reach.every((dataScope) => dataScope === 'organization')) return true
+  const accessible = reach.includes('none')
+    ? []
+    : await lookup(ctx.organizationId, ctx.userId, false)
+  if (accessible === null) return true
+  const granted = new Set<PropertyId>(accessible)
+  return scope.propertyIds.every((id) => granted.has(id))
+}
+
+/** {@link mayUsePermissionsOnProperties} for a read one permission governs. */
+export const mayUsePermissionOnProperties = (
   lookup: PropertyAccessLookup,
   ctx: AuthContext,
   permission: Permission,
@@ -73,14 +97,7 @@ export const mayUsePermissionOnProperties = async (
     organizationId: OrganizationId
     propertyIds: ReadonlyArray<PropertyId>
   }>,
-): Promise<boolean> => {
-  if (ctx.organizationId !== scope.organizationId) return false
-  if (!canForContext(ctx, permission)) return false
-  const accessible = await getAccessiblePropertyIdsForPermission(lookup, ctx, permission)
-  if (accessible === null) return true
-  const granted = new Set<PropertyId>(accessible)
-  return scope.propertyIds.every((id) => granted.has(id))
-}
+): Promise<boolean> => mayUsePermissionsOnProperties(lookup, ctx, [permission], scope)
 
 /**
  * Low-level orgWide-based accessibility check. Callers that still resolve scope from a

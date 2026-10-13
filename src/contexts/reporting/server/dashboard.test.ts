@@ -54,16 +54,27 @@ import { getPortalAnalyticsFn } from './portal-analytics'
 const ctx = { organizationId: ORG_ID, userId: 'manager-1', role: 'PropertyManager' }
 const propertyRead = { propertyId: PROPERTY_ID, timeRange: '30d' as const }
 
+/** The policy question every Property dashboard handler asks. */
+const DASHBOARD_READ_ON_PROPERTY = {
+  actor: ctx,
+  action: 'dashboard.read',
+  propertyId: PROPERTY_ID,
+} as const
+
 const reads = [
   {
     name: 'getDashboardDataFn',
     useCase: mocks.getDashboardData,
     call: () => withStartContext(() => getDashboardDataFn({ data: propertyRead })),
+    asks: [DASHBOARD_READ_ON_PROPERTY],
   },
   {
+    // The overview carries the attention band, which a dashboard.read holder
+    // without dashboard.fleet_read (a Member) may not read.
     name: 'getPropertyOverviewFn',
     useCase: mocks.getPropertyOverview,
     call: () => withStartContext(() => getPropertyOverviewFn({ data: propertyRead })),
+    asks: [DASHBOARD_READ_ON_PROPERTY, { actor: ctx, action: 'dashboard.fleet_read' }],
   },
   {
     name: 'getPortalAnalyticsFn',
@@ -72,16 +83,25 @@ const reads = [
       withStartContext(() =>
         getPortalAnalyticsFn({ data: { ...propertyRead, portalId: PORTAL_ID } }),
       ),
+    asks: [DASHBOARD_READ_ON_PROPERTY],
   },
 ] as const
 
-describe.each(reads)('$name', ({ useCase, call }) => {
+describe.each(reads)('$name', ({ useCase, call, asks }) => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolveTenantContext.mockResolvedValue(ctx)
     mocks.requireExecutionAllowed.mockResolvedValue(undefined)
     mocks.getPropertyTimezone.mockResolvedValue('Europe/Sofia')
     useCase.mockResolvedValue({ marker: 'read' })
+  })
+
+  it('asks the execution policy about the reader, the permission and the Property', async () => {
+    await call()
+
+    expect(mocks.requireExecutionAllowed.mock.calls.map(([request]) => request)).toEqual(
+      asks,
+    )
   })
 
   it('hands the use case the reader it authorizes, for the session Organization', async () => {

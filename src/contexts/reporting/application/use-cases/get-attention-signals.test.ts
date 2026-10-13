@@ -168,6 +168,32 @@ describe('getAttentionSignals authorization', () => {
     expect(getPeriodStats).not.toHaveBeenCalled()
   })
 
+  // The band is reply- and Inbox-derived work state: dashboard.read alone,
+  // which a Member holds for the staff dashboard, does not reach it.
+  it('refuses a Member granted the Property before anything is read', async () => {
+    const getAttentionCounts = vi.fn(signals.getAttentionCounts)
+    const getGoogleReviewTargetCountsByProperty = vi.fn(
+      inboxTargets.getGoogleReviewTargetCountsByProperty,
+    )
+    const getPeriodStats = vi.fn(async () => ({ count: 10, avgRating: 4 }))
+    const getSignals = authorizedGetAttentionSignals({
+      reviewStats: { getPeriodStats },
+      signals: { getAttentionCounts },
+      inboxTargets: { getGoogleReviewTargetCountsByProperty },
+      clock: () => NOW,
+      propertyAccess: async () => [PROPERTY],
+    })
+    const member = buildTestAuthContext({ organizationId: ORG, role: 'Member' })
+
+    await expect(getSignals(last30Days, member)).rejects.toMatchObject({
+      _tag: 'DashboardError',
+      code: 'forbidden',
+    })
+    expect(getAttentionCounts).not.toHaveBeenCalled()
+    expect(getGoogleReviewTargetCountsByProperty).not.toHaveBeenCalled()
+    expect(getPeriodStats).not.toHaveBeenCalled()
+  })
+
   it('serves a manager granted the Property', async () => {
     const getSignals = authorizedGetAttentionSignals({
       reviewStats: reviewPeriods({ count: 10, avgRating: 4 }),

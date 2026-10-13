@@ -137,11 +137,16 @@ The Property-scoped dashboard reads authorize their own reader. `getDashboardDat
 `application/dashboard-property-access.ts`: the reader belongs to the Organization, holds
 `dashboard.read`, and reaches every Property the read names (an Organization-wide holder
 all of them, a manager only those currently granted). A refusal is a tagged `DashboardError`
-`forbidden`, raised before anything is read. `getDashboardData` also hides reply state from a
-reader without `reply.manage` (`domain/reply-workflow-redaction.ts`), so the overview that
-composes it does too. The server functions still ask the execution policy first (capability,
-suspension, kill switch); they no longer make the Property decision themselves, and a caller
-that is not a server function cannot skip it.
+`forbidden`, raised before anything is read. `getPropertyOverview` and `getAttentionSignals`
+ask for more: their attention band is work state (reply targets past due, items to triage,
+escalations), so the reader must also hold `dashboard.fleet_read` and reach the Property with
+it. A Member, who holds `dashboard.read` for the staff dashboard, is refused the overview
+whether or not the Property is granted. `getDashboardData` also hides reply state from a
+reader without `reply.manage` (`domain/reply-workflow-redaction.ts`); that covers the
+`dashboard` half of the overview, and the `dashboard.fleet_read` requirement covers its
+`signals` half. The server functions still ask the execution policy first, with the same
+permissions and the Property (capability, suspension, kill switch, and the policy's own grant
+check); the use case's decision is the one a caller that is not a server function cannot skip.
 
 `getDashboardDataFn` is the one server function no route calls: the Property dashboard
 moved to `getPropertyOverviewFn`. It stays because the dashboard-governance and

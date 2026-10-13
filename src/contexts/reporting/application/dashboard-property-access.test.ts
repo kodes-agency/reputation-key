@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/dashboard-errors'
-import { requireDashboardPropertyAccess } from './dashboard-property-access'
+import {
+  requireDashboardPropertyAccess,
+  requirePropertyOverviewAccess,
+} from './dashboard-property-access'
 
 const ORG_ID = organizationId('00000000-0000-4000-8000-0000000000d1')
 const GRANTED_PROPERTY = propertyId('00000000-0000-4000-8000-0000000000d2')
@@ -17,6 +20,11 @@ const propertyManager: AuthContext = {
   organizationId: ORG_ID,
   userId: userId('manager-1'),
   role: 'PropertyManager',
+}
+const member: AuthContext = {
+  organizationId: ORG_ID,
+  userId: userId('member-1'),
+  role: 'Member',
 }
 
 const granting = (...propertyIds: ReadonlyArray<typeof GRANTED_PROPERTY>) =>
@@ -79,5 +87,52 @@ describe('requireDashboardPropertyAccess', () => {
         propertyIds: [GRANTED_PROPERTY],
       }),
     ).rejects.toMatchObject({ _tag: 'DashboardError', code: 'forbidden' })
+  })
+})
+
+describe('requirePropertyOverviewAccess', () => {
+  it('refuses a Member, who holds dashboard.read alone, on a granted Property', async () => {
+    const grants = granting(GRANTED_PROPERTY)
+
+    // The same reader passes the plain dashboard decision: the overview asks more.
+    await expect(
+      requireDashboardPropertyAccess(grants, member, on(GRANTED_PROPERTY)),
+    ).resolves.toBeUndefined()
+    const refusal = await requirePropertyOverviewAccess(
+      granting(GRANTED_PROPERTY),
+      member,
+      on(GRANTED_PROPERTY),
+    ).catch((error: unknown) => error)
+
+    expect(refusal).toMatchObject({ _tag: 'DashboardError', code: 'forbidden' })
+    expect(isDashboardError(refusal)).toBe(true)
+  })
+
+  it('admits a PropertyManager to a granted Property on one grant lookup', async () => {
+    const grants = granting(GRANTED_PROPERTY)
+
+    await expect(
+      requirePropertyOverviewAccess(grants, propertyManager, on(GRANTED_PROPERTY)),
+    ).resolves.toBeUndefined()
+    expect(grants).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses a PropertyManager an ungranted Property', async () => {
+    await expect(
+      requirePropertyOverviewAccess(
+        granting(GRANTED_PROPERTY),
+        propertyManager,
+        on(OTHER_PROPERTY),
+      ),
+    ).rejects.toMatchObject({ _tag: 'DashboardError', code: 'forbidden' })
+  })
+
+  it('admits an AccountAdmin organization-wide without a grant lookup', async () => {
+    const grants = granting()
+
+    await expect(
+      requirePropertyOverviewAccess(grants, accountAdmin, on(OTHER_PROPERTY)),
+    ).resolves.toBeUndefined()
+    expect(grants).not.toHaveBeenCalled()
   })
 })

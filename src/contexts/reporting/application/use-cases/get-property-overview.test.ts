@@ -136,4 +136,55 @@ describe('getPropertyOverview', () => {
     expect(getAttentionCounts).not.toHaveBeenCalled()
     expect(getGoogleReviewTargetCountsByProperty).not.toHaveBeenCalled()
   })
+
+  // A Member holds dashboard.read for the staff dashboard, not
+  // dashboard.fleet_read: the attention band (reply targets past due, items to
+  // triage, escalations) is not theirs to read, grant or no grant.
+  it('refuses a Member granted the Property before anything is read', async () => {
+    const repo = createInMemoryDashboardRepository()
+    const getAttentionCounts = vi.fn<AttentionSignalsPort['getAttentionCounts']>()
+    const getGoogleReviewTargetCountsByProperty = vi.fn(async () => new Map())
+    const grantsHere = async () => [PROPERTY]
+    const getOverview = getPropertyOverview({
+      getDashboardData: getDashboardData({ repo, propertyAccess: grantsHere }),
+      propertyAccess: grantsHere,
+      attention: { getAttentionCounts },
+      inboxTargets: { getGoogleReviewTargetCountsByProperty },
+      clock: () => NOW,
+    })
+    const member = buildTestAuthContext({ organizationId: ORG, role: 'Member' })
+
+    await expect(getOverview(last30Days, member)).rejects.toMatchObject({
+      _tag: 'DashboardError',
+      code: 'forbidden',
+    })
+    expect(repo.calls).toEqual([])
+    expect(getAttentionCounts).not.toHaveBeenCalled()
+    expect(getGoogleReviewTargetCountsByProperty).not.toHaveBeenCalled()
+  })
+
+  it('serves a manager granted the Property', async () => {
+    const repo = createInMemoryDashboardRepository()
+    const grantsHere = async () => [PROPERTY]
+    const getOverview = getPropertyOverview({
+      getDashboardData: getDashboardData({ repo, propertyAccess: grantsHere }),
+      propertyAccess: grantsHere,
+      attention: {
+        getAttentionCounts: async () => ({
+          overdue: 0,
+          itemsToTriage: 7,
+          escalated: 2,
+          goalsBehindPace: 0,
+          attentionWork: 9,
+        }),
+      },
+      inboxTargets: { getGoogleReviewTargetCountsByProperty: async () => new Map() },
+      clock: () => NOW,
+    })
+    const manager = buildTestAuthContext({ organizationId: ORG, role: 'PropertyManager' })
+
+    const overview = await getOverview(last30Days, manager)
+
+    expect(overview.signals).toMatchObject({ itemsToTriage: 7, escalated: 2 })
+  })
 })
