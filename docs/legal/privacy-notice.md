@@ -142,11 +142,13 @@ sends the provider, directly, an error report when a page fails and a page-load
 record each time it opens a page of the Service or moves to another one. A
 page-load record holds a random identifier for that page view, the time, the
 software version, whether an error occurred, and the browser's user-agent text.
-These reports are content-minimized as described above the table; in
-particular, the text of an error message is replaced before a report is sent.
-Because a browser sends its reports itself, the provider's servers also see the
-network address of that connection, as any website does. The Service does not
-add a network address to a report.
+Error reports, operational alerts, and timing reports are content-minimized as
+described above the table; in particular, the text of an error message is
+replaced before a report is sent. A page-load record and a server health report
+are sent as the monitoring software produces them. Because a browser sends its
+reports itself, the provider's servers also see the network address of that
+connection, as any website does. The Service does not add a network address to
+a report.
 
 A beta feedback report holds the text the Participant wrote, of at most 6,000
 characters. The Service automatically removes email addresses and some forms of
@@ -243,21 +245,21 @@ training on submitted Google content have no activation path.
 The following accepted horizons are implemented or represented in the
 repository:
 
-| Information class                                                                      | Current repository horizon or trigger                                              |
-| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Guest response session                                                                 | No more than 24 hours, counted as explained below this table                       |
-| Guest visit and destination-selection receipts                                         | 30 days; they hold the Guest session identifier, as explained below this table     |
-| Guest private-feedback text                                                            | No more than 90 days; same signed session may withdraw for 24 hours                |
-| Canonical de-identified Guest response fact/tombstone                                  | 24 calendar months from the initial rating                                         |
-| Guest session diagnostic pseudonym                                                     | Redacted after 24 hours                                                            |
-| Guest network-pressure record                                                          | Deleted at exact seven-day expiry                                                  |
-| Published outbox facts, consumer receipts, sync/refresh runs, inbound webhook receipts | 30 days                                                                            |
-| Terminal notifications/email/digest evidence                                           | 90 days; open retry work is retained                                               |
-| Recent Activity                                                                        | 90 days                                                                            |
-| Policy-decision and significant-action records                                         | 365 days under the current engineering policy                                      |
-| Google-controlled source content                                                       | Per-row source-policy expiry; intended maximum 30 days from latest fetch           |
-| Optional masked Bug layout                                                             | Application expiry no later than 30 days; provider deletion still needs live proof |
-| Organization Export object                                                             | At most seven days; single-use retrieval authority at most 24 hours                |
+| Information class                                                                      | Current repository horizon or trigger                                                                                                                                                      |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guest response session                                                                 | No more than 24 hours, counted as explained below this table                                                                                                                               |
+| Guest visit and destination-selection receipts                                         | 30 days; they hold the Guest session identifier, as explained below this table                                                                                                             |
+| Guest private-feedback text                                                            | No more than 90 days; same signed session may withdraw for 24 hours                                                                                                                        |
+| Canonical de-identified Guest response fact/tombstone                                  | 24 calendar months from the initial rating                                                                                                                                                 |
+| Guest session diagnostic pseudonym                                                     | Redacted after 24 hours                                                                                                                                                                    |
+| Guest network-pressure record                                                          | Deleted at exact seven-day expiry                                                                                                                                                          |
+| Published outbox facts, consumer receipts, sync/refresh runs, inbound webhook receipts | 30 days                                                                                                                                                                                    |
+| Terminal notifications/email/digest evidence                                           | 90 days; open retry work is retained                                                                                                                                                       |
+| Recent Activity                                                                        | 90 days                                                                                                                                                                                    |
+| Policy-decision and significant-action records                                         | 365 days under the current engineering policy                                                                                                                                              |
+| Google-controlled source content                                                       | Per-row source-policy expiry; intended maximum 30 days from latest fetch                                                                                                                   |
+| Optional masked Bug layout                                                             | Application expiry no later than 30 days after the report is submitted, then deleted by a daily clean-up; kept in the Service's own database and not sent to the error-monitoring provider |
+| Organization Export object                                                             | At most seven days; single-use retrieval authority at most 24 hours                                                                                                                        |
 
 A Guest response session has a random session identifier. It contains no name,
 contact detail, or network address. The session ends no more than 24 hours
@@ -348,16 +350,20 @@ effect on 2026-09-08. Material changes will be announced to Participants by
 email at least 14 days before they take effect. The version and effective date
 will remain shown on this page.
 
-Version 2.2 corrects the provider table in section 2 and the sentence about
-beta feedback text above it. Versions 2.0 and 2.1 said that the
-error-monitoring provider was used only when it was configured and that it was
-not configured, and they did not say that beta feedback text is sent to that
-provider. In fact the deployed Service does not start unless error monitoring
-is configured, and beta feedback text is sent to that provider. Both have been
-so since before version 2.0 was published; version 2.2 describes them correctly
-and says what the provider receives. Because it corrects a description and
-changes nothing about what the Service does, it is not a material change and
-takes effect on the day it is published.
+Version 2.2 corrects the provider table in section 2, the sentence about beta
+feedback text above it, and the row for the optional masked Bug layout in
+section 6. Versions 2.0 and 2.1 said that the error-monitoring provider was
+used only when it was configured and that it was not configured, and they did
+not say that beta feedback text is sent to that provider. In fact the deployed
+Service does not start unless error monitoring is configured, and beta feedback
+text is sent to that provider. Both have been so since before version 2.0 was
+published; version 2.2 describes them correctly and says what the provider
+receives. Versions 2.0 and 2.1 also said that deletion of the masked Bug layout
+by a provider still needed proof. The Service keeps the layout in its own
+database and deletes it there, and it has not sent a layout to the
+error-monitoring provider at any time since version 2.0 was published. Because
+version 2.2 corrects a description and changes nothing about what the Service
+does, it is not a material change and takes effect on the day it is published.
 
 Version 2.1 corrects section 6. Version 2.0 gave one expiry, no more than 24
 hours, for the Guest response session and the destination-action receipt

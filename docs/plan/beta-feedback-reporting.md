@@ -174,11 +174,14 @@ The owner said to go ahead with all four.
   name in `notifications_mandatory_scope_check`. The reporter is resolved from
   their pseudonyms at transition time over current membership, with no stored
   user-to-report link, and the fact commits with the transition.
-- **Privacy notice wording.** The accepted notice's retention table says of the
-  optional masked Bug layout that "provider deletion still needs live proof".
-  The implementation never sends the layout to a provider, so the caveat no
-  longer applies. The notice is still accurate as an upper bound; tightening it
-  is a notice change and was left to the owner.
+- **Privacy notice wording — corrected in version 2.2 (2026-10-13).** The
+  accepted notice's retention table said of the optional masked Bug layout that
+  "provider deletion still needs live proof". The implementation never sends
+  the layout to a provider, so the caveat did not apply. Tightening it is a
+  notice change and was left to the owner; Privacy Notice version 2.2 makes it,
+  in wording the owner delegated: the layout is kept in the Service's own
+  database, deleted by the daily clean-up once it has expired, and not sent to
+  the error-monitoring provider (`docs/BETA.md` §2).
 
 ## 6. Verification — what actually ran
 
