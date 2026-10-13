@@ -7,7 +7,7 @@
 // untagged 500.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { guestError } from '../domain/errors'
+import { guestError, type GuestErrorCode } from '../domain/errors'
 
 const ORGANIZATION_ID = '10000000-0000-4000-8000-000000000001'
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000002'
@@ -88,7 +88,7 @@ vi.mock('#/composition', () => ({
   }),
 }))
 
-import { recordScanFn } from './guest-scans'
+import { guestErrorStatus, recordScanFn } from './guest-scans'
 
 const PORTAL = {
   organizationId: ORGANIZATION_ID,
@@ -110,6 +110,33 @@ const loggedErrorTypes = () =>
   mocks.logError.mock.calls
     .map(([entry]) => (entry as { errorType?: string }).errorType)
     .filter((errorType) => errorType !== undefined)
+
+// The status every Guest refusal is answered with, stated by hand. These cases
+// used to run against a copy of the mapping kept in `public.test.ts`, which
+// passed whatever production answered. The `Record` makes a new refusal code a
+// compile error here until its status is written down.
+describe('guestErrorStatus', () => {
+  const STATUS_BY_CODE: Record<GuestErrorCode, number> = {
+    rate_limit_exceeded: 429,
+    invalid_rating: 400,
+    duplicate_rating: 400,
+    duplicate_feedback: 400,
+    feedback_too_long: 400,
+    feedback_empty: 400,
+    invalid_source: 400,
+    invalid_session: 400,
+    portal_not_found: 404,
+    portal_inactive: 410,
+    forbidden: 403,
+  }
+
+  it.each(Object.entries(STATUS_BY_CODE) as ReadonlyArray<[GuestErrorCode, number]>)(
+    'answers %s with %i',
+    (code, status) => {
+      expect(guestErrorStatus(code)).toBe(status)
+    },
+  )
+})
 
 describe('recordScanFn', () => {
   beforeEach(() => {

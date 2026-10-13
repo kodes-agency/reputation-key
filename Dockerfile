@@ -119,6 +119,14 @@ COPY . .
 # The build deletes uploaded maps before this stage is copied into the web
 # image. Inline schema placeholders remain build-only and never persist as ENV
 # values.
+#
+# The artifact check runs twice. Its forbidden-source rules read source maps
+# and nothing else, so the first run is before the deletion and requires the
+# worker bundle's maps to be there: run only afterwards, as it was until
+# 2026-10-13, those rules passed here without reading anything. The client maps
+# are not required in this stage because the Sentry plugin has already deleted
+# them when a token is present; CI requires them on the same commit. The second
+# run is on what ships: the Nitro manifest must not list a map that is gone.
 RUN --mount=type=secret,id=sentry_auth_token \
     NODE_ENV=production \
     SOURCE_REVISION=$SOURCE_REVISION \
@@ -130,6 +138,7 @@ RUN --mount=type=secret,id=sentry_auth_token \
     ENCRYPTION_KEY=aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd \
     OAUTH_STATE_SECRET=aabbccddaabbccddaabbccddaabbccdd \
     sh -eu -c 'if [ -s /run/secrets/sentry_auth_token ]; then SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token)"; export SENTRY_AUTH_TOKEN; fi; exec pnpm build' \
+ && node scripts/check-production-artifacts.mjs --require-source-maps dist-worker .output dist-worker \
  && find .output dist-worker -type f -name '*.map' -delete \
  && node scripts/check-production-artifacts.mjs .output dist-worker
 

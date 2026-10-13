@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -119,10 +119,10 @@ function nitroOutput(
   return root
 }
 
-function checkArtifacts(root: string) {
+function checkArtifacts(...args: readonly string[]) {
   return spawnSync(
     process.execPath,
-    [join(ROOT, 'scripts/check-production-artifacts.mjs'), root],
+    [join(ROOT, 'scripts/check-production-artifacts.mjs'), ...args],
     { cwd: ROOT, encoding: 'utf8' },
   )
 }
@@ -159,5 +159,123 @@ describe('Nitro public-asset manifest', () => {
 
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('no Nitro public-asset manifest found')
+  })
+})
+
+/** A bundle and the source map that names what was bundled into it. */
+function bundleWithMap(directory: string, sources: readonly string[]): void {
+  mkdirSync(directory, { recursive: true })
+  writeFileSync(join(directory, 'index.js'), 'export const service = "worker"\n')
+  writeFileSync(join(directory, 'index.js.map'), JSON.stringify({ sources }))
+}
+
+// The six forbidden-source rules read source maps and nothing else, so a tree
+// with no map passes them without their having looked at anything. That is
+// what the image build gave them: it deleted every map in the command before
+// the check. A caller that knows where maps must be says so.
+describe('forbidden-source rules need a source map to read', () => {
+  it('pass a tree with no map when none is required, and say they read none', () => {
+    const root = artifactRoot()
+    writeFileSync(join(root, 'index.js'), 'export const service = "worker"\n')
+
+    const result = checkArtifacts(root)
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toMatch(/ files=1 source-maps=0\n$/u)
+  })
+
+  it('fail a required directory that holds no map', () => {
+    const root = artifactRoot()
+    writeFileSync(join(root, 'index.js'), 'export const service = "worker"\n')
+
+    const result = checkArtifacts('--require-source-maps', root, root)
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain(
+      'no source map names a source here, so the forbidden-source rules read nothing',
+    )
+  })
+
+  it('fail a required directory whose only map names no source', () => {
+    const root = artifactRoot()
+    bundleWithMap(root, [])
+
+    const result = checkArtifacts('--require-source-maps', root, root)
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('no source map names a source here')
+  })
+
+  it("hold each required directory to its own maps, not to a sibling's", () => {
+    const root = artifactRoot()
+    bundleWithMap(join(root, 'worker'), ['../src/worker/index.ts'])
+    mkdirSync(join(root, 'client-source-maps'))
+
+    const result = checkArtifacts(
+      '--require-source-maps',
+      join(root, 'worker'),
+      '--require-source-maps',
+      join(root, 'client-source-maps'),
+      root,
+    )
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('client-source-maps: no source map names a source')
+    expect(result.stderr).not.toContain('worker: no source map names a source')
+  })
+
+  it('accept required directories that each carry a map, and count what was read', () => {
+    const root = artifactRoot()
+    bundleWithMap(join(root, 'worker'), ['../src/worker/index.ts'])
+    bundleWithMap(join(root, 'client-source-maps'), ['../src/client.tsx'])
+
+    const result = checkArtifacts(
+      '--require-source-maps',
+      join(root, 'worker'),
+      '--require-source-maps',
+      join(root, 'client-source-maps'),
+      root,
+    )
+
+    expect(result.stderr).toBe('')
+    expect(result.status).toBe(0)
+    expect(result.stdout).toMatch(/ files=4 source-maps=2\n$/u)
+  })
+
+  it('refuse a requirement that names no directory', () => {
+    const root = artifactRoot()
+    bundleWithMap(root, ['../src/worker/index.ts'])
+
+    const result = checkArtifacts(root, '--require-source-maps')
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('--require-source-maps needs a directory')
+  })
+})
+
+describe('where the builds run the artifact check', () => {
+  const ARTIFACT_CHECK = 'scripts/check-production-artifacts.mjs'
+
+  it('the image build reads the worker maps before it deletes them', () => {
+    const dockerfile = readFileSync(join(ROOT, 'Dockerfile'), 'utf8')
+    const withMaps = dockerfile.indexOf(
+      `node ${ARTIFACT_CHECK} --require-source-maps dist-worker .output dist-worker`,
+    )
+    const deletion = dockerfile.indexOf("-name '*.map' -delete")
+    const shipped = dockerfile.lastIndexOf(`node ${ARTIFACT_CHECK} .output dist-worker`)
+
+    expect(withMaps).toBeGreaterThan(-1)
+    expect(deletion).toBeGreaterThan(withMaps)
+    // What ships is still checked after the deletion: the Nitro manifest must
+    // not list a map the image no longer has.
+    expect(shipped).toBeGreaterThan(deletion)
+  })
+
+  it('CI requires the client and worker maps on every commit', () => {
+    const workflow = readFileSync(join(ROOT, '.github/workflows/ci.yml'), 'utf8')
+
+    expect(workflow).toMatch(
+      /pnpm check:production-artifacts\s+--require-source-maps \.output\/client-source-maps\s+--require-source-maps dist-worker\s+\.output\s+dist-worker\n/u,
+    )
   })
 })

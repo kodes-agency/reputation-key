@@ -435,7 +435,10 @@ describe('getPortalResultsOverviewFn', () => {
     it('does not hide a real failure behind a missing Property', async () => {
       mocks.getAccessiblePropertyIds.mockRejectedValue(new Error('db down'))
 
-      await expect(readOrganization()).rejects.toBeDefined()
+      await expect(readOrganization()).rejects.toMatchObject({
+        name: 'InternalError',
+        status: 500,
+      })
       expect(mocks.getPortalResultsOverview).not.toHaveBeenCalled()
     })
 

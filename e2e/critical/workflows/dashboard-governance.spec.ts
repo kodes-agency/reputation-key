@@ -1,16 +1,22 @@
-// BQC-6.5 item 9 — limited (Member) dashboard: governed property data only,
+// BQC-6.5 item 9 — a scoped login's dashboard: governed property data only,
 // no cross-property data, no raw-expired data, and reply-derived fields
-// redacted for roles lacking reply.manage (with an admin control).
+// redacted for a reader who may not manage replies (with an admin control).
 //
 // Verified at the governed read boundary, getDashboardDataFn. The dashboard UI
 // reads getPropertyOverviewFn instead; getDashboardDataFn is kept for this spec
-// and review-expiry.spec.ts (src/contexts/reporting/CONTEXT.md). Member login is
-// not a beta surface, so the Member-side assertions target the access model
-// directly (grant-filtered enumeration + governed aggregates + role-based reply
-// redaction), with an admin control for the redaction.
+// and review-expiry.spec.ts (src/contexts/reporting/CONTEXT.md).
 //
-// Landscape: a dedicated property A (Member has an operator grant to it)
-// carries a fresh 5★ review with a published reply + an expired 1★ review;
+// The scoped login is a PropertyManager with one grant. From 2026-08-30 to
+// 2026-10-13 the whole scoped test was skipped because it signed in as a
+// Member, and Member login is dark. Scoping and expiry never depended on that
+// role and run again as a manager. The redaction does depend on it: both
+// interactive roles of the beta may manage replies, so no session can ask for
+// the redacted read, and that one case stays parked. The rule itself is held by
+// get-dashboard-data.test.ts ("hides reply state from a reader who may not
+// manage replies").
+//
+// Landscape: a dedicated property A (the scoped login has an operator grant to
+// it) carries a fresh 5★ review with a published reply + an expired 1★ review;
 // property B (no grant) carries a fresh 1★ review with distinctive content.
 
 import { test, expect } from '../../helpers/error-detection'
@@ -28,6 +34,7 @@ import {
 } from '../../helpers/fixtures'
 
 const PREFIX = 'e2e-gov-'
+const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 const seed = requireE2eSeedState()
 const DASHBOARD_FILE = 'src/contexts/reporting/server/dashboard.ts'
 
@@ -37,7 +44,7 @@ type DashboardResult = Readonly<{
   recentReviews: ReadonlyArray<{ id: string; replyStatus: string }>
 }>
 
-test.describe('Critical workflow: dashboard governance (Member vs admin)', () => {
+test.describe('Critical workflow: dashboard governance (scoped login vs admin)', () => {
   test.beforeEach(async () => {
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
@@ -89,55 +96,93 @@ test.describe('Critical workflow: dashboard governance (Member vs admin)', () =>
     return { propertyAId, freshAId, expiredAId, propertyBId }
   }
 
-  // SKIPPED: exercises Member login, which this beta deliberately does not
-  // have. 52635b32 made only owner/admin tokens beta-interactive
-  // (isBetaInteractiveMemberRoleToken), so a Member cannot resolve tenant
-  // context at all — the sign-in fails before any dashboard assertion runs.
-  // "Member login" is on the program's dark-capability list, so the fence is
-  // the intended behaviour and this test is asserting a capability that is off.
-  // Re-enable with the capability, not before; the Member-scoping coverage it
-  // provides is real and should come back when Member can log in.
-  test.skip('Member dashboard is governed, scoped, expiry-clean, and reply-redacted', async ({
+  test('a PropertyManager reads the granted property dashboard without expired reviews, and no other property', async ({
+    browser,
+  }) => {
+    const { propertyAId, freshAId, expiredAId, propertyBId } = await seedLandscape()
+    // role 'admin' = PropertyManager: a membership and this one grant.
+    const manager = await seedMemberUserWithGrant({
+      organizationId: seed.organizationId,
+      propertyId: propertyAId,
+      email: `${PREFIX}manager-${e2eRunId}@example.com`,
+      name: 'E2E Dashboard Manager',
+      role: 'admin',
+    })
+
+    // The manager's own session, in its own context, as the other specs that
+    // sign a grant-only manager in do (inbox-property-manager, member-access).
+    const context = await browser.newContext({ baseURL: BASE_ORIGIN })
+    try {
+      const page = await context.newPage()
+      await signIn(page, manager.email, manager.password, BASE_ORIGIN)
+
+      // The grant-filtered enumeration contains no B — no surface of this
+      // manager can render B's content.
+      const listed = await callServerFnGet<{
+        properties: ReadonlyArray<{ id: string }>
+      }>(page, {
+        file: 'src/contexts/property/server/property-read.ts',
+        exportName: 'listProperties',
+      })
+      expect(listed.properties.map((p) => p.id)).toContain(propertyAId)
+      expect(listed.properties.map((p) => p.id)).not.toContain(propertyBId)
+
+      // A's dashboard: governed aggregates. The expired 1★ is excluded (avg 5
+      // over 1 review, not 3 over 2).
+      const dashboard = await callServerFnGet<DashboardResult>(page, {
+        file: DASHBOARD_FILE,
+        exportName: 'getDashboardDataFn',
+        data: { propertyId: propertyAId, timeRange: 'all' },
+      })
+      expect(dashboard.kpis.avgRating.value).toBe(5)
+      expect(dashboard.kpis.reviews.value).toBe(1)
+      expect(dashboard.recentReviews.map((r) => r.id)).not.toContain(expiredAId)
+      // A manager may manage replies, so reply state is not hidden from them.
+      expect(dashboard.recentReviews.find((r) => r.id === freshAId)?.replyStatus).toBe(
+        'published',
+      )
+
+      // B's dashboard: refused by the policy (no grant), as a 403.
+      const denial = await callServerFnGetExpectError(page, {
+        file: DASHBOARD_FILE,
+        exportName: 'getDashboardDataFn',
+        data: { propertyId: propertyBId, timeRange: 'all' },
+      })
+      expect(denial.status).toBe(403)
+    } finally {
+      await context.close()
+    }
+  })
+
+  // SKIPPED: reply state redacted for a reader who may not manage replies. It
+  // needs a login without reply.manage. The beta has none: AccountAdmin and
+  // PropertyManager both hold it, and Member login is dark
+  // (isBetaInteractiveRole), so this sign-in fails before any assertion. The
+  // rule is held below e2e (see the header); this case returns with a role
+  // that signs in without reply.manage. Registered, with a review-by date, in
+  // scripts/check-test-quality.mjs.
+  test.skip('a login that may not manage replies sees reply state redacted', async ({
     page,
   }) => {
-    const { propertyAId, expiredAId, propertyBId } = await seedLandscape()
+    const { propertyAId } = await seedLandscape()
     const member = await seedMemberUserWithGrant({
       organizationId: seed.organizationId,
       propertyId: propertyAId,
       email: `${PREFIX}member-${e2eRunId}@example.com`,
       name: 'E2E Dashboard Member',
     })
-    // The Member session reaches the authenticated area cleanly. The governed-data
-    // assertions below run against the SAME server fn the dashboard UI is fed
-    // by — Member UI surfaces are manager-gated today (see spec header).
     await signIn(page, member.email, member.password, undefined, '/settings/profile')
     await expect(page.getByRole('heading', { name: /profile/i }).first()).toBeVisible({
       timeout: 15_000,
     })
 
-    // The grant-filtered enumeration contains no B — no Member surface can
-    // ever render B's content.
-    const listed = await callServerFnGet<{ properties: ReadonlyArray<{ id: string }> }>(
-      page,
-      {
-        file: 'src/contexts/property/server/property-read.ts',
-        exportName: 'listProperties',
-      },
-    )
-    expect(listed.properties.map((p) => p.id)).not.toContain(propertyBId)
-
-    // Member → A's dashboard: governed aggregates. The expired 1★ is excluded
-    // (avg 5 over 1 review, not 3 over 2).
     const memberDashboard = await callServerFnGet<DashboardResult>(page, {
       file: DASHBOARD_FILE,
       exportName: 'getDashboardDataFn',
       data: { propertyId: propertyAId, timeRange: 'all' },
     })
-    expect(memberDashboard.kpis.avgRating.value).toBe(5)
-    expect(memberDashboard.kpis.reviews.value).toBe(1)
-    expect(memberDashboard.recentReviews.map((r) => r.id)).not.toContain(expiredAId)
-    // Reply-derived fields are redacted for Member (no reply.manage): zeroed
-    // performance + hidden per-review state…
+    // Reply-derived fields are redacted (no reply.manage): zeroed performance
+    // and hidden per-review state.
     expect(memberDashboard.replyPerformance).toEqual({
       replyRate: 0,
       avgReplyHours: null,
@@ -145,17 +190,9 @@ test.describe('Critical workflow: dashboard governance (Member vs admin)', () =>
     for (const review of memberDashboard.recentReviews) {
       expect(review.replyStatus).toBe('none')
     }
-
-    // Member → B's dashboard: denied (no grant).
-    const denial = await callServerFnGetExpectError(page, {
-      file: DASHBOARD_FILE,
-      exportName: 'getDashboardDataFn',
-      data: { propertyId: propertyBId, timeRange: 'all' },
-    })
-    expect(denial.message ?? '').toMatch(/error|denied/i)
   })
 
-  test('admin control sees the reply data the Member surface redacts', async ({
+  test('admin control sees the reply data a reader without reply.manage would not', async ({
     page,
   }) => {
     const { propertyAId, freshAId } = await seedLandscape()

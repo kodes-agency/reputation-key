@@ -175,7 +175,7 @@ describe('Merchant AI decision deferral', () => {
       _tag: 'MerchantAiDecisionError',
       code: 'already_enabled',
     })
-    await expect(refusal).rejects.toBeInstanceOf(Error)
+    await expect(refusal).rejects.toThrow('AI is already enabled for this property')
     await expect(world.authorization.get(input)).resolves.toMatchObject({
       state: 'enabled',
       decisionDeferredAt: null,
