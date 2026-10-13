@@ -8,7 +8,9 @@
 // handler. This suite is the structural half of that proof. It reads every
 // `createServerFn` declaration under `src/` and fails on one whose handler
 // cannot reach the policy and is not listed, with its own guard, in
-// server-function-policy-exemptions.ts.
+// server-function-policy-exemptions.ts. It also fails on a use of
+// `createServerFn` that is not a declaration it read, so a server function
+// written in another shape cannot pass unseen.
 //
 // It proves the call is written on a path from the handler
 // (server-function-policy.ts says how reach is followed and where it stops).
@@ -21,8 +23,9 @@ import { describe, expect, it } from 'vitest'
 import {
   EXECUTION_POLICY,
   isProductionSource,
+  serverFunctionFactoryUses,
   serverFunctionReaches,
-  serverFunctionReachesOf,
+  type ServerFunctionFactoryUse,
   type ServerFunctionReach,
   type SourceReader,
 } from './server-function-policy'
@@ -70,16 +73,27 @@ function readerOf(sources: Readonly<Record<string, string>>): SourceReader {
 const ADAPTER = 'src/contexts/sample/server/sample.ts'
 const POLICY_IMPORT = `import { requireExecutionAllowed } from '#/shared/auth/execution-policy'`
 
+// Samples are read through the entry point the repository check uses, so the
+// choice of which modules to parse is part of what each case proves.
 function reachOf(
   sources: Readonly<Record<string, string>>,
   name: string,
 ): ServerFunctionReach {
-  const reach = serverFunctionReachesOf(ADAPTER, readerOf(sources)).find(
+  const reach = serverFunctionReaches(Object.keys(sources), readerOf(sources)).find(
     (candidate) => candidate.name === name,
   )
   if (!reach) throw new Error(`no server function named ${name} in the sample`)
   return reach
 }
+
+function usesOf(source: string): readonly ServerFunctionFactoryUse[] {
+  return serverFunctionFactoryUses([ADAPTER], readerOf({ [ADAPTER]: source }))
+}
+
+const unreadLinesOf = (source: string): readonly number[] =>
+  usesOf(source)
+    .filter((use) => use.declaredAs === null)
+    .map((use) => use.line)
 
 describe('what a server function handler reaches', () => {
   it('finds the policy call written in the handler', () => {
@@ -237,6 +251,154 @@ describe('what a server function handler reaches', () => {
     expect(asksPolicy(reachOf(sources, 'guarded'))).toBe(true)
     expect(asksPolicy(reachOf(sources, 'open'))).toBe(false)
   })
+
+  it('does not take a local function of the same name for the policy', () => {
+    const reach = reachOf(
+      {
+        [ADAPTER]: `const requireExecutionAllowed = async (input) => input
+          export const readThing = createServerFn({ method: 'GET' })
+            .handler(async () => {
+              await requireExecutionAllowed({ actor: ctx, action: 'thing.read' })
+              return load()
+            })`,
+      },
+      'readThing',
+    )
+
+    expect(asksPolicy(reach)).toBe(false)
+    expect([...reach.calls]).toContain('load')
+  })
+
+  it.each([
+    [
+      'with a type argument',
+      `export const readThing = createServerFn<'GET'>({ method: 'GET' })
+        .handler(async () => load())`,
+    ],
+    [
+      'through an aliased import',
+      `import { createServerFn as serverFn } from '@tanstack/react-start'
+      export const readThing = serverFn({ method: 'GET' })
+        .handler(async () => load())`,
+    ],
+    [
+      'through a namespace import',
+      `import * as Start from '@tanstack/react-start'
+      export const readThing = Start.createServerFn({ method: 'GET' })
+        .handler(async () => load())`,
+    ],
+    [
+      'through a module that hands the factory on under its own name',
+      `import { createServerFn } from './sample-shared'
+      export const readThing = createServerFn({ method: 'GET' })
+        .handler(async () => load())`,
+    ],
+    [
+      'under a cast',
+      `export const readThing = createServerFn({ method: 'GET' })
+        .handler(async () => load()) as unknown as ReadThing`,
+    ],
+    [
+      'under satisfies and a non-null assertion',
+      `export const readThing = (createServerFn({ method: 'GET' })
+        .handler(async () => load()) satisfies ReadThing)!`,
+    ],
+    [
+      'with its root in parentheses',
+      `export const readThing = (createServerFn({ method: 'GET' }))
+        .handler(async () => load())`,
+    ],
+  ])('reads a server function declared %s', (_shape, source) => {
+    const reach = reachOf({ [ADAPTER]: source }, 'readThing')
+
+    // Read, and with no policy call on its path: the repository check below
+    // would name it.
+    expect(asksPolicy(reach)).toBe(false)
+    expect([...reach.calls]).toContain('load')
+  })
+})
+
+describe('where a module uses the server function factory', () => {
+  it('names the declaration each factory call is the root of', () => {
+    const uses = usesOf(
+      `import { createServerFn, createServerFn as serverFn } from '@tanstack/react-start'
+      export const readThing = serverFn<'GET'>({ method: 'GET' }).handler(load)
+      export const writeThing = createServerFn({ method: 'POST' })
+        .handler(save) as unknown as WriteThing`,
+    )
+
+    expect(uses).toEqual([
+      { file: ADAPTER, line: 2, declaredAs: 'readThing' },
+      { file: ADAPTER, line: 3, declaredAs: 'writeThing' },
+    ])
+  })
+
+  it.each([
+    [
+      'inside a wrapper call',
+      `export const readThing = wrap(createServerFn({ method: 'GET' }).handler(load))`,
+      1,
+    ],
+    [
+      'as an object member',
+      `export const things = {
+        read: createServerFn({ method: 'GET' }).handler(load),
+      }`,
+      2,
+    ],
+    [
+      'as the default export',
+      `export default createServerFn({ method: 'GET' }).handler(load)`,
+      1,
+    ],
+    [
+      'inside a function that builds server functions',
+      `export function thingReader(load) {
+        const readThing = createServerFn({ method: 'GET' }).handler(load)
+        return readThing
+      }`,
+      2,
+    ],
+    [
+      'under a second local name',
+      `const serverFn = createServerFn
+      export const readThing = serverFn({ method: 'GET' }).handler(load)`,
+      1,
+    ],
+    [
+      'renamed on its way out of the module',
+      `import { createServerFn } from '@tanstack/react-start'
+      export { createServerFn as serverFn }`,
+      2,
+    ],
+    [
+      'renamed as it is taken from the package',
+      `const { createServerFn: serverFn } = await import('@tanstack/react-start')
+      export const readThing = serverFn({ method: 'GET' }).handler(load)`,
+      1,
+    ],
+    [
+      'handed on as a member without being called',
+      `import * as Start from '@tanstack/react-start'
+      export const serverFn = Start.createServerFn`,
+      2,
+    ],
+  ])('reports a use that no declaration was read from: %s', (_shape, source, line) => {
+    expect(unreadLinesOf(source)).toEqual([line])
+  })
+
+  it('does not count an import, a type, or a re-export under its own name', () => {
+    const uses = usesOf(
+      `import { createServerFn } from '@tanstack/react-start'
+      export { createServerFn }
+      export type ServerFunctionFactory = typeof createServerFn
+      const steps = { createServerFn: ['handler', 'validator'] }
+      // createServerFn({ method: 'GET' }) was declared here once.
+      log('createServerFn')`,
+    )
+
+    expect(uses).toEqual([])
+  })
 })
 
 describe('server functions and the execution policy', () => {
@@ -271,6 +433,24 @@ describe('server functions and the execution policy', () => {
       'review',
     ])
     expect(reaches.length).toBeGreaterThan(SERVER_FUNCTION_POLICY_EXEMPTIONS.length)
+  })
+
+  it('reads a declaration at every place the server function factory is used', () => {
+    // The checks below see only the declarations that were read. A server
+    // function written in a shape the reader does not know would pass them all
+    // unseen, so every use of the factory must be the root of one.
+    const uses = serverFunctionFactoryUses(productionSourcesUnder(SOURCE_ROOT), read)
+    const unread = uses
+      .filter((use) => use.declaredAs === null)
+      .map((use) => `${use.file}:${use.line}`)
+
+    expect(
+      unread,
+      'createServerFn is used here in a shape this check does not read. Declare the server function as a top-level `const name = createServerFn(...)...`, or teach server-function-policy.ts the new shape.',
+    ).toEqual([])
+    expect(uses.map((use) => `${use.file}#${use.declaredAs}`).sort()).toEqual(
+      reaches.map(keyOf).sort(),
+    )
   })
 
   it('has every handler ask the execution policy, or be listed with its own guard', () => {

@@ -4,9 +4,25 @@
 // handler decides nothing about who may run it unless the code it runs asks:
 // the execution policy (`requireExecutionAllowed`) for a signed-in member, or a
 // guard of another kind for a caller the policy does not know (a guest, an
-// operator, a person signing in). This module answers one question for the
+// operator, a person signing in). This module answers two questions for the
 // canary beside it: starting from the declaration, which of those guards can
-// the handler reach?
+// the handler reach? And is every server function a declaration it read?
+//
+// A declaration is read when it is a top-level `const` whose value is a chain
+// of calls rooted in a call of the factory. The factory is the name
+// `createServerFn`, any alias an import gives it, and the member of that name
+// on a namespace import; type arguments, parentheses, `as`, `satisfies` and `!`
+// around the chain change nothing. A module that hands the factory on under its
+// own name (inbox-shared.ts does) is covered by the first of those: its
+// importers still import `createServerFn`.
+//
+// Every other use of the factory is one this module cannot name a server
+// function for: a call inside a wrapper, an object, a function or a default
+// export, a second local name, a rename on export. `serverFunctionFactoryUses`
+// lists each use and says which declaration, if any, was read from it, so the
+// canary fails on a shape it would otherwise pass unseen. Two forms stay out of
+// reach: a member looked up by a computed key, and the same function exported
+// by another package under another name.
 //
 // Reach follows names, never values:
 //   - a name declared at the top of the same file (a function, a
@@ -23,15 +39,17 @@
 //
 // A name is matched by spelling. One declared again inside the code being read
 // (a parameter, a local) hides the top-level name and is not followed, which
-// errs towards reporting.
+// errs towards reporting. The policy is the one exception: a call counts as the
+// policy only under the name its own module exports.
 
 import { dirname, join, sep } from 'node:path'
 import ts from 'typescript'
-import { isReference } from './source-syntax'
+import { isReference, unwrap } from './source-syntax'
 
 /** The execution policy every signed-in server function asks. */
 export const EXECUTION_POLICY = 'requireExecutionAllowed'
 
+const EXECUTION_POLICY_MODULE = '#/shared/auth/execution-policy'
 const SERVER_FUNCTION_FACTORY = 'createServerFn'
 const SOURCE_ALIAS = '#/'
 const SOURCE_ROOT = 'src'
@@ -61,6 +79,16 @@ export type ServerFunctionReach = Readonly<{
   name: string
   /** The names its handler calls, directly or through what it reaches. */
   calls: ReadonlySet<string>
+}>
+
+/** One place a module uses the server function factory. */
+export type ServerFunctionFactoryUse = Readonly<{
+  /** Repository-relative path of the module. */
+  file: string
+  /** The line of the use, counted from one. */
+  line: number
+  /** The server function read from this use; null when none was. */
+  declaredAs: string | null
 }>
 
 /** Reads modules by repository-relative path; null when there is none. */
@@ -140,36 +168,109 @@ function moduleShape(file: string, text: string): ModuleShape {
   }
 }
 
-/** `createServerFn` at the root of `createServerFn(...).validator(...).handler(...)`. */
-function chainRoot(expression: ts.Expression): ts.Expression {
-  let current = expression
-  while (
-    ts.isCallExpression(current) &&
-    ts.isPropertyAccessExpression(current.expression)
-  ) {
-    current = current.expression.expression
+/** The names a module calls the factory by: its own, and any alias an import gives it. */
+function factoryNames(module: ModuleShape): ReadonlySet<string> {
+  const names = new Set([SERVER_FUNCTION_FACTORY])
+  for (const [local, imported] of module.imports) {
+    if (imported.name === SERVER_FUNCTION_FACTORY) names.add(local)
   }
-  return current
+  return names
 }
 
-function isServerFunction(declaration: ts.VariableDeclaration): boolean {
-  if (declaration.initializer === undefined) return false
-  const root = chainRoot(declaration.initializer)
+/** `Start.createServerFn` and `Start['createServerFn']`: the factory on a namespace. */
+function isFactoryMember(node: ts.Node): boolean {
+  if (ts.isPropertyAccessExpression(node)) {
+    return node.name.text === SERVER_FUNCTION_FACTORY
+  }
   return (
-    ts.isCallExpression(root) &&
-    ts.isIdentifier(root.expression) &&
-    root.expression.text === SERVER_FUNCTION_FACTORY
+    ts.isElementAccessExpression(node) &&
+    ts.isStringLiteralLike(node.argumentExpression) &&
+    node.argumentExpression.text === SERVER_FUNCTION_FACTORY
   )
 }
 
+function isFactory(names: ReadonlySet<string>, node: ts.Node): boolean {
+  return ts.isIdentifier(node) ? names.has(node.text) : isFactoryMember(node)
+}
+
+/**
+ * The factory call at the root of `createServerFn(...).validator(...).handler(...)`,
+ * through any parentheses or casts around the chain or inside it.
+ */
+function factoryCallAtRoot(
+  names: ReadonlySet<string>,
+  initializer: ts.Expression,
+): ts.CallExpression | null {
+  let current = unwrap(initializer)
+  while (ts.isCallExpression(current)) {
+    const callee = unwrap(current.expression)
+    if (isFactory(names, callee)) return current
+    if (!ts.isPropertyAccessExpression(callee)) return null
+    current = unwrap(callee.expression)
+  }
+  return null
+}
+
+type ServerFunctionDeclaration = Readonly<{
+  name: string
+  node: ts.VariableDeclaration
+  /** The factory as the root call names it: an identifier or a member access. */
+  factory: ts.Node
+}>
+
 function serverFunctionDeclarations(
   module: ModuleShape,
-): ReadonlyMap<string, ts.VariableDeclaration> {
-  const found = new Map<string, ts.VariableDeclaration>()
+): readonly ServerFunctionDeclaration[] {
+  const names = factoryNames(module)
+  const found: ServerFunctionDeclaration[] = []
   for (const [name, node] of module.declarations) {
-    if (ts.isVariableDeclaration(node) && isServerFunction(node)) found.set(name, node)
+    if (!ts.isVariableDeclaration(node) || node.initializer === undefined) continue
+    const root = factoryCallAtRoot(names, node.initializer)
+    if (root !== null) found.push({ name, node, factory: unwrap(root.expression) })
   }
   return found
+}
+
+/** `export { createServerFn as other }`: importers no longer import it by its name. */
+function leavesUnderAnotherName(
+  names: ReadonlySet<string>,
+  specifier: ts.ExportSpecifier,
+): boolean {
+  const local = (specifier.propertyName ?? specifier.name).text
+  return names.has(local) && specifier.name.text !== SERVER_FUNCTION_FACTORY
+}
+
+/** `const { createServerFn: other } = ...`: the factory taken under another name. */
+function isTakenUnderAnotherName(node: ts.Node): boolean {
+  return (
+    ts.isBindingElement(node) &&
+    node.propertyName !== undefined &&
+    ts.isIdentifier(node.propertyName) &&
+    node.propertyName.text === SERVER_FUNCTION_FACTORY
+  )
+}
+
+function isFactoryUse(names: ReadonlySet<string>, node: ts.Node): boolean {
+  if (ts.isIdentifier(node)) return names.has(node.text) && isReference(node)
+  return isFactoryMember(node) || isTakenUnderAnotherName(node)
+}
+
+/** Every node that reads the factory as a value, an import or a type excluded. */
+function factoryUseNodes(module: ModuleShape): readonly ts.Node[] {
+  const names = factoryNames(module)
+  const uses: ts.Node[] = []
+  const visit = (node: ts.Node): void => {
+    // An import binds the name and a type runs nothing: neither is a use.
+    if (ts.isImportDeclaration(node) || ts.isTypeNode(node)) return
+    if (ts.isExportSpecifier(node)) {
+      if (leavesUnderAnotherName(names, node)) uses.push(node)
+      return
+    }
+    if (isFactoryUse(names, node)) uses.push(node)
+    ts.forEachChild(node, visit)
+  }
+  visit(module.sourceFile)
+  return uses
 }
 
 function isLocalDeclaration(node: ts.Node): node is ts.NamedDeclaration {
@@ -282,16 +383,30 @@ function followName(walk: Walk, module: ModuleShape, name: string): void {
   if (target !== null) followName(walk, target, elsewhere.name)
 }
 
+/**
+ * The name a call is recorded under: the one its module exports, so an aliased
+ * import of the policy is still the policy. A name spelled like the policy that
+ * is not imported from the policy's module is something else, and is recorded
+ * under no name.
+ */
+function recordedCall(module: ModuleShape, name: string): string | null {
+  const imported = module.imports.get(name)
+  const exported = imported?.name ?? name
+  if (exported !== EXECUTION_POLICY) return exported
+  return imported?.specifier === EXECUTION_POLICY_MODULE ? exported : null
+}
+
 function followNode(walk: Walk, module: ModuleShape, node: ts.Node): void {
   const { referenced, called } = namesRead(node)
-  // A call is recorded under the name its module exports, so an aliased import
-  // of the policy is still the policy.
-  for (const name of called) walk.calls.add(module.imports.get(name)?.name ?? name)
+  for (const name of called) {
+    const recorded = recordedCall(module, name)
+    if (recorded !== null) walk.calls.add(recorded)
+  }
   for (const name of referenced) followName(walk, module, name)
 }
 
 /** Every server function of one module, with the names its handler reaches. */
-export function serverFunctionReachesOf(
+function serverFunctionReachesOf(
   file: string,
   read: SourceReader,
 ): readonly ServerFunctionReach[] {
@@ -302,17 +417,37 @@ export function serverFunctionReachesOf(
   modules.set(file, module)
 
   const reaches: ServerFunctionReach[] = []
-  for (const [name, declaration] of serverFunctionDeclarations(module)) {
+  for (const { name, node } of serverFunctionDeclarations(module)) {
     const walk: Walk = {
       read,
       modules,
       seen: new Set([`${file}#${name}`]),
       calls: new Set(),
     }
-    followNode(walk, module, declaration)
+    followNode(walk, module, node)
     reaches.push({ file, name, calls: walk.calls })
   }
   return reaches
+}
+
+/** Every use of the factory in one module, in source order. */
+function serverFunctionFactoryUsesOf(
+  file: string,
+  read: SourceReader,
+): readonly ServerFunctionFactoryUse[] {
+  const text = read(file)
+  if (text === null) return []
+  const module = moduleShape(file, text)
+  const declaredAt = new Map(
+    serverFunctionDeclarations(module).map(({ name, factory }) => [factory, name]),
+  )
+  return factoryUseNodes(module).map((node) => ({
+    file,
+    line:
+      module.sourceFile.getLineAndCharacterOfPosition(node.getStart(module.sourceFile))
+        .line + 1,
+    declaredAs: declaredAt.get(node) ?? null,
+  }))
 }
 
 /** True for a module that ships: not a test, a story or a declaration file. */
@@ -320,13 +455,36 @@ export function isProductionSource(file: string): boolean {
   return SOURCE_FILE.test(file) && !NOT_PRODUCTION.test(file)
 }
 
+/**
+ * The modules worth parsing. Every form this module reads spells the factory's
+ * name somewhere in the file (an alias in its import, a member in its access),
+ * so a file without the word holds nothing a parse would find.
+ */
+function modulesNamingTheFactory(
+  files: readonly string[],
+  read: SourceReader,
+): readonly string[] {
+  return files
+    .filter((file) => read(file)?.includes(SERVER_FUNCTION_FACTORY) === true)
+    .sort()
+}
+
 /** Every server function of the given modules, with what each handler reaches. */
 export function serverFunctionReaches(
   files: readonly string[],
   read: SourceReader,
 ): readonly ServerFunctionReach[] {
-  return files
-    .filter((file) => read(file)?.includes(`${SERVER_FUNCTION_FACTORY}(`) === true)
-    .sort()
-    .flatMap((file) => serverFunctionReachesOf(file, read))
+  return modulesNamingTheFactory(files, read).flatMap((file) =>
+    serverFunctionReachesOf(file, read),
+  )
+}
+
+/** Every use of the factory in the given modules. */
+export function serverFunctionFactoryUses(
+  files: readonly string[],
+  read: SourceReader,
+): readonly ServerFunctionFactoryUse[] {
+  return modulesNamingTheFactory(files, read).flatMap((file) =>
+    serverFunctionFactoryUsesOf(file, read),
+  )
 }
