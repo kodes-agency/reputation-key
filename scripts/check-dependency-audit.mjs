@@ -26,6 +26,10 @@
 // fails the gate — remove it in the same change that fixed the advisory.
 // There is no continue-on-error anywhere: a red gate blocks the PR.
 //
+// That register is the only exception route. pnpm has one of its own, the
+// `pnpm.auditConfig` ignore lists of package.json, and a manifest that carries
+// one fails the gate — see "pnpm's own ignore lists" below.
+//
 // The gate passes only on an audit it could read. A run whose request failed,
 // or whose output is not an audit report, fails with exit 2 and says the audit
 // could not be read; exit 1 is kept for an advisory or an exception that
@@ -38,6 +42,7 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const MANIFEST_FILE = join(ROOT, 'package.json')
 const EXCEPTIONS_FILE = join(ROOT, 'security/audit-exceptions.json')
 const STDERR_EXCERPT_CHARS = 500
 
@@ -49,6 +54,17 @@ const RUNS = [
   { scope: 'prod', args: ['audit', '--prod', '--json'], failAt: 'high' },
   { scope: 'full', args: ['audit', '--json'], failAt: 'critical' },
 ]
+
+/** What the runs have found so far: lines to print, and violations of the policy. */
+const reports = []
+const failures = []
+
+function printFindings() {
+  for (const line of reports) console.log(line)
+  if (failures.length === 0) return
+  console.error(`[dependency-audit] FAILED — ${failures.length} violation(s):`)
+  for (const f of failures) console.error(f)
+}
 
 // A run counts only when pnpm printed an audit report this gate can read.
 //
@@ -108,6 +124,25 @@ function uncountedSeverity({ report, failAt }) {
   return `the output does not count \`${uncounted}\` vulnerabilities, which this run fails on`
 }
 
+// The counts are what pnpm's exit status follows; the advisories are what this
+// gate judges. A severity this run fails on that is counted and not listed is
+// an advisory the gate was never shown, whoever left it out: the registry, or
+// pnpm, which drops an advisory it was told to ignore and keeps its count.
+function countedButNotListed({ report, failAt }) {
+  const counts = report.metadata.vulnerabilities
+  const listed = new Set(Object.values(report.advisories).map((a) => a.severity))
+  const hidden = SEVERITY_ORDER.find(
+    (severity) =>
+      severityAtLeast(severity, failAt) && counts[severity] > 0 && !listed.has(severity),
+  )
+  if (hidden === undefined) return undefined
+  return (
+    `the report's \`${hidden}\` count is ${counts[hidden]} and it lists no advisory of that severity. ` +
+    'An advisory pnpm or the registry leaves out of the list is not excepted: ' +
+    'the only exception route is security/audit-exceptions.json'
+  )
+}
+
 // pnpm's own rule for `audit --json`: exit 1 when the counts add up to
 // anything, at any severity, and 0 when they add up to nothing. A report that
 // looks complete beside a status that contradicts it is not believed.
@@ -130,10 +165,15 @@ const UNREADABLE_RULES = [
   unrankedAdvisory,
   noCounts,
   uncountedSeverity,
+  countedButNotListed,
   statusDisagrees,
 ]
 
+// What an earlier run found is printed first: a production High is not held
+// back until the registry answers the run after it. Exceptions are not judged
+// stale here, since the run that would have matched them may be the unread one.
 function failUnreadable(run, res, reason) {
+  printFindings()
   const ended = res.status === null ? `killed by ${res.signal}` : `exit ${res.status}`
   console.error(
     `[dependency-audit] FAILED — the ${run.scope} audit could not be read: ` +
@@ -186,6 +226,38 @@ function runAudit(run) {
   return readReport(run, res)
 }
 
+// pnpm's own ignore lists. `pnpm audit` drops an advisory named in
+// `pnpm.auditConfig.ignoreCves` or `.ignoreGhsas` of the manifest from the
+// advisories it prints and keeps its count (pnpm 10.6.5; this gate copies the
+// manifest into the directory it audits from). Such an entry has no owner, no
+// reason and no expiry, and the register never sees it. `countedButNotListed`
+// catches it only when it hides every advisory of a severity: with two
+// production Highs, one named there and one excepted in the register, the
+// gate printed OK. So the manifest may not carry either list at all.
+const PNPM_IGNORE_LISTS = ['ignoreCves', 'ignoreGhsas']
+
+function refuseManifestIgnoreLists() {
+  let manifest
+  try {
+    manifest = JSON.parse(readFileSync(MANIFEST_FILE, 'utf8'))
+  } catch (err) {
+    console.error(`[dependency-audit] cannot read ${MANIFEST_FILE}: ${err.message}`)
+    process.exit(2)
+  }
+  const auditConfig = manifest?.pnpm?.auditConfig
+  const carried = PNPM_IGNORE_LISTS.filter(
+    (list) => isRecord(auditConfig) && list in auditConfig,
+  )
+  if (carried.length === 0) return
+  console.error(
+    `[dependency-audit] FAILED — package.json sets ${carried.map((list) => `pnpm.auditConfig.${list}`).join(' and ')}. ` +
+      'pnpm hides an advisory named there from this gate, with no owner, reason or expiry. ' +
+      'Remove it and fix the dependency, or add a dated, owned exception to ' +
+      'security/audit-exceptions.json — see docs/operations/security-ci-policy.md',
+  )
+  process.exit(1)
+}
+
 function loadExceptions() {
   let parsed
   try {
@@ -224,10 +296,9 @@ const advisoryIds = (a) =>
 
 const firstPath = (a) => a.findings?.[0]?.paths?.[0] ?? '(no dependency path reported)'
 
+refuseManifestIgnoreLists()
 const exceptions = loadExceptions()
 const matchedExceptions = new Set()
-const failures = []
-const reports = []
 
 for (const run of RUNS) {
   const report = runAudit(run)
@@ -270,11 +341,9 @@ for (const e of exceptions) {
   }
 }
 
-for (const line of reports) console.log(line)
+printFindings()
 
 if (failures.length > 0) {
-  console.error(`[dependency-audit] FAILED — ${failures.length} violation(s):`)
-  for (const f of failures) console.error(f)
   console.error(
     '[dependency-audit] fix by upgrading/overriding the dependency (preferred) or add a ' +
       'dated, owned exception to security/audit-exceptions.json — see docs/operations/security-ci-policy.md',

@@ -29,6 +29,8 @@ const ROOT = resolve(import.meta.dirname, '../..')
 const GATE = 'scripts/check-dependency-audit.mjs'
 const SEVERITIES = ['info', 'low', 'moderate', 'high', 'critical'] as const
 const ADVISORY_ID = 'GHSA-aaaa-bbbb-cccc'
+const HIDDEN_ADVISORY_ID = 'GHSA-dddd-eeee-ffff'
+const HIDDEN_ADVISORY_CVE = 'CVE-2026-00002'
 const REAL_PNPM_TIMEOUT_MS = 60_000
 const STAND_IN_PNPM = `#!/bin/sh
 case "$*" in
@@ -52,6 +54,8 @@ type Exception = Readonly<{
   expiresAt: string
 }>
 type GateRun = Readonly<{ status: number | null; output: string }>
+/** The `pnpm` field of the fixture's manifest, when a case gives it one. */
+type PnpmSettings = Readonly<Record<string, unknown>>
 
 const projects: string[] = []
 let standInBin = ''
@@ -114,7 +118,10 @@ function write(project: string, files: Readonly<Record<string, string>>): void {
 }
 
 /** A project that holds the gate, one dependency and the exception register given. */
-function projectWith(exceptions: readonly Exception[] = []): string {
+function projectWith(
+  exceptions: readonly Exception[] = [],
+  pnpmSettings?: PnpmSettings,
+): string {
   const project = realpathSync(mkdtempSync(join(tmpdir(), 'dependency-audit-gate-')))
   projects.push(project)
   mkdirSync(join(project, 'scripts'))
@@ -126,6 +133,7 @@ function projectWith(exceptions: readonly Exception[] = []): string {
       private: true,
       packageManager: pinnedPackageManager(),
       dependencies: { 'fixture-dependency': '1.0.0' },
+      ...(pnpmSettings === undefined ? {} : { pnpm: pnpmSettings }),
     }),
     'pnpm-lock.yaml': LOCKFILE,
     'security/audit-exceptions.json': JSON.stringify({ exceptions }),
@@ -155,8 +163,12 @@ function runGate(project: string, env: NodeJS.ProcessEnv, timeout?: number): Gat
 }
 
 /** The gate, with the stand-in answering its two audit runs. */
-function gateAnswered(answers: Answers, exceptions: readonly Exception[] = []): GateRun {
-  const project = projectWith(exceptions)
+function gateAnswered(
+  answers: Answers,
+  exceptions: readonly Exception[] = [],
+  pnpmSettings?: PnpmSettings,
+): GateRun {
+  const project = projectWith(exceptions, pnpmSettings)
   return runGate(project, {
     ...process.env,
     PATH: `${standInBin}${delimiter}${process.env.PATH ?? ''}`,
@@ -287,6 +299,26 @@ const UNREADABLE: readonly (readonly [string, Answer, string])[] = [
     }),
     'severity "severe"',
   ],
+  // The counts are what pnpm's exit status follows and the advisories are what
+  // the gate judges: a counted severity with nothing listed is an advisory the
+  // gate was never shown. The real pnpm 10.6.5 passes the first of these
+  // through from a registry that answers it (seen 2026-10-13).
+  [
+    'a count for a severity the run fails on and no advisory at all',
+    answer(1, {
+      advisories: {},
+      metadata: { vulnerabilities: { ...ZERO_COUNTS, high: 2 } },
+    }),
+    "the report's `high` count is 2 and it lists no advisory of that severity",
+  ],
+  [
+    'a count for a severity the run fails on and only advisories of another',
+    answer(1, {
+      advisories: { 1100001: advisory('moderate') },
+      metadata: { vulnerabilities: { ...ZERO_COUNTS, moderate: 1, critical: 1 } },
+    }),
+    "the report's `critical` count is 1 and it lists no advisory of that severity",
+  ],
   [
     'a non-zero exit with a report that counts nothing',
     { ...CLEAN, status: 1 },
@@ -349,6 +381,23 @@ describe('dependency audit gate', () => {
       expect(gate.output).toContain(
         '[dependency-audit] FAILED — the full audit could not be read: `pnpm audit --json` (exit 1)',
       )
+      expect(gate.status).toBe(2)
+    })
+
+    // Not held back until the registry answers: what the run before found is
+    // printed, and the gate still ends as an audit it could not read.
+    it('prints what the first run found when the second could not be read', () => {
+      const gate = gateAnswered({
+        prod: auditFinding('high'),
+        full: failedRequest('ECONNREFUSED', 'connect ECONNREFUSED 127.0.0.1:9'),
+      })
+
+      expect(gate.output).toContain(
+        '[dependency-audit] prod tree: {"info":0,"low":0,"moderate":0,"high":1,"critical":0} (fail threshold: high)',
+      )
+      expect(gate.output).toContain(`✗ [prod] high fixture-dependency (${ADVISORY_ID})`)
+      expect(gate.output).toContain('the full audit could not be read')
+      expect(gate.output).not.toContain('[dependency-audit] OK')
       expect(gate.status).toBe(2)
     })
 
@@ -465,6 +514,48 @@ describe('dependency audit gate', () => {
         `✗ STALE exception: ${ADVISORY_ID} (scope prod, owner platform)`,
       )
       expect(gate.status).toBe(1)
+    })
+
+    // pnpm has an exception route of its own, and the register never sees it:
+    // an advisory named in the manifest's `pnpm.auditConfig` is dropped from
+    // the advisories pnpm prints while its count stays. The answer below is
+    // what the real pnpm 10.6.5 printed on 2026-10-13 for two production Highs
+    // with one of them named in either list: one advisory, a count of two.
+    // With the other excepted in the register, the gate printed OK and exited 0.
+    it.each([
+      ['ignoreGhsas', HIDDEN_ADVISORY_ID],
+      ['ignoreCves', HIDDEN_ADVISORY_CVE],
+    ])('fails a manifest that carries pnpm.auditConfig.%s', (list, hidden) => {
+      const oneOfTwoHighsListed: Answer = {
+        status: 1,
+        stdout: JSON.stringify({
+          advisories: { 1100001: advisory('high') },
+          metadata: { vulnerabilities: { ...ZERO_COUNTS, high: 2 } },
+        }),
+      }
+
+      const gate = gateAnswered({ prod: oneOfTwoHighsListed, full: CLEAN }, [EXCEPTION], {
+        auditConfig: { [list]: [hidden] },
+      })
+
+      expect(gate.output).not.toContain('[dependency-audit] OK')
+      expect(gate.output).toContain(
+        `[dependency-audit] FAILED — package.json sets pnpm.auditConfig.${list}`,
+      )
+      expect(gate.output).toContain('security/audit-exceptions.json')
+      expect(gate.status).toBe(1)
+    })
+
+    it('reads a manifest with other pnpm settings as before', () => {
+      const gate = gateAnswered({ prod: CLEAN, full: CLEAN }, [], {
+        overrides: { 'fixture-dependency': '1.0.0' },
+        auditConfig: {},
+      })
+
+      expect(gate.output).toContain(
+        '[dependency-audit] OK — no advisories at/above threshold (0 active exception(s))',
+      )
+      expect(gate.status).toBe(0)
     })
 
     // An exception is no reading of the audit: with the request failed there
