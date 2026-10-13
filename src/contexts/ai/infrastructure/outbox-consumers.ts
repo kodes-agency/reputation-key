@@ -175,7 +175,7 @@ function backlogOriginFor(
  * platform policy allows Review Analysis for its Organization and Property. A
  * review the drain would refuse is queued for it instead, and analysed once the
  * stop is lifted. A source transition is settled without a provider call, so
- * nothing is asked about it.
+ * nothing is asked about it and it is given no authority for one.
  */
 async function analysesOnDelivery(
   dependencies: Pick<RegisterAiConsumersInput, 'authorizeScope'>,
@@ -186,8 +186,7 @@ async function analysesOnDelivery(
     propertyId: PropertyId
   }>,
 ): Promise<boolean> {
-  if (delivery.origin !== null) return false
-  if (delivery.disposition !== 'pending') return true
+  if (delivery.origin !== null || delivery.disposition !== 'pending') return false
   const allowed = await dependencies.authorizeScope?.(
     delivery.organizationId,
     delivery.propertyId,

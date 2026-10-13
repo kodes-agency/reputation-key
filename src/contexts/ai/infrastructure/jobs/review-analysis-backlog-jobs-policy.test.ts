@@ -89,8 +89,8 @@ vi.mock('#/shared/observability/trace', () => ({
 
 const NOW = Date.parse('2026-10-12T09:00:00.000Z')
 /**
- * How long the drain holds an entry it could not run: refused by policy (its
- * DENIED_RETRY_DELAY_MILLIS) or stopped by an AI control (STOPPED_RETRY_DELAY_MILLIS).
+ * How long the drain holds an entry it could not run, refused by policy or
+ * stopped by an AI control (its HELD_RETRY_DELAY_MILLIS).
  */
 const REFUSAL_HOLD_MILLIS = 60_000
 /** When a full lane tells an analysis to ask again. */

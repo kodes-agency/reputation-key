@@ -36,15 +36,11 @@ export const AI_BACKLOG_DRAIN_TIME_BUDGET_MILLIS = 20_000
 const FAILURE_RETRY_DELAY_MILLIS = 60_000
 const DEFERRED_RETRY_DELAY_MILLIS = 30_000
 /**
- * How long an entry that current policy refuses waits before it is asked about
- * again, so lifting a stop resumes the analysis within a minute.
+ * How long an entry held by a stop waits before it is asked about again:
+ * refused by current policy, or met by a stopped AI execution control. Lifting
+ * either stop resumes the analysis within a minute.
  */
-const DENIED_RETRY_DELAY_MILLIS = 60_000
-/**
- * How long an entry waits after the analysis found an AI execution control
- * stopped, so a restore resumes the analysis within a minute.
- */
-const STOPPED_RETRY_DELAY_MILLIS = 60_000
+const HELD_RETRY_DELAY_MILLIS = 60_000
 
 export type DrainReviewAnalysisBacklogResult = Readonly<{
   claimed: number
@@ -185,6 +181,23 @@ async function forEachConcurrently<T>(
 export function createDrainReviewAnalysisBacklog(
   dependencies: DrainReviewAnalysisBacklogDependencies,
 ) {
+  /**
+   * Return an entry a stop holds to the queue, untried: no attempt counted,
+   * nothing settled, and no horizon running while it waits. Answers when it is
+   * asked about again.
+   */
+  async function hold(entry: AiReviewAnalysisBacklogEntry): Promise<number> {
+    const heldAt = dependencies.nowEpochMillis()
+    const retryAtEpochMillis = heldAt + HELD_RETRY_DELAY_MILLIS
+    await dependencies.backlog.release({
+      eventEnvelopeId: entry.eventEnvelopeId,
+      organizationId: entry.organizationId,
+      nextAttemptAtEpochMillis: retryAtEpochMillis,
+      nowEpochMillis: heldAt,
+    })
+    return retryAtEpochMillis
+  }
+
   async function run(
     entry: AiReviewAnalysisBacklogEntry,
     lane: AiAdmissionLane,
@@ -209,20 +222,12 @@ export function createDrainReviewAnalysisBacklog(
           ? { admissionHeadroom: AI_ON_DEMAND_ANALYSIS_INTERACTIVE_HEADROOM }
           : {}),
       })
-      const now = dependencies.nowEpochMillis()
       if (result.status === 'stopped') {
         // An operator stopped the AI execution controls. The analysis claimed
-        // and settled nothing, so the entry goes back as a policy refusal
-        // does: no attempt counted, and no horizon running while it waits.
-        const retryAtEpochMillis = now + STOPPED_RETRY_DELAY_MILLIS
-        await dependencies.backlog.release({
-          eventEnvelopeId: entry.eventEnvelopeId,
-          organizationId: entry.organizationId,
-          nextAttemptAtEpochMillis: retryAtEpochMillis,
-          nowEpochMillis: now,
-        })
-        return { kind: 'stopped', retryAtEpochMillis }
+        // and settled nothing, so the entry goes back as a policy refusal does.
+        return { kind: 'stopped', retryAtEpochMillis: await hold(entry) }
       }
+      const now = dependencies.nowEpochMillis()
       if (result.status === 'retry') {
         await dependencies.backlog.reschedule({
           eventEnvelopeId: entry.eventEnvelopeId,
@@ -330,13 +335,7 @@ export function createDrainReviewAnalysisBacklog(
         // provider call. So a refused entry never reaches it: it goes back
         // untried and is analysed once the stop is lifted.
         counts.denied += 1
-        const refusedAt = dependencies.nowEpochMillis()
-        await dependencies.backlog.release({
-          eventEnvelopeId: entry.eventEnvelopeId,
-          organizationId: entry.organizationId,
-          nextAttemptAtEpochMillis: refusedAt + DENIED_RETRY_DELAY_MILLIS,
-          nowEpochMillis: refusedAt,
-        })
+        await hold(entry)
         return
       }
       const lane = entry.priority

@@ -507,7 +507,10 @@ describe('AI review outbox consumer', () => {
     )
   })
 
-  it('maps source transitions to terminal dispositions', async () => {
+  // A transition is only ever settled, and policy is not asked about it. So it
+  // is handed over as `defer`: the settlement is the same, and the delivery
+  // holds no authority for a provider call it was never cleared for.
+  it('maps source transitions to terminal dispositions, without authority for a provider call', async () => {
     const test = harness({ status: 'terminal' })
 
     await handleAiReviewEvent(
@@ -516,7 +519,7 @@ describe('AI review outbox consumer', () => {
     )
 
     expect(test.analyzeReviewEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ disposition: 'provider_deleted' }),
+      expect.objectContaining({ disposition: 'provider_deleted', execution: 'defer' }),
     )
   })
 
