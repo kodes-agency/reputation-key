@@ -1,4 +1,4 @@
-import type { InboxItemId } from '#/shared/domain/ids'
+import type { InboxItemId, OrganizationId } from '#/shared/domain/ids'
 import { feedbackId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { ConsumerEvent, ConsumerRegistry, ConsumerResult } from '#/shared/outbox'
 import type { FeedbackLookupPort } from '../application/ports/feedback-lookup.port'
@@ -38,7 +38,7 @@ export type GuestFeedbackRetractionInput = Readonly<{
   organizationId: string
   propertyId: string
   /** The `guest.feedback.submitted` fact this withdrawal takes back. */
-  supersedesSourceEventId?: string
+  supersedesSourceEventId: string
   responseRevision?: number
   occurredAt: Date
 }>
@@ -62,16 +62,22 @@ const EVENT_ID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
  * withdrawn. So the withdrawal first settles that delivery: either it wins
  * the receipt key and the insert is refused, or the insert already holds the
  * key and this waits for it, after which the item it created is visible below.
- * A fact recorded before the field existed names no submission and settles
- * nothing.
+ *
+ * The submission's id is payload, not envelope: the store settles it only when
+ * it is stored for the withdrawal's own Organization, and an id that is not a
+ * UUID names no stored event and settles nothing.
  */
 async function settleSupersededSubmission(
   deps: GuestFeedbackRetractionDeps,
-  input: GuestFeedbackRetractionInput,
+  submittedEventId: string,
+  withdrawalOrganizationId: OrganizationId,
 ): Promise<void> {
-  const submittedEventId = input.supersedesSourceEventId
-  if (submittedEventId === undefined || !EVENT_ID_TEXT.test(submittedEventId)) return
-  await deps.commandStore.settleSupersededDelivery(submittedEventId, CONSUMER_NAME)
+  if (!EVENT_ID_TEXT.test(submittedEventId)) return
+  await deps.commandStore.settleSupersededDelivery(
+    submittedEventId,
+    CONSUMER_NAME,
+    withdrawalOrganizationId,
+  )
 }
 
 /** Durable, metadata-only private-feedback projection into manager Inbox. */
@@ -163,7 +169,7 @@ export async function applyInboxGuestFeedbackRetraction(
     throw new Error('Guest feedback responseRevision is invalid')
   }
   const orgId = organizationId(input.organizationId)
-  await settleSupersededSubmission(deps, input)
+  await settleSupersededSubmission(deps, input.supersedesSourceEventId, orgId)
   const item = await deps.inboxRepo.findBySource('feedback', input.feedbackId, orgId)
   if (!item) {
     await deps.commandStore.recordReceipt(

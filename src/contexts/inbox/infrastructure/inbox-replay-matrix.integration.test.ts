@@ -933,6 +933,50 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
     expect(await receiptFor(withdrawal.eventId)).toBe('applied')
   })
 
+  // The submission a withdrawal takes back is named in its payload. Only a
+  // submission of the withdrawal's own Organization is settled, so a wrong id
+  // cannot stop another Organization's feedback from reaching its Inbox.
+  it('leaves another Organization’s submission deliverable when a withdrawal names it', async () => {
+    await cleanProjection()
+    const otherOrganization = 'org-inbox-replay-matrix-00000002'
+    const otherSubmissionEventId = '7d000000-0000-4000-8000-000000000301'
+    await pool.query(
+      `INSERT INTO outbox_events (
+         id, event_type, event_version, payload, organization_id,
+         property_id, source_context, source_aggregate_id, created_at
+       ) VALUES ($1, 'guest.feedback.submitted', 1, '{}'::jsonb, $2, $3, 'guest', $4, $5)`,
+      [
+        otherSubmissionEventId,
+        otherOrganization,
+        SCOPE.propertyId,
+        SCOPE.feedbackId,
+        AT.feedbackSubmittedAt,
+      ],
+    )
+    try {
+      const withdrawal = guestEnvelope(
+        'guest.feedback.retracted',
+        'guest.feedback.retracted',
+        {
+          ...guestFeedbackPayload(SCOPE.feedbackId),
+          supersedesSourceEventId: otherSubmissionEventId,
+        },
+      )
+
+      await handleInboxGuestFeedbackRetracted(
+        guestDeps(SCOPE.feedbackItemId, () => false),
+        withdrawal,
+      )
+
+      expect(await receiptFor(otherSubmissionEventId)).toBeNull()
+      expect(await receiptFor(withdrawal.eventId)).toBe('applied')
+    } finally {
+      await pool.query('DELETE FROM outbox_events WHERE id = $1', [
+        otherSubmissionEventId,
+      ])
+    }
+  })
+
   it('closes a live private-feedback cycle on withdrawal and leaves no releasable slot or manager outcome', async () => {
     await cleanProjection()
     let bodyAvailable = true

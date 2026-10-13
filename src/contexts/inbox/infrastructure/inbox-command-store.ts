@@ -2982,8 +2982,8 @@ export const createAtomicInboxCommandStore = (
       })
     },
 
-    settleSupersededDelivery: (eventId, consumerName) =>
-      settleSupersededDeliveryRow(db, eventId, consumerName),
+    settleSupersededDelivery: (eventId, consumerName, organizationId) =>
+      settleSupersededDeliveryRow(db, eventId, consumerName, organizationId),
 
     recordReceipt: async (eventId, consumerName, status) => {
       return trace('inbox.commandStore.recordReceipt', async () => {

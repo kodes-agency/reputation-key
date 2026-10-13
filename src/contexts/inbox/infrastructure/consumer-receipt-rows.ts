@@ -8,6 +8,7 @@
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
+import type { OrganizationId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
 import type { ApplyReceiptStatus } from '../application/ports/inbox-command-store.port'
 
@@ -66,17 +67,23 @@ export async function restateReceiptRow(
  * changes nothing, with whatever the consumer applied now visible.
  *
  * An event that is no longer stored cannot be delivered again and takes no
- * receipt (the receipt's foreign key would refuse one).
+ * receipt (the receipt's foreign key would refuse one). Nor does an event
+ * stored for another Organization: the id comes from the superseding fact's
+ * payload, and only that fact's own tenant may be settled by it.
  */
 export async function settleSupersededDeliveryRow(
   db: Database,
   eventId: string,
   consumerName: string,
+  organizationId: OrganizationId,
 ): Promise<void> {
   await db.execute(sql`
     INSERT INTO event_consumer_receipts (event_id, consumer_name, status)
     SELECT ${eventId}::uuid, ${consumerName}, 'obsolete'
-    WHERE EXISTS (SELECT 1 FROM outbox_events WHERE id = ${eventId}::uuid)
+    WHERE EXISTS (
+      SELECT 1 FROM outbox_events
+      WHERE id = ${eventId}::uuid AND organization_id = ${organizationId}
+    )
     ON CONFLICT DO NOTHING
   `)
 }

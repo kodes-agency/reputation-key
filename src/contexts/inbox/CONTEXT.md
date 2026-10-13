@@ -70,7 +70,9 @@ creates anything, and the withdrawal consumer first settles that same
 delivery as obsolete (`settleSupersededDelivery`). A withdrawal handled
 between the creation consumer's source check and its insert therefore refuses
 the insert, and one that meets an insert already in flight waits for it and
-then closes the item. `review.reply.observed` is a wake-up hint; the exact-current
+then closes the item. The withdrawal names the submission by event id in its
+payload, so the delivery is settled only when that event is stored for the
+withdrawal's own Organization. `review.reply.observed` is a wake-up hint; the exact-current
 permit is checked under Review's observation fence before Inbox commits closure or
 reopen work. The reminder job runs every five minutes and Notification revalidates
 recipients immediately before delivery.

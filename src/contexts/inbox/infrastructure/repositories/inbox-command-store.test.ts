@@ -1148,7 +1148,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
   it('applySourceCreatedOnce creates nothing for a delivery a superseding fact already settled', async () => {
     const source = await submittedSource()
     const store = createAtomicInboxCommandStore(db)
-    await store.settleSupersededDelivery(source.eventId, CONSUMER)
+    await store.settleSupersededDelivery(source.eventId, CONSUMER, ORG_A)
 
     const item = makeItem()
     const outcome = await store.applySourceCreatedOnce({
@@ -1188,7 +1188,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
           [source.eventId, CONSUMER],
         )
         const settling = store
-          .settleSupersededDelivery(source.eventId, CONSUMER)
+          .settleSupersededDelivery(source.eventId, CONSUMER, ORG_A)
           .then(() => {
             settled = true
           })
@@ -1214,9 +1214,37 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     const store = createAtomicInboxCommandStore(db)
     const purgedEventId = crypto.randomUUID()
 
-    await store.settleSupersededDelivery(purgedEventId, CONSUMER)
+    await store.settleSupersededDelivery(purgedEventId, CONSUMER, ORG_A)
 
     expect(await receiptsOf(purgedEventId)).toEqual([])
+  })
+
+  // The superseding fact names the delivery by event id, and that id is only
+  // payload. A wrong one must not silence another Organization's delivery.
+  it('settleSupersededDelivery records nothing for an event stored for another Organization', async () => {
+    const store = createAtomicInboxCommandStore(db)
+    const otherOrganizationSource = reviewCreated({
+      reviewId: REVIEW_A,
+      propertyId: PROP_C,
+      organizationId: ORG_B,
+      platform: 'google',
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
+      occurredAt: NOW,
+    })
+    await insertSourceEvent(otherOrganizationSource)
+    try {
+      await store.settleSupersededDelivery(
+        otherOrganizationSource.eventId,
+        CONSUMER,
+        ORG_A,
+      )
+
+      expect(await receiptsOf(otherOrganizationSource.eventId)).toEqual([])
+    } finally {
+      await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_B])
+    }
   })
 
   it('rolls back the item insert when the fact insert fails (unregistered type)', async () => {
