@@ -245,10 +245,13 @@ export function registerReplyPublicationConsumers(
     module: 'review.connection-lifecycle',
     handler: (event) => handleGoogleAccountDisconnected(deps, event),
   })
+  // Not the publish row either: that row is gated on `property.publish_reply`,
+  // and a stop in force when the fact is dispatched would deny this cleanup
+  // terminally. It cancels and never publishes, so it runs ungated.
   registerConsumer({
     eventType: 'property.archived',
     consumerName: 'review.on-property-archived',
-    module: 'review.outbox-consumers',
+    module: 'review.property-lifecycle',
     handler: (event) => handlePropertyArchived(deps, event),
   })
   deps.logger.info('Review consumers registered (3 consumers)')

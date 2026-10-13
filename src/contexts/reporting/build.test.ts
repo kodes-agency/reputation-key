@@ -35,6 +35,13 @@ describe('buildReportingContext', () => {
     expect(typeof context.publicApi.listPropertySetupSummaries).toBe('function')
   })
 
+  it('publishes governed metric reads only, never the raw aggregate query', () => {
+    // The aggregate query takes any consumer and any metric key and asks no
+    // authority; Goals read through queryGoalMetric, which admits one approved
+    // version. Nothing in production called the raw one.
+    expect(Object.keys(build().publicApi)).not.toContain('queryAggregate')
+  })
+
   it('owns both reporting consumer families and Goal maintenance', () => {
     const context = build()
 
@@ -46,6 +53,20 @@ describe('buildReportingContext', () => {
       'goalProgramRepo',
       'propertySetupRepo',
       'setupChecklistRepo',
+    ])
+  })
+
+  it('builds no Organization export or lifecycle contributor of its own', () => {
+    // LIF-01: the metric, goal and dashboard contributors are built by
+    // composition/organization-export-contributors.ts, never by this build: a
+    // second instance here would be read by nothing.
+    const context = build()
+
+    expect(Object.keys(context).sort()).toEqual([
+      'internal',
+      'maintenance',
+      'publicApi',
+      'worker',
     ])
   })
 })

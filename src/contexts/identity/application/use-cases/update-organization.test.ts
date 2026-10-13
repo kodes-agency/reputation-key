@@ -97,6 +97,39 @@ describe('updateOrganization', () => {
   })
 })
 
+// An uploaded logo is saved by its finalize step, which holds the key to the
+// Organization and reads the size the store holds. This use case took the same
+// address with neither check, so the finalize step could be skipped.
+describe('updateOrganization and the address of an uploaded picture', () => {
+  const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+  it.each([
+    ['its own uploaded logo', `organizations/${ctx.organizationId}/logo/${OLD}`],
+    ["another Organization's logo", `organizations/another-org/logo/${OLD}`],
+    ['an avatar', `avatars/${ctx.userId}/${OLD}`],
+  ])('refuses %s as the logo, and saves nothing', async (_case, key) => {
+    const { useCase, updateCalls } = setup()
+
+    await expect(
+      useCase({ name: 'Renamed', logo: identityAssetPath(key) }, ctx),
+    ).rejects.toMatchObject({
+      _tag: 'IdentityError',
+      code: 'validation_error',
+      message: 'An uploaded logo is saved by its upload.',
+    })
+
+    expect(updateCalls).toHaveLength(0)
+  })
+
+  it('still saves a logo hosted elsewhere', async () => {
+    const { useCase, updateCalls } = setup()
+
+    await useCase({ logo: 'https://cdn.example.com/logo.png' }, ctx)
+
+    expect(updateCalls).toEqual([{ logo: 'https://cdn.example.com/logo.png' }])
+  })
+})
+
 describe('updateOrganization removing the logo', () => {
   const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
   const previous = identityAssetPath(`organizations/${ctx.organizationId}/logo/${OLD}`)

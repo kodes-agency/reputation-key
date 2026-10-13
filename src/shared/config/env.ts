@@ -273,12 +273,13 @@ const baseEnvSchema = z.object({
   // Comma-separated GBP notification types to subscribe to (default: NEW_REVIEW only).
   GBP_PUBSUB_NOTIFICATION_TYPES: z.string().default('NEW_REVIEW'),
   // Service-account email Google Pub/Sub signs its push JWT with (the
-  // subscription's OIDC push identity). When SET, the webhook additionally
-  // requires the verified `email` claim to equal it, so a Google-issued token
-  // from any OTHER project/service account is rejected 401 instead of being
-  // accepted on audience alone. Leave UNSET and the pushing identity is
-  // unpinned: any Google-issued OIDC token carrying our audience is accepted
-  // (the webhook warns once per process about exactly this).
+  // subscription's OIDC push identity). The webhook requires the verified
+  // `email` claim to equal it, so a Google-issued token from any OTHER
+  // project/service account is rejected 401 instead of being accepted on
+  // audience alone. REQUIRED for push delivery: optional in the schema only so
+  // a deployment without push still boots. With a topic set and this unset the
+  // webhook answers every push 503 and logs an error (there is no unpinned
+  // mode), and new reviews arrive by polling.
   GBP_PUBSUB_PUSH_SERVICE_ACCOUNT: z.string().optional(),
   // Per-property minimum interval (minutes) between new-review discovery
   // polls. The discover-new-reviews sweep FIRES every 15 minutes on the

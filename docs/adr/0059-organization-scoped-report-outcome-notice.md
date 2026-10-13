@@ -32,9 +32,10 @@ whose id is the report's opaque triage reference.
 
 1. **Scope is per type, not only per category.**
    `ORGANIZATION_INFORMATIONAL_TYPES` names the Organization-scoped types that
-   are not mandatory, and `notificationScopeForType` consults it. It has one
-   member. The database CHECK names the same type rather than admitting "any
-   Organization-scoped workflow notice", so every further widening needs a
+   are not mandatory, and `notificationScopeForType` consults it. It had one
+   member on the day of this decision; the note of 2026-10-13 below says what
+   it holds now. The database CHECK names the same type rather than admitting
+   "any Organization-scoped workflow notice", so every further widening needs a
    decision like this one. A test pins that the application list and the
    database agree.
 2. **Channels resolve through ADR 0046 rule 1.** There is no Property, so there
@@ -76,3 +77,26 @@ whose id is the report's opaque triage reference.
   one is added to `ORGANIZATION_INFORMATIONAL_TYPES` and to the database CHECK
   by name, and gets its own ADR.
 - The mandatory branch of ADR 0046 is unchanged.
+
+## Note 2026-10-13 — two more shapes have joined this one
+
+Decision 1 said the list of Organization-scoped notices that are not mandatory
+has one member. That was true on 2026-09-18 and is not now. ADR 0046 has since
+admitted two more shapes, each in an amendment to that ADR rather than in a new
+ADR, and each by name in a branch of its own in
+`notifications_mandatory_scope_check`:
+
+- `integration.google_disconnected` (ADR 0046, amended 2026-09-24): always
+  Organization-scoped, `workflow_collaboration`, pointing at the connection. It
+  is the second member of `ORGANIZATION_INFORMATIONAL_TYPES`.
+- `integration.reauthorization_required` (ADR 0046, amended 2026-09-28): still
+  Property-scoped `urgent_operational` whenever an active Property can anchor
+  it, and Organization-scoped only when none can. It is not in
+  `ORGANIZATION_INFORMATIONAL_TYPES`; it is the one member of
+  `ORGANIZATION_FALLBACK_TYPES`.
+
+So three named types can be Organization-scoped without being mandatory, and
+at that scope each is in-app only and never mailed, as decision 2 says of this
+one. The rule of the third consequence above stands in its substance: a further
+shape is a recorded decision and a CHECK branch that names it. It has been met
+by an ADR 0046 amendment both times, not by an ADR of its own.

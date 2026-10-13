@@ -97,6 +97,10 @@ function repository() {
       disposition: 'inserted' as const,
       value: storedTemplate,
     })),
+    createTemplate: vi.fn(async () => ({
+      disposition: 'inserted' as const,
+      value: storedTemplate,
+    })),
     updateTemplate: vi.fn(async (input) => ({
       disposition: 'updated' as const,
       value: {
@@ -208,9 +212,11 @@ describe('property reply library operations', () => {
       MANAGER,
     )
 
-    expect(repo.upsertTemplate).toHaveBeenCalledWith(
+    expect(repo.createTemplate).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Renamed positive', updatedBy: USER }),
     )
+    // Title-keyed upsert is the operations importer's, never Settings'.
+    expect(repo.upsertTemplate).not.toHaveBeenCalled()
     expect(repo.setTemplateEnabled).toHaveBeenCalledWith({
       organizationId: ORGANIZATION,
       propertyId: PROPERTY,
@@ -218,6 +224,35 @@ describe('property reply library operations', () => {
       enabled: false,
       updatedBy: USER,
     })
+  })
+
+  it('answers a title another template holds as invalid input, on create and on rename', async () => {
+    const repo = repository()
+    repo.createTemplate.mockResolvedValue({ disposition: 'title_taken' } as never)
+    repo.updateTemplate.mockResolvedValue({ disposition: 'title_taken' } as never)
+    const save = savePropertyReplyTemplate({
+      repository: repo,
+      staffPublicApi: staffApi(),
+    })
+    const titleTaken = {
+      _tag: 'ReviewError',
+      code: 'invalid_input',
+      message: 'This Property already has a reply template with this title',
+    }
+
+    await expect(
+      save({ propertyId: PROPERTY, template: TEMPLATE_INPUT }, MANAGER),
+    ).rejects.toMatchObject(titleTaken)
+    await expect(
+      save(
+        {
+          propertyId: PROPERTY,
+          templateId: '73000000-0000-4000-8000-000000000006',
+          template: TEMPLATE_INPUT,
+        },
+        MANAGER,
+      ),
+    ).rejects.toMatchObject(titleTaken)
   })
 
   it('refuses Members before reading property data', async () => {

@@ -46,6 +46,9 @@ export const recentActivityEntries = pgTable(
     ),
     index('recent_activity_entries_event_id_idx').on(t.eventId),
     index('recent_activity_entries_actor_idx').on(t.actorId, t.createdAt),
+    // recent_activity_entries_created_at_idx (the retention sweep's order) is absent here on
+    // purpose: the concurrent-index sidecar builds it
+    // (src/shared/db/concurrent-index-registry.ts).
     // ACT-006: enforce idempotency at the DB level — BullMQ delivers at-least-once,
     // so a unique constraint on (eventId, organizationId) is the TOCTOU-safe guard.
     uniqueIndex('recent_activity_entries_event_id_org_uniq').on(

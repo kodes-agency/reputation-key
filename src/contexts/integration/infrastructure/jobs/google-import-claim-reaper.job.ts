@@ -8,9 +8,11 @@
 // The reaper is injected rather than constructed here so composition owns the
 // store wiring, matching the permit start-deadline sweep seam.
 //
-// Cadence rationale: the claim lease is 60s, so a 60s cadence bounds worst-case
-// recovery at roughly two lease widths. The scan is a bounded 100-row read over
-// the active-item index and does nothing when no claim is stale.
+// Cadence rationale: the claim lease is 60s, so a 60s cadence releases a dead
+// claim within roughly two lease widths. The item is worked again when BullMQ
+// returns its stalled job, 90 seconds or more after the worker died. The scan
+// is a bounded 100-row read over the active-item index and does nothing when
+// no claim is stale.
 
 import type { Job } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'

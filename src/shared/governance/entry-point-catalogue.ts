@@ -81,6 +81,7 @@ export type SystemAction =
   | 'system:review.purge'
   | 'system:review.reconcile'
   | 'system:review.cancel_connection_publications'
+  | 'system:review.cancel_property_publications'
   | 'system:reply.publish'
   | 'system:metric.record'
   | 'system:metric.record_guest_analytics'
@@ -360,6 +361,16 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:review.cancel_connection_publications',
     'none',
     'organization',
+  ),
+  // Cancelling an archived Property's queued reply publications is cleanup as
+  // well: ungated, because a denied consumer is never retried and a stop on
+  // `property.publish_reply` is exactly when a queued reply must not be left
+  // waiting, and scoped to the one Property the lifecycle fact names.
+  consumer(
+    'review.property-lifecycle',
+    'system:review.cancel_property_publications',
+    'none',
+    'property',
   ),
   consumer(
     'portal.health-outbox-consumers',

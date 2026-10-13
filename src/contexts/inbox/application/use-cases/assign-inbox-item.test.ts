@@ -326,7 +326,7 @@ describe('assignInboxItem', () => {
   })
 
   it('denies access for role without inbox.write permission', async () => {
-    // Roles without inbox.write hit the auth gate before validateAssignment
+    // Roles without inbox.write hit the auth gate before the item is loaded
     const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],

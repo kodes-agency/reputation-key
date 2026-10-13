@@ -219,7 +219,7 @@ function healthySnapshot(): MutableSnapshot {
 
 function healthyAux(): MutableAux {
   return {
-    retentionFailedSubjects: [],
+    retention: { monitorAvailable: true, failedSubjects: [] },
     betaFeedbackTriage: {
       monitorAvailable: true,
       deliveredUnresolvedCount: 0,
@@ -643,7 +643,7 @@ const BREACHES: readonly Breach[] = [
     windowMs: 24 * 60 * 60 * 1000,
     value: 1,
     apply: (_s, aux) => {
-      aux.retentionFailedSubjects = ['reviews.purge']
+      aux.retention = { monitorAvailable: true, failedSubjects: ['reviews.purge'] }
     },
   },
   {

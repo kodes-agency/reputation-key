@@ -23,7 +23,11 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { Reply, Review } from '../domain/types'
-import { reviewReplyApproved, reviewReplyPublicationRequested } from '../domain/events'
+import {
+  reviewReplyApproved,
+  reviewReplyPublicationCancelled,
+  reviewReplyPublicationRequested,
+} from '../domain/events'
 import { createReviewRepository } from './repositories/review.repository'
 import { createReplyRepository } from './repositories/reply.repository'
 import { createAtomicReplyCommandStore } from './reply-command-store'
@@ -243,4 +247,63 @@ describe('replies a Google disconnect may cancel', () => {
       expect(found).toEqual([])
     },
   )
+})
+
+// Three writers return a reply to draft with a cancelled cycle. The Review
+// store and the provider-truth cancellation clear the cycle's recovery
+// deadline and last error class; the disconnect and policy cancellation kept
+// both, so a check that answered "cancelled" still named a next automatic
+// check that no sweep would ever run.
+describe('what a disconnect cancellation leaves on the reply', () => {
+  it('clears the cancelled cycle’s recovery deadline and last error class', async () => {
+    const replyRepo = await replyAt('authorized')
+    // A cycle authorized again after a retryable failure carries its class.
+    await pool.query(
+      `UPDATE replies SET publication_last_error_class = 'retryable' WHERE id = $1`,
+      [REPLY_A],
+    )
+    const queued = (await replyRepo.findById(REPLY_A, ORG_A))!
+    expect({
+      reconcileDueAt: queued.reconcileDueAt,
+      publicationLastErrorClass: queued.publicationLastErrorClass,
+    }).toEqual({
+      reconcileDueAt: expect.any(Date),
+      publicationLastErrorClass: 'retryable',
+    })
+    const cancelledAt = new Date(NOW.getTime() + 60_000)
+
+    const cancelled = await createAtomicReplyCommandStore(
+      getDb(),
+      () => NOW,
+      async () => true,
+    ).cancelPublications([
+      {
+        reply: queued,
+        event: reviewReplyPublicationCancelled({
+          replyId: REPLY_A,
+          reviewId: REVIEW_A,
+          propertyId: PROP_A,
+          organizationId: ORG_A,
+          authorId: USER_A,
+          cause: 'disconnect',
+          occurredAt: cancelledAt,
+        }),
+        now: cancelledAt,
+      },
+    ])
+
+    expect(cancelled).toBe(1)
+    const after = (await replyRepo.findById(REPLY_A, ORG_A))!
+    expect({
+      status: after.status,
+      publicationState: after.publicationState,
+      reconcileDueAt: after.reconcileDueAt,
+      publicationLastErrorClass: after.publicationLastErrorClass,
+    }).toEqual({
+      status: 'draft',
+      publicationState: 'cancelled',
+      reconcileDueAt: null,
+      publicationLastErrorClass: null,
+    })
+  })
 })

@@ -44,8 +44,9 @@ export const createActivityDbUserLookupAdapter = (db: Database): UserLookupPort 
       // §13: surface DB failures as a typed error instead of returning the
       // FALLBACK_USER sentinel, which silently mis-attributes actions to a
       // Staff-shaped 'System' user during a DB outage. The caller
-      // (projectRecentActivity) catches this and decides whether to write the row
-      // with system defaults — the not-found case (empty result) still returns
+      // (prepareRecentActivityEntry) lets it propagate, so the durable
+      // consumer retries the delivery instead of writing an entry that names
+      // System for good. The not-found case (empty result) still returns
       // FALLBACK_USER above; only a thrown DB error reaches here.
       throw activityError('lookup_failed', 'User lookup failed', {
         userId: uid,

@@ -2,12 +2,15 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
-import { organizationId, propertyId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type {
   ReplyProfileWrite,
   ReplyTemplateWrite,
 } from '../../application/ports/reply-template.repository'
+import type { ReplyTemplateValues } from '../../application/dto/reply-library.dto'
+import { savePropertyReplyTemplate } from '../../application/use-cases/reply-library-operations'
 import { createReplyTemplateRepository } from './reply-template.repository'
 
 const ORG_A = organizationId('org-reply-library-aaaaaaaaaaaaaaaa')
@@ -281,5 +284,132 @@ describe.sequential('reply template repository', () => {
     await expect(
       repository.upsertTemplate(template({ body: 'x'.repeat(4097) })),
     ).rejects.toMatchObject({ code: 'invalid_reply' })
+  })
+})
+
+// Settings saves through the use case. A save with no template id is a
+// create: it used to reuse the importer's title-keyed upsert, so a new
+// template silently replaced the body, rating bands, language and enabled
+// flag of the one that already had its title. A rename onto a taken title met
+// the unique index and surfaced as an internal error.
+describe.sequential('Settings reply template titles', () => {
+  const ADMIN: AuthContext = {
+    organizationId: ORG_A,
+    userId: userId('user-reply-library-admin'),
+    role: 'AccountAdmin',
+  }
+  const TITLE_TAKEN = {
+    _tag: 'ReviewError',
+    code: 'invalid_input',
+    message: 'This Property already has a reply template with this title',
+  }
+
+  const settings = () => {
+    const repository = createReplyTemplateRepository(getDb(), () => NOW)
+    const save = savePropertyReplyTemplate({
+      repository,
+      staffPublicApi: {
+        getAccessiblePropertyIds: async () => null,
+        getAssignedPortals: async () => [],
+      },
+    })
+    const stored = async () =>
+      (await repository.listPropertyTemplates(ORG_A, PROPERTY_A))
+        .map(({ title, body, ratingMin, enabled, version }) => ({
+          title,
+          body,
+          ratingMin,
+          enabled,
+          version,
+        }))
+        .sort((a, b) => a.title.localeCompare(b.title))
+    return { save, stored }
+  }
+
+  const values = (overrides: Partial<ReplyTemplateValues> = {}): ReplyTemplateValues => ({
+    title: 'General positive',
+    ratingMin: 4,
+    ratingMax: 5,
+    hasText: true,
+    aspect: null,
+    openLabel: null,
+    languageTag: 'en-Latn',
+    body: 'Thank you, {guest_name}.',
+    enabled: true,
+    ...overrides,
+  })
+  const GENERAL_POSITIVE = {
+    title: 'General positive',
+    body: 'Thank you, {guest_name}.',
+    ratingMin: 4,
+    enabled: true,
+    version: 1,
+  }
+
+  it('refuses a new template whose title the Property already uses, and leaves that template as it was', async () => {
+    const { save, stored } = settings()
+    await save({ propertyId: PROPERTY_A, template: values() }, ADMIN)
+
+    await expect(
+      save(
+        {
+          propertyId: PROPERTY_A,
+          template: values({
+            body: 'We are sorry, {guest_name}.',
+            ratingMin: 1,
+            ratingMax: 2,
+            enabled: false,
+          }),
+        },
+        ADMIN,
+      ),
+    ).rejects.toMatchObject(TITLE_TAKEN)
+
+    expect(await stored()).toEqual([GENERAL_POSITIVE])
+  })
+
+  it('refuses renaming a template onto a title another template holds', async () => {
+    const { save, stored } = settings()
+    await save({ propertyId: PROPERTY_A, template: values() }, ADMIN)
+    const recovery = await save(
+      { propertyId: PROPERTY_A, template: values({ title: 'Recovery', ratingMin: 1 }) },
+      ADMIN,
+    )
+
+    await expect(
+      save(
+        {
+          propertyId: PROPERTY_A,
+          templateId: recovery.value.id,
+          template: values({ ratingMin: 1 }),
+        },
+        ADMIN,
+      ),
+    ).rejects.toMatchObject(TITLE_TAKEN)
+
+    expect(await stored()).toEqual([
+      GENERAL_POSITIVE,
+      { ...GENERAL_POSITIVE, title: 'Recovery', ratingMin: 1 },
+    ])
+  })
+
+  it('still renames a template to a free title in place', async () => {
+    const { save, stored } = settings()
+    const created = await save({ propertyId: PROPERTY_A, template: values() }, ADMIN)
+
+    await expect(
+      save(
+        {
+          propertyId: PROPERTY_A,
+          templateId: created.value.id,
+          template: values({ title: 'Warm thanks' }),
+        },
+        ADMIN,
+      ),
+    ).resolves.toMatchObject({ disposition: 'updated', value: { id: created.value.id } })
+
+    expect(await stored()).toEqual([
+      { ...GENERAL_POSITIVE, title: 'Warm thanks', version: 2 },
+    ])
   })
 })

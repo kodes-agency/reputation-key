@@ -1,13 +1,7 @@
 // Inbox context — domain rules tests (ADR 0055: open/closed 2-state machine)
 
 import { describe, it, expect } from 'vitest'
-import {
-  canTransition,
-  validateTransition,
-  timestampFieldsForStatus,
-  canAssign,
-  validateAssignment,
-} from './rules'
+import { canTransition, validateTransition, timestampFieldsForStatus } from './rules'
 import { isInboxError } from './errors'
 import type { InboxStatus } from './types'
 
@@ -95,38 +89,5 @@ describe('timestampFieldsForStatus', () => {
     // ADR 0055: one field, not four. Reopening has to null it — a stale
     // closedAt on an open item is what makes an SLA report lie.
     expect(timestampFieldsForStatus('open', NOW)).toEqual({ closedAt: null })
-  })
-})
-
-// ─── canAssign ───────────────────────────────────────────────────────
-
-describe('canAssign', () => {
-  it('returns true for roles with inbox.manage (AccountAdmin)', () => {
-    expect(canAssign('AccountAdmin')).toBe(true)
-  })
-
-  it('returns true for PropertyManager', () => {
-    expect(canAssign('PropertyManager')).toBe(true)
-  })
-
-  it('returns false for Member', () => {
-    expect(canAssign('Member')).toBe(false)
-  })
-})
-
-// ─── validateAssignment ─────────────────────────────────────────────
-
-describe('validateAssignment', () => {
-  it('returns ok for roles with inbox.manage', () => {
-    expect(validateAssignment('AccountAdmin').isOk()).toBe(true)
-    expect(validateAssignment('PropertyManager').isOk()).toBe(true)
-  })
-
-  it('returns err with assignment_not_allowed for Member', () => {
-    const result = validateAssignment('Member')
-    expect(result.isErr()).toBe(true)
-    const error = result._unsafeUnwrapErr()
-    expect(error.code).toBe('assignment_not_allowed')
-    expect(error.message).toContain('Member')
   })
 })

@@ -62,7 +62,11 @@ export type AlertEvent = Readonly<{
  */
 export type AlertAuxReads = Readonly<{
   /** retention_runs subjects whose LATEST run failed (subject names only). */
-  retentionFailedSubjects: readonly string[]
+  retention: Readonly<{
+    /** false means the PostgreSQL observation failed and must alert fail-visible. */
+    monitorAvailable: boolean
+    failedSubjects: readonly string[]
+  }>
   /** Content-free age/count of delivered native feedback awaiting resolution. */
   betaFeedbackTriage: Readonly<{
     /** false means the PostgreSQL observation failed and must alert fail-visible. */
@@ -956,7 +960,16 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     windowMs: 24 * 60 * 60 * 1000,
     threshold: 0,
     read: (_snapshot, aux) => {
-      const failed = aux.retentionFailedSubjects
+      // A failed read is not "every latest run succeeded": the sweep's own
+      // failure reaches the queue alerts only on their slower clocks.
+      if (!aux.retention.monitorAvailable) {
+        return {
+          value: -1,
+          detail:
+            'retention run monitor unavailable — whether the latest sweeps succeeded is unknown',
+        }
+      }
+      const failed = aux.retention.failedSubjects
       if (failed.length === 0) return null
       return {
         value: failed.length,

@@ -79,20 +79,15 @@ describe('Review context build', () => {
     })
   })
 
-  it('exposes the Organization Export contribution outside the request public API', () => {
+  it('builds no Organization export or lifecycle contributor of its own', () => {
+    // LIF-01: both contributors are built by
+    // composition/organization-export-contributors.ts, never by this build: a
+    // second instance here would be read by nothing.
     const { api } = setup()
 
-    expect(api.organizationExport.contributor.context).toBe('review')
-    expect(Object.isFrozen(api.organizationExport)).toBe(true)
+    expect(Object.keys(api)).not.toContain('organizationExport')
+    expect(Object.keys(api)).not.toContain('organizationLifecycle')
     expect(Object.keys(api.publicApi)).not.toContain('organizationExport')
-  })
-
-  it('exposes the Organization lifecycle contribution outside the request public API', () => {
-    const { api } = setup()
-
-    expect(Object.keys(api.organizationLifecycle)).toEqual(['contributor'])
-    expect(api.organizationLifecycle.contributor.context).toBe('review')
-    expect(Object.isFrozen(api.organizationLifecycle)).toBe(true)
     expect(Object.keys(api.publicApi)).not.toContain('organizationLifecycle')
   })
 

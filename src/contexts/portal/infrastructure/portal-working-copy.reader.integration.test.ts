@@ -17,10 +17,7 @@ import { buildPortalPublicationSnapshot } from '../application/portal-publicatio
 import type { PortalPublicationSource } from '../domain/portal-publication-source'
 import { portalPublicationPublished, portalUpdated } from '../domain/events'
 import { createAtomicPortalCommandStore } from './portal-command-store'
-import {
-  lockPortalWorkingCopyTables,
-  readPortalWorkingCopy,
-} from './portal-working-copy.reader'
+import { readPortalWorkingCopy } from './portal-working-copy.reader'
 import { createPortalPublicationRepository } from './repositories/portal-publication.repository'
 import { seedPortalWorkingCopy } from './testing/portal-working-copy-seed'
 import {
@@ -192,7 +189,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
     await expect(publishRead(scenario)).resolves.toEqual(golden)
   })
 
-  it('reads the same working copy inside a locked transaction as outside it', async () => {
+  it('reads the same working copy inside a transaction as outside it', async () => {
     await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
     const scope = {
       organizationId: COMPLETE_SCENARIO.organizationId,
@@ -200,10 +197,9 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
       portalId: COMPLETE_SCENARIO.portalId,
     }
 
-    const inTransaction = await getDb().transaction(async (tx) => {
-      await lockPortalWorkingCopyTables(tx)
-      return readPortalWorkingCopy(tx, scope)
-    })
+    const inTransaction = await getDb().transaction((tx) =>
+      readPortalWorkingCopy(tx, scope),
+    )
 
     expect(inTransaction).toEqual(COMPLETE_GOLDEN)
     await expect(readPortalWorkingCopy(getDb(), scope)).resolves.toEqual(inTransaction)

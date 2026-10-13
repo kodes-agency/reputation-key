@@ -20,8 +20,21 @@ export type PortalManagementScope = Readonly<{
   portalId?: string
 }>
 
+/** The canonical text of the `uuid` these ids are stored as, whatever its version. */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * An id that is not a UUID names no row. The request schemas take ids as any
+ * non-empty string, and PostgreSQL refuses to compare one with a `uuid`
+ * column: a server function addressed by a Portal, group, category or link
+ * resolves it here first, so without this a mistyped id was answered as a
+ * server failure, not "not found".
+ */
+const namesNoRow = (id: string): boolean => !UUID_PATTERN.test(id)
+
 export const createPortalScopeRepository = (db: Database) => ({
   resolvePortal: async (id: PortalId): Promise<PortalManagementScope | null> => {
+    if (namesNoRow(unbrand(id))) return null
     const [scope] = await db
       .select({
         organizationId: portals.organizationId,
@@ -35,6 +48,7 @@ export const createPortalScopeRepository = (db: Database) => ({
   },
 
   resolveGroup: async (id: PortalGroupId): Promise<PortalManagementScope | null> => {
+    if (namesNoRow(unbrand(id))) return null
     const [scope] = await db
       .select({
         organizationId: portalGroups.organizationId,
@@ -49,6 +63,7 @@ export const createPortalScopeRepository = (db: Database) => ({
   resolveCategory: async (
     id: PortalLinkCategoryId,
   ): Promise<PortalManagementScope | null> => {
+    if (namesNoRow(unbrand(id))) return null
     const [scope] = await db
       .select({
         organizationId: portalLinkCategories.organizationId,
@@ -70,6 +85,7 @@ export const createPortalScopeRepository = (db: Database) => ({
   },
 
   resolveLink: async (id: PortalLinkId): Promise<PortalManagementScope | null> => {
+    if (namesNoRow(unbrand(id))) return null
     const [scope] = await db
       .select({
         organizationId: portalLinks.organizationId,

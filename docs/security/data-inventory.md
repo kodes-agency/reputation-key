@@ -59,6 +59,13 @@ fallback.
 | Google review ID   | `review_source_contents.external_id`                | Sync dedup             | 30 days from fetch                        | Field-level erasure; HMAC subject mapping reconnects identity |
 | Review snippet     | `inbox_items.snippet`                               | Inbox preview          | 30 days from source                       | TTL purge job                                                 |
 
+**Enforcement of the 30 days:** on reads only. A serving read withholds a
+`review_source_contents` row once `content_expires_at` has passed; no executing
+rule deletes at that age, so the deletion is unenforced here (`docs/BETA.md` §2,
+UNENFORCED). A stored row past that age goes when a later fetch re-observes the
+Review (the expired content is erased and what Google returned replaces it),
+when Google confirms the Review deleted, or with an Organization purge.
+
 **ADR 0031 compliance:** During the rolling expand phase, writers atomically dual-write `review_source_contents` and nullable compatibility fields on `reviews`. Expiry/provider deletion deletes the source-content row and nulls every raw compatibility field; the stable Review ID and RepKey-owned Replies remain. Reader cutover and compatibility-column contraction require the governed parity seal.
 
 ### 4. User-Authored Content

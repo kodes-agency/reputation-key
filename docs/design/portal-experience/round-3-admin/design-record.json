@@ -240,7 +240,7 @@
         "[B · new read] Working copy and any snapshot rendered as the guest DTO for a faithful preview, Draft|Live compare and the restore dialog, plus a field-level diff worded as guests see it (B4).",
         "[B · new read] Property-level list of affected portals for property-wide edits, from portal_pending_content_changes (B5).",
         "[B · new read] 'Guests who opened Google' split from secondary-link selections. Qualified scans, private rating count and average in bounded windows at property, group and portal scope (widen the registry scope or wrap queryGoalMetric; a governance decision) (B6, B7).",
-        "[B · new read] Per-link selection counts in bounded windows for the one-portal report (secondary_link filter). Later: QR vs NFC split, and a responses-under-review list for moderateGuestResponseFn (B8, B10).",
+        "[B · new read] Per-link selection counts in bounded windows for the one-portal report (secondary_link filter). Later: QR vs NFC split, and a responses-under-review list for moderateGuestResponseFn (B8, B10; that function was removed 2026-10-13, so the list needs a moderation command first).",
         "[B · new read] Portal facet and portal name on Inbox Feedback rows, and the deep link from 'Private notes' (B9).",
         "[B · new read] Code and access-artifact history (issued, replaced, grace end, revoked, print kit downloaded) for the ledger (B11).",
         "[C · new command] Publish changes while live: published to published builds version N+1 and swaps the activation atomically, with a digest guard ('changed since you reviewed'). A first-publish sequence issues codes and publishes version 1 in one step (C1).",

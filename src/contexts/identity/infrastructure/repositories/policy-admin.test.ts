@@ -288,7 +288,12 @@ describe('PropertyAccessGrant administration', () => {
         actorUserId: ADMIN,
         now: NOW,
       }),
-    ).rejects.toThrow(/member/)
+    ).rejects.toMatchObject({
+      _tag: 'IdentityError',
+      code: 'member_not_found',
+      // The refusal names no id: the caller supplied it.
+      message: 'The user is not a member of this organization',
+    })
   })
 
   it('grants nothing on a deleted Property but still revokes what it holds', async () => {
@@ -306,7 +311,11 @@ describe('PropertyAccessGrant administration', () => {
       sql`UPDATE properties SET deleted_at = now() WHERE id = ${PROP}::uuid`,
     )
     try {
-      await expect(ops.grantPropertyAccessOp(grant)).rejects.toThrow(/property not found/)
+      await expect(ops.grantPropertyAccessOp(grant)).rejects.toMatchObject({
+        _tag: 'IdentityError',
+        code: 'validation_error',
+        message: 'The property is not in this organization',
+      })
       await ops.revokePropertyAccessOp({
         organizationId: ORG,
         propertyId: PROP,

@@ -7,7 +7,7 @@
 // Republish is not one: the Portal stays Published, so it has its own command
 // instead of a mutation kind on `updatePortal`. It takes the same locks in the
 // same order as publishing (ADR 0060: the Property publication fence first,
-// then the Portal row, then the working-copy tables).
+// then the Portal row). Neither locks a table.
 
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -34,10 +34,7 @@ import { snapshotMirrorColumns } from './mappers/portal-publication-snapshot.map
 import { assertCommittedRevision, sameInstant } from './portal-command-guards'
 import { lockPortalPublicationProperty } from './portal-publication-serialization'
 import { resolvePortalPendingContentChanges } from './portal-pending-content-changes'
-import {
-  lockPortalWorkingCopyTables,
-  readPortalWorkingCopy,
-} from './portal-working-copy.reader'
+import { readPortalWorkingCopy } from './portal-working-copy.reader'
 
 export type PortalPublicationCommandStore = Pick<PortalCommandStore, 'republishPortal'>
 
@@ -242,9 +239,9 @@ export const createPortalPublicationCommands = (
           'Portal',
           'Portal changed while its changes were being published',
         )
-        // The Portal row is locked; the working-copy tables come second, then
-        // the comparison reads the rows.
-        await lockPortalWorkingCopyTables(tx)
+        // The Portal row is locked, which holds its links, categories and link
+        // texts still: their writers take the same row first. The comparison
+        // reads the rows under it.
         await assertSnapshotMatchesCommittedWorkingCopy(tx, command, command.snapshot)
         const closed = await closeActivePublication(tx, command, 'replaced')
         if (closed !== 1) {

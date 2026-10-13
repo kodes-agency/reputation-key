@@ -78,6 +78,9 @@ export type ReplyLibraryUpsertResult<T> = Readonly<{
   value: T
 }>
 
+/** Nothing was written: another template of the Property holds the title. */
+export type ReplyTemplateTitleTaken = Readonly<{ disposition: 'title_taken' }>
+
 export type ReplyTemplateRepository = Readonly<{
   findPropertyOrganization(propertyId: PropertyId): Promise<OrganizationId | null>
   findProfile(
@@ -106,12 +109,22 @@ export type ReplyTemplateRepository = Readonly<{
   upsertProfile(
     input: ReplyProfileWrite,
   ): Promise<ReplyLibraryUpsertResult<PropertyReplyProfile>>
+  /**
+   * Title-keyed, for the operations importer only: a re-import updates the
+   * template that holds the title. Settings never calls it.
+   */
   upsertTemplate(
     input: ReplyTemplateWrite,
   ): Promise<ReplyLibraryUpsertResult<PropertyReplyTemplate>>
+  /** A new template. A title the Property already uses is never overwritten. */
+  createTemplate(
+    input: ReplyTemplateWrite,
+  ): Promise<ReplyLibraryUpsertResult<PropertyReplyTemplate> | ReplyTemplateTitleTaken>
   updateTemplate(
     input: ReplyTemplateUpdate,
-  ): Promise<ReplyLibraryUpsertResult<PropertyReplyTemplate> | null>
+  ): Promise<
+    ReplyLibraryUpsertResult<PropertyReplyTemplate> | ReplyTemplateTitleTaken | null
+  >
   setTemplateEnabled(
     input: ReplyTemplateEnabledUpdate,
   ): Promise<ReplyLibraryUpsertResult<PropertyReplyTemplate> | null>

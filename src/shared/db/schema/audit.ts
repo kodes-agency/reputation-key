@@ -24,5 +24,8 @@ export const auditLogs = pgTable(
     // F163: Indexes for common audit log query patterns
     index('audit_logs_org_idx').on(t.organizationId),
     index('audit_logs_user_idx').on(t.userId),
+    // audit_logs_created_at_idx (the retention sweep's order) is absent here on
+    // purpose: the concurrent-index sidecar builds it
+    // (src/shared/db/concurrent-index-registry.ts).
   ],
 )

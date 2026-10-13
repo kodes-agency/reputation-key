@@ -1,5 +1,6 @@
 import { and, eq, gt } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { Clock } from '#/shared/domain/clock'
 import {
   recentActivityEntries,
   recentActivityActorLabelRedactions,
@@ -227,9 +228,15 @@ const sameReplayAuthority = (
   return sameReplayProjectionAuthority(stored, incoming)
 }
 
+/**
+ * `observedAt` comes from the injected clock, as on the recovery path
+ * (`actorPrivacyJoin` in activity-recovery-store.ts): the fence is an expiry,
+ * and the two paths must agree on whether it still stands (ADR 0017).
+ */
 const applyActorPrivacyFence = async (
   tx: ActivityTransaction,
   incoming: RecentActivityReplayFact,
+  observedAt: Date,
 ): Promise<RecentActivityReplayFact> => {
   if (incoming.disposition === 'obsolete' || incoming.actorSubjectId === null) {
     return incoming
@@ -247,7 +254,7 @@ const applyActorPrivacyFence = async (
           recentActivityActorLabelRedactions.actorSubjectId,
           incoming.actorSubjectId as string,
         ),
-        gt(recentActivityActorLabelRedactions.expiresAt, new Date()),
+        gt(recentActivityActorLabelRedactions.expiresAt, observedAt),
       ),
     )
     .limit(1)
@@ -375,8 +382,9 @@ const applyRedeliveredRedaction = async (
 const ensureReplayAuthority = async (
   tx: ActivityTransaction,
   incoming: RecentActivityReplayFact,
+  observedAt: Date,
 ): Promise<RecentActivityReplayFact> => {
-  const privacyFencedIncoming = await applyActorPrivacyFence(tx, incoming)
+  const privacyFencedIncoming = await applyActorPrivacyFence(tx, incoming, observedAt)
   const inserted = await insertReplayAuthority(tx, privacyFencedIncoming)
   if (inserted) return inserted
 
@@ -398,10 +406,13 @@ const ensureReplayAuthority = async (
   return existing
 }
 
-export const createActivityDeliveryStore = (db: Database): ActivityDeliveryStore => ({
+export const createActivityDeliveryStore = (
+  db: Database,
+  clock: Clock,
+): ActivityDeliveryStore => ({
   applyOnce: async ({ entry, replayFact, eventId, consumerName }) =>
     db.transaction(async (tx): Promise<ActivityDeliveryOutcome> => {
-      const canonicalReplay = await ensureReplayAuthority(tx, replayFact)
+      const canonicalReplay = await ensureReplayAuthority(tx, replayFact, clock())
       if (canonicalReplay.disposition !== 'projectable') {
         throw new Error('Projectable Recent Activity delivery became obsolete')
       }
@@ -444,7 +455,7 @@ export const createActivityDeliveryStore = (db: Database): ActivityDeliveryStore
 
   recordObsolete: async ({ replayFact, eventId, consumerName }) =>
     db.transaction(async (tx) => {
-      const canonicalReplay = await ensureReplayAuthority(tx, replayFact)
+      const canonicalReplay = await ensureReplayAuthority(tx, replayFact, clock())
       if (canonicalReplay.disposition !== 'obsolete') {
         throw new Error('Obsolete Recent Activity delivery became projectable')
       }

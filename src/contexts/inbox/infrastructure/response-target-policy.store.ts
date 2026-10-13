@@ -78,6 +78,23 @@ const assertLowRating = (
   }
 }
 
+/**
+ * The low-rating pair a policy row holds. The database keeps the pair
+ * all-or-nothing, so one column decides. Never present on a private-feedback
+ * row, and null when there is no row yet.
+ */
+const storedLowRating = (
+  row:
+    | Readonly<{
+        lowRatingThreshold: number | null
+        lowRatingDurationMinutes: number | null
+      }>
+    | undefined,
+): LowRatingResponseTarget | null =>
+  !row || row.lowRatingThreshold === null || row.lowRatingDurationMinutes === null
+    ? null
+    : { threshold: row.lowRatingThreshold, durationMinutes: row.lowRatingDurationMinutes }
+
 const versionConflict = (currentPolicyVersion: number | null) =>
   inboxError('revision_conflict', 'Response Target policy changed; reload', {
     currentPolicyVersion,
@@ -135,16 +152,7 @@ export const createResponseTargetPolicyStore = (
               durationMinutes: stored.durationMinutes,
               policySource: 'organization_policy' as const,
               policyVersion: stored.policyVersion,
-              // The database keeps the pair all-or-nothing, so one column
-              // decides. Never present on a private-feedback row.
-              lowRating:
-                stored.lowRatingThreshold === null ||
-                stored.lowRatingDurationMinutes === null
-                  ? null
-                  : {
-                      threshold: stored.lowRatingThreshold,
-                      durationMinutes: stored.lowRatingDurationMinutes,
-                    },
+              lowRating: storedLowRating(stored),
             }
           : {
               targetKind,
@@ -231,6 +239,16 @@ export const createResponseTargetPolicyStore = (
           .for('update')
           .limit(1)
         const nextVersion = nextPolicyVersion(current, command.expectedPolicyVersion)
+        // An omitted pair is kept, so the rule checked above against the
+        // command's own pair is asked again of the row this write leaves
+        // behind. The lock makes the stored pair the one the UPDATE keeps.
+        if (command.lowRating === undefined) {
+          assertLowRating(
+            command.targetKind,
+            command.durationMinutes,
+            storedLowRating(current),
+          )
+        }
         // Omitted keeps the stored pair, `null` clears it, an object sets it.
         const lowRatingColumns =
           command.lowRating === undefined
