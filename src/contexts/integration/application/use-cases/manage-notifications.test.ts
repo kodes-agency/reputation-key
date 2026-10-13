@@ -396,6 +396,12 @@ describe('manageNotifications', () => {
         },
         'GBP notifications not unsubscribed — continuing',
       )
+      // The summary carries codes only; the error class is logged per account,
+      // as the subscribe path does, so an unexpected error can be told apart.
+      expect(warn).toHaveBeenCalledWith(
+        { code: 'unexpected_error', errorName: 'Error' },
+        'GBP notifications unsubscribe failed — continuing',
+      )
     })
 
     it('counts each account, with the reason, when only some were cleared', async () => {

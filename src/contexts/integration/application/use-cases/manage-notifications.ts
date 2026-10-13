@@ -310,6 +310,11 @@ export const manageNotifications = (
       } catch (err) {
         const code = gbpNotificationFailureCode(err)
         failureCodes[code] = (failureCodes[code] ?? 0) + 1
+        // Code and error class only, as the subscribe path logs a failed account.
+        deps.logger.warn(
+          { code, errorName: err instanceof Error ? err.name : 'unknown' },
+          'GBP notifications unsubscribe failed — continuing',
+        )
       }
     }
     const failed = Object.values(failureCodes).reduce((sum, count) => sum + count, 0)
