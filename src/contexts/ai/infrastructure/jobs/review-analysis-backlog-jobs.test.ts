@@ -19,6 +19,7 @@ describe('review analysis backlog jobs', () => {
         waitingForLane: 0,
         failed: 0,
         denied: 0,
+        stopped: 0,
       })
       .mockResolvedValueOnce({
         claimed: 3,
@@ -27,6 +28,7 @@ describe('review analysis backlog jobs', () => {
         waitingForLane: 1,
         failed: 0,
         denied: 1,
+        stopped: 1,
       })
     const handler = createDrainReviewAnalysisBacklogJobHandler({
       drain,
@@ -42,7 +44,7 @@ describe('review analysis backlog jobs', () => {
     expect(drain.mock.calls).toEqual([[{ authorizeScope }], [{ authorizeScope }]])
     expect(info).toHaveBeenCalledOnce()
     expect(info).toHaveBeenCalledWith(
-      expect.objectContaining({ claimed: 3, waitingForLane: 1, denied: 1 }),
+      expect.objectContaining({ claimed: 3, waitingForLane: 1, denied: 1, stopped: 1 }),
       'AI Review Analysis backlog drain completed',
     )
   })

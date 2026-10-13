@@ -34,7 +34,13 @@ export type AiOperationRecord = Readonly<{
 export type AiOperationClaim =
   | Readonly<{ status: 'created'; operation: AiOperationRecord }>
   | Readonly<{ status: 'replayed'; operation: AiOperationRecord }>
-  | Readonly<{ status: 'conflict' }>
+  /**
+   * The idempotency key already holds a request with another fingerprint.
+   * `operation` is that earlier request's, so the caller can tell its own
+   * request under AI execution controls that have since moved from a foreign
+   * one (`isSameAiRequestUnderOtherControls`).
+   */
+  | Readonly<{ status: 'conflict'; operation: AiOperationRecord }>
 
 type AiReviewAnalysisRecovery = Readonly<{
   eventEnvelopeId: string

@@ -489,10 +489,10 @@ export const createAiOperationStoreAdapter = (
           .limit(1)
           .for('update')
         if (!existing) failCorrupt('idempotency conflict row disappeared')
-        if (existing.requestFingerprint !== input.requestFingerprint) {
-          return { status: 'conflict' }
-        }
-        return { status: 'replayed', operation: mapOperation(existing) }
+        const operation = mapOperation(existing)
+        return existing.requestFingerprint === input.requestFingerprint
+          ? { status: 'replayed', operation }
+          : { status: 'conflict', operation }
       })
     },
 

@@ -150,8 +150,9 @@ export function createAdvanceReviewAnalysisEnrollments(
   /**
    * The safety net under exhaustive coverage (ADR 0058): a review settled
    * without an analysis because its operation gave up on a transient failure
-   * is queued again. Only while provider execution accepts work: a dark
-   * runtime would settle the reopened review as disabled straight away.
+   * is queued again. Only while provider execution accepts work: under a dark
+   * runtime the reopened review could only wait in the backlog, so it waits
+   * here, without a fresh sequence, until there is something to run it.
    */
   async function reopenAbandoned(): Promise<AiReviewAnalysisReopenResult> {
     const stopFence = await resolveAiExecutionStopFence(dependencies.control, {

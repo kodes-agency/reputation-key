@@ -30,6 +30,16 @@ Review Analysis and never make a second provider-generation call.
 
 All three are dark until the AccountAdmin authorization, live access, notice version, provider policy, platform gate, runtime catalogue, and cell-local admission/egress controls agree. Property Trends additionally requires Review Analysis. A capability being present in code or schema is not activation.
 
+An authorization recorded under a notice, or a provider deployment profile,
+other than the one this build serves is refused before an operation is claimed
+(`isAiAuthorizationUnderServedContract`, `application/ai-workflow-support.ts`).
+A reply draft answers `consent_renewal_required`, which the composer shows as
+the notice needing an AccountAdmin's confirmation. A review is settled as not
+analysable, with no operation: re-consent bumps the Review Analysis epoch and
+the enrollment replay analyses the history again. The gateway's request check
+compares the same catalogue values and stays as the second line; it throws, so
+it must never be the first.
+
 Operations, settlements, derivative generations, enrollment heads, schedules,
 and output lineage pin authorization, source, policy, model, and lifecycle fences.
 
@@ -52,14 +62,26 @@ queue. The drain's schedule is tenant-cross, so it asks current platform policy
 about each claimed entry's own Organization and Property before analysing it
 (ADR 0032): an entry refused by the kill switch, a suspension or the allowlist
 goes back to the queue untried, with no attempt counted and nothing settled,
-and is analysed once the stop is lifted. The sweep also reopens a text review
-whose analysis settled without a
-result because its operation gave up on a transient failure (ADR 0058,
-2026-09-29): a fresh analysis sequence and a backfill event, at most three times
-per revision. An enrollment is not caught up while one of its replayed reviews
-still owes an analysis. The replay and the reopen pass lock the Property's
-source fence before their enrollment row and reviews, the order Review writers
-and authorization changes take (ADR 0060).
+and is analysed once the stop is lifted. A review that arrives during a stop
+waits in the backlog as well (ADR 0058, 2026-10-13). The analysis consumer's
+catalogue row is ungated, because a refused consumer is never retried: before
+it analyses an ongoing review on delivery it asks the drain's policy question,
+and a review policy refuses is queued after the checks that need no provider
+call. A stopped AI execution control (killed or draining at the global,
+provider or capability scope, or a missing head) is answered `stopped`, never
+settled: the consumer queues the review, and the drain and the on-demand job
+return it untried until the control accepts work again. A review that was
+tried before such a stop cannot resume its operation, which is bound to the
+control generations it was claimed under: after the restore its claim answers
+`conflict`, the analysis closes that pending operation as `execution_suspended`
+and settles the review against it, and the reopen pass queues it again
+(`application/analysis-claim-conflict.ts`). The sweep also reopens a text
+review whose analysis settled without a result because its operation gave up
+on a transient failure (ADR 0058, 2026-09-29): a fresh analysis sequence and a
+backfill event, at most three times per revision. An enrollment is not caught
+up while one of its replayed reviews still owes an analysis. The replay and the
+reopen pass lock the Property's source fence before their enrollment row and
+reviews, the order Review writers and authorization changes take (ADR 0060).
 `readReviewAnalysisProgress` reports queued, running, analysed and
 not-analysable counts. Reply Draft provider output remains session-ephemeral until an explicit,
 atomically revalidated adoption creates Review-owned draft content.
