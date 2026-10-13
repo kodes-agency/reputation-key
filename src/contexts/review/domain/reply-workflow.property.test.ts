@@ -688,7 +688,12 @@ describe('the publication table against the hand-written workflow', () => {
       const open = ['requested', 'authorized', 'sending', 'pending_observation']
       expect(cancelledPublication({ publicationState: state }), String(state)).toEqual(
         open.includes(String(state))
-          ? { status: 'draft', publicationState: 'cancelled' }
+          ? {
+              status: 'draft',
+              publicationState: 'cancelled',
+              publicationLastErrorClass: null,
+              reconcileDueAt: null,
+            }
           : null,
       )
     }

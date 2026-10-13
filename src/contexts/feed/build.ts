@@ -55,10 +55,7 @@ import { createNotificationRecipientStanding } from './application/notification-
 import { createGroupedReopenStore } from './infrastructure/repositories/notification-grouped-reopen.repository'
 import { createActivePropertyLookup } from './infrastructure/repositories/active-property'
 import { createNotificationWorkState } from './application/notification-work-state'
-import {
-  createNotificationOrganizationEmailStopReader,
-  createNotificationOrganizationLifecycleStateReader,
-} from './infrastructure/repositories/notification-organization-email-stop.repository'
+import { createNotificationOrganizationLifecycleStateReader } from './infrastructure/repositories/notification-organization-email-stop.repository'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { createDisplayNameLookupAdapter } from './infrastructure/adapters/display-name-lookup.adapter'
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
@@ -92,7 +89,6 @@ import {
   DEFAULT_RECONCILE_LOOKBACK_MS,
   NOTIFICATION_GAP_SCAN_LIMIT,
 } from './infrastructure/jobs/reconcile-missing-notifications.job'
-import { insertNotification } from './application/use-cases/insert-notification'
 import type { ReviewRatingLookupPort } from './application/ports/review-rating-lookup.port'
 import type { LowRatingThreshold } from './domain/notification-low-ratings'
 import { createReviewRatingForRouting } from './infrastructure/adapters/review-rating-routing.adapter'
@@ -175,7 +171,7 @@ const buildActivityFeed = (
   const repo = createRecentActivityRepository(input.db, input.logger)
   const inboxItemLookup = createDbInboxItemLookupAdapter(input.db)
   const userLookup = createActivityDbUserLookupAdapter(input.db)
-  const deliveryStore = createActivityDeliveryStore(input.db)
+  const deliveryStore = createActivityDeliveryStore(input.db, input.clock)
   const recoveryRuntime = createRecentActivityRecoveryRuntime(input.db, input.logger)
   const privacyStore = createRecentActivityPrivacyStore(input.db)
   const operationalHistoryStore = createOperationalActionHistoryStore(input.db)
@@ -392,8 +388,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     organizationState: createNotificationOrganizationLifecycleStateReader(input.db),
     responsibleManagers: input.responsibleManagers,
   })
-  // Asked when an email is queued, and again before it is sent.
-  const organizationEmailStop = createNotificationOrganizationEmailStopReader(input.db)
   // Asked again immediately before every Property-scoped email is sent.
   const recipientStanding = createNotificationRecipientStanding({
     userLookup,
@@ -472,21 +466,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     : undefined
   const ratingForRouting = createReviewRatingForRouting(input.db, input.reviewRatings)
 
-  const useCases = {
-    insertNotification: insertNotification({
-      notificationRepo,
-      emailRepo,
-      preferenceRepo: prefRepo,
-      clock: input.clock,
-      idGen: () => notificationId(input.idGen()),
-      emailIdGen: () => notificationEmailId(input.idGen()),
-      logger: input.logger,
-      organizationEmailStop,
-      ratingForRouting,
-      enqueueImmediateEmail,
-    }),
-  } as const
-
   // Surfaced on the container as `notificationDeliverySettlement`. It was
   // defined here but never exposed, so bootstrap built the insert-notification
   // handler without it and every outbox-delivered notification threw.
@@ -501,8 +480,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   })
 
   const publicApi = {
-    insertNotification: useCases.insertNotification,
-
     /**
      * Why the caller has no workspace, when the answer is "it was taken away".
      * The only user-scoped read in this context: the notice lives in an
@@ -547,7 +524,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     },
 
     // Query methods exposed for server functions
-    findById: (id: string, orgId: string) => notificationRepo.findById(id, orgId),
     // Feed reads resolve the reader's current Property access themselves.
     getFeedHead: feedReads.getFeedHead,
     getNotifications: feedReads.getNotifications,

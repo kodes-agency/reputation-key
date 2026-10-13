@@ -60,6 +60,9 @@ export type SetPropertyReplyTemplateEnabled = (
   ctx: AuthContext,
 ) => Promise<PropertyReplyLibraryWriteResult<PropertyReplyLibraryTemplate>>
 
+const REPLY_TEMPLATE_TITLE_TAKEN =
+  'This Property already has a reply template with this title'
+
 type ReplyLibraryDeps = Readonly<{
   repository: ReplyTemplateRepository
   staffPublicApi: StaffPublicApi
@@ -178,11 +181,16 @@ export const savePropertyReplyTemplate =
       propertyId: id,
       updatedBy: String(ctx.userId),
     })
+    // No id is a create, and a create never takes over the template that
+    // already holds its title: only the operations importer is title-keyed.
     const result = input.templateId
       ? await deps.repository.updateTemplate({ ...write, templateId: input.templateId })
-      : await deps.repository.upsertTemplate(write)
+      : await deps.repository.createTemplate(write)
     if (result === null) {
       throw reviewError('invalid_input', 'Reply template is unavailable')
+    }
+    if (result.disposition === 'title_taken') {
+      throw reviewError('invalid_input', REPLY_TEMPLATE_TITLE_TAKEN)
     }
     return { disposition: result.disposition, value: publicTemplate(result.value) }
   }

@@ -64,9 +64,11 @@ export interface DrainResult {
  *
  * ARC-03-T6: `shutdown` (the container's release seam) runs between the two
  * phases — after the workers stop taking jobs, before the queue connections
- * go away — because the container's background work (the identity policy
- * poller) reads the database and must not be left ticking against a closing
- * process. It shares the same budget as everything else.
+ * go away — so that background work a container started is not left reading
+ * the database against a closing process. No build registers any today (the
+ * identity policy poller this order was written for is gone), so the seam
+ * releases nothing; the queues are closed by the second phase, not by it. It
+ * shares the same budget as everything else.
  */
 export async function drainWorkerResources(options: {
   readonly workers: ReadonlyArray<NamedCloseable | undefined>

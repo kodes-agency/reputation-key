@@ -34,6 +34,8 @@ const ACTOR = userId('activity-private-actor')
 const PROPERTY = propertyId('00000000-0000-4000-8000-000000000a01')
 const REDACTED_AT = new Date('2026-08-28T15:00:00.000Z')
 const EXPIRES_AT = new Date('2026-11-26T15:00:00.000Z')
+const WITHIN_FENCE = new Date('2026-08-28T15:01:00.000Z')
+const AFTER_FENCE = new Date('2026-11-26T15:01:00.000Z')
 
 const replayFact = (index: 1 | 2 | 3): ProjectableRecentActivityReplayFact => ({
   replayKey: `event:${ORG as string}:00000000-0000-4000-8000-000000000a1${index}`,
@@ -173,7 +175,8 @@ describe('Recent Activity actor-label privacy (real PostgreSQL)', () => {
     ).toEqual([{ actorName: 'Former member' }, { actorName: 'Former member' }])
   })
 
-  it('fences a delayed durable delivery that arrives after redaction', async () => {
+  /** A redacted actor, and a durable fact about them that is still undelivered. */
+  const seedRedactedActorWithUndeliveredFact = async () => {
     const fact = replayFact(3)
     await db.insert(outboxEvents).values({
       id: fact.sourceEventId!,
@@ -192,28 +195,34 @@ describe('Recent Activity actor-label privacy (real PostgreSQL)', () => {
       expiresAt: EXPIRES_AT,
       limit: 100,
     })
+    return fact
+  }
 
-    await createActivityDeliveryStore(db).applyOnce({
+  const deliveredActor = () =>
+    db
+      .select({
+        actorName: recentActivityEntries.actorName,
+        actorSubjectId: recentActivityReplayFacts.actorSubjectId,
+        actorLabelRedactedAt: recentActivityReplayFacts.actorLabelRedactedAt,
+      })
+      .from(recentActivityEntries)
+      .innerJoin(
+        recentActivityReplayFacts,
+        eq(recentActivityEntries.id, recentActivityReplayFacts.projectionId),
+      )
+      .where(eq(recentActivityEntries.organizationId, ORG))
+
+  it('fences a delayed durable delivery that arrives after redaction', async () => {
+    const fact = await seedRedactedActorWithUndeliveredFact()
+
+    await createActivityDeliveryStore(db, () => WITHIN_FENCE).applyOnce({
       entry: entry(fact),
       replayFact: fact,
       eventId: fact.sourceEventId!,
       consumerName: 'activity.recent-activity',
     })
 
-    expect(
-      await db
-        .select({
-          actorName: recentActivityEntries.actorName,
-          actorSubjectId: recentActivityReplayFacts.actorSubjectId,
-          actorLabelRedactedAt: recentActivityReplayFacts.actorLabelRedactedAt,
-        })
-        .from(recentActivityEntries)
-        .innerJoin(
-          recentActivityReplayFacts,
-          eq(recentActivityEntries.id, recentActivityReplayFacts.projectionId),
-        )
-        .where(eq(recentActivityEntries.organizationId, ORG)),
-    ).toEqual([
+    expect(await deliveredActor()).toEqual([
       {
         actorName: 'Former member',
         actorSubjectId: null,
@@ -226,5 +235,28 @@ describe('Recent Activity actor-label privacy (real PostgreSQL)', () => {
         .from(eventConsumerReceipts)
         .where(eq(eventConsumerReceipts.eventId, fact.sourceEventId!)),
     ).toEqual([{ eventId: fact.sourceEventId }])
+  })
+
+  // The fence is an expiry, and recovery reads it at the time it is given
+  // (activity-recovery-store.ts). Delivery read the wall clock instead, so
+  // under a simulated or backdated clock the two paths disagreed about whether
+  // the same actor is named (ADR 0017).
+  it('reads the fence at the injected time: one that has lapsed there no longer redacts a delivery', async () => {
+    const fact = await seedRedactedActorWithUndeliveredFact()
+
+    await createActivityDeliveryStore(db, () => AFTER_FENCE).applyOnce({
+      entry: entry(fact),
+      replayFact: fact,
+      eventId: fact.sourceEventId!,
+      consumerName: 'activity.recent-activity',
+    })
+
+    expect(await deliveredActor()).toEqual([
+      {
+        actorName: 'Person who must disappear',
+        actorSubjectId: ACTOR,
+        actorLabelRedactedAt: null,
+      },
+    ])
   })
 })
