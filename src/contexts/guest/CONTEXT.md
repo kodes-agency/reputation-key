@@ -92,6 +92,17 @@ retention. PostgreSQL receipts own
 correctness; Redis provides abuse control and observation-loss monitoring. State,
 source-event identities, and identifier-only outbox facts commit atomically.
 
+`publicApi.requests` is Guest's request surface (`docs/standards.md` §3.1): what Guest's
+own server functions call, and nothing another context is typed against. A guest has no
+member to authorize, so these functions do not authorize a caller themselves; admission is
+the exact origin, the signed session, the CSRF nonce and the public policy decision, all
+applied in `server/` before a function is called. The surface therefore also holds edge
+controls that are not commands: the session signer and verifier (`guestSessions`), the
+network-pressure and observation-loss controls, and the network pseudonym hasher. One member
+has no caller at all: `responseLifecycle.changeIntegrity`, the internal integrity control,
+takes its actor as data and decides nothing about who may use it, so no server function
+may expose it to a manager.
+
 Cleanup remains live even while `portal.guest_contact` is hard-blocked; it cannot submit, read, reveal, or withdraw a request.
 Organization closure waits for Guest outbox publication before scrubbing guest-authored values.
 

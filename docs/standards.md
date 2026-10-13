@@ -195,7 +195,9 @@ Skip steps that don't apply. Query: (1) + (5) + (7). Mutation: all 7.
 
 Every context build function SHALL return `publicApi` plus NAMED capability groups.
 A capability group states what a class of consumer may do; it never publishes a
-repository, a command store, or a bag of use cases.
+repository, a command store, or a bag of use cases. The one set of use cases a
+build publishes is its request surface, which sits on `publicApi` under the rules
+below.
 
 ```ts
 type ContextApi<T> = Readonly<{
@@ -210,6 +212,22 @@ type ContextApi<T> = Readonly<{
 ```
 
 - `publicApi` — the ONLY cross-context boundary. Types, query functions, ports.
+- `publicApi` is also what the context's own `server/` adapters call through the
+  container, so it carries the context's **request surface**: the application
+  functions a server function invokes, under a named member where a context has
+  many (`management` in Property and Portal, `requests` in Identity and Guest,
+  `reply` in Review, `imports` and `performance` in Integration). Three rules keep
+  that from being a leak:
+  - a request-surface member holds application functions only: never a
+    repository, a command store, a worker control or an irreversible lifecycle
+    phase;
+  - a function on it that acts for a signed-in member is held to §2.2 and
+    authorizes that member itself, so calling it without its server function gains
+    nothing; a function that cannot (a public-edge control, an internal integrity
+    control) is named as such in the owning `CONTEXT.md`;
+  - another context is handed the narrow `…PublicApi` type from
+    `application/public-api.ts`, which does not name the request surface. It is
+    not a cross-context API, and no context calls another's.
 - Every other group is named for the CAPABILITY it grants, not for the layer it
   came from. `portal.responsibility.releaseForUser` is a capability;
   `portal.internal.repos.portalResponsibleManagerRepo` is a leaked repository.
