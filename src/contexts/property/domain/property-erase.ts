@@ -86,6 +86,12 @@ const VALID_ERASE_TRANSITIONS: Readonly<
   cancelled: [],
 }
 
+/**
+ * Why the job itself calls an erase off: the Property was restored after the
+ * confirmation, so gate 1 no longer holds and the authorization is void.
+ */
+export const PROPERTY_ERASE_NOT_ARCHIVED_CANCEL_REASON = 'property_not_archived'
+
 /** The last state from which an erasure can still be called off. */
 export const PROPERTY_ERASE_LAST_CANCELLABLE_STATE: PropertyEraseState = 'purge_pending'
 

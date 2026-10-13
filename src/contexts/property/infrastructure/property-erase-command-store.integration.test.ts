@@ -460,6 +460,49 @@ describe('permanent Property Erase command store (LIF-01-T19)', () => {
     expect(proofCompleted).toBe(true)
   })
 
+  it('calls the erase off, and leaves the Property alone, when it was restored after the confirmation', async () => {
+    let proofCompleted = false
+
+    await expect(
+      db.transaction(async (raw) => {
+        const tx = raw as unknown as Tx
+        const fixture = await seed(tx)
+        const { store, authorityId } = await confirmErase(tx, fixture)
+        await restoreToActive(tx, fixture.targetPropertyId)
+
+        // The pass that would have started the grace period asks gate 1 again.
+        expect(await advancePropertyErase(advanceDeps(tx, store))).toMatchObject({
+          authorityId,
+          fromState: 'confirmed',
+          toState: 'cancelled',
+          rowsErased: 0,
+        })
+
+        expect(await lifecycleState(tx, fixture.targetPropertyId)).toBe('active')
+        expect(await authorityRow(tx, authorityId)).toEqual({
+          state: 'cancelled',
+          cancel_reason_code: 'property_not_archived',
+        })
+        // No later pass can reach the Property through this authority.
+        expect(await advancePropertyErase(advanceDeps(tx, store))).toMatchObject({
+          authorityId: null,
+        })
+        expect(
+          await count(
+            tx,
+            sql`SELECT COUNT(*)::int AS "rows" FROM guest_responses
+                WHERE property_id = ${fixture.targetPropertyId}::uuid`,
+          ),
+        ).toBe(1)
+
+        proofCompleted = true
+        throw ROLLBACK
+      }),
+    ).rejects.toBe(ROLLBACK)
+
+    expect(proofCompleted).toBe(true)
+  })
+
   it('does not archive a restored Property when its erase is cancelled before the grace period', async () => {
     let proofCompleted = false
 
@@ -481,6 +524,46 @@ describe('permanent Property Erase command store (LIF-01-T19)', () => {
           state: 'cancelled',
           cancel_reason_code: 'operator_recall',
         })
+
+        proofCompleted = true
+        throw ROLLBACK
+      }),
+    ).rejects.toBe(ROLLBACK)
+
+    expect(proofCompleted).toBe(true)
+  })
+
+  it('refuses to cross the irreversible boundary for a Property that is not purge_pending', async () => {
+    let proofCompleted = false
+
+    await expect(
+      db.transaction(async (raw) => {
+        const tx = raw as unknown as Tx
+        const fixture = await seed(tx)
+        const { store, authorityId } = await confirmErase(tx, fixture)
+        await store.transition({
+          authorityId,
+          from: 'confirmed',
+          to: 'purge_pending',
+          occurredAt: NOW,
+        })
+        // Direct SQL: no command can take a Property out of `purge_pending`.
+        await restoreToActive(tx, fixture.targetPropertyId)
+
+        await expect(
+          store.transition({
+            authorityId,
+            from: 'purge_pending',
+            to: 'purging',
+            occurredAt: NOW,
+          }),
+        ).rejects.toMatchObject({ code: 'invalid_transition' })
+
+        // The refusal undid the authority's half of the pair as well.
+        expect(await authorityRow(tx, authorityId)).toMatchObject({
+          state: 'purge_pending',
+        })
+        expect(await lifecycleState(tx, fixture.targetPropertyId)).toBe('active')
 
         proofCompleted = true
         throw ROLLBACK
