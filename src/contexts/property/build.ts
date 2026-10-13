@@ -216,15 +216,6 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         .sort((a, b) => rank(a) - rank(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
       return anchor?.id ?? null
     },
-    clearGoogleConnectionRef: async (
-      orgId: OrganizationId,
-      connectionId: GoogleConnectionId,
-    ) => {
-      const propertyIds = await deps.repo.findIdsByGoogleConnection(connectionId, orgId)
-      if (propertyIds.length > 0) {
-        await deps.repo.clearGoogleConnectionRef(orgId, propertyIds)
-      }
-    },
     getResponsibleManagerUserIds: async (orgId: OrganizationId, pid: PropertyId) => {
       const assignments = await responsibleManagerRepo.listActive(orgId, pid)
       const eligible = await Promise.all(

@@ -12,7 +12,6 @@ import type {
   ConnectionVisibilityFilter,
 } from '../../application/ports/google-connection.repository'
 import { uniqueViolationError } from '../../application/ports/google-connection.repository'
-import type { PropertyFkCleanupPort } from '../../application/ports/property-fk-cleanup.port'
 import {
   googleConnectionFromRow,
   googleConnectionToInsert,
@@ -21,7 +20,6 @@ import { trace } from '#/shared/observability/trace'
 
 export const createGoogleConnectionRepository = (
   db: Database,
-  propertyFkCleanup: PropertyFkCleanupPort,
   clock: Clock,
 ): GoogleConnectionRepository => ({
   findById: async (orgId, id) => {
@@ -217,24 +215,6 @@ export const createGoogleConnectionRepository = (
         .where(
           and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
         )
-    })
-  },
-
-  delete: async (orgId, id) => {
-    return trace('googleConnection.delete', async () => {
-      // Null out FK references first (port belongs to another context — no tx passthrough)
-      await propertyFkCleanup.clearGoogleConnectionRef(orgId, id)
-
-      await db.transaction(async (tx) => {
-        await tx
-          .delete(googleConnections)
-          .where(
-            and(
-              eq(googleConnections.organizationId, orgId),
-              eq(googleConnections.id, id),
-            ),
-          )
-      })
     })
   },
 })

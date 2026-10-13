@@ -85,12 +85,6 @@ function memoryRepo(): GuestResponseRepository & {
       languages: [],
       unrecorded: 0,
     }),
-    saveModeration: async (response) => {
-      const index = responses.findIndex((row) => row.id === response.id)
-      if (index < 0) return false
-      responses[index] = response
-      return true
-    },
   }
 }
 
@@ -491,36 +485,6 @@ describe('guest response lifecycle', () => {
         sessionId,
       ),
     ).rejects.toMatchObject({ code: 'response_not_found' })
-  })
-
-  it('treats legacy manager delete as moderation and preserves the numeric rating', async () => {
-    const { lifecycle, repo, outbox } = harness()
-    await lifecycle.submit(
-      scope,
-      guestSessionId('00000000-0000-4000-8000-000000000003'),
-      {
-        rating: 1,
-        responseConsent: true,
-      },
-    )
-    await lifecycle.addPrivateFeedback(
-      scope,
-      guestSessionId('00000000-0000-4000-8000-000000000003'),
-      {
-        text: 'Abusive text',
-        textConsent: true,
-      },
-    )
-
-    const responseId = repo.responses[0]!.id
-    const moderated = await lifecycle.moderate(scope, responseId, 'delete')
-
-    expect(moderated).toMatchObject({ status: 'moderated', rating: 1 })
-    await expect(
-      repo.findSnippetForOrg(scope.organizationId, responseId),
-    ).resolves.toEqual({ comment: null, ratingValue: 1 })
-    expect(repo.responses[0]).toMatchObject({ integrityOutcome: 'accepted' })
-    expect(outbox.byTag('guest.rating.retracted')).toHaveLength(0)
   })
 
   it('excludes an anomaly from metrics, preserves its rating, and restores the corrected value', async () => {

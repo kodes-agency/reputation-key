@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
-import type { PropertyFkCleanupPort } from '../application/ports/property-fk-cleanup.port'
 import { createGoogleConnectionRepository } from './repositories/google-connection.repository'
 
 vi.mock('#/shared/observability/trace', () => ({
@@ -31,12 +30,8 @@ describe('Google connection repository time authority', () => {
   it('uses exactly one injected timestamp for each retained mutation path', async () => {
     const updateSets: Array<Record<string, unknown>> = []
     const clock = vi.fn(() => NOW)
-    const propertyFkCleanup: PropertyFkCleanupPort = {
-      clearGoogleConnectionRef: async () => {},
-    }
     const repository = createGoogleConnectionRepository(
       mutationDatabase(updateSets),
-      propertyFkCleanup,
       clock,
     )
     const expiresAt = new Date('2099-01-01T13:00:00.000Z')

@@ -2,11 +2,14 @@
 //
 // A grant or revoke commits with the identity.member.property_access_changed
 // fact the Members access edit records, so the member hears about either.
+// Every refusal is a tagged IdentityError, here and in the command store: the
+// server adapter maps it by its code, never by the wording of a message.
 
 import type { PolicyAdminExplanation } from '../ports/property-access-grant.port'
 import type { PolicyAdminCommandStore } from '../ports/policy-admin-command-store.port'
 import type { Permission } from '#/shared/domain/permissions'
 import { organizationId, userId } from '#/shared/domain/ids'
+import { identityError } from '../../domain/errors'
 import { identityMemberPropertyAccessChanged } from '../../domain/events'
 
 export type PolicyAdminDeps = Readonly<{
@@ -25,12 +28,22 @@ export type PolicyAdminDeps = Readonly<{
   ) => Promise<void>
 }>
 
+const MIN_REASON_LENGTH = 3
+const MIN_TICKET_LENGTH = 2
+
 function requireReason(reason: string): void {
-  if (reason.trim().length < 3) throw new Error('reason is required (min 3 chars)')
+  if (reason.trim().length < MIN_REASON_LENGTH) {
+    throw identityError(
+      'validation_error',
+      `reason is required (min ${MIN_REASON_LENGTH} chars)`,
+    )
+  }
 }
 
 function requireTicket(ticketRef: string): void {
-  if (ticketRef.trim().length < 2) throw new Error('ticket/reference is required')
+  if (ticketRef.trim().length < MIN_TICKET_LENGTH) {
+    throw identityError('validation_error', 'ticket/reference is required')
+  }
 }
 
 /** The fact for one Property the operator granted or revoked. */
@@ -70,7 +83,10 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
     requireReason(input.reason)
     requireTicket(input.ticketRef)
     if (input.expiresAt && input.expiresAt.getTime() <= input.now.getTime()) {
-      throw new Error('expiresAt must be in the future for temporary access')
+      throw identityError(
+        'validation_error',
+        'expiresAt must be in the future for temporary access',
+      )
     }
     await deps.commandStore.grantPropertyAccess({
       organizationId: input.organizationId,

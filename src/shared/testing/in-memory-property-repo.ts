@@ -69,15 +69,6 @@ export const createInMemoryPropertyRepo = (): InMemoryPropertyRepo => {
         .filter((p) => isAccessible(orgId, p) && p.googleConnectionId === connectionId)
         .map((p) => p.id),
 
-    clearGoogleConnectionRef: async (orgId, propertyIds) => {
-      for (const id of propertyIds) {
-        const existing = store.get(id)
-        if (existing && isAccessible(orgId, existing)) {
-          store.set(id, { ...existing, googleConnectionId: null })
-        }
-      }
-    },
-
     insertAndReturn: async (orgId, property) => {
       if (property.organizationId !== orgId) {
         throw new Error('Tenant mismatch on property insert')
