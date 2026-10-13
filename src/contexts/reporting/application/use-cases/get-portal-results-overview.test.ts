@@ -939,6 +939,23 @@ describe('getPortalResultsOverview authorization', () => {
     expect(readWindow).not.toHaveBeenCalled()
   })
 
+  // The Properties read are the Portals' own, so those are what is authorized:
+  // a Portal in a Property the reader lacks is refused as such, even when the
+  // roster names no time zone for it (which validation would also reject).
+  it('refuses a Portal in a Property the manager lacks, whatever the time-zone list says', async () => {
+    const { read, readWindow } = readAs(async () => [PROP], {
+      scope: { organizationId: ORG, propertyId: null },
+      portals: [
+        ...inProperty(PROP, [[P1, null]]),
+        ...inProperty(OTHER_PROP, [[P2, null]]),
+      ],
+      properties: [{ propertyId: PROP, timezone: UTC }],
+    })
+
+    await expect(read).rejects.toMatchObject(forbidden)
+    expect(readWindow).not.toHaveBeenCalled()
+  })
+
   it('serves a manager granted every Property of the roster', async () => {
     const { read } = readAs(async () => [PROP])
 

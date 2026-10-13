@@ -104,9 +104,15 @@ export type GetPortalResultsOverviewDeps = Readonly<{
 
 export type GetPortalResultsOverview = ReturnType<typeof getPortalResultsOverview>
 
-/** Every Property the read answers for: the one asked about and the roster's. */
+/**
+ * Every Property the read answers for: the one asked about, each Portal's own
+ * (what is read is grouped by it) and each one a time zone is named for.
+ */
 function rosterPropertyIds(input: GetPortalResultsOverviewInput): readonly PropertyId[] {
-  const named = input.properties.map((zone) => zone.propertyId)
+  const named = [
+    ...input.portals.map((portal) => portal.propertyId),
+    ...input.properties.map((zone) => zone.propertyId),
+  ]
   return input.scope.propertyId === null ? named : [input.scope.propertyId, ...named]
 }
 
@@ -455,11 +461,13 @@ export const getPortalResultsOverview =
     input: GetPortalResultsOverviewInput,
     ctx: AuthContext,
   ): Promise<PortalResultsOverview> => {
-    assertValidInput(input)
+    // Authorize first, by the Portals' own Properties: the decision must not
+    // lean on a validation rule to cover a Property the roster reads.
     await requireDashboardPropertyAccess(deps.propertyAccess, ctx, {
       organizationId: input.scope.organizationId,
       propertyIds: rosterPropertyIds(input),
     })
+    assertValidInput(input)
     const now = deps.now()
     const properties = await readProperties(
       deps,
