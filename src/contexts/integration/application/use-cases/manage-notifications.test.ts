@@ -74,7 +74,8 @@ const setup = (input?: {
         } as const),
   )
   const warn = vi.fn()
-  const logger = { ...createMockLogger(), warn }
+  const info = vi.fn()
+  const logger = { ...createMockLogger(), warn, info }
   const useCase = manageNotifications({
     authorizeProviderCall,
     notifications,
@@ -88,6 +89,7 @@ const setup = (input?: {
     notifications,
     authorizeProviderCall,
     warn,
+    info,
   }
 }
 
@@ -341,10 +343,15 @@ describe('manageNotifications', () => {
   })
 
   describe('unsubscribe', () => {
+    const NONE_UNSUBSCRIBED = { unsubscribed: 0, failed: 0, failureCodes: {} }
+
     it('uses the exact bound account and authorization to unsubscribe', async () => {
       const { useCase, notifications } = setup()
 
-      await useCase.unsubscribe(ORG, CONN)
+      await expect(useCase.unsubscribe(ORG, CONN)).resolves.toEqual({
+        outcome: 'unsubscribed',
+        accounts: { ...NONE_UNSUBSCRIBED, unsubscribed: 1 },
+      })
 
       expect(notifications.unsubscribeCalls).toEqual([
         {
@@ -356,25 +363,12 @@ describe('manageNotifications', () => {
     })
 
     it('unsubscribes every distinct bound account before credential revocation', async () => {
-      const { useCase, notifications } = setup({
-        authorizationResult: {
-          ok: true,
-          targets: [
-            {
-              accessToken: 'access-token',
-              authorization,
-              gbpAccountId: ACCOUNT_ID,
-            },
-            {
-              accessToken: 'access-token-2',
-              authorization: authorization2,
-              gbpAccountId: ACCOUNT_ID_2,
-            },
-          ],
-        },
-      })
+      const { useCase, notifications } = setup({ authorizationResult: TWO_ACCOUNTS })
 
-      await useCase.unsubscribe(ORG, CONN)
+      await expect(useCase.unsubscribe(ORG, CONN)).resolves.toEqual({
+        outcome: 'unsubscribed',
+        accounts: { ...NONE_UNSUBSCRIBED, unsubscribed: 2 },
+      })
 
       expect(notifications.unsubscribeCalls.map((call) => call.gbpAccountId)).toEqual([
         ACCOUNT_ID,
@@ -382,12 +376,105 @@ describe('manageNotifications', () => {
       ])
     })
 
-    it('swallows provider failures because disconnect remains best-effort', async () => {
-      const { useCase, notifications } = setup()
+    it('reports a provider failure instead of throwing, because disconnect and closing go on regardless', async () => {
+      const { useCase, notifications, warn, info } = setup()
       notifications.setError('unsubscribe', new Error('boom'))
 
-      await expect(useCase.unsubscribe(ORG, CONN)).resolves.toBeUndefined()
+      await expect(useCase.unsubscribe(ORG, CONN)).resolves.toEqual({
+        outcome: 'provider_failed',
+        accounts: { unsubscribed: 0, failed: 1, failureCodes: { unexpected_error: 1 } },
+      })
       expect(notifications.unsubscribeCalls).toHaveLength(0)
+      // Nothing was unsubscribed, so nothing says it was.
+      expect(info).not.toHaveBeenCalled()
+      expect(warn).toHaveBeenCalledWith(
+        {
+          outcome: 'provider_failed',
+          unsubscribed: 0,
+          failed: 1,
+          failureCodes: { unexpected_error: 1 },
+        },
+        'GBP notifications not unsubscribed — continuing',
+      )
+    })
+
+    it('counts each account, with the reason, when only some were cleared', async () => {
+      const { useCase, notifications } = setup({ authorizationResult: TWO_ACCOUNTS })
+      notifications.setAccountError(
+        ACCOUNT_ID_2,
+        createGbpApiError('unsubscribe', 'permission_denied', { providerStatus: 403 }),
+      )
+
+      await expect(useCase.unsubscribe(ORG, CONN)).resolves.toEqual({
+        outcome: 'provider_failed',
+        accounts: { unsubscribed: 1, failed: 1, failureCodes: { provider_403: 1 } },
+      })
+    })
+
+    it('counts a bound account no Property could authorize as not cleared', async () => {
+      const { useCase } = setup({
+        authorizationResult: {
+          ok: true,
+          targets: [
+            { accessToken: 'access-token', authorization, gbpAccountId: ACCOUNT_ID },
+          ],
+          unauthorizedAccounts: 1,
+        },
+      })
+
+      await expect(useCase.unsubscribe(ORG, CONN)).resolves.toEqual({
+        outcome: 'provider_failed',
+        accounts: {
+          unsubscribed: 1,
+          failed: 1,
+          failureCodes: { authorization_denied: 1 },
+        },
+      })
+    })
+
+    it.each([
+      'connection_missing',
+      'connection_inactive',
+      'token_unavailable',
+      'authorization_unavailable',
+    ] as const)('says so, and sends nothing, when it is refused (%s)', async (code) => {
+      const { useCase, notifications, warn, info } = setup({
+        authorizationResult: { ok: false, code },
+      })
+
+      await expect(useCase.unsubscribe(ORG, CONN)).resolves.toEqual({
+        outcome: code,
+        accounts: NONE_UNSUBSCRIBED,
+      })
+      expect(notifications.unsubscribeCalls).toEqual([])
+      expect(info).not.toHaveBeenCalled()
+      expect(warn).toHaveBeenCalledWith(
+        { outcome: code, ...NONE_UNSUBSCRIBED },
+        'GBP notifications not unsubscribed — continuing',
+      )
+    })
+
+    it('says so when the connection has no account to target', async () => {
+      const { useCase, notifications } = setup({
+        authorizationResult: { ok: true, targets: [] },
+      })
+
+      await expect(useCase.unsubscribe(ORG, CONN)).resolves.toEqual({
+        outcome: 'account_unresolved',
+        accounts: NONE_UNSUBSCRIBED,
+      })
+      expect(notifications.unsubscribeCalls).toEqual([])
+    })
+
+    it('answers authorization_unavailable when the authorization throws', async () => {
+      const { useCase, authorizeProviderCall, notifications } = setup()
+      authorizeProviderCall.mockRejectedValueOnce(new Error('coordination unreachable'))
+
+      await expect(useCase.unsubscribe(ORG, CONN)).resolves.toEqual({
+        outcome: 'authorization_unavailable',
+        accounts: NONE_UNSUBSCRIBED,
+      })
+      expect(notifications.unsubscribeCalls).toEqual([])
     })
   })
 })
