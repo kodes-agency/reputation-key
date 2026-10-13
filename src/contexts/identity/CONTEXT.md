@@ -141,7 +141,10 @@ grants take that lock too, inside the acceptance transaction, and record the inv
 as `createdBy`. An invited Property that is deleted, belongs to another Organization
 or names no Property is not granted and never holds the acceptance back; it is logged
 by count, never silent. An AccountAdmin may change another AccountAdmin's role; nobody
-changes their own role;
+changes their own role, and nobody removes themselves: `removeMember` refuses the
+caller as its own target, because removal releases what the member held with no
+successor, and a member who goes of their own accord uses `leaveOrganization`, which
+requires every responsibility to be handed over first;
 the last-AccountAdmin guard holds under the Organization lock. Only an AccountAdmin
 invites, cancels or resends invitations, creates members, edits a PropertyManager's
 Property scope and edits Organization settings; a PropertyManager holds `member.list`
