@@ -9,9 +9,12 @@ encryption/access posture for internal beta.
 The legacy exit-matrix label is **"Backup/PITR and retention configuration is
 documented/active."** Only the documentation and repository retention/recovery
 controls are evidenced locally. The latest retained Railway inspection says
-backup/PITR is not active, and REG-04/Gate E now requires both activation and a
-timed restore before customer data; BQC-8/REG-04 performs that external proof
-against the RPO/RTO targets.
+backup/PITR is not active, but it was made in August 2026, before the database
+that serves the closed beta existed, so it does not say what is true of that
+database: §1 "Recorded backup state of the beta database" marks that as
+unverified. REG-04/Gate E requires both activation and a timed restore before
+customer data; BQC-8/REG-04 performs that external proof against the RPO/RTO
+targets.
 
 Related: [runbooks.md](runbooks.md) §7/§8,
 [ADR 0038](../adr/0038-beta-service-objectives-and-recovery.md) (RPO ≤ 15 min,
@@ -30,9 +33,11 @@ this document is the current reference.
 a platform feature, configured and verified in the Railway project console —
 NOT in app code (the repository carries no backup knobs at all). This
 paragraph is a target procedure, not evidence that it is active.
-The latest retained live inspection reports PITR disabled and no backup for the
-candidate PostgreSQL service. `cell-us` therefore cannot accept customer data
-until a fresh exact-target record proves all items below:
+The latest retained live inspection, written into this page in August 2026
+(commit `fd8546ada`), reports PITR disabled and no backup for the PostgreSQL
+service that was the candidate then. It is the only inspection this repository
+retains. `cell-us` therefore cannot accept customer data until a fresh
+exact-target record proves all items below:
 
 - Railway project → `cell-us` → `Postgres` → **Backups** tab: enable the
   approved schedule and PITR, then retain the exact project/environment/service
@@ -46,6 +51,38 @@ until a fresh exact-target record proves all items below:
 - **Target:** PITR granularity must satisfy RPO ≤ 15 min (ADR 0038); BQC-8
   times the actual achieved RPO/RTO in the recovery rehearsal. RPO/RTO are
   internal operating targets, never a customer-facing SLA.
+
+**Recorded backup state of the beta database.**
+**UNVERIFIED — owner to confirm (2026-10-13).**
+This repository cannot show whether a backup of the database that serves the
+closed beta exists, whether PITR is on for it, or whether a restore from either
+has ever been proven. That database is the PostgreSQL service of the Railway
+environment `closed-beta-v2`, project `reputation-key`
+(`src/shared/release/railway-deployment-profile.ts`), not of `cell-us`, the
+dedicated cell the rest of this section is written for and the closed beta does
+not run in.
+
+- **What is known without opening Railway.** The environment is running and
+  serving users, as its operator states on 2026-10-13. Its database started
+  empty on 2026-09-05 and has kept its data across every deploy since
+  (`docs/BETA.md` §7, `src/shared/db/CONTEXT.md`), so it is not disposable: the
+  recovery targets of ADR 0038 are in force for it, and a point-in-time restore
+  is the only way back from a loss of its data.
+- **What it retains.** The one inspection quoted above. It predates this
+  database, so it is not a reading of it, and nothing newer is kept here. No
+  restore drill against this database is recorded either.
+- **What the owner reads off**, in Railway under `reputation-key` →
+  `closed-beta-v2` → the PostgreSQL service → **Backups**, and writes here in
+  place of this paragraph, with the time of the observation: whether a backup
+  schedule is on and what it is, the latest successful backup, whether PITR is
+  on and its earliest and latest restore point, and whether a restore of this
+  database has ever been carried out and verified, with its date. A "no" is
+  written down as a "no": it is then a finding against `docs/BETA.md` §6 and
+  §7, not a reason to keep the marker.
+- **Then** the two **UNVERIFIED** markers in `docs/BETA.md` §6 and §7 are
+  replaced with what was found, with a line in its change log.
+  `src/shared/db/beta-database-documents.test.ts` fails while the three
+  passages disagree about whether the state has been verified.
 
 **Catastrophic-loss logical export.** Before customer data, counsel/platform
 must approve the export cadence, retention, encryption/key owner, destination
@@ -158,8 +195,10 @@ ops:restore-verify`. The authorized command, in process and without BullMQ,
 **Implemented proof.** Unit and real-PostgreSQL integration tests prove target
 admission, worker refusal, idempotent recovery generation,
 retention reconciliation, restored-authority fencing, and that fenced outbox
-rows cannot be claimed or published. A timed live Railway PITR and cutover is
-still required before the deployment becomes accepting.
+rows cannot be claimed or published. None of that is a live restore. No timed
+live Railway PITR and cutover is recorded in this repository, and whether one
+has been run against the beta database is part of what "Recorded backup state
+of the beta database" above leaves to the owner.
 
 ## 2. Redis durability
 

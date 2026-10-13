@@ -12,10 +12,12 @@
 // cannot relabel a ciphertext to point at a different key and have the tag
 // still verify.
 //
-// There is deliberately no support for the legacy three-part format. The
-// database is disposable in this beta, so there are no unversioned rows to
-// read, and accepting them would mean accepting a ciphertext whose key is a
-// guess.
+// There is deliberately no support for the legacy three-part format: reading
+// it would mean accepting a ciphertext whose key is a guess, so a value in
+// that format is refused, never read (token-encryption.adapter.test.ts). That
+// holds whatever the database contains. This comment used to rest it on the
+// beta database being disposable, which it is not: it keeps its data between
+// deploys (src/shared/db/CONTEXT.md, "Change loop").
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import type { TokenEncryptionPort } from '../../application/ports/token-encryption.port'
