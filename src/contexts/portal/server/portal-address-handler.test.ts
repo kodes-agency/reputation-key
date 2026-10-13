@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
+import { policyDenial } from '#/shared/testing/policy-denial'
 import { portalError } from '#/contexts/portal/domain/errors'
 
 const mocks = vi.hoisted(() => ({
@@ -125,13 +126,11 @@ describe('revealPortalAddress handler (executable)', () => {
   })
 
   it('does not spend the rate limit or reveal when the Portal scope is denied', async () => {
-    mocks.requireExecutionAllowed.mockRejectedValue(
-      Object.assign(new Error('denied'), { code: 'property_disabled' }),
-    )
+    mocks.requireExecutionAllowed.mockRejectedValue(policyDenial())
 
     await expect(
       withStartContext(() => revealPortalAddress({ data: INPUT })),
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({ name: 'AuthError', code: 'scope_denied', status: 403 })
 
     expect(mocks.check).not.toHaveBeenCalled()
     expect(mocks.revealPortalAddress).not.toHaveBeenCalled()
