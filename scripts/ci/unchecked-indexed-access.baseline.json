@@ -14,7 +14,6 @@
   "e2e/storybook-metrics/notification-popover.metrics.ts": 3,
   "scripts/ci/check-container-image-policy.ts": 28,
   "scripts/ops/bootstrap-owner.ts": 3,
-  "scripts/ops/commands.test.ts": 1,
   "scripts/ops/quarantine-redrive.ts": 1,
   "scripts/perf/load-test.ts": 6,
   "scripts/perf/write-scale-evidence.ts": 1,
