@@ -14,6 +14,7 @@ import {
   consumedInvitation,
   encodePropertyIds,
   grantedRoleToken,
+  invitedPropertySelection,
   lapsedCompetitorIds,
   parsePropertyIds,
   renewableInvitation,
@@ -88,6 +89,32 @@ describe('consumedInvitation', () => {
     expect(
       consumedInvitation({ organizationId: 'org-1', propertyIds: null, inviterId: null }),
     ).toEqual({ organizationId: 'org-1', propertyIds: [], inviterId: null })
+  })
+})
+
+describe('invitedPropertySelection', () => {
+  const FIRST = '0a000000-0000-4000-8000-000000000001'
+  const SECOND = 'F0000000-0000-4000-8000-000000000002'
+
+  it('takes each Property once, in one stable order', () => {
+    expect(invitedPropertySelection([SECOND, FIRST, SECOND])).toEqual({
+      candidateIds: [FIRST, SECOND],
+      malformedIds: [],
+    })
+  })
+
+  it.each(['prop-a', '', `${FIRST} `, '0a000000000040008000000000000001', `{${FIRST}}`])(
+    'sets %j aside as naming no Property',
+    (id) => {
+      expect(invitedPropertySelection([id, FIRST])).toEqual({
+        candidateIds: [FIRST],
+        malformedIds: [id],
+      })
+    },
+  )
+
+  it('selects nothing for an invitation with no Property', () => {
+    expect(invitedPropertySelection([])).toEqual({ candidateIds: [], malformedIds: [] })
   })
 })
 

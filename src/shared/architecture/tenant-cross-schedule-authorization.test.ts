@@ -129,6 +129,9 @@ const CANDIDATE_DECISIONS: Readonly<Record<string, CandidateDecision>> = {
   'reconcile-gbp-notification-subscriptions': scopeAuthorizer('allowed'),
   'goal-program.maintain': scopeAuthorizer('refused'),
   'digest-notification': scopeAuthorizer('refused'),
+  // identity.invite is core too. Recovery asks before each acceptance, the
+  // only step that gives an Organization a member.
+  'recover-invited-registrations': scopeAuthorizer('allowed'),
   'schedule-property-ai-trends': {
     kind: 'scoped_entry_point',
     entryPoint: 'ai.property-trend-consumers',

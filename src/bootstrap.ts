@@ -246,16 +246,17 @@ export async function bootstrap(
     'registered Portal media sweep job handler',
   )
 
-  container.jobRegistry.register(
+  // Invited registration recovery accepts invitations, which creates members.
+  // Its tenant-cross schedule only enumerates: each registration's own
+  // Organization is decided under current policy before it is accepted.
+  registerCapabilityGatedJob(
     RECOVER_INVITED_REGISTRATIONS_JOB,
+    'identity.invite',
     createRecoverInvitedRegistrationsHandler({
       recover: container.identityWorkerRuntime.recoverInvitedRegistrations,
+      authorizeScope: createScheduledScopeAuthorizer('system:identity.accept_invitation'),
       logger: container.logger,
     }),
-  )
-  logger.info(
-    { job: RECOVER_INVITED_REGISTRATIONS_JOB },
-    'registered invited registration recovery job handler',
   )
 
   // LIF-01: these three safety handlers are registered so stale/older queued

@@ -22,12 +22,6 @@ export type InMemoryIdentityPort = IdentityPort & {
   seedOrganizations: (orgs: ReadonlyArray<OrganizationRecord>) => void
   /** Set the session user returned by getSessionUser (null = no session). */
   setSessionUser: (user: Readonly<{ id: string; email: string }> | null) => void
-  /** Calls received by runOnAcceptInvitation. */
-  readonly acceptInvitationHookCalls: ReadonlyArray<{
-    userId: string
-    organizationId: string
-    propertyIds: ReadonlyArray<string>
-  }>
   /** Session Organization selections requested through the port. */
   readonly activeOrganizationCalls: ReadonlyArray<string>
   /** Access all stored members. */
@@ -47,11 +41,6 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
   const invitations = new Map<string, InvitationRecord>()
   const organizations = new Map<string, OrganizationRecord>()
   const customRoles = new Map<string, { role: string }>()
-  const hookCalls: Array<{
-    userId: string
-    organizationId: string
-    propertyIds: ReadonlyArray<string>
-  }> = []
   const activeOrganizationCalls: string[] = []
   let sessionUser: Readonly<{ id: string; email: string }> | null = null
 
@@ -95,14 +84,6 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
       _headers: Headers,
     ): Promise<Readonly<{ id: string; email: string }> | null> {
       return sessionUser
-    },
-
-    async runOnAcceptInvitation(ctx: {
-      userId: string
-      organizationId: string
-      propertyIds: ReadonlyArray<string>
-    }): Promise<void> {
-      hookCalls.push(ctx)
     },
 
     async createCustomRole(
@@ -152,10 +133,6 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
 
     setSessionUser(user: Readonly<{ id: string; email: string }> | null): void {
       sessionUser = user
-    },
-
-    get acceptInvitationHookCalls() {
-      return hookCalls
     },
 
     get activeOrganizationCalls() {

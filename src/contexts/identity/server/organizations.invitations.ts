@@ -22,7 +22,8 @@ import { enforceInvitationSendRateLimit } from './invitation-rate-limit.server'
 
 // ── Accept invitation ──────────────────────────────────────────────
 // User may not have an active org yet (they're joining), so we only
-// require authentication — not tenant context.
+// require authentication — not tenant context. The capability decision is
+// still taken: the use case asks it for the Organization the invitation names.
 
 export const acceptInvitation = createServerFn({ method: 'POST' })
   .validator(acceptInvitationInputSchema)

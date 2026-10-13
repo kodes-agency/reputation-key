@@ -24,6 +24,7 @@ import {
   consumedInvitation,
   encodePropertyIds,
   grantedRoleToken,
+  invitedPropertySelection,
   lapsedCompetitorIds,
   parsePropertyIds,
   renewableInvitation,
@@ -32,6 +33,7 @@ import {
 import type {
   AcceptedInvitation,
   IdentityCommandStore,
+  InvitationAcceptance,
 } from '#/contexts/identity/application/ports/identity-command-store.port'
 
 /** In-memory invitation row (mirrors the better-auth invitation table). */
@@ -64,6 +66,16 @@ export type StoredUser = Readonly<{
   emailVerified: boolean
 }>
 
+/** In-memory Property access grant (mirrors an active property_access_grant row). */
+export type StoredPropertyGrant = Readonly<{
+  organizationId: string
+  propertyId: string
+  userId: string
+  source: 'invitation'
+  /** The invitation row's inviter. */
+  createdBy: string | null
+}>
+
 /** In-memory organization row (mirrors the better-auth organization table). */
 export type StoredOrganization = Readonly<{
   id: string
@@ -85,12 +97,19 @@ export type SequentialIdentityCommandStore = IdentityCommandStore &
     seedUser: (row: StoredUser) => void
     /** Register a custom role name that still exists (orgRole + policy). */
     seedCustomRole: (role: string) => void
+    /**
+     * Seed a live Property of an Organization. An acceptance grants only the
+     * invited Properties seeded here; any other is reported as ungranted.
+     */
+    seedProperty: (organizationId: string, propertyId: string) => void
     invitationById: (id: string) => StoredInvitation | null
     memberById: (id: string) => StoredMember | null
     organizationById: (id: string) => StoredOrganization | null
     userById: (id: string) => StoredUser | null
     readonly allInvitations: ReadonlyArray<StoredInvitation>
     readonly allMembers: ReadonlyArray<StoredMember>
+    /** Property access granted by acceptances, in order. */
+    readonly allPropertyGrants: ReadonlyArray<StoredPropertyGrant>
     /** Users whose email an acceptance marked verified, in order. */
     readonly verifiedUserIds: ReadonlyArray<string>
   }>
@@ -104,6 +123,10 @@ export function createSequentialIdentityCommandStore(deps: {
   const users = new Map<string, StoredUser>()
   const verifiedUserIds: string[] = []
   const customRoles = new Set<string>()
+  const liveProperties = new Set<string>()
+  const propertyGrants: StoredPropertyGrant[] = []
+  const propertyKey = (organizationId: string, propertyId: string) =>
+    `${organizationId}:${propertyId}`
 
   const outbox = deps.outbox ?? createRecordedOutbox()
   const recordAndEmit = outbox.record
@@ -125,6 +148,27 @@ export function createSequentialIdentityCommandStore(deps: {
     [...invitations.values()]
       .filter((i) => i.email.toLowerCase() === email)
       .flatMap((i) => toOpenInvitations(i, now))
+
+  /** Same rule as the store: grant the live invited Properties, name the rest. */
+  const grantInvitedProperties = (
+    inv: StoredInvitation,
+    userId: string,
+    accepted: AcceptedInvitation,
+  ): ReadonlyArray<string> => {
+    const { candidateIds, malformedIds } = invitedPropertySelection(accepted.propertyIds)
+    const isLive = (propertyId: string) =>
+      liveProperties.has(propertyKey(inv.organizationId, propertyId))
+    for (const propertyId of candidateIds.filter(isLive)) {
+      propertyGrants.push({
+        organizationId: inv.organizationId,
+        propertyId,
+        userId,
+        source: 'invitation',
+        createdBy: inv.inviterId,
+      })
+    }
+    return [...malformedIds, ...candidateIds.filter((id) => !isLive(id))]
+  }
 
   const markEmailVerified = (userId: string, email: string) => {
     const seeded = users.get(userId)
@@ -219,9 +263,17 @@ export function createSequentialIdentityCommandStore(deps: {
       })
       invitations.set(inv.id, { ...inv, status: 'accepted' })
       const accepted: AcceptedInvitation = consumedInvitation(inv)
+      const acceptance: InvitationAcceptance = {
+        ...accepted,
+        ungrantedPropertyIds: grantInvitedProperties(
+          inv,
+          command.acceptorUserId as string,
+          accepted,
+        ),
+      }
       const fact = command.buildEvent(accepted)
       await recordAndEmit(fact)
-      return accepted
+      return acceptance
     },
 
     renewInvitation: async (command) => {
@@ -317,6 +369,9 @@ export function createSequentialIdentityCommandStore(deps: {
     seedUser: (row) => {
       users.set(row.id, row)
     },
+    seedProperty: (organizationId, propertyId) => {
+      liveProperties.add(propertyKey(organizationId, propertyId))
+    },
     invitationById: (id) => invitations.get(id) ?? null,
     memberById: (id) => members.get(id) ?? null,
     organizationById: (id) => organizations.get(id) ?? null,
@@ -326,6 +381,9 @@ export function createSequentialIdentityCommandStore(deps: {
     },
     get allMembers() {
       return [...members.values()]
+    },
+    get allPropertyGrants() {
+      return [...propertyGrants]
     },
     get verifiedUserIds() {
       return [...verifiedUserIds]

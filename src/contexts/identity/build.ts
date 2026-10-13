@@ -251,8 +251,6 @@ type IdentityContextDeps = Readonly<{
   organizationLifecycle?: IdentityOrganizationLifecycleComposition
 }>
 
-export { createInvitationPropertyAccessProvisioner } from './infrastructure/invitation-property-access-provisioner'
-
 type ContributorReadiness = Readonly<{
   contributorsConfigured: boolean
   missingContexts: readonly OrganizationLifecycleContext[]
