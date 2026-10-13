@@ -280,8 +280,17 @@ async function markAcceptorEmailVerified(
   }
 }
 
+/**
+ * What the store runs on: the pool-backed `Database`, or a transaction its
+ * caller has already opened. The operator console binds a command to its audit
+ * row that way (platform-organization-store.ts). On a transaction every
+ * `db.transaction` below is a savepoint of the caller's, so nothing in this
+ * store may assume a command's writes are durable when it returns.
+ */
+type IdentityCommandStoreDatabase = Pick<Database, 'select' | 'transaction'>
+
 export const createAtomicIdentityCommandStore = (
-  db: Database,
+  db: IdentityCommandStoreDatabase,
   idGen: () => string,
 ): IdentityCommandStore => {
   return {

@@ -253,9 +253,7 @@ export function createPlatformOrganizationStore(
     audit: OperatorAudit,
   ): Promise<T> =>
     db.transaction(async (tx) => {
-      const result = await run(
-        createAtomicIdentityCommandStore(tx as unknown as Database, idGen),
-      )
+      const result = await run(createAtomicIdentityCommandStore(tx, idGen))
       await writeOperatorAudit(tx, audit)
       return result
     })
@@ -337,10 +335,9 @@ export function createPlatformOrganizationStore(
             // The ordinary invitation command, bound to this transaction: its
             // own transaction becomes a savepoint, so a refusal there rolls
             // the Organization back with it.
-            await createAtomicIdentityCommandStore(
-              tx as unknown as Database,
-              idGen,
-            ).inviteMember(command.firstAdmin)
+            await createAtomicIdentityCommandStore(tx, idGen).inviteMember(
+              command.firstAdmin,
+            )
             await writeOperatorAudit(tx, {
               organizationId: command.organizationId,
               operatorUserId: command.firstAdmin.inviterId,

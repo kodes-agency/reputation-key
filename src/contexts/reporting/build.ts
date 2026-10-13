@@ -44,8 +44,6 @@ import {
 } from './application/use-cases/repair-portal-lifetime'
 import { createCurrentGoogleReputationSnapshotRepository } from './infrastructure/repositories/current-google-reputation-snapshot.repository'
 import { registerCurrentGoogleReputationConsumer } from './infrastructure/current-google-reputation-outbox-consumers'
-import { createMetricOrganizationExportAdapter } from './infrastructure/adapters/metric-organization-export.adapter'
-import { createMetricOrganizationLifecycleAdapter } from './infrastructure/adapters/metric-organization-lifecycle.adapter'
 
 import { createGoalProgramSubjectReader } from './infrastructure/adapters/goal-program-subject-reader'
 import { createGoalProgramVisibilityAdapter } from './infrastructure/adapters/goal-program-visibility.adapter'
@@ -77,8 +75,6 @@ import {
   createGoalProgramMaintenanceHandler,
   GOAL_PROGRAM_MAINTENANCE_JOB_NAME,
 } from './infrastructure/jobs/goal-program-maintenance.job'
-import { createGoalOrganizationExportAdapter } from './infrastructure/adapters/goal-organization-export.adapter'
-import { createGoalOrganizationLifecycleAdapter } from './infrastructure/adapters/goal-organization-lifecycle.adapter'
 
 import { createDashboardRepository } from './infrastructure/repositories/dashboard.repository'
 import { createMetricStatsAdapter } from './infrastructure/adapters/metric-stats.adapter'
@@ -105,8 +101,6 @@ import {
   getFleetOverview,
   type GetFleetOverview,
 } from './application/use-cases/get-fleet-overview'
-import { createDashboardOrganizationExportAdapter } from './infrastructure/adapters/dashboard-organization-export.adapter'
-import { createDashboardOrganizationLifecycleAdapter } from './infrastructure/adapters/dashboard-organization-lifecycle.adapter'
 import { createSetupChecklistRepository } from './infrastructure/repositories/setup-checklist.repository'
 import {
   getSetupChecklist,
@@ -261,8 +255,6 @@ function buildMetricModule(input: ReportingContextBuildInput) {
         repairPortalLifetime({ lifetime: portalLifetime }, repairInput),
     }),
     worker: Object.freeze({ registerOutboxConsumers }),
-    organizationExport: createMetricOrganizationExportAdapter(input.db),
-    organizationLifecycle: createMetricOrganizationLifecycleAdapter(input.db),
     internal: {
       repos: {} as const,
       useCases: { recordMetric: record },
@@ -372,8 +364,6 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
           createGoalProgramMaintenanceHandler(buildGoalPrograms(policy), input.logger),
       }),
     }),
-    organizationExport: createGoalOrganizationExportAdapter(input.db),
-    organizationLifecycle: createGoalOrganizationLifecycleAdapter(input.db),
     internal: {
       repos: { goalProgramRepo } satisfies Readonly<{
         goalProgramRepo: GoalProgramRepository
@@ -463,8 +453,6 @@ function buildDashboardModule(
       getPropertySetup: getPropertySetupRead,
       listPropertySetupSummaries: listPropertySetupSummariesRead,
     },
-    organizationExport: createDashboardOrganizationExportAdapter(input.db),
-    organizationLifecycle: createDashboardOrganizationLifecycleAdapter(input.db),
     internal: {
       repos: { dashboardRepo, setupChecklistRepo, propertySetupRepo },
       useCases: {
@@ -508,16 +496,6 @@ export function buildReportingContext(input: ReportingContextBuildInput) {
         goal.worker.registerOutboxConsumers(consumerRegistry, goalPolicy)
       },
       programMaintenance: goal.worker.programMaintenance,
-    }),
-    organizationExport: Object.freeze({
-      metric: metric.organizationExport,
-      goal: goal.organizationExport,
-      dashboard: dashboard.organizationExport,
-    }),
-    organizationLifecycle: Object.freeze({
-      metric: metric.organizationLifecycle,
-      goal: goal.organizationLifecycle,
-      dashboard: dashboard.organizationLifecycle,
     }),
     internal: Object.freeze({
       repos: {

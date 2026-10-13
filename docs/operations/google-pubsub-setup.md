@@ -1,9 +1,10 @@
 # Enabling Google push notifications for new reviews
 
 Without this, the app learns about a new Google review only when the
-`discover-new-reviews` sweep next polls that property — up to 6 hours for a
-property that has been quiet (see the backoff ladder in
-`src/contexts/review/infrastructure/jobs/discover-new-reviews.job.ts`). With it,
+`discover-new-reviews` sweep next polls that property — up to about six and a
+quarter hours for a property that has been quiet: a six-hour interval, then the
+next 15-minute sweep (see the backoff ladder in
+`src/contexts/review/domain/discovery-backoff.ts`). With it,
 Google pushes within seconds and the sweep becomes a reconciliation safety net
 rather than the mechanism.
 
