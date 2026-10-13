@@ -16,7 +16,7 @@ invite returned a 500.)
 `verification`, `organization`, `member`, `invitation`, and ALL
 `additionalFields` on them.
 
-**Business tables (Drizzle):** the migratable barrel currently exports all 195 app-owned tables. `drizzle.config.ts` points at `src/shared/db/schema/migratable.ts` and derives its `tablesFilter` from that same barrel, so there is no second hand-maintained allowlist. Migrate-based: `pnpm db:generate` then **commit `drizzle/`** (it is version-controlled); `pnpm db:migrate` is the deploy path. Do NOT use `db:push` on business tables — it desyncs the journal (root cause of the prior schema drift). The barrel deliberately excludes auth tables — neither `db:push` nor `db:migrate` will touch them. **Schema authority + current deploy order: `src/shared/db/CONTEXT.md` (BQC-5.4).**
+**Business tables (Drizzle):** the migratable barrel currently exports all 195 app-owned tables. `drizzle.config.ts` points at `src/shared/db/schema/migratable.ts` and derives its `tablesFilter` from that same barrel, so there is no second hand-maintained allowlist. Migrate-based: a schema change is a migration written by hand and appended to the journal in `drizzle/`, which is version-controlled (the change loop is in `src/shared/db/CONTEXT.md`; `pnpm db:generate` is not it, because drizzle-kit's snapshots stop at `0013`); `pnpm db:migrate` is the deploy path. Do NOT use `db:push` on business tables — it desyncs the journal (root cause of the prior schema drift). The barrel deliberately excludes auth tables — neither `db:push` nor `db:migrate` will touch them. **Schema authority + current deploy order: `src/shared/db/CONTEXT.md` (BQC-5.4).**
 
 ## Fresh-database provisioning
 
@@ -25,9 +25,9 @@ database. This is exercised by CI and by `pnpm db:migrate-deploy`; no manual
 auth bootstrap belongs in the normal deployment path.
 
 Use the production authority, `pnpm db:migrate-deploy`, to run the Better Auth
-runtime track, the three-entry Drizzle journal, and provider-subject
-initialization. For schema-only local or CI setup, run `pnpm auth:migrate`
-followed by `pnpm db:migrate`.
+runtime track, the Drizzle journal, and provider-subject initialization. For
+schema-only local or CI setup, run `pnpm auth:migrate` followed by
+`pnpm db:migrate`.
 
 The deploy runner invokes Better Auth's runtime track before the Drizzle
 constructs that reference auth-owned tables. `pnpm check:schema-drift` verifies

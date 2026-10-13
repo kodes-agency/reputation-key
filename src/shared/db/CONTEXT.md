@@ -16,12 +16,14 @@ while it opens a second transaction reserves both clients first
 ## Schema tracks
 
 1. **Drizzle journal** — `drizzle/meta/_journal.json` and one SQL file per
-   entry. The first three entries were generated at the squash of 2026-09-05:
-   `0000_baseline.sql` holds every application table as of that day,
-   `0001_db_constructs.sql` copies `db-constructs.sql`, and `0002_db_seed.sql`
-   copies `db-seed.sql`. Every entry after them was appended by hand, one per
-   schema or data change. `pnpm db:migrate` applies the whole journal,
-   including functions, triggers, and DDL on Better Auth tables.
+   entry. The first three entries are the squashed journal as it was last
+   regenerated, on 2026-09-08: `0000_baseline.sql` holds every application
+   table as of that day, `0001_db_constructs.sql` copies `db-constructs.sql`,
+   and `0002_db_seed.sql` copies `db-seed.sql`. Every entry after them was
+   appended, one per schema or data change: drizzle-kit generated some of
+   `0003`–`0013`, and every one since `0014` is written by hand.
+   `pnpm db:migrate` applies the whole journal, including functions, triggers,
+   and DDL on Better Auth tables.
 2. **Better Auth** — `pnpm auth:migrate` owns `user`, `session`, `account`,
    `verification`, `organization`, `member`, `invitation`, and
    `organizationRole`. `schema/auth.ts` is a read-only Drizzle query mirror.

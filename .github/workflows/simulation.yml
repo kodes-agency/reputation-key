@@ -58,8 +58,8 @@ jobs:
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
         # Ephemeral simulation DB: auth track FIRST because the journal's
-        # DB-only constructs reference auth-owned tables, then the three-entry
-        # Drizzle journal. Identical sequence to ci.yml and deploy (BQC-5.4).
+        # DB-only constructs reference auth-owned tables, then the Drizzle
+        # journal. Identical sequence to ci.yml and deploy (BQC-5.4).
         run: |
           pnpm auth:migrate
           pnpm db:migrate

@@ -163,8 +163,8 @@ jobs:
           GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        # BQC-5.4: deploy apply order — Better Auth, then the three-entry
-        # Drizzle journal — so the tested DB matches deploy state.
+        # BQC-5.4: deploy apply order — Better Auth, then the Drizzle
+        # journal — so the tested DB matches deploy state.
         run: |
           pnpm auth:migrate
           pnpm db:migrate
