@@ -14,7 +14,8 @@ export type PortalManagerEligibilityDeps = Readonly<{
   staffPublicApi: StaffPublicApi
 }>
 
-const policyDeps = (deps: PortalManagerEligibilityDeps) => ({
+/** This context's Identity facts as the shared eligibility policy reads them. */
+export const policyDeps = (deps: PortalManagerEligibilityDeps) => ({
   listActiveManagers: deps.identityPublicApi.listActiveManagers,
   getAccessiblePropertyIds: deps.staffPublicApi.getAccessiblePropertyIds,
 })

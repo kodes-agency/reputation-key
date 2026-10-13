@@ -166,6 +166,16 @@ the `portal.on-property-restored` worker consumer raises the fact for each of it
 live Portals (not deleted, not archived) that still has no manager, because
 Restore itself checks only the Property's manager (ADR 0052).
 
+Removing a member releases their Portal responsibilities twice. The removal
+itself releases them before the membership is deleted, in a commit of its own,
+and until that delete the member is still an eligible manager, so an assignment
+another admin saves in between is accepted. The `portal.on-member-removed`
+worker consumer therefore releases again from `identity.member.removed`, the
+fact every removal path records with the membership delete: every assignment
+the member is no longer eligible for, with the gap recorded and announced as
+for any release. Eligibility is asked at delivery, so a member invited again in
+the meantime keeps what they may hold.
+
 ## Media
 
 An uploaded image is a `portal_media_assets` row plus one WebP object in the

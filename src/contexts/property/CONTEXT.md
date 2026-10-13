@@ -83,6 +83,13 @@ foreign keys deliberately stop cross-owner deletion.
     guessed and offboarding is not blocked. Only an active Property also raises
     `property.responsibility_became_needed`: an archived one needs a manager to
     be restored, not an urgent notice (ADR 0052).
+    Removing a member releases their Property responsibilities twice: before
+    the membership is deleted, in a commit of its own, and again from
+    `identity.member.removed` (`property.on-member-removed`), the fact every
+    removal path records with the membership delete. Until that delete the
+    member is still eligible, so an assignment saved in between is accepted,
+    and only the second release sees it. Eligibility is asked at delivery, so a
+    member invited again in the meantime keeps what they may hold.
 11. Responsible Manager history is owned by the Property aggregate. Its behavior at permanent erasure remains part of the future support-mediated LIF-01 workflow; normal product actions cannot erase it.
 12. `verifyPurgeReadiness` fails closed while any Property is still `active` or
     `disconnecting`.

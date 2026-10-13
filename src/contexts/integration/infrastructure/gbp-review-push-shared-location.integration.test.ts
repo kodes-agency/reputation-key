@@ -32,6 +32,7 @@ import {
 } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -80,6 +81,7 @@ let now = IMPORTED_AT
 const property = buildPropertyContext({
   db,
   repo: createPropertyRepository(db),
+  outboxRepo: createOutboxRepository(db),
   clock: () => now,
   idGen: () => 'f9f00000-0000-4000-8000-000000000001',
   staffPublicApi: {

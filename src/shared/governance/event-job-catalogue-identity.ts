@@ -18,6 +18,10 @@ const NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX =
   'src/contexts/feed/infrastructure/identity-account-outbox-consumers.ts'
 const NOTIFICATION_SETTLEMENT_OUTBOX =
   'src/contexts/feed/infrastructure/notification-settlement-outbox-consumers.ts'
+const PORTAL_MEMBER_OFFBOARDING_OUTBOX =
+  'src/contexts/portal/infrastructure/member-offboarding-outbox-consumers.ts'
+const PROPERTY_MEMBER_OFFBOARDING_OUTBOX =
+  'src/contexts/property/infrastructure/member-offboarding-outbox-consumers.ts'
 
 /** A Feed route that retires notices rather than raising them (ADR 0046). */
 const settles = (name: string): EventConsumerRef =>
@@ -50,12 +54,17 @@ export const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
     ),
   ]),
+  // The fact commits with the membership delete, after the removal's own
+  // release of the member's responsibilities: each owner releases again here
+  // whatever the member was assigned in between.
   ev('identity.member.removed', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable(
       'notification.on-identity-member-removed',
       NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
     ),
+    durable('property.on-member-removed', PROPERTY_MEMBER_OFFBOARDING_OUTBOX),
+    durable('portal.on-member-removed', PORTAL_MEMBER_OFFBOARDING_OUTBOX),
   ]),
   ev('identity.member.role_changed', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),

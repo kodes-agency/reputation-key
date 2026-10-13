@@ -34,6 +34,9 @@ import {
   createPortalResponsibleManagerRepository,
 } from './infrastructure/repositories/portal-responsible-manager.repository'
 import { registerPortalPropertyLifecycleConsumers } from './infrastructure/property-lifecycle-outbox-consumers'
+import { registerPortalMemberOffboardingConsumers } from './infrastructure/member-offboarding-outbox-consumers'
+import { policyDeps as managerEligibilityPolicy } from './application/portal-manager-eligibility'
+import { releaseRemovedMemberResponsibilities } from '#/shared/responsible-manager-eligibility'
 import {
   createPortalAccessArtifactRepository,
   type ResolvePublishedAccessArtifactInput,
@@ -128,7 +131,8 @@ import {
 
 type PortalContextDeps = Readonly<{
   db: Database
-  outboxRepo?: import('#/shared/outbox').OutboxRepository
+  /** Consumer receipts for the worker's outbox consumers. */
+  outboxRepo: Pick<import('#/shared/outbox').OutboxRepository, 'insertReceipt'>
   clock: () => Date
   propertyApi: PropertyPublicApi &
     PropertyGoogleReviewDestinationPublicApi &
@@ -725,6 +729,24 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     registerPortalPropertyLifecycleConsumers(consumerRegistry, {
       recoveryStore: createPortalResponsibilityRecoveryStore(deps.db),
       clock: deps.clock,
+    })
+    registerPortalMemberOffboardingConsumers(consumerRegistry, {
+      // What a removed member still holds here: Portal responsibilities, each
+      // judged by the Property its Portal belongs to.
+      release: releaseRemovedMemberResponsibilities({
+        eligibility: managerEligibilityPolicy({
+          identityPublicApi: deps.identityManagerFacts,
+          staffPublicApi: deps.staffPublicApi,
+        }),
+        listHeld: portalResponsibleManagerRepo.listActiveForUser,
+        releaseHeld: (release, lost) =>
+          portalResponsibleManagerRepo.releaseForUser({
+            ...release,
+            portalIds: lost.map((assignment) => assignment.portalId),
+          }),
+        clock: deps.clock,
+      }),
+      receipts: deps.outboxRepo,
     })
   }
 
