@@ -259,6 +259,71 @@ describe.sequential('AI review analysis backlog adapter (real PostgreSQL)', () =
     ])
   })
 
+  // A review that arrives while Review Analysis is stopped is queued as a live
+  // entry and asked about once a minute until the stop lifts, however long
+  // that is. It must come out of that wait exactly as it went in.
+  it('holds a live entry through repeated releases, untried', async () => {
+    const review = await seedReview(PROPERTY_A, 0)
+    const eventEnvelopeId = randomUUID()
+    await backlog.enqueue({
+      eventEnvelopeId,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_A,
+      reviewId: review.id,
+      sourceEpoch: 1,
+      sourceRevision: 1,
+      analysisSequence: review.sequence,
+      origin: 'deferred_live',
+      nowEpochMillis: NOW,
+    })
+
+    for (const askedAt of [NOW, NOW + 60_000, NOW + 120_000]) {
+      await expect(
+        backlog.claimReady({
+          nowEpochMillis: askedAt,
+          leaseMillis: 60_000,
+          perProperty: 3,
+          limit: 3,
+        }),
+      ).resolves.toEqual([
+        expect.objectContaining({
+          eventEnvelopeId,
+          origin: 'deferred_live',
+          attempts: 0,
+          firstStartedAtEpochMillis: askedAt,
+        }),
+      ])
+      await backlog.release({
+        eventEnvelopeId,
+        organizationId: ORGANIZATION_ID,
+        nextAttemptAtEpochMillis: askedAt + 60_000,
+        nowEpochMillis: askedAt,
+      })
+    }
+
+    const [row] = await db
+      .select({
+        state: aiReviewAnalysisBacklog.state,
+        attempts: aiReviewAnalysisBacklog.attempts,
+        firstStartedAt: aiReviewAnalysisBacklog.firstStartedAt,
+        nextAttemptAt: aiReviewAnalysisBacklog.nextAttemptAt,
+      })
+      .from(aiReviewAnalysisBacklog)
+    expect(row).toEqual({
+      state: 'queued',
+      attempts: 0,
+      firstStartedAt: null,
+      nextAttemptAt: new Date(NOW + 180_000),
+    })
+    await expect(
+      backlog.hasPendingForReview({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_A,
+        reviewId: review.id,
+      }),
+    ).resolves.toBe(true)
+  })
+
   it('releases only the named entry of the named Organization', async () => {
     const envelope = await enqueue(PROPERTY_A, await seedReview(PROPERTY_A, 1))
     await backlog.claimReady({

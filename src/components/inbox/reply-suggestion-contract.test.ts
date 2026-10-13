@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  replySuggestionFixTarget,
   replySuggestionOffersTemplate,
   replySuggestionUnavailableMessage,
   replyTemplateLoadedMessage,
@@ -16,6 +17,23 @@ describe('replySuggestionUnavailableMessage', () => {
     expect(replySuggestionUnavailableMessage('brand_profile_changed')).toBe(
       "This property's display name was updated. Generate the suggestion again to use the latest name.",
     )
+  })
+
+  // AI is enabled, under a notice older than the one now served. The manager
+  // is told what happened, sent to the notice (or to who can confirm it), and
+  // keeps the template, which needs no AI consent.
+  it('says the AI notice needs confirming, apart from AI being off', () => {
+    expect({
+      message: replySuggestionUnavailableMessage('consent_renewal_required'),
+      fix: replySuggestionFixTarget('consent_renewal_required'),
+      offersTemplate: replySuggestionOffersTemplate('consent_renewal_required'),
+    }).toEqual({
+      message:
+        'The AI notice for this property was updated. AI drafting is paused until it is confirmed.',
+      fix: 'ai_notice',
+      offersTemplate: true,
+    })
+    expect(replySuggestionFixTarget('not_authorized')).toBe('ai_settings')
   })
 
   it('directs a missing template language to property settings', () => {

@@ -165,7 +165,7 @@ definitions and security controls live in
 **Trigger:** Any P0 stop condition from ADR 0038 (tenant isolation breach, data loss, duplicate effect, token leak, policy violation).
 **Impact:** P0 — all external effects must stop immediately.
 **Containment:** Full stop → set `BETA_CAPABILITIES_OFF=all` and restart web + worker. Targeted stop → set a comma list, e.g. `BETA_CAPABILITIES_OFF=property.connect_gbp,property.publish_reply` stops Google sync/import/publish (interactive gates deny; the sync/import/publish job handlers re-check capability before side effects and skip cleanly — enqueued jobs are preserved, not deleted). Worker startup logs the effective capability manifest (kill switch, disabled list, blocked set).
-**Recovery:** Investigate root cause. Fix, and deploy the fix forward: an earlier image is never the repair (§28). Re-enable capabilities one at a time with monitoring (remove list entries, restart). A stop made in the database-held controls (Google content capability rows, AI capability heads) is kept by every later deploy — the declared posture only lifts untouched seed defaults — so re-open it deliberately (§25).
+**Recovery:** Investigate root cause. Fix, and deploy the fix forward: an earlier image is never the repair (§28). Re-enable capabilities one at a time with monitoring (remove list entries, restart). A stop made in the database-held controls (Google content capability rows, AI capability heads) is kept by every later deploy — the declared posture only lifts untouched seed defaults — so re-open it deliberately (§25). Lifting a stop of Review Analysis is itself the resume: reviews that were queued or arrived during it wait in the backlog and go to the AI provider on their own once the worker runs under the lifted stop, and `ai.review-analysis-stalled` fires while they wait (§22).
 **Verification:** No new external effects after kill switch. Canonical data preserved.
 **Escalation:** Bozhidar Denev decides on restart. All P0 conditions require written sign-off before re-enabling.
 
@@ -816,6 +816,31 @@ Redis health, and published-event redelivery attempts. For an empty enrollment,
 re-run the enrollment eligibility predicate at its stored fence and compare the
 eligible count with its snapshot count; never copy review text into the
 incident record.
+
+First rule out a stop, because a stopped Property's reviews wait on purpose and
+this alert fires for them after fifteen minutes. Review Analysis is stopped for
+a Property while `BETA_CAPABILITIES_OFF` names `ai.analyze` or `all`, while its
+Organization is in `BETA_SUSPENDED_ORGS` or off `BETA_ALLOWLIST_ORGS`, or while
+an AI execution control (global, provider or the `review_analysis` capability)
+is not `enabled`/`accepting` (§25). Reviews that were queued and reviews that
+arrive during the stop both wait in `ai_review_analysis_backlog`. The worker's
+`AI Review Analysis backlog drain completed` line counts them as `denied`
+(platform policy) or `stopped` (AI execution controls) each time it asks, about
+once a minute per review. Nothing is lost and nothing needs repair: lift the
+stop and the drain analyses them within about a minute of the worker running
+under the lifted stop, and the alert clears as the settlements arrive.
+
+One case takes a few minutes longer after an AI execution control is restored.
+A review the drain had already tried before the stop (its lane was full, or the
+provider said to come back later) cannot resume its operation, because that
+operation is bound to the control generations it was claimed under and every
+kill, drain and restore moves one. At the restore the drain closes it as
+`execution_suspended` and settles the review, and the enrollment sweep's reopen
+pass queues the review again within a minute: the worker's
+`AI Review Analysis enrollment sweep completed` line counts them as
+`analysesReopened`. Each such review spends one of its three reopens (ADR 0058,
+2026-10-13 item 7); `analysesLeftUnanalysed` above zero on that line after
+repeated stops means some have none left.
 
 **Containment/Recovery:** Restore the failing ordinary path first. Let an
 in-horizon analysis retry or the execution reaper terminal-settle through the

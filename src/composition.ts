@@ -16,6 +16,7 @@ import { getDb } from '#/shared/db'
 import { getPool } from '#/shared/db/pool'
 import { getLogger } from '#/shared/observability/logger'
 import { getRedis } from '#/shared/cache/redis'
+import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import { closeJobQueueConnections } from '#/shared/jobs/queue'
 import { createAlertDispatcher } from '#/shared/observability/alert-dispatcher'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
@@ -470,6 +471,12 @@ function buildContainer(
     enqueueReviewAnalysisNow: infra.jobQueue
       ? createAnalyzeReviewNowEnqueue(infra.jobQueue)
       : undefined,
+    // The review event consumer is ungated at the dispatcher, so that a review
+    // arriving during a stop is queued instead of lost. It asks the backlog
+    // drain's own policy question before analysing a review on delivery.
+    authorizeReviewAnalysisScope: createScheduledScopeAuthorizer(
+      'system:ai.review_analysis_backlog_drain',
+    ),
   })
 
   const inbox = buildInboxContext({

@@ -137,6 +137,7 @@ describe('drainReviewAnalysisBacklog', () => {
       waitingForLane: 0,
       failed: 0,
       denied: 0,
+      stopped: 0,
     })
     expect(test.backlog.claimReady).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -242,6 +243,7 @@ describe('drainReviewAnalysisBacklog', () => {
       waitingForLane: 0,
       failed: 0,
       denied: 0,
+      stopped: 0,
     })
     release()
 
@@ -438,6 +440,7 @@ describe('drainReviewAnalysisBacklog', () => {
       waitingForLane: 0,
       failed: 0,
       denied: 1,
+      stopped: 0,
     })
     expect(test.analyzeReviewEvent).not.toHaveBeenCalled()
     expect(test.backlog.release).toHaveBeenCalledWith({
@@ -494,6 +497,63 @@ describe('drainReviewAnalysisBacklog', () => {
     expect(test.backlog.complete).not.toHaveBeenCalled()
     // The failed tick releases the process guard, so the next one can drain.
     await expect(test.drainer.drain()).resolves.toMatchObject({ claimed: 0 })
+  })
+
+  // An operator has stopped Review Analysis with the AI execution controls. The
+  // analysis use case says so instead of settling the review, and the entry is
+  // returned exactly as a policy refusal returns it: it waits for the restore.
+  it('returns an entry to the queue untried while an AI execution control is stopped', async () => {
+    const held = entry(1, { attempts: 2 })
+    const test = harness([[held]], () => ({ status: 'stopped' }))
+
+    await expect(test.drainer.drain()).resolves.toEqual({
+      claimed: 1,
+      completed: 0,
+      rescheduled: 0,
+      waitingForLane: 0,
+      failed: 0,
+      denied: 0,
+      stopped: 1,
+    })
+    expect(test.backlog.release).toHaveBeenCalledExactlyOnceWith({
+      eventEnvelopeId: held.eventEnvelopeId,
+      organizationId: ORGANIZATION_ID,
+      nextAttemptAtEpochMillis: NOW + 60_000,
+      nowEpochMillis: NOW,
+    })
+    // `reschedule` counts an attempt and `complete` removes the entry.
+    expect(test.backlog.reschedule).not.toHaveBeenCalled()
+    expect(test.backlog.complete).not.toHaveBeenCalled()
+    expect(test.advanceEnrollment).not.toHaveBeenCalled()
+    expect(test.logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('stops after a round in which every entry met a stopped control', async () => {
+    const test = harness([[entry(1)], [entry(2)]], () => ({ status: 'stopped' }))
+
+    await expect(test.drainer.drain()).resolves.toMatchObject({ claimed: 1, stopped: 1 })
+    expect(test.backlog.claimReady).toHaveBeenCalledOnce()
+  })
+
+  it('leaves an on-demand review queued, untried, while an AI execution control is stopped', async () => {
+    const requested = entry(1, { priority: 'interactive' })
+    const test = harness([[requested]], () => ({ status: 'stopped' }))
+
+    await expect(
+      test.drainer.drainReview({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_A,
+        reviewId: requested.reviewId,
+      }),
+    ).resolves.toEqual({ status: 'waiting', retryAtEpochMillis: NOW + 60_000 })
+    expect(test.backlog.release).toHaveBeenCalledExactlyOnceWith({
+      eventEnvelopeId: requested.eventEnvelopeId,
+      organizationId: ORGANIZATION_ID,
+      nextAttemptAtEpochMillis: NOW + 60_000,
+      nowEpochMillis: NOW,
+    })
+    expect(test.backlog.reschedule).not.toHaveBeenCalled()
+    expect(test.backlog.complete).not.toHaveBeenCalled()
   })
 
   it('advances the enrollment of each property whose analyses settled', async () => {

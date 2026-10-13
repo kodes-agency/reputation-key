@@ -36,8 +36,10 @@ import {
   aiRequestFingerprint,
   aiRetryAt,
   aiReviewSourceProvenance,
+  isAiAuthorizationUnderServedContract,
   resolveAiExecutionStopFence,
 } from '../ai-workflow-support'
+import { resolveAnalysisClaimConflict } from '../analysis-claim-conflict'
 import {
   analysisExecutionBinding,
   analysisOperationIdentity,
@@ -103,6 +105,15 @@ export type AnalyzeReviewEventResult =
   | Readonly<{ status: 'retry'; retryAtEpochMillis: number; code: string }>
   /** Provider work is still needed and the caller asked to queue it. */
   | Readonly<{ status: 'deferred' }>
+  /**
+   * Provider work is still needed and an AI execution control does not accept
+   * it: an operator killed or drained the global, provider or capability
+   * control, or a control head is missing. Nothing was claimed or settled. The
+   * caller holds the review in the backlog until the control accepts work
+   * again; settling it here would leave it unanalysed after the restore, since
+   * nothing reopens a settlement that has no operation.
+   */
+  | Readonly<{ status: 'stopped' }>
 
 /** Content-free record of a governed refusal. Carries identifiers and the rule
  *  only: the refused label and the matched excerpt are deliberately absent. */
@@ -302,11 +313,16 @@ export function createAnalyzeReviewEvent(
     aggregates: dependencies.aggregates,
   }
 
+  /**
+   * `operationId` names the operation the settlement closes. It is null when
+   * the review is settled before any operation of its own exists.
+   */
   function settleWithoutResult(
     input: AnalyzeReviewEventInput,
     reviewAnalysisEpoch: number,
     propertyProfileVersion: number,
     dispositionCode: AiReviewAnalysisTerminalDisposition,
+    operationId: string | null = null,
   ): Promise<AnalyzeReviewEventResult> {
     return settleReviewAnalysisWithoutResult(settlementDependencies, {
       organizationId: input.organizationId,
@@ -316,7 +332,7 @@ export function createAnalyzeReviewEvent(
       reviewAnalysisEpoch,
       analysisSequence: input.analysisSequence,
       propertyProfileVersion,
-      operationId: null,
+      operationId,
       dispositionCode,
     })
   }
@@ -520,6 +536,10 @@ export function createAnalyzeReviewEvent(
         authorization.capabilities.includes('review_analysis'),
         authorization.capabilityRuntimeProfileVersions.review_analysis ===
           PROFILE.capabilityRuntimeProfileVersion,
+        // A consent older than the served notice. Re-consent bumps the Review
+        // Analysis epoch and the enrollment replay analyses the history again,
+        // so the review is settled here rather than held.
+        isAiAuthorizationUnderServedContract(authorization, 'review_analysis'),
       ].every(Boolean)
     ) {
       return settleWithoutResult(
@@ -605,16 +625,11 @@ export function createAnalyzeReviewEvent(
       providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
       capability: 'review_analysis',
     })
-    if (stopFence === null) {
-      return settleWithoutResult(
-        input,
-        reviewAnalysisEpoch,
-        profile.profileVersion,
-        'policy_disabled',
-      )
-    }
     // Everything above settles without a provider call. From here on the
-    // review needs one, so a deferring caller queues it for its lane instead.
+    // review needs one. A stopped control says nothing about the review and
+    // nothing about the merchant, so it is answered, never settled; a
+    // deferring caller queues the work for its lane instead.
+    if (stopFence === null) return { status: 'stopped' }
     if (input.execution === 'defer') return { status: 'deferred' }
     const subject = dependencies.subjectHmac.sign(input.reviewId)
     const identity = analysisOperationIdentity(
@@ -645,11 +660,18 @@ export function createAnalyzeReviewEvent(
       expiresAtEpochMillis: nowEpochMillis + 24 * 60 * 60 * 1_000,
     })
     if (claimed.status === 'conflict') {
+      const resolved = await resolveAnalysisClaimConflict(dependencies.operations, {
+        existing: claimed.operation,
+        request: { identity, binding, provenance },
+        organizationId: input.organizationId,
+        nowEpochMillis,
+      })
       return settleWithoutResult(
         input,
         reviewAnalysisEpoch,
         profile.profileVersion,
-        'policy_disabled',
+        resolved.dispositionCode,
+        resolved.operationId,
       )
     }
     const operation = claimed.operation
@@ -798,8 +820,8 @@ export function createAnalyzeReviewEvent(
         // The merchant notice promises the issue label never reproduces review
         // text. The output schema, the server-side shape check and the SQL
         // CHECK all validate shape only, so a lowercase quotation satisfies
-        // every layer. Refuse a multi-word label that appears verbatim in the
-        // source; the aspects are the expensive part of the call and stay.
+        // every layer. Refuse a multi-word label whose words follow one another
+        // in the source; the aspects are the expensive part of the call and stay.
         // Refused content is never logged — recording the label would leak the
         // very excerpt the rule exists to keep out of storage.
         const reproducesSource =

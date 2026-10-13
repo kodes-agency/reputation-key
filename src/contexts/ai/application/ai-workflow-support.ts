@@ -2,8 +2,11 @@ import { createHash } from 'node:crypto'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
 import { AI_REVIEW_SOURCE_CONTRACT_VERSION } from '#/shared/ai-review-source-contract'
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import type { AiMerchantAuthorizationSnapshot } from './ports/ai-authorization.port'
 import type { AiControlPort } from './ports/ai-control.port'
-import type { AiExecutionStopFence } from '../domain/types'
+import type { AiOperationRecord } from './ports/ai-operation-store.port'
+import type { AiExecutionBinding, AiExecutionStopFence } from '../domain/types'
 
 export function aiRequestFingerprint(value: unknown): string {
   return createHash('sha256')
@@ -22,6 +25,35 @@ export function aiReviewSourceProvenance(
       .digest('hex'),
     byteCount: canonicalBytes.byteLength,
   })
+}
+
+/**
+ * Whether a Property's AI authorization was recorded under the contract this
+ * build serves for `capability`: the notice, by version and digest, and the
+ * provider deployment profile. A new notice ships with a deploy, and a Property
+ * enabled under the previous one keeps that version on its enablement until an
+ * AccountAdmin confirms the new one (docs/BETA.md, section 2).
+ *
+ * The gateway refuses any other binding, but by throwing from its request
+ * check ("route binding is cross-wired"), after an operation and an execution
+ * attempt have been claimed. So a use case asks here first, beside its other
+ * authorization facts, and answers in its own terms. The served values come
+ * from the catalogue the gateway reads, so the two cannot disagree.
+ */
+export function isAiAuthorizationUnderServedContract(
+  authorization: Pick<
+    AiMerchantAuthorizationSnapshot,
+    'noticeVersion' | 'noticeDigest' | 'providerDeploymentProfileVersion'
+  >,
+  capability: MerchantAiCapability,
+): boolean {
+  const served = getAiRuntimeCapability(capability)
+  return (
+    authorization.noticeVersion === served.noticeVersion &&
+    authorization.noticeDigest === served.noticeDigest &&
+    authorization.providerDeploymentProfileVersion ===
+      served.providerDeploymentProfileVersion
+  )
 }
 
 export async function resolveAiExecutionStopFence(
@@ -62,6 +94,31 @@ export async function resolveAiExecutionStopFence(
     capabilityControlId: capability.controlId,
     capabilityGeneration: capability.generation,
   }
+}
+
+/**
+ * Whether `operation` holds this same request, claimed under AI execution
+ * controls that have since moved. The binding's stop fence pins the generation
+ * of the global, provider and capability controls, every kill, drain and
+ * restore moves one, and the request fingerprint covers the binding. So after
+ * a stop and its restore an unchanged request has another fingerprint and its
+ * idempotency key answers `conflict`, exactly as a foreign request would.
+ * Fingerprinting the request under the operation's own stop fence tells the
+ * two apart: only a request that differs in nothing else matches.
+ */
+export function isSameAiRequestUnderOtherControls<
+  Request extends Readonly<{ binding: AiExecutionBinding }>,
+>(
+  operation: Pick<AiOperationRecord, 'requestFingerprint' | 'binding'>,
+  request: Request,
+): boolean {
+  return (
+    operation.requestFingerprint ===
+    aiRequestFingerprint({
+      ...request,
+      binding: { ...request.binding, stopFence: operation.binding.stopFence },
+    })
+  )
 }
 
 /**
