@@ -104,6 +104,32 @@ describe('ReviewServingStats eligibility (BQC-5.5 / ADR 0031)', () => {
     expect(rows[0].text).toBe('Great stay')
   })
 
+  it('getRecentReviews returns the review instant as a Date and the rating as a number, as its port says', async () => {
+    // The driver hands a timestamptz back as text unless the selection carries
+    // a decoder, and a raw `sql` template carries none. The row then travelled
+    // to the dashboard typed `Date` while holding "2026-09-12 08:30:00+00".
+    const reviewedAt = new Date('2026-09-12T08:30:00.000Z')
+    await insertReview(
+      REVIEW_IDS.eligible,
+      new Date(Date.now() + 10 * DAY_MS),
+      4,
+      reviewedAt,
+    )
+
+    const rows = await createStats(db).getRecentReviews(ORG, PROP, 10)
+
+    expect(rows).toEqual([
+      {
+        id: REVIEW_IDS.eligible,
+        rating: 4,
+        text: 'Great stay',
+        reviewedAt,
+        replyStatus: 'none',
+      },
+    ])
+    expect(rows[0]?.reviewedAt).toBeInstanceOf(Date)
+  })
+
   it('getPeriodStats excludes expired and clock-less content from count and average', async () => {
     await insertEligibilityFixture({ eligible: 4 })
 
