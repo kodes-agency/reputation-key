@@ -138,8 +138,8 @@ function countedButNotListed({ report, failAt }) {
   if (hidden === undefined) return undefined
   return (
     `the report's \`${hidden}\` count is ${counts[hidden]} and it lists no advisory of that severity. ` +
-    'An advisory pnpm or the registry leaves out of the list is not excepted: ' +
-    'the only exception route is security/audit-exceptions.json'
+    "An advisory left out of the list is not excepted: pnpm's `auditConfig` ignore lists " +
+    'are not an exception route, security/audit-exceptions.json is the only one'
   )
 }
 

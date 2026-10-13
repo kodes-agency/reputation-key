@@ -309,7 +309,7 @@ const UNREADABLE: readonly (readonly [string, Answer, string])[] = [
       advisories: {},
       metadata: { vulnerabilities: { ...ZERO_COUNTS, high: 2 } },
     }),
-    "the report's `high` count is 2 and it lists no advisory of that severity",
+    "the report's `high` count is 2 and it lists no advisory of that severity. An advisory left out of the list is not excepted: pnpm's `auditConfig` ignore lists are not an exception route",
   ],
   [
     'a count for a severity the run fails on and only advisories of another',
