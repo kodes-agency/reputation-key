@@ -97,7 +97,9 @@ follow which; it has no `approved → draft`, because no reply command makes tha
 move. A Reply returns to draft when its open cycle is cancelled (a disconnect,
 a policy stop, a refused claim: `cancelledPublication`), superseded by what
 Google shows or by a changed Review (the observation and Review stores' own
-guarded writes), or withdrawn by the AI draft purge. A guest edit also returns
+guarded writes), or withdrawn by the AI draft purge. Each of those writers
+clears the cancelled cycle's recovery deadline and last error class, so a
+cancelled Reply never names a next automatic check. A guest edit also returns
 to draft a Reply that was put forward and has no open cycle (below).
 
 Confirm & Publish is bound to the Reply the manager read. The Inbox sends

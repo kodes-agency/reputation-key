@@ -391,9 +391,13 @@ describe.sequential('replyCommandStore (integration)', () => {
     )
 
     expect(claim).toBeNull()
+    // The cancelled cycle's recovery deadline goes with it: no sweep will
+    // check a cancelled row, so none may be promised.
     await expect(replyRepo.findById(REPLY_A, ORG_A)).resolves.toMatchObject({
       status: 'draft',
       publicationState: 'cancelled',
+      reconcileDueAt: null,
+      publicationLastErrorClass: null,
     })
     const attempts = await pool.query(
       'SELECT id FROM reply_publication_attempts WHERE organization_id = $1',
