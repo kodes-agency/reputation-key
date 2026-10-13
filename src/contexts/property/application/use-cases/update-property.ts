@@ -126,6 +126,9 @@ type ValidatedUpdateFields = Awaited<ReturnType<typeof validateUpdateFields>>
  * slug or reply language repeated here from that read would silently undo
  * another admin's save of it that committed in between. A column the request
  * leaves as it found it is therefore left out of the write.
+ *
+ * Country is the exception: it is written whenever the request carries it,
+ * changed or not, so that the source becomes `manual`.
  */
 function changedColumns(
   existing: Property,
