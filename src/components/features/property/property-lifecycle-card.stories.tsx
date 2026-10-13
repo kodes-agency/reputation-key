@@ -118,6 +118,6 @@ export const ArchivedNeedsResponsibleManager: Story = {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('button', { name: 'Restore property' })).toBeDisabled()
     expect(canvas.getByText(/assign an eligible Responsible Manager/i)).toBeVisible()
-    expect(canvas.getByText(/Google reconnection needed/i)).toBeVisible()
+    expect(canvas.getByText('Disconnected')).toBeVisible()
   },
 }
