@@ -78,6 +78,14 @@ under `infrastructure/`. Beta-feedback requests reach the triage store only
 through the build's `betaFeedback` capability (`submit`, `listMine`); the
 operator triage workflow stays with `scripts/ops`.
 
+`updateOrganization` is composed once, in `build-organization-settings.ts`, with the
+logo cleanup it needs (the object delete is late-bound: the object store is built
+with Portal, after Identity); its server function calls `requests.updateOrganization`
+and composes nothing. Residual gap: the logo and avatar upload requests
+(`server/organizations.upload.ts`) and the avatar replacement in
+`server/auth-settings.ts` are still composed in `server/`, because they need the
+whole object store rather than one late-bound call.
+
 Three `server/policy-admin.ts` functions have no UI caller on purpose:
 
 - `explainPolicyDecisionFn` is the live, read-only policy and capability-refusal
