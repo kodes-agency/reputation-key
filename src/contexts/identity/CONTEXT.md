@@ -103,8 +103,11 @@ Three `server/policy-admin.ts` functions have no UI caller on purpose:
   replaces it; the same grant asked again changes nothing. Each change commits with
   the `identity.member.property_access_changed` fact the Members edit records, so the
   member hears about it; a command that changes nothing records none.
-  Follow-up: a grant requires `reason` and `ticketRef` but persists neither (a revoke
-  keeps its `reason` as `revoke_reason`).
+  Follow-ups: a grant requires `reason` and `ticketRef` but persists neither (a revoke
+  keeps its `reason` as `revoke_reason`). The grant accepts any member of the
+  Organization as its target, where the Members edit requires a PropertyManager and
+  refuses the caller: a grant to an AccountAdmin changes nothing they can do and still
+  sends them the access-changed notice.
 
 AccountAdmins change a PropertyManager's Property scope from Settings → Members
 through `setMemberPropertyAccess` (`server/organizations.member-access.ts`; the

@@ -1,8 +1,10 @@
-// The one grant write every PropertyAccessGrant command uses: the operator
-// grant and the Members access edit. Called with the per-grant advisory lock
-// held and the Property checked live, it locks the unrevoked row, asks the
-// domain rule what to do with it, and retires a superseded row before the
-// insert so the one-active-grant index holds.
+// The one grant write of the two commands that grant one member a Property on
+// request: the operator grant and the Members access edit. (Invitation
+// provisioning inserts through its own path, and offboarding revokes in bulk.)
+// Called with the per-grant advisory lock held and the Property checked live,
+// it locks the unrevoked row, asks the domain rule what to do with it, and
+// retires a superseded row before the insert so the one-active-grant index
+// holds.
 
 import type { Tx } from '#/shared/outbox/commit'
 import { decidePropertyGrant } from '../domain/property-access-grant'
