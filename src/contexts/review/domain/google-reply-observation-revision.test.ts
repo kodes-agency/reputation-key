@@ -70,6 +70,7 @@ describe('a reply observed after the guest edits an answered review', () => {
         ...afterEdit,
         expectedReplyDigest: digest(OLD_REPLY),
         expectedReplyText: OLD_REPLY,
+        earlierConfirmedDigest: null,
         outcome: 'provider_outcome_pending',
       },
     })

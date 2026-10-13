@@ -407,6 +407,9 @@ export function canDeferPendingProviderObservation(
  * read records no observation, so the absent-read cap above cannot count it;
  * the propagation window alone bounds the wait. Without this the first such
  * read ended the grace, where the same echo read as absent before D6 did not.
+ *
+ * The same bound holds for an accepted edit while Google still shows the reply
+ * it was written over: that read records no observation either.
  */
 export function canDeferUnreadablePendingObservation(input: AttemptClock): boolean {
   const ageMs = input.now.getTime() - input.attemptStartedAt.getTime()

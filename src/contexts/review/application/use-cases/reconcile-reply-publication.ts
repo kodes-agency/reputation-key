@@ -34,6 +34,11 @@ export type ReconcilePublicationOutcome = Readonly<{
    * never evidence that the reply is absent. `diverged` stays in the union for
    * callers that name it, but this use case reports that resolution as
    * `unreadable` (see below).
+   *
+   * `earlier_publication_live`: Google still shows the reply this one was
+   * written over, RepKey's own earlier publication. The edit's echo has not
+   * arrived; nothing was recorded and nothing decided. Callers wait as they do
+   * for an absent echo.
    */
   outcome:
     | 'confirmed_on_google'
@@ -42,6 +47,7 @@ export type ReconcilePublicationOutcome = Readonly<{
     | 'absent'
     | 'provider_review_missing'
     | 'unreadable'
+    | 'earlier_publication_live'
   /** Content-free cause of an `unreadable` outcome, for the caller's log line. */
   reason?: 'reply_unreadable' | 'whitespace_only_difference'
 }>
@@ -166,6 +172,9 @@ export const reconcileReplyPublication =
     if (observation.resolution === 'diverged') {
       return ok({ outcome: 'unreadable', reason: 'whitespace_only_difference' })
     }
+    // `earlier_publication_live` passes through under its own name: the reply
+    // an edit was written over is not `unchanged` live text, which is reported
+    // below as another author's reply.
     const outcome =
       observation.resolution === 'unchanged'
         ? result.review.replyText === null

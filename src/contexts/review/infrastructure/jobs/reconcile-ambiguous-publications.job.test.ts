@@ -171,7 +171,12 @@ const makeJob = () => ({ id: 'job-1', data: {} }) as never
 
 async function runOne(
   reply: Reply,
-  outcome: 'confirmed_on_google' | 'absent' | 'unreadable' | 'provider_review_missing',
+  outcome:
+    | 'confirmed_on_google'
+    | 'absent'
+    | 'unreadable'
+    | 'provider_review_missing'
+    | 'earlier_publication_live',
   attemptProgress?: Readonly<{
     attemptStartedAt: Date
     absentObservationCount: number
@@ -207,6 +212,7 @@ describe('reconcile-ambiguous-publications sweep', () => {
   it.each([
     ['absent', 'absent'],
     ['unreadable', 'unreadable'],
+    ['still the reply the edit was written over', 'earlier_publication_live'],
   ] as const)(
     'keeps a sending attempt waiting inside the grace when the read is %s',
     async (_label, outcome) => {
@@ -611,6 +617,65 @@ describe('reconcile-ambiguous-publications sweep', () => {
       NOW,
       new Date(attemptStartedAt.getTime() + 30 * MINUTE),
     )
+  })
+
+  // An edit-and-republish Google accepted, whose earlier publication a read
+  // still shows: a read from before the write landed, or one Google's read
+  // path has not caught up with. Like an unreadable echo it records no
+  // observation, so only the attempt's age bounds the wait; and it never ends
+  // the edit as a different reply would.
+  it('keeps an accepted edit waiting inside propagation grace while Google still shows the reply it was written over', async () => {
+    const pending = makeReply('reply-edit-echo-pending', 'pending_observation')
+    const { deps } = await runOne(pending, 'earlier_publication_live', {
+      attemptStartedAt: minutesAgo(10),
+      absentObservationCount: 0,
+    })
+
+    expect(
+      deps.replyCommandStore.deferPendingPublicationObservation,
+    ).toHaveBeenCalledWith(pending, NOW)
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
+    expect(deps.logger.info).toHaveBeenCalledWith(
+      { publicationState: 'pending_observation' },
+      'reconcile sweep: Google still shows the reply this edit was written over',
+    )
+  })
+
+  it('moves that edit onto the ladder as unconfirmed once propagation grace ends', async () => {
+    const pending = makeReply('reply-edit-echo-late', 'pending_observation')
+    const attemptStartedAt = minutesAgo(16)
+    const { deps } = await runOne(pending, 'earlier_publication_live', {
+      attemptStartedAt,
+      absentObservationCount: 0,
+    })
+
+    expect(
+      deps.replyCommandStore.deferPendingPublicationObservation,
+    ).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledWith(
+      pending,
+      expect.objectContaining({
+        _tag: 'review.reply.publish_failed',
+        outcome: 'unconfirmed',
+      }),
+      NOW,
+      new Date(attemptStartedAt.getTime() + 30 * MINUTE),
+    )
+  })
+
+  it('reads an ambiguous edit again at the next rung while Google still shows the reply it was written over', async () => {
+    const ambiguous = makeReply('reply-edit-echo-ladder', 'ambiguous')
+    const attemptStartedAt = minutesAgo(20)
+    const { deps } = await runOne(ambiguous, 'earlier_publication_live', null, {
+      attemptStartedAt,
+    })
+
+    expect(deps.replyCommandStore.rescheduleAmbiguousReconciliation).toHaveBeenCalledWith(
+      ambiguous,
+      new Date(attemptStartedAt.getTime() + 30 * MINUTE),
+      NOW,
+    )
+    expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
   })
 
   it('logs why a read was unreadable, content-free', async () => {

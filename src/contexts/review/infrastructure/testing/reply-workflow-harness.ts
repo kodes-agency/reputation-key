@@ -14,6 +14,10 @@
 // `google.sent` with the text it carried, and `google.live` is what a guest
 // would see. A test can therefore compare what RepKey records with what Google
 // received, which is the comparison the reply invariants are about.
+//
+// A read answers with `google.live` unless the test says it is behind: Google's
+// reads held at an earlier moment (`holdGoogleReads`), or a sync page fetched
+// earlier and applied now (`fetchGoogleSnapshot`).
 
 import type { Job } from 'bullmq'
 import type { Pool } from 'pg'
@@ -96,6 +100,9 @@ export type GoogleWriteOutcome =
   | 'timeout_landed'
   /** The request left and no answer came back; Google never took it. */
   | 'timeout_lost'
+
+/** The reply Google holds for the review. */
+type GoogleReply = Readonly<{ text: string; updatedAt: Date }>
 
 /** One reply write that left RepKey. */
 export type SentReply = Readonly<{
@@ -243,7 +250,10 @@ export async function createReplyWorkflowHarness(
 
   // ── Google ───────────────────────────────────────────────────────────
   const google = {
-    live: null as Readonly<{ text: string; updatedAt: Date }> | null,
+    live: null as GoogleReply | null,
+    /** Set while Google's reads are behind what it holds: every read answers
+     * with the reply as it stood when `holdGoogleReads` was called. */
+    readsHeldAt: null as Readonly<{ reply: GoogleReply | null }> | null,
     /** Reply writes the worker asked for, whether or not a request left. */
     calls: 0,
     /** The text of each of those writes. A worker asks only for a reply it has
@@ -256,6 +266,11 @@ export async function createReplyWorkflowHarness(
     /** Set to hold the next write open after its request has left RepKey. */
     gate: null as Readonly<{ entered: () => void; release: Promise<void> }> | null,
   }
+
+  /** What a read of Google answers: what it holds, unless its reads are held
+   * at an earlier moment. */
+  const readableReply = (): GoogleReply | null =>
+    google.readsHeldAt ? google.readsHeldAt.reply : google.live
 
   async function insertPermit(input: GoogleReplyPublicationRequest): Promise<void> {
     const admittedAt = clock()
@@ -376,8 +391,8 @@ export async function createReplyWorkflowHarness(
         translatedText: null,
         languageCode: 'en',
         reviewedAt: STARTED_AT,
-        replyText: google.live?.text ?? null,
-        replyUpdatedAt: google.live?.updatedAt ?? null,
+        replyText: readableReply()?.text ?? null,
+        replyUpdatedAt: readableReply()?.updatedAt ?? null,
       },
     }),
     replyToReview: async (input) => {
@@ -509,6 +524,7 @@ export async function createReplyWorkflowHarness(
     await ai.reset()
     nowMs = STARTED_AT.getTime()
     google.live = null
+    google.readsHeldAt = null
     google.calls = 0
     google.asked = []
     google.sent = []
@@ -699,26 +715,42 @@ export async function createReplyWorkflowHarness(
     )
   }
 
+  /**
+   * A review sync fetches the page that lists the review: the reply Google
+   * answers with, and the read generation the sync allocates as soon as it
+   * has the response. `apply` records it, as the sync does review by review
+   * afterwards; whatever happens between the two happens after the read.
+   */
+  async function fetchGoogleSnapshot() {
+    const fetched = readableReply()
+    const readGeneration = await observationStore.allocateReadGeneration()
+    return {
+      apply: async (): Promise<void> => {
+        const review = await reviewRepo.findById(WORKFLOW_REVIEW, WORKFLOW_ORG)
+        if (!review) throw new Error('The workflow review is missing')
+        const observedAt = clock()
+        await observationStore.record({
+          organizationId: WORKFLOW_ORG,
+          propertyId: WORKFLOW_PROPERTY,
+          reviewId: WORKFLOW_REVIEW,
+          sourceEpoch: review.sourceEpoch,
+          materialReviewRevision: review.sourceRevision,
+          readGeneration,
+          observationKey: sha256Hex(`reply-workflow-snapshot:${readGeneration}`),
+          source: 'provider_snapshot',
+          observedText: fetched?.text ?? null,
+          providerUpdatedAt: fetched?.updatedAt ?? null,
+          observedAt,
+          contentExpiresAt: new Date(observedAt.getTime() + CONTENT_TTL_MS),
+        })
+      },
+    }
+  }
+
   /** A review sync that reads the reply Google currently shows. */
   async function observeGoogle(): Promise<void> {
-    const review = await reviewRepo.findById(WORKFLOW_REVIEW, WORKFLOW_ORG)
-    if (!review) throw new Error('The workflow review is missing')
-    const readGeneration = await observationStore.allocateReadGeneration()
-    const observedAt = clock()
-    await observationStore.record({
-      organizationId: WORKFLOW_ORG,
-      propertyId: WORKFLOW_PROPERTY,
-      reviewId: WORKFLOW_REVIEW,
-      sourceEpoch: review.sourceEpoch,
-      materialReviewRevision: review.sourceRevision,
-      readGeneration,
-      observationKey: sha256Hex(`reply-workflow-snapshot:${readGeneration}`),
-      source: 'provider_snapshot',
-      observedText: google.live?.text ?? null,
-      providerUpdatedAt: google.live?.updatedAt ?? null,
-      observedAt,
-      contentExpiresAt: new Date(observedAt.getTime() + CONTENT_TTL_MS),
-    })
+    const snapshot = await fetchGoogleSnapshot()
+    await snapshot.apply()
   }
 
   /**
@@ -780,6 +812,17 @@ export async function createReplyWorkflowHarness(
     runSweep,
     cancelUndispatched,
     observeGoogle,
+    fetchGoogleSnapshot,
+    /** Google's reads fall behind what it holds: until `release`, every read
+     * answers with the reply as it stands now, whatever is written since. */
+    holdGoogleReads: () => {
+      google.readsHeldAt = { reply: google.live }
+      return {
+        release: () => {
+          google.readsHeldAt = null
+        },
+      }
+    },
     observeReviewChange,
     observeGuestEdit,
     /** Run `work` while every dispatch evidence lookup fails. */
