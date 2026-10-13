@@ -64,6 +64,14 @@ invariants, and commit state plus identifier-only outbox facts through an
 owning-context transaction boundary. Public/anonymous flows instead use their
 explicit origin, capability, signed-session, or provider admission contracts.
 
+A server function asks the execution policy (`requireExecutionAllowed`) in its
+handler or through a helper of the same `server/` layer, before it calls the
+application. One that serves a caller the policy does not know (a guest, a person
+signing in, a platform operator) is listed with the guard it asks instead in
+`src/shared/architecture/server-function-policy-exemptions.ts`.
+`src/shared/architecture/server-function-policy.test.ts` fails on a handler that
+does neither.
+
 Business failures are real `Error` objects with enumerable `_tag` and `code`.
 Factories live in the owning `domain/errors.ts`; server adapters narrow them with
 `isXxxError`, map once to safe HTTP errors, and sanitize untagged failures. Ordinary
