@@ -7,8 +7,16 @@
 // registration recovery job) must ask the same question for the invitation's
 // Organization before anything is written. The use cases are built the way the
 // context builds them, and the job is given the authorizer the worker gives it.
+//
+// A suspension refuses an invitation; it does not cancel one, and the app's own
+// Cancel is refused by the same suspension. The account-compromise runbook
+// (docs/operations/runbooks.md §1) therefore gives the operator a statement to
+// run before the suspension is lifted. The last block reads that statement out
+// of the runbook and runs it, so the procedure cannot drift from the schema or
+// from what acceptance then does.
 
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import type { Job } from 'bullmq'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -22,6 +30,7 @@ import {
 import {
   createExecutionPolicy,
   initExecutionPolicy,
+  requireExecutionAllowed,
   resetExecutionPolicy,
 } from '#/shared/auth/execution-policy'
 import {
@@ -35,9 +44,15 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createMockLogger } from '#/shared/testing/mock-logger'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { invitationId, userId, type InvitationId } from '#/shared/domain/ids'
+import {
+  invitationId,
+  organizationId as toOrganizationId,
+  userId,
+  type InvitationId,
+} from '#/shared/domain/ids'
 import { isIdentityError } from '../domain/errors'
 import { buildInvitationUseCases } from '../build-invitations'
 import { createAtomicIdentityCommandStore } from './identity-command-store'
@@ -57,51 +72,92 @@ let now = START
 
 type Fixture = Readonly<{
   organizationId: string
+  inviterId: string
   invitationId: InvitationId
   email: string
   acceptorId: string
   accountId: string
 }>
 
+/** An AccountAdmin of the Organization; returns the user id. */
+async function insertAccountAdmin(organizationId: string): Promise<string> {
+  const adminId = `${PREFIX}inviter-${randomUUID()}`
+  await lease.pool.query(
+    `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+     VALUES ($1, 'Inviter', $2, true, $3, $3)`,
+    [adminId, `${adminId}@example.com`, START],
+  )
+  await lease.pool.query(
+    `INSERT INTO member (id, "organizationId", "userId", role, "createdAt")
+     VALUES ($1, $2, $3, 'owner', $4)`,
+    [`${PREFIX}member-${randomUUID()}`, organizationId, adminId, START],
+  )
+  return adminId
+}
+
+/** An AccountAdmin invitation as stored, in the given status; returns its id. */
+async function insertInvitation(
+  input: Readonly<{
+    organizationId: string
+    inviterId: string
+    status: string
+    id?: string
+    email?: string
+  }>,
+): Promise<string> {
+  const id = input.id ?? `${PREFIX}invitation-${randomUUID()}`
+  await lease.pool.query(
+    `INSERT INTO invitation (
+       id, "organizationId", email, role, status, "expiresAt", "inviterId", "createdAt"
+     ) VALUES ($1, $2, $3, 'owner', $4, $5, $6, $7)`,
+    [
+      id,
+      input.organizationId,
+      input.email ?? `${id}@example.com`,
+      input.status,
+      EXPIRES_AT,
+      input.inviterId,
+      START,
+    ],
+  )
+  return id
+}
+
 /** An Organization with one AccountAdmin and a pending manager invitation. */
 async function seedInvitation(): Promise<Fixture> {
   const suffix = randomUUID()
-  const inviterId = `${PREFIX}inviter-${suffix}`
+  const organizationId = `${PREFIX}org-${suffix}`
+  await lease.pool.query(
+    `INSERT INTO organization (id, name, slug, "createdAt") VALUES ($1, 'Gated invitation', $1, $2)`,
+    [organizationId, START],
+  )
   const fixture: Fixture = {
-    organizationId: `${PREFIX}org-${suffix}`,
+    organizationId,
+    inviterId: await insertAccountAdmin(organizationId),
     invitationId: invitationId(`${PREFIX}invitation-${suffix}`),
     email: `${PREFIX}${suffix}@example.com`,
     acceptorId: `${PREFIX}acceptor-${suffix}`,
     accountId: `${PREFIX}account-${suffix}`,
   }
-  await lease.pool.query(
-    `INSERT INTO organization (id, name, slug, "createdAt") VALUES ($1, 'Gated invitation', $1, $2)`,
-    [fixture.organizationId, START],
-  )
-  await lease.pool.query(
-    `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
-     VALUES ($1, 'Inviter', $2, true, $3, $3)`,
-    [inviterId, `${inviterId}@example.com`, START],
-  )
-  await lease.pool.query(
-    `INSERT INTO member (id, "organizationId", "userId", role, "createdAt")
-     VALUES ($1, $2, $3, 'owner', $4)`,
-    [`${PREFIX}member-${suffix}`, fixture.organizationId, inviterId, START],
-  )
-  await lease.pool.query(
-    `INSERT INTO invitation (
-       id, "organizationId", email, role, status, "expiresAt", "inviterId", "createdAt"
-     ) VALUES ($1, $2, $3, 'owner', 'pending', $4, $5, $6)`,
-    [
-      fixture.invitationId as string,
-      fixture.organizationId,
-      fixture.email,
-      EXPIRES_AT,
-      inviterId,
-      START,
-    ],
-  )
+  await insertInvitation({
+    organizationId,
+    inviterId: fixture.inviterId,
+    status: 'pending',
+    id: fixture.invitationId as string,
+    email: fixture.email,
+  })
   return fixture
+}
+
+/** The stored status of each of these invitations, in the order given. */
+async function invitationStatuses(
+  ids: ReadonlyArray<string>,
+): Promise<ReadonlyArray<string | undefined>> {
+  const rows = await lease.pool.query<{ id: string; status: string }>(
+    `SELECT id, status FROM invitation WHERE id = ANY($1::text[])`,
+    [ids],
+  )
+  return ids.map((id) => rows.rows.find((row) => row.id === id)?.status)
 }
 
 /** The invitee's account: one they already had, or the one sign-up creates. */
@@ -243,6 +299,36 @@ const registerInput = (fixture: Fixture) => ({
 
 const isRefusal = (error: unknown): boolean =>
   isIdentityError(error) && error.code === 'forbidden' && error.message === REFUSAL
+
+/** The stores' answer for an invitation that is cancelled, accepted or unknown. */
+const isGone = (error: unknown): boolean =>
+  isIdentityError(error) && error.code === 'invitation_not_found'
+
+/** Runbook §1, account compromise: the procedure that suspends an Organization. */
+const RUNBOOK_COMPROMISE =
+  /^## 1\. [^]*?(?=^## )/m.exec(
+    readFileSync('docs/operations/runbooks.md', 'utf8'),
+  )?.[0] ?? ''
+
+/** The statement §1 has the operator run before the suspension is lifted. */
+function runbookCancelStatement(): string {
+  const statement = /`(UPDATE invitation SET status = 'canceled'[^`]*)`/.exec(
+    RUNBOOK_COMPROMISE,
+  )?.[1]
+  if (!statement) {
+    throw new Error('Runbook §1 gives no statement that cancels invitations')
+  }
+  return statement
+}
+
+/** Run §1's statement for one Organization and one compromised account. */
+async function cancelAsTheRunbookSays(fixture: Fixture): Promise<ReadonlyArray<string>> {
+  const cancelled = await lease.pool.query<{ id: string }>(runbookCancelStatement(), [
+    fixture.organizationId,
+    fixture.inviterId,
+  ])
+  return cancelled.rows.map((row) => row.id).sort()
+}
 
 /** One firing of the recovery job, wired as the worker wires it. */
 function recoveryJob(fixture: Fixture) {
@@ -400,6 +486,107 @@ describe.sequential(
         invitationStatus: 'pending',
         recoveryRecords: 1,
       })
+    })
+  },
+)
+
+describe.sequential(
+  'runbook §1: the invitations of a suspended Organization (integration)',
+  () => {
+    it("says what the gate does: the suspension refuses the app's own Cancel, so the operator cancels before lifting it", async () => {
+      const fixture = await seedInvitation()
+      const cancelInTheApp = () =>
+        requireExecutionAllowed({
+          actor: buildTestAuthContext({
+            organizationId: toOrganizationId(fixture.organizationId),
+            userId: userId(fixture.inviterId),
+            role: 'AccountAdmin',
+          }),
+          action: 'invitation.cancel',
+        })
+
+      installPolicy({})
+      await expect(cancelInTheApp()).resolves.toBeUndefined()
+      installPolicy({ BETA_SUSPENDED_ORGS: fixture.organizationId })
+      await expect(cancelInTheApp()).rejects.toMatchObject({
+        code: 'org_suspended',
+        status: 403,
+      })
+
+      expect(RUNBOOK_COMPROMISE).toContain('is refused with `org_suspended`')
+      expect(RUNBOOK_COMPROMISE).toContain(
+        'Before the Organization leaves `BETA_SUSPENDED_ORGS`',
+      )
+    })
+
+    it('its statement cancels the open invitations the compromised account sent and nothing else, and they stay refused once the suspension lifts', async () => {
+      const fixture = await seedInvitation()
+      await insertAcceptor(fixture)
+      const sent = {
+        organizationId: fixture.organizationId,
+        inviterId: fixture.inviterId,
+      }
+      const lapsed = await insertInvitation({ ...sent, status: 'expired' })
+      const alreadyJoined = await insertInvitation({ ...sent, status: 'accepted' })
+      const fromAnotherAdmin = await insertInvitation({
+        organizationId: fixture.organizationId,
+        inviterId: await insertAccountAdmin(fixture.organizationId),
+        status: 'pending',
+      })
+      const inAnotherOrganization = await insertInvitation({
+        organizationId: (await seedInvitation()).organizationId,
+        inviterId: fixture.inviterId,
+        status: 'pending',
+      })
+      installPolicy({ BETA_SUSPENDED_ORGS: fixture.organizationId })
+
+      const cancelled = await cancelAsTheRunbookSays(fixture)
+
+      expect(cancelled).toEqual([fixture.invitationId as string, lapsed].sort())
+      expect(
+        await invitationStatuses([
+          alreadyJoined,
+          fromAnotherAdmin,
+          inAnotherOrganization,
+        ]),
+      ).toEqual(['accepted', 'pending', 'pending'])
+
+      installPolicy({})
+      await expect(
+        build(fixture).useCases.acceptInvitation(acceptInput(fixture)),
+      ).rejects.toSatisfy(isGone)
+      expect(await outcome(fixture)).toMatchObject({
+        membershipRoles: [],
+        invitationStatus: 'canceled',
+      })
+    })
+
+    it('recovery deletes the half-created account of a registration interrupted on an invitation cancelled that way, under the suspension too', async () => {
+      const fixture = await seedInvitation()
+      await interruptRegistration(fixture)
+      installPolicy({ BETA_SUSPENDED_ORGS: fixture.organizationId })
+      await cancelAsTheRunbookSays(fixture)
+      const suspendedRun = recoveryJob(fixture)
+
+      await suspendedRun.run()
+
+      expect(await outcome(fixture)).toEqual({
+        membershipRoles: [],
+        invitationStatus: 'canceled',
+        accounts: 0,
+        recoveryRecords: 0,
+      })
+      expect(suspendedRun.logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ compensated: 1, denied: 0, failures: 0 }),
+        'Invited registration recovery completed',
+      )
+
+      installPolicy({})
+      const { useCases, signUp } = build(fixture)
+      await expect(
+        useCases.registerInvitedUser(registerInput(fixture)),
+      ).rejects.toSatisfy(isGone)
+      expect(signUp).not.toHaveBeenCalled()
     })
   },
 )

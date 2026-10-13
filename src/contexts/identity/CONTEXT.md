@@ -48,7 +48,11 @@ adapter; no other context reads its tables directly.
   capability: its schedule is tenant-cross, so it asks before each acceptance,
   leaves a refused registration for a later pass and counts it as `denied`; it
   still compensates a half-created account whose invitation is gone. The
-  invitation itself stays pending through a suspension.
+  invitation itself stays pending through a suspension, and nobody can cancel it
+  in the app meanwhile, because Cancel is gated like every other AccountAdmin
+  action. An operator who must stop one from being accepted when the suspension
+  lifts cancels it by statement first (`docs/operations/runbooks.md` §1;
+  `invitation-capability-gate.integration.test.ts` runs that statement).
 - Platform operators create Organizations from `/operator` without joining them,
   and invite the first AccountAdmin. They act on an Organization only while it
   has no AccountAdmin (ADR 0065).
