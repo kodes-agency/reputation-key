@@ -21,6 +21,11 @@
 //   approved + ambiguous → restore-fenced; terminal ambiguity at once, with no
 //                          evidence and no read (see isRestoreFencedAmbiguity)
 //
+// For an edit-and-republish the echo is missing while Google still shows the
+// reply the edit was written over (RepKey's own earlier publication). That
+// read is as inconclusive as an absent or unreadable one in every state above:
+// it never ends the edit as a different reply does.
+//
 // Evidence comes first: positive proof that no request for the attempt reached
 // Google settles it as not published (safe to retry by a manager). Absence on
 // a read never does. The pending grace has independent age/read ceilings. No
@@ -125,9 +130,15 @@ async function publishFailedEvent(
   })
 }
 
+/** A read that decided nothing and recorded no observation: Google shows a
+ * reply RepKey cannot read, or still the reply the edit was written over. */
+function isUnrecordedMissingEcho(outcome: ProviderOutcome): boolean {
+  return outcome === 'unreadable' || outcome === 'earlier_publication_live'
+}
+
 /** Whether an accepted write may keep waiting for Google to echo it. An absent
- * read is bounded by attempt age and the absent-read cap; an unreadable one
- * records no observation, so only the age bounds it. Anything else ends it. */
+ * read is bounded by attempt age and the absent-read cap; a read that records
+ * no observation only by the age. Anything else ends it. */
 function pendingEchoMayStillArrive(
   progress: Readonly<{ attemptStartedAt: Date; absentObservationCount: number }>,
   providerOutcome: ProviderOutcome,
@@ -136,7 +147,7 @@ function pendingEchoMayStillArrive(
   if (providerOutcome === 'absent') {
     return canDeferPendingProviderObservation({ ...progress, now })
   }
-  if (providerOutcome === 'unreadable') {
+  if (isUnrecordedMissingEcho(providerOutcome)) {
     return canDeferUnreadablePendingObservation({
       attemptStartedAt: progress.attemptStartedAt,
       now,
@@ -242,6 +253,14 @@ async function readProvider(
         'reconcile sweep: Google shows a reply RepKey cannot match to this attempt',
       )
     }
+    if (result.value.outcome === 'earlier_publication_live') {
+      // How often, and for how long after a write, is what tells whether
+      // Google's reads lag an accepted edit as they lag a first reply.
+      logger.info(
+        { publicationState: reply.publicationState },
+        'reconcile sweep: Google still shows the reply this edit was written over',
+      )
+    }
     return result.value.outcome
   } catch (err) {
     logger.warn({ err }, 'reconcile sweep: provider read threw')
@@ -271,7 +290,7 @@ async function settleNeverDispatched(
 /** A read that neither confirmed nor ruled out the attempt. A missing review
  * is lifecycle evidence, not propagation, so it does not wait out the grace. */
 function isInconclusiveRead(outcome: ProviderOutcome): boolean {
-  return outcome === null || outcome === 'absent' || outcome === 'unreadable'
+  return outcome === null || outcome === 'absent' || isUnrecordedMissingEcho(outcome)
 }
 
 /** D3 `sending`: wait inside the grace, otherwise ambiguous on the ladder. */

@@ -41,6 +41,7 @@ describe('Google reply observation decision', () => {
     materialReviewRevision: 4,
     expectedReplyDigest: '',
     expectedReplyText: null,
+    earlierConfirmedDigest: null,
     outcome: 'provider_outcome_pending' as const,
   }
 
@@ -115,6 +116,126 @@ describe('Google reply observation decision', () => {
       resolution: 'external_current_live',
       provenance: 'external_or_unknown',
       matchedReplyId: null,
+    })
+  })
+
+  // An edit-and-republish is written over the reply RepKey published before.
+  // Until Google shows the edit, a read answers with that earlier reply: a
+  // read taken before the write landed, or one Google serves before its read
+  // path has caught up. It is RepKey's own text, not another author's, and it
+  // says nothing about the edit, as an absent reply says nothing about a
+  // first one.
+  describe('the earlier publication of a reply whose edit is in flight', () => {
+    const digest = (text: string) => compareObservedGoogleReply(text, text).observedDigest
+    const EARLIER = 'Thanks!'
+    const EDIT = 'Thank you, Anna!'
+    const earlierIsTheHead = {
+      state: 'live' as const,
+      normalizedDigest: digest(EARLIER),
+      ...scope,
+    }
+    const edit = {
+      ...candidate,
+      expectedReplyDigest: digest(EDIT),
+      expectedReplyText: EDIT,
+      earlierConfirmedDigest: digest(EARLIER),
+    }
+
+    it.each([
+      ['an edit on the wire', 'sending'],
+      ['an edit Google accepted', 'provider_outcome_pending'],
+      ['an edit of unknown outcome', 'ambiguous'],
+    ] as const)(
+      'decides nothing about %s while Google still shows it',
+      (_label, outcome) => {
+        expect(
+          decideGoogleReplyObservation({
+            ...scope,
+            observedText: ` ${EARLIER}\r\n`,
+            previous: earlierIsTheHead,
+            candidate: { ...edit, outcome },
+          }),
+        ).toMatchObject({
+          state: 'live',
+          change: 'unchanged',
+          resolution: 'earlier_publication_live',
+          matchedReplyId: null,
+          matchedPublicationCycle: null,
+          matchedAttemptNumber: null,
+        })
+      },
+    )
+
+    it('confirms the edit once Google shows it', () => {
+      expect(
+        decideGoogleReplyObservation({
+          ...scope,
+          observedText: EDIT,
+          previous: earlierIsTheHead,
+          candidate: edit,
+        }),
+      ).toMatchObject({ change: 'edited', resolution: 'confirmed_on_google' })
+    })
+
+    it('still closes a reply that is neither the edit nor the earlier one as external', () => {
+      expect(
+        decideGoogleReplyObservation({
+          ...scope,
+          observedText: 'Someone else answered on Google.',
+          previous: earlierIsTheHead,
+          candidate: edit,
+        }),
+      ).toMatchObject({ change: 'edited', resolution: 'external_current_live' })
+    })
+
+    it('still closes an unchanged head RepKey never confirmed for this reply as external', () => {
+      expect(
+        decideGoogleReplyObservation({
+          ...scope,
+          observedText: EARLIER,
+          previous: earlierIsTheHead,
+          candidate: { ...edit, earlierConfirmedDigest: null },
+        }),
+      ).toMatchObject({ change: 'unchanged', resolution: 'external_current_live' })
+      expect(
+        decideGoogleReplyObservation({
+          ...scope,
+          observedText: EARLIER,
+          previous: earlierIsTheHead,
+          candidate: { ...edit, earlierConfirmedDigest: digest('Another reply') },
+        }),
+      ).toMatchObject({ change: 'unchanged', resolution: 'external_current_live' })
+    })
+
+    it('does not read the earlier text as "nothing changed" when the head does not hold it', () => {
+      // The head says Google showed no reply, or a head from another source
+      // scope cannot witness one: the earlier text is then a change to record.
+      const absentHead = { ...earlierIsTheHead, state: 'absent' as const }
+      for (const previous of [
+        { ...absentHead, normalizedDigest: null },
+        { ...earlierIsTheHead, sourceEpoch: scope.sourceEpoch - 1 },
+        null,
+      ]) {
+        expect(
+          decideGoogleReplyObservation({
+            ...scope,
+            observedText: EARLIER,
+            previous,
+            candidate: edit,
+          }),
+        ).toMatchObject({ change: 'added', resolution: 'external_current_live' })
+      }
+    })
+
+    it('does not shield an attempt that is no longer in flight', () => {
+      expect(
+        decideGoogleReplyObservation({
+          ...scope,
+          observedText: EARLIER,
+          previous: earlierIsTheHead,
+          candidate: { ...edit, outcome: 'superseded' },
+        }),
+      ).toMatchObject({ change: 'unchanged', resolution: 'unchanged' })
     })
   })
 

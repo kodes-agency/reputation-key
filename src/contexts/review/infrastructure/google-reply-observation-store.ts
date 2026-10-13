@@ -24,6 +24,7 @@ import {
   decideGoogleReplyObservation,
   googleReplyObservationInputDigest,
   type GoogleReplyPublicationCandidate,
+  type RecordedGoogleReplyObservationDecision,
 } from '../domain/google-reply-observation'
 import { reviewError } from '../domain/errors'
 import { rowReplyAuthor } from '../domain/reply-author'
@@ -34,6 +35,7 @@ import {
 } from '../domain/events'
 import { lockReplyTruthScope } from './reply-truth-serialization'
 import { assertObservationFence } from './google-reply-observation-fence'
+import { readPublicationCandidate } from './google-reply-publication-candidate'
 
 type ObservationRow = typeof googleReplyObservations.$inferSelect
 type InternalReplyRow = typeof replies.$inferSelect
@@ -555,7 +557,7 @@ async function confirmReplyOnGoogle(
   })
 }
 
-type ObservationDecision = ReturnType<typeof decideGoogleReplyObservation>
+type ObservationDecision = RecordedGoogleReplyObservationDecision
 
 /** A `diverged` echo whose text is the unchanged head acts on nothing (no
  * confirmation, no supersede, no Inbox close), so re-reading it is as silent as
@@ -821,21 +823,7 @@ export const createGoogleReplyObservationStore = (
 
           const evidence = await loadPublicationEvidence(tx, input)
           const { internal, attempt } = evidence
-          const candidate: GoogleReplyPublicationCandidate | null =
-            internal && attempt
-              ? {
-                  replyId: replyId(internal.id),
-                  publicationCycle: attempt.publicationCycle,
-                  attemptNumber: attempt.attemptNumber,
-                  sourceEpoch: attempt.sourceEpoch,
-                  materialReviewRevision: attempt.materialReviewRevision,
-                  expectedReplyDigest: attempt.expectedReplyDigest,
-                  // Lets the decision recognise a whitespace-reformatted echo;
-                  // it is ignored unless it digests to the attempt's digest.
-                  expectedReplyText: internal.text,
-                  outcome: attempt.outcome as GoogleReplyPublicationCandidate['outcome'],
-                }
-              : null
+          const candidate = await readPublicationCandidate(tx, internal, attempt)
           const decision = decideGoogleReplyObservation({
             sourceEpoch: input.sourceEpoch,
             materialReviewRevision: input.materialReviewRevision,
@@ -850,6 +838,20 @@ export const createGoogleReplyObservationStore = (
               : null,
             candidate,
           })
+          // The Reply's own earlier publication, still shown while its edit
+          // is in flight. Whichever reader made it, the read restates the
+          // head and decides nothing about the attempt: no row, no fact, and
+          // the head stays as it was.
+          if (decision.resolution === 'earlier_publication_live') {
+            return {
+              observationRevision: head?.observationRevision ?? 0,
+              change: decision.change,
+              resolution: decision.resolution,
+              matchedReplyId: null,
+              matchedPublicationCycle: null,
+              duplicate: true,
+            }
+          }
           const supersedes = supersedesCurrentAttempt(
             decision.resolution,
             candidate,

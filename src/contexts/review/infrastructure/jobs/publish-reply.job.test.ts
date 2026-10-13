@@ -942,6 +942,25 @@ describe('publish-reply job handler', () => {
         records: true,
       },
     ],
+    // An edit-and-republish of unknown outcome: the read still answers with
+    // the reply it was written over. The authority is asked, and says it
+    // decided nothing; the job must not take its answer for a settlement.
+    [
+      'the reply an edit was written over, still shown',
+      {
+        read: () => ({
+          status: 'found',
+          review: {
+            reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+            replyText: 'The reply before the edit',
+            replyUpdatedAt: NOW,
+          },
+        }),
+        resolution: 'earlier_publication_live',
+        reason: 'earlier_publication_live',
+        records: true,
+      },
+    ],
   ])('%s neither confirms nor ends the wait', async (_label, scenario) => {
     const deps = makeDeps()
     const sending = {

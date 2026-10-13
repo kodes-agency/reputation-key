@@ -91,6 +91,13 @@ export type GoogleReplyPublicationCandidate = Readonly<{
    * anything, it only recognises a whitespace-reformatted echo.
    */
   expectedReplyText: string | null
+  /**
+   * The google-reply-v1 digest of the text RepKey last confirmed on Google for
+   * this Reply, in an earlier cycle; null when it has confirmed none (a first
+   * reply) or the attempt is no longer in flight. An edit-and-republish is
+   * written over that text.
+   */
+  earlierConfirmedDigest: string | null
   outcome:
     | 'sending'
     | 'provider_outcome_pending'
@@ -112,6 +119,11 @@ type DecideGoogleReplyObservationInput = Readonly<{
 const CONFIRMABLE_ATTEMPT_OUTCOMES: ReadonlySet<
   GoogleReplyPublicationCandidate['outcome']
 > = new Set(['sending', 'provider_outcome_pending', 'ambiguous'])
+
+/** Whether an attempt's outcome is still open: a provider read may yet confirm
+ * it, or find another reply in its place. */
+export const isOpenAttemptOutcome = (outcome: string): boolean =>
+  (CONFIRMABLE_ATTEMPT_OUTCOMES as ReadonlySet<string>).has(outcome)
 
 type ObservedGoogleReplyState = Readonly<{
   state: 'live' | 'absent'
@@ -222,6 +234,33 @@ function isWhitespaceOnlyDifference(
   return collapseWhitespace(expected) === collapseWhitespace(observedText)
 }
 
+/**
+ * An edit-and-republish whose echo has not arrived. Google shows what the head
+ * already holds, and that text is the one RepKey itself last confirmed for
+ * this Reply: its own earlier publication, the reply the edit was written
+ * over. A read taken before the write landed looks exactly like this, and so
+ * does one Google answers before its read path has caught up with a write it
+ * accepted. So it is no competing reply and no evidence about the attempt, as
+ * an absent reply is none about a first reply (Review CONTEXT, Invariant 9).
+ * Only a head recorded for the same source scope can say nothing changed.
+ */
+function showsEarlierPublicationUnchanged(
+  candidate: GoogleReplyPublicationCandidate,
+  observed: ObservedGoogleReplyState,
+  previous: PreviousGoogleReplyObservation | null,
+  scope: ObservationScope,
+): boolean {
+  return (
+    candidate.earlierConfirmedDigest !== null &&
+    candidate.earlierConfirmedDigest === observed.normalizedDigest &&
+    previous !== null &&
+    previous.state === 'live' &&
+    previous.normalizedDigest === observed.normalizedDigest &&
+    previous.sourceEpoch === scope.sourceEpoch &&
+    previous.materialReviewRevision === scope.materialReviewRevision
+  )
+}
+
 /** Pure authority for material provider-reply changes and RepKey attribution. */
 export function decideGoogleReplyObservation(input: DecideGoogleReplyObservationInput) {
   const observed = describeObservedText(input.observedText)
@@ -289,6 +328,28 @@ export function decideGoogleReplyObservation(input: DecideGoogleReplyObservation
     })
   }
 
+  // Never stored: the read restates the head, so the store appends no row,
+  // records no fact and leaves the head as it was. The text is RepKey's own;
+  // the matched fields stay empty because they name the attempt an
+  // observation confirms, and this one confirms none.
+  if (
+    candidate !== null &&
+    currentCandidate &&
+    showsEarlierPublicationUnchanged(candidate, observed, input.previous, input)
+  ) {
+    return Object.freeze({
+      state,
+      change,
+      resolution: 'earlier_publication_live' as const,
+      provenance: 'repkey_confirmed' as const,
+      normalizedText,
+      normalizedDigest,
+      matchedReplyId: null,
+      matchedPublicationCycle: null,
+      matchedAttemptNumber: null,
+    })
+  }
+
   if (currentCandidate) {
     return Object.freeze({
       state,
@@ -317,3 +378,12 @@ export function decideGoogleReplyObservation(input: DecideGoogleReplyObservation
     matchedAttemptNumber: null,
   })
 }
+
+/**
+ * A decision the observation store records as a row and a head. The one it
+ * never records is `earlier_publication_live`: that read restates the head.
+ */
+export type RecordedGoogleReplyObservationDecision = Exclude<
+  ReturnType<typeof decideGoogleReplyObservation>,
+  Readonly<{ resolution: 'earlier_publication_live' }>
+>

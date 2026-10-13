@@ -348,6 +348,10 @@ describe('checkReplyPublication — what the Google read found', () => {
     ['diverged', makeReply(), 'different_reply_on_google'],
     ['provider_review_missing', makeReply(), 'review_missing_on_google'],
     ['unreadable', makeReply(), 'unreadable_on_google'],
+    // Google still shows the reply the edit was written over: the edit is
+    // not showing there, and that is all the manager is told. It is not
+    // "a different reply", which would say publishing was stopped.
+    ['earlier_publication_live', makeReply(), 'not_on_google'],
   ])('maps %s to its check outcome', async (reconciled, afterRead, outcome) => {
     const harness = makeHarness({
       reply: makeReply(),
