@@ -166,6 +166,32 @@ describe('capability refusal explainer', () => {
     ])
   })
 
+  // The reader decides how wide the record is; the explainer always tells it
+  // whose report this is, so a tenant-bound reader can hold it to that tenant.
+  it('asks the permit reader for the Organization the report names', async () => {
+    const asked: Array<readonly [string, string | undefined]> = []
+    const explain = createCapabilityRefusalExplainer(
+      deps({
+        loadPermitOutcomes: async (capability, organizationId) => {
+          asked.push([capability, organizationId])
+          return []
+        },
+      }),
+    )
+
+    await explain({
+      capability: 'property.import_gbp_v2',
+      organizationId: 'org-1',
+      permissionScope: { allowed: true, scopeOutcome: 'organization' },
+    })
+    await explain({ capability: 'property.import_gbp_v2' })
+
+    expect(asked).toEqual([
+      ['property.import_gbp_v2', 'org-1'],
+      ['property.import_gbp_v2', undefined],
+    ])
+  })
+
   // Whatever happens upstream, the start authority may never be reported as
   // satisfied: it is the one authority this module refuses to ask because
   // asking mutates.

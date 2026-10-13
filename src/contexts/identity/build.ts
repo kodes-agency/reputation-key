@@ -39,7 +39,7 @@ import { buildCapabilityPolicyHandle } from './infrastructure/policy-store-init'
 import { createPolicyAdminOps } from './application/use-cases/policy-admin'
 import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
 import { createCapabilityRefusalExplainer } from '#/shared/governance/capability-refusal'
-import { createCapabilityRefusalReaders } from './infrastructure/repositories/capability-refusal.repository'
+import { createOrganizationCapabilityRefusalReaders } from './infrastructure/repositories/capability-refusal.repository'
 import {
   checkScopedCapability,
   type CapabilityPolicyEnv,
@@ -702,8 +702,9 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     hasActiveGrant: (input) => hasActiveGrant(deps.db, input),
   })
   const policyAdminCommandStore = createPostgresPolicyAdminCommandStore(deps.db)
+  // Every AccountAdmin reaches this report, so its permit tally is tenant-bound.
   const explainCapabilityRefusal = createCapabilityRefusalExplainer(
-    createCapabilityRefusalReaders(deps.db),
+    createOrganizationCapabilityRefusalReaders(deps.db),
   )
   const policyAdmin = Object.freeze({
     ...createPolicyAdminOps({

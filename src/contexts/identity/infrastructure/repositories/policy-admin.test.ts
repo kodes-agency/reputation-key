@@ -330,22 +330,29 @@ describe('PropertyAccessGrant administration', () => {
     }
   })
 
-  it('explains a decision without exposing identity content', async () => {
-    const explanation = await ops.explainPolicyDecision({
-      organizationId: ORG,
-      action: 'property.read',
-      propertyId: PROP,
-      userId: MEMBER,
-      now: NOW,
+  it('explains a decision from the stored role, without exposing identity content', async () => {
+    const explain = (userId: string) =>
+      ops.explainPolicyDecision({
+        organizationId: ORG,
+        action: 'property.read',
+        propertyId: PROP,
+        userId,
+        now: NOW,
+      })
+
+    // The AccountAdmin is stored as `owner`; the role holds `property.read`.
+    const admin = await explain(ADMIN)
+    expect(admin).toMatchObject({
+      allowed: true,
+      reason: 'allowed',
+      checks: { permission: { allowed: true }, scope: { outcome: 'organization' } },
     })
-    expect(explanation).toMatchObject({
-      allowed: expect.any(Boolean),
-      reason: expect.any(String),
-      checks: {
-        capability: expect.objectContaining({ allowed: expect.any(Boolean) }),
-        scope: expect.objectContaining({ outcome: expect.any(String) }),
-      },
+    // The retained `member` role resolves no tenant during the beta.
+    await expect(explain(MEMBER)).resolves.toMatchObject({
+      allowed: false,
+      reason: 'beta_role_inactive',
+      checks: { permission: { allowed: false } },
     })
-    expect(JSON.stringify(explanation)).not.toContain('@example.com')
+    expect(JSON.stringify(admin)).not.toContain('@example.com')
   })
 })

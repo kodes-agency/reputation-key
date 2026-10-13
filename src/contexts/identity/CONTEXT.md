@@ -81,8 +81,13 @@ operator triage workflow stays with `scripts/ops`.
 Three `server/policy-admin.ts` functions have no UI caller on purpose:
 
 - `explainPolicyDecisionFn` is the live, read-only policy and capability-refusal
-  diagnostic for an operator holding `policy.admin`;
-  `scripts/ops/report-capability-refusal.ts` is its local-stack twin (#403/#408).
+  diagnostic for whoever holds `policy.admin`, which is every AccountAdmin, so it
+  is a tenant surface. It reads the member's stored role token and maps it as
+  tenant resolution does (`owner`, `admin`; any other token resolves no tenant and
+  reads `beta_role_inactive`), and its Google permit record counts the asking
+  Organization's permits only. `scripts/ops/report-capability-refusal.ts` is its
+  local-stack twin (#403/#408) and the only reader of the permit tally across
+  Organizations.
 - `grantPropertyAccessFn` and `revokePropertyAccessFn` remain the operator surface for
   changing a PropertyManager's Property scope; they have no UI caller, and the grant
   is the only command that can give a grant an expiry. A grant that has lapsed is
