@@ -39,6 +39,17 @@ Activations are append-only effective-dated routes from a stable token to one
 snapshot; publish, republish and rollback append activations, while disable/archive
 close one. Groups remain Property-scoped, and one Portal has at most one active group.
 
+Archive is the Portal's removal, so it asks `portal.delete` (an AccountAdmin), the
+permission the Portals pages offer Archive on and the one a group's archive asks.
+`updatePortal` decides that itself from what it is asked to do (a patch that names
+`publicationState: 'archived'`, alone or bundled with an edit), so the rule holds
+whichever server function carries the patch. The `updatePortal` server function asks
+the policy for `portal.update` before the use case reads the patch, so an archive sent
+that way needs both: the two built-in roles are unaffected, and a custom role holding
+`portal.delete` without `portal.update` is refused there. Disable and Restore are updates
+(`portal.update`): a PropertyManager can take a live page down and bring an archived
+Portal back to Disabled.
+
 A Portal changes group in one commit: `movePortalToGroup` (and create-with-move,
 where a new group takes Portals that are in another group) ends the old
 `portal_group_memberships` row with `end_reason = 'moved_to_group'` and begins the
@@ -296,6 +307,44 @@ public token resolution returns only the current open, digest-verified snapshot.
 Portal, Group, content, responsibility, and token commands use Portal-owned stores
 that commit state, revisions, receipts, and identifier-only outbox facts together.
 
+A server function that is addressed by a Portal, group, category or link resolves it to
+its Organization and Property (`portal-scope.repository.ts`) before it asks the policy,
+because the Property the policy decides on comes from that row: one lookup, or two where
+a request names a pair that must match (a Portal and its category, a group and a
+Portal). A request that names many rows does not read them all first.
+`publishPortalsChanges` (at most 50 Portals) resolves them one at a time and asks the
+policy on each one it finds, so a refusal ends it; `reorderLinks` asks the policy on the
+Portal and the category, and reads the links it names (at most 100) only once the policy
+has admitted the caller, answering `link_not_found` for one that sits elsewhere or names
+no row. The request schemas take those ids as any
+non-empty string, so the lookup answers "no such row" for one that is not a UUID, and
+the caller gets the same 404 as for an unknown id; PostgreSQL is never asked to compare
+it with a `uuid` column. Residual gap: any other id is not checked that way. That is a
+`propertyId` (the functions addressed by a Property, such as `listPortals`,
+`createPortal`, the group list and create and the Property look functions, do no scope
+lookup and ask the policy on the id they were given), a destination id, or the
+`portalIds` of a group to join. A malformed one from a caller the policy admits still
+fails as a database error and a sanitized 500.
+
+`publicApi.management` is Portal's request surface (`docs/standards.md` §3.1). Its
+exceptions to that section's rules:
+
+- Five members are reads of `portal-scope.repository.ts` published as they are, not
+  application functions: `resolvePortalManagementScope`,
+  `resolvePortalGroupManagementScope`, `resolvePortalCategoryManagementScope`,
+  `resolvePortalLinkManagementScope` and `listPortalManagementPropertyIds`. They take no
+  caller and decide nothing. The four `resolve…` reads answer for an id of any
+  Organization, which is why `server/property-scope.ts` compares the Organization
+  before it asks the policy; the list is scoped by the Organization it is given.
+- `revalidatePortalApprovedDestinations` is the worker's control, the same function as
+  `worker.revalidateApprovedDestinations`. It takes its scope decision from its caller,
+  and no server function calls it.
+- One other context calls the surface: Reporting's Portal results adapter
+  (`reporting/server/portal-results-overview.ts`) reads the roster through
+  `listPortalOverview`, which authorizes the caller itself, and
+  `listPortalManagementPropertyIds`, whose answer it filters by the caller's Properties
+  and the policy.
+
 `listPortalOverview` is the batched read behind the Portals overview. For a Property
 or for the Organization it returns one row per Portal (languages, Health and its
 reason, pending-change count, current group, responsible-manager user ids, token
@@ -482,7 +531,9 @@ left, and "no_visible_change" when changes were recorded but the draft says what
 A Portal that is not live has no change list: it has no live version to differ from.
 
 A content review (`completeContentReview`, a live Portal only) records three facts at
-once. The configuration completeness counts five fields on the working copy Publish reads,
+once. Its `reviewId` is the browser's idempotency key and becomes the facts'
+`source_aggregate_id`; the request schema holds it, and the three event ids a correction
+supersedes, to a UUID, so a fact never carries text of a caller's choosing. The configuration completeness counts five fields on the working copy Publish reads,
 under the Portal lock (`portal-configuration-completeness.ts`): the Portal name; the
 primary language's welcome line, link preview and link labels (what the `primary_text`
 check asks); the Property look (a Brand Profile with a display name and an accent); a

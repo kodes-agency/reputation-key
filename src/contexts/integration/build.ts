@@ -20,7 +20,6 @@ import type { OAuthCallbackAbuseGate } from './application/oauth-callback-abuse-
 import type { GbpApiPort } from './application/ports/gbp-api.port'
 import type { GoogleAuthorizedProviderExecutor } from './application/ports/google-authorized-provider-executor.port'
 import type { GoogleImportReferenceStore } from './application/ports/google-import-reference-store.port'
-import type { PropertyFkCleanupPort } from './application/ports/property-fk-cleanup.port'
 import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
@@ -416,19 +415,8 @@ export type IntegrationContextApi = Readonly<{
 // signal it has stopped being wiring.
 // fallow-ignore-next-line complexity
 export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
-  // ── Cross-context port implementations (wiring layer) ──────────
-  // Delegated through PropertyPublicApi — no direct schema imports.
-
-  const propertyFkCleanup: PropertyFkCleanupPort = {
-    clearGoogleConnectionRef: deps.propertyApi.clearGoogleConnectionRef,
-  }
-
   // ── Repositories ─────────────────────────────────────────────────
-  const connectionRepo = createGoogleConnectionRepository(
-    deps.db,
-    propertyFkCleanup,
-    deps.clock,
-  )
+  const connectionRepo = createGoogleConnectionRepository(deps.db, deps.clock)
   // BQC-3.5: every integration state mutation + fact commits atomically here.
   const credentialLifecycle = createCredentialLifecycleRepository(deps.db)
   const googleOAuthExchangeRecovery = createGoogleOAuthExchangeRecoveryRepository(deps.db)

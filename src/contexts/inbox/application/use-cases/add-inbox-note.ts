@@ -44,10 +44,12 @@ export const addInboxNote =
       input.inboxItemId,
       ctx.organizationId,
     )
-    assertExpectedCommandRevision(item, input.expectedCommandRevision)
     if (!canHandleInboxSource(ctx, item.sourceType)) {
       throw inboxError('forbidden', 'No permission to handle this inbox source')
     }
+    // Scope before the revision fence: a conflict names the item's current
+    // revision and status, which a caller with no access to its Property must
+    // not be told.
     await assertInboxSourcePropertyAccessible(
       deps.staffPublicApi,
       ctx,
@@ -55,6 +57,7 @@ export const addInboxNote =
       item.sourceType,
       item.propertyId,
     )
+    assertExpectedCommandRevision(item, input.expectedCommandRevision)
 
     // 2. Build domain note
     const result = createInboxNote({

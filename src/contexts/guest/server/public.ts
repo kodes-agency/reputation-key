@@ -1,13 +1,8 @@
 import { createServerFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
-import { z } from 'zod/v4'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
-import {
-  decidePublicExecution,
-  requireExecutionAllowed,
-} from '#/shared/auth/execution-policy'
-import { resolveTenantContext } from '#/shared/auth/middleware'
+import { decidePublicExecution } from '#/shared/auth/execution-policy'
 import { throwContextError } from '#/shared/auth/server-errors'
 import { clientIpFromHeaders } from '#/shared/security/client-ip'
 import type { Capability } from '#/shared/auth/beta-capabilities'
@@ -38,13 +33,7 @@ import {
   applyGuestPublicResponsePrivacy,
   guestPublicResponseValidator,
 } from './public-response-privacy.server'
-import {
-  guestResponseId,
-  organizationId,
-  portalId,
-  portalLinkId,
-  propertyId,
-} from '#/shared/domain/ids'
+import { organizationId, portalId, portalLinkId, propertyId } from '#/shared/domain/ids'
 import type { RateLimitResult } from '#/shared/rate-limit/middleware'
 export type { PublicPortalLoaderData } from '../application/dto/public-portal.dto'
 
@@ -696,50 +685,5 @@ export const withdrawGuestResponseFn = createServerFn({ method: 'POST' })
       },
       'POST',
       'guest.response.withdraw',
-    ),
-  )
-
-const moderationSchema = z.object({
-  propertyId: z.uuid(),
-  portalId: z.uuid(),
-  responseId: z.uuid(),
-  action: z.enum(['quarantine', 'delete']),
-})
-
-// Staff moderation, not guest collection: gating this on portal.guest_response
-// made the two impossible to enable independently — a tenant that stopped
-// collecting guest responses also lost the ability to moderate the ones it had
-// already collected. portal.guest_response stays on the public-facing paths.
-export const moderateGuestResponseFn = createServerFn({ method: 'POST' })
-  .validator(guestPublicResponseValidator(moderationSchema))
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        applyGuestPublicResponsePrivacy()
-        const headers = await headersFromContext()
-        const actor = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor,
-          action: 'feedback.respond',
-          capability: 'portal.write',
-          propertyId: data.propertyId,
-        })
-        const useCases = getContainer().guestPublicApi.requests
-        try {
-          return await useCases.responseLifecycle.moderate(
-            {
-              organizationId: actor.organizationId,
-              propertyId: propertyId(data.propertyId),
-              portalId: portalId(data.portalId),
-            },
-            guestResponseId(data.responseId),
-            data.action,
-          )
-        } catch (error) {
-          return lifecycleFailure(error)
-        }
-      },
-      'POST',
-      'guest.response.moderate',
     ),
   )

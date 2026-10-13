@@ -32,7 +32,6 @@ import { registerPortalWorkflowMetricConsumers } from './infrastructure/outbox-c
 import { registerGuestMetricConsumers } from './infrastructure/guest-outbox-consumers'
 import { registerPublicReputationMetricConsumers } from './infrastructure/public-reputation-outbox-consumers'
 import type { ReviewRatingLookupPort } from './application/ports/review-rating-lookup.port'
-import type { MetricReadingsQuery } from './application/ports/metric.repository'
 import { queryGoalMetric } from './application/use-cases/query-goal-metric'
 import { queryPortalAnalytics } from './application/use-cases/query-portal-analytics'
 import { createPortalAnalyticsRepository } from './infrastructure/repositories/portal-analytics.repository'
@@ -238,7 +237,6 @@ function buildMetricModule(input: ReportingContextBuildInput) {
 
   return {
     publicApi: {
-      queryAggregate: (query: MetricReadingsQuery) => metricRepo.queryAggregate(query),
       queryGoalMetric: readGoalMetric,
       portalAnalytics,
       portalLifetime: Object.freeze({ get: portalLifetime.get }),

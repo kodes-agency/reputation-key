@@ -41,6 +41,16 @@ session whose response holds a durable rating and to one whose response the gues
 (`canStartNewGuestResponse`): a session takes one response, so a withdrawn one can only be
 replaced by a fresh session. Google and link actions still need a rating.
 
+No command moderates a response. `moderated` stays a stored status that the staff reads
+honour (the text of a moderated response is withheld from Inbox snippets and content
+filters), but nothing writes it. The manager moderation server function, which no screen
+called, was removed: it took no actor, committed no fact, could not be undone, and a
+guest's own rating correction overwrote it, because `moderated` shares the lifecycle
+`status` a correction sets. A moderation command needs an actor, a fact committed with the
+change through the command store, a way back and a state a correction cannot overwrite
+before it returns; its Operational Action History kind (`guest_feedback.moderated`) stays
+reserved (`docs/operations/operational-action-history.md`).
+
 A Qualified Scan is a server-verified QR/NFC Access Artifact observation, accepted
 once per signed session and Portal in a rolling 24-hour window. Its correction path
 is reserved: `GuestObservationStore.retractQualifiedScan` appends
@@ -48,6 +58,20 @@ is reserved: `GuestObservationStore.retractQualifiedScan` appends
 use case calls it yet, so nothing emits the fact. Network Pressure Records are
 seven-day, content-free, daily-rotating pseudonymous admission facts, not Guest
 identity or analytics attribution.
+
+A signed session is issued, with no limiter of its own, to any page read that carries no
+valid session cookie for the Portal. So the per-session rules (one response, one Qualified
+Scan per 24 hours, the "Start over" budget of 2 per session and 5 per network and Portal
+per 24 hours) hold a guest who keeps the cookie and not a client that drops it. What holds
+that client is the network-and-Portal layer, which does not depend on the session: 5 rating
+submissions and 100 scan observations per hour for one network pseudonym and Portal, each
+with its PostgreSQL pressure twin. That is the bound ADR 0044 "Abuse and privacy" 1 names
+("layered limits by portal, session, network signal") and the one the limiter comment
+relies on ("the network+Portal layer survives the new session identity"). Residual gap:
+against a cookie-less client the "Start over" cap is no tighter than the hourly rating
+budget. Whether to bound session issuance as well is an owner tuning decision and has not
+been taken: a limit by network would also bind the guests of one venue who share an
+address.
 
 The signed session ends 24 hours after the guest opens the Portal, or 24 hours after
 their rating or private feedback if that is later. Its own records follow it: the
@@ -81,6 +105,17 @@ page the guest saw, from the response's experience snapshot), reconciliation, an
 retention. PostgreSQL receipts own
 correctness; Redis provides abuse control and observation-loss monitoring. State,
 source-event identities, and identifier-only outbox facts commit atomically.
+
+`publicApi.requests` is Guest's request surface (`docs/standards.md` §3.1): what Guest's
+own server functions call, and nothing another context is typed against. A guest has no
+member to authorize, so these functions do not authorize a caller themselves; admission is
+the exact origin, the signed session, the CSRF nonce and the public policy decision, all
+applied in `server/` before a function is called. The surface therefore also holds edge
+controls that are not commands: the session signer and verifier (`guestSessions`), the
+network-pressure and observation-loss controls, and the network pseudonym hasher. One member
+has no caller at all: `responseLifecycle.changeIntegrity`, the internal integrity control,
+takes its actor as data and decides nothing about who may use it, so no server function
+may expose it to a manager.
 
 Cleanup remains live even while `portal.guest_contact` is hard-blocked; it cannot submit, read, reveal, or withdraw a request.
 Organization closure waits for Guest outbox publication before scrubbing guest-authored values.

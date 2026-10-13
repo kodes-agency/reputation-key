@@ -1118,6 +1118,135 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     expect(receipts.rows).toEqual([{ consumer_name: CONSUMER, status: 'applied' }])
   })
 
+  // The receipt key is the fence between a delivery and a fact that supersedes
+  // it (a guest withdrawing the feedback a submission carried): the create
+  // reserves the key before it creates anything, and the superseding fact
+  // settles the delivery under the same key, so exactly one of them wins.
+  const submittedSource = async () => {
+    await seedReviewRevisionOne()
+    const source = reviewCreated({
+      reviewId: REVIEW_A,
+      propertyId: PROP_A,
+      organizationId: ORG_A,
+      platform: 'google',
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
+      occurredAt: NOW,
+    })
+    await insertSourceEvent(source)
+    return source
+  }
+  const receiptsOf = async (eventId: string) =>
+    (
+      await pool.query(
+        `SELECT consumer_name, status FROM event_consumer_receipts WHERE event_id = $1`,
+        [eventId],
+      )
+    ).rows
+
+  it('applySourceCreatedOnce creates nothing for a delivery a superseding fact already settled', async () => {
+    const source = await submittedSource()
+    const store = createAtomicInboxCommandStore(db)
+    await store.settleSupersededDelivery(source.eventId, CONSUMER, ORG_A)
+
+    const item = makeItem()
+    const outcome = await store.applySourceCreatedOnce({
+      eventId: source.eventId,
+      consumerName: CONSUMER,
+      item,
+      fact: createdFact(item),
+    })
+
+    expect(outcome).toBe('duplicate')
+    const created = await pool.query(
+      `SELECT
+         (SELECT count(*)::int FROM inbox_items WHERE organization_id = $1) AS items,
+         (SELECT count(*)::int FROM outbox_events
+           WHERE organization_id = $1
+             AND event_type = 'inbox.inbox_item.created') AS facts`,
+      [ORG_A],
+    )
+    expect(created.rows).toEqual([{ items: 0, facts: 0 }])
+    expect(await receiptsOf(source.eventId)).toEqual([
+      { consumer_name: CONSUMER, status: 'obsolete' },
+    ])
+  })
+
+  it('settleSupersededDelivery waits for an apply that holds the receipt key, then leaves its receipt', async () => {
+    const source = await submittedSource()
+    const store = createAtomicInboxCommandStore(db)
+    let settled = false
+    const applying = await pool.connect()
+    const openApply = async () => {
+      try {
+        await applying.query('BEGIN')
+        // What an apply transaction does first.
+        await applying.query(
+          `INSERT INTO event_consumer_receipts (event_id, consumer_name, status)
+           VALUES ($1, $2, 'applied')`,
+          [source.eventId, CONSUMER],
+        )
+        const settling = store
+          .settleSupersededDelivery(source.eventId, CONSUMER, ORG_A)
+          .then(() => {
+            settled = true
+          })
+        await applying.query('SELECT pg_sleep(0.2)')
+        const settledWhileApplyWasOpen = settled
+        await applying.query('COMMIT')
+        return { settling, settledWhileApplyWasOpen }
+      } finally {
+        applying.release()
+      }
+    }
+
+    const observed = await openApply()
+    await observed.settling
+
+    expect(observed.settledWhileApplyWasOpen).toBe(false)
+    expect(await receiptsOf(source.eventId)).toEqual([
+      { consumer_name: CONSUMER, status: 'applied' },
+    ])
+  })
+
+  it('settleSupersededDelivery records nothing for an event that is no longer stored', async () => {
+    const store = createAtomicInboxCommandStore(db)
+    const purgedEventId = crypto.randomUUID()
+
+    await store.settleSupersededDelivery(purgedEventId, CONSUMER, ORG_A)
+
+    expect(await receiptsOf(purgedEventId)).toEqual([])
+  })
+
+  // The superseding fact names the delivery by event id, and that id is only
+  // payload. A wrong one must not silence another Organization's delivery.
+  it('settleSupersededDelivery records nothing for an event stored for another Organization', async () => {
+    const store = createAtomicInboxCommandStore(db)
+    const otherOrganizationSource = reviewCreated({
+      reviewId: REVIEW_A,
+      propertyId: PROP_C,
+      organizationId: ORG_B,
+      platform: 'google',
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
+      occurredAt: NOW,
+    })
+    await insertSourceEvent(otherOrganizationSource)
+    try {
+      await store.settleSupersededDelivery(
+        otherOrganizationSource.eventId,
+        CONSUMER,
+        ORG_A,
+      )
+
+      expect(await receiptsOf(otherOrganizationSource.eventId)).toEqual([])
+    } finally {
+      await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_B])
+    }
+  })
+
   it('rolls back the item insert when the fact insert fails (unregistered type)', async () => {
     await seedReviewRevisionOne()
     const store = createAtomicInboxCommandStore(db)

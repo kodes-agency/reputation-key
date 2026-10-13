@@ -360,28 +360,5 @@ export const createGuestResponseRepository = (
         unrecorded,
       }
     },
-
-    saveModeration: async (response) => {
-      const updatedAt = response.moderatedAt ?? clock()
-      const updated = await db
-        .update(guestResponses)
-        .set({
-          status: response.status,
-          moderatedAt: response.moderatedAt,
-          updatedAt,
-        })
-        .where(
-          and(
-            eq(guestResponses.organizationId, response.organizationId),
-            eq(guestResponses.propertyId, response.propertyId),
-            eq(guestResponses.portalId, response.portalId),
-            eq(guestResponses.id, response.id),
-            inArray(guestResponses.status, ['submitted', 'corrected', 'moderated']),
-            isNull(guestResponses.deletedAt),
-          ),
-        )
-        .returning({ id: guestResponses.id })
-      return updated.length > 0
-    },
   }
 }

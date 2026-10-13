@@ -326,4 +326,48 @@ describe('removeMember', () => {
     expect(commandStore.memberById('admin-b')).not.toBeNull()
     expect(outbox.byTag('identity.member.removed')).toHaveLength(1)
   })
+
+  // Leaving is its own command, which refuses until every responsibility is
+  // handed over. Removal releases them with no successor, so a caller who
+  // names their own membership would leave around that rule.
+  it('refuses the caller as its own target, before any authority is released', async () => {
+    const identity = createInMemoryIdentityPort()
+    const outbox = createRecordedOutbox()
+    const commandStore = createSequentialIdentityCommandStore({ outbox })
+    const otherAdmin: MemberRecord = {
+      ...ADMIN_MEMBER,
+      id: 'admin-2',
+      userId: 'user-admin-2',
+      email: 'admin-2@test.com',
+    }
+    for (const member of [ADMIN_MEMBER, otherAdmin]) {
+      seedMemberBoth(identity, commandStore, member)
+    }
+    const prepareGoogleConnectorDeparture = vi.fn(async () => undefined)
+    const cancelGoogleImportsForUser = vi.fn(async () => undefined)
+    const releaseMemberAuthorities = vi.fn(async () => undefined)
+    const useCase = removeMember({
+      identity,
+      commandStore,
+      clock: () => FIXED_TIME,
+      prepareGoogleConnectorDeparture,
+      cancelGoogleImportsForUser,
+      releaseMemberAuthorities,
+    })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    expect(ADMIN_MEMBER.userId).toBe(ctx.userId)
+
+    await expect(useCase({ memberId: ADMIN_MEMBER.id }, ctx)).rejects.toMatchObject({
+      _tag: 'IdentityError',
+      code: 'forbidden',
+      message:
+        'You cannot remove yourself; leaving the organization is a separate action',
+    })
+
+    expect(prepareGoogleConnectorDeparture).not.toHaveBeenCalled()
+    expect(cancelGoogleImportsForUser).not.toHaveBeenCalled()
+    expect(releaseMemberAuthorities).not.toHaveBeenCalled()
+    expect(commandStore.memberById(ADMIN_MEMBER.id)).not.toBeNull()
+    expect(outbox.byTag('identity.member.removed')).toEqual([])
+  })
 })

@@ -1416,4 +1416,81 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
     )
     expect(facts.rows).toEqual([{ count: 3 }])
   })
+
+  // A command that omits the low-rating pair keeps the stored one, so the
+  // "shorter than the ordinary target" rule has to be asked of the row the
+  // write leaves behind. Asked of the command alone it passed, and the table's
+  // CHECK constraint then refused the row as an untagged database error.
+  it('refuses, as a business error, an ordinary target shorter than the low-rating target it keeps', async () => {
+    await seedScope()
+    const policies = createResponseTargetPolicyStore(db)
+    const google = {
+      organizationId: ORG,
+      targetKind: 'google_review_response' as const,
+      actorUserId: MANAGER,
+    }
+    await policies.setOrganizationPolicy({
+      ...google,
+      durationMinutes: 2_880,
+      lowRating: { threshold: 2, durationMinutes: 240 },
+      expectedPolicyVersion: null,
+      at: new Date('2026-08-28T10:00:00.000Z'),
+    })
+    const storedPolicy = () =>
+      pool.query(
+        `SELECT duration_minutes, low_rating_threshold,
+                low_rating_duration_minutes, policy_version::int
+         FROM inbox_response_target_organization_policies
+         WHERE organization_id = $1 AND target_kind = 'google_review_response'`,
+        [ORG],
+      )
+
+    await expect(
+      policies.setOrganizationPolicy({
+        ...google,
+        durationMinutes: 120,
+        expectedPolicyVersion: 1,
+        at: new Date('2026-08-28T10:01:00.000Z'),
+      }),
+    ).rejects.toMatchObject({
+      _tag: 'InboxError',
+      code: 'invalid_input',
+      message: 'The low-rating target must be shorter than the ordinary target',
+    })
+    expect((await storedPolicy()).rows).toEqual([
+      {
+        duration_minutes: 2_880,
+        low_rating_threshold: 2,
+        low_rating_duration_minutes: 240,
+        policy_version: 1,
+      },
+    ])
+
+    // The same omission is fine while the kept pair still fits, and a stale
+    // editor is still told to reload before being told about the pair.
+    await expect(
+      policies.setOrganizationPolicy({
+        ...google,
+        durationMinutes: 120,
+        expectedPolicyVersion: 7,
+        at: new Date('2026-08-28T10:02:00.000Z'),
+      }),
+    ).rejects.toMatchObject({ code: 'revision_conflict' })
+    await expect(
+      policies.setOrganizationPolicy({
+        ...google,
+        durationMinutes: 240,
+        expectedPolicyVersion: 1,
+        at: new Date('2026-08-28T10:03:00.000Z'),
+      }),
+    ).resolves.toMatchObject({ durationMinutes: 240, policyVersion: 2 })
+    expect((await storedPolicy()).rows).toEqual([
+      {
+        duration_minutes: 240,
+        low_rating_threshold: 2,
+        low_rating_duration_minutes: 240,
+        policy_version: 2,
+      },
+    ])
+  })
 })

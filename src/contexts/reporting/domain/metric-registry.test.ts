@@ -3,10 +3,6 @@ import {
   type MetricRegistryEntry,
   type MetricDefinitionVersion,
   getActiveVersion,
-  isSourcePolicyAllowed,
-  isConsumerPermitted,
-  isScopeAllowed,
-  evaluateInsufficientData,
   isGamificationViolation,
   METRIC_DEFINITIONS,
   METRIC_VERSION_IDS,
@@ -82,67 +78,6 @@ describe('MetricRegistry', () => {
       const entry = makeEntry([makeVersion({ effectiveFrom: new Date('2027-01-01') })])
       const result = getActiveVersion(entry, new Date('2026-01-01'))
       expect(result).toBeNull()
-    })
-  })
-
-  describe('isSourcePolicyAllowed', () => {
-    it('returns true for allowed source', () => {
-      const v = makeVersion()
-      expect(isSourcePolicyAllowed(v, 'first_party_workflow')).toBe(true)
-    })
-
-    it('returns false for disallowed source', () => {
-      const v = makeVersion()
-      expect(isSourcePolicyAllowed(v, 'google_property_derivative')).toBe(false)
-    })
-  })
-
-  describe('isConsumerPermitted', () => {
-    it('returns true for permitted consumer', () => {
-      const v = makeVersion()
-      expect(isConsumerPermitted(v, 'dashboard')).toBe(true)
-    })
-
-    it('returns false for non-permitted consumer', () => {
-      const v = makeVersion()
-      expect(isConsumerPermitted(v, 'notification')).toBe(false)
-    })
-  })
-
-  describe('isScopeAllowed', () => {
-    it('returns true for allowed scope', () => {
-      const v = makeVersion()
-      expect(isScopeAllowed(v, 'property')).toBe(true)
-    })
-
-    it('returns false for non-allowed scope', () => {
-      const v = makeVersion()
-      expect(isScopeAllowed(v, 'portal')).toBe(false)
-    })
-  })
-
-  describe('evaluateInsufficientData', () => {
-    it('returns not insufficient when sample meets minimum', () => {
-      const v = makeVersion({ minimumSample: 5 })
-      const result = evaluateInsufficientData(v, 10)
-      expect(result.insufficient).toBe(false)
-    })
-
-    it('returns unavailable when sample below minimum', () => {
-      const v = makeVersion({ minimumSample: 5, insufficientDataBehavior: 'unavailable' })
-      const result = evaluateInsufficientData(v, 3)
-      expect(result.insufficient).toBe(true)
-      expect(result.result).toBeNull()
-    })
-
-    it('never substitutes zero when insufficient data must be quarantined', () => {
-      const v = makeVersion({ minimumSample: 5, insufficientDataBehavior: 'quarantine' })
-      const result = evaluateInsufficientData(v, 3)
-      expect(result).toEqual({
-        insufficient: true,
-        behavior: 'quarantine',
-        result: null,
-      })
     })
   })
 

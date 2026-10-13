@@ -38,11 +38,6 @@ export type PropertyRepository = Readonly<{
     connectionId: GoogleConnectionId,
     orgId: OrganizationId,
   ) => Promise<ReadonlyArray<PropertyId>>
-  /** Null out googleConnectionId for properties matching the given connection within an org. */
-  clearGoogleConnectionRef: (
-    orgId: OrganizationId,
-    propertyIds: ReadonlyArray<PropertyId>,
-  ) => Promise<void>
 
   /** Insert a property and return the full inserted row. */
   insertAndReturn: (orgId: OrganizationId, property: Property) => Promise<Property>

@@ -100,5 +100,4 @@ export type GoogleConnectionRepository = Readonly<{
     credentialAuthorizedAt: Date,
     googleAccountEmail: string | null,
   ) => Promise<void>
-  delete: (orgId: OrganizationId, id: GoogleConnectionId) => Promise<void>
 }>

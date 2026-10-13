@@ -94,6 +94,8 @@ describe('operator Property access administration', () => {
     )
   })
 
+  // Each refusal is a tagged IdentityError, so the server adapter maps it by
+  // its code and never by the wording of its message.
   it('refuses an expiry that is not in the future before anything is written', async () => {
     const { ops, granted } = harness()
 
@@ -104,8 +106,36 @@ describe('operator Property access administration', () => {
         ticketRef: 'OPS-1',
         expiresAt: NOW,
       }),
-    ).rejects.toThrow('expiresAt must be in the future for temporary access')
+    ).rejects.toMatchObject({
+      _tag: 'IdentityError',
+      code: 'validation_error',
+      message: 'expiresAt must be in the future for temporary access',
+    })
 
     expect(granted).toEqual([])
+  })
+
+  it.each([
+    ['a reason under three characters', { reason: ' a ', ticketRef: 'OPS-1' }],
+    ['a ticket reference under two characters', { reason: 'cover', ticketRef: ' ' }],
+  ])('refuses a grant with %s as a validation error', async (_label, fields) => {
+    const { ops, granted } = harness()
+
+    await expect(
+      ops.grantPropertyAccessOp({ ...target, ...fields }),
+    ).rejects.toMatchObject({ _tag: 'IdentityError', code: 'validation_error' })
+
+    expect(granted).toEqual([])
+  })
+
+  it('refuses a revoke without a reason as a validation error, and reconciles nothing', async () => {
+    const { ops, revoked, reconcile } = harness()
+
+    await expect(
+      ops.revokePropertyAccessOp({ ...target, reason: '' }),
+    ).rejects.toMatchObject({ _tag: 'IdentityError', code: 'validation_error' })
+
+    expect(revoked).toEqual([])
+    expect(reconcile).not.toHaveBeenCalled()
   })
 })

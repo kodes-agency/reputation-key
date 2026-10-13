@@ -396,23 +396,6 @@ export function correctResponse(
 }
 
 /**
- * Moderate a response (manager action). Does not destroy evidence.
- */
-export function moderateResponse(
-  response: GuestResponse,
-  now: Date,
-): GuestResponse | ResponseError {
-  if (response.status === 'deleted') {
-    return { code: 'already_deleted' }
-  }
-  return {
-    ...response,
-    status: 'moderated',
-    moderatedAt: now,
-  }
-}
-
-/**
  * Delete/anonymize a response. Per ADR 0044: deletion workflow
  * purges projection/cache/search/media copies.
  */

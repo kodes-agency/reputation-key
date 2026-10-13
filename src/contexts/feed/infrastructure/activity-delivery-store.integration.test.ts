@@ -104,9 +104,11 @@ beforeEach(async () => {
   })
 })
 
+const DELIVERED_AT = () => new Date('2026-08-28T08:05:00.000Z')
+
 describe('Activity delivery store (real PostgreSQL)', () => {
   it('co-commits one projection and its durable delivery receipt', async () => {
-    const store = createActivityDeliveryStore(db)
+    const store = createActivityDeliveryStore(db, DELIVERED_AT)
     const result = await store.applyOnce({
       entry: entry(SOURCE_EVENT_ID, new Date('2026-08-28T08:00:00.000Z')),
       replayFact: replayFact(SOURCE_EVENT_ID, new Date('2026-08-28T08:00:00.000Z')),
@@ -136,7 +138,7 @@ describe('Activity delivery store (real PostgreSQL)', () => {
   })
 
   it('rolls back the projection when the receipt cannot commit', async () => {
-    const store = createActivityDeliveryStore(db)
+    const store = createActivityDeliveryStore(db, DELIVERED_AT)
 
     await expect(
       store.applyOnce({
@@ -162,7 +164,7 @@ describe('Activity delivery store (real PostgreSQL)', () => {
   })
 
   it('repairs an existing row and records a duplicate receipt without a second row', async () => {
-    const store = createActivityDeliveryStore(db)
+    const store = createActivityDeliveryStore(db, DELIVERED_AT)
     await db
       .insert(recentActivityEntries)
       .values({
