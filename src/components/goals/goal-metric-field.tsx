@@ -1,31 +1,34 @@
 // The Goal's metric, as the select the new-goal page and the revision dialog share
 // (UI consistency scan: FORM-03). Each was a copy of a browser <select>; this is the
-// shared Select in the shared field frame, and the three metrics (with what each one
-// counts) are written once.
+// shared Select in the shared field frame, and what each of the three metrics counts
+// is written once. Their names are the goal page's (`goalPageMetricLabel`).
 import type { GoalMetric } from '#/contexts/reporting/application/public-api'
 import { FormSelectField } from '#/components/forms/form-select-field'
+import { goalPageMetricLabel } from './goal-detail-view'
 
-const GOAL_METRICS: ReadonlyArray<
-  Readonly<{ value: GoalMetric; label: string; description: string }>
+const GOAL_METRIC_DESCRIPTIONS: ReadonlyArray<
+  Readonly<{ value: GoalMetric; description: string }>
 > = [
   {
     value: 'qualified_scans',
-    label: 'Qualified scans',
     description:
       'Counts eligible portal scans. You can configure this now; results remain scheduled until scan attribution is active.',
   },
   {
     value: 'portal_rating_count',
-    label: 'Private rating count',
     description: 'Counts private 1–5 star ratings submitted through the review gateway.',
   },
   {
     value: 'portal_rating_average',
-    label: 'Private rating average',
     description:
       'Average private star rating. A monthly result needs at least 10 eligible ratings.',
   },
 ]
+
+const GOAL_METRICS = GOAL_METRIC_DESCRIPTIONS.map((metric) => ({
+  ...metric,
+  label: goalPageMetricLabel(metric.value),
+}))
 
 /** The metric's own description, for the help under the select. */
 const goalMetricDescription = (metric: GoalMetric): string =>

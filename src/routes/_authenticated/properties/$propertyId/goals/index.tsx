@@ -32,6 +32,7 @@ import { StatusBadge } from '#/components/ui/status-badge'
 import { ROW_NAME_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import { GOAL_STATUS } from '#/components/goals/goal-status'
+import { goalMetricLabel } from '#/components/goals/goal-metric-label'
 import { goalListTarget } from '#/components/goals/goal-month-target-view'
 import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
@@ -58,19 +59,6 @@ const subjectNamesQuery = (propertyId: string) =>
       return { groups: groups.groups, portals: portals.portals }
     },
   })
-
-const metricLabel = (metric: string) => {
-  switch (metric) {
-    case 'qualified_scans':
-      return 'Qualified scans'
-    case 'portal_rating_count':
-      return 'Private ratings'
-    case 'portal_rating_average':
-      return 'Private rating average'
-    default:
-      return metric
-  }
-}
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/goals/')({
   staticData: { page: { title: 'Goals', tier: 'dashboard', under: 'property' } },
@@ -209,7 +197,7 @@ function GoalsRoute() {
                         {program.name}
                       </Link>
                       <p className="text-sm text-muted-foreground">
-                        {metricLabel(target.metric)} · {target.text} ·{' '}
+                        {goalMetricLabel(target.metric)} · {target.text} ·{' '}
                         {currentAssignmentCount}{' '}
                         {currentAssignmentCount === 1 ? 'subject' : 'subjects'}
                         {setOn}
