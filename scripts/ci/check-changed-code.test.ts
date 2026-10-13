@@ -192,6 +192,54 @@ describe('changed-code gate', () => {
     expect(gate.status).toBe(0)
   })
 
+  // Under src/routes/api/ an `index.ts` is the route of its directory (as
+  // src/routes/api/health/index.ts is), not a barrel.
+  it('fails a new API index route that no test imports', () => {
+    const gate = runGate(
+      repositoryAdding({ 'src/routes/api/webhooks/provider/index.ts': RUNTIME_MODULE }),
+    )
+
+    expect(gate.output).toContain('✗ src/routes/api/webhooks/provider/index.ts')
+    expect(gate.status).toBe(1)
+  })
+
+  it('passes a new API index route with a test beside it', () => {
+    const gate = runGate(
+      repositoryAdding({
+        'src/routes/api/webhooks/provider/index.ts': RUNTIME_MODULE,
+        'src/routes/api/webhooks/provider/-index.test.ts': importing('./index'),
+      }),
+    )
+
+    expect(gate.output).toContain('1 runtime-gated')
+    expect(gate.status).toBe(0)
+  })
+
+  it('still reads an index.ts outside the API routes as a barrel', () => {
+    const gate = runGate(
+      repositoryAdding({ 'src/contexts/review/domain/index.ts': RUNTIME_MODULE }),
+    )
+
+    expect(gate.output).toContain('0 source candidate(s)')
+    expect(gate.status).toBe(0)
+  })
+
+  // The gate reads top-level `import` declarations only, and its refusal says
+  // so: several route tests load their route with `await import()`.
+  it('does not read a dynamic import in a test as an import, and says so', () => {
+    const gate = runGate(
+      repositoryAdding({
+        'src/routes/api/webhooks/provider/events.ts': RUNTIME_MODULE,
+        'src/routes/api/webhooks/provider/-events.test.ts':
+          "export const loaded = await import('./events')\n",
+      }),
+    )
+
+    expect(gate.output).toContain('✗ src/routes/api/webhooks/provider/events.ts')
+    expect(gate.output).toContain('`await import()` is not read')
+    expect(gate.status).toBe(1)
+  })
+
   it('leaves pages and components to their own checks', () => {
     const gate = runGate(
       repositoryAdding({

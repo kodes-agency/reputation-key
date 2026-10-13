@@ -4,8 +4,11 @@
 //
 // Master-plan changed-code budget: every NEW production source module with
 // runtime behavior under src/** must be within one import of a test: a test
-// imports it at runtime, or a test imports a module that imports or re-exports
-// it.
+// imports it, or a test imports a module that imports or re-exports it.
+//
+// An import here is a top-level `import` declaration that is not type-only.
+// `await import()` is not read, so a module a test loads only that way is
+// refused.
 //
 // The second hop is a relaxation (2026-08-19) and it is wide. It lets a test
 // reach a module through a barrel, and it equally passes anything a context's
@@ -19,12 +22,13 @@
 // per-file coverage this gate once accepted in place of a test):
 //   included : files ADDED by this branch vs the main merge-base
 //              (`git diff --diff-filter=A <base>...HEAD -- 'src/**'`),
-//              API routes (src/routes/api/**) among them: they are server
-//              handlers, not pages
+//              API routes (src/routes/api/**) among them, an `index.ts`
+//              route too: they are server handlers, not pages
 //   excluded : test files (*.test.ts(x)), stories (*.stories.*),
 //              UI routes (the rest of src/routes/**), components
 //              (src/components/**),
-//              test-only helpers/fixtures, barrels, generated sources, and
+//              test-only helpers/fixtures, barrels (an `index.ts` outside
+//              src/routes/api/**), generated sources, and
 //              config modules. Type/interface-only modules are detected with
 //              the TypeScript parser and excluded because they have no runtime
 //              behavior to exercise.
@@ -73,8 +77,12 @@ const EXEMPT = [
 
 // Pages are excluded with the components they render. `src/routes/api/**` holds
 // server handlers (webhooks, the auth provider's routes, health), so it is not.
-const isUiRoute = (file) =>
-  file.startsWith('src/routes/') && !file.startsWith('src/routes/api/')
+const isApiRoute = (file) => file.startsWith('src/routes/api/')
+const isUiRoute = (file) => file.startsWith('src/routes/') && !isApiRoute(file)
+
+// An `index.ts` is a barrel everywhere but under `src/routes/api/**`, where it
+// is the route of its own directory (src/routes/api/health/index.ts).
+const isBarrel = (file) => basename(file) === 'index.ts' && !isApiRoute(file)
 
 const EXCLUDED = (file) =>
   !/\.(ts|tsx)$/.test(file) ||
@@ -85,7 +93,7 @@ const EXCLUDED = (file) =>
   file.startsWith('src/shared/testing/') ||
   file.startsWith('src/test-fixtures/') ||
   file.includes('/generated/') ||
-  basename(file) === 'index.ts' ||
+  isBarrel(file) ||
   /\.(gen|generated)\.ts$/.test(file) ||
   /\.config\.ts$/.test(file)
 
@@ -293,9 +301,9 @@ for (const file of runtimeGated) {
   if (testOwners.has(file)) continue
   if (exemptFiles.has(file)) continue
   failures.push(
-    `${file} — added without runtime contract evidence; expected a runtime import from a test, ` +
-      'or from a module a test imports, or a registered exemption with owner and reason in ' +
-      'scripts/check-changed-code.mjs',
+    `${file} — added without contract evidence; expected a static, non-type import of it in a test ` +
+      '(`await import()` is not read), or in a module a test imports, or a registered exemption ' +
+      'with owner and reason in scripts/check-changed-code.mjs',
   )
 }
 
