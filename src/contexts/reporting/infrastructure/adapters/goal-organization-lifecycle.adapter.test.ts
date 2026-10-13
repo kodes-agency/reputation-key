@@ -83,26 +83,42 @@ const writes = (statements: readonly Recorded[]): readonly Recorded[] =>
   )
 
 describe('goal organization lifecycle phases', () => {
-  it('purge restores the retained validation guard even when a delete fails', async () => {
+  // A failed statement aborts the PostgreSQL transaction: anything sent after
+  // it is refused, and that refusal would be reported instead of the failure.
+  // The rollback restores the guard (the integration test proves both).
+  it('purge sends nothing after a delete fails, so the failure is what is reported', async () => {
     const { tx, statements } = createFakeTx({ tenantRows: 9 })
+    const interruption = new Error('simulated purge interruption')
     const failing = {
       execute: async (statement: unknown) => {
         const text = renderSql(statement).text
-        if (/DELETE FROM goal_monthly_results/i.test(text)) {
-          throw new Error('simulated purge interruption')
-        }
+        if (/DELETE FROM goal_monthly_results/i.test(text)) throw interruption
         return (tx as unknown as { execute: (s: unknown) => Promise<unknown> }).execute(
           statement,
         )
       },
     } as unknown as Tx
 
-    await expect(
-      GOAL_ORGANIZATION_LIFECYCLE_PHASES.purge(failing, REQUEST),
-    ).rejects.toThrow(/simulated purge interruption/)
-    const disabled = statements.filter((s) => /DISABLE TRIGGER/i.test(s.text))
-    const enabled = statements.filter((s) => /ENABLE TRIGGER/i.test(s.text))
-    expect(enabled).toHaveLength(disabled.length)
+    await expect(GOAL_ORGANIZATION_LIFECYCLE_PHASES.purge(failing, REQUEST)).rejects.toBe(
+      interruption,
+    )
+    const sent = writes(statements).map((statement) => statement.text)
+    expect(sent.at(-1)).toMatch(/DELETE FROM goal_result_revisions/u)
+    expect(sent.filter((text) => /ENABLE TRIGGER/u.test(text))).toEqual([])
+  })
+
+  it('purge lifts the guard for its deletes and restores it once they are done', async () => {
+    const { tx, statements } = createFakeTx({ tenantRows: 9 })
+
+    await GOAL_ORGANIZATION_LIFECYCLE_PHASES.purge(tx, REQUEST)
+
+    const sent = writes(statements).map((statement) => statement.text)
+    expect(sent.at(0)).toBe(
+      'ALTER TABLE goal_monthly_results DISABLE TRIGGER goal_monthly_results_guard',
+    )
+    expect(sent.at(-1)).toBe(
+      'ALTER TABLE goal_monthly_results ENABLE TRIGGER goal_monthly_results_guard',
+    )
   })
 
   it('purges the month target log before the results, versions and Programs it references', async () => {
