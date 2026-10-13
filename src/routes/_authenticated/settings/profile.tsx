@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
@@ -16,7 +16,7 @@ import { updateNotificationUserSettingsFn } from '#/contexts/feed/server/notific
 import { ProfileSettingsPage } from '#/components/features/identity'
 import { TimezoneAndFormatCard } from '#/components/features/settings'
 import { notificationUserSettingsQuery } from '#/routes/-queries/route-queries'
-import { notificationKeys } from '#/shared/queries/query-keys'
+import { identityKeys, notificationKeys } from '#/shared/queries/query-keys'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 
 const NO_ACTIVE_ORGANIZATION = 'no-active-organization'
@@ -42,17 +42,38 @@ export const Route = createFileRoute('/_authenticated/settings/profile')({
 
 function ProfileSettings() {
   const ctx = Route.useRouteContext() as AuthRouteContext
+  const router = useRouter()
   const organizationId = ctx.activeOrganization?.id ?? NO_ACTIVE_ORGANIZATION
+  // The name and avatar are not a Query: the form's saved values and the top bar's
+  // account menu are the `user` that `_authenticated`'s `beforeLoad` puts in the route
+  // context. A save therefore has the router load again, which runs every `beforeLoad`
+  // on the open page and so reads the session. The filter is what keeps that from being
+  // the whole router: only `_authenticated` is marked stale (its own loader reads from
+  // the Query cache), so every other page, open or cached, keeps the data it loaded.
+  const readSignedInUserAgain = () =>
+    router.invalidate({ filter: (match) => match.routeId === '/_authenticated' })
   const updateProfile = useActionMutation(updateProfileFn, {
     successMessage: 'Profile saved',
+    // Two Query caches hold the name as well: the member list, which Members, Inbox,
+    // Portals and Goals name a member from, and the invitations' "Invited by". Neither
+    // is on screen here, so this asks the server for nothing: the next page to show them
+    // reads again, where it would have drawn the old name for the rest of its 30 seconds.
+    invalidateKeys: [identityKeys.members(), identityKeys.organizationInvitations()],
+    // Awaited: the save resolves with the saved name already the form's baseline, so
+    // the form never shows saved edits as unsaved (dirty, with a Reset to the old name).
+    onSuccess: readSignedInUserAgain,
   })
   // Both are immediate actions: the avatar setting says a refusal, so neither passes an
-  // `errorMessage`.
+  // `errorMessage`. Neither waits for the read: the setting draws its own outcome the
+  // moment the save lands and hands the focus on when Remove leaves with the picture,
+  // and the top bar follows.
   const updateUserImage = useActionMutation(updateUserImageFn, {
     successMessage: 'Avatar updated',
+    onSuccess: () => void readSignedInUserAgain(),
   })
   const removeUserImage = useActionMutation(updateUserImageFn, {
     successMessage: 'Avatar removed',
+    onSuccess: () => void readSignedInUserAgain(),
   })
   const requestUpload = useServerFn(requestAvatarUpload)
   const finalizeUpload = useServerFn(finalizeAvatarUpload)
@@ -73,7 +94,6 @@ function ProfileSettings() {
       />
       <div className="mt-6 space-y-6">
         <ProfileSettingsPage
-          key={`${ctx.user.id}:${ctx.user.name}:${ctx.user.image ?? 'no-image'}`}
           user={ctx.user}
           updateProfile={updateProfile}
           updateUserImage={updateUserImage}
