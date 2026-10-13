@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
 import { createReadReviewAnalysisProgress } from './read-review-analysis-progress'
@@ -29,15 +31,96 @@ function gate(enabled: boolean) {
   return { authorization, processingProfiles }
 }
 
+/** An Organization-wide reader: what the progress says is tested as this one. */
+const ADMIN = buildTestAuthContext({
+  organizationId: INPUT.organizationId,
+  role: 'AccountAdmin',
+})
+const PROGRESS_INPUT = { ...INPUT, actor: ADMIN }
+
+describe('who may read review analysis progress', () => {
+  const OTHER_PROPERTY = propertyId('7d000000-0000-4000-8000-000000000002')
+  const manager = buildTestAuthContext({
+    organizationId: INPUT.organizationId,
+    role: 'PropertyManager',
+  })
+  const forbidden = { _tag: 'AiError', code: 'forbidden' }
+  const counts = { queued: 1, inProgress: 0, analysed: 2, settled: 2 }
+
+  function progressRead(grants: readonly (typeof OTHER_PROPERTY)[]) {
+    const ports = gate(true)
+    const readProgress = vi.fn(async () => counts)
+    const readEnrollmentReadiness = vi.fn(
+      async () => ({ status: 'ready', caughtUpAtEpochMillis: 1 }) as never,
+    )
+    const read = createReadReviewAnalysisProgress({
+      ...ports,
+      propertyAccess: async () => grants,
+      backlog: { readProgress },
+      readEnrollmentReadiness,
+    })
+    return { read, readProgress, readEnrollmentReadiness, ...ports }
+  }
+
+  it('refuses a manager with no grant on the Property before any AI state is read', async () => {
+    const harness = progressRead([OTHER_PROPERTY])
+
+    await expect(harness.read({ ...INPUT, actor: manager })).rejects.toMatchObject(
+      forbidden,
+    )
+    expect(harness.authorization.readMerchantAuthorization).not.toHaveBeenCalled()
+    expect(harness.readProgress).not.toHaveBeenCalled()
+    expect(harness.readEnrollmentReadiness).not.toHaveBeenCalled()
+  })
+
+  it('refuses a reader who belongs to another Organization', async () => {
+    const harness = progressRead([])
+    const foreignAdmin = buildTestAuthContext({
+      organizationId: organizationId('progress-other-org'),
+      role: 'AccountAdmin',
+    })
+
+    await expect(harness.read({ ...INPUT, actor: foreignAdmin })).rejects.toMatchObject(
+      forbidden,
+    )
+    expect(harness.readProgress).not.toHaveBeenCalled()
+  })
+
+  it('refuses a reader who holds no dashboard.read', async () => {
+    const harness = progressRead([])
+    const inboxOnly = createScopedAuthContext({
+      organizationId: INPUT.organizationId,
+      userId: manager.userId,
+      permissions: [['inbox.read', 'organization']],
+    })
+
+    await expect(harness.read({ ...INPUT, actor: inboxOnly })).rejects.toMatchObject(
+      forbidden,
+    )
+    expect(harness.readProgress).not.toHaveBeenCalled()
+  })
+
+  it('serves a manager granted the Property', async () => {
+    const harness = progressRead([INPUT.propertyId])
+
+    await expect(harness.read({ ...INPUT, actor: manager })).resolves.toMatchObject({
+      status: 'analysing',
+      queued: 1,
+      analysed: 2,
+    })
+  })
+})
+
 describe('readReviewAnalysisProgress', () => {
   it('is disabled without an enabled review-analysis authorization', async () => {
     const read = createReadReviewAnalysisProgress({
       ...gate(false),
+      propertyAccess: async () => null,
       backlog: { readProgress: vi.fn() },
       readEnrollmentReadiness: vi.fn(),
     })
 
-    await expect(read(INPUT)).resolves.toEqual({ status: 'disabled' })
+    await expect(read(PROGRESS_INPUT)).resolves.toEqual({ status: 'disabled' })
   })
 
   it('reports queued work under the current fence as analysing', async () => {
@@ -49,6 +132,7 @@ describe('readReviewAnalysisProgress', () => {
     }))
     const read = createReadReviewAnalysisProgress({
       ...gate(true),
+      propertyAccess: async () => null,
       backlog: { readProgress },
       readEnrollmentReadiness: vi.fn(async () => ({
         status: 'preparing' as const,
@@ -56,7 +140,7 @@ describe('readReviewAnalysisProgress', () => {
       })),
     })
 
-    await expect(read(INPUT)).resolves.toEqual({
+    await expect(read(PROGRESS_INPUT)).resolves.toEqual({
       status: 'analysing',
       queued: 40,
       inProgress: 2,
@@ -74,6 +158,7 @@ describe('readReviewAnalysisProgress', () => {
   it('reports an empty backlog with caught-up enrollment as caught up', async () => {
     const read = createReadReviewAnalysisProgress({
       ...gate(true),
+      propertyAccess: async () => null,
       backlog: {
         readProgress: vi.fn(async () => ({
           queued: 0,
@@ -88,7 +173,7 @@ describe('readReviewAnalysisProgress', () => {
       ),
     })
 
-    await expect(read(INPUT)).resolves.toMatchObject({
+    await expect(read(PROGRESS_INPUT)).resolves.toMatchObject({
       status: 'caught_up',
       notAnalysable: 0,
       verifiedThroughEpochMillis: 1_789_000_000_000,

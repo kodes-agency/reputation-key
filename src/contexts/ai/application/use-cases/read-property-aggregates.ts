@@ -93,7 +93,12 @@ export function createReadPropertyAggregates(
   dependencies: ReadPropertyAggregatesDependencies,
 ): (input: ReadPropertyAggregatesInput) => Promise<AiPropertyAggregateWindowRead> {
   return async (input) => {
-    await requireAiPropertyReadAccess(dependencies.propertyAccess, input.actor, input)
+    await requireAiPropertyReadAccess(
+      dependencies.propertyAccess,
+      input.actor,
+      'dashboard.read',
+      input,
+    )
     // Aspect mentions and sentiment are review-analysis derivatives, so this
     // read is gated on `review_analysis` rather than `property_trends`.
     const gate = await resolveAiReadGate(dependencies, input, 'review_analysis')

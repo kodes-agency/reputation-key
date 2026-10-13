@@ -692,7 +692,12 @@ export function createReadPropertyInsights(
   dependencies: ReadPropertyInsightsDependencies,
 ): (input: ReadPropertyInsightsInput) => Promise<AiPropertyInsightsRead> {
   return async (input) => {
-    await requireAiPropertyReadAccess(dependencies.propertyAccess, input.actor, input)
+    await requireAiPropertyReadAccess(
+      dependencies.propertyAccess,
+      input.actor,
+      'dashboard.read',
+      input,
+    )
     if (!isPropertyInsightsRange(input.range)) {
       throw new TypeError('Property insights range must be 30, 90, 180, or all')
     }
