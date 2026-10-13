@@ -1808,10 +1808,14 @@ export async function waitForFixtureJobSettled(
   )
 }
 
-/** The daily retention purge, invoked on demand through the real worker path
- * (same bare payload the recurring schedule enqueues). */
-export async function enqueuePurgeExpiredReviews(): Promise<void> {
-  await fixtureQueue('background').add(
+/**
+ * The retention purge, invoked on demand through the real worker path with a
+ * bare payload. Returns the job id so the caller can wait for the worker to
+ * settle it (`waitForFixtureJobSettled('background', jobId, …)`): an assertion
+ * that the job removed nothing means nothing until the job has run.
+ */
+export async function enqueuePurgeExpiredReviews(): Promise<{ jobId: string }> {
+  const job = await fixtureQueue('background').add(
     'purge-expired-reviews',
     {},
     {
@@ -1819,6 +1823,8 @@ export async function enqueuePurgeExpiredReviews(): Promise<void> {
       removeOnFail: { count: 50 },
     },
   )
+  if (!job.id) throw new Error('purge-expired-reviews was enqueued without a job id')
+  return { jobId: job.id }
 }
 
 /** The canonical Goal maintenance sweep, invoked through its production queue. */
