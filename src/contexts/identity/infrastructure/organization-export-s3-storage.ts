@@ -12,6 +12,15 @@ const OBJECT_KEY =
   /^private\/organization-exports\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.zip$/iu
 const SHA256 = /^[a-f0-9]{64}$/u
 
+/**
+ * How long one call to the store may take, from the request to the last byte
+ * of its answer. The SDK sets no request timeout of its own, so a store that
+ * accepts the connection and then goes quiet would hold the export worker for
+ * as long as the socket lived. An archive is at most 128 MiB (the archive
+ * writer's cap), so the deadline is sized for that upload or download.
+ */
+const ORGANIZATION_EXPORT_OBJECT_DEADLINE_MS = 120_000
+
 export type OrganizationExportS3Config = Readonly<{
   accessKey: string
   secretKey: string
@@ -19,6 +28,8 @@ export type OrganizationExportS3Config = Readonly<{
   region: string
   internalEndpoint?: string
   forcePathStyle?: boolean
+  /** Overrides ORGANIZATION_EXPORT_OBJECT_DEADLINE_MS; the tests use a short one. */
+  requestDeadlineMs?: number
 }>
 
 function assertObjectKey(value: string): string {
@@ -106,13 +117,26 @@ export class S3OrganizationExportStorage implements OrganizationExportStorage {
       forcePathStyle: config.forcePathStyle ?? false,
       ...(config.internalEndpoint ? { endpoint: config.internalEndpoint } : {}),
     })
-    return new S3OrganizationExportStorage(client, config.bucketName)
+    return new S3OrganizationExportStorage(
+      client,
+      config.bucketName,
+      config.requestDeadlineMs ?? ORGANIZATION_EXPORT_OBJECT_DEADLINE_MS,
+    )
   }
 
   private constructor(
     private readonly client: S3Client,
     private readonly bucketName: string,
+    private readonly deadlineMs: number,
   ) {}
+
+  /**
+   * One signal per call. It aborts the request and, for a read, the body that
+   * follows the headers: the SDK destroys the socket the body arrives on.
+   */
+  private withinDeadline(): { abortSignal: AbortSignal } {
+    return { abortSignal: AbortSignal.timeout(this.deadlineMs) }
+  }
 
   async putEncrypted(input: {
     objectKey: string
@@ -129,7 +153,7 @@ export class S3OrganizationExportStorage implements OrganizationExportStorage {
       ...input,
     })
     try {
-      await this.client.send(new PutObjectCommand(command))
+      await this.client.send(new PutObjectCommand(command), this.withinDeadline())
       return {
         outcome: 'stored',
         encryptionEvidenceRef: `s3:aes256:${input.archiveSha256}`,
@@ -141,6 +165,7 @@ export class S3OrganizationExportStorage implements OrganizationExportStorage {
           Bucket: this.bucketName,
           Key: assertObjectKey(input.objectKey),
         }),
+        this.withinDeadline(),
       )
       if (
         existing.ServerSideEncryption !== 'AES256' ||
@@ -183,6 +208,7 @@ export class S3OrganizationExportStorage implements OrganizationExportStorage {
     try {
       existing = await this.client.send(
         new HeadObjectCommand({ Bucket: this.bucketName, Key: key }),
+        this.withinDeadline(),
       )
     } catch (error) {
       if (isNotFound(error)) return { outcome: 'absent' }
@@ -207,6 +233,7 @@ export class S3OrganizationExportStorage implements OrganizationExportStorage {
         Bucket: this.bucketName,
         Key: assertObjectKey(objectKey),
       }),
+      this.withinDeadline(),
     )
     if (
       result.ServerSideEncryption !== 'AES256' ||
@@ -220,9 +247,15 @@ export class S3OrganizationExportStorage implements OrganizationExportStorage {
 
   async delete(objectKey: string): Promise<{ deletionEvidenceRef: string }> {
     const key = assertObjectKey(objectKey)
-    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucketName, Key: key }))
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: this.bucketName, Key: key }),
+      this.withinDeadline(),
+    )
     try {
-      await this.client.send(new HeadObjectCommand({ Bucket: this.bucketName, Key: key }))
+      await this.client.send(
+        new HeadObjectCommand({ Bucket: this.bucketName, Key: key }),
+        this.withinDeadline(),
+      )
     } catch (error) {
       if (isNotFound(error)) {
         return {

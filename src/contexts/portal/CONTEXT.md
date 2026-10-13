@@ -503,6 +503,10 @@ rows still render, while the shared arbitrary-key storage stack remains live
 for Identity avatar and organization-logo uploads through `container.assetStorage`.
 `confirmUpload` only confirms the object is there; Identity stores its own address
 for the image (`/api/public/identity-assets/<key>`), never a provider URL.
+Every call the adapter makes to the store has a 15-second deadline, which also
+ends a read whose body stops arriving: the SDK sets none, and the anonymous
+media route would otherwise wait on a bucket that accepts the connection and
+goes quiet (`s3-storage.adapter.endpoints.test.ts`).
 
 ## Invariants
 

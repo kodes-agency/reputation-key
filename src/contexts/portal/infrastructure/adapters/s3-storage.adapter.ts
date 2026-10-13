@@ -18,6 +18,15 @@ import {
 import { portalError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
 
+/**
+ * How long one call to the store may take, from the request to the last byte
+ * of its answer. The SDK sets no request timeout of its own, so a bucket that
+ * accepts the connection and then goes quiet would hold every call open for as
+ * long as the socket lived, the anonymous image read among them. Every object
+ * this adapter moves is an image of at most 10 MiB, in the same region.
+ */
+const OBJECT_STORE_DEADLINE_MS = 15_000
+
 export type S3StorageConfig = Readonly<{
   accessKey?: string
   secretKey?: string
@@ -26,6 +35,8 @@ export type S3StorageConfig = Readonly<{
   internalEndpoint?: string
   presignEndpoint?: string
   forcePathStyle?: boolean
+  /** Overrides OBJECT_STORE_DEADLINE_MS; the tests use a short one. */
+  requestDeadlineMs?: number
 }>
 
 type ConfiguredS3Storage = Required<
@@ -91,6 +102,10 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
   const internalClient = new S3Client(clients.internal)
   const presignClient = new S3Client(clients.presign)
   const bucketName = config.bucketName
+  const deadlineMs = config.requestDeadlineMs ?? OBJECT_STORE_DEADLINE_MS
+  // One signal per call. It aborts the request and, for a read, the body that
+  // follows the headers: the SDK destroys the socket the body arrives on.
+  const withinDeadline = () => ({ abortSignal: AbortSignal.timeout(deadlineMs) })
 
   return {
     createPresignedUploadUrl: async (key, contentType, _maxSizeBytes) => {
@@ -111,13 +126,19 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
 
     confirmUpload: async (key) => {
       await trace('s3.confirmUpload', () =>
-        internalClient.send(new HeadObjectCommand({ Bucket: bucketName, Key: key })),
+        internalClient.send(
+          new HeadObjectCommand({ Bucket: bucketName, Key: key }),
+          withinDeadline(),
+        ),
       )
     },
 
     inspectObject: async (key) => {
       const metadata = await trace('s3.inspectObject', () =>
-        internalClient.send(new HeadObjectCommand({ Bucket: bucketName, Key: key })),
+        internalClient.send(
+          new HeadObjectCommand({ Bucket: bucketName, Key: key }),
+          withinDeadline(),
+        ),
       )
       return {
         contentType: metadata.ContentType ?? null,
@@ -127,14 +148,20 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
 
     deleteObject: async (key) => {
       await trace('s3.deleteObject', () =>
-        internalClient.send(new DeleteObjectCommand({ Bucket: bucketName, Key: key })),
+        internalClient.send(
+          new DeleteObjectCommand({ Bucket: bucketName, Key: key }),
+          withinDeadline(),
+        ),
       )
     },
 
     getObject: async (key, maxBytes) => {
       try {
         const response = await trace('s3.getObject', () =>
-          internalClient.send(new GetObjectCommand({ Bucket: bucketName, Key: key })),
+          internalClient.send(
+            new GetObjectCommand({ Bucket: bucketName, Key: key }),
+            withinDeadline(),
+          ),
         )
         if (!response.Body) return null
         if ((response.ContentLength ?? 0) > maxBytes) {
@@ -160,6 +187,7 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
             Body: body,
             ContentType: contentType,
           }),
+          withinDeadline(),
         ),
       )
     },
