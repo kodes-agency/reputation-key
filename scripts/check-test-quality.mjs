@@ -7,10 +7,12 @@
 //   src/**, services/**, e2e/**, scripts/**, server/**,
 //   .storybook/**                 *.test.ts(x) / *.spec.ts(x)
 //   src/** and .storybook/**      *.stories.tsx
-//   e2e/**                        *.metrics.ts (added 2026-10-13: the twenty
-//                                 Storybook Playwright suites were a fourth
-//                                 hole; no workflow runs them either, so this
-//                                 gate is the only thing that reads them)
+//   every root above              *.metrics.ts (added 2026-10-13). Only the
+//                                 twenty Storybook Playwright suites under
+//                                 e2e/storybook-metrics match today. They
+//                                 were a fourth hole; no workflow runs them
+//                                 either, so this gate is the only thing
+//                                 that reads them
 //
 // `services/**` is in the unit project's include (vitest.config.ts:91) — it is
 // the AI egress-gateway + execution-admission plane — and `*.stories.tsx` is a
@@ -24,13 +26,14 @@
 //      (`describe.only(`, `it.concurrent.only(`, `test.only.each(`). ALWAYS
 //      fail; a focused test silently shrinks the suite in CI.
 //   2. Conditionally-absent tests — `.skip(` / `.todo(` / `.skipIf(` /
-//      `.runIf(`. Fail unless registered in SKIP_REGISTER with owner + reason
-//      and within the registered hit count. `runIf`/`skipIf` matter MORE than
-//      `skip`: they retire tests on a *runtime* predicate, so coverage
-//      disappears with the suite still green and exit 0.
+//      `.runIf(`, and Playwright's `.fixme(`. Fail unless registered in
+//      SKIP_REGISTER with owner + reason and within the registered hit
+//      count. `runIf`/`skipIf` matter MORE than `skip`: they retire tests on
+//      a *runtime* predicate, so coverage disappears with the suite still
+//      green and exit 0.
 //      A reason can stop being true while its entry stays, so an entry also
-//      carries `reviewBy` (YYYY-MM-DD) and fails the gate after that date
-//      until someone has checked the reason and moved it. The runtime fences
+//      carries `reviewBy` (YYYY-MM-DD, a day that exists) and fails the gate
+//      after that date until someone has checked the reason and moved it. The runtime fences
 //      need none: rule 5 checks them on every run.
 //   3. Generic-error acceptance — bare `.toThrow()` / `.toThrowError()` with
 //      NO argument: the test passes for ANY error, so it cannot distinguish
@@ -233,7 +236,7 @@ for (const abs of files) {
       skipHits.set(file, (skipHits.get(file) ?? 0) + 1)
       if (!skipRegister.has(file)) {
         failures.push(
-          `unregistered .skip/.todo/.skipIf/.runIf at ${at} — unskip, or register with owner+reason+reviewBy in scripts/check-test-quality.mjs`,
+          `unregistered .skip/.todo/.skipIf/.runIf/.fixme at ${at} — unskip, or register with owner+reason+reviewBy in scripts/check-test-quality.mjs`,
         )
       }
     }

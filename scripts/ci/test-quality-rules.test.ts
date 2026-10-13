@@ -45,6 +45,7 @@ const SKIP = '.skip'
 const TODO = '.todo'
 const RUN_IF = '.runIf'
 const SKIP_IF = '.skipIf'
+const FIXME = '.fixme'
 
 const entry = (over: Partial<RegisterEntry> = {}): RegisterEntry => ({
   file: 'e2e/parked.spec.ts',
@@ -138,6 +139,10 @@ describe('the rules the gate already had', () => {
       `  test${SKIP}(STORYBOOK_STATIC_DIR === null, reason)`,
       `describe${RUN_IF}(pinned)('fenced', () => {`,
       `  it${SKIP_IF}(!pinned)('fenced', () => {`,
+      // Playwright's own spelling of a skip, in each form it takes.
+      `  test${FIXME}('parked', async ({ page }) => {`,
+      `  test.describe${FIXME}('parked', () => {`,
+      `    test${FIXME}(browserName === 'webkit', 'not yet')`,
     ]) {
       expect(rules.isSkipSite(line)).toBe(true)
     }
@@ -162,14 +167,20 @@ describe('the skip register', () => {
     ])
   })
 
-  it.each([undefined, '', 'next quarter', '13-10-2026'])(
-    'fails an entry whose review-by date is %j',
-    (reviewBy) => {
-      expect(rules.registerFailures([entry({ reviewBy })], oneHit, TODAY)).toEqual([
-        expect.stringContaining('has no reviewBy date (YYYY-MM-DD)'),
-      ])
-    },
-  )
+  it.each([
+    undefined,
+    '',
+    'next quarter',
+    '13-10-2026',
+    // The right shape, and no such day. Compared as text these would pass
+    // until 2028 and until March.
+    '2027-13-45',
+    '2027-02-30',
+  ])('fails an entry whose review-by date is %j', (reviewBy) => {
+    expect(rules.registerFailures([entry({ reviewBy })], oneHit, TODAY)).toEqual([
+      expect.stringContaining('has no reviewBy date that exists (YYYY-MM-DD)'),
+    ])
+  })
 
   it('asks no date of a runtime fence, which the gate checks on every run', () => {
     expect(

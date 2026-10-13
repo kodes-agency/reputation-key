@@ -22,7 +22,9 @@ export const TEST_FILE = /\.(?:test|spec)\.(?:ts|tsx)$|\.stories\.tsx$|\.metrics
 // its `[^\w]` prefix class admits `.`, so with `*.stories.tsx` now in scope an
 // ordinary `chart.fit(` call would have failed the gate.
 const FOCUSED_RE = /(?:^|[^\w.])(?:describe|it|test)(?:\.\w+)*\.only\s*[(.]/
-const SKIP_RE = /\.(?:skip|todo|skipIf|runIf)\(/
+// `fixme` is Playwright's spelling of a skip, in the same three forms
+// (`test.fixme(title, …)`, `test.describe.fixme(…)`, `test.fixme(condition, …)`).
+const SKIP_RE = /\.(?:skip|todo|skipIf|runIf|fixme)\(/
 const BARE_THROW_RE = /\.toThrow(?:Error)?\(\s*\)/
 const NOT_THROW_RE = /\.not\.toThrow(?:Error)?\(/
 const UNASSERTED_REJECTS_RE = /\.rejects\s*(?:;|$)/
@@ -34,7 +36,7 @@ const ANY_REJECTION_RE =
 const ANY_ERROR_CLASS_RE = /\.toThrow(?:Error)?\(\s*Error\s*\)/
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
-/** A `.skip(` / `.todo(` / `.skipIf(` / `.runIf(` site: counted against the register. */
+/** A `.skip(` / `.todo(` / `.skipIf(` / `.runIf(` / `.fixme(` site: counted against the register. */
 export function isSkipSite(line) {
   return SKIP_RE.test(line)
 }
@@ -69,6 +71,16 @@ export function lineFailures(line, at) {
 }
 
 /**
+ * YYYY-MM-DD naming a day that exists. The dates are compared as text, so a
+ * `2027-13-45` that only has the shape would lapse a year late.
+ */
+function isCalendarDate(value) {
+  if (typeof value !== 'string' || !ISO_DATE_RE.test(value)) return false
+  const time = Date.parse(`${value}T00:00:00.000Z`)
+  return !Number.isNaN(time) && new Date(time).toISOString().slice(0, 10) === value
+}
+
+/**
  * A registered skip is debt with a reason, and a reason can stop being true
  * while the entry stays. Entries the gate checks live on every run (the
  * runtime fences, rule 5) cannot go stale that way; every other entry carries
@@ -76,9 +88,9 @@ export function lineFailures(line, at) {
  */
 function reviewFailures(entry, today) {
   if (entry.runtimeFence) return []
-  if (typeof entry.reviewBy !== 'string' || !ISO_DATE_RE.test(entry.reviewBy)) {
+  if (!isCalendarDate(entry.reviewBy)) {
     return [
-      `${entry.file}: skip register entry (owner ${entry.owner}) has no reviewBy date (YYYY-MM-DD) — say when its reason is next checked`,
+      `${entry.file}: skip register entry (owner ${entry.owner}) has no reviewBy date that exists (YYYY-MM-DD) — say when its reason is next checked`,
     ]
   }
   if (entry.reviewBy >= today) return []
