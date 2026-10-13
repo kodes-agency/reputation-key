@@ -2,9 +2,12 @@ import { APIError } from 'better-auth'
 import { describe, expect, it, vi } from 'vitest'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
-import { invitationId } from '#/shared/domain/ids'
+import { invitationId, organizationId } from '#/shared/domain/ids'
 import { identityError, isIdentityError } from '../../domain/errors'
-import { ACCOUNT_EXISTS_MESSAGE } from '../../domain/invitation-copy'
+import {
+  ACCOUNT_EXISTS_MESSAGE,
+  INVITATION_PAUSED_MESSAGE,
+} from '../../domain/invitation-copy'
 import { registerInvitedUser } from './register-invited-user'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
@@ -51,9 +54,18 @@ function setup(clock: () => Date = () => NOW) {
   const reconcile = vi.fn().mockResolvedValue({ kind: 'awaiting_provider' })
   const claimDue = vi.fn().mockResolvedValue([])
   const complete = vi.fn().mockResolvedValue(undefined)
+  // The capability gate's answer for an Organization; open unless a test stops it.
+  const authorizeOrganization = vi.fn(async (_organizationId: string) => true)
   const useCase = registerInvitedUser({
     commandStore: { ...commandStore, acceptInvitation },
     registrationStore: { prepare, claimDue, complete, reconcile },
+    invitations: {
+      findOrganizationId: async (id) => {
+        const invitation = commandStore.invitationById(id as string)
+        return invitation ? organizationId(invitation.organizationId) : null
+      },
+    },
+    authorizeOrganization,
     signUp,
     idGen: () => generatedIds.shift()!,
     clock,
@@ -76,6 +88,7 @@ function setup(clock: () => Date = () => NOW) {
     prepare,
     reconcile,
     complete,
+    authorizeOrganization,
   }
 }
 
@@ -271,6 +284,26 @@ describe('registerInvitedUser', () => {
       }),
       '[identity] invited registration reconciliation failed',
     )
+  })
+
+  // R5G-03: a suspended or stopped Organization must not gain members, and
+  // no account is created for an invitation that cannot be consumed.
+  it("refuses, before any account exists, while the invitation's Organization may not gain members", async () => {
+    const fixture = setup()
+    fixture.authorizeOrganization.mockResolvedValue(false)
+
+    await expect(fixture.useCase(fixture.input)).rejects.toSatisfy(
+      (error: unknown) =>
+        isIdentityError(error) &&
+        error.code === 'forbidden' &&
+        error.message === INVITATION_PAUSED_MESSAGE,
+    )
+
+    expect(fixture.authorizeOrganization.mock.calls).toEqual([['org-manager']])
+    expect(fixture.prepare).not.toHaveBeenCalled()
+    expect(fixture.signUp).not.toHaveBeenCalled()
+    expect(fixture.commandStore.invitationById(INVITATION_ID)?.status).toBe('pending')
+    expect(fixture.commandStore.allMembers).toEqual([])
   })
 
   it('registers and logs, by count only, an invited Property it could not grant', async () => {

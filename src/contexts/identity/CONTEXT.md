@@ -39,6 +39,16 @@ adapter; no other context reads its tables directly.
   the new member is signed in (ADR 0062). An invitation reads as expired once its
   expiry passes; Resend renews the same invitation for another 7 days, and
   inviting that address to another Organization marks the stale row expired.
+- Consuming an invitation asks the capability gate (`identity.invite`, ADR 0032)
+  for the Organization the invitation names, because the joiner has no tenant
+  context yet. While that Organization is suspended, the kill switch is on or
+  restore mode is isolated, the signed-in acceptance and invited registration
+  refuse with one fixed message before anything is written: no account, no
+  recovery record, no membership. Registration recovery runs under the same
+  capability: its schedule is tenant-cross, so it asks before each acceptance,
+  leaves a refused registration for a later pass and counts it as `denied`; it
+  still compensates a half-created account whose invitation is gone. The
+  invitation itself stays pending through a suspension.
 - Platform operators create Organizations from `/operator` without joining them,
   and invite the first AccountAdmin. They act on an Organization only while it
   has no AccountAdmin (ADR 0065).

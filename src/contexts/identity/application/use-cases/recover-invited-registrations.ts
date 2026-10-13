@@ -1,5 +1,6 @@
 import { identityInvitationAccepted } from '../../domain/events'
 import { userId as toUserId } from '#/shared/domain/ids'
+import type { AuthorizeInvitationOrganization } from '../invitation-admission'
 import { reportUngrantedInvitedProperties } from '../invited-property-access'
 import type { IdentityCommandStore } from '../ports/identity-command-store.port'
 import type {
@@ -14,10 +15,21 @@ const INVITED_REGISTRATION_RECOVERY_RETRY_MS = 5 * 60_000
 export type RecoverInvitedRegistrationsResult = Readonly<{
   claimed: number
   accepted: number
+  /** Ready to accept but left alone: the Organization may not gain members now. */
+  denied: number
   awaitingProvider: number
   compensated: number
   manualReview: number
   failures: number
+}>
+
+/** What the schedule that runs a recovery pass hands it. */
+export type RecoverInvitedRegistrationsRun = Readonly<{
+  /**
+   * Current capability policy for one Organization (ADR 0032). The schedule is
+   * tenant-cross and only enumerates, so each acceptance asks first.
+   */
+  authorizeOrganization: AuthorizeInvitationOrganization
 }>
 
 type MutableRecoveryResult = {
@@ -33,13 +45,102 @@ type RecoverInvitedRegistrationsDeps = Readonly<{
   logger: { error: (obj: object, message?: string) => void }
 }>
 
-function recordSettlement(
-  result: MutableRecoveryResult,
-  settlement: ReconcileInvitedRegistrationResult,
-): void {
-  if (settlement.kind === 'awaiting_provider') result.awaitingProvider += 1
-  else if (settlement.kind === 'compensated') result.compensated += 1
-  else if (settlement.kind === 'manual_review') result.manualReview += 1
+type ReadyRegistration = Extract<
+  ReconcileInvitedRegistrationResult,
+  { kind: 'ready_to_accept' }
+>
+
+/** How one claimed registration ended this pass. */
+type ClaimOutcome =
+  Exclude<ReconcileInvitedRegistrationResult['kind'], 'ready_to_accept'> | 'denied'
+
+const COUNTER_BY_OUTCOME = {
+  accepted: 'accepted',
+  denied: 'denied',
+  awaiting_provider: 'awaitingProvider',
+  compensated: 'compensated',
+  manual_review: 'manualReview',
+} as const satisfies Record<ClaimOutcome, keyof RecoverInvitedRegistrationsResult>
+
+function reconcile(
+  deps: RecoverInvitedRegistrationsDeps,
+  verificationId: string,
+): Promise<ReconcileInvitedRegistrationResult> {
+  const now = deps.clock()
+  return deps.registrationStore.reconcile({
+    verificationId,
+    now,
+    nextRecoveryAt: new Date(now.getTime() + INVITED_REGISTRATION_RECOVERY_RETRY_MS),
+  })
+}
+
+async function completeVerification(
+  deps: RecoverInvitedRegistrationsDeps,
+  verificationId: string,
+): Promise<void> {
+  try {
+    await deps.registrationStore.complete(verificationId)
+  } catch (error) {
+    // Acceptance is already authoritative. Leaving this expiring
+    // verification for the next reconciliation is safe.
+    deps.logger.error(
+      { err: error, registrationVerificationId: verificationId },
+      '[identity] invited registration verification cleanup failed',
+    )
+  }
+}
+
+/** Accept a registration whose sign-up finished and whose acceptance did not. */
+async function acceptReadyRegistration(
+  deps: RecoverInvitedRegistrationsDeps,
+  ready: ReadyRegistration,
+): Promise<ClaimOutcome> {
+  const { registration } = ready
+  const acceptanceNow = deps.clock()
+  try {
+    const accepted = await deps.commandStore.acceptInvitation({
+      invitationId: registration.invitationId,
+      acceptorEmail: ready.acceptorEmail,
+      acceptorUserId: toUserId(registration.authIds.userId),
+      now: acceptanceNow,
+      // The same registration: its acceptance verifies the address.
+      markEmailVerified: true,
+      buildEvent: (invitation) =>
+        identityInvitationAccepted({
+          organizationId: invitation.organizationId,
+          userId: toUserId(registration.authIds.userId),
+          invitationId: registration.invitationId,
+          propertyIds: invitation.propertyIds,
+          inviterId: invitation.inviterId ?? undefined,
+          occurredAt: acceptanceNow,
+        }),
+    })
+    reportUngrantedInvitedProperties(deps.logger, accepted)
+  } catch (error) {
+    // The acceptance transaction may have committed before its caller
+    // observed success. Re-read exact authority before deciding.
+    const settlement = await reconcile(deps, registration.verificationId)
+    if (settlement.kind === 'ready_to_accept') throw error
+    return settlement.kind
+  }
+  await completeVerification(deps, registration.verificationId)
+  return 'accepted'
+}
+
+/** Settle one claimed registration under current policy. */
+async function settleClaim(
+  deps: RecoverInvitedRegistrationsDeps,
+  run: RecoverInvitedRegistrationsRun,
+  verificationId: string,
+): Promise<ClaimOutcome> {
+  const settlement = await reconcile(deps, verificationId)
+  if (settlement.kind !== 'ready_to_accept') return settlement.kind
+  // Accepting creates a membership, so current policy is asked for that
+  // Organization first. A refused registration keeps its recovery record and
+  // comes due again: it is finished once the Organization may gain members,
+  // or compensated when its invitation lapses.
+  const admitted = await run.authorizeOrganization(settlement.registration.organizationId)
+  return admitted ? acceptReadyRegistration(deps, settlement) : 'denied'
 }
 
 /**
@@ -50,8 +151,9 @@ function recordSettlement(
  */
 export const recoverInvitedRegistrations =
   (deps: RecoverInvitedRegistrationsDeps) =>
-  // fallow-ignore-next-line complexity
-  async (): Promise<RecoverInvitedRegistrationsResult> => {
+  async (
+    run: RecoverInvitedRegistrationsRun,
+  ): Promise<RecoverInvitedRegistrationsResult> => {
     const claimNow = deps.clock()
     const claimed = await deps.registrationStore.claimDue({
       now: claimNow,
@@ -63,6 +165,7 @@ export const recoverInvitedRegistrations =
     const result: MutableRecoveryResult = {
       claimed: claimed.length,
       accepted: 0,
+      denied: 0,
       awaitingProvider: 0,
       compensated: 0,
       manualReview: 0,
@@ -71,75 +174,8 @@ export const recoverInvitedRegistrations =
 
     for (const claim of claimed) {
       try {
-        const recoveryNow = deps.clock()
-        let settlement = await deps.registrationStore.reconcile({
-          verificationId: claim.verificationId,
-          now: recoveryNow,
-          nextRecoveryAt: new Date(
-            recoveryNow.getTime() + INVITED_REGISTRATION_RECOVERY_RETRY_MS,
-          ),
-        })
-
-        if (settlement.kind === 'ready_to_accept') {
-          const registration = settlement.registration
-          const acceptanceNow = deps.clock()
-          try {
-            const accepted = await deps.commandStore.acceptInvitation({
-              invitationId: registration.invitationId,
-              acceptorEmail: settlement.acceptorEmail,
-              acceptorUserId: toUserId(registration.authIds.userId),
-              now: acceptanceNow,
-              // The same registration: its acceptance verifies the address.
-              markEmailVerified: true,
-              buildEvent: (invitation) =>
-                identityInvitationAccepted({
-                  organizationId: invitation.organizationId,
-                  userId: toUserId(registration.authIds.userId),
-                  invitationId: registration.invitationId,
-                  propertyIds: invitation.propertyIds,
-                  inviterId: invitation.inviterId ?? undefined,
-                  occurredAt: acceptanceNow,
-                }),
-            })
-            reportUngrantedInvitedProperties(deps.logger, accepted)
-            settlement = {
-              kind: 'accepted',
-              organizationId: accepted.organizationId,
-              userId: registration.authIds.userId,
-            }
-            try {
-              await deps.registrationStore.complete(registration.verificationId)
-            } catch (error) {
-              // Acceptance is already authoritative. Leaving this expiring
-              // verification for the next reconciliation is safe.
-              deps.logger.error(
-                {
-                  err: error,
-                  registrationVerificationId: registration.verificationId,
-                },
-                '[identity] invited registration verification cleanup failed',
-              )
-            }
-          } catch (error) {
-            // The acceptance transaction may have committed before its caller
-            // observed success. Re-read exact authority before deciding.
-            const settleNow = deps.clock()
-            settlement = await deps.registrationStore.reconcile({
-              verificationId: registration.verificationId,
-              now: settleNow,
-              nextRecoveryAt: new Date(
-                settleNow.getTime() + INVITED_REGISTRATION_RECOVERY_RETRY_MS,
-              ),
-            })
-            if (settlement.kind === 'ready_to_accept') throw error
-          }
-        }
-
-        if (settlement.kind === 'accepted') {
-          result.accepted += 1
-        } else {
-          recordSettlement(result, settlement)
-        }
+        const outcome = await settleClaim(deps, run, claim.verificationId)
+        result[COUNTER_BY_OUTCOME[outcome]] += 1
       } catch (error) {
         result.failures += 1
         deps.logger.error(

@@ -7,6 +7,10 @@ import {
   REGISTRATION_FAILED_MESSAGE,
 } from '../../domain/invitation-copy'
 import { identityInvitationAccepted } from '../../domain/events'
+import {
+  assertInvitationOrganizationAdmits,
+  type InvitationAdmissionDeps,
+} from '../invitation-admission'
 import { reportUngrantedInvitedProperties } from '../invited-property-access'
 import { providerRefusalCode } from '../provider-refusal'
 import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
@@ -23,19 +27,20 @@ export type RegisterInvitedUserInput = Readonly<{
   password: string
 }>
 
-export type RegisterInvitedUserDeps = Readonly<{
-  commandStore: IdentityCommandStore
-  registrationStore: InvitedRegistrationStore
-  signUp: (
-    name: string,
-    email: string,
-    password: string,
-    expectedAuthIds: RegistrationAuthIds,
-  ) => Promise<string>
-  idGen: () => string
-  clock: () => Date
-  logger: { error: (obj: object, message?: string) => void }
-}>
+export type RegisterInvitedUserDeps = InvitationAdmissionDeps &
+  Readonly<{
+    commandStore: IdentityCommandStore
+    registrationStore: InvitedRegistrationStore
+    signUp: (
+      name: string,
+      email: string,
+      password: string,
+      expectedAuthIds: RegistrationAuthIds,
+    ) => Promise<string>
+    idGen: () => string
+    clock: () => Date
+    logger: { error: (obj: object, message?: string) => void }
+  }>
 
 export type RegisterInvitedUserResult = Readonly<{
   organizationId: OrganizationId
@@ -223,8 +228,10 @@ async function recoverFromAcceptanceFailure(
 /**
  * Invitation-bound account creation saga.
  *
- * A short-lived Better Auth verification row is committed before sign-up;
- * acceptance then locks and revalidates the invitation, and commits the
+ * The invitation's Organization must be allowed to gain members now (the
+ * capability gate); a refusal comes before any account or recovery record
+ * exists. A short-lived Better Auth verification row is then committed before
+ * sign-up; acceptance locks and revalidates the invitation, and commits the
  * membership together with the invited Property access. Any interrupted
  * boundary is reconciled only against the exact preallocated provider IDs,
  * so recovery can resume, safely compensate, or stop for review. Nothing is
@@ -233,6 +240,7 @@ async function recoverFromAcceptanceFailure(
 export const registerInvitedUser =
   (deps: RegisterInvitedUserDeps) =>
   async (input: RegisterInvitedUserInput): Promise<RegisterInvitedUserResult> => {
+    await assertInvitationOrganizationAdmits(deps, input.invitationId)
     const preflightNow = deps.clock()
     const proposedVerificationId = deps.idGen()
     const proposedAuthIds: RegistrationAuthIds = {

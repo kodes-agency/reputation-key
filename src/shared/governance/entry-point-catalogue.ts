@@ -291,7 +291,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   job(
     'recover-invited-registrations',
     'system:identity.accept_invitation',
-    'none',
+    'identity.invite',
     'tenant_cross',
   ),
   job(
@@ -696,7 +696,7 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
   schedule(
     'recover-invited-registrations-recurring',
     'system:identity.accept_invitation',
-    'none',
+    'identity.invite',
     'tenant_cross',
   ),
   schedule(

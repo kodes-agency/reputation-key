@@ -26,6 +26,7 @@ import { acceptInvitation } from '../application/use-cases/accept-invitation'
 import { registerInvitedUser } from '../application/use-cases/register-invited-user'
 import { recoverInvitedRegistrations } from '../application/use-cases/recover-invited-registrations'
 import { createAtomicIdentityCommandStore } from './identity-command-store'
+import { createInvitationReadModel } from './invitation-read-model'
 import { createInvitedRegistrationStore } from './invited-registration-store'
 
 const NOW = new Date('2026-10-13T12:00:00.000Z')
@@ -176,6 +177,13 @@ async function cleanFixtures(): Promise<void> {
 
 const commandStore = () => createAtomicIdentityCommandStore(db, randomUUID)
 
+/** Capability policy is open here; invitation-capability-gate covers the stops. */
+const authorizeOrganization = async () => true
+const admission = () => ({
+  invitations: createInvitationReadModel(db),
+  authorizeOrganization,
+})
+
 /**
  * Accept straight through the command store, as every acceptance path does.
  * `factTag` swaps in a fact type the outbox does not know, so the last write
@@ -299,6 +307,7 @@ describe.sequential('invited Property access (integration)', () => {
     const identity = createInMemoryIdentityPort()
     identity.setSessionUser({ id: fixture.acceptorId, email: fixture.email })
     const acceptSignedIn = acceptInvitation({
+      ...admission(),
       identity: {
         ...identity,
         setActiveOrganization: () => Promise.reject(new Error('session store down')),
@@ -328,6 +337,7 @@ describe.sequential('invited Property access (integration)', () => {
     const registrationStore = createInvitedRegistrationStore(db)
     const ids = [randomUUID(), fixture.acceptorId, `${fixture.acceptorId}-account`]
     const register = registerInvitedUser({
+      ...admission(),
       commandStore: commandStore(),
       registrationStore,
       signUp: async (_name, _email, _password, authIds) => {
@@ -386,7 +396,10 @@ describe.sequential('invited Property access (integration)', () => {
       logger: { error: vi.fn() },
     })
 
-    await expect(recover()).resolves.toMatchObject({ accepted: 1, failures: 0 })
+    await expect(recover({ authorizeOrganization })).resolves.toMatchObject({
+      accepted: 1,
+      failures: 0,
+    })
 
     expect(await membershipRoles(fixture)).toEqual(['admin'])
     expect(await activeGrants(fixture)).toEqual(invitedGrants(fixture))

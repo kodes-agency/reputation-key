@@ -10,14 +10,19 @@ import type { IdentityCommandStore } from '../ports/identity-command-store.port'
 import type { InvitationId, OrganizationId, UserId } from '#/shared/domain/ids'
 import { identityError } from '../../domain/errors'
 import { identityInvitationAccepted } from '../../domain/events'
+import {
+  assertInvitationOrganizationAdmits,
+  type InvitationAdmissionDeps,
+} from '../invitation-admission'
 import { reportUngrantedInvitedProperties } from '../invited-property-access'
 
-export type AcceptInvitationDeps = Readonly<{
-  identity: IdentityPort
-  commandStore: IdentityCommandStore
-  clock: () => Date
-  logger: Readonly<{ error: (obj: object, message?: string) => void }>
-}>
+export type AcceptInvitationDeps = InvitationAdmissionDeps &
+  Readonly<{
+    identity: IdentityPort
+    commandStore: IdentityCommandStore
+    clock: () => Date
+    logger: Readonly<{ error: (obj: object, message?: string) => void }>
+  }>
 
 export type AcceptInvitationInput = Readonly<{
   invitationId: InvitationId
@@ -39,10 +44,13 @@ export type AcceptInvitation = (
  *
  * Steps:
  * 1. Resolve the session — the acceptor's email authorizes the acceptance
- * 2. Persist — command store: lock the invitation, re-validate it, create the
+ * 2. Admit — the invitation's Organization may gain members now (the
+ *    capability gate, scoped by the invitation because the joiner has no
+ *    tenant context yet)
+ * 3. Persist — command store: lock the invitation, re-validate it, create the
  *    membership, mark accepted, grant the invited Properties, and record
  *    identity.invitation.accepted atomically
- * 3. Post-commit — align the session to the joined Organization
+ * 4. Post-commit — align the session to the joined Organization
  */
 export const acceptInvitation =
   (deps: AcceptInvitationDeps): AcceptInvitation =>
@@ -51,6 +59,7 @@ export const acceptInvitation =
     if (!session) {
       throw identityError('forbidden', 'No active session')
     }
+    await assertInvitationOrganizationAdmits(deps, input.invitationId)
 
     const now = deps.clock()
     const result = await deps.commandStore.acceptInvitation({

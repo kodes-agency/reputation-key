@@ -10,6 +10,7 @@ import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-
 import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { isIdentityError } from '../../domain/errors'
+import { INVITATION_PAUSED_MESSAGE } from '../../domain/invitation-copy'
 import { invitationId, userId, organizationId } from '#/shared/domain/ids'
 import type { InvitationId, UserId } from '#/shared/domain/ids'
 
@@ -27,13 +28,22 @@ const setup = (
   commandStore.seedProperty('org-joined', PROPERTY_A)
   commandStore.seedProperty('org-joined', PROPERTY_B)
   const logger = { error: vi.fn() }
+  // The capability gate's answer for an Organization; open unless a test stops it.
+  const authorizeOrganization = vi.fn(async (_organizationId: string) => true)
   const useCase = acceptInvitation({
     identity: { ...identity, ...overrides },
     commandStore,
+    invitations: {
+      findOrganizationId: async (id) => {
+        const invitation = commandStore.invitationById(id as string)
+        return invitation ? organizationId(invitation.organizationId) : null
+      },
+    },
+    authorizeOrganization,
     clock: () => FIXED_TIME,
     logger,
   })
-  return { useCase, identity, outbox, commandStore, logger }
+  return { useCase, identity, outbox, commandStore, logger, authorizeOrganization }
 }
 
 const grantsOf = (
@@ -203,7 +213,7 @@ describe('acceptInvitation', () => {
   })
 
   it('rejects when there is no active session', async () => {
-    const { useCase, outbox } = setup()
+    const { useCase, outbox, authorizeOrganization } = setup()
 
     await expect(
       useCase({
@@ -214,6 +224,62 @@ describe('acceptInvitation', () => {
     ).rejects.toSatisfy((e: unknown) => isIdentityError(e) && e.code === 'forbidden')
 
     expect(outbox.facts).toHaveLength(0)
+    expect(authorizeOrganization).not.toHaveBeenCalled()
+  })
+
+  // R5G-03: a suspended or stopped Organization must not gain members.
+  it("refuses, before anything is written, while the invitation's Organization may not gain members", async () => {
+    const { useCase, identity, outbox, commandStore, authorizeOrganization } = setup()
+    authorizeOrganization.mockResolvedValue(false)
+    identity.setSessionUser({ id: 'user-joining', email: 'joiner@test.com' })
+    commandStore.seedInvitation({
+      id: 'inv-stopped-org',
+      organizationId: 'org-joined',
+      email: 'joiner@test.com',
+      role: 'owner',
+      status: 'pending',
+      expiresAt: new Date(Date.now() + 86_400_000),
+      propertyIds: null,
+      inviterId: 'user-inviter',
+      createdAt: new Date(),
+    })
+
+    await expect(
+      useCase({
+        invitationId: invitationId('inv-stopped-org'),
+        headers: HEADERS,
+        userId: userId('user-joining'),
+      }),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        isIdentityError(e) &&
+        e.code === 'forbidden' &&
+        e.message === INVITATION_PAUSED_MESSAGE,
+    )
+
+    // The decision was asked for the Organization the invitation names.
+    expect(authorizeOrganization.mock.calls).toEqual([['org-joined']])
+    expect(commandStore.invitationById('inv-stopped-org')?.status).toBe('pending')
+    expect(commandStore.allMembers).toEqual([])
+    expect(outbox.facts).toHaveLength(0)
+    expect(identity.activeOrganizationCalls).toEqual([])
+  })
+
+  it('leaves an unknown invitation to the store, which refuses it', async () => {
+    const { useCase, identity, authorizeOrganization } = setup()
+    identity.setSessionUser({ id: 'user-joining', email: 'joiner@test.com' })
+
+    await expect(
+      useCase({
+        invitationId: invitationId('inv-unknown'),
+        headers: HEADERS,
+        userId: userId('user-joining'),
+      }),
+    ).rejects.toSatisfy(
+      (e: unknown) => isIdentityError(e) && e.code === 'invitation_not_found',
+    )
+
+    expect(authorizeOrganization).not.toHaveBeenCalled()
   })
 
   it('propagates (does not swallow) the error when the store rejects', async () => {
