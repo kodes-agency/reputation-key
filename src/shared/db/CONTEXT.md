@@ -13,6 +13,14 @@ the worker sizes its pool from every queue's concurrency at boot
 while it opens a second transaction reserves both clients first
 (`pool-client-reservation.ts`): a lock holder never waits on the pool.
 
+Every pooled session is set to UTC beside its lock timeouts (`pool.ts`). Six
+CHECK constraints compare a deadline with `timestamptz + interval 'N days'`, a
+sum PostgreSQL makes in the session's zone, and the application counts those
+deadlines in fixed milliseconds, so the two agree only where a day is always 24
+hours. Do not rely on the server default: `pool-session-time-zone.integration.test.ts`
+connects with a daylight-saving default and writes across a change. A session
+opened outside the pool (a script's own `pg.Client`) keeps the server default.
+
 ## Schema tracks
 
 1. **Drizzle journal** — `0000_baseline.sql` contains every application table,

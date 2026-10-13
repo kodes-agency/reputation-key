@@ -274,14 +274,15 @@ describe('configurePoolMaxConnections', () => {
 // answers them would hold its checkout, and with it a pool-client reservation
 // queue (pool-client-reservation.ts), forever.
 describe('session guards', () => {
-  it('sets the lock and idle-in-transaction timeouts on every connection', async () => {
+  it('sets the lock and idle-in-transaction timeouts and the UTC zone on every connection', async () => {
     getPool()
     const query = vi.fn(async (_text: string) => ({ rows: [] }))
 
     await fakePools()[0]?.options.onConnect?.({ query })
 
     expect(query).toHaveBeenCalledWith(
-      'SET lock_timeout = 10000; SET idle_in_transaction_session_timeout = 30000',
+      'SET lock_timeout = 10000; SET idle_in_transaction_session_timeout = 30000; ' +
+        "SET TIME ZONE 'UTC'",
     )
   })
 
