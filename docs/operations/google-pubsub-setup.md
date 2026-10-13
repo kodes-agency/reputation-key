@@ -230,13 +230,17 @@ If nothing arrives, in order of likelihood:
   until it is acknowledged, so fixing and deploying the webhook delivers it.
 - Pub/Sub shows 5xx delivery failures on the subscription and the web log says
   `Webhook durable acceptance failed` — the failure is on the app's side (the
-  database, the reference store, Google's signing keys could not be fetched, or
-  a defect), not in the message. It is reported to error monitoring, and
-  Pub/Sub retries the message until it is acknowledged.
+  database, the reference store, a defect, or Google's signing keys could not
+  be read: the key endpoint was unreachable, timed out, or answered with
+  something other than its key set), not in the message. It is reported to
+  error monitoring, and Pub/Sub retries the message until it is acknowledged.
 - Step 3 was skipped or the principal is misspelled — Google drops the publish
   silently. Check the topic's Permissions page.
 - The subscription's audience does not match `GBP_PUBSUB_AUDIENCE` — the app
-  returns 401 and Pub/Sub will show delivery failures on the subscription.
+  returns 401 and Pub/Sub will show delivery failures on the subscription. A
+  401 with `Webhook JWT verification failed` in the web log is always about
+  the token (audience, signature, expiry, or a key id Google does not
+  publish), never about reaching Google's keys.
 - `GBP_PUBSUB_PUSH_SERVICE_ACCOUNT` does not match the subscription's service
   account — same 401.
 - `GBP_PUBSUB_PUSH_SERVICE_ACCOUNT` (or the topic) is not set on the web

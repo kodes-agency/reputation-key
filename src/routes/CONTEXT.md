@@ -159,8 +159,13 @@ failure of ours with a 5xx, never with the status of a refusal (a 400 for a
 payload it could read, a 404 for a link whose lookup failed), and reports it
 where the status is chosen (`captureObservabilityException`). The public link
 redirect reports a marker made in the route and not the error it caught, which
-may carry the Portal token. `api/-answered-failure-capture.test.ts` and the
-routes' own tests hold this.
+may carry the Portal token. The Google push webhook tells a token it refused
+(401) from Google's signing keys it could not read (500, reported) by the token
+library's error code, because the library reports both in one error class.
+`api/-answered-failure-capture.test.ts` and the routes' own tests hold this.
+The Google OAuth callback (`api/auth/google/callback.ts`) is not held to it
+yet: it sends the person's browser back with a failure code and logs, and
+reports nothing.
 
 `api/auth/$.ts` hands a request to Better Auth only when its method and exact
 path are on the allow list in `api/auth/-provider-routes.ts`; every other request
