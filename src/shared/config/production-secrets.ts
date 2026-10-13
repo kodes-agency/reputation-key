@@ -55,14 +55,29 @@ const PLACEHOLDER_MARKERS = [
   'replace-me',
 ] as const
 
-/** Secret-bearing env fields the guard inspects (names only ever logged). */
+/**
+ * Secret-bearing env fields the guard inspects (names only ever logged).
+ *
+ * Every field the schema (env.ts) names like a secret is here, or is listed in
+ * production-secrets.test.ts with why it is not one: that test reads the
+ * schema, so a new signing key or provider secret cannot be added without a
+ * decision. A keyring's parser checks shape only (64 hex characters), so this
+ * list is the only thing that refuses an all-zero key.
+ */
 const SECRET_FIELDS = [
   'BETTER_AUTH_SECRET',
   'RESEND_API_KEY',
+  'RESEND_WEBHOOK_SECRET',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'ENCRYPTION_KEY',
   'OAUTH_STATE_SECRET',
+  'GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS',
+  'GOOGLE_SESSION_BINDING_HMAC_KEYS',
+  'GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS',
+  'GOOGLE_REPLAY_HMAC_KEYS',
+  'GOOGLE_ADMISSION_GRANT_HMAC_KEYS',
+  'GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS',
   'GUEST_SESSION_SALT',
   'PORTAL_TOKEN_HASH_SECRET',
   'PORTAL_ADDRESS_ENCRYPTION_KEYS',
@@ -71,6 +86,13 @@ const SECRET_FIELDS = [
   'NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS',
   'NOTIFICATION_EMAIL_SUPPRESSION_KEY',
   'OPS_METRICS_TOKEN',
+  'OPENAI_API_KEY',
+  'AI_SUBJECT_HMAC_KEYS',
+  'AI_REQUEST_BINDING_HMAC_KEYS',
+  'AI_SAFETY_IDENTIFIER_HMAC_KEYS',
+  'AI_ADMISSION_ED25519_PRIVATE_KEY_B64',
+  'AI_PROVENANCE_ED25519_PRIVATE_KEY_B64',
+  'AWS_S3_SECRET_ACCESS_KEY',
 ] as const
 
 export type ProductionSecretsEnv = Readonly<{
