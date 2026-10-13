@@ -9,10 +9,12 @@ import { registerInvitedUser } from './register-invited-user'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
 const INVITATION_ID = invitationId('inv-register-manager')
+const PROPERTY_ID = 'd4000000-0000-4000-8000-000000000001'
 
 function setup(clock: () => Date = () => NOW) {
   const outbox = createRecordedOutbox()
   const commandStore = createSequentialIdentityCommandStore({ outbox })
+  commandStore.seedProperty('org-manager', PROPERTY_ID)
   commandStore.seedInvitation({
     id: INVITATION_ID as string,
     organizationId: 'org-manager',
@@ -20,12 +22,11 @@ function setup(clock: () => Date = () => NOW) {
     role: 'admin',
     status: 'pending',
     expiresAt: new Date('2026-09-01T12:00:00.000Z'),
-    propertyIds: JSON.stringify(['property-1']),
+    propertyIds: JSON.stringify([PROPERTY_ID]),
     inviterId: 'user-inviter',
     createdAt: NOW,
   })
   const signUp = vi.fn().mockResolvedValue('user-preallocated-manager')
-  const runOnAccepted = vi.fn().mockResolvedValue(undefined)
   const logger = { error: vi.fn() }
   const acceptInvitation = vi.fn(commandStore.acceptInvitation)
   const generatedIds = [
@@ -55,7 +56,6 @@ function setup(clock: () => Date = () => NOW) {
     registrationStore: { prepare, claimDue, complete, reconcile },
     signUp,
     idGen: () => generatedIds.shift()!,
-    runOnAccepted,
     clock,
     logger,
   })
@@ -71,7 +71,6 @@ function setup(clock: () => Date = () => NOW) {
     commandStore,
     outbox,
     signUp,
-    runOnAccepted,
     logger,
     acceptInvitation,
     prepare,
@@ -121,13 +120,17 @@ describe('registerInvitedUser', () => {
     expect(accepted).toHaveLength(1)
     expect(accepted[0]?.inviterId).toBe('user-inviter')
     expect(fixture.complete).toHaveBeenCalledWith('10000000-0000-4000-8000-000000000001')
-    expect(fixture.runOnAccepted).toHaveBeenCalledWith({
-      userId: 'user-preallocated-manager',
-      organizationId: 'org-manager',
-      propertyIds: ['property-1'],
-      inviterId: 'user-inviter',
-      displayName: 'New Manager',
-    })
+    // The acceptance granted the invited Property; nothing runs after it.
+    expect(fixture.commandStore.allPropertyGrants).toEqual([
+      {
+        organizationId: 'org-manager',
+        propertyId: PROPERTY_ID,
+        userId: 'user-preallocated-manager',
+        source: 'invitation',
+        createdBy: 'user-inviter',
+      },
+    ])
+    expect(fixture.logger.error).not.toHaveBeenCalled()
   })
 
   it('verifies the email by consuming the invitation, inside the acceptance', async () => {
@@ -270,17 +273,27 @@ describe('registerInvitedUser', () => {
     )
   })
 
-  it('does not undo accepted authority when a derivative hook fails', async () => {
+  it('registers and logs, by count only, an invited Property it could not grant', async () => {
     const fixture = setup()
-    fixture.runOnAccepted.mockRejectedValueOnce(new Error('assignment unavailable'))
+    const invitation = fixture.commandStore.invitationById(INVITATION_ID)
+    if (!invitation) throw new Error('fixture invitation is missing')
+    // A Property deleted after the invitation was sent.
+    fixture.commandStore.seedInvitation({
+      ...invitation,
+      propertyIds: JSON.stringify([PROPERTY_ID, 'd4000000-0000-4000-8000-0000000000ff']),
+    })
 
     await expect(fixture.useCase(fixture.input)).resolves.toEqual({
       organizationId: 'org-manager',
     })
     expect(fixture.commandStore.invitationById(INVITATION_ID)?.status).toBe('accepted')
+    expect(
+      fixture.commandStore.allPropertyGrants.map((grant) => grant.propertyId),
+    ).toEqual([PROPERTY_ID])
+    expect(fixture.logger.error).toHaveBeenCalledTimes(1)
     expect(fixture.logger.error).toHaveBeenCalledWith(
-      { err: expect.any(Error) },
-      '[identity] invited registration post-accept hook failed',
+      { failedPropertyCount: 1, requestedPropertyCount: 2 },
+      'Invited property access was only partly provisioned',
     )
   })
 })

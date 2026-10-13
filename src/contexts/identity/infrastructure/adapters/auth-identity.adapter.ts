@@ -15,7 +15,6 @@ import { organizationRole } from '#/shared/db/schema/auth'
 import { organizationRolePolicy } from '#/shared/db/schema/dac.schema'
 import { buildPermissionStatement } from '#/shared/auth/permission-catalogue'
 import type { Clock } from '#/shared/domain/clock'
-import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Permission } from '#/shared/domain/permissions'
 import type { DataScope } from '#/shared/domain/data-scope'
 import type {
@@ -93,16 +92,9 @@ function toOrganizationRecord(org: {
 type BetterAuthIdentityAdapterDeps = Readonly<{
   clock: Clock
   idGen: () => string
-  logger: Pick<LoggerPort, 'debug' | 'warn'>
   /** ARC-03-T13: the ambient request context, injected. Infrastructure no
    * longer reaches the web framework itself. */
   requestContext: RequestContextPort
-  onAcceptInvitation: (ctx: {
-    userId: string
-    organizationId: string
-    propertyIds: ReadonlyArray<string>
-    inviterId?: string
-  }) => Promise<unknown>
 }>
 
 export const createBetterAuthIdentityAdapter = (
@@ -245,23 +237,6 @@ export const createBetterAuthIdentityAdapter = (
         id: session.user.id,
         email: session.user.email,
         name: session.user.name,
-      }
-    },
-
-    async runOnAcceptInvitation(ctx: {
-      userId: string
-      organizationId: string
-      propertyIds: ReadonlyArray<string>
-      inviterId?: string
-    }): Promise<void> {
-      // Post-commit side effect — provision explicit invited-Property access
-      // grants through the provisioner owned by this adapter/container. Staff
-      // participation is deliberately untouched.
-      if (ctx.propertyIds.length === 0) return
-      try {
-        await deps.onAcceptInvitation(ctx)
-      } catch (e) {
-        deps.logger.warn({ err: e }, 'Failed to provision invited property access')
       }
     },
 

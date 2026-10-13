@@ -27,7 +27,6 @@ export type ReconcileInvitedRegistrationResult =
   | Readonly<{
       kind: 'accepted'
       organizationId: OrganizationId
-      propertyIds: ReadonlyArray<string>
       userId: string
     }>
 

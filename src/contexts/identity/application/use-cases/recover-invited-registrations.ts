@@ -1,5 +1,6 @@
 import { identityInvitationAccepted } from '../../domain/events'
 import { userId as toUserId } from '#/shared/domain/ids'
+import { reportUngrantedInvitedProperties } from '../invited-property-access'
 import type { IdentityCommandStore } from '../ports/identity-command-store.port'
 import type {
   InvitedRegistrationStore,
@@ -28,15 +29,6 @@ type MutableRecoveryResult = {
 type RecoverInvitedRegistrationsDeps = Readonly<{
   registrationStore: InvitedRegistrationStore
   commandStore: Pick<IdentityCommandStore, 'acceptInvitation'>
-  runOnAccepted: (
-    input: Readonly<{
-      userId: string
-      organizationId: string
-      propertyIds: ReadonlyArray<string>
-      /** Who sent the invitation, when this pass accepted it itself. */
-      inviterId?: string
-    }>,
-  ) => Promise<void>
   clock: () => Date
   logger: { error: (obj: object, message?: string) => void }
 }>
@@ -52,7 +44,9 @@ function recordSettlement(
 
 /**
  * Finish invitation registrations whose foreground request disappeared between
- * Better Auth and the atomic invitation-acceptance transaction.
+ * Better Auth and the atomic invitation-acceptance transaction. The acceptance
+ * commits the membership together with the invited Property access, so a
+ * settled registration needs nothing more from this pass.
  */
 export const recoverInvitedRegistrations =
   (deps: RecoverInvitedRegistrationsDeps) =>
@@ -86,9 +80,6 @@ export const recoverInvitedRegistrations =
           ),
         })
 
-        // Known only when this pass accepts; a settlement read back from
-        // Better Auth does not say who sent the invitation.
-        let inviterId: string | undefined
         if (settlement.kind === 'ready_to_accept') {
           const registration = settlement.registration
           const acceptanceNow = deps.clock()
@@ -110,13 +101,12 @@ export const recoverInvitedRegistrations =
                   occurredAt: acceptanceNow,
                 }),
             })
+            reportUngrantedInvitedProperties(deps.logger, accepted)
             settlement = {
               kind: 'accepted',
               organizationId: accepted.organizationId,
-              propertyIds: accepted.propertyIds,
               userId: registration.authIds.userId,
             }
-            inviterId = accepted.inviterId ?? undefined
             try {
               await deps.registrationStore.complete(registration.verificationId)
             } catch (error) {
@@ -146,21 +136,6 @@ export const recoverInvitedRegistrations =
         }
 
         if (settlement.kind === 'accepted') {
-          try {
-            await deps.runOnAccepted({
-              userId: settlement.userId,
-              organizationId: settlement.organizationId as string,
-              propertyIds: settlement.propertyIds,
-              ...(inviterId ? { inviterId } : {}),
-            })
-          } catch (error) {
-            // Membership authority already committed. This derivative access
-            // hook is independently repairable.
-            deps.logger.error(
-              { err: error },
-              '[identity] invited registration recovery post-accept hook failed',
-            )
-          }
           result.accepted += 1
         } else {
           recordSettlement(result, settlement)

@@ -28,10 +28,7 @@ import {
   bindProcessPolicies,
   registerProcessPolicyColdBoot,
 } from '#/shared/auth/process-policy-binding'
-import {
-  buildIdentityContext,
-  createInvitationPropertyAccessProvisioner,
-} from '#/contexts/identity/build'
+import { buildIdentityContext } from '#/contexts/identity/build'
 import { buildPlatformConsole } from '#/contexts/identity/build-platform'
 import { INVITATION_EXPIRY_SECONDS } from '#/shared/auth/auth'
 import { sendInvitationEmail } from '#/shared/auth/emails'
@@ -175,15 +172,7 @@ function buildContainer(
     domainEventsQueue: options?.opsDomainEventsQueue,
   })
 
-  // Identity port (adapter). Invitation property-access provisioning is a
-  // context-owned capability injected into this adapter instance; it is not a
-  // process-global Better Auth callback and cannot be replaced by another
-  // independently constructed process fixture.
-  const invitationPropertyAccessProvisioner = createInvitationPropertyAccessProvisioner({
-    db,
-    clock,
-    logger,
-  })
+  // Identity port (adapter).
   // ARC-03-T13: the framework/provider seam is selected HERE and injected
   // everywhere else. No context and no other root line calls getRequest() or
   // the better-auth process singleton.
@@ -199,9 +188,7 @@ function buildContainer(
     createBetterAuthIdentityAdapter(db, {
       clock,
       idGen: randomUUID,
-      logger,
       requestContext,
-      onAcceptInvitation: invitationPropertyAccessProvisioner,
     })
   // ARC-03-T9: the Identity/Property/Portal/Inbox member-authority seam.
   // Identity is upstream of the three contexts holding the authorities it

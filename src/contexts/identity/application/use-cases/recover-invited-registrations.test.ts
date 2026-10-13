@@ -16,6 +16,7 @@ const ORGANIZATION_ID = organizationId('organization-recovery-1')
 function setup(
   results: ReadonlyArray<Awaited<ReturnType<InvitedRegistrationStore['reconcile']>>>,
   inviterId: UserId | null = null,
+  ungrantedPropertyIds: ReadonlyArray<string> = [],
 ) {
   const claimDue = vi.fn().mockResolvedValue([{ verificationId: VERIFICATION_ID }])
   const reconcile = vi.fn()
@@ -29,9 +30,8 @@ function setup(
       inviterId,
     }
     builtEvents.push(command.buildEvent(accepted))
-    return accepted
+    return { ...accepted, ungrantedPropertyIds }
   })
-  const runOnAccepted = vi.fn().mockResolvedValue(undefined)
   const logger = { error: vi.fn() }
   const run = recoverInvitedRegistrations({
     registrationStore: {
@@ -41,7 +41,6 @@ function setup(
       complete,
     },
     commandStore: { acceptInvitation } as unknown as IdentityCommandStore,
-    runOnAccepted,
     clock: () => NOW,
     logger,
   })
@@ -52,7 +51,6 @@ function setup(
     acceptInvitation,
     builtEvents,
     complete,
-    runOnAccepted,
     logger,
   }
 }
@@ -104,14 +102,10 @@ describe('recoverInvitedRegistrations', () => {
       }),
     )
     expect(fixture.complete).toHaveBeenCalledWith(VERIFICATION_ID)
-    expect(fixture.runOnAccepted).toHaveBeenCalledWith({
-      userId: 'user-recovery-1',
-      organizationId: ORGANIZATION_ID,
-      propertyIds: ['property-1'],
-    })
+    expect(fixture.logger.error).not.toHaveBeenCalled()
   })
 
-  it('records the inviter on the fact and hands it to the access hook', async () => {
+  it('records the inviter on the fact', async () => {
     const fixture = setup(
       [
         {
@@ -135,12 +129,36 @@ describe('recoverInvitedRegistrations', () => {
     await fixture.run()
 
     expect(fixture.builtEvents.map((event) => event.inviterId)).toEqual(['user-inviter'])
-    expect(fixture.runOnAccepted).toHaveBeenCalledWith({
-      userId: 'user-recovery-1',
-      organizationId: ORGANIZATION_ID,
-      propertyIds: ['property-1'],
-      inviterId: 'user-inviter',
-    })
+  })
+
+  it('logs, by count only, an invited Property its acceptance could not grant', async () => {
+    const fixture = setup(
+      [
+        {
+          kind: 'ready_to_accept',
+          registration: {
+            verificationId: VERIFICATION_ID,
+            invitationId: INVITATION_ID,
+            organizationId: ORGANIZATION_ID,
+            authIds: {
+              userId: 'user-recovery-1',
+              credentialAccountId: 'account-recovery-1',
+              initialSessionId: 'session-recovery-1',
+            },
+          },
+          acceptorEmail: 'manager@example.com',
+        },
+      ],
+      null,
+      ['property-1'],
+    )
+
+    await expect(fixture.run()).resolves.toMatchObject({ accepted: 1, failures: 0 })
+    expect(fixture.logger.error).toHaveBeenCalledTimes(1)
+    expect(fixture.logger.error).toHaveBeenCalledWith(
+      { failedPropertyCount: 1, requestedPropertyCount: 1 },
+      'Invited property access was only partly provisioned',
+    )
   })
 
   it('recognizes an acceptance that committed before its caller observed success', async () => {
@@ -162,7 +180,6 @@ describe('recoverInvitedRegistrations', () => {
       {
         kind: 'accepted',
         organizationId: ORGANIZATION_ID,
-        propertyIds: ['property-1'],
         userId: 'user-recovery-1',
       },
     ])
@@ -170,7 +187,7 @@ describe('recoverInvitedRegistrations', () => {
 
     await expect(fixture.run()).resolves.toMatchObject({ accepted: 1, failures: 0 })
     expect(fixture.reconcile).toHaveBeenCalledTimes(2)
-    expect(fixture.runOnAccepted).toHaveBeenCalledOnce()
+    expect(fixture.acceptInvitation).toHaveBeenCalledOnce()
   })
 
   it.each([
@@ -184,7 +201,6 @@ describe('recoverInvitedRegistrations', () => {
 
     expect(result[countKey]).toBe(1)
     expect(fixture.acceptInvitation).not.toHaveBeenCalled()
-    expect(fixture.runOnAccepted).not.toHaveBeenCalled()
   })
 
   it('continues the bounded batch after one verification fails', async () => {

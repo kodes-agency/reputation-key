@@ -72,6 +72,7 @@ export function buildInvitationUseCases(deps: InvitationUseCaseDeps) {
       identity: deps.identityPort,
       commandStore,
       clock,
+      logger,
     }),
     cancelInvitation: cancelInvitation({ commandStore, clock }),
     getInvitationPreview: getInvitationPreview({
@@ -85,14 +86,12 @@ export function buildInvitationUseCases(deps: InvitationUseCaseDeps) {
       registrationStore,
       signUp: deps.identityPort.signUp,
       idGen: deps.idGen,
-      runOnAccepted: deps.identityPort.runOnAcceptInvitation,
       clock,
       logger,
     }),
     recoverInvitedRegistrations: recoverInvitedRegistrations({
       commandStore,
       registrationStore,
-      runOnAccepted: deps.identityPort.runOnAcceptInvitation,
       clock,
       logger,
     }),
