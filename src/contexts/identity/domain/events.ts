@@ -160,6 +160,10 @@ export const identityMemberRoleChanged = (
  * An AccountAdmin changed which Properties a PropertyManager can work.
  * Identifiers only: the member, the acting AccountAdmin (`userId`), and the
  * Properties actually granted and revoked — never a no-op.
+ *
+ * Recorded by both writers of the grant table: the Members access edit and the
+ * operator grant and revoke. A grant the operator replaced to give it another
+ * expiry is a granted Property: the notice says access changed, not how.
  */
 export type IdentityMemberPropertyAccessChanged = Readonly<{
   _tag: 'identity.member.property_access_changed'
