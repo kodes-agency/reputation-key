@@ -59,6 +59,20 @@ use case calls it yet, so nothing emits the fact. Network Pressure Records are
 seven-day, content-free, daily-rotating pseudonymous admission facts, not Guest
 identity or analytics attribution.
 
+A signed session is issued, with no limiter of its own, to any page read that carries no
+valid session cookie for the Portal. So the per-session rules (one response, one Qualified
+Scan per 24 hours, the "Start over" budget of 2 per session and 5 per network and Portal
+per 24 hours) hold a guest who keeps the cookie and not a client that drops it. What holds
+that client is the network-and-Portal layer, which does not depend on the session: 5 rating
+submissions and 100 scan observations per hour for one network pseudonym and Portal, each
+with its PostgreSQL pressure twin. That is the bound ADR 0044 "Abuse and privacy" 1 names
+("layered limits by portal, session, network signal") and the one the limiter comment
+relies on ("the network+Portal layer survives the new session identity"). Residual gap:
+against a cookie-less client the "Start over" cap is no tighter than the hourly rating
+budget. Whether to bound session issuance as well is an owner tuning decision and has not
+been taken: a limit by network would also bind the guests of one venue who share an
+address.
+
 The signed session ends 24 hours after the guest opens the Portal, or 24 hours after
 their rating or private feedback if that is later. Its own records follow it: the
 retention sweep deletes the session binding once it has expired and clears the legacy
