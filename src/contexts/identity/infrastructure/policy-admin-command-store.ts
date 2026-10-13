@@ -3,12 +3,14 @@
 // The operator grant and revoke take the Members access edit's per-grant lock
 // and its grant write, so the two surfaces decide a lapsed grant the same way,
 // and each change commits with its identity.member.property_access_changed
-// fact. A command that changes nothing records none.
+// fact. A command that changes nothing records none. A refusal is the tagged
+// IdentityError the Members access edit gives for the same cause.
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import type { PolicyAdminCommandStore } from '../application/ports/policy-admin-command-store.port'
+import { identityError } from '../domain/errors'
 import { revokePropertyAccess } from './repositories/property-access-grant.repository'
 import { lockPropertyGrant, lockPropertyInOrganization } from './property-grant-locks'
 import { writePropertyGrant } from './property-grant-write'
@@ -18,7 +20,7 @@ async function requirePropertyInOrganization(
   input: Readonly<{ organizationId: string; propertyId: string; live: boolean }>,
 ): Promise<void> {
   if (!(await lockPropertyInOrganization(tx, input))) {
-    throw new Error('property not found in organization')
+    throw identityError('validation_error', 'The property is not in this organization')
   }
 }
 
@@ -34,7 +36,10 @@ async function requireOrganizationMember(
     FOR KEY SHARE
   `)
   if (rows.rows.length === 0) {
-    throw new Error(`user ${userId} is not a member of this organization`)
+    throw identityError(
+      'member_not_found',
+      'The user is not a member of this organization',
+    )
   }
 }
 
