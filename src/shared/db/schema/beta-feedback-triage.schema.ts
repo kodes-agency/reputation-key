@@ -1,8 +1,9 @@
 // OBS-01 — content-free local authority for native beta-feedback triage.
 //
-// Report text and masked SVG bytes stay in the restricted Germany-hosted
-// monitoring project. These tables retain only pseudonyms, controlled enums,
-// provider linkage, classifications, ownership, and state-transition evidence.
+// Report text stays in the restricted US-hosted monitoring project, and a masked
+// layout first-party in beta_feedback_masked_layouts. These tables retain only
+// pseudonyms, controlled enums, provider linkage, classifications, ownership,
+// and state-transition evidence.
 
 import { desc, sql } from 'drizzle-orm'
 import {

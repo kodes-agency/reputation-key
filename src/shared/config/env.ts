@@ -160,8 +160,8 @@ const baseEnvSchema = z.object({
     .transform((value) => value?.toLowerCase() === 'true'),
 
   // Error tracking — optional for local/test execution. A deployed production
-  // process requires a Germany-ingestion DSN at the monitoring preload
-  // boundary (shared/observability/telemetry.ts).
+  // process requires a DSN on Sentry's US ingestion host at the monitoring
+  // preload boundary (shared/observability/telemetry.ts).
   SENTRY_DSN: z.url().optional(),
   // Optional source-map upload inputs. Railway exposes build variables to the
   // process environment too, but application runtime behavior never depends on
