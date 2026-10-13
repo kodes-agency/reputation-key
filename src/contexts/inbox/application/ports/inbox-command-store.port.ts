@@ -363,4 +363,12 @@ export type InboxCommandStore = Readonly<{
     consumerName: string,
     status: ApplyReceiptStatus,
   ): Promise<void>
+  /**
+   * Settle as obsolete a delivery that a later fact supersedes (a submission
+   * its guest has withdrawn), unless its consumer already settled it. Returns
+   * once the delivery is settled one way or the other: it waits for an apply
+   * transaction that already holds the receipt key, so whatever that
+   * transaction created is visible afterwards. `eventId` must be a UUID.
+   */
+  settleSupersededDelivery(eventId: string, consumerName: string): Promise<void>
 }>

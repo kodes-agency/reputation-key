@@ -25,9 +25,14 @@ import {
   inboxItems,
   inboxNotes,
 } from '#/shared/db/schema/inbox.schema'
-import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import {
+  insertReceiptRow,
+  reserveReceiptRow,
+  restateReceiptRow,
+  settleSupersededDeliveryRow,
+} from './consumer-receipt-rows'
 import {
   inboxItemId,
   organizationId,
@@ -62,7 +67,6 @@ import {
   type HandlingCycleDecision,
 } from '../domain/handling-cycles'
 import type {
-  ApplyReceiptStatus,
   ApplyReplyObservedCommand,
   ApplyReviewSourceTransitionedCommand,
   ApplySourceCreatedCommand,
@@ -132,34 +136,6 @@ export type InboxCommandAuthority = (
 ) => Promise<Readonly<{ allowed: true }> | Readonly<{ allowed: false; reason: string }>>
 
 const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-async function insertReceiptRow(
-  tx: Tx,
-  eventId: string,
-  consumerName: string,
-  status: ApplyReceiptStatus,
-): Promise<void> {
-  await tx
-    .insert(eventConsumerReceipts)
-    .values({ eventId, consumerName, status })
-    .onConflictDoNothing()
-}
-
-/** Reserve a delivery inside the apply transaction. A concurrent duplicate
- * blocks on the receipt key and then observes no returned row, so it cannot
- * repeat a close/reopen after a later workflow transition. */
-async function reserveReceiptRow(
-  tx: Tx,
-  eventId: string,
-  consumerName: string,
-): Promise<boolean> {
-  const rows = await tx
-    .insert(eventConsumerReceipts)
-    .values({ eventId, consumerName, status: 'applied' })
-    .onConflictDoNothing()
-    .returning({ eventId: eventConsumerReceipts.eventId })
-  return rows.length === 1
-}
 
 /**
  * A withdrawn, purged or ineligible private-feedback source can never be
@@ -2513,6 +2489,13 @@ export const createAtomicInboxCommandStore = (
     applySourceCreatedOnce: async (command) => {
       return trace('inbox.commandStore.applySourceCreatedOnce', async () => {
         const outcome = await db.transaction(async (tx) => {
+          // Reserved before anything is created. A fact that supersedes this
+          // one (a withdrawal handled first) settles the delivery under the
+          // same key, so exactly one of the two wins: a delivery that was
+          // settled meanwhile creates nothing.
+          if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName))) {
+            return 'duplicate' as const
+          }
           const cycleAnchor: HandlingCycleCreationAnchor = command.cycleAnchor ?? {
             sourceRevision: 1,
             openedReason:
@@ -2535,16 +2518,17 @@ export const createAtomicInboxCommandStore = (
                     inserted.item,
                   )
                 : null
-            if (resubmissionFacts) {
-              await insertReceiptRow(tx, command.eventId, command.consumerName, 'applied')
-              return 'applied' as const
-            }
-            await insertReceiptRow(tx, command.eventId, command.consumerName, 'duplicate')
+            if (resubmissionFacts) return 'applied' as const
+            await restateReceiptRow(
+              tx,
+              command.eventId,
+              command.consumerName,
+              'duplicate',
+            )
             return 'duplicate' as const
           }
           await insertOutboxRow(tx, command.fact)
           for (const fact of inserted.openingFacts) await insertOutboxRow(tx, fact)
-          await insertReceiptRow(tx, command.eventId, command.consumerName, 'applied')
           return 'applied' as const
         })
         return outcome
@@ -2639,15 +2623,12 @@ export const createAtomicInboxCommandStore = (
               ? ('duplicate' as const)
               : ('applied' as const)
           if (outcome === 'duplicate') {
-            await tx
-              .update(eventConsumerReceipts)
-              .set({ status: 'duplicate' })
-              .where(
-                and(
-                  eq(eventConsumerReceipts.eventId, command.eventId),
-                  eq(eventConsumerReceipts.consumerName, command.consumerName),
-                ),
-              )
+            await restateReceiptRow(
+              tx,
+              command.eventId,
+              command.consumerName,
+              'duplicate',
+            )
           }
           return outcome
         })
@@ -2693,15 +2674,7 @@ export const createAtomicInboxCommandStore = (
             command.sourceRevision !== undefined &&
             current.currentSourceRevision !== command.sourceRevision
           ) {
-            await tx
-              .update(eventConsumerReceipts)
-              .set({ status: 'obsolete' })
-              .where(
-                and(
-                  eq(eventConsumerReceipts.eventId, command.eventId),
-                  eq(eventConsumerReceipts.consumerName, command.consumerName),
-                ),
-              )
+            await restateReceiptRow(tx, command.eventId, command.consumerName, 'obsolete')
             return 'obsolete' as const
           }
           if (current.status === 'closed') return 'applied' as const
@@ -3008,6 +2981,9 @@ export const createAtomicInboxCommandStore = (
         return 'applied' as const
       })
     },
+
+    settleSupersededDelivery: (eventId, consumerName) =>
+      settleSupersededDeliveryRow(db, eventId, consumerName),
 
     recordReceipt: async (eventId, consumerName, status) => {
       return trace('inbox.commandStore.recordReceipt', async () => {

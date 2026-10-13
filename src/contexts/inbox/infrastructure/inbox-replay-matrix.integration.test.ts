@@ -886,6 +886,53 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
     expect(await receiptFor(EVENT_IDS['guest.feedback.submitted'])).toBe('obsolete')
   })
 
+  // The creation consumer reads the feedback, and only then inserts, in a
+  // transaction of its own. A withdrawal delivered in between found no item,
+  // recorded itself applied and left nothing behind, so the insert that
+  // followed opened work for feedback the guest had already withdrawn
+  // (docs/BETA.md §3: "guest withdrawal cancels it").
+  it('opens no Inbox item when the withdrawal is handled between the creation consumer’s source check and its insert', async () => {
+    await cleanProjection()
+    const deps = guestDeps(SCOPE.feedbackItemId, () => true)
+    const withdrawal = guestEnvelope(
+      'guest.feedback.retracted',
+      'guest.feedback.retracted',
+      {
+        ...guestFeedbackPayload(SCOPE.feedbackId),
+        supersedesSourceEventId: EVENT_IDS['guest.feedback.submitted'],
+      },
+    )
+    const withdrawnAfterTheSourceCheck: GuestFeedbackConsumerDeps = {
+      ...deps,
+      feedbackLookup: {
+        ...deps.feedbackLookup,
+        getFeedbackSnippetById: async (feedbackId, organizationId) => {
+          const seenBeforeTheWithdrawal =
+            await deps.feedbackLookup.getFeedbackSnippetById(feedbackId, organizationId)
+          await handleInboxGuestFeedbackRetracted(deps, withdrawal)
+          return seenBeforeTheWithdrawal
+        },
+      },
+    }
+
+    await handleInboxGuestFeedbackSubmitted(
+      withdrawnAfterTheSourceCheck,
+      guestEnvelope(
+        'guest.feedback.submitted',
+        'guest.feedback.submitted',
+        guestFeedbackPayload(SCOPE.feedbackId),
+      ),
+    )
+
+    const state = await captureState()
+    expect({ items: state.items, cycles: state.cycles }).toEqual({
+      items: [],
+      cycles: [],
+    })
+    expect(await receiptFor(EVENT_IDS['guest.feedback.submitted'])).toBe('obsolete')
+    expect(await receiptFor(withdrawal.eventId)).toBe('applied')
+  })
+
   it('closes a live private-feedback cycle on withdrawal and leaves no releasable slot or manager outcome', async () => {
     await cleanProjection()
     let bodyAvailable = true

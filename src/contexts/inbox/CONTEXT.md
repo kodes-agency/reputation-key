@@ -63,7 +63,14 @@ command stores atomically commit item/cycle state, receipts, history, and
 identifier-only facts. When a Review is first projected after it has already
 changed, the replayed Material Revision cycles are real history but nobody saw
 the earlier revision; their `inbox.handling_cycle.opened` facts carry
-`openedWithItem: true` so Notification announces the item once, as new. `review.reply.observed` is a wake-up hint; the exact-current
+`openedWithItem: true` so Notification announces the item once, as new. A
+private-feedback submission and the withdrawal that takes it back are fenced
+by one receipt key: the creation consumer reserves its receipt before it
+creates anything, and the withdrawal consumer first settles that same
+delivery as obsolete (`settleSupersededDelivery`). A withdrawal handled
+between the creation consumer's source check and its insert therefore refuses
+the insert, and one that meets an insert already in flight waits for it and
+then closes the item. `review.reply.observed` is a wake-up hint; the exact-current
 permit is checked under Review's observation fence before Inbox commits closure or
 reopen work. The reminder job runs every five minutes and Notification revalidates
 recipients immediately before delivery.
