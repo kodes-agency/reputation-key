@@ -84,9 +84,10 @@ export const CONCURRENT_INDEX_REGISTRY: readonly ConcurrentIndexSpec[] = Object.
   // `WHERE <timestamp> < $1 [AND extra] ORDER BY <timestamp> LIMIT n`
   // (`retention/execute-retention-rule.ts`). These tables had no index leading
   // with their rule's timestamp, so each batch read and sorted the whole
-  // table: the daily cost grew with history while the work did not. All seven
-  // are written continuously, hence the sidecar and not the journal.
-  // `retention/retention-rule-indexes.test.ts` holds every rule to an index.
+  // table: the daily cost grew with history while the work did not. All eight
+  // tables are written continuously, hence the sidecar and not the journal.
+  // `retention/retention-rule-indexes.test.ts` holds every rule to an index
+  // its batch can use.
   {
     name: 'guest_responses_retention_deadline_idx',
     table: 'guest_responses',
@@ -97,7 +98,8 @@ export const CONCURRENT_INDEX_REGISTRY: readonly ConcurrentIndexSpec[] = Object.
       ON "guest_responses" ("retention_deadline")`,
   },
   {
-    // Three rules read it: both pseudonym redactions and the 24-month delete.
+    // The 24-month delete reads it. The two pseudonym redactions cannot: see
+    // the next two entries.
     name: 'scan_events_created_at_idx',
     table: 'scan_events',
     columns: ['created_at'],
@@ -105,6 +107,33 @@ export const CONCURRENT_INDEX_REGISTRY: readonly ConcurrentIndexSpec[] = Object.
     hasPredicate: false,
     createSql: `CREATE INDEX CONCURRENTLY "scan_events_created_at_idx"
       ON "scan_events" ("created_at")`,
+  },
+  // A redaction keeps its row, so every scan it has already cleared stays
+  // below the cutoff for the 24 months the row lives. Through the plain index
+  // each batch would pass all of them to find the few that still hold a
+  // value. Each redaction therefore reads a partial index whose predicate is
+  // the rule's own `extraWhere`: it holds only the rows not yet cleared, and a
+  // row leaves it when it is redacted. `ip_hash` is no longer written
+  // (`guest.mapper.ts`), so the first one is empty and its rule ends at once.
+  {
+    name: 'scan_events_ip_hash_redaction_idx',
+    table: 'scan_events',
+    columns: ['created_at'],
+    unique: false,
+    hasPredicate: true,
+    createSql: `CREATE INDEX CONCURRENTLY "scan_events_ip_hash_redaction_idx"
+      ON "scan_events" ("created_at")
+      WHERE "ip_hash" IS NOT NULL`,
+  },
+  {
+    name: 'scan_events_session_id_redaction_idx',
+    table: 'scan_events',
+    columns: ['created_at'],
+    unique: false,
+    hasPredicate: true,
+    createSql: `CREATE INDEX CONCURRENTLY "scan_events_session_id_redaction_idx"
+      ON "scan_events" ("created_at")
+      WHERE "session_id" IS NOT NULL`,
   },
   {
     name: 'guest_qualified_scans_occurred_at_idx',
@@ -135,6 +164,18 @@ export const CONCURRENT_INDEX_REGISTRY: readonly ConcurrentIndexSpec[] = Object.
     createSql: `CREATE INDEX CONCURRENTLY "notifications_coalesced_latest_at_idx"
       ON "notifications" ("coalesced_latest_at")
       WHERE "coalesced_latest_at" IS NOT NULL`,
+  },
+  {
+    // The table's other index on created_at is partial
+    // (`notification_email_queue_immediate_acceptance_health_idx`: immediate
+    // rows with no `not_before`), which the 90-day rule does not ask for.
+    name: 'notification_email_queue_created_at_idx',
+    table: 'notification_email_queue',
+    columns: ['created_at'],
+    unique: false,
+    hasPredicate: false,
+    createSql: `CREATE INDEX CONCURRENTLY "notification_email_queue_created_at_idx"
+      ON "notification_email_queue" ("created_at")`,
   },
   {
     name: 'recent_activity_entries_created_at_idx',

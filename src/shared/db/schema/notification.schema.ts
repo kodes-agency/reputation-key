@@ -240,6 +240,9 @@ export const notificationEmailQueue = pgTable(
     index('notification_email_queue_immediate_acceptance_health_idx')
       .on(t.createdAt.desc(), t.id)
       .where(sql`${t.cadence} = 'immediate' AND ${t.notBefore} IS NULL`),
+    // notification_email_queue_created_at_idx (the retention sweep's order) is
+    // absent here on purpose: the concurrent-index sidecar builds it
+    // (src/shared/db/concurrent-index-registry.ts).
     uniqueIndex('email_queue_property_idempotency_unique')
       .on(t.organizationId, t.propertyId, t.idempotencyKey)
       .where(sql`${t.propertyId} IS NOT NULL`),

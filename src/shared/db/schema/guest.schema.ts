@@ -39,8 +39,11 @@ export const scanEvents = pgTable(
   (t) => [
     index('scan_events_session_idx').on(t.sessionId),
     index('scan_events_portal_idx').on(t.portalId),
-    // scan_events_created_at_idx (the retention sweep's order) is absent here on
-    // purpose: the concurrent-index sidecar builds it
+    // scan_events_created_at_idx (the retention sweep's order) and the two
+    // partial indexes its pseudonym redactions read,
+    // scan_events_ip_hash_redaction_idx and
+    // scan_events_session_id_redaction_idx, are absent here on purpose: the
+    // concurrent-index sidecar builds them
     // (src/shared/db/concurrent-index-registry.ts).
   ],
 )

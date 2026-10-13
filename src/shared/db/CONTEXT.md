@@ -53,8 +53,14 @@ An index on a table that is written continuously is not journalled: a plain
 `concurrent-index-registry.ts`, leave it out of the `pgTable` and note it at the
 table; the deploy runner's sidecar builds it with `CREATE INDEX CONCURRENTLY`.
 The retention sweep orders every batch by its rule's timestamp, so each rule
-needs an index that leads with that column;
-`retention/retention-rule-indexes.test.ts` fails on a rule without one.
+needs an index that leads with that column. For a delete a plain one is enough:
+matched rows leave the range. A redaction keeps its rows, so everything it has
+already cleared stays below the cutoff and a plain index makes each batch pass
+all of it; a redaction rule needs a partial index whose predicate is the rule's
+own `extraWhere`, which holds only the rows not yet cleared. A partial index
+with any other predicate serves no rule: PostgreSQL uses one only when the
+statement states its predicate. `retention/retention-rule-indexes.test.ts` fails
+on a rule with no index its batch can use.
 
 Every environment currently starts from an empty database. A regenerated journal
 cannot be applied over a database that recorded the old entries; if preservation
