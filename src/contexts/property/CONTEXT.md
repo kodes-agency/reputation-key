@@ -85,6 +85,14 @@ foreign keys deliberately stop cross-owner deletion.
     `disconnecting`.
 13. Portal and Guest rows RESTRICT Property deletion until their own purge receipts
     exist. It is never converted into a cascade that erases another owner's rows without that owner's receipt.
+14. A Property update writes only the columns the request changes, and answers
+    and records `property.updated` from the row as committed. The request reads
+    the Property without a lock and its fence covers the Google binding
+    (`sourceEpoch`) and the name and timezone (`profileVersion`) only, so a slug
+    or reply language repeated from that read would undo another admin's save of
+    it. A save that read the Property before a rename or timezone change
+    committed is refused (`stale_property`); two saves of the same other column
+    are last-write-wins.
 
 ## Verification
 
@@ -95,3 +103,5 @@ closure readiness, restrictive purge order, export, and replay.
 `property-archive-restore-google-destination.integration.test.ts` runs Archive,
 Disconnect, Restore and relink as the product does and asserts what Portal
 publication and the guest page are then told about the Google destination.
+`property-update-overlap.integration.test.ts` overlaps two Property saves and
+asserts that neither undoes the other.

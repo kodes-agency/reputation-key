@@ -9,6 +9,10 @@ import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtur
 import { isPropertyError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
+import type {
+  PropertyCommandStore,
+  UpdatePropertyCommand,
+} from '../ports/property-command-store.port'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
@@ -20,14 +24,23 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const propertyRepo = createInMemoryPropertyRepo()
   const outbox = createRecordedOutbox()
+  const store = createSequentialPropertyCommandStore({ repo: propertyRepo, outbox })
+  const updates: UpdatePropertyCommand[] = []
+  const commandStore: PropertyCommandStore = {
+    ...store,
+    updateProperty: async (command) => {
+      updates.push(command)
+      return store.updateProperty(command)
+    },
+  }
   const deps = {
     propertyRepo,
-    commandStore: createSequentialPropertyCommandStore({ repo: propertyRepo, outbox }),
+    commandStore,
     clock: () => FIXED_TIME,
     staffPublicApi: staffApiMock(accessible),
   }
   const useCase = updateProperty(deps)
-  return { useCase, propertyRepo, outbox }
+  return { useCase, propertyRepo, outbox, updates }
 }
 
 describe('updateProperty', () => {
@@ -110,6 +123,70 @@ describe('updateProperty', () => {
     const updated = await useCase({ propertyId: prop.id, name: 'New Name' }, ctx)
 
     expect(updated.defaultReplyLanguage).toBe('tr-Latn')
+  })
+
+  // The read is unlocked and the fence covers the name and timezone only, so a
+  // column repeated from that read would undo another admin's save of it.
+  it('writes only the reply language when that is all the request changes', async () => {
+    const { useCase, propertyRepo, updates } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({ defaultReplyLanguage: 'tr-Latn' })
+    propertyRepo.seed([prop])
+
+    await useCase({ propertyId: prop.id, defaultReplyLanguage: 'bg-Cyrl' }, ctx)
+
+    expect(updates.map((command) => command.patch)).toEqual([
+      { defaultReplyLanguage: 'bg-Cyrl', updatedAt: FIXED_TIME },
+    ])
+  })
+
+  it('leaves the slug and reply language out of a Profile save that renames the Property', async () => {
+    const { useCase, propertyRepo, updates } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({
+      name: 'Old Name',
+      timezone: 'UTC',
+      countryCode: 'US',
+    })
+    propertyRepo.seed([prop])
+
+    await useCase(
+      { propertyId: prop.id, name: 'New Name', timezone: 'UTC', countryCode: 'US' },
+      ctx,
+    )
+
+    expect(updates.map((command) => command.patch)).toEqual([
+      {
+        name: 'New Name',
+        countryCode: 'US',
+        countrySource: 'manual',
+        profileVersion: prop.profileVersion + 1,
+        updatedAt: FIXED_TIME,
+      },
+    ])
+    expect(updates[0]).toMatchObject({
+      expectedSourceEpoch: prop.sourceEpoch,
+      expectedProfileVersion: prop.profileVersion,
+    })
+  })
+
+  it('records the timezone provenance only when the timezone changes', async () => {
+    const { useCase, propertyRepo, updates } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({ timezone: 'UTC' })
+    propertyRepo.seed([prop])
+
+    await useCase({ propertyId: prop.id, timezone: 'Europe/Sofia' }, ctx)
+
+    expect(updates.map((command) => command.patch)).toEqual([
+      {
+        timezone: 'Europe/Sofia',
+        timezoneSource: 'tenant_confirmed',
+        timezoneResolvedAt: FIXED_TIME,
+        profileVersion: prop.profileVersion + 1,
+        updatedAt: FIXED_TIME,
+      },
+    ])
   })
 
   it('rejects users who cannot edit', async () => {

@@ -115,6 +115,45 @@ async function validateUpdateFields(
   }
 }
 
+type ValidatedUpdateFields = Awaited<ReturnType<typeof validateUpdateFields>>
+
+/**
+ * The columns this request changes, and nothing else.
+ *
+ * `existing` was read without a lock, and the command store's fence covers only
+ * `sourceEpoch` and `profileVersion`. `profileVersion` moves with the name and
+ * the timezone alone (it pins reply drafts and the Google destination), so a
+ * slug or reply language repeated here from that read would silently undo
+ * another admin's save of it that committed in between. A column the request
+ * leaves as it found it is therefore left out of the write.
+ */
+function changedColumns(
+  existing: Property,
+  fields: ValidatedUpdateFields,
+  updatedAt: Date,
+): Readonly<Partial<Property>> {
+  const nameChanged = fields.newName !== existing.name
+  const timezoneChanged = fields.newTimezone !== existing.timezone
+  return {
+    ...(nameChanged ? { name: fields.newName } : {}),
+    ...(fields.newSlug !== existing.slug ? { slug: fields.newSlug } : {}),
+    ...(timezoneChanged
+      ? {
+          timezone: fields.newTimezone,
+          timezoneSource: 'tenant_confirmed',
+          timezoneResolvedAt: updatedAt,
+        }
+      : {}),
+    ...(fields.newDefaultReplyLanguage !== existing.defaultReplyLanguage
+      ? { defaultReplyLanguage: fields.newDefaultReplyLanguage }
+      : {}),
+    ...(fields.country ?? {}),
+    ...(nameChanged || timezoneChanged
+      ? { profileVersion: existing.profileVersion + 1 }
+      : {}),
+  }
+}
+
 export const updateProperty =
   (deps: UpdatePropertyDeps) =>
   async (input: UpdatePropertyInput, ctx: AuthContext): Promise<Property> => {
@@ -143,68 +182,24 @@ export const updateProperty =
       ctx.organizationId,
     )
 
-    const hasChanges =
-      fields.newName !== existing.name ||
-      fields.newSlug !== existing.slug ||
-      fields.newTimezone !== existing.timezone ||
-      fields.newDefaultReplyLanguage !== existing.defaultReplyLanguage ||
-      fields.country !== null
+    const changes = changedColumns(existing, fields, updatedAt)
+    if (Object.keys(changes).length === 0) return existing
 
-    if (!hasChanges) return existing
-
-    const profileChanged =
-      fields.newName !== existing.name || fields.newTimezone !== existing.timezone
-    const timezoneChanged = fields.newTimezone !== existing.timezone
-    const nextProfileVersion = existing.profileVersion + (profileChanged ? 1 : 0)
-    const nextSourceEpoch = existing.sourceEpoch
-
-    await deps.commandStore.updateProperty({
+    return deps.commandStore.updateProperty({
       organizationId: ctx.organizationId,
       propertyId,
       expectedSourceEpoch: existing.sourceEpoch,
       expectedProfileVersion: existing.profileVersion,
-      patch: {
-        name: fields.newName,
-        slug: fields.newSlug,
-        timezone: fields.newTimezone,
-        defaultReplyLanguage: fields.newDefaultReplyLanguage,
-        ...(fields.country ?? {}),
-        profileVersion: nextProfileVersion,
-        sourceEpoch: nextSourceEpoch,
-        ...(timezoneChanged
-          ? {
-              timezoneSource: 'tenant_confirmed',
-              timezoneResolvedAt: updatedAt,
-            }
-          : {}),
-        updatedAt,
-      },
-      event: propertyUpdated({
-        propertyId,
-        organizationId: ctx.organizationId,
-        name: fields.newName,
-        slug: fields.newSlug,
-        occurredAt: updatedAt,
-      }),
+      patch: { ...changes, updatedAt },
+      event: (committed) =>
+        propertyUpdated({
+          propertyId,
+          organizationId: ctx.organizationId,
+          name: committed.name,
+          slug: committed.slug,
+          occurredAt: updatedAt,
+        }),
     })
-
-    return {
-      ...existing,
-      name: fields.newName,
-      slug: fields.newSlug,
-      timezone: fields.newTimezone,
-      defaultReplyLanguage: fields.newDefaultReplyLanguage,
-      ...(fields.country ?? {}),
-      profileVersion: nextProfileVersion,
-      sourceEpoch: nextSourceEpoch,
-      ...(timezoneChanged
-        ? {
-            timezoneSource: 'tenant_confirmed',
-            timezoneResolvedAt: updatedAt,
-          }
-        : {}),
-      updatedAt,
-    }
   }
 
 export type UpdateProperty = ReturnType<typeof updateProperty>
