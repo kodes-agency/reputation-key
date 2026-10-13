@@ -208,10 +208,10 @@ jobs:
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
         run: pnpm check:schema-drift
 
-      # Pull requests and main run the identical governed test pair.
-      # `check:coverage` owns the unit project under v8 coverage; pairing it
-      # with the integration project covers the complete suite once and applies
-      # the BQC-6.9 floor + staleness ratchet before merge and after promotion.
+      # Pull requests and main run the identical test pair: the unit project
+      # in the four test-unit shards above, the integration project here.
+      # Neither runs under coverage and no coverage floor is enforced: the
+      # BQC-6.9 `check:coverage` ratchet was deleted on 2026-09-05.
       - name: Test
         env:
           NODE_ENV: test

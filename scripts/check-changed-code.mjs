@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 // BQC-6.9 — changed-code budget gate. Wired as `pnpm check:changed-code` and
-// as a CI step in the check job (ci.yml, after the test step).
+// as the first CI step of the artifacts job (ci.yml, before the web build).
 //
 // Master-plan changed-code budget: every NEW production source module with
 // runtime behavior under src/** must have executable contract evidence: a
-// colocated/direct test, or fresh per-file coverage at the enforced threshold.
+// test that imports it at runtime.
 //
-// Scope (deliberately narrow — the coverage ratchet in check-coverage.mjs
-// owns the overall floor; this gate owns new decision code):
+// Scope (deliberately narrow: this gate owns new decision code and nothing
+// else. No coverage is measured anywhere: the coverage ratchet,
+// scripts/check-coverage.mjs, was deleted on 2026-09-05, and with it the
+// per-file coverage this gate once accepted in place of a test):
 //   included : files ADDED by this branch vs the main merge-base
 //              (`git diff --diff-filter=A <base>...HEAD -- 'src/**'`)
 //   excluded : test files (*.test.ts(x)), stories (*.stories.*),
@@ -16,7 +18,7 @@
 //              config modules. Type/interface-only modules are detected with
 //              the TypeScript parser and excluded because they have no runtime
 //              behavior to exercise.
-//   modified files are NOT gated here (the ratchet owns their coverage).
+//   modified files are NOT gated, here or anywhere else.
 //
 // EXEMPT register — a new file may ship without executable contract evidence
 // ONLY with owner + reason recorded here. The register is rot-checked in two
@@ -24,18 +26,10 @@
 // the file to LOSE its evidence again without the gate noticing.
 //   stale     — the file no longer exists            → remove the entry
 //   redundant — the file is now test-owned (a test does a runtime import of
-//               it) or carries fresh per-file coverage at the enforced
-//               threshold, so the gate would pass it anyway → remove the entry
+//               it), so the gate would pass it anyway → remove the entry
 
 import { spawnSync } from 'node:child_process'
-import {
-  closeSync,
-  existsSync,
-  fstatSync,
-  openSync,
-  readFileSync,
-  statSync,
-} from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join, dirname, basename, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
@@ -234,47 +228,6 @@ const twoHopTestOwners = (directOwners) => {
   return owners
 }
 
-const coveredRuntimeModules = (files) => {
-  const report = join(ROOT, 'coverage/coverage-summary.json')
-  // ONE handle for stat + read. exists → stat → read is a TOCTOU race
-  // (CodeQL js/file-system-race) and not academic here: a concurrent
-  // `pnpm check:coverage` in the same tree rewrites this very file, so the
-  // freshness decision must be made against the bytes actually read.
-  let raw
-  let reportMtimeMs
-  try {
-    const handle = openSync(report, 'r')
-    try {
-      reportMtimeMs = fstatSync(handle).mtimeMs
-      raw = readFileSync(handle, 'utf8')
-    } finally {
-      closeSync(handle)
-    }
-  } catch {
-    return new Set()
-  }
-  const newestSource = Math.max(
-    ...files.map((file) => statSync(join(ROOT, file)).mtimeMs),
-  )
-  if (reportMtimeMs < newestSource) return new Set()
-  const summary = JSON.parse(raw)
-  const covered = new Set()
-  for (const [absolutePath, metrics] of Object.entries(summary)) {
-    if (absolutePath === 'total') continue
-    const file = relative(ROOT, absolutePath)
-    const statements = metrics?.statements
-    const functions = metrics?.functions
-    if (
-      statements?.total > 0 &&
-      statements.pct >= 80 &&
-      (functions?.total === 0 || functions?.pct >= 80)
-    ) {
-      covered.add(file)
-    }
-  }
-  return covered
-}
-
 // Resolve the diff base: explicit env override (CI), then origin/main, then main.
 function resolveBase() {
   const candidates = [process.env.CHANGED_CODE_BASE, 'origin/main', 'main'].filter(
@@ -318,32 +271,23 @@ const added = diff.stdout ? diff.stdout.split('\0').filter(Boolean) : []
 const gated = added.filter((f) => !EXCLUDED(f))
 const runtimeGated = gated.filter(hasRuntimeBehavior)
 const testOwners = twoHopTestOwners(directTestOwners())
-const coverageOwners = coveredRuntimeModules(runtimeGated)
 const exemptFiles = new Map(EXEMPT.map((e) => [e.file, e]))
-// Coverage lookup used only by the exemption-rot check below. Computed with its
-// own freshness window so that touching an exempt file cannot invalidate the
-// window used to judge the ADDED files.
-const exemptPresent = EXEMPT.map((e) => e.file).filter((f) => existsSync(join(ROOT, f)))
-const exemptCovered =
-  exemptPresent.length > 0 ? coveredRuntimeModules(exemptPresent) : new Set()
 
 const failures = []
 for (const file of runtimeGated) {
   if (testOwners.has(file)) continue
-  if (coverageOwners.has(file)) continue
   if (exemptFiles.has(file)) continue
   failures.push(
-    `${file} — added without runtime contract evidence; expected a runtime import from a test, ` +
-      `fresh per-file coverage of at least 80% statements/functions, or a registered exemption ` +
-      'with owner and reason in scripts/check-changed-code.mjs',
+    `${file} — added without runtime contract evidence; expected a runtime import from a test ` +
+      'or a registered exemption with owner and reason in scripts/check-changed-code.mjs',
   )
 }
 
 // Register rot fails the gate in BOTH directions (see the header): an entry for
 // a file that is gone, and an entry for a file the gate would now pass on its
-// own evidence. The redundancy arm uses exactly the same owner/coverage sets as
-// the pass loop above, so it can only fire on exemptions that are provably
-// doing no work.
+// own evidence. The redundancy arm uses exactly the same owner set as the pass
+// loop above, so it can only fire on exemptions that are provably doing no
+// work.
 for (const e of EXEMPT) {
   if (!existsSync(join(ROOT, e.file))) {
     failures.push(
@@ -357,14 +301,6 @@ for (const e of EXEMPT) {
       `exemption no longer needed — remove: ${e.file} (owner ${e.owner}) is test-owned by ` +
         `${owners.join(', ')}, so the gate already passes it on evidence. A dead exemption ` +
         'is not harmless: it pre-authorises the file to lose that evidence unnoticed.',
-    )
-    continue
-  }
-  if (exemptCovered.has(e.file)) {
-    failures.push(
-      `exemption no longer needed — remove: ${e.file} (owner ${e.owner}) already carries ` +
-        'fresh per-file coverage at or above the enforced 80% statements/functions ' +
-        'threshold, so the gate already passes it on evidence.',
     )
   }
 }
