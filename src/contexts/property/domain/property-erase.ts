@@ -86,6 +86,12 @@ const VALID_ERASE_TRANSITIONS: Readonly<
   cancelled: [],
 }
 
+/**
+ * Why the job itself calls an erase off: the Property was restored after the
+ * confirmation, so gate 1 no longer holds and the authorization is void.
+ */
+export const PROPERTY_ERASE_NOT_ARCHIVED_CANCEL_REASON = 'property_not_archived'
+
 /** The last state from which an erasure can still be called off. */
 export const PROPERTY_ERASE_LAST_CANCELLABLE_STATE: PropertyEraseState = 'purge_pending'
 
@@ -162,7 +168,13 @@ export function matchesPropertyEraseConfirmation(
  *
  * Property Erase drives the lifecycle column that BETA-1 B1.5 declared and
  * nothing ever advanced. States before confirmation leave the Property in its
- * existing archived state — a request is not a lifecycle change.
+ * existing archived state — a request is not a lifecycle change. `cancelled`
+ * implies `archived` too: an erase called off from `purge_pending` hands the
+ * Property back to the recoverable lifecycle, and no other command can take a
+ * Property out of `purge_pending`.
+ *
+ * A transition moves the Property only when its two ends imply different
+ * states, so a cancel before `purge_pending` moves nothing.
  */
 export function propertyLifecycleStateForErase(
   state: PropertyEraseState,

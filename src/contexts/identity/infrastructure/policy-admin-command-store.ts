@@ -1,18 +1,17 @@
 // Identity-owned atomic persistence for PropertyAccessGrant administration.
+//
+// The operator grant and revoke take the Members access edit's per-grant lock
+// and its grant write, so the two surfaces decide a lapsed grant the same way,
+// and each change commits with its identity.member.property_access_changed
+// fact. A command that changes nothing records none.
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import type { Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import type { PolicyAdminCommandStore } from '../application/ports/policy-admin-command-store.port'
-import {
-  grantPropertyAccess,
-  revokePropertyAccess,
-} from './repositories/property-access-grant.repository'
-import {
-  lockPropertyGrant,
-  lockPropertyInOrganization,
-  lockUnrevokedGrant,
-} from './property-grant-locks'
+import { revokePropertyAccess } from './repositories/property-access-grant.repository'
+import { lockPropertyGrant, lockPropertyInOrganization } from './property-grant-locks'
+import { writePropertyGrant } from './property-grant-write'
 
 async function requirePropertyInOrganization(
   tx: Tx,
@@ -48,9 +47,18 @@ export const createPostgresPolicyAdminCommandStore = (
       // Nothing new is granted on a deleted Property.
       await requirePropertyInOrganization(tx, { ...command, live: true })
       await requireOrganizationMember(tx, command.organizationId, command.userId)
-      if ((await lockUnrevokedGrant(tx, command)) === null) {
-        await grantPropertyAccess(tx, command)
-      }
+      // The operator names the expiry, so asking for another one replaces an
+      // active grant; the same grant asked again is kept.
+      const granted = await writePropertyGrant(tx, {
+        organizationId: command.organizationId,
+        propertyId: command.propertyId,
+        userId: command.userId,
+        createdBy: command.createdBy,
+        expiresAt: command.expiresAt ?? null,
+        replacesActiveTerm: true,
+        now: command.now,
+      })
+      if (granted) await insertOutboxRow(tx, command.buildEvent())
     })
   },
 
@@ -58,7 +66,8 @@ export const createPostgresPolicyAdminCommandStore = (
     await db.transaction(async (tx) => {
       await lockPropertyGrant(tx, command)
       await requirePropertyInOrganization(tx, { ...command, live: false })
-      await revokePropertyAccess(tx, command)
+      const revoked = await revokePropertyAccess(tx, command)
+      if (revoked) await insertOutboxRow(tx, command.buildEvent())
     })
   },
 })

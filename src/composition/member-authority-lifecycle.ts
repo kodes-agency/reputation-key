@@ -17,9 +17,11 @@ import type { PropertyResponsibilityRuntime } from '#/contexts/property/applicat
 import type { PortalResponsibilityRuntime } from '#/contexts/portal/application/portal-responsibility-runtime'
 import type { InboxAssignmentRuntime } from '#/contexts/inbox/application/inbox-assignment-runtime'
 import type { Clock } from '#/shared/domain/clock'
-import { organizationId, propertyId, userId } from '#/shared/domain/ids'
+import { organizationId, userId } from '#/shared/domain/ids'
 import {
-  isEligibleResponsibleManager,
+  listPropertyIdsNoLongerEligible,
+  MANAGER_BECAME_INELIGIBLE_END_REASON,
+  MANAGER_OFFBOARDED_END_REASON,
   type ResponsibleManagerEligibilityDeps,
 } from '#/shared/responsible-manager-eligibility'
 
@@ -69,14 +71,14 @@ export function createMemberAuthorityLifecycle(
         organizationId: orgId,
         userId: memberId,
         at,
-        endReason: 'manager_offboarded',
+        endReason: MANAGER_OFFBOARDED_END_REASON,
         actorId,
       }),
       deps.portalResponsibility.releaseForUser({
         organizationId: orgId,
         userId: memberId,
         at,
-        endReason: 'manager_offboarded',
+        endReason: MANAGER_OFFBOARDED_END_REASON,
         actorId,
       }),
       deps.inboxAssignments.releaseAssignmentsForUser({
@@ -98,30 +100,16 @@ export function createMemberAuthorityLifecycle(
       deps.propertyResponsibility.listActiveForUser(orgId, memberId),
       deps.portalResponsibility.listActiveForUser(orgId, memberId),
     ])
-    const assignedPropertyIds = [
-      ...new Set([
-        ...propertyAssignments.map((assignment) => assignment.propertyId),
-        ...portalAssignments.map((assignment) => assignment.propertyId),
-      ]),
-    ]
-    const eligibility = new Map(
-      await Promise.all(
-        assignedPropertyIds.map(
-          async (assignedPropertyId) =>
-            [
-              assignedPropertyId,
-              await isEligibleResponsibleManager(
-                deps.eligibility,
-                organizationId(orgId),
-                propertyId(assignedPropertyId),
-                memberId,
-              ),
-            ] as const,
-        ),
+    const lostAt = await listPropertyIdsNoLongerEligible(
+      deps.eligibility,
+      organizationId(orgId),
+      memberId,
+      [...propertyAssignments, ...portalAssignments].map(
+        (assignment) => assignment.propertyId,
       ),
     )
     const isIneligible = (assignmentPropertyId: string): boolean =>
-      eligibility.get(assignmentPropertyId) === false
+      lostAt.has(assignmentPropertyId)
     const propertyIdsToRelease = propertyAssignments
       .filter((assignment) => isIneligible(assignment.propertyId))
       .map((assignment) => assignment.propertyId)
@@ -135,7 +123,7 @@ export function createMemberAuthorityLifecycle(
         userId: memberId,
         propertyIds: propertyIdsToRelease,
         at,
-        endReason: 'manager_became_ineligible',
+        endReason: MANAGER_BECAME_INELIGIBLE_END_REASON,
         actorId,
       }),
       deps.portalResponsibility.releaseForUser({
@@ -143,7 +131,7 @@ export function createMemberAuthorityLifecycle(
         userId: memberId,
         portalIds: portalIdsToRelease,
         at,
-        endReason: 'manager_became_ineligible',
+        endReason: MANAGER_BECAME_INELIGIBLE_END_REASON,
         actorId,
       }),
       // Assignment is operational metadata, never an authority. Inbox

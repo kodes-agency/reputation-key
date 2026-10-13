@@ -241,6 +241,27 @@ describe('permanent Property Erase — typed confirmation (LIF-01-T19)', () => {
     ).resolves.toMatchObject({ state: 'confirmed' })
   })
 
+  it('refuses to confirm the erase of a Property that is no longer archived', async () => {
+    // Restored by another AccountAdmin between the request and the confirmation.
+    for (const lifecycleState of ['active', 'suspended']) {
+      const deps = makeDeps({ authority: previewed, lifecycleState })
+      await expect(
+        confirmPropertyErase(deps, {
+          authorityId: AUTHORITY,
+          organizationId: ORG,
+          typedConfirmation: propertyEraseConfirmationPhrase(PROPERTY),
+          inventoryRevision: 3,
+          graceMs: 3_600_000,
+        }),
+      ).rejects.toMatchObject({
+        _tag: 'PropertyEraseError',
+        code: 'property_not_archived',
+        context: { state: lifecycleState },
+      })
+      expect(deps.recorded.confirm).toEqual([])
+    }
+  })
+
   it('rejects a confirmation against a stale inventory revision', async () => {
     const deps = makeDeps({ authority: previewed })
     await expect(

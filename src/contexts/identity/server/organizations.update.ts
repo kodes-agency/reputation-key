@@ -8,15 +8,14 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged } from '#/shared/auth/server-errors'
-import { getAuth } from '#/shared/auth/auth'
 import { isIdentityError } from '../domain/errors'
-import { retireReplacedIdentityAsset } from '../application/retire-replaced-identity-asset'
 import { throwIdentityError } from './organizations.errors.server'
-import { updateOrganization as updateOrganizationUseCase } from '../application/use-cases/update-organization'
 
 // ── Update organization ──────────────────────────────────────────────
 // Updates organization metadata exposed by the beta application.
 // Per architecture: authorization lives in the use case, not the server function.
+// The use case is the one the build publishes (`requests.updateOrganization`);
+// this function adapts the call to it and composes nothing.
 
 const nullableEmailInput = z
   .union([z.email(), z.literal('')])
@@ -44,21 +43,7 @@ export const updateOrganization = createServerFn({ method: 'POST' })
 
         try {
           const { getContainer } = await import('#/composition')
-          const { assetStorage, identityAssetReferences, logger } = getContainer()
-          const useCase = updateOrganizationUseCase({
-            updateOrg: async (data) => {
-              const auth = getAuth()
-              await auth.api.updateOrganization({ headers, body: { data } })
-            },
-            // A removed logo is freed from the store once the removal is saved.
-            currentLogo: () =>
-              identityAssetReferences.currentOrganizationLogo(ctx.organizationId),
-            retireReplaced: retireReplacedIdentityAsset({
-              storage: assetStorage,
-              logger,
-            }),
-          })
-          await useCase(data, ctx)
+          await getContainer().identityPublicApi.requests.updateOrganization(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)

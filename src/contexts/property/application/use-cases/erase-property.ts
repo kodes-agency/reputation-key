@@ -7,7 +7,10 @@
 //
 // The four gates, in the order they must hold:
 //   1. the Property is already archived — erasure is not a shortcut past the
-//      recoverable lifecycle;
+//      recoverable lifecycle. A Property stays restorable until its erase
+//      reaches `purge_pending`, so this gate is asked at the request, again at
+//      the confirmation, and a last time by the store, under the Property's row
+//      lock, when the job starts the grace period;
 //   2. the requester is a CURRENT AccountAdmin — an ex-admin cannot erase;
 //   3. an INDEPENDENT support authorization reference is supplied;
 //   4. the typed confirmation matches `ERASE PROPERTY <property-id>` and names
@@ -82,23 +85,7 @@ export async function requestPropertyErase(
   deps: ErasePropertyDeps,
   input: RequestPropertyEraseInput,
 ): Promise<PropertyEraseAuthority> {
-  const lifecycleState = await deps.authority.readLifecycleState(
-    input.organizationId,
-    input.propertyId,
-  )
-  if (lifecycleState === null) {
-    throw propertyEraseError(
-      'authority_not_found',
-      'Property does not exist in this Organization',
-    )
-  }
-  if (lifecycleState !== 'archived') {
-    throw propertyEraseError(
-      'property_not_archived',
-      `Permanent erase requires an archived Property (state "${lifecycleState}")`,
-      { state: lifecycleState },
-    )
-  }
+  await assertPropertyArchived(deps, input.organizationId, input.propertyId)
   if (
     !(await deps.authority.isCurrentAccountAdmin(
       input.organizationId,
@@ -233,6 +220,9 @@ export async function confirmPropertyErase(
 ): Promise<PropertyEraseAuthority> {
   const authority = await loadAuthority(deps, input.authorityId, input.organizationId)
   assertValidPropertyEraseTransition(authority.state, 'confirmed')
+  // Gate 1 again: the Property may have been restored since the request, and
+  // the admin typing the phrase need not know a colleague did.
+  await assertPropertyArchived(deps, authority.organizationId, authority.propertyId)
   if (
     authority.inventoryDigest === undefined ||
     authority.retentionPreviewRef === undefined
@@ -290,6 +280,31 @@ export async function cancelPropertyErase(
     reasonCode: input.reasonCode,
     occurredAt: deps.now(),
   })
+}
+
+/** Gate 1, read now. */
+async function assertPropertyArchived(
+  deps: ErasePropertyDeps,
+  organizationId: string,
+  propertyId: string,
+): Promise<void> {
+  const lifecycleState = await deps.authority.readLifecycleState(
+    organizationId,
+    propertyId,
+  )
+  if (lifecycleState === null) {
+    throw propertyEraseError(
+      'authority_not_found',
+      'Property does not exist in this Organization',
+    )
+  }
+  if (lifecycleState !== 'archived') {
+    throw propertyEraseError(
+      'property_not_archived',
+      `Permanent erase requires an archived Property (state "${lifecycleState}")`,
+      { state: lifecycleState },
+    )
+  }
 }
 
 async function loadAuthority(

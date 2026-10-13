@@ -17,11 +17,11 @@ export type UpdateOrganizationDeps = Readonly<{
   updateOrg: (data: Record<string, unknown>) => Promise<void>
   /**
    * Removing the logo frees the object it was: the address the organization has
-   * now, and the cleanup that never throws. A caller that cannot reach storage
-   * leaves both out and the removal still saves.
+   * now, and the cleanup that never throws. Both are required, so there is no
+   * way to build an update that removes a logo and leaves its object behind.
    */
-  currentLogo?: () => Promise<string | null>
-  retireReplaced?: RetireReplacedIdentityAsset
+  currentLogo: (organizationId: string) => Promise<string | null>
+  retireReplaced: RetireReplacedIdentityAsset
 }>
 
 export const updateOrganization =
@@ -47,13 +47,13 @@ export const updateOrganization =
 
     // 3. Delegate to auth provider with the Better Auth payload
     const removingLogo = input.logo === null
-    const previous = removingLogo ? ((await deps.currentLogo?.()) ?? null) : null
+    const previous = removingLogo ? await deps.currentLogo(ctx.organizationId) : null
     await deps.updateOrg(buildOrganizationUpdatePatch(input))
 
     // 4. The logo is no longer shown anywhere; free its bytes (after the save, so a
     //    removal that failed keeps the picture).
     if (removingLogo) {
-      await deps.retireReplaced?.({
+      await deps.retireReplaced({
         previous,
         nextKey: null,
         kind: 'logo',

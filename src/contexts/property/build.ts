@@ -3,7 +3,7 @@
 // Per ADR-0001: the composition root calls this and passes publicApi to consumers.
 
 import type { Database } from '#/shared/db'
-import type { ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 
 import type { PropertyRepository } from './application/ports/property.repository'
 import type { Property } from './domain/types'
@@ -24,12 +24,17 @@ import { createAtomicPropertyCommandStore } from './infrastructure/property-comm
 import { createPropertyGoogleBindingStore } from './infrastructure/property-google-binding-store'
 import { createPropertyLifecycleCommandStore } from './infrastructure/property-lifecycle-command-store'
 import { registerPropertyRetentionConsumer } from './infrastructure/outbox-consumers'
+import { registerPropertyMemberOffboardingConsumers } from './infrastructure/member-offboarding-outbox-consumers'
 import { createPropertyResponsibleManagerRepository } from './infrastructure/repositories/property-responsible-manager.repository'
 import {
   listPropertyResponsibleManagers,
   updatePropertyResponsibleManagers,
 } from './application/use-cases/property-responsible-managers'
-import { isEligiblePropertyManager } from './application/property-manager-eligibility'
+import {
+  isEligiblePropertyManager,
+  policyDeps as managerEligibilityPolicy,
+} from './application/property-manager-eligibility'
+import { releaseRemovedMemberResponsibilities } from '#/shared/responsible-manager-eligibility'
 import {
   archiveProperty,
   disconnectPropertyGoogleBinding,
@@ -39,6 +44,8 @@ import {
 type PropertyContextDeps = Readonly<{
   db: Database
   repo: PropertyRepository
+  /** Consumer receipts for the worker's outbox consumers. */
+  outboxRepo: Pick<OutboxRepository, 'insertReceipt'>
   clock: () => Date
   /** Unused since createProperty was deleted; drop it with the composition argument. */
   idGen: () => string
@@ -164,10 +171,9 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       const properties = await deps.repo.findByIds(orgId, propertyIds)
       return properties.map((p) => ({ id: p.id as string, timezone: p.timezone }))
     },
-    findByGbpLocationId: async (gbpLocationId: string) => {
-      const p = await deps.repo.findByGbpLocationId(gbpLocationId)
-      if (!p) return null
-      return {
+    listByGbpLocationId: async (gbpLocationId: string) => {
+      const holders = await deps.repo.listByGbpLocationId(gbpLocationId)
+      return holders.map((p) => ({
         id: p.id,
         organizationId: p.organizationId,
         googleConnectionId: p.googleConnectionId,
@@ -175,7 +181,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         gbpLocationId: p.gbpLocationId,
         googleBindingState: p.googleBindingState,
         sourceEpoch: p.sourceEpoch,
-      }
+      }))
     },
     getSourceEpoch: async (orgId: OrganizationId, pid: PropertyId) => {
       const property = await deps.repo.findById(orgId, pid)
@@ -260,8 +266,23 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
      * request path is `management.disconnectPropertyGoogleBinding`. */
     googleBinding: bindingApi,
     worker: Object.freeze({
-      registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) =>
-        registerPropertyRetentionConsumer(consumerRegistry, bindingApi),
+      registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => {
+        registerPropertyRetentionConsumer(consumerRegistry, bindingApi)
+        registerPropertyMemberOffboardingConsumers(consumerRegistry, {
+          // What a removed member still holds here: Property responsibilities.
+          release: releaseRemovedMemberResponsibilities({
+            eligibility: managerEligibilityPolicy(managerEligibility),
+            listHeld: responsibleManagerRepo.listActiveForUser,
+            releaseHeld: (release, lost) =>
+              responsibleManagerRepo.releaseForUser({
+                ...release,
+                propertyIds: lost.map((assignment) => assignment.propertyId),
+              }),
+            clock: deps.clock,
+          }),
+          receipts: deps.outboxRepo,
+        })
+      },
     }),
     /** ARC-03-T11: the named member-authority capability. Replaces the root's
      * Property responsible-manager repository reach-through. */

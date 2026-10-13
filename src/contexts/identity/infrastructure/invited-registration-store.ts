@@ -70,18 +70,6 @@ function toPrepared(
   }
 }
 
-function parsePropertyIds(raw: string | null | undefined): ReadonlyArray<string> {
-  if (!raw) return []
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed)
-      ? parsed.filter((value): value is string => typeof value === 'string')
-      : []
-  } catch {
-    return []
-  }
-}
-
 type ReconcileCommand = Readonly<{
   verificationId: string
   now: Date
@@ -111,7 +99,6 @@ async function lockVerificationAndInvitation(
       email: invitation.email,
       status: invitation.status,
       expiresAt: invitation.expiresAt,
-      propertyIds: invitation.propertyIds,
     })
     .from(invitation)
     .where(eq(invitation.id, locatorPayload.invitationId))
@@ -184,13 +171,11 @@ async function applyRecoveryDecision(
     command: ReconcileCommand
     verificationId: string
     payload: InvitedRegistrationVerification
-    currentInvitation: Readonly<{ propertyIds: string | null }> | null
     userRows: ReadonlyArray<Readonly<{ id: string; email: string }>>
     decision: InvitedRegistrationRecoveryDecision
   }>,
 ): Promise<ReconcileInvitedRegistrationResult> {
-  const { command, verificationId, payload, currentInvitation, userRows, decision } =
-    input
+  const { command, verificationId, payload, userRows, decision } = input
 
   if (decision.kind === 'awaiting_provider') {
     await tx
@@ -228,7 +213,6 @@ async function applyRecoveryDecision(
     return {
       kind: 'accepted',
       organizationId: toOrganizationId(payload.organizationId),
-      propertyIds: parsePropertyIds(currentInvitation?.propertyIds),
       userId: payload.authIds.userId,
     }
   }
@@ -418,7 +402,6 @@ export const createInvitedRegistrationStore = (
         command,
         verificationId: currentVerification.id,
         payload,
-        currentInvitation,
         userRows,
         decision,
       })

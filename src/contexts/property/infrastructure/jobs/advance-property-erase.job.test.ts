@@ -14,6 +14,10 @@ import type {
 } from '../../application/ports/property-erase-contributor.port'
 import type { BackupErasureLedgerAppend } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type { Tx } from '#/shared/outbox/commit'
+import {
+  propertyEraseError,
+  type PropertyEraseErrorCode,
+} from '../../domain/property-erase'
 
 const ORG = 'org-erase-job'
 const PROPERTY_A = '50000000-0000-4000-8000-000000000001'
@@ -24,7 +28,7 @@ const NOW = new Date('2027-05-01T00:00:00.000Z')
 type Harness = Readonly<{
   deps: AdvancePropertyEraseDeps
   receipts: PropertyEraseContextReceipt[]
-  transitions: { from: string; to: string }[]
+  transitions: { from: string; to: string; reasonCode?: string }[]
   ledger: BackupErasureLedgerAppend[]
   erasedFor: string[]
 }>
@@ -34,10 +38,12 @@ function harness(
     queue: readonly PropertyEraseAuthority[]
     contributors: readonly PropertyEraseContributor[]
     existingReceipts?: readonly PropertyEraseContext[]
+    /** The store's refusal to move the Property into `purge_pending`. */
+    gracePeriodRefusal?: PropertyEraseErrorCode
   }>,
 ): Harness {
   const receipts: PropertyEraseContextReceipt[] = []
-  const transitions: { from: string; to: string }[] = []
+  const transitions: { from: string; to: string; reasonCode?: string }[] = []
   const ledger: BackupErasureLedgerAppend[] = []
   const erasedFor: string[] = []
   const done = new Set<PropertyEraseContext>(options.existingReceipts ?? [])
@@ -60,7 +66,15 @@ function harness(
       throw new Error('unused')
     },
     transition: async (input) => {
-      transitions.push({ from: input.from, to: input.to })
+      if (input.to === 'purge_pending' && options.gracePeriodRefusal) {
+        // The real store undoes the authority's half of a refused pair.
+        throw propertyEraseError(options.gracePeriodRefusal, 'refused by the store')
+      }
+      transitions.push({
+        from: input.from,
+        to: input.to,
+        ...(input.reasonCode ? { reasonCode: input.reasonCode } : {}),
+      })
       return { ...(options.queue[0] as PropertyEraseAuthority), state: input.to }
     },
     recordContextReceipt: async (receipt) => {
@@ -132,6 +146,57 @@ describe('advance property erase job (LIF-01-T19)', () => {
       authorityId: null,
       rowsErased: 0,
     })
+  })
+
+  it('starts the grace period as a pass that erases nothing', async () => {
+    const { deps, transitions, erasedFor } = harness({
+      queue: [authority('confirmed')],
+      contributors: [contributor('guest', 3)],
+    })
+    await expect(advancePropertyErase(deps)).resolves.toMatchObject({
+      authorityId: AUTHORITY_A,
+      fromState: 'confirmed',
+      toState: 'purge_pending',
+      rowsErased: 0,
+    })
+    expect(transitions).toEqual([{ from: 'confirmed', to: 'purge_pending' }])
+    expect(erasedFor).toEqual([])
+  })
+
+  it('calls the erase off when the Property is no longer archived', async () => {
+    // Restored after the confirmation: the store moves a Property into
+    // purge_pending only from archived.
+    const { deps, transitions, erasedFor, ledger } = harness({
+      queue: [authority('confirmed')],
+      contributors: [contributor('guest', 3)],
+      gracePeriodRefusal: 'property_not_archived',
+    })
+    await expect(advancePropertyErase(deps)).resolves.toMatchObject({
+      authorityId: AUTHORITY_A,
+      fromState: 'confirmed',
+      toState: 'cancelled',
+      rowsErased: 0,
+      ledgerEntryId: null,
+    })
+    expect(transitions).toEqual([
+      { from: 'confirmed', to: 'cancelled', reasonCode: 'property_not_archived' },
+    ])
+    expect(erasedFor).toEqual([])
+    expect(ledger).toEqual([])
+  })
+
+  it('does not call the erase off for any other refusal', async () => {
+    // Losing the authority's own `from` guard is not a restored Property.
+    const { deps, transitions } = harness({
+      queue: [authority('confirmed')],
+      contributors: [contributor('guest', 3)],
+      gracePeriodRefusal: 'invalid_transition',
+    })
+    await expect(advancePropertyErase(deps)).rejects.toMatchObject({
+      _tag: 'PropertyEraseError',
+      code: 'invalid_transition',
+    })
+    expect(transitions).toEqual([])
   })
 
   it('crosses the irreversible boundary as its own pass', async () => {

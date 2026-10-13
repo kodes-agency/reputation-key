@@ -278,13 +278,42 @@ describe('member Property access store', () => {
         organizationId: ORG,
         propertyId: PROPERTY_A,
         userId: MANAGER,
-        source: 'operator',
         createdBy: OTHER_ADMIN,
+        now: NOW,
+        buildEvent: () =>
+          identityMemberPropertyAccessChanged({
+            organizationId: ORG,
+            memberUserId: MANAGER,
+            userId: OTHER_ADMIN,
+            grantedPropertyIds: [PROPERTY_A],
+            revokedPropertyIds: [],
+            occurredAt: NOW,
+          }),
       }),
     ])
 
     expect(await activePropertyIds()).toEqual([PROPERTY_A])
     expect(await grantRows()).toHaveLength(1)
+    // Whichever command granted recorded the fact; the one that found the
+    // grant in place recorded none.
+    expect(await facts()).toEqual([
+      expect.objectContaining({ grantedPropertyIds: [PROPERTY_A] }),
+    ])
+  })
+
+  it('keeps an active temporary grant the operator made, and records nothing', async () => {
+    const expiresAt = new Date(NOW.getTime() + 60_000)
+    await db.execute(sql`
+      INSERT INTO property_access_grant
+        (organization_id, property_id, user_id, source, created_by, expires_at)
+      VALUES (${ORG}, ${PROPERTY_A}, ${MANAGER}, 'operator', ${ADMIN}, ${expiresAt})
+    `)
+
+    const applied = await store.setPropertyAccess(change({ grant: [PROPERTY_A] }))
+
+    expect(applied.grantedPropertyIds).toEqual([])
+    expect((await grantRows()).map((row) => row.revoked)).toEqual([false])
+    expect(await facts()).toEqual([])
   })
 
   it("lists each member's active grants on live Properties", async () => {

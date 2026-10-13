@@ -221,6 +221,8 @@ describe.sequential('acceptInvitation (lifecycle)', () => {
       organizationId: ORG_ID,
       propertyIds: ['prop-a'],
       inviterId: INVITER_ID,
+      // 'prop-a' names no Property: it is reported, and the acceptance stands.
+      ungrantedPropertyIds: ['prop-a'],
     })
     expect(await acceptorVerified()).toBe(true)
     expect(await invitationRow('inv-idlife-verify')).toMatchObject({

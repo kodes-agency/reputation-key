@@ -3,21 +3,22 @@
 // `null`. The patch used to map that `null` to `undefined`, which Better Auth skips on
 // update, so the Organization page said saved and the email came back on reload. The
 // provider is now told `null`, the only value that clears the column.
+//
+// The server function calls the request the Identity build publishes. The container
+// here offers that request as the build wires it (`buildOrganizationSettingsUseCases`)
+// over mocked ports: the provider save, the logo read and the object store.
 
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  updateOrganization: vi.fn(),
+  saveOrganization: vi.fn(),
   currentOrganizationLogo: vi.fn(),
   deleteObject: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
 }))
 
-vi.mock('#/shared/auth/auth', () => ({
-  getAuth: () => ({ api: { updateOrganization: mocks.updateOrganization } }),
-}))
 vi.mock('#/shared/auth/headers', () => ({
   headersFromContext: vi.fn(async () => new Headers({ cookie: 'session=current' })),
 }))
@@ -30,15 +31,17 @@ vi.mock('#/shared/auth/execution-policy', () => ({
 vi.mock('#/shared/observability/traced-server-fn', () => ({
   tracedHandler: (handler: unknown) => handler,
 }))
-vi.mock('#/composition', () => ({
-  getContainer: () => ({
-    assetStorage: { deleteObject: mocks.deleteObject },
-    identityAssetReferences: {
-      currentOrganizationLogo: mocks.currentOrganizationLogo,
-    },
-    logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
-  }),
-}))
+vi.mock('#/composition', async () => {
+  const { buildOrganizationSettingsUseCases } =
+    await import('../build-organization-settings')
+  const requests = buildOrganizationSettingsUseCases({
+    saveOrganization: mocks.saveOrganization,
+    assetReferences: { currentOrganizationLogo: mocks.currentOrganizationLogo },
+    deleteAssetObject: mocks.deleteObject,
+    logger: { warn: vi.fn() },
+  })
+  return { getContainer: () => ({ identityPublicApi: { requests } }) }
+})
 
 import { updateOrganization, updateOrganizationInputSchema } from './organizations.update'
 
@@ -53,8 +56,7 @@ const update = (raw: Parameters<typeof updateOrganizationInputSchema.parse>[0]) 
   )
 
 /** The `data` the provider was asked to save. */
-const savedData = (): Record<string, unknown> =>
-  mocks.updateOrganization.mock.calls[0]?.[0].body.data
+const savedData = (): Record<string, unknown> => mocks.saveOrganization.mock.calls[0]?.[0]
 
 describe('updateOrganization clearing the contact email', () => {
   beforeEach(() => {
@@ -65,13 +67,13 @@ describe('updateOrganization clearing the contact email', () => {
       role: 'AccountAdmin',
     })
     mocks.requireExecutionAllowed.mockResolvedValue(undefined)
-    mocks.updateOrganization.mockResolvedValue({})
+    mocks.saveOrganization.mockResolvedValue(undefined)
   })
 
   it('tells the provider `null` for the empty string a cleared field sends', async () => {
     await update({ name: 'Harborline', contactEmail: '' })
 
-    expect(mocks.updateOrganization).toHaveBeenCalledOnce()
+    expect(mocks.saveOrganization).toHaveBeenCalledOnce()
     expect(savedData().contactEmail).toBeNull()
   })
 
@@ -105,6 +107,6 @@ describe('updateOrganization clearing the contact email', () => {
       /invalid email/iu,
     )
 
-    expect(mocks.updateOrganization).not.toHaveBeenCalled()
+    expect(mocks.saveOrganization).not.toHaveBeenCalled()
   })
 })

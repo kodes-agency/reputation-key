@@ -70,9 +70,11 @@ export type SystemAction =
   | 'system:outbox.redeliver'
   | 'system:portal.health_reconcile'
   | 'system:portal.responsibility_reannounce'
+  | 'system:portal.release_member_responsibility'
   | 'system:portal.destination_revalidate'
   | 'system:portal.media_sweep'
   | 'system:property.import_v2'
+  | 'system:property.release_member_responsibility'
   | 'system:review.sync'
   | 'system:review.refresh_sweep'
   | 'system:review.discovery_sweep'
@@ -291,7 +293,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   job(
     'recover-invited-registrations',
     'system:identity.accept_invitation',
-    'none',
+    'identity.invite',
     'tenant_cross',
   ),
   job(
@@ -370,6 +372,15 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:portal.responsibility_reannounce',
     'portal.write',
     'property',
+  ),
+  // Releasing what a removed member still holds is cleanup: ungated, because a
+  // denied consumer is never retried, and scoped to the Organization, because
+  // the removal fact carries no Property.
+  consumer(
+    'portal.member-offboarding',
+    'system:portal.release_member_responsibility',
+    'none',
+    'organization',
   ),
   // Its own action: 'system:inbox.update' is the tenant-cross reminder sweep.
   // 'inbox.use' is the gate the shared action has always applied here.
@@ -519,6 +530,15 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'property.import-retention-release',
     'system:property.import_v2',
     'property.import_gbp_v2',
+    'organization',
+  ),
+  // Releasing what a removed member still holds is cleanup: ungated, because a
+  // denied consumer is never retried, and scoped to the Organization, because
+  // the removal fact carries no Property.
+  consumer(
+    'property.member-offboarding',
+    'system:property.release_member_responsibility',
+    'none',
     'organization',
   ),
   // AI consumers are gated per capability, so one capability's stop never
@@ -696,7 +716,7 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
   schedule(
     'recover-invited-registrations-recurring',
     'system:identity.accept_invitation',
-    'none',
+    'identity.invite',
     'tenant_cross',
   ),
   schedule(

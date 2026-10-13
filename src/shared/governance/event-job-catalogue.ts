@@ -873,7 +873,8 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     'src/contexts/identity/infrastructure/jobs/recover-invited-registrations.job.ts',
     {
       queue: 'background',
-      capability: 'none',
+      // Recovery accepts invitations: a membership is an Organization write.
+      capability: 'identity.invite',
       action: 'system:identity.accept_invitation',
       schedule: 'every:60000',
       registration: 'enabled',

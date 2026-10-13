@@ -89,4 +89,10 @@ describe('property erase state machine (LIF-01-T19)', () => {
     expect(propertyLifecycleStateForErase('purging')).toBe('purging')
     expect(propertyLifecycleStateForErase('purged')).toBe('purged')
   })
+
+  it('hands a cancelled erase back to the recoverable lifecycle', () => {
+    // Cancel is legal from purge_pending, and no other command leaves that state.
+    expect(isValidPropertyEraseTransition('purge_pending', 'cancelled')).toBe(true)
+    expect(propertyLifecycleStateForErase('cancelled')).toBe('archived')
+  })
 })

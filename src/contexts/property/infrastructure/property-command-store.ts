@@ -89,8 +89,8 @@ export const createAtomicPropertyCommandStore = (db: Database): PropertyCommandS
 
     updateProperty: async (command: UpdatePropertyCommand) => {
       return trace('property.commandStore.updateProperty', async () => {
-        await db.transaction(async (tx) => {
-          const [updated] = await tx
+        const updated = await db.transaction(async (tx) => {
+          const [row] = await tx
             .update(properties)
             .set(buildPropertySetClause(command.patch))
             .where(
@@ -102,15 +102,19 @@ export const createAtomicPropertyCommandStore = (db: Database): PropertyCommandS
                 eq(properties.profileVersion, command.expectedProfileVersion),
               ),
             )
-            .returning({ id: properties.id })
-          if (!updated) {
+            .returning()
+          if (!row) {
             throw propertyError(
               'stale_property',
               'property changed while the update was being committed',
             )
           }
-          await insertOutboxRow(tx, command.event)
+          // The fact names the row this statement left, not the caller's read.
+          const committed = propertyFromRow(row)
+          await insertOutboxRow(tx, command.event(committed))
+          return committed
         })
+        return updated
       })
     },
 

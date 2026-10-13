@@ -141,5 +141,53 @@ describe('Integration Organization lifecycle contributor', () => {
         ),
       ).toBe(true)
     })
+
+    // The evidence reference is `…:n<fenced>:n<subscriptions stopped>:n<credentials
+    // revoked>:n<imports fenced>`. The refresh token is redacted in the same
+    // transaction, so a subscription counted here can never be stopped later.
+    it.each([
+      ['stopped', 1],
+      ['already_stopped', 1],
+      ['not_sent', 0],
+      ['ambiguous', 0],
+    ] as const)(
+      'counts a subscription as stopped only when the provider says so (%s)',
+      async (subscription, counted) => {
+        const provider = createProvider({
+          stopNotificationSubscriptions: vi.fn(async () => subscription),
+        })
+        const { db } = createFakeDb({
+          executed: [],
+          rowsFor: (text) => {
+            if (text.includes('AS connections')) {
+              return [{ connections: 1, imports: 0, legacy: 0 }]
+            }
+            if (text.includes('FOR UPDATE')) {
+              return [
+                {
+                  id: 'connection-live',
+                  encrypted_refresh_token: 'cipher',
+                  credential_use_state: 'active',
+                },
+              ]
+            }
+            if (text.includes('UPDATE google_connections')) {
+              return [{ id: 'connection-live' }]
+            }
+            return []
+          },
+        })
+
+        const result = await createIntegrationOrganizationLifecycleContributor({
+          db,
+          provider,
+        }).prepareClosing(request)
+
+        expect(result).toEqual({
+          outcome: 'complete',
+          evidenceRef: `integration:closing:${LINEAGE}:r3:n1:n${counted}:n1:n0`,
+        })
+      },
+    )
   })
 })

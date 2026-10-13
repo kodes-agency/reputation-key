@@ -18,6 +18,8 @@
 
 import {
   assertValidPropertyEraseTransition,
+  isPropertyEraseError,
+  PROPERTY_ERASE_NOT_ARCHIVED_CANCEL_REASON,
   type PropertyEraseState,
 } from '../../domain/property-erase'
 import type {
@@ -77,21 +79,7 @@ export async function advancePropertyErase(
     if (!authority) return IDLE
 
     if (authority.state === 'confirmed') {
-      // Scheduling only. The grace period runs on `purge_pending`, so this pass
-      // never destroys anything and a cancel is still possible after it.
-      assertValidPropertyEraseTransition(authority.state, 'purge_pending')
-      await store.transition({
-        authorityId: authority.id,
-        from: 'confirmed',
-        to: 'purge_pending',
-        occurredAt: now,
-      })
-      return {
-        ...IDLE,
-        authorityId: authority.id,
-        fromState: 'confirmed',
-        toState: 'purge_pending',
-      }
+      return startGracePeriod(store, authority, now)
     }
 
     if (authority.state === 'purge_pending') {
@@ -114,6 +102,48 @@ export async function advancePropertyErase(
 
     return purgeContexts(deps, store, tx, authority, now)
   })
+}
+
+/**
+ * Scheduling only. The grace period runs on `purge_pending`, so this pass
+ * never destroys anything and a cancel is still possible after it.
+ *
+ * Gate 1 is settled here. The Property stayed restorable while its erase was
+ * requested, previewed and confirmed, and the store moves it only from
+ * `archived`, under the row lock Restore takes. A Property restored since is in
+ * use again: its authorization is void, so the erase is called off in this
+ * pass. Leaving it `confirmed` would fail every later pass at the same place,
+ * ahead of every other erasure.
+ */
+async function startGracePeriod(
+  store: PropertyEraseCommandStore,
+  authority: PropertyEraseAuthority,
+  now: Date,
+): Promise<AdvancePropertyEraseResult> {
+  assertValidPropertyEraseTransition(authority.state, 'purge_pending')
+  const pass = { ...IDLE, authorityId: authority.id, fromState: 'confirmed' } as const
+  try {
+    await store.transition({
+      authorityId: authority.id,
+      from: 'confirmed',
+      to: 'purge_pending',
+      occurredAt: now,
+    })
+    return { ...pass, toState: 'purge_pending' }
+  } catch (error) {
+    if (!isPropertyEraseError(error) || error.code !== 'property_not_archived') {
+      throw error
+    }
+  }
+  assertValidPropertyEraseTransition(authority.state, 'cancelled')
+  await store.transition({
+    authorityId: authority.id,
+    from: 'confirmed',
+    to: 'cancelled',
+    reasonCode: PROPERTY_ERASE_NOT_ARCHIVED_CANCEL_REASON,
+    occurredAt: now,
+  })
+  return { ...pass, toState: 'cancelled' }
 }
 
 async function purgeContexts(

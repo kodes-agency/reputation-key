@@ -18,6 +18,11 @@
 // truth with two entry points — see #408 for why a third, internet-reachable
 // surface was rejected while SAFE-01 was open (the owner removed that
 // ceremony on 2026-09-30).
+//
+// One difference, on purpose: every AccountAdmin holds `policy.admin`, so the
+// live entry point is a tenant surface and its permit record counts the asking
+// Organization's permits only. This command has no tenant and binds the reader
+// that tallies permits across Organizations, whatever `--org` says.
 
 import { pathToFileURL } from 'node:url'
 import { CAPABILITIES } from '../../src/shared/auth/beta-capabilities'

@@ -109,8 +109,15 @@ export type CapabilityRefusalDeps = Readonly<{
   loadExecutionControl: (
     capability: GoogleContentCapability,
   ) => Promise<ExecutionControlRow | null>
+  /**
+   * The empirical permit record for the report's Organization. A tenant
+   * surface binds a reader that tallies that Organization's permits and no
+   * others; only the operator command, which has no tenant, binds one that
+   * tallies every Organization's.
+   */
   loadPermitOutcomes: (
     capability: GoogleContentCapability,
+    organizationId: string | undefined,
   ) => Promise<ReadonlyArray<PermitOutcomeTally>>
 }>
 
@@ -192,9 +199,10 @@ function report(
 export function createCapabilityRefusalExplainer(deps: CapabilityRefusalDeps) {
   async function explainGoogleContent(
     capability: GoogleContentCapability,
+    organizationId: string | undefined,
     reached: AuthorityVerdict[],
   ): Promise<ReadonlyArray<PermitOutcomeTally>> {
-    const permitOutcomes = await deps.loadPermitOutcomes(capability)
+    const permitOutcomes = await deps.loadPermitOutcomes(capability, organizationId)
 
     const control = await deps.loadExecutionControl(capability)
     if (control === null) {
@@ -354,7 +362,11 @@ export function createCapabilityRefusalExplainer(deps: CapabilityRefusalDeps) {
       return report(capability, reached)
     }
 
-    const permitOutcomes = await explainGoogleContent(capability, reached)
+    const permitOutcomes = await explainGoogleContent(
+      capability,
+      input.organizationId,
+      reached,
+    )
     return report(capability, reached, permitOutcomes)
   }
 }

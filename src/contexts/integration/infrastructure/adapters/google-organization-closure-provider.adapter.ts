@@ -21,6 +21,10 @@ import type {
 } from '../../application/ports/google-organization-closure.port'
 import type { GoogleOAuthPort } from '../../application/ports/google-oauth.port'
 import type { TokenEncryptionPort } from '../../application/ports/token-encryption.port'
+import type {
+  GbpUnsubscribeOutcome,
+  GbpUnsubscribeResult,
+} from '../../application/use-cases/manage-notifications'
 
 /**
  * The sentinel the disconnect command store writes over redacted credential
@@ -29,13 +33,33 @@ import type { TokenEncryptionPort } from '../../application/ports/token-encrypti
  */
 const REDACTED_CREDENTIAL = 'redacted'
 
+/**
+ * What closing may record for each answer of the unsubscribe. `stopped` is what
+ * the closing evidence counts, and the refresh token is redacted in the same
+ * transaction, so it is claimed only when every bound account was cleared. A
+ * refusal, and a connection with no account to target, sent nothing. A provider
+ * failure may have cleared some accounts and not others, or reached Google
+ * without an answer we could confirm: it cannot be proved either way.
+ */
+const SUBSCRIPTION_OUTCOME: Readonly<
+  Record<GbpUnsubscribeOutcome, GoogleClosureSubscriptionOutcome>
+> = Object.freeze({
+  unsubscribed: 'stopped',
+  connection_missing: 'not_sent',
+  connection_inactive: 'not_sent',
+  token_unavailable: 'not_sent',
+  authorization_unavailable: 'not_sent',
+  account_unresolved: 'not_sent',
+  provider_failed: 'ambiguous',
+})
+
 export type GoogleOrganizationClosureProviderDeps = Readonly<{
   oauth: Pick<GoogleOAuthPort, 'revokeToken' | 'revokeTokenWithOutcome'>
   encryption: Pick<TokenEncryptionPort, 'decrypt'>
   unsubscribeFromNotifications: (
     organization: OrganizationId,
     connection: GoogleConnectionId,
-  ) => Promise<void>
+  ) => Promise<GbpUnsubscribeResult>
 }>
 
 export const createGoogleOrganizationClosureProvider = (
@@ -50,15 +74,15 @@ export const createGoogleOrganizationClosureProvider = (
         return 'already_stopped'
       }
       try {
-        await deps.unsubscribeFromNotifications(
+        const { outcome } = await deps.unsubscribeFromNotifications(
           organizationId(target.organizationId),
           googleConnectionId(target.connectionId),
         )
-        return 'stopped'
+        return SUBSCRIPTION_OUTCOME[outcome]
       } catch {
-        // `manageNotifications.unsubscribe` already swallows per-target
-        // failures; anything reaching here is an authorization or transport
-        // fault we cannot prove either way.
+        // `manageNotifications.unsubscribe` reports refusals and provider
+        // failures as outcomes and does not throw; anything reaching here is a
+        // defect we cannot prove either way.
         return 'ambiguous'
       }
     },

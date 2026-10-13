@@ -11,9 +11,17 @@ import {
 const NOW = new Date('2026-08-25T12:00:00.000Z')
 const PORTAL = buildTestPortal({ responsibleManagerRevision: 1 })
 
-const setup = () => {
+type Release = Parameters<PortalResponsibleManagerRepository['releaseForUser']>[0]
+
+/**
+ * `removedWhileSaving`: members whose removal commits after the save has read
+ * them as eligible and before its own write commits.
+ */
+const setup = (removedWhileSaving: readonly string[] = []) => {
   const portalRepo = createInMemoryPortalRepo()
   portalRepo.seed([PORTAL])
+  const gone = new Set<string>()
+  const releases: Release[] = []
   let active: PortalResponsibleManager[] = [
     {
       id: 'assignment-1',
@@ -32,8 +40,15 @@ const setup = () => {
     listActiveForPortals: async (_organizationId, portalIds) =>
       active.filter((row) => portalIds.includes(row.portalId)),
     listActiveForUser: async () => active,
-    releaseForUser: async () => ({ released: 0 }),
+    releaseForUser: async (input) => {
+      releases.push(input)
+      const kept = active.filter((row) => row.userId !== input.userId)
+      const released = active.length - kept.length
+      active = kept
+      return { released }
+    },
     replace: async (input) => {
+      removedWhileSaving.forEach((userId) => gone.add(userId))
       const hadManagers = active.length > 0
       active = input.managerUserIds.map((userId, index) => ({
         id: `assignment-${index + 1}`,
@@ -57,23 +72,24 @@ const setup = () => {
     portalRepo,
     managerRepo,
     identityPublicApi: {
-      listActiveManagers: async () => [
-        {
-          userId: 'admin-1',
-          role: 'AccountAdmin' as const,
-          propertyAccessScope: 'organization' as const,
-        },
-        {
-          userId: 'manager-1',
-          role: 'PropertyManager' as const,
-          propertyAccessScope: 'assigned-properties' as const,
-        },
-        {
-          userId: 'manager-no-grant',
-          role: 'PropertyManager' as const,
-          propertyAccessScope: 'assigned-properties' as const,
-        },
-      ],
+      listActiveManagers: async () =>
+        [
+          {
+            userId: 'admin-1',
+            role: 'AccountAdmin' as const,
+            propertyAccessScope: 'organization' as const,
+          },
+          {
+            userId: 'manager-1',
+            role: 'PropertyManager' as const,
+            propertyAccessScope: 'assigned-properties' as const,
+          },
+          {
+            userId: 'manager-no-grant',
+            role: 'PropertyManager' as const,
+            propertyAccessScope: 'assigned-properties' as const,
+          },
+        ].filter((member) => !gone.has(member.userId)),
     },
     staffPublicApi: {
       getAccessiblePropertyIds: async (_org: string, userId: string) =>
@@ -82,7 +98,7 @@ const setup = () => {
     },
     clock: () => NOW,
   }
-  return { deps, managerRepo }
+  return { deps, managerRepo, releases, assigned: () => active.map((row) => row.userId) }
 }
 
 describe('Portal Responsible Managers', () => {
@@ -143,6 +159,55 @@ describe('Portal Responsible Managers', () => {
       _tag: 'PortalError',
       code: 'responsible_manager_ineligible',
     })
+  })
+
+  it('releases a manager removed while the save committed, keeps the others and refuses the save', async () => {
+    const { deps, releases, assigned } = setup(['manager-1'])
+
+    await expect(
+      updatePortalResponsibleManagers(deps)(
+        {
+          portalId: PORTAL.id,
+          managerUserIds: ['admin-1', 'manager-1'],
+          expectedRevision: 1,
+        },
+        buildTestAuthContext({ role: 'AccountAdmin' }),
+      ),
+    ).rejects.toMatchObject({
+      _tag: 'PortalError',
+      code: 'responsible_manager_ineligible',
+    })
+
+    expect(assigned()).toEqual(['admin-1'])
+    expect(releases).toEqual([
+      {
+        organizationId: PORTAL.organizationId,
+        userId: 'manager-1',
+        portalIds: [PORTAL.id],
+        // The clock has not moved since the assignment: an interval ends
+        // after it began.
+        at: new Date(NOW.getTime() + 1),
+        endReason: 'manager_became_ineligible',
+        // Nobody chose this gap, so nobody is left out of its notice.
+        actorId: null,
+      },
+    ])
+  })
+
+  it('releases nobody when every assigned manager is still eligible after the commit', async () => {
+    const { deps, releases, assigned } = setup()
+
+    await updatePortalResponsibleManagers(deps)(
+      {
+        portalId: PORTAL.id,
+        managerUserIds: ['admin-1', 'manager-1'],
+        expectedRevision: 1,
+      },
+      buildTestAuthContext({ role: 'AccountAdmin' }),
+    )
+
+    expect(assigned()).toEqual(['admin-1', 'manager-1'])
+    expect(releases).toEqual([])
   })
 
   it('reports the transition only when the last manager is removed', async () => {

@@ -338,4 +338,38 @@ describe('Organization Export service', () => {
       expect.objectContaining({ deletionEvidenceRef: 's3:deleted:request-1' }),
     )
   })
+
+  // The claim commits before the object is deleted. A claim older than the
+  // lease is one whose deletion failed or died, so the next pass asks for it.
+  it('asks for deletions claimed more than fifteen minutes ago as well as new ones', async () => {
+    const flow = harness()
+
+    await flow.value.purgeNextExpired()
+
+    expect(flow.repo.claimNextExpiredDeletion).toHaveBeenCalledExactlyOnceWith({
+      now: NOW,
+      reclaimClaimedBefore: new Date(NOW.getTime() - 15 * 60 * 1000),
+    })
+  })
+
+  // The repository's claim is a stand-in here and answers every call with the
+  // same `delete_pending` row; that a real later pass is handed the row again
+  // is proven against PostgreSQL in the repository's integration test.
+  it('records no deletion when the object delete fails, and the next pass completes at the claimed revision', async () => {
+    const flow = harness()
+    flow.storage.delete.mockRejectedValueOnce(new Error('object store unavailable'))
+
+    await expect(flow.value.purgeNextExpired()).rejects.toThrow(
+      'object store unavailable',
+    )
+    expect(flow.repo.completeDeletion).not.toHaveBeenCalled()
+
+    await expect(flow.value.purgeNextExpired()).resolves.toBe(true)
+    expect(flow.repo.completeDeletion).toHaveBeenCalledExactlyOnceWith({
+      id: REQUEST_ID,
+      expectedRevision: 6,
+      deletionEvidenceRef: 's3:deleted:request-1',
+      now: NOW,
+    })
+  })
 })
