@@ -169,8 +169,9 @@ rather than "may this role do it?" (ADR 0049). Never merge them into `can()`.
 In a route file the split is mechanical: `can(role, …)` in `beforeLoad` and
 `loader`, `usePermissions()` in the component, so a page never answers from two
 authorities. `src/routes/route-permission-sources.test.ts` fails on a route
-component that asks the static table and on a `hasRole()` it does not list as a
-rank decision. A route still hands some presentational components the answer as
+component that asks the static table, on a helper beside a route that does and
+is not listed as a `beforeLoad` or `loader` helper, and on a `hasRole()` it
+does not list as a rank decision. A route still hands some presentational components the answer as
 a prop (`canEdit`, `permissions`): the value comes from `usePermissions()`, and
 a new component asks the hook itself.
 

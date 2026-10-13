@@ -94,18 +94,15 @@ describe("a Property's Google link as a pill", () => {
     expect(lifecycleCard('unbound')).toContain('Google')
   })
 
-  // A Property with no Business Profile cannot publish a Portal, so the missing
-  // link is something to act on, as the Properties list already shows it.
-  it('draws every state but linked as needing attention', () => {
-    expect(
-      Object.fromEntries(
-        STATES.map((state) => [state, GOOGLE_BINDING_STATUS[state].tone]),
-      ),
-    ).toEqual({
-      active: 'positive',
-      account_confirmation_required: 'warn',
-      disconnected: 'warn',
-      unbound: 'warn',
+  // The words are the ones Google connection always used. A Property with no
+  // Business Profile cannot publish a Portal, so the missing link is something
+  // to act on, as the Properties list already shows it.
+  it('names each state in its own words and draws every state but linked as needing attention', () => {
+    expect(GOOGLE_BINDING_STATUS).toEqual({
+      active: { label: 'Linked', tone: 'positive' },
+      account_confirmation_required: { label: 'Confirmation needed', tone: 'warn' },
+      disconnected: { label: 'Disconnected', tone: 'warn' },
+      unbound: { label: 'Not linked', tone: 'warn' },
     })
   })
 

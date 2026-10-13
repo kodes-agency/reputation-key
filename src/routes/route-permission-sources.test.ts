@@ -75,12 +75,28 @@ describe('route permission checks', () => {
     expect(ROUTES.some((file) => /\bcan\(role, '[\w.]+'\)/u.test(file.text))).toBe(true)
   })
 
-  it('ask the static role table only in beforeLoad and loader: a component asks usePermissions()', () => {
-    const offenders = ROUTES.filter((file) => file.path.endsWith('.tsx'))
-      .map((file) => ({ file: pathOf(file), lines: staticChecksInComponents(file) }))
-      .filter(({ lines }) => lines.length > 0)
+  /**
+   * A helper beside a route (`-*.ts`) has no route options to be inside of, so
+   * one that asks the static table is listed with the `beforeLoad` or `loader`
+   * that calls it. A helper a component calls takes the hook's answer instead.
+   */
+  const LOADER_HELPERS: Readonly<Record<string, string>> = {
+    '_authenticated/properties/import-google/-route-access.ts':
+      'requireGoogleImportRole, called by the beforeLoad of both import routes',
+  }
+  const asksStaticTable = ROUTES.map((file) => ({
+    file: pathOf(file),
+    lines: staticChecksInComponents(file),
+  })).filter(({ lines }) => lines.length > 0)
 
-    expect(offenders).toEqual([])
+  it('ask the static role table only in beforeLoad and loader: a component asks usePermissions()', () => {
+    expect(asksStaticTable.filter(({ file }) => !(file in LOADER_HELPERS))).toEqual([])
+  })
+
+  it('list no loader helper that no longer asks the static role table', () => {
+    const asking = new Set(asksStaticTable.map(({ file }) => file))
+
+    expect(Object.keys(LOADER_HELPERS).filter((file) => !asking.has(file))).toEqual([])
   })
 
   /**
