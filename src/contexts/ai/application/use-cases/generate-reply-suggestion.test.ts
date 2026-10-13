@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
-import { MERCHANT_AI_NOTICE_VERSION } from '#/shared/merchant-ai-notice-contract'
+import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+} from '#/shared/merchant-ai-notice-contract'
 import {
   LANGUAGE_CATALOGUE_DIGEST,
   mapReviewLanguageMetadata,
@@ -109,6 +113,13 @@ function createHarness(
       | 'provider_refused'
       | 'output_invalid'
       | 'output_truncated'
+    /** The notice the Property's consent was recorded under. Defaults to the served one. */
+    consentNotice?: Readonly<{ noticeVersion: string; noticeDigest: string }>
+    /**
+     * Run the gateway's own request check on what the use case sends, as the
+     * in-process inference adapter does before anything else.
+     */
+    checksGatewayRequest?: boolean
   }> = {},
 ) {
   let admissionCalls = 0
@@ -179,8 +190,9 @@ function createHarness(
       executionPermitId: PERMIT_ID,
     }
   })
-  const generateReply = vi.fn(async () =>
-    options.gatewayErrorCode
+  const generateReply = vi.fn(async (request: unknown) => {
+    if (options.checksGatewayRequest) parseAiGatewayRouteRequest(request)
+    return options.gatewayErrorCode
       ? ({
           route: 'reply-suggestion' as const,
           status: 'error' as const,
@@ -221,8 +233,8 @@ function createHarness(
             settlementState: 'settled' as const,
             receiptSignature: 'A'.repeat(86),
           },
-        } as const),
-  )
+        } as const)
+  })
   const settleEphemeralReply = vi.fn(async () => {
     settlementAttempted = true
     return options.settleEphemeralReplyResult ?? true
@@ -251,7 +263,8 @@ function createHarness(
         },
         reviewAnalysisStartSequence: 1,
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-        noticeDigest: SHA,
+        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+        ...options.consentNotice,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         sourceCanonicalizerDigest: SHA,
         redactionProfileFamily: 'gbp-review-global-v1',
@@ -1151,7 +1164,7 @@ describe('generate reply suggestion: operation binding', () => {
     const binding = {
       authorizationLineageId: LINEAGE_ID,
       noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-      noticeDigest: SHA,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       capabilityFence: {
         capability: 'reply_drafting',
         replyDraftingEpoch: 7,
@@ -1208,5 +1221,71 @@ describe('generate reply suggestion: operation binding', () => {
     )
     expect(request?.idempotencyKey).toBe('reply-suggestion-test-key')
     expect(request?.expiresAtEpochMillis).toBe(NOW + 15 * 60_000)
+  })
+})
+
+// A new notice version ships with a deploy. A Property enabled under the
+// previous one keeps that version on its enablement until an AccountAdmin
+// confirms the new notice. The gateway's request check refuses such a draft
+// by throwing, and that used to be the only place the two were compared:
+// after the operation and an execution attempt had been claimed, so the
+// manager got an unclassified server error.
+describe('generate reply suggestion: a consent recorded under an earlier notice', () => {
+  const EARLIER_NOTICE = {
+    noticeVersion: 'merchant-ai-notice-2026-09-09.v1',
+    noticeDigest: 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1',
+  }
+
+  it('sends a request the gateway accepts when the consent is under the served notice', async () => {
+    const harness = createHarness({ checksGatewayRequest: true })
+
+    await expect(harness.generate(INPUT)).resolves.toMatchObject({ status: 'ready' })
+    expect(harness.mocks.generateReply).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['an earlier notice version', EARLIER_NOTICE],
+    [
+      'the served version with another text',
+      { noticeVersion: MERCHANT_AI_NOTICE_VERSION, noticeDigest: SHA },
+    ],
+  ])(
+    'answers that the consent needs renewing under %s, before anything is claimed',
+    async (_case, consentNotice) => {
+      const harness = createHarness({ checksGatewayRequest: true, consentNotice })
+
+      await expect(harness.generate(INPUT)).resolves.toEqual({
+        status: 'unavailable',
+        code: 'consent_renewal_required',
+        retryAfterEpochMillis: null,
+      })
+      expectNoAiExecution(
+        harness.mocks.readHeads,
+        harness.mocks.claim,
+        harness.mocks.claimExecution,
+        harness.mocks.recordFailure,
+        harness.mocks.acquire,
+        harness.mocks.release,
+        harness.mocks.generateReply,
+        harness.mocks.settleEphemeralReply,
+        harness.mocks.markDelivered,
+      )
+    },
+  )
+
+  it('still loads the governed template, which needs no AI consent', async () => {
+    const harness = createHarness({
+      consentNotice: EARLIER_NOTICE,
+      propertyReplyLanguage: 'en-Latn',
+    })
+
+    await expect(
+      harness.generate({ ...INPUT, templateOnly: true }),
+    ).resolves.toMatchObject({
+      status: 'fallback',
+      kind: 'local_safe_template',
+      reason: 'template_requested',
+    })
+    expect(harness.mocks.readMerchantAuthorization).not.toHaveBeenCalled()
   })
 })

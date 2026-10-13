@@ -38,7 +38,10 @@ import {
   createScheduledScopeAuthorizer,
 } from '#/shared/jobs/delayed-execution-gate'
 import { createJobRegistry } from '#/shared/jobs/registry'
-import { MERCHANT_AI_NOTICE_VERSION } from '#/shared/merchant-ai-notice-contract'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+} from '#/shared/merchant-ai-notice-contract'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type {
   AiReviewAnalysisBacklogEntry,
@@ -224,7 +227,7 @@ function analysisWithOpenGates(clock: Readonly<{ now: number }>) {
         },
         reviewAnalysisStartSequence: 1,
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-        noticeDigest: SHA,
+        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         sourceCanonicalizerDigest: SHA,
         redactionProfileFamily: 'gbp-review-global-v1',

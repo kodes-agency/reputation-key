@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { MERCHANT_AI_NOTICE_VERSION } from '#/shared/merchant-ai-notice-contract'
+import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+} from '#/shared/merchant-ai-notice-contract'
 import type {
   AiOperationRecord,
   AiOperationStorePort,
@@ -138,6 +142,13 @@ function createHarness(
     operationFailureCode?: AiErrorCode
     /** Make the provider answer with this error instead of a result. */
     providerError?: Readonly<{ code: AiErrorCode; retryAfterEpochMillis: number | null }>
+    /** The notice the Property's consent was recorded under. Defaults to the served one. */
+    consentNotice?: Readonly<{ noticeVersion: string; noticeDigest: string }>
+    /**
+     * Run the gateway's own request check on what the use case sends, as the
+     * in-process inference adapter does before anything else.
+     */
+    checksGatewayRequest?: boolean
   }> = {},
 ) {
   let claimedOperation: AiOperationRecord | undefined
@@ -197,8 +208,9 @@ function createHarness(
     status: 'applied' as const,
     aggregateRevision: 4,
   }))
-  const analyzeReview = vi.fn(async () =>
-    options.providerError
+  const analyzeReview = vi.fn(async (request: unknown) => {
+    if (options.checksGatewayRequest) parseAiGatewayRouteRequest(request)
+    return options.providerError
       ? {
           route: 'review-analysis' as const,
           status: 'error' as const,
@@ -231,8 +243,8 @@ function createHarness(
             settlementState: 'settled' as const,
             receiptSignature: 'A'.repeat(86),
           },
-        },
-  )
+        }
+  })
   const release = vi.fn(async () => {})
   const readReviewSource = vi.fn(async () => ({
     status: 'available' as const,
@@ -302,7 +314,8 @@ function createHarness(
               },
               reviewAnalysisStartSequence: 1,
               noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-              noticeDigest: SHA,
+              noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+              ...options.consentNotice,
               sourcePolicyId: 'google-business-profile-source-policy-v1',
               sourceCanonicalizerDigest: SHA,
               redactionProfileFamily: 'gbp-review-global-v1',
@@ -970,7 +983,7 @@ describe('analyze review event: operation binding', () => {
     const binding = {
       authorizationLineageId: LINEAGE_ID,
       noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-      noticeDigest: SHA,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       capabilityFence: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
       sourceEpoch: 2,
       evaluatedLanguage: 'en-Latn',
@@ -1021,5 +1034,61 @@ describe('analyze review event: operation binding', () => {
     )
     expect(request?.idempotencyKey).toBe(`analysis:${input.eventEnvelopeId}`)
     expect(request?.expiresAtEpochMillis).toBe(NOW + 24 * 60 * 60 * 1_000)
+  })
+})
+
+// The worker's side of a consent that predates the served notice (the reply
+// draft's side is in generate-reply-suggestion.test.ts). The gateway's request
+// check was the only comparison, and it throws after the operation and an
+// execution attempt are claimed: every delivery burned an attempt and left the
+// operation executing, for the reaper to abandon and the sweep to reopen.
+describe('analyze review event: a consent recorded under an earlier notice', () => {
+  beforeEach(withPinnedLanguageRuntime)
+
+  const EARLIER_NOTICE = {
+    noticeVersion: 'merchant-ai-notice-2026-09-09.v1',
+    noticeDigest: 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1',
+  }
+
+  it('sends a request the gateway accepts when the consent is under the served notice', async () => {
+    const harness = createHarness({ checksGatewayRequest: true })
+
+    await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
+    expect(harness.mocks.analyzeReview).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['an earlier notice version', EARLIER_NOTICE],
+    [
+      'the served version with another text',
+      { noticeVersion: MERCHANT_AI_NOTICE_VERSION, noticeDigest: SHA },
+    ],
+  ])(
+    'settles the review as not analysable under %s, with no operation and no attempt',
+    async (_case, consentNotice) => {
+      const harness = createHarness({ checksGatewayRequest: true, consentNotice })
+
+      await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
+      expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          state: 'terminal_no_result',
+          operationId: null,
+          dispositionCode: 'policy_disabled',
+        }),
+      )
+      expect(harness.mocks.claim).not.toHaveBeenCalled()
+      expect(harness.mocks.acquire).not.toHaveBeenCalled()
+      expect(harness.mocks.claimExecution).not.toHaveBeenCalled()
+      expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
+    },
+  )
+
+  it('queues no provider work for it when the caller defers', async () => {
+    const harness = createHarness({ consentNotice: EARLIER_NOTICE })
+
+    await expect(harness.analyze({ ...input, execution: 'defer' })).resolves.toEqual({
+      status: 'terminal',
+    })
+    expect(harness.mocks.readReviewSource).not.toHaveBeenCalled()
   })
 })

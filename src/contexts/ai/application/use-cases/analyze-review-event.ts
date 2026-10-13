@@ -36,6 +36,7 @@ import {
   aiRequestFingerprint,
   aiRetryAt,
   aiReviewSourceProvenance,
+  isAiAuthorizationUnderServedContract,
   resolveAiExecutionStopFence,
 } from '../ai-workflow-support'
 import {
@@ -520,6 +521,10 @@ export function createAnalyzeReviewEvent(
         authorization.capabilities.includes('review_analysis'),
         authorization.capabilityRuntimeProfileVersions.review_analysis ===
           PROFILE.capabilityRuntimeProfileVersion,
+        // A consent older than the served notice. Re-consent bumps the Review
+        // Analysis epoch and the enrollment replay analyses the history again,
+        // so the review is settled here rather than held.
+        isAiAuthorizationUnderServedContract(authorization, 'review_analysis'),
       ].every(Boolean)
     ) {
       return settleWithoutResult(

@@ -30,6 +30,16 @@ Review Analysis and never make a second provider-generation call.
 
 All three are dark until the AccountAdmin authorization, live access, notice version, provider policy, platform gate, runtime catalogue, and cell-local admission/egress controls agree. Property Trends additionally requires Review Analysis. A capability being present in code or schema is not activation.
 
+An authorization recorded under a notice, or a provider deployment profile,
+other than the one this build serves is refused before an operation is claimed
+(`isAiAuthorizationUnderServedContract`, `application/ai-workflow-support.ts`).
+A reply draft answers `consent_renewal_required`, which the composer shows as
+the notice needing an AccountAdmin's confirmation. A review is settled as not
+analysable, with no operation: re-consent bumps the Review Analysis epoch and
+the enrollment replay analyses the history again. The gateway's request check
+compares the same catalogue values and stays as the second line; it throws, so
+it must never be the first.
+
 Operations, settlements, derivative generations, enrollment heads, schedules,
 and output lineage pin authorization, source, policy, model, and lifecycle fences.
 
