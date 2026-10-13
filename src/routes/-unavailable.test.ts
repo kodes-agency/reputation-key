@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { CAPABILITY_REFUSAL_CATEGORIES } from '#/shared/auth/capability-refusal-category'
 import {
   resolveUnavailableAccountState,
+  UNAVAILABLE_FEATURE_LABELS,
   unavailablePageContent,
   unavailableSearch,
 } from './unavailable'
@@ -165,6 +166,37 @@ describe('unavailable route presentation', () => {
       guidance: null,
       link: { label: 'Back to properties', to: '/properties' },
     })
+  })
+
+  // The page is public and its card wears the product's name, so the heading
+  // must not be whatever a link's author typed into `?feature=`.
+  it('drops a feature the product never named instead of printing it as the heading', () => {
+    const typed =
+      'Your account is locked. Call +359 2 000 0000 to restore it. Reputation Key'
+
+    const search = unavailableSearch.parse({ feature: typed })
+
+    expect(search.feature).toBeUndefined()
+    expect(unavailablePageContent(search)).toEqual({
+      title: 'Not available in this beta',
+      description: 'This part of the product is disabled for the internal beta.',
+      guidance: null,
+      link: { label: 'Back to properties', to: '/properties' },
+    })
+  })
+
+  it('still reads the label of every link the product issued', () => {
+    for (const feature of UNAVAILABLE_FEATURE_LABELS) {
+      expect(unavailableSearch.parse({ feature }).feature).toBe(feature)
+    }
+    // What the shell sends an account whose workspace is dark or has no role.
+    expect(UNAVAILABLE_FEATURE_LABELS).toContain('Workspace')
+  })
+
+  it('keeps the rest of the address when the feature is dropped', () => {
+    expect(
+      unavailableSearch.parse({ feature: 'x'.repeat(200), category: 'not_in_beta' }),
+    ).toEqual({ category: 'not_in_beta' })
   })
 })
 

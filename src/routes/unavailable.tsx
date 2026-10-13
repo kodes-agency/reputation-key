@@ -15,8 +15,32 @@ import {
 } from '#/shared/auth/capability-refusal-category'
 import { getAccountAccessRemovalFn } from '#/contexts/feed/server/notifications'
 
+/**
+ * Every label the product has put in `?feature=`: the shell's own "Workspace",
+ * and the features and pages whose refusal redirected here before it was drawn
+ * in the shell. The page is public and its card wears the product's name, so
+ * the heading is one of these or the generic one, never what a link's author
+ * typed: any other value is dropped.
+ */
+export const UNAVAILABLE_FEATURE_LABELS = [
+  'Workspace',
+  'Properties',
+  'Portals',
+  'Goals',
+  'Staff',
+  'People',
+  'Teams',
+  'Dashboard',
+  'Recognition',
+  'Recognition board',
+  'Achievement Board',
+  'Leaderboard',
+  'Google property import',
+  'Email notifications',
+] as const
+
 export const unavailableSearch = z.object({
-  feature: z.string().optional(),
+  feature: z.enum(UNAVAILABLE_FEATURE_LABELS).optional().catch(undefined),
   reason: z.literal('workspace_access').optional(),
   category: z.enum(CAPABILITY_REFUSAL_CATEGORIES).optional(),
   propertyId: z.string().optional(),
