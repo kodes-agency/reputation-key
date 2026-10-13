@@ -1,24 +1,48 @@
 // The AI draft binding: an AI-assisted reply is only publishable while every
 // input its draft was generated from is still the current one. WP3.3-B moved
 // this from assert_current_ai_draft_binding_v1 (PL/pgSQL) into the same
-// transaction as the write that depends on it. Explicit purges delete drafts
-// when a property, review, profile, authorization or control changes; what is
-// left to check here is the state those purges cannot see coming: the two
-// expiries, and the operation's settled receipt.
+// transaction as the write that depends on it. Explicit purges
+// (src/shared/db/ai/ai-draft-purge.ts) withdraw drafts when a property, a
+// Review's revision or source epoch, a profile, an authorization or a control
+// changes; what is left to check here is the state those purges cannot see
+// coming: the two expiries, the operation's settled receipt, and a
+// confirmation that commits while a purge is running. A draft whose own expiry
+// has passed stays refused here until the next observation of its Review
+// withdraws it.
+//
+// The binding gates AI text on its way to Google and nothing else: submit,
+// Confirm & Publish and the publish worker's claim read it
+// (reply-write-guards.ts). Reject, delete, a retry and a draft save do not, and
+// a draft save or an edit of a published reply makes the text the manager's own
+// (domain/reply-ai-text.ts).
+//
+// The binding has two halves, and the claim tells them apart. One is time: the
+// adoption window (`ai_draft_expires_at`). The other is everything the text
+// was generated from. Text a worker claimed once passed both while they held,
+// so a later claim of the same words does not wait on a window that has closed
+// since (`aiDraftInputsAreCurrent`). A changed input is never excused: it is
+// what the purges withdraw a reply for, and the claim refuses what a purge
+// would have withdrawn.
 
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, sql, type SQL } from 'drizzle-orm'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import { replies } from '#/shared/db/schema'
 import type { Tx } from '#/shared/outbox/commit'
 
 const REPLY_DRAFTING_RUNTIME_PROFILE = 'reply-drafting-runtime-v1'
 
+/** The binding's one conjunct that only time moves, and its absence. `draft`
+ * is the reply row as `bindingHolds` names it. */
+const WITHIN_ITS_ADOPTION_WINDOW = sql`draft.ai_draft_expires_at > transaction_timestamp()`
+const WHATEVER_ITS_ADOPTION_WINDOW = sql`TRUE`
+
 export type AiDraftBindingStatus = 'current' | 'not_ai' | 'stale'
 
 /**
  * Lock the reply row and decide whether its AI provenance is still current.
- * Human-authored replies are `not_ai`; a stale binding means the caller must
- * refuse the write (the draft is no longer the one the merchant reviewed).
+ * Human-authored replies are `not_ai`; a stale binding means a caller that
+ * moves the text toward Google must refuse (the draft is no longer the one the
+ * merchant reviewed).
  */
 export async function assertCurrentAiDraftBinding(
   tx: Tx,
@@ -41,6 +65,29 @@ export async function assertCurrentAiDraftBinding(
   if (!reply || reply.authorship !== 'ai_assisted' || !reply.operationId) {
     return 'not_ai'
   }
+  return (await bindingHolds(tx, input, WITHIN_ITS_ADOPTION_WINDOW)) ? 'current' : 'stale'
+}
+
+/**
+ * Whether an AI-assisted reply's binding holds apart from its adoption window:
+ * everything its text was generated from is still the current one, whatever
+ * `ai_draft_expires_at` says. False for a reply that is not AI-assisted. Takes
+ * no lock of its own: its caller holds the row through
+ * `assertCurrentAiDraftBinding` in the same transaction.
+ */
+export function aiDraftInputsAreCurrent(
+  tx: Tx,
+  input: Readonly<{ organizationId: string; replyId: string }>,
+): Promise<boolean> {
+  return bindingHolds(tx, input, WHATEVER_ITS_ADOPTION_WINDOW)
+}
+
+/** Everything the text was generated from, and `adoptionWindow`. */
+async function bindingHolds(
+  tx: Tx,
+  input: Readonly<{ organizationId: string; replyId: string }>,
+  adoptionWindow: SQL,
+): Promise<boolean> {
   const current = await tx.execute<{ current: boolean }>(sql`
           SELECT EXISTS (
             SELECT 1
@@ -70,7 +117,7 @@ export async function assertCurrentAiDraftBinding(
               AND review.source_epoch = draft.origin_source_epoch
               AND review.source_revision = draft.origin_source_revision
               AND review.content_expires_at > transaction_timestamp()
-              AND draft.ai_draft_expires_at > transaction_timestamp()
+              AND ${adoptionWindow}
               AND merchant.state = 'enabled'
               AND merchant.authorized_source_epoch = draft.origin_source_epoch
               AND merchant.reply_drafting_epoch = draft.origin_reply_drafting_epoch
@@ -116,5 +163,5 @@ export async function assertCurrentAiDraftBinding(
               )
           ) AS "current"
         `)
-  return current.rows[0]?.current === true ? 'current' : 'stale'
+  return current.rows[0]?.current === true
 }

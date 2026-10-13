@@ -9,7 +9,7 @@ import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import type { Database } from '#/shared/db'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { organizationId } from '#/shared/domain/ids'
-import { deleteAiDraftsForAuthorization } from '#/shared/db/ai/ai-draft-purge'
+import { purgeAiDraftsForAuthorization } from '#/shared/db/ai/ai-draft-purge'
 import { identityMerchantAiChanged } from '../../domain/events'
 import type {
   MerchantAiCapabilityEpochs,
@@ -251,7 +251,7 @@ export const createMerchantAiAuthorizationStore = (
           ).*
         `)
         const evidence = evidenceResult.rows[0] as SnapshotRow
-        await deleteAiDraftsForAuthorization(tx, {
+        await purgeAiDraftsForAuthorization(tx, {
           organizationId: input.organizationId,
           propertyId: input.propertyId,
         })

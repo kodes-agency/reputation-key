@@ -157,7 +157,7 @@ function makeManualDraftDeps(review: Review) {
   const accept = vi.fn()
   const assertCurrentBinding = vi.fn()
   const providerRead = vi.fn()
-  const upsert = vi.fn(
+  const createDraft = vi.fn(
     async (candidate: Omit<Reply, 'createdAt' | 'updatedAt'>): Promise<Reply> => ({
       ...candidate,
       createdAt: NOW,
@@ -167,7 +167,7 @@ function makeManualDraftDeps(review: Review) {
   const deps = {
     replyRepo: {
       findInternalByReviewId: vi.fn(async () => null),
-      upsert,
+      createDraft,
     } as unknown as ReplyRepository,
     reviewRepo: {
       findById: vi.fn(async () => review),
@@ -181,7 +181,7 @@ function makeManualDraftDeps(review: Review) {
     commandStore: {},
     googleReplyObservationStore: {},
   } as unknown as ReplyDeps
-  return { deps, accept, assertCurrentBinding, providerRead, upsert }
+  return { deps, accept, assertCurrentBinding, providerRead, createDraft }
 }
 
 describe('listReplyTemplates', () => {
@@ -334,7 +334,7 @@ describe('loadReplyTemplate', () => {
     })
     expect(result.text).toContain('{guest_name}')
     expect(result.text).not.toContain('Secret Reviewer')
-    expect(manual.upsert).toHaveBeenCalledOnce()
+    expect(manual.createDraft).toHaveBeenCalledOnce()
     expect(manual.accept).not.toHaveBeenCalled()
     expect(manual.assertCurrentBinding).not.toHaveBeenCalled()
     expect(manual.providerRead).not.toHaveBeenCalled()
@@ -365,5 +365,53 @@ describe('loadReplyTemplate', () => {
       ),
     ).rejects.toMatchObject({ _tag: 'ReviewError', code: 'invalid_reply' })
     expect(saveDraft).not.toHaveBeenCalled()
+  })
+
+  it('refuses to load a template over a reply that is being published', async () => {
+    // The template loader saves through draftReply, so it is the second door
+    // to the draft write: an approved reply keeps the text a manager confirmed.
+    const review = makeReview()
+    const template = makeTemplate()
+    const { repository, reviewRepo } = makeRepository({ review, templates: [template] })
+    const manual = makeManualDraftDeps(review)
+    const saveDraft = vi.fn()
+    const confirmed = {
+      id: REPLY,
+      status: 'approved',
+      publicationState: 'pending_observation',
+      publicationCycle: 1,
+      publicationLastErrorClass: null,
+      aiGenerated: false,
+    } as unknown as Reply
+    const deps = {
+      ...manual.deps,
+      replyRepo: {
+        findInternalByReviewId: vi.fn(async () => confirmed),
+        createDraft: manual.createDraft,
+        saveDraft,
+      } as unknown as ReplyRepository,
+    }
+
+    await expect(
+      loadReplyTemplate({
+        repository,
+        reviewRepo,
+        staffPublicApi: makeStaffApi(),
+        draftReply: draftReply(deps),
+      })(
+        {
+          reviewId: REVIEW,
+          templateId: template.id,
+          targetLanguage: { kind: 'review_language' },
+        },
+        MANAGER,
+      ),
+    ).rejects.toMatchObject({
+      _tag: 'ReviewError',
+      code: 'invalid_transition',
+      message: 'Only a draft or a rejected reply can be edited',
+    })
+    expect(saveDraft).not.toHaveBeenCalled()
+    expect(manual.createDraft).not.toHaveBeenCalled()
   })
 })

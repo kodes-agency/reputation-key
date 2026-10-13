@@ -13,6 +13,7 @@
 // the emergency generation and every AI head exactly where they were.
 
 import type { Database } from '#/shared/db'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE_V1 } from '#/shared/ai-openai-provider-profile'
 import type { GoogleContentCapability } from '#/shared/domain/google-content-capability'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
@@ -47,6 +48,11 @@ export type DeclaredCapabilityPostureStores = Readonly<{
 export function createDeclaredCapabilityPostureStores(
   db: Database,
 ): DeclaredCapabilityPostureStores {
+  // An AI control transition runs the AI draft purge, which records a fact for
+  // each reply it withdraws that somebody was waiting on. The deploy step has
+  // no Application Container to register the event schemas the outbox checks
+  // that fact against, so this wiring registers them (the call is idempotent).
+  registerAllEventSchemas()
   return {
     google: createGoogleContentAuthorityRepository(db),
     ai: createAiControlAdapter(db),

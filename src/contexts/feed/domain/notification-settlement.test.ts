@@ -68,8 +68,17 @@ describe('which notices a settling fact retires', () => {
   })
 
   it('retires a failed publication once a cancellation returns the reply to draft', () => {
+    expect(settledNotificationTypes('reply.returned_to_draft')).toContain(
+      'reply.publish_failed',
+    )
+  })
+
+  // The AI draft purge withdraws an unedited AI reply that was still awaiting
+  // approval. The request must not outlive the reply it asked about.
+  it('retires an approval request once the reply it asked about is withdrawn', () => {
     expect(settledNotificationTypes('reply.returned_to_draft')).toEqual([
       'reply.publish_failed',
+      'reply.pending_approval',
     ])
   })
 

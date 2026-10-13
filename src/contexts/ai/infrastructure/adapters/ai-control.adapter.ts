@@ -1,7 +1,7 @@
 import { inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiExecutionControlHeads } from '#/shared/db/schema'
-import { deleteAiDraftsForControl } from '#/shared/db/ai/ai-draft-purge'
+import { purgeAiDraftsForControl } from '#/shared/db/ai/ai-draft-purge'
 import type {
   AiControlHead,
   AiControlPort,
@@ -117,7 +117,7 @@ export const createAiControlAdapter = (db: Database): AiControlPort => {
         ) {
           return null
         }
-        await deleteAiDraftsForControl(
+        await purgeAiDraftsForControl(
           tx,
           input.scope.kind,
           input.scope.kind === 'global'

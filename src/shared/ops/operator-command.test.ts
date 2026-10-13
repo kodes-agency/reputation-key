@@ -21,6 +21,7 @@ import {
   type OperatorIO,
   type OperatorRuntime,
 } from './operator-command'
+import { googleProviderApplyRefusal } from './google-provider-commands'
 import type { DecisionRequest, ExecutionDecision } from '#/shared/auth/execution-policy'
 import { getRequestContext } from '#/shared/observability/request-context'
 
@@ -199,6 +200,20 @@ describe('validateOperatorArgs', () => {
     ).toBeNull()
   })
 
+  // The harness evaluates and prints. It stores neither the reason nor the
+  // ticket, and its messages said both were "audited with the command".
+  it('asks for a reason and a ticket without claiming to keep them', () => {
+    expect(validateOperatorArgs(MUTATION_SPEC, args({ apply: true }))).toBe(
+      '--reason <text> is required with --apply',
+    )
+    expect(
+      validateOperatorArgs(
+        { ...MUTATION_SPEC, requiresTicket: true },
+        args({ apply: true, reason: 'incident 42' }),
+      ),
+    ).toBe('--ticket <ref> is required with --apply')
+  })
+
   it('rejects --apply on read commands and --apply/--dry-run conflicts', () => {
     expect(
       validateOperatorArgs(
@@ -236,6 +251,26 @@ describe('validateOperatorArgs', () => {
       ),
     ).toBeNull()
     // Dry-run needs no confirmation.
+    expect(validateOperatorArgs(spec, args())).toBeNull()
+  })
+
+  // Operator commands run without the Google provider runtime, so these three
+  // can never apply. The refusal comes first: an operator must not be walked
+  // through --reason and --yes to reach it.
+  it.each([
+    ['ops:disconnect-connection', 'Settings, Integrations'],
+    ['ops:gbp-subscribe', 'reconcile-gbp-notification-subscriptions'],
+    ['ops:reconcile-publication', 'reconcile-ambiguous-publications'],
+  ])('refuses --apply on %s and says what does the work', (name, pointer) => {
+    const spec: OperatorCommandSpec = { ...MUTATION_SPEC, name, destructive: true }
+
+    const bare = validateOperatorArgs(spec, args({ apply: true }))
+    expect(bare).toContain('--apply is refused')
+    expect(bare).toContain(pointer)
+    expect(
+      validateOperatorArgs(spec, args({ apply: true, reason: 'r', yes: name })),
+    ).toBe(bare)
+    // The report keeps working.
     expect(validateOperatorArgs(spec, args())).toBeNull()
   })
 
@@ -359,6 +394,80 @@ describe('runOperatorCommand', () => {
     expect(applyCtx[0]).toMatchObject({ dryRun: false, reason: 'incident 42' })
     expect(decide.mock.calls[1][0].reason).toBe('incident 42')
     expect(io.outLines.join('\n')).toContain('mode=apply')
+  })
+
+  it('a command that needs Google: --apply exits 1 with the pointer and runs nothing', async () => {
+    const { runtime, decide } = runtimeAllow()
+    const io = memoryIO()
+    const action = vi.fn<OperatorAction>(async () => {})
+    const spec: OperatorCommandSpec = {
+      ...MUTATION_SPEC,
+      name: 'ops:reconcile-publication',
+      usage: 'pnpm ops reconcile-publication --all-ambiguous --operator <id>',
+    }
+
+    const result = await runOperatorCommand(
+      spec,
+      action,
+      runtime,
+      ['--operator', 'op@x.io', '--reason', 'incident 42', '--apply'],
+      io,
+    )
+
+    expect(result.exitCode).toBe(1)
+    expect(decide).not.toHaveBeenCalled()
+    expect(action).not.toHaveBeenCalled()
+    // The sentence itself is pinned in google-provider-commands.test.ts.
+    expect(io.errLines).toEqual([
+      `ops:reconcile-publication: ${googleProviderApplyRefusal('ops:reconcile-publication')}`,
+      'usage: pnpm ops reconcile-publication --all-ambiguous --operator <id>',
+    ])
+    expect(io.errLines[0]).toContain(
+      '--apply is refused: this command needs a call to Google',
+    )
+    expect(io.errLines[0]).toContain('reconcile-ambiguous-publications')
+  })
+
+  it('a command that needs Google: every report ends by saying it is all the command does', async () => {
+    const { runtime } = runtimeAllow()
+    const io = memoryIO()
+    const spec: OperatorCommandSpec = { ...MUTATION_SPEC, name: 'ops:gbp-subscribe' }
+
+    const result = await runOperatorCommand(
+      spec,
+      async (ctx, _args, actionIO) => {
+        actionIO.out(`report dryRun=${ctx.dryRun}`)
+      },
+      runtime,
+      ['--operator', 'op@x.io'],
+      io,
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(io.outLines.slice(1)).toEqual([
+      'report dryRun=true',
+      'ops:gbp-subscribe only reports: --apply is refused. ' +
+        'The worker subscribes accounts by itself: an import subscribes its own, and the daily ' +
+        "reconcile-gbp-notification-subscriptions job re-asserts every Organization's " +
+        '(docs/operations/google-pubsub-setup.md §6).',
+    ])
+  })
+
+  it('a command that can apply prints no report-only line', async () => {
+    const { runtime } = runtimeAllow()
+    const io = memoryIO()
+
+    await runOperatorCommand(
+      MUTATION_SPEC,
+      async () => {},
+      runtime,
+      ['--operator', 'op@x.io'],
+      io,
+    )
+
+    expect(io.outLines).toEqual([
+      'ops:quarantine — operator=op@x.io correlation=corr-unit-1 decision=allow mode=dry-run',
+    ])
   })
 
   it('deny: exits 1, skips the action, prints the typed reason + correlation', async () => {

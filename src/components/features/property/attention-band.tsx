@@ -1,12 +1,20 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Clock, Inbox, Target, TrendingDown, TriangleAlert } from 'lucide-react'
+import { Clock, Globe, Inbox, Target, TrendingDown, TriangleAlert } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import type { AttentionSignals } from '#/contexts/reporting/application/public-api'
 
 export interface AttentionBandProps {
   readonly signals: AttentionSignals
   readonly propertyId: string
+  /**
+   * How many of the property's portals guests cannot use as they are (no working
+   * code, no live version, the property unavailable, no Google link): the one
+   * portal exception worth a chip, because the whole product is guests reaching a
+   * portal. Left out when it is zero or the reader may not read portals. Counted by
+   * the Portals page's own rule (`countBlockedPortals`), so the two agree.
+   */
+  readonly blockedPortals?: number
 }
 
 // The band's chips are links drawn as Badge tones: `negative` for what is late
@@ -48,11 +56,41 @@ function ChipContent({
  * property. Only active signals (count > 0, or the rating-drop flag) render;
  * each chip deep-links into a pre-filtered view. Hidden entirely when calm.
  */
-export function AttentionBand({ signals, propertyId }: AttentionBandProps) {
+export function AttentionBand({
+  signals,
+  propertyId,
+  blockedPortals = 0,
+}: AttentionBandProps) {
   // Inbox work is source-agnostic: the triage chip must open the current open
   // folder across Review and Private Feedback sources. Source-specific chips
   // use `sourceType` only when the signal itself is source-specific.
   const chips: ReactNode[] = []
+
+  // First: a portal guests cannot use is the exception that matters most. The chip
+  // is not called "needs attention": the Portals page's toggle of that name keeps a
+  // wider set (drafts, changes not live), and this one keeps only what stops guests.
+  // The list it opens is that filter, the most pressing first.
+  if (blockedPortals > 0) {
+    chips.push(
+      <Badge key="blockedPortals" asChild variant="negative" className={CHIP_BASE}>
+        <Link
+          to="/properties/$propertyId/portals"
+          params={{ propertyId }}
+          search={{ show: 'attention', sort: 'attention' }}
+        >
+          <ChipContent
+            icon={Globe}
+            count={blockedPortals}
+            label={
+              blockedPortals === 1
+                ? 'portal guests can’t use'
+                : 'portals guests can’t use'
+            }
+          />
+        </Link>
+      </Badge>,
+    )
+  }
 
   if (signals.overdue > 0) {
     chips.push(

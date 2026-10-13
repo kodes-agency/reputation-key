@@ -14,6 +14,12 @@
 // Commands receive one refusing Application Container on `ctx.container`.
 // The harness claims it only after installing the policy runtime, so every
 // command shares one graph and cannot cold-boot the web singleton mid-run.
+//
+// That container refuses every Google provider call. The three commands whose
+// work is such a call only report: the invocation contract refuses `--apply`
+// on them as a usage error and says what does the work instead
+// (src/shared/ops/google-provider-commands.ts). The container's own refusals
+// stay as the backstop for a command that reaches a provider path anyway.
 
 import { getDb } from '../../src/shared/db'
 import { closePool } from '../../src/shared/db/pool'
@@ -27,7 +33,6 @@ import {
 } from '../../src/composition'
 import { createOperatorContainer } from '../../src/composition/operator-container'
 import { closeJobQueueConnections } from '../../src/shared/jobs/queue'
-import { OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE } from '../../src/composition/google-provider-authority'
 import {
   bindProcessPolicies,
   releaseProcessPolicies,
@@ -41,24 +46,6 @@ import {
   type OperatorCommandSpec,
   type OperatorRuntime,
 } from '../../src/shared/ops/operator-command'
-
-/**
- * Refuse provider work before command-specific catch/report logic can flatten
- * the missing authority. Report-only paths still run against persisted state.
- */
-const GOOGLE_PROVIDER_OPERATOR_COMMANDS: Readonly<Record<string, true>> = {
-  'ops:disconnect-connection': true,
-  'ops:gbp-subscribe': true,
-  'ops:reconcile-publication': true,
-}
-
-function refuseProviderDependentApply(
-  spec: OperatorCommandSpec,
-  ctx: OperatorContext,
-): void {
-  if (ctx.dryRun || !GOOGLE_PROVIDER_OPERATOR_COMMANDS[spec.name]) return
-  throw new Error(OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE)
-}
 
 type OperatorBoot = Readonly<{
   runtime: OperatorRuntime
@@ -130,10 +117,8 @@ export async function runOperatorCommand(
     }
     return await runCore(
       spec,
-      (ctx, args, actionIO) => {
-        refuseProviderDependentApply(spec, ctx)
-        return action({ ...ctx, container: boot.container }, args, actionIO)
-      },
+      (ctx, args, actionIO) =>
+        action({ ...ctx, container: boot.container }, args, actionIO),
       boot.runtime,
       argv,
       io,

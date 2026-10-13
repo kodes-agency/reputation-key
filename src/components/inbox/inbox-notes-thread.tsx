@@ -4,14 +4,7 @@ import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextarea, type BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
-// Receives addInboxNote server fn as a prop per src/components/CONTEXT.md "Server-function boundary".
-import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 import { Send } from 'lucide-react'
-import type {
-  InboxNote,
-  InboxRevisionConflictResult,
-} from '#/contexts/inbox/application/public-api'
 import { addInboxNoteFormDto } from '#/contexts/inbox/application/dto/inbox.dto'
 import {
   DOCK_FOOT_ROW_CLASS,
@@ -19,15 +12,12 @@ import {
   DOCK_TEXT_ROW_CLASS,
   DOCK_TEXTAREA_CLASS,
 } from './composer-dock-rows'
-
-type AddInboxNote = (
-  input: Parameters<typeof addInboxNoteFn>[0],
-) => Promise<InboxNote | InboxRevisionConflictResult>
+import { useAddInboxNote, type AddInboxNote } from './use-add-inbox-note'
 
 type Props = Readonly<{
   inboxItemId: string
   expectedCommandRevision: number
-  onNoteAdded: (resultingCommandRevision: number) => void
+  /** The server fn, as a prop per src/components/CONTEXT.md "Server-function boundary". */
   addInboxNote: AddInboxNote
   canAdd?: boolean
   /**
@@ -88,7 +78,6 @@ type Props = Readonly<{
 export function InboxNotesThread({
   inboxItemId,
   expectedCommandRevision,
-  onNoteAdded,
   addInboxNote,
   canAdd = true,
   draftText = '',
@@ -97,12 +86,7 @@ export function InboxNotesThread({
   submitVariant = 'default',
 }: Props) {
   const formRef = useRef<HTMLFormElement>(null)
-  const addNote = useActionMutation(addInboxNote, {
-    successMessage: 'Note added',
-    onSuccess: (_note, input) => {
-      onNoteAdded(input.data.expectedCommandRevision + 1)
-    },
-  })
+  const addNote = useAddInboxNote(addInboxNote)
 
   const form = useForm({
     // Read once, at mount. The form's own store is the live value while it is

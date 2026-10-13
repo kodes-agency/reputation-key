@@ -96,7 +96,7 @@ export const REPLY_TEMPLATE_IMPORT_COMMAND_SPEC = {
 
 export const REPLY_TEMPLATE_IMPORT_HELP = `Usage: ${USAGE}
 
-Mutations are dry-run by default. Pass --apply with an audited --reason to write.
+Mutations are dry-run by default. Pass --apply with a --reason to write.
 Templates are matched by sourceTitle within the property. If a template was renamed
 in Settings, re-importing its former sourceTitle creates a new row and leaves the
 renamed template unchanged.

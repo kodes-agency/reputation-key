@@ -205,8 +205,8 @@ type IdentityContextDeps = Readonly<{
   betaFeedbackHmacSecret: string
   /**
    * BQC-2.2/2.7 capability-policy wiring. Identity owns the persisted policy
-   * store (readiness), the least-privilege admin ops, and the operator audit
-   * sink; the composition root supplies the environment policy.
+   * store (readiness) and the least-privilege admin ops; the composition root
+   * supplies the environment policy.
    */
   policy: Readonly<{
     env: CapabilityPolicyEnv

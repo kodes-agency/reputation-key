@@ -176,7 +176,7 @@ export function useReplyCheckRun(
         },
         // Reported, not swallowed: the check mutation opts into `errorMessage`
         // (use-reply-actions.ts), which toasts before this rejection arrives,
-        // and re-reads the reply (`onReplyCheckFailed`).
+        // and re-reads the reply (`onReplyCommandFailed`).
         () => {
           focusAfterCheck.request(target, null)
         },

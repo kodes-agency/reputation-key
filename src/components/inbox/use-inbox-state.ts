@@ -215,7 +215,7 @@ export function useInboxState(
   // Bulk update → clear selection, refetch the list (targeted), close detail.
   const handleBulkDone = useCallback(() => {
     setSelectedIds([])
-    inboxCachePolicy.onBulkReopened(qc)
+    inboxCachePolicy.onBulkCommandSettled(qc)
     if (selectedId) closeDetail()
   }, [selectedId, qc, closeDetail, setSelectedIds])
 

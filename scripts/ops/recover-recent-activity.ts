@@ -1,4 +1,4 @@
-// Audited, bounded Recent Activity readiness and recovery command.
+// Policy-evaluated, bounded Recent Activity readiness and recovery command.
 //
 // Report only:
 //   pnpm ops recover-recent-activity --operator <id> <observed-at>

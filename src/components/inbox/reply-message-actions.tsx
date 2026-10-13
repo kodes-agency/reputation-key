@@ -13,12 +13,26 @@ import { Label } from '#/components/ui/label'
 import { Textarea } from '#/components/ui/textarea'
 import { unfilledReplySlotsMessage } from '#/contexts/review/application/public-api'
 import type { ReplyMessageAction } from './reply-message-view'
+import { useReplyConfirmationHold } from './use-reply-confirmation-hold'
 import type { ReactNode } from 'react'
+
+/**
+ * Which reply a confirmation is for: the reply, and the state revision of the
+ * copy the manager read. Both, because the revision is counted per reply and
+ * starts again for a new one: a reply that was deleted and written anew can
+ * stand at the revision the first one stood at, with other text.
+ */
+export type ReplyOnScreen = Readonly<{ id: string; stateRevision: number }>
 
 export type ReplyMessageActionsProps = Readonly<{
   actions: readonly ReplyMessageAction[]
   /** The SERVER copy of the reply — the same text the publish fence reads. */
   text: string
+  /**
+   * Which reply `text` is, and at which state revision. Null for a reply
+   * Google shows, which is never confirmed here.
+   */
+  shown: ReplyOnScreen | null
   isSaving: boolean
   /**
    * This reply's check is in flight. Separate from `isSaving`, which is true
@@ -33,7 +47,8 @@ export type ReplyMessageActionsProps = Readonly<{
    * that opens it, so nothing local to this row can see it.
    */
   isEditing: boolean
-  onApprove: () => Promise<unknown>
+  /** Confirms the reply the manager read; see `shown`. */
+  onApprove: (expectedReply: ReplyOnScreen) => Promise<unknown>
   onReject: (reason?: string) => Promise<unknown>
   /** Starts the check; its answer is reported by `ReplyMessage`, not here. */
   onCheck: () => void
@@ -142,10 +157,27 @@ function SimpleAction({
  * the rejection it performed, and across a change of item.
  */
 export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode {
-  const { actions, text, isSaving, onApprove, onReject } = props
+  const { actions, text, shown, isSaving, onApprove, onReject } = props
   const [showRejectInput, setShowRejectInput] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
-  const canApprove = actions.includes('approve')
+  /**
+   * The reply the manager is confirming: the one this row showed when the
+   * confirmation OPENED, not when its button is pressed. The row is keyed by
+   * reply and status, so a reply that was rejected, rewritten and submitted
+   * again re-renders here in place, under a dialog that is still open, with
+   * new text the manager has not read. Sending the reply and revision they
+   * opened the dialog on makes the server refuse that confirmation; reopening
+   * it confirms the reply that is on the screen then.
+   *
+   * The Inbox pane also keeps the reply it shows while this dialog is open
+   * (`holdReply` below), so there nothing re-renders under it. That is about
+   * what is SHOWN, and it is the pane's to give or not; this is about what is
+   * SENT, and holds under any host.
+   */
+  const confirming = useRef<ReplyOnScreen | null>(null)
+  const holdReply = useReplyConfirmationHold()
+  const approvable = actions.includes('approve') ? shown : null
+  const canApprove = approvable !== null
   const canReject = actions.includes('reject')
   // The fence reads the reply as the SERVER holds it, not any local text: this
   // message never owns an editor, and `approveReply` re-runs the same check.
@@ -218,9 +250,16 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
             confirmLabel="Confirm & publish"
             pendingLabel="Confirming…"
             confirmDisabled={isSaving || publishBlockedReason !== null}
+            onOpenChange={(open) => {
+              confirming.current = open ? approvable : null
+              holdReply(open)
+            }}
             // A refusal stays in the dialog (the approve mutation passes no
             // toast), so the manager reads it where they pressed the button.
-            onConfirm={onApprove}
+            // The refusal re-reads the reply, and that read would remount this
+            // row under the reply's new status: `holdReply` is what keeps the
+            // dialog, and the sentence in it, there until it is dismissed.
+            onConfirm={() => onApprove(confirming.current ?? approvable)}
           />
         )}
         {canReject && (

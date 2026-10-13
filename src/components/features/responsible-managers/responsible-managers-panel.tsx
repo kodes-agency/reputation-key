@@ -5,10 +5,6 @@ import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Label } from '#/components/ui/label'
-import {
-  normalizeResponsibleManagerIds as sorted,
-  sameResponsibleManagerIds as sameIds,
-} from './selection'
 import { useResponsibleManagerSelection } from './use-responsible-manager-selection'
 
 export type ResponsibleManagersPanelState = Readonly<{
@@ -64,9 +60,8 @@ export function ResponsibleManagersPanel({
     expectedRevision: number,
   ) => Promise<unknown>
 }>) {
-  const { selected, setSelected, serverSelection } = useResponsibleManagerSelection(
-    state.assignments,
-  )
+  const { selected, expectedRevision, dirty, toggle, reset } =
+    useResponsibleManagerSelection(state.assignments, state.revision)
 
   const eligibleIds = useMemo(
     () => new Set(state.eligibleManagers.map((manager) => manager.userId)),
@@ -76,12 +71,14 @@ export function ResponsibleManagersPanel({
   const options = members.filter(
     (member) => eligibleIds.has(member.userId) || assignedIds.has(member.userId),
   )
-  const dirty = !sameIds(sorted(selected), serverSelection)
 
   // The banner shows a refusal from the Action's own error; settling here keeps
-  // it from escaping the click as an unhandled rejection (errors-01).
+  // it from escaping the click as an unhandled rejection (errors-01). The
+  // revision is the selection's own, not `state.revision`: an edit kept across
+  // a refresh names the state it was started from, so the server refuses it
+  // when someone else changed the managers meanwhile (`selection.ts`).
   const save = () => {
-    void onSave(sorted(selected), state.revision).catch(() => undefined)
+    void onSave(selected, expectedRevision).catch(() => undefined)
   }
 
   const Heading = headingLevel
@@ -116,13 +113,7 @@ export function ResponsibleManagersPanel({
                 id={`${idPrefix}-${member.userId}`}
                 checked={checked}
                 disabled={disabled || isPending || (!eligible && !checked)}
-                onCheckedChange={(next) =>
-                  setSelected((current) =>
-                    next === true
-                      ? sorted([...current, member.userId])
-                      : current.filter((id) => id !== member.userId),
-                  )
-                }
+                onCheckedChange={(next) => toggle(member.userId, next === true)}
               />
               <Label
                 htmlFor={`${idPrefix}-${member.userId}`}
@@ -146,12 +137,7 @@ export function ResponsibleManagersPanel({
         )}
       </div>
 
-      <FormActions
-        dirty={dirty}
-        onReset={() => setSelected(serverSelection)}
-        error={error}
-        pending={isPending}
-      >
+      <FormActions dirty={dirty} onReset={reset} error={error} pending={isPending}>
         <Button
           pending={isPending}
           pendingLabel="Saving…"

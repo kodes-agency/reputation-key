@@ -11,7 +11,7 @@ import { reviewSourceContents } from '#/shared/db/schema/review-source-content.s
 import { unbrand } from '#/shared/domain/ids'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
-import { deleteAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
+import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
 import type { Review } from '../domain/types'
 
 type ReviewSourceContentWriter = Pick<Database, 'insert'>
@@ -149,7 +149,7 @@ export async function eraseReviewSourceContent(
     )
     .returning({ id: reviews.id })
   if (!rows[0]) return false
-  await deleteAiDraftsForReview(tx, {
+  await purgeAiDraftsForReview(tx, {
     organizationId: input.organizationId,
     reviewId: input.reviewId,
   })

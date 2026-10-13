@@ -23,12 +23,23 @@
 // scope, and a per-invocation correlation id. The typed decision is returned
 // and printed with that correlation id. Denies exit 1 with the typed reason.
 //
+// The harness stores nothing: not the operator, the decision, the reason or
+// the ticket. The printed line is the only trace it leaves, a fact the command
+// commits carries the correlation id as its command id, and a command that
+// needs a durable record of its operator writes one itself (ctx.operatorId,
+// ctx.ticket). No command reads ctx.reason today.
+//
 // Capability gates: a command spec MAY declare the capability its work
 // depends on (e.g. inbox.use for a projection rebuild) — the policy then
 // enforces kill-switch/blocked/suspension state before the command runs.
 // Containment and diagnostic commands (queue pause, suspension, inspect)
 // deliberately declare NO capability so they keep working while the
 // capability they contain is killed or the org is suspended.
+//
+// Report-only commands: three commands need a call to Google, which the
+// operator container refuses (./google-provider-commands.ts). The harness
+// refuses --apply on them as a usage error, before the policy is evaluated,
+// and closes each of their reports by saying what does the work instead.
 //
 // This module is pure orchestration: the policy evaluation is injected
 // (OperatorRuntime), so unit tests never touch a database. The scripts/ops
@@ -39,6 +50,10 @@ import { randomUUID } from 'node:crypto'
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import type { DecisionRequest, ExecutionDecision } from '#/shared/auth/execution-policy'
 import { runWithCommandContext } from '#/shared/outbox/command-context'
+import {
+  googleProviderApplyRefusal,
+  googleProviderReportNotice,
+} from './google-provider-commands'
 
 /** The catalogue action every operator command evaluates (entry-point catalogue). */
 export const OPERATOR_ACTION = 'system:ops'
@@ -266,7 +281,9 @@ function validateMode(spec: OperatorCommandSpec, args: OperatorArgs): string | n
   if (!spec.mutation && args.apply) {
     return '--apply is only valid for mutation commands (this command is a read)'
   }
-  return null
+  // Before the reason and typed-confirmation checks: an operator must not be
+  // asked for either on the way to a refusal.
+  return args.apply ? googleProviderApplyRefusal(spec.name) : null
 }
 
 /** Reason/ticket/typed-confirmation gate the EXECUTION (--apply), never the report. */
@@ -276,10 +293,10 @@ function validateMutationRequirements(
 ): string | null {
   if (!args.apply) return null
   if (spec.mutation && !args.reason) {
-    return '--reason <text> is required with --apply (audited with the command)'
+    return '--reason <text> is required with --apply'
   }
   if (spec.requiresTicket && !args.ticket) {
-    return '--ticket <ref> is required with --apply (audited with the command)'
+    return '--ticket <ref> is required with --apply'
   }
   if (spec.destructive && args.yes !== spec.name) {
     return `destructive command — confirm with --yes ${spec.name}`
@@ -334,8 +351,9 @@ function decisionRequestFor(
     organizationId: args.organizationId,
     propertyId: args.propertyId,
     executionKind: 'operator',
-    // Reads audit as 'read', dry-run reports as 'dry-run', applied mutations
-    // carry the operator's reason (recorded on the allow row, sliced).
+    // What kind of invocation this is: a read, a dry-run report, or an applied
+    // mutation with the operator's reason. The policy takes the field and does
+    // not read it, and nothing stores it.
     reason: args.reason ?? (spec.mutation ? 'dry-run' : 'read'),
     now,
     correlationId,
@@ -377,9 +395,9 @@ function headerLine(
 }
 
 /**
- * Parse → validate → evaluate the ExecutionPolicy (audited, allow AND deny)
- * → run the action on allow. Returns the process exit code; the caller
- * (scripts/ops shim) owns process.exit.
+ * Parse → validate → evaluate the ExecutionPolicy (allow AND deny are printed,
+ * neither is stored) → run the action on allow. Returns the process exit code;
+ * the caller (scripts/ops shim) owns process.exit.
  */
 export async function runOperatorCommand(
   spec: OperatorCommandSpec,
@@ -412,6 +430,8 @@ export async function runOperatorCommand(
         args,
         io,
       )
+      const reportOnly = googleProviderReportNotice(spec.name)
+      if (reportOnly) io.out(reportOnly)
       return { exitCode: code ?? 0, correlationId, decision }
     } catch (err) {
       io.err(`${spec.name} failed: ${err instanceof Error ? err.message : String(err)}`)
