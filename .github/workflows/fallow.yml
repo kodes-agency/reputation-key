@@ -27,7 +27,8 @@ jobs:
         uses: fallow-rs/fallow@adff2c9f20fe769e2e093b2e99ee09723f6310bd # v3.27.0
         with:
           # Combined dead-code + complexity + duplication verdict.
-          # gate: new-only fails ONLY on issues the PR introduces — the
-          # 192-issue regression baseline (.fallowrc.json) never blocks.
+          # gate: new-only fails ONLY on issues the PR introduces. The issues
+          # main already carries never block, and no count of them is kept:
+          # the `regression.baseline` block of .fallowrc.json is all zeroes.
           command: audit
           gate: new-only
