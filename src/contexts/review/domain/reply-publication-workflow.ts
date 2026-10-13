@@ -271,6 +271,13 @@ const PERSISTED_PUBLICATION_TRANSITIONS: Readonly<
  * Returns the next state, or null when the event does not apply to the
  * current state (the store treats null like a guard miss — no write, no fact).
  *
+ * Two closing moves are not events of this table. The observation and Review
+ * stores make them by guarded writes of their own, each marking the attempt
+ * superseded: `ambiguous → cancelled`, when Google shows another reply or the
+ * Review changed, and `terminal → cancelled`, when a guest edit returns a
+ * failed Reply to draft or a different reply ends terminal ambiguity
+ * (Review CONTEXT, Model).
+ *
  * From NULL (no workflow): only 'authorize' (approval starts a cycle) and
  * 'publish' (legacy pre-0015 heal — provider confirmation is authoritative
  * from any state) are valid.

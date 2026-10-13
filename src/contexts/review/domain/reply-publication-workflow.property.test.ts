@@ -152,7 +152,9 @@ const PERSISTED_RULES: Readonly<
   fail_ambiguous: { from: ['sending', 'pending_observation'], to: 'ambiguous' },
   // Only a claimed attempt that provably was not sent goes back to a worker.
   requeue: { from: ['sending'], to: 'authorized' },
-  // A cancellation ends an open, unconfirmed cycle and nothing else.
+  // A cancellation ends an open, unconfirmed cycle and nothing else. (The
+  // stores close a failed or uncertain cycle that provider truth or a changed
+  // Review overtook by guarded writes of their own, not through this event.)
   cancel: {
     from: ['requested', 'authorized', 'sending', 'pending_observation'],
     to: 'cancelled',
