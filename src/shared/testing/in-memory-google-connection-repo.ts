@@ -171,13 +171,6 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
       })
     },
 
-    delete: async (orgId, id) => {
-      const existing = store.get(id as string)
-      if (existing && byOrg(orgId)(existing)) {
-        store.delete(id as string)
-      }
-    },
-
     // ── Test-only helpers ───────────────────────────────────────────
 
     seed: (connections) => {

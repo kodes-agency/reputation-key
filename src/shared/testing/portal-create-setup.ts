@@ -127,7 +127,6 @@ export function setupCreatePortal(options: CreatePortalSetupOptions = {}) {
       getSourceEpoch: async () => ({ sourceEpoch: 0 }),
       findIdsByGoogleConnection: async () => [],
       findGoogleNotificationAnchor: async () => null,
-      clearGoogleConnectionRef: async () => {},
     },
     staffPublicApi,
     identityPublicApi: {

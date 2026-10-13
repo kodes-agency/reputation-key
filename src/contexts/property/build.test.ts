@@ -137,6 +137,26 @@ describe('PropertyPublicApi', () => {
     expect(Object.isFrozen(context.googleBinding)).toBe(true)
   })
 
+  // A Property's connection reference moves with its binding state, epoch and
+  // fact, inside the binding store. publicApi once also carried a bare
+  // "null the reference" write for a connection hard-delete nothing calls.
+  it('publishes no raw Google-reference mutator on publicApi', () => {
+    const repo = createInMemoryPropertyRepo()
+    const context = buildPropertyContext({
+      db: {} as never,
+      repo,
+      clock: () => new Date('2026-08-28T00:00:00.000Z'),
+      ...runtimeDeps,
+      staffPublicApi: createStubStaffApi(),
+      identityManagerFacts,
+    })
+
+    expect(context.publicApi).not.toHaveProperty('clearGoogleConnectionRef')
+    expect(repo).not.toHaveProperty('clearGoogleConnectionRef')
+    // The read Integration's connection lifecycle asks stays.
+    expect(context.publicApi.findIdsByGoogleConnection).toBeTypeOf('function')
+  })
+
   it('hands the retention consumer the Google-binding capability', async () => {
     const releaseRetentionFromEvent = vi.fn().mockResolvedValue('applied')
     vi.mocked(createPropertyGoogleBindingStore).mockReturnValueOnce({
