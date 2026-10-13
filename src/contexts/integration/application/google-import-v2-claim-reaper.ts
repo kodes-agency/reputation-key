@@ -8,15 +8,27 @@
 // killed worker left the row 'processing' and the tenant staring at a spinner
 // for the rest of the effect window.
 //
-// This reaper makes recovery bounded by the lease instead:
+// This reaper makes the dead claim's hold on the row bounded by the lease:
 //
 //   - selects items that are still 'processing' with an elapsed claim lease;
 //   - releases the claim through `releaseClaimForRetry` when the item still
-//     has attempts left, so the next BullMQ attempt (or the tenant's own
-//     retry) can claim it under a fresh fence;
+//     has attempts left, so the row reads `pending` and the job BullMQ runs
+//     next claims it under a fresh fence. That job is usually the stalled
+//     recovery of the dead attempt, which BullMQ re-runs with the SAME attempt
+//     ordinal; `claimItem` admits the released attempt's own ordinal for it;
 //   - terminalizes it `temporarily_unavailable` through `terminalizeItem`
 //     once the attempt budget is spent, so the row reaches an honest,
 //     tenant-retryable terminal state instead of a permanent 'processing'.
+//
+// What it does NOT do is re-dispatch. A released item is taken only by a job
+// that still exists, and the tenant cannot help: `retryItem` admits a `failed`
+// / `temporarily_unavailable` item, never a `pending` one. BullMQ permits one
+// stalled recovery (worker.ts). A job whose worker dies a second time is
+// failed by BullMQ without its handler being called, so the item this reaper
+// then releases has no job left and stays `pending` until its effect deadline
+// (24 hours), when the daily lifecycle sweep ends it. Closing that takes
+// knowing that no job remains: the reaper would ask the queue for the item's
+// job and terminalize `temporarily_unavailable` when it is failed or gone.
 //
 // BOTH transitions go through the existing CAS helpers, which match on the
 // exact `(organizationId, itemId, retryRevision, claimFence)` tuple and on the

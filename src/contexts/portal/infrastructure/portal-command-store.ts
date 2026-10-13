@@ -27,7 +27,6 @@ import type {
 } from '../application/ports/portal-command-store.port'
 import type { Portal, PortalTheme } from '../domain/types'
 import { portalError } from '../domain/errors'
-import { lockPortalWorkingCopyTables } from './portal-working-copy.reader'
 import { verifyPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
 import { assertCommittedRevision, sameInstant } from './portal-command-guards'
 import { createPortalGroupCommands } from './portal-group-commands'
@@ -454,9 +453,9 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
           await reconcileLinkTexts()
 
           if (command.publication?.kind === 'publish') {
-            // The Portal row is already locked (above); the working-copy
-            // table locks come second, then the comparison reads the rows.
-            await lockPortalWorkingCopyTables(tx)
+            // The Portal row is already locked (above), which holds its
+            // links, categories and link texts still: their writers take the
+            // same row first. The comparison reads the rows under it.
             await assertSnapshotMatchesCommittedWorkingCopy(
               tx,
               command,

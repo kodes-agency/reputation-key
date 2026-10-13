@@ -8,6 +8,7 @@
 // and leaves every other tenant byte-identical.
 
 import { randomUUID } from 'node:crypto'
+import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
@@ -18,6 +19,7 @@ import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-r
 import { seedLockedMonthTargetCommitted } from '../testing/goal-month-target-seed'
 import {
   createGoalOrganizationLifecycleAdapter,
+  GOAL_ORGANIZATION_LIFECYCLE_PHASES,
   GOAL_PURGE_TABLES,
 } from './goal-organization-lifecycle.adapter'
 
@@ -315,6 +317,13 @@ async function deleteFixtures(organizationIds: readonly string[]): Promise<void>
   }
 }
 
+/** The SQLSTATE of a failed statement, through the query error that wraps it. */
+function sqlState(failure: unknown): string | undefined {
+  if (typeof failure !== 'object' || failure === null) return undefined
+  const { code, cause } = failure as { code?: unknown; cause?: unknown }
+  return typeof code === 'string' ? code : sqlState(cause)
+}
+
 function contribution(fixture: Fixture, revision: number) {
   return {
     organizationId: fixture.organizationId,
@@ -458,6 +467,46 @@ describe.sequential('goal Organization lifecycle contributor', () => {
     expect(persisted[0]!.evidence_ref).toMatch(
       /^goal:purge:v1:tenant_rows_deleted:rows:\d+$/u,
     )
+  })
+
+  it('reports why a purge failed, and a failed purge leaves the guard on', async () => {
+    const fixture = await seedTenantRows('goal-lifecycle-org', 'paused')
+    const before = await tableCounts(fixture.organizationId)
+    // Another session holds the tenant's Program row, so the purge's last
+    // DELETE cannot take it. A failed statement aborts the transaction.
+    const holder = await lease.pool.connect()
+    let failure: unknown
+    try {
+      await holder.query('BEGIN')
+      await holder.query(
+        'SELECT id FROM goal_programs WHERE organization_id = $1 FOR UPDATE',
+        [fixture.organizationId],
+      )
+
+      failure = await db
+        .transaction(async (tx) => {
+          await tx.execute(sql`SET LOCAL lock_timeout = 200`)
+          return GOAL_ORGANIZATION_LIFECYCLE_PHASES.purge(tx, contribution(fixture, 4))
+        })
+        .then(
+          () => null,
+          (error: unknown) => error,
+        )
+    } finally {
+      await holder.query('ROLLBACK')
+      holder.release()
+    }
+
+    // 55P03 is the lock the DELETE could not take. 25P02 ("current transaction
+    // is aborted") would be a statement sent after it, hiding the cause.
+    expect(sqlState(failure)).toBe('55P03')
+    expect(await tableCounts(fixture.organizationId)).toEqual(before)
+    // The rollback put the guard back; no statement had to.
+    await expect(
+      lease.pool.query('DELETE FROM goal_monthly_results WHERE organization_id = $1', [
+        fixture.organizationId,
+      ]),
+    ).rejects.toThrow(/cannot be deleted/u)
   })
 
   it('answers no_data — never an omission — for an Organization with no goal', async () => {

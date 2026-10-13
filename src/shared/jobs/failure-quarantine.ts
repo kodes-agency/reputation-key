@@ -23,6 +23,7 @@
 // a containment stop-control — different concept, do not confuse.
 
 import type { Job, JobProgress, JobsOptions } from 'bullmq'
+import { z } from 'zod/v4'
 import { GateDenyRetryError } from './errors'
 import {
   isCatalogueKnownWork,
@@ -63,11 +64,19 @@ export type QuarantineEnvelope = Readonly<{
   publicationState?: 'pending_failure' | 'confirmed_failed'
 }>
 
-export type RedriveMetadata = Readonly<{
-  redrivenAt: string
-  redrivenFrom: typeof QUARANTINE_QUEUE_NAME
-  originalQuarantineId: string
-}>
+/**
+ * What a redrive adds to the payload it puts back, under `redriveMetadata`.
+ * A handler that parses its payload strictly admits this one key by this
+ * schema (`redriveMetadata: redriveMetadataSchema.optional()`); refusing it
+ * would make the handler's own dead letters impossible to redrive.
+ */
+export const redriveMetadataSchema = z.object({
+  redrivenAt: z.string(),
+  redrivenFrom: z.literal(QUARANTINE_QUEUE_NAME),
+  originalQuarantineId: z.string(),
+})
+
+export type RedriveMetadata = Readonly<z.infer<typeof redriveMetadataSchema>>
 
 // ── Structural ports (BullMQ Queue/Job satisfy these) ───────────────
 

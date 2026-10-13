@@ -24,18 +24,25 @@ type AiJobQueue = Readonly<{
 
 /**
  * Queue one scheduled trend for its Property. The request is validated with
- * the schema the handler parses with, so the two cannot disagree.
+ * the schema the handler parses with, so the two cannot disagree. Only the
+ * identifiers are queued: the schema also admits `redriveMetadata`, which
+ * marks a quarantine redrive and is never a new job's to carry.
  */
 export const createPropertyTrendEnqueue =
   (queue: AiJobQueue) =>
   async (request: GeneratePropertyTrendJobData): Promise<void> => {
-    const data = parseGeneratePropertyTrendJobData(request)
-    await queue.add(GENERATE_PROPERTY_TREND_JOB_NAME, data, {
-      jobId: `ai-trend-${data.scheduleId}`,
-      ...jobEnqueueOptions(GENERATE_PROPERTY_TREND_JOB_NAME),
-      removeOnComplete: true,
-      removeOnFail: { count: 50 },
-    })
+    const { scheduleId, organizationId, propertyId } =
+      parseGeneratePropertyTrendJobData(request)
+    await queue.add(
+      GENERATE_PROPERTY_TREND_JOB_NAME,
+      { scheduleId, organizationId, propertyId },
+      {
+        jobId: `ai-trend-${scheduleId}`,
+        ...jobEnqueueOptions(GENERATE_PROPERTY_TREND_JOB_NAME),
+        removeOnComplete: true,
+        removeOnFail: { count: 50 },
+      },
+    )
   }
 
 /** Queue one opened review for analysis: its identifiers and nothing else. */
@@ -54,7 +61,15 @@ export const createAnalyzeReviewNowEnqueue =
         jobId: `ai-analysis-now-${request.reviewId}`,
         ...jobEnqueueOptions(ANALYZE_REVIEW_NOW_JOB_NAME),
         removeOnComplete: true,
-        removeOnFail: { count: 50 },
+        // BullMQ ignores an add under an id it still holds, and the family has
+        // one attempt: a failed job kept in the failed set would swallow every
+        // later request for its review while the caller is told `queued`. The
+        // dead letter stays in quarantine; the review stays in the backlog.
+        // The price: a quarantine copy whose confirmation never landed (the
+        // worker died between the failure and confirming it) cannot be
+        // redriven, because a redrive promotes such a copy only on the proof
+        // of its failed original (`createRedriveJob`). It can be discarded.
+        removeOnFail: true,
       },
     )
   }

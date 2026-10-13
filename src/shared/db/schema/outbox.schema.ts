@@ -68,6 +68,9 @@ export const outboxEvents = pgTable(
     index('outbox_events_inbox_item_created_idx')
       .on(table.sourceAggregateId)
       .where(sql`${table.eventType} = 'inbox.inbox_item.created'`),
+    // outbox_events_published_at_idx (the retention sweep's order) is absent here on
+    // purpose: the concurrent-index sidecar builds it
+    // (src/shared/db/concurrent-index-registry.ts).
     check(
       'outbox_events_consumer_redelivery_attempts_nonnegative',
       sql`${table.consumerRedeliveryAttempts} >= 0`,
