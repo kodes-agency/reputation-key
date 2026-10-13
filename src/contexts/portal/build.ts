@@ -754,8 +754,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     publicApi: {
       portal: publicApi,
       portalGroup: portalGroupPublicApi,
-      /** Request-facing Portal capabilities. This is intentionally namespaced
-       * and contains only application functions, never repositories/storage. */
+      /** Request-facing Portal capabilities, intentionally namespaced: functions
+       * only, never a repository or storage object (exceptions: CONTEXT.md). */
       management: Object.freeze(useCases),
     },
     worker: Object.freeze({

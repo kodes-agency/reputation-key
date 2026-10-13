@@ -175,3 +175,72 @@ describe('metric_readings property/portal/group index sidecar (database-04)', ()
     }
   })
 })
+
+// The retention sweep orders every batch by its rule's timestamp. These eight
+// tables had no index a batch could use, so each batch read the whole table.
+const RETENTION_INDEXES = [
+  ['guest_responses_retention_deadline_idx', 'retention_deadline'],
+  ['scan_events_created_at_idx', 'created_at'],
+  ['scan_events_ip_hash_redaction_idx', 'created_at'],
+  ['scan_events_session_id_redaction_idx', 'created_at'],
+  ['guest_qualified_scans_occurred_at_idx', 'occurred_at'],
+  ['outbox_events_published_at_idx', 'published_at'],
+  ['notifications_coalesced_latest_at_idx', 'coalesced_latest_at'],
+  ['notification_email_queue_created_at_idx', 'created_at'],
+  ['recent_activity_entries_created_at_idx', 'created_at'],
+  ['audit_logs_created_at_idx', 'created_at'],
+] as const
+
+// A partial index serves a rule only when the rule's statement states the
+// index's predicate, so each is read back as PostgreSQL recorded it.
+const RETENTION_INDEX_PREDICATES = [
+  ['notifications_coalesced_latest_at_idx', 'coalesced_latest_at IS NOT NULL'],
+  // A redaction keeps its row: these two hold only the scans not yet cleared.
+  ['scan_events_ip_hash_redaction_idx', 'ip_hash IS NOT NULL'],
+  ['scan_events_session_id_redaction_idx', 'session_id IS NOT NULL'],
+] as const
+
+describe('retention sweep index sidecar', () => {
+  let lease: TestLease
+
+  beforeAll(async () => {
+    lease = await acquireTestLease(getEnv().DATABASE_URL)
+  })
+
+  afterAll(async () => {
+    await lease?.release()
+  })
+
+  it.each(RETENTION_INDEXES)(
+    'builds %s concurrently, valid and leading with %s',
+    async (name, column) => {
+      const spec = specFor(name)
+      // Idempotent by name: leave no stale index from a previous failed run.
+      await lease.pool.query(`DROP INDEX CONCURRENTLY IF EXISTS "${spec.name}"`)
+
+      await expect(buildConcurrentIndex(lease.pool, spec)).resolves.toEqual({
+        name,
+        ok: true,
+        code: 'created',
+      })
+      await expect(buildConcurrentIndex(lease.pool, spec)).resolves.toEqual({
+        name,
+        ok: true,
+        code: 'ready',
+      })
+
+      const index = await readIndex(lease.pool, name)
+      expect(index).toMatchObject({ indisvalid: true, indisready: true })
+      expect(index?.indexdef).toContain(`ON public.${spec.table} USING btree (${column})`)
+    },
+  )
+
+  it.each(RETENTION_INDEX_PREDICATES)(
+    'keeps %s to the rows its rule reads (%s)',
+    async (name, predicate) => {
+      const index = await readIndex(lease.pool, name)
+
+      expect(index?.indexdef.split(' WHERE ')[1]).toBe(`(${predicate})`)
+    },
+  )
+})

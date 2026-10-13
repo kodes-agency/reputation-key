@@ -42,6 +42,25 @@ notice with it (ADR 0046, amended 2026-09-24). `null` is a normal answer: those
 rows are purged 30 days after the import becomes terminal, and the notice falls
 back to the Property's responsible managers.
 
+All of `publicApi` is Integration's request surface (`docs/standards.md` §3.1):
+`connections`, `oauth`, `imports` and `performance` are what Integration's
+server functions and the Google OAuth callback route call. Its exceptions to
+that section's rules:
+
+- `oauth.getAuthorizationUrl` does not authorize its caller. Its one caller,
+  the server function in `server/google-auth-url.ts`, asks the policy for
+  `integration.manage` and passes the user, Organization and session it
+  resolved.
+- `oauth.redeemState`, `oauth.admitPreState` and `oauth.admitResolvedTenant`
+  are edge controls of the callback, not commands: the state-handle redemption
+  and the two abuse budgets, published as they are. The callback route
+  (`src/routes/api/auth/google/callback.ts`) runs them before it calls
+  `connections.connect` or `connections.resume`.
+- `imports.findInitiator`, described above, is a store read published as it
+  is and the one member another context reaches: the composition root fills
+  Feed's import-initiator port from it. It takes no caller and answers by
+  identifier only.
+
 ## Runtime
 
 Provider calls require a current connection, capability approval, execution

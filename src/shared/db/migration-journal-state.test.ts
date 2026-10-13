@@ -109,6 +109,7 @@ describe('deployFailureRecovery', () => {
   it('tells the operator of an older image to deploy a newer release, not to rerun', () => {
     const recovery = deployFailureRecovery(
       deployMigrationStateRefusal({ ...reached, applied: 56 }),
+      'journal',
     )
 
     expect(recovery).toBe(
@@ -125,6 +126,42 @@ describe('deployFailureRecovery', () => {
     ['a failing migration', new Error('relation "reviews" already exists')],
     ['a thrown non-error', 'connection refused'],
   ])('keeps the fix-and-rerun line for %s', (_case, failure) => {
-    expect(deployFailureRecovery(failure)).toBe(RERUN)
+    expect(deployFailureRecovery(failure, 'journal')).toBe(RERUN)
+    expect(deployFailureRecovery(failure, 'better_auth')).toBe(RERUN)
+  })
+
+  const lockTimeout = Object.assign(
+    new Error('canceling statement due to lock timeout'),
+    { code: '55P03' },
+  )
+
+  it('tells the operator of a lock wait to redeploy, with nothing to fix in the SQL', () => {
+    const recovery = deployFailureRecovery(
+      new Error('Failed query: ALTER TABLE "portal_links"', { cause: lockTimeout }),
+      'journal',
+    )
+
+    expect(recovery).toBe(
+      'Lock wait: a migration statement waited 5 s for a lock another session holds and ' +
+        'gave up, so that the application does not queue behind it. The journal runs in one ' +
+        'transaction, so nothing of it was applied. Redeploy; if it happens again, find the ' +
+        'session holding the lock (pg_stat_activity, pg_blocking_pids) first (runbooks.md §8).',
+    )
+    expect(recovery).not.toContain('fix the failing migration SQL')
+  })
+
+  // That track is not one transaction: "nothing was applied" would be wrong.
+  it('says what a lock wait in the Better Auth track left behind', () => {
+    const recovery = deployFailureRecovery(lockTimeout, 'better_auth')
+
+    expect(recovery).toBe(
+      'Lock wait: a Better Auth schema statement waited 5 s for a lock another session ' +
+        'holds and gave up, so that the application does not queue behind it. That track ' +
+        'commits statement by statement, so what it added before the wait stays, and the ' +
+        'journal was not started. It adds only what is missing: redeploy; if it happens ' +
+        'again, find the session holding the lock (pg_stat_activity, pg_blocking_pids) ' +
+        'first (runbooks.md §8).',
+    )
+    expect(recovery).not.toContain('nothing of it was applied')
   })
 })

@@ -195,7 +195,9 @@ Skip steps that don't apply. Query: (1) + (5) + (7). Mutation: all 7.
 
 Every context build function SHALL return `publicApi` plus NAMED capability groups.
 A capability group states what a class of consumer may do; it never publishes a
-repository, a command store, or a bag of use cases.
+repository, a command store, or a bag of use cases. The one set of use cases a
+build publishes is its request surface, which sits on `publicApi` under the rules
+below.
 
 ```ts
 type ContextApi<T> = Readonly<{
@@ -210,6 +212,37 @@ type ContextApi<T> = Readonly<{
 ```
 
 - `publicApi` — the ONLY cross-context boundary. Types, query functions, ports.
+- `publicApi` is also what a context's own server adapters (its `server/`
+  functions and its API routes) call through the container, so it carries the
+  context's **request surface**: the application functions those adapters
+  invoke, under a named member where a context has many (`management` in
+  Property and Portal, `requests` in Identity and Guest, `reply` in Review,
+  `connections`, `oauth`, `imports` and `performance` in Integration). Three
+  rules keep that from being a leak. Each has exceptions in the code today, and
+  an exception stands only where the owning `CONTEXT.md` names it:
+  - a request-surface member holds application functions: not a repository, a
+    command store, a worker control or an irreversible lifecycle phase. The
+    named exceptions: Portal's scope lookups (repository reads published as
+    they are) and its destination revalidation (the worker's control),
+    Integration's `imports.findInitiator` (a store read) and OAuth callback
+    controls, Guest's session and abuse controls;
+  - a function on it that acts for a signed-in member is held to §2.2 and
+    authorizes that member itself, so calling it without its server function
+    gains nothing. The named exceptions: Integration's
+    `oauth.getAuthorizationUrl` leaves authorization to its server function, and
+    Guest's internal integrity control takes its actor as data and has no
+    caller. A function with no member to authorize (a guest's request, an
+    invited registration) is admitted by its adapter instead, which
+    `src/shared/architecture/server-function-policy-exemptions.ts` lists with
+    what admits it;
+  - the request surface is not a cross-context API. Another context's
+    application code is typed against a narrow `…PublicApi` type from
+    `application/public-api.ts`, or against a port the composition root fills,
+    and neither names it. A server adapter reads the whole container, so only
+    this rule keeps one from calling another context's surface. The named
+    exceptions: Reporting's Portal results adapter calls two reads on Portal's
+    `management`, and the composition root fills one of Feed's ports from
+    Integration's `imports.findInitiator`.
 - Every other group is named for the CAPABILITY it grants, not for the layer it
   came from. `portal.responsibility.releaseForUser` is a capability;
   `portal.internal.repos.portalResponsibleManagerRepo` is a leaked repository.

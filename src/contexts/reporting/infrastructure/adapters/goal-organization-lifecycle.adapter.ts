@@ -51,6 +51,15 @@ export const GOAL_PURGE_TABLES = Object.freeze([
  * automatically by a rollback if the phase fails. Deliberately NOT
  * `session_replication_role = 'replica'`, which would also suppress the system
  * triggers implementing foreign keys and silently orphan rows.
+ *
+ * Known cost: the statement takes SHARE ROW EXCLUSIVE on the table, which
+ * conflicts with every insert, update and delete of a monthly result, and it
+ * is held until this phase's transaction ends. While one Organization is
+ * purged, every other Organization's writes to `goal_monthly_results` wait
+ * (and fail at the pool's 10 s lock timeout if the purge outlasts it). No
+ * other session ever sees the guard off: they are blocked, not unguarded.
+ * Removing the lock needs the guard function itself to admit a purge's delete
+ * under a transaction-local setting, which is a migration.
  */
 const PURGE_GUARDS = Object.freeze([
   Object.freeze({ table: 'goal_monthly_results', trigger: 'goal_monthly_results_guard' }),
@@ -253,30 +262,28 @@ const purge = async (
       sql`ALTER TABLE ${sql.identifier(guard.table)} DISABLE TRIGGER ${sql.identifier(guard.trigger)}`,
     )
   }
-  try {
-    // Canonical Goal Program family, children first.
+  // Canonical Goal Program family, children first. No `finally` around these:
+  // a statement that fails aborts the transaction, so a re-enable sent after
+  // it is refused ("current transaction is aborted") and that refusal would be
+  // reported in place of the failure. The rollback restores the guard.
+  await tx.execute(
+    sql`DELETE FROM goal_month_target_changes WHERE organization_id = ${organization}`,
+  )
+  await purgeResultRevisionChain(tx, organization)
+  await tx.execute(
+    sql`DELETE FROM goal_monthly_results WHERE organization_id = ${organization}`,
+  )
+  await tx.execute(
+    sql`DELETE FROM goal_subject_assignments WHERE organization_id = ${organization}`,
+  )
+  await tx.execute(
+    sql`DELETE FROM goal_program_versions WHERE organization_id = ${organization}`,
+  )
+  await tx.execute(sql`DELETE FROM goal_programs WHERE organization_id = ${organization}`)
+  for (const guard of PURGE_GUARDS) {
     await tx.execute(
-      sql`DELETE FROM goal_month_target_changes WHERE organization_id = ${organization}`,
+      sql`ALTER TABLE ${sql.identifier(guard.table)} ENABLE TRIGGER ${sql.identifier(guard.trigger)}`,
     )
-    await purgeResultRevisionChain(tx, organization)
-    await tx.execute(
-      sql`DELETE FROM goal_monthly_results WHERE organization_id = ${organization}`,
-    )
-    await tx.execute(
-      sql`DELETE FROM goal_subject_assignments WHERE organization_id = ${organization}`,
-    )
-    await tx.execute(
-      sql`DELETE FROM goal_program_versions WHERE organization_id = ${organization}`,
-    )
-    await tx.execute(
-      sql`DELETE FROM goal_programs WHERE organization_id = ${organization}`,
-    )
-  } finally {
-    for (const guard of PURGE_GUARDS) {
-      await tx.execute(
-        sql`ALTER TABLE ${sql.identifier(guard.table)} ENABLE TRIGGER ${sql.identifier(guard.trigger)}`,
-      )
-    }
   }
 
   return {

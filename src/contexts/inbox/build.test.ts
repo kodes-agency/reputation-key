@@ -47,8 +47,9 @@ describe('buildInboxContext', () => {
     ])
     expect(Object.keys(context.publicApi)).not.toContain('organizationExport')
     expect(Object.keys(context.publicApi)).not.toContain('organizationLifecycle')
+    // No raw item creation: the durable source consumers create Inbox Items,
+    // under their receipts and after their source checks (Invariant 1).
     expect(Object.keys(context.lifecycle).sort()).toEqual([
-      'createInboxItem',
       'getInboxResponseTarget',
       'startReviewHandlingCycle',
     ])
@@ -61,9 +62,6 @@ describe('buildInboxContext', () => {
   it('binds each named capability to the one Inbox-owned implementation', () => {
     const context = build()
 
-    expect(context.lifecycle.createInboxItem).toBe(
-      context.internal.useCases.createInboxItem,
-    )
     expect(context.lifecycle.getInboxResponseTarget).toBe(
       context.internal.useCases.getInboxResponseTarget,
     )

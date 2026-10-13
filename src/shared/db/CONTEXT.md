@@ -13,6 +13,14 @@ the worker sizes its pool from every queue's concurrency at boot
 while it opens a second transaction reserves both clients first
 (`pool-client-reservation.ts`): a lock holder never waits on the pool.
 
+Every pooled session is set to UTC beside its lock timeouts (`pool.ts`). Six
+CHECK constraints compare a deadline with `timestamptz + interval 'N days'`, a
+sum PostgreSQL makes in the session's zone, and the application counts those
+deadlines in fixed milliseconds, so the two agree only where a day is always 24
+hours. Do not rely on the server default: `pool-session-time-zone.integration.test.ts`
+connects with a daylight-saving default and writes across a change. A session
+opened outside the pool (a script's own `pg.Client`) keeps the server default.
+
 ## Schema tracks
 
 1. **Drizzle journal** — `0000_baseline.sql` contains every application table,
@@ -40,6 +48,20 @@ composite foreign keys. Edit `db-constructs.sql` directly for functions, trigger
 EXCLUDE constraints, and DDL on Better Auth tables; its parser derives the
 register. Put every construct expressible by Drizzle in the model instead.
 
+An index on a table that is written continuously is not journalled: a plain
+`CREATE INDEX` holds a SHARE lock for the whole build. Add it to
+`concurrent-index-registry.ts`, leave it out of the `pgTable` and note it at the
+table; the deploy runner's sidecar builds it with `CREATE INDEX CONCURRENTLY`.
+The retention sweep orders every batch by its rule's timestamp, so each rule
+needs an index that leads with that column. For a delete a plain one is enough:
+matched rows leave the range. A redaction keeps its rows, so everything it has
+already cleared stays below the cutoff and a plain index makes each batch pass
+all of it; a redaction rule needs a partial index whose predicate is the rule's
+own `extraWhere`, which holds only the rows not yet cleared. A partial index
+with any other predicate serves no rule: PostgreSQL uses one only when the
+statement states its predicate. `retention/retention-rule-indexes.test.ts` fails
+on a rule with no index its batch can use.
+
 Every environment currently starts from an empty database. A regenerated journal
 cannot be applied over a database that recorded the old entries; if preservation
 becomes necessary, append a migration instead of re-baselining.
@@ -50,6 +72,21 @@ Deploy order is `pnpm auth:migrate` → `pnpm db:migrate`.
 The signed web image runs that sequence under a deployment advisory lock only
 after proving its exact cell/project/environment/service identity. Recovery is
 fix-forward-and-rerun—never hand-roll partial schema state.
+
+Both of the runner's schema tracks wait at most 5 seconds for a lock
+(`migration-lock-timeout.ts`), half the bound a pooled application session has.
+A statement waiting for a lock holds every later statement on that object in
+the queue behind it, so a migration blocked by one long query would stall the
+application on that table; the runner gives up first, fails the deploy with
+`[migrate-deploy] Lock wait:` and names the track, and a rerun converges. The
+journal is bounded on the runner's own session and is one transaction, so
+nothing of it is applied. The Better Auth track runs on the pool of
+`src/shared/auth/auth-cli.ts`, which bounds every connection it opens; it
+commits statement by statement, so it keeps what it added before the wait and
+adds only what is missing on the rerun. The bound is on the wait, not the hold:
+every pending journal file runs in that one transaction, so a lock the first
+file takes is kept until the last file's statements finish. Keep long backfills
+out of a release that also alters a hot table.
 
 Recovery is also forward-only (ADR 0038, amended 2026-10-12). The deploy runner
 and the readiness probe require the applied migration count to equal the image's

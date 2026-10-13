@@ -179,7 +179,12 @@ transactions, which is the second form the consumer contract allows
 each closed result is revised by its own compare-and-set, so a delivery repeated
 after a crash finds every result unchanged and only adds the receipt. A pending
 result throws before the receipt, and the fact is delivered again
-(`metric-correction-outbox-consumers.integration.test.ts`).
+(`metric-correction-outbox-consumers.integration.test.ts`). The same fact has a
+second consumer, `metric.correction-reconciliation`
+(`correction-outbox-consumers.ts`). Despite its name it reconciles nothing: it
+checks the fact's attribution and writes its receipt, so its receipt says that
+Metric saw the fact, and only the Goal consumer's says the correction was
+reconciled.
 
 ## Verification
 

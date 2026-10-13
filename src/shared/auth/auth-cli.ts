@@ -8,6 +8,7 @@ import { betterAuth } from 'better-auth'
 import { organization } from 'better-auth/plugins'
 import { Pool } from 'pg'
 
+import { boundMigrationLockWait } from '../db/migration-lock-timeout'
 import {
   SESSION_EXPIRY_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
@@ -17,8 +18,15 @@ import { organizationSchema } from './org-schema'
 import { ac } from './permissions'
 import { generateBetterAuthDatabaseId } from './registration-user-id'
 
+// This pool only manages schema. Better Auth runs its statements on
+// connections it takes from here, not on the deploy runner's session, so the
+// lock wait is bounded per connection: an upgrade that adds a column sends
+// `ALTER TABLE` on a table every request reads, and one that waited without
+// bound would hold the application's statements on that table in the queue
+// behind it. pg-pool awaits the hook before it hands the connection out.
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL_POOLER ?? process.env.DATABASE_URL,
+  onConnect: (client) => boundMigrationLockWait(client),
 })
 
 if (!process.env.BETTER_AUTH_SECRET) {

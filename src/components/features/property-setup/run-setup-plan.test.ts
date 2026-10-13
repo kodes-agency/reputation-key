@@ -6,6 +6,11 @@ import {
   type SetupWriteFns,
 } from './run-setup-plan'
 import type { SetupPlan } from './setup-plan'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
+
+/** A refusal the server worded for the person: a 4xx with its sentence. */
+const refusal = (message: string, code: string, status: number) =>
+  new ServerFunctionError('IdentityError', message, code, status)
 
 const ACKNOWLEDGEMENT = { noticeVersion: 'notice-v2', noticeDigest: 'a'.repeat(64) }
 
@@ -81,10 +86,16 @@ describe('running a setup plan', () => {
   it('reports a failed write without stopping the others', async () => {
     const writes = fns({
       enableAi: vi.fn(async () => {
-        throw new Error('The AI notice changed. Reload and agree again.')
+        throw refusal(
+          'The AI notice changed. Reload and agree again.',
+          'notice_mismatch',
+          409,
+        )
       }),
       setLanguage: vi.fn(async ({ propertyId }) => {
-        if (propertyId === 'athens') throw new Error('Choose a supported language')
+        if (propertyId === 'athens') {
+          throw refusal('Choose a supported language', 'validation_error', 400)
+        }
       }),
     })
 
@@ -115,6 +126,49 @@ describe('running a setup plan', () => {
     ])
     expect(writes.setManagers).toHaveBeenCalledTimes(2)
     expect(writes.deferAi).toHaveBeenCalledOnce()
+  })
+
+  // The results list prints each message beside its Property. Only a 4xx
+  // refusal carries a sentence written for the person who clicked; anything
+  // else gets the one generic sentence every other failure surface uses.
+  it.each([
+    ['a dropped connection', new TypeError('Failed to fetch')],
+    [
+      'a server failure',
+      new ServerFunctionError(
+        'InternalError',
+        'Internal server error',
+        'internal_error',
+        500,
+      ),
+    ],
+    [
+      'a payload the server validator rejected',
+      new Error(
+        '[{"origin":"string","code":"too_small","minimum":1,"path":["language"]}]',
+      ),
+    ],
+    ['a thrown value that is not an error', 'offline'],
+  ] as const)('does not print the text of %s', async (_name, failure) => {
+    const writes = fns({
+      setLanguage: vi.fn(async ({ propertyId }) => {
+        if (propertyId === 'athens') throw failure
+      }),
+    })
+
+    const results = await runSetupPlan(plan, writes, {
+      acknowledgement: ACKNOWLEDGEMENT,
+      aiIdempotencyKey: 'ceremony-key-0001',
+    })
+
+    expect(failedSetupTasks(results)).toEqual([
+      {
+        propertyId: 'athens',
+        kind: 'language',
+        outcome: 'failed',
+        message: "Couldn't save this setting. Try again.",
+      },
+    ])
   })
 
   it('never enables AI without an acknowledgement of the notice', async () => {

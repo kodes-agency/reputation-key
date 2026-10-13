@@ -97,6 +97,19 @@ describe('buildFeedContext', () => {
     )
   })
 
+  // The browser receives a NotificationView, never the stored row, and a
+  // notification is created only by the durable consumers and their job. A
+  // raw row read and a raw insert on the public API were one getContainer()
+  // call away from any server function, with no authorization of their own.
+  it('publishes no raw notification row read and no raw insert', () => {
+    const context = buildWith({} as Database)
+
+    for (const surface of [context.publicApi, context.notification.publicApi]) {
+      expect(Object.keys(surface)).not.toContain('findById')
+      expect(Object.keys(surface)).not.toContain('insertNotification')
+    }
+  })
+
   // The operations snapshot stops waiting for a health signal at its own cap;
   // the database must stop working for it too.
   it('reads the notification health gauges under the health statement timeout', async () => {

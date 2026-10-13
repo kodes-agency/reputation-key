@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { JOSEError } from 'jose/errors'
+import { JOSEError, JWKSInvalid, JWKSTimeout } from 'jose/errors'
 import type pino from 'pino'
 import { z, ZodError } from 'zod/v4'
 import { getContainer } from '#/composition'
@@ -7,6 +7,7 @@ import { verifyPubSubJwt } from '#/shared/auth/pubsub-jwt.verifier'
 import type { Env } from '#/shared/config/env'
 import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
 import { getLogger } from '#/shared/observability/logger'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { trace } from '#/shared/observability/trace'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
 import type { GoogleReviewPushNotificationKind } from '#/contexts/integration/application/public-api'
@@ -41,6 +42,20 @@ const gbpNotificationPayloadSchema = z.object({
   type: z.string().max(64).optional(),
 })
 const notificationKindSchema = z.enum(['NEW_REVIEW', 'UPDATED_REVIEW'])
+
+// What the token library throws when it could not read Google's signing keys,
+// as opposed to a token it judged: a fetch that timed out, one that answered
+// other than 200 or not JSON (the bare base class, which the library throws
+// nowhere else), and a document that is not a key set. Every other library
+// error is about the token. A fetch that fails at the network is not a library
+// error at all. `-notifications.key-fetch.test.ts` holds this to the library.
+const KEY_SET_FAILURE_CODES: ReadonlySet<string> = new Set([
+  JWKSTimeout.code,
+  JOSEError.code,
+  JWKSInvalid.code,
+])
+const isRefusedToken = (error: unknown): error is JOSEError =>
+  error instanceof JOSEError && !KEY_SET_FAILURE_CODES.has(error.code)
 
 type GbpPushNotification = Readonly<{
   topic: string
@@ -142,6 +157,36 @@ async function readPushNotification(
   }
 }
 
+/**
+ * Read the push, or answer 400 for one that cannot be read. Reading is the
+ * only step that judges what the sender sent, so it is the only place a
+ * `TypeError` means a malformed payload: the acceptance that follows throws
+ * the same class for its own internal faults.
+ */
+async function readPushOrRefuse(
+  request: Request,
+  env: Env,
+  logger: pino.Logger,
+): Promise<GbpPushNotification | Response> {
+  try {
+    return await readPushNotification(request, env)
+  } catch (error) {
+    const malformed =
+      error instanceof ZodError ||
+      error instanceof SyntaxError ||
+      error instanceof TypeError
+    if (!malformed) throw error
+    logger.warn(
+      { errorType: error.constructor.name },
+      'Webhook received malformed provider identifiers or payload',
+    )
+    return Response.json(
+      { error: 'Bad Request', message: 'Malformed webhook payload' },
+      { status: 400 },
+    )
+  }
+}
+
 export async function handleGbpWebhookPost(request: Request): Promise<Response> {
   return trace('webhook.gbpNotifications', async () => {
     const logger = getLogger()
@@ -149,7 +194,8 @@ export async function handleGbpWebhookPost(request: Request): Promise<Response> 
     try {
       const rejection = await rejectInauthenticPush(request, env, logger)
       if (rejection) return rejection
-      const notification = await readPushNotification(request, env)
+      const notification = await readPushOrRefuse(request, env, logger)
+      if (notification instanceof Response) return notification
       const result =
         await getContainer().integrationWebhookRuntime.handleNotification(notification)
       return Response.json(
@@ -157,28 +203,22 @@ export async function handleGbpWebhookPost(request: Request): Promise<Response> 
         { status: 200 },
       )
     } catch (error) {
-      if (error instanceof JOSEError) {
+      if (isRefusedToken(error)) {
         logger.warn({ error }, 'Webhook JWT verification failed')
         return Response.json(
           { error: 'Unauthorized', message: 'Invalid or expired Pub/Sub JWT' },
           { status: 401 },
         )
       }
-      if (
-        error instanceof ZodError ||
-        error instanceof SyntaxError ||
-        error instanceof TypeError
-      ) {
-        logger.warn(
-          { errorType: error.constructor.name },
-          'Webhook received malformed provider identifiers or payload',
-        )
-        return Response.json(
-          { error: 'Bad Request', message: 'Malformed webhook payload' },
-          { status: 400 },
-        )
-      }
+      // Ours, whatever its class: the key fetch behind verification (which the
+      // token library reports in its own error class when the fetch timed out
+      // or was answered badly), the lookup, the reference store or the receipt
+      // failed, or a defect threw. Pub/Sub retries any non-2xx, so the status
+      // changes no delivery; it is answered, not thrown, so neither the Nitro
+      // error hook nor Sentry's request middleware sees it, and the capture
+      // has to happen here.
       logger.error({ error }, 'Webhook durable acceptance failed')
+      captureObservabilityException(error, { source: 'nitro' })
       return Response.json(
         {
           error: 'Internal Server Error',

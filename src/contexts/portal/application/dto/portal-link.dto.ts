@@ -34,16 +34,30 @@ export const updateLinkInputSchema = z.object({
   imageAssetId: z.uuid().nullable().optional(),
 })
 
+/**
+ * The most links one reorder may name. The server function looks each one up
+ * once the policy has admitted the caller, and the command writes one row per
+ * link, so the list is bounded where the request is read. A new Portal carries
+ * at most four links and an older one keeps what it had; this is far above
+ * either.
+ */
+export const MAX_REORDER_LINKS = 100
+
+/** `portal_links.sort_key` is `varchar(50)`. */
+const MAX_SORT_KEY_LENGTH = 50
+
 // UpdateLinkInput — exported when consumed by route validators or forms
 export const reorderLinksInputSchema = z.object({
   categoryId: z.string().min(1, 'Category ID is required'),
   portalId: z.string().min(1, 'Portal ID is required'),
-  items: z.array(
-    z.object({
-      id: z.string().min(1),
-      sortKey: z.string().min(1),
-    }),
-  ),
+  items: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        sortKey: z.string().min(1).max(MAX_SORT_KEY_LENGTH),
+      }),
+    )
+    .max(MAX_REORDER_LINKS),
 })
 
 // ReorderLinksInput — exported when consumed by route validators or forms

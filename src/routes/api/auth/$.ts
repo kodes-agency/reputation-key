@@ -6,6 +6,7 @@ import {
 } from '#/shared/auth/beta-capabilities'
 import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
 import { getContainer } from '#/composition'
+import { admitPasswordResetRequest } from '#/contexts/identity/server/password-reset-rate-limit.server'
 import { getLogger } from '#/shared/observability/logger'
 import { clientIpFromHeaders } from '#/shared/security/client-ip'
 import { classifyProviderRequest } from './-provider-routes'
@@ -51,6 +52,28 @@ function authRateLimitBypassed(): boolean {
   return false
 }
 
+/** The one allowed route that sends mail to an address the caller names. */
+const PASSWORD_RESET_REQUEST_ROUTE = '/request-password-reset'
+
+/**
+ * Whether the shared limiter refuses this allowed POST: the caller's IP is
+ * over its limit, or the request asks for a reset mail to an address that is
+ * over its own. Both of the per-IP limits in front of that route (this one and
+ * the provider's) let any number of callers mail one member, so it is also
+ * counted per address, as the app-owned verification resend is (ADR 0062 §6).
+ */
+async function overRateLimit(request: Request, route: string | null): Promise<boolean> {
+  const { rateLimiter, identityRequestSecurity } = getContainer()
+  const ip = clientIpFromHeaders(request.headers)
+  if (!(await rateLimiter.check(`auth:native:${ip}`)).allowed) return true
+  if (route !== PASSWORD_RESET_REQUEST_ROUTE) return false
+  return !(await admitPasswordResetRequest({
+    request,
+    rateLimiter,
+    keyHmacSecret: identityRequestSecurity.invitationRateLimitHmacSecret,
+  }))
+}
+
 /**
  * Handle a raw better-auth HTTP request. A request that is not on the allow
  * list is refused with 404 + a structured warn log (the alerting anchor), before
@@ -90,19 +113,18 @@ export async function handleAuthRequest(
     })
   }
 
-  if (opts.rateLimit && !authRateLimitBypassed()) {
-    const ip = clientIpFromHeaders(request.headers)
-    const { rateLimiter } = getContainer()
-    const rlResult = await rateLimiter.check(`auth:native:${ip}`)
-    if (!rlResult.allowed) {
-      return new Response(
-        JSON.stringify({ message: 'Too many requests. Please try again later.' }),
-        {
-          status: 429,
-          headers: { 'content-type': 'application/json' },
-        },
-      )
-    }
+  if (
+    opts.rateLimit &&
+    !authRateLimitBypassed() &&
+    (await overRateLimit(request, decision.route))
+  ) {
+    return new Response(
+      JSON.stringify({ message: 'Too many requests. Please try again later.' }),
+      {
+        status: 429,
+        headers: { 'content-type': 'application/json' },
+      },
+    )
   }
 
   return getAuth().handler(request)

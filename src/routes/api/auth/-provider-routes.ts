@@ -50,7 +50,10 @@ export const ALLOWED_PROVIDER_ROUTES: ReadonlyArray<ProviderRoute> = [
   { method: 'POST', path: '/sign-out' },
   // The reset form's first step (authClient.requestPasswordReset). Anonymous
   // by design; the answer is the same whether or not the address has an
-  // account.
+  // account, and does not wait for the mail provider when it has one
+  // (detachedResetPasswordSender, shared/auth/auth.ts). It mails an address
+  // the caller names, so the route counts it per address as well as per IP
+  // ($.ts).
   { method: 'POST', path: '/request-password-reset' },
   // The link in the reset mail. It checks the token and redirects to
   // /reset-password with it; it changes nothing.

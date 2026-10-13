@@ -16,6 +16,7 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { createPortalInputSchema } from '../application/dto/create-portal.dto'
 import { updatePortalInputSchema } from '../application/dto/update-portal.dto'
+import { completeContentReviewInputSchema } from '../application/dto/complete-content-review.dto'
 import {
   portalApprovedDestinationDecisionInputSchema,
   portalApprovedDestinationDisableInputSchema,
@@ -380,20 +381,6 @@ async function listAuthorizedPortalPropertyIds(
     .filter(({ decision }) => decision.allowed)
     .map(({ propertyId }) => propertyId)
 }
-
-const completeContentReviewSchema = z.object({
-  portalId: z.string().min(1),
-  reviewId: z.string().trim().min(1),
-  revision: z.number().int().min(1),
-  supersedes: z
-    .object({
-      contentReviewSourceEventId: z.string().min(1),
-      configurationSourceEventId: z.string().min(1),
-      destinationRatioSourceEventId: z.string().min(1),
-    })
-    .nullable()
-    .optional(),
-})
 
 // ── createPortal ───────────────────────────────────────────────────
 
@@ -815,7 +802,7 @@ export const revokePortalTokens = createServerFn({ method: 'POST' })
   )
 
 export const completeContentReview = createServerFn({ method: 'POST' })
-  .validator(completeContentReviewSchema)
+  .validator(completeContentReviewInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

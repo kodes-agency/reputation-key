@@ -8,7 +8,6 @@ import { getDb } from '#/shared/db'
 import { buildTestGoogleConnection } from '#/shared/testing/fixtures'
 import { organizationId, userId, googleConnectionId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
-import type { PropertyFkCleanupPort } from '../../application/ports/property-fk-cleanup.port'
 
 const ORG_A = organizationId('org-gc-aaaaaaaaaa')
 const ORG_B = organizationId('org-gc-bbbbbbbbbb')
@@ -20,13 +19,7 @@ const { getPool } = setupIntegrationDb({
   tables: ['google_connections'],
 })
 
-/** No-op FK cleanup for integration tests — we don't test FK nulling here. */
-const noopFkCleanup: PropertyFkCleanupPort = {
-  clearGoogleConnectionRef: async () => {},
-}
-
-const makeRepo = () =>
-  createGoogleConnectionRepository(getDb(), noopFkCleanup, () => REPOSITORY_NOW)
+const makeRepo = () => createGoogleConnectionRepository(getDb(), () => REPOSITORY_NOW)
 
 describe('googleConnectionRepository (integration)', () => {
   describe('insert and findById', () => {
@@ -240,8 +233,12 @@ describe('googleConnectionRepository (integration)', () => {
     })
   })
 
-  describe('delete', () => {
-    it('deletes a connection', async () => {
+  // A connection row is never hard-deleted: disconnect redacts it in place
+  // (`redactForDisconnect`) and each Property's reference moves with its
+  // binding state through Property's `googleBinding` capability. The delete
+  // that nulled those references without the binding store had no caller.
+  describe('no hard delete', () => {
+    it('offers no delete, so an inserted connection stays readable', async () => {
       const repo = makeRepo()
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
@@ -250,9 +247,12 @@ describe('googleConnectionRepository (integration)', () => {
       })
       await repo.insert(conn)
 
-      await repo.delete(ORG_A, conn.id)
-      const found = await repo.findById(ORG_A, conn.id)
-      expect(found).toBeNull()
+      expect(Object.keys(repo)).not.toContain('delete')
+      await expect(repo.findById(ORG_A, conn.id)).resolves.toMatchObject({
+        id: conn.id,
+        organizationId: ORG_A,
+        status: 'active',
+      })
     })
   })
 })

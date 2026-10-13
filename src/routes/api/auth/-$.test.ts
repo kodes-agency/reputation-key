@@ -43,7 +43,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('#/shared/config/env', () => ({ getEnv: () => mocks.env }))
 vi.mock('#/composition', () => ({
-  getContainer: () => ({ rateLimiter: { check: mocks.check } }),
+  getContainer: () => ({
+    rateLimiter: { check: mocks.check },
+    identityRequestSecurity: { invitationRateLimitHmacSecret: 'route-test-secret' },
+  }),
 }))
 vi.mock('#/shared/auth/auth', () => ({ getAuth: () => ({ handler: mocks.handler }) }))
 vi.mock('#/shared/observability/logger', () => ({
@@ -167,6 +170,106 @@ describe('auth catch-all rate limiting (review §5.1)', () => {
     expect(response.status).toBe(429)
     expect(mocks.handler).not.toHaveBeenCalled()
     expect(mocks.error.mock.calls[0]?.[1]).toMatch(/auth\.rate_limit_bypass_refused/)
+  })
+})
+
+// The reset request is the one allowed route that sends mail to an address the
+// caller names. Both per-IP limits (this route's and the provider's) let any
+// number of callers mail one member, so the route also counts per address, as
+// the app-owned verification resend does (ADR 0062 §6).
+describe('auth catch-all password reset requests', () => {
+  const PER_ADDRESS = { maxRequests: 3, windowSeconds: 60 * 60 }
+
+  function resetRequestPost(email = 'dana@example.com') {
+    return new Request('http://localhost:3000/api/auth/request-password-reset', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-real-ip': '203.0.113.5',
+        'x-railway-edge': 'ams1',
+        'x-railway-request-id': 'request-1',
+      },
+      body: JSON.stringify({ email, redirectTo: '/reset-password' }),
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.check.mockResolvedValue({ allowed: true })
+    mocks.handler.mockResolvedValue(new Response('ok', { status: 200 }))
+  })
+
+  afterEach(() => {
+    delete process.env.E2E
+  })
+
+  it('counts a reset request per IP, then per address, and hands it on with its body', async () => {
+    useEnv({})
+    const { handleAuthRequest } = await loadRoute()
+    const request = resetRequestPost()
+
+    const response = await handleAuthRequest(request, { rateLimit: true })
+
+    expect(response.status).toBe(200)
+    expect(mocks.check).toHaveBeenCalledTimes(2)
+    expect(mocks.check.mock.calls[0]).toEqual(['auth:native:203.0.113.5'])
+    const [addressKey, addressLimit] = mocks.check.mock.calls[1] ?? []
+    expect(addressKey).toMatch(/^identity:password-reset:email:[a-f0-9]{64}$/)
+    expect(addressLimit).toEqual(PER_ADDRESS)
+    // The provider gets the request it was sent, body unread.
+    expect(mocks.handler.mock.calls[0]?.[0]).toBe(request)
+    expect(await request.json()).toEqual({
+      email: 'dana@example.com',
+      redirectTo: '/reset-password',
+    })
+  })
+
+  it('refuses a reset request for an address over its limit, before the provider', async () => {
+    useEnv({})
+    mocks.check
+      .mockResolvedValueOnce({ allowed: true })
+      .mockResolvedValueOnce({ allowed: false })
+    const { handleAuthRequest } = await loadRoute()
+
+    const response = await handleAuthRequest(resetRequestPost(), { rateLimit: true })
+
+    expect(response.status).toBe(429)
+    expect(await response.json()).toEqual({
+      message: 'Too many requests. Please try again later.',
+    })
+    expect(mocks.handler).not.toHaveBeenCalled()
+  })
+
+  it('does not spend an address budget for a caller already over its own limit', async () => {
+    useEnv({})
+    mocks.check.mockResolvedValue({ allowed: false })
+    const { handleAuthRequest } = await loadRoute()
+
+    const response = await handleAuthRequest(resetRequestPost(), { rateLimit: true })
+
+    expect(response.status).toBe(429)
+    expect(mocks.check).toHaveBeenCalledTimes(1)
+    expect(mocks.check).toHaveBeenCalledWith('auth:native:203.0.113.5')
+  })
+
+  it('stands the address limit down with the rest of the limiter on the e2e stack', async () => {
+    useEnv({ E2E: '1', BETA_E2E_EXECUTION_IDENTITY: IDENTITY })
+    const { handleAuthRequest } = await loadRoute()
+
+    const response = await handleAuthRequest(resetRequestPost(), { rateLimit: true })
+
+    expect(response.status).toBe(200)
+    expect(mocks.check).not.toHaveBeenCalled()
+  })
+
+  it('counts no address for the routes that send no mail', async () => {
+    useEnv({})
+    const { handleAuthRequest } = await loadRoute()
+
+    await handleAuthRequest(signInPost(), { rateLimit: true })
+
+    expect(mocks.check).toHaveBeenCalledTimes(1)
+    expect(mocks.check).toHaveBeenCalledWith('auth:native:203.0.113.5')
   })
 })
 

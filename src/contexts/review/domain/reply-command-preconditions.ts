@@ -142,10 +142,15 @@ export function assertReplyCommandMayStart(
 }
 
 /** What a cancelled publication leaves behind: a draft that must be submitted
- * and approved again before anything is published. */
+ * and approved again before anything is published. The cycle's recovery
+ * deadline and last error class end with it, as they do when the Review store
+ * or provider truth cancels a cycle: nothing checks a cancelled row again, so
+ * a reader must not be shown a next automatic check. */
 export type CancelledPublication = Readonly<{
   status: Extract<ReplyStatus, 'draft'>
   publicationState: Extract<PersistedPublicationState, 'cancelled'>
+  publicationLastErrorClass: null
+  reconcileDueAt: null
 }>
 
 /**
@@ -162,7 +167,14 @@ export function cancelledPublication(
   reply: Pick<Reply, 'publicationState'>,
 ): CancelledPublication | null {
   const publicationState = nextPublicationState(reply.publicationState, 'cancel')
-  return publicationState === 'cancelled' ? { status: 'draft', publicationState } : null
+  return publicationState === 'cancelled'
+    ? {
+        status: 'draft',
+        publicationState,
+        publicationLastErrorClass: null,
+        reconcileDueAt: null,
+      }
+    : null
 }
 
 /** What a guest edit leaves of a Reply it takes back: a draft that keeps the

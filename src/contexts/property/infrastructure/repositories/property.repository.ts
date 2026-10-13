@@ -173,21 +173,6 @@ export const createPropertyRepository = (db: Database): PropertyRepository => {
       })
     },
 
-    clearGoogleConnectionRef: async (orgId, propertyIds) => {
-      return trace('property.clearGoogleConnectionRef', async () => {
-        if (propertyIds.length === 0) return
-        await db
-          .update(properties)
-          .set({ googleConnectionId: null })
-          .where(
-            and(
-              ...baseWhere(properties, orgId),
-              inArray(properties.id, propertyIds as readonly string[]),
-            ),
-          )
-      })
-    },
-
     insertAndReturn: async (orgId, property) => {
       return trace('property.insertAndReturn', async () => {
         if (property.organizationId !== orgId) {

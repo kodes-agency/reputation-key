@@ -134,6 +134,9 @@ export const notifications = pgTable(
       .where(sql`status = 'unread' AND resolved_at IS NULL`),
     // Query: the 90-day retention sweep selects expired rows oldest first.
     index('notifications_created_at_idx').on(t.createdAt),
+    // notifications_coalesced_latest_at_idx (the retention sweep's order) is absent here on
+    // purpose: the concurrent-index sidecar builds it
+    // (src/shared/db/concurrent-index-registry.ts).
     // Query: a Property hard delete's cascade check for this FK — every other
     // index here leads with user_id, organization_id alone, resource_id or
     // created_at, none of which can serve a property-scoped delete without
@@ -237,6 +240,9 @@ export const notificationEmailQueue = pgTable(
     index('notification_email_queue_immediate_acceptance_health_idx')
       .on(t.createdAt.desc(), t.id)
       .where(sql`${t.cadence} = 'immediate' AND ${t.notBefore} IS NULL`),
+    // notification_email_queue_created_at_idx (the retention sweep's order) is
+    // absent here on purpose: the concurrent-index sidecar builds it
+    // (src/shared/db/concurrent-index-registry.ts).
     uniqueIndex('email_queue_property_idempotency_unique')
       .on(t.organizationId, t.propertyId, t.idempotencyKey)
       .where(sql`${t.propertyId} IS NOT NULL`),

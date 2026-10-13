@@ -188,7 +188,6 @@ export type InboxContextApi = Readonly<{
   /** Event and cross-context workflow capabilities. These are deliberately
    * separate from request handlers and operator repair commands. */
   lifecycle: Readonly<{
-    createInboxItem: CreateInboxItem
     getInboxResponseTarget: GetInboxResponseTarget
     startReviewHandlingCycle: StartReviewHandlingCycle
   }>
@@ -333,7 +332,6 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   })
   const publicApi: InboxRequestApi = projectInboxRequestApi(useCases, responseTargetStore)
   const lifecycle = Object.freeze({
-    createInboxItem: useCases.createInboxItem,
     getInboxResponseTarget: useCases.getInboxResponseTarget,
     startReviewHandlingCycle: useCases.startReviewHandlingCycle,
   })

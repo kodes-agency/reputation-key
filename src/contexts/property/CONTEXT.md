@@ -14,7 +14,10 @@ Property lookups.
   access, Goal, Review, and Guest records retain their own context ownership.
 - Integration changes Google binding state only through
   `PropertyGoogleBindingPublicApi`, which the build returns as its own
-  `googleBinding` capability and never on `publicApi`.
+  `googleBinding` capability and never on `publicApi`. A Property's connection
+  reference moves only there, with its binding state, epoch and fact: `publicApi`
+  holds no write to it, and Integration never hard-deletes a connection row
+  (disconnect redacts it in place).
 - Identity supplies membership, role and Property access, which decide
   Responsible Manager eligibility. Responsible Manager assignment is notification
   routing, not authorization or attribution.

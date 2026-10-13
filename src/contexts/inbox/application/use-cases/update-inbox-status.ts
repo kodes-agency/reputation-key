@@ -58,7 +58,7 @@ export type UpdateInboxStatus = (
 
 type CycleHead = HandlingCycleHead | ReviewHandlingCycleHead
 
-/** Permission, tenancy, optimistic fence, and role-scoped property access. */
+/** Permission, tenancy, role-scoped property access, then the optimistic fence. */
 async function authorizeStatusUpdate(
   deps: UpdateInboxStatusDeps,
   input: UpdateInboxStatusInput,
@@ -72,10 +72,12 @@ async function authorizeStatusUpdate(
     input.inboxItemId,
     ctx.organizationId,
   )
-  assertExpectedCommandRevision(item, input.expectedCommandRevision)
   if (!canHandleInboxSource(ctx, item.sourceType)) {
     throw inboxError('forbidden', 'No permission to handle this inbox source')
   }
+  // Scope before the revision fence: a conflict names the item's current
+  // revision and status, which a caller with no access to its Property must
+  // not be told.
   await assertInboxSourcePropertyAccessible(
     deps.staffPublicApi,
     ctx,
@@ -83,6 +85,7 @@ async function authorizeStatusUpdate(
     item.sourceType,
     item.propertyId,
   )
+  assertExpectedCommandRevision(item, input.expectedCommandRevision)
   return item
 }
 

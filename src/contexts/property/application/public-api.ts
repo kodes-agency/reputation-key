@@ -144,15 +144,6 @@ export type PropertyPublicApi = Readonly<{
     connectionId: GoogleConnectionId,
     orgId: OrganizationId,
   ) => Promise<string | null>
-
-  /**
-   * Null out all googleConnectionId references for a given connection.
-   * Used by integration context when disconnecting a Google account.
-   */
-  clearGoogleConnectionRef: (
-    orgId: OrganizationId,
-    connectionId: GoogleConnectionId,
-  ) => Promise<void>
 }> &
   PropertySourceEpochPublicApi
 

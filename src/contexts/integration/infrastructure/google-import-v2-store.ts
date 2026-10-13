@@ -19,14 +19,14 @@ import {
   type ImportProgressDto,
   type ImportProgressItemDto,
 } from '../application/google-import-v2-contract'
-import {
-  GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
-  type GoogleImportV2ClaimedItem,
-  type GoogleImportV2Intent,
-  type GoogleImportV2LifecycleScope,
-  type GoogleImportV2OutcomeDetail,
-  type GoogleImportV2Store,
+import type {
+  GoogleImportV2ClaimedItem,
+  GoogleImportV2Intent,
+  GoogleImportV2LifecycleScope,
+  GoogleImportV2OutcomeDetail,
+  GoogleImportV2Store,
 } from '../application/ports/google-import-v2-store.port'
+import { importItemAdmitsAttempt } from '../application/google-import-item-attempt'
 import { reduceGoogleImportParent } from '../application/google-import-v2-reducer'
 import {
   GOOGLE_IMPORT_BATCH_SIZE,
@@ -1121,13 +1121,9 @@ export const createGoogleImportV2Store = (
         ) {
           return { kind: 'ignored', reason: 'effect_expired' } as const
         }
-        const nextAttempt = row.highestAttemptForRevision + 1
-        const validAttempt =
-          row.status === 'pending'
-            ? input.attemptOrdinal === nextAttempt
-            : input.attemptOrdinal === row.highestAttemptForRevision ||
-              input.attemptOrdinal === nextAttempt
-        if (!validAttempt || input.attemptOrdinal > GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS) {
+        if (
+          !importItemAdmitsAttempt(row.highestAttemptForRevision, input.attemptOrdinal)
+        ) {
           return { kind: 'ignored', reason: 'stale_attempt' } as const
         }
         const authorization = authorizationFromRow(row)
