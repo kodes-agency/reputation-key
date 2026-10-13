@@ -23,40 +23,118 @@ export function isAiIssueLabel(value: string): boolean {
  * Both sides are compared as words. A label holds only `a-z` and single
  * spaces, so a phrase copied from a review can never carry what touched it
  * there: the full stop or comma after it, a quotation mark, an accent, the
- * apostrophe in `didn't`. The review is therefore reduced to the words a label
- * could spell before matching, and both are space-padded so a match is whole
- * words in a row, never an incidental substring.
+ * apostrophe in `didn't`. The review is therefore read as words before
+ * matching, and a match is whole words in a row, never an incidental
+ * substring.
+ *
+ * An apostrophe or a hyphen inside a word has two readings, and a copy can
+ * take either: dropped (`didn't` as `didnt`, `Wi-Fi` as `wifi`) or as a word
+ * break (`l'accueil froid` as `accueil froid`, `check-in` as `check in`). The
+ * label is refused when it follows the review under either reading, chosen
+ * mark by mark: `eau netait` copies `l'eau n'était`. An invisible format
+ * character inside a word (a soft hyphen) is read the same two ways.
  *
  * Punctuation does not keep two words apart: `Dirty. Staff were kind` refuses
  * `dirty staff`. Telling a sentence break from a clause break would need a
  * grammar, and erring this way costs one optional label, never an excerpt.
+ *
+ * Known limit: a letter without a decomposition (`ß`, `ø`, `œ`, `æ`, `ł`) is
+ * compared as written, so a transliterated copy (`grosse` for `große`) is not
+ * recognised.
  */
 export function issueLabelReproducesSource(label: string, sourceText: string): boolean {
-  const labelWords = wordsForComparison(label)
-  if (labelWords.split(' ').length < 2) return false
-  return ` ${wordsForComparison(sourceText)} `.includes(` ${labelWords} `)
+  const labelWords = wordPieces(label).map((piece) => piece.text)
+  if (labelWords.length < 2) return false
+  const source = wordPieces(sourceText)
+  return source.some((_piece, start) => spellsWordsFrom(source, start, labelWords))
 }
+
+/**
+ * A run of letters and digits in the text. `joinsPrevious` says an in-word
+ * mark, not a break, separates it from the piece before: `didn't` is the
+ * pieces `didn` and `t`, which a label can spell as one word or as two.
+ */
+type WordPiece = Readonly<{ text: string; joinsPrevious: boolean }>
+
+const WORD_BREAK = ' '
+/** Stands for an in-word mark once every other mark has become a break. */
+const IN_WORD_MARK = "'"
 
 const COMBINING_MARKS = /\p{M}+/gu
 /**
- * The apostrophe inside a word, which a label drops: `didn't`, and the same
- * word typed with U+2019 (right single quotation mark) or U+02BC (modifier
- * letter apostrophe).
+ * U+00B4 (acute accent) typed for an apostrophe. NFKC and NFKD both spell it
+ * as a space carrying a combining acute, and review text arrives in NFKC, so it
+ * is recognised in that form, while the combining marks are still in the text.
  */
-const IN_WORD_APOSTROPHE = /(?<=\p{L})['\u2019\u02bc](?=\p{L})/gu
-const NOT_A_WORD_CHARACTER = /[^\p{L}\p{N}]+/gu
+const ACUTE_ACCENT_IN_WORD = /(?<=\p{L}\p{M}*) \u0301(?=\p{L})/gu
+/**
+ * Everything that is not a letter or a digit. The first alternative is one
+ * mark between two letters, captured: the apostrophe as typed (`'`, U+2019,
+ * U+02BC), what guests type for it (U+0060 grave accent, U+2018 left
+ * quotation mark, U+2032 prime, U+02B9 modifier prime), the hyphen (`-`,
+ * U+2010) and a format character such as the soft hyphen. The second is any
+ * other run. The two modifier letters count as letters in Unicode, so they are
+ * named there too and never stay in a word.
+ */
+const NOT_A_WORD_CHARACTER =
+  /(?<=\p{L})(['`\u2018\u2019\u2032\u02b9\u02bc\u2010\p{Cf}-])(?=\p{L})|(?:[^\p{L}\p{N}]|[\u02b9\u02bc])+/gu
 
 /**
- * Lowercase words separated by single spaces: compatibility forms folded
- * (NFKD), diacritics removed, in-word apostrophes dropped, and every other run
- * that is not a letter or a digit read as one word break.
+ * The text as lowercase word pieces: compatibility forms folded (NFKD),
+ * diacritics removed, a mark inside a word kept as a join between its two
+ * pieces, and every other run that is not a letter or a digit read as a break.
  */
-function wordsForComparison(value: string): string {
+function wordPieces(value: string): ReadonlyArray<WordPiece> {
   return value
     .normalize('NFKD')
+    .replace(ACUTE_ACCENT_IN_WORD, IN_WORD_MARK)
     .replace(COMBINING_MARKS, '')
     .toLowerCase()
-    .replace(IN_WORD_APOSTROPHE, '')
-    .replace(NOT_A_WORD_CHARACTER, ' ')
+    .replace(NOT_A_WORD_CHARACTER, (_run, inWordMark: string | undefined) =>
+      inWordMark === undefined ? WORD_BREAK : IN_WORD_MARK,
+    )
     .trim()
+    .split(WORD_BREAK)
+    .flatMap((word) =>
+      word.split(IN_WORD_MARK).map((text, index) => ({ text, joinsPrevious: index > 0 })),
+    )
+}
+
+const NOT_SPELLED = -1
+
+/** Whether `words` follow one another in `source`, the first at piece `start`. */
+function spellsWordsFrom(
+  source: ReadonlyArray<WordPiece>,
+  start: number,
+  words: ReadonlyArray<string>,
+): boolean {
+  let position = start
+  for (const word of words) {
+    position = endOfWordAt(source, position, word)
+    if (position === NOT_SPELLED) return false
+  }
+  return true
+}
+
+/**
+ * Where `word` ends when it starts at piece `start`: after that piece, or
+ * after the pieces an in-word mark joins to it when the word is longer
+ * (`didnt` over `didn` and `t`). The next word may start at any piece, since
+ * a mark also reads as a break. `NOT_SPELLED` when the source has another
+ * word there.
+ */
+function endOfWordAt(
+  source: ReadonlyArray<WordPiece>,
+  start: number,
+  word: string,
+): number {
+  let spelled = ''
+  let position = start
+  while (spelled.length < word.length) {
+    const piece = source[position]
+    if (piece === undefined || (position > start && !piece.joinsPrevious)) break
+    spelled += piece.text
+    position += 1
+  }
+  return spelled === word ? position : NOT_SPELLED
 }

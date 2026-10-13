@@ -69,6 +69,90 @@ describe('issue label source reproduction', () => {
     expect(issueLabelReproducesSource(label, source)).toBe(true)
   })
 
+  // An apostrophe inside a word has two readings and a copy can take either.
+  // English drops it (`didnt`, above). French and Italian elide an article
+  // onto the next word, so the copied phrase starts right after the mark.
+  it.each([
+    ['accueil froid', "Personnel désagréable, l'accueil froid."],
+    ['accueil froid', 'Personnel désagréable, l\u2019accueil froid.'],
+    ['hotel sale', "Nous avons trouvé l'hôtel sale."],
+    ['eau chaude', "Pas d'eau chaude le matin."],
+    ['aria condizionata', "L'aria condizionata non funzionava."],
+    ['accueil froid', 'Un accueil froid.'],
+  ])('refuses %j copied from right after an elided article in %j', (label, source) => {
+    expect(issueLabelReproducesSource(label, source)).toBe(true)
+  })
+
+  // One phrase can need both readings: a break at `l'`, the mark dropped in
+  // `n'était`.
+  it.each([
+    ['eau netait pas chaude', "L'eau n'était pas chaude."],
+    ['hotel netait pas propre', 'L\u2019hôtel n\u2019était pas propre du tout.'],
+  ])('refuses %j, which reads each apostrophe of %j its own way', (label, source) => {
+    expect(issueLabelReproducesSource(label, source)).toBe(true)
+  })
+
+  // What guests type for an apostrophe: the grave and acute accents, the left
+  // quotation mark, the prime and the modifier prime.
+  it.each([
+    ['U+0060', 'The staff didn`t care at all.'],
+    ['U+00B4', 'The staff didn\u00b4t care at all.'],
+    ['U+2018', 'The staff didn\u2018t care at all.'],
+    ['U+2032', 'The staff didn\u2032t care at all.'],
+    ['U+02B9', 'The staff didn\u02b9t care at all.'],
+    // As the analysis hands it over: review text is NFKC, which spells U+00B4
+    // as a space carrying a combining acute.
+    ['U+00B4 in NFKC', 'The staff didn\u00b4t care at all.'.normalize('NFKC')],
+  ])('reads %s as an apostrophe inside a word', (_mark, source) => {
+    expect(issueLabelReproducesSource('staff didnt care', source)).toBe(true)
+  })
+
+  it('reads an acute accent typed after an accented letter as an apostrophe', () => {
+    expect(
+      issueLabelReproducesSource('cafes staff', 'The café\u00b4s staff were kind.'),
+    ).toBe(true)
+  })
+
+  it('reads a look-alike apostrophe as a word break as well', () => {
+    expect(issueLabelReproducesSource('accueil froid', 'Bref, l`accueil froid.')).toBe(
+      true,
+    )
+  })
+
+  // The hyphen inside a word is the same mark in a compound: a label can only
+  // spell `Wi-Fi` as `wifi` or as `wi fi`.
+  it.each([
+    ['wifi was slow', 'The Wi-Fi was slow all week.'],
+    ['wi fi was slow', 'The Wi-Fi was slow all week.'],
+    ['checkin took an hour', 'Check-in took an hour.'],
+    ['checkin took an hour', 'Check\u2010in took an hour.'],
+    ['petitdejeuner froid', 'Un petit-déjeuner froid.'],
+  ])('refuses %j copied from the compound in %j', (label, source) => {
+    expect(issueLabelReproducesSource(label, source)).toBe(true)
+  })
+
+  // A soft hyphen is invisible in the review and splits the word it sits in.
+  it.each(['rude staff', 'ru de staff'])(
+    'refuses %j copied from a word that holds a soft hyphen',
+    (label) => {
+      expect(issueLabelReproducesSource(label, 'So ru\u00adde staff.')).toBe(true)
+    },
+  )
+
+  it.each([
+    // Still a category: one word, wherever the guest's apostrophe put it.
+    ['accueil', "Personnel désagréable, l'accueil froid."],
+    // The words are the guest's, the phrase is not.
+    ['service lent', "Le service n'était pas lent."],
+    ['accueil chaleureux', "L'accueil, pas vraiment chaleureux."],
+    // A quotation mark is not an apostrophe inside a word.
+    ['staff rude', "The staff said 'rude' things."],
+    // Only a mark inside one word joins its halves.
+    ['roomservice slow', 'The room - service slow as ever.'],
+  ])('still allows %j for %j', (label, source) => {
+    expect(issueLabelReproducesSource(label, source)).toBe(false)
+  })
+
   it('still allows a single word that sits next to punctuation', () => {
     expect(issueLabelReproducesSource('checkout', 'Slow checkout. Nice pool!')).toBe(
       false,
