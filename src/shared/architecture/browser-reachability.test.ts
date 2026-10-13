@@ -1,81 +1,130 @@
 // BQC-5.3 — browser-reachability guard.
 //
-// Walks the import graph from the explicit client entry, all browser routes
-// (excluding src/routes/api/**), and all components, then fails when a
-// Node-only module is reachable. This mirrors Vite's BUILD-time
-// `importProtection.client.files` and `excludeFiles` rules below.
+// Walks the import graph from what the browser loads first — src/client.tsx,
+// src/start.ts and src/router.tsx — and from every browser route (excluding
+// src/routes/api/**) and component, then fails when a Node-only module is
+// reachable. The deny list is not a copy: it is read from
+// `importProtection.client` in vite.config.ts, so the build and this test
+// cannot disagree about what is denied.
 //
-// Traversal STOPS at modules TanStack Start RPC-stubs for the client (their
-// imports never reach the browser):
-//   - src/contexts/*/server/** (per the vite.config.ts importProtection comment)
-//   - any module defining createServerFn (e.g. shared/auth/auth.functions.ts,
-//     routes/-notification-fns.ts — the same stub transform, outside server/)
-//   - src/composition.ts (the composition root is server-side wiring)
-//   - bare packages (node_modules)
+// A module the Start compiler rewrites (`createServerFn`, `createMiddleware`,
+// `createIsomorphicFn`, `createServerOnlyFn`) is not invisible to the browser.
+// The client build drops its server halves and keeps the rest, so the walk
+// follows what remains: its plain exports, its top-level statements, its
+// re-exports and the imports those reach (start-client-residue.ts). A `server/`
+// barrel or helper with none of those constructs is an ordinary module and is
+// walked whole.
 //
 // A reached file is Node-only when:
-//   (a) its src-relative path matches the importProtection deny list, or
-//   (b) its source imports node:* builtins or pg/ioredis/bullmq/drizzle-orm/resend, or
-//   (c) its source reads process.env — except process.env.NODE_ENV, which Vite
-//       statically replaces in the client bundle.
+//   (a) its src-relative path matches the build's deny list, or
+//   (b) what the browser keeps of it imports a Node builtin (`node:crypto` or
+//       bare `crypto`) or a server-only package, or
+//   (c) what the browser keeps of it reads process.env — except
+//       process.env.NODE_ENV, which Vite statically replaces in the client
+//       bundle.
 //
 // Type-only imports (`import type` / `export type`, or named specifiers that
 // are all inline-`type`) are erased at compile time — verbatimModuleSyntax
 // makes that marking explicit — so they create no browser-reachable edge.
 //
+// src/routeTree.gen.ts is not followed: it only lists the routes. The browser
+// routes are entry points here; the API routes stay outside this walk, as
+// before, and the build's own import protection has them on its deny list.
+//
 // Regression net for STD-P2-01-class hydration crashes (e.g. the /register
 // beforeLoad that imported beta-capabilities' process.env-reading store —
 // fixed in BQC-5.3 by moving the capability gate behind a server fn).
 
-import { describe, it, expect } from 'vitest'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { isBuiltin } from 'node:module'
 import { dirname, join, relative, resolve } from 'node:path'
+import ts from 'typescript'
+import { describe, it, expect } from 'vitest'
+import { START_COMPILED, clientResidue } from './start-client-residue'
 
-const SRC = join(process.cwd(), 'src')
+const ROOT = process.cwd()
+const SRC = join(ROOT, 'src')
+const VITE_CONFIG = 'vite.config.ts'
 
-// ── Deny list — MUST mirror vite.config.ts importProtection.client.files ──
-const DENY_PATTERNS = [
-  '**/*.server.*',
-  '**/routes/api/**',
-  '**/composition.ts',
-  '**/infrastructure/**',
-  '**/build.ts',
-  '**/shared/db/**',
-  '**/shared/cache/**',
-  '**/shared/jobs/**',
-  '**/shared/observability/**',
-  '**/shared/auth/auth.ts',
-  '**/shared/auth/middleware.ts',
-  '**/shared/auth/server-errors.ts',
-  '**/shared/auth/headers.ts',
-] as const
+// ── Deny list — read from vite.config.ts importProtection.client ────────
 
-const DENY_EXCLUSIONS: Readonly<Record<string, true>> = {
-  'shared/observability/browser-exception-capture.ts': true,
-  // Browser-only memory of event ids the SDK returned; no Node import, and
-  // the beta feedback dialog reads it to offer a Bug the error it just hit.
-  'shared/observability/recorded-browser-errors.ts': true,
-  'shared/observability/browser-observability.server.ts': true,
-  'shared/observability/sentry-event-scrub.ts': true,
-  'shared/observability/sensitive-field-policy.ts': true,
+function propertyNamed(root: ts.Node, name: string): ts.Expression {
+  let found: ts.Expression | undefined
+  const visit = (node: ts.Node): void => {
+    if (found !== undefined) return
+    if (
+      ts.isPropertyAssignment(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === name
+    ) {
+      found = node.initializer
+      return
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(root)
+  if (found === undefined) {
+    throw new Error(
+      `${VITE_CONFIG} has no '${name}' under importProtection: this canary cannot read the build's deny list`,
+    )
+  }
+  return found
 }
 
+function globList(client: ts.Expression, name: string): readonly string[] {
+  const list = propertyNamed(client, name)
+  if (!ts.isArrayLiteralExpression(list) || !list.elements.every(ts.isStringLiteral)) {
+    throw new Error(
+      `${VITE_CONFIG} importProtection.client.${name} must be a list of string literals for this canary to read it`,
+    )
+  }
+  return list.elements.map((element) => (element as ts.StringLiteral).text)
+}
+
+/** The build's own `importProtection.client` lists, read from the config source. */
+function buildImportProtection(): Readonly<{
+  files: readonly string[]
+  excludeFiles: readonly string[]
+}> {
+  const config = ts.createSourceFile(
+    VITE_CONFIG,
+    readFileSync(join(ROOT, VITE_CONFIG), 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+  )
+  const client = propertyNamed(propertyNamed(config, 'importProtection'), 'client')
+  return {
+    files: globList(client, 'files'),
+    excludeFiles: globList(client, 'excludeFiles'),
+  }
+}
+
+// A double star with a slash is any number of leading directories, a double
+// star alone is anything, a single star is one path segment. Each is swapped
+// for a marker first: the expansions contain a star themselves, and expanding
+// in place rewrote them into single-segment matches, so a file two directories
+// deep was not denied.
 function globToRegExp(glob: string): RegExp {
-  const escaped = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&')
-  const pattern = escaped
-    .replace(/\*\*\//g, '(?:.*/)?')
-    .replace(/\*\*/g, '.*')
+  const pattern = glob
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*\//g, '\u0001')
+    .replace(/\*\*/g, '\u0002')
     .replace(/\*/g, '[^/]*')
+    .replaceAll('\u0001', '(?:.*/)?')
+    .replaceAll('\u0002', '.*')
   return new RegExp(`^${pattern}$`)
 }
 
-const DENY_RES = DENY_PATTERNS.map(globToRegExp)
+const BUILD_IMPORT_PROTECTION = buildImportProtection()
+const DENIED = BUILD_IMPORT_PROTECTION.files.map(
+  (glob) => [glob, globToRegExp(glob)] as const,
+)
+const EXCLUDED = BUILD_IMPORT_PROTECTION.excludeFiles.map(globToRegExp)
 
 function denyReason(rel: string): string | null {
-  if (DENY_EXCLUSIONS[rel] === true) return null
-  for (let i = 0; i < DENY_RES.length; i++) {
-    if (DENY_RES[i].test(rel))
-      return `matches importProtection deny pattern '${DENY_PATTERNS[i]}'`
+  if (EXCLUDED.some((excluded) => excluded.test(rel))) return null
+  for (const [glob, denied] of DENIED) {
+    if (denied.test(rel)) return `matches importProtection deny pattern '${glob}'`
   }
   return null
 }
@@ -107,8 +156,17 @@ function entryPoints(): string[] {
     (f) => !relOf(f).startsWith('routes/api/'),
   )
   const components = walk(join(SRC, 'components'))
-  return [join(SRC, 'client.tsx'), ...routes, ...components]
+  return [
+    join(SRC, 'client.tsx'),
+    join(SRC, 'start.ts'),
+    join(SRC, 'router.tsx'),
+    ...routes,
+    ...components,
+  ]
 }
+
+/** The generated route tree only lists routes, which are entry points on their own. */
+const GENERATED_ROUTE_TREE = join(SRC, 'routeTree.gen.ts')
 
 function relOf(abs: string): string {
   return relative(SRC, abs).split('\\').join('/')
@@ -148,9 +206,13 @@ function runtimeSpecifiers(code: string): string[] {
   }
   SIDE_EFFECT_RE.lastIndex = 0
   while ((m = SIDE_EFFECT_RE.exec(code)) !== null) out.push(m[1])
-  DYNAMIC_RE.lastIndex = 0
-  while ((m = DYNAMIC_RE.exec(code)) !== null) out.push(m[1])
-  return out
+  return [...out, ...dynamicSpecifiers(code)]
+}
+
+function dynamicSpecifiers(code: string): string[] {
+  return [...code.matchAll(DYNAMIC_RE)].flatMap(([, specifier]) =>
+    specifier === undefined ? [] : [specifier],
+  )
 }
 
 // ── Resolution ─────────────────────────────────────────────────────────
@@ -190,10 +252,26 @@ function resolveSpecifier(spec: string, fromFile: string): string | 'bare' | nul
 
 // ── Node-only detection ────────────────────────────────────────────────
 
-const NODE_ONLY_PACKAGES = ['pg', 'ioredis', 'bullmq', 'drizzle-orm', 'resend'] as const
+const NODE_ONLY_PACKAGES = [
+  'pg',
+  'ioredis',
+  'bullmq',
+  'drizzle-orm',
+  'resend',
+  'pino',
+  'sharp',
+  'pdfkit',
+  'openai',
+  'undici',
+  'dotenv',
+  'cld3-asm',
+  '@aws-sdk',
+  '@sentry/node',
+] as const
 
 function nodeOnlyImport(spec: string): string | null {
-  if (spec.startsWith('node:')) return `imports Node builtin '${spec}'`
+  // `crypto` and `node:crypto` are the same module: Vite externalizes both.
+  if (isBuiltin(spec)) return `imports Node builtin '${spec}'`
   for (const pkg of NODE_ONLY_PACKAGES) {
     if (spec === pkg || spec.startsWith(`${pkg}/`)) {
       return `imports server-only package '${spec}'`
@@ -222,19 +300,6 @@ interface Violation {
   chain: string[]
 }
 
-/** RPC-stubbed modules: TanStack replaces them in the client bundle, so their own imports never reach the browser. */
-function isRpcStubbed(rel: string, code: string): boolean {
-  // contexts/*/server/** per the vite.config.ts importProtection comment;
-  // composition.ts is server-side wiring; any module defining createServerFn
-  // gets the same stub transform outside server/ dirs (auth.functions.ts,
-  // route fns).
-  return (
-    /^contexts\/[^/]+\/server(?:\/|$)/.test(rel) ||
-    rel === 'composition.ts' ||
-    code.includes('createServerFn')
-  )
-}
-
 const ENV_REASON = 'reads process.env (undefined in the browser module graph)'
 
 /** First node-only finding for a reached, non-denied module (imports win over env reads). */
@@ -250,6 +315,38 @@ function firstViolation(
   }
   if (readsProcessEnv(code)) return { file: rel, reason: ENV_REASON, chain }
   return null
+}
+
+/** What a reached, non-denied module contributes: its own finding and the imports to follow. */
+function reachedModule(
+  rel: string,
+  source: string,
+  chain: string[],
+): { violation: Violation | null; specs: string[] } {
+  const kept = browserKept(rel, source)
+  // (b) server-only imports / (c) ambient process.env reads.
+  return {
+    violation: firstViolation(rel, kept.code, kept.specs, chain),
+    specs: kept.specs,
+  }
+}
+
+/**
+ * What the browser keeps of a module: all of it, or, for a module the Start
+ * compiler rewrites, what is left once its server halves are dropped.
+ */
+function browserKept(rel: string, source: string): { code: string; specs: string[] } {
+  const code = stripComments(source)
+  if (!START_COMPILED.some((factory) => code.includes(factory))) {
+    return { code, specs: runtimeSpecifiers(code) }
+  }
+
+  const residue = clientResidue(rel, source)
+  const keptCode = stripComments(residue.code)
+  return {
+    code: keptCode,
+    specs: [...residue.specifiers, ...dynamicSpecifiers(keptCode)],
+  }
 }
 
 function pushChildren(
@@ -269,6 +366,7 @@ function pushChildren(
       continue
     }
     if (resolved === 'bare' || resolved === null) continue
+    if (resolved === GENERATED_ROUTE_TREE) continue
     if (!seen.has(resolved)) stack.push([resolved, [...chain, relOf(resolved)]])
   }
 }
@@ -294,12 +392,7 @@ function collectViolations(): { violations: Violation[]; walkErrors: string[] } 
       continue
     }
 
-    const code = stripComments(readFileSync(file, 'utf8'))
-    if (isRpcStubbed(rel, code)) continue
-
-    // (b) server-only imports / (c) ambient process.env reads.
-    const specs = runtimeSpecifiers(code)
-    const violation = firstViolation(rel, code, specs, chain)
+    const { violation, specs } = reachedModule(rel, readFileSync(file, 'utf8'), chain)
     if (violation) violations.push(violation)
 
     pushChildren(specs, file, chain, seen, stack, walkErrors)
@@ -309,6 +402,150 @@ function collectViolations(): { violations: Violation[]; walkErrors: string[] } 
 }
 
 describe('browser reachability (BQC-5.3)', () => {
+  // R1A-04: the deny list is the build's, not a copy that can drift from it.
+  it('denies what the build denies', () => {
+    expect(BUILD_IMPORT_PROTECTION.files.length).toBeGreaterThan(0)
+    expect(denyReason('shared/email/templates/welcome.tsx')).toBe(
+      "matches importProtection deny pattern '**/shared/email/**'",
+    )
+    expect(denyReason('contexts/review/infrastructure/repositories/x.ts')).toBe(
+      "matches importProtection deny pattern '**/infrastructure/**'",
+    )
+    for (const glob of BUILD_IMPORT_PROTECTION.files) {
+      const sample = glob.replaceAll('**/', '').replaceAll('*', 'x')
+      expect(denyReason(sample), `${glob} must deny ${sample}`).toBe(
+        `matches importProtection deny pattern '${glob}'`,
+      )
+    }
+  })
+
+  it('lets through what the build excludes', () => {
+    expect(denyReason('shared/observability/logger.ts')).toBe(
+      "matches importProtection deny pattern '**/shared/observability/**'",
+    )
+    expect(denyReason('shared/observability/sentry-event-scrub.ts')).toBeNull()
+  })
+
+  // R1A-04: a bare builtin is the import the hydration crash names.
+  it.each(['crypto', 'node:crypto', 'fs/promises', 'pino', '@aws-sdk/client-s3'])(
+    'treats %s as Node-only',
+    (specifier) => {
+      expect(nodeOnlyImport(specifier)).toContain(`'${specifier}'`)
+    },
+  )
+
+  it('does not mistake a browser package for a Node-only one', () => {
+    expect(nodeOnlyImport('react')).toBeNull()
+    expect(nodeOnlyImport('@sentry/react')).toBeNull()
+  })
+
+  const CHAIN = ['components/guest/scan.tsx', 'contexts/guest/server/guest-scans.ts']
+
+  // R1A-04: the RPC transform stubs handler bodies; a plain export keeps its imports.
+  it('flags a server-function module whose plain export keeps a Node builtin', () => {
+    const { violation } = reachedModule(
+      'contexts/guest/server/guest-scans.ts',
+      `import { createHash } from 'node:crypto'
+      import { createServerFn } from '@tanstack/react-start'
+      export const hashIp = (ip: string) => createHash('sha256').update(ip).digest('hex')
+      export const recordScan = createServerFn({ method: 'POST' }).handler(async () => {
+        return hashIp('127.0.0.1')
+      })`,
+      CHAIN,
+    )
+
+    expect(violation).toMatchObject({
+      file: 'contexts/guest/server/guest-scans.ts',
+      reason: "imports Node builtin 'node:crypto'",
+    })
+  })
+
+  it('follows what a server-function module keeps, and nothing its handlers alone use', () => {
+    const { violation, specs } = reachedModule(
+      'contexts/guest/server/guest-scans.ts',
+      `import { createHash } from 'node:crypto'
+      import { createServerFn } from '@tanstack/react-start'
+      import { getContainer } from '#/composition'
+      import { scanInputSchema } from '../application/dto/scan.dto'
+      import { scanErrorStatus } from './scan-errors'
+      export { guestSessionFn } from './guest-session'
+      const digest = (ip: string) => createHash('sha256').update(ip).digest('hex')
+      async function record(ip: string) {
+        return getContainer().guestApi.record(digest(ip), process.env.SCAN_SALT)
+      }
+      export const statusOf = (code: string) => scanErrorStatus(code)
+      export const recordScan = createServerFn({ method: 'POST' })
+        .validator(scanInputSchema)
+        .handler(async ({ data }) => record(data.ip))`,
+      CHAIN,
+    )
+
+    expect(violation).toBeNull()
+    expect([...specs].sort()).toEqual([
+      './guest-session',
+      './scan-errors',
+      '@tanstack/react-start',
+    ])
+  })
+
+  it('drops the server halves of middleware, isomorphic and server-only functions', () => {
+    const { violation, specs } = reachedModule(
+      'start.ts',
+      `import {
+        createIsomorphicFn,
+        createMiddleware,
+        createServerOnlyFn,
+      } from '@tanstack/react-start'
+      import { getSecurityHeaders } from '#/shared/security/security-headers'
+      import { serverLog } from '#/shared/observability/logger'
+      import { getContainer } from '#/composition'
+      import { browserLog } from './browser-log'
+      const csp = createMiddleware({ type: 'request' }).server(async ({ next }) => {
+        getSecurityHeaders({ nonce: process.env.CSP_NONCE })
+        return next()
+      })
+      const log = createIsomorphicFn()
+        .server(() => serverLog)
+        .client(() => browserLog)
+      export const list = createServerOnlyFn(() => getContainer().list())
+      export const start = { requestMiddleware: [csp], log }`,
+      ['start.ts'],
+    )
+
+    expect(violation).toBeNull()
+    expect([...specs].sort()).toEqual(['./browser-log', '@tanstack/react-start'])
+  })
+
+  it('flags a server-function module that reads process.env outside a handler', () => {
+    const { violation } = reachedModule(
+      'shared/auth/capability-set.ts',
+      `import { createServerFn } from '@tanstack/react-start'
+      export const capabilitiesOff = process.env.BETA_CAPABILITIES_OFF === 'all'
+      export const readCapabilities = createServerFn({ method: 'GET' }).handler(
+        async () => process.env.BETA_CAPABILITIES_OFF,
+      )`,
+      ['routes/register.tsx', 'shared/auth/capability-set.ts'],
+    )
+
+    expect(violation).toMatchObject({ reason: ENV_REASON })
+  })
+
+  it('walks a server-directory module with no server function as an ordinary module', () => {
+    const { violation, specs } = reachedModule(
+      'contexts/guest/server/index.ts',
+      `export { recordScan } from './guest-scans'
+      import { hashIp } from './hash-ip.server'
+      export const hashed = hashIp('127.0.0.1')`,
+      ['components/guest/scan.tsx', 'contexts/guest/server/index.ts'],
+    )
+
+    expect(violation).toBeNull()
+    expect([...specs].sort()).toEqual(['./guest-scans', './hash-ip.server'])
+    expect(denyReason('contexts/guest/server/hash-ip.server.ts')).toBe(
+      "matches importProtection deny pattern '**/*.server.*'",
+    )
+  })
+
   it('no Node-only module is reachable from the browser entry points', () => {
     const { violations, walkErrors } = collectViolations()
 
