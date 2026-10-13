@@ -489,6 +489,11 @@ export const createOrganizationExportRepository = (
         .orderBy(
           // First claims before reclaims (false sorts first).
           sql`${organizationExports.state} = 'delete_pending'`,
+          // A reclaim writes nothing, so a fixed order would hand every pass
+          // the same row for as long as its object cannot be deleted, and no
+          // other reclaim would ever be reached. Reclaims are drawn at random
+          // instead; first claims (NULL here) keep the deadline order below.
+          sql`CASE WHEN ${organizationExports.state} = 'delete_pending' THEN random() END`,
           asc(organizationExports.objectExpiresAt),
           asc(organizationExports.id),
         )

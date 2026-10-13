@@ -352,7 +352,10 @@ describe('Organization Export service', () => {
     })
   })
 
-  it('records no deletion when the object delete fails, and completes a reclaimed one at its own revision', async () => {
+  // The repository's claim is a stand-in here and answers every call with the
+  // same `delete_pending` row; that a real later pass is handed the row again
+  // is proven against PostgreSQL in the repository's integration test.
+  it('records no deletion when the object delete fails, and the next pass completes at the claimed revision', async () => {
     const flow = harness()
     flow.storage.delete.mockRejectedValueOnce(new Error('object store unavailable'))
 
@@ -361,7 +364,6 @@ describe('Organization Export service', () => {
     )
     expect(flow.repo.completeDeletion).not.toHaveBeenCalled()
 
-    // The later pass is handed the same `delete_pending` row, unchanged.
     await expect(flow.value.purgeNextExpired()).resolves.toBe(true)
     expect(flow.repo.completeDeletion).toHaveBeenCalledExactlyOnceWith({
       id: REQUEST_ID,
