@@ -64,7 +64,6 @@ import { createOutboxRelay } from '#/shared/outbox/relay'
 import { republishLostDispatches } from '#/shared/outbox/lost-dispatch-recovery'
 import { createPublishedAwaitingReceiptsReader } from '#/shared/outbox/infrastructure/published-awaiting-receipts'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
-import type { Worker } from 'bullmq'
 
 // Worker entry wires 10+ job schedules — complexity is inherent to the
 // registration seam. Owner: BQC-3 (returned by BQC-5.7).
@@ -110,7 +109,8 @@ async function main() {
   // BullMQ Queue or Worker. `noeviction` is a correctness requirement, Redis
   // 6.2 and GETDEL are part of the supported BullMQ Redis command contract.
   // Production never degrades into a worker that looks started but owns no
-  // queues.
+  // queues. Nor does any other environment: without a queue Redis only this
+  // inspection is skipped, and the container build below refuses the worker.
   assertProductionRedisTopology(env)
   const jobRedisUrl = getJobRedisUrl(env)
   if (!jobRedisUrl) {
@@ -162,10 +162,6 @@ async function main() {
     logger.info('Outbox consumers registered with dispatcher')
   }
 
-  // Track workers for graceful shutdown
-  let worker: Worker | undefined
-  let backgroundWorker: Worker | undefined
-
   const registry = container.jobRegistry
 
   // BQC-7.3 (worker.*): registered-job count + runtime version at boot —
@@ -207,32 +203,38 @@ async function main() {
     ? createRedisSchedulerPlanRecord(runtimeObservationRedis)
     : null
 
+  // A worker with no queues does not start, and never did: the container build
+  // above refuses one, because Integration and Review need the default queue,
+  // and in this process both queues exist exactly when Redis does. This says so
+  // by name, where the queues are first used, in place of the two branches that
+  // described a degraded start nothing could reach.
+  if (!container.jobQueue || !container.backgroundQueue) {
+    throw new Error('[WORKER] the default and background job queues are required')
+  }
+
   // ── Default queue — user-facing jobs (import, review sync, reply publish, etc.)
   // Concurrency is budgeted against the connection pool, NOT maximized: the
   // pool covers every queue's slots at their peak clients (./pool-budget).
   // A Google-import item holds its fenced `FOR UPDATE` transaction while the
   // nested Property effect opens a second one, so slots that could hold every
   // client would deadlock on the nested acquisition.
-  if (container.jobQueue) {
-    // BQC-3.2: every job authorizes through the delayed execution gate at
-    // dispatch (current policy — a stale allow never overrides a deny).
-    worker = createJobWorker(
-      'default',
-      createGatedJobHandler('default', registry, resolveScope),
-      DEFAULT_QUEUE_CONCURRENCY,
-      quarantineQueue,
-      runtimeObservationStore ?? undefined,
-      container.clock,
-    )
+  //
+  // BQC-3.2: every job authorizes through the delayed execution gate at
+  // dispatch (current policy — a stale allow never overrides a deny).
+  const worker = createJobWorker(
+    'default',
+    createGatedJobHandler('default', registry, resolveScope),
+    DEFAULT_QUEUE_CONCURRENCY,
+    quarantineQueue,
+    runtimeObservationStore ?? undefined,
+    container.clock,
+  )
 
-    if (worker) {
-      logger.info(
-        { concurrency: DEFAULT_QUEUE_CONCURRENCY },
-        'BullMQ worker started on default queue',
-      )
-    }
-  } else {
-    logger.warn('No Redis available — default worker not started')
+  if (worker) {
+    logger.info(
+      { concurrency: DEFAULT_QUEUE_CONCURRENCY },
+      'BullMQ worker started on default queue',
+    )
   }
 
   // ── Background queue — cron-scheduled maintenance jobs ────────────
@@ -241,54 +243,50 @@ async function main() {
   // The governed job-family catalogue is the single source of cadence and
   // posture.
   const schedulerPlan = createOperationalSchedulerPlan()
-  if (container.backgroundQueue) {
-    backgroundWorker = createJobWorker(
-      'background',
-      createGatedJobHandler('background', registry, resolveScope),
-      BACKGROUND_QUEUE_CONCURRENCY,
-      quarantineQueue,
-      runtimeObservationStore ?? undefined,
-      container.clock,
-    )
+  const backgroundWorker = createJobWorker(
+    'background',
+    createGatedJobHandler('background', registry, resolveScope),
+    BACKGROUND_QUEUE_CONCURRENCY,
+    quarantineQueue,
+    runtimeObservationStore ?? undefined,
+    container.clock,
+  )
 
-    if (backgroundWorker) {
-      logger.info(
-        { concurrency: BACKGROUND_QUEUE_CONCURRENCY },
-        'BullMQ worker started on background queue',
-      )
-    }
-
-    // Every family is managed so a stale/accidental scheduler for
-    // on-demand, dark, or quarantined work is removed.
-    const scheduleReconciliation = await reconcileJobSchedulers({
-      queue: container.backgroundQueue,
-      managedJobNames: schedulerPlan.managedJobNames,
-      desired: schedulerPlan.desired,
-      planRecord: schedulerPlanRecord,
-    })
-    for (const { schedulerId, jobName } of schedulerPlan.desired) {
-      logger.info({ schedulerId, jobName }, 'Job scheduler reconciled')
-    }
+  if (backgroundWorker) {
     logger.info(
-      {
-        managed: schedulerPlan.managedJobNames.length,
-        enabled: schedulerPlan.desired.length,
-        removedSchedulerIds: scheduleReconciliation.removedSchedulerIds,
-        // Only changed schedulers are upserted; an unchanged one keeps its run.
-        upsertedSchedulerIds: scheduleReconciliation.upsertedSchedulerIds,
-      },
-      'Background job scheduler set reconciled',
+      { concurrency: BACKGROUND_QUEUE_CONCURRENCY },
+      'BullMQ worker started on background queue',
     )
-  } else {
-    logger.warn('No background queue available — cron jobs not scheduled')
   }
+
+  // Every family is managed so a stale/accidental scheduler for
+  // on-demand, dark, or quarantined work is removed.
+  const scheduleReconciliation = await reconcileJobSchedulers({
+    queue: container.backgroundQueue,
+    managedJobNames: schedulerPlan.managedJobNames,
+    desired: schedulerPlan.desired,
+    planRecord: schedulerPlanRecord,
+  })
+  for (const { schedulerId, jobName } of schedulerPlan.desired) {
+    logger.info({ schedulerId, jobName }, 'Job scheduler reconciled')
+  }
+  logger.info(
+    {
+      managed: schedulerPlan.managedJobNames.length,
+      enabled: schedulerPlan.desired.length,
+      removedSchedulerIds: scheduleReconciliation.removedSchedulerIds,
+      // Only changed schedulers are upserted; an unchanged one keeps its run.
+      upsertedSchedulerIds: scheduleReconciliation.upsertedSchedulerIds,
+    },
+    'Background job scheduler set reconciled',
+  )
 
   const bootObservation = {
     contracts: JOB_OPERATIONAL_CONTRACTS,
     registeredHandlers: new Set(registry.getAll().keys()),
-    registeredSchedulers: container.backgroundQueue
-      ? new Set(schedulerPlan.desired.map((schedule) => schedule.jobName))
-      : new Set<string>(),
+    registeredSchedulers: new Set(
+      schedulerPlan.desired.map((schedule) => schedule.jobName),
+    ),
     runtimeStartedAt,
   }
   if (runtimeObservationStore) {
@@ -297,8 +295,8 @@ async function main() {
       contracts: JOB_OPERATIONAL_CONTRACTS,
       store: runtimeObservationStore,
       queues: {
-        default: container.jobQueue ?? null,
-        background: container.backgroundQueue ?? null,
+        default: container.jobQueue,
+        background: container.backgroundQueue,
       },
       quarantine: quarantineQueue ?? null,
       clock: container.clock,
@@ -358,19 +356,17 @@ async function main() {
   // failover to an empty replica, would leave this reconnected worker running
   // with none of them: no digest, no repair sweep, and no health-check to
   // report it. The watchdog puts back whatever went missing.
-  const stopSchedulerWatchdog = container.backgroundQueue
-    ? startJobSchedulerWatchdog({
-        queue: container.backgroundQueue,
-        desired: schedulerPlan.desired,
-        planRecord: schedulerPlanRecord,
-        intervalMs: JOB_SCHEDULER_WATCHDOG_INTERVAL_MS,
-        logger,
-        onRestored: async () => {
-          await runtimeObservationStore?.recordBoot(bootObservation)
-          await recoverLostDispatches()
-        },
-      })
-    : () => {}
+  const stopSchedulerWatchdog = startJobSchedulerWatchdog({
+    queue: container.backgroundQueue,
+    desired: schedulerPlan.desired,
+    planRecord: schedulerPlanRecord,
+    intervalMs: JOB_SCHEDULER_WATCHDOG_INTERVAL_MS,
+    logger,
+    onRestored: async () => {
+      await runtimeObservationStore?.recordBoot(bootObservation)
+      await recoverLostDispatches()
+    },
+  })
 
   // ── Outbox relay + dispatcher ─────────────────────────────────────
   // The only delivery path: every command commits its fact as an outbox row,
