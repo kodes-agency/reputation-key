@@ -391,4 +391,9 @@ PostgreSQL histories (for every AI draft when an input changes, and for those
 past their window when a sync sees the Review), and the oracle states by hand
 what it deletes, empties and leaves alone.
 
+`domain/reply-publication-workflow.property.test.ts` checks every cell of the
+two publication tables (the saga, and the persisted machine of state by event)
+against moves written by hand in that file. Neither table is exported, so no
+test can ask a table what it should say.
+
 Recurring activation remains quarantined until the external shadow-parity/cutover audit is complete.
