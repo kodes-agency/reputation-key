@@ -1,21 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { importFns, importSetupFns } from './-import-fns'
 import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
 import { googleImportStatusQuery } from '#/components/features/integration/google-import-manager/google-import-queries'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
-import { integrationKeys } from '#/shared/queries/query-keys'
+import { googleConnectionsQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { requireGoogleImportRole } from './-route-access'
-
-const connectionsQuery = queryOptions({
-  queryKey: integrationKeys.connections(),
-  queryFn: () => importFns.listGoogleConnections(),
-  staleTime: 60_000,
-})
 
 export const Route = createFileRoute(
   '/_authenticated/properties/import-google/$importId',
@@ -42,7 +36,7 @@ export const Route = createFileRoute(
       context.queryClient.ensureQueryData(
         googleImportStatusQuery(importId, importFns.getPropertyImportV2Status),
       ),
-      context.queryClient.ensureQueryData(connectionsQuery),
+      context.queryClient.ensureQueryData(googleConnectionsQuery),
     ])
   },
   component: ImportProgressPage,
@@ -54,7 +48,7 @@ function ImportProgressPage() {
   const { data: progress } = useSuspenseQuery(
     googleImportStatusQuery(importId, importFns.getPropertyImportV2Status),
   )
-  const { data: connectionData } = useSuspenseQuery(connectionsQuery)
+  const { data: connectionData } = useSuspenseQuery(googleConnectionsQuery)
 
   return (
     <PageShell>

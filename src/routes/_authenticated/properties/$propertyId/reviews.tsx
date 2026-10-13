@@ -5,6 +5,7 @@ import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { InboxPageV2 } from '#/components/inbox/inbox-page-v2'
 import {
   inboxSearchObjectSchema,
@@ -13,10 +14,7 @@ import {
 } from '#/components/inbox/inbox-search-schema'
 import { inboxFns } from '#/routes/_authenticated/-inbox-fns'
 import { membersQuery } from '#/routes/-queries/route-queries'
-import {
-  canListInboxAssignmentCandidates,
-  toInboxAssignmentOptions,
-} from '#/routes/_authenticated/inbox/-assignment-candidates'
+import { toInboxAssignmentOptions } from '#/routes/_authenticated/inbox/-assignment-candidates'
 import { useInboxRouteScope } from '#/routes/_authenticated/inbox/-property-scope'
 
 const authRoute = getRouteApi('/_authenticated')
@@ -40,10 +38,11 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/rev
 
 function PropertyReviewsRoute() {
   const ctx = authRoute.useRouteContext() as AuthRouteContext
-  const mayListAssignmentCandidates = canListInboxAssignmentCandidates(ctx.role)
+  const { can: canDo } = usePermissions()
+  // Member-directory access is separate from Inbox management authority.
   const { data: membersData } = useQuery({
     ...membersQuery,
-    enabled: mayListAssignmentCandidates,
+    enabled: canDo('member.list'),
   })
   const { propertyId } = propertyRoute.useParams()
   const search = Route.useSearch()
@@ -51,7 +50,7 @@ function PropertyReviewsRoute() {
   // Members work one property at a time: no organization-wide Inbox.
   const { propertyScope, scopeLabel } = useInboxRouteScope(
     propertyId,
-    can(ctx.role, 'inbox.manage'),
+    canDo('inbox.manage'),
   )
 
   return (

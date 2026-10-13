@@ -15,6 +15,7 @@ import { PropertySetupStrip } from '#/components/features/property/settings/prop
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queries'
 import { can } from '#/shared/domain/permissions'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/settings')({
   staticData: {
@@ -32,10 +33,10 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/set
 
 function PropertySettingsLayout() {
   const { propertyId } = Route.useParams()
-  const { role } = Route.useRouteContext() as AuthRouteContext
+  const { can: canDo } = usePermissions()
   const { data } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: setup } = useQuery(propertySetupQuery(propertyId))
-  const sections = visiblePropertySettingsSections((permission) => can(role, permission))
+  const sections = visiblePropertySettingsSections(canDo)
   const active = useRouterState({
     select: (state) => activePropertySettingsSection(state.location.pathname),
   })

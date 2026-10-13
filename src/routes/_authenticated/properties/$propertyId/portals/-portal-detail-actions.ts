@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
 import {
   completeContentReview,
   approvePortalApprovedDestination,
@@ -28,12 +27,19 @@ import type { UpdatePortalVariables } from '#/components/features/portal/shared/
 import type { PortalQueryResult } from './-portal-detail-data'
 
 /**
- * The portal patch. `announce` decides whether success toasts: the explicit
- * writes (publication toggle, language Save) say "Portal updated", while the
- * autosaved sections stay silent because the header's "Draft saved" is their
- * acknowledgement and a toast per pause in typing would be noise.
+ * The portal patch, for every section that saves one. It is silent on success:
+ * a section's save, a language change among them, is acknowledged by the
+ * header's "Draft saved" (a toast per pause in typing would be noise), and
+ * going live from Review & publish is reported by that page.
+ *
+ * A `useMutation` shaped as an `Action`, not `useActionMutation`: the patch is
+ * drawn at once and taken back on a refusal, and that needs the in-flight read
+ * of the Portal cancelled before the cache is written (`onMutate` awaits
+ * `cancelQueries`), which `useActionMutation`'s synchronous `optimistic` cannot
+ * do. A refusal is reported by the caller that awaits the action: the header's
+ * save status, or the Review page.
  */
-function usePortalUpdateAction(propertyId: string, portalId: string, announce: boolean) {
+function usePortalUpdateAction(propertyId: string, portalId: string) {
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: (input: UpdatePortalVariables) => updatePortal(input),
@@ -56,7 +62,6 @@ function usePortalUpdateAction(propertyId: string, portalId: string, announce: b
       await queryClient.refetchQueries({ queryKey, exact: true })
     },
     onSuccess: async () => {
-      if (announce) toast.success('Portal updated')
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: portalKeys.detail(portalId) }),
         queryClient.invalidateQueries({ queryKey: portalKeys.links(portalId) }),
@@ -146,8 +151,7 @@ export function usePortalOpenPageReveal() {
  */
 export function usePortalDetailActions(propertyId: string, portalId: string) {
   const queryClient = useQueryClient()
-  const update = usePortalUpdateAction(propertyId, portalId, true)
-  const autosaveUpdate = usePortalUpdateAction(propertyId, portalId, false)
+  const autosaveUpdate = usePortalUpdateAction(propertyId, portalId)
   // Refetch the detail so `tokenStatus` (when the code was made, its transition
   // window) follows the code that was just made, replaced or stopped.
   const tokenInvalidations = [portalKeys.detail(portalId)]
@@ -206,8 +210,8 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     ],
   })
   // Publish the draft of a Portal that is live: the next version replaces the
-  // live one. A Portal that is not live goes live through `update`. The page
-  // reports the outcome, so there is no toast here.
+  // live one. A Portal that is not live goes live through `autosaveUpdate`.
+  // The page reports the outcome, so there is no toast here.
   const publishChanges = useActionMutation(publishPortalChanges, {
     invalidateKeys: [
       portalKeys.detail(portalId),
@@ -218,7 +222,6 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
   const experience = usePortalExperienceActions(propertyId, portalId)
 
   return {
-    update,
     autosaveUpdate,
     issueToken,
     rotateToken,

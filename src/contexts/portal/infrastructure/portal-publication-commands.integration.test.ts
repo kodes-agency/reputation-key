@@ -419,7 +419,10 @@ describe.sequential('republishPortal (real PostgreSQL)', () => {
       ],
     )
 
-    await expect(store().republishPortal(command)).rejects.toBeDefined()
+    // The fact's id is already taken, so its insert is the statement that fails.
+    await expect(store().republishPortal(command)).rejects.toMatchObject({
+      cause: { code: '23505', constraint: 'outbox_events_pkey' },
+    })
 
     expect(await activations()).toEqual(LIVE_ONLY_FIRST)
     expect(await portalRow()).toEqual({

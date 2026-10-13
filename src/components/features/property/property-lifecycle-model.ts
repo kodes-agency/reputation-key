@@ -40,15 +40,18 @@ export const PROPERTY_LIFECYCLE_STATUS: StatusMap<PropertyLifecycleState> = {
   purged: { label: 'Unavailable', tone: 'neutral' },
 }
 
-/** How the Property's Google link reads as a pill on the lifecycle card. */
+/**
+ * How the Property's Google link reads as a pill, wherever one is drawn (Google
+ * connection, the Danger zone). The words do not name Google: the card around
+ * the pill does, or says "Google" beside it. Every state but linked needs
+ * attention, as the Properties list draws it: no Portal of a Property without a
+ * linked Business Profile can be published.
+ */
 export const GOOGLE_BINDING_STATUS: StatusMap<GoogleBindingState> = {
-  active: { label: 'Google connected for this property', tone: 'positive' },
-  disconnected: { label: 'Google reconnection needed', tone: 'warn' },
-  account_confirmation_required: {
-    label: 'Google account confirmation needed',
-    tone: 'warn',
-  },
-  unbound: { label: 'No Google profile linked', tone: 'neutral' },
+  active: { label: 'Linked', tone: 'positive' },
+  account_confirmation_required: { label: 'Confirmation needed', tone: 'warn' },
+  disconnected: { label: 'Disconnected', tone: 'warn' },
+  unbound: { label: 'Not linked', tone: 'warn' },
 }
 
 export const getPropertyLifecycleControls = (input: {

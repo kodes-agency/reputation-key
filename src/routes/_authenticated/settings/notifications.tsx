@@ -34,7 +34,9 @@ const preferencesQuery = (organizationId: string) =>
  * state: preferences are PER PROPERTY, and a reload that silently fell back to
  * "the first property by name" pointed the whole page — including its save
  * buttons — at a property the operator had not chosen. */
-const notificationsSearchSchema = z.object({ propertyId: z.string().optional() })
+const notificationsSearchSchema = z.object({
+  propertyId: z.uuid().optional().catch(undefined),
+})
 
 export const Route = createFileRoute('/_authenticated/settings/notifications')({
   staticData: { page: { title: 'Notifications', under: 'settings' } },

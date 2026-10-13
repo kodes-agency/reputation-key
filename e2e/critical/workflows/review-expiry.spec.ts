@@ -1,14 +1,20 @@
-// BQC-6.5 item 8 — review expiry makes source content unavailable and
-// removes copies. One expired + one fresh review on the same property.
+// BQC-6.5 item 8 — review expiry makes source content unavailable, and the
+// purge job deletes nothing. One expired + one fresh review on the same
+// property.
 //
 // Transitions verified:
 //   expired source → typed unavailable outcome: the property review list
 //     shows only the fresh review; the expired item's inbox detail shows the
 //     "source cache expired" copy with NO review text; dashboard aggregates
 //     exclude the expired rating
-//   purge (real worker path, purge-expired-reviews job) → the expired review
-//     ROW is removed, its replies cascade, and the review.expired fact closes
-//     the inbox item
+//   purge (real worker path, purge-expired-reviews job) → every page of the
+//     purge runs to its end and the expired review, its reply and the fresh
+//     review are all still there. The spec waits for the whole chain, not only
+//     the job it enqueues: that job reads the 100 oldest reviews, which are
+//     the e2e seed's, and a continuation job reads this spec's. The job is
+//     report-only: a Review keeps its identity after its content expires
+//     (docs/BETA.md §3), and the destructive purge has no active producer
+//     (src/contexts/review/CONTEXT.md).
 
 import { test, expect } from '../../helpers/error-detection'
 import { signIn } from '../../helpers/auth'
@@ -24,20 +30,25 @@ import {
   getReplyById,
   callServerFnGet,
   enqueuePurgeExpiredReviews,
+  waitForFixtureJobSettled,
+  waitForFixtureJobsFinished,
 } from '../../helpers/fixtures'
 
 const PREFIX = 'e2e-exp-'
 const seed = requireE2eSeedState()
 
-test.describe('Critical workflow: review expiry + purge', () => {
+test.describe('Critical workflow: review expiry and the report-only purge', () => {
   test.beforeEach(async () => {
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 
-  test('expired content is unavailable everywhere, then the purge removes copies', async ({
+  test('expired content is unavailable everywhere, and the purge job deletes nothing', async ({
     page,
   }) => {
-    test.setTimeout(90_000)
+    // Above the two worker waits' own budgets (90 s each: the first purge page,
+    // then the chain it starts), so a job the worker never settles fails with
+    // that wait's diagnosis and not as a bare test timeout.
+    test.setTimeout(240_000)
     const { propertyId } = await seedProperty({
       organizationId: seed.organizationId,
       name: `E2E Expiry Hotel ${e2eRunId}`,
@@ -116,7 +127,8 @@ test.describe('Critical workflow: review expiry + purge', () => {
     expect(dashboard.kpis.reviews.value).toBe(1)
     expect(dashboard.recentReviews.map((r) => r.id)).not.toContain(expiredId)
 
-    // Purge through the real worker path (the daily job, invoked on demand).
+    // Purge through the real worker path. The job has no schedule today
+    // (quarantined in the job catalogue); this invokes it on demand.
     //
     // The job is REPORT-ONLY. "fix(review): quarantine destructive lifecycle
     // paths" replaced the review delete with denyLegacyReviewDestruction, and
@@ -132,11 +144,38 @@ test.describe('Critical workflow: review expiry + purge', () => {
     // unavailability, which the assertions above already prove. This asserts
     // the retention half: running the job leaves the rows in place rather than
     // silently doing something destructive.
-    await enqueuePurgeExpiredReviews()
-    // A deletion would land well inside this window; the point is that none
-    // does. Polling for an absence that must never occur would only ever burn
-    // the budget, so this settles once and then asserts retention.
-    await new Promise((resolve) => setTimeout(resolve, 5_000))
+    //
+    // Wait for the worker before looking. The spec used to sleep five seconds
+    // instead, which passed just as well when the job had not been picked up
+    // yet, or never was.
+    //
+    // The job enqueued here is only the first page of the purge. It reads 100
+    // reviews, oldest first, across every tenant, and hands the rest to a
+    // continuation job under another id. The e2e seed inserts 100 reviews
+    // before any spec runs, so that first page is the seed's, and this spec's
+    // two reviews are read by a continuation. So there are two waits: for the
+    // first page, which must have run (a job that failed, or that the
+    // delayed-execution gate refused, also counts as settled), and then for
+    // the chain it started. Every page adds its continuation while it is still
+    // running, so once the first page has settled, "no purge job left that can
+    // still run" is the end of the chain.
+    const purge = await enqueuePurgeExpiredReviews()
+    const firstPage = await waitForFixtureJobSettled(
+      'background',
+      purge.jobId,
+      'first purge-expired-reviews page settled by the worker',
+    )
+    expect(firstPage, 'the first purge page ran to its end').toMatchObject({
+      outcome: 'completed',
+    })
+    const pages = await waitForFixtureJobsFinished('background', purge.jobName, {
+      since: firstPage.startedAt,
+      description: 'every purge-expired-reviews page finished by the worker',
+    })
+    expect(
+      pages.filter((page) => page.outcome !== 'completed'),
+      'purge pages that failed or were refused',
+    ).toEqual([])
     expect(await getReviewById(expiredId)).not.toBeNull()
     expect(await getReplyById(expiredReplyId)).not.toBeNull()
     expect(await getReviewById(freshId)).not.toBeNull()

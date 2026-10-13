@@ -65,14 +65,16 @@ and actions supply server state.
   is `iconBelow="md"` (or `"sm"`): no caller spells `--control-touch`. `Button` owns `pending` / `pendingLabel` (a
   spinner that stops for reduced motion, `aria-busy`, disabled, an optional label
   swap) and `SubmitButton` is that Button wired to a mutation: never draw a
-  spinner beside a Button or swap its label on `isPending`. An icon-only control is
+  spinner beside a Button or swap its label while it runs. An icon-only control is
   an `IconButton` (a required `label` that is its name and its tooltip; the root
   mounts the one `TooltipProvider`; one that opens a menu or popover shows no
   tooltip), a link set in a sentence is `InlineLink`, text that explains itself on
   request is `ExplainTrigger` (a Popover with the one dotted-underline cue,
   `EXPLAIN_UNDERLINE`), a key hint prints the modifier this platform has
   (`useShortcutModifier`), and a control that is not a Button wears `focus-ring`. `button-sources.test.ts` fails
-  on a per-file height, a hand-placed spinner, an icon-only Button, the old ring,
+  on a per-file height, a hand-placed spinner, a Button label swapped for a pending
+  word (`{saving ? 'Saving…' : 'Save'}`, whatever the flag is called), an
+  icon-only Button, the old ring,
   a hand-typed inline link or dotted underline, a `--control-touch` class and a
   hand-copied form submit.
   A notice is an `Alert`: `destructive`, `warning`, `success` and `info` each
@@ -338,7 +340,14 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   and the direction in words) and `#/lib/format` is the one place a date or a
   number becomes text: en-US, UTC unless a zone is named, `null` for an instant
   that is not one. Notifications and the guest renderer keep their own
-  formatters because they honour a person's or a guest's own locale.
+  formatters because they honour a person's or a guest's own locale. A clock
+  time printed on its own says whose clock it is (`formatZonedTimestamp`). The
+  Inbox prints every stamp of its own on the reader's clock (`inbox/utils.ts`:
+  the relative stamps, the day past a week, the review's date and each hover
+  title, which names the zone); it can, because its list and detail are read
+  after mount and never rendered on the server. Its Response Target is due on
+  the Property's clock and names that zone. `inbox/inbox-instants.test.ts`
+  fails on an Inbox instant printed on the UTC default.
 - `layout/` contains app-shell and navigation pieces. `PageState` is the one
   page-level state (`loading`, `error`, `notFound`, `unavailable`): the router's
   defaults and every route fallback draw it through `RoutePending`, `RouteError`
@@ -463,7 +472,8 @@ way.
 | --- | --- | --- | --- | --- | --- |
 | Colour | The tokens in `src/styles.css` | Every colour: no palette class, no `oklch()` or hex in a component. Red text is `text-negative` | | The guest renderer keeps its own colours | `ui/tone-sources.test.ts`, `ui/token-contrast.test.ts` |
 | Links | `InlineLink` from `#/components/ui/inline-link`<br>`NavLink` from `#/components/ui/nav-link` | A plain `<a>` or `Link` is a content link in the accent ink; a link with its own ink opts out by `data-slot` | | | `ui/link-ink.test.ts` |
-| Dates and numbers | `formatDate`, `formatNumber` from `#/lib/format` | The one place a date or a number becomes text | | Notifications and the guest renderer honour a person's or a guest's own locale | `src/lib/format-usage.test.ts` |
+| Dates and numbers | `formatDate`, `formatNumber`, `formatZonedTimestamp` from `#/lib/format` | The one place a date or a number becomes text. A clock time printed on its own names its zone | | Notifications and the guest renderer honour a person's or a guest's own locale; the Inbox prints its own stamps on the reader's clock | `src/lib/format-usage.test.ts`, `inbox/inbox-instants.test.ts` |
+| Goal measure names | `goalMetricLabel` from `#/components/goals/goal-metric-label`<br>`goalPageMetricLabel` from `#/components/goals/goal-detail-view` | What a goal's measure is called: the first on the Goals page, in its results matrix, on a group's goal card and in a goal's name; the second on a goal's own page and in its forms | | The two wordings ("Private ratings", "Private rating count") are the month-target work's; making them one is an owner decision | `goals/goal-metric-label-sources.test.ts` |
 | Action copy | The Action copy section of this file | The words of a button, a confirmation and a crumb | | Domain verbs (Archive, Remove, Restore) and "Keep X" cancel labels | `ui/copy-sources.test.ts` |
 
 ## Server-function boundary

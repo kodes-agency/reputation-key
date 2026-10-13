@@ -52,8 +52,14 @@ export function ContentReviewAttestation({
         intended review page.
       </ConsentCheckbox>
       <FormErrorBanner error={mutation.error} />
-      <Button variant="outline" disabled={busy || !attested} onClick={record}>
-        {mutation.isPending ? 'Recording…' : 'Record content review'}
+      <Button
+        variant="outline"
+        disabled={disabled || !attested}
+        pending={mutation.isPending}
+        pendingLabel="Recording…"
+        onClick={record}
+      >
+        Record content review
       </Button>
     </>
   )

@@ -201,7 +201,7 @@ describe('reply-library server functions', () => {
         propertyId: PROPERTY,
         unexpected: true,
       }),
-    ).rejects.toBeInstanceOf(Error)
+    ).rejects.toThrow(/unrecognized_keys/)
     expect(mocks.resolveTenantContext).not.toHaveBeenCalled()
     expect(mocks.getPropertyLibrary).not.toHaveBeenCalled()
   })

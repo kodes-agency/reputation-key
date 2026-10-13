@@ -24,6 +24,8 @@ export function PortalLinkIssueForm({
       <Button
         type="button"
         disabled={isPending}
+        pending={issueMutation.isPending}
+        pendingLabel="Making…"
         className="self-start"
         onClick={() => {
           void issueMutation({ data: { portalId } })
@@ -34,7 +36,7 @@ export function PortalLinkIssueForm({
         }}
       >
         <QrCode />
-        {issueMutation.isPending ? 'Making…' : 'Make code'}
+        Make code
       </Button>
     </div>
   )

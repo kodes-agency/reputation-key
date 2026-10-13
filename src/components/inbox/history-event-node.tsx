@@ -20,10 +20,9 @@ import {
 import { cn } from '#/lib/utils'
 import { MESSAGE_PROSE_CLASS } from './guest-message'
 import { historyEventLine } from './history-event-line'
-import { formatRelativeTime } from './utils'
+import { formatExactTime, formatRelativeTime } from './utils'
 import type { InboxHistoryEntry } from './inbox-thread-model'
 import type { ReactNode } from 'react'
-import { formatTimestamp } from '#/lib/format'
 
 /** A person named in the line — the actor or the assignee (plan v2.1 row 11). */
 const PERSON_CLASS = 'font-medium text-foreground'
@@ -129,7 +128,7 @@ export function HistoryEventNode({
           ) : null}
           {line.clause ? <span>{` · ${line.clause}`}</span> : null}
           <span>{' · '}</span>
-          <time dateTime={at.toISOString()} title={formatTimestamp(at) ?? undefined}>
+          <time dateTime={at.toISOString()} title={formatExactTime(at)}>
             {formatRelativeTime(at)}
           </time>
         </p>

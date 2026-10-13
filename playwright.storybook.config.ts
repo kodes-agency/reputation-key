@@ -59,13 +59,12 @@ export default defineConfig({
   timeout: 90_000,
   expect: { timeout: 10_000 },
   fullyParallel: true,
-  // Always, not `!!process.env.CI` as `playwright.config.ts` has it. That
-  // config's `.only` guard has a second line behind it: `lint:ci` runs
-  // `scripts/check-test-quality.mjs`, whose `TEST_FILE` pattern
-  // (`/\.(?:test|spec)\.(?:ts|tsx)$|\.stories\.tsx$/`, `:165`) does NOT match
-  // `*.metrics.ts`. Locally `CI` is not set, and a committed `test.only` would
-  // narrow the gate to one story and still print green. Focus a local
-  // debugging run with `--grep` instead.
+  // Always, not `!!process.env.CI` as `playwright.config.ts` has it. Locally
+  // `CI` is not set, and a `test.only` would narrow the gate to one story and
+  // still print green. Focus a local debugging run with `--grep` instead.
+  // A committed one is also refused by `lint:ci`: since 2026-10-13
+  // `scripts/check-test-quality.mjs` reads `*.metrics.ts` (it did not before,
+  // which is why this guard was the only one).
   forbidOnly: true,
   // No retry. Geometry is deterministic: the same classes at the same width
   // give the same box. A run that passes only on a second attempt means the

@@ -17,6 +17,7 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queries'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { can } from '#/shared/domain/permissions'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
   aiKeys,
   identityKeys,
@@ -57,8 +58,8 @@ export const Route = createFileRoute(
  * state and who decides instead of being refused.
  */
 function PropertyAiSettings() {
-  const { role } = Route.useRouteContext() as AuthRouteContext
-  return can(role, 'ai.manage') ? <PropertyAiConsent /> : <PropertyAiReadOnly />
+  const { can: canDo } = usePermissions()
+  return canDo('ai.manage') ? <PropertyAiConsent /> : <PropertyAiReadOnly />
 }
 
 function PropertyAiReadOnly() {

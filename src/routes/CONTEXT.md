@@ -68,11 +68,36 @@ tenant, permission, capability, and Property scope for every protected operation
 SSR-critical loaders call `context.queryClient.ensureQueryData(options)`. Components
 read the same `queryOptions` with `useSuspenseQuery`, so hydration reuses the primed
 cache. Parent Property queries live in `-queries/route-queries.ts`; derived values
-needed by `head()` may also be returned by the loader.
+needed by `head()` may also be returned by the loader. A query's options are
+written once: a leaf route defines its own data inline, and a read that a second
+route makes is defined in one shared module (`-queries/route-queries.ts`, or a
+`-*-queries.ts` that already sits beside the routes) which both import. One key
+holds one result shape, so a read that answers differently takes a key of its
+own. `route-query-definitions.test.ts` fails on a key defined in two places. It
+lists two goal reads that stay per route because sharing them costs first-paint
+bytes (the measurement is beside the list), and holds their copies to the same
+read.
 
 Interactive or action-triggered reads may use `useQuery`; cursor lists use
 `useInfiniteQuery`. Query keys come from `src/shared/queries/query-keys.ts`.
 Invalidate the narrow parent key whose descendants changed—never the whole router.
+
+## Search params
+
+Anyone can type an address, and a bookmark outlives the vocabulary it was made
+with. So every search key is optional and tolerant: a value the page cannot
+read is dropped (`.optional().catch(undefined)`, or `.catch(<default>)` for a
+key that always has one) and the rest of the address is kept. A schema that
+throws replaces the page with the generic error, reports it, and offers a "Try
+again" that reads the same address again. The router reads a value made only of
+digits as a number, so a string key needs the `.catch` too. A key that names an
+entity is checked for the shape of its id: `z.uuid()` for a Property, an Inbox
+item or anything else the database keys by UUID. A plain string is right only
+where the id is not a UUID (an invitation's, a goal subject's `kind:id`; both
+carry a length bound) or where the page does nothing with the value but look it
+up in a list it already loaded (the goal result a notice links to). Either way
+the entity is still checked against what the reader may see before anything is
+done with it.
 
 ## Server-function bundles and mutations
 

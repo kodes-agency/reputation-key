@@ -10,7 +10,8 @@
  * - the zone is UTC unless a caller names one: a calendar date that is stored
  *   as a day must not move to the neighbouring day for a viewer in another
  *   zone. A property's own day passes its IANA zone. `'viewer'` is the one
- *   explicit opt-in to the reader's clock, for a live status line, and it is for
+ *   explicit opt-in to the reader's clock, for a live status line or a surface
+ *   that reads on the reader's clock throughout (the Inbox), and it is for
  *   text that exists only in the browser: the server prints it in its own zone
  *   and the client in the reader's, so text that server-renders with `'viewer'`
  *   is a hydration mismatch (React #418). Print it after mount (`useHydrated`)
@@ -50,6 +51,7 @@ const DATE_SHAPES = {
   monthYear: { month: 'long', year: 'numeric' },
   longDate: { dateStyle: 'long' },
   time: { hour: 'numeric', minute: '2-digit' },
+  zonedTime: { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' },
   clock: { hour: 'numeric', minute: '2-digit', second: '2-digit' },
   dayKey: { year: 'numeric', month: '2-digit', day: '2-digit' },
 } as const satisfies Record<string, Intl.DateTimeFormatOptions>
@@ -188,6 +190,21 @@ export function formatTimestamp(
 ): string | null {
   const date = formatShape('date', value, zone)
   const time = formatShape('time', value, zone)
+  return date === null || time === null ? null : `${date}, ${time}`
+}
+
+/**
+ * "Sep 12, 2026, 3:45 PM GMT+3": an instant with the zone it is printed in. For
+ * a place that shows a clock time on its own (a hover title), where the reader
+ * cannot tell whose clock it is unless the text says. The zone is not optional:
+ * the caller says whose clock.
+ */
+export function formatZonedTimestamp(
+  value: InstantInput | null | undefined,
+  zone: DisplayZone,
+): string | null {
+  const date = formatShape('date', value, zone)
+  const time = formatShape('zonedTime', value, zone)
   return date === null || time === null ? null : `${date}, ${time}`
 }
 

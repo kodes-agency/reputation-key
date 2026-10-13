@@ -1,22 +1,13 @@
 // Identity context — auth settings server function tests
-// Tests the inline Zod schemas used by the auth-settings server functions.
-// These are thin wrappers around better-auth API — the main testable parts
-// are the input validation schemas.
+// Tests the Zod schemas the auth-settings server functions validate with,
+// imported from the DTO modules production imports them from. These are thin
+// wrappers around better-auth API — the main testable parts are the input
+// validation schemas. The create-organization schema is tested beside its DTO
+// (`create-organization.dto.test.ts`); a copy of it used to be tested here.
 
 import { describe, it, expect } from 'vitest'
-import { z } from 'zod/v4'
 import { changePasswordCommandSchema as changePasswordSchema } from '../application/dto/change-password.dto'
 import { updateProfileInputSchema as updateProfileSchema } from '../application/dto/profile-settings.dto'
-
-// ── Schemas (mirrored from auth-settings.ts) ──────────────────────
-
-const createOrganizationSchema = z.object({
-  name: z.string().min(1, 'Organization name is required'),
-  slug: z
-    .string()
-    .min(1, 'Slug is required')
-    .regex(/^[a-z0-9-]+$/, 'Only lowercase letters, numbers, and hyphens'),
-})
 
 // ── changePassword input validation ───────────────────────────────
 
@@ -115,96 +106,6 @@ describe('updateProfile schema', () => {
   it('rejects name over 100 characters', () => {
     const result = updateProfileSchema.safeParse({
       name: 'a'.repeat(101),
-    })
-    expect(result.success).toBe(false)
-  })
-})
-
-// ── createOrganization input validation ───────────────────────────
-
-describe('createOrganization schema', () => {
-  it('accepts valid input', () => {
-    const result = createOrganizationSchema.safeParse({
-      name: 'Acme Corp',
-      slug: 'acme-corp',
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('accepts slug with numbers', () => {
-    const result = createOrganizationSchema.safeParse({
-      name: 'Test Org',
-      slug: 'test-org-123',
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('accepts slug with only numbers', () => {
-    const result = createOrganizationSchema.safeParse({
-      name: 'Test Org',
-      slug: '123',
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('rejects missing name', () => {
-    const result = createOrganizationSchema.safeParse({
-      slug: 'acme-corp',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects empty name', () => {
-    const result = createOrganizationSchema.safeParse({
-      name: '',
-      slug: 'acme-corp',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects missing slug', () => {
-    const result = createOrganizationSchema.safeParse({
-      name: 'Acme Corp',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects empty slug', () => {
-    const result = createOrganizationSchema.safeParse({
-      name: 'Acme Corp',
-      slug: '',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects slug with uppercase letters', () => {
-    const result = createOrganizationSchema.safeParse({
-      name: 'Acme Corp',
-      slug: 'Acme-Corp',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects slug with spaces', () => {
-    const result = createOrganizationSchema.safeParse({
-      name: 'Acme Corp',
-      slug: 'acme corp',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects slug with underscores', () => {
-    const result = createOrganizationSchema.safeParse({
-      name: 'Acme Corp',
-      slug: 'acme_corp',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects slug with special characters', () => {
-    const result = createOrganizationSchema.safeParse({
-      name: 'Acme Corp',
-      slug: 'acme@corp',
     })
     expect(result.success).toBe(false)
   })

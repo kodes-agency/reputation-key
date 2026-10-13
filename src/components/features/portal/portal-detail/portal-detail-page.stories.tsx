@@ -290,7 +290,6 @@ const baseArgs = {
       },
     })),
   },
-  updateMutation: idleMutation,
   autosaveUpdateMutation: idleMutation,
   completeReviewMutation,
   tokenStatus,
