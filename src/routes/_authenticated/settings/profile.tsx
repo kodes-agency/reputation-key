@@ -46,8 +46,10 @@ function ProfileSettings() {
   const organizationId = ctx.activeOrganization?.id ?? NO_ACTIVE_ORGANIZATION
   // The name and avatar are not a Query: the form's saved values and the top bar's
   // account menu are the `user` that `_authenticated`'s `beforeLoad` puts in the route
-  // context. A save therefore has that route read the session again. Only it is marked
-  // stale, so every other page keeps the data it loaded.
+  // context. A save therefore has the router load again, which runs every `beforeLoad`
+  // on the open page and so reads the session. The filter is what keeps that from being
+  // the whole router: only `_authenticated` is marked stale (its own loader reads from
+  // the Query cache), so every other page, open or cached, keeps the data it loaded.
   const readSignedInUserAgain = () =>
     router.invalidate({ filter: (match) => match.routeId === '/_authenticated' })
   const updateProfile = useActionMutation(updateProfileFn, {

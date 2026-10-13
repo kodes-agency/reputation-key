@@ -497,9 +497,9 @@ SSR-critical route data is primed by the route and read with the same
 `useSuspenseQuery` options. Interactive reads use `useQuery`; cursor lists use
 `useInfiniteQuery`. Use key factories from `src/shared/queries/query-keys.ts` and
 invalidate the narrow parent key rather than the router. The signed-in `user` in
-the route context is not a Query: the route that saves it has `_authenticated`
-alone read it again (`src/routes/CONTEXT.md`, "Server-function bundles and
-mutations").
+the route context is not a Query: the route that saves it has the router load
+again with `_authenticated` alone marked stale (`src/routes/CONTEXT.md`,
+"Server-function bundles and mutations").
 
 `use-action-mutation` wraps `useMutation` with the shared `Action` shape, success
 toasts, and targeted invalidation. `use-action` covers non-form fire-and-forget

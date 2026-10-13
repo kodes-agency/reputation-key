@@ -34,7 +34,13 @@ const server = vi.hoisted(() => {
   }
   return {
     account,
-    getSession: vi.fn(async () => ({ user: { ...account.current } })),
+    // A round trip, as in the browser: the answer never lands in the turn that asked
+    // for it. So what a save holds when it resolves is decided by whether it waited
+    // for this read, not by how many microtasks the router and the mutation take.
+    getSession: vi.fn(async () => {
+      await new Promise((answered) => setTimeout(answered, 0))
+      return { user: { ...account.current } }
+    }),
     getNotificationUserSettings: vi.fn(async () => null),
     page: { current: null as unknown },
   }
@@ -206,14 +212,18 @@ describe('saving the profile', () => {
     expect(page().user.image).toBe(AVATAR)
   })
 
-  it('takes a removed avatar out of the shell once its save lands', async () => {
+  // The order is the point. The avatar setting moves the focus from Remove to Upload
+  // when the removal resolves (`use-image-setting.ts`); a page that had already handed
+  // back "no picture" by then has taken the Remove button away, and the focus with it.
+  it('lets an avatar removal resolve while the page still holds the picture, and takes it out of the shell after', async () => {
     server.account.current = { ...server.account.current, image: AVATAR }
     const { page, shellUser } = await openProfile()
-    expect(shellUser()).toMatchObject({ image: AVATAR })
+    const save = page().removeUserImage({ data: { imageUrl: null } })
+    const seenWhenResolved = save.then(() => shellUser()?.image)
 
-    await page().removeUserImage({ data: { imageUrl: null } })
-
+    await expect(seenWhenResolved).resolves.toBe(AVATAR)
     await vi.waitFor(() => expect(shellUser()).toMatchObject({ image: null }))
+    expect(page().user.image).toBeNull()
   })
 
   // The name is also drawn from Query caches, which no route context reaches. Members
