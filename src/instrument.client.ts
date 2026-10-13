@@ -60,6 +60,16 @@ export async function initializeBrowserObservability(
       environment: metaContent(root, 'repkey-sentry-environment'),
       sendDefaultPii: false,
       tracesSampleRate: 0,
+      // The SDK's BrowserSession default sends the provider a session record
+      // on every page load and every client-side navigation, with the
+      // browser's user-agent text, and that record passes none of the
+      // callbacks below. Nothing reads release health. The Guest Portal
+      // footer promises no third-party trackers and the Privacy Notice
+      // (section 2) says no record of a page being opened is sent, so the
+      // integration is left out. error-monitoring-disclosure.test.ts fails
+      // if it comes back while the notice still says so.
+      integrations: (defaults) =>
+        defaults.filter((integration) => integration.name !== 'BrowserSession'),
       beforeSend: dropExpectedRefusals(scrubSentryEvent),
       beforeBreadcrumb: scrubSentryBreadcrumb,
     })

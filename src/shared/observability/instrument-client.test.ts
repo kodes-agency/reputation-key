@@ -105,12 +105,30 @@ describe('browser observability initialization', () => {
       environment: 'google-closed-beta',
       sendDefaultPii: false,
       tracesSampleRate: 0,
+      integrations: expect.any(Function),
       beforeSend: expect.any(Function),
       beforeBreadcrumb: scrubSentryBreadcrumb,
     })
-    const { beforeSend } = sentry.init.mock.calls[0]![0] as {
+    const { beforeSend, integrations } = sentry.init.mock.calls[0]![0] as {
       beforeSend: (event: unknown, hint: { originalException: unknown }) => unknown
+      integrations: (
+        defaults: ReadonlyArray<{ name: string }>,
+      ) => ReadonlyArray<{ name: string }>
     }
+    // Of the SDK's defaults only the one that reports every page view is left
+    // out; the ones that catch and describe an error stay.
+    expect(
+      integrations([
+        { name: 'GlobalHandlers' },
+        { name: 'Breadcrumbs' },
+        { name: 'HttpContext' },
+        { name: 'BrowserSession' },
+      ]),
+    ).toEqual([
+      { name: 'GlobalHandlers' },
+      { name: 'Breadcrumbs' },
+      { name: 'HttpContext' },
+    ])
     expect(
       beforeSend(
         { message: 'refused' },

@@ -131,24 +131,24 @@ The Service uses the following providers:
 | OpenAI   | AI inference                                   | Global API endpoint with no residency commitment; prompt cache up to 24 hours; ordinary abuse-monitoring retention generally no more than 30 days, subject to documented legal or safety exceptions; API data is not used for training unless Reputation Key's OpenAI organization opts in |
 | Google   | Business Profile APIs and OAuth                | Independent controller of Business Profile data                                                                                                                                                                                                                                            |
 | Resend   | Transactional email                            | United States                                                                                                                                                                                                                                                                              |
-| Sentry   | Error monitoring and beta feedback reports     | United States; required: the deployed Service does not start unless it is configured; receives error, timing, and health reports from its servers, error reports and page-load records from Participant and Guest browsers, and beta feedback reports, as explained below this table       |
+| Sentry   | Error monitoring and beta feedback reports     | United States; required: the deployed Service does not start unless it is configured; receives error, timing, and health reports from its servers, error reports from Participant and Guest browsers, and beta feedback reports, as explained below this table                             |
 
 Error monitoring is part of the deployed Service. Its web and worker processes
 do not start unless error monitoring is configured, and they accept only the
 provider's United States ingestion service. The Service's servers send the
 provider error reports, operational alerts, timing reports for a share of the
 work they handle, and health reports. The browser of a Participant or Guest
-sends the provider, directly, an error report when a page fails and a page-load
-record each time it opens a page of the Service or moves to another one. A
-page-load record holds a random identifier for that page view, the time, the
-software version, whether an error occurred, and the browser's user-agent text.
-Error reports, operational alerts, and timing reports are content-minimized as
-described above the table; in particular, the text of an error message is
-replaced before a report is sent. A page-load record and a server health report
-are sent as the monitoring software produces them. Because a browser sends its
-reports itself, the provider's servers also see the network address of that
-connection, as any website does. The Service does not add a network address to
-a report.
+sends the provider, directly, an error report when a page fails. It sends the
+provider no record of a page being opened. If a browser did not send a report
+or could not deliver it, for example because it repeated an earlier one, it may
+later send the provider a count of those reports with their kind, the reason,
+and the time, and nothing else. Error reports, operational alerts, and timing
+reports are content-minimized as described above the table; in particular, the
+text of an error message is replaced before a report is sent. A server health
+report is sent as the monitoring software produces it. Because a browser sends
+its reports itself, the provider's servers also see the network address of that
+connection and what a browser tells any website it contacts, such as its
+user-agent text. The Service does not add a network address to a report.
 
 A beta feedback report holds the text the Participant wrote, of at most 6,000
 characters. The Service automatically removes email addresses and some forms of
@@ -361,9 +361,17 @@ published; version 2.2 describes them correctly and says what the provider
 receives. Versions 2.0 and 2.1 also said that deletion of the masked Bug layout
 by a provider still needed proof. The Service keeps the layout in its own
 database and deletes it there, and it has not sent a layout to the
-error-monitoring provider at any time since version 2.0 was published. Because
-version 2.2 corrects a description and changes nothing about what the Service
-does, it is not a material change and takes effect on the day it is published.
+error-monitoring provider at any time since version 2.0 was published.
+
+One thing about the Service changes with version 2.2. Before version 2.2 the
+browser of a Participant or Guest also sent the provider a record each time it
+opened a page of the Service or moved to another one: a random identifier for
+that page view, the time, the software version, whether an error occurred, and
+the browser's user-agent text. Versions 2.0 and 2.1 did not mention that
+record. The Service published with version 2.2 no longer sends that record.
+Because the rest of version 2.2 corrects a description of what the Service was
+already doing, and the only change to what the Service does is that less is
+sent, it is not a material change and takes effect on the day it is published.
 
 Version 2.1 corrects section 6. Version 2.0 gave one expiry, no more than 24
 hours, for the Guest response session and the destination-action receipt
