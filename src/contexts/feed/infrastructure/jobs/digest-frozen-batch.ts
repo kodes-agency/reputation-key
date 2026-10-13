@@ -12,6 +12,11 @@
 //    new key: a digest drops only the rows that fail (Feed CONTEXT.md).
 //  * Any other batch may already be in the inbox. Sending the rest under a new
 //    key could deliver it twice, so the batch is invalidated as a unit.
+//
+// The same key stops protecting a retry once the provider forgets it, 24 hours
+// after the attempt it may have accepted. A stopped worker or scheduler can
+// carry an open batch past that, so such a batch is closed unsent at the retry
+// horizon immediate mail has, rather than mailed a second time.
 
 import type {
   NotificationDigestBatch,
@@ -19,6 +24,7 @@ import type {
 } from '../../application/ports/notification-email-repository.port'
 import type { NotificationEmail } from '../../domain/notification-types'
 import { SETTLED_EMAIL_REASON } from '../../domain/notification-settlement'
+import { isPastRetryHorizon } from '../../domain/email-freshness'
 import {
   authorizedEntries,
   partitionDeliverable,
@@ -37,6 +43,9 @@ export type FrozenBatchDeps = DigestEntryDeps &
 
 /** A batch's retry budget; its members' counts move together. */
 const MAX_BATCH_ATTEMPTS = 5
+
+/** Why a batch the provider may hold was closed once its key could lapse. */
+const RETRY_HORIZON_PASSED_REASON = 'digest_retry_horizon_passed'
 
 const SENDABLE_STATUSES: readonly string[] = ['pending', 'failed', 'delayed']
 
@@ -174,13 +183,20 @@ async function sendableMembers(
  * The frozen members of an open batch this sweep may send, or `null` when
  * there is nothing to send now: the batch must wait, or it was closed here.
  * A frozen batch was fresh when it was prepared, so no freshness bound or
- * 08:00 window applies; it retries on its bounded budget.
+ * 08:00 window applies; it retries on its bounded budget, and only while the
+ * provider still remembers the key of an attempt it may have accepted.
  */
 export async function selectFrozenEntries(
   deps: FrozenBatchDeps,
   ctx: RecipientContext,
   batch: NotificationDigestBatch,
 ): Promise<readonly NotificationEmail[] | null> {
+  // First, and before quiet hours can hold the batch: past the horizon the
+  // key no longer dedupes, so neither a retry now nor one after a wait is safe.
+  if (isPastRetryHorizon(batch.possiblyAcceptedSince, ctx.now)) {
+    await invalidateBatch(deps, ctx, batch, RETRY_HORIZON_PASSED_REASON)
+    return null
+  }
   const members = await deps.emailRepo.findDigestBatchEntries(
     batch.id,
     ctx.orgId,

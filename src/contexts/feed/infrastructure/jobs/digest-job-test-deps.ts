@@ -136,6 +136,7 @@ export function baseDeps(options: DigestTestOptions = {}) {
           state: 'prepared' as const,
           retryCount: 0,
           everyAttemptRefused: false,
+          possiblyAcceptedSince: null,
           createdAt: input.preparedAt,
           updatedAt: input.preparedAt,
         },

@@ -635,6 +635,99 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
     })
   })
 
+  describe('the attempt a batch may have been accepted since', () => {
+    // The provider's 24-hour idempotency window opens at the first attempt it
+    // may have accepted; the digest job closes the batch against that instant.
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000)
+
+    const start = (
+      repo: ReturnType<typeof createNotificationEmailRepository>,
+      startedAt: Date,
+    ) =>
+      repo.startDigestAttempt({
+        batchId: BATCH,
+        organizationId: ORG,
+        userId: USER,
+        startedAt,
+      })
+
+    const reject = (
+      repo: ReturnType<typeof createNotificationEmailRepository>,
+      failedAt: Date,
+      refusedBeforeAcceptance: boolean,
+    ) =>
+      repo.settleDigestBatch({
+        batchId: BATCH,
+        organizationId: ORG,
+        userId: USER,
+        expectedContentDigest: digestBatchInput().contentDigest,
+        settlement: {
+          kind: 'rejected',
+          classification: 'transient',
+          nextAttemptAt: null,
+          failedAt,
+          refusedBeforeAcceptance,
+        },
+      })
+
+    it('is unset until an attempt starts', async () => {
+      const repo = createNotificationEmailRepository(db)
+
+      await repo.prepareDigestBatch(digestBatchInput())
+
+      await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toMatchObject({
+        state: 'prepared',
+        possiblyAcceptedSince: null,
+      })
+    })
+
+    it('is the start of an attempt whose worker never reported back', async () => {
+      const repo = createNotificationEmailRepository(db)
+      await repo.prepareDigestBatch(digestBatchInput())
+
+      await start(repo, at(0))
+
+      await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toMatchObject({
+        everyAttemptRefused: false,
+        possiblyAcceptedSince: at(0),
+      })
+    })
+
+    it('stays at the first such attempt through every later attempt and settlement', async () => {
+      const repo = createNotificationEmailRepository(db)
+      await repo.prepareDigestBatch(digestBatchInput())
+      await start(repo, at(0))
+      await reject(repo, at(1), false)
+
+      await start(repo, at(60))
+      await reject(repo, at(61), true)
+      await start(repo, at(120))
+
+      await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toMatchObject({
+        everyAttemptRefused: false,
+        possiblyAcceptedSince: at(0),
+      })
+    })
+
+    it('moves to the attempt that follows only refusals, which left nothing to protect', async () => {
+      const repo = createNotificationEmailRepository(db)
+      await repo.prepareDigestBatch(digestBatchInput())
+      await start(repo, at(0))
+      await reject(repo, at(1), true)
+      await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toMatchObject({
+        everyAttemptRefused: true,
+        possiblyAcceptedSince: null,
+      })
+
+      await start(repo, at(60))
+
+      await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toMatchObject({
+        everyAttemptRefused: false,
+        possiblyAcceptedSince: at(60),
+      })
+    })
+  })
+
   it('terminates only the frozen members when provider-visible retry content drifts', async () => {
     const repo = createNotificationEmailRepository(db)
     const input = digestBatchInput()

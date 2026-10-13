@@ -63,8 +63,12 @@ out under a new key. A frozen digest the provider may already have accepted is
 re-sent exactly as frozen, under its key, from the provider request stored
 while it is open: a line read or settled since stays in it, because one stale
 line is less surprising than losing the day's digest. It closes unsent only on
-an authorization, standing, preference, suppression or address change, or once
-every member was settled elsewhere, and it waits out quiet hours untouched.
+an authorization, standing, preference, suppression or address change, once
+every member was settled elsewhere, or once its retry horizon has passed, and
+until then it waits out quiet hours untouched. The horizon is 23 hours from
+the start of the first attempt the provider may have accepted
+(`possiblyAcceptedSince`): the provider forgets an idempotency key after 24
+hours, and a stopped worker or scheduler can carry an open batch past that.
 The stored request holds the rendered mail and is cleared when the batch is
 accepted or closed.
 Organization-scoped mandatory mail is exempt: an access-removed notice goes to
