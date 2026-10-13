@@ -1,14 +1,16 @@
 // Worker drain (BQC-7.1) — budgeted graceful shutdown for the BullMQ process.
 //
 // Extracted from src/worker/index.ts so the budget path is unit-testable.
-// The happy path is behavior-identical to the pre-extraction inline loop:
-// workers close sequentially (BullMQ Worker.close() stops fetching and drains
-// in-flight jobs), then queues close sequentially, each step logged with the
-// same messages. The addition is a hard time budget: a hung job makes
-// Worker.close() hang forever, which previously let a deploy stall until the
-// platform's SIGKILL. When the budget fires, the caller exits non-zero so the
-// platform records an unclean stop (Railway drainingSeconds is the outer
-// bound; DRAIN_BUDGET_MS must stay below it).
+// Every worker is asked to close at once: BullMQ's Worker.close() is what
+// stops a worker fetching, and it then waits for its in-flight jobs. Closing
+// them one after another left the later workers taking new jobs for as long
+// as the first one drained, and every job they had started was cut off when
+// the budget ended the process. The queues then close in order, each step
+// logged with the same messages as before. The whole drain has a hard time
+// budget: a hung job makes Worker.close() hang forever, which previously let
+// a deploy stall until the platform's SIGKILL. When the budget fires, the
+// caller exits non-zero so the platform records an unclean stop (Railway
+// drainingSeconds is the outer bound; DRAIN_BUDGET_MS must stay below it).
 
 export interface NamedCloseable {
   readonly label: string
@@ -54,10 +56,10 @@ export interface DrainResult {
 }
 
 /**
- * Close workers, then queues, in the given order. Undefined entries (lanes
- * that were never started) are skipped silently, mirroring the pre-BQC-7.1
- * `if (w)` guards. A rejecting close is logged and does not stop the
- * sequence (mirrors the pre-BQC-7.1 inline loop). The whole sequence races
+ * Close the workers together, then the queues in the given order. Undefined
+ * entries (lanes that were never started) are skipped silently, mirroring the
+ * pre-BQC-7.1 `if (w)` guards. A rejecting close is logged and does not stop
+ * the sequence (mirrors the pre-BQC-7.1 inline loop). The whole sequence races
  * `budgetMs`; on expiry the still-open labels are reported. The loop itself
  * is not cancellable — a hung close keeps its promise pending in the
  * background until the process exits.
@@ -84,17 +86,19 @@ export async function drainWorkerResources(options: {
     ...queues.map((r) => r.label),
   ]
 
-  const loop = (async () => {
-    for (const w of workers) {
-      try {
-        await w.close()
-        logger.info({ queue: w.label }, 'Worker drained successfully')
-      } catch (err) {
-        logger.error({ err, queue: w.label }, 'Error draining worker')
-      } finally {
-        remaining.splice(remaining.indexOf(w.label), 1)
-      }
+  const drainWorker = async (w: NamedCloseable): Promise<void> => {
+    try {
+      await w.close()
+      logger.info({ queue: w.label }, 'Worker drained successfully')
+    } catch (err) {
+      logger.error({ err, queue: w.label }, 'Error draining worker')
+    } finally {
+      remaining.splice(remaining.indexOf(w.label), 1)
     }
+  }
+
+  const loop = (async () => {
+    await Promise.all(workers.map(drainWorker))
     if (shutdown) {
       try {
         await shutdown.run()
