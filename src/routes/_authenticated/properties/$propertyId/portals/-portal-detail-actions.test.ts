@@ -13,6 +13,7 @@ const PORTAL_ID = 'portal-1'
 const captured = new Map<unknown, ActionMutationOptions<unknown, unknown> | undefined>()
 const mutationOptions: Array<{ onSuccess?: () => Promise<void> | void }> = []
 const invalidated: unknown[][] = []
+const toasted: string[] = []
 
 vi.mock('#/components/hooks/use-action-mutation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('#/components/hooks/use-action-mutation')>()),
@@ -32,7 +33,9 @@ vi.mock('@tanstack/react-query', () => ({
     },
   }),
 }))
-vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
+vi.mock('sonner', () => ({
+  toast: { success: (message: string) => void toasted.push(message) },
+}))
 vi.mock('#/contexts/portal/server/portals', () => ({
   completeContentReview: 'completeContentReview',
   approvePortalApprovedDestination: 'approvePortalApprovedDestination',
@@ -59,11 +62,31 @@ const refreshesCoverage = (keys: ReadonlyArray<readonly unknown[]>) =>
   keys.some((key) => key.every((part, index) => coverageKey[index] === part))
 
 describe('portal detail actions and the language coverage read', () => {
+  let actions: ReturnType<typeof usePortalDetailActions>
+
   beforeEach(() => {
     captured.clear()
     mutationOptions.length = 0
     invalidated.length = 0
-    usePortalDetailActions(PROPERTY_ID, PORTAL_ID)
+    toasted.length = 0
+    actions = usePortalDetailActions(PROPERTY_ID, PORTAL_ID)
+  })
+
+  // The page has one portal patch. A second copy that toasted "Portal updated"
+  // was built beside it and handed to the page, where no component called it.
+  it('builds one portal patch, with no second copy that nothing calls', () => {
+    expect(mutationOptions).toHaveLength(1)
+    expect(Object.keys(actions)).toContain('autosaveUpdate')
+    expect(Object.keys(actions)).not.toContain('update')
+  })
+
+  // The header's save status is the patch's acknowledgement, for a section
+  // that autosaves and for the language Save alike.
+  it('acknowledges a portal patch in the header, never in a toast', async () => {
+    await mutationOptions[0]?.onSuccess?.()
+
+    expect(toasted).toEqual([])
+    expect(invalidated).toContainEqual(portalKeys.detail(PORTAL_ID))
   })
 
   it.each(['savePortalLocalizedOverride', 'savePropertyPortalBrandContent'])(

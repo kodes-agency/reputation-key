@@ -77,11 +77,10 @@ export type PortalDetailResources = Readonly<{
   languageCoverage?: PortalLanguageCoverage
   /** The Linktree section: its switch and titles, and each tile with its texts. */
   linktree: PortalLinktreeView
-  /** Explicit portal writes: the publication toggle and the language Save. Toasts on success. */
-  updateMutation: Action<UpdatePortalVariables>
   /**
-   * The same write for the autosaved sections. Silent on success: the header's
-   * "Draft saved" is the acknowledgement, and a toast per keystroke pause is noise.
+   * The portal patch, for every section that saves one. Silent on success: the
+   * header's "Draft saved" is the acknowledgement, and a toast per keystroke
+   * pause is noise.
    */
   autosaveUpdateMutation: Action<UpdatePortalVariables>
   completeReviewMutation: Action<CompleteReviewVariables, CompleteReviewResult>
