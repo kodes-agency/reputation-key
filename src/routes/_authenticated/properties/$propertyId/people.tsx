@@ -28,7 +28,9 @@ const participationsQuery = (propertyId: string) =>
 
 const portalsQuery = (propertyId: string) =>
   queryOptions({
-    queryKey: portalKeys.list(propertyId),
+    // Not `portalKeys.list`: the Portal pages fill that key with `{ portals }`,
+    // and this read adds `portalsDenied`. One key must hold one shape.
+    queryKey: portalKeys.listOrDenied(propertyId),
     // F-PEOPLE (BQC-6.7): portal.read is dark in the beta posture, and this
     // query's denial must not sink the ENABLED Staff surface
     // (Promise.all on the raw query rejected the whole loader → route 500).

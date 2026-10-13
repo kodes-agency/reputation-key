@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 import { PageHeader } from '#/components/layout/page-header'
@@ -9,18 +9,12 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { can } from '#/shared/domain/permissions'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import {
-  listGoogleConnections,
   disconnectGoogle,
   getGoogleAuthUrl,
 } from '#/contexts/integration/server/google-connections'
 import { IntegrationsSettingsPage } from '#/components/features/settings'
 import { integrationKeys } from '#/shared/queries/query-keys'
-
-const connectionsQuery = queryOptions({
-  queryKey: integrationKeys.connections(),
-  queryFn: () => listGoogleConnections(),
-  staleTime: 60_000,
-})
+import { googleConnectionsQuery } from '#/routes/-queries/route-queries'
 
 export const Route = createFileRoute('/_authenticated/settings/integrations')({
   staticData: { page: { title: 'Integrations', under: 'settings' } },
@@ -31,14 +25,14 @@ export const Route = createFileRoute('/_authenticated/settings/integrations')({
     }
   },
   loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData(connectionsQuery)
+    await context.queryClient.ensureQueryData(googleConnectionsQuery)
   },
   staleTime: 60_000,
   component: IntegrationsSettings,
 })
 
 function IntegrationsSettings() {
-  const { data } = useSuspenseQuery(connectionsQuery)
+  const { data } = useSuspenseQuery(googleConnectionsQuery)
   const connections = data.connections
   // getGoogleAuthUrl is a GET (generates a signed OAuth URL) — treat as an action
   // since it has a side effect (CSRF state) and the result drives a redirect.

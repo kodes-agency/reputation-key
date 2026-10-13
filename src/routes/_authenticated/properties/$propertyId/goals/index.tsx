@@ -1,17 +1,13 @@
 import { useState } from 'react'
 import { createFileRoute, Link, Navigate } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
-import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { Target } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
-import { listGoalPrograms } from '#/contexts/reporting/server/goal-programs'
-import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
-import { listPortals } from '#/contexts/portal/server/portals'
 import { buildGoalResultsMatrix } from '#/contexts/reporting/application/public-api'
 import { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
-import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -41,24 +37,7 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { formatShortDate } from '#/lib/format'
 import { goalForResult } from './-goal-for-result'
 import { goalListSearchSchema } from './-goal-list-search'
-
-const goalsQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: goalKeys.list({ propertyId, model: 'program' }),
-    queryFn: () => listGoalPrograms({ data: { propertyId } }),
-    staleTime: 30_000,
-  })
-const subjectNamesQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: portalKeys.goalSubjectNames(propertyId),
-    queryFn: async () => {
-      const [groups, portals] = await Promise.all([
-        listPortalGroups({ data: { propertyId } }),
-        listPortals({ data: { propertyId } }),
-      ])
-      return { groups: groups.groups, portals: portals.portals }
-    },
-  })
+import { goalProgramsQuery, goalSubjectNamesQuery } from './-goal-queries'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/goals/')({
   staticData: { page: { title: 'Goals', tier: 'dashboard', under: 'property' } },
@@ -76,8 +55,8 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
   validateSearch: goalListSearchSchema,
   loader: async ({ params: { propertyId }, context }) => {
     await Promise.all([
-      context.queryClient.ensureQueryData(goalsQuery(propertyId)),
-      context.queryClient.ensureQueryData(subjectNamesQuery(propertyId)),
+      context.queryClient.ensureQueryData(goalProgramsQuery(propertyId)),
+      context.queryClient.ensureQueryData(goalSubjectNamesQuery(propertyId)),
     ])
   },
   component: GoalsRoute,
@@ -89,8 +68,8 @@ function GoalsRoute() {
   const { can: canDo } = usePermissions()
   const [now] = useState(() => new Date())
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const { data } = useSuspenseQuery(goalsQuery(propertyId))
-  const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
+  const { data } = useSuspenseQuery(goalProgramsQuery(propertyId))
+  const { data: subjectNames } = useSuspenseQuery(goalSubjectNamesQuery(propertyId))
   // Who changed a month's target, by name, for the matrix. A side read that
   // never holds the page back: until it is read, the change is told without one.
   const members = useQuery({

@@ -21,10 +21,12 @@ import {
 import { queryOptions } from '@tanstack/react-query'
 import { listProperties, getProperty } from '#/contexts/property/server/properties'
 import { listMembers } from '#/contexts/identity/server/organizations'
+import { listGoogleConnections } from '#/contexts/integration/server/google-connections'
 import { getNotificationUserSettingsFn } from '#/contexts/feed/server/notifications'
 import {
   aiKeys,
   identityKeys,
+  integrationKeys,
   notificationKeys,
   propertyKeys,
 } from '#/shared/queries/query-keys'
@@ -52,6 +54,14 @@ export const membersQuery = queryOptions({
   queryKey: identityKeys.members(),
   queryFn: () => listMembers(),
   staleTime: 30_000,
+})
+
+// The Organization's Google connections: read by Settings → Integrations and by
+// both pages of the Google import, which must not each keep a copy.
+export const googleConnectionsQuery = queryOptions({
+  queryKey: integrationKeys.connections(),
+  queryFn: () => listGoogleConnections(),
+  staleTime: 60_000,
 })
 
 // A single property — consumed by the property layout + 9 property-scoped routes.

@@ -19,14 +19,12 @@ import { effectiveMonthTarget } from '#/contexts/reporting/application/goal-effe
 import { monthTargetMarker } from '#/contexts/reporting/application/goal-month-target-marker'
 import { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
 import { goalTargetProvenance } from '#/contexts/reporting/application/goal-target-provenance'
-import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
-import { listPortals } from '#/contexts/portal/server/portals'
 import type { GoalSubject } from '#/contexts/reporting/application/public-api'
 import {
   actionErrorMessage,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
-import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
+import { goalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -50,6 +48,7 @@ import {
 } from '#/components/goals/goal-detail-view'
 import { goalSubjectKey } from '#/components/goals/goal-subject-picker'
 import { formatDate } from '#/lib/format'
+import { goalSubjectNamesQuery } from './-goal-queries'
 
 const authRoute = getRouteApi('/_authenticated')
 const goalQuery = (propertyId: string, programId: string) =>
@@ -66,18 +65,6 @@ const goalSoFarQuery = (propertyId: string, programId: string) =>
     queryFn: () => getGoalProgramProgress({ data: { propertyId, programId } }),
     staleTime: 30_000,
   })
-const subjectNamesQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: portalKeys.goalSubjectNames(propertyId),
-    queryFn: async () => {
-      const [groups, portals] = await Promise.all([
-        listPortalGroups({ data: { propertyId } }),
-        listPortals({ data: { propertyId } }),
-      ])
-      return { groups: groups.groups, portals: portals.portals }
-    },
-  })
-
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/goals/$goalId',
 )({
@@ -90,7 +77,7 @@ export const Route = createFileRoute(
   loader: async ({ params, context }) => {
     await Promise.all([
       context.queryClient.ensureQueryData(goalQuery(params.propertyId, params.goalId)),
-      context.queryClient.ensureQueryData(subjectNamesQuery(params.propertyId)),
+      context.queryClient.ensureQueryData(goalSubjectNamesQuery(params.propertyId)),
     ])
   },
   component: GoalDetailRoute,
@@ -102,7 +89,7 @@ function GoalDetailRoute() {
   const [now] = useState(() => new Date())
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalQuery(propertyId, goalId))
-  const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
+  const { data: subjectNames } = useSuspenseQuery(goalSubjectNamesQuery(propertyId))
   // Who changed a target, by name. A side read that never holds the page back:
   // until it has been read, a change is told without a person.
   const members = useQuery({

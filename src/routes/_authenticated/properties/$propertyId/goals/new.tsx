@@ -8,7 +8,6 @@ import { can } from '#/shared/domain/permissions'
 import { createGoalsForSubjects } from '#/contexts/reporting/server/goal-bulk-create'
 import {
   createGoalProgram,
-  listGoalPrograms,
   previewGoalMonth,
 } from '#/contexts/reporting/server/goal-programs'
 import type { GoalMetric, GoalSubject } from '#/contexts/reporting/application/public-api'
@@ -57,6 +56,7 @@ import {
   goalSubjectsFromKeys,
 } from '#/components/goals/goal-subject-picker'
 import { newGoalSearchSchema } from './-goal-new-search'
+import { goalProgramsQuery } from './-goal-queries'
 import { prefilledGoalSubjects } from './-goal-subject-prefill'
 import {
   createGoalProgramFormSchema,
@@ -88,17 +88,6 @@ const monthPreviewQuery = (
   queryOptions({
     queryKey: goalKeys.monthPreview(propertyId, metric, goalSubjectKey(subject)),
     queryFn: () => previewGoalMonth({ data: { propertyId, metric, subject } }),
-    staleTime: SIDE_READ_STALE_MS,
-  })
-
-// The Property's goals, to say which goal holds a subject: read by the single
-// goal form only once the command has refused one, and by the table that sets
-// several goals before it draws a row. The Goals page shares the key, so it is
-// usually cached.
-const heldGoalsQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: goalKeys.list({ propertyId, model: 'program' }),
-    queryFn: () => listGoalPrograms({ data: { propertyId } }),
     staleTime: SIDE_READ_STALE_MS,
   })
 
@@ -155,7 +144,7 @@ function useCreateRefusal(
 ): unknown {
   const { error, refused, start } = input
   const heldGoals = useQuery({
-    ...heldGoalsQuery(input.propertyId),
+    ...goalProgramsQuery(input.propertyId),
     enabled: goalRefusalCode(error) === 'subject_has_goal',
     retry: false,
   })
@@ -279,7 +268,9 @@ function CreateGoalPage() {
 function SeveralGoals({ propertyId }: Readonly<{ propertyId: string }>) {
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: subjects } = useSuspenseQuery(subjectsQuery(propertyId))
-  const goals = useQuery(heldGoalsQuery(propertyId))
+  // Which goal holds a subject, before a row is drawn. The Goals page reads the
+  // same entry, so it is usually cached.
+  const goals = useQuery(goalProgramsQuery(propertyId))
   const { timezone } = propData.property
   const { now, start, readAgain } = useStartMonths(timezone)
   return (

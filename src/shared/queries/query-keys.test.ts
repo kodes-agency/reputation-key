@@ -240,6 +240,19 @@ describe('goal query keys', () => {
     )
   })
 
+  // The Staff page caches `{ portals, portalsDenied }`, the Portal pages
+  // `{ portals }`. Two shapes under one key meant each page could read the
+  // other's result.
+  it("keeps the Staff page's portal read apart from the list, and under it", () => {
+    const list = portalKeys.list('property-1')
+    const orDenied = portalKeys.listOrDenied('property-1')
+
+    expect(orDenied).toEqual(['portals', 'list', 'property-1', 'or-denied'])
+    // A write that invalidates the list (a new, renamed or archived Portal)
+    // refreshes the Staff page's read with it.
+    expect(orDenied.slice(0, list.length)).toEqual(list)
+  })
+
   it('keeps goal subject data in one property-scoped portal subtree', () => {
     expect(portalKeys.goalSubjects('property-1')).toEqual([
       'portals',

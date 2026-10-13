@@ -31,7 +31,6 @@ import {
   DialogTrigger,
 } from '#/components/ui/dialog'
 import {
-  listMembers,
   inviteMember,
   updateMemberRole,
   removeMember,
@@ -50,18 +49,12 @@ import {
 } from '#/components/features/identity'
 import type { MemberRow } from '#/components/features/identity'
 import { identityKeys } from '#/shared/queries/query-keys'
-import { propertiesQuery } from '#/routes/-queries/route-queries'
+import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { getSelfServiceLeaveAvailabilityFn } from '#/contexts/identity/server/organization-leave-fns'
 import { LeaveOrganizationSection } from './-leave-organization-section'
 import { MemberAccessContainer } from './-member-access-container'
 
 const authRoute = getRouteApi('/_authenticated')
-const membersQuery = queryOptions({
-  queryKey: identityKeys.members(),
-  queryFn: () => listMembers(),
-  staleTime: 30_000,
-})
-
 const invitationsQuery = queryOptions({
   queryKey: identityKeys.organizationInvitations(),
   queryFn: () => listInvitations(),
