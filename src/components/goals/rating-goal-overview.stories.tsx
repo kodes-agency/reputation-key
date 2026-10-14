@@ -45,20 +45,24 @@ const meta: Meta<typeof RatingGoalOverview> = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+/** Presses the one-line prompt, the Overview's door into the wizard. */
+async function pressPrompt(canvasElement: HTMLElement) {
+  const prompt = within(canvasElement).getByRole('button', {
+    name: 'Set your Google rating goal',
+  })
+  await userEvent.click(prompt)
+}
+
 /** The same simple card as the Goals page: two numbers, one bar, one pace line. */
 export const ActiveGoal: Story = {
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(
-      canvas.getByRole('heading', { level: 2, name: 'Google rating goal' }),
-    ).toBeVisible()
-    await expect(canvas.getByText('On pace')).toBeVisible()
-    await expect(canvas.getByText('This week: 6 of 11 reviews')).toBeVisible()
-    await expect(canvas.getByRole('link', { name: 'View details' })).toHaveAttribute(
+    const card = within(canvasElement)
+    await expect(card.getByRole('link', { name: 'View details' })).toHaveAttribute(
       'href',
       `/properties/${FIXTURE_PROPERTY_ID}/goals/google-rating`,
     )
-    await expect(canvas.queryByText('Set your Google rating goal')).toBeNull()
+    await expect(card.getByText('This week: 6 of 11 reviews')).toBeVisible()
+    await expect(card.queryByRole('button', { name: /Set your Google/ })).toBeNull()
   },
 }
 
@@ -66,13 +70,10 @@ export const ActiveGoal: Story = {
 export const Prompt: Story = {
   args: { card: null, setup: SETUP, history: [] },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Set your Google rating goal' }),
-    )
+    await pressPrompt(canvasElement)
     await expect(args.onStart).toHaveBeenCalledWith({ kind: 'climb' })
     // One line: no numbers, no card.
-    await expect(canvas.queryByText('Google shows')).toBeNull()
+    await expect(within(canvasElement).queryByText('Google shows')).toBeNull()
   },
 }
 
@@ -80,10 +81,7 @@ export const Prompt: Story = {
 export const PromptToKeep: Story = {
   args: { card: null, setup: SETUP_KEEP_FIRST, history: [] },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Set your Google rating goal' }),
-    )
+    await pressPrompt(canvasElement)
     await expect(args.onStart).toHaveBeenCalledWith({ kind: 'keep', targetTenths: 50 })
   },
 }

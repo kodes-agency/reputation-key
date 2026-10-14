@@ -15,7 +15,11 @@ import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/r
 import { RATING_GOAL_HEADING_ID } from '#/components/goals/rating-goal-card'
 import type { RegionRead } from '#/components/goals/rating-goal-section'
 import type { RatingGoalWizardIntent } from '#/components/goals/rating-goal-wizard-view'
-import { ratingGoalCommands, ratingGoalSetupQuery } from './-rating-goal-queries'
+import {
+  ratingGoalCardQuery,
+  ratingGoalCommands,
+  ratingGoalSetupQuery,
+} from './-rating-goal-queries'
 
 const loadWizard = () => import('#/components/goals/rating-goal-wizard')
 const RatingGoalWizard = lazy(() =>
@@ -33,6 +37,16 @@ export function regionRead<T>(query: UseQueryResult<T>): RegionRead<T> {
     retrying: isRetrying(query),
     retry: () => void query.refetch(),
   }
+}
+
+/**
+ * The goal's simple card as a page reads it, and whether the Property has no
+ * active goal: none, or one this read found reached or ended. The pages that
+ * show more while there is no goal (the setup, History) read them only then.
+ */
+export function useRatingGoalCard(propertyId: string) {
+  const card = useQuery({ ...ratingGoalCardQuery(propertyId), retry: false })
+  return { card, noActiveGoal: card.data !== undefined && card.data?.state !== 'active' }
 }
 
 type Opening = Readonly<{ intent: RatingGoalWizardIntent; open: boolean; key: number }>

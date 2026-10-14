@@ -124,33 +124,49 @@ function accountAdminWork(viewer: PropertySetupViewer): PropertySetupStepStatus 
   return viewer.role === 'AccountAdmin' ? 'pending' : 'needs_admin'
 }
 
-function statusOf(
-  key: PropertySetupStepKey,
+/** Done when the fact holds; otherwise `otherwise`. */
+const doneOr = (
+  holds: boolean,
+  otherwise: PropertySetupStepStatus,
+): PropertySetupStepStatus => (holds ? 'complete' : otherwise)
+
+/** Done when it holds; put off ("Not now") when deferred; otherwise `otherwise`. */
+function decided(
+  holds: boolean,
+  deferred: boolean,
+  otherwise: PropertySetupStepStatus,
+): PropertySetupStepStatus {
+  if (holds) return 'complete'
+  return deferred ? 'deferred' : otherwise
+}
+
+type StatusRule = (
   facts: PropertySetupFacts,
   viewer: PropertySetupViewer,
-): PropertySetupStepStatus {
-  switch (key) {
-    case 'google_linked':
-      return facts.googleBindingActive ? 'complete' : accountAdminWork(viewer)
-    case 'reviews_synced':
-      if (facts.reviewsSyncedForCurrentSource) return 'complete'
-      return facts.googleBindingActive ? 'waiting' : 'pending'
-    case 'reply_language':
-      return facts.replyLanguageChosen ? 'complete' : 'pending'
-    case 'ai_decision':
-      if (facts.merchantAiState === 'enabled') return 'complete'
-      return facts.aiDecisionDeferred ? 'deferred' : accountAdminWork(viewer)
-    case 'responsible_manager':
-      return facts.responsibleManagerAssigned ? 'complete' : 'pending'
-    case 'reply_voice':
-      return facts.replyVoiceConfigured ? 'complete' : 'pending'
-    case 'portal_published':
-      return facts.portalPublished ? 'complete' : 'pending'
-    case 'rating_goal':
-      if (facts.ratingGoalActive) return 'complete'
-      return facts.ratingGoalDeferred ? 'deferred' : 'pending'
-  }
-}
+) => PropertySetupStepStatus
+
+/** Each step's status, from the facts and the viewer. */
+const STATUS_OF = {
+  google_linked: (facts, viewer) =>
+    doneOr(facts.googleBindingActive, accountAdminWork(viewer)),
+  reviews_synced: (facts) =>
+    doneOr(
+      facts.reviewsSyncedForCurrentSource,
+      facts.googleBindingActive ? 'waiting' : 'pending',
+    ),
+  reply_language: (facts) => doneOr(facts.replyLanguageChosen, 'pending'),
+  ai_decision: (facts, viewer) =>
+    decided(
+      facts.merchantAiState === 'enabled',
+      facts.aiDecisionDeferred,
+      accountAdminWork(viewer),
+    ),
+  responsible_manager: (facts) => doneOr(facts.responsibleManagerAssigned, 'pending'),
+  reply_voice: (facts) => doneOr(facts.replyVoiceConfigured, 'pending'),
+  portal_published: (facts) => doneOr(facts.portalPublished, 'pending'),
+  rating_goal: (facts) =>
+    decided(facts.ratingGoalActive, facts.ratingGoalDeferred, 'pending'),
+} as const satisfies Readonly<Record<PropertySetupStepKey, StatusRule>>
 
 /**
  * Whether a step is the viewer's to see. The rating goal step is, where a goal
@@ -176,7 +192,7 @@ export function derivePropertySetupSteps(
   return shown.map((key) =>
     Object.freeze({
       key,
-      status: statusOf(key, facts, viewer),
+      status: STATUS_OF[key](facts, viewer),
       asked: STEP_DEFINITIONS[key].asked,
       section: STEP_DEFINITIONS[key].section,
     }),

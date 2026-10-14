@@ -97,6 +97,8 @@ export async function prefetchRatingGoalSection(
  * Overview one goal read. `prefetchQuery` never throws: a failed read leaves the
  * Overview without the goal, never in an error.
  */
+// Used through the Overview loader's on-demand import, which fallow does not follow.
+// fallow-ignore-next-line unused-export
 export async function prefetchRatingGoalOverview(
   queryClient: QueryClient,
   propertyId: string,

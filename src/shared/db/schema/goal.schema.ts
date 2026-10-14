@@ -673,25 +673,24 @@ export const propertyRatingGoalChanges = pgTable(
 // counts the step as decided and stops reminding. One row per Property, written
 // by Reporting's "Not now" command and never by a goal; a goal set later
 // completes the step whether or not the row is there. Disposable decision
-// state with no content. Both references cascade with the Property, as the AI
-// decision's "not now" does, and the Organization purge deletes the rows with
-// the rest of the Goal family.
+// state with no content. Its one reference, the Property within its
+// Organization, cascades with the Property, as the AI decision's "not now"
+// does, and the Organization purge deletes the rows with the rest of the Goal
+// family.
 export const propertyRatingGoalDeferrals = pgTable(
   'property_rating_goal_deferrals',
   {
-    propertyId: uuid('property_id')
-      .primaryKey()
-      .references(() => properties.id, { onDelete: 'cascade' }),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').primaryKey(),
     deferredBy: varchar('deferred_by', { length: 255 }).notNull(),
     deferredAt: timestamp('deferred_at', { withTimezone: true }).notNull(),
   },
   (t) => [
+    index('property_rating_goal_deferrals_org_idx').on(t.organizationId),
     foreignKey({
-      name: 'property_rating_goal_deferrals_tenant_fk',
+      name: 'property_rating_goal_deferrals_property_fk',
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
     }).onDelete('cascade'),
-    index('property_rating_goal_deferrals_org_idx').on(t.organizationId),
   ],
 )

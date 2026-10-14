@@ -10,14 +10,11 @@ import { useQuery } from '@tanstack/react-query'
 import { RatingGoalHistory } from '#/components/goals/rating-goal-history'
 import { RatingGoalSection } from '#/components/goals/rating-goal-section'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import {
-  ratingGoalCardQuery,
-  ratingGoalHistoryQuery,
-  ratingGoalSetupQuery,
-} from './-rating-goal-queries'
+import { ratingGoalHistoryQuery, ratingGoalSetupQuery } from './-rating-goal-queries'
 import {
   preloadRatingGoalWizard,
   regionRead,
+  useRatingGoalCard,
   useRatingGoalWizard,
 } from './-rating-goal-wizard-host'
 
@@ -32,9 +29,7 @@ type Props = Readonly<{
 export function RatingGoalPanel({ propertyId, timezone, view, hasPortals }: Props) {
   const [now] = useState(() => new Date())
   const { can } = usePermissions()
-  const card = useQuery({ ...ratingGoalCardQuery(propertyId), retry: false })
-  // Null, or the goal this read found reached or ended: no active goal.
-  const noActiveGoal = card.data !== undefined && card.data?.state !== 'active'
+  const { card, noActiveGoal } = useRatingGoalCard(propertyId)
   const setup = useQuery({
     ...ratingGoalSetupQuery(propertyId),
     enabled: view === 'active' && noActiveGoal,
