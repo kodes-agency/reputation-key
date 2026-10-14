@@ -41,9 +41,12 @@ metric authority.
   list read, then each goal through the same `progressOf` as its own page. One subject gets its
   figure against the running month's target and the days left; several subjects on a count get how
   many are below pace; an average with several subjects, or more subjects than a goal's page
-  reads, gets the count of subjects alone. A scheduled, paused or ended goal has no line. The
-  governed metric read has no set-based form, so a page is bounded instead: at most 60 figures,
-  six in flight, and the goals past that carry no line.
+  reads, gets the count of subjects alone. A scheduled, paused or ended goal has no line. Each
+  figure is the governed read of the goal's own page, so the list and the page cannot disagree:
+  one server call but several statements, a deliberate departure from one set-based read because
+  the set-based count below leaves out the outbox completeness proof. A page is bounded instead:
+  at most 60 figures, three in flight (two queries each, six of the web pool's ten connections),
+  and the goals past that carry no line.
 - **Goal pace** (`domain/goal-pace.ts`): how far a count goal's running month should have got. A
   count measure expects the month's target times the share of the month gone, in whole
   Property-local calendar days with today included (the Results window's convention). It is

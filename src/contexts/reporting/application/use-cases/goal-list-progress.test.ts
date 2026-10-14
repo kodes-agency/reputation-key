@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { POOL_MAX_CONNECTIONS } from '#/shared/db/pool'
 import type {
   GoalMonthlyResult,
   GoalProgramBundle,
@@ -403,6 +404,18 @@ describe('the month so far of the goals on the Goals list', () => {
 
     expect(widest).toBeGreaterThan(1)
     expect(widest).toBeLessThanOrEqual(GOAL_LIST_PROGRESS_CONCURRENCY)
+  })
+
+  it('asks for no more connections at once than the web pool can spare', () => {
+    // A governed read asks two queries at once (the aggregate and the source
+    // check), each on a pool connection of its own. A page view must leave the
+    // pool room for the loader's other reads and for other requests.
+    const queriesPerRead = 2
+    const spareForOthers = 4
+
+    expect(GOAL_LIST_PROGRESS_CONCURRENCY * queriesPerRead).toBeLessThanOrEqual(
+      POOL_MAX_CONNECTIONS - spareForOthers,
+    )
   })
 
   it('keeps the order of the goals the Property lists', async () => {

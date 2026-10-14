@@ -15,9 +15,15 @@
 //   count of subjects alone. An average has no pace to be below.
 //
 // A scheduled, paused or ended goal has no month counting, so it is not here.
-// The governed read has no set-based form, so a page is bounded instead: it
-// reads at most `MAX_GOAL_LIST_PROGRESS_READS` figures, a few at a time, and the
-// goals past that carry no live line.
+//
+// Each figure is the governed read of the goal's own page, one per subject, so
+// the list and the page can never disagree. That is one server call but several
+// statements, a deliberate departure from a single set-based read: the
+// set-based form of a count (`goal-running-months.ts`, for the Overview chip and
+// the Properties list) leaves out the outbox completeness proof the page applies.
+// So the page is bounded instead: it reads at most `MAX_GOAL_LIST_PROGRESS_READS`
+// figures, `GOAL_LIST_PROGRESS_CONCURRENCY` at a time, and the goals past that
+// carry no live line.
 
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import type { GoalMetric, GoalSubject } from '../../domain/goal-program'
@@ -36,8 +42,12 @@ import type { GoalActor, GoalExecutionPolicy } from './goal-programs'
 /** The most figures one Goals page reads; past it a goal carries no live line. */
 export const MAX_GOAL_LIST_PROGRESS_READS = 60
 
-/** Governed reads in flight at once for one page. */
-export const GOAL_LIST_PROGRESS_CONCURRENCY = 6
+/**
+ * Governed reads in flight at once for one page. A read asks two queries at once,
+ * each on its own pool connection, so three reads take six of the web pool's ten
+ * and leave the rest for the page's other reads and for other requests.
+ */
+export const GOAL_LIST_PROGRESS_CONCURRENCY = 3
 
 type CountingReading = Exclude<GoalProgressReading, Readonly<{ kind: 'not_started' }>>
 
