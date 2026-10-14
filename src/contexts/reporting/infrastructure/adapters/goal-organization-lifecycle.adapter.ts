@@ -48,6 +48,21 @@ export const GOAL_PURGE_TABLES = Object.freeze([
 ] as const)
 
 /**
+ * Total tenant-scoped rows across the Goal Program and rating goal families,
+ * counted over the purge plan itself so no table it deletes can go uncounted.
+ * Every table in it carries its own `organization_id`; the identifiers come
+ * only from this file's static plan.
+ */
+async function countTenantRows(tx: Tx, organization: string): Promise<number> {
+  const tableCounts = GOAL_PURGE_TABLES.map(
+    (table) =>
+      sql`(SELECT count(*) FROM ${sql.identifier(table)} WHERE organization_id = ${organization})`,
+  )
+  const result = await tx.execute(sql`SELECT ${sql.join(tableCounts, sql` + `)} AS rows`)
+  return count((result.rows[0] as { rows?: unknown } | undefined)?.rows)
+}
+
+/**
  * The monthly-result validation guard rejects deletion alongside enforcing its
  * status and revision transitions, so irreversible tenant purge disables it
  * transactionally. Program versions and result revisions are append-only
@@ -93,43 +108,6 @@ function outcomeFor(rows: number): OrganizationLifecyclePhaseOutcome['outcome'] 
 
 function count(value: unknown): number {
   return Number((value as string | number | null | undefined) ?? 0)
-}
-
-/** Total tenant-scoped rows across the Goal Program and rating goal families. */
-async function countTenantRows(tx: Tx, organization: string): Promise<number> {
-  const result = await tx.execute(sql`
-    SELECT
-      (SELECT count(*) FROM goal_programs WHERE organization_id = ${organization})
-      + (
-        SELECT count(*) FROM goal_program_versions
-        WHERE organization_id = ${organization}
-      )
-      + (
-        SELECT count(*) FROM goal_subject_assignments
-        WHERE organization_id = ${organization}
-      )
-      + (
-        SELECT count(*) FROM goal_monthly_results
-        WHERE organization_id = ${organization}
-      )
-      + (
-        SELECT count(*) FROM goal_result_revisions
-        WHERE organization_id = ${organization}
-      )
-      + (
-        SELECT count(*) FROM goal_month_target_changes
-        WHERE organization_id = ${organization}
-      )
-      + (
-        SELECT count(*) FROM property_rating_goal_changes
-        WHERE organization_id = ${organization}
-      )
-      + (
-        SELECT count(*) FROM property_rating_goals
-        WHERE organization_id = ${organization}
-      ) AS rows
-  `)
-  return count((result.rows[0] as { rows?: unknown } | undefined)?.rows)
 }
 
 /**

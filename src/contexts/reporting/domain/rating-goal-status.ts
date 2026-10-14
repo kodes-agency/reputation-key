@@ -28,11 +28,11 @@ import type { RatingGoalStatus } from './rating-goal'
 /** Google's numbers older than this make a goal wait for Google. */
 export const GOOGLE_NUMBERS_FRESH_HOURS = 24
 /** A goal is getting started (neutral) for this many days. */
-export const GETTING_STARTED_DAYS = 14
+const GETTING_STARTED_DAYS = 14
 /** The pace window grows until it is this many days long. */
-export const FULL_PACE_WINDOW_DAYS = 28
+const FULL_PACE_WINDOW_DAYS = 28
 /** On pace at this share of the chosen pace or more. */
-export const ON_PACE_PERCENT = 90
+const ON_PACE_PERCENT = 90
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS

@@ -41,9 +41,9 @@ import {
 } from './rating-goal-shared'
 
 /** History shows at most this many reached and ended goals. */
-export const RATING_GOAL_HISTORY_LIMIT = 20
+const RATING_GOAL_HISTORY_LIMIT = 20
 /** The detail shows at most this many changes. */
-export const RATING_GOAL_CHANGE_LOG_LIMIT = 50
+const RATING_GOAL_CHANGE_LOG_LIMIT = 50
 
 export type RatingGoalPropertyInput = Readonly<{ propertyId: string }>
 

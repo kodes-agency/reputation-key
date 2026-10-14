@@ -1,4 +1,4 @@
--- A Property's Google rating goal (DECISIONS.md 2026-10-14, engine slice).
+-- A Property's Google rating goal (ADR 0067, engine slice).
 --
 -- Purely additive: two new tables, nothing else changes. Old web and worker
 -- code never reads or writes them.

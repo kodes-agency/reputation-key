@@ -16,7 +16,10 @@ const REQUEST = Object.freeze({
 
 type Recorded = Readonly<{ text: string; params: readonly unknown[] }>
 
-/** Renders a drizzle SQL object back to text plus its bound parameters. */
+/**
+ * Renders a drizzle SQL object back to text plus its bound parameters, nested
+ * fragments (`sql.join`, a `sql` inside a `sql`) included.
+ */
 function renderSql(statement: unknown): Recorded {
   const chunks = (statement as { queryChunks?: readonly unknown[] }).queryChunks ?? []
   const params: unknown[] = []
@@ -26,6 +29,11 @@ function renderSql(statement: unknown): Recorded {
       const value = (chunk as { value?: unknown } | null)?.value
       if (kind === 'StringChunk') return (value as readonly string[]).join('')
       if (kind === 'Name') return String(value)
+      if (kind === 'SQL') {
+        const nested = renderSql(chunk)
+        params.push(...nested.params)
+        return nested.text
+      }
       // A plain template value is stored raw; a drizzle Param wraps it.
       params.push(value === undefined ? chunk : value)
       return '?'

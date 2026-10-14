@@ -4,9 +4,9 @@
 // pace is the reviews created in the last 28 days, per week. Three paces are
 // suggested from it: Steady (the current pace), Faster (about 1.5 times) and
 // Push (about twice, the cap: Google flags surges). Rounding is half up and
-// integer-exact, so 1.5 × 7 = 10.5 suggests 11 (DECISIONS.md wrote 10
-// informally). A Property that gets fewer than one review a week is offered
-// at least 1, 2 and 3.
+// integer-exact, so 1.5 × 7 = 10.5 suggests 11 (the owner's worked example
+// said "about 10" informally). A Property that gets fewer than one review a
+// week is offered at least 1, 2 and 3.
 
 import { ratio, type Ratio } from './rating-goal-numbers'
 
@@ -21,7 +21,7 @@ export const MAX_PACE_PER_WEEK = 200
 const SUGGESTION_FLOORS = { steady: 1, faster: 2, push: 3 } as const
 
 /** A custom pace above this multiple of the current pace earns a caution. */
-export const SURGE_CAUTION_MULTIPLE = 2
+const SURGE_CAUTION_MULTIPLE = 2
 
 export type PaceSuggestions = Readonly<{ steady: number; faster: number; push: number }>
 

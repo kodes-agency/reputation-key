@@ -21,7 +21,7 @@ describe('the current pace', () => {
 })
 
 describe('the three suggested paces', () => {
-  it('rounds 1.5 times seven half up to eleven (DECISIONS used ten informally)', () => {
+  it('rounds 1.5 times seven half up to eleven (the worked example said ten informally)', () => {
     expect(paceSuggestions(28)).toEqual({ steady: 7, faster: 11, push: 14 })
   })
 

@@ -528,12 +528,13 @@ export const goalMonthTargetChanges = pgTable(
   ],
 )
 
-// Property Google rating goal (DECISIONS.md 2026-10-14). Not a Goal Program: no
-// months, subjects or metric readings. One active goal per Property, aimed at
-// the one-decimal number Google shows. `source_epoch` is the Property's Google
+// Property Google rating goal (ADR 0067). Not a Goal Program: no months,
+// subjects or metric readings. One active goal per Property, aimed at the
+// one-decimal number Google shows. `source_epoch` is the Property's Google
 // binding epoch when the goal was set; a goal outlives no change of it. The
-// `last_*` columns are what the last evaluation stored, so the next one can
-// tell a transition (a tenth gained or lost, a new status) from a repeat.
+// `last_*` columns are what the set or the last evaluation stored, so the next
+// one can tell a transition (a tenth gained or lost, a new status) from a
+// repeat.
 // A CHECK passes when its expression is NULL, so every check below states
 // `IS NOT NULL` wherever a nullable column must hold a value.
 export const propertyRatingGoals = pgTable(
@@ -611,7 +612,7 @@ export const propertyRatingGoals = pgTable(
 )
 
 // Each change to a rating goal's target, pace or mode: who, when, old -> new,
-// one row per field. No reason (DECISIONS.md Q6). Values are text: a target in
+// one row per field. No reason (ADR 0067). Values are text: a target in
 // tenths, a pace a week (NULL when a goal keeps instead), or a mode.
 export const propertyRatingGoalChanges = pgTable(
   'property_rating_goal_changes',

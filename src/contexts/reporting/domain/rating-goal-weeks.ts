@@ -1,7 +1,7 @@
 // Property Google rating goal — Monday-to-Sunday weeks (pure).
 //
 // "This week" and the weekly bars of a goal count reviews in Monday-to-Sunday
-// weeks of the Property's time zone (DECISIONS.md defaults). A week is named
+// weeks of the Property's time zone (the owner's default). A week is named
 // by its Monday (`YYYY-MM-DD`), the same key PostgreSQL's
 // `date_trunc('week', ts AT TIME ZONE tz)` produces, and starts at local
 // midnight on that Monday, whatever the clocks did that weekend.

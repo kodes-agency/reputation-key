@@ -7,7 +7,7 @@
 // until Google shows the target (reached), or it is ended: by a manager, by
 // the Google location changing under it, or by the Property being archived.
 // Changes to target, pace or mode are logged with who and when, old -> new,
-// and no reason (DECISIONS.md Q6).
+// and no reason (ADR 0067).
 
 import { createErrorFactory } from '#/shared/domain/errors'
 import { isValidPace } from './rating-goal-pace'
@@ -29,17 +29,10 @@ export type RatingGoalStatus =
   | 'holding'
   | 'dropped_below'
 
-export const RATING_GOAL_MODES = ['climb', 'keep'] as const
-export const RATING_GOAL_STATUSES = [
-  'waiting_for_google',
-  'reached',
-  'cant_reach_at_mix',
-  'getting_started',
-  'on_pace',
-  'below_pace',
-  'holding',
-  'dropped_below',
-] as const satisfies readonly RatingGoalStatus[]
+export const RATING_GOAL_MODES = [
+  'climb',
+  'keep',
+] as const satisfies readonly RatingGoalMode[]
 
 /** The lowest tenth a goal may name (1.0). */
 export const LOWEST_TARGET_TENTHS = 10
