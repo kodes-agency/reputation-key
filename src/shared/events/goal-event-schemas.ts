@@ -85,9 +85,9 @@ const tenthSchema = z.number().int().min(0).max(50)
 /**
  * `goal.rating_goal.transitioned`: one fact per notice a rating goal's
  * evaluation raises (ADR 0067 decision 6). Closed enums and Property-level
- * figures only: Google's shown tenth, the goal's target and pace, the recent
- * pace and the recent mix. Each transition carries exactly the figures its
- * notice states.
+ * figures only: Google's shown tenth, the goal's target and pace, and the
+ * recent pace of new reviews. Never an average of review ratings. Each
+ * transition carries exactly the figures its notice states.
  */
 const goalRatingGoalTransitionedSchema = z
   .object({
@@ -108,7 +108,6 @@ const goalRatingGoalTransitionedSchema = z
     pacePerWeek: z.number().int().min(1).max(200).nullable(),
     recentPaceTenths: z.number().int().min(0).max(100_000).nullable(),
     paceWindow: z.enum(['last_4_weeks', 'since_set']).nullable(),
-    mixHundredths: z.number().int().min(0).max(500).nullable(),
     occurredAt: z.iso.datetime(),
   })
   .superRefine((payload, ctx) => {
@@ -116,7 +115,7 @@ const goalRatingGoalTransitionedSchema = z
       reached: ['shownTenths'],
       google_rating_changed: ['shownTenths', 'previousTenths'],
       entered_below_pace: ['pacePerWeek', 'recentPaceTenths', 'paceWindow'],
-      entered_cant_reach: ['mixHundredths'],
+      entered_cant_reach: [],
       keep_dropped_below: ['shownTenths'],
     }
     const fields = payload as Readonly<Record<string, unknown>>

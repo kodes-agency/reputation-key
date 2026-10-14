@@ -7,8 +7,8 @@
 // its copy type is restated structurally below.
 //
 // The figures are the Property's own: the tenth Google shows for it, the
-// goal's target and pace, the recent pace and the recent average stars of new
-// Google reviews. Never a review's rating. "Review" means a Google review.
+// goal's target and pace, and the recent pace of new Google reviews. Never a
+// review's rating, nor an average of ratings. "Review" means a Google review.
 // Every figure is optional: a missing one shortens the sentence.
 import type { NotificationPayload } from './notification-payload'
 
@@ -117,17 +117,11 @@ export const renderRatingGoalBelowPace = (
   }
 }
 
-/** "4.40" from 440. */
-const hundredths = (value: number): string => (value / 100).toFixed(2)
-
+/** "New reviews lately average below what 4.5 needs", without a number of stars. */
 const cantReachBody = (p: NotificationPayload): string => {
-  const target = p.ratingTargetTenths
-  if (target === undefined) return 'Recent reviews average too few stars to reach it.'
-  // Google shows a tenth from five hundredths below it: 4.5 from 4.45.
-  const need = `new reviews need to average above ${hundredths(target * 10 - 5)}`
-  return p.ratingMixHundredths === undefined
-    ? `To reach ${tenths(target)}, ${need}.`
-    : `Recent reviews average ${hundredths(p.ratingMixHundredths)} stars; to reach ${tenths(target)}, ${need}.`
+  const needs =
+    p.ratingTargetTenths === undefined ? 'the goal' : tenths(p.ratingTargetTenths)
+  return `New reviews lately average below what ${needs} needs. Open the goal to see what it takes.`
 }
 
 export const renderRatingGoalCantReach = (

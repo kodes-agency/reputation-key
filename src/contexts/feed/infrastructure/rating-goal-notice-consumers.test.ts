@@ -26,7 +26,6 @@ const NO_FIGURES = {
   pacePerWeek: null,
   recentPaceTenths: null,
   paceWindow: null,
-  mixHundredths: null,
 }
 
 const event = (
@@ -197,10 +196,9 @@ describe('the Google rating goal notice route', () => {
         transition: 'entered_cant_reach',
         shownTenths: null,
         previousTenths: null,
-        mixHundredths: 440,
       },
       'goal.rating_cant_reach',
-      { ratingMixHundredths: 440 },
+      {},
     ],
     [
       'keep_dropped_below',
@@ -228,6 +226,24 @@ describe('the Google rating goal notice route', () => {
       )
     },
   )
+
+  it('carries no average of review ratings, even from a fact that holds one', async () => {
+    const deps = makeDeps()
+
+    await handleRatingGoalTransitioned(
+      deps,
+      event({
+        transition: 'entered_cant_reach',
+        shownTenths: null,
+        previousTenths: null,
+        averageHundredths: 440,
+      }),
+    )
+
+    const payload = deps.jobs[0]?.data.payload as Record<string, unknown>
+    expect(payload).toMatchObject({ ratingTargetTenths: 45 })
+    expect(Object.keys(payload).filter((key) => /average|mix/iu.test(key))).toEqual([])
+  })
 
   it('queues the same job ids when the fact is delivered again', async () => {
     const deps = makeDeps()

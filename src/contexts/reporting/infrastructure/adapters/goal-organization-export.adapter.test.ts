@@ -441,6 +441,7 @@ describe('Goal Organization Export contributor', () => {
       last_evaluated_at: '2026-08-20T06:00:00.000000Z',
       last_known_status: 'on_pace',
       below_pace_noticed_at: '2026-08-12T06:00:00.000000Z',
+      cant_reach_noticed_at: '2026-08-14T06:00:00.000000Z',
       reached_at: null,
       ended_at: null,
       created_by: 'user-1',

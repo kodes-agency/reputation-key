@@ -8,7 +8,8 @@
 //   google_rating_changed   Google shows another tenth than it last showed;
 //   entered_below_pace      a climb goal is below its pace, at most once in
 //                           14 days;
-//   entered_cant_reach      the recent mix no longer clears the threshold;
+//   entered_cant_reach      the recent mix no longer clears the threshold, at
+//                           most once in 14 days, and with no star figure;
 //   keep_dropped_below      a keep goal's tenth is no longer shown (in place of
 //                           the tenth lost, which is the same change).
 // A status is "entered" against the last status that was not waiting for
@@ -19,12 +20,13 @@
 // The engine's status order already keeps Below pace out while a goal is
 // waiting, getting started, reached or out of reach (rating-goal-status.ts).
 
-import type { Ratio } from './rating-goal-numbers'
 import type { PropertyRatingGoal, RatingGoalMode, RatingGoalStatus } from './rating-goal'
 import type { PaceWindow } from './rating-goal-status'
 
 /** A goal tells its managers it fell below pace at most once in this many days. */
 export const BELOW_PACE_NOTICE_DAYS = 14
+/** A goal tells its managers it can't be reached at the recent mix at most once in this many days. */
+export const CANT_REACH_NOTICE_DAYS = 14
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const WEEK_MS = 7 * DAY_MS
@@ -59,12 +61,7 @@ export type RatingGoalNotice =
       recentPaceTenths: number
       paceWindow: RatingGoalPaceWindowKind
     }>
-  | Readonly<{
-      transition: 'entered_cant_reach'
-      targetTenths: number
-      /** The recent mix in hundredths of a star, rounded down. */
-      mixHundredths: number
-    }>
+  | Readonly<{ transition: 'entered_cant_reach'; targetTenths: number }>
   | Readonly<{
       transition: 'keep_dropped_below'
       targetTenths: number
@@ -82,8 +79,6 @@ export type RatingGoalNoticeInput = Readonly<{
     displayedTenths: number | null
     outcome: 'continues' | 'reached' | 'ended'
   }>
-  /** The recent mix the status was worked out on; null when there is none. */
-  mix: Ratio | null
   /** Reviews created in the status's pace window, when the status judged pace. */
   pace: Readonly<{ reviews: number; window: PaceWindow }> | null
   now: Date
@@ -94,15 +89,16 @@ export type RatingGoalNoticeDecision = Readonly<{
   /** The status a later evaluation compares with. */
   knownStatus: RatingGoalStatus | null
   belowPaceNoticedAt: Date | null
+  cantReachNoticedAt: Date | null
 }>
 
 /** True when the goal moved into `status` from another status it knew. */
 const entered = (known: RatingGoalStatus | null, status: RatingGoalStatus): boolean =>
   known !== null && known !== status
 
-const mayTellBelowPace = (noticedAt: Date | null, now: Date): boolean =>
-  noticedAt === null ||
-  now.getTime() - noticedAt.getTime() >= BELOW_PACE_NOTICE_DAYS * DAY_MS
+/** True when the managers were never told, or not within the last `days` days. */
+const mayTell = (noticedAt: Date | null, now: Date, days: number): boolean =>
+  noticedAt === null || now.getTime() - noticedAt.getTime() >= days * DAY_MS
 
 /** Reviews a week over the window, in tenths, rounded down (never overstated). */
 function recentPaceTenths(reviews: number, window: PaceWindow): number {
@@ -114,9 +110,6 @@ const paceWindowKind = (window: PaceWindow): RatingGoalPaceWindowKind =>
   window.end.getTime() - window.start.getTime() >= FULL_PACE_WINDOW_MS
     ? 'last_4_weeks'
     : 'since_set'
-
-/** The mix in hundredths of a star, rounded down: never shown above the threshold. */
-const hundredthsDown = (mix: Ratio): number => Number((mix.num * 100n) / mix.den)
 
 function tenthNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null {
   const previous = input.goal.lastEvaluation.displayedTenths
@@ -134,7 +127,11 @@ function tenthNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null {
 function belowPaceNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null {
   const { goal, pace } = input
   if (pace === null || goal.pacePerWeek === null) return null
-  if (!mayTellBelowPace(goal.lastEvaluation.belowPaceNoticedAt, input.now)) return null
+  if (
+    !mayTell(goal.lastEvaluation.belowPaceNoticedAt, input.now, BELOW_PACE_NOTICE_DAYS)
+  ) {
+    return null
+  }
   return {
     transition: 'entered_below_pace',
     targetTenths: goal.targetTenths,
@@ -142,6 +139,16 @@ function belowPaceNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null 
     recentPaceTenths: recentPaceTenths(pace.reviews, pace.window),
     paceWindow: paceWindowKind(pace.window),
   }
+}
+
+function cantReachNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null {
+  const { goal } = input
+  if (
+    !mayTell(goal.lastEvaluation.cantReachNoticedAt, input.now, CANT_REACH_NOTICE_DAYS)
+  ) {
+    return null
+  }
+  return { transition: 'entered_cant_reach', targetTenths: goal.targetTenths }
 }
 
 /** The notice for a status the goal just entered, if it has one. */
@@ -152,13 +159,7 @@ function statusNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null {
     case 'below_pace':
       return belowPaceNotice(input)
     case 'cant_reach_at_mix':
-      return input.mix === null
-        ? null
-        : {
-            transition: 'entered_cant_reach',
-            targetTenths: goal.targetTenths,
-            mixHundredths: hundredthsDown(input.mix),
-          }
+      return cantReachNotice(input)
     case 'dropped_below':
       return evaluation.displayedTenths === null
         ? null
@@ -208,10 +209,12 @@ export function decideRatingGoalNotices(
       notices: [],
       knownStatus: previous.knownStatus,
       belowPaceNoticedAt: previous.belowPaceNoticedAt,
+      cantReachNoticedAt: previous.cantReachNoticedAt,
     }
   }
   const notices = noticesFor(input)
   const toldBelowPace = notices.some((n) => n.transition === 'entered_below_pace')
+  const toldCantReach = notices.some((n) => n.transition === 'entered_cant_reach')
   return {
     notices,
     knownStatus:
@@ -219,5 +222,6 @@ export function decideRatingGoalNotices(
         ? previous.knownStatus
         : input.evaluation.status,
     belowPaceNoticedAt: toldBelowPace ? input.now : previous.belowPaceNoticedAt,
+    cantReachNoticedAt: toldCantReach ? input.now : previous.cantReachNoticedAt,
   }
 }

@@ -137,28 +137,29 @@ describe('entered Below pace', () => {
 })
 
 describe("entered Can't reach at this mix", () => {
-  it('says the recent average and what new reviews need to average', () => {
-    expect(
-      copy('goal.rating_cant_reach', {
-        ...AT,
-        ratingTargetTenths: 45,
-        ratingMixHundredths: 440,
-      }),
-    ).toEqual({
+  it('says new reviews lately average below what the target needs, with no number of stars', () => {
+    const rendered = copy('goal.rating_cant_reach', { ...AT, ratingTargetTenths: 45 })
+
+    expect(rendered).toEqual({
       title: 'Riverside Hotel’s Google goal can’t be reached at the recent mix',
-      body: 'Recent reviews average 4.40 stars; to reach 4.5, new reviews need to average above 4.45.',
+      body: 'New reviews lately average below what 4.5 needs. Open the goal to see what it takes.',
       detail:
-        'Recent reviews average 4.40 stars; to reach 4.5, new reviews need to average above 4.45.',
+        'New reviews lately average below what 4.5 needs. Open the goal to see what it takes.',
       actionLabel: 'View goal',
       summary: 'Riverside Hotel · out of reach at the recent mix',
     })
+    // The only number in the sentence is the goal's own target.
+    expect(rendered.body.match(/\d+(\.\d+)?/gu)).toEqual(['4.5'])
   })
 
-  it('reads without the Property or the mix', () => {
-    expect(copy('goal.rating_cant_reach', { ratingTargetTenths: 39 })).toMatchObject({
+  it('reads without the Property or the target', () => {
+    expect(copy('goal.rating_cant_reach', {})).toMatchObject({
       title: 'Your Google goal can’t be reached at the recent mix',
-      body: 'To reach 3.9, new reviews need to average above 3.85.',
+      body: 'New reviews lately average below what the goal needs. Open the goal to see what it takes.',
     })
+    expect(copy('goal.rating_cant_reach', { ratingTargetTenths: 39 }).body).toBe(
+      'New reviews lately average below what 3.9 needs. Open the goal to see what it takes.',
+    )
   })
 })
 

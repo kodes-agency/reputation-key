@@ -8,9 +8,10 @@
 // Never staff: a Member is never a responsible manager.
 //
 // The fact carries the Property-level figures the notice states (the tenth
-// Google shows, the goal's target and pace, the recent pace and the recent
-// mix), never a review or a review's rating. A repeated delivery converges on
-// the same job ids, one per recipient, and on this consumer's receipt.
+// Google shows, the goal's target and pace, and the recent pace of new
+// reviews), never a review, a review's rating or an average of ratings. A
+// repeated delivery converges on the same job ids, one per recipient, and on
+// this consumer's receipt.
 
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
@@ -59,7 +60,6 @@ type TransitionedPayload = Readonly<{
   pacePerWeek: number | null
   recentPaceTenths: number | null
   paceWindow: 'last_4_weeks' | 'since_set' | null
-  mixHundredths: number | null
 }>
 
 const NOTICE_TYPES: Readonly<Record<Transition, NotificationType>> = {
@@ -96,7 +96,6 @@ function figuresOf(fact: TransitionedPayload): NotificationPayload {
     ratingPacePerWeek: fact.pacePerWeek,
     ratingRecentPaceTenths: fact.recentPaceTenths,
     ratingPaceWindow: fact.paceWindow,
-    ratingMixHundredths: fact.mixHundredths,
   }
   return Object.fromEntries(
     Object.entries(figures).filter(([, value]) => value !== null),

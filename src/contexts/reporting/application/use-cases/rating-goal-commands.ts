@@ -154,6 +154,7 @@ function newGoal(
       evaluatedAt: null,
       knownStatus: null,
       belowPaceNoticedAt: null,
+      cantReachNoticedAt: null,
     },
     createdBy: actor.userId,
     createdAt: reading.now,
@@ -180,6 +181,7 @@ function newGoal(
       evaluatedAt: reading.now,
       knownStatus: starting.status === 'waiting_for_google' ? null : starting.status,
       belowPaceNoticedAt: null,
+      cantReachNoticedAt: null,
     },
   }
 }

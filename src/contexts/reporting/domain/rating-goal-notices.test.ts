@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { ratio } from './rating-goal-numbers'
 import type { RatingGoalEvaluationMark, RatingGoalStatus } from './rating-goal'
 import {
   BELOW_PACE_NOTICE_DAYS,
+  CANT_REACH_NOTICE_DAYS,
   decideRatingGoalNotices,
   type RatingGoalNoticeInput,
 } from './rating-goal-notices'
@@ -19,6 +19,7 @@ const mark = (
   evaluatedAt: daysAgo(1),
   knownStatus: 'on_pace',
   belowPaceNoticedAt: null,
+  cantReachNoticedAt: null,
   ...overrides,
 })
 
@@ -29,7 +30,6 @@ type Overrides = Readonly<{
   status?: RatingGoalStatus
   displayedTenths?: number | null
   outcome?: 'continues' | 'reached' | 'ended'
-  mix?: RatingGoalNoticeInput['mix']
   pace?: RatingGoalNoticeInput['pace']
 }>
 
@@ -48,7 +48,6 @@ const decide = (overrides: Overrides = {}) =>
         overrides.displayedTenths === undefined ? 43 : overrides.displayedTenths,
       outcome: overrides.outcome ?? 'continues',
     },
-    mix: overrides.mix === undefined ? ratio(470, 100) : overrides.mix,
     pace:
       overrides.pace === undefined
         ? { reviews: 24, window: { start: daysAgo(28), end: NOW } }
@@ -65,6 +64,7 @@ describe('a repeat of what the goal already holds', () => {
       notices: [],
       knownStatus: 'on_pace',
       belowPaceNoticedAt: null,
+      cantReachNoticedAt: null,
     })
   })
 })
@@ -291,12 +291,48 @@ describe('entered Below pace', () => {
 })
 
 describe("entered Can't reach at this mix", () => {
-  it('says the recent mix, rounded down to the hundredth, and the target', () => {
-    expect(
-      decide({ status: 'cant_reach_at_mix', mix: ratio(4449, 1000) }).notices,
-    ).toEqual([
-      { transition: 'entered_cant_reach', targetTenths: 45, mixHundredths: 444 },
+  it('says the target and no star figure, not even the recent average', () => {
+    expect(decide({ status: 'cant_reach_at_mix' }).notices).toEqual([
+      { transition: 'entered_cant_reach', targetTenths: 45 },
     ])
+  })
+
+  it('records when it was told', () => {
+    expect(decide({ status: 'cant_reach_at_mix' })).toMatchObject({
+      knownStatus: 'cant_reach_at_mix',
+      cantReachNoticedAt: NOW,
+      belowPaceNoticedAt: null,
+    })
+  })
+
+  it(`is told at most once every ${CANT_REACH_NOTICE_DAYS} days`, () => {
+    expect(CANT_REACH_NOTICE_DAYS).toBe(14)
+    const told = (days: number) => ({ cantReachNoticedAt: daysAgo(days) })
+
+    expect(transitions({ previous: told(13.9), status: 'cant_reach_at_mix' })).toEqual([])
+    expect(decide({ previous: told(13.9), status: 'cant_reach_at_mix' })).toMatchObject({
+      knownStatus: 'cant_reach_at_mix',
+      cantReachNoticedAt: daysAgo(13.9),
+    })
+    expect(transitions({ previous: told(14), status: 'cant_reach_at_mix' })).toEqual([
+      'entered_cant_reach',
+    ])
+  })
+
+  it('keeps its own clock apart from the Below pace one', () => {
+    const toldBelowPace = { belowPaceNoticedAt: daysAgo(1) }
+    const toldCantReach = { cantReachNoticedAt: daysAgo(1) }
+
+    expect(transitions({ previous: toldBelowPace, status: 'cant_reach_at_mix' })).toEqual(
+      ['entered_cant_reach'],
+    )
+    expect(transitions({ previous: toldCantReach, status: 'below_pace' })).toEqual([
+      'entered_below_pace',
+    ])
+    expect(decide({ previous: toldCantReach, status: 'below_pace' })).toMatchObject({
+      belowPaceNoticedAt: NOW,
+      cantReachNoticedAt: daysAgo(1),
+    })
   })
 
   it('is not told again while it stays out of reach, nor after a wait for Google', () => {
@@ -328,7 +364,12 @@ describe('a status the goal has not known before', () => {
   it('is stored without a notice: a set or a changed plan starts from it', () => {
     expect(
       decide({ previous: { knownStatus: null }, status: 'cant_reach_at_mix' }),
-    ).toEqual({ notices: [], knownStatus: 'cant_reach_at_mix', belowPaceNoticedAt: null })
+    ).toEqual({
+      notices: [],
+      knownStatus: 'cant_reach_at_mix',
+      belowPaceNoticedAt: null,
+      cantReachNoticedAt: null,
+    })
     expect(
       transitions({ previous: { knownStatus: null }, status: 'below_pace' }),
     ).toEqual([])
@@ -345,6 +386,22 @@ describe('an evaluation that ends the goal', () => {
   it('tells nobody: an ended goal sends none of the five notices', () => {
     expect(
       decide({ status: 'below_pace', displayedTenths: 41, outcome: 'ended' }),
-    ).toEqual({ notices: [], knownStatus: 'on_pace', belowPaceNoticedAt: null })
+    ).toEqual({
+      notices: [],
+      knownStatus: 'on_pace',
+      belowPaceNoticedAt: null,
+      cantReachNoticedAt: null,
+    })
+  })
+
+  it('keeps both notice times as they were', () => {
+    const previous = {
+      belowPaceNoticedAt: daysAgo(20),
+      cantReachNoticedAt: daysAgo(3),
+    }
+
+    expect(
+      decide({ previous, status: 'cant_reach_at_mix', outcome: 'ended' }),
+    ).toMatchObject(previous)
   })
 })

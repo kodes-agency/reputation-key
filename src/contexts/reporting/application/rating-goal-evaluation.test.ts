@@ -30,6 +30,7 @@ const goal = (overrides: Partial<PropertyRatingGoal> = {}): PropertyRatingGoal =
     evaluatedAt: null,
     knownStatus: 'on_pace',
     belowPaceNoticedAt: null,
+    cantReachNoticedAt: null,
   },
   reachedAt: null,
   endedAt: null,
@@ -145,7 +146,7 @@ describe('evaluating an active rating goal', () => {
   })
 })
 
-const NO_FACTS = { mix: null, pace: null } as const
+const NO_FACTS = { pace: null } as const
 
 describe('what an evaluation writes', () => {
   it('names the goal, the plan version and the mark it was worked out on, the status, the tenth and the time', () => {
@@ -168,11 +169,13 @@ describe('what an evaluation writes', () => {
         displayedTenths: 43,
         knownStatus: 'on_pace',
         belowPaceNoticedAt: null,
+        cantReachNoticedAt: null,
       },
       status: 'on_pace',
       displayedTenths: 43,
       knownStatus: 'on_pace',
       belowPaceNoticedAt: null,
+      cantReachNoticedAt: null,
       evaluatedAt: NOW,
       outcome: { kind: 'continues' },
       notices: [],
@@ -216,6 +219,7 @@ describe('what an evaluation writes', () => {
       evaluatedAt: NOW,
       knownStatus: 'on_pace',
       belowPaceNoticedAt: null,
+      cantReachNoticedAt: null,
     })
   })
 

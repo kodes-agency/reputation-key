@@ -61,6 +61,7 @@ describe('setting a rating goal', () => {
         evaluatedAt: NOW,
         knownStatus: status,
         belowPaceNoticedAt: null,
+        cantReachNoticedAt: null,
       })
     },
   )

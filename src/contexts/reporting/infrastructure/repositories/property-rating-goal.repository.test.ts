@@ -62,6 +62,7 @@ const newGoal = (
     evaluatedAt: SET_AT,
     knownStatus: 'getting_started',
     belowPaceNoticedAt: null,
+    cantReachNoticedAt: null,
   },
   createdBy: 'manager-1',
   createdAt: SET_AT,
@@ -260,6 +261,7 @@ describe('an evaluation write', () => {
     displayedTenths: 43,
     knownStatus: 'getting_started',
     belowPaceNoticedAt: null,
+    cantReachNoticedAt: null,
   }
 
   /** An evaluation read on `expectedMark`; its known status follows its status. */
@@ -277,6 +279,7 @@ describe('an evaluation write', () => {
       status,
       knownStatus: status === 'waiting_for_google' ? 'getting_started' : status,
       belowPaceNoticedAt: null,
+      cantReachNoticedAt: null,
       evaluatedAt: LATER,
       outcome: { kind: 'continues' },
       notices: [],
@@ -457,7 +460,6 @@ describe('an evaluation write', () => {
         shownTenths: 42,
         previousTenths: 43,
         pacePerWeek: null,
-        mixHundredths: null,
       }),
       expect.objectContaining({
         transition: 'entered_below_pace',
@@ -520,6 +522,7 @@ describe('an evaluation write', () => {
             displayedTenths: stored!.lastEvaluation.displayedTenths,
             knownStatus: stored!.lastEvaluation.knownStatus,
             belowPaceNoticedAt: stored!.lastEvaluation.belowPaceNoticedAt,
+            cantReachNoticedAt: stored!.lastEvaluation.cantReachNoticedAt,
           },
           status: 'on_pace',
           belowPaceNoticedAt: LATER,
@@ -533,6 +536,90 @@ describe('an evaluation write', () => {
         knownStatus: 'on_pace',
         belowPaceNoticedAt: LATER,
       },
+    })
+  })
+
+  it('writes the Can’t reach fact with the target alone, and stores when it was told', async () => {
+    await expect(
+      repository().recordEvaluation(
+        write({
+          status: 'cant_reach_at_mix',
+          cantReachNoticedAt: LATER,
+          notices: [{ transition: 'entered_cant_reach', targetTenths: 45 }],
+        }),
+      ),
+    ).resolves.toBe(true)
+
+    const [fact, ...rest] = await noticeFacts()
+    expect(rest).toEqual([])
+    expect(fact?.payload).toMatchObject({
+      transition: 'entered_cant_reach',
+      targetTenths: 45,
+      shownTenths: null,
+      previousTenths: null,
+      pacePerWeek: null,
+      recentPaceTenths: null,
+      paceWindow: null,
+    })
+    await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
+      lastEvaluation: {
+        knownStatus: 'cant_reach_at_mix',
+        cantReachNoticedAt: LATER,
+        belowPaceNoticedAt: null,
+      },
+    })
+  })
+
+  it('applies a later evaluation onto the Can’t reach notice time it read back', async () => {
+    await repository().recordEvaluation(
+      write({ status: 'cant_reach_at_mix', cantReachNoticedAt: LATER }),
+    )
+    const stored = await repository().findActive(ORG, PROPERTY)
+
+    await expect(
+      repository().recordEvaluation(
+        write({
+          expectedMark: {
+            displayedTenths: stored!.lastEvaluation.displayedTenths,
+            knownStatus: stored!.lastEvaluation.knownStatus,
+            belowPaceNoticedAt: stored!.lastEvaluation.belowPaceNoticedAt,
+            cantReachNoticedAt: stored!.lastEvaluation.cantReachNoticedAt,
+          },
+          status: 'on_pace',
+          cantReachNoticedAt: LATER,
+          evaluatedAt: new Date(LATER.getTime() + 60_000),
+        }),
+      ),
+    ).resolves.toBe(true)
+    await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
+      lastEvaluation: {
+        status: 'on_pace',
+        knownStatus: 'on_pace',
+        cantReachNoticedAt: LATER,
+      },
+    })
+  })
+
+  it('refuses an evaluation read before the Can’t reach notice time it would overwrite was stored', async () => {
+    // Stored: a below-pace goal whose managers were told Can't reach at LATER.
+    await repository().recordEvaluation(
+      write({ status: 'below_pace', cantReachNoticedAt: LATER }),
+    )
+
+    // Read on the same tenth and known status, but before that time landed.
+    await expect(
+      repository().recordEvaluation(
+        write({
+          expectedMark: { ...AS_SET, knownStatus: 'below_pace' },
+          status: 'on_pace',
+          cantReachNoticedAt: null,
+          evaluatedAt: new Date(LATER.getTime() + 60_000),
+        }),
+      ),
+    ).resolves.toBe(false)
+
+    await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
+      lastEvaluation: { status: 'below_pace', cantReachNoticedAt: LATER },
     })
   })
 
@@ -550,8 +637,14 @@ describe('an evaluation write', () => {
     await expect(noticeFacts()).resolves.toEqual([])
   })
 
-  it('forgets the known status when a manager changes the plan', async () => {
-    await repository().recordEvaluation(write({ status: 'below_pace' }))
+  it('forgets the known status when a manager changes the plan, and keeps when it last told', async () => {
+    await repository().recordEvaluation(
+      write({
+        status: 'below_pace',
+        belowPaceNoticedAt: LATER,
+        cantReachNoticedAt: SET_AT,
+      }),
+    )
 
     await changePlanTo({ mode: 'climb', targetTenths: 45, pacePerWeek: 8 }, [
       { field: 'pace', oldValue: '11', newValue: '8' },
@@ -559,7 +652,12 @@ describe('an evaluation write', () => {
 
     await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
       pacePerWeek: 8,
-      lastEvaluation: { status: 'below_pace', knownStatus: null },
+      lastEvaluation: {
+        status: 'below_pace',
+        knownStatus: null,
+        belowPaceNoticedAt: LATER,
+        cantReachNoticedAt: SET_AT,
+      },
       version: 2,
     })
   })

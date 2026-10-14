@@ -106,7 +106,8 @@ const markUnchangedSince = (
 ): boolean =>
   stored.displayedTenths === expectedMark.displayedTenths &&
   stored.knownStatus === expectedMark.knownStatus &&
-  sameInstant(stored.belowPaceNoticedAt, expectedMark.belowPaceNoticedAt)
+  sameInstant(stored.belowPaceNoticedAt, expectedMark.belowPaceNoticedAt) &&
+  sameInstant(stored.cantReachNoticedAt, expectedMark.cantReachNoticedAt)
 
 const evaluationChanges = (
   stored: RatingGoalEvaluationMark,
@@ -207,6 +208,7 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
           evaluatedAt: write.evaluatedAt,
           knownStatus: write.knownStatus,
           belowPaceNoticedAt: write.belowPaceNoticedAt,
+          cantReachNoticedAt: write.cantReachNoticedAt,
         },
         ...(write.outcome.kind === 'reached'
           ? { state: 'reached' as const, reachedAt: write.evaluatedAt }
@@ -319,6 +321,7 @@ export function activeGoal(
       evaluatedAt: null,
       knownStatus: 'on_pace',
       belowPaceNoticedAt: null,
+      cantReachNoticedAt: null,
     },
     reachedAt: null,
     endedAt: null,

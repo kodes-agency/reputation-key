@@ -117,10 +117,7 @@ export async function evaluateActiveRatingGoal(
     deps.repository,
     goal,
     evaluation,
-    {
-      mix: reading.mix?.value ?? null,
-      pace: window ? { reviews: paceWindowCount, window } : null,
-    },
+    { pace: window ? { reviews: paceWindowCount, window } : null },
     now,
   )
   return {

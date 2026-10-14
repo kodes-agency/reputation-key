@@ -118,7 +118,6 @@ describe('parseNotificationPayload', () => {
       ratingPacePerWeek: 11,
       ratingRecentPaceTenths: 65,
       ratingPaceWindow: 'last_4_weeks',
-      ratingMixHundredths: 440,
     }
 
     const parsed = parseNotificationPayload(everyField)
@@ -141,7 +140,6 @@ describe('parseNotificationPayload', () => {
         ratingPacePerWeek: 0,
         ratingRecentPaceTenths: -1,
         ratingPaceWindow: 'last_week',
-        ratingMixHundredths: '440',
       }),
     ).toEqual({})
     expect(
@@ -152,7 +150,6 @@ describe('parseNotificationPayload', () => {
         ratingPacePerWeek: 200,
         ratingRecentPaceTenths: 0,
         ratingPaceWindow: 'since_set',
-        ratingMixHundredths: 500,
       }),
     ).toEqual({
       ratingShownTenths: 0,
@@ -161,8 +158,17 @@ describe('parseNotificationPayload', () => {
       ratingPacePerWeek: 200,
       ratingRecentPaceTenths: 0,
       ratingPaceWindow: 'since_set',
-      ratingMixHundredths: 500,
     })
+  })
+
+  it('admits no average of review ratings, however a goal notice is built', () => {
+    expect(
+      parseNotificationPayload({
+        ratingTargetTenths: 45,
+        ratingAverageHundredths: 440,
+        recentAverage: 4.4,
+      }),
+    ).toEqual({ ratingTargetTenths: 45 })
   })
 
   // The whole point of the allowlist. If this test ever goes green with

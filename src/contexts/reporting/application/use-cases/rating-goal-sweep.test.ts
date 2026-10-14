@@ -6,6 +6,7 @@ import {
 } from './rating-goal-sweep'
 import {
   activeGoal,
+  DAY,
   dependencies,
   exampleWorld,
   NOW,
@@ -66,6 +67,71 @@ describe('the daily evaluation of every active rating goal', () => {
 
     expect(again).toMatchObject({ evaluated: 1, notices: 0 })
     expect(world.notices).toHaveLength(1)
+  })
+
+  describe('when the recent mix no longer clears the threshold', () => {
+    beforeEach(() => {
+      // 30 reviews at 4.33 against the 4.45 a 4.5 needs. With no review in the
+      // pace window too, Can't reach is still the status: it comes first.
+      world.summary = { ...world.summary, mixWindow: { count: 30, sum: 130 } }
+    })
+
+    it('tells its managers once, with the target and no star figure', async () => {
+      world.goals = [goalNumbered(1)]
+
+      await sweepRatingGoals(dependencies(world), allowEverything)
+
+      expect(world.notices).toEqual([
+        {
+          goalId: goalNumbered(1).id,
+          transition: 'entered_cant_reach',
+          targetTenths: 45,
+        },
+      ])
+      expect(world.goals[0]!.lastEvaluation).toMatchObject({
+        status: 'cant_reach_at_mix',
+        knownStatus: 'cant_reach_at_mix',
+        cantReachNoticedAt: NOW,
+        belowPaceNoticedAt: null,
+      })
+    })
+
+    it('keeps quiet within 14 days of the last Can’t reach notice, and still stores the status', async () => {
+      const told = new Date(NOW.getTime() - 13 * DAY)
+      world.goals = [
+        activeGoal({
+          ...goalNumbered(1),
+          lastEvaluation: { ...goalNumbered(1).lastEvaluation, cantReachNoticedAt: told },
+        }),
+      ]
+
+      await sweepRatingGoals(dependencies(world), allowEverything)
+
+      expect(world.notices).toEqual([])
+      expect(world.goals[0]!.lastEvaluation).toMatchObject({
+        knownStatus: 'cant_reach_at_mix',
+        cantReachNoticedAt: told,
+      })
+    })
+
+    it('tells again once 14 days have passed since the last one', async () => {
+      world.goals = [
+        activeGoal({
+          ...goalNumbered(1),
+          lastEvaluation: {
+            ...goalNumbered(1).lastEvaluation,
+            cantReachNoticedAt: new Date(NOW.getTime() - 14 * DAY),
+          },
+        }),
+      ]
+
+      await sweepRatingGoals(dependencies(world), allowEverything)
+
+      expect(world.notices.map((notice) => notice.transition)).toEqual([
+        'entered_cant_reach',
+      ])
+      expect(world.goals[0]!.lastEvaluation.cantReachNoticedAt).toEqual(NOW)
+    })
   })
 
   it('reads nothing of a goal whose Organization or Property policy refuses', async () => {

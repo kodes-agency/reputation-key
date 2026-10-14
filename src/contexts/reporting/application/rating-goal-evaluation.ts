@@ -12,7 +12,7 @@
 // The write stores the tenth Google showed only when Google could be read,
 // and is applied only when it changes the row, onto the plan version it was
 // worked out on, never over a newer evaluation, and only onto the tenth, known
-// status and below-pace notice it read (repository .recordEvaluation). So the
+// status and notice times it read (repository .recordEvaluation). So the
 // stored values stay the last ones seen: a later evaluation can tell a tenth
 // gained or lost, or a new status, from a repeat, and the notices it decides
 // (domain/rating-goal-notices.ts) are written once, with the row.
@@ -97,7 +97,7 @@ export function evaluateRatingGoal(
 }
 
 /** What the notices of an evaluation are worked out from, beside the goal. */
-export type RatingGoalNoticeFacts = Pick<RatingGoalNoticeInput, 'mix' | 'pace'>
+export type RatingGoalNoticeFacts = Pick<RatingGoalNoticeInput, 'pace'>
 
 /** What an evaluation tells the goal's managers, against the goal as read. */
 export const evaluationNotices = (
@@ -131,11 +131,13 @@ export const evaluationWrite = (
     displayedTenths: goal.lastEvaluation.displayedTenths,
     knownStatus: goal.lastEvaluation.knownStatus,
     belowPaceNoticedAt: goal.lastEvaluation.belowPaceNoticedAt,
+    cantReachNoticedAt: goal.lastEvaluation.cantReachNoticedAt,
   },
   status: evaluation.status,
   displayedTenths: evaluation.displayedTenths,
   knownStatus: decision.knownStatus,
   belowPaceNoticedAt: decision.belowPaceNoticedAt,
+  cantReachNoticedAt: decision.cantReachNoticedAt,
   evaluatedAt: now,
   outcome: evaluation.outcome,
   notices: decision.notices,
@@ -161,6 +163,7 @@ function afterEvaluation(
     evaluatedAt: now,
     knownStatus: decision.knownStatus,
     belowPaceNoticedAt: decision.belowPaceNoticedAt,
+    cantReachNoticedAt: decision.cantReachNoticedAt,
   }
   switch (evaluation.outcome.kind) {
     case 'continues':

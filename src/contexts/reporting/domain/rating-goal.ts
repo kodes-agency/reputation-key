@@ -65,6 +65,8 @@ export type RatingGoalEvaluationMark = Readonly<{
   knownStatus: RatingGoalStatus | null
   /** When the managers were last told the goal fell below pace. */
   belowPaceNoticedAt: Date | null
+  /** When the managers were last told the goal can't be reached at the recent mix. */
+  cantReachNoticedAt: Date | null
 }>
 
 export type PropertyRatingGoal = RatingGoalPlan &

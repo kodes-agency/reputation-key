@@ -557,9 +557,10 @@ export const propertyRatingGoals = pgTable(
     lastEvaluatedAt: timestamp('last_evaluated_at', { withTimezone: true }),
     // What the goal's notices compare with (migration 0057): the last status
     // that was not a wait for Google, and when the managers were last told the
-    // goal fell below pace.
+    // goal fell below pace, and that it can't be reached at the recent mix.
     lastKnownStatus: varchar('last_known_status', { length: 24 }),
     belowPaceNoticedAt: timestamp('below_pace_noticed_at', { withTimezone: true }),
+    cantReachNoticedAt: timestamp('cant_reach_noticed_at', { withTimezone: true }),
     reachedAt: timestamp('reached_at', { withTimezone: true }),
     endedAt: timestamp('ended_at', { withTimezone: true }),
     createdBy: varchar('created_by', { length: 255 }).notNull(),

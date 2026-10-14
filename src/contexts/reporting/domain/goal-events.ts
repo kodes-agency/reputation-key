@@ -88,7 +88,8 @@ export type GoalMonthlyResultRevised = Readonly<{
  * A Property's Google rating goal moved in a way its managers are told about
  * (domain/rating-goal-notices.ts). Identifiers, closed enums and Property-level
  * figures only (ADR 0030): Google's shown tenth, the goal's target and pace,
- * the recent pace and the recent mix. Never a review or a review's rating.
+ * and the recent pace of new reviews. Never a review, a review's rating or an
+ * average of review ratings.
  */
 export type GoalRatingGoalTransitioned = Readonly<{
   _tag: 'goal.rating_goal.transitioned'
@@ -104,7 +105,6 @@ export type GoalRatingGoalTransitioned = Readonly<{
   pacePerWeek: number | null
   recentPaceTenths: number | null
   paceWindow: RatingGoalPaceWindowKind | null
-  mixHundredths: number | null
   occurredAt: Date
   correlationId: string | null
 }>
@@ -262,7 +262,6 @@ export const goalRatingGoalTransitioned = (
     pacePerWeek: 'pacePerWeek' in notice ? notice.pacePerWeek : null,
     recentPaceTenths: 'recentPaceTenths' in notice ? notice.recentPaceTenths : null,
     paceWindow: 'paceWindow' in notice ? notice.paceWindow : null,
-    mixHundredths: 'mixHundredths' in notice ? notice.mixHundredths : null,
     occurredAt: args.occurredAt,
     correlationId: null,
   }

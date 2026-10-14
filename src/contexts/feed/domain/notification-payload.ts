@@ -21,17 +21,14 @@
 //             the reader's own threshold, never the stars), the one marker
 //             a Goal notice may carry about its month (`goalMarker`: a closed
 //             enum, never a date, a target or a person), and the Property-level
-//             figures a Google rating goal notice states (`rating*`: the tenth
-//             Google shows for the Property, the goal's target and pace, the
-//             recent pace and the recent average stars of new reviews; ADR 0046,
-//             amended 2026-10-14).
+//             figures a Google rating goal notice states (`rating*`: the tenths
+//             Google shows for the Property now and before and the goal's
+//             target, the goal's mode and pace, and the recent pace of new
+//             reviews; never an average of review ratings; ADR 0046, amended
+//             2026-10-14).
 //   FORBIDDEN a Google/provider review's rating and any review content, reply
 //             text, guest/reviewer name, media URLs, sentiment or any other
-//             derived score, and any other employee's NAME or email. The one
-//             exception to "derived score" is the Property-level `rating*`
-//             figures named above: an average over a Property's recent
-//             reviews, a bounded integer, never one review's score (ADR 0046,
-//             amended 2026-10-14, narrowing the 2026-09-30 "no star count").
+//             derived score, and any other employee's NAME or email.
 //
 // `parseNotificationPayload` is the only way a payload enters the domain, and
 // it drops every unrecognised key. A new field must be added here AND to
@@ -204,8 +201,6 @@ export type NotificationPayload = Readonly<{
   /** New Google reviews a week in the pace window, in tenths, rounded down. */
   ratingRecentPaceTenths?: number
   ratingPaceWindow?: NotificationRatingPaceWindow
-  /** The recent average stars of new Google reviews, in hundredths, rounded down. */
-  ratingMixHundredths?: number
 }>
 
 export type NotificationRatingGoalMode = 'climb' | 'keep'
@@ -549,7 +544,6 @@ function setRatingGoalFigures(
     'ratingPaceWindow',
     takeMember<NotificationRatingPaceWindow>(raw.ratingPaceWindow, RATING_PACE_WINDOWS),
   )
-  set('ratingMixHundredths', takeIntegerIn(raw.ratingMixHundredths, 0, 500))
 }
 
 /** True when the payload carries nothing worth persisting. */

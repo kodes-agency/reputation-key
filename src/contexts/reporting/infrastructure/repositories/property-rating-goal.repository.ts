@@ -66,6 +66,7 @@ const goalFromRow = (row: GoalRow): PropertyRatingGoal => ({
     evaluatedAt: row.lastEvaluatedAt,
     knownStatus: row.lastKnownStatus as RatingGoalStatus | null,
     belowPaceNoticedAt: row.belowPaceNoticedAt,
+    cantReachNoticedAt: row.cantReachNoticedAt,
   },
   reachedAt: row.reachedAt,
   endedAt: row.endedAt,
@@ -120,6 +121,7 @@ function evaluationSet(write: RatingGoalEvaluationWrite) {
     lastEvaluatedAt: write.evaluatedAt,
     lastKnownStatus: write.knownStatus,
     belowPaceNoticedAt: write.belowPaceNoticedAt,
+    cantReachNoticedAt: write.cantReachNoticedAt,
     updatedAt: write.evaluatedAt,
   }
   switch (write.outcome.kind) {
@@ -147,13 +149,14 @@ const evaluationChanges = (write: RatingGoalEvaluationWrite) =>
           AND ${propertyRatingGoals.lastDisplayedTenths} IS DISTINCT FROM ${write.displayedTenths}::smallint))`
 
 /**
- * The stored tenth, known status and below-pace notice are still the ones the
+ * The stored tenth, known status and notice times are still the ones the
  * evaluation read, so its notices are this change's, told once.
  */
 const markUnchangedSince = ({ expectedMark }: RatingGoalEvaluationWrite) =>
   sql`(${propertyRatingGoals.lastDisplayedTenths} IS NOT DISTINCT FROM ${expectedMark.displayedTenths}::smallint
     AND ${propertyRatingGoals.lastKnownStatus} IS NOT DISTINCT FROM ${expectedMark.knownStatus}::varchar
-    AND ${propertyRatingGoals.belowPaceNoticedAt} IS NOT DISTINCT FROM ${expectedMark.belowPaceNoticedAt}::timestamptz)`
+    AND ${propertyRatingGoals.belowPaceNoticedAt} IS NOT DISTINCT FROM ${expectedMark.belowPaceNoticedAt}::timestamptz
+    AND ${propertyRatingGoals.cantReachNoticedAt} IS NOT DISTINCT FROM ${expectedMark.cantReachNoticedAt}::timestamptz)`
 
 /** One `goal.rating_goal.transitioned` fact per notice, in the write's transaction. */
 async function insertNoticeFacts(
@@ -265,6 +268,7 @@ export const createPropertyRatingGoalRepository = (
           lastEvaluatedAt: goal.lastEvaluation.evaluatedAt,
           lastKnownStatus: goal.lastEvaluation.knownStatus,
           belowPaceNoticedAt: goal.lastEvaluation.belowPaceNoticedAt,
+          cantReachNoticedAt: goal.lastEvaluation.cantReachNoticedAt,
           createdBy: goal.createdBy,
           createdAt: goal.createdAt,
           updatedAt: goal.updatedAt,
