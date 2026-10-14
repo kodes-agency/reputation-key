@@ -73,7 +73,7 @@ describe('revalidatePortalApprovedDestinations', () => {
     })
   })
 
-  it('takes every approval validated ten minutes ago or earlier, so each run refreshes all of them', async () => {
+  it('asks for the page of destinations validated ten minutes ago or earlier', async () => {
     // The job runs every fifteen minutes. An approval due only at fifteen would
     // wait for the run after next and sit at the thirty-minute cutoff the
     // public edge drops it at.

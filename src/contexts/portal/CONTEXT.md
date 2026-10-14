@@ -338,10 +338,17 @@ exceptions to that section's rules:
   before it asks the policy; the list is scoped by the Organization it is given.
 - `revalidatePortalApprovedDestinations` is the worker's control, the same function as
   `worker.revalidateApprovedDestinations`. It takes its scope decision from its caller,
-  and no server function calls it. It runs every 15 minutes and takes every approval
-  validated 10 minutes ago or earlier, so each run refreshes all of them; the public edge
-  serves an approval up to 30 minutes old, which leaves room for a run that starts up to
-  10 minutes late (`approved-destination-age.ts`, `approved-destination-age.test.ts`).
+  and no server function calls it. It runs every 15 minutes and is due for every
+  destination validated 10 minutes ago or earlier; the public edge serves an approval up
+  to 30 minutes old, which leaves room for a run that starts up to 10 minutes late
+  (`approved-destination-age.ts`, `approved-destination-age.test.ts`). That holds only
+  while a run can take everything that is due, and a run takes a page of 100
+  destinations, pending and approved together, oldest first, from all tenants. With at
+  most 100 on the platform each run refreshes all of them. Between 100 and 200 a
+  destination waits for the run after next, so the gap is back at the 30 minute cutoff
+  with no room for a late run; above 200 it is longer than the cutoff, as it was before.
+  The page is the subject of review finding S09-02 (deferred: a row that never validates
+  keeps its place in it, and the fix is a per-row retry clock, which needs a migration).
 - One other context calls the surface: Reporting's Portal results adapter
   (`reporting/server/portal-results-overview.ts`) reads the roster through
   `listPortalOverview`, which authorizes the caller itself, and
