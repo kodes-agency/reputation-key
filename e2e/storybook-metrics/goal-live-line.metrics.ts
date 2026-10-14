@@ -6,22 +6,39 @@
 // figure arrives, which is the layout shift it exists to prevent. Run with
 // `pnpm test:storybook:metrics` (see `playwright.storybook.config.ts`).
 //
-// The stories measured here sit in a full-width container. A Goals row on a
-// phone is narrower: at a 375 px screen its cell is about 230 px (page gutter,
-// frame, row padding and the status column come off), and the count line with
-// its "below pace" note needs about 270 px, so there that line wraps to two
-// lines (measured 2026-10-14 in a replica row: 20 px without the note, 40 px
-// with it; it fits from about 440 px, and the "More ratings needed" line of an
-// average already wraps there). The placeholder is one line, so a below-pace row
-// on a narrow phone moves the rows under it by one line when its figure arrives.
+// A Goals row on a phone is narrow: at a 375 px screen its cell is about 230 px
+// (page gutter, frame, row padding and the status column come off). The count
+// line with its "below pace" note needs about 270 px, 306 px with a thousands
+// figure, so there the note cannot follow the days left without wrapping to a
+// second line, and a line that wraps only when the figure says "below pace"
+// would be one line taller than its placeholder (measured 2026-10-14: 40 px
+// against 20 px in a 230 px cell). So the note sits beside the bar when the cell
+// is narrow, and the bar's line is kept as high as the note in either case.
+// Every case below is therefore measured twice: at the viewport widths a page
+// has, and in cells pinned from the narrowest a phone row gets to a desktop's.
 
 import { expect, test, type Page } from '@playwright/test'
 import { openStory } from './storybook-story'
 
+/**
+ * The stories, and the narrowest cell each is held to. The figure sentence alone
+ * ("12,345 of 15,000 so far · 14 days left", 245 px) wraps in a narrower cell
+ * than its note ever does, and always did: that wrap is the sentence's, not the
+ * note's, and a placeholder cannot know the digits it will be given. So a story
+ * is measured down to the narrowest cell its own sentence fits (measured
+ * 2026-10-14: 190 px for "64 of 120", 245 px for five digits on each side).
+ */
 const STORIES = {
-  count: 'goals-goalliveline--pending-keeps-the-room-of-a-count',
-  countBelowPace: 'goals-goalliveline--pending-keeps-the-room-of-a-count-below-pace',
-  line: 'goals-goalliveline--pending-keeps-the-room-of-a-line',
+  count: { id: 'goals-goalliveline--pending-keeps-the-room-of-a-count', from: 200 },
+  countBelowPace: {
+    id: 'goals-goalliveline--pending-keeps-the-room-of-a-count-below-pace',
+    from: 200,
+  },
+  countBelowPaceFiveDigits: {
+    id: 'goals-goalliveline--pending-keeps-the-room-of-a-count-of-five-digits-below-pace',
+    from: 250,
+  },
+  line: { id: 'goals-goalliveline--pending-keeps-the-room-of-a-line', from: 200 },
 } as const
 
 const VIEWPORTS = [
@@ -29,8 +46,17 @@ const VIEWPORTS = [
   { name: 'a phone', width: 375, height: 800 },
 ] as const
 
+/**
+ * The cell widths a row's live line gets: 200 is a 320 px phone, 230 a 375 px
+ * one, 343 the whole row of a phone, 383 and 384 either side of the width the
+ * note moves to follow the days left at (24 rem), and 640 a tablet.
+ */
+const CELL_WIDTHS = [200, 230, 260, 300, 343, 383, 384, 440, 640, 1000] as const
+
+type Room = Readonly<{ pending: number; loaded: number }>
+
 /** The room each slot takes, margin included, as the rows below feel it. */
-async function slotRoom(page: Page): Promise<{ pending: number; loaded: number }> {
+async function slotRoom(page: Page): Promise<Room> {
   return page.evaluate(() => {
     const room = (slot: string): number => {
       const element = document.querySelector(`[data-slot="${slot}"]`)
@@ -42,37 +68,111 @@ async function slotRoom(page: Page): Promise<{ pending: number; loaded: number }
   })
 }
 
+/** The room of both slots in a cell of this width: the story's own box, pinned. */
+async function slotRoomInCell(page: Page, width: number): Promise<Room> {
+  await page.evaluate((cellWidth) => {
+    const pending = document.querySelector('[data-slot="goal-live-line-pending"]')
+    const box = pending?.parentElement
+    if (!box) throw new Error('No box around the slots')
+    box.style.width = `${cellWidth}px`
+  }, width)
+  return slotRoom(page)
+}
+
 for (const viewport of VIEWPORTS) {
   test.describe(`on ${viewport.name}`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } })
 
-    test('a count keeps the room of its line and its bar', async ({ page }) => {
-      await openStory(page, STORIES.count)
+    for (const [name, story] of Object.entries(STORIES)) {
+      test(`${name} keeps the room its line takes`, async ({ page }) => {
+        await openStory(page, story.id)
 
-      const { pending, loaded } = await slotRoom(page)
+        const { pending, loaded } = await slotRoom(page)
 
-      expect(pending).toBeGreaterThan(0)
-      expect(pending).toBe(loaded)
-    })
-
-    test('a count below pace keeps the same room where its line fits', async ({
-      page,
-    }) => {
-      await openStory(page, STORIES.countBelowPace)
-
-      const { pending, loaded } = await slotRoom(page)
-
-      expect(pending).toBeGreaterThan(0)
-      expect(pending).toBe(loaded)
-    })
-
-    test('an average or several subjects keep the room of a line', async ({ page }) => {
-      await openStory(page, STORIES.line)
-
-      const { pending, loaded } = await slotRoom(page)
-
-      expect(pending).toBeGreaterThan(0)
-      expect(pending).toBe(loaded)
-    })
+        expect(pending).toBeGreaterThan(0)
+        expect(pending).toBe(loaded)
+      })
+    }
   })
 }
+
+test.describe('in a cell as narrow as a row on a phone', () => {
+  test.use({ viewport: { width: 1280, height: 800 } })
+
+  for (const [name, story] of Object.entries(STORIES)) {
+    test(`${name} keeps the room its line takes in every cell width`, async ({
+      page,
+    }) => {
+      await openStory(page, story.id)
+
+      for (const width of CELL_WIDTHS.filter((cell) => cell >= story.from)) {
+        const { pending, loaded } = await slotRoomInCell(page, width)
+
+        expect(pending, `${name} in a ${width}px cell`).toBeGreaterThan(0)
+        expect(loaded, `${name} in a ${width}px cell`).toBe(pending)
+      }
+    })
+  }
+})
+
+/** The width of a cell from which the note follows the days left: `@sm`, 24 rem. */
+const NOTE_FOLLOWS_FROM = 384
+
+type NotePlace = Readonly<{
+  onSentenceLine: boolean
+  roomWithNote: number
+  roomWithout: number
+}>
+
+/** Where the note sits against the sentence, and what the slot takes with and without it. */
+async function notePlace(page: Page): Promise<NotePlace> {
+  return page.evaluate(() => {
+    const slot = document.querySelector('[data-slot="goal-live-line"]')
+    const sentence = slot?.querySelector('p')
+    const note = slot?.querySelector<HTMLElement>('[data-slot="goal-live-pace"]')
+    if (!slot || !sentence || !note) throw new Error('No sentence and note drawn')
+    const room = Math.round(slot.getBoundingClientRect().height)
+    const onSentenceLine =
+      note.getBoundingClientRect().top < sentence.getBoundingClientRect().bottom
+    note.style.display = 'none'
+    const roomWithout = Math.round(slot.getBoundingClientRect().height)
+    note.style.display = ''
+    return { onSentenceLine, roomWithNote: room, roomWithout }
+  })
+}
+
+test.describe('the note of a count below pace', () => {
+  test.use({ viewport: { width: 1280, height: 800 } })
+
+  test('follows the days left where the cell has room and sits beside the bar where it has not', async ({
+    page,
+  }) => {
+    await openStory(page, STORIES.countBelowPace.id)
+
+    for (const width of CELL_WIDTHS.filter(
+      (cell) => cell >= STORIES.countBelowPace.from,
+    )) {
+      await slotRoomInCell(page, width)
+      const { onSentenceLine } = await notePlace(page)
+
+      expect(onSentenceLine, `the note in a ${width}px cell`).toBe(
+        width >= NOTE_FOLLOWS_FROM,
+      )
+    }
+  })
+
+  test('adds no height to the line in any cell, so a row that says it is no taller', async ({
+    page,
+  }) => {
+    for (const story of [STORIES.countBelowPace, STORIES.countBelowPaceFiveDigits]) {
+      await openStory(page, story.id)
+
+      for (const width of CELL_WIDTHS.filter((cell) => cell >= story.from)) {
+        await slotRoomInCell(page, width)
+        const { roomWithNote, roomWithout } = await notePlace(page)
+
+        expect(roomWithNote, `${story.id} in a ${width}px cell`).toBe(roomWithout)
+      }
+    }
+  })
+})

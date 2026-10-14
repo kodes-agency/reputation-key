@@ -100,18 +100,43 @@ describe('GoalLiveLine', () => {
 })
 
 describe('GoalLiveLine below pace', () => {
-  const belowPace = () => render(goal({ belowPace: 1 }))
+  const belowPace = (patch: Partial<GoalListProgress> = {}) =>
+    render(goal({ belowPace: 1, ...patch }))
   const textOf = (html: string) => html.replace(/<[^>]*>/gu, '')
+  const sentenceOf = (html: string) => textOf(/<p[^>]*>.*?<\/p>/u.exec(html)?.[0] ?? '')
+  const noteOf = (html: string) =>
+    textOf(/<span data-slot="goal-live-pace"[^>]*>.*?<\/span>/u.exec(html)?.[0] ?? '')
+  const at = (html: string, needle: string) => html.indexOf(needle)
 
-  it('says "below pace" after the days left, in one sentence with the figure', () => {
-    expect(textOf(belowPace())).toBe('64 of 120 so far · 14 days left · below pace')
-  })
-
-  it('draws only those words in quiet amber, not the figure and not the bar', () => {
+  it('keeps the figure sentence as it was and says "below pace" in a note of its own', () => {
     const html = belowPace()
 
-    expect(html).toMatch(
-      /<span data-slot="goal-live-pace" class="text-warn whitespace-nowrap">below pace<\/span>/u,
+    expect(sentenceOf(html)).toBe('64 of 120 so far · 14 days left')
+    expect(noteOf(html)).toBe('below pace')
+  })
+
+  it('puts no separator in the words, so a wrapped note can never leave one dangling', () => {
+    expect(textOf(belowPace())).toBe('64 of 120 so far · 14 days leftbelow pace')
+  })
+
+  it('reads the sentence, then the note, then the bar', () => {
+    const html = belowPace()
+
+    expect(at(html, '<p')).toBeLessThan(at(html, 'data-slot="goal-live-pace"'))
+    expect(at(html, 'data-slot="goal-live-pace"')).toBeLessThan(
+      at(html, 'role="progressbar"'),
+    )
+  })
+
+  it('draws only the note in quiet amber, not the figure and not the bar', () => {
+    const html = belowPace()
+
+    const note =
+      /<span data-slot="goal-live-pace" class="([^"]*)">below pace<\/span>/u.exec(
+        html,
+      )?.[1]
+    expect(note?.split(' ')).toEqual(
+      expect.arrayContaining(['text-warn', 'whitespace-nowrap']),
     )
     expect(html.match(/text-warn/gu)).toHaveLength(1)
     expect(html).toContain('data-tone="neutral"')
@@ -126,27 +151,37 @@ describe('GoalLiveLine below pace', () => {
     expect(html).toContain('aria-valuetext="64 of 120 so far"')
   })
 
-  it('says it on the last day, and with a thousands figure', () => {
-    expect(textOf(render(goal({ belowPace: 1, daysLeft: 0 })))).toBe(
-      '64 of 120 so far · last day · below pace',
+  it('is its own container, so the note finds its place by the cell and not the window', () => {
+    expect(belowPace()).toMatch(/data-slot="goal-live-line"[^>]*class="[^"]*@container/u)
+    expect(render(goal())).toMatch(
+      /data-slot="goal-live-line"[^>]*class="[^"]*@container/u,
     )
-    expect(
-      textOf(
-        render(
-          goal({
-            belowPace: 1,
-            metric: 'portal_rating_count',
-            month: {
-              reading: { kind: 'live', value: 1234, sampleCount: 1234 },
-              targetValue: 2500,
-            },
-          }),
-        ),
-      ),
-    ).toBe('1,234 of 2,500 so far · 14 days left · below pace')
   })
 
-  it('says it for no average and for no figure that cannot be read', () => {
+  it('leaves the note out of a count that keeps up or was not judged', () => {
+    for (const live of [goal({ belowPace: 0 }), goal({ belowPace: null })]) {
+      expect(render(live)).not.toContain('goal-live-pace')
+      expect(render(live)).not.toContain('below pace')
+    }
+  })
+
+  it('says it on the last day, and with a thousands figure', () => {
+    expect(noteOf(belowPace({ daysLeft: 0 }))).toBe('below pace')
+    expect(sentenceOf(belowPace({ daysLeft: 0 }))).toBe('64 of 120 so far · last day')
+    expect(
+      sentenceOf(
+        belowPace({
+          metric: 'portal_rating_count',
+          month: {
+            reading: { kind: 'live', value: 1234, sampleCount: 1234 },
+            targetValue: 2500,
+          },
+        }),
+      ),
+    ).toBe('1,234 of 2,500 so far · 14 days left')
+  })
+
+  it('says nothing for an average, or for a figure that cannot be read, even when belowPace is 1', () => {
     const average = goal({
       belowPace: 1,
       metric: 'portal_rating_average',
@@ -186,9 +221,13 @@ describe('GoalLiveLinePending', () => {
     expect(html).not.toMatch(/so far|days left/u)
   })
 
-  it('sits where the live line sits, with the same margin and gap', () => {
+  it('sits where the live line sits, with the same margin, gap and container', () => {
     const slot = (html: string) => /class="([^"]*)"/u.exec(html)?.[1]
 
     expect(slot(pending('line_and_bar'))).toBe(slot(render(goal())))
+    expect(slot(pending('line_and_bar'))).toBe(slot(render(goal({ belowPace: 1 }))))
+    expect(slot(pending('line'))).toBe(
+      slot(render(goal({ subjectCount: 3, month: null, belowPace: 2 }))),
+    )
   })
 })

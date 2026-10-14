@@ -27,8 +27,10 @@ export type GoalLiveBar = Readonly<{
 export type GoalLiveView = Readonly<{
   text: string
   /**
-   * The nudge that follows the text in quiet amber, "below pace"; null for a
-   * goal that is not below pace, or whose pace was not judged.
+   * The nudge in quiet amber, "below pace"; null for a goal that is not below
+   * pace, or whose pace was not judged. It is its own part, not the end of
+   * `text`: where it goes (after the days left, or beside the bar) depends on
+   * the room the cell has, so `GoalLiveLine` places it and draws the separator.
    */
   paceNote: string | null
   bar: GoalLiveBar | null

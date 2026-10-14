@@ -1,12 +1,13 @@
 // The live line under an active goal on the Goals list (Portal goals, decision
 // 14). It is the month so far, never the month's result: a count with one
 // subject gets its figure of the target, the days left and a neutral bar, and
-// when it is below pace the quiet amber words "below pace" after them; an
-// average gets its figure against the target and no pace; a goal with several
-// subjects says how many are below pace. A figure that cannot be read says so,
-// and an average too thin to show asks for more ratings. Dark is the default
-// theme; the Light variants draw the same lines on the light surface, and axe
-// checks both.
+// when it is below pace the quiet amber words "below pace": after the days left
+// where the cell has room, beside the bar where it has not, so the note never
+// adds a line; an average gets its figure against the target and no pace; a
+// goal with several subjects says how many are below pace. A figure that cannot
+// be read says so, and an average too thin to show asks for more ratings. Dark
+// is the default theme; the Light variants draw the same lines on the light
+// surface, and axe checks both.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
@@ -49,25 +50,47 @@ export const OneCountSubject: Story = {
 }
 
 /**
- * A count below pace says so after the days left, in quiet amber text. The bar
- * stays neutral: the amber is two words and a nudge, not a verdict.
+ * A count below pace says so in quiet amber text, apart from the sentence: after
+ * the days left where the cell has room, beside the bar where it has not (the
+ * story's own width is wide; `NarrowCellBelowPace` is the phone's). The bar stays
+ * neutral: the amber is two words and a nudge, not a verdict.
  */
 export const OneCountSubjectBelowPace: Story = {
   args: { goal: goal({ belowPace: 1 }) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(
-      canvasElement.querySelector('[data-slot="goal-live-line"] p'),
-    ).toHaveTextContent('64 of 120 so far · 14 days left · below pace')
+    const line = canvasElement.querySelector('[data-slot="goal-live-line"]')
+    expect(line?.querySelector('p')).toHaveTextContent(
+      /^64 of 120 so far · 14 days left$/,
+    )
     const note = canvas.getByText('below pace')
     expect(note).toBeVisible()
     expect(note).toHaveClass('text-warn')
+    expect(note).toHaveAttribute('data-slot', 'goal-live-pace')
     const bar = canvas.getByRole('progressbar', {
       name: 'Qualified scans so far this month',
     })
     expect(bar).toHaveAttribute('aria-valuetext', '64 of 120 so far')
     expect(bar).toHaveAttribute('data-tone', 'neutral')
   },
+}
+
+/**
+ * In the cell of a row on a 375 px phone (about 230 px) the sentence and the note
+ * do not fit one line, so the note sits beside the bar and the row keeps its
+ * height. The geometry is measured in Storybook proper
+ * (`e2e/storybook-metrics/goal-live-line.metrics.ts`).
+ */
+export const NarrowCellBelowPace: Story = {
+  args: { goal: goal({ belowPace: 1 }) },
+  decorators: [
+    (Story) => (
+      <div style={{ width: 230 }}>
+        <Story />
+      </div>
+    ),
+  ],
+  play: OneCountSubjectBelowPace.play,
 }
 
 /** Past the target the bar is full and the words keep the count. */
@@ -208,10 +231,10 @@ export const PendingKeepsTheRoomOfACount: Story = {
 
 /**
  * Whether a count is below pace is known only with its figure, so the room kept
- * while it is read is the same either way. Where the line fits, the note adds
- * no line to it: it is as high as the placeholder
- * (`e2e/storybook-metrics/goal-live-line.metrics.ts` measures it, and says where
- * a phone's narrow cell stops fitting).
+ * while it is read is the same either way: the note never adds a line to the
+ * sentence, and the bar's line is as high as the note
+ * (`e2e/storybook-metrics/goal-live-line.metrics.ts` measures it from a 200 px
+ * cell to a desktop's).
  */
 export const PendingKeepsTheRoomOfACountBelowPace: Story = {
   render: () => (
@@ -225,6 +248,30 @@ export const PendingKeepsTheRoomOfACountBelowPace: Story = {
     const pending = canvasElement.querySelector('[data-slot="goal-live-line-pending"]')
     expect(pending).toHaveAttribute('aria-hidden', 'true')
     expect(canvas.getAllByRole('progressbar')).toHaveLength(1)
+    expect(canvas.getByText('below pace')).toBeVisible()
+  },
+}
+
+/** The widest figures a row has: the longest sentence the note has to make room for. */
+export const PendingKeepsTheRoomOfACountOfFiveDigitsBelowPace: Story = {
+  render: () => (
+    <div className="flex flex-col gap-6">
+      <GoalLiveLinePending shape="line_and_bar" />
+      <GoalLiveLine
+        goal={goal({
+          belowPace: 1,
+          metric: 'portal_rating_count',
+          month: {
+            reading: { kind: 'live', value: 12345, sampleCount: 12345 },
+            targetValue: 15000,
+          },
+        })}
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('12,345 of 15,000 so far · 14 days left')).toBeVisible()
     expect(canvas.getByText('below pace')).toBeVisible()
   },
 }
