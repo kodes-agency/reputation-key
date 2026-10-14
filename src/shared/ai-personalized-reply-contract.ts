@@ -43,14 +43,25 @@ export type PersonalizedReplyDraftResult =
       reason: 'shape' | 'language' | 'grounding' | 'brand' | 'prohibited_content'
     }>
 
+/*
+ * `\w` and `\b` are ASCII-only in JavaScript, with or without the `u` flag, so
+ * the Bulgarian patterns spell a word's tail `\p{L}*`. With `\w*` three of the
+ * four of them could match only text that is not Bulgarian: after the stem comes
+ * a Cyrillic letter, `\w*` takes nothing, and the `\s+` that follows meets a
+ * letter. The patterns are part of the profile digest below.
+ */
+/* eslint-disable security/detect-unsafe-regex -- every repeated unit is a literal stem plus one letter class, followed by whitespace or the end; nothing overlaps, and a reply is at most 1,200 characters */
 const PROHIBITED_REPLY_PATTERNS = Object.freeze([
   // Compensation, pricing, or commitments that the Review cannot authorize.
-  /\b(?:refund|reimburse|compensat\w*|free\s+(?:stay|night|meal|upgrade)|guarantee\w*|promise\w*)\b/iu,
+  /\b(?:refund\w*|reimburs\w*|compensat\w*|free\s+(?:stay|night|meal|upgrade|room)s?|free\s+\w+(?:\s+\w+)?\s+on\s+us|money\s+back|voucher\w*|discount\w*|on\s+the\s+house|guarantee\w*|promise\w*)\b/iu,
   // Admissions or legal conclusions.
-  /\b(?:liable|liability|admit\w*\s+(?:fault|liability)|our\s+fault|at\s+fault)\b/iu,
-  // Bulgarian equivalents of compensation, promises, and admissions.
-  /(?:обезщет\w*|възстанов\w*\s+(?:сум\w*|пар\w*)|безплат\w*\s+(?:нощув\w*|престой|хран\w*)|гарантирам\w*|обещав\w*|признав\w*\s+вин\w*)/iu,
+  /\b(?:liable|liability|admit\w*\s+(?:fault|liability)|our\s+fault|at\s+fault|(?:take|takes|taking|took|accept\w*)\s+(?:full\s+)?responsibility|full\s+responsibility)\b/iu,
+  // Bulgarian equivalents of compensation, promises, and admissions. A refund
+  // may name the sum or the price a few words after the verb (`ще ви върнем
+  // платената сума`) or before it (`сумата ще ви бъде възстановена`).
+  /(?:обезщет\p{L}*|компенс\p{L}*|(?:възстанов|върн)\p{L}*(?:\s+\p{L}+){0,3}?\s+(?:сум|пар|цен)\p{L}*|(?:сум|пар|цен)\p{L}*(?:\s+\p{L}+){0,3}?\s+(?:възстановен|върнат)\p{L}*|безплат\p{L}*\s+(?:нощув\p{L}*|престо\p{L}*|хран\p{L}*|ъпгрейд\p{L}*|надграж\p{L}*)|ваучер\p{L}*|отстъпк\p{L}*|гарантир\p{L}*|обеща\p{L}*|признав\p{L}*\s+(?:си\s+)?(?:вин|грешк)\p{L}*|пое\p{L}*\s+(?:пълна\s+)?отговорност\p{L}*|(?:наша|нашата)\s+вина)/iu,
 ] as const)
+/* eslint-enable security/detect-unsafe-regex */
 
 const PROFILE_MANIFEST = Object.freeze({
   version: AI_PERSONALIZED_REPLY_PROFILE_VERSION,
@@ -73,7 +84,10 @@ const PROFILE_MANIFEST = Object.freeze({
   outputLeakageProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
   outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
   structuredMarkerDetectorDigest: AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
-  prohibitedPatternCount: PROHIBITED_REPLY_PATTERNS.length,
+  prohibitedPatterns: PROHIBITED_REPLY_PATTERNS.map(({ source, flags }) => ({
+    source,
+    flags,
+  })),
 })
 
 export const AI_PERSONALIZED_REPLY_PROFILE_DIGEST = createHash('sha256')
@@ -205,10 +219,25 @@ function usesPublicDisplayName(replyText: string, brandDisplayName: string): boo
  * AI draft for it impossible. The approved name is reviewed Brand Profile data,
  * not model-invented content, so it is exempt by the same reasoning that admits
  * it into the reply at all.
+ *
+ * The exemption has to find the name wherever the check does. The check folds
+ * case and whitespace, and a guest who types `ROOMS 24 & CO` makes the model
+ * follow; an exact-case search then left `24` and `&` for the scanner and
+ * refused a draft that carried the approved name. So the name is found
+ * ignoring case and the width of the gaps between its words. Typography the
+ * check also folds (a curly quote for a straight one, a compatibility form)
+ * is still not found here, and the scanner then refuses the draft: closed.
  */
 function withoutBrandDisplayName(replyText: string, brandDisplayName: string): string {
-  if (brandDisplayName.length === 0) return replyText
-  return replyText.split(brandDisplayName).join(' ')
+  const words = brandDisplayName.split(/\s+/u).filter((word) => word.length > 0)
+  if (words.length === 0) return replyText
+  // eslint-disable-next-line security/detect-non-literal-regexp -- the pattern is the reviewed Brand Profile display name with every metacharacter escaped, joined by whitespace
+  const brand = new RegExp(words.map(escapeRegExp).join('\\s+'), 'giu')
+  return replyText.replace(brand, ' ')
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
 }
 
 function containsProhibitedContent(
@@ -233,7 +262,10 @@ function containsProhibitedContent(
  * Validate provider output before it can enter the browser's ephemeral reply
  * draft. The validator accepts only English/Bulgarian, requires bidirectional
  * source/reply evidence, and refuses unsafe commitments or structured/private
- * material. It does not persist the suggestion.
+ * material. The commitments are a list of stems in two languages, not a
+ * guarantee: a promise in words the list does not hold passes, and the manager
+ * who reads every draft before it is published is the control for that. It does
+ * not persist the suggestion.
  */
 export function parsePersonalizedReplyDraft(
   input: PersonalizedReplyDraftInput,

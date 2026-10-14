@@ -1,18 +1,26 @@
 import { createHash } from 'node:crypto'
-import { isIP } from 'node:net'
-import { domainToASCII } from 'node:url'
 import {
   getCountries,
   parsePhoneNumberFromString,
   type CountryCode,
 } from 'libphonenumber-js/max'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
+import { AI_UNICODE_CASE_FOLDING_V17 } from './generated/ai-unicode-case-folding-v17'
+import { ADDRESS_MARKER_PROFILE, findAddressMarkers } from './ai-address-markers'
 import {
   IBAN_GROUP_SEPARATOR_RE,
   longestValidIban,
   luhnValid,
 } from './ai-financial-validators'
-import { AI_UNICODE_CASE_FOLDING_V17 } from './generated/ai-unicode-case-folding-v17'
+import { BROKEN_TOKEN_PROFILE, findBrokenTokenMarkers } from './ai-broken-token-markers'
+import { COORDINATE_MARKER_PROFILE, findCoordinateMarkers } from './ai-coordinate-markers'
+import {
+  NETWORK_MARKER_PROFILE,
+  endsInAlphabeticLabel,
+  findIpMarkers,
+  findSplitDomainMarkers,
+  validDomain,
+} from './ai-network-markers'
 
 export const AI_STRUCTURED_MARKER_DETECTORS_VERSION =
   'structured-marker-detectors-v1' as const
@@ -69,7 +77,7 @@ const COUNTRY_CODES = new Set<string>(getCountries())
  * Candidate repetitions are bounded by the profile or consume delimiter-separated
  * atoms monotonically; the security rule cannot model those enclosing invariants.
  */
-/* eslint-disable security/detect-unsafe-regex, no-useless-escape */
+/* eslint-disable security/detect-unsafe-regex */
 const EMAIL_RE = new RegExp(
   "[\\p{L}\\p{N}.!#$%&'*+/=?^_`{|}~-]{1,64}@[\\p{L}\\p{N}-]+(?:\\.[\\p{L}\\p{N}-]+)+",
   'gu',
@@ -87,18 +95,12 @@ const BARE_DOMAIN_RE =
 const SOCIAL_RE =
   /(?:^|[^\p{L}\p{N}_.])(@[A-Za-z0-9_](?:[A-Za-z0-9_.]{0,28}[A-Za-z0-9_])?)(?=$|[^A-Za-z0-9_.])/gu
 const PHONE_RE =
-  /(?:^|[^\p{Nd}])((?:\+?[\p{Nd}][\p{Nd} ().-]{5,30}[\p{Nd}]))(?=$|[^\p{Nd}])/gu
-const IP_TOKEN_RE =
-  /(?:^|[^A-Fa-f0-9:.\[])((?:\[[A-Fa-f0-9:]+\]|[A-Fa-f0-9:.]{3,}))(?=$|[^A-Fa-f0-9:.\]])/gu
-const COORDINATE_RE =
-  /(?:^|[^\p{N}.+-])([+-]?(?:\d{1,3})\.\d{4,8}\s*,\s*[+-]?(?:\d{1,3})\.\d{4,8})(?=$|[^\p{N}.])/gu
+  /(?:^|[^\p{Nd}])((?:(?:\+[ \t]?)?[\p{Nd}][\p{Nd} ().-]{5,30}[\p{Nd}]))(?=$|[^\p{Nd}])/gu
 const CARD_RE = /(?:^|[^\p{Nd}])((?:\p{Nd}[ -]?){12,18}\p{Nd})(?=$|[^\p{Nd}])/gu
 const IBAN_RE =
   /(?:^|[^A-Za-z0-9])([A-Za-z]{2}\d{2}(?:[ -]?[A-Za-z0-9]){11,30})(?=$|[^A-Za-z0-9])/gu
 const LABELLED_ID_RE =
-  /\b(?:passport|tax[ \t_-]*id|national[ \t_-]*id|government[ \t_-]*id|driver'?s?[ \t_-]*licen[cs]e|ssn|social[ \t_-]*security|account[ \t_-]*(?:id|number)|customer[ \t_-]*id)\b[ \t]*(?::|#|-)?[ \t]*[A-Za-z0-9][A-Za-z0-9._~-]{3,64}/giu
-const ADDRESS_RE =
-  /\b\d{1,8}[ \t]+(?:[\p{L}\p{M}][\p{L}\p{M}.'’-]*[ \t]+){0,8}(?:street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)\b(?:[, \t]+\d{4,10}(?:-\d{3,4})?)?/giu
+  /\b(?:passport|tax[ \t_-]*id|national[ \t_-]*id|government[ \t_-]*id|driver'?s?[ \t_-]*licen[cs]e|ssn|social[ \t_-]*security|account[ \t_-]*(?:id|number)|customer[ \t_-]*id)\b[ \t]*(?::|#|-)?[ \t]*(?:[A-Za-z0-9][A-Za-z0-9._~-]{3,64}(?:[ \t]\d{3,10}(?![\p{L}\p{N}]))?|[A-Za-z0-9]{1,3}[ \t](?=[A-Za-z]*\d)[A-Za-z0-9]{3,12}(?![\p{L}\p{N}]))/giu
 const POSTAL_LABEL_RE =
   /\b(?:postal[ \t_-]*code|postal|postcode|zip[ \t_-]*code|zip)\b[ \t]*(?::|#|-)?[ \t]*[A-Za-z0-9][A-Za-z0-9 -]{2,11}[A-Za-z0-9]\b/giu
 const KNOWN_SECRET_RE =
@@ -115,9 +117,7 @@ const OVERBOUND_IBAN_RE =
   /(?:^|[^A-Za-z0-9])([A-Za-z]{2}\d{2}(?:[ -]?[A-Za-z0-9]){31,})(?=$|[^A-Za-z0-9])/gu
 const OVERBOUND_COORDINATE_RE =
   /[+-]?(?:\d{1,3})\.\d{9,}\s*,\s*[+-]?(?:\d{1,3})\.\d{4,}|[+-]?(?:\d{1,3})\.\d{4,}\s*,\s*[+-]?(?:\d{1,3})\.\d{9,}/gu
-const ADDRESS_HINT_RE =
-  /\b(?:street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)\b/iu
-/* eslint-enable security/detect-unsafe-regex, no-useless-escape */
+/* eslint-enable security/detect-unsafe-regex */
 
 const PLACEHOLDER_PRIORITY: Readonly<Record<AiDetectedPlaceholder, number>> = {
   '[SECRET]': 0,
@@ -139,23 +139,16 @@ const DETECTOR_MANIFEST = Object.freeze({
     'contact',
   ]),
   patterns: Object.freeze([
-    Object.freeze({ id: 'address', source: ADDRESS_RE.source, flags: ADDRESS_RE.flags }),
-    Object.freeze({
-      id: 'address_hint',
-      source: ADDRESS_HINT_RE.source,
-      flags: ADDRESS_HINT_RE.flags,
-    }),
+    ...ADDRESS_MARKER_PROFILE.patterns,
+    ...COORDINATE_MARKER_PROFILE.patterns,
+    ...NETWORK_MARKER_PROFILE.patterns,
+    ...BROKEN_TOKEN_PROFILE.patterns,
     Object.freeze({
       id: 'bare_domain',
       source: BARE_DOMAIN_RE.source,
       flags: BARE_DOMAIN_RE.flags,
     }),
     Object.freeze({ id: 'card', source: CARD_RE.source, flags: CARD_RE.flags }),
-    Object.freeze({
-      id: 'coordinate',
-      source: COORDINATE_RE.source,
-      flags: COORDINATE_RE.flags,
-    }),
     Object.freeze({ id: 'email', source: EMAIL_RE.source, flags: EMAIL_RE.flags }),
     Object.freeze({
       id: 'entropy_token',
@@ -172,11 +165,6 @@ const DETECTOR_MANIFEST = Object.freeze({
       id: 'iban_group_retry',
       source: IBAN_GROUP_SEPARATOR_RE.source,
       flags: IBAN_GROUP_SEPARATOR_RE.flags,
-    }),
-    Object.freeze({
-      id: 'ip_token',
-      source: IP_TOKEN_RE.source,
-      flags: IP_TOKEN_RE.flags,
     }),
     Object.freeze({
       id: 'known_secret',
@@ -248,17 +236,30 @@ const DETECTOR_MANIFEST = Object.freeze({
     address: 256,
     secret: 256,
   }),
+  addressWordLists: ADDRESS_MARKER_PROFILE.wordLists,
+  addressLimits: ADDRESS_MARKER_PROFILE.limits,
+  coordinateLimits: COORDINATE_MARKER_PROFILE.limits,
+  splitDomainTopLevels: NETWORK_MARKER_PROFILE.splitDomainTopLevels,
+  minSplitNameScalars: NETWORK_MARKER_PROFILE.minSplitNameScalars,
+  brokenTokens: Object.freeze({
+    afterDotTopLevels: BROKEN_TOKEN_PROFILE.afterDotTopLevels,
+    introducingWords: BROKEN_TOKEN_PROFILE.introducingWords,
+    limits: BROKEN_TOKEN_PROFILE.limits,
+  }),
   validators: Object.freeze([
     'email-rfc-bounded-v1',
     'whatwg-http-domain-v1',
+    'bare-domain-alphabetic-final-label-v2',
+    'split-domain-blank-before-dot-v2',
+    'broken-token-single-blank-v1',
     'social-handle-v1',
     'libphonenumber-js-1.13.11-max',
-    'node-net-is-ip-v1',
-    'coordinate-rational-v1',
+    'node-net-is-ip-port-and-label-v2',
+    'coordinate-labelled-pair-v2',
     'luhn-v1',
     'iban-mod97-v1',
     'labelled-identifier-v1',
-    'postal-address-keyword-v1',
+    'postal-address-street-shape-v5',
     'secret-entropy-v1',
   ]),
 })
@@ -360,9 +361,6 @@ function detectOverBoundCandidates(text: string, state: ScanState): void {
   })
   if (OVERBOUND_LABELLED_ID_RE.test(text)) state.blocked = 'ambiguous_candidate'
   OVERBOUND_LABELLED_ID_RE.lastIndex = 0
-  if (countScalars(text) > 256 && /\p{N}/u.test(text) && ADDRESS_HINT_RE.test(text)) {
-    state.blocked = 'ambiguous_candidate'
-  }
 }
 
 function addCandidate(
@@ -403,20 +401,6 @@ function trimUrlEnd(value: string): string {
   let end = value.length
   while (end > 0 && /[.,!?;:)}\]]/u.test(value[end - 1]!)) end -= 1
   return value.slice(0, end)
-}
-
-function validDomain(domain: string): boolean {
-  const ascii = domainToASCII(domain)
-  if (ascii.length < 1 || ascii.length > 253 || !ascii.includes('.')) return false
-  const labels = ascii.split('.')
-  return labels.every(
-    (label) =>
-      label.length >= 1 &&
-      label.length <= 63 &&
-      !label.startsWith('-') &&
-      !label.endsWith('-') &&
-      /^[A-Za-z0-9-]+$/u.test(label),
-  )
 }
 
 function validEmail(value: string): boolean {
@@ -535,11 +519,16 @@ function scanUrlsAndDomains(text: string, state: ScanState): void {
   })
   forEachMatch(BARE_DOMAIN_RE, text, (match) => {
     const value = match[1]
-    if (value === undefined || !validDomain(value)) return
+    if (value === undefined || !validDomain(value) || !endsInAlphabeticLabel(value)) {
+      return
+    }
     const relative = match[0].lastIndexOf(value)
     const start = match.index + relative
     addCandidate(state, text, start, start + value.length, '[CONTACT]', 2048)
   })
+  for (const span of findSplitDomainMarkers(text)) {
+    addCandidate(state, text, span.start, span.end, '[CONTACT]', 2048)
+  }
 }
 
 function scanSocialHandles(text: string, state: ScanState): void {
@@ -579,7 +568,7 @@ function scanPhones(text: string, countryCode: CountryCode, state: ScanState): v
   forEachMatch(PHONE_RE, text, (match) => {
     const raw = match[1]
     if (raw === undefined) return
-    const value = normalizeDecimalDigits(raw)
+    const value = normalizeDecimalDigits(raw)?.replace(/^\+[ \t]+/u, '+') ?? null
     if (value === null) {
       state.blocked = 'scanner_unavailable'
       return
@@ -600,50 +589,19 @@ function scanPhones(text: string, countryCode: CountryCode, state: ScanState): v
   })
 }
 
-function decimalMagnitudeWithin(value: string, maximum: bigint): boolean {
-  const unsigned = value.startsWith('+') || value.startsWith('-') ? value.slice(1) : value
-  const [whole, fraction] = unsigned.split('.')
-  if (
-    whole === undefined ||
-    fraction === undefined ||
-    !/^\d+$/u.test(whole) ||
-    !/^\d+$/u.test(fraction)
-  ) {
-    return false
+function scanIpsAndCoordinates(text: string, state: ScanState): void {
+  for (const span of findIpMarkers(text)) {
+    addCandidate(state, text, span.start, span.end, '[CONTACT]', 64)
   }
-  const scale = 10n ** BigInt(fraction.length)
-  const numerator = BigInt(whole) * scale + BigInt(fraction)
-  return numerator <= maximum * scale
+  for (const span of findCoordinateMarkers(text)) {
+    addCandidate(state, text, span.start, span.end, '[ADDRESS]', 64)
+  }
 }
 
-function scanIpsAndCoordinates(text: string, state: ScanState): void {
-  forEachMatch(IP_TOKEN_RE, text, (match) => {
-    const raw = match[1]
-    if (raw === undefined) return
-    const candidate = raw.endsWith('.') ? raw.slice(0, -1) : raw
-    const value =
-      candidate.startsWith('[') && candidate.endsWith(']')
-        ? candidate.slice(1, -1)
-        : candidate
-    if (isIP(value) === 0) return
-    const start = match.index + match[0].lastIndexOf(raw)
-    addCandidate(state, text, start, start + candidate.length, '[CONTACT]', 64)
-  })
-  forEachMatch(COORDINATE_RE, text, (match) => {
-    const value = match[1]
-    if (value === undefined) return
-    const [latitudeText, longitudeText] = value.split(',').map((entry) => entry.trim())
-    if (
-      latitudeText === undefined ||
-      longitudeText === undefined ||
-      !decimalMagnitudeWithin(latitudeText, 90n) ||
-      !decimalMagnitudeWithin(longitudeText, 180n)
-    ) {
-      return
-    }
-    const start = match.index + match[0].lastIndexOf(value)
-    addCandidate(state, text, start, start + value.length, '[ADDRESS]', 64)
-  })
+function scanBrokenTokens(text: string, state: ScanState): void {
+  for (const marker of findBrokenTokenMarkers(text)) {
+    addCandidate(state, text, marker.start, marker.end, marker.placeholder, 256)
+  }
 }
 
 function scanFinancial(text: string, state: ScanState): void {
@@ -689,17 +647,18 @@ function scanIdentifiersAndAddresses(text: string, state: ScanState): void {
       256,
     )
   })
-  for (const expression of [POSTAL_LABEL_RE, ADDRESS_RE] as const) {
-    forEachMatch(expression, text, (match) => {
-      addCandidate(
-        state,
-        text,
-        match.index,
-        match.index + match[0].length,
-        '[ADDRESS]',
-        256,
-      )
-    })
+  forEachMatch(POSTAL_LABEL_RE, text, (match) => {
+    addCandidate(
+      state,
+      text,
+      match.index,
+      match.index + match[0].length,
+      '[ADDRESS]',
+      256,
+    )
+  })
+  for (const span of findAddressMarkers(text)) {
+    addCandidate(state, text, span.start, span.end, '[ADDRESS]', 256)
   }
 }
 
@@ -850,6 +809,7 @@ export function scanStructuredMarkerCandidates(
     scanSocialHandles(input.text, state)
     scanPhones(input.text, input.countryCode as CountryCode, state)
     scanIpsAndCoordinates(input.text, state)
+    scanBrokenTokens(input.text, state)
     scanFinancial(input.text, state)
     scanIdentifiersAndAddresses(input.text, state)
     scanSecrets(input.text, state)

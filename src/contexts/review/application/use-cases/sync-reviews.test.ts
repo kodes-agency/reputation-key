@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import {
   googleConnectionId,
@@ -13,6 +14,7 @@ import type {
   ReviewProviderObservationWriter,
 } from '../ports/review-provider-snapshot.repository'
 import type { GoogleReview, Review } from '../../domain/types'
+import { canonicalizeRawAiReviewSourcePreviousRevision } from '#/shared/ai-review-source-contract'
 import { computeAiReviewSourceProvenance } from '../ai-review-source'
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
@@ -204,6 +206,80 @@ async function recordedOrigins(
   const persisted = await upsertAndRecord.mock.results[0]?.value
   return { stored: call[4], event: eventFor(persisted) }
 }
+
+/** The provenance a Review stored under revision 1 of the source text rules holds. */
+function revisionOneProvenance(review: GoogleReview) {
+  const canonical = canonicalizeRawAiReviewSourcePreviousRevision({
+    text: review.text,
+    rating: review.rating,
+    languageCode: review.languageCode,
+    reviewedAtEpochMillis: review.reviewedAt.getTime(),
+    reviewerDisplayName: review.reviewerName,
+  })
+  return {
+    byteLength: canonical.bytes.byteLength,
+    digest: createHash('sha256')
+      .update('ai-source-v1\0', 'utf8')
+      .update(canonical.bytes)
+      .digest('hex'),
+  }
+}
+
+describe('Review provider observation under the source text revisions', () => {
+  const MULTI_LINE = {
+    ...SCOPE_PROVIDER_REVIEW,
+    text: 'Room was clean.\nStaff were kind.\n\nBreakfast could be better.',
+  } satisfies GoogleReview
+
+  it('refreshes a Review stored under revision 1 without a review.updated or a new sequence', async () => {
+    const stored = revisionOneProvenance(MULTI_LINE)
+    const existing = scopeReview({
+      sourceEpoch: 4,
+      text: MULTI_LINE.text,
+      aiSourceDigest: stored.digest,
+      aiSourceByteLength: stored.byteLength,
+    })
+    const { writer, upsert, upsertAndRecord } = scopeWriter(existing)
+
+    await writer.persist(scopeObservation({ sourceEpoch: 4, review: MULTI_LINE }))
+
+    expect(upsertAndRecord).not.toHaveBeenCalled()
+    const refreshed = upsert.mock.calls[0]?.[0]
+    const current = computeAiReviewSourceProvenance({
+      text: MULTI_LINE.text,
+      rating: MULTI_LINE.rating,
+      languageCode: MULTI_LINE.languageCode,
+      reviewedAtEpochMillis: MULTI_LINE.reviewedAt.getTime(),
+      reviewerDisplayName: MULTI_LINE.reviewerName,
+    })
+    expect(current.digest).not.toBe(stored.digest)
+    expect(refreshed).toMatchObject({
+      aiSourceDigest: current.digest,
+      aiSourceByteLength: current.byteLength,
+    })
+  })
+
+  it('still records an update when the text of a revision 1 Review really changed', async () => {
+    const stored = revisionOneProvenance(MULTI_LINE)
+    const existing = scopeReview({
+      sourceEpoch: 4,
+      text: MULTI_LINE.text,
+      aiSourceDigest: stored.digest,
+      aiSourceByteLength: stored.byteLength,
+    })
+    const { writer, upsert, upsertAndRecord } = scopeWriter(existing)
+
+    await writer.persist(
+      scopeObservation({
+        sourceEpoch: 4,
+        review: { ...MULTI_LINE, text: `${MULTI_LINE.text} Parking was tight.` },
+      }),
+    )
+
+    expect(upsertAndRecord).toHaveBeenCalledTimes(1)
+    expect(upsert).not.toHaveBeenCalled()
+  })
+})
 
 describe('Review provider observation identity', () => {
   it('does not conflate an absent reply with the literal live reply "absent"', () => {

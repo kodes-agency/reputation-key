@@ -870,6 +870,56 @@ describe('official OpenAI SDK connector integration', () => {
     }
   })
 
+  it('keeps the usage of a completed answer that breaks the output schema', async () => {
+    // The SDK parses a completed answer with the same zod schema and throws when
+    // it fails (a refinement JSON Schema cannot state, say). The call was
+    // billed and its usage block was valid; reporting it as unknown settled the
+    // call at the reservation ceiling and dropped the token counts.
+    const harness = createConnectorHarness(async () => providerResponse({ parsed: null }))
+    const outcome = await harness.connector.invoke(
+      harness.invocation,
+      harness.grant,
+      connectorOutputSchema,
+      new AbortController().signal,
+    )
+    expect(outcome).toMatchObject({
+      disposition: 'output_invalid',
+      reportedDisposition: 'success',
+      result: null,
+      usageKnown: true,
+      providerRetryable: false,
+      usage: {
+        inputTokens: 10,
+        cachedTokens: 2,
+        outputTokens: 5,
+        reasoningTokens: 1,
+        totalTokens: 15,
+      },
+    })
+  })
+
+  it('still reports unknown usage when the completed answer carries none that adds up', async () => {
+    const harness = createConnectorHarness(async () =>
+      providerResponse({
+        parsed: null,
+        usage: {
+          inputTokens: 10,
+          cachedTokens: 11,
+          outputTokens: 5,
+          reasoningTokens: 1,
+          totalTokens: 15,
+        },
+      }),
+    )
+    const outcome = await harness.connector.invoke(
+      harness.invocation,
+      harness.grant,
+      connectorOutputSchema,
+      new AbortController().signal,
+    )
+    expect(outcome).toMatchObject({ disposition: 'output_invalid', usageKnown: false })
+  })
+
   it('names a truncated answer output_truncated, not output_invalid', async () => {
     // The distinction is the whole point: a truncated response is a fully-billed
     // provider call that returned nothing, and reporting it as `output_invalid`
