@@ -1149,3 +1149,59 @@ describe('addresses a mutation of the sentence used to hide', () => {
     expect(redacted(text, 'BG')).toBe(replacing(text, address, '[ADDRESS]'))
   })
 })
+
+/**
+ * A capitalised unit or span of time before a drive, a way or a place is a street
+ * unless a word that makes the number a measure stands in front of it (`Only`,
+ * `is`, `within`, a determiner) or it starts a sentence. The first version of
+ * this repair read it as a clause wherever it stood.
+ */
+const UNIT_STREETS_AFTER_ANY_LEAD: readonly Shape[] = [
+  [
+    'Taxi to',
+    'Great stay and a clean room. Taxi to 7 Days Way near the beach.',
+    '7 Days Way',
+  ],
+  [
+    'Visit',
+    'Great stay and a clean room. Visit 3 Weeks Place near the beach.',
+    '3 Weeks Place',
+  ],
+  [
+    'Directions:',
+    'Great stay and a clean room. Directions: 50 Feet Drive near the beach.',
+    '50 Feet Drive',
+  ],
+  [
+    'booked',
+    'Great stay and a clean room. We booked 12 Hour Way for a week.',
+    '12 Hour Way',
+  ],
+  [
+    'in capitals',
+    'Great stay and a clean room. Come to 5 TIMES WAY for a week.',
+    '5 TIMES WAY',
+  ],
+  [
+    'in brackets',
+    'Great stay and a clean room. We went to (221 Stars Drive) for a week.',
+    '221 Stars Drive',
+  ],
+]
+
+describe('a capitalised unit name before a drive, a way or a place is a street', () => {
+  it.each(UNIT_STREETS_AFTER_ANY_LEAD)('%s', (_name, text, address) => {
+    expect(redacted(text)).toBe(replacing(text, address, '[ADDRESS]'))
+  })
+
+  it.each([
+    'It is 5 Minutes Drive from the beach and the staff booked a taxi.',
+    'The old town is 2 Days Drive from here, which the kids liked a lot.',
+    'The trip takes 3 Hours Drive and the road was quiet all the way.',
+    '5 Minutes Drive from the beach and the staff booked us a taxi.',
+    'Great stay and a clean room. 5 Minutes Drive from the beach, lovely.',
+    'Within 10 Minutes Drive there is a shop and a pharmacy for the guests.',
+  ])('still reads a title-case measure as a measure: %s', (text) => {
+    expect(redacted(text)).toBe(text)
+  })
+})

@@ -30,6 +30,7 @@ import {
   ADDRESS_LABELS,
   ADDRESS_LEADS,
   COUNT_LEADS,
+  PROSE_LEADS,
   RATING_LEADS,
   CLAUSE_TYPES,
   CONNECTORS,
@@ -93,9 +94,16 @@ export type NumberLead = Readonly<{
   rating: boolean
   count: boolean
   address: boolean
+  /** The number starts a sentence or follows a word like `only`, `is`, `within`. */
+  prose: boolean
 }>
 
-export const NO_LEAD: NumberLead = { rating: false, count: false, address: false }
+export const NO_LEAD: NumberLead = {
+  rating: false,
+  count: false,
+  address: false,
+  prose: false,
+}
 
 /** The word in front of a number. */
 const WORD_BEFORE_RE = /([\p{L}.]+)[ \t]*[:=–-]?[ \t]*$/u
@@ -110,11 +118,17 @@ function wordsBefore(text: string, start: number, count: number): readonly strin
     .map((word) => word.toLowerCase())
 }
 
+/** The number starts a text or a sentence: nothing in front of it but a full stop or a mark. */
+const SENTENCE_START_RE = /(?:^|[.!?])[ \t]*$/u
+
 /** What stands in front of the number at `start`: `10/10`, `Top 10`, `a 5`, `at 12`. */
 export function leadOf(text: string, start: number): NumberLead {
   if (start < 0) return NO_LEAD
-  if (text[start - 1] === '/') return { rating: true, count: false, address: false }
-  const found = WORD_BEFORE_RE.exec(text.slice(Math.max(0, start - 16), start))
+  if (text[start - 1] === '/') {
+    return { rating: true, count: false, address: false, prose: false }
+  }
+  const before = text.slice(Math.max(0, start - 16), start)
+  const found = WORD_BEFORE_RE.exec(before)
   const word = (found?.[1] ?? '').toLowerCase()
   return {
     rating: RATING_LEADS.has(word),
@@ -124,6 +138,7 @@ export function leadOf(text: string, start: number): NumberLead {
       wordsBefore(text, start, ADDRESS_LABEL_REACH).some((label) =>
         ADDRESS_LABELS.has(label),
       ),
+    prose: PROSE_LEADS.has(word) || SENTENCE_START_RE.test(before),
   }
 }
 
@@ -289,7 +304,9 @@ function isCounted(word: string): boolean {
  * Main Street`, `3 Weeks In`).
  */
 function namedUnitRejected(shape: NameShape, bare: readonly string[]): boolean {
-  const everyday = CLAUSE_TYPES.has(shape.type.toLowerCase()) && !shape.lead.address
+  const proseLead = shape.lead.count || shape.lead.rating || shape.lead.prose
+  const everyday =
+    CLAUSE_TYPES.has(shape.type.toLowerCase()) && proseLead && !shape.lead.address
   if (everyday && (QUANTITIES.has(bare[0] ?? '') || timeUnitRejected(bare))) return true
   return bare.some((word, index) => {
     const next = bare[index + 1] ?? ''

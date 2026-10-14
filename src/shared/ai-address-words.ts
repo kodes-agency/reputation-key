@@ -749,6 +749,48 @@ export const GENERIC_NAME_WORDS: readonly string[] = Object.freeze([
   'suite',
 ])
 
+/**
+ * Words in front of a number that make it a measure, not a house number:
+ * `Only 2 Minutes Drive`, `It is 5 Minutes Drive`, `within 10 Min Walk`. With one
+ * of them, a unit or a span of time in a capitalised name before a drive, a way
+ * or a place is a clause in title case. Any other word in front (`Taxi to`,
+ * `Visit`, `Directions:`) leaves the capitalised name a street.
+ */
+export const PROSE_LEAD_WORDS: readonly string[] = Object.freeze([
+  'about',
+  'after',
+  'almost',
+  'another',
+  'approx',
+  'approximately',
+  'are',
+  'around',
+  'be',
+  'by',
+  'each',
+  'every',
+  'for',
+  'from',
+  'in',
+  'is',
+  'just',
+  'nearly',
+  'only',
+  'over',
+  'per',
+  'roughly',
+  'some',
+  'take',
+  'takes',
+  'than',
+  'took',
+  'under',
+  'up',
+  'was',
+  'were',
+  'within',
+])
+
 /** House numbers a guest writes out, for `Twelve Oak Road`. */
 export const NUMBER_WORDS: readonly string[] = Object.freeze([
   'one',
@@ -804,3 +846,4 @@ export const EXTRA_STREET_TYPES: ReadonlySet<string> = new Set(EXTRA_STREET_TYPE
 export const COUNT_FOLLOWERS: ReadonlySet<string> = new Set(COUNT_FOLLOWER_WORDS)
 export const GENERIC_NAMES: ReadonlySet<string> = new Set(GENERIC_NAME_WORDS)
 export const BASE_STREET_TYPES: ReadonlySet<string> = new Set(BASE_STREET_TYPE_WORDS)
+export const PROSE_LEADS: ReadonlySet<string> = new Set(PROSE_LEAD_WORDS)
