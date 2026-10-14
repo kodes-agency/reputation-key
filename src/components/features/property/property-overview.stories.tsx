@@ -414,6 +414,16 @@ export const GoogleNumbersNever: Story = {
   },
 }
 
+/** Google is not linked: the tile says what to do, not to wait, and shows no other average. */
+export const GoogleNotLinked: Story = {
+  args: { google: null, property: { ...property, googleBindingState: 'unbound' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Link Google to see this property’s rating.')).toBeVisible()
+    expect(canvas.queryByText(/hasn’t sent/)).toBeNull()
+  },
+}
+
 /** The Google rating goal sits between the attention band and "How you are doing". */
 export const WithRatingGoal: Story = {
   args: {

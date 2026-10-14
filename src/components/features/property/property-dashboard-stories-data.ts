@@ -11,6 +11,7 @@ export const property = {
   id: 'prop-00000000-0000-0000-0000-000000000001',
   name: 'Harborline Suites',
   timezone: 'Europe/Sofia',
+  googleBindingState: 'active' as const,
 }
 
 const availableMetricKpi = (

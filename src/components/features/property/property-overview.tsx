@@ -37,10 +37,20 @@ import {
 import { formatNumber, formatShortDate } from '#/lib/format'
 import { MetricDelta } from '#/components/ui/metric-delta'
 import { RatingFigure } from '#/components/ui/rating-figure'
+import type { GoogleBindingState } from './property-lifecycle-model'
+import { overviewRatingMissing } from './overview-rating-missing'
 
 export interface PropertyOverviewProps {
-  /** The Property's zone: Google's date is on its clock. */
-  property: Readonly<{ id: string; name: string; timezone: string }>
+  /**
+   * The Property's zone (Google's date is on its clock) and its Google link
+   * (what the Rating tile says when there is no Google number).
+   */
+  property: Readonly<{
+    id: string
+    name: string
+    timezone: string
+    googleBindingState: GoogleBindingState
+  }>
   propertyId: string
   /** All-time read: the numbers a manager recognises. */
   lifetime: DashboardData
@@ -82,21 +92,22 @@ function googleCaption(
  * Google's own number and count lead (decision 16), never RepKey's average of
  * the reviews it holds. Numbers more than a day old, or read while Google is not
  * linked, are Google's last ones and keep their date; a Property Google never
- * sent numbers for says so. The Ratings page keeps RepKey's period averages.
+ * sent numbers for says why (still on its way, or the link to fix). The
+ * Ratings page keeps RepKey's period averages.
  */
 function ratingTile(
   google: GoogleNumbersView | null,
+  property: PropertyOverviewProps['property'],
   propertyId: string,
-  timezone: string,
   now: Date,
 ) {
   let context: React.ReactNode
   if (google === null) {
-    context = 'Google hasn’t sent this property’s rating yet.'
+    context = overviewRatingMissing(property.googleBindingState)
   } else if (google.shows === null) {
     context = 'No Google reviews yet.'
   } else {
-    context = googleCaption(google, timezone, now)
+    context = googleCaption(google, property.timezone, now)
   }
 
   return (
@@ -201,7 +212,6 @@ export function PropertyOverview({
   ratingGoal,
 }: PropertyOverviewProps) {
   const [now] = useState(() => new Date())
-  const { timezone } = property
   return (
     <PageShell tier="dashboard">
       <PageHeader
@@ -229,7 +239,7 @@ export function PropertyOverview({
           How you are doing
         </h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {ratingTile(google, propertyId, timezone, now)}
+          {ratingTile(google, property, propertyId, now)}
           {reviewsTile(lifetime, pulse, google, propertyId)}
           {replyTile(pulse, propertyId)}
           <OverviewProfileViews propertyId={propertyId} serverFns={profileViewsFns} />
