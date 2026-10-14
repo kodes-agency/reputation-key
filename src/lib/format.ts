@@ -49,6 +49,8 @@ const DATE_SHAPES = {
   monthDay: { month: 'short', day: 'numeric' },
   monthName: { month: 'long' },
   monthYear: { month: 'long', year: 'numeric' },
+  monthShort: { month: 'short' },
+  monthShortYear: { month: 'short', year: 'numeric' },
   longDate: { dateStyle: 'long' },
   time: { hour: 'numeric', minute: '2-digit' },
   zonedTime: { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' },
@@ -141,6 +143,28 @@ export function formatLocalDate(
 ): string | null {
   const instant = toInstant(`${localDate}T00:00:00.000Z`)
   return options.year === false ? formatMonthDay(instant) : formatDate(instant)
+}
+
+/** A stored calendar month, `YYYY-MM`. */
+const MONTH_KEY = /^\d{4}-(?:0[1-9]|1[0-2])$/u
+
+/**
+ * A stored calendar month (`YYYY-MM`, a property-local month) as "Jul 2027", or
+ * "Jul" where a range already says the year. Like `formatLocalDate`, it is read
+ * as midnight UTC on the month's first day and printed in UTC, so no reader's
+ * zone can move it.
+ */
+export function formatMonthKey(
+  monthKey: string,
+  options: Readonly<{ year?: boolean }> = {},
+): string | null {
+  if (!MONTH_KEY.test(monthKey)) return null
+  const instant = `${monthKey}-01T00:00:00.000Z`
+  return formatShape(
+    options.year === false ? 'monthShort' : 'monthShortYear',
+    instant,
+    DEFAULT_ZONE,
+  )
 }
 
 /** "September 12, 2026" */

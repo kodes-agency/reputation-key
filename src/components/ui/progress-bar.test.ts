@@ -79,6 +79,15 @@ describe('ProgressBar', () => {
     expect(warn).toContain(TONE_BAR.warn)
   })
 
+  it('cuts a notch at a point on the way, placed by a transform and kept from assistive technology', () => {
+    const html = render({ value: 1, max: 2, label: 'x', marker: 0.25 })
+
+    expect(html).toMatch(/data-slot="progress-bar-marker" aria-hidden="true"/u)
+    expect(html).toContain('transform:translateX(25%)')
+    expect(html).not.toMatch(/style="[^"]*(width|height|left|margin)/)
+    expect(render({ value: 1, max: 2, label: 'x' })).not.toContain('progress-bar-marker')
+  })
+
   it('is a block the caller can size, with a track under the fill', () => {
     const html = render({ value: 1, max: 2, label: 'x', className: 'mt-2' })
 

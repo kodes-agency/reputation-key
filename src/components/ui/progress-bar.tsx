@@ -32,6 +32,12 @@ export type ProgressBarProps = Readonly<{
   valueText?: string
   /** `neutral` counts with no verdict; the others are for a bar that carries one. */
   tone?: Tone
+  /**
+   * A point on the way, as a share of the bar from 0 to 1 (the next tenth on the
+   * way to a rating goal): a notch cut through the track. It is drawn only; the
+   * words beside the bar say what it marks.
+   */
+  marker?: number | null
   className?: string
 }>
 
@@ -57,9 +63,11 @@ export function ProgressBar({
   label,
   valueText,
   tone = 'neutral',
+  marker = null,
   className,
 }: ProgressBarProps) {
   const fraction = progressFraction(value, max)
+  const notch = marker === null ? null : progressFraction(marker, 1)
   return (
     <div
       role="progressbar"
@@ -70,7 +78,10 @@ export function ProgressBar({
       aria-valuemax={max}
       aria-valuenow={Math.min(Math.max(value, 0), max)}
       aria-valuetext={valueText ?? `${formatNumber(value)} of ${formatNumber(max)}`}
-      className={cn('h-2 w-full overflow-hidden rounded-full bg-muted', className)}
+      className={cn(
+        'relative h-2 w-full overflow-hidden rounded-full bg-muted',
+        className,
+      )}
     >
       <div
         className={cn(
@@ -79,6 +90,18 @@ export function ProgressBar({
         )}
         style={{ transform: `scaleX(${fraction})` }}
       />
+      {notch === null ? null : (
+        // A layer as wide as the track, moved by a transform: the notch is its
+        // left edge, so no layout property places it.
+        <span
+          data-slot="progress-bar-marker"
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{ transform: `translateX(${notch * 100}%)` }}
+        >
+          <span className="absolute inset-y-0 left-0 w-0.5 -translate-x-1/2 bg-background" />
+        </span>
+      )}
     </div>
   )
 }
