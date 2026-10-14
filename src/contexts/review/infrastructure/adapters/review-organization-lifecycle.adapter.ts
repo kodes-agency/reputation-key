@@ -73,8 +73,6 @@ const propertyScope = (organizationId: string) => sql`(
 const PRESENCE_PROBE_TABLES = Object.freeze([
   'reviews',
   'replies',
-  'property_reply_profiles',
-  'property_reply_templates',
   'review_provider_snapshot_runs',
   'review_provider_history_cutoffs',
   'review_ai_analysis_heads',
@@ -378,19 +376,6 @@ async function purge(
     tx,
     sql`DELETE FROM review_provider_history_cutoffs WHERE organization_id = ${organizationId}`,
   )
-  // The Property reply library is manager-authored text (a greeting, sign-offs,
-  // an escalation contact, template bodies) and Review owns it. Both tables
-  // hold the Property with RESTRICT foreign keys, so the Property phase could
-  // not delete the Property while a row remained.
-  const replyTemplates = await countAffected(
-    tx,
-    sql`DELETE FROM property_reply_templates WHERE organization_id = ${organizationId}`,
-  )
-  const replyProfiles = await countAffected(
-    tx,
-    sql`DELETE FROM property_reply_profiles WHERE organization_id = ${organizationId}`,
-  )
-
   // Manager-authored Reply text and the actor identifiers around it. The row
   // survives only because a retained authorization references it.
   const scrubbedReplies = await countAffected(
@@ -497,8 +482,6 @@ async function purge(
     { step: 'provider_subjects_deleted', rows: providerSubjects },
     { step: 'provider_snapshot_runs_deleted', rows: snapshotRuns },
     { step: 'history_cutoffs_deleted', rows: historyCutoffs },
-    { step: 'reply_templates_deleted', rows: replyTemplates },
-    { step: 'reply_profiles_deleted', rows: replyProfiles },
     { step: 'replies_scrubbed', rows: scrubbedReplies },
     { step: 'material_revisions_scrubbed', rows: scrubbedMaterialRevisions },
     { step: 'reviews_scrubbed', rows: scrubbedReviews },

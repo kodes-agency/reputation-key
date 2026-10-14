@@ -43,8 +43,6 @@ const KEY = 'e'.repeat(64)
 const GUEST_TEXT = 'REVIEW_GUEST_TEXT_MUST_NOT_SURVIVE'
 const GUEST_NAME = 'REVIEW_GUEST_NAME_MUST_NOT_SURVIVE'
 const REPLY_TEXT = 'REVIEW_MANAGER_REPLY_MUST_NOT_SURVIVE'
-const LIBRARY_CONTACT = 'REVIEW_LIBRARY_CONTACT_MUST_NOT_SURVIVE'
-const LIBRARY_TEMPLATE_BODY = 'REVIEW_LIBRARY_TEMPLATE_MUST_NOT_SURVIVE'
 const PROVIDER_MESSAGE_ID = 'REVIEW_PROVIDER_MESSAGE_MUST_NOT_SURVIVE'
 const REPLY_LIBRARY_GREETING = 'LIBRARY_GREETING_MUST_NOT_SURVIVE'
 const REPLY_LIBRARY_CONTACT = 'LIBRARY_ESCALATION_CONTACT_MUST_NOT_SURVIVE'
@@ -254,24 +252,6 @@ async function insertReview(
      ) VALUES ($1, 1, $2, $3, 0, 'review-material-v1', $4, $4, 4, $5, 'active',
                'measured', $6, $6, $6)`,
     [reviewId, org, propertyId, DIGEST, GUEST_TEXT, AT],
-  )
-}
-
-/** The Property's reply library: the profile and one template, both manager-authored. */
-async function insertReplyLibrary(org: string, propertyId: string): Promise<void> {
-  await pool.query(
-    `INSERT INTO property_reply_profiles (
-       organization_id, property_id, greeting, sign_off_positive, sign_off_negative,
-       escalation_contact, updated_by
-     ) VALUES ($1, $2, 'Dear guest', 'Warm regards', 'Sincerely', $3, $4)`,
-    [org, propertyId, LIBRARY_CONTACT, MANAGER_ID],
-  )
-  await pool.query(
-    `INSERT INTO property_reply_templates (
-       organization_id, property_id, title, rating_min, rating_max, has_text,
-       language_tag, body, updated_by
-     ) VALUES ($1, $2, 'Thanks', 4, 5, true, 'en-Latn', $3, $4)`,
-    [org, propertyId, LIBRARY_TEMPLATE_BODY, MANAGER_ID],
   )
 }
 
@@ -858,11 +838,11 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
     const after = await rowCounts(ORG_ID)
     expect(after.property_reply_profiles).toBe(0)
     expect(after.property_reply_templates).toBe(0)
-    expect(await contentSnapshot(ORG_ID)).not.toContain(LIBRARY_CONTACT)
-    expect(await contentSnapshot(ORG_ID)).not.toContain(LIBRARY_TEMPLATE_BODY)
+    expect(await contentSnapshot(ORG_ID)).not.toContain(REPLY_LIBRARY_CONTACT)
+    expect(await contentSnapshot(ORG_ID)).not.toContain(REPLY_LIBRARY_BODY)
     // The second tenant keeps its library.
     expect(await contentSnapshot(OTHER_ORG_ID)).toBe(otherBefore)
-    expect(otherBefore).toContain(LIBRARY_CONTACT)
+    expect(otherBefore).toContain(REPLY_LIBRARY_CONTACT)
   })
 
   it('counts a history cutoff as Review data, even when it is all Review holds', async () => {
