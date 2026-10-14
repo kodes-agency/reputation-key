@@ -40,8 +40,9 @@ metric authority.
   request for the Goals list (`getGoalListProgress`, `createGoalListProgressReader`): one Program
   list read, then each goal through the same `progressOf` as its own page. One subject gets its
   figure against the running month's target and the days left, and on a count that is below pace
-  the quiet amber words "below pace" after them (`belowPace` is 1 or 0 for one subject, null when
-  nothing was judged, the same figures and the same `goalPace` as several subjects); several
+  the quiet amber words "below pace": after the days left where the row's cell has room, beside
+  the bar where it has not (`belowPace` is 1 or 0 for one subject, null when nothing was judged,
+  the same figures and the same `goalPace` as several subjects); several
   subjects on a count get how many are below pace; an average with several subjects, or more
   subjects than a goal's page reads, gets the count of subjects alone. A scheduled, paused or
   ended goal has no line. Each figure is the governed read of the goal's own page, so the list
@@ -50,7 +51,9 @@ metric authority.
   proof. A page is bounded instead:
   at most 60 figures, three in flight (two queries each, six of the web pool's ten connections),
   and the goals past that carry no line. While the figures are first read, an active row keeps
-  the room its line will take (`GoalLiveLinePending`), so the rows below do not move.
+  the room its line will take (`GoalLiveLinePending`), so the rows below do not move; whether a
+  count is below pace is known only with its figure, so the note adds no height at any cell
+  width, which is why it moves beside the bar in a narrow one.
 - **Goal pace** (`domain/goal-pace.ts`): how far a count goal's running month should have got. A
   count measure expects the month's target times the share of the month gone, in whole
   Property-local calendar days with today included (the Results window's convention). It is
