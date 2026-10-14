@@ -37,8 +37,15 @@ export function tokensOf(run: string, base: number): readonly Token[] {
   }))
 }
 
+/**
+ * The words of a run, a word glued to the next by a full stop taken apart:
+ * `St.James` is `St.` and `James`, `nights.Quiet` is `nights.` and `Quiet`.
+ */
 export function wordsOf(run: string): readonly string[] {
-  return run.trim().split(/[ \t]+/u)
+  return run
+    .trim()
+    .split(/[ \t]+/u)
+    .flatMap((word) => word.split(/(?<=\.)(?=\p{L})/u))
 }
 
 /** The end of a street plus its postal tail, if there is one. */

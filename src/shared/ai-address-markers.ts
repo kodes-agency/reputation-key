@@ -127,7 +127,7 @@ const NUMBER_FIRST_LOOKBEHIND_SCALARS = 24
  * shape of the words is judged in code, so this only finds the candidates.
  */
 const NAME_FIRST_RE =
-  /(?<!\p{N}[.,:])(?<![$€£])\b(\d{1,8}(?:[A-Za-z](?!\p{L}))?)([ \t]+|[ \t]*[,;–-][ \t]*|(?=\p{L}))((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,8})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|close|crescent|cres|gardens|gdns|square|sq|parkway|pkwy|terrace|ter|grove|circle|cir|walk|trail|loop|highway|hwy|mews|approach|alley|plaza|row)\b/giu
+  /(?<!\p{N}[.,:])(?<![$€£])\b(\d{1,8}(?:[A-Za-z](?!\p{L}))?)([ \t]+|[ \t]*[,;–-][ \t]*|(?=\p{L}))((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*(?:\.[\p{L}\p{M}][\p{L}\p{M}'’-]*)*\.?)[ \t]+){1,8})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|close|crescent|cres|gardens|gdns|square|sq|parkway|pkwy|terrace|ter|grove|circle|cir|walk|trail|loop|highway|hwy|mews|approach|alley|plaza|row)\b/giu
 /**
  * A number written out, one to five name words, a street-type word. The number
  * words are spelled out here because a pattern that took any first word would
@@ -143,7 +143,7 @@ const SPELLED_FIRST_RE =
  * `place`, as a clause, and then up to `Road`, as the address it holds.
  */
 const NAME_FIRST_REREAD_RE =
-  /^([ \t]+|[ \t]*[,;–-][ \t]*|(?=\p{L}))((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,8})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|close|crescent|cres|gardens|gdns|square|sq|parkway|pkwy|terrace|ter|grove|circle|cir|walk|trail|loop|highway|hwy|mews|approach|alley|plaza|row)\b/iu
+  /^([ \t]+|[ \t]*[,;–-][ \t]*|(?=\p{L}))((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*(?:\.[\p{L}\p{M}][\p{L}\p{M}'’-]*)*\.?)[ \t]+){1,8})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|close|crescent|cres|gardens|gdns|square|sq|parkway|pkwy|terrace|ter|grove|circle|cir|walk|trail|loop|highway|hwy|mews|approach|alley|plaza|row)\b/iu
 const SPELLED_FIRST_REREAD_RE =
   /^([ \t]+)((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,5})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)\b/iu
 /** Street first: the street-type word, then up to five words of its name. */
@@ -475,25 +475,29 @@ export function findAddressMarkers(text: string): readonly AddressMarkerSpan[] {
   return ADDRESS_FINDERS.flatMap((find) => find(text))
 }
 
+const OWN_PATTERNS: readonly Readonly<{ id: string; source: string; flags: string }>[] = (
+  [
+    ['address_name_first', NAME_FIRST_RE],
+    ['address_spelled_first', SPELLED_FIRST_RE],
+    ['address_name_first_reread', NAME_FIRST_REREAD_RE],
+    ['address_spelled_first_reread', SPELLED_FIRST_REREAD_RE],
+    ['address_street_first', STREET_FIRST_RE],
+    ['address_number_before', NUMBER_BEFORE_RE],
+    ['address_number_after', NUMBER_AFTER_RE],
+    ['address_bulgarian_street', BULGARIAN_STREET_RE],
+    ['address_postal_tail', POSTAL_TAIL_RE],
+  ] as const
+).map(([id, expression]) =>
+  Object.freeze({ id, source: expression.source, flags: expression.flags }),
+)
+
 /** What the detector profile digest records about the address markers. */
 export const ADDRESS_MARKER_PROFILE = Object.freeze({
-  patterns: Object.freeze(
-    (
-      [
-        ['address_name_first', NAME_FIRST_RE],
-        ['address_spelled_first', SPELLED_FIRST_RE],
-        ['address_street_first', STREET_FIRST_RE],
-        ['address_number_before', NUMBER_BEFORE_RE],
-        ['address_number_after', NUMBER_AFTER_RE],
-        ['address_bulgarian_street', BULGARIAN_STREET_RE],
-        ['address_postal_tail', POSTAL_TAIL_RE],
-      ] as const
-    )
-      .map(([id, expression]) =>
-        Object.freeze({ id, source: expression.source, flags: expression.flags }),
-      )
-      .concat(NUMBER_LAST_PROFILE.patterns, FOREIGN_ADDRESS_PROFILE.patterns),
-  ),
+  patterns: Object.freeze([
+    ...OWN_PATTERNS,
+    ...NUMBER_LAST_PROFILE.patterns,
+    ...FOREIGN_ADDRESS_PROFILE.patterns,
+  ]),
   wordLists: Object.freeze({
     quantities: QUANTITY_WORDS,
     timeUnits: TIME_UNIT_WORDS,

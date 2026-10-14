@@ -9,6 +9,8 @@ import {
   AI_REDACTION_PROFILE_VERSION,
   redactAiReviewText,
 } from './ai-deterministic-redactor'
+import { ADDRESS_MARKER_PROFILE } from './ai-address-markers'
+import { BASE_STREET_TYPE_WORDS, EXTRA_STREET_TYPE_WORDS } from './ai-address-words'
 import { canonicalizeRawAiReviewSource } from './ai-review-source-contract'
 import {
   AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
@@ -39,6 +41,7 @@ function redactedRaw(raw: string, countryCode = 'US'): string {
     reviewedAtEpochMillis: 1_700_000_000_000,
     reviewerDisplayName: null,
   }).text
+  if (canonical === null) throw new Error('the canonicalizer returned no text')
   return redacted(canonical, countryCode)
 }
 
@@ -381,6 +384,11 @@ const NUMBER_LAST_LAYOUTS: readonly Shape[] = [
     'main street 25',
   ],
   ['a lower-case abbreviation', 'We stayed on oak rd 12 for a week.', 'oak rd 12'],
+  [
+    'a determiner in front of the name',
+    'The Beach Road 12 was busy near the sea.',
+    'Beach Road 12',
+  ],
 ]
 
 describe.each(REVIEW_FRAMES)('a number-last layout is replaced in %s', (_frame, wrap) => {
@@ -555,6 +563,10 @@ const PROSE_THE_NEW_LAYOUTS_LEAVE_ALONE: ReadonlyArray<readonly [string, string]
   ['a Bulgarian street word and free', 'ул. Красива маса 2 безплатни'],
   ['a Bulgarian street word and a rating', 'бул. работа 10 от 10'],
   ['a Bulgarian square word and coffee', 'пл. Кофе 3 без захар'],
+  [
+    'an at sign, a blank and a word',
+    'Insta @ the pool was great and @ 5pm the bar opens',
+  ],
 ]
 
 describe('the layouts added for recall leave this prose alone', () => {
@@ -1036,5 +1048,55 @@ const BREAKS_THROUGH_A_WORD: ReadonlyArray<
 describe('a line break through a word still leaves these pieces (known gaps)', () => {
   it.each(BREAKS_THROUGH_A_WORD)('%s', (_name, raw, left) => {
     expect(redactedRaw(raw)).toContain(left)
+  })
+})
+
+describe('the street types spelled out inside the patterns agree with the lists', () => {
+  const expected = [...BASE_STREET_TYPE_WORDS, ...EXTRA_STREET_TYPE_WORDS].sort()
+
+  function typesOf(patternId: string, anchor: string): readonly string[] {
+    const source =
+      ADDRESS_MARKER_PROFILE.patterns.find((entry) => entry.id === patternId)?.source ??
+      ''
+    const start = source.indexOf(anchor) + anchor.length
+    return source.slice(start, source.indexOf(')', start)).split('|').sort()
+  }
+
+  it('spells out every type in the name-first pattern', () => {
+    expect(typesOf('address_name_first', '{1,8})(')).toEqual(expected)
+  })
+
+  it('spells out every type in the pattern that rereads a shorter name', () => {
+    expect(typesOf('address_name_first_reread', '{1,8})(')).toEqual(expected)
+  })
+
+  it('spells out every type in the number-last pattern', () => {
+    expect(typesOf('address_number_last', '(?<![\\p{L}\\p{M}])(')).toEqual(expected)
+  })
+})
+
+/**
+ * A word of a street's name glued to the next by a full stop (`St.James`). Main
+ * took the whole as a street; the first version of this repair read `St.James`
+ * as a domain and left the house number and the street word in the text.
+ */
+const DOTTED_NAME_WORDS: readonly Shape[] = [
+  ['St.James', 'We stayed at 12 St.James Street for a week.', '12 St.James Street'],
+  ['N.Main', 'We stayed at 12 N.Main Street for a week.', '12 N.Main Street'],
+  ['Mt.Vernon', 'We stayed at 5 Mt.Vernon Road for a week.', '5 Mt.Vernon Road'],
+  ['Dr.Smith', 'We stayed at 10 Dr.Smith Place for a week.', '10 Dr.Smith Place'],
+  ['O.Connell', 'We stayed at 12 O.Connell Street for a week.', '12 O.Connell Street'],
+  ['U.S.Highway', 'We stayed at 3 U.S.Highway Road for a week.', '3 U.S.Highway Road'],
+  ['lower case', 'We stayed at 7 st.john lane for a week.', '7 st.john lane'],
+]
+
+describe('a street name glued to a full stop is still an address', () => {
+  it.each(DOTTED_NAME_WORDS)('%s', (_name, text, address) => {
+    expect(redacted(text)).toBe(replacing(text, address, '[ADDRESS]'))
+  })
+
+  it('does not take a count glued to a sentence for a street', () => {
+    const text = 'Stayed 12 nights.Staff were great near the road and the beach was fine.'
+    expect(redacted(text)).not.toContain('[ADDRESS]')
   })
 })

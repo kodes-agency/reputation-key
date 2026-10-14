@@ -152,7 +152,7 @@ const COORDINATE_NUMBER_RE =
   /[+-]?(?:\d{1,3}|\d[ \t]\d{1,2})[ \t]?\.[ \t]?\d{1,4}(?:[ \t]\d{1,4})?/gu
 /** A handle with a blank after its at sign, named by a platform, or one that ends in an underscore. */
 const HANDLE_BREAK_RE =
-  /(?<![\p{L}\p{N}_.])(?:(?:insta(?:gram)?|ig|snap(?:chat)?|tiktok|twitter|fb|facebook|telegram|viber|whatsapp)[ \t:]*(@)[ \t]+([A-Za-z0-9_][A-Za-z0-9_.]{1,28})|(@[A-Za-z0-9_.]{1,20}_)[ \t]([A-Za-z0-9_]{2,10}))(?![A-Za-z0-9_])/giu
+  /(?<![\p{L}\p{N}_.])(?:(?:insta(?:gram)?|ig|snap(?:chat)?|tiktok|twitter|fb|facebook|telegram|viber|whatsapp)[ \t:]*(@)[ \t]+([A-Za-z0-9]+[_.][A-Za-z0-9_.]*[A-Za-z0-9_])|(@[A-Za-z0-9_.]{1,20}_)[ \t]([A-Za-z0-9_]{2,10}))(?![A-Za-z0-9_])/giu
 /** A handle of up to six characters and the rest of it after a blank: `@j ohn_smith`. */
 const SHORT_HANDLE_RE =
   /(?<![\p{L}\p{N}_.])(@[A-Za-z0-9_.]{1,6})[ \t]([a-z0-9_.]{3,24})(?![A-Za-z0-9_])/gu

@@ -17,6 +17,7 @@
 
 import {
   CONNECTORS,
+  DETERMINERS,
   EVALUATIVE_TYPES,
   EVALUATIVES,
   EXTRA_STREET_TYPES,
@@ -100,6 +101,8 @@ function capitalisedRun(tokens: readonly Token[]): readonly Token[] {
     kept.unshift(token)
   }
   while (kept.length > 0 && !isNameWord(kept[0]?.word ?? '')) kept.shift()
+  while (kept.length > 1 && DETERMINERS.has((kept[0]?.word ?? '').toLowerCase()))
+    kept.shift()
   return kept
 }
 

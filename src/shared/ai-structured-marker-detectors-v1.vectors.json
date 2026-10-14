@@ -250,5 +250,145 @@
     "countryCode": "US",
     "expectedStatus": "safe",
     "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "an-address-followed-by-a-street-word-stays-an-address",
+    "text": "We stayed at 12 Oak Road. It was a great place.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-flat-letter-before-the-number-is-not-a-count",
+    "text": "We booked Flat A 12 Oak Road for a week.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-capitalised-unit-name-is-a-street",
+    "text": "We stayed at 12 Miles Avenue last month.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-place-name-with-on-inside-is-a-street",
+    "text": "We stayed at 12 Henley on Thames Road last month.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-lower-case-everyday-name-after-at-is-a-street",
+    "text": "We stayed at 221 love place last month.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-number-last-address-with-a-flat",
+    "text": "Meet us at (Oak Road 12/3) please.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-street-type-beyond-thirteen",
+    "text": "The flat at 12 Oak Close was cosy.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-street-of-another-language",
+    "text": "It was at 12 rue de la Paix near the river.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "an-address-after-a-label-with-no-type-word",
+    "text": "Address: Karlova 12.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-coordinate-pair-with-a-slash",
+    "text": "GPS 42.6977/23.3219 near the cove.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "degrees-minutes-and-seconds",
+    "text": "Pin: 42°41'52.7\"N 23°19'19.2\"E near the cove.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "an-ip-in-brackets-with-a-port-before-a-full-stop",
+    "text": "Their server is [203.0.113.9]:8080. It was down.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "a-zero-padded-ip",
+    "text": "Their server is 192.168.001.001 and it was down.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "a-domain-a-line-break-split-in-its-name",
+    "text": "See hotelsun rise.com for the rooms.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "an-email-a-line-break-split-after-a-dot",
+    "text": "Write to john. smith@gmail.com please.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "a-street-type-a-line-break-split",
+    "text": "We stayed at 12 Oak Ro ad and loved it.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-service-before-dot-com-is-prose",
+    "text": "Booking .com said the room was free.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "prices-are-not-a-coordinate-pair",
+    "text": "Prices were 12.50, 14.75 and 9.99 for the menus.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "praise-and-a-rating-is-not-a-number-last-address",
+    "text": "Great Place 10 out of 10 for the stay.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "a-number-written-out-before-a-star-place-is-prose",
+    "text": "Five Star Place to stay, honestly.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
   }
 ]
