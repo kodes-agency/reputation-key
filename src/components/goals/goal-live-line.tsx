@@ -1,8 +1,13 @@
 // The live line under an active goal on the Goals list: the month so far in
 // words, and for a count with one subject a neutral bar. It counts and does not
-// judge (no good or bad colour), like the goal card on a group's page.
+// judge (no good or bad colour), like the goal card on a group's page. The one
+// exception is the nudge "below pace", in quiet amber text after the days left,
+// for a count that is; the bar stays neutral, so the amber is a few words and
+// never a verdict on the month.
 import { ProgressBar } from '#/components/ui/progress-bar'
 import { Skeleton } from '#/components/ui/skeleton'
+import { TONE_INK } from '#/components/ui/tone'
+import { cn } from '#/lib/utils'
 import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
 import { goalLiveView, type GoalLiveShape } from './goal-live-view'
 
@@ -17,7 +22,20 @@ export function GoalLiveLine({ goal }: Props) {
   if (view === null) return null
   return (
     <div data-slot="goal-live-line" className={SLOT}>
-      <p className="text-sm tabular-nums">{view.text}</p>
+      <p className="text-sm tabular-nums">
+        {view.text}
+        {view.paceNote === null ? null : (
+          <>
+            {' · '}
+            <span
+              data-slot="goal-live-pace"
+              className={cn(TONE_INK.warn, 'whitespace-nowrap')}
+            >
+              {view.paceNote}
+            </span>
+          </>
+        )}
+      </p>
       {view.bar === null ? null : <ProgressBar className="max-w-64" {...view.bar} />}
     </div>
   )

@@ -26,6 +26,7 @@ describe('the live line of a goal with one count subject', () => {
 
     expect(line).toEqual({
       text: '64 of 120 so far · 14 days left',
+      paceNote: null,
       bar: {
         value: 64,
         max: 120,
@@ -93,8 +94,66 @@ describe('the live line of a goal with one count subject', () => {
 
     expect(line).toEqual({
       text: 'This month’s figure can’t be read right now',
+      paceNote: null,
       bar: null,
     })
+  })
+})
+
+describe('the pace note of a goal with one count subject', () => {
+  const paced = (belowPace: number | null, patch: Partial<GoalListProgress> = {}) =>
+    goalLiveView(goal({ belowPace, ...patch }))
+
+  it('adds "below pace" after the figure and the days left, and keeps the bar', () => {
+    expect(paced(1)).toEqual({
+      text: '64 of 120 so far · 14 days left',
+      paceNote: 'below pace',
+      bar: {
+        value: 64,
+        max: 120,
+        label: 'Qualified scans so far this month',
+        valueText: '64 of 120 so far',
+      },
+    })
+  })
+
+  it('adds the note on the last day too', () => {
+    expect(paced(1, { daysLeft: 0 })).toMatchObject({
+      text: '64 of 120 so far · last day',
+      paceNote: 'below pace',
+    })
+  })
+
+  it('adds nothing for a count that keeps up', () => {
+    expect(paced(0)?.paceNote).toBeNull()
+  })
+
+  it('adds nothing when the pace was not judged: an early month', () => {
+    expect(paced(null)?.paceNote).toBeNull()
+  })
+
+  it('adds nothing to a figure that cannot be read, whatever the pace says', () => {
+    const line = paced(1, {
+      month: { reading: { kind: 'unavailable' }, targetValue: 120 },
+    })
+
+    expect(line).toEqual({
+      text: 'This month’s figure can’t be read right now',
+      paceNote: null,
+      bar: null,
+    })
+  })
+
+  it('adds nothing to an average, which has no pace', () => {
+    const line = paced(1, {
+      metric: 'portal_rating_average',
+      month: {
+        reading: { kind: 'live', value: 3.2, sampleCount: 31 },
+        targetValue: 4.5,
+      },
+    })
+
+    expect(line?.paceNote).toBeNull()
   })
 })
 
@@ -110,6 +169,7 @@ describe('the live line of a goal with one average subject', () => {
 
     expect(line).toEqual({
       text: '4.6 so far · target 4.5 · 14 days left',
+      paceNote: null,
       bar: null,
     })
   })
@@ -121,6 +181,7 @@ describe('the live line of a goal with one average subject', () => {
 
     expect(line).toEqual({
       text: 'More ratings needed · 4 of 10 so far · target 4.5 · 14 days left',
+      paceNote: null,
       bar: null,
     })
   })
@@ -128,6 +189,7 @@ describe('the live line of a goal with one average subject', () => {
   it('says an average that cannot be read so', () => {
     expect(goalLiveView(average({ kind: 'unavailable' }))).toEqual({
       text: 'This month’s figure can’t be read right now',
+      paceNote: null,
       bar: null,
     })
   })
@@ -140,6 +202,7 @@ describe('the live line of a goal with several subjects', () => {
   it('counts the subjects below pace on a count', () => {
     expect(goalLiveView(several({ belowPace: 2 }))).toEqual({
       text: '3 subjects · 2 below pace',
+      paceNote: null,
       bar: null,
     })
     expect(goalLiveView(several({ belowPace: 1 }))?.text).toBe(
@@ -156,6 +219,7 @@ describe('the live line of a goal with several subjects', () => {
   it('says only the subjects when nothing was judged: an average, an early month', () => {
     expect(goalLiveView(several({ belowPace: null }))).toEqual({
       text: '3 subjects',
+      paceNote: null,
       bar: null,
     })
     expect(

@@ -5,12 +5,22 @@
 // can). A placeholder a pixel short pushes every row below it down when the
 // figure arrives, which is the layout shift it exists to prevent. Run with
 // `pnpm test:storybook:metrics` (see `playwright.storybook.config.ts`).
+//
+// The stories measured here sit in a full-width container. A Goals row on a
+// phone is narrower: at a 375 px screen its cell is about 230 px (page gutter,
+// frame, row padding and the status column come off), and the count line with
+// its "below pace" note needs about 270 px, so there that line wraps to two
+// lines (measured 2026-10-14 in a replica row: 20 px without the note, 40 px
+// with it; it fits from about 440 px, and the "More ratings needed" line of an
+// average already wraps there). The placeholder is one line, so a below-pace row
+// on a narrow phone moves the rows under it by one line when its figure arrives.
 
 import { expect, test, type Page } from '@playwright/test'
 import { openStory } from './storybook-story'
 
 const STORIES = {
   count: 'goals-goalliveline--pending-keeps-the-room-of-a-count',
+  countBelowPace: 'goals-goalliveline--pending-keeps-the-room-of-a-count-below-pace',
   line: 'goals-goalliveline--pending-keeps-the-room-of-a-line',
 } as const
 
@@ -38,6 +48,17 @@ for (const viewport of VIEWPORTS) {
 
     test('a count keeps the room of its line and its bar', async ({ page }) => {
       await openStory(page, STORIES.count)
+
+      const { pending, loaded } = await slotRoom(page)
+
+      expect(pending).toBeGreaterThan(0)
+      expect(pending).toBe(loaded)
+    })
+
+    test('a count below pace keeps the same room where its line fits', async ({
+      page,
+    }) => {
+      await openStory(page, STORIES.countBelowPace)
 
       const { pending, loaded } = await slotRoom(page)
 

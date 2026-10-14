@@ -1,10 +1,12 @@
 // The live line under an active goal on the Goals list (Portal goals, decision
 // 14). It is the month so far, never the month's result: a count with one
-// subject gets its figure of the target, the days left and a neutral bar; an
-// average gets its figure against the target; a goal with several subjects says
-// how many are below pace. A figure that cannot be read says so, and an average
-// too thin to show asks for more ratings. Dark is the default theme; the Light
-// variants draw the same lines on the light surface, and axe checks both.
+// subject gets its figure of the target, the days left and a neutral bar, and
+// when it is below pace the quiet amber words "below pace" after them; an
+// average gets its figure against the target and no pace; a goal with several
+// subjects says how many are below pace. A figure that cannot be read says so,
+// and an average too thin to show asks for more ratings. Dark is the default
+// theme; the Light variants draw the same lines on the light surface, and axe
+// checks both.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
@@ -41,6 +43,28 @@ export const OneCountSubject: Story = {
     })
     expect(bar).toHaveAttribute('aria-valuenow', '64')
     expect(bar).toHaveAttribute('aria-valuemax', '120')
+    expect(bar).toHaveAttribute('aria-valuetext', '64 of 120 so far')
+    expect(bar).toHaveAttribute('data-tone', 'neutral')
+  },
+}
+
+/**
+ * A count below pace says so after the days left, in quiet amber text. The bar
+ * stays neutral: the amber is two words and a nudge, not a verdict.
+ */
+export const OneCountSubjectBelowPace: Story = {
+  args: { goal: goal({ belowPace: 1 }) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvasElement.querySelector('[data-slot="goal-live-line"] p'),
+    ).toHaveTextContent('64 of 120 so far · 14 days left · below pace')
+    const note = canvas.getByText('below pace')
+    expect(note).toBeVisible()
+    expect(note).toHaveClass('text-warn')
+    const bar = canvas.getByRole('progressbar', {
+      name: 'Qualified scans so far this month',
+    })
     expect(bar).toHaveAttribute('aria-valuetext', '64 of 120 so far')
     expect(bar).toHaveAttribute('data-tone', 'neutral')
   },
@@ -182,6 +206,29 @@ export const PendingKeepsTheRoomOfACount: Story = {
   },
 }
 
+/**
+ * Whether a count is below pace is known only with its figure, so the room kept
+ * while it is read is the same either way. Where the line fits, the note adds
+ * no line to it: it is as high as the placeholder
+ * (`e2e/storybook-metrics/goal-live-line.metrics.ts` measures it, and says where
+ * a phone's narrow cell stops fitting).
+ */
+export const PendingKeepsTheRoomOfACountBelowPace: Story = {
+  render: () => (
+    <div className="flex flex-col gap-6">
+      <GoalLiveLinePending shape="line_and_bar" />
+      <GoalLiveLine goal={goal({ belowPace: 1 })} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const pending = canvasElement.querySelector('[data-slot="goal-live-line-pending"]')
+    expect(pending).toHaveAttribute('aria-hidden', 'true')
+    expect(canvas.getAllByRole('progressbar')).toHaveLength(1)
+    expect(canvas.getByText('below pace')).toBeVisible()
+  },
+}
+
 /** An average, or a goal of several subjects, keeps a line and no bar. */
 export const PendingKeepsTheRoomOfALine: Story = {
   render: () => (
@@ -201,6 +248,10 @@ export const PendingKeepsTheRoomOfALine: Story = {
 
 export const OneCountSubjectLight: Story = {
   ...OneCountSubject,
+  parameters: { theme: 'light' },
+}
+export const OneCountSubjectBelowPaceLight: Story = {
+  ...OneCountSubjectBelowPace,
   parameters: { theme: 'light' },
 }
 export const SeveralSubjectsBelowPaceLight: Story = {
