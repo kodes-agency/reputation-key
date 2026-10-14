@@ -192,6 +192,8 @@ const FINGERPRINT = /^[a-f0-9]{64}$/
 const SAFE_SCOPE_ID = /^[A-Za-z0-9._:@/-]{1,255}$/
 const LEASE_ID = /^[A-Za-z0-9_-]{16,128}$/
 const MICRO_TOKENS = 1_000_000
+/** How often a caller waiting for a full semaphore looks for a released slot. */
+const IN_FLIGHT_POLL_MS = 100
 
 export function googleQuotaCredentialFingerprint(
   credentialBinding: string,
@@ -652,19 +654,24 @@ export function createRedisGoogleInFlightCoordinator(
           if (outcome !== 0) {
             return { ok: false, code: 'coordination_unavailable', retryAfterMs: 0 }
           }
+          // The advice is when the oldest lease LAPSES, an upper bound on the wait
+          // (20-30 seconds in production). A call that finishes releases its slot
+          // long before that, so the caller polls for a release within its wait
+          // budget instead of comparing the lease's lifetime with the budget, and
+          // gives up with the advice once the budget is spent.
           const retryAfterMs = Math.max(1, Math.ceil(advice))
           const remainingWaitMs = Math.min(
             deps.policy.maxWaitMs - waitedMs,
             deadlineMs - nowMs,
           )
-          if (remainingWaitMs <= 0 || retryAfterMs > remainingWaitMs) {
+          if (remainingWaitMs <= 0) {
             return {
               ok: false,
               code: deadlineMs - nowMs <= 0 ? 'deadline_exceeded' : 'limit_exhausted',
               retryAfterMs,
             }
           }
-          const delayMs = Math.min(retryAfterMs, remainingWaitMs)
+          const delayMs = Math.min(retryAfterMs, remainingWaitMs, IN_FLIGHT_POLL_MS)
           await sleep(delayMs)
           waitedMs += delayMs
         } catch {
