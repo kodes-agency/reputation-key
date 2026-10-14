@@ -46,6 +46,8 @@ import { createReplyTemplateRepository } from './infrastructure/repositories/rep
 import { createPublicationReconciliationCandidateQuery } from './infrastructure/repositories/publication-reconciliation-candidate.repository'
 import { createServingStats } from './infrastructure/serving-stats'
 import type { ReviewServingStats } from './application/ports/serving-stats.port'
+import { createGoogleRatingReads } from './infrastructure/google-rating-reads'
+import type { ReviewGoogleRatingReads } from './application/ports/google-rating-reads.port'
 import { createAtomicReviewCommandStore } from './infrastructure/review-command-store'
 import {
   createAtomicReplyCommandStore,
@@ -239,6 +241,8 @@ export type ReviewContextApi = Readonly<{
     reply: ReplyLookups
     review: ReviewLookups
     servingStats: ReviewServingStats
+    /** Counts and star sums of current Google reviews for the rating goal. */
+    googleRatingReads: ReviewGoogleRatingReads
   }>
   internal: Readonly<{
     repos: Readonly<{
@@ -594,6 +598,9 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   // clock-injected. Wired into the dashboard build by composition. ONE
   // instance: two constructions would open two independent read paths.
   const servingStats = createServingStats({ db: input.db, clock: input.clock })
+  // Reporting's Google rating goal plans with these counts; the same
+  // eligibility, scoped to the Property's current binding epoch.
+  const googleRatingReads = createGoogleRatingReads({ db: input.db, clock: input.clock })
   const registerWorkerJobs = async ({
     discoveryIntervalMs,
   }: Readonly<{ discoveryIntervalMs: number }>): Promise<void> => {
@@ -710,6 +717,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         findByPropertyId: reviewRepo.findByPropertyId,
       }),
       servingStats,
+      googleRatingReads,
     }),
     internal: {
       repos: {
