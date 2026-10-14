@@ -5,6 +5,7 @@ import type { AiControlPort } from '../ports/ai-control.port'
 import type {
   ReviewAnalysisEnrollmentEvidence,
   ReviewAnalysisEnrollmentHead,
+  ReviewAnalysisEnrollmentReconcileResult,
   ReviewAnalysisEnrollmentStorePort,
 } from '../ports/ai-review-analysis-enrollment.port'
 import { EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST } from '../ports/ai-review-analysis-enrollment.port'
@@ -97,6 +98,8 @@ function harness(
     reconcileStatus?: Awaited<ReturnType<ReviewAnalysisEnrollmentStorePort['reconcile']>>
     currentEnrollment?: ReviewAnalysisEnrollmentEvidence | null
     reopened?: Awaited<ReturnType<AiReviewAnalysisReopenPort['reopenAbandoned']>>
+    heads?: readonly ReviewAnalysisEnrollmentHead[]
+    reconcileOutcomes?: ReadonlyArray<Error | ReviewAnalysisEnrollmentReconcileResult>
   }> = {},
 ) {
   const readMerchantAuthorization = vi.fn(async () =>
@@ -140,15 +143,19 @@ function harness(
           },
         ],
   )
-  const reconcile = vi.fn(async () =>
-    options.reconcileStatus === undefined
+  const reconcileOutcomes = [...(options.reconcileOutcomes ?? [])]
+  const reconcile = vi.fn(async () => {
+    const outcome = reconcileOutcomes.shift()
+    if (outcome instanceof Error) throw outcome
+    if (outcome !== undefined) return outcome
+    return options.reconcileStatus === undefined
       ? ({
           status: 'replay_started' as const,
           runId: '43f914cd-f05d-4434-a377-031840236e67',
           pinnedRevisionCount: 17,
         } as const)
-      : options.reconcileStatus,
-  )
+      : options.reconcileStatus
+  })
   const markSuperseded = vi.fn(async () => true)
   const reopenAbandoned = vi.fn(
     async () => options.reopened ?? { reopened: 0, leftUnanalysed: 0 },
@@ -157,7 +164,7 @@ function harness(
     applyAuthorizationLifecycle: async () => {
       throw new Error('not used')
     },
-    listActionable: async () => [HEAD],
+    listActionable: async () => options.heads ?? [HEAD],
     reconcile,
     approveAssistedReplay: async () => {
       throw new Error('not used')
@@ -165,6 +172,7 @@ function harness(
     markSuperseded,
     readCurrent: async () => options.currentEnrollment ?? null,
   }
+  const warn = vi.fn()
   return {
     advance: createAdvanceReviewAnalysisEnrollments({
       authorization: { readMerchantAuthorization } as AiAuthorizationPort,
@@ -172,7 +180,9 @@ function harness(
       enrollments: store,
       reopen: { reopenAbandoned },
       nowEpochMillis: () => NOW.getTime(),
+      logger: { warn },
     }),
+    warn,
     readMerchantAuthorization,
     readHeads,
     reconcile,
@@ -194,6 +204,7 @@ describe('advance Review Analysis first-enablement enrollment', () => {
       enrollmentsCaughtUp: 0,
       enrollmentsSuperseded: 0,
       enrollmentsStalled: 0,
+      enrollmentsFailed: 0,
       batchFull: false,
       analysesReopened: 0,
       analysesLeftUnanalysed: 0,
@@ -216,6 +227,47 @@ describe('advance Review Analysis first-enablement enrollment', () => {
     // Enrollments advance first, so a failing reopen pass cannot hold them back.
     expect(test.reconcile.mock.invocationCallOrder[0]).toBeLessThan(
       test.reopenAbandoned.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('goes on to the next enrollment and to the reopen pass when one enrollment cannot be advanced', async () => {
+    const lockTimeout = new Error('canceling statement due to lock timeout')
+    const otherEnrollment: ReviewAnalysisEnrollmentHead = {
+      ...HEAD,
+      id: 'b6f1d0a2-3c47-4e58-9d21-7a8e0c5f4b13',
+      organizationId: organizationId('ai-enrollment-other-tenant'),
+      propertyId: propertyId('3d7c6a1e-52b0-4f8a-a6d4-90e1b2c3d4f5'),
+    }
+    const test = harness({
+      heads: [HEAD, otherEnrollment],
+      reconcileOutcomes: [lockTimeout],
+      reopened: { reopened: 2, leftUnanalysed: 0 },
+    })
+
+    const result = await test.advance.sweep()
+
+    expect(result).toMatchObject({
+      enrollmentsVisited: 2,
+      replaysStarted: 1,
+      enrollmentsFailed: 1,
+      analysesReopened: 2,
+    })
+    expect(test.reconcile).toHaveBeenCalledTimes(2)
+    expect(test.reconcile).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        enrollmentId: otherEnrollment.id,
+        organizationId: otherEnrollment.organizationId,
+      }),
+    )
+    expect(test.warn).toHaveBeenCalledOnce()
+    expect(test.warn).toHaveBeenCalledWith(
+      {
+        err: lockTimeout,
+        enrollmentId: ENROLLMENT_ID,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+      },
+      'AI review analysis enrollment advance failed',
     )
   })
 

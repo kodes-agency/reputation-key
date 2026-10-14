@@ -127,6 +127,10 @@ function createHarness(
     expectedAnalysisCount: 40,
     awaitingAnalysisCount: 0,
   },
+  head: Readonly<{ aggregateRevision: number; terminalAnalysisSequence: number }> = {
+    aggregateRevision: 6,
+    terminalAnalysisSequence: 5,
+  },
 ) {
   const recordProviderFreeOutcome = vi.fn(async () => 'recorded' as const)
   const recordDeterministicReport = vi.fn(async () => 'recorded' as const)
@@ -137,8 +141,7 @@ function createHarness(
       sourceEpoch: 2,
       reviewAnalysisEpoch: 3,
       propertyProfileVersion: 4,
-      aggregateRevision: 6,
-      terminalAnalysisSequence: 5,
+      ...head,
     },
     coverage,
     days,
@@ -266,6 +269,45 @@ describe('generate property trend', () => {
     })
     expect(harness.recordProviderFreeOutcome).not.toHaveBeenCalled()
     expect(harness.recordDeterministicReport).not.toHaveBeenCalled()
+  })
+
+  // The scheduler makes a new schedule for each head state, so a schedule whose
+  // head has moved on is superseded work. Retrying it only fills the failed set.
+  it.each([
+    ['revision', { aggregateRevision: 7, terminalAnalysisSequence: 5 }],
+    ['terminal sequence', { aggregateRevision: 6, terminalAnalysisSequence: 9 }],
+  ])(
+    'reports a schedule stale once the aggregate %s has moved past it',
+    async (_, head) => {
+      const harness = createHarness(
+        [trendDay('2024-02-01', 2)],
+        defaultEvidence(),
+        undefined,
+        head,
+      )
+
+      await expect(harness.generate(RUN)).resolves.toEqual({ status: 'stale' })
+      expect(harness.recordProviderFreeOutcome).not.toHaveBeenCalled()
+      expect(harness.recordDeterministicReport).not.toHaveBeenCalled()
+    },
+  )
+
+  it('still retries a schedule whose aggregate has not reached its state yet', async () => {
+    const harness = createHarness(
+      [trendDay('2024-02-01', 2)],
+      defaultEvidence(),
+      undefined,
+      {
+        aggregateRevision: 5,
+        terminalAnalysisSequence: 5,
+      },
+    )
+
+    await expect(harness.generate(RUN)).resolves.toEqual({
+      status: 'retry',
+      retryAtEpochMillis: NOW + 60_000,
+      code: 'trend_sequence_or_aggregate_gap',
+    })
   })
 
   it('records insufficient data without inference and uses pure Gregorian range bounds', async () => {

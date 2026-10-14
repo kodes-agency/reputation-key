@@ -82,6 +82,22 @@ export type AiOperationRecoveryCandidate =
       }
     >
 
+/**
+ * A row the recovery listing selected but could not turn into a candidate: a
+ * stored binding or identity that a later release no longer accepts, or a
+ * corrupt column. Only identifiers the row's own columns hold are reported,
+ * never a parsed value.
+ */
+export type AiOperationUnreadableRow = Readonly<{
+  operationId: AiOperationId
+  organizationId: string | null
+}>
+
+export type AiOperationRecoveryScan = Readonly<{
+  candidates: ReadonlyArray<AiOperationRecoveryCandidate>
+  unreadable: ReadonlyArray<AiOperationUnreadableRow>
+}>
+
 export type AiOperationFailureInput = Readonly<{
   operationId: AiOperationId
   organizationId: string | null
@@ -150,10 +166,17 @@ export type AiOperationStorePort = Readonly<{
    * originating event has a consumer receipt. That makes the operation row the
    * durable recovery fact if the process dies after fencing the provider call
    * but before advancing the strict aggregate sequence and writing the receipt.
+   * Once the outbox retention has deleted the event, and its receipts with it,
+   * there is nothing left to receipt and the operation is no longer a
+   * candidate.
    *
    * Candidate selection is lock-free and may be stale. Terminal writes perform
    * exact state and attempt CAS checks; failure recovery also checks the prior
    * failure code.
+   *
+   * One row that cannot be read never fails the listing, for it would stop
+   * recovery of every tenant behind it: it is reported in `unreadable` and the
+   * rest are returned. It still takes a slot of `limit`.
    */
   listExpiredExecutions(
     input: Readonly<{
@@ -161,7 +184,7 @@ export type AiOperationStorePort = Readonly<{
       executionHorizonMillis: number
       limit: number
     }>,
-  ): Promise<ReadonlyArray<AiOperationRecoveryCandidate>>
+  ): Promise<AiOperationRecoveryScan>
 
   markDelivered(
     input: Readonly<{

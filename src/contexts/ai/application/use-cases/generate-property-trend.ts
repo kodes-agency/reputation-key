@@ -258,6 +258,39 @@ function leadingSignalDeltaBasisPoints(candidate: DeterministicTrendCandidate): 
 type TrendSchedule = NonNullable<
   Awaited<ReturnType<AiPropertyTrendScheduleStorePort['read']>>
 >
+type ScheduledAggregate = NonNullable<
+  Awaited<ReturnType<AiPropertyAggregateStorePort['readWindow']>>
+>
+
+/**
+ * Whether the aggregate read is the state the schedule was made for. A head
+ * only moves forward and the scheduler makes a new schedule for each head
+ * state, so a schedule the head has moved past can never be generated and is
+ * stale. One the head has not reached yet, or whose coverage is still
+ * incomplete, is retried.
+ */
+function matchScheduledAggregate(
+  aggregate: ScheduledAggregate | null,
+  schedule: TrendSchedule,
+):
+  | Readonly<{ status: 'matched'; aggregate: ScheduledAggregate }>
+  | Readonly<{ status: 'stale' }>
+  | Readonly<{ status: 'retry' }> {
+  if (aggregate === null) return { status: 'retry' }
+  const { head } = aggregate
+  if (
+    head.terminalAnalysisSequence > schedule.terminalAnalysisSequence ||
+    head.aggregateRevision > schedule.aggregateRevision
+  ) {
+    return { status: 'stale' }
+  }
+  const atScheduledState =
+    head.terminalAnalysisSequence === schedule.terminalAnalysisSequence &&
+    head.aggregateRevision === schedule.aggregateRevision
+  return atScheduledState && aggregate.coverage.awaitingAnalysisCount === 0
+    ? { status: 'matched', aggregate }
+    : { status: 'retry' }
+}
 type MerchantAuthorization = Awaited<
   ReturnType<AiAuthorizationPort['readMerchantAuthorization']>
 >
@@ -332,7 +365,7 @@ export function createGeneratePropertyTrend(
     const dueLocalDate = schedule.dueLocalDate
     const startLocalDate = addDays(dueLocalDate, -60)
     const endLocalDate = addDays(dueLocalDate, -1)
-    const [aggregate, population] = await Promise.all([
+    const [aggregateRead, population] = await Promise.all([
       dependencies.aggregates.readWindow({
         ...scope,
         sourceEpoch: schedule.sourceEpoch,
@@ -352,18 +385,16 @@ export function createGeneratePropertyTrend(
         detectEvidenceBeforeStart: false,
       }),
     ])
-    if (
-      aggregate === null ||
-      aggregate.coverage.awaitingAnalysisCount > 0 ||
-      aggregate.head.terminalAnalysisSequence !== schedule.terminalAnalysisSequence ||
-      aggregate.head.aggregateRevision !== schedule.aggregateRevision
-    ) {
+    const scheduled = matchScheduledAggregate(aggregateRead, schedule)
+    if (scheduled.status === 'stale') return { status: 'stale' }
+    if (scheduled.status === 'retry') {
       return {
         status: 'retry',
         retryAtEpochMillis: dependencies.nowEpochMillis() + 60_000,
         code: 'trend_sequence_or_aggregate_gap',
       }
     }
+    const { aggregate } = scheduled
     if (population.status !== 'complete') {
       return {
         status: 'retry',

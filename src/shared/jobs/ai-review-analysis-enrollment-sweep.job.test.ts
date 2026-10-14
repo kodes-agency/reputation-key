@@ -22,6 +22,7 @@ const OUTCOME = Object.freeze({
   enrollmentsCaughtUp: 1,
   enrollmentsSuperseded: 0,
   enrollmentsStalled: 0,
+  enrollmentsFailed: 0,
   batchFull: false,
   analysesReopened: 2,
   analysesLeftUnanalysed: 1,
@@ -50,6 +51,19 @@ describe('AI Review Analysis enrollment sweep job', () => {
     expect(warn).toHaveBeenCalledWith(
       { job: JOB_NAME, ...OUTCOME, batchFull: true },
       'AI Review Analysis enrollment sweep reached its batch cap',
+    )
+    expect(info).not.toHaveBeenCalled()
+  })
+
+  it('reports a tick in which an enrollment failed at warn, not info', async () => {
+    const outcome = { ...OUTCOME, enrollmentsFailed: 2 }
+    const sweep = vi.fn(async () => outcome)
+
+    await createAiReviewAnalysisEnrollmentSweepHandler({ sweep, logger })({} as never)
+
+    expect(warn).toHaveBeenCalledWith(
+      { job: JOB_NAME, ...outcome },
+      'AI Review Analysis enrollment sweep completed',
     )
     expect(info).not.toHaveBeenCalled()
   })
