@@ -228,5 +228,90 @@
       "hex": "0101000000237b2331237d207b2332237d207b2333237d207b2334237d207b2335237d207b2336237d020100000002656e000001a0052f96c6",
       "digest": "0ceaff9295264d2febedd2ea76317086490ba191c661c926376a54dba30d844c"
     }
+  },
+  {
+    "vectorId": "interior-line-breaks-become-spaces",
+    "input": {
+      "text": "Room was clean\nStaff were rude\r\n\r\nBreakfast was cold",
+      "rating": 3,
+      "languageCode": "en",
+      "reviewedAtEpochMillis": 1786793400003,
+      "reviewerDisplayName": null
+    },
+    "expected": {
+      "status": "success",
+      "text": "Room was clean Staff were rude Breakfast was cold",
+      "canonicalByteLength": 71,
+      "hex": "010100000031526f6f6d2077617320636c65616e2053746166662077657265207275646520427265616b666173742077617320636f6c64030100000002656e000001a0052f96c3",
+      "digest": "4b410737dc0a0a424f741abed784501918d928f65fad668e09b1b7ec80a39972"
+    }
+  },
+  {
+    "vectorId": "edge-and-spaced-line-breaks-are-deleted",
+    "input": {
+      "text": "\n\tGreat stay \nWould return\n",
+      "rating": 4,
+      "languageCode": "en",
+      "reviewedAtEpochMillis": 1786793400004,
+      "reviewerDisplayName": null
+    },
+    "expected": {
+      "status": "success",
+      "text": "Great stay Would return",
+      "canonicalByteLength": 45,
+      "hex": "0101000000174772656174207374617920576f756c642072657475726e040100000002656e000001a0052f96c4",
+      "digest": "187df399cd0fce6251fa8334f3ead9ad739f2e7d0ef8f9502abf0c45dc64f702"
+    }
+  },
+  {
+    "vectorId": "tabs-and-next-line-separate-words",
+    "input": {
+      "text": "Pros:\tgreat view\u0085Cons:\tnoisy",
+      "rating": 2,
+      "languageCode": "en",
+      "reviewedAtEpochMillis": 1786793400005,
+      "reviewerDisplayName": null
+    },
+    "expected": {
+      "status": "success",
+      "text": "Pros: great view Cons: noisy",
+      "canonicalByteLength": 50,
+      "hex": "01010000001c50726f733a206772656174207669657720436f6e733a206e6f697379020100000002656e000001a0052f96c5",
+      "digest": "f88340a92a1645285ca26eb955daa0bc6cb558596eacb6c64bb30c991b4206c6"
+    }
+  },
+  {
+    "vectorId": "noncharacters-become-replacement-character",
+    "input": {
+      "text": "x\uffffy\ufdd0z",
+      "rating": 5,
+      "languageCode": "en",
+      "reviewedAtEpochMillis": 1786793400006,
+      "reviewerDisplayName": null
+    },
+    "expected": {
+      "status": "success",
+      "text": "x\ufffdy\ufffdz",
+      "canonicalByteLength": 31,
+      "hex": "01010000000978efbfbd79efbfbd7a050100000002656e000001a0052f96c6",
+      "digest": "c63405b3ef8112e6a241a66b9c7ea3a7389aa7585d136e32c0d3a7ddb7aeb4f9"
+    }
+  },
+  {
+    "vectorId": "bidi-mark-between-letter-and-accent-is-renormalized",
+    "input": {
+      "text": "cafe\u200e\u0301",
+      "rating": 5,
+      "languageCode": "fr",
+      "reviewedAtEpochMillis": 1786793400007,
+      "reviewerDisplayName": null
+    },
+    "expected": {
+      "status": "success",
+      "text": "caf\u00e9",
+      "canonicalByteLength": 27,
+      "hex": "010100000005636166c3a90501000000026672000001a0052f96c7",
+      "digest": "49fd9d1b3bf941911f608de6ab4209754b73590268c83b50279c1ebedc057e7a"
+    }
   }
 ]

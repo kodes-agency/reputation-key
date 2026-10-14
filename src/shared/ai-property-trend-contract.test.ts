@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from './aspect-taxonomy'
 import {
+  AI_PROPERTY_TREND_CONTRACT_DIGEST,
+  AI_PROPERTY_TREND_CONTRACT_MANIFEST,
+  AI_PROPERTY_TREND_DEFINITION_MANIFEST,
   CLOSED_TREND_SIGNAL_IDS,
   computeDeterministicTrendCandidates,
   renderPropertyTrendReport,
@@ -250,5 +253,24 @@ describe('AI property trend contract', () => {
 
     expect(report.headline).toBe('Notable review changes')
     expect(report.direction).toBe('stable')
+  })
+})
+
+describe('AI property trend contract manifest', () => {
+  it('states the thresholds the code enforces, the same ones the definition manifest states', () => {
+    expect(AI_PROPERTY_TREND_CONTRACT_MANIFEST.minimumWindowReviewCount).toBe(20)
+    expect(AI_PROPERTY_TREND_CONTRACT_MANIFEST.shareThresholdPercentagePoints).toBe(15)
+    expect(AI_PROPERTY_TREND_CONTRACT_MANIFEST.minimumWindowReviewCount).toBe(
+      AI_PROPERTY_TREND_DEFINITION_MANIFEST.minimumSuccessfullyAnalyzedTextCandidates,
+    )
+    expect(AI_PROPERTY_TREND_CONTRACT_MANIFEST.shareThresholdPercentagePoints).toBe(
+      AI_PROPERTY_TREND_DEFINITION_MANIFEST.shareThresholdPercentagePoints,
+    )
+  })
+
+  it('attests a digest other than the one that still named 10 reviews and 10 points', () => {
+    expect(AI_PROPERTY_TREND_CONTRACT_DIGEST).not.toBe(
+      'b57fb26f899f1fedb3c28ffcc6773934951873e5d8b5fa8229b4f4d5b3a4954c',
+    )
   })
 })

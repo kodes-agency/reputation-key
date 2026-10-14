@@ -5,7 +5,6 @@ import OpenAI from 'openai'
 import { zodTextFormat } from 'openai/helpers/zod'
 import { Agent, request as undiciRequest, type Dispatcher } from 'undici'
 import { z } from 'zod/v4'
-import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import {
   explainJsonBytesRejection,
   parseAiExecutionGrant,
@@ -31,6 +30,7 @@ import {
   parseOpenAiRetryAfter,
 } from './dispositions'
 import { deriveOpenAiClientRequestId } from './prepared-invocation'
+import { parseUsage, usageOfDecodedBody } from './openai-usage'
 
 const PREPARED_DOMAIN = 'ai-prepared-v1\0'
 const ZERO_USAGE: OpenAiUsageV1 = Object.freeze({
@@ -618,103 +618,6 @@ function createPinnedOpenAiOutboundFetch(): PinnedOpenAiOutbound {
   })
 }
 
-function inputTokenCeiling(invocation: PreparedAiInvocation): number | null {
-  const operationProfileVersion =
-    invocation.descriptor.subjectKind === 'property'
-      ? invocation.descriptor.binding.operationProfileVersion
-      : invocation.descriptor.canaryBinding.operationProfileVersion
-  const profile = AI_OPERATION_PROFILES.find(
-    (candidate) =>
-      candidate.profileVersion === operationProfileVersion &&
-      candidate.sourceRoute === invocation.descriptor.route,
-  )
-  if (profile === undefined) return null
-  const ceiling =
-    profile.staticTokenBearingBytes + invocation.descriptor.providerPayloadByteCount
-  return Number.isSafeInteger(ceiling) ? ceiling : null
-}
-
-/**
- * A rejected usage block is reported for the SYNTHETIC-CANARY route only, where
- * the corpus is synthetic and the operator is holding a release gate: naming the
- * failed invariant (and its counts) is the difference between a diagnosable gate
- * and an unactionable `output_invalid`. Tenant routes stay silent.
- */
-function usageRejected(
-  invocation: PreparedAiInvocation,
-  invariant: string,
-  counts?: Readonly<Record<string, number>>,
-): null {
-  if (invocation.descriptor.route === 'synthetic-canary') {
-    process.stderr.write(
-      `${JSON.stringify({ event: 'canary_usage_rejected', invariant, ...(counts ?? {}) })}\n`,
-    )
-  }
-  return null
-}
-
-function parseUsage(
-  value: unknown,
-  invocation: PreparedAiInvocation,
-): OpenAiUsageV1 | null {
-  // `input_tokens_details` / `output_tokens_details` are optional in the
-  // Responses payload. Requiring them classified an otherwise successful,
-  // fully-accounted call as `output_invalid` with usage unknown, which failed
-  // the release gate for a provider-shape difference rather than a real fault.
-  // Absent sub-counters default to 0; every inequality below still holds
-  // because 0 can only make the checks stricter.
-  const parsed = z
-    .object({
-      input_tokens: z.number().int().nonnegative().safe(),
-      input_tokens_details: z
-        .object({ cached_tokens: z.number().int().nonnegative().safe().default(0) })
-        .passthrough()
-        .default({ cached_tokens: 0 }),
-      output_tokens: z.number().int().nonnegative().safe(),
-      output_tokens_details: z
-        .object({ reasoning_tokens: z.number().int().nonnegative().safe().default(0) })
-        .passthrough()
-        .default({ reasoning_tokens: 0 }),
-      total_tokens: z.number().int().nonnegative().safe(),
-    })
-    .passthrough()
-    .safeParse(value)
-  if (!parsed.success) return usageRejected(invocation, 'usage_shape')
-  const maximumInputTokens = inputTokenCeiling(invocation)
-  if (maximumInputTokens === null)
-    return usageRejected(invocation, 'input_ceiling_unknown')
-  const usage = parsed.data
-  const violated =
-    usage.input_tokens_details.cached_tokens > usage.input_tokens
-      ? 'cached_above_input'
-      : usage.output_tokens_details.reasoning_tokens > usage.output_tokens
-        ? 'reasoning_above_output'
-        : usage.total_tokens !== usage.input_tokens + usage.output_tokens
-          ? 'total_mismatch'
-          : usage.output_tokens > invocation.descriptor.limits.outputTokens
-            ? 'output_above_limit'
-            : usage.input_tokens > maximumInputTokens
-              ? 'input_above_ceiling'
-              : null
-  if (violated !== null) {
-    return usageRejected(invocation, violated, {
-      inputTokens: usage.input_tokens,
-      outputTokens: usage.output_tokens,
-      reasoningTokens: usage.output_tokens_details.reasoning_tokens,
-      totalTokens: usage.total_tokens,
-      outputLimit: invocation.descriptor.limits.outputTokens,
-      inputCeiling: maximumInputTokens,
-    })
-  }
-  return Object.freeze({
-    inputTokens: usage.input_tokens,
-    cachedTokens: usage.input_tokens_details.cached_tokens,
-    outputTokens: usage.output_tokens,
-    reasoningTokens: usage.output_tokens_details.reasoning_tokens,
-    totalTokens: usage.total_tokens,
-  })
-}
-
 export function hasOfficialOpenAiRefusal(value: unknown): boolean {
   if (typeof value !== 'object' || value === null) return false
   const output = (value as Readonly<{ output?: unknown }>).output
@@ -1242,13 +1145,17 @@ export function createOpenAiConnector(
               `${JSON.stringify({ event: 'canary_output_invalid', reason: 'post_200_throw', error: describeCanaryThrow(error) })}\n`,
             )
           }
+          const usage = usageOfDecodedBody(
+            boundary.state.decodedResponseBytes,
+            invocation,
+          )
           return connectorOutcome({
             disposition: 'output_invalid',
             reportedDisposition: 'success',
             result: null,
-            usageKnown: false,
+            usageKnown: usage !== null,
             providerRetryable: false,
-            usage: ZERO_USAGE,
+            usage: usage ?? ZERO_USAGE,
             retryAfterSeconds: null,
             outboundFetchUsed: true,
           })

@@ -505,11 +505,14 @@ export const AI_TREND_RENDER_PROFILE_DIGEST = createHash('sha256')
   .update(canonicalizeRfc8785(TREND_RENDER_MANIFEST), 'utf8')
   .digest('hex')
 
-const PROPERTY_TREND_CONTRACT_MANIFEST = Object.freeze({
+export const AI_PROPERTY_TREND_CONTRACT_MANIFEST = Object.freeze({
   version: AI_PROPERTY_TREND_CONTRACT_VERSION,
   signalIds: CLOSED_TREND_SIGNAL_IDS,
-  minimumWindowReviewCount: 10,
-  shareThresholdPercentagePoints: 10,
+  // The enforced constants, not copies: this manifest drifted from them once
+  // (10 and 10 stayed after the code moved to 20 and 15) and its digest, which
+  // operation profiles attest, did not move.
+  minimumWindowReviewCount: AI_PROPERTY_TREND_MINIMUM_ANALYZED_PER_WINDOW,
+  shareThresholdPercentagePoints: AI_PROPERTY_TREND_MINIMUM_CHANGE_PERCENTAGE_POINTS,
   aspectMinimumWindowShareNumerator: 1,
   aspectMinimumWindowShareDenominator: 10,
   meanValenceSignal: 'removed-no-persisted-per-review-valence',
@@ -525,7 +528,7 @@ const PROPERTY_TREND_CONTRACT_MANIFEST = Object.freeze({
   renderProfileDigest: AI_TREND_RENDER_PROFILE_DIGEST,
 })
 
-const PROPERTY_TREND_DEFINITION_MANIFEST = Object.freeze({
+export const AI_PROPERTY_TREND_DEFINITION_MANIFEST = Object.freeze({
   version: AI_PROPERTY_TREND_DEFINITION_VERSION,
   signalIds: CLOSED_TREND_SIGNAL_IDS,
   windowLengthCompleteLocalDays: 30,
@@ -554,12 +557,12 @@ const PROPERTY_TREND_DEFINITION_MANIFEST = Object.freeze({
 
 export const AI_PROPERTY_TREND_CONTRACT_DIGEST = createHash('sha256')
   .update('repkey-ai-property-trend-contract-v1\0', 'utf8')
-  .update(canonicalizeRfc8785(PROPERTY_TREND_CONTRACT_MANIFEST), 'utf8')
+  .update(canonicalizeRfc8785(AI_PROPERTY_TREND_CONTRACT_MANIFEST), 'utf8')
   .digest('hex')
 
 export const AI_PROPERTY_TREND_DEFINITION_DIGEST = createHash('sha256')
   .update('repkey-ai-property-trend-definition-v1\0', 'utf8')
-  .update(canonicalizeRfc8785(PROPERTY_TREND_DEFINITION_MANIFEST), 'utf8')
+  .update(canonicalizeRfc8785(AI_PROPERTY_TREND_DEFINITION_MANIFEST), 'utf8')
   .digest('hex')
 
 function roundRatioToOneDecimal(

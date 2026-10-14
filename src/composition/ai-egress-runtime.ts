@@ -43,6 +43,7 @@ import type { Env } from '#/shared/config/env'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import { createCld3ReplyLanguageDetector } from '#/shared/ai-reply-language-verifier'
 import {
+  assertAiAdmissionPrivateKeyInventory,
   assertAiAdmissionPublicKeyringInventory,
   assertAiProvenancePrivateKeyInventory,
   assertAiRequestBindingKeyringInventory,
@@ -193,6 +194,14 @@ export function createAiEgressRuntime(
         env.AI_ADMISSION_ED25519_PRIVATE_KEY_B64,
         'AI_ADMISSION_ED25519_PRIVATE_KEY_B64',
       ),
+    )
+    // The public keyring above is pinned; this pins the key that signs. A
+    // private key that does not pair with it signs grants that the gateway then
+    // fails to verify, after the database has admitted the operation and
+    // reserved its budget, and the operation answers `operation_ambiguous`.
+    assertAiAdmissionPrivateKeyInventory(
+      { kid: admissionKid, privateKey: admissionPrivateKey },
+      keyInventory,
     )
 
     const provenanceKid = requireEnv(

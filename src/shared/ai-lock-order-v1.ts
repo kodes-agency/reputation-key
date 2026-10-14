@@ -1,4 +1,9 @@
 export const AI_LOCK_ORDER_VERSION = 'ai-lock-order-v1' as const
+/**
+ * Not the seed PostgreSQL uses. `ai_advisory_lock_key_v1` hashes with seed 0
+ * (`src/shared/db/db-constructs.sql`), and nothing but this module's test reads
+ * this constant.
+ */
 export const AI_ADVISORY_LOCK_SEED_V1 = 5_928_232_768_719_372_617n
 export const AI_ADVISORY_SCOPE_ENCODING_VERSION = 'ai-admission-scope-v1' as const
 
@@ -146,9 +151,13 @@ export function createAiAdvisoryScope(
 }
 
 /**
- * Exact text passed to PostgreSQL `hashtextextended` by
- * `ai_advisory_lock_key_v1`. Hashing stays in PostgreSQL so application and
- * security-definer roots cannot drift across PostgreSQL hash implementations.
+ * The scope with a version and a length in front. This is NOT the text
+ * `ai_advisory_lock_key_v1` hashes: that function is
+ * `hashtextextended(p_lock_key, 0)` over whatever text it is given, and its one
+ * caller (`merchant-ai-transition.ts`) gives it the bare scope from
+ * `createAiAdvisoryScope`. A second writer that must exclude that caller passes
+ * the bare scope too; this string would take a different lock and nothing would
+ * say so. Nothing outside this module's test calls this function.
  */
 export function encodeAiAdvisoryScopeKeyInput(scope: AiAdvisoryScope): string {
   return `${AI_ADVISORY_SCOPE_ENCODING_VERSION}|${scope.length}:${scope}`
