@@ -78,5 +78,5 @@ export function followedByQuantity(text: string, end: number): boolean {
  * Broadway.`), and not by a lower-case word (`Place Mats 4 pieces`).
  */
 export function endsClause(text: string, end: number): boolean {
-  return /^[ \t]*(?:$|[,.;:)\]!?]|\p{Lu})/u.test(text.slice(end, end + 8))
+  return /^[ \t]*(?:$|[,.;:)\]}>!?"'”’»*_–—-]|\p{Lu})/u.test(text.slice(end, end + 8))
 }

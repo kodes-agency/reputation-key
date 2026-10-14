@@ -56,7 +56,7 @@ const NUMBER_LAST_LOOKBEHIND_SCALARS = 96
  * `24/7` is not a number.
  */
 const NUMBER_LAST_RE =
-  /(?<![\p{L}\p{M}])(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|close|crescent|cres|gardens|gdns|square|sq|parkway|pkwy|terrace|ter|grove|circle|cir|walk|trail|loop|highway|hwy|mews|approach|alley|plaza|row)\b(\.?)[ \t]*[,;]?[ \t]*\(?[ \t]*(?:(?:house|haus|no|nr|num|number|№|n°|nº|#)\.?[ \t]*:?[ \t]*){0,2}(\d{1,5}(?:st|nd|rd|th)[ \t]+house|(?!24\/7)\d{1,5}[A-Ea-e]?(?:\/\d{1,4})?|(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)(?=[ \t]*(?:[,.;:)\]!?]|[-–][ \t]|$)))(?![\p{L}\p{N}/:%]|\.\d)/giu
+  /(?<![\p{L}\p{M}])(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|close|crescent|cres|gardens|gdns|square|sq|parkway|pkwy|terrace|ter|grove|circle|cir|walk|trail|loop|highway|hwy|mews|approach|alley|plaza|row)(?![\p{L}\p{M}\p{N}])(\.?)[ \t]*[,;]?[ \t]*\(?[ \t]*(?:(?:house|haus|no|nr|num|number|№|n°|nº|#)\.?[ \t]*:?[ \t]*){0,2}(\d{1,5}(?:st|nd|rd|th)[ \t]+house|(?!24\/7)\d{1,5}[A-Ea-e]?(?:\/\d{1,4})?|(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)(?=[ \t]*(?:[,.;:)\]!?]|[-–][ \t]|$)))(?![\p{L}\p{N}/:%]|\.\d)/giu
 /** The words in front of a street-type word: up to four, each with its blank. */
 const NAME_BEFORE_RE =
   /((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,4})$/u

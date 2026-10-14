@@ -71,7 +71,7 @@ export const SPLIT_DOMAIN_TOP_LEVEL_WORDS: readonly string[] = Object.freeze([
  */
 /* eslint-disable security/detect-unsafe-regex, no-useless-escape */
 const IP_TOKEN_RE =
-  /(?:^|[^A-Fa-f0-9:.\[])((?:\[[A-Fa-f0-9:.]+\](?::\d{1,5})?|[A-Fa-f0-9:.]{3,}))(?=$|\.(?![A-Fa-f0-9:.])|[^A-Fa-f0-9:.\]])/gu
+  /(?:^|[^A-Fa-f0-9:.\[])((?:\[[A-Fa-f0-9:.]+\](?::\d{1,5})?|[A-Fa-f0-9:.]{3,}))(?=\.*(?:$|[^A-Fa-f0-9:.\]]))/gu
 /** An IPv4 address written in hexadecimal, a byte at a time: `0xC0.0xA8.0x01.0x01`. */
 const HEX_IPV4_RE =
   /(?<![\p{L}\p{N}.])(0x[0-9A-Fa-f]{1,2}(?:\.0x[0-9A-Fa-f]{1,2}){3})(?![\p{L}\p{N}])/gu
@@ -142,7 +142,8 @@ function isAddress(value: string): boolean {
 /** Whether `candidate` is an IP address, in brackets, with a port, or alone. */
 function isIpWithPort(candidate: string): boolean {
   const bracketed = IP_WITH_BRACKETS_RE.exec(candidate)
-  if (bracketed !== null) return isAddress(bracketed[1] ?? '')
+  if (bracketed !== null)
+    return isAddress(bracketed[1] ?? '') || isIpWithPort(bracketed[1] ?? '')
   const withPort = IPV4_WITH_PORT_RE.exec(candidate)
   if (withPort !== null) return isAddress(withPort[1] ?? '')
   return isAddress(candidate)

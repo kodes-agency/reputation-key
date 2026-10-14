@@ -699,6 +699,16 @@ const IP_FORMS: readonly Shape[] = [
     '010.000.000.001',
   ],
   [
+    'an IPv4 address and a port in brackets',
+    'Their server is [192.0.2.55:8080] and it was down.',
+    '[192.0.2.55:8080]',
+  ],
+  [
+    'brackets and an ellipsis',
+    'Their server: [203.0.113.9]... was down.',
+    '[203.0.113.9]',
+  ],
+  [
     'hexadecimal',
     'Their server is 0xC0.0xA8.0x01.0x01 and it was down.',
     '0xC0.0xA8.0x01.0x01',
@@ -1098,5 +1108,44 @@ describe('a street name glued to a full stop is still an address', () => {
   it('does not take a count glued to a sentence for a street', () => {
     const text = 'Stayed 12 nights.Staff were great near the road and the beach was fine.'
     expect(redacted(text)).not.toContain('[ADDRESS]')
+  })
+})
+
+/**
+ * Found by mutating sentences that hold personal data and comparing with main:
+ * a capitalised word of the next sentence taken into a street-first name, a
+ * Bulgarian street typed in lower case, an address inside markdown emphasis.
+ */
+const FUZZ_FINDINGS: readonly Shape[] = [
+  [
+    'a street first and the next sentence',
+    'We stayed on 8 Place de la Concorde Would book again, a great room.',
+    '8 Place de la Concorde',
+  ],
+  [
+    'a street first with a number after, and the next sentence',
+    'We found Avenue Louise 5 Would book again, a great room.',
+    'Avenue Louise 5',
+  ],
+  [
+    'a Bulgarian street in lower case in brackets',
+    'Find us at <ул. витоша 25>, a nice room and a great stay with kind staff.',
+    'ул. витоша 25',
+  ],
+  [
+    'a Bulgarian street in lower case before a comma',
+    'Find us at ул. витоша 25, a nice room and a great stay with kind staff.',
+    'ул. витоша 25',
+  ],
+  [
+    'an address in underscores',
+    'The room was quiet. Visit _12 Love Lane_ near the beach and the pool.',
+    '12 Love Lane',
+  ],
+]
+
+describe('addresses a mutation of the sentence used to hide', () => {
+  it.each(FUZZ_FINDINGS)('%s', (_name, text, address) => {
+    expect(redacted(text, 'BG')).toBe(replacing(text, address, '[ADDRESS]'))
   })
 })

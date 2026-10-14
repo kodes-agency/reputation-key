@@ -127,14 +127,14 @@ const NUMBER_FIRST_LOOKBEHIND_SCALARS = 24
  * shape of the words is judged in code, so this only finds the candidates.
  */
 const NAME_FIRST_RE =
-  /(?<!\p{N}[.,:])(?<![$€£])\b(\d{1,8}(?:[A-Za-z](?!\p{L}))?)([ \t]+|[ \t]*[,;–-][ \t]*|(?=\p{L}))((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*(?:\.[\p{L}\p{M}][\p{L}\p{M}'’-]*)*\.?)[ \t]+){1,8})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|close|crescent|cres|gardens|gdns|square|sq|parkway|pkwy|terrace|ter|grove|circle|cir|walk|trail|loop|highway|hwy|mews|approach|alley|plaza|row)\b/giu
+  /(?<!\p{N}[.,:])(?<![$€£])(?<![\p{L}\p{N}])(\d{1,8}(?:[A-Za-z](?!\p{L}))?)([ \t]+|[ \t]*[,;–-][ \t]*|(?=\p{L}))((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*(?:\.[\p{L}\p{M}][\p{L}\p{M}'’-]*)*\.?)[ \t]+){1,8})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|close|crescent|cres|gardens|gdns|square|sq|parkway|pkwy|terrace|ter|grove|circle|cir|walk|trail|loop|highway|hwy|mews|approach|alley|plaza|row)(?![\p{L}\p{M}\p{N}])/giu
 /**
  * A number written out, one to five name words, a street-type word. The number
  * words are spelled out here because a pattern that took any first word would
  * start at the wrong one; a test holds the list to `NUMBER_WORDS`.
  */
 const SPELLED_FIRST_RE =
-  /(?<![\p{L}\p{M}'’-])(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)[ \t]+((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,5})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)\b/giu
+  /(?<![\p{L}\p{M}'’-])(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)[ \t]+((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,5})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)(?![\p{L}\p{M}\p{N}])/giu
 /**
  * The same two layouts read again after a shorter reading is wanted. They are
  * anchored at the text right after the house number (or the spelled number),
@@ -143,9 +143,9 @@ const SPELLED_FIRST_RE =
  * `place`, as a clause, and then up to `Road`, as the address it holds.
  */
 const NAME_FIRST_REREAD_RE =
-  /^([ \t]+|[ \t]*[,;–-][ \t]*|(?=\p{L}))((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*(?:\.[\p{L}\p{M}][\p{L}\p{M}'’-]*)*\.?)[ \t]+){1,8})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|close|crescent|cres|gardens|gdns|square|sq|parkway|pkwy|terrace|ter|grove|circle|cir|walk|trail|loop|highway|hwy|mews|approach|alley|plaza|row)\b/iu
+  /^([ \t]+|[ \t]*[,;–-][ \t]*|(?=\p{L}))((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*(?:\.[\p{L}\p{M}][\p{L}\p{M}'’-]*)*\.?)[ \t]+){1,8})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|close|crescent|cres|gardens|gdns|square|sq|parkway|pkwy|terrace|ter|grove|circle|cir|walk|trail|loop|highway|hwy|mews|approach|alley|plaza|row)(?![\p{L}\p{M}\p{N}])/iu
 const SPELLED_FIRST_REREAD_RE =
-  /^([ \t]+)((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,5})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)\b/iu
+  /^([ \t]+)((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,5})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)(?![\p{L}\p{M}\p{N}])/iu
 /** Street first: the street-type word, then up to five words of its name. */
 const STREET_FIRST_RE =
   /(?<![\p{L}\p{M}])(avenue|ave|boulevard|blvd|place|pl)\b\.?((?:[ \t]+(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)){1,5})/giu
@@ -388,35 +388,44 @@ function streetFirstName(
   return { name: lowerStreetFirstAccepted(type, lower) ? lower : [], named: false }
 }
 
+/** The name read at each length, longest first, never ending on a particle. */
+function streetFirstReadings(name: readonly Token[]): readonly (readonly Token[])[] {
+  const readings: (readonly Token[])[] = []
+  for (let length = name.length; length >= 1; length -= 1) {
+    const reading = name.slice(0, length)
+    const last = withoutSentenceStop(reading.at(-1)?.word ?? '')[0]
+    if (!CONNECTORS.has(last)) readings.push(reading)
+  }
+  return readings
+}
+
 function streetFirstSpan(text: string, match: RegExpExecArray): AddressMarkerSpan | null {
   const [whole, rawType = '', run = ''] = match
   const type = rawType.toLowerCase()
   const typeCapitalised = /^\p{Lu}/u.test(rawType)
   const tokens = tokensOf(run, match.index + whole.length - run.length)
   const { name, named } = streetFirstName(tokens, type)
-  const last = name.at(-1)
-  if (last === undefined) return null
+  if (name.length === 0) return null
   if (!typeCapitalised && PLAIN_CONNECTORS.has(name[0]?.word ?? '')) return null
   const before = numberBefore(text, match.index)
-  const nameEnd = trimmedEnd(last)
-  const after = typeCapitalised ? numberAfter(text, nameEnd) : -1
-  if (before < 0 && (after < 0 || !endsClause(text, after))) return null
-  const words = name.map((token) => withoutSentenceStop(token.word)[0])
-  if (
-    rejectsName({
-      words,
-      type,
-      named,
-      lead: leadOf(text, before),
-      numberFirst: false,
-    })
-  )
-    return null
-  return withPostalTail(
-    text,
-    before >= 0 ? before : match.index,
-    after >= 0 ? after : nameEnd,
-  )
+  const lead = leadOf(text, before)
+  // A real address followed by a capitalised word of the next sentence
+  // (`8 Place de la Concorde Would book again`) is read again, shorter.
+  for (const reading of streetFirstReadings(name)) {
+    const last = reading.at(-1)
+    if (last === undefined) continue
+    const nameEnd = trimmedEnd(last)
+    const after = typeCapitalised ? numberAfter(text, nameEnd) : -1
+    if (before < 0 && (after < 0 || !endsClause(text, after))) continue
+    const words = reading.map((token) => withoutSentenceStop(token.word)[0])
+    if (rejectsName({ words, type, named, lead, numberFirst: false })) continue
+    return withPostalTail(
+      text,
+      before >= 0 ? before : match.index,
+      after >= 0 ? after : nameEnd,
+    )
+  }
+  return null
 }
 
 function findStreetFirst(text: string): readonly AddressMarkerSpan[] {
@@ -432,26 +441,28 @@ function findStreetFirst(text: string): readonly AddressMarkerSpan[] {
 const BULGARIAN_NAME_PARTICLES: ReadonlySet<string> = new Set(['и', 'на', 'от', 'де'])
 
 /**
- * A Bulgarian street's name is quoted or written in capitals, word by word,
- * with a particle between its words: `ул. Витоша`, `бул. „Граф Игнатиев“`, and
- * not `ул. Красива маса`, `бул. работа`.
+ * A Bulgarian street's name is quoted or written in capitals, word by word, with
+ * a particle between its words: `ул. Витоша`, `бул. „Граф Игнатиев“`. A name
+ * typed in lower case (`ул. витоша 25`) counts only when the number ends a clause:
+ * `ул. красива маса 2 безплатни` and `бул. работа 10 от 10` are prose.
  */
-function bulgarianNameAccepted(name: string): boolean {
+function bulgarianNameAccepted(name: string, text: string, end: number): boolean {
   if (/^[„"«]/u.test(name)) return true
-  return name
+  const proper = name
     .trim()
     .split(/[ \t]+/u)
     .every(
       (word, index) =>
         /^\p{Lu}/u.test(word) || (index > 0 && BULGARIAN_NAME_PARTICLES.has(word)),
     )
+  return proper || endsClause(text, end)
 }
 
 function findBulgarianStreets(text: string): readonly AddressMarkerSpan[] {
   const spans: AddressMarkerSpan[] = []
   for (const match of text.matchAll(BULGARIAN_STREET_RE)) {
-    if (!bulgarianNameAccepted(match[2] ?? '')) continue
     const end = match.index + match[0].length
+    if (!bulgarianNameAccepted(match[2] ?? '', text, end)) continue
     const next = WORD_AFTER_RE.exec(
       text.slice(end, end + NUMBER_FOLLOWER_LOOKAHEAD_SCALARS),
     )?.[1]
