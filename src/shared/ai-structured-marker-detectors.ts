@@ -226,7 +226,7 @@ const DETECTOR_MANIFEST = Object.freeze({
     secret: 256,
   }),
   addressWordLists: ADDRESS_MARKER_PROFILE.wordLists,
-  addressMaxLowerCaseNameWords: ADDRESS_MARKER_PROFILE.maxLowerCaseNameWords,
+  addressLimits: ADDRESS_MARKER_PROFILE.limits,
   coordinateLimits: COORDINATE_MARKER_PROFILE.limits,
   splitDomainTopLevels: NETWORK_MARKER_PROFILE.splitDomainTopLevels,
   validators: Object.freeze([
@@ -241,7 +241,7 @@ const DETECTOR_MANIFEST = Object.freeze({
     'luhn-v1',
     'iban-mod97-v1',
     'labelled-identifier-v1',
-    'postal-address-street-shape-v3',
+    'postal-address-street-shape-v4',
     'secret-entropy-v1',
   ]),
 })

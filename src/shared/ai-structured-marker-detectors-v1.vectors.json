@@ -161,6 +161,48 @@
     "expectedPlaceholders": []
   },
   {
+    "vectorId": "street-named-love-lane",
+    "text": "Our taxi left us at 1 Love Lane.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "street-named-for-a-unit",
+    "text": "Our taxi left us at 8 Mile Road.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "lower-case-the-old-mill-road",
+    "text": "Our taxi left us at 12 the old mill road.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "street-written-before-its-number",
+    "text": "Our taxi left us at Main Street 25.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "street-with-a-postcode-tail",
+    "text": "We stayed at 12 High Street, London W1D 3AF.",
+    "countryCode": "GB",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "bulgarian-street-word",
+    "text": "Адресът е ул. Витоша 25.",
+    "countryCode": "BG",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
     "vectorId": "coordinate-with-hemisphere-letters",
     "text": "The pin is N 42.6977 E 23.3219 near the gate.",
     "countryCode": "US",
@@ -187,5 +229,26 @@
     "countryCode": "US",
     "expectedStatus": "safe",
     "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "doors-down-the-road-is-not-an-address",
+    "text": "There is a bakery 2 doors down the road from the hotel.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "a-count-before-a-capitalised-place-is-not-an-address",
+    "text": "A 5 Star Place With A Big Terrace.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "comma-after-a-number-and-praise-is-not-an-address",
+    "text": "Breakfast 7 To 10, Great Place For Families.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
   }
 ]

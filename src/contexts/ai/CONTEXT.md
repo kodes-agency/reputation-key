@@ -122,16 +122,29 @@ change no stored value. A review the redactor blocked stays settled as not
 analysable (`redaction_blocked` is not a reopen code, `review-analysis-reopen.ts`)
 until something gives it a new analysis sequence.
 
-The address detector (`ai-address-markers.ts`) takes a house number, a street
-name and a street-type word, in two layouts: name first (`25 Main Street`,
-`7 oak lane`, `12 de la Rosa Street`) and street first, capitalised
-(`100 Boulevard Saint-Germain`, `8 Place de la Concorde`). It does not take, and
-`ai-redaction-ordinary-prose.test.ts` pins this, a street written after its
-number (`Main Street 25`), Bulgarian street words (`ул.`, `бул.`), a street word
-with no English type word (`rue`), or a street-first layout typed in lower case.
-It also reads a word glued to a full stop (`hotel.Staff`, `Dr.Smith`) as a
-domain, because nothing separates it from `example.Com`. Taking any of these is a
-change to the detectors' digest and a decision, not a patch.
+The address detector (`ai-address-markers.ts`, the decision in
+`ai-address-name-rules.ts`, the word lists in `ai-address-words.ts`) finds the
+shapes with patterns and decides in code whether the words are a street's name
+or a clause of a review. It reads the number first (`25 Main Street`,
+`7 oak lane`, `12 de la Rosa Street`, `12, Oak Road`, `Twelve Oak Road`), the
+street-type word first (`100 Boulevard Saint-Germain`, `8 place de la concorde`),
+the number last (`Main Street 25`, `Baker Street 221B`, `Pl. de Catalunya 5`)
+and Bulgarian street words (`ул.`, `бул.`, `ж.к.`), each with the city and
+postcode that follow on the same line. A capitalised name is a street unless it
+holds a word no street carries (`was`, `to`, `nights`) or follows an article
+(`a 5 Star Place`): capital letters are the evidence, and an address sent to the
+provider costs more than a few words replaced. A name in lower case must also
+hold none of the everyday words (`down`, `this`, `star`, `great`), and before
+`place`, `drive` and `way` no count or praise. `ai-redaction-ordinary-prose.test.ts`
+pins both sides. What still reaches the provider, pinned there too: a street
+written after its number in lower case (`main street 25`); a lower-case name
+holding a glue word (`12 all saints road`, `1 more street`); a lower-case count
+or praise before `place` or `drive` (`12 star drive`, `12 love place`), which is
+`a 5 star place` and `a 10 mile drive` in prose; street words of other languages
+(`rue`, `calle`, `Straße`, `via`) and English types such as `Close`, `Crescent`
+and `Gardens`; `(no. 12)` after a street. The Property market is Bulgarian, so
+Latin and Cyrillic street words are read; the other languages are an owner
+decision.
 
 Coordinates (`ai-coordinate-markers.ts`) are read as a pair of decimal degrees in
 any common layout (comma, semicolon or blank between them; degree signs;
@@ -142,7 +155,10 @@ label (two letters or more, starting with a letter), and a domain whose dot a
 line break separated from its name (`hotelsunrise .com` in the canonical text) is
 read when the last label is a common top-level domain. A line break inside a
 domain's first label (`hotelsun rise.com`) leaves the first half in the text: the
-canonical text cannot tell it from two words.
+canonical text cannot tell it from two words. The detectors read a word glued to
+a full stop (`hotel.Staff`, `Dr.Smith`) as a domain, because nothing separates it
+from `example.Com`. Taking any of the rest is a change to the detectors' digest
+and a decision, not a patch.
 
 ## Runtime
 

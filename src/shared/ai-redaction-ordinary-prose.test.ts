@@ -324,19 +324,33 @@ describe('the connector words of a street name', () => {
  */
 const NOT_DETECTED_ADDRESSES: ReadonlyArray<readonly [string, string, string]> = [
   [
-    'a street written before its number',
-    'We met at Main Street 25 near the station.',
-    'US',
-  ],
-  ['a Bulgarian street word', 'Адресът е ул. Витоша 25, София, до метростанцията.', 'BG'],
-  [
-    'a street-first layout typed in lower case',
-    'We live at 100 boulevard haussmann now.',
-    'US',
-  ],
-  [
     'a street word with no English type word',
     'We stayed at 16 rue de rivoli last week.',
+    'US',
+  ],
+  [
+    'a street written after its number in lower case',
+    'We met at main street 25 near the station.',
+    'US',
+  ],
+  [
+    'a lower-case name holding all',
+    'The villa is at 12 all saints road near the pier.',
+    'US',
+  ],
+  [
+    'a lower-case name holding under',
+    'The villa is at 12 under hill street near the pier.',
+    'US',
+  ],
+  [
+    'a lower-case name that is a count before a drive',
+    'The villa is at 12 star drive near the pier.',
+    'US',
+  ],
+  [
+    'a lower-case name that is praise before a place',
+    'The villa is at 12 love place near the pier.',
     'US',
   ],
 ]
@@ -464,6 +478,413 @@ describe('redaction stays closed on an address it cannot bound', () => {
     const filler = 'The room was quiet and the staff were kind. '.repeat(8)
     const result = redact(`${filler}We stayed 2 nights near the street market.`)
     expect(result.status).toBe('redacted')
+  })
+})
+
+/*
+ * What the branch must keep removing that main removed, found by an independent
+ * privacy check of the first version of this fix (review 2026-10-14, S05-01 to
+ * S05-04). Main caught most of these by accident (the bare-domain rule took
+ * every decimal, the address pattern took any words, a review over 256
+ * characters with a digit and a street word was blocked), and the first version
+ * of the fix let them reach the provider. Each shape is tested twice: in a short
+ * review and in a long one, the condition under which main blocked.
+ */
+const LONG_LEAD =
+  'We stayed 3 nights and the room was clean, the breakfast was fresh and the staff were kind. The pool was warm every afternoon and the garden was quiet, so we would happily come back next year with the whole family and our friends. '
+
+function inLongReview(clause: string): string {
+  return `${LONG_LEAD}${clause} The rest of the stay was lovely and we recommend it.`
+}
+
+const REVIEW_SIZES: ReadonlyArray<readonly [string, (clause: string) => string]> = [
+  ['in a short review', inReview],
+  ['in a long review', inLongReview],
+]
+
+describe('the long review used by these tests is past the 256-scalar line main blocked at', () => {
+  it('holds more than 256 scalars, a digit and a street word', () => {
+    const text = inLongReview('We found it at 5 Oak Road.')
+    expect([...text].length).toBeGreaterThan(256)
+    expect(text).toMatch(/\d/)
+  })
+})
+
+/** [name, address exactly as a guest writes it]. Each must be replaced whole. */
+const EVERYDAY_WORD_STREETS: ReadonlyArray<readonly [string, string]> = [
+  ['a street named Love', '1 Love Lane'],
+  ['a street named Friendly', '30 Friendly Way'],
+  ['a street named Golf Course', '12 Golf Course Drive'],
+  ['a street named Great', '4 Great Court'],
+  ['a street named Central, drive', '5 Central Drive'],
+  ['a street named Central, way', '14 Central Way'],
+  ['a street named Central, court', '3 Central Court'],
+  ['a street named Central, place', '10 Central Place'],
+  ['a street named Central, lane', '2 Central Lane'],
+  ['a street named Pound', '8 Pound Lane'],
+  ['a street named Fox and Hounds', '4 Fox and Hounds Lane'],
+  ['a street named Top of the Hill', '6 Top of the Hill Drive'],
+  ['a street named All Saints', '17 All Saints Way'],
+  ['a street named Up Hill', '1 Up Hill Drive'],
+  ['a street named Mile High', '123 Mile High Drive'],
+  ['a street named Day', '88 Day Lane'],
+  ['a street named Great Place', '12 Great Place'],
+  ['a street named Love in capitals', '1 LOVE LANE'],
+  ['a street named Friendly in capitals', '30 FRIENDLY WAY'],
+  ['a street named Star in capitals', '6 STAR STREET'],
+]
+
+/** Streets whose name is a counted unit: a mile, a star, a pound. */
+const COUNTED_UNIT_STREETS: ReadonlyArray<readonly [string, string]> = [
+  ['Mile Road', '8 Mile Road'],
+  ['Mile End Road', '100 Mile End Road'],
+  ['Star Street', '6 Star Street'],
+  ['Pound Lane', '10 Pound Lane'],
+  ['Mile Road in capitals', '8 MILE ROAD'],
+  ['Mile End Road in lower case', '9 mile end road'],
+  ['Star Street in lower case', '6 star street'],
+  ['Mile End Road with a postcode', '15 Mile End Road, London E1 4NS'],
+]
+
+/** Typed in lower case: the street word is what makes it an address. */
+const LOWER_CASE_STREETS: ReadonlyArray<readonly [string, string]> = [
+  ['a name holding the', '12 the old mill road'],
+  ['a name holding the, lane', '14 the green lane'],
+  ['the alone', '10 the avenue'],
+  ['a name holding course', '12 golf course road'],
+  ['a name that is a direction word', '12 down street'],
+  ['a dotted initial', '42 n. main st'],
+  ['a dotted initial and an ordinal', '1234 w. 5th ave'],
+  ['a dotted title', '12 mt. vernon road'],
+  ['a dotted fort', '12 ft. lauderdale ave'],
+  ['a dotted doctor', '5 dr. martin luther king blvd'],
+  ['a dotted saint', "12 st. john's street"],
+  ['a saint with of', '34 saint john of god road'],
+  ['five name words', '12 martin luther king jr memorial way'],
+  ['six name words', '1 rev dr martin luther king jr boulevard'],
+  ['a street first', '100 boulevard haussmann'],
+  ['a street first with particles', '8 place de la concorde'],
+]
+
+/** Layouts a guest types that the plain "number name type" pattern cannot read. */
+const OTHER_LAYOUTS: ReadonlyArray<readonly [string, string]> = [
+  ['the number last', 'Main Street 25'],
+  ['the number last, a road', 'Oak Road 12'],
+  ['the number last, a lane', 'Park Lane 7'],
+  ['the number last with a letter', 'Baker Street 221B'],
+  ['the number last after a comma', 'High Street, 12'],
+  ['the number last after no.', 'Station Road no. 5'],
+  ['the number last after No', "Queen's Road No 7"],
+  ['the number last, abbreviated', 'Vitosha Blvd 18'],
+  ['the number last with a street first', 'Pl. de Catalunya 5'],
+  ['a comma after the number', '12, Oak Road'],
+  ['a dash after the number', '12 - Oak Road'],
+  ['no space after the number', '12Oak Road'],
+  ['a number written out', 'Twelve Oak Road'],
+]
+
+/** What follows the street on the same line: a city, a state, a postcode. */
+const POSTAL_TAILS: ReadonlyArray<readonly [string, string]> = [
+  ['a London postcode', '12 High Street, London W1D 3AF'],
+  ['a London postcode after a block', '221B Baker Street, NW1 6XE'],
+  ['an Australian state and postcode', '45 Beach Road, Sydney NSW 2000'],
+  ['a Washington state and zip', '1600 Pennsylvania Avenue NW, Washington DC 20500'],
+  ['a US state and zip', '12 Oak Road, Springfield, IL 62704'],
+  ['a Mayfair postcode', '5 Park Lane, London W1K 7TN'],
+  ['a Bulgarian city and code', '18 Beach Road, Varna 9000'],
+  ['a New York zip', '1 West 34th Street, New York, NY 10019'],
+]
+
+/** Bulgarian street words, number last: the Property market. */
+const BULGARIAN_STREETS: ReadonlyArray<readonly [string, string]> = [
+  ['ул. before the name', 'ул. Витоша 25'],
+  ['бул. before the name', 'бул. Витоша 100'],
+  ['ул. with quotation marks', 'ул. „Граф Игнатиев“ 12'],
+  ['a district and a street', 'ж.к. Лозенец, ул. Златоврах 5'],
+  ['ul. in Latin letters', 'ul. Vitosha 25'],
+  ['bul. in Latin letters', 'bul. Vitosha 100'],
+]
+
+describe.each(REVIEW_SIZES)('a real address is replaced whole %s', (_size, wrap) => {
+  const groups: ReadonlyArray<
+    readonly [string, ReadonlyArray<readonly [string, string]>]
+  > = [
+    ['everyday-word street', EVERYDAY_WORD_STREETS],
+    ['counted-unit street', COUNTED_UNIT_STREETS],
+    ['lower-case street', LOWER_CASE_STREETS],
+    ['other layout', OTHER_LAYOUTS],
+    ['postal tail', POSTAL_TAILS],
+  ]
+  for (const [group, cases] of groups) {
+    it.each(cases)(`${group}: %s`, (_name, address) => {
+      const text = wrap(`Our taxi left us at ${address}.`)
+      expect(redacted(text)).toBe(text.replace(address, '[ADDRESS]'))
+    })
+  }
+
+  it.each(BULGARIAN_STREETS)('Bulgarian street: %s', (_name, address) => {
+    const text = wrap(`Our taxi left us at ${address}.`)
+    expect(redacted(text, 'BG')).toBe(text.replace(address, '[ADDRESS]'))
+  })
+})
+
+describe('a street with a unit before it is replaced up to its postcode', () => {
+  it.each([
+    ['Flat 4, 12 High Street, London W1D 3AF', '12 High Street, London W1D 3AF'],
+    ['Apt 5B, 221B Baker Street, NW1 6XE', '221B Baker Street, NW1 6XE'],
+    ['Hotel Sunrise, 18 Beach Road, Varna 9000', '18 Beach Road, Varna 9000'],
+  ] as const)('%s', (clause, address) => {
+    const text = inLongReview(`Our taxi left us at ${clause}.`)
+    expect(redacted(text)).toBe(text.replace(address, '[ADDRESS]'))
+  })
+})
+
+const ORDINARY_STREET_NAMES = [
+  'Main',
+  'Church',
+  'High',
+  'Park',
+  'Oak',
+  'Pine',
+  'Maple',
+  'Cedar',
+  'Elm',
+  'Washington',
+  'Lake',
+  'Hill',
+  'Second',
+  'Walnut',
+  'Sunset',
+  'Highland',
+  'Mill',
+  'Station',
+  'Victoria',
+  'King',
+  'Green',
+  'Spring',
+  'North',
+  'Chestnut',
+  'Willow',
+  'Lincoln',
+  'River',
+  'Ridge',
+  'Meadow',
+  'Cherry',
+  'School',
+  'Market',
+  'Bridge',
+  'New',
+  'Old',
+  'Manor',
+  'Orchard',
+  'Garden',
+  'Rose',
+  'Oxford',
+  'Cambridge',
+  'Broad',
+  'Long',
+  'Beach',
+  'Harbour',
+  'Castle',
+  'Abbey',
+  'Vine',
+  'Brook',
+  'Valley',
+  'Ocean',
+  'Union',
+  'Liberty',
+  "O'Connell",
+  'De La Rosa',
+]
+/** Real street names that read like everyday words, none holding a glue word. */
+const EVERYDAY_STREET_NAMES = [
+  'Love',
+  'Hope',
+  'Good',
+  'Great',
+  'Pleasant',
+  'Quiet',
+  'Central',
+  'Best',
+  'Kind',
+  'Friendly',
+  'Clean',
+  'Mile',
+  'Mile End',
+  'Star',
+  'Pound',
+  'Day',
+  'Time',
+  'Week',
+  'Year',
+  'Night',
+  'Bed',
+  'Room',
+  'Step',
+  'Guest',
+  'Block',
+  'Course',
+  'Golf Course',
+  'Floor',
+  'Down',
+  'Up',
+  'Over',
+  'Under',
+  'Out',
+  'Off',
+  'Near',
+  'Past',
+  'After',
+  'Before',
+  'The Old Mill',
+  'The Green',
+  'The',
+  'Of',
+  'Our',
+  'My',
+  'Your',
+  'Their',
+  'This',
+  'That',
+  'Lane Cove',
+  'Way',
+  'All Saints',
+  'Every',
+  'Each',
+  'More',
+  'Only',
+  'Per',
+  'Same',
+  'Other',
+  'Under Hill',
+  'Hill Top',
+  'Top',
+  'Perfect',
+  'Worth',
+  'Super',
+  'Super Cheap',
+  'Nice',
+  'Charming',
+  'Beautiful',
+  'Modern',
+]
+const STREET_TYPES = [
+  'Street',
+  'St',
+  'Road',
+  'Rd',
+  'Avenue',
+  'Ave',
+  'Boulevard',
+  'Blvd',
+  'Lane',
+  'Ln',
+  'Drive',
+  'Dr',
+  'Way',
+  'Court',
+  'Ct',
+  'Place',
+  'Pl',
+]
+const OPEN_STREET_TYPES = [
+  'Street',
+  'St',
+  'Road',
+  'Rd',
+  'Avenue',
+  'Ave',
+  'Boulevard',
+  'Blvd',
+]
+const HOUSE_NUMBERS = ['12', '7', '221', '1400']
+/**
+ * Everyday-word names that hold a glue word (`all`, `under`, `more`, `lane`), or
+ * are one. Typed in lower case they read as a clause (`1 more street`, `a 2 lane
+ * road`) and are left alone; capitalised they are streets. Pinned below.
+ */
+const LOWER_CASE_GLUE_NAMES: ReadonlySet<string> = new Set([
+  'Of',
+  'Lane Cove',
+  'Way',
+  'All Saints',
+  'Every',
+  'Each',
+  'More',
+  'Only',
+  'Per',
+  'Same',
+  'Other',
+  'Under Hill',
+])
+
+/** Every name x type x number x case that is not removed, as readable strings. */
+function leakedAddresses(
+  names: readonly string[],
+  types: readonly string[],
+  caseOf: (value: string) => string,
+): readonly string[] {
+  const leaked: string[] = []
+  for (const name of names) {
+    for (const type of types) {
+      for (const number of HOUSE_NUMBERS) {
+        const address = caseOf(`${number} ${name} ${type}`)
+        const text = inReview(`We stayed at ${address} last month.`)
+        const out = redact(text)
+        if (out.status === 'redacted' && !out.text.includes(address)) continue
+        leaked.push(address)
+      }
+    }
+  }
+  return leaked
+}
+
+describe('every street name and type the privacy check generated is removed', () => {
+  it.each([
+    ['title case', (value: string) => value],
+    ['all capitals', (value: string) => value.toUpperCase()],
+  ])('ordinary names, %s', (_case, caseOf) => {
+    const names = ORDINARY_STREET_NAMES.filter((name) => name !== 'De La Rosa')
+    expect(leakedAddresses(names, STREET_TYPES, caseOf)).toEqual([])
+  })
+
+  it('ordinary names, lower case', () => {
+    const names = ORDINARY_STREET_NAMES.map((name) => name.toLowerCase())
+    expect(leakedAddresses(names, STREET_TYPES, (value) => value.toLowerCase())).toEqual(
+      [],
+    )
+  })
+
+  it.each([
+    ['title case', (value: string) => value],
+    ['all capitals', (value: string) => value.toUpperCase()],
+  ])('everyday-word names, %s', (_case, caseOf) => {
+    expect(leakedAddresses(EVERYDAY_STREET_NAMES, STREET_TYPES, caseOf)).toEqual([])
+  })
+
+  it('everyday-word names before a street, road, avenue or boulevard, lower case', () => {
+    const names = EVERYDAY_STREET_NAMES.filter((name) => !LOWER_CASE_GLUE_NAMES.has(name))
+    expect(
+      leakedAddresses(
+        names.map((name) => name.toLowerCase()),
+        OPEN_STREET_TYPES,
+        (value) => value.toLowerCase(),
+      ),
+    ).toEqual([])
+  })
+
+  it('everyday-word names before a lane or a court, lower case, except a count', () => {
+    const names = EVERYDAY_STREET_NAMES.filter(
+      (name) =>
+        !LOWER_CASE_GLUE_NAMES.has(name) && !/^(The|Our|My|Your|Their)/u.test(name),
+    )
+    expect(
+      leakedAddresses(
+        names.map((name) => name.toLowerCase()),
+        ['Lane', 'Ln', 'Court', 'Ct'],
+        (value) => value.toLowerCase(),
+      ),
+    ).toEqual([])
   })
 })
 
@@ -604,14 +1025,115 @@ describe('redaction removes a domain whose dot was separated by a line break', (
   })
 })
 
-describe('the top-level domains spelled out in the split-domain pattern agree with the profile list', () => {
-  it('spells out exactly the profile list', () => {
+/** Prose the wider address rules must still leave alone. */
+const STILL_PROSE: ReadonlyArray<readonly [string, string]> = [
+  [
+    'a room number and praise in capitals',
+    'ROOM 305 WAS A GREAT PLACE, CLEAN AND QUIET WITH A LOVELY GARDEN',
+  ],
+  [
+    'a room number and praise in title case',
+    'Room 305 Was A Great Place With A Quiet Garden And Kind Staff',
+  ],
+  [
+    'doors down the road',
+    'There is a lovely bakery 2 doors down the road from the hotel entrance.',
+  ],
+  [
+    'blocks from the street',
+    'The hotel is 3 blocks from the main street and a short walk from the beach.',
+  ],
+  [
+    'a street name and a count of times',
+    'We parked on Main Street 5 times because the lot was full every evening.',
+  ],
+  [
+    'a street name and nights',
+    'We stayed on Oak Road 3 nights and the traffic was calm the whole time.',
+  ],
+  [
+    'a street name and a distance',
+    'The hotel is on Beach Road 200 metres from the sea and the room was big.',
+  ],
+  [
+    'a street name and a time',
+    'Dinner on Station Road 7:30 sharp, the owner was kind and the food was great.',
+  ],
+  [
+    'a room number overlooking the street',
+    'Room 205 overlooking the street was quiet and the bed was big.',
+  ],
+  [
+    'a count of lanes before a road',
+    'It was a busy 2 lane road outside, but the windows kept the noise out.',
+  ],
+  ['a two way street', 'The hotel stands on a 2 way street with a bus stop at the door.'],
+  ['one more street', 'Just 1 more street to cross and you are on the beach, easy.'],
+  [
+    'an article before a count and a place, in title case',
+    'A 2 Bedroom Place With A Big Terrace And A Very Helpful Host.',
+  ],
+  [
+    'an article before a count and a place, in capitals',
+    'A 5 STAR PLACE WITH 3 POOLS AND 2 RESTAURANTS, HONESTLY THE BEST IN TOWN.',
+  ],
+  [
+    'a rank in front of praise, title case',
+    'Top 10 Best Place To Stay In Sofia, Honestly.',
+  ],
+  [
+    'a rating category in front of praise, capitals',
+    'LOCATION 10 AMAZING PLACE WITH A POOL AND A QUIET GARDEN.',
+  ],
+  [
+    'a conjunction and a determiner in capitals',
+    'WE GOT ROOM 12 AND THE WAY THE STAFF TREATED US WAS WARM AND KIND.',
+  ],
+  [
+    'a preposition of place and a determiner in capitals',
+    'ROOM 305 NEAR THE STREET WAS NOISY BUT THE BED WAS BIG.',
+  ],
+  [
+    'an ordinal glued to its word in capitals',
+    'THE 2ND FLOOR ROOM OVER THE ROAD WAS A BIT NOISY BUT FINE FOR 2 NIGHTS.',
+  ],
+  [
+    'a comma after a number and praise',
+    'Breakfast 7 To 10, Great Place For Families, The Staff Were Friendly.',
+  ],
+  [
+    'a street name and 24/7',
+    'The shop on Park Lane 24/7 was handy, the staff were kind and the room was quiet.',
+  ],
+]
+
+describe('the wider address rules still leave ordinary prose alone', () => {
+  it.each(STILL_PROSE)('%s', (_name, text) => {
+    expect(redacted(text)).toBe(text)
+  })
+})
+
+describe('the lists spelled out inside patterns agree with the profile lists', () => {
+  function alternationAfter(source: string, anchor: string): readonly string[] {
+    const start = source.indexOf(anchor) + anchor.length
+    return source.slice(start, source.indexOf(')', start)).split('|')
+  }
+
+  it('spells out the number words of the spelled-out address pattern', () => {
+    const source =
+      ADDRESS_MARKER_PROFILE.patterns.find(
+        (entry) => entry.id === 'address_spelled_first',
+      )?.source ?? ''
+    expect([...alternationAfter(source, "'’-])(")].sort()).toEqual(
+      [...ADDRESS_MARKER_PROFILE.wordLists.numberWords].sort(),
+    )
+  })
+
+  it('spells out the top-level domains of the split-domain pattern', () => {
     const source =
       NETWORK_MARKER_PROFILE.patterns.find((entry) => entry.id === 'split_domain')
         ?.source ?? ''
-    const start = source.indexOf('[ \\t]+\\.(') + '[ \\t]+\\.('.length
-    const spelled = source.slice(start, source.indexOf(')', start)).split('|')
-    expect([...spelled].sort()).toEqual(
+    expect([...alternationAfter(source, '[ \\t]+\\.(')].sort()).toEqual(
       [...NETWORK_MARKER_PROFILE.splitDomainTopLevels].sort(),
     )
   })
