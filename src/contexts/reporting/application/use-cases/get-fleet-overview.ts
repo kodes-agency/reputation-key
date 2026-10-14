@@ -1,13 +1,16 @@
 import type {
   FleetCursorAnchor,
   FleetOverviewProjectionPort,
+  FleetOverviewProjectionRow,
   FleetProjectionScope,
 } from '../ports/fleet-overview-projection.port'
 import type {
   AttentionSignals,
   FleetEntry,
   FleetOverviewData,
+  FleetRatingGoal,
 } from '../../domain/dashboard-types'
+import { googleNumbersView, ratingGoalOffered } from '../../domain/google-numbers'
 import type { OrganizationId } from '#/shared/domain/ids'
 import { propertyId } from '#/shared/domain/ids'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
@@ -65,6 +68,25 @@ export function decodeFleetCursor(cursor: string | undefined): FleetCursorAnchor
     return { lowerName: value.n, propertyId: propertyId(value.i) }
   } catch {
     throw dashboardError('invalid_input', 'Invalid fleet cursor')
+  }
+}
+
+/** The list's Google goal cell, from the stored goal; never a live evaluation. */
+function fleetRatingGoal(row: FleetOverviewProjectionRow): FleetRatingGoal {
+  if (row.ratingGoal !== null) {
+    return {
+      kind: 'set',
+      mode: row.ratingGoal.mode,
+      target: row.ratingGoal.targetTenths / 10,
+      status: row.ratingGoal.lastStatus,
+    }
+  }
+  return {
+    kind: 'none',
+    offered: ratingGoalOffered({
+      propertyActive: row.lifecycleActive,
+      googleReviewCount: row.google?.reviewCount ?? null,
+    }),
   }
 }
 
@@ -128,6 +150,8 @@ export const getFleetOverview =
         feedbackEvidence: row.feedbackEvidence,
         attentionSignals,
         totalAttention: row.needsAttention + (ratingDrop ? 1 : 0),
+        google: googleNumbersView(row.google, row.google?.bindingActive ?? false, now),
+        ratingGoal: goalReadEnabled ? fleetRatingGoal(row) : null,
       }
     })
 

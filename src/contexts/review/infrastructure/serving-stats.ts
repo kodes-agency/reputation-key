@@ -134,6 +134,13 @@ export const createServingStats = (deps: {
   db: Database
   clock: Clock
 }): ReviewServingStats => ({
+  /**
+   * RepKey's own count and average of the reviews it holds and may serve for
+   * the period. It is not the number Google shows: Google's own rating and
+   * count are the Current on Google snapshot (Reporting), which every headline
+   * rating reads (ADR 0067, decision 16). The Ratings page's period averages
+   * come from here.
+   */
   async getPeriodStats(organizationId, propertyId, startDate, endDate) {
     return trace('review.servingStats.getPeriodStats', async () => {
       const rows = await deps.db

@@ -615,6 +615,103 @@ describe('fleet overview projection integration', () => {
     expect(firstPage.totals.totalAttention).toBe(2)
   })
 
+  it('heads each row with Google’s own numbers at the current binding and the active goal as stored', async () => {
+    // Arrange
+    const [withGoal, oldBinding, fewReviews, goalEnded] = properties
+      .slice(90, 94)
+      .map((property) => property.propertyId) as [
+      PropertyId,
+      PropertyId,
+      PropertyId,
+      PropertyId,
+    ]
+    const verifiedAt = new Date('2026-08-09T06:00:00.000Z')
+    for (const [property, reviewCount] of [
+      [withGoal, 812],
+      [oldBinding, 640],
+      [fewReviews, 9],
+      [goalEnded, 10],
+    ] as const) {
+      await client.query(
+        `INSERT INTO metric_current_google_reputation_snapshots (
+           property_id, organization_id, source_epoch, source_run_id, source_event_id,
+           review_count, average_rating, evaluated_at, updated_at
+         ) VALUES ($1, $2, 0, $3, $4, $5, 4.300000190734863, $6, $6)`,
+        [property, ORG, randomUUID(), randomUUID(), reviewCount, verifiedAt],
+      )
+    }
+    // The location was relinked since: its snapshot is from the binding before.
+    await client.query(`UPDATE properties SET source_epoch = 1 WHERE id = $1`, [
+      oldBinding,
+    ])
+    for (const [property, status] of [
+      [withGoal, 'active'],
+      [goalEnded, 'ended'],
+    ] as const) {
+      await client.query(
+        `INSERT INTO property_rating_goals (
+           id, organization_id, property_id, source_epoch, mode, target_tenths,
+           pace_per_week, status, ended_reason, ended_at, baseline_review_count,
+           baseline_google_average, baseline_exact_average, last_evaluated_status,
+           created_by
+         ) VALUES ($1, $2, $3, 0, 'climb', 45, 11, $4, $5, $6, 800, 4.3, 4.31,
+                   'on_pace', 'user:test')`,
+        [
+          randomUUID(),
+          ORG,
+          property,
+          status,
+          status === 'ended' ? 'manager' : null,
+          status === 'ended' ? NOW : null,
+        ],
+      )
+    }
+    const getFleet = getFleetOverview({
+      projection: createFleetOverviewProjectionAdapter(db),
+      resolveAccessiblePropertyIds: async () => [
+        withGoal,
+        oldBinding,
+        fewReviews,
+        goalEnded,
+      ],
+      clock: () => NOW,
+      inboxTargets,
+    })
+    const read = (goalReadEnabled: boolean) =>
+      getFleet({
+        organizationId: ORG,
+        scope: { userId: userId('fleet-projection-google'), organizationWide: false },
+        portalReadEnabled: true,
+        goalReadEnabled,
+        timeRange: 'all',
+      })
+
+    // Act
+    const result = await read(true)
+    const withoutGoals = await read(false)
+
+    // Assert
+    const byProperty = new Map(result.entries.map((entry) => [entry.propertyId, entry]))
+    // The fixture's Google binding is not active, so the numbers are not current.
+    expect(byProperty.get(withGoal)?.google).toEqual({
+      shows: 4.3,
+      reviewCount: 812,
+      asOf: verifiedAt.toISOString(),
+      current: false,
+    })
+    expect(byProperty.get(oldBinding)?.google).toBeNull()
+    expect(result.entries.map((entry) => [entry.propertyId, entry.ratingGoal])).toEqual([
+      [withGoal, { kind: 'set', mode: 'climb', target: 4.5, status: 'on_pace' }],
+      [oldBinding, { kind: 'none', offered: false }],
+      [fewReviews, { kind: 'none', offered: false }],
+      [goalEnded, { kind: 'none', offered: true }],
+    ])
+    expect(withoutGoals.entries.every((entry) => entry.ratingGoal === null)).toBe(true)
+    expect(
+      withoutGoals.entries.map((entry) => entry.google?.reviewCount ?? null),
+    ).toEqual([812, null, 9, 10])
+  })
+
   it('reads no goal for a reader who may not use goals', async () => {
     const property = properties[80]!.propertyId
     await seedRunningGoalMonth({

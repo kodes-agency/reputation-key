@@ -79,7 +79,10 @@ function mainRows(items: readonly FleetProperty[], total: number) {
   }))
 }
 
-function fakeDatabase(getCount: () => number): {
+function fakeDatabase(
+  getCount: () => number,
+  extra: Readonly<Record<string, unknown>> = {},
+): {
   db: Database
   calls: () => number
 } {
@@ -91,7 +94,9 @@ function fakeDatabase(getCount: () => number): {
     const phase = (calls - 1) % 3
     if (phase === 1) {
       const items = properties(getCount())
-      return { rows: mainRows(items, items.length) }
+      return {
+        rows: mainRows(items, items.length).map((row) => ({ ...row, ...extra })),
+      }
     }
     return { rows: [] }
   }
@@ -202,5 +207,64 @@ describe('fleet overview bulk projection', () => {
     await getFleet({ ...input, goalReadEnabled: false })
 
     expect(fake.calls()).toBe(2)
+  })
+})
+
+describe('Google’s own numbers and the stored rating goal on a fleet row', () => {
+  const projectionRow = async (extra: Readonly<Record<string, unknown>>) => {
+    const fake = fakeDatabase(() => 1, extra)
+    const result = await createFleetOverviewProjectionAdapter(fake.db).read({
+      organizationId: ORG,
+      accessiblePropertyIds: null,
+      portalReadEnabled: true,
+      goalReadEnabled: true,
+      cursor: null,
+      periodDays: null,
+      now: NOW,
+    })
+    return result.rows[0]
+  }
+
+  it('reads the snapshot at the current binding and the active goal as stored', async () => {
+    // Act
+    const row = await projectionRow({
+      lifecycle_active: true,
+      google_binding_active: true,
+      google_review_count: 812,
+      google_average_rating: 4.300000190734863,
+      google_verified_at: new Date('2026-08-09T09:00:00.000Z'),
+      rating_goal_mode: 'climb',
+      rating_goal_target_tenths: 45,
+      rating_goal_status: 'below_pace',
+    })
+
+    // Assert
+    expect(row).toMatchObject({
+      lifecycleActive: true,
+      google: {
+        reviewCount: 812,
+        averageRating: 4.300000190734863,
+        verifiedAt: new Date('2026-08-09T09:00:00.000Z'),
+        bindingActive: true,
+      },
+      ratingGoal: { mode: 'climb', targetTenths: 45, lastStatus: 'below_pace' },
+    })
+  })
+
+  it('has no Google numbers and no goal where the joins found none', async () => {
+    // Act
+    const row = await projectionRow({
+      lifecycle_active: false,
+      google_binding_active: false,
+      google_review_count: null,
+      google_average_rating: null,
+      google_verified_at: null,
+      rating_goal_mode: null,
+      rating_goal_target_tenths: null,
+      rating_goal_status: null,
+    })
+
+    // Assert
+    expect(row).toMatchObject({ lifecycleActive: false, google: null, ratingGoal: null })
   })
 })

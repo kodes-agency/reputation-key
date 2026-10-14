@@ -5,6 +5,8 @@ import { ok, err, type Result } from '#/shared/domain'
 import type { ReviewId } from '#/shared/domain/ids'
 
 import type { PortalResultsSeries, PortalVersionMarker } from './portal-results-series'
+import type { GoogleNumbersView } from './google-numbers'
+import type { RatingGoalMode, RatingGoalStatus } from './rating-goal'
 
 // ─── KPI Strip ───
 
@@ -314,6 +316,22 @@ export type FleetMetricEvidence = Readonly<{
   correctionCount: number
 }>
 
+/**
+ * The Properties list's "Google goal" cell, from the stored goal (cheap; the
+ * live evaluation stays on the goal's own pages): an active goal's target,
+ * mode and the status it last stored, or no goal and whether one is offered
+ * (an active Property Google counts ten reviews for).
+ */
+export type FleetRatingGoal =
+  | Readonly<{
+      kind: 'set'
+      mode: RatingGoalMode
+      /** The target as Google prints it: 4.5. */
+      target: number
+      status: RatingGoalStatus | null
+    }>
+  | Readonly<{ kind: 'none'; offered: boolean }>
+
 /** One property row in the cross-property fleet overview (2+ properties). */
 export type FleetEntry = Readonly<{
   propertyId: string
@@ -333,6 +351,14 @@ export type FleetEntry = Readonly<{
   attentionSignals: AttentionSignals
   /** Distinct attention work, never the sum of overlapping signal counts. */
   totalAttention: number
+  /**
+   * Google's own rating and count, the list's headline (decision 16); null when
+   * Google never sent numbers for the current binding. `avgRating` and
+   * `reviewCount` stay RepKey's governed readings for the period.
+   */
+  google: GoogleNumbersView | null
+  /** Null when the reader's goal read (`goal.use`) is off. */
+  ratingGoal: FleetRatingGoal | null
 }>
 
 /** Org-total summary shown in the fleet overview strip. */

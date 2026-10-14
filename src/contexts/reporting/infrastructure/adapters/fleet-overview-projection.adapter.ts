@@ -18,6 +18,7 @@ import { FLEET_PAGE_SIZE } from '../../application/ports/fleet-overview-projecti
 import { RATING_DROP_THRESHOLD } from '../../application/utils'
 import { MIN_RATING_COMPARISON_SAMPLE } from '../../domain/portal-results-thresholds'
 import { goalsBehindPaceByProperty } from '../../domain/goal-pace'
+import type { RatingGoalMode, RatingGoalStatus } from '../../domain/rating-goal'
 import { DASHBOARD_READ_BUDGET_MS, withStatementTimeout } from '../read-facade'
 import { readRunningCountMonths } from './goal-running-months'
 
@@ -106,6 +107,14 @@ type MainRow = Readonly<{
   escalated: string | number | null
   needs_attention: string | number | null
   total_attention_work: string | number
+  lifecycle_active: boolean | null
+  google_binding_active: boolean | null
+  google_review_count: string | number | null
+  google_average_rating: string | number | null
+  google_verified_at: Date | string | null
+  rating_goal_mode: string | null
+  rating_goal_target_tenths: string | number | null
+  rating_goal_status: string | null
 }>
 
 const numeric = (value: string | number | null | undefined): number =>
@@ -121,6 +130,31 @@ function requiredDateValue(value: Date | string | null | undefined): Date {
   const date = dateValue(value)
   if (!date) throw new Error('Fleet projection returned an invalid period boundary')
   return date
+}
+
+/** Google's own numbers at the Property's current binding, when it sent any. */
+function googleOf(row: MainRow): FleetOverviewProjectionRow['google'] {
+  const verifiedAt = dateValue(row.google_verified_at)
+  if (row.google_review_count == null || verifiedAt === null) return null
+  return {
+    reviewCount: numeric(row.google_review_count),
+    averageRating:
+      row.google_average_rating == null ? null : Number(row.google_average_rating),
+    verifiedAt,
+    bindingActive: row.google_binding_active === true,
+  }
+}
+
+/** The active rating goal as stored; never evaluated here. */
+function ratingGoalOf(row: MainRow): FleetOverviewProjectionRow['ratingGoal'] {
+  if (row.rating_goal_mode == null || row.rating_goal_target_tenths == null) {
+    return null
+  }
+  return {
+    mode: row.rating_goal_mode as RatingGoalMode,
+    targetTenths: numeric(row.rating_goal_target_tenths),
+    lastStatus: (row.rating_goal_status ?? null) as RatingGoalStatus | null,
+  }
 }
 
 function freshness(
@@ -183,6 +217,7 @@ export const createFleetOverviewProjectionAdapter = (
     // Read capabilities are organization-wide, so they stay statement constants
     // rather than a per-Property CTE the statement would have to join.
     const portalEnabled = sql`${input.portalReadEnabled}::boolean`
+    const goalEnabled = sql`${input.goalReadEnabled}::boolean`
 
     const { mainResult, goalMonths } = await withStatementTimeout(
       db,
@@ -194,6 +229,9 @@ export const createFleetOverviewProjectionAdapter = (
               properties.name,
               properties.slug,
               properties.timezone,
+              properties.source_epoch,
+              properties.lifecycle_state,
+              properties.google_binding_state,
               CASE WHEN ${input.periodDays}::integer IS NULL
                 THEN to_timestamp(0)
                 ELSE (
@@ -534,6 +572,14 @@ export const createFleetOverviewProjectionAdapter = (
             coalesce(inbox_attention.items_to_triage, 0) AS items_to_triage,
             coalesce(inbox_attention.escalated, 0) AS escalated,
             coalesce(attention_work.needs_attention, 0) AS needs_attention,
+            (page.lifecycle_state = 'active') AS lifecycle_active,
+            (page.google_binding_state = 'active') AS google_binding_active,
+            google.review_count AS google_review_count,
+            google.average_rating AS google_average_rating,
+            google.evaluated_at AS google_verified_at,
+            rating_goal.mode AS rating_goal_mode,
+            rating_goal.target_tenths AS rating_goal_target_tenths,
+            rating_goal.last_evaluated_status AS rating_goal_status,
             totals.total_attention_work,
             summary.property_count,
             summary.rating_sample_count,
@@ -545,6 +591,19 @@ export const createFleetOverviewProjectionAdapter = (
           LEFT JOIN page ON true
           LEFT JOIN inbox_attention USING (property_id)
           LEFT JOIN attention_work USING (property_id)
+          -- Google's own number and count (decision 16), the snapshot at the
+          -- Property's current binding epoch, and the active rating goal as
+          -- stored: one row each by primary key or the one-active index, for
+          -- the page only, so no read per Property and no live evaluation.
+          LEFT JOIN metric_current_google_reputation_snapshots google
+            ON google.organization_id = ${input.organizationId}
+            AND google.property_id = page.property_id
+            AND google.source_epoch = page.source_epoch
+          LEFT JOIN property_rating_goals rating_goal
+            ON ${goalEnabled}
+            AND rating_goal.organization_id = ${input.organizationId}
+            AND rating_goal.property_id = page.property_id
+            AND rating_goal.status = 'active'
           ORDER BY lower(page.name), page.property_id
         `)
         // Goals behind pace are counted for every Property in scope, not only
@@ -652,6 +711,9 @@ export const createFleetOverviewProjectionAdapter = (
               now: input.now,
             })
           : null,
+        google: googleOf(row),
+        lifecycleActive: row.lifecycle_active === true,
+        ratingGoal: ratingGoalOf(row),
       }
     })
 
