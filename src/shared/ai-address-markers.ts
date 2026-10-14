@@ -114,6 +114,17 @@ const NAME_FIRST_RE =
  */
 const SPELLED_FIRST_RE =
   /(?<![\p{L}\p{M}'’-])(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)[ \t]+((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,5})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)\b/giu
+/**
+ * The same two layouts read again after a shorter reading is wanted. They are
+ * anchored at the text right after the house number (or the spelled number),
+ * so a window that stops before a street-type word already read finds the
+ * address inside it: `12 Oak Road. It was a great place` is read first up to
+ * `place`, as a clause, and then up to `Road`, as the address it holds.
+ */
+const NAME_FIRST_REREAD_RE =
+  /^([ \t]+|[ \t]*[,;–-][ \t]*|(?=\p{L}))((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,8})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)\b/iu
+const SPELLED_FIRST_REREAD_RE =
+  /^([ \t]+)((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,5})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)\b/iu
 /** Street first: the street-type word, then up to five words of its name. */
 const STREET_FIRST_RE =
   /(?<![\p{L}\p{M}])(avenue|ave|boulevard|blvd|place|pl)\b\.?((?:[ \t]+(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)){1,5})/giu
@@ -216,14 +227,61 @@ function separatorAccepted(separator: string, run: string, shape: NameShape): bo
   return separator !== '' || /^\p{Lu}\p{Ll}/u.test(run)
 }
 
+/** How the words after a house number read: where the name ends and the type begins. */
+type Reading = Readonly<{
+  whole: string
+  separator: string
+  run: string
+  type: string
+}>
+
+/**
+ * The reading the pattern took, and every shorter one: the pattern takes the
+ * longest run of words that ends in a street-type word, so a real address
+ * followed by a sentence that holds another street-type word (`12 Oak Road. It
+ * was a great place`) is first read as one clause. Each shorter reading ends at
+ * an earlier street-type word, longest first.
+ */
+function readingsOf(
+  text: string,
+  start: number,
+  numberText: string,
+  first: Reading,
+  reread: RegExp,
+): readonly Reading[] {
+  const readings: Reading[] = [first]
+  const bodyStart = start + numberText.length
+  let typeStart = start + first.whole.length - first.type.length
+  for (;;) {
+    const found = reread.exec(text.slice(bodyStart, typeStart))
+    if (found === null) return readings
+    const [body = '', separator = '', run = '', type = ''] = found
+    readings.push({ whole: numberText + body, separator, run, type })
+    typeStart = bodyStart + body.length - type.length
+  }
+}
+
 function findNameFirst(text: string): readonly AddressMarkerSpan[] {
   const spans: AddressMarkerSpan[] = []
   for (const match of text.matchAll(NAME_FIRST_RE)) {
-    const [whole, , separator = '', run = '', type = ''] = match
-    const shape = shapeOf(wordsOf(run), type, leadOf(text, match.index))
-    if (!separatorAccepted(separator, run, shape)) continue
-    if (rejectsName(shape)) continue
-    spans.push(withPostalTail(text, match.index, match.index + whole.length))
+    const [whole, number = '', separator = '', run = '', type = ''] = match
+    const lead = leadOf(text, match.index)
+    const readings = readingsOf(
+      text,
+      match.index,
+      number,
+      { whole, separator, run, type },
+      NAME_FIRST_REREAD_RE,
+    )
+    const accepted = readings.find((reading) => {
+      const shape = shapeOf(wordsOf(reading.run), reading.type, lead)
+      return (
+        separatorAccepted(reading.separator, reading.run, shape) && !rejectsName(shape)
+      )
+    })
+    if (accepted !== undefined) {
+      spans.push(withPostalTail(text, match.index, match.index + accepted.whole.length))
+    }
   }
   return spans
 }
@@ -236,12 +294,22 @@ function findSpelledFirst(text: string): readonly AddressMarkerSpan[] {
   const spans: AddressMarkerSpan[] = []
   for (const match of text.matchAll(SPELLED_FIRST_RE)) {
     const [whole, numberWord = '', run = '', type = ''] = match
-    const shape = shapeOf(wordsOf(run), type, {
-      ...leadOf(text, match.index),
-      rating: true,
+    if (!/^\p{Lu}/u.test(numberWord)) continue
+    const lead = { ...leadOf(text, match.index), rating: true }
+    const readings = readingsOf(
+      text,
+      match.index,
+      numberWord,
+      { whole, separator: ' ', run, type },
+      SPELLED_FIRST_REREAD_RE,
+    )
+    const accepted = readings.find((reading) => {
+      const shape = shapeOf(wordsOf(reading.run), reading.type, lead)
+      return shape.named && !rejectsName(shape)
     })
-    if (!/^\p{Lu}/u.test(numberWord) || !shape.named || rejectsName(shape)) continue
-    spans.push(withPostalTail(text, match.index, match.index + whole.length))
+    if (accepted !== undefined) {
+      spans.push(withPostalTail(text, match.index, match.index + accepted.whole.length))
+    }
   }
   return spans
 }
