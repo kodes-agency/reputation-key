@@ -40,6 +40,11 @@ type Props = Readonly<{
   distribution: readonly { stars: number; count: number }[]
   labelledBy: string
   label?: string
+  /**
+   * What is counted. A Portal's are private ratings; a Google rating goal's are
+   * Google reviews, and "review" means a Google review and nothing else.
+   */
+  noun?: 'ratings' | 'reviews'
 }>
 
 /** Five labelled CSS bars keep every value legible in the fixed 160 px band. */
@@ -47,20 +52,19 @@ export function RatingDistributionChart({
   distribution,
   labelledBy,
   label = 'Rating distribution',
+  noun = 'ratings',
 }: Props) {
   const captionId = useId()
   const data = buildRatingDistributionData(distribution)
   const total = data.reduce((sum, bucket) => sum + bucket.count, 0)
   if (total === 0) {
-    return (
-      <p className="py-6 text-sm text-muted-foreground">No ratings in this period.</p>
-    )
+    return <p className="py-6 text-sm text-muted-foreground">No {noun} in this period.</p>
   }
 
   const largest = data.reduce((current, bucket) =>
     bucket.count > current.count ? bucket : current,
   )
-  const caption = `${formatNumber(largest.count)} of ${formatNumber(total)} ratings are ${largest.label} (${Number.isInteger(largest.percentage) ? largest.percentage.toFixed(0) : largest.percentage.toFixed(1)}%).`
+  const caption = `${formatNumber(largest.count)} of ${formatNumber(total)} ${noun} are ${largest.label} (${Number.isInteger(largest.percentage) ? largest.percentage.toFixed(0) : largest.percentage.toFixed(1)}%).`
 
   return (
     <figure

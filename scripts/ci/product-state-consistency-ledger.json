@@ -108,10 +108,12 @@
         "progress",
         "listProgress",
         "programProgress",
-        "monthPreview"
+        "monthPreview",
+        "ratingGoal",
+        "ratingGoalRead"
       ],
       "owner": "Goal query lifecycle",
-      "policy": "Governed list callers include property/model filters in the argument object, and a detail includes both propertyId and goalId so a goal id cannot alias another property. Goal writes currently invalidate the family root. The live month-to-date progress of the goals that target one subject (a Portal Group's goal card) nests propertyId and the subject (`portal_group:<id>`) under the root, so a group id cannot alias another property; it is a display read that is never the monthly result, and goes stale on its own short staleTime. The month to date of every active goal of a Property (the Goals list's live line, one request for the page) is a sibling keyed by propertyId, apart from the list so a slow figure never holds the rows back; it is a display read that is never the monthly result, goes stale on its own short staleTime, and a goal write invalidates it with the root. The month to date of every current subject of one goal (the goal page's running month) is a sibling keyed by propertyId and goalId, apart from the detail so a figure refresh never refetches the Program; a goal write invalidates it with the root. The month preview is the same governed read before a goal exists (the new-goal form, one subject, this month chosen): it nests propertyId, the measure and the subject (`portal:<id>`), is never written by the client, and goes stale on its own short staleTime. Changing a running month's target is a goal write like the others and invalidates the family root: the detail and the list carry the log of a goal's target changes, and both month-to-date reads return the month's own target with who changed it, so the change needs no key of its own."
+      "policy": "Governed list callers include property/model filters in the argument object, and a detail includes both propertyId and goalId so a goal id cannot alias another property. Goal writes currently invalidate the family root. The live month-to-date progress of the goals that target one subject (a Portal Group's goal card) nests propertyId and the subject (`portal_group:<id>`) under the root, so a group id cannot alias another property; it is a display read that is never the monthly result, and goes stale on its own short staleTime. The month to date of every active goal of a Property (the Goals list's live line, one request for the page) is a sibling keyed by propertyId, apart from the list so a slow figure never holds the rows back; it is a display read that is never the monthly result, goes stale on its own short staleTime, and a goal write invalidates it with the root. The month to date of every current subject of one goal (the goal page's running month) is a sibling keyed by propertyId and goalId, apart from the detail so a figure refresh never refetches the Program; a goal write invalidates it with the root. The month preview is the same governed read before a goal exists (the new-goal form, one subject, this month chosen): it nests propertyId, the measure and the subject (`portal:<id>`), is never written by the client, and goes stale on its own short staleTime. Changing a running month's target is a goal write like the others and invalidates the family root: the detail and the list carry the log of a goal's target changes, and both month-to-date reads return the month's own target with who changed it, so the change needs no key of its own. The Property Google rating goal is not a Goal Program and shares nothing with them but the root: its four reads (the simple card, the detail, the wizard's setup and the History) sit under `ratingGoal(propertyId)`, each a `ratingGoalRead` leaf. Every set, change or end invalidates that one family key, and so does a refused one, because a refusal usually means the page is behind; an end marks it stale without reading it again (the detail page is leaving, and its own read would only draw its no-goal state), and the Goals page's loader reads it afresh. A card or detail read that finds the goal reached or ended returns it once and the next read has none, so the Goals page tells that news from the History read for two weeks, and a detail read that found it marks the family stale for the Goals page."
     },
     {
       "id": "staffKeys",
@@ -720,6 +722,24 @@
       "classification": "local_runtime",
       "owner": "Dialog primitive",
       "policy": "defaultOpen seeds the open state of a dialog opened by its own trigger; a controlled open prop remains the render authority when supplied."
+    },
+    {
+      "id": "src/components/goals/rating-goal-wizard.tsx:useState(step)",
+      "classification": "local_runtime",
+      "owner": "Google rating goal wizard",
+      "policy": "Which step the wizard shows: the goal, the pace, the keep step or the done screen. It is the manager's place in the flow, never server state; the wizard mounts per opening, which is its reset boundary."
+    },
+    {
+      "id": "src/routes/_authenticated/properties/$propertyId/goals/-rating-goal-panel.tsx:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Goals page, Google section",
+      "policy": "The instant the page was opened, taken once so a stale Google number's date and the History's days print their year only when it is not the current one; it is not server state and is never written back, and a remount of the route is its reset boundary."
+    },
+    {
+      "id": "src/routes/_authenticated/properties/$propertyId/goals/google-rating.tsx:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Google rating goal page",
+      "policy": "The instant the page was opened, taken once so a stale Google number's date and the change log's days print their year only when it is not the current one; it is not server state and is never written back, and a remount of the route is its reset boundary."
     }
   ],
   "classificationDefinitions": {

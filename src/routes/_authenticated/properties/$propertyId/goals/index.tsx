@@ -22,6 +22,7 @@ import { NAV_LABEL } from '#/components/layout/nav-labels'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { AddActionLink } from '#/components/ui/add-action'
 import { Button } from '#/components/ui/button'
+import { SectionTitle } from '#/components/ui/section-title'
 import {
   DataTable,
   DataTableBody,
@@ -49,6 +50,7 @@ import { GoalViewTabs } from '#/components/goals/goal-view-tabs'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { formatShortDate } from '#/lib/format'
 import { goalForResult } from './-goal-for-result'
+import { RatingGoalPanel } from './-rating-goal-panel'
 import { goalListSearchSchema } from './-goal-list-search'
 
 const goalsQuery = (propertyId: string) =>
@@ -96,6 +98,12 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
     await Promise.all([
       context.queryClient.ensureQueryData(goalsQuery(propertyId)),
       context.queryClient.ensureQueryData(subjectNamesQuery(propertyId)),
+      // The Google section, from a module fetched on demand: its reads and their
+      // server functions stay out of first paint, and a failure stays in its
+      // own region.
+      import('./-rating-goal-queries').then((queries) =>
+        queries.prefetchRatingGoalSection(context.queryClient, propertyId),
+      ),
     ])
   },
   component: GoalsRoute,
@@ -147,15 +155,28 @@ function GoalsRoute() {
     <PageShell tier="dashboard">
       <PageHeader
         title="Goals"
-        description="Monthly targets for this property, its portal groups, and individual portals."
+        description="Your Google rating goal, and monthly targets for this property, its portal groups and its portals."
         breadcrumbs={trailCrumbs(
           'property',
           { propertyId, propertyName: propData.property.name },
           NAV_LABEL.goals,
         )}
-        actions={
-          canDo('goal.create') ? (
-            <>
+      />
+      <div className="flex flex-col gap-4">
+        <GoalViewTabs propertyId={propertyId} view={view} />
+        {/* The Google rating goal first, apart from the Portal goals: no shared numbers. */}
+        <RatingGoalPanel
+          propertyId={propertyId}
+          timezone={propData.property.timezone}
+          view={view}
+          hasPortals={subjectNames.portals.length > 0}
+        />
+      </div>
+      <section aria-labelledby="portal-goals-title" className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionTitle id="portal-goals-title">Portal goals</SectionTitle>
+          {canDo('goal.create') ? (
+            <div className="flex flex-wrap gap-2">
               {/* The table on the New goal page: one number per Portal, a goal each. */}
               <Button asChild variant="outline">
                 <Link
@@ -172,12 +193,9 @@ function GoalsRoute() {
               >
                 New goal
               </AddActionLink>
-            </>
-          ) : undefined
-        }
-      />
-      <div className="flex flex-col gap-4">
-        <GoalViewTabs propertyId={propertyId} view={view} />
+            </div>
+          ) : null}
+        </div>
         {live.isError ? (
           <p className="text-sm text-muted-foreground">
             This month’s figures can’t be read right now.
@@ -259,7 +277,7 @@ function GoalsRoute() {
             </DataTableBody>
           </DataTable>
         )}
-      </div>
+      </section>
       {canDo('goal.update') ? (
         <GoalResultsMatrix
           matrix={matrix}
