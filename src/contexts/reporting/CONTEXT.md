@@ -310,7 +310,7 @@ Reporting writes `goal.rating_goal.transitioned` (`domain/goal-events.ts`), one 
 goal notice, inside the evaluation's own write (a read, `goal.google-rating-evaluation` or
 the daily `rating-goal.evaluate`). Its payload is identifiers, closed enums and the
 Property-level figures the notice states (Google's shown tenth, the target, the pace and the
-recent pace), never a review or an average of review ratings; Feed's
+recent pace), never a review or a figure RepKey works out from review ratings; Feed's
 `notification.on-rating-goal-transitioned` consumes it.
 
 ## Verification

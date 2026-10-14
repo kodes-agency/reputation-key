@@ -327,8 +327,9 @@ carries the figures the copy states and Feed reads nothing from Reporting for
 them: the tenths Google shows for the Property now and before and the goal's
 target, the goal's mode and pace, and the recent pace of new reviews, admitted
 by the payload allowlist as bounded integers (`rating*`). A review's rating
-never is, and neither is an average of review ratings: the Can't reach copy
-states no star figure. The copy lives in `domain/notification-templates-rating-goal.ts`; a row
+never is, and neither is any figure RepKey works out from review ratings (the
+only rating figures are the tenths Google itself shows and the target): the
+Can't reach copy states no star figure. The copy lives in `domain/notification-templates-rating-goal.ts`; a row
 states its latest change and opens the Property's Goals page.
 
 Each surface states a fact once. Titles name the Property; a locally

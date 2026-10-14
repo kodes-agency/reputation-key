@@ -1168,9 +1168,11 @@ tenths (the tenth Google shows for the Property now and before, and the goal's
 target), the goal's mode and chosen pace, and the recent pace of new Google
 reviews (reviews a week), each a bounded integer in the payload allowlist
 (`rating*`), and nothing else. Never a review's rating, text or reviewer, and
-never an average or any other figure derived from review ratings: the Can't
-reach notice carries no figure of its own, and neither the
-`goal.rating_goal.transitioned` fact nor the payload holds the recent average.
+never an average or any other figure that RepKey works out from review ratings.
+The only rating figures are the tenths Google itself shows for the Property
+(now and before) and the goal's target. The Can't reach notice carries no
+figure of its own, and neither the `goal.rating_goal.transitioned` fact nor the
+payload holds the recent average.
 The 2026-09-30 amendment is not touched. It keeps a review's rating out of job
 data, notification rows, emails and logs (Feed stores only the outcome, never
 the rating), and these notices add no such figure. A Low ratings notice still

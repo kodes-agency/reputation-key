@@ -24,11 +24,13 @@
 //             figures a Google rating goal notice states (`rating*`: the tenths
 //             Google shows for the Property now and before and the goal's
 //             target, the goal's mode and pace, and the recent pace of new
-//             reviews; never an average of review ratings; ADR 0046, amended
-//             2026-10-14).
+//             reviews; the only rating figures are the tenths Google itself
+//             shows and the target, none RepKey works out from review
+//             ratings; ADR 0046, amended 2026-10-14).
 //   FORBIDDEN a Google/provider review's rating and any review content, reply
 //             text, guest/reviewer name, media URLs, sentiment or any other
-//             derived score, and any other employee's NAME or email.
+//             derived score (including an average RepKey works out from
+//             review ratings), and any other employee's NAME or email.
 //
 // `parseNotificationPayload` is the only way a payload enters the domain, and
 // it drops every unrecognised key. A new field must be added here AND to

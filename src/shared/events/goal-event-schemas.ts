@@ -86,8 +86,9 @@ const tenthSchema = z.number().int().min(0).max(50)
  * `goal.rating_goal.transitioned`: one fact per notice a rating goal's
  * evaluation raises (ADR 0067 decision 6). Closed enums and Property-level
  * figures only: Google's shown tenth, the goal's target and pace, and the
- * recent pace of new reviews. Never an average of review ratings. Each
- * transition carries exactly the figures its notice states.
+ * recent pace of new reviews. Never a figure RepKey works out from review
+ * ratings (an average, a mix). Each transition carries exactly the figures its
+ * notice states.
  */
 const goalRatingGoalTransitionedSchema = z
   .object({
