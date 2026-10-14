@@ -20,6 +20,10 @@ import { eq, sql, type SQL } from 'drizzle-orm'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { reviews, replies } from '#/shared/db/schema/review.schema'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
+import { googleConnections } from '#/shared/db/schema/google-connection.schema'
+import { properties } from '#/shared/db/schema/property.schema'
+import { propertyIsSyncable, propertySyncableSince } from '#/shared/db/syncable-property'
+import { reviewIsSyncable } from '#/shared/db/syncable-review'
 import {
   notificationDigestBatchMembers,
   notificationEmailQueue,
@@ -210,7 +214,9 @@ export type HealthSnapshot = Readonly<{
      * the discovery sweep has fallen, not how many properties are waiting.
      * A count alone is unreadable: 100 properties that came due a minute ago
      * is a healthy sweep mid-run; one property due since yesterday means the
-     * sweep is dead. Null when nothing is overdue.
+     * sweep is dead. Null when nothing is overdue. Only Properties the sweep
+     * selects count, from the later of the poll time and the day the Property
+     * qualified again (a restore or reconnect keeps its old poll time).
      */
     oldestDueAgeMs: number | null
     /**
@@ -873,10 +879,18 @@ const readNotificationDeliveryLagMetrics = async (
  * erased before the erase cleared the clock still carries it: counted, it would
  * be refresh-due and then expired, and the freshness-deadline alert would page
  * for a review nothing can refresh.
+ *
+ * Refresh-due counts only the Reviews the refresh sweep can offer
+ * (`reviewIsSyncable`): the sweep does not serve an archived, suspended,
+ * deleted or disconnected Property, so no refresh is coming for its Reviews and
+ * the freshness-deadline alert would page for content nobody can renew. The
+ * total and the expired count still cover every live Review: content held past
+ * its deadline is a fact whoever could have refreshed it.
  */
 async function readReviewContentMetrics(
   db: Database,
 ): Promise<HealthSnapshot['reviews']> {
+  const refreshable = reviewIsSyncable()
   const result = await db
     .select({
       total: sql<number>`
@@ -887,6 +901,7 @@ async function readReviewContentMetrics(
           WHERE ${reviews.contentExpiresAt} IS NOT NULL
             AND ${reviews.lastFetchedAt} IS NOT NULL
             AND NOW() > (${reviews.lastFetchedAt} + INTERVAL '25 days')
+            AND ${refreshable}
         )::int
       `,
       expired: sql<number>`
@@ -905,6 +920,7 @@ async function readReviewContentMetrics(
               AND ${reviews.lastFetchedAt} IS NOT NULL
               AND NOW() > (${reviews.lastFetchedAt} + INTERVAL '25 days')
               AND ${reviews.contentExpiresAt} >= NOW()
+              AND ${refreshable}
           ) - NOW()
         ))::int
       `,
@@ -954,15 +970,25 @@ async function readSyncStateMetrics(
       // How far behind the discovery sweep is: the age of the oldest
       // past-due poll time. next_incremental_at is always written in
       // the future by the sync/backoff path, so a positive age here is
-      // purely sweep lag (the poll interval is already priced in).
+      // purely sweep lag (the poll interval is already priced in) — for a
+      // Property the sweep still selects. One that was archived, suspended or
+      // disconnected keeps the poll time and the coded failure it had, and the
+      // sweep never rewrites them, so only syncable Properties are counted. One
+      // that qualifies again is late only from the day it qualified, not from
+      // the poll time it kept (propertySyncableSince).
       oldest_due_age_ms: sql<number | null>`
-        EXTRACT(EPOCH FROM (NOW() - MIN(${reviewSyncState.nextIncrementalAt}) FILTER (
+        EXTRACT(EPOCH FROM (NOW() - MIN(
+          GREATEST(${reviewSyncState.nextIncrementalAt}, ${propertySyncableSince})
+        ) FILTER (
           WHERE ${reviewSyncState.nextIncrementalAt} IS NOT NULL
             AND ${reviewSyncState.nextIncrementalAt} < NOW()
         ))) * 1000
       `,
     })
     .from(reviewSyncState)
+    .innerJoin(properties, sql`${properties.id}::varchar = ${reviewSyncState.propertyId}`)
+    .innerJoin(googleConnections, eq(googleConnections.id, properties.googleConnectionId))
+    .where(propertyIsSyncable)
 
   const row = result[0]
   return {

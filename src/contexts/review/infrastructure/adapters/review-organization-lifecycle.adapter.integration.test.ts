@@ -5,9 +5,9 @@
 //   * closing STOPS PROVIDER EFFECTS — sync/import scheduling is fenced and a
 //     pre-dispatch reply publication is cancelled — while DELETING NOTHING;
 //   * readiness is READ ONLY, and fails closed on an unsettled provider write;
-//   * purge erases provider and manager content, keeps the immutable
-//     publication authorization PostgreSQL refuses to let anyone delete, and
-//     converges when it runs twice.
+//   * purge erases provider and manager content (the Property reply library
+//     included), keeps the publication authorizations the RESTRICT foreign keys
+//     hold, and converges when it runs twice.
 
 import { randomUUID } from 'node:crypto'
 import { Pool } from 'pg'
@@ -50,6 +50,8 @@ const REPLY_LIBRARY_BODY = 'LIBRARY_TEMPLATE_BODY_MUST_NOT_SURVIVE'
 
 /** Every Organization-scoped Review table, in child-before-parent order. */
 const REVIEW_ORG_TABLES = Object.freeze([
+  'property_reply_templates',
+  'property_reply_profiles',
   'google_reply_observation_heads',
   'google_reply_observations',
   'reply_publication_attempts',
@@ -689,7 +691,7 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
     ).rejects.toThrow('unfenced_sync_schedules=1')
   })
 
-  it('erases provider and manager content while keeping the immutable authorization', async () => {
+  it('erases provider and manager content while keeping the publication authorization', async () => {
     await seedReviewWork()
     const otherBefore = await contentSnapshot(OTHER_ORG_ID)
     const request = await advanceAuthorityTo('purging')
@@ -711,9 +713,9 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
     ]) {
       expect({ table, rows: after[table] }).toEqual({ table, rows: 0 })
     }
-    // The immutable authorization survives; PostgreSQL would reject its
-    // deletion anyway, and it is content-free evidence that a named manager
-    // authorized one exact publication cycle.
+    // The authorization survives (the purge does not delete it, and no trigger
+    // guards it); it is content-free evidence that a named manager authorized
+    // one exact publication cycle.
     expect(after.reply_publication_authorizations).toBe(1)
     // The identity spine survives as scrubbed rows.
     expect(after.reviews).toBe(2)
@@ -818,6 +820,29 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
     )
     // Affirmative absence, never an omitted contributor.
     expect(receipts.rows).toEqual([{ outcome: 'no_data' }])
+  })
+
+  it('erases the Property reply library and counts it as Review data when it is all Review holds', async () => {
+    // A Property whose manager wrote a reply voice and templates but received no
+    // Review yet: the library is manager-authored text the Privacy Notice says
+    // is purged at closure, and the Property phase cannot delete the Property
+    // while these rows hold it (RESTRICT).
+    await insertReplyLibrary(ORG_ID, PROPERTY_ID)
+    await insertReplyLibrary(OTHER_ORG_ID, OTHER_PROPERTY_ID)
+    const otherBefore = await contentSnapshot(OTHER_ORG_ID)
+    const request = await advanceAuthorityTo('purging')
+
+    const result = await createReviewOrganizationLifecycleContributor(db).purge(request)
+
+    expect(result.outcome).toBe('complete')
+    const after = await rowCounts(ORG_ID)
+    expect(after.property_reply_profiles).toBe(0)
+    expect(after.property_reply_templates).toBe(0)
+    expect(await contentSnapshot(ORG_ID)).not.toContain(REPLY_LIBRARY_CONTACT)
+    expect(await contentSnapshot(ORG_ID)).not.toContain(REPLY_LIBRARY_BODY)
+    // The second tenant keeps its library.
+    expect(await contentSnapshot(OTHER_ORG_ID)).toBe(otherBefore)
+    expect(otherBefore).toContain(REPLY_LIBRARY_CONTACT)
   })
 
   it('counts a history cutoff as Review data, even when it is all Review holds', async () => {

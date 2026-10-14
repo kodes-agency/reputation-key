@@ -24,6 +24,7 @@ function fakeDb(results: unknown[][]): Database {
     chain.from = () => chain
     chain.where = () => chain
     chain.leftJoin = () => chain
+    chain.innerJoin = () => chain
     chain.groupBy = () => chain
     chain.then = (resolve: (v: unknown[]) => unknown, reject: (e: unknown) => unknown) =>
       Promise.resolve(rows).then(resolve, reject)
@@ -43,6 +44,7 @@ function stallingDb(results: Array<unknown[] | typeof HANG>): Database {
     chain.from = () => chain
     chain.where = () => chain
     chain.leftJoin = () => chain
+    chain.innerJoin = () => chain
     chain.groupBy = () => chain
     chain.then = (resolve: (v: unknown[]) => unknown, reject: (e: unknown) => unknown) =>
       rows === HANG ? new Promise(() => {}) : Promise.resolve(rows).then(resolve, reject)

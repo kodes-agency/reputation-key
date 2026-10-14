@@ -7,6 +7,7 @@ import {
   type TargetedGoogleReviewFetchJobData,
 } from '../../application/ports/review-queue.port'
 import type { PropertySourceEpochPort } from '../../application/ports/property-source-epoch.port'
+import { historyImportFailureReason } from '../../application/historical-import-outcome'
 import type { ReviewSyncActivityRecorder } from '../../application/ports/review-sync-activity.port'
 import type { ReviewDiscoveryRepository } from '../../application/ports/review-discovery.repository'
 import type {
@@ -18,6 +19,13 @@ import { trace } from '#/shared/observability/trace'
 import type { RunTargetedGoogleReviewFetch } from '../../application/use-cases/run-targeted-google-review-fetch'
 
 export const JOB_NAME = 'sync-property-reviews' as const
+
+/**
+ * How long a location over the review cap waits before the discovery sweep
+ * looks at it again. The cap is a constant a release may raise, and the owner
+ * may remove reviews on Google, so it is re-read daily rather than never.
+ */
+const LOCATION_TOO_LARGE_RETRY_MS = 24 * 60 * 60 * 1000
 
 type SyncHandlerDeps = Readonly<{
   runSnapshot: RunReviewProviderSnapshot
@@ -200,13 +208,22 @@ async function runSnapshotStep(
   }
   if (result.status === 'failed') {
     const now = deps.clock()
-    const retryAt = new Date(now.getTime() + deps.hotIntervalMs)
+    // A location over the review or page cap fails identically on every run
+    // until the cap or the location changes, so it is parked, not retried:
+    // the failure is recorded (`error_class`) and the job ends, instead of
+    // three attempts and a quarantine entry every discovery interval. The
+    // first-import notice tells the owner ("location_too_large").
+    const tooLarge = historyImportFailureReason(result.code) === 'location_too_large'
+    const retryAt = new Date(
+      now.getTime() + (tooLarge ? LOCATION_TOO_LARGE_RETRY_MS : deps.hotIntervalMs),
+    )
     await deps.discoveryRepo.markDiscoveryDeferred(
       data.propertyId,
       now,
       retryAt,
       result.code,
     )
+    if (tooLarge) return result
     throw Object.assign(new Error(result.code), {
       name: 'ReviewProviderSnapshotFailure',
     })

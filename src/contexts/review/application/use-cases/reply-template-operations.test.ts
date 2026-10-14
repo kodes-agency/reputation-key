@@ -302,6 +302,69 @@ describe('renderReplyTemplate', () => {
 
     expect(rendered).toBe(body)
   })
+
+  it('fills the escalation contact in the profile sign-off and greeting, not only the body', () => {
+    const rendered = renderReplyTemplate(
+      makeTemplate({ body: 'We are sorry about your stay.' }),
+      makeProfile({
+        greeting: 'Dear guest, write to {escalation_contact}:',
+        signOffNegative: 'Please contact {escalation_contact} so we can make this right.',
+      }),
+      2,
+    )
+
+    expect(rendered).toBe(
+      'Dear guest, write to care@example.test:\n\nWe are sorry about your stay.\n\nPlease contact care@example.test so we can make this right.',
+    )
+  })
+
+  it('does not append the sign-off again when the body ends with it, token and all', () => {
+    const signOff = 'Please contact {escalation_contact} so we can make this right.'
+    const rendered = renderReplyTemplate(
+      makeTemplate({ body: `We are sorry about your stay.\n\n${signOff}` }),
+      makeProfile({ greeting: '', signOffNegative: signOff }),
+      2,
+    )
+
+    expect(rendered).toBe(
+      'We are sorry about your stay.\n\nPlease contact care@example.test so we can make this right.',
+    )
+  })
+
+  it.each(['Ext. $& desk', 'Ext. $$5', "a$'b", 'a$`b'])(
+    'copies the escalation contact %s as typed',
+    (contact) => {
+      const rendered = renderReplyTemplate(
+        makeTemplate({ body: 'Contact {escalation_contact} now.' }),
+        makeProfile({ greeting: '', signOffPositive: '', escalationContact: contact }),
+        5,
+      )
+
+      expect(rendered).toBe(`Contact ${contact} now.`)
+    },
+  )
+
+  it('keeps the registered, trade mark and copyright signs when emoji are off', () => {
+    const rendered = renderReplyTemplate(
+      makeTemplate({
+        body: 'Thanks for staying at Hilton\u00AE Hotels\u2122. \u00A9 2026 \u{1F31F}',
+      }),
+      makeProfile({ greeting: '', signOffPositive: '' }),
+      5,
+    )
+
+    expect(rendered).toBe('Thanks for staying at Hilton\u00AE Hotels\u2122. \u00A9 2026')
+  })
+
+  it('still removes a copyright sign the guest-facing text asks to show as an emoji', () => {
+    const rendered = renderReplyTemplate(
+      makeTemplate({ body: 'Thanks \u00A9\uFE0F for staying.' }),
+      makeProfile({ greeting: '', signOffPositive: '' }),
+      5,
+    )
+
+    expect(rendered).toBe('Thanks for staying.')
+  })
 })
 
 describe('loadReplyTemplate', () => {

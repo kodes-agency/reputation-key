@@ -13,7 +13,9 @@
 //
 // Resolution mirrors the source-content purge (reviews.google_connection_id
 // equality within the organization), keyset-bounded so a large connection
-// never becomes one unbounded transaction. Rows whose publication moved on
+// never becomes one unbounded transaction. The walk stops at a batch budget
+// far above any real connection; if it does stop there, `complete` is false and
+// the consumer fails instead of receipting work it did not finish. Rows whose publication moved on
 // (published/failed/already cancelled) or that the disconnect purge already
 // deleted are skipped by the store's guarded update — no fact, no error.
 // Re-running is idempotent: cancelled rows no longer match the active-state
@@ -52,10 +54,15 @@ export type CancelPublicationsResult = Readonly<{
   reviewsScanned: number
   cancelled: number
   batches: number
+  /** False when the walk stopped at its batch budget with reviews remaining. */
+  complete: boolean
 }>
 
 const DEFAULT_BATCH_SIZE = 500
 const DEFAULT_MAX_BATCHES = 10
+/** 500 reviews a batch: a million reviews, more than any connection holds
+ * (a location is capped at 10,000 reviews). Each batch is its own transaction. */
+const CONNECTION_MAX_BATCHES = 2_000
 
 export const cancelPublicationsForConnection =
   (deps: CancelPublicationsForConnectionDeps) =>
@@ -63,22 +70,26 @@ export const cancelPublicationsForConnection =
     input: CancelPublicationsForConnectionInput,
   ): Promise<CancelPublicationsResult> => {
     const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE
-    const maxBatches = deps.maxBatches ?? DEFAULT_MAX_BATCHES
+    const maxBatches = deps.maxBatches ?? CONNECTION_MAX_BATCHES
 
     let cursor: Readonly<{ id: string }> | null = null
     let reviewsScanned = 0
     let cancelled = 0
     let batches = 0
+    let complete = false
 
     for (;;) {
-      if (batches >= maxBatches) break
       const reviews = await deps.reviewRepo.findByConnection(
         input.organizationId,
         input.connectionId,
         cursor,
         batchSize,
       )
-      if (reviews.length === 0) break
+      if (reviews.length === 0) {
+        complete = true
+        break
+      }
+      if (batches >= maxBatches) break
       batches++
       reviewsScanned += reviews.length
 
@@ -116,7 +127,7 @@ export const cancelPublicationsForConnection =
       cursor = { id: reviews[reviews.length - 1].id as string }
     }
 
-    return { reviewsScanned, cancelled, batches }
+    return { reviewsScanned, cancelled, batches, complete }
   }
 
 export type CancelPublicationsForConnection = ReturnType<

@@ -112,10 +112,27 @@ schema, which refused it later. A quiet rewrite that lands while a review's
 analysis is executing makes the store refuse the result (`generation_changed`,
 receipt `obsolete`) and opens no sequence; the reaper fails the abandoned
 operation as `operation_ambiguous`, a code the reopen pass queues a review again
-on. Two inputs are still not handled: a text of 16 KB or more after NFKC
-and a lone surrogate. Either throws in the canonicalizer and fails the Property's
-snapshot page, and whether such a review is skipped or truncated is a product
-question.
+on. Two inputs the canonicalizer refuses (`AiReviewSourceRefusal`): a text of
+16 KB or more after NFKC and a lone surrogate. They no longer fail the
+Property's snapshot page: the Review writer stores the review (it is Google's
+content and the Inbox and the reply workflow use it) with `ai_source_byte_length`
+one byte over the limit (`REFUSED_AI_SOURCE_BYTE_LENGTH`) and a digest of the raw
+fields, so every AI reader denies it as `source_too_large` and analysis settles
+it as not analysable, exactly as for any oversize source. The review stays out
+of the aggregates and the Trend. Nothing logs, counts or alerts on it: the
+marker is the only trace, and `SELECT count(*) FROM reviews WHERE
+ai_source_byte_length = 16385 AND source_content_state = 'active'` sizes the
+decision. A reply suggestion for such a review answers `source_changed`
+(`generate-reply-suggestion.ts` maps every status but `available` to it), which
+the author sees as a retryable failure, so the Inbox shows a suggestion button
+that cannot succeed for it. Whether the AI should ever read such a review is a
+product question: leave it skipped (today), or truncate it at a scalar boundary
+(the model reads part of what a guest wrote, a new text revision), or for a lone
+surrogate read it as U+FFFD (a new text revision). Either change must follow the
+bump list above, and its item 3 then also has to recognise the refused marker
+(the over-the-limit length and the digest of the raw fields) as unchanged for
+the same observation, or every stored refused review would raise `review.updated`
+and a manager notice on its next sync.
 
 Redactor and detector changes need none of this: they act on the next request and
 change no stored value. A review the redactor blocked stays settled as not

@@ -130,6 +130,7 @@ function deps(current: Reply | null = reply()) {
       reviewsScanned: 3,
       cancelled: 2,
       batches: 1,
+      complete: true,
     })),
     cancelPublicationsForProperty: vi.fn(async () => ({ cancelled: 1, batches: 1 })),
   }
@@ -291,6 +292,21 @@ describe('google account disconnected durable consumer', () => {
       }),
     ).rejects.toThrow('attribution mismatch')
     expect(subject.cancelPublicationsForConnection).not.toHaveBeenCalled()
+  })
+
+  it('writes no receipt when the cancellation stopped before the connection was exhausted', async () => {
+    const subject = deps()
+    subject.cancelPublicationsForConnection.mockResolvedValueOnce({
+      reviewsScanned: 5000,
+      cancelled: 4,
+      batches: 10,
+      complete: false,
+    })
+
+    await expect(
+      handleGoogleAccountDisconnected(subject as never, disconnected()),
+    ).rejects.toThrow('stopped at its batch budget')
+    expect(subject.receipts.insertReceipt).not.toHaveBeenCalled()
   })
 
   it('propagates a use-case failure without a receipt so the dispatcher retries', async () => {

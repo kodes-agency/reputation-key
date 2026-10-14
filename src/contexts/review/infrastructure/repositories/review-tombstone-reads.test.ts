@@ -25,6 +25,7 @@ import {
   type TombstoneState,
 } from '#/shared/testing/review-tombstone-fixtures'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
+import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { createEligibleReads } from '../../application/eligible-reads'
@@ -38,6 +39,10 @@ const PROPERTY = propertyId('7e100000-0000-4000-8000-000000000001')
 const LIVE = reviewId('7e100000-0000-4000-8000-0000000000a1')
 const LEGACY_TOMBSTONE = reviewId('7e100000-0000-4000-8000-0000000000a2')
 const ERASED_TODAY = reviewId('7e100000-0000-4000-8000-0000000000a3')
+
+const { accountId: GBP_ACCOUNT_ID, locationId: GBP_LOCATION_ID } =
+  GOOGLE_PROVIDER_FIXTURES_V1['google-location-primary'].expectedSegments
+const CONNECTION = '7e100000-0000-4000-8000-0000000000c1'
 
 const FETCHED_AT = new Date('2026-10-02T09:00:00.000Z')
 const READ_AT = new Date('2026-10-14T09:00:00.000Z')
@@ -61,6 +66,7 @@ const repo = createReviewRepository(db, () => READ_AT)
 async function clean(): Promise<void> {
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM google_connections WHERE organization_id = $1', [ORG])
   await deleteTestOrganizations(pool, [ORG])
 }
 
@@ -74,6 +80,31 @@ async function seedTenant(): Promise<void> {
     `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
      VALUES ($1, $2, 'Tombstone reads property', $3, 'UTC', NOW(), NOW())`,
     [PROPERTY, ORG, `tombstone-reads-property-${process.pid}`],
+  )
+}
+
+/**
+ * The refresh sweep offers only reviews a sync can still run for, so its Review
+ * sits on a Property bound to Google through an active connection.
+ */
+async function bindPropertyToGoogle(): Promise<void> {
+  await pool.query(
+    `INSERT INTO google_connections
+       (id, organization_id, google_subject, encrypted_access_token,
+        encrypted_refresh_token, token_expires_at, scopes, connected_by,
+        visibility, status, credential_use_state, created_at, updated_at)
+     VALUES ($1, $2, 'subject-tombstone-reads', 'enc-a', 'enc-r',
+             NOW() + INTERVAL '1 day',
+             ARRAY['https://www.googleapis.com/auth/business.manage'],
+             'seed-user', 'organization', 'active', 'active', NOW(), NOW())`,
+    [CONNECTION, ORG],
+  )
+  await pool.query(
+    `UPDATE properties
+        SET google_connection_id = $1, gbp_account_id = $2, gbp_location_id = $3,
+            google_binding_state = 'active'
+      WHERE id = $4`,
+    [CONNECTION, GBP_ACCOUNT_ID, GBP_LOCATION_ID, PROPERTY],
   )
 }
 
@@ -286,6 +317,7 @@ describe.sequential('the callers of those reads', () => {
 
 describe.sequential('an erased Review in the cross-tenant lifecycle sweeps', () => {
   beforeEach(async () => {
+    await bindPropertyToGoogle()
     await insertLegacyTombstone(pool, {
       ...scope,
       id: SWEEP_TOMBSTONE,
@@ -302,6 +334,7 @@ describe.sequential('an erased Review in the cross-tenant lifecycle sweeps', () 
     await insertLiveReview(pool, {
       ...scope,
       id: SWEEP_LIVE,
+      googleConnectionId: CONNECTION,
       externalId: 'tombstone-reads-sweep-live',
       contentExpiresAt: SWEEP_LIVE_CLOCK,
       lastFetchedAt: new Date('1900-05-03T12:00:00.000Z'),

@@ -57,7 +57,13 @@ Not activated or complete:
   commands, final notice delivery, or explicit reactivation;
 - context purge/scrub implementations, legal-hold handling, backup erasure
   ledger, support-mediated Property Erase, complete privacy workflows, and the
-  counsel-approved retention matrix;
+  counsel-approved retention matrix. Known before arming: Review's purge keeps
+  the Review, Reply and publication-authorization rows (scrubbed), and the
+  Property phase's `DELETE FROM properties` cascades into `reviews`, which the
+  retained `replies` and authorizations refuse with `ON DELETE RESTRICT`, so an
+  Organization that ever saved a Reply would stay `purging` (S10-04). It needs a
+  retention decision: delete the Replies and authorizations, or stop the Property
+  phase from cascading into them;
 - deployed Railway object-storage configuration or live database/provider
   drills.
 

@@ -11,7 +11,6 @@
   "src/contexts/review/infrastructure/google-reply-observation-store.ts": 815,
   "src/contexts/review/infrastructure/reply-command-store.ts": 918,
   "src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts": 1441,
-  "src/contexts/review/infrastructure/repositories/review.repository.ts": 826,
   "src/shared/ai-internal-transport-contract.ts": 1063,
   "src/shared/ai-provider-control/openai-connector.ts": 1100,
   "src/shared/db/schema-drift.ts": 947,

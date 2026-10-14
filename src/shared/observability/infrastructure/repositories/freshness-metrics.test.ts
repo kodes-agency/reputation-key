@@ -5,7 +5,9 @@
 // them, and both express a semantic the DB has to get right:
 //
 //   sync.oldestDueAgeMs — MIN over PAST-DUE next_incremental_at only, so a
-//     property parked in the future can never inflate it.
+//     property parked in the future can never inflate it; and only over the
+//     Properties the discovery sweep still polls, so one that left the set
+//     (archived, suspended, disconnected) cannot hold the lag alert on for good.
 //   notifications.* — "overdue" is a still-sendable row whose due time (the
 //     later of next_attempt_at and not_before, else created_at) has passed;
 //     attemptedStuckCount is the subset the delivery path already touched.
@@ -20,9 +22,17 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { sql, type SQL } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { createHealthChecker } from '#/shared/observability/health-metrics'
+import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+
+// Provider resource literals may only come from the generated fixture catalogue.
+const { accountId: GBP_ACCOUNT_ID, locationId: GBP_LOCATION_ID } =
+  GOOGLE_PROVIDER_FIXTURES_V1['google-location-primary'].expectedSegments
 
 const MARKER_ORG = 'org-obs-freshness'
-const MARKER_SYNC_PROP = 'prop-obs-freshness'
+const SYNC_CONNECTION_ACTIVE = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e70'
+const SYNC_CONNECTION_REAUTH = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e71'
+const SYNC_CONNECTION_RECONNECTED = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e72'
+const SYNC_PROPERTY_PREFIX = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5f'
 const MARKER_PROP_UUID = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e60'
 const DENIED_PROP_UUID = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e61'
 const ARCHIVED_PROP_UUID = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e62'
@@ -34,7 +44,7 @@ const MINUTE_MS = 60_000
 
 afterEach(async () => {
   await db.execute(
-    sql`DELETE FROM review_sync_state WHERE property_id LIKE ${`${MARKER_SYNC_PROP}%`}`,
+    sql`DELETE FROM review_sync_state WHERE property_id LIKE ${`${SYNC_PROPERTY_PREFIX}%`}`,
   )
   await db.execute(
     sql`DELETE FROM notification_email_queue WHERE organization_id = ${MARKER_ORG}`,
@@ -43,16 +53,89 @@ afterEach(async () => {
     sql`DELETE FROM notification_digest_batches WHERE organization_id = ${MARKER_ORG}`,
   )
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${MARKER_ORG}`)
+  await db.execute(
+    sql`DELETE FROM google_connections WHERE organization_id = ${MARKER_ORG}`,
+  )
 })
 
-async function seedSyncState(suffix: string, dueMinutesAgo: number | null) {
+/** A Property or connection nobody has touched for a month: settled. */
+const SETTLED_MINUTES_AGO = 30 * 24 * 60
+
+async function seedSyncConnection(
+  id: string,
+  status: string,
+  authorizedMinutesAgo = SETTLED_MINUTES_AGO,
+) {
+  await db.execute(sql`
+    INSERT INTO organization (id, name, slug, "createdAt")
+    VALUES (${MARKER_ORG}, 'Freshness Org', 't-obs-freshness', NOW())
+    ON CONFLICT (id) DO NOTHING
+  `)
+  await db.execute(sql`
+    INSERT INTO google_connections
+      (id, organization_id, google_subject, encrypted_access_token,
+       encrypted_refresh_token, token_expires_at, scopes, connected_by,
+       credential_authorized_at, visibility, status, credential_use_state,
+       created_at, updated_at)
+    VALUES (${id}, ${MARKER_ORG}, ${`subject-${id}`}, 'enc-a', 'enc-r',
+            NOW() + INTERVAL '1 day',
+            ARRAY['https://www.googleapis.com/auth/business.manage'],
+            'seed-user', NOW() - (${authorizedMinutesAgo} * INTERVAL '1 minute'),
+            'organization', ${status}, 'active', NOW(), NOW())
+    ON CONFLICT (id) DO NOTHING
+  `)
+}
+
+type SyncProperty = Readonly<{
+  /** Two hex digits, appended to the suite's Property id prefix. */
+  suffix: string
+  lifecycleState?: string
+  bindingState?: string
+  connectionId?: string
+  deleted?: boolean
+  /** When an administrator last changed the Property (restore, rebind, edit). */
+  updatedMinutesAgo?: number
+}>
+
+/** A Property the discovery sweep polls, unless an override takes it out. */
+async function seedSyncProperty(property: SyncProperty): Promise<string> {
+  const id = `${SYNC_PROPERTY_PREFIX}${property.suffix}`
+  const bindingState = property.bindingState ?? 'active'
+  const bound = bindingState === 'active' || bindingState === 'disconnected'
+  await seedSyncConnection(SYNC_CONNECTION_ACTIVE, 'active')
+  await seedSyncConnection(SYNC_CONNECTION_REAUTH, 'reauth_required')
+  await db.execute(sql`
+    INSERT INTO properties
+      (id, organization_id, name, slug, timezone, google_connection_id,
+       gbp_account_id, gbp_location_id, google_binding_state, lifecycle_state,
+       deleted_at, created_at, updated_at)
+    VALUES (${id}, ${MARKER_ORG}, ${`Sync ${property.suffix}`},
+            ${`obs-sync-${property.suffix}`}, 'UTC',
+            ${bound ? (property.connectionId ?? SYNC_CONNECTION_ACTIVE) : null},
+            ${bound ? GBP_ACCOUNT_ID : null},
+            ${bound ? `${GBP_LOCATION_ID}-${property.suffix}` : null},
+            ${bindingState}, ${property.lifecycleState ?? 'active'},
+            ${property.deleted === true ? sql`NOW()` : null}, NOW(),
+            NOW() - (${property.updatedMinutesAgo ?? SETTLED_MINUTES_AGO} * INTERVAL '1 minute'))
+  `)
+  return id
+}
+
+async function seedSyncState(
+  propertyId: string,
+  dueMinutesAgo: number | null,
+  codedFailure?: string,
+) {
   const nextIncremental =
     dueMinutesAgo == null
       ? sql`NOW() + INTERVAL '1 day'`
       : sql`NOW() - (${dueMinutesAgo} * INTERVAL '1 minute')`
   await db.execute(sql`
-    INSERT INTO review_sync_state (property_id, source, next_incremental_at, updated_at)
-    VALUES (${`${MARKER_SYNC_PROP}-${suffix}`}, 'google', ${nextIncremental}, NOW())
+    INSERT INTO review_sync_state
+      (property_id, source, next_incremental_at, error_class, error_retry_at, updated_at)
+    VALUES (${propertyId}, 'google', ${nextIncremental},
+            ${codedFailure ?? null},
+            ${codedFailure === undefined ? null : nextIncremental}, NOW())
   `)
 }
 
@@ -61,11 +144,11 @@ describe('sync freshness aggregate (real reads)', () => {
     const baseline = (await checker.check()).sync
 
     // A property parked a day out must not register as overdue at all.
-    await seedSyncState('future', null)
+    await seedSyncState(await seedSyncProperty({ suffix: '01' }), null)
     const parked = (await checker.check()).sync
     expect(parked.dueForIncrementalCount).toBe(baseline.dueForIncrementalCount)
 
-    await seedSyncState('lagging', 90)
+    await seedSyncState(await seedSyncProperty({ suffix: '02' }), 90)
     const lagging = (await checker.check()).sync
     expect(lagging.dueForIncrementalCount).toBe(baseline.dueForIncrementalCount + 1)
     expect(lagging.oldestDueAgeMs).not.toBeNull()
@@ -73,11 +156,102 @@ describe('sync freshness aggregate (real reads)', () => {
 
     // MIN semantics: an older overdue row moves the gauge up, a newer one
     // does not move it down.
-    await seedSyncState('ancient', 300)
-    await seedSyncState('recent', 2)
+    await seedSyncState(await seedSyncProperty({ suffix: '03' }), 300)
+    await seedSyncState(await seedSyncProperty({ suffix: '04' }), 2)
     const worst = (await checker.check()).sync
     expect(worst.dueForIncrementalCount).toBe(baseline.dueForIncrementalCount + 3)
     expect(worst.oldestDueAgeMs!).toBeGreaterThanOrEqual(299 * MINUTE_MS)
+  })
+
+  it('counts a coded failure whose retry is due on a Property the sweep still polls', async () => {
+    const baseline = (await checker.check()).sync
+
+    await seedSyncState(await seedSyncProperty({ suffix: '05' }), 30, 'rate_limited')
+
+    const after = (await checker.check()).sync
+    expect(after.failedSyncCount).toBe(baseline.failedSyncCount + 1)
+  })
+
+  it.each([
+    ['archived', { lifecycleState: 'archived' }],
+    ['suspended', { lifecycleState: 'suspended' }],
+    ['soft-deleted', { deleted: true }],
+    ['disconnected from Google', { bindingState: 'disconnected' }],
+    ['unbound from Google', { bindingState: 'unbound' }],
+    [
+      'on a connection that needs reauthorisation',
+      { connectionId: SYNC_CONNECTION_REAUTH },
+    ],
+  ] satisfies ReadonlyArray<readonly [string, Omit<SyncProperty, 'suffix'>]>)(
+    'ignores a past-due poll time and a coded failure of a Property that is %s',
+    async (_label, override) => {
+      const baseline = (await checker.check()).sync
+
+      // The sweep never selects this Property again, so its row is never
+      // rewritten: the poll time stays past due and the failure stays coded.
+      const property = await seedSyncProperty({ suffix: '06', ...override })
+      await seedSyncState(property, 600, 'authorization_denied')
+
+      const after = (await checker.check()).sync
+      expect(after.dueForIncrementalCount).toBe(baseline.dueForIncrementalCount)
+      expect(after.failedSyncCount).toBe(baseline.failedSyncCount)
+      expect(after.oldestDueAgeMs === null).toBe(baseline.oldestDueAgeMs === null)
+    },
+  )
+
+  // A Property that left the set kept the poll time it had, and nothing
+  // rewrites it until the sweep next polls the Property. Measured from that
+  // stale time, a restore or a Google reconnect would page "new reviews are
+  // not arriving" at once. The lag runs from the later of the poll time and the
+  // moment the Property qualified again.
+  describe('a Property that qualifies again', () => {
+    const THREE_DAYS_MINUTES = 3 * 24 * 60
+    const SLACK_MS = MINUTE_MS
+
+    const reentries = [
+      [
+        'restored, resumed or re-bound',
+        (minutesAgo) => seedSyncProperty({ suffix: '07', updatedMinutesAgo: minutesAgo }),
+      ],
+      [
+        'whose Google connection was reconnected',
+        async (minutesAgo) => {
+          await seedSyncConnection(SYNC_CONNECTION_RECONNECTED, 'active', minutesAgo)
+          return seedSyncProperty({
+            suffix: '07',
+            connectionId: SYNC_CONNECTION_RECONNECTED,
+          })
+        },
+      ],
+    ] satisfies ReadonlyArray<readonly [string, (minutesAgo: number) => Promise<string>]>
+
+    it.each(reentries)(
+      'is not overdue while its first sweep is still due (%s)',
+      async (_label, requalify) => {
+        const baseline = (await checker.check()).sync
+
+        await seedSyncState(await requalify(5), THREE_DAYS_MINUTES)
+
+        const after = (await checker.check()).sync
+        expect(after.dueForIncrementalCount).toBe(baseline.dueForIncrementalCount + 1)
+        const ceiling = Math.max(baseline.oldestDueAgeMs ?? 0, 6 * MINUTE_MS) + SLACK_MS
+        expect(after.oldestDueAgeMs ?? 0).toBeLessThanOrEqual(ceiling)
+      },
+    )
+
+    it.each(reentries)(
+      'is overdue, from the day it qualified, once its first sweep is late (%s)',
+      async (_label, requalify) => {
+        const baseline = (await checker.check()).sync
+
+        await seedSyncState(await requalify(90), THREE_DAYS_MINUTES)
+
+        const after = (await checker.check()).sync
+        const ceiling = Math.max(baseline.oldestDueAgeMs ?? 0, 91 * MINUTE_MS) + SLACK_MS
+        expect(after.oldestDueAgeMs!).toBeGreaterThanOrEqual(89 * MINUTE_MS)
+        expect(after.oldestDueAgeMs!).toBeLessThanOrEqual(ceiling)
+      },
+    )
   })
 })
 

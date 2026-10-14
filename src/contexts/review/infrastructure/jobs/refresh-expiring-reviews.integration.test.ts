@@ -20,6 +20,7 @@ import {
   insertLiveReview,
 } from '#/shared/testing/review-tombstone-fixtures'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import type { ReviewQueuePort } from '../../application/ports/review-queue.port'
 import { createReviewRepository } from '../repositories/review.repository'
 import { createReviewRefreshRunRepository } from '../repositories/review-refresh-run.repository'
@@ -33,6 +34,8 @@ const LIVE_DUE = reviewId('7e200000-0000-4000-8000-0000000000a1')
 const SECOND_LIVE_DUE = reviewId('7e200000-0000-4000-8000-0000000000a2')
 const TOMBSTONE = reviewId('7e200000-0000-4000-8000-0000000000a3')
 const LOCATION = 'locations/refresh-sweep'
+const { accountId: GBP_ACCOUNT_ID, locationId: GBP_LOCATION_ID } =
+  GOOGLE_PROVIDER_FIXTURES_V1['google-location-primary'].expectedSegments
 
 // The sweep is cross-tenant. A clock in 1900 keeps rows other suites leave
 // behind out of its five-day window.
@@ -47,8 +50,9 @@ const db = getDb()
 async function clean(): Promise<void> {
   await pool.query('DELETE FROM review_refresh_runs')
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
-  await pool.query('DELETE FROM google_connections WHERE organization_id = $1', [ORG])
+  // Properties first: deleting a connection nulls the one a bound Property holds.
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM google_connections WHERE organization_id = $1', [ORG])
   await deleteTestOrganizations(pool, [ORG])
 }
 
@@ -69,6 +73,15 @@ async function seedTenant(): Promise<void> {
        encrypted_refresh_token, token_expires_at, scopes, connected_by, status
      ) VALUES ($1, $2, $3, 'tok', 'rtok', NOW(), ARRAY['x'], 'user-1', 'active')`,
     [CONNECTION, ORG, `subject-refresh-sweep-${process.pid}`],
+  )
+  // The sweep offers only reviews a sync can still run for: the Property is
+  // bound to Google through the connection the reviews were fetched with.
+  await pool.query(
+    `UPDATE properties
+        SET google_connection_id = $1, gbp_account_id = $2, gbp_location_id = $3,
+            google_binding_state = 'active'
+      WHERE id = $4`,
+    [CONNECTION, GBP_ACCOUNT_ID, GBP_LOCATION_ID, PROPERTY],
   )
 }
 

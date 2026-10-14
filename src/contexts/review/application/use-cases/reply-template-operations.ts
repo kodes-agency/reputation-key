@@ -163,7 +163,11 @@ export const listReplyTemplates =
 
 const GREETING_LINE = /^(?:dear|hello|hi|greetings|good (?:morning|afternoon|evening))\b/u
 const TRAILING_BOUNDARY_PUNCTUATION = /[.,!?;:…'"“”„‟‘’‚‛«»‹›，。！？；：、،؛۔।॥]+$/u
-const EMOJI = /\p{Extended_Pictographic}|\p{Regional_Indicator}|[\uFE0F\u20E3]/gu
+// Extended_Pictographic also holds the registered, trade mark and copyright
+// signs, which a reply may carry and which are not emoji unless the text asks
+// for the emoji form (a following U+FE0F).
+const EMOJI =
+  /(?![\u00A9\u00AE\u2122](?!\uFE0F))\p{Extended_Pictographic}|\p{Regional_Indicator}|[\uFE0F\u20E3]/gu
 
 function normalizedBoundaryLines(value: string): readonly string[] {
   return value
@@ -227,22 +231,50 @@ function hasProfileSignOff(body: string, profile: ReplyTemplateRenderProfile): b
   )
 }
 
+const ESCALATION_SLOT = '{escalation_contact}'
+
+/**
+ * The profile's own text with the escalation contact filled in. The slot is
+ * valid in the greeting and in both sign-offs as well as in a template body, so
+ * every piece is filled before they are compared (a body that already ends with
+ * the profile's sign-off still matches it) and joined.
+ */
+function withEscalationContact(
+  profile: ReplyTemplateRenderProfile,
+): ReplyTemplateRenderProfile {
+  const contact = profile.escalationContact
+  if (contact === null) return profile
+  return {
+    ...profile,
+    greeting: fillEscalationContact(profile.greeting, contact),
+    signOffPositive: fillEscalationContact(profile.signOffPositive, contact),
+    signOffNegative: fillEscalationContact(profile.signOffNegative, contact),
+  }
+}
+
+/** A function replacer: a `$&` or `$'` typed into the contact is text, not replacement syntax. */
+function fillEscalationContact(value: string, contact: string): string {
+  return value.replaceAll(ESCALATION_SLOT, () => contact)
+}
+
 export function renderReplyTemplate(
   template: ReplyTemplateRenderTemplate,
   profile: ReplyTemplateRenderProfile | null,
   rating: number,
 ): string {
-  let rendered = template.body.trim()
-  if (profile === null) return rendered
-  if (profile.escalationContact !== null) {
-    rendered = rendered.replaceAll('{escalation_contact}', profile.escalationContact)
-  }
-  if (profile.greeting.trim() && !hasGreetingLine(rendered, profile.greeting)) {
-    rendered = `${profile.greeting.trim()}\n\n${rendered}`
+  const body = template.body.trim()
+  if (profile === null) return body
+  const framing = withEscalationContact(profile)
+  let rendered =
+    profile.escalationContact === null
+      ? body
+      : fillEscalationContact(body, profile.escalationContact)
+  if (framing.greeting.trim() && !hasGreetingLine(rendered, framing.greeting)) {
+    rendered = `${framing.greeting.trim()}\n\n${rendered}`
   }
   const signOff =
-    rating >= 4 ? profile.signOffPositive.trim() : profile.signOffNegative.trim()
-  if (signOff && !hasProfileSignOff(rendered, profile)) {
+    rating >= 4 ? framing.signOffPositive.trim() : framing.signOffNegative.trim()
+  if (signOff && !hasProfileSignOff(rendered, framing)) {
     rendered = `${rendered.trimEnd()}\n\n${signOff}`
   }
   if (!profile.emojiAllowed) {

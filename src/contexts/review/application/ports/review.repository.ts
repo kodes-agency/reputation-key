@@ -43,6 +43,8 @@ export type StableReviewSourceIdentity = Readonly<{
  * `readForAi` and `assertCurrentForAi` are the exception to the scope: they
  * test the clock alone and deny a tombstone through its NULL
  * `ai_source_byte_length` as `policy_unavailable`, the AI settlement outcome.
+ * `readForAi` answers only what the row says; a database fault is thrown,
+ * because analysis settles `policy_unavailable` as a terminal skip.
  */
 export type ReviewRepository = Readonly<{
   findById(id: ReviewId, organizationId: OrganizationId): Promise<Review | null>
@@ -88,6 +90,11 @@ export type ReviewRepository = Readonly<{
     observationKey?: string,
     observationOrigin?: ReviewProviderObservationOrigin,
   ): Promise<Review>
+  /**
+   * Live Reviews of one Property, newest first. With no `limit` this is every
+   * one of them (the Inbox repair command's "all review sources"); a caller
+   * that wants a page passes one.
+   */
   findByPropertyId(
     propertyId: PropertyId,
     organizationId: OrganizationId,
@@ -104,6 +111,7 @@ export type ReviewRepository = Readonly<{
     options: { limit: number },
     now: Date,
   ): Promise<ReadonlyArray<Review>>
+  /** Every live Review of the Organization, in id order. */
   findByOrganizationId(orgId: OrganizationId): Promise<ReadonlyArray<Review>>
   /**
    * BQC-3.8: keyset-bounded batch of reviews sourced through a Google
@@ -133,7 +141,10 @@ export type ReviewRepository = Readonly<{
    * ⚠️ CROSS-TENANT: BQC-1.5 keyset-bounded batch of expiring reviews,
    * ordered (contentExpiresAt ASC, id ASC). `cursor` resumes strictly AFTER
    * (contentExpiresAt, id) — no row is skipped or repeated as the cursor
-   * advances. Replaces the one-shot 5,000-row scan.
+   * advances. Replaces the one-shot 5,000-row scan. Only reviews a refresh
+   * sync could still run for: the Property is live and bound to Google through
+   * the review's connection, and that connection is usable. A sync for any
+   * other can never be authorized, so offering it would only queue failures.
    */
   findExpiringBatchAcrossTenants(
     date: Date,

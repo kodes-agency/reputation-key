@@ -1,6 +1,8 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import {
   AI_REVIEW_SOURCE_CONTRACT_VERSION,
+  AiReviewSourceRefusal,
+  MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
   canonicalizeRawAiReviewSource,
   canonicalizeRawAiReviewSourcePreviousRevision,
   type CanonicalAiReviewSource,
@@ -51,6 +53,56 @@ export function computeAiReviewSourceProvenance(
   input: AiReviewSourceInput,
 ): AiReviewSourceProvenance {
   return provenanceOf(canonicalizeRawAiReviewSource(input))
+}
+
+/**
+ * The byte length a Review row stores for a source the AI contract refuses:
+ * one over the canonical limit, so every reader that denies an oversize source
+ * (`readForAi`, `assertCurrentForAi` answer `source_too_large`; the eligibility
+ * counts leave it out) denies this one too.
+ */
+export const REFUSED_AI_SOURCE_BYTE_LENGTH = MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1 + 1
+
+const REFUSED_DIGEST_PREFIX = new TextEncoder().encode(
+  `${AI_REVIEW_SOURCE_CONTRACT_VERSION}-refused\0`,
+)
+
+/**
+ * The provenance pair the Review writer stores for one observation. A source
+ * the contract refuses (canonical form over 16 KB once NFKC has expanded it, an
+ * unpaired surrogate) is no reason to refuse the Review: it is Google's content
+ * and the Inbox, the Dashboard and the reply workflow need it. It is stored
+ * marked as over the limit, which the AI readers already deny, and its digest
+ * covers the raw fields the real digest covers, so an edit of the text still
+ * reads as a changed review. Whether the AI should ever read such a text
+ * (skipped, as it is, or truncated) is a product question, `ai/CONTEXT.md`.
+ */
+export function storedAiReviewSourceProvenance(
+  input: AiReviewSourceInput,
+): StoredAiReviewSourceProvenance {
+  try {
+    const { byteLength, digest } = computeAiReviewSourceProvenance(input)
+    return { byteLength, digest }
+  } catch (error) {
+    if (!(error instanceof AiReviewSourceRefusal)) throw error
+    return refusedProvenance(input)
+  }
+}
+
+function refusedProvenance(input: AiReviewSourceInput): StoredAiReviewSourceProvenance {
+  const fields = JSON.stringify([
+    input.text,
+    input.rating,
+    input.languageCode,
+    input.reviewedAtEpochMillis,
+  ])
+  return {
+    byteLength: REFUSED_AI_SOURCE_BYTE_LENGTH,
+    digest: createHash('sha256')
+      .update(REFUSED_DIGEST_PREFIX)
+      .update(fields, 'utf8')
+      .digest('hex'),
+  }
 }
 
 function sameStoredProvenance(
@@ -106,6 +158,23 @@ export function matchStoredAiReviewSourceProvenance(
   if (previous !== null && sameStoredProvenance(previous, stored)) return previous
   if (currentFailure !== null) throw currentFailure
   return null
+}
+
+/**
+ * `matchStoredAiReviewSourceProvenance` for a caller that reads a source the
+ * contract refuses as "describes no stored row" instead of as a failure. Any
+ * other error is not an answer about the source and still throws.
+ */
+export function findStoredAiReviewSourceProvenance(
+  input: AiReviewSourceInput,
+  stored: StoredAiReviewSourceProvenance,
+): AiReviewSourceProvenance | null {
+  try {
+    return matchStoredAiReviewSourceProvenance(input, stored)
+  } catch (error) {
+    if (error instanceof AiReviewSourceRefusal) return null
+    throw error
+  }
 }
 
 function previousRevisionProvenance(

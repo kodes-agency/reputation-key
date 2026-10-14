@@ -9,7 +9,10 @@ import { getDb } from '#/shared/db'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { canonicalizeRawAiReviewSourcePreviousRevision } from '#/shared/ai-review-source-contract'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { computeAiReviewSourceProvenance } from '../../application/ai-review-source'
+import {
+  computeAiReviewSourceProvenance,
+  storedAiReviewSourceProvenance,
+} from '../../application/ai-review-source'
 import type { AiReviewSourceRequest } from '../../application/ports/ai-review-source.port'
 import type { Review } from '../../domain/types'
 import { createReviewRepository } from './review.repository'
@@ -88,7 +91,10 @@ function storedUnderCurrentRules() {
   return { aiSourceByteLength: provenance.byteLength, aiSourceDigest: provenance.digest }
 }
 
-async function store(provenance: Pick<Review, 'aiSourceByteLength' | 'aiSourceDigest'>) {
+async function store(
+  provenance: Pick<Review, 'aiSourceByteLength' | 'aiSourceDigest'>,
+  text: string = TEXT,
+) {
   const now = new Date()
   const repo = createReviewRepository(getDb(), () => now)
   await repo.upsert({
@@ -102,7 +108,7 @@ async function store(provenance: Pick<Review, 'aiSourceByteLength' | 'aiSourceDi
     reviewerName: null,
     reviewerProfilePhotoUrl: null,
     rating: 4,
-    text: TEXT,
+    text,
     translatedText: null,
     languageCode: 'en',
     reviewedAt: REVIEWED_AT,
@@ -153,5 +159,37 @@ describe.sequential('reviewRepository.readForAi under the source text revisions'
       aiSourceDigest: 'f'.repeat(64),
     })
     await expect(repo.readForAi(READ)).resolves.toEqual({ status: 'policy_unavailable' })
+  })
+
+  it('answers policy_unavailable for a row whose own source the canonicalizer refuses', async () => {
+    // 497 x U+FDFA is 1,491 bytes raw and 16,401 once NFKC has expanded it. The
+    // row claims a length under the cap, so only recomputing it shows the
+    // refusal; the refusal belongs to the row, so it is an answer, not a throw.
+    const repo = await store(
+      { aiSourceByteLength: 100, aiSourceDigest: 'f'.repeat(64) },
+      '\uFDFA'.repeat(497),
+    )
+
+    await expect(repo.readForAi(READ)).resolves.toEqual({ status: 'policy_unavailable' })
+  })
+
+  it('denies a review the writer stored marked over the canonical limit, without recomputing it', async () => {
+    const text = '\uFDFA'.repeat(497)
+    const marked = storedAiReviewSourceProvenance({
+      text,
+      rating: 4,
+      languageCode: 'en',
+      reviewedAtEpochMillis: REVIEWED_AT.getTime(),
+      reviewerDisplayName: null,
+    })
+    const repo = await store(
+      { aiSourceByteLength: marked.byteLength, aiSourceDigest: marked.digest },
+      text,
+    )
+
+    await expect(repo.readForAi(READ)).resolves.toEqual({ status: 'source_too_large' })
+    await expect(repo.assertCurrentForAi(READ)).resolves.toEqual({
+      status: 'source_too_large',
+    })
   })
 })

@@ -109,6 +109,66 @@ describe('sync-property-reviews snapshot handler', () => {
     expect(discoveryRepo.markSyncSucceeded).not.toHaveBeenCalled()
   })
 
+  // A location over the review cap (10,000 reviews, 200 pages) fails the same
+  // way on every run until the cap or the location changes. Retrying it at the
+  // discovery interval, with three BullMQ attempts and a quarantine entry per
+  // round, only spends Google quota and fills the dead-letter queue (S14-05).
+  it.each(['review_cap_exceeded', 'page_cap_exceeded'] as const)(
+    'parks a location that fails %s for a day and ends the job without a retry',
+    async (code) => {
+      const discoveryRepo = makeDiscoveryState()
+      const handler = createSyncPropertyReviewsHandler({
+        runSnapshot: vi.fn(async () => ({
+          status: 'failed' as const,
+          runId: '44444444-4444-4444-8444-444444444444',
+          code,
+        })),
+        propertySourceEpoch,
+        enqueueContinuation: vi.fn(async () => undefined),
+        ...ladderDeps(makeSyncActivity(), discoveryRepo),
+      })
+
+      await expect(
+        handler({ id: 'job-too-large', data: JOB_DATA } as never),
+      ).resolves.toMatchObject({ status: 'failed', code })
+
+      expect(discoveryRepo.markDiscoveryDeferred).toHaveBeenCalledWith(
+        JOB_DATA.propertyId,
+        NOW,
+        new Date(NOW.getTime() + 24 * 60 * 60 * 1000),
+        code,
+      )
+      expect(discoveryRepo.markSyncSucceeded).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(['source_changed', 'malformed_page', 'observation_failed'] as const)(
+    'still retries at the discovery interval after %s',
+    async (code) => {
+      const discoveryRepo = makeDiscoveryState()
+      const handler = createSyncPropertyReviewsHandler({
+        runSnapshot: vi.fn(async () => ({
+          status: 'failed' as const,
+          runId: '44444444-4444-4444-8444-444444444444',
+          code,
+        })),
+        propertySourceEpoch,
+        enqueueContinuation: vi.fn(async () => undefined),
+        ...ladderDeps(makeSyncActivity(), discoveryRepo),
+      })
+
+      await expect(
+        handler({ id: 'job-transient', data: JOB_DATA } as never),
+      ).rejects.toMatchObject({ name: 'ReviewProviderSnapshotFailure', message: code })
+      expect(discoveryRepo.markDiscoveryDeferred).toHaveBeenCalledWith(
+        JOB_DATA.propertyId,
+        NOW,
+        new Date(NOW.getTime() + HOT_INTERVAL_MS),
+        code,
+      )
+    },
+  )
+
   it('clears prior sync failure state only after a completed run', async () => {
     const discoveryRepo = makeDiscoveryState()
     const handler = createSyncPropertyReviewsHandler({

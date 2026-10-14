@@ -1,11 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { createHash } from 'node:crypto'
-import { canonicalizeRawAiReviewSourcePreviousRevision } from '#/shared/ai-review-source-contract'
 import {
+  AiReviewSourceRefusal,
+  canonicalizeRawAiReviewSourcePreviousRevision,
+} from '#/shared/ai-review-source-contract'
+import {
+  REFUSED_AI_SOURCE_BYTE_LENGTH,
   computeAiReviewSourceProvenance,
   createAiReviewSource,
+  findStoredAiReviewSourceProvenance,
   matchStoredAiReviewSourceProvenance,
+  storedAiReviewSourceProvenance,
 } from './ai-review-source'
 import type { AiReviewSourceRequest } from './ports/ai-review-source.port'
 
@@ -240,6 +246,69 @@ describe('matchStoredAiReviewSourceProvenance', () => {
     expect(
       matchStoredAiReviewSourceProvenance(accented, {
         digest: '1'.repeat(64),
+        byteLength: 10,
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('a source the AI contract refuses', () => {
+  const REFUSED = {
+    // 497 x U+FDFA: 1,491 bytes raw, 16,401 once NFKC has expanded it.
+    text: '\uFDFA'.repeat(497),
+    rating: 4 as const,
+    languageCode: 'en',
+    reviewedAtEpochMillis: 1_776_000_000_000,
+    reviewerDisplayName: null,
+  }
+
+  it('is stored marked one byte over the canonical limit, with a digest of its fields', () => {
+    const stored = storedAiReviewSourceProvenance(REFUSED)
+
+    expect(stored.byteLength).toBe(REFUSED_AI_SOURCE_BYTE_LENGTH)
+    expect(REFUSED_AI_SOURCE_BYTE_LENGTH).toBe(16_385)
+    expect(stored.digest).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it('has a digest that moves with the text, the rating, the language and the review date', () => {
+    const base = storedAiReviewSourceProvenance(REFUSED).digest
+    const edited = [
+      { ...REFUSED, text: '\uFDFB'.repeat(497) },
+      { ...REFUSED, rating: 5 as const },
+      { ...REFUSED, languageCode: 'bg' },
+      { ...REFUSED, reviewedAtEpochMillis: REFUSED.reviewedAtEpochMillis + 1 },
+    ].map((input) => storedAiReviewSourceProvenance(input).digest)
+
+    expect(new Set([base, ...edited]).size).toBe(5)
+  })
+
+  it('keeps the real digest of a source the contract accepts', () => {
+    const accepted = { ...REFUSED, text: 'Room was clean.' }
+    const computed = computeAiReviewSourceProvenance(accepted)
+
+    expect(storedAiReviewSourceProvenance(accepted)).toEqual({
+      byteLength: computed.byteLength,
+      digest: computed.digest,
+    })
+  })
+
+  it('is stored marked when the text holds an unpaired surrogate', () => {
+    const stored = storedAiReviewSourceProvenance({ ...REFUSED, text: 'Nice\uD83D' })
+
+    expect(stored.byteLength).toBe(REFUSED_AI_SOURCE_BYTE_LENGTH)
+  })
+
+  it('still throws what is not a refusal of the source', () => {
+    const attempt = () => storedAiReviewSourceProvenance({ ...REFUSED, text: 5 as never })
+
+    expect(attempt).toThrow(TypeError)
+    expect(attempt).not.toThrow(AiReviewSourceRefusal)
+  })
+
+  it('describes no stored row, instead of failing, when looked up with findStored', () => {
+    expect(
+      findStoredAiReviewSourceProvenance(REFUSED, {
+        digest: '3'.repeat(64),
         byteLength: 10,
       }),
     ).toBeNull()

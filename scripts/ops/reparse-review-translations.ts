@@ -53,7 +53,7 @@ import { z } from 'zod/v4'
 import { getDb, type Database } from '../../src/shared/db'
 import { parseGoogleReviewComment } from '../../src/shared/google-review-comment'
 import { computeReviewContentHash } from '../../src/contexts/review/domain/rules'
-import { computeAiReviewSourceProvenance } from '../../src/contexts/review/application/ai-review-source'
+import { storedAiReviewSourceProvenance } from '../../src/contexts/review/application/ai-review-source'
 import type { StarRating } from '../../src/contexts/review/domain/types'
 import type {
   OperatorAction,
@@ -135,7 +135,7 @@ function repairFor(row: WrappedReviewRow): ReviewTranslationRepair | null {
   // Refuse to replace real text with nothing.
   if (parsed.original === null) return null
   const rating = row.rating as StarRating
-  const provenance = computeAiReviewSourceProvenance({
+  const provenance = storedAiReviewSourceProvenance({
     text: parsed.original,
     rating,
     languageCode: row.language_code,
