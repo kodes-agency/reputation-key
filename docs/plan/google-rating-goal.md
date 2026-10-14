@@ -168,6 +168,7 @@ AccountAdmins and PropertyManagers with access to the Property, under `goal.read
 - Google's own numbers: the Current on Google snapshot (Reporting), as Review publishes it after a verified run, refreshed every 15 minutes to 6 hours.
 - The cache: read only through Review's public API, as counts and star sums of reviews that may be served and were observed under the Property's current Google binding; reviews per Monday-to-Sunday week in the Property's time zone; stars since an instant. No review content leaves Review.
 - Stored: the goal (mode, target, pace, state, binding epoch, baselines, the tenth and status last seen, reached or ended date and reason, a version for compare-and-set) and its change log. Exported and purged with the Organization's Goal records.
+- Stored (PR 4, migration 0058; 0057 is PR 5's): a manager's "Not now" for a Property's goal (`property_rating_goal_deferrals`, who and when, one row per Property), so the setup strip's "Set a Google rating goal" step counts as decided. It sets, changes and blocks no goal. Exported and purged with the Goal records, and gone with its Property.
 
 ## Pull requests
 

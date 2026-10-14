@@ -134,6 +134,16 @@ metric authority.
   authorizer about each goal's Organization and Property before reading anything. Feed
   turns the facts into notices for the Property's responsible managers.
 - **Dashboard read model**: content-minimal presentation assembled from governed sources.
+- **Google's own numbers** (`domain/google-numbers.ts`): every headline rating (the Property
+  Overview's Rating tile, the Properties list's Rating and Reviews, the rating goal) is the
+  number and count Google shows, from the Current on Google snapshot at the Property's current
+  binding epoch, never RepKey's average of the reviews it holds (ADR 0067, decision 16).
+  Numbers more than a day old, or read while the Google binding is not active, are Google's
+  last ones, shown with their date; none at all only when Google never sent numbers for the
+  current binding. The overview read returns them beside the dashboard (`google`); the fleet
+  read joins them, and the Property's active rating goal as stored (target, mode, last status,
+  never a live evaluation), for its page only. RepKey's period averages stay for the Ratings
+  page and the rating drop signal.
 - **Portal lifetime aggregate**: anonymous all-time values with rebuild and seal evidence.
 - **Portal results measures**: the five figures on a Portal's Results view, each named for
   what it counts. Qualified scans (not raw page opens; counted from August 2026), private
