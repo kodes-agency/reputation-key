@@ -6,8 +6,11 @@ import {
   holdTransaction,
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
-import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
-import { seedLockedMonthTarget } from '../testing/goal-month-target-seed'
+import {
+  seedCountReadings,
+  seedGoalMonth,
+  type SeedGoalMonthInput,
+} from '../testing/goal-running-month-seed'
 import { createAttentionSignalsAdapter } from './attention-signals.adapter'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
@@ -15,10 +18,6 @@ const ORGANIZATION = organizationId(`org-attention-union-test-${randomUUID()}`)
 const PROPERTY = propertyId(randomUUID())
 const REVIEW_ONE = randomUUID()
 const REVIEW_TWO = randomUUID()
-const GOAL_PROGRAM = randomUUID()
-const GOAL_PROGRAM_VERSION = randomUUID()
-const GOAL_ASSIGNMENT = randomUUID()
-const GOAL_RESULT = randomUUID()
 let fixture: HeldTransaction | undefined
 let client: HeldTransaction['client']
 let db: Database
@@ -114,60 +113,19 @@ beforeAll(async () => {
     )
   }
 
-  await client.query(
-    `INSERT INTO goal_programs
-       (id, organization_id, property_id, name, status, current_version,
-        created_by, created_at, updated_at)
-     VALUES ($1, $2, $3, 'Canonical attention Goal', 'active', 1,
-             'manager-1', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z')`,
-    [GOAL_PROGRAM, ORGANIZATION, PROPERTY],
-  )
-  await client.query(
-    `INSERT INTO goal_program_versions
-       (id, program_id, organization_id, property_id, version,
-        metric_definition_id, metric_definition_version_id, metric_key,
-        metric_minimum_sample, target_value, property_timezone, effective_from,
-        change_reason, created_by, created_at)
-     VALUES ($1, $2, $3, $4, 1, $5, $6, 'qualified_scans',
-       0, 100, 'UTC', '2026-08-01T00:00:00Z', 'created', 'manager-1',
-       '2026-08-01T00:00:00Z')`,
-    [
-      GOAL_PROGRAM_VERSION,
-      GOAL_PROGRAM,
-      ORGANIZATION,
-      PROPERTY,
-      METRIC_DEFINITION_IDS.qualifiedScan,
-      METRIC_VERSION_IDS.qualifiedScanGoal,
-    ],
-  )
-  await client.query(
-    `INSERT INTO goal_subject_assignments
-       (id, program_id, program_version_id, organization_id, property_id,
-        metric_key, subject_kind, property_subject_id, effective_from,
-        created_by, created_at)
-     VALUES ($1, $2, $3, $4, $5, 'qualified_scans', 'property', $5,
-             '2026-08-01T00:00:00Z', 'manager-1', '2026-08-01T00:00:00Z')`,
-    [GOAL_ASSIGNMENT, GOAL_PROGRAM, GOAL_PROGRAM_VERSION, ORGANIZATION, PROPERTY],
-  )
-  await client.query(
-    `INSERT INTO goal_monthly_results
-       (id, assignment_id, program_id, program_version_id, organization_id,
-        property_id, period_start, period_end, property_timezone, status,
-        evaluation_state, value, sample_count, achieved, source_complete_through,
-        evaluation_watermark, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, '2026-08-01T00:00:00Z',
-             '2026-09-01T00:00:00Z', 'UTC', 'open', 'eligible', 1, 1, false,
-             $7, $7, '2026-08-01T00:00:00Z', $7)`,
-    [
-      GOAL_RESULT,
-      GOAL_ASSIGNMENT,
-      GOAL_PROGRAM,
-      GOAL_PROGRAM_VERSION,
-      ORGANIZATION,
-      PROPERTY,
-      NOW,
-    ],
-  )
+  // An active scans goal with August 2026 running and one scan counted: at NOW
+  // (day 25 of 31) it is far behind a target of 100.
+  await seedGoalMonth(client, {
+    organizationId: ORGANIZATION,
+    propertyId: PROPERTY,
+    target: 100,
+  })
+  await seedCountReadings(client, {
+    organizationId: ORGANIZATION,
+    propertyId: PROPERTY,
+    count: 1,
+    eventAt: '2026-08-20T00:00:00Z',
+  })
 })
 
 afterAll(async () => {
@@ -181,75 +139,43 @@ type RunningGoalMonth = Readonly<{
   scansSoFar: number
 }>
 
-/**
- * An active scans goal on a Property of its own, with August 2026 open and
- * counted so far. At NOW about 79% of the month has passed.
- */
-async function seedRunningGoalMonth(month: RunningGoalMonth) {
+/** The goals behind pace of a Property that holds one goal, read at `now`. */
+async function behindPaceAt(
+  now: Date,
+  scansSoFar: number,
+  goal: Partial<SeedGoalMonthInput> = {},
+): Promise<number> {
   const property = propertyId(randomUUID())
-  const program = randomUUID()
-  const version = randomUUID()
-  const assignment = randomUUID()
   await client.query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
-     VALUES ($1::uuid, $2, 'Month target Property', $1::text, 'UTC')`,
+     VALUES ($1::uuid, $2, 'Pace Property', $1::text, 'UTC')`,
     [property, ORGANIZATION],
   )
-  await client.query(
-    `INSERT INTO goal_programs
-       (id, organization_id, property_id, name, status, current_version,
-        created_by, created_at, updated_at)
-     VALUES ($1, $2, $3, 'Month target Goal', 'active', 1,
-             'manager-1', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z')`,
-    [program, ORGANIZATION, property],
+  await seedGoalMonth(client, {
+    organizationId: ORGANIZATION,
+    propertyId: property,
+    target: 100,
+    ...goal,
+  })
+  await seedCountReadings(client, {
+    organizationId: ORGANIZATION,
+    propertyId: property,
+    count: scansSoFar,
+    eventAt: '2026-08-02T10:00:00Z',
+    metric: goal.metric,
+  })
+  const counts = await createAttentionSignalsAdapter(db, () => now).getAttentionCounts(
+    ORGANIZATION,
+    property,
   )
-  await client.query(
-    `INSERT INTO goal_program_versions
-       (id, program_id, organization_id, property_id, version,
-        metric_definition_id, metric_definition_version_id, metric_key,
-        metric_minimum_sample, target_value, property_timezone, effective_from,
-        change_reason, created_by, created_at)
-     VALUES ($1, $2, $3, $4, 1, $5, $6, 'qualified_scans',
-       0, $7, 'UTC', '2026-08-01T00:00:00Z', 'created', 'manager-1',
-       '2026-08-01T00:00:00Z')`,
-    [
-      version,
-      program,
-      ORGANIZATION,
-      property,
-      METRIC_DEFINITION_IDS.qualifiedScan,
-      METRIC_VERSION_IDS.qualifiedScanGoal,
-      month.versionTarget,
-    ],
-  )
-  await client.query(
-    `INSERT INTO goal_subject_assignments
-       (id, program_id, program_version_id, organization_id, property_id,
-        metric_key, subject_kind, property_subject_id, effective_from,
-        created_by, created_at)
-     VALUES ($1, $2, $3, $4, $5, 'qualified_scans', 'property', $5,
-             '2026-08-01T00:00:00Z', 'manager-1', '2026-08-01T00:00:00Z')`,
-    [assignment, program, version, ORGANIZATION, property],
-  )
-  const result = randomUUID()
-  await client.query(
-    `INSERT INTO goal_monthly_results
-       (id, assignment_id, program_id, program_version_id, organization_id,
-        property_id, period_start, period_end, property_timezone, status,
-        evaluation_state, value, sample_count, achieved,
-        source_complete_through, evaluation_watermark, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, '2026-08-01T00:00:00Z',
-             '2026-09-01T00:00:00Z', 'UTC', 'open', 'eligible', $7::numeric,
-             $7::integer, false, $8, $8, '2026-08-01T00:00:00Z', $8)`,
-    [result, assignment, program, version, ORGANIZATION, property, month.scansSoFar, NOW],
-  )
-  // August 2026 is over on the database clock, so the target lock refuses the
-  // target a manager set while the month ran.
-  if (month.monthTarget !== null) {
-    await seedLockedMonthTarget(client, result, month.monthTarget)
-  }
-  return property
+  return counts.goalsBehindPace
 }
+
+// August 2026, day 25 of 31: the line expects 100 x 25 / 31 = 80.6 of a target of 100.
+const LATE = NOW
+// Day 4: the first day that is judged. Day 3 is not.
+const FOURTH_DAY = new Date('2026-08-04T12:00:00.000Z')
+const THIRD_DAY = new Date('2026-08-03T12:00:00.000Z')
 
 describe('attention signal work-set union', () => {
   it('counts Dashboard-owned work anchors while leaving overdue targets to Inbox', async () => {
@@ -265,15 +191,39 @@ describe('attention signal work-set union', () => {
   })
 })
 
-describe('goals behind pace and a month with its own target', () => {
-  const behindPace = async (month: RunningGoalMonth) => {
-    const property = await seedRunningGoalMonth(month)
-    const counts = await createAttentionSignalsAdapter(db, () => NOW).getAttentionCounts(
-      ORGANIZATION,
-      property,
-    )
-    return counts.goalsBehindPace
-  }
+describe('goals behind pace, counted from the live month', () => {
+  const behindPace = (month: RunningGoalMonth) =>
+    behindPaceAt(LATE, month.scansSoFar, {
+      target: month.versionTarget,
+      monthTarget: month.monthTarget,
+    })
+
+  it('does not rest on the stored result, which a running month never fills', async () => {
+    // The month row is `updating` with no value; the scans are the figure.
+    await expect(behindPaceAt(LATE, 90)).resolves.toBe(0)
+    await expect(behindPaceAt(LATE, 10)).resolves.toBe(1)
+  })
+
+  it('is on pace at 90% of the straight line and behind below it', async () => {
+    // 100 x 25 / 31 = 80.64; 90% of it is 72.58.
+    await expect(behindPaceAt(LATE, 73)).resolves.toBe(0)
+    await expect(behindPaceAt(LATE, 72)).resolves.toBe(1)
+  })
+
+  it('does not flag the first three days of the month', async () => {
+    await expect(behindPaceAt(THIRD_DAY, 0)).resolves.toBe(0)
+    await expect(behindPaceAt(FOURTH_DAY, 0)).resolves.toBe(1)
+  })
+
+  it('never flags an average', async () => {
+    await expect(
+      behindPaceAt(LATE, 1, { metric: 'portal_rating_average', target: 4.5 }),
+    ).resolves.toBe(0)
+  })
+
+  it('does not flag a paused goal', async () => {
+    await expect(behindPaceAt(LATE, 1, { programStatus: 'paused' })).resolves.toBe(0)
+  })
 
   it("is behind pace against the month's own higher target", async () => {
     // 90 scans keep pace with the version's 100, not with the month's own 400.
@@ -296,5 +246,46 @@ describe('goals behind pace and a month with its own target', () => {
     await expect(
       behindPace({ versionTarget: 100, monthTarget: null, scansSoFar: 90 }),
     ).resolves.toBe(0)
+  })
+
+  it('counts a goal once however many of its subjects are behind', async () => {
+    const property = propertyId(randomUUID())
+    await client.query(
+      `INSERT INTO properties (id, organization_id, name, slug, timezone)
+       VALUES ($1::uuid, $2, 'Pace Property', $1::text, 'UTC')`,
+      [property, ORGANIZATION],
+    )
+    const portals = [randomUUID(), randomUUID()]
+    for (const portal of portals) {
+      await client.query(
+        `INSERT INTO portals (id, organization_id, property_id, entity_type, entity_id,
+                              name, slug, publication_state, created_at, updated_at)
+         VALUES ($1::uuid, $2, $3::uuid, 'property', $3::text, 'Front desk', $1::text,
+                 'published', now(), now())`,
+        [portal, ORGANIZATION, property],
+      )
+    }
+    const first = await seedGoalMonth(client, {
+      organizationId: ORGANIZATION,
+      propertyId: property,
+      subject: { kind: 'portal', portalId: portals[0]! },
+      target: 100,
+    })
+    await seedGoalMonth(client, {
+      organizationId: ORGANIZATION,
+      propertyId: property,
+      subject: { kind: 'portal', portalId: portals[1]! },
+      target: 100,
+      program: { programId: first.programId, versionId: first.versionId },
+    })
+
+    const counts = await createAttentionSignalsAdapter(db, () => LATE).getAttentionCounts(
+      ORGANIZATION,
+      property,
+    )
+
+    // Both portals have counted nothing: one goal, two subjects behind.
+    expect(counts.goalsBehindPace).toBe(1)
+    expect(counts.attentionWork).toBe(1)
   })
 })

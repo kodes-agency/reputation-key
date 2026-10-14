@@ -36,6 +36,40 @@ metric authority.
   changed it when it is no longer the one the month started with. It is never a result: it evaluates nothing, is never stored, and an
   average under the metric's minimum sample or a reading that cannot be trusted is shown as
   such, never as a zero.
+- **Goals list progress**: the month so far of every active goal of a Property, read in one
+  request for the Goals list (`getGoalListProgress`, `createGoalListProgressReader`): one Program
+  list read, then each goal through the same `progressOf` as its own page. One subject gets its
+  figure against the running month's target and the days left, and on a count that is below pace
+  the quiet amber words "below pace": after the days left where the row's cell has room, beside
+  the bar where it has not (`belowPace` is 1 or 0 for one subject, null when nothing was judged,
+  the same figures and the same `goalPace` as several subjects); several
+  subjects on a count get how many are below pace; an average with several subjects, or more
+  subjects than a goal's page reads, gets the count of subjects alone. A scheduled, paused or
+  ended goal has no line. Each figure is the governed read of the goal's own page, so the list
+  and the page cannot disagree: one server call but several statements, a deliberate departure
+  from one set-based read because the set-based count below leaves out the outbox completeness
+  proof. A page is bounded instead:
+  at most 60 figures, three in flight (two queries each, six of the web pool's ten connections),
+  and the goals past that carry no line. While the figures are first read, an active row keeps
+  the room its line will take (`GoalLiveLinePending`), so the rows below do not move; whether a
+  count is below pace is known only with its figure, so the note adds no height at any cell
+  width, which is why it moves beside the bar in a narrow one.
+- **Goal pace** (`domain/goal-pace.ts`): how far a count goal's running month should have got. A
+  count measure expects the month's target times the share of the month gone, in whole
+  Property-local calendar days with today included (the Results window's convention). It is
+  behind pace below 90% of that, and exactly 90% is on pace. The first three days of a month are
+  not judged, and an average has no pace. One rule feeds the Goals list ("below pace" on a row
+  with one subject, "N below pace" on one with several), the Overview chip and the Properties
+  list. The chip and the list count the figure from the readings of every running month of an
+  active count goal in one statement
+  (`infrastructure/adapters/goal-running-months.ts`), because a month still running stores no
+  value: its result row stays `updating` until it closes. That read sums what the goal's own page
+  sums and reads a goal only where the page could: a Portal or Portal Group that was deleted, or
+  a metric version not in effect for the whole month (`goalVersionIsUsable`, the governed read's
+  own rule), leaves a goal uncounted. It leaves out only the outbox completeness proof, and a
+  month with a reading the governed read would quarantine has no figure and is not counted. An
+  integration test holds its sum to `queryGoalAggregate` on the same readings. A goal counts once
+  however many subjects are behind.
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
   one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
   rows). It is authorised once and its start month is resolved once, so every goal of a save

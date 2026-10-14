@@ -7,25 +7,17 @@ import {
   holdTransaction,
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
-import {
-  METRIC_DEFINITION_IDS,
-  METRIC_VERSION_IDS,
-  findMetricVersionById,
-} from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS, findMetricVersionById } from '../../domain/metric-registry'
 import { getFleetOverview } from '../../application/use-cases/get-fleet-overview'
-import { seedLockedMonthTarget } from '../testing/goal-month-target-seed'
+import { seedCountReadings, seedGoalMonth } from '../testing/goal-running-month-seed'
 import { createFleetOverviewProjectionAdapter } from './fleet-overview-projection.adapter'
 
-const FLEET_TRANSACTION_STATEMENT_BOUND = 4
+const FLEET_TRANSACTION_STATEMENT_BOUND = 5
 
 const NOW = new Date('2026-08-09T12:00:00.000Z')
 const ORG = organizationId(`org-fleet-projection-integration-${randomUUID()}`)
 const PROPERTY_COUNT = 5_000
 const REVIEW_IDS = [randomUUID(), randomUUID(), randomUUID(), randomUUID()] as const
-const GOAL_PROGRAM = randomUUID()
-const GOAL_PROGRAM_VERSION = randomUUID()
-const GOAL_ASSIGNMENT = randomUUID()
-const GOAL_RESULT = randomUUID()
 const METRIC_SOURCE_PREFIX = `fleet-source-${randomUUID()}`
 const CORRECTION_SOURCE_EVENT = `fleet-correction-${randomUUID()}`
 
@@ -152,60 +144,22 @@ beforeAll(async () => {
       [item.id, ORG, first.propertyId, item.sourceType, item.sourceId, item.status, NOW],
     )
   }
-  await client.query(
-    `INSERT INTO goal_programs
-       (id, organization_id, property_id, name, status, current_version,
-        created_by, created_at, updated_at)
-     VALUES ($1, $2, $3, 'Fleet canonical Goal', 'active', 1,
-             'manager-1', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z')`,
-    [GOAL_PROGRAM, ORG, first.propertyId],
-  )
-  await client.query(
-    `INSERT INTO goal_program_versions
-       (id, program_id, organization_id, property_id, version,
-        metric_definition_id, metric_definition_version_id, metric_key,
-        metric_minimum_sample, target_value, property_timezone, effective_from,
-        change_reason, created_by, created_at)
-     VALUES ($1, $2, $3, $4, 1, $5, $6, 'portal_rating_count',
-       0, 100, 'UTC', '2026-08-01T00:00:00Z', 'created', 'manager-1',
-       '2026-08-01T00:00:00Z')`,
-    [
-      GOAL_PROGRAM_VERSION,
-      GOAL_PROGRAM,
-      ORG,
-      first.propertyId,
-      METRIC_DEFINITION_IDS.portalRatingCount,
-      METRIC_VERSION_IDS.portalRatingCountGoal,
-    ],
-  )
-  await client.query(
-    `INSERT INTO goal_subject_assignments
-       (id, program_id, program_version_id, organization_id, property_id,
-        metric_key, subject_kind, property_subject_id, effective_from,
-        created_by, created_at)
-     VALUES ($1, $2, $3, $4, $5, 'portal_rating_count', 'property', $5,
-             '2026-08-01T00:00:00Z', 'manager-1', '2026-08-01T00:00:00Z')`,
-    [GOAL_ASSIGNMENT, GOAL_PROGRAM, GOAL_PROGRAM_VERSION, ORG, first.propertyId],
-  )
-  await client.query(
-    `INSERT INTO goal_monthly_results
-       (id, assignment_id, program_id, program_version_id, organization_id,
-        property_id, period_start, period_end, property_timezone, status,
-        evaluation_state, value, sample_count, achieved, source_complete_through,
-        evaluation_watermark, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, '2026-08-01T00:00:00Z',
-             '2026-09-01T00:00:00Z', 'UTC', 'open', 'eligible', 1, 1, false,
-             $7, $7, '2026-08-01T00:00:00Z', $7)`,
-    [
-      GOAL_RESULT,
-      GOAL_ASSIGNMENT,
-      GOAL_PROGRAM,
-      GOAL_PROGRAM_VERSION,
-      ORG,
-      first.propertyId,
-      NOW,
-    ],
-  )
+  // A rating count goal with August 2026 running and one rating counted: at NOW
+  // (day 9 of 31) it is far behind a target of 100. The month is `updating`
+  // with no value, as production leaves a month that is still running.
+  await seedGoalMonth(client, {
+    organizationId: ORG,
+    propertyId: first.propertyId,
+    metric: 'portal_rating_count',
+    target: 100,
+  })
+  await seedCountReadings(client, {
+    organizationId: ORG,
+    propertyId: first.propertyId,
+    metric: 'portal_rating_count',
+    count: 1,
+    eventAt: '2026-08-05T10:00:00Z',
+  })
   for (const [ordinal, versionId, property, value, eventAt] of [
     [
       1,
@@ -317,66 +271,22 @@ type RunningGoalMonth = Readonly<{
 }>
 
 /**
- * An active scans goal on one fleet Property, with August 2026 open and
- * counted so far. At NOW about 27% of the month has passed.
+ * An active scans goal on one fleet Property, with August 2026 running and
+ * `scansSoFar` counted. At NOW 9 of its 31 days have passed.
  */
 async function seedRunningGoalMonth(month: RunningGoalMonth): Promise<void> {
-  const program = randomUUID()
-  const version = randomUUID()
-  const assignment = randomUUID()
-  await client.query(
-    `INSERT INTO goal_programs
-       (id, organization_id, property_id, name, status, current_version,
-        created_by, created_at, updated_at)
-     VALUES ($1, $2, $3, 'Month target Goal', 'active', 1,
-             'manager-1', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z')`,
-    [program, ORG, month.property],
-  )
-  await client.query(
-    `INSERT INTO goal_program_versions
-       (id, program_id, organization_id, property_id, version,
-        metric_definition_id, metric_definition_version_id, metric_key,
-        metric_minimum_sample, target_value, property_timezone, effective_from,
-        change_reason, created_by, created_at)
-     VALUES ($1, $2, $3, $4, 1, $5, $6, 'qualified_scans',
-       0, $7, 'UTC', '2026-08-01T00:00:00Z', 'created', 'manager-1',
-       '2026-08-01T00:00:00Z')`,
-    [
-      version,
-      program,
-      ORG,
-      month.property,
-      METRIC_DEFINITION_IDS.qualifiedScan,
-      METRIC_VERSION_IDS.qualifiedScanGoal,
-      month.versionTarget,
-    ],
-  )
-  await client.query(
-    `INSERT INTO goal_subject_assignments
-       (id, program_id, program_version_id, organization_id, property_id,
-        metric_key, subject_kind, property_subject_id, effective_from,
-        created_by, created_at)
-     VALUES ($1, $2, $3, $4, $5, 'qualified_scans', 'property', $5,
-             '2026-08-01T00:00:00Z', 'manager-1', '2026-08-01T00:00:00Z')`,
-    [assignment, program, version, ORG, month.property],
-  )
-  const result = randomUUID()
-  await client.query(
-    `INSERT INTO goal_monthly_results
-       (id, assignment_id, program_id, program_version_id, organization_id,
-        property_id, period_start, period_end, property_timezone, status,
-        evaluation_state, value, sample_count, achieved,
-        source_complete_through, evaluation_watermark, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, '2026-08-01T00:00:00Z',
-             '2026-09-01T00:00:00Z', 'UTC', 'open', 'eligible', $7::numeric,
-             $7::integer, false, $8, $8, '2026-08-01T00:00:00Z', $8)`,
-    [result, assignment, program, version, ORG, month.property, month.scansSoFar, NOW],
-  )
-  // August 2026 is over on the database clock, so the target lock refuses the
-  // target a manager set while the month ran.
-  if (month.monthTarget !== null) {
-    await seedLockedMonthTarget(client, result, month.monthTarget)
-  }
+  await seedGoalMonth(client, {
+    organizationId: ORG,
+    propertyId: month.property,
+    target: month.versionTarget,
+    monthTarget: month.monthTarget,
+  })
+  await seedCountReadings(client, {
+    organizationId: ORG,
+    propertyId: month.property,
+    count: month.scansSoFar,
+    eventAt: '2026-08-05T10:00:00Z',
+  })
 }
 
 describe('fleet overview projection integration', () => {
@@ -425,9 +335,10 @@ describe('fleet overview projection integration', () => {
       ),
     ).toBe(false)
     expect(fleetStatements).toBe(statementCount)
-    // SAVEPOINT, statement timeout, projection, RELEASE: in production the
-    // SAVEPOINT pair is a BEGIN/COMMIT pair, so the count is the same.
-    expect(fleetStatements).toBe(4)
+    // SAVEPOINT, statement timeout, projection, running goal months, RELEASE:
+    // in production the SAVEPOINT pair is a BEGIN/COMMIT pair, so the count is
+    // the same.
+    expect(fleetStatements).toBe(5)
     expect(fleetStatements).toBeLessThanOrEqual(FLEET_TRANSACTION_STATEMENT_BOUND)
     expect(observed).toContainEqual({
       propertyCount: PROPERTY_COUNT,
@@ -660,5 +571,79 @@ describe('fleet overview projection integration', () => {
         [versionOnly, 1],
       ]),
     )
+    // Each goal behind pace is one piece of work, on its row and in the total.
+    expect(
+      new Map(result.entries.map((entry) => [entry.propertyId, entry.totalAttention])),
+    ).toEqual(
+      new Map([
+        [raised, 1],
+        [lowered, 0],
+        [versionOnly, 1],
+      ]),
+    )
+    expect(result.totals.totalAttention).toBe(2)
+  })
+
+  it('counts the goals behind pace of the whole scope in the total, not only the page', async () => {
+    // 60 Properties in scope, 50 to a page: the 51st-60th are on the next page,
+    // and their goals still count in the total the first page carries.
+    const scope = properties.slice(10, 70).map((property) => property.propertyId)
+    for (const property of [scope[0]!, scope[59]!]) {
+      await seedRunningGoalMonth({
+        property,
+        versionTarget: 400,
+        monthTarget: null,
+        scansSoFar: 0,
+      })
+    }
+    const getFleet = getFleetOverview({
+      projection: createFleetOverviewProjectionAdapter(db),
+      resolveAccessiblePropertyIds: async () => scope,
+      clock: () => NOW,
+      inboxTargets,
+    })
+
+    const firstPage = await getFleet({
+      organizationId: ORG,
+      scope: { userId: userId('fleet-projection-total-reader'), organizationWide: false },
+      portalReadEnabled: true,
+      goalReadEnabled: true,
+      timeRange: '30d',
+    })
+
+    expect(firstPage.entries).toHaveLength(50)
+    expect(firstPage.totals.totalAttention).toBe(2)
+  })
+
+  it('reads no goal for a reader who may not use goals', async () => {
+    const property = properties[80]!.propertyId
+    await seedRunningGoalMonth({
+      property,
+      versionTarget: 400,
+      monthTarget: null,
+      scansSoFar: 0,
+    })
+    const getFleet = getFleetOverview({
+      projection: createFleetOverviewProjectionAdapter(db),
+      resolveAccessiblePropertyIds: async () => [property],
+      clock: () => NOW,
+      inboxTargets,
+    })
+    const read = (goalReadEnabled: boolean) =>
+      getFleet({
+        organizationId: ORG,
+        scope: { userId: userId('fleet-projection-goal-gate'), organizationWide: false },
+        portalReadEnabled: true,
+        goalReadEnabled,
+        timeRange: '30d',
+      })
+
+    const without = await read(false)
+    const withGoals = await read(true)
+
+    expect(without.entries[0]?.attentionSignals.goalsBehindPace).toBe(0)
+    expect(without.totals.totalAttention).toBe(0)
+    expect(withGoals.entries[0]?.attentionSignals.goalsBehindPace).toBe(1)
+    expect(withGoals.totals.totalAttention).toBe(1)
   })
 })

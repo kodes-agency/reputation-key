@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   progress: vi.fn(),
   programProgress: vi.fn(),
+  listProgress: vi.fn(),
   monthPreview: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('#/composition', () => ({
         list: mocks.list,
         progress: mocks.progress,
         programProgress: mocks.programProgress,
+        listProgress: mocks.listProgress,
         monthPreview: mocks.monthPreview,
       },
     },
@@ -55,6 +57,7 @@ import {
   changeGoalProgramStatus,
   createGoalProgram,
   getGoalProgram,
+  getGoalListProgress,
   getGoalProgramProgress,
   getGoalProgress,
   listGoalPrograms,
@@ -210,6 +213,23 @@ describe('canonical Goal Program server functions', () => {
       ).rejects.toMatchObject({ name: 'GoalProgramError', code, status: 409 })
     },
   )
+
+  it('reads the month so far of every goal on the Goals list in one call', async () => {
+    mocks.listProgress.mockResolvedValue([
+      { programId: 'program-1', subjectCount: 1, daysLeft: 14 },
+    ])
+
+    await withStartContext(() =>
+      getGoalListProgress({ data: { propertyId: PROPERTY_ID } }),
+    )
+
+    expect(mocks.listProgress).toHaveBeenCalledTimes(1)
+    expect(mocks.listProgress).toHaveBeenCalledWith(
+      expect.any(Object),
+      { propertyId: PROPERTY_ID },
+      actor,
+    )
+  })
 
   it('reads the month so far for every subject of one goal through the request policy', async () => {
     const progress = [

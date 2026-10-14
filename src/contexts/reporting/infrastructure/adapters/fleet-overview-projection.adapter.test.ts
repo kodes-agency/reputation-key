@@ -74,7 +74,6 @@ function mainRows(items: readonly FleetProperty[], total: number) {
     feedback_source_policies: ['first_party_workflow'],
     items_to_triage: '0',
     escalated: '0',
-    goals_behind_pace: '0',
     needs_attention: '0',
     total_attention_work: '0',
   }))
@@ -85,12 +84,16 @@ function fakeDatabase(getCount: () => number): {
   calls: () => number
 } {
   let calls = 0
+  // One read is three statements, however large the fleet: the timeout setting,
+  // the page, and the running goal months in scope.
   const execute = async () => {
     calls += 1
-    const phase = (calls - 1) % 2
-    if (phase === 0) return { rows: [] }
-    const items = properties(getCount())
-    return { rows: mainRows(items, items.length) }
+    const phase = (calls - 1) % 3
+    if (phase === 1) {
+      const items = properties(getCount())
+      return { rows: mainRows(items, items.length) }
+    }
+    return { rows: [] }
   }
   const tx = { execute }
   const db = {
@@ -143,9 +146,9 @@ describe('fleet overview bulk projection', () => {
     expect(fleet.entries).toHaveLength(50)
     expect(fleet.totals.propertyCount).toBe(5_000)
     expect(fleet.nextCursor).not.toBeNull()
-    expect(tenCalls).toBe(2)
+    expect(tenCalls).toBe(3)
     expect(fleetCalls).toBe(tenCalls)
-    expect(fleetCalls).toBeLessThanOrEqual(2)
+    expect(fleetCalls).toBeLessThanOrEqual(3)
     expect(observed).toEqual([
       {
         propertyCount: 10,
@@ -184,6 +187,20 @@ describe('fleet overview bulk projection', () => {
       },
       nextCursor: null,
     })
+    expect(fake.calls()).toBe(3)
+  })
+
+  it('reads no goal when the reader may not use goals', async () => {
+    const fake = fakeDatabase(() => 10)
+    const getFleet = getFleetOverview({
+      projection: createFleetOverviewProjectionAdapter(fake.db),
+      clock: () => NOW,
+      resolveAccessiblePropertyIds,
+      inboxTargets,
+    })
+
+    await getFleet({ ...input, goalReadEnabled: false })
+
     expect(fake.calls()).toBe(2)
   })
 })

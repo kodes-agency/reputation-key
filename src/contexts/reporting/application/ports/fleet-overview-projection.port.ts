@@ -39,7 +39,7 @@ export type FleetOverviewProjectionRow = Readonly<{
   itemsToTriage: number
   escalated: number
   goalsBehindPace: number
-  /** Distinct Inbox/Goal work anchors, before rating-drop signal. */
+  /** Distinct Inbox work anchors plus goals behind pace, before rating-drop signal. */
   needsAttention: number
   reviewEvidence: FleetMetricEvidence
   scanEvidence: FleetMetricEvidence | null

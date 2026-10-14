@@ -101,9 +101,17 @@
     },
     {
       "id": "goalKeys",
-      "members": ["all", "list", "detail", "progress", "programProgress", "monthPreview"],
+      "members": [
+        "all",
+        "list",
+        "detail",
+        "progress",
+        "listProgress",
+        "programProgress",
+        "monthPreview"
+      ],
       "owner": "Goal query lifecycle",
-      "policy": "Governed list callers include property/model filters in the argument object, and a detail includes both propertyId and goalId so a goal id cannot alias another property. Goal writes currently invalidate the family root. The live month-to-date progress of the goals that target one subject (a Portal Group's goal card) nests propertyId and the subject (`portal_group:<id>`) under the root, so a group id cannot alias another property; it is a display read that is never the monthly result, and goes stale on its own short staleTime. The month to date of every current subject of one goal (the goal page's running month) is a sibling keyed by propertyId and goalId, apart from the detail so a figure refresh never refetches the Program; a goal write invalidates it with the root. The month preview is the same governed read before a goal exists (the new-goal form, one subject, this month chosen): it nests propertyId, the measure and the subject (`portal:<id>`), is never written by the client, and goes stale on its own short staleTime. Changing a running month's target is a goal write like the others and invalidates the family root: the detail and the list carry the log of a goal's target changes, and both month-to-date reads return the month's own target with who changed it, so the change needs no key of its own."
+      "policy": "Governed list callers include property/model filters in the argument object, and a detail includes both propertyId and goalId so a goal id cannot alias another property. Goal writes currently invalidate the family root. The live month-to-date progress of the goals that target one subject (a Portal Group's goal card) nests propertyId and the subject (`portal_group:<id>`) under the root, so a group id cannot alias another property; it is a display read that is never the monthly result, and goes stale on its own short staleTime. The month to date of every active goal of a Property (the Goals list's live line, one request for the page) is a sibling keyed by propertyId, apart from the list so a slow figure never holds the rows back; it is a display read that is never the monthly result, goes stale on its own short staleTime, and a goal write invalidates it with the root. The month to date of every current subject of one goal (the goal page's running month) is a sibling keyed by propertyId and goalId, apart from the detail so a figure refresh never refetches the Program; a goal write invalidates it with the root. The month preview is the same governed read before a goal exists (the new-goal form, one subject, this month chosen): it nests propertyId, the measure and the subject (`portal:<id>`), is never written by the client, and goes stale on its own short staleTime. Changing a running month's target is a goal write like the others and invalidates the family root: the detail and the list carry the log of a goal's target changes, and both month-to-date reads return the month's own target with who changed it, so the change needs no key of its own."
     },
     {
       "id": "staffKeys",

@@ -70,6 +70,10 @@ import {
   createGoalProgressReader,
   type GoalProgressRequestApi,
 } from './application/use-cases/goal-progress'
+import {
+  createGoalListProgressReader,
+  type GoalListProgressRequestApi,
+} from './application/use-cases/goal-list-progress'
 import type { GoalProgramRepository } from './application/ports/goal-program.repository'
 import {
   createPropertyRatingGoalRepository,
@@ -327,8 +331,11 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     createGoalProgressReader(goalProgressDeps(policy))
   const readGoalProgramProgress = (policy: GoalExecutionPolicy) =>
     createGoalProgramProgressReader(goalProgressDeps(policy))
+  const readGoalListProgress = (policy: GoalExecutionPolicy) =>
+    createGoalListProgressReader(goalProgressDeps(policy))
   const programs: GoalProgramRequestApi &
     GoalProgressRequestApi &
+    GoalListProgressRequestApi &
     GoalMonthPreviewRequestApi &
     GoalBulkCreateRequestApi = Object.freeze({
     create: (policy, ...args) => buildGoalPrograms(policy).create(...args),
@@ -352,6 +359,7 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     list: (policy, ...args) => readGoalPrograms(policy).list(...args),
     progress: (policy, ...args) => readGoalProgress(policy)(...args),
     programProgress: (policy, ...args) => readGoalProgramProgress(policy)(...args),
+    listProgress: (policy, ...args) => readGoalListProgress(policy)(...args),
     monthPreview: (policy, ...args) =>
       readGoalMonthPreview(
         {

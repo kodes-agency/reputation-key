@@ -33,8 +33,8 @@ default the new target also applies to the months after.
    nullable; NULL means the month uses its version's target. The target a month
    is judged against is `row.target_value ?? version.target_value`
    (`effectiveMonthTarget`). Evaluation reads it when a month is reconciled,
-   when it closes and when a closed month is corrected; the two behind-pace
-   queries restate it as `coalesce`. Every surface that shows the target of a
+   when it closes and when a closed month is corrected; the behind-pace read
+   restates it as `coalesce`. Every surface that shows the target of a
    month reads it the same way: the goal card, the results matrix, the month
    rows of the goal page, and the row of a subject that already has a goal in
    the table that sets several goals.

@@ -106,6 +106,23 @@ export const getGoalProgress = createServerFn({ method: 'GET' })
     ),
   )
 
+/**
+ * The month so far of every active goal of a Property, in one call for the
+ * Goals list. Same input as the list it sits beside; the live line of a row.
+ */
+export const getGoalListProgress = createServerFn({ method: 'GET' })
+  .validator(listGoalProgramsSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms(async (programs, policy, actor) => ({
+          goals: await programs.listProgress(policy, data, actor),
+        })),
+      'GET',
+      'goal.getGoalListProgress',
+    ),
+  )
+
 /** The month so far for every current subject of one goal (the goal's page). */
 export const getGoalProgramProgress = createServerFn({ method: 'GET' })
   .validator(goalProgramIdentitySchema)

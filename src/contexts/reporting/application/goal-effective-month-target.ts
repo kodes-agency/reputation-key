@@ -2,8 +2,8 @@
 //
 // A month can carry its own target; when it does not, it uses the target of the
 // Program version it belongs to. Evaluation reads the target through here, when
-// a month is reconciled and when a closed one is corrected. The two behind-pace
-// queries restate the rule in SQL as
+// a month is reconciled and when a closed one is corrected. The behind-pace read
+// (`goal-running-months.ts`) restates the rule in SQL as
 // `coalesce(result.target_value, version.target_value)`.
 //
 // Every surface that shows the target of a month reads it through here too:

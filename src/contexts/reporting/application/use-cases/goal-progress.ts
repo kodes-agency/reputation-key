@@ -12,8 +12,9 @@
 // Who may read is the Program reads': they authorize `goal.read` and scope the
 // Programs to what the actor may see, exactly as the Goals pages do.
 //
-// Two reads share it: the goals that target one subject (a Portal Group's
-// card), and every current subject of one goal (the goal's own page).
+// Three reads share it: the goals that target one subject (a Portal Group's
+// card), every current subject of one goal (the goal's own page), and the
+// active goals of a Property for the Goals list (goal-list-progress.ts).
 
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import {
@@ -169,16 +170,35 @@ function assignmentFor(
   return current.at(-1) ?? open[0] ?? null
 }
 
-/** Every subject with an assignment in force or still to begin, once each. */
-function currentSubjects(bundle: GoalProgramBundle, now: Date): readonly GoalSubject[] {
+/** Each subject of the assignments `keep` admits, once. */
+function subjectsWhere(
+  bundle: GoalProgramBundle,
+  keep: (assignment: GoalSubjectAssignment) => boolean,
+): readonly GoalSubject[] {
   const subjects = new Map<string, GoalSubject>()
   for (const assignment of bundle.assignments) {
     const identity = goalSubjectIdentity(assignment.subject)
-    if (isOpenAt(assignment, now) && !subjects.has(identity)) {
+    if (keep(assignment) && !subjects.has(identity)) {
       subjects.set(identity, assignment.subject)
     }
   }
   return [...subjects.values()]
+}
+
+/** Every subject with an assignment in force or still to begin, once each. */
+function currentSubjects(bundle: GoalProgramBundle, now: Date): readonly GoalSubject[] {
+  return subjectsWhere(bundle, (assignment) => isOpenAt(assignment, now))
+}
+
+/** Every subject whose assignment has begun and has not ended, once each. */
+export function subjectsInForce(
+  bundle: GoalProgramBundle,
+  now: Date,
+): readonly GoalSubject[] {
+  return subjectsWhere(
+    bundle,
+    (assignment) => isOpenAt(assignment, now) && assignment.effectiveFrom <= now,
+  )
 }
 
 function versionOf(
@@ -232,7 +252,12 @@ export function readingOf(
   return { kind: 'live', value: result.exactValue, sampleCount: result.sampleCount }
 }
 
-async function progressOf(
+/**
+ * One subject's month so far under one goal: the same governed read, the same
+ * target and the same wording facts for the goal's page, a group's card and the
+ * Goals list.
+ */
+export async function progressOf(
   deps: GoalProgressDeps,
   bundle: GoalProgramBundle,
   subject: GoalSubject,
