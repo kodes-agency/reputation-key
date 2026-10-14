@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import type { AiOperationStorePort } from './ports/ai-operation-store.port'
+import type {
+  AiOperationRecoveryCandidate,
+  AiOperationStorePort,
+  AiOperationUnreadableRow,
+} from './ports/ai-operation-store.port'
 import type { AiOperationId } from '../domain/types'
 import {
   AI_EXECUTION_ABANDONED_AFTER_MILLIS,
@@ -16,6 +20,13 @@ const OVERDUE_OPERATION_ID = '79000000-0000-4000-8000-000000000003' as AiOperati
 const FRESH_OPERATION_ID = '79000000-0000-4000-8000-000000000004' as AiOperationId
 const STALE_OPERATION_ID = '79000000-0000-4000-8000-000000000007' as AiOperationId
 const STALE_EVENT_ID = '79000000-0000-4000-8000-000000000008'
+
+/** What the store's listing returns: candidates, and the rows it could not read. */
+function scanOf(
+  ...candidates: AiOperationRecoveryCandidate[]
+): Awaited<ReturnType<AiOperationStorePort['listExpiredExecutions']>> {
+  return { candidates, unreadable: [] }
+}
 
 function pendingCandidate(operationId: AiOperationId, createdAtEpochMillis: number) {
   return {
@@ -80,7 +91,7 @@ describe('AI operation execution reaper', () => {
       NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS + 1,
     )
     const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
-      async () => [overdue, fresh],
+      async () => scanOf(overdue, fresh),
     )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
     const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
@@ -153,7 +164,7 @@ describe('AI operation execution reaper', () => {
       analysis: null,
     }
     const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
-      async () => [replyDraft],
+      async () => scanOf(replyDraft),
     )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
     const settleOutcome = vi.fn()
@@ -201,7 +212,7 @@ describe('AI operation execution reaper', () => {
       'ready',
     )
     const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
-      async () => [overdue, stale, fresh],
+      async () => scanOf(overdue, stale, fresh),
     )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
     const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
@@ -317,7 +328,7 @@ describe('AI operation execution reaper', () => {
       'missing',
     )
     const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
-      async () => [missing],
+      async () => scanOf(missing),
     )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
     const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
@@ -389,7 +400,7 @@ describe('AI operation execution reaper', () => {
         failureCode,
       }
       const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
-        async () => [failed],
+        async () => scanOf(failed),
       )
       const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
       const settleOutcome = vi.fn(async () => ({
@@ -446,7 +457,7 @@ describe('AI operation execution reaper', () => {
     }
     const order: string[] = []
     const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
-      async () => [fenced],
+      async () => scanOf(fenced),
     )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
     const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
@@ -508,7 +519,7 @@ describe('AI operation execution reaper', () => {
       },
     }
     const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
-      async () => [poisoned, healthy],
+      async () => scanOf(poisoned, healthy),
     )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
     const settleOutcome = vi.fn(async () => null)
@@ -551,6 +562,63 @@ describe('AI operation execution reaper', () => {
         state: 'pending',
       },
       'AI operation recovery candidate failed',
+    )
+  })
+
+  it('counts and reports a row the listing could not read, and recovers the tenants behind it', async () => {
+    const OTHER_ORGANIZATION_ID = organizationId('ai-operation-reaper-other-tenant')
+    const healthyBase = pendingCandidate(
+      STALE_OPERATION_ID,
+      NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+    )
+    const healthy = {
+      ...healthyBase,
+      organizationId: OTHER_ORGANIZATION_ID,
+      analysis: {
+        ...healthyBase.analysis,
+        eventEnvelopeId: STALE_EVENT_ID,
+        organizationId: OTHER_ORGANIZATION_ID,
+      },
+    }
+    const unreadable: AiOperationUnreadableRow = {
+      operationId: OVERDUE_OPERATION_ID,
+      organizationId: ORGANIZATION_ID,
+    }
+    const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+      async () => ({ candidates: [healthy], unreadable: [unreadable] }),
+    )
+    const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
+    const advanceWithoutAnalysis = vi.fn(async () => ({
+      status: 'applied' as const,
+      aggregateRevision: 18,
+    }))
+    const recordAnalysisReceipt = vi.fn(async () => undefined)
+    const warn = vi.fn()
+
+    const outcome = await createAiOperationExecutionReaper({
+      store: { listExpiredExecutions, recordFailure, markDelivered: vi.fn() },
+      reviewEvents: { settleOutcome: vi.fn(async () => null) },
+      aggregates: { advanceWithoutAnalysis, applyReviewAnalysis: vi.fn() },
+      recordAnalysisReceipt,
+      logger: { warn },
+      nowEpochMillis: () => NOW,
+      limit: 2,
+    })()
+
+    expect(recordAnalysisReceipt).toHaveBeenCalledWith(STALE_EVENT_ID, 'applied')
+    expect(outcome).toEqual({
+      recoveryCandidatesVisited: 2,
+      operationsFenced: 1,
+      operationsDelivered: 0,
+      operationsSettled: 1,
+      operationsRaced: 0,
+      candidatesFailed: 1,
+      batchFull: true,
+    })
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn).toHaveBeenCalledWith(
+      { operationId: OVERDUE_OPERATION_ID, organizationId: ORGANIZATION_ID },
+      'AI operation recovery row unreadable',
     )
   })
 })

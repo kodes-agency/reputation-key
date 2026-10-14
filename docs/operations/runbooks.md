@@ -818,8 +818,17 @@ isolate a row that keeps failing instead of stopping: the worker's
 and `AI Review Analysis enrollment sweep completed` as `enrollmentsFailed`,
 and each failure is logged at warn as `AI operation recovery candidate failed`
 or `AI review analysis enrollment advance failed` with the operation or
-enrollment, Organization and Property identifiers. A count above zero on
-consecutive ticks names the row to look at. For an empty enrollment,
+enrollment, Organization and Property identifiers. Both lines are logged at warn
+while the count is above zero, and an operation row too corrupt to parse is
+counted in `candidatesFailed` and logged as
+`AI operation recovery row unreadable` with its operation and Organization
+identifiers; read that row by its identifier. A count above zero on consecutive
+ticks names the row to look at. No alert reads these counts, so someone has to
+look at the line. A row that keeps failing stays at the front of the reaper's
+listing (ordered by Organization) and takes one of its 100 slots every tick:
+`batchFull` true together with `candidatesFailed` shows the pass is being
+crowded out, and the failing rows need clearing before the later Organizations
+are reached. For an empty enrollment,
 re-run the enrollment eligibility predicate at its stored fence and compare the
 eligible count with its snapshot count; never copy review text into the
 incident record.
@@ -856,6 +865,119 @@ published-event redelivery path re-enqueue it; do not insert settlement rows or
 advance heads manually. For an inconsistent empty enrollment, supersede and
 recreate it through the governed merchant-AI enrollment path after correcting
 the eligibility/watermark defect.
+
+**Data written before the head counted every sequence (2026-10-14).** Two
+read-only statements size what the code does not repair; run them after the
+release that counts every settled sequence is deployed.
+
+1. A head short of the ledger. A head that missed a stale sequence keeps
+   `awaitingAnalysisCount` above zero, so every Property Trend schedule of that
+   Property keeps retrying. The next settlement of the Property corrects it. A
+   Property with no further review activity waits for one, and this statement
+   finds it. Only a head that is the only head of its epoch is listed: a rolled
+   profile generation counts its own settlements, and recounting it from the
+   ledger would report it complete over an empty window.
+
+   ```sql
+   SELECT head.organization_id, head.property_id, head.review_analysis_epoch,
+          head.settled_analysis_count AS head_counted, ledger.ledger_rows
+   FROM ai_property_aggregate_heads AS head
+   JOIN (
+     SELECT organization_id, property_id, source_epoch, review_analysis_epoch,
+            count(*) AS ledger_rows
+     FROM ai_property_aggregate_settlements
+     GROUP BY organization_id, property_id, source_epoch, review_analysis_epoch
+   ) AS ledger
+     ON ledger.organization_id = head.organization_id
+    AND ledger.property_id = head.property_id
+    AND ledger.source_epoch = head.source_epoch
+    AND ledger.review_analysis_epoch = head.review_analysis_epoch
+   WHERE head.settled_analysis_count <> ledger.ledger_rows
+     AND NOT EXISTS (
+       SELECT 1 FROM ai_property_aggregate_heads AS sibling
+       WHERE sibling.organization_id = head.organization_id
+         AND sibling.property_id = head.property_id
+         AND sibling.source_epoch = head.source_epoch
+         AND sibling.review_analysis_epoch = head.review_analysis_epoch
+         AND sibling.property_profile_version <> head.property_profile_version);
+   ```
+
+   A listed head with `head_counted` above `ledger_rows` is a different defect
+   (insights reads of that Property throw "coverage is invalid"): do not run the
+   recount, escalate. When every listed head is short, recount them. It bumps no
+   revision, so a Trend schedule already made stays valid, and it is safe while
+   the worker runs, for a settlement racing it recounts the head itself:
+
+   ```sql
+   UPDATE ai_property_aggregate_heads AS head
+   SET settled_analysis_count = ledger.ledger_rows, updated_at = now()
+   FROM (
+     SELECT organization_id, property_id, source_epoch, review_analysis_epoch,
+            count(*) AS ledger_rows
+     FROM ai_property_aggregate_settlements
+     GROUP BY organization_id, property_id, source_epoch, review_analysis_epoch
+   ) AS ledger
+   WHERE ledger.organization_id = head.organization_id
+     AND ledger.property_id = head.property_id
+     AND ledger.source_epoch = head.source_epoch
+     AND ledger.review_analysis_epoch = head.review_analysis_epoch
+     AND head.settled_analysis_count < ledger.ledger_rows
+     AND NOT EXISTS (
+       SELECT 1 FROM ai_property_aggregate_heads AS sibling
+       WHERE sibling.organization_id = head.organization_id
+         AND sibling.property_id = head.property_id
+         AND sibling.source_epoch = head.source_epoch
+         AND sibling.review_analysis_epoch = head.review_analysis_epoch
+         AND sibling.property_profile_version <> head.property_profile_version);
+   ```
+
+   Run the first statement again: it returns no rows.
+
+2. A deleted review still in its days. A review whose newest settled sequence
+   had no analysis (deleted at Google, its text removed, expired, abandoned)
+   was not taken off its day before the withdrawal existed. This statement lists
+   the contributions still standing for such a review. Nothing repairs them: the
+   Trend reconcile guard heals within its 60-day window, and the Guest voice
+   counts keep the review's rating and aspects as de-identified insight data
+   under the 24-month retention of `docs/BETA.md` §2. The count sizes it for the
+   decision whether a one-shot withdrawal is wanted.
+
+   ```sql
+   SELECT contribution.organization_id, contribution.property_id, contribution.review_id,
+          contribution.analysis_sequence AS contributed_sequence,
+          latest.analysis_sequence AS latest_settled_sequence
+   FROM ai_property_aggregate_contributions AS contribution
+   JOIN LATERAL (
+     SELECT max(settlement.analysis_sequence) AS analysis_sequence
+     FROM ai_property_aggregate_settlements AS settlement
+     WHERE settlement.organization_id = contribution.organization_id
+       AND settlement.property_id = contribution.property_id
+       AND settlement.review_id = contribution.review_id
+       AND settlement.source_epoch = contribution.source_epoch
+       AND settlement.review_analysis_epoch = contribution.review_analysis_epoch
+   ) AS latest ON true
+   WHERE contribution.status = 'ready'
+     AND latest.analysis_sequence > contribution.analysis_sequence
+     AND contribution.property_profile_version = (
+       SELECT max(head.property_profile_version)
+       FROM ai_property_aggregate_heads AS head
+       WHERE head.organization_id = contribution.organization_id
+         AND head.property_id = contribution.property_id
+         AND head.source_epoch = contribution.source_epoch
+         AND head.review_analysis_epoch = contribution.review_analysis_epoch)
+     AND NOT EXISTS (
+       SELECT 1 FROM ai_property_aggregate_contributions AS newer
+       WHERE newer.organization_id = contribution.organization_id
+         AND newer.property_id = contribution.property_id
+         AND newer.review_id = contribution.review_id
+         AND newer.source_epoch = contribution.source_epoch
+         AND newer.review_analysis_epoch = contribution.review_analysis_epoch
+         AND newer.property_profile_version = contribution.property_profile_version
+         AND newer.analysis_sequence > contribution.analysis_sequence);
+   ```
+
+Record the counts and the Organization and Property identifiers; never review
+content.
 
 **Verification:** For every enabled Property, the current-epoch settlement
 count exactly equals `head_sequence - analysis_start_sequence`, the count

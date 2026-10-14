@@ -23,7 +23,9 @@
 //
 // One candidate that cannot be recovered never stops the pass: each is
 // recovered on its own, a failure is logged with identifiers only and counted,
-// and the rest of the batch (every other tenant's) goes on.
+// and the rest of the batch (every other tenant's) goes on. The same holds for
+// a row too corrupt to read: the listing skips it and reports it, and it is
+// counted and logged the same way.
 //
 // Provider safety rests on exact state-and-attempt CAS writes. `claimExecution`
 // can invoke the provider only after changing `pending` to `executing`; the
@@ -39,6 +41,7 @@ import {
 import type {
   AiOperationRecoveryCandidate,
   AiOperationStorePort,
+  AiOperationUnreadableRow,
 } from './ports/ai-operation-store.port'
 import type { AiPropertyAggregateStorePort } from './ports/ai-property-aggregate-store.port'
 import type { AiReviewEventStorePort } from './ports/ai-review-event-store.port'
@@ -66,7 +69,10 @@ export type AiOperationExecutionReaperResult = Readonly<{
   operationsSettled: number
   /** Rows that reached a different terminal state before this run's CAS. */
   operationsRaced: number
-  /** Rows whose recovery threw; each is retried by the next tick. */
+  /**
+   * Rows the pass could not recover: a recovery that threw, or a row that could
+   * not be read. Each stays a candidate and is tried again by the next tick.
+   */
   candidatesFailed: number
   /** The scan filled its batch, so a backlog remains for the next tick. */
   batchFull: boolean
@@ -391,10 +397,17 @@ export function createAiOperationExecutionReaper(
     )
   }
 
+  function reportUnreadableRow(row: AiOperationUnreadableRow): void {
+    deps.logger?.warn(
+      { operationId: row.operationId, organizationId: row.organizationId },
+      'AI operation recovery row unreadable',
+    )
+  }
+
   return async () => {
     const nowEpochMillis = deps.nowEpochMillis()
     const horizonDeadline = nowEpochMillis - AI_EXECUTION_ABANDONED_AFTER_MILLIS
-    const candidates = await deps.store.listExpiredExecutions({
+    const { candidates, unreadable } = await deps.store.listExpiredExecutions({
       nowEpochMillis,
       executionHorizonMillis: AI_EXECUTION_ABANDONED_AFTER_MILLIS,
       limit,
@@ -407,6 +420,10 @@ export function createAiOperationExecutionReaper(
       candidatesFailed: 0,
     }
 
+    for (const row of unreadable) {
+      counts.candidatesFailed += 1
+      reportUnreadableRow(row)
+    }
     for (const candidate of candidates) {
       try {
         countRecoveryResult(
@@ -419,14 +436,15 @@ export function createAiOperationExecutionReaper(
       }
     }
 
+    const visited = candidates.length + unreadable.length
     return Object.freeze({
-      recoveryCandidatesVisited: candidates.length,
+      recoveryCandidatesVisited: visited,
       operationsFenced: counts.operationsFenced,
       operationsDelivered: counts.operationsDelivered,
       operationsSettled: counts.operationsSettled,
       operationsRaced: counts.operationsRaced,
       candidatesFailed: counts.candidatesFailed,
-      batchFull: candidates.length >= limit,
+      batchFull: visited >= limit,
     })
   }
 }

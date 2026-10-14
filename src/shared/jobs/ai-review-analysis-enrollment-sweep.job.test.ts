@@ -55,6 +55,19 @@ describe('AI Review Analysis enrollment sweep job', () => {
     expect(info).not.toHaveBeenCalled()
   })
 
+  it('reports a tick in which an enrollment failed at warn, not info', async () => {
+    const outcome = { ...OUTCOME, enrollmentsFailed: 2 }
+    const sweep = vi.fn(async () => outcome)
+
+    await createAiReviewAnalysisEnrollmentSweepHandler({ sweep, logger })({} as never)
+
+    expect(warn).toHaveBeenCalledWith(
+      { job: JOB_NAME, ...outcome },
+      'AI Review Analysis enrollment sweep completed',
+    )
+    expect(info).not.toHaveBeenCalled()
+  })
+
   it('lets a sweep failure fail the job so BullMQ retries the tick', async () => {
     const sweep = vi.fn(async () => {
       throw new Error('enrollment sweep unavailable')

@@ -1,4 +1,13 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getDb, type Database } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -196,15 +205,26 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
   }
 
   /** The published fact an analysis operation came from; its receipts cascade. */
-  const seedOriginEvent = (eventId: string) =>
+  const seedOriginEvent = (
+    eventId: string,
+    origin: Readonly<{
+      organizationId: string
+      propertyId: string
+      reviewId: string
+    }> = {
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_A_ID,
+    },
+  ) =>
     db.insert(outboxEvents).values({
       id: eventId,
       eventType: 'review.updated',
       payload: {},
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
+      organizationId: origin.organizationId,
+      propertyId: origin.propertyId,
       sourceContext: 'review',
-      sourceAggregateId: REVIEW_A_ID,
+      sourceAggregateId: origin.reviewId,
       publishedAt: NOW,
     })
 
@@ -647,30 +667,153 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         executionHorizonMillis: 15 * 60_000,
         limit: 10,
       }),
-    ).resolves.toEqual([
-      expect.objectContaining({
-        operationId: OPERATION_ID,
-        state: 'failed',
-        failureCode: 'output_invalid',
-        analysis: expect.objectContaining({
-          eventEnvelopeId: ORIGIN_EVENT_ID,
-          analysisSequence: 1,
+    ).resolves.toEqual({
+      candidates: [
+        expect.objectContaining({
+          operationId: OPERATION_ID,
+          state: 'failed',
+          failureCode: 'output_invalid',
+          analysis: expect.objectContaining({
+            eventEnvelopeId: ORIGIN_EVENT_ID,
+            analysisSequence: 1,
+          }),
         }),
-      }),
-    ])
+      ],
+      unreadable: [],
+    })
   })
 
-  describe('a failed analysis whose origin event the outbox retention has deleted', () => {
+  describe('a tenant whose recovery sorts behind another tenant’s unrecoverable row', () => {
     const operations = createAiOperationStoreAdapter(db, () => {
       throw new Error('Recovery does not create operation ids')
     })
+    const reviewEvents = createAiReviewEventStoreAdapter(db)
+    const aggregates = createAiPropertyAggregateStoreAdapter(db)
+    const writeReceipt = createAiReviewAnalysisReceiptWriter(db)
     const EXECUTION_HORIZON_MILLIS = 15 * 60_000
+    // Sorts after ORGANIZATION_ID, so the reaper reaches it second.
+    const SECOND_ORGANIZATION_ID = organizationId('ai-output-store-test-org-z')
+    const SECOND_PROPERTY_ID = propertyId('75000000-0000-4000-8000-000000000021')
+    const SECOND_REVIEW_ID = reviewId('75000000-0000-4000-8000-000000000022')
+    const SECOND_OPERATION_ID = '75000000-0000-4000-8000-000000000023' as AiOperationId
+    const SECOND_EVENT_ID = '75000000-0000-4000-8000-000000000024'
+    const RECOVERED_AT_MILLIS = NOW.getTime() + 60 * 60_000
+    const SECOND_TENANT_ORIGIN = {
+      organizationId: SECOND_ORGANIZATION_ID,
+      propertyId: SECOND_PROPERTY_ID,
+      reviewId: SECOND_REVIEW_ID,
+    }
 
     /** The retention sweep's statement: the event goes, and its receipts with it. */
     const retireOriginEvent = (eventId: string) =>
       db.delete(outboxEvents).where(eq(outboxEvents.id, eventId))
 
-    it('is no longer offered to the reaper', async () => {
+    const reapAt = (
+      recordAnalysisReceipt: (
+        eventId: string,
+        status: 'applied' | 'obsolete',
+      ) => Promise<void>,
+      warn = vi.fn(),
+    ) =>
+      createAiOperationExecutionReaper({
+        store: operations,
+        reviewEvents,
+        aggregates,
+        recordAnalysisReceipt,
+        logger: { warn },
+        nowEpochMillis: () => RECOVERED_AT_MILLIS,
+      })()
+
+    const secondTenantOutcome = async () => {
+      const [operation] = await db
+        .select({ state: aiOperations.state, failureCode: aiOperations.failureCode })
+        .from(aiOperations)
+        .where(eq(aiOperations.id, SECOND_OPERATION_ID))
+      return {
+        operation,
+        receipted: await outboxRepo.hasReceipt(
+          SECOND_EVENT_ID,
+          AI_REVIEW_ANALYSIS_CONSUMER,
+        ),
+        ledgerRows: (
+          await db
+            .select({ sequence: aiPropertyAggregateSettlements.analysisSequence })
+            .from(aiPropertyAggregateSettlements)
+            .where(eq(aiPropertyAggregateSettlements.propertyId, SECOND_PROPERTY_ID))
+        ).length,
+      }
+    }
+    const outboxRepo = createOutboxRepository(db)
+
+    beforeEach(async () => {
+      await db.execute(sql`
+        INSERT INTO organization (id, name, slug, "createdAt")
+        VALUES (${SECOND_ORGANIZATION_ID}, 'AI output store second tenant', ${SECOND_ORGANIZATION_ID}, ${NOW})
+      `)
+      await db.insert(properties).values({
+        id: SECOND_PROPERTY_ID,
+        organizationId: SECOND_ORGANIZATION_ID,
+        name: 'AI output store second tenant property',
+        slug: 'ai-output-store-second-tenant-property',
+        timezone: 'America/New_York',
+        countryCode: 'US',
+        profileVersion: 1,
+        sourceEpoch: SOURCE_EPOCH,
+      })
+      await db.insert(reviews).values({
+        id: SECOND_REVIEW_ID,
+        organizationId: SECOND_ORGANIZATION_ID,
+        propertyId: SECOND_PROPERTY_ID,
+        platform: 'google',
+        externalId: 'ai-output-store-review-second-tenant',
+        reviewerName: 'Synthetic reviewer Z',
+        rating: 5,
+        text: 'Synthetic review Z',
+        languageCode: 'en',
+        reviewedAt: REVIEWED_AT,
+        contentExpiresAt: CONTENT_EXPIRES_AT,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: 1,
+        aiSourceByteLength: SOURCE_BYTE_COUNT,
+        aiSourceDigest: REVIEW_A_SOURCE_DIGEST,
+      })
+      const [baseOperation] = await db
+        .select()
+        .from(aiOperations)
+        .where(eq(aiOperations.id, OPERATION_ID))
+        .limit(1)
+      if (!baseOperation) throw new Error('Missing second tenant fixture')
+      // The second tenant's attempt lost its owner mid-flight.
+      await db.insert(aiOperations).values({
+        ...baseOperation,
+        id: SECOND_OPERATION_ID,
+        idempotencyScope: `analysis:${SECOND_OPERATION_ID}`,
+        idempotencyKey: SECOND_OPERATION_ID,
+        organizationId: SECOND_ORGANIZATION_ID,
+        propertyId: SECOND_PROPERTY_ID,
+        reviewId: SECOND_REVIEW_ID,
+        originEventId: SECOND_EVENT_ID,
+        analysisSequence: 1,
+        state: 'executing',
+        failureCode: null,
+        updatedAt: NOW,
+      })
+      await seedOriginEvent(SECOND_EVENT_ID, SECOND_TENANT_ORIGIN)
+    })
+
+    afterEach(async () => {
+      await db
+        .delete(aiOperations)
+        .where(eq(aiOperations.organizationId, SECOND_ORGANIZATION_ID))
+      await db
+        .delete(outboxEvents)
+        .where(eq(outboxEvents.organizationId, SECOND_ORGANIZATION_ID))
+      await db.delete(properties).where(eq(properties.id, SECOND_PROPERTY_ID))
+      await deleteTestOrganizations(db, [SECOND_ORGANIZATION_ID])
+    })
+
+    it('is not offered a failed analysis whose origin event the outbox retention has deleted', async () => {
       await seedOriginEvent(ORIGIN_EVENT_ID)
       await failOperation(OPERATION_ID)
       await retireOriginEvent(ORIGIN_EVENT_ID)
@@ -681,68 +824,127 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
           executionHorizonMillis: EXECUTION_HORIZON_MILLIS,
           limit: 10,
         }),
-      ).resolves.toEqual([])
+      ).resolves.toEqual({ candidates: [], unreadable: [] })
     })
 
-    it('does not stop a reaper pass from fencing the next abandoned attempt', async () => {
-      const abandonedOperationId = '75000000-0000-4000-8000-000000000011' as AiOperationId
-      const abandonedEventId = '75000000-0000-4000-8000-000000000012'
-      const [baseOperation] = await db
-        .select()
-        .from(aiOperations)
-        .where(eq(aiOperations.id, OPERATION_ID))
-        .limit(1)
-      if (!baseOperation) throw new Error('Missing reaper pass fixture')
+    it('is fenced and receipted although the first tenant has a failed analysis whose event was deleted', async () => {
       await seedOriginEvent(ORIGIN_EVENT_ID)
-      await seedOriginEvent(abandonedEventId)
       await failOperation(OPERATION_ID)
       await retireOriginEvent(ORIGIN_EVENT_ID)
-      // Review B's attempt sorts after review A's and lost its owner mid-flight.
-      await db.insert(aiOperations).values({
-        ...baseOperation,
-        id: abandonedOperationId,
-        idempotencyScope: `analysis:${abandonedOperationId}`,
-        idempotencyKey: abandonedOperationId,
-        reviewId: REVIEW_B_ID,
-        originEventId: abandonedEventId,
-        analysisSequence: 2,
-        state: 'executing',
-        failureCode: null,
-        updatedAt: NOW,
+      // The pre-fix reaper wrote its receipts with the shared repository, whose
+      // insert breaks the event foreign key for the first tenant's row.
+      const reaped = await reapAt((eventId, status) =>
+        outboxRepo.insertReceipt(eventId, AI_REVIEW_ANALYSIS_CONSUMER, status),
+      )
+
+      expect(reaped).toEqual({
+        recoveryCandidatesVisited: 1,
+        operationsFenced: 1,
+        operationsDelivered: 0,
+        operationsSettled: 1,
+        operationsRaced: 0,
+        candidatesFailed: 0,
+        batchFull: false,
       })
-      const reviewEvents = createAiReviewEventStoreAdapter(db)
-      const aggregates = createAiPropertyAggregateStoreAdapter(db)
-      const outbox = createOutboxRepository(db)
-      const reaper = createAiOperationExecutionReaper({
-        store: operations,
-        reviewEvents,
-        aggregates,
-        recordAnalysisReceipt: (eventId, status) =>
-          outbox.insertReceipt(eventId, AI_REVIEW_ANALYSIS_CONSUMER, status),
-        nowEpochMillis: () => NOW.getTime() + 60 * 60_000,
+      await expect(secondTenantOutcome()).resolves.toEqual({
+        operation: { state: 'failed', failureCode: 'operation_ambiguous' },
+        receipted: true,
+        ledgerRows: 1,
       })
+    })
+
+    it('is recovered although the first tenant’s receipt cannot be written, and the failure is reported', async () => {
+      await seedOriginEvent(ORIGIN_EVENT_ID)
+      await failOperation(OPERATION_ID)
+      const receiptFailure = new Error('receipt store unavailable')
+      const warn = vi.fn()
+
+      const reaped = await reapAt(
+        async (eventId, status) =>
+          eventId === ORIGIN_EVENT_ID
+            ? Promise.reject(receiptFailure)
+            : writeReceipt(eventId, status),
+        warn,
+      )
+
+      expect(reaped).toEqual({
+        recoveryCandidatesVisited: 2,
+        operationsFenced: 1,
+        operationsDelivered: 0,
+        operationsSettled: 1,
+        operationsRaced: 0,
+        candidatesFailed: 1,
+        batchFull: false,
+      })
+      await expect(secondTenantOutcome()).resolves.toEqual({
+        operation: { state: 'failed', failureCode: 'operation_ambiguous' },
+        receipted: true,
+        ledgerRows: 1,
+      })
+      await expect(
+        outboxRepo.hasReceipt(ORIGIN_EVENT_ID, AI_REVIEW_ANALYSIS_CONSUMER),
+      ).resolves.toBe(false)
+      expect(warn).toHaveBeenCalledOnce()
+      expect(warn).toHaveBeenCalledWith(
+        {
+          err: receiptFailure,
+          operationId: OPERATION_ID,
+          organizationId: ORGANIZATION_ID,
+          propertyId: PROPERTY_ID,
+          state: 'failed',
+        },
+        'AI operation recovery candidate failed',
+      )
+    })
+
+    it('is recovered although the first tenant’s operation row cannot be read, and the row is reported', async () => {
+      await seedOriginEvent(ORIGIN_EVENT_ID)
+      // A stored fence that no release accepts any longer.
+      await db
+        .update(aiOperations)
+        .set({ capabilityFences: { capability: 'not_a_capability' } })
+        .where(eq(aiOperations.id, OPERATION_ID))
+      const warn = vi.fn()
 
       try {
-        await expect(reaper()).resolves.toEqual({
-          recoveryCandidatesVisited: 1,
+        await expect(
+          operations.listExpiredExecutions({
+            nowEpochMillis: RECOVERED_AT_MILLIS,
+            executionHorizonMillis: EXECUTION_HORIZON_MILLIS,
+            limit: 10,
+          }),
+        ).resolves.toEqual({
+          candidates: [expect.objectContaining({ operationId: SECOND_OPERATION_ID })],
+          unreadable: [{ operationId: OPERATION_ID, organizationId: ORGANIZATION_ID }],
+        })
+
+        const reaped = await reapAt(writeReceipt, warn)
+
+        expect(reaped).toEqual({
+          recoveryCandidatesVisited: 2,
           operationsFenced: 1,
           operationsDelivered: 0,
           operationsSettled: 1,
           operationsRaced: 0,
-          candidatesFailed: 0,
+          candidatesFailed: 1,
           batchFull: false,
         })
-
-        const [fenced] = await db
-          .select({ state: aiOperations.state, failureCode: aiOperations.failureCode })
-          .from(aiOperations)
-          .where(eq(aiOperations.id, abandonedOperationId))
-        expect(fenced).toEqual({ state: 'failed', failureCode: 'operation_ambiguous' })
-        await expect(
-          outbox.hasReceipt(abandonedEventId, AI_REVIEW_ANALYSIS_CONSUMER),
-        ).resolves.toBe(true)
+        await expect(secondTenantOutcome()).resolves.toEqual({
+          operation: { state: 'failed', failureCode: 'operation_ambiguous' },
+          receipted: true,
+          ledgerRows: 1,
+        })
+        expect(warn).toHaveBeenCalledWith(
+          { operationId: OPERATION_ID, organizationId: ORGANIZATION_ID },
+          'AI operation recovery row unreadable',
+        )
       } finally {
-        await db.delete(aiOperations).where(eq(aiOperations.id, abandonedOperationId))
+        await db
+          .update(aiOperations)
+          .set({
+            capabilityFences: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
+          })
+          .where(eq(aiOperations.id, OPERATION_ID))
       }
     })
   })
@@ -833,16 +1035,19 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         executionHorizonMillis,
         limit: 10,
       }),
-    ).resolves.toEqual([])
+    ).resolves.toEqual({ candidates: [], unreadable: [] })
     await expect(
       operations.listExpiredExecutions({
         nowEpochMillis: OPERATION_EXPIRES_AT.getTime(),
         executionHorizonMillis,
         limit: 10,
       }),
-    ).resolves.toEqual([
-      expect.objectContaining({ operationId: OPERATION_ID, state: 'pending' }),
-    ])
+    ).resolves.toEqual({
+      candidates: [
+        expect.objectContaining({ operationId: OPERATION_ID, state: 'pending' }),
+      ],
+      unreadable: [],
+    })
   })
 
   it('reads current v1 analysis evidence with no aspect children', async () => {
@@ -1603,6 +1808,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     const advanceWithoutAnalysis = (
       review: typeof REVIEW_A_ID,
       analysisSequence: number,
+      propertyProfileVersion = 1,
     ) =>
       aggregates.advanceWithoutAnalysis({
         organizationId: ORGANIZATION_ID,
@@ -1611,7 +1817,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         sourceEpoch: SOURCE_EPOCH,
         reviewAnalysisEpoch: 1,
         analysisSequence,
-        propertyProfileVersion: 1,
+        propertyProfileVersion,
         dispositionCode: 'provider_deleted',
       })
 
@@ -1634,6 +1840,36 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         aggregateRevision: head?.aggregateRevision,
       }
     }
+
+    /**
+     * A ledger row the head never counted: what a stale settlement left behind
+     * before the head counted it with the ledger. Written directly because the
+     * code under test no longer makes one.
+     */
+    const seedUncountedSettlement = (review: typeof REVIEW_A_ID, sequence: number) =>
+      db.insert(aiPropertyAggregateSettlements).values({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: review,
+        sourceEpoch: SOURCE_EPOCH,
+        reviewAnalysisEpoch: 1,
+        analysisSequence: sequence,
+        settledAt: COMPLETED_AT,
+      })
+
+    /** The counter of each profile generation's head, by profile version. */
+    const headCountersByProfile = async () =>
+      Object.fromEntries(
+        (
+          await db
+            .select({
+              version: aiPropertyAggregateHeads.propertyProfileVersion,
+              counter: aiPropertyAggregateHeads.settledAnalysisCount,
+            })
+            .from(aiPropertyAggregateHeads)
+            .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
+        ).map((head) => [head.version, head.counter]),
+      )
 
     const dailyTotals = async () => {
       const [daily] = await db
@@ -1818,6 +2054,302 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         reviewCount: 1,
         ratingSum: 5,
         serviceMentions: 1,
+      })
+    })
+
+    describe('a head that already missed a stale sequence before the head counted it', () => {
+      it('is brought back to the ledger when the next sequence is applied', async () => {
+        await seedAnalysis(REVIEW_A_ID, 2)
+        await seedAnalysis(REVIEW_B_ID, 3)
+        await setSequences({ review: REVIEW_A_ID, sequence: 2 }, 3)
+        await apply(REVIEW_A_ID, 2)
+        await seedUncountedSettlement(REVIEW_A_ID, 1)
+        await expect(settledCounts()).resolves.toMatchObject({
+          headCounter: 1,
+          ledgerRows: 2,
+        })
+
+        await setSequences({ review: REVIEW_B_ID, sequence: 3 }, 3)
+        await expect(apply(REVIEW_B_ID, 3)).resolves.toMatchObject({ status: 'applied' })
+
+        await expect(settledCounts()).resolves.toEqual({
+          headCounter: 3,
+          ledgerRows: 3,
+          aggregateRevision: 2,
+        })
+        await expect(aggregates.readWindow(WINDOW)).resolves.toMatchObject({
+          coverage: {
+            settledAnalysisCount: 3,
+            expectedAnalysisCount: 3,
+            awaitingAnalysisCount: 0,
+          },
+        })
+      })
+
+      it('is brought back to the ledger when the next settlement is itself stale', async () => {
+        await seedAnalysis(REVIEW_A_ID, 3)
+        await setSequences({ review: REVIEW_A_ID, sequence: 3 }, 3)
+        await apply(REVIEW_A_ID, 3)
+        await seedUncountedSettlement(REVIEW_A_ID, 1)
+
+        await expect(advanceWithoutAnalysis(REVIEW_A_ID, 2)).resolves.toEqual({
+          status: 'stale',
+        })
+
+        await expect(settledCounts()).resolves.toEqual({
+          headCounter: 3,
+          ledgerRows: 3,
+          aggregateRevision: 1,
+        })
+        await expect(aggregates.readWindow(WINDOW)).resolves.toMatchObject({
+          coverage: { awaitingAnalysisCount: 0 },
+        })
+      })
+
+      it('does not complete a rolled profile generation from the ledger of the one before', async () => {
+        await seedAnalysis(REVIEW_A_ID, 1)
+        await setSequences({ review: REVIEW_A_ID, sequence: 1 }, 2)
+        await apply(REVIEW_A_ID, 1)
+
+        // The Property's profile rolls: the next settlement opens a second
+        // generation, whose window holds nothing until it is rebuilt.
+        await expect(advanceWithoutAnalysis(REVIEW_B_ID, 2, 2)).resolves.toMatchObject({
+          status: 'applied',
+        })
+
+        await expect(headCountersByProfile()).resolves.toEqual({ 1: 1, 2: 1 })
+        await expect(settledCounts()).resolves.toMatchObject({ ledgerRows: 2 })
+      })
+    })
+
+    // The statements docs/operations/runbooks.md §22 hands the operator for data
+    // written before the head counted every sequence. They are the runbook's
+    // statements, word for word apart from layout: change one and change both,
+    // so the runbook cannot describe a statement that does not work.
+    describe('the operator statements for data written before this change', () => {
+      /** Heads that are the only head of their epoch and count another number of sequences than the ledger holds. */
+      const DRIFTED_HEADS = `
+        SELECT head.organization_id, head.property_id, head.review_analysis_epoch,
+               head.settled_analysis_count AS head_counted, ledger.ledger_rows
+        FROM ai_property_aggregate_heads AS head
+        JOIN (
+          SELECT organization_id, property_id, source_epoch, review_analysis_epoch,
+                 count(*) AS ledger_rows
+          FROM ai_property_aggregate_settlements
+          GROUP BY organization_id, property_id, source_epoch, review_analysis_epoch
+        ) AS ledger
+          ON ledger.organization_id = head.organization_id
+         AND ledger.property_id = head.property_id
+         AND ledger.source_epoch = head.source_epoch
+         AND ledger.review_analysis_epoch = head.review_analysis_epoch
+        WHERE head.settled_analysis_count <> ledger.ledger_rows
+          AND NOT EXISTS (
+            SELECT 1 FROM ai_property_aggregate_heads AS sibling
+            WHERE sibling.organization_id = head.organization_id
+              AND sibling.property_id = head.property_id
+              AND sibling.source_epoch = head.source_epoch
+              AND sibling.review_analysis_epoch = head.review_analysis_epoch
+              AND sibling.property_profile_version <> head.property_profile_version)`
+      const RECOUNT_DRIFTED_HEADS = `
+        UPDATE ai_property_aggregate_heads AS head
+        SET settled_analysis_count = ledger.ledger_rows, updated_at = now()
+        FROM (
+          SELECT organization_id, property_id, source_epoch, review_analysis_epoch,
+                 count(*) AS ledger_rows
+          FROM ai_property_aggregate_settlements
+          GROUP BY organization_id, property_id, source_epoch, review_analysis_epoch
+        ) AS ledger
+        WHERE ledger.organization_id = head.organization_id
+          AND ledger.property_id = head.property_id
+          AND ledger.source_epoch = head.source_epoch
+          AND ledger.review_analysis_epoch = head.review_analysis_epoch
+          AND head.settled_analysis_count < ledger.ledger_rows
+          AND NOT EXISTS (
+            SELECT 1 FROM ai_property_aggregate_heads AS sibling
+            WHERE sibling.organization_id = head.organization_id
+              AND sibling.property_id = head.property_id
+              AND sibling.source_epoch = head.source_epoch
+              AND sibling.review_analysis_epoch = head.review_analysis_epoch
+              AND sibling.property_profile_version <> head.property_profile_version)`
+      /** A review's current contribution that a newer settled sequence of the review no longer supports. */
+      const UNWITHDRAWN_CONTRIBUTIONS = `
+        SELECT contribution.organization_id, contribution.property_id, contribution.review_id,
+               contribution.analysis_sequence AS contributed_sequence,
+               latest.analysis_sequence AS latest_settled_sequence
+        FROM ai_property_aggregate_contributions AS contribution
+        JOIN LATERAL (
+          SELECT max(settlement.analysis_sequence) AS analysis_sequence
+          FROM ai_property_aggregate_settlements AS settlement
+          WHERE settlement.organization_id = contribution.organization_id
+            AND settlement.property_id = contribution.property_id
+            AND settlement.review_id = contribution.review_id
+            AND settlement.source_epoch = contribution.source_epoch
+            AND settlement.review_analysis_epoch = contribution.review_analysis_epoch
+        ) AS latest ON true
+        WHERE contribution.status = 'ready'
+          AND latest.analysis_sequence > contribution.analysis_sequence
+          AND contribution.property_profile_version = (
+            SELECT max(head.property_profile_version)
+            FROM ai_property_aggregate_heads AS head
+            WHERE head.organization_id = contribution.organization_id
+              AND head.property_id = contribution.property_id
+              AND head.source_epoch = contribution.source_epoch
+              AND head.review_analysis_epoch = contribution.review_analysis_epoch)
+          AND NOT EXISTS (
+            SELECT 1 FROM ai_property_aggregate_contributions AS newer
+            WHERE newer.organization_id = contribution.organization_id
+              AND newer.property_id = contribution.property_id
+              AND newer.review_id = contribution.review_id
+              AND newer.source_epoch = contribution.source_epoch
+              AND newer.review_analysis_epoch = contribution.review_analysis_epoch
+              AND newer.property_profile_version = contribution.property_profile_version
+              AND newer.analysis_sequence > contribution.analysis_sequence)`
+
+      const run = async (statement: string) => (await db.execute(sql.raw(statement))).rows
+
+      it('finds a head that is short of the ledger and recounts it', async () => {
+        await seedAnalysis(REVIEW_A_ID, 2)
+        await setSequences({ review: REVIEW_A_ID, sequence: 2 }, 2)
+        await apply(REVIEW_A_ID, 2)
+        await seedUncountedSettlement(REVIEW_A_ID, 1)
+
+        await expect(run(DRIFTED_HEADS)).resolves.toEqual([
+          expect.objectContaining({ head_counted: '1', ledger_rows: '2' }),
+        ])
+        await run(RECOUNT_DRIFTED_HEADS)
+
+        await expect(headCountersByProfile()).resolves.toEqual({ 1: 2 })
+        await expect(run(DRIFTED_HEADS)).resolves.toEqual([])
+        await expect(aggregates.readWindow(WINDOW)).resolves.toMatchObject({
+          coverage: { awaitingAnalysisCount: 0 },
+        })
+      })
+
+      it('leaves the heads of a rolled profile alone, whose counters are not the ledger', async () => {
+        await seedAnalysis(REVIEW_A_ID, 1)
+        await setSequences({ review: REVIEW_A_ID, sequence: 1 }, 2)
+        await apply(REVIEW_A_ID, 1)
+        await advanceWithoutAnalysis(REVIEW_B_ID, 2, 2)
+
+        await expect(run(DRIFTED_HEADS)).resolves.toEqual([])
+        await run(RECOUNT_DRIFTED_HEADS)
+
+        await expect(headCountersByProfile()).resolves.toEqual({ 1: 1, 2: 1 })
+      })
+
+      it('finds a review whose newer sequence settled without taking it off its day, and not once it is withdrawn', async () => {
+        await seedAnalysis(REVIEW_A_ID, 1)
+        await setSequences({ review: REVIEW_A_ID, sequence: 1 }, 2)
+        await apply(REVIEW_A_ID, 1)
+        // What the no-result path left behind before it withdrew: the ledger row
+        // and nothing else.
+        await seedUncountedSettlement(REVIEW_A_ID, 2)
+
+        await expect(run(UNWITHDRAWN_CONTRIBUTIONS)).resolves.toEqual([
+          expect.objectContaining({
+            review_id: REVIEW_A_ID,
+            contributed_sequence: '1',
+            latest_settled_sequence: '2',
+          }),
+        ])
+
+        await db
+          .delete(aiPropertyAggregateSettlements)
+          .where(
+            and(
+              eq(aiPropertyAggregateSettlements.propertyId, PROPERTY_ID),
+              eq(aiPropertyAggregateSettlements.analysisSequence, 2),
+            ),
+          )
+        await setSequences({ review: REVIEW_A_ID, sequence: 2 }, 2)
+        await advanceWithoutAnalysis(REVIEW_A_ID, 2)
+
+        await expect(run(UNWITHDRAWN_CONTRIBUTIONS)).resolves.toEqual([])
+      })
+    })
+
+    describe('replaying a settlement', () => {
+      it('counts a stale older sequence once, so coverage still resolves', async () => {
+        await seedAnalysis(REVIEW_A_ID, 1)
+        await seedAnalysis(REVIEW_A_ID, 2)
+        await setSequences({ review: REVIEW_A_ID, sequence: 2 }, 2)
+        await apply(REVIEW_A_ID, 2)
+
+        await expect(apply(REVIEW_A_ID, 1)).resolves.toEqual({ status: 'stale' })
+        await expect(apply(REVIEW_A_ID, 1)).resolves.toEqual({ status: 'stale' })
+
+        await expect(settledCounts()).resolves.toEqual({
+          headCounter: 2,
+          ledgerRows: 2,
+          aggregateRevision: 1,
+        })
+        await expect(aggregates.readWindow(WINDOW)).resolves.toMatchObject({
+          coverage: {
+            settledAnalysisCount: 2,
+            expectedAnalysisCount: 2,
+            awaitingAnalysisCount: 0,
+          },
+        })
+      })
+
+      it('counts a superseded no-result sequence once, so coverage still resolves', async () => {
+        await seedAnalysis(REVIEW_A_ID, 2)
+        await setSequences({ review: REVIEW_A_ID, sequence: 2 }, 2)
+        await apply(REVIEW_A_ID, 2)
+
+        await expect(advanceWithoutAnalysis(REVIEW_A_ID, 1)).resolves.toEqual({
+          status: 'stale',
+        })
+        await expect(advanceWithoutAnalysis(REVIEW_A_ID, 1)).resolves.toEqual({
+          status: 'stale',
+        })
+
+        await expect(settledCounts()).resolves.toEqual({
+          headCounter: 2,
+          ledgerRows: 2,
+          aggregateRevision: 1,
+        })
+        await expect(aggregates.readWindow(WINDOW)).resolves.toMatchObject({
+          coverage: { settledAnalysisCount: 2, awaitingAnalysisCount: 0 },
+        })
+      })
+
+      it('counts a stale sequence once in a rolled profile generation', async () => {
+        await seedAnalysis(REVIEW_A_ID, 2)
+        await setSequences({ review: REVIEW_A_ID, sequence: 2 }, 2)
+        await apply(REVIEW_A_ID, 2)
+
+        // The generation after the roll counts its own settlements: it has a
+        // sibling, so the ledger cannot be used to recount it.
+        await expect(advanceWithoutAnalysis(REVIEW_A_ID, 1, 2)).resolves.toEqual({
+          status: 'stale',
+        })
+        await expect(advanceWithoutAnalysis(REVIEW_A_ID, 1, 2)).resolves.toEqual({
+          status: 'stale',
+        })
+
+        await expect(headCountersByProfile()).resolves.toEqual({ 1: 1, 2: 1 })
+        await expect(settledCounts()).resolves.toMatchObject({ ledgerRows: 2 })
+      })
+
+      it('counts a sequence whose review had moved on once, so coverage still resolves', async () => {
+        await seedAnalysis(REVIEW_A_ID, 1)
+        await setSequences({ review: REVIEW_A_ID, sequence: 2 }, 2)
+
+        await expect(apply(REVIEW_A_ID, 1)).resolves.toEqual({ status: 'stale' })
+        await expect(apply(REVIEW_A_ID, 1)).resolves.toEqual({ status: 'stale' })
+
+        await expect(settledCounts()).resolves.toMatchObject({
+          headCounter: 1,
+          ledgerRows: 1,
+        })
+        await expect(aggregates.readWindow(WINDOW)).resolves.toMatchObject({
+          coverage: {
+            settledAnalysisCount: 1,
+            expectedAnalysisCount: 2,
+            awaitingAnalysisCount: 1,
+          },
+        })
       })
     })
   })

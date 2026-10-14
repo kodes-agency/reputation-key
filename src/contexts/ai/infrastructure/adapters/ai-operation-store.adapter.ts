@@ -27,6 +27,7 @@ import type {
   AiOperationRecoveryCandidate,
   AiOperationState,
   AiOperationStorePort,
+  AiOperationUnreadableRow,
 } from '../../application/ports/ai-operation-store.port'
 
 type OperationRow = typeof aiOperations.$inferSelect
@@ -667,9 +668,23 @@ export const createAiOperationStoreAdapter = (
           aiOperations.id,
         )
         .limit(input.limit)
-      return rows.map((row) =>
-        recoveryCandidate(mapOperation(row.operation), row.persistedAnalysisStatus),
-      )
+      const candidates: AiOperationRecoveryCandidate[] = []
+      const unreadable: AiOperationUnreadableRow[] = []
+      for (const row of rows) {
+        try {
+          candidates.push(
+            recoveryCandidate(mapOperation(row.operation), row.persistedAnalysisStatus),
+          )
+        } catch {
+          // The reason stays out of the report: a parse failure can quote the
+          // stored value. The row's own identifiers are enough to find it.
+          unreadable.push({
+            operationId: operationId(row.operation.id),
+            organizationId: row.operation.organizationId,
+          })
+        }
+      }
+      return { candidates, unreadable }
     },
 
     async markDelivered(input) {

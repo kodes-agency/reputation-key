@@ -107,20 +107,32 @@ and a caught-up enrollment; incomplete settlement coverage reports
 
 The aggregate head counts every sequence the settlement ledger settles for its
 profile generation, including one a newer sequence of the same review had
-already superseded, so coverage can complete. A review whose newest sequence
-settles without an analysis (deleted at Google, expired, its text removed, its
-analysis abandoned) is withdrawn from the daily aggregates, so a day never
-counts a review the Property's population no longer holds. A Trend schedule
-the head has moved past is stale, not retried.
+already superseded, so coverage can complete. A head that is the only head of
+its epoch is set to the ledger's count each time it counts, so one that missed a
+sequence earlier is corrected by the next settlement of its Property; a rolled
+profile generation has a sibling head, counts only its own settlements, and is
+never set from the ledger, which spans generations. A review whose newest
+sequence settles without an analysis (deleted at Google, expired, its text
+removed, its analysis abandoned) is withdrawn from the daily aggregates, so a
+day counts only reviews analysed at their current sequence. A Trend schedule the
+head has moved past is stale, not retried. Two kinds of data written before
+those corrections are not repaired by the code: a head short of the ledger, and
+a review that stayed in its days after it was deleted. `docs/operations/runbooks.md`
+§22 gives a read-only statement that finds each, and a statement that recounts
+the first; the second is not withdrawn, and what it holds is de-identified
+insight data under the 24-month retention of `docs/BETA.md` §2.
 
 The recurring recovery passes treat each row on its own. The operation reaper
 recovers every ownerless operation it lists independently, and the enrollment
 sweep every enrollment, so one that keeps failing is logged by identifier and
 counted (`candidatesFailed`, `enrollmentsFailed`) without stopping any other
-Organization's recovery. A failed analysis operation is a reaper candidate only
-while its origin event is still in the outbox and unreceipted: the retention
-sweep deletes a published event, and its receipts with it, 30 days after
-publication, and a receipt cannot be written for an event that is gone.
+Organization's recovery, and the job logs its completion line at warn while the
+count is above zero. A row the operation listing cannot parse is skipped by the
+listing, reported to the reaper by identifier and counted the same way. A failed
+analysis operation is a reaper candidate only while its origin event is still in
+the outbox and unreceipted: the retention sweep deletes a published event, and
+its receipts with it, 30 days after publication, and a receipt cannot be written
+for an event that is gone.
 
 ## Invariants
 

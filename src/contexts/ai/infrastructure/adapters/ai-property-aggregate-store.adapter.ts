@@ -29,23 +29,20 @@ import { reviewId } from '#/shared/domain/ids'
 import { isAspectTaxonomyV1Id, type AspectPolarityV1 } from '#/shared/aspect-taxonomy'
 import { isAiIssueLabel } from '#/shared/ai-issue-label'
 import {
+  commitAggregateHead,
+  countSettledSequence,
+  lockAggregateHead,
+  safeSequence,
+} from './ai-property-aggregate-head'
+import {
   readPreviousContribution,
   updateDailyAggregates,
   withdrawReviewContribution,
-  type AggregateHead,
-  type AggregateIdentityInput,
   type AggregateTransaction,
   type Contribution,
   type ContributionAspect,
   type DailyRow,
 } from './ai-property-aggregate-contributions'
-
-function safeSequence(value: unknown): number | null {
-  const parsed = typeof value === 'string' ? Number(value) : value
-  return typeof parsed === 'number' && Number.isSafeInteger(parsed) && parsed >= 0
-    ? parsed
-    : null
-}
 
 const AI_INSIGHTS_READ_BUDGET_MS = 5_000
 
@@ -256,47 +253,6 @@ type ApplyReviewAnalysisInput = Parameters<
 type AdvanceWithoutAnalysisInput = Parameters<
   AiPropertyAggregateStorePort['advanceWithoutAnalysis']
 >[0]
-type AggregateProgressRow = Readonly<{
-  terminalAnalysisSequence: number | string
-  settledCount: number | string
-}>
-
-async function readInheritedAggregateProgress(
-  tx: Pick<AggregateTransaction, 'execute'>,
-  input: Readonly<{
-    organizationId: string
-    propertyId: string
-    sourceEpoch: number
-    reviewAnalysisEpoch: number
-  }>,
-): Promise<Readonly<{ terminalAnalysisSequence: number; settledCount: number }>> {
-  const progress = await tx.execute<AggregateProgressRow>(sql`
-    SELECT
-      COALESCE((
-        SELECT max(head.terminal_analysis_sequence)
-        FROM ai_property_aggregate_heads AS head
-        WHERE head.organization_id = ${input.organizationId}
-          AND head.property_id = ${input.propertyId}::uuid
-          AND head.source_epoch = ${input.sourceEpoch}
-          AND head.review_analysis_epoch = ${input.reviewAnalysisEpoch}
-      ), 0)::float8 AS "terminalAnalysisSequence",
-      count(*)::float8 AS "settledCount"
-    FROM ai_property_aggregate_settlements AS settlement
-    WHERE settlement.organization_id = ${input.organizationId}
-      AND settlement.property_id = ${input.propertyId}::uuid
-      AND settlement.source_epoch = ${input.sourceEpoch}
-      AND settlement.review_analysis_epoch = ${input.reviewAnalysisEpoch}
-  `)
-  const terminalAnalysisSequence = safeSequence(
-    progress.rows[0]?.terminalAnalysisSequence,
-  )
-  const settledCount = safeSequence(progress.rows[0]?.settledCount)
-  if (terminalAnalysisSequence === null || settledCount === null) {
-    throw new Error('Property aggregate progress is invalid')
-  }
-  return { terminalAnalysisSequence, settledCount }
-}
-
 function deriveAnalysisCoverage(
   settledAnalysisCount: number,
   headSequence: number,
@@ -391,80 +347,6 @@ async function recordAggregateSettlement(
   }
   return false
 }
-async function lockAggregateHead(
-  tx: AggregateTransaction,
-  input: AggregateIdentityInput,
-): Promise<AggregateHead> {
-  // The terminal sequence is generation identity and is inherited as a
-  // max-watermark. `settledAnalysisCount` is deliberately NOT inherited: the
-  // ledger spans profile versions, but the daily aggregates and contributions
-  // this head summarises do not, so a new profile generation genuinely has zero
-  // coverage until it is rebuilt. Inheriting the count reported a rolled
-  // profile complete over an empty window.
-  const inheritedProgress = await readInheritedAggregateProgress(tx, input)
-  await tx
-    .insert(aiPropertyAggregateHeads)
-    .values({
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      sourceEpoch: input.sourceEpoch,
-      reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-      propertyProfileVersion: input.propertyProfileVersion,
-      aggregateRevision: 0,
-      terminalAnalysisSequence: inheritedProgress.terminalAnalysisSequence,
-      settledAnalysisCount: 0,
-      updatedAt: new Date(),
-    })
-    .onConflictDoNothing()
-  const [head] = await tx
-    .select()
-    .from(aiPropertyAggregateHeads)
-    .where(
-      and(
-        eq(aiPropertyAggregateHeads.organizationId, input.organizationId),
-        eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
-        eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
-        eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-        eq(aiPropertyAggregateHeads.propertyProfileVersion, input.propertyProfileVersion),
-      ),
-    )
-    .limit(1)
-    .for('update')
-  if (!head) throw new Error('Property aggregate head is missing')
-  return head
-}
-
-/**
- * Counts one sequence the ledger settled but that changes nothing in the
- * aggregate. The ledger row and the head's `settled_analysis_count` have to move
- * together, because coverage compares the count with the sequences the Property
- * allocated: a settled sequence the head never counts is awaited for good, and
- * every Trend of the Property is held back with it. No revision is bumped, for
- * no day changed.
- */
-async function countSettledSequence(
-  tx: AggregateTransaction,
-  input: AggregateIdentityInput,
-  countedAt: Date,
-): Promise<void> {
-  await lockAggregateHead(tx, input)
-  await tx
-    .update(aiPropertyAggregateHeads)
-    .set({
-      settledAnalysisCount: sql`${aiPropertyAggregateHeads.settledAnalysisCount} + 1`,
-      updatedAt: countedAt,
-    })
-    .where(
-      and(
-        eq(aiPropertyAggregateHeads.organizationId, input.organizationId),
-        eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
-        eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
-        eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-        eq(aiPropertyAggregateHeads.propertyProfileVersion, input.propertyProfileVersion),
-      ),
-    )
-}
-
 async function settleReviewSequence(
   tx: AggregateTransaction,
   input: ApplyReviewAnalysisInput | AdvanceWithoutAnalysisInput,
@@ -496,43 +378,6 @@ async function settleWithoutContribution(
 ): Promise<{ status: 'stale' | 'unavailable' }> {
   if (settlement === 'new') await countSettledSequence(tx, input, settledAt)
   return { status }
-}
-
-async function commitAggregateHead(
-  tx: AggregateTransaction,
-  input: AggregateIdentityInput,
-  head: AggregateHead,
-  aggregateRevision: number,
-  appliedAt: Date,
-): Promise<void> {
-  const [updatedHead] = await tx
-    .update(aiPropertyAggregateHeads)
-    .set({
-      aggregateRevision,
-      terminalAnalysisSequence: sql`GREATEST(
-        ${aiPropertyAggregateHeads.terminalAnalysisSequence},
-        ${input.analysisSequence}
-      )`,
-      // Reached only for a NEW settlement: both callers return early on
-      // `replayed` and `stale`, so this counts each settled sequence once for
-      // this profile generation.
-      settledAnalysisCount: sql`${aiPropertyAggregateHeads.settledAnalysisCount} + 1`,
-      updatedAt: appliedAt,
-    })
-    .where(
-      and(
-        eq(aiPropertyAggregateHeads.organizationId, input.organizationId),
-        eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
-        eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
-        eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-        eq(aiPropertyAggregateHeads.propertyProfileVersion, input.propertyProfileVersion),
-        eq(aiPropertyAggregateHeads.aggregateRevision, head.aggregateRevision),
-      ),
-    )
-    .returning({ aggregateRevision: aiPropertyAggregateHeads.aggregateRevision })
-  if (updatedHead?.aggregateRevision !== aggregateRevision) {
-    throw new Error('Property aggregate head update failed')
-  }
 }
 
 export const createAiPropertyAggregateStoreAdapter = (

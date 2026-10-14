@@ -18,6 +18,8 @@ import { trace } from '#/shared/observability/trace'
 
 export const JOB_NAME = 'ai-review-analysis-enrollment-sweep' as const
 
+const COMPLETION_MESSAGE = 'AI Review Analysis enrollment sweep completed'
+
 /**
  * Declared structurally because shared jobs must not import an owning context.
  * Bootstrap supplies the AI use case; the queue seam observes counts only.
@@ -59,5 +61,12 @@ export const createAiReviewAnalysisEnrollmentSweepHandler =
         return
       }
 
-      dependencies.logger.info(fields, 'AI Review Analysis enrollment sweep completed')
+      // A failed enrollment is swallowed so the others and the reopen pass still
+      // run, which leaves this line as the only signal that one keeps failing.
+      if (outcome.enrollmentsFailed > 0) {
+        dependencies.logger.warn(fields, COMPLETION_MESSAGE)
+        return
+      }
+
+      dependencies.logger.info(fields, COMPLETION_MESSAGE)
     })
