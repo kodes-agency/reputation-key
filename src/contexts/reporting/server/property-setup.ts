@@ -7,7 +7,8 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { propertyId } from '#/shared/domain/ids'
-import { scopeForPermission } from '#/shared/domain/permissions'
+import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
+import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
 import { dashboardErrorStatus } from './dashboard-error-status'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { isDashboardError } from '../domain/dashboard-errors'
@@ -27,6 +28,22 @@ async function accessiblePropertyIds(ctx: AuthContext) {
   )
 }
 
+/**
+ * Whether the rating goal step is the viewer's: they may set a Google rating
+ * goal (`goal.create`) and Goals are on (`goal.use`), for the Property when one
+ * is named. A step they could not act on is not shown to them.
+ */
+function ratingGoalsEnabled(ctx: AuthContext, propertyIdValue?: string): boolean {
+  if (!canForContext(ctx, 'goal.create')) return false
+  return checkScopedCapability(
+    {
+      organizationId: ctx.organizationId,
+      ...(propertyIdValue ? { propertyId: propertyIdValue } : {}),
+    },
+    'goal.use',
+  ).allowed
+}
+
 function mapPropertySetupError(error: unknown): never {
   if (isDashboardError(error)) {
     throwContextError('DashboardError', error, dashboardErrorStatus(error.code))
@@ -34,7 +51,7 @@ function mapPropertySetupError(error: unknown): never {
   throw catchUntagged(error)
 }
 
-/** One Property's seven setup steps for the settings hub, property page and composer. */
+/** One Property's setup steps for the settings hub, property page and composer. */
 export const getPropertySetupFn = createServerFn({ method: 'GET' })
   .validator(propertySetupInputSchema)
   .handler(
@@ -53,6 +70,7 @@ export const getPropertySetupFn = createServerFn({ method: 'GET' })
             role: ctx.role,
             propertyId: propertyId(data.propertyId),
             accessiblePropertyIds: await accessiblePropertyIds(ctx),
+            ratingGoalsEnabled: ratingGoalsEnabled(ctx, data.propertyId),
           })
         } catch (error) {
           mapPropertySetupError(error)
@@ -75,6 +93,7 @@ export const listPropertySetupSummariesFn = createServerFn({ method: 'GET' }).ha
           organizationId: ctx.organizationId,
           role: ctx.role,
           accessiblePropertyIds: await accessiblePropertyIds(ctx),
+          ratingGoalsEnabled: ratingGoalsEnabled(ctx),
         })
       } catch (error) {
         mapPropertySetupError(error)

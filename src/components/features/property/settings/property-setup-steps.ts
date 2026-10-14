@@ -14,6 +14,7 @@ const STEP_LABEL: Readonly<Record<PropertySetupStepKey, string>> = {
   responsible_manager: 'Assign a responsible manager',
   reply_voice: 'Set the reply voice',
   portal_published: 'Publish a portal',
+  rating_goal: 'Set a Google rating goal',
 }
 
 export function propertySetupStepLabel(step: PropertySetupStep): string {
@@ -57,8 +58,8 @@ export function completedPropertySetupStepCount(setup: PropertySetup): number {
 
 /**
  * Where the hub should open while setup is unfinished: the section of the
- * first step the viewer can act on. Portals live outside the hub, so a
- * portal-only gap still opens on Profile.
+ * first step the viewer can act on. Portals and Goals live outside the hub, so
+ * a gap only there still opens on Profile.
  */
 export function firstPropertySetupSection(
   setup: PropertySetup,
@@ -67,24 +68,30 @@ export function firstPropertySetupSection(
     (candidate) =>
       candidate.status === 'pending' &&
       candidate.section !== null &&
-      candidate.section !== 'portals',
+      candidate.section !== 'portals' &&
+      candidate.section !== 'goals',
   )
   return (step?.section as PropertySettingsSectionKey | undefined) ?? null
 }
 
+/** Sections that are Property pages of their own, outside the settings hub. */
+type PageSection = Extract<PropertySetupSection, 'portals' | 'goals'>
+
 export type PropertySetupStepTarget =
-  | '/properties/$propertyId/portals'
-  | `/properties/$propertyId/settings/${Exclude<PropertySetupSection, 'portals'>}`
+  | `/properties/$propertyId/${PageSection}`
+  | `/properties/$propertyId/settings/${Exclude<PropertySetupSection, PageSection>}`
 
 /**
- * The page that finishes a step: its settings section, or the Portals page,
- * which lives outside the hub. `null` for a step with nothing to edit (the
- * first review sync).
+ * The page that finishes a step: its settings section, or the Portals or Goals
+ * page, which live outside the hub (the Goals page's Google section opens the
+ * rating goal wizard). `null` for a step with nothing to edit (the first
+ * review sync).
  */
 export function propertySetupStepTarget(
   step: PropertySetupStep,
 ): PropertySetupStepTarget | null {
   if (step.section === null) return null
   if (step.section === 'portals') return '/properties/$propertyId/portals'
+  if (step.section === 'goals') return '/properties/$propertyId/goals'
   return `/properties/$propertyId/settings/${step.section}`
 }

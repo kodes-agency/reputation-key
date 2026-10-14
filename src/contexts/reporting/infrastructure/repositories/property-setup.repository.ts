@@ -4,9 +4,12 @@ import { propertyIdInScope } from '#/shared/db/property-scope'
 import {
   merchantAiDecisionDeferrals,
   merchantAiEnablement,
+  metricCurrentGoogleReputationSnapshots,
   portalPublicationActivations,
   portals,
   properties,
+  propertyRatingGoalDeferrals,
+  propertyRatingGoals,
   propertyReplyProfiles,
   propertyResponsibleManagers,
   reviewProviderSnapshotRuns,
@@ -29,6 +32,10 @@ type FactRow = Readonly<{
   responsible_manager_assigned: unknown
   reply_voice_configured: unknown
   portal_published: unknown
+  property_active: unknown
+  google_review_count: unknown
+  rating_goal_active: unknown
+  rating_goal_deferred: unknown
 }>
 
 const MERCHANT_AI_STATES: ReadonlySet<string> = new Set([
@@ -43,6 +50,17 @@ function readFlag(row: FactRow, column: keyof FactRow): boolean {
     throw new Error(`Property setup fact ${column} is unavailable`)
   }
   return value
+}
+
+/** Google's count at the current binding; null when Google sent none under it. */
+function readGoogleReviewCount(row: FactRow): number | null {
+  const value = row.google_review_count
+  if (value === null) return null
+  const count = typeof value === 'string' ? Number(value) : value
+  if (typeof count !== 'number' || !Number.isInteger(count) || count < 0) {
+    throw new Error('Property setup Google review count is invalid')
+  }
+  return count
 }
 
 function readMerchantAiState(row: FactRow): PropertySetupMerchantAiState {
@@ -69,6 +87,10 @@ function toFacts(row: FactRow): PropertySetupFacts {
     responsibleManagerAssigned: readFlag(row, 'responsible_manager_assigned'),
     replyVoiceConfigured: readFlag(row, 'reply_voice_configured'),
     portalPublished: readFlag(row, 'portal_published'),
+    propertyActive: readFlag(row, 'property_active'),
+    googleReviewCount: readGoogleReviewCount(row),
+    ratingGoalActive: readFlag(row, 'rating_goal_active'),
+    ratingGoalDeferred: readFlag(row, 'rating_goal_deferred'),
   })
 }
 
@@ -84,12 +106,18 @@ function toFacts(row: FactRow): PropertySetupFacts {
  *   scope in a CTE instead of once per Property in a correlated subquery.
  * - A Portal counts as published when the tenant published it and its current
  *   publication activation is still open; Portal health is not a setup step.
- * - The remaining per-Property lookups are index-backed correlated subqueries.
+ * - Google's review count is the Current on Google snapshot's at the
+ *   Property's current binding epoch, as every rating goal read takes it; a
+ *   snapshot from an earlier binding is no count.
+ * - The remaining per-Property lookups are index-backed correlated subqueries
+ *   (the rating goal's partial unique index on active goals, the "Not now"
+ *   row's primary key).
  */
 function propertyFactsSql(organizationId: OrganizationId, scope: SQL): SQL {
   return sql`
     WITH scoped_properties AS MATERIALIZED (
-      SELECT p.id, p.source_epoch, p.google_binding_state, p.default_reply_language
+      SELECT p.id, p.source_epoch, p.google_binding_state, p.default_reply_language,
+        p.lifecycle_state
       FROM ${properties} p
       WHERE p.organization_id = ${organizationId}
         AND p.deleted_at IS NULL
@@ -140,12 +168,31 @@ function propertyFactsSql(organizationId: OrganizationId, scope: SQL): SQL {
           AND portal.property_id = p.id
           AND portal.deleted_at IS NULL
           AND portal.publication_state = 'published'
-      ) AS portal_published
+      ) AS portal_published,
+      (p.lifecycle_state = 'active') AS property_active,
+      google.review_count AS google_review_count,
+      EXISTS (
+        SELECT 1
+        FROM ${propertyRatingGoals} goal
+        WHERE goal.organization_id = ${organizationId}
+          AND goal.property_id = p.id
+          AND goal.status = 'active'
+      ) AS rating_goal_active,
+      EXISTS (
+        SELECT 1
+        FROM ${propertyRatingGoalDeferrals} not_now
+        WHERE not_now.organization_id = ${organizationId}
+          AND not_now.property_id = p.id
+      ) AS rating_goal_deferred
     FROM scoped_properties p
     LEFT JOIN synced_properties synced ON synced.property_id = p.id
     LEFT JOIN ${merchantAiEnablement} enablement
       ON enablement.organization_id = ${organizationId}
       AND enablement.property_id = p.id
+    LEFT JOIN ${metricCurrentGoogleReputationSnapshots} google
+      ON google.organization_id = ${organizationId}
+      AND google.property_id = p.id
+      AND google.source_epoch = p.source_epoch
     ORDER BY p.id
   `
 }

@@ -106,3 +106,17 @@ export const endRatingGoal = createServerFn({ method: 'POST' })
       'goal.endRatingGoal',
     ),
   )
+
+/** "Not now" for the Property's rating goal: its setup step counts as decided. */
+export const deferRatingGoal = createServerFn({ method: 'POST' })
+  .validator(ratingGoalPropertySchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withRatingGoals((ratingGoals, policy, actor) =>
+          ratingGoals.defer(policy, data, actor),
+        ),
+      'POST',
+      'goal.deferRatingGoal',
+    ),
+  )

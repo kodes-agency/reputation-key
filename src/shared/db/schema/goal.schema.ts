@@ -667,3 +667,31 @@ export const propertyRatingGoalChanges = pgTable(
     ),
   ],
 )
+
+// "Not now" for a Property's Google rating goal (ADR 0067; migration 0058): a
+// manager chose not to set one for now, so the Property's setup checklist
+// counts the step as decided and stops reminding. One row per Property, written
+// by Reporting's "Not now" command and never by a goal; a goal set later
+// completes the step whether or not the row is there. Disposable decision
+// state with no content. Both references cascade with the Property, as the AI
+// decision's "not now" does, and the Organization purge deletes the rows with
+// the rest of the Goal family.
+export const propertyRatingGoalDeferrals = pgTable(
+  'property_rating_goal_deferrals',
+  {
+    propertyId: uuid('property_id')
+      .primaryKey()
+      .references(() => properties.id, { onDelete: 'cascade' }),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    deferredBy: varchar('deferred_by', { length: 255 }).notNull(),
+    deferredAt: timestamp('deferred_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: 'property_rating_goal_deferrals_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('cascade'),
+    index('property_rating_goal_deferrals_org_idx').on(t.organizationId),
+  ],
+)

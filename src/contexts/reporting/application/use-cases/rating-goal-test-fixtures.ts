@@ -13,6 +13,7 @@ import type { RatingGoalNotice } from '../../domain/rating-goal-notices'
 import type {
   PropertyRatingGoalRepository,
   RatingGoalEvaluationWrite,
+  RatingGoalNotNow,
   RatingGoalPropertyFacts,
 } from '../ports/property-rating-goal.repository'
 import type { GoalActor, GoalExecutionPolicy } from './goal-program-shared'
@@ -39,6 +40,8 @@ export type FakeWorld = {
   changes: RatingGoalChange[]
   /** The notices each stored evaluation wrote as facts, in order. */
   notices: Array<RatingGoalNotice & Readonly<{ goalId: string }>>
+  /** "Not now" choices, one per Property. */
+  notNow: RatingGoalNotNow[]
   authorizations: string[]
   deny: boolean
   summaryRequests: GoogleRatingSummaryRequest[]
@@ -71,6 +74,7 @@ export function exampleWorld(): FakeWorld {
     goals: [],
     changes: [],
     notices: [],
+    notNow: [],
     authorizations: [],
     deny: false,
     summaryRequests: [],
@@ -248,6 +252,13 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
         endedReason: 'property_archived',
         endedAt: archive.endedAt,
       })
+      return true
+    },
+    recordNotNow: async (choice) => {
+      if (world.notNow.some((known) => known.propertyId === choice.propertyId)) {
+        return false
+      }
+      world.notNow = [...world.notNow, choice]
       return true
     },
   }

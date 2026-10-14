@@ -20,6 +20,10 @@ const UNCONFIGURED: PropertySetupFacts = {
   responsibleManagerAssigned: true,
   replyVoiceConfigured: false,
   portalPublished: false,
+  propertyActive: true,
+  googleReviewCount: null,
+  ratingGoalActive: false,
+  ratingGoalDeferred: false,
 }
 
 function repository(facts: PropertySetupFacts | null = UNCONFIGURED) {
@@ -38,6 +42,7 @@ describe('getPropertySetup', () => {
       role: 'AccountAdmin',
       propertyId: PROPERTY,
       accessiblePropertyIds: null,
+      ratingGoalsEnabled: false,
     })
 
     expect(repo.readPropertyFacts).toHaveBeenCalledWith({
@@ -63,12 +68,34 @@ describe('getPropertySetup', () => {
       role: 'PropertyManager',
       propertyId: PROPERTY,
       accessiblePropertyIds: [OTHER_PROPERTY, PROPERTY],
+      ratingGoalsEnabled: false,
     })
 
     expect(setup.steps.find((step) => step.key === 'ai_decision')?.status).toBe(
       'needs_admin',
     )
     expect(setup.attentionCount).toBe(4)
+  })
+
+  it('adds the Google rating goal step for a viewer who may set one, and only for them', async () => {
+    // Arrange
+    const offered = repository({ ...UNCONFIGURED, googleReviewCount: 812 })
+    const read = (ratingGoalsEnabled: boolean) =>
+      getPropertySetup({ repository: offered })({
+        organizationId: ORG,
+        role: 'PropertyManager',
+        propertyId: PROPERTY,
+        accessiblePropertyIds: [PROPERTY],
+        ratingGoalsEnabled,
+      })
+
+    // Act
+    const [enabled, disabled] = await Promise.all([read(true), read(false)])
+
+    // Assert
+    expect(enabled.steps.at(-1)).toMatchObject({ key: 'rating_goal', status: 'pending' })
+    expect(enabled.steps).toHaveLength(8)
+    expect(disabled.steps).toHaveLength(7)
   })
 
   it('refuses an ungranted Property without reading tenant facts', async () => {
@@ -80,6 +107,7 @@ describe('getPropertySetup', () => {
         role: 'PropertyManager',
         propertyId: PROPERTY,
         accessiblePropertyIds: [OTHER_PROPERTY],
+        ratingGoalsEnabled: false,
       }),
     ).rejects.toMatchObject({ _tag: 'DashboardError', code: 'forbidden' })
     expect(repo.readPropertyFacts).not.toHaveBeenCalled()
@@ -92,6 +120,7 @@ describe('getPropertySetup', () => {
         role: 'AccountAdmin',
         propertyId: PROPERTY,
         accessiblePropertyIds: null,
+        ratingGoalsEnabled: false,
       }),
     ).rejects.toMatchObject({ _tag: 'DashboardError', code: 'not_found' })
   })
@@ -105,6 +134,7 @@ describe('getPropertySetup', () => {
         role: 'Member',
         propertyId: PROPERTY,
         accessiblePropertyIds: [PROPERTY],
+        ratingGoalsEnabled: false,
       }),
     ).rejects.toMatchObject({ _tag: 'DashboardError', code: 'forbidden' })
     expect(repo.readPropertyFacts).not.toHaveBeenCalled()

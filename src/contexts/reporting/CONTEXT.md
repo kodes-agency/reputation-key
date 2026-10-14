@@ -93,7 +93,9 @@ metric authority.
   until Google shows the target (reached), or it is ended by a manager, by its Google
   location changing (the Property's binding epoch moved) or by its Property being archived.
   Changes of target, pace or mode are logged with who, when, old and new value, and no
-  reason (`property_rating_goal_changes`). The maths is pure and exact
+  reason (`property_rating_goal_changes`). A manager's "Not now" for a Property's goal is
+  kept apart (`property_rating_goal_deferrals`): it only lets the setup checklist count the
+  step as decided, and sets, changes or blocks no goal. The maths is pure and exact
   (`domain/rating-goal-*.ts`, BigInt rationals): Google's number rounds half up (4.45
   shows 4.5, one named rule), so a target's threshold is five hundredths below it; the exact
   average is the cache's sum over count when the cache holds every review Google counts,
@@ -177,7 +179,14 @@ metric authority.
   starts its own version's series, and the earlier reading keeps its value.
 - **Property setup**: seven per-Property steps derived at read time from current facts
   (Google binding, first sync, reply language, AI decision, responsible manager, reply
-  voice, published Portal). It records no milestones, unlike the Organization checklist.
+  voice, published Portal), and an eighth, "Set a Google rating goal", where a goal can be
+  set: an active Property Google counts ten reviews for (the Current on Google snapshot at
+  the current binding), seen by a viewer with `goal.create` while `goal.use` is on. The
+  eighth counts toward "n of m done": it is done when the Property has an active rating
+  goal or a manager chose "Not now" (`property_rating_goal_deferrals`, one row per
+  Property, written by the rating goal's "Not now" command), which counts as decided the
+  way a deferred AI decision does. It records no milestones, unlike the Organization
+  checklist.
 
 ## Invariants
 

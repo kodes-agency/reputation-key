@@ -76,6 +76,29 @@ describe('property setup steps', () => {
     expect(propertySetupStepTarget(sync!)).toBeNull()
   })
 
+  it('sends the Google rating goal step to the Goals page, never into the hub', () => {
+    // Arrange
+    const goal = {
+      key: 'rating_goal',
+      status: 'pending',
+      asked: false,
+      section: 'goals',
+    } as const
+    const withGoal: PropertySetup = { ...setup({}), steps: [...setup({}).steps, goal] }
+
+    // Act / Assert
+    expect(propertySetupStepTarget(goal)).toBe('/properties/$propertyId/goals')
+    expect(propertySetupStepLabel(goal)).toBe('Set a Google rating goal')
+    expect(firstPropertySetupSection(withGoal)).toBeNull()
+    expect(completedPropertySetupStepCount(withGoal)).toBe(7)
+    expect(
+      completedPropertySetupStepCount({
+        ...withGoal,
+        steps: [...setup({}).steps, { ...goal, status: 'deferred' }],
+      }),
+    ).toBe(8)
+  })
+
   it('words a waiting sync and an admin-only AI decision for what the viewer can do', () => {
     const current = setup({ ai_decision: 'needs_admin', reviews_synced: 'waiting' })
     const labels = openPropertySetupSteps(current).map(propertySetupStepLabel)

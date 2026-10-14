@@ -14,7 +14,7 @@ export type PropertySetupSummary = Readonly<{
   propertyId: PropertyId
   /** Setup steps with status `pending` or `needs_admin` for this viewer. */
   attentionCount: number
-  /** Steps done for this viewer; a deferred AI decision counts as done. */
+  /** Steps done for this viewer; a deferred step ("Not now") counts as done. */
   completedCount: number
   stepCount: number
   /** Where to point this viewer next; `null` once every step is done. */
@@ -27,6 +27,8 @@ export type ListPropertySetupSummariesInput = Readonly<{
   role: Role
   /** `null` for Organization-wide access; otherwise the current granted Properties. */
   accessiblePropertyIds: readonly PropertyId[] | null
+  /** The viewer may set Google rating goals: each Property's rating goal step is theirs. */
+  ratingGoalsEnabled: boolean
 }>
 
 export type ListPropertySetupSummariesDeps = Readonly<{
@@ -42,7 +44,7 @@ export const listPropertySetupSummaries =
     if (!isBetaInteractiveRole(input.role)) {
       throw dashboardError('forbidden', 'Property setup is unavailable for this role')
     }
-    const role = input.role
+    const viewer = { role: input.role, ratingGoalsEnabled: input.ratingGoalsEnabled }
     // A manager without a grant has nothing to summarise; skip the tenant read.
     if (
       input.accessiblePropertyIds !== null &&
@@ -56,7 +58,7 @@ export const listPropertySetupSummaries =
       accessiblePropertyIds: input.accessiblePropertyIds,
     })
     return facts.map((propertyFacts) => {
-      const setup = derivePropertySetup(propertyFacts, { role })
+      const setup = derivePropertySetup(propertyFacts, viewer)
       return {
         propertyId: setup.propertyId,
         attentionCount: setup.attentionCount,

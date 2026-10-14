@@ -213,6 +213,12 @@ async function seedTenantRows(
      VALUES ($1::uuid, $2::uuid, $3, $4::uuid, 'user:test', $5, 'pace', '11', '14')`,
     [randomUUID(), ratingGoalId, organizationId, fixture.propertyId, VERSION_FROM],
   )
+  await lease.pool.query(
+    `INSERT INTO property_rating_goal_deferrals
+       (property_id, organization_id, deferred_by, deferred_at)
+     VALUES ($1::uuid, $2, 'user:test', $3)`,
+    [fixture.propertyId, organizationId, VERSION_FROM],
+  )
 
   return fixture
 }

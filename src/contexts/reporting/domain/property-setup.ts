@@ -1,13 +1,19 @@
-// Per-Property setup — the seven setup steps derived from current facts.
+// Per-Property setup — the setup steps derived from current facts.
 //
-// Pure and content-free: a Property's facts are booleans and one AI state, and
-// every status reflects what is true now. Unlike the Organization setup
-// checklist there is no monotonic milestone history, so a step that stops
-// being true (a disconnected Google binding, an unpublished Portal) returns to
-// needing attention.
+// Pure and content-free: a Property's facts are booleans, one AI state and
+// Google's review count, and every status reflects what is true now. Unlike the
+// Organization setup checklist there is no monotonic milestone history, so a
+// step that stops being true (a disconnected Google binding, an unpublished
+// Portal) returns to needing attention.
+//
+// Seven steps always; an eighth, the Google rating goal (ADR 0067), only where
+// a goal can be set: an active Property Google counts ten reviews for, seen by
+// a viewer who may set one. It is done when a goal is active or a manager
+// chose "Not now", which counts as done the way a deferred AI decision does.
 
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import type { PropertyId } from '#/shared/domain/ids'
+import { ratingGoalOffered } from './google-numbers'
 
 const PROPERTY_SETUP_STEP_KEYS = [
   'google_linked',
@@ -17,6 +23,7 @@ const PROPERTY_SETUP_STEP_KEYS = [
   'responsible_manager',
   'reply_voice',
   'portal_published',
+  'rating_goal',
 ] as const
 
 export type PropertySetupStepKey = (typeof PROPERTY_SETUP_STEP_KEYS)[number]
@@ -25,15 +32,19 @@ export type PropertySetupStepKey = (typeof PROPERTY_SETUP_STEP_KEYS)[number]
  * - `complete`: the fact holds.
  * - `pending`: the viewer can finish the step.
  * - `needs_admin`: only an AccountAdmin can finish the step.
- * - `deferred`: the AI decision was consciously postponed; it counts as decided.
+ * - `deferred`: the AI decision or the rating goal was consciously postponed
+ *   ("Not now"); it counts as decided.
  * - `waiting`: nothing to do but wait for the system (the first review sync).
  */
 export type PropertySetupStepStatus =
   'complete' | 'pending' | 'deferred' | 'needs_admin' | 'waiting'
 
-/** Property settings hub section that finishes a step. */
+/**
+ * Where a step is finished: a Property settings hub section, or a Property page
+ * outside the hub (its Portals, its Goals).
+ */
 export type PropertySetupSection =
-  'profile' | 'google' | 'replies' | 'ai' | 'people' | 'targets' | 'portals'
+  'profile' | 'google' | 'replies' | 'ai' | 'people' | 'targets' | 'portals' | 'goals'
 
 export type PropertySetupStep = Readonly<{
   key: PropertySetupStepKey
@@ -65,9 +76,24 @@ export type PropertySetupFacts = Readonly<{
   replyVoiceConfigured: boolean
   /** At least one Portal is published with a live publication activation. */
   portalPublished: boolean
+  /** `properties.lifecycle_state` is `active`. */
+  propertyActive: boolean
+  /** Google's review count at the current binding; null when Google sent none. */
+  googleReviewCount: number | null
+  /** The Property has an active Google rating goal. */
+  ratingGoalActive: boolean
+  /** A manager chose "Not now" for the Property's Google rating goal. */
+  ratingGoalDeferred: boolean
 }>
 
-export type PropertySetupViewer = Readonly<{ role: BetaInteractiveRole }>
+export type PropertySetupViewer = Readonly<{
+  role: BetaInteractiveRole
+  /**
+   * The viewer may set a Google rating goal here (`goal.create`, with `goal.use`
+   * on). Without it the rating goal step is not one of theirs to see.
+   */
+  ratingGoalsEnabled?: boolean
+}>
 
 export type PropertySetup = Readonly<{
   propertyId: PropertyId
@@ -90,6 +116,7 @@ const STEP_DEFINITIONS = {
   responsible_manager: { asked: true, section: 'people' },
   reply_voice: { asked: false, section: 'replies' },
   portal_published: { asked: false, section: 'portals' },
+  rating_goal: { asked: false, section: 'goals' },
 } as const satisfies Readonly<Record<PropertySetupStepKey, StepDefinition>>
 
 /** Decision 8: Google linking and the AI decision stay AccountAdmin work. */
@@ -119,15 +146,34 @@ function statusOf(
       return facts.replyVoiceConfigured ? 'complete' : 'pending'
     case 'portal_published':
       return facts.portalPublished ? 'complete' : 'pending'
+    case 'rating_goal':
+      if (facts.ratingGoalActive) return 'complete'
+      return facts.ratingGoalDeferred ? 'deferred' : 'pending'
   }
 }
 
-/** The seven steps, in setup order, for one viewer. */
+/**
+ * Whether a step is the viewer's to see. The rating goal step is, where a goal
+ * can be set or one is already active (it stays counted when Google's count is
+ * not read any more).
+ */
+function stepShown(
+  key: PropertySetupStepKey,
+  facts: PropertySetupFacts,
+  viewer: PropertySetupViewer,
+): boolean {
+  if (key !== 'rating_goal') return true
+  if (viewer.ratingGoalsEnabled !== true) return false
+  return facts.ratingGoalActive || ratingGoalOffered(facts)
+}
+
+/** The steps the viewer sees, in setup order: seven, or eight with the rating goal. */
 export function derivePropertySetupSteps(
   facts: PropertySetupFacts,
   viewer: PropertySetupViewer,
 ): readonly PropertySetupStep[] {
-  return PROPERTY_SETUP_STEP_KEYS.map((key) =>
+  const shown = PROPERTY_SETUP_STEP_KEYS.filter((key) => stepShown(key, facts, viewer))
+  return shown.map((key) =>
     Object.freeze({
       key,
       status: statusOf(key, facts, viewer),
@@ -144,7 +190,7 @@ export function propertySetupAttentionCount(steps: readonly PropertySetupStep[])
   ).length
 }
 
-/** Steps that are done for the viewer: a deferred AI decision counts as decided. */
+/** Steps that are done for the viewer: a deferred step ("Not now") counts as decided. */
 export function propertySetupCompletedCount(steps: readonly PropertySetupStep[]): number {
   return steps.filter((step) => step.status === 'complete' || step.status === 'deferred')
     .length

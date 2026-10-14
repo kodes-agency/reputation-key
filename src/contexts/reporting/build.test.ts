@@ -38,6 +38,7 @@ describe('buildReportingContext', () => {
     expect(Object.keys(context.publicApi.ratingGoals).sort()).toEqual([
       'card',
       'change',
+      'defer',
       'detail',
       'end',
       'history',

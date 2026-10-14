@@ -42,9 +42,11 @@ export const GOAL_PURGE_TABLES = Object.freeze([
   'goal_program_versions',
   'goal_programs',
   // The Google rating goal is its own family (not a Goal Program): its change
-  // log holds the goal with ON DELETE RESTRICT, so the log goes first.
+  // log holds the goal with ON DELETE RESTRICT, so the log goes first. A
+  // "Not now" names only its Property.
   'property_rating_goal_changes',
   'property_rating_goals',
+  'property_rating_goal_deferrals',
 ] as const)
 
 /**
@@ -291,6 +293,9 @@ const purge = async (
   )
   await tx.execute(
     sql`DELETE FROM property_rating_goals WHERE organization_id = ${organization}`,
+  )
+  await tx.execute(
+    sql`DELETE FROM property_rating_goal_deferrals WHERE organization_id = ${organization}`,
   )
   for (const guard of PURGE_GUARDS) {
     await tx.execute(

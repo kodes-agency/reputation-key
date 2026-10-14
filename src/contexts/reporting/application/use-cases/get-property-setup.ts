@@ -12,13 +12,15 @@ export type GetPropertySetupInput = Readonly<{
   propertyId: PropertyId
   /** `null` for Organization-wide access; otherwise the current granted Properties. */
   accessiblePropertyIds: readonly PropertyId[] | null
+  /** The viewer may set a Google rating goal here: the rating goal step is theirs. */
+  ratingGoalsEnabled: boolean
 }>
 
 export type GetPropertySetupDeps = Readonly<{
   repository: PropertySetupRepository
 }>
 
-/** One Property's seven setup steps for the requesting manager. */
+/** One Property's setup steps for the requesting manager. */
 export const getPropertySetup =
   (deps: GetPropertySetupDeps) =>
   async (input: GetPropertySetupInput): Promise<PropertySetup> => {
@@ -38,7 +40,10 @@ export const getPropertySetup =
     })
     if (!facts) throw dashboardError('not_found', 'Property was not found')
 
-    return derivePropertySetup(facts, { role: input.role })
+    return derivePropertySetup(facts, {
+      role: input.role,
+      ratingGoalsEnabled: input.ratingGoalsEnabled,
+    })
   }
 
 export type GetPropertySetup = ReturnType<typeof getPropertySetup>

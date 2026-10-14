@@ -228,6 +228,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'goalMonthlyResults',
       'goalPrograms',
       'goalSubjectAssignments',
+      'propertyRatingGoalDeferrals',
       'propertyRatingGoals',
     ],
     owner: 'reporting',

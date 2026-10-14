@@ -407,6 +407,13 @@
       "when": 1793800000000,
       "tag": "0057_rating_goal_notice_marks",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1793900000000,
+      "tag": "0058_property_rating_goal_deferrals",
+      "breakpoints": true
     }
   ]
 }

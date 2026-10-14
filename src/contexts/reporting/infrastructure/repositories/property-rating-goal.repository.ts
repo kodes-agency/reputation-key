@@ -18,6 +18,7 @@ import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizz
 import type { Database } from '#/shared/db'
 import {
   propertyRatingGoalChanges,
+  propertyRatingGoalDeferrals,
   propertyRatingGoals,
 } from '#/shared/db/schema/goal.schema'
 import { properties } from '#/shared/db/schema/property.schema'
@@ -404,6 +405,23 @@ export const createPropertyRatingGoalRepository = (
         )
         .returning({ id: propertyRatingGoals.id })
       return ended.length > 0
+    }),
+
+  // One row per Property: a repeat keeps the first choice. The tenant foreign
+  // key refuses a Property that is not the Organization's.
+  recordNotNow: (choice) =>
+    trace('reporting.ratingGoal.recordNotNow', async () => {
+      const recorded = await db
+        .insert(propertyRatingGoalDeferrals)
+        .values({
+          propertyId: choice.propertyId,
+          organizationId: choice.organizationId,
+          deferredBy: choice.chosenBy,
+          deferredAt: choice.chosenAt,
+        })
+        .onConflictDoNothing({ target: propertyRatingGoalDeferrals.propertyId })
+        .returning({ propertyId: propertyRatingGoalDeferrals.propertyId })
+      return recorded.length > 0
     }),
 })
 
