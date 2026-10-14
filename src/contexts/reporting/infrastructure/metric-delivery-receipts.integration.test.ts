@@ -288,7 +288,6 @@ describe.sequential('Metric delivery receipts (integration)', () => {
       portalId: PORTAL,
       scanSource: 'qr',
       occurredAt: new Date('2026-07-01T10:00:00.000Z'),
-      staffAttribution: null,
     })
 
     await expect(receiptsOf(EARLY_SCAN_EVENT)).resolves.toEqual([
