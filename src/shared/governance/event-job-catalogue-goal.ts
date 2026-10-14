@@ -1,6 +1,7 @@
 // The Goal families of the event/job catalogue, in their own module so the
 // catalogue (a file at the length limit) does not carry them: the monthly
-// results of Goal Programs and the two recurring Goal jobs.
+// results of Goal Programs, the Property Google rating goal's notice facts and
+// the two recurring Goal jobs.
 //
 // Plain job rows rather than the catalogue's `job()` factory: the factory lives
 // in the catalogue, which imports this module, and the retry defaults it bakes
@@ -13,6 +14,8 @@ import { durable, ev, type EventFamilyRow } from './event-job-catalogue-rows'
 const ACTIVITY_OUTBOX = 'src/contexts/feed/infrastructure/activity-outbox-consumers.ts'
 const NOTIFICATION_GOAL_OUTBOX =
   'src/contexts/feed/infrastructure/goal-outbox-consumers.ts'
+const NOTIFICATION_RATING_GOAL_OUTBOX =
+  'src/contexts/feed/infrastructure/rating-goal-notice-consumers.ts'
 
 export const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('goal.monthly_result.closed', [
@@ -25,6 +28,10 @@ export const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('goal.monthly_result.revised', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-goal-monthly-result-revised', NOTIFICATION_GOAL_OUTBOX),
+  ]),
+  // One fact per notice a Property's Google rating goal raises (ADR 0067).
+  ev('goal.rating_goal.transitioned', [
+    durable('notification.on-rating-goal-transitioned', NOTIFICATION_RATING_GOAL_OUTBOX),
   ]),
 ]
 

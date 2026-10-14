@@ -110,6 +110,14 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   // assignments and notes.
   'goal.completed': 'recognition',
   'goal.result_revised': 'recognition',
+  // The Property Google rating goal's change notices are Goals too, in name
+  // only: they tell a Property's managers about a Property figure and are not
+  // workforce recognition (ADR 0049 rule 2; ADR 0046, amended 2026-10-14).
+  'goal.rating_reached': 'recognition',
+  'goal.rating_changed': 'recognition',
+  'goal.rating_below_pace': 'recognition',
+  'goal.rating_cant_reach': 'recognition',
+  'goal.rating_keep_dropped': 'recognition',
   // The reporter's own report was accepted, not planned, or resolved. It is
   // collaboration on something they raised: in-app by default, never mailed.
   'beta_feedback.outcome': 'workflow_collaboration',

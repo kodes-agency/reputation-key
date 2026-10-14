@@ -14,7 +14,10 @@
 //   2. Lead with the DECISION. "Approve this reply" beats "Reply pending
 //      approval" — the title says what the reader must do.
 //   3. Say WHERE. A locally collected guest rating may add context to Portal
-//      feedback, but Google/provider ratings never enter Notification storage.
+//      feedback, but a Google/provider review's rating never enters
+//      Notification storage. The Google rating goal notices state the
+//      Property's own figures, the tenth Google shows for it among them
+//      (ADR 0046, amended 2026-10-14).
 //   4. Say HOW LONG something had waited when the notice was raised, where
 //      it was waiting. The read measures it (`waitedHours`); it is a fact
 //      beside the sentence (email facts line, in-app meta strip), never
@@ -32,6 +35,13 @@ import {
   renderOrganizationPurgePending,
   renderOrganizationRoleChanged,
 } from './notification-templates-account'
+import {
+  renderRatingGoalBelowPace,
+  renderRatingGoalCantReach,
+  renderRatingGoalChanged,
+  renderRatingGoalKeepDropped,
+  renderRatingGoalReached,
+} from './notification-templates-rating-goal'
 import type {
   NotificationActorRole,
   NotificationGoalMarker,
@@ -926,6 +936,11 @@ const RENDERERS: Record<
   'integration.google_disconnected': renderIntegrationGoogleDisconnected,
   'goal.completed': renderGoalCompleted,
   'goal.result_revised': renderGoalResultRevised,
+  'goal.rating_reached': renderRatingGoalReached,
+  'goal.rating_changed': renderRatingGoalChanged,
+  'goal.rating_below_pace': renderRatingGoalBelowPace,
+  'goal.rating_cant_reach': renderRatingGoalCantReach,
+  'goal.rating_keep_dropped': renderRatingGoalKeepDropped,
   'beta_feedback.outcome': renderBetaFeedbackOutcome,
 }
 
@@ -944,6 +959,11 @@ const REPEATED: Partial<Record<NotificationType, string | null>> = {
   'review.updated': 'Updated # times.',
   'beta_feedback.outcome': null,
   'property.review_import_finished': null,
+  // A rating goal row states where the goal stands now, from its latest change.
+  'goal.rating_changed': null,
+  'goal.rating_below_pace': null,
+  'goal.rating_cant_reach': null,
+  'goal.rating_keep_dropped': null,
 }
 
 const repeatSentence = (type: NotificationType, repeats: number): string => {
@@ -1060,9 +1080,12 @@ export const notificationLink = (
       // which no longer resolves. Land on the inbox list rather than 404.
       return { path: '/inbox', search: {} }
     case 'goal':
-      // The resource is the monthly result the notice reports; the Goals page
-      // opens the goal it belongs to.
-      return propertyLink(propertyId, '/goals', { result: resourceId })
+      // A Google rating goal notice opens the Property's Goals page, where the
+      // rating goal leads. Any other: the resource is the monthly result the
+      // notice reports; the Goals page opens the goal it belongs to.
+      return type?.startsWith('goal.rating_')
+        ? propertyLink(propertyId, '/goals')
+        : propertyLink(propertyId, '/goals', { result: resourceId })
     case 'badge':
       return propertyLink(propertyId, '')
     case 'portal':

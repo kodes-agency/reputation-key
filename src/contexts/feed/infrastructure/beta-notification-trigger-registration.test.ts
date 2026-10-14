@@ -15,6 +15,7 @@ import { registerBulkAssignmentNotificationConsumer } from './bulk-assignment-ou
 import { registerAssignmentReleaseNotificationConsumer } from './assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
+import { registerRatingGoalNoticeConsumer } from './rating-goal-notice-consumers'
 import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './notification-settlement-outbox-consumers'
 import { noGroupedReopens, waitingWorkState } from './jobs/test-fixtures'
@@ -104,6 +105,14 @@ describe('registered durable notification matrix', () => {
         findMonthlyResultNotificationFacts: vi.fn(async () => null),
         findMonthlyResultRevisionNotificationFacts: vi.fn(async () => null),
       },
+      responsibleManagers: fakes.responsibleManagers,
+      userLookup: fakes.userLookup,
+      displayNames: fakes.displayNames,
+      logger: fakes.logger,
+      receipts,
+    })
+    registerRatingGoalNoticeConsumer(consumerRegistry, {
+      queue: fakes.queue,
       responsibleManagers: fakes.responsibleManagers,
       userLookup: fakes.userLookup,
       displayNames: fakes.displayNames,

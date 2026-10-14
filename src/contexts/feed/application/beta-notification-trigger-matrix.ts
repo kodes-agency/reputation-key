@@ -317,6 +317,19 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ),
     eventCondition: 'outcomeChanged === true || availabilityChanged === true',
   },
+  // One fact per notice: Reporting decides which changes are told (ADR 0067).
+  route(
+    'goal.rating_goal.transitioned',
+    'notification.on-rating-goal-transitioned',
+    [
+      'goal.rating_reached',
+      'goal.rating_changed',
+      'goal.rating_below_pace',
+      'goal.rating_cant_reach',
+      'goal.rating_keep_dropped',
+    ],
+    ['responsible_scope'],
+  ),
   // ── Routes that settle, rather than raise, a notice ────────────────
   settles('review.reply.approved', 'notification.settle-on-review-reply-approved', [
     'reply.pending_approval',

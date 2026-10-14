@@ -76,6 +76,7 @@ import { registerBulkAssignmentNotificationConsumer } from './infrastructure/bul
 import { registerAssignmentReleaseNotificationConsumer } from './infrastructure/assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './infrastructure/escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './infrastructure/goal-outbox-consumers'
+import { registerRatingGoalNoticeConsumer } from './infrastructure/rating-goal-notice-consumers'
 import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './infrastructure/notification-settlement-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './infrastructure/response-target-outbox-consumers'
@@ -789,6 +790,14 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     registerGoalNotificationConsumer(consumerRegistry, {
       queue,
       monthlyResultFacts: input.monthlyResultFacts,
+      responsibleManagers: input.responsibleManagers,
+      userLookup,
+      displayNames,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    registerRatingGoalNoticeConsumer(consumerRegistry, {
+      queue,
       responsibleManagers: input.responsibleManagers,
       userLookup,
       displayNames,

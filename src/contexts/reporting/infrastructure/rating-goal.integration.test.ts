@@ -3,7 +3,9 @@
 // read, the goal tables, and the evaluation consumer, all wired as the build
 // wires them. A goal is set from the setup read, reached on the read that
 // finds Google showing the target, and ended by the consumer when the Google
-// location changes under it.
+// location changes under it. Its notices are written once, as outbox facts,
+// by whichever evaluation first stores the change: a read, the consumer or
+// the daily sweep.
 //
 // One held transaction per test, always rolled back.
 
@@ -25,6 +27,7 @@ import {
   createRatingGoalEvaluator,
   createRatingGoalRequestApi,
 } from '../application/use-cases/rating-goals'
+import { sweepRatingGoals } from '../application/use-cases/rating-goal-sweep'
 import { registerRatingGoalEvaluationConsumer } from './rating-goal-outbox-consumers'
 import { registerRatingGoalPropertyLifecycleConsumer } from './rating-goal-property-lifecycle-consumers'
 import { createCurrentGoogleReputationSnapshotRepository } from './repositories/current-google-reputation-snapshot.repository'
@@ -152,7 +155,19 @@ function engine() {
     api: createRatingGoalRequestApi(deps),
     evaluate: createRatingGoalEvaluator(deps),
     endForArchivedProperty: createArchivedPropertyRatingGoalEnder(deps),
+    sweep: () => sweepRatingGoals(deps, async () => true),
   }
+}
+
+/** The notice facts the evaluations of this test wrote, oldest first. */
+async function noticeFacts() {
+  const rows = await held.client.query(
+    `SELECT payload, property_id FROM outbox_events
+     WHERE organization_id = $1 AND event_type = 'goal.rating_goal.transitioned'
+     ORDER BY created_at, id`,
+    [ORG],
+  )
+  return rows.rows as Array<{ payload: Record<string, unknown>; property_id: string }>
 }
 
 /** A fact as the relay hands it to a consumer, with its outbox row stored. */
@@ -396,5 +411,119 @@ describe('a Property Google rating goal on PostgreSQL', () => {
         actor,
       ),
     ).rejects.toMatchObject({ code: 'not_eligible' })
+  })
+})
+
+describe('the notices of a Property Google rating goal on PostgreSQL', () => {
+  it('writes one reached fact from the read that finds the target, and none for the consumer after it', async () => {
+    await seedSnapshot(Math.fround(4.3))
+    const { api, evaluate } = engine()
+    const set = await api.set(
+      allow,
+      { propertyId: PROPERTY, mode: 'climb', targetTenths: 44, pacePerWeek: 2 },
+      actor,
+    )
+    await seedSnapshot(Math.fround(4.4))
+
+    await api.card(allow, { propertyId: PROPERTY }, actor)
+    await evaluate(ORG, PROPERTY)
+
+    const facts = await noticeFacts()
+    expect(facts).toEqual([
+      {
+        property_id: PROPERTY,
+        payload: expect.objectContaining({
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          goalId: set.goalId,
+          transition: 'reached',
+          mode: 'climb',
+          targetTenths: 44,
+          shownTenths: 44,
+          previousTenths: null,
+        }),
+      },
+    ])
+  })
+
+  it('tells a tenth gained once, however many evaluations see it', async () => {
+    await seedSnapshot(Math.fround(4.3))
+    const { api, evaluate } = engine()
+    await api.set(
+      allow,
+      { propertyId: PROPERTY, mode: 'climb', targetTenths: 46, pacePerWeek: 2 },
+      actor,
+    )
+    await seedSnapshot(Math.fround(4.4))
+
+    await evaluate(ORG, PROPERTY)
+    await evaluate(ORG, PROPERTY)
+    await api.detail(allow, { propertyId: PROPERTY }, actor)
+
+    expect((await noticeFacts()).map((fact) => fact.payload)).toEqual([
+      expect.objectContaining({
+        transition: 'google_rating_changed',
+        shownTenths: 44,
+        previousTenths: 43,
+        targetTenths: 46,
+      }),
+    ])
+  })
+
+  it('finds Below pace in the daily sweep, once, and tells nobody again the next day', async () => {
+    await seedSnapshot(Math.fround(4.3))
+    const { api, sweep } = engine()
+    const set = await api.set(
+      allow,
+      { propertyId: PROPERTY, mode: 'climb', targetTenths: 44, pacePerWeek: 20 },
+      actor,
+    )
+    // Thirty days on: six reviews in the last 28 days is 1.5 a week, far
+    // under 90% of 20.
+    await held.client.query(
+      `UPDATE property_rating_goals SET created_at = $2 WHERE id = $1`,
+      [set.goalId, new Date(NOW.getTime() - 30 * DAY)],
+    )
+
+    await expect(sweep()).resolves.toMatchObject({ evaluated: 1, notices: 1 })
+    await expect(sweep()).resolves.toMatchObject({ evaluated: 1, notices: 0 })
+
+    expect((await noticeFacts()).map((fact) => fact.payload)).toEqual([
+      expect.objectContaining({
+        goalId: set.goalId,
+        transition: 'entered_below_pace',
+        pacePerWeek: 20,
+        recentPaceTenths: 15,
+        paceWindow: 'last_4_weeks',
+      }),
+    ])
+    const stored = await held.client.query(
+      `SELECT last_evaluated_status, last_known_status, below_pace_noticed_at
+       FROM property_rating_goals WHERE id = $1`,
+      [set.goalId],
+    )
+    expect(stored.rows).toEqual([
+      {
+        last_evaluated_status: 'below_pace',
+        last_known_status: 'below_pace',
+        below_pace_noticed_at: NOW,
+      },
+    ])
+  })
+
+  it('sends no notice for the status a goal is set in, even out of reach', async () => {
+    await seedSnapshot(Math.fround(4.3))
+    const { api, evaluate, sweep } = engine()
+    // 4.9 starts at 4.85, above the 4.818 recent mix.
+    await api.set(
+      allow,
+      { propertyId: PROPERTY, mode: 'climb', targetTenths: 49, pacePerWeek: 2 },
+      actor,
+    )
+
+    await evaluate(ORG, PROPERTY)
+    await sweep()
+
+    await expect(noticeFacts()).resolves.toEqual([])
   })
 })

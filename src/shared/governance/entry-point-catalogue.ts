@@ -490,6 +490,13 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'goal.use',
     'property',
   ),
+  // The Property Google rating goal's notices, under the same Goal switch.
+  consumer(
+    'notification.rating-goal-notice-consumers',
+    'system:notification.insert_goal',
+    'goal.use',
+    'property',
+  ),
   consumer(
     'notification.on-google-reauthorization-required',
     'system:notification.insert',

@@ -100,6 +100,7 @@ import {
 import {
   goalMonthlyResultClosed,
   goalMonthlyResultRevised,
+  goalRatingGoalTransitioned,
 } from '#/contexts/reporting/domain/goal-events'
 import { BETA_NOTIFICATION_TRIGGER_MATRIX } from '../application/beta-notification-trigger-matrix'
 import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
@@ -119,6 +120,7 @@ import { registerBulkAssignmentNotificationConsumer } from './bulk-assignment-ou
 import { registerAssignmentReleaseNotificationConsumer } from './assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
+import { registerRatingGoalNoticeConsumer } from './rating-goal-notice-consumers'
 import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './notification-settlement-outbox-consumers'
 import { noGroupedReopens, waitingWorkState } from './jobs/test-fixtures'
@@ -499,6 +501,21 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       availabilityChanged: false,
       occurredAt: OCCURRED_AT,
     }),
+  'goal.rating_goal.transitioned': () =>
+    goalRatingGoalTransitioned({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      goalId: '4d1f0c1e-2b7a-4c55-9a51-000000000014',
+      mode: 'climb',
+      notice: {
+        transition: 'entered_below_pace',
+        targetTenths: 45,
+        pacePerWeek: 11,
+        recentPaceTenths: 65,
+        paceWindow: 'last_4_weeks',
+      },
+      occurredAt: OCCURRED_AT,
+    }),
 }
 
 /** The producer's commit, the outbox row's jsonb round trip, and the relay. */
@@ -602,6 +619,7 @@ function registerNotificationRoutes(
   registerNotificationSettlementConsumers(registry, deps)
   registerResponseTargetNotificationConsumer(registry, deps)
   registerGoalNotificationConsumer(registry, deps)
+  registerRatingGoalNoticeConsumer(registry, deps)
   registerPortalNotificationConsumers(registry, deps)
   registerPortalHealthNotificationConsumer(registry, deps)
   registerPropertyNotificationConsumers(registry, deps)
