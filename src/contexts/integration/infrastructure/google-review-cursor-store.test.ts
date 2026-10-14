@@ -23,7 +23,6 @@ const NEW_KEY = '22'.repeat(32)
 const authorization: GoogleReviewCursorAuthorization = {
   connectionLifecycleVersion: 7,
   connectionAccessVersion: 11,
-  credentialGeneration: 13,
   authorizationVectorSha256: 'ab'.repeat(32),
 }
 
@@ -166,7 +165,10 @@ describe('GoogleReviewCursorStore', () => {
       cursors.redeem({
         cursorRef: published.value.nextCursorRef,
         scope: scope(1),
-        authorization: { ...authorization, credentialGeneration: 14 },
+        authorization: {
+          ...authorization,
+          connectionAccessVersion: authorization.connectionAccessVersion + 1,
+        },
       }),
     ).resolves.toEqual({ ok: false, code: 'binding_mismatch' })
     await expect(

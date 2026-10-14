@@ -179,6 +179,26 @@ describe('provider ephemeral Redis readiness', () => {
     })
   })
 
+  // `ACL DRYRUN` reports a denied command as a returned string, so an error with
+  // NOPERM can only mean the connection's own user may not run `ACL DRYRUN`.
+  // That is an inspection that could not be made, and counting it as "the
+  // forbidden command is denied" passed readiness without inspecting anything.
+  it('does not read a refused ACL DRYRUN as the forbidden command being denied', async () => {
+    const redis = redisWith({
+      call: vi.fn(async (...args: unknown[]) => {
+        if (args[1] === 'WHOAMI') return 'provider-app'
+        throw new Error(
+          "NOPERM User provider-app has no permissions to run the 'acl|dryrun' command",
+        )
+      }) as never,
+    })
+
+    await expect(verifyProviderEphemeralRedisRuntime(redis)).resolves.toEqual({
+      ok: false,
+      code: 'inspection_unavailable',
+    })
+  })
+
   // The integration test proves the provider Redis ACL grants every command on
   // PROVIDER_REDIS_INSPECTION_COMMANDS. That only protects Google connect if
   // the list is what the inspection really issues — an unlisted command could

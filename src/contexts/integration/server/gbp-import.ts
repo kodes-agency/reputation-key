@@ -78,6 +78,8 @@ function transactionErrorStatus(code: GoogleImportTransactionErrorCode): number 
       return 403
     case 'invalid_reference':
       return 404
+    // The connection state has to change first, as for discovery.
+    case 'reauthentication_required':
     case 'request_conflict':
       return 409
     // The request passed browser validation, but its durable fact violated a

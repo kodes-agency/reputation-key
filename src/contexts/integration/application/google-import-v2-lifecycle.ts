@@ -1,7 +1,7 @@
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
 import { organizationId } from '#/shared/domain/ids'
 import type { GoogleImportReferenceStore } from './ports/google-import-reference-store.port'
-import { reconciledOutcomeCode } from './google-import-v2-contract'
+import { EXPIRED_ITEM_WRITE, reconciledOutcomeCode } from './google-import-v2-contract'
 import type {
   GoogleImportV2LifecycleScope,
   GoogleImportV2Store,
@@ -211,8 +211,7 @@ export function createGoogleImportV2Lifecycle(
         organizationId: item.organizationId,
         itemId: item.itemId,
         retryRevision: item.retryRevision,
-        outcomeCode: 'temporarily_unavailable',
-        retainRetryState: false,
+        ...EXPIRED_ITEM_WRITE,
         now,
       })
       if (terminalized === 'completed') itemsTerminalized++

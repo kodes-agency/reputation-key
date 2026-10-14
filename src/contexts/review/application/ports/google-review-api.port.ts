@@ -39,6 +39,9 @@ export type GoogleReviewApiErrorCode =
   // reconnect it; nothing reached Google as a reply, and no retry can until then.
   | 'reauthorization_required'
   | 'malformed_response'
+  // Google answered that the Location or the request is not valid (404, 400).
+  // Every retry gets the same answer, so a run ends on it instead of waiting.
+  | 'provider_rejected'
   | 'provider_rate_limited'
   | 'provider_unavailable'
 

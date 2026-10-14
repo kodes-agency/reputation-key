@@ -682,6 +682,57 @@ describe('runReviewProviderSnapshot', () => {
     })
   })
 
+  // Google answered that the Location or the request is not valid (404, 400):
+  // every retry gets the same answer, so the run ends and the next poll starts
+  // a fresh one instead of the continuation looping until the run expires.
+  it('ends the run when Google rejected the page request', async () => {
+    const deps = makeDeps()
+    const error = Object.assign(new Error('404 from provider'), {
+      _tag: 'GoogleReviewApiError' as const,
+      code: 'provider_rejected' as const,
+      recoverable: false,
+    })
+    vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(error)
+
+    await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
+      { status: 'failed', runId, code: 'provider_failure' },
+    )
+    expect(deps.googleReviewApi.discardReviewCursors).toHaveBeenCalledWith(
+      expect.objectContaining({ runId }),
+    )
+    expect(deps.repository.commitPage).not.toHaveBeenCalled()
+  })
+
+  it('ends the confirmation when Google rejected the review request', async () => {
+    const deps = makeDeps({
+      currentRun: run({
+        state: 'confirming',
+        phase: 'confirmation',
+        confirmationDeadline: new Date('2026-08-16T12:00:00.000Z'),
+      }),
+    })
+    vi.mocked(deps.repository.readNextLinkedCandidate).mockResolvedValue({
+      runId,
+      reviewId,
+      expectedState: 'linked',
+      expectedSourceRevision: 1,
+      status: 'pending',
+      reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+    })
+    vi.mocked(deps.googleReviewApi.getReview).mockRejectedValue(
+      Object.assign(new Error('400 from provider'), {
+        _tag: 'GoogleReviewApiError' as const,
+        code: 'provider_rejected' as const,
+        recoverable: false,
+      }),
+    )
+
+    await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
+      { status: 'failed', runId, code: 'provider_failure' },
+    )
+    expect(deps.repository.confirmLinkedCandidateMissing).not.toHaveBeenCalled()
+  })
+
   it.each(['authorization_denied', 'runtime_unavailable', 'stale_source'] as const)(
     'preserves the Review sync authorization cause %s',
     async (code) => {

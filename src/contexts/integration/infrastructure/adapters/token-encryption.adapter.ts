@@ -15,6 +15,10 @@
 // There is deliberately no support for the legacy three-part format: reading
 // it would mean accepting a ciphertext whose key is a guess, so a value in
 // that format is refused, never read (token-encryption.adapter.test.ts).
+//
+// The nonce must be 12 bytes and the tag the full 16: a shortened tag still
+// authenticates in Node unless the length is pinned, which would turn a tampered
+// row into a one-in-2^32 guess instead of a refusal.
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import type { TokenEncryptionPort } from '../../application/ports/token-encryption.port'
@@ -26,6 +30,12 @@ export type TokenEncryptionConfig = Readonly<{
   /** Every key that may still be needed to READ, by version. Hex, 32 bytes. */
   keys: Readonly<Record<string, string>>
 }>
+
+// GCM nonce and authentication-tag sizes `encrypt` seals with. Node accepts any
+// tag of 4 to 16 bytes unless told the length, so `decrypt` holds a stored value
+// to these exact sizes rather than to whatever the row happens to carry.
+const IV_BYTES = 12
+const AUTH_TAG_BYTES = 16
 
 export const createTokenEncryptionAdapter = (
   config: TokenEncryptionConfig,
@@ -45,7 +55,7 @@ export const createTokenEncryptionAdapter = (
   }
 
   const encrypt = (plaintext: string): string => {
-    const iv = randomBytes(12) // 12 bytes for GCM (recommended)
+    const iv = randomBytes(IV_BYTES) // 12 bytes for GCM (recommended)
     const cipher = createCipheriv('aes-256-gcm', activeKey, iv)
     cipher.setAAD(Buffer.from(config.activeVersion, 'utf8'))
 
@@ -78,9 +88,17 @@ export const createTokenEncryptionAdapter = (
       throw integrationError('encryption_error', 'Unknown key version')
     }
 
-    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(ivBase64, 'base64'))
+    const iv = Buffer.from(ivBase64, 'base64')
+    const authTag = Buffer.from(authTagBase64, 'base64')
+    if (iv.length !== IV_BYTES || authTag.length !== AUTH_TAG_BYTES) {
+      throw integrationError('encryption_error', 'Invalid ciphertext format')
+    }
+
+    const decipher = createDecipheriv('aes-256-gcm', key, iv, {
+      authTagLength: AUTH_TAG_BYTES,
+    })
     decipher.setAAD(Buffer.from(version, 'utf8'))
-    decipher.setAuthTag(Buffer.from(authTagBase64, 'base64'))
+    decipher.setAuthTag(authTag)
 
     const decrypted = Buffer.concat([
       decipher.update(Buffer.from(encryptedBase64, 'base64')),

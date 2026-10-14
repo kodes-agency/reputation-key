@@ -124,7 +124,20 @@ export const disconnectGoogleAccount = (deps: DisconnectGoogleAccountDeps) => {
     }
     if (!providerAuthorization) return null
 
-    const refreshToken = deps.encryption.decrypt(connection.encryptedRefreshToken)
+    // The attempt row is created only when the executor prepares the revoke, so
+    // nothing exists yet that a failure here would strand. A token this
+    // deployment cannot read (a changed key, a damaged value) cannot be revoked,
+    // and it must not also make the connection impossible to disconnect.
+    let refreshToken: string
+    try {
+      refreshToken = deps.encryption.decrypt(connection.encryptedRefreshToken)
+    } catch {
+      deps.logger.warn(
+        { stage: 'revoke-token-unreadable' },
+        'Google refresh token could not be read; disconnecting locally',
+      )
+      return null
+    }
     let outcome: GoogleRevokeOutcome
     try {
       outcome = await deps.oauth.revokeTokenWithOutcome(
@@ -151,6 +164,18 @@ export const disconnectGoogleAccount = (deps: DisconnectGoogleAccountDeps) => {
       now: event.occurredAt,
     })
     if (!settled.ok) {
+      // `not_found`: the executor refused to prepare the attempt (another attempt
+      // is open, or the connection moved since the authorizer read it), so no
+      // attempt row exists, nothing was sent, and recovery has nothing to
+      // finish. The local disconnect still owes the caller, and it refuses by
+      // itself while another attempt's cleanup window is open.
+      if (settled.code === 'not_found') {
+        deps.logger.warn(
+          { stage: 'revoke-attempt-not-prepared' },
+          'Google cleanup was not prepared; disconnecting locally',
+        )
+        return null
+      }
       throw integrationError(
         'oauth_failed',
         'Google disconnect cleanup will be completed by recovery',

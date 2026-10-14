@@ -103,6 +103,8 @@ export function startErrorMessage(error: unknown): string {
       return 'One or more selected locations expired. Return to locations and rediscover them.'
     case 'unauthorized':
       return 'Your import permission changed before the request could be committed.'
+    case 'reauthentication_required':
+      return 'Google no longer accepts this connection. Reconnect Google, then start the import again.'
     case 'contract_rejected':
       return 'The import could not start because of an internal validation error. Contact support; this request cannot be retried.'
     default:

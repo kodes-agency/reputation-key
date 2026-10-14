@@ -16,9 +16,12 @@
 //     next claims it under a fresh fence. That job is usually the stalled
 //     recovery of the dead attempt, which BullMQ re-runs with the SAME attempt
 //     ordinal; `claimItem` admits the released attempt's own ordinal for it;
-//   - terminalizes it `temporarily_unavailable` through `terminalizeItem`
-//     once the attempt budget is spent, so the row reaches an honest,
-//     tenant-retryable terminal state instead of a permanent 'processing'.
+//   - terminalizes it through `terminalizeItem` once the attempt budget is
+//     spent, so the row reaches an honest terminal state instead of a permanent
+//     'processing': `temporarily_unavailable` with its retry state kept while
+//     the effect deadline has not passed (the tenant can retry it), and a
+//     scrubbed `internal_error` once it has (a retry is refused by then, and the
+//     table refuses a `temporarily_unavailable` row without its retry state).
 //
 // What it does NOT do is re-dispatch. A released item is taken only by a job
 // that still exists, and the tenant cannot help: `retryItem` admits a `failed`
@@ -26,9 +29,10 @@
 // stalled recovery (worker.ts). A job whose worker dies a second time is
 // failed by BullMQ without its handler being called, so the item this reaper
 // then releases has no job left and stays `pending` until its effect deadline
-// (24 hours), when the daily lifecycle sweep ends it. Closing that takes
-// knowing that no job remains: the reaper would ask the queue for the item's
-// job and terminalize `temporarily_unavailable` when it is failed or gone.
+// (24 hours), when the daily lifecycle sweep ends it as `internal_error`, which
+// the tenant cannot retry. Closing that takes knowing that no job remains: the
+// reaper would ask the queue for the item's job and terminalize
+// `temporarily_unavailable` when it is failed or gone, which does give a retry.
 //
 // BOTH transitions go through the existing CAS helpers, which match on the
 // exact `(organizationId, itemId, retryRevision, claimFence)` tuple and on the
@@ -40,6 +44,7 @@
 // Bounded and self-limiting: at most SWEEP_LIMIT rows per run, and a released
 // item only becomes reapable again if something actually claims it again.
 
+import { terminalWriteFor } from './google-import-v2-contract'
 import {
   GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
   type GoogleImportV2Store,
@@ -81,14 +86,14 @@ export function createGoogleImportV2ClaimReaper(
       // Attempt budget spent: releasing would return the row to 'pending'
       // with no attempt left to consume it, so terminalize instead. The
       // outcome is the retryable one — the work never proved impossible, its
-      // owner just vanished — which keeps the tenant's retry action available.
+      // owner just vanished — which keeps the tenant's retry action available
+      // for as long as a retry is still allowed.
       if (claim.attemptOrdinal >= GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS) {
         const terminalized = await deps.store.terminalizeItem({
           organizationId: claim.organizationId,
           itemId: claim.itemId,
           retryRevision: claim.retryRevision,
-          outcomeCode: 'temporarily_unavailable',
-          retainRetryState: false,
+          ...terminalWriteFor('temporarily_unavailable', claim.effectDeadlineAt, now),
           now,
         })
         if (terminalized === 'completed') itemsTerminalized++

@@ -12,7 +12,8 @@ import {
   buildTestAuthContext,
   buildTestGoogleConnection,
 } from '#/shared/testing/fixtures'
-import { isIntegrationError } from '../../domain/errors'
+import { integrationError, isIntegrationError } from '../../domain/errors'
+import type { GoogleDisconnectRevokeStore } from '../google-disconnect-revoke'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
@@ -353,5 +354,115 @@ describe('disconnectGoogleAccount', () => {
         outcome: 'cleanup_ambiguous',
       }),
     )
+  })
+
+  // The governed path binds one durable cleanup attempt to one permit; every
+  // refusal that happens before that attempt exists leaves nothing for recovery
+  // to find, so none of them may be reported as "completed by recovery".
+  describe('when governed cleanup cannot start or cannot read the token', () => {
+    const governed = (
+      over: Readonly<{
+        decrypt?: () => string
+        settle?: GoogleDisconnectRevokeStore['settle']
+      }> = {},
+    ) => {
+      const fixture = setup()
+      const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+      const connection = buildTestGoogleConnection({ status: 'active' })
+      fixture.connectionRepo.seed([connection])
+      const revokeTokenWithOutcome = vi.fn(async () => 'confirmed_not_sent' as const)
+      ;(fixture.oauth as Record<string, unknown>).revokeTokenWithOutcome =
+        revokeTokenWithOutcome
+      const settle = vi.fn<GoogleDisconnectRevokeStore['settle']>(
+        over.settle ?? (async () => ({ ok: false, code: 'not_found' })),
+      )
+      const useCase = disconnectGoogleAccount({
+        ...fixture.baseDeps,
+        encryption: {
+          ...fixture.baseDeps.encryption,
+          ...(over.decrypt ? { decrypt: over.decrypt } : {}),
+        },
+        authorizeProviderCall: vi.fn(async (input) => ({
+          capability: 'property.import_gbp_v2' as const,
+          organizationId: ctx.organizationId,
+          propertyId: null,
+          connectionId: connection.id,
+          initiatorUserId: ctx.userId,
+          expectedCredentialGeneration: connection.credentialGeneration,
+          authorizationVector: {},
+          disconnectRevoke: {
+            attemptId: input.disconnectRevoke!.attemptId,
+            cleanupDeadlineAtMs: input.disconnectRevoke!.cleanupDeadlineAt.getTime(),
+          },
+        })),
+        disconnectRevokeStore: {
+          prepare: vi.fn(),
+          acquireDispatch: vi.fn(),
+          settle,
+          reconcileElapsed: vi.fn(),
+        },
+        idGen: () => '70000000-0000-4000-8000-000000000002',
+      })
+      return { ...fixture, ctx, connection, useCase, revokeTokenWithOutcome, settle }
+    }
+
+    it('disconnects locally when the stored refresh token cannot be decrypted', async () => {
+      const { useCase, ctx, connection, connectionRepo, outbox, revokeTokenWithOutcome } =
+        governed({
+          decrypt: () => {
+            throw integrationError('encryption_error', 'Unknown key version')
+          },
+        })
+
+      await expect(
+        useCase({ connectionId: connection.id as string }, ctx),
+      ).resolves.toMatchObject({
+        status: 'disconnected',
+        encryptedRefreshToken: 'redacted',
+      })
+
+      expect(revokeTokenWithOutcome).not.toHaveBeenCalled()
+      await expect(
+        connectionRepo.findById(ctx.organizationId, connection.id),
+      ).resolves.toMatchObject({ status: 'disconnected' })
+      expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
+    })
+
+    // `prepare` refused (a concurrent attempt, versions that moved after the
+    // authorizer read them), so no attempt row exists and `settle` finds none.
+    // Nothing was sent and no recovery will visit the connection: the local
+    // disconnect, which itself refuses while another attempt's window is open,
+    // finishes the request.
+    it('disconnects locally when the attempt was never prepared', async () => {
+      const { useCase, ctx, connection, connectionRepo, outbox, settle } = governed()
+
+      await expect(
+        useCase({ connectionId: connection.id as string }, ctx),
+      ).resolves.toMatchObject({
+        status: 'disconnected',
+        encryptedRefreshToken: 'redacted',
+      })
+
+      expect(settle).toHaveBeenCalledOnce()
+      await expect(
+        connectionRepo.findById(ctx.organizationId, connection.id),
+      ).resolves.toMatchObject({ status: 'disconnected' })
+      expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
+    })
+
+    it('still reports recovery for an attempt that exists but could not settle', async () => {
+      const { useCase, ctx, connection, connectionRepo, outbox } = governed({
+        settle: async () => ({ ok: false, code: 'concurrent_attempt' }),
+      })
+
+      await expect(
+        useCase({ connectionId: connection.id as string }, ctx),
+      ).rejects.toThrow('Google disconnect cleanup will be completed by recovery')
+
+      await expect(
+        connectionRepo.findById(ctx.organizationId, connection.id),
+      ).resolves.toMatchObject({ status: 'active' })
+      expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(0)
+    })
   })
 })

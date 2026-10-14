@@ -107,7 +107,7 @@ describe('Google import v2 lifecycle', () => {
       organizationId: ORG_ID,
       itemId: EXPIRED_ITEM_ID,
       retryRevision: 3,
-      outcomeCode: 'temporarily_unavailable',
+      outcomeCode: 'internal_error',
       retainRetryState: false,
       now: NOW,
     })

@@ -71,6 +71,7 @@ type ItemRow = Readonly<{
   attemptOrdinal: number
   status: 'pending' | 'processing' | 'completed'
   claimLeaseExpiresAt: Date | null
+  effectDeadlineAt: Date
 }>
 
 function processing(over: Partial<ItemRow> = {}): ItemRow {
@@ -84,6 +85,8 @@ function processing(over: Partial<ItemRow> = {}): ItemRow {
     attemptOrdinal: 1,
     status: 'processing',
     claimLeaseExpiresAt: LEASE_EXPIRES_AT,
+    // Well past every instant these tests run at: a retry is still allowed.
+    effectDeadlineAt: new Date(CLAIMED_AT.getTime() + 24 * 60 * 60 * 1_000),
     ...over,
   }
 }
@@ -127,6 +130,7 @@ function createHarness(
                   retryRevision: row.retryRevision,
                   claimFence: row.claimFence,
                   attemptOrdinal: row.attemptOrdinal,
+                  effectDeadlineAt: row.effectDeadlineAt,
                 },
               ],
         ),
@@ -261,7 +265,7 @@ describe('google import claim-lease reaper job', () => {
       itemId: LIVE_ITEM_ID,
       retryRevision: 0,
       outcomeCode: 'temporarily_unavailable',
-      retainRetryState: false,
+      retainRetryState: true,
       now: new Date(LEASE_EXPIRES_AT.getTime() + 1),
     })
     expect(completionPayload()).toEqual({

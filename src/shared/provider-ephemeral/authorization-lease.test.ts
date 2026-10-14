@@ -9,6 +9,7 @@ import {
   type ProviderAuthorizationLeaseRecord,
 } from './authorization-lease'
 import { createInMemoryProviderEphemeralStore } from './in-memory-store'
+import type { ProviderEphemeralStore } from './provider-ephemeral-store'
 
 const NOW = 1_800_000_000_000
 const PRINCIPAL = 'p'.repeat(43)
@@ -59,10 +60,11 @@ function setup(
       authorizationFenceSha256: FENCE,
     }),
   ),
+  storeFaults: Partial<ProviderEphemeralStore> = {},
 ) {
   const store = createInMemoryProviderEphemeralStore(() => NOW)
   const service = createProviderAuthorizationLeaseService({
-    store,
+    store: { ...store, ...storeFaults },
     handleKeys: KEYRING,
     randomNonce: () => NONCE,
     revalidate,
@@ -159,6 +161,58 @@ describe('provider authorization leases', () => {
       ok: false,
       code: 'not_found',
     })
+  })
+
+  // Removing a refused lease is housekeeping: every renew re-checks the lease, so
+  // the verdict stands without it. A Redis fault right after the read must not
+  // turn that typed refusal into a thrown error, which callers switch on.
+  describe('when the store cannot remove the lease it refuses', () => {
+    const refusal = async (
+      renewOverrides: Record<string, unknown>,
+      options: { denied?: boolean; corrupt?: boolean } = {},
+    ) => {
+      const { issue, renew, store, revalidate } = setup(undefined, {
+        remove: vi.fn().mockRejectedValue(new Error('redis command timed out')),
+      })
+      const issued = await issue()
+      if (!issued.ok) throw new Error('expected lease')
+      if (options.corrupt) {
+        const stored = await store.read('authorization-lease', STORE_KEY)
+        await store.replaceIfEquals(
+          'authorization-lease',
+          STORE_KEY,
+          stored!,
+          'not json',
+          30,
+        )
+      }
+      if (options.denied) {
+        revalidate.mockResolvedValue({ allowed: false, authorizationFenceSha256: null })
+      }
+      return renew(issued.lease.leaseRef, renewOverrides)
+    }
+
+    it.each([
+      ['an elapsed lease', { nowMs: NOW + 31_000 }, {}, 'expired'],
+      ['an unreadable record', {}, { corrupt: true }, 'malformed'],
+      [
+        'a fence that moved',
+        { authorizationFenceSha256: 'b'.repeat(64) },
+        {},
+        'authorization_changed',
+      ],
+      [
+        'an authorization that was withdrawn',
+        {},
+        { denied: true },
+        'authorization_denied',
+      ],
+    ] as const)(
+      'still answers %s with its own refusal',
+      async (_label, over, options, code) => {
+        await expect(refusal(over, options)).resolves.toEqual({ ok: false, code })
+      },
+    )
   })
 
   it('does not disclose or destroy a valid lease on principal mismatch', async () => {

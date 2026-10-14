@@ -204,6 +204,45 @@ describe('durable Google import discovery checkpoint', () => {
     ).resolves.toMatchObject({ ok: true, value: { items: [], nextCursor: null } })
   })
 
+  // `credentialGeneration` is the only member a routine token refresh moves, once
+  // an hour. A discovery page published before the refresh must still resolve
+  // after it, because the leases, the authorizer and the import approval already
+  // tolerate it; a revocation moves the lifecycle and access versions instead.
+  it('resolves a reference across a token refresh, never across a rollback or a revocation', async () => {
+    const atGeneration = (credentialGeneration: number) =>
+      authorization({
+        credentialGeneration,
+        authorizationVector: Object.freeze({
+          policyVersion: 11,
+          permissionVersion: 13,
+          credentialGeneration,
+        }),
+      })
+    const store = createStore()
+    const published = await store.publishAccountPage({
+      authorization: atGeneration(7),
+      accounts: [account],
+      nextPageToken: null,
+      contentDeadlineMs: nowMs + DAY_MS,
+    })
+    expect(published.ok).toBe(true)
+    if (!published.ok) return
+    const accountRef = published.value.items[0]!.accountRef
+
+    await expect(
+      store.resolveAccount({ accountRef, authorization: atGeneration(8) }),
+    ).resolves.toMatchObject({ ok: true, accountId: account.accountId })
+    await expect(
+      store.resolveAccount({ accountRef, authorization: atGeneration(6) }),
+    ).resolves.toEqual({ ok: false, code: 'binding_mismatch' })
+    await expect(
+      store.resolveAccount({
+        accountRef,
+        authorization: { ...atGeneration(8), connectionLifecycleVersion: 4 },
+      }),
+    ).resolves.toEqual({ ok: false, code: 'binding_mismatch' })
+  })
+
   it('claims, releases, and consumes an exact candidate set transactionally', async () => {
     const store = createStore()
     const accountsPage = await store.publishAccountPage({

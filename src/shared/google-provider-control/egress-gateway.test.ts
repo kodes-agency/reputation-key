@@ -316,6 +316,84 @@ describe('Google egress gateway dispatch evidence: a request left', () => {
     })
   })
 
+  // The headers arrived, so Google answered; the body then failed. That is a
+  // transport fault (or the deadline), not an oversized response, and the permit
+  // must record it as the fault it was. Reporting it as `response_too_large`
+  // reached the Performance panel as "returned data that could not be safely
+  // displayed", a non-retryable state, for a plain connection reset.
+  describe('when the response body cannot be read to its end', () => {
+    const resetAfterOneChunk = (onFail: () => void = () => undefined) =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"accounts":['))
+          },
+          pull() {
+            onFail()
+            throw new Error('socket hang up')
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      )
+
+    it('reports a connection reset as a transport error, keeping the answered evidence', async () => {
+      const { gateway, complete } = harness({ fetch: async () => resetAfterOneChunk() })
+
+      await expect(execute(gateway)).resolves.toEqual({
+        ok: false,
+        code: 'transport_error',
+        dispatch: 'answered',
+        providerStatus: 200,
+        retryAfterMs: 0,
+      })
+      expect(complete).toHaveBeenCalledWith(
+        expect.objectContaining({ outcome: 'transport_error' }),
+      )
+    })
+
+    it('reports a deadline that elapsed mid-body as deadline_exceeded', async () => {
+      let nowMs = NOW_MS
+      const { gateway, complete } = harness({
+        nowMs: () => nowMs,
+        fetch: async () =>
+          resetAfterOneChunk(() => {
+            nowMs = DEADLINE_MS
+          }),
+      })
+
+      await expect(execute(gateway)).resolves.toEqual({
+        ok: false,
+        code: 'deadline_exceeded',
+        dispatch: 'answered',
+        providerStatus: 200,
+        retryAfterMs: 0,
+      })
+      expect(complete).toHaveBeenCalledWith(
+        expect.objectContaining({ outcome: 'deadline_exceeded' }),
+      )
+    })
+
+    it('still reports a streamed body past the byte limit as response_too_large', async () => {
+      const { gateway, complete } = harness({
+        fetch: async () =>
+          new Response(new Uint8Array(5 * 1024 * 1024 + 1), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+      })
+
+      await expect(execute(gateway)).resolves.toMatchObject({
+        ok: false,
+        code: 'response_too_large',
+        dispatch: 'answered',
+        providerStatus: 200,
+      })
+      expect(complete).toHaveBeenCalledWith(
+        expect.objectContaining({ outcome: 'response_too_large' }),
+      )
+    })
+  })
+
   it('keeps answered and the status when completion fails after a 404', async () => {
     const { gateway, complete, warn } = harness({
       fetch: async () => new Response('{}', { status: 404 }),

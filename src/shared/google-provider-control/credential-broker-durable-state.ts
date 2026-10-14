@@ -1,3 +1,4 @@
+import { isSafeOpaqueIdentifier } from '#/shared/domain/safe-identifier'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { GoogleProviderRouteKey } from './contracts'
 import {
@@ -104,7 +105,7 @@ export function credentialBrokerReplayLookupCandidates(
 function isGrantShape(value: GoogleCredentialBrokerGrant): boolean {
   return (
     value.contractVersion === 'v1' &&
-    /^[A-Za-z0-9._:/-]{1,255}$/u.test(value.grantId) &&
+    isSafeOpaqueIdentifier(value.grantId) &&
     /^[A-Za-z0-9_-]{22,128}$/u.test(value.oneUseNonce) &&
     /^[a-f0-9]{64}$/u.test(value.requestDigestSha256) &&
     value.expiresAtMs > value.issuedAtMs &&

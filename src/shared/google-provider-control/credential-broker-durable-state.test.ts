@@ -13,7 +13,7 @@ const NOW = Date.parse('2026-08-27T12:00:00Z')
 const HASH_A = 'a'.repeat(64)
 const HASH_B = 'b'.repeat(64)
 
-function grant() {
+function grant(grantId = 'broker-grant-durable-1') {
   const signatureKeys = createVersionedHmacKeyring(`v1:${'22'.repeat(32)}`)
   const request = signGoogleCredentialBrokerRequest(
     {
@@ -41,7 +41,7 @@ function grant() {
   return signGoogleCredentialBrokerGrant(
     {
       contractVersion: 'v1',
-      grantId: 'broker-grant-durable-1',
+      grantId,
       request,
       oneUseNonce: 'grant_nonce_durable_0001',
       materialReference: {
@@ -93,6 +93,18 @@ describe('durable Google credential broker replay state', () => {
     expect(candidates.map((entry) => entry.lookupKeyVersion)).toEqual(['v2', 'v1'])
     expect(candidates).toHaveLength(2)
     expect(candidates.every((entry) => entry.grantIdHmac !== value.grantId)).toBe(true)
+  })
+
+  // The grant contract and this shape check once disagreed on the identifier
+  // grammar: `@` passed signature and binding validation, then the replay issue
+  // threw, where `registerIssuedGrant` promises a deny code.
+  it('accepts every grant identifier the contract grammar accepts', () => {
+    const replayKeys = createVersionedHmacKeyring(`v1:${'33'.repeat(32)}`)
+    const value = grant('broker-grant@durable/1')
+
+    expect(credentialBrokerReplayIssueFromGrant(value, replayKeys, NOW)).toMatchObject({
+      grantIdHmac: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/u),
+    })
   })
 
   it('rejects an already expired or malformed issue rather than storing it', () => {

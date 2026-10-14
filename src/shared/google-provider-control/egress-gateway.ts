@@ -82,6 +82,17 @@ export type GoogleEgressGateway = Readonly<{
 
 const SAFE_PERMIT_ID = /^[A-Za-z0-9._:@/-]{1,255}$/
 
+/**
+ * The one reason `readBoundedResponse` rejects a response by size. Any other
+ * failure while reading is the connection or the deadline, not the body's size.
+ */
+class ResponseTooLargeError extends Error {
+  constructor() {
+    super('response_too_large')
+    this.name = 'ResponseTooLargeError'
+  }
+}
+
 async function readBoundedResponse(
   response: Response,
   maxBytes: number,
@@ -89,12 +100,12 @@ async function readBoundedResponse(
   const declared = response.headers.get('content-length')
   if (declared !== null) {
     if (!/^(0|[1-9][0-9]*)$/.test(declared)) {
-      throw new Error('response_too_large')
+      throw new ResponseTooLargeError()
     }
     const declaredBytes = Number(declared)
     if (!Number.isSafeInteger(declaredBytes) || declaredBytes > maxBytes) {
       await response.body?.cancel()
-      throw new Error('response_too_large')
+      throw new ResponseTooLargeError()
     }
   }
   if (!response.body) return new Uint8Array()
@@ -108,7 +119,7 @@ async function readBoundedResponse(
       totalBytes += next.value.byteLength
       if (totalBytes > maxBytes) {
         await reader.cancel()
-        throw new Error('response_too_large')
+        throw new ResponseTooLargeError()
       }
       chunks.push(next.value)
     }
@@ -332,6 +343,9 @@ export function createGoogleEgressGateway(
         return notSent('admission_mismatch')
       }
 
+      /** What an aborted or failed exchange is: the deadline, or the transport. */
+      const interruptedOutcome = (): 'deadline_exceeded' | 'transport_error' =>
+        deps.nowMs() >= input.deadlineMs ? 'deadline_exceeded' : 'transport_error'
       let outcome: GoogleProviderOutcome = 'caller_abandoned'
       let retryAfterMs: number | null = null
       // What this attempt proves about reaching Google, updated at the two
@@ -359,15 +373,8 @@ export function createGoogleEgressGateway(
             evidence = { dispatch: 'unknown' }
             response = await deps.fetch(compiled.url, init)
           } catch {
-            outcome =
-              deps.nowMs() >= input.deadlineMs ? 'deadline_exceeded' : 'transport_error'
-            result = {
-              ok: false,
-              code:
-                outcome === 'deadline_exceeded' ? 'deadline_exceeded' : 'transport_error',
-              ...evidence,
-              retryAfterMs: 0,
-            }
+            outcome = interruptedOutcome()
+            result = { ok: false, code: outcome, ...evidence, retryAfterMs: 0 }
           }
           if (response) {
             evidence = { dispatch: 'answered', providerStatus: response.status }
@@ -391,14 +398,15 @@ export function createGoogleEgressGateway(
                 }),
                 body,
               }
-            } catch {
-              outcome = 'response_too_large'
-              result = {
-                ok: false,
-                code: 'response_too_large',
-                ...evidence,
-                retryAfterMs: 0,
-              }
+            } catch (error) {
+              // Google answered; the body is what failed. Only a size verdict is
+              // `response_too_large`: a reset or the deadline firing mid-body is
+              // the fault it was, with the answered evidence kept.
+              outcome =
+                error instanceof ResponseTooLargeError
+                  ? 'response_too_large'
+                  : interruptedOutcome()
+              result = { ok: false, code: outcome, ...evidence, retryAfterMs: 0 }
             }
           }
         }
