@@ -9,9 +9,9 @@
 // "4.4, realistic, about 93 reviews" does.
 //
 // `limit` keeps the scale's end on show while the thumb stops short of it: the
-// track runs on to `max` in a quieter stretch that cannot be chosen, and
+// track runs on to `max` in a hatched stretch that cannot be chosen, and
 // the slider says `limit` is its highest value. The Google rating goal draws 5.0
-// that way, with its reason beside the slider.
+// that way, with its reason under that end of the scale.
 import { Slider as SliderPrimitive } from 'radix-ui'
 import { cn } from '#/lib/utils'
 
@@ -87,10 +87,12 @@ export function Slider({
           className="absolute h-full bg-primary"
         />
         {beyond > 0 ? (
+          // Hatched, so the stretch that cannot be chosen reads as different from
+          // the track, not as more of it, in either theme.
           <span
             data-slot="slider-beyond"
             aria-hidden="true"
-            className="absolute inset-y-0 right-0 bg-border"
+            className="absolute inset-y-0 right-0 bg-[repeating-linear-gradient(-45deg,var(--muted-foreground)_0_1.5px,transparent_1.5px_5px)] opacity-60"
             style={{ width: `${beyond}%` }}
           />
         ) : null}

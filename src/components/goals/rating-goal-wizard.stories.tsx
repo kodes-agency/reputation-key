@@ -4,8 +4,10 @@
 // cannot: the slider moves by tenths from the keyboard, 5.0 is on the scale and
 // never chosen, an out-of-reach stop warns, a pace typed in is held to 1-200 and
 // cautions above twice the pace now, what is saved, the done screen's one next
-// step, a refusal in plain words, and a change that sends only what differs.
-import { useState } from 'react'
+// step, a refusal in plain words, a change that sends only what differs, what
+// was picked surviving a phone turned to landscape, and the focus going back
+// to what opened the wizard.
+import { useRef, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
@@ -34,9 +36,13 @@ function Harness(
   props: Partial<RatingGoalWizardProps> & Readonly<{ intent: RatingGoalWizardIntent }>,
 ) {
   const [opening, setOpening] = useState({ open: false, key: 0 })
+  const door = useRef<HTMLButtonElement>(null)
   return (
     <>
-      <Button onClick={() => setOpening(({ key }) => ({ open: true, key: key + 1 }))}>
+      <Button
+        ref={door}
+        onClick={() => setOpening(({ key }) => ({ open: true, key: key + 1 }))}
+      >
         Open the wizard
       </Button>
       <RatingGoalWizard
@@ -48,6 +54,11 @@ function Harness(
         hasPortals
         setRatingGoalFn={setMock}
         changeRatingGoalFn={changeMock}
+        // As the page's host does: no trigger, so the focus is handed back here.
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          if (!opening.open) door.current?.focus()
+        }}
         {...props}
       />
     </>
@@ -134,14 +145,20 @@ export const OutOfReachWarns: Story = {
     const slider = dialog.getByRole('slider', { name: 'Goal on Google' })
     slider.focus()
     await userEvent.keyboard('{ArrowRight}{ArrowRight}')
-    await expect(await dialog.findByRole('alert')).toHaveTextContent(
+    // Polite: it changes with every step of the thumb, whose value text already
+    // says "out of reach"; an alert would cut that off.
+    const warning = await dialog.findByRole('status')
+    await expect(warning).toHaveTextContent(
       'Out of reach: even at 11 new reviews a week this takes more than a year. You can still pick it.',
     )
+    await expect(dialog.queryByRole('alert')).toBeNull()
     await userEvent.keyboard('{ArrowRight}{ArrowRight}')
     await expect(dialog.getByText('Not reachable at your recent 4.7★ mix')).toBeVisible()
-    await expect(dialog.getByRole('alert')).toHaveTextContent(
-      'at your recent 4.7★ mix no pace gets Google to show 4.8',
+    // The live line says it is not reachable; the warning says what picking it means.
+    await expect(dialog.getByRole('status')).toHaveTextContent(
+      'You can still pick it. Until your recent stars rise, the goal will show Can’t reach at this mix.',
     )
+    await expect(dialog.getAllByText(/4\.7★/)).toHaveLength(1)
     await expect(dialog.getByRole('button', { name: 'Next' })).toBeEnabled()
   },
 }
@@ -164,7 +181,11 @@ export const PickYourPace: Story = {
   play: async ({ canvasElement }) => {
     const dialog = await open(canvasElement)
     await toPace(dialog)
+    await expect(dialog.getByText('For 4.4 on Google')).toBeVisible()
     await expect(dialog.getByText('You get about 7 a week now')).toBeVisible()
+    // The group says what is being chosen; the pace now describes it.
+    const group = dialog.getByRole('radiogroup', { name: 'New Google reviews a week' })
+    await expect(group).toHaveAccessibleDescription('You get about 7 a week now')
     const faster = dialog.getByRole('radio', { name: /^Faster/ })
     await expect(faster).toBeChecked()
     // Per month and per day only on the chosen card.
@@ -183,6 +204,11 @@ export const PickYourPace: Story = {
     await expect(push).toBeChecked()
     await expect(dialog.getByText('61 a month · 2 a day')).toBeVisible()
     await expect(dialog.queryByText('48 a month · 1.6 a day')).toBeNull()
+
+    // A card's words pick its pace, not only its radio. (The label also stretches
+    // over the card's padding; that is CSS, which this project does not compile.)
+    await userEvent.click(dialog.getByText('Around Dec 2026 – Feb 2027'))
+    await expect(dialog.getByRole('radio', { name: /^Steady/ })).toBeChecked()
   },
 }
 
@@ -284,7 +310,11 @@ export const KeepFirst: Story = {
   },
   play: async ({ canvasElement }) => {
     const dialog = await open(canvasElement, 'Keep 5.0 on Google')
-    await expect(dialog.getByText('Google shows 5.0 from 19 reviews')).toBeVisible()
+    // The title, one sentence and "Start watching": nothing said twice.
+    await expect(
+      dialog.getByText('We’ll watch that Google keeps showing 5.0.'),
+    ).toBeVisible()
+    await expect(dialog.queryByText(/Google shows 5\.0/)).toBeNull()
     await userEvent.click(dialog.getByRole('button', { name: 'Start watching' }))
     await waitFor(() =>
       expect(setMock).toHaveBeenCalledWith({
@@ -297,6 +327,22 @@ export const KeepFirst: Story = {
       }),
     )
     await expect(await dialog.findByText('Keeping 5.0 on Google')).toBeVisible()
+    // Nothing is higher than 5.0, so the done screen does not offer to aim higher.
+    await expect(dialog.getByText('You can end it at any time.')).toBeVisible()
+  },
+}
+
+/** "Keep 4.5" after reaching it: one step, and the done screen offers to aim higher. */
+export const KeepAfterReaching: Story = {
+  args: { intent: { kind: 'keep', targetTenths: 45 } },
+  play: async ({ canvasElement }) => {
+    const dialog = await open(canvasElement, 'Keep 4.5 on Google')
+    await expect(
+      dialog.getByText('We’ll watch that Google keeps showing 4.5.'),
+    ).toBeVisible()
+    await userEvent.click(dialog.getByRole('button', { name: 'Start watching' }))
+    await expect(await dialog.findByText('Keeping 4.5 on Google')).toBeVisible()
+    await expect(dialog.getByText('You can aim higher at any time.')).toBeVisible()
   },
 }
 
@@ -304,7 +350,7 @@ export const KeepFirst: Story = {
 export const ChangeTargetOrPace: Story = {
   args: { intent: { kind: 'change', goal: CARD } },
   play: async ({ canvasElement }) => {
-    const dialog = await open(canvasElement)
+    const dialog = await open(canvasElement, 'Change your goal')
     await expect(dialog.getByRole('slider', { name: 'Goal on Google' })).toHaveAttribute(
       'aria-valuetext',
       '4.5, stretch, about 455 more reviews',
@@ -313,7 +359,10 @@ export const ChangeTargetOrPace: Story = {
     const save = dialog.getByRole('button', { name: 'Save changes' })
     await expect(dialog.getByRole('radio', { name: /^Faster/ })).toBeChecked()
     await expect(save).toBeDisabled()
+    // A dead button says why it is dead.
+    await expect(dialog.getByText('Change the goal or the pace to save.')).toBeVisible()
     await userEvent.click(dialog.getByRole('radio', { name: /^Push/ }))
+    await expect(dialog.queryByText('Change the goal or the pace to save.')).toBeNull()
     await userEvent.click(save)
     await waitFor(() =>
       expect(changeMock).toHaveBeenCalledWith({
@@ -333,7 +382,7 @@ export const ChangeAfterAnotherChange: Story = {
   args: { intent: { kind: 'change', goal: CARD } },
   play: async ({ canvasElement }) => {
     changeMock.mockRejectedValueOnce(refusal('version_conflict'))
-    const dialog = await open(canvasElement)
+    const dialog = await open(canvasElement, 'Change your goal')
     await toPace(dialog)
     await userEvent.click(dialog.getByRole('radio', { name: /^Push/ }))
     await userEvent.click(dialog.getByRole('button', { name: 'Save changes' }))
@@ -377,6 +426,84 @@ export const PhoneFullScreen: Story = {
     await expect(dialog.getByRole('slider', { name: 'Goal on Google' })).toBeVisible()
     await toPace(dialog)
     await expect(dialog.getByRole('radio', { name: /^Faster/ })).toBeChecked()
+  },
+}
+
+/**
+ * Puts the page in the phone layout or out of it, as turning a phone across
+ * 768 px does, until the returned undo runs. The frame asks `matchMedia` and
+ * listens for `resize`; nothing else on the page is answered differently.
+ */
+function turnPhone(phone: boolean): () => void {
+  const real = window.matchMedia
+  window.matchMedia = (query: string) =>
+    query.includes('max-width: 767px')
+      ? ({
+          matches: phone,
+          media: query,
+          onchange: null,
+          addListener: () => undefined,
+          removeListener: () => undefined,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+          dispatchEvent: () => false,
+        } satisfies MediaQueryList)
+      : real.call(window, query)
+  window.dispatchEvent(new Event('resize'))
+  return () => {
+    window.matchMedia = real
+    window.dispatchEvent(new Event('resize'))
+  }
+}
+
+/**
+ * The dialog gives way to the full-screen sheet mid-wizard (a window narrowed,
+ * a phone turned): the target and the pace picked so far stay picked, and the
+ * pace step names the target it is for.
+ */
+export const KeepsWhatWasPickedAcrossTheFrames: Story = {
+  parameters: { viewport: { defaultViewport: 'desktopManager' } },
+  play: async ({ canvasElement }) => {
+    const dialog = await open(canvasElement)
+    const slider = dialog.getByRole('slider', { name: 'Goal on Google' })
+    slider.focus()
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+    await toPace(dialog)
+    await userEvent.click(dialog.getByRole('radio', { name: /^Steady/ }))
+    const undo = turnPhone(true)
+    try {
+      await waitFor(() =>
+        expect(document.body.querySelector('[data-wizard-frame]')).toHaveAttribute(
+          'data-wizard-frame',
+          'sheet',
+        ),
+      )
+      const sheet = within(await within(document.body).findByRole('dialog'))
+      await expect(sheet.getByRole('heading', { name: 'Pick your pace' })).toBeVisible()
+      await expect(sheet.getByText('For 4.6 on Google')).toBeVisible()
+      await expect(sheet.getByRole('radio', { name: /^Steady/ })).toBeChecked()
+      await userEvent.click(sheet.getByRole('button', { name: 'Back to your goal' }))
+      await expect(sheet.getByRole('slider', { name: 'Goal on Google' })).toHaveAttribute(
+        'aria-valuenow',
+        '46',
+      )
+    } finally {
+      undo()
+    }
+  },
+}
+
+/** No trigger opened it, so the wizard hands the focus back to what did. */
+export const FocusGoesBackOnClose: Story = {
+  play: async ({ canvasElement }) => {
+    await open(canvasElement)
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(within(document.body).queryByRole('dialog')).toBeNull())
+    await waitFor(() =>
+      expect(
+        within(canvasElement).getByRole('button', { name: 'Open the wizard' }),
+      ).toHaveFocus(),
+    )
   },
 }
 

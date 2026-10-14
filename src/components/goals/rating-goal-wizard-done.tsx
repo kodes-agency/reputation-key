@@ -2,7 +2,8 @@
 // three lines and offers ONE next step: a Portal when the Property has none,
 // otherwise its portal goals. No number is carried over to Portal goals, which
 // stay Google-free (ADR 0067). The keep step is the whole wizard for a goal that
-// keeps the number Google shows: one sentence and "Start watching".
+// keeps the number Google shows: its title, one sentence (the dialog's
+// description) and "Start watching".
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { CircleCheck } from 'lucide-react'
@@ -51,16 +52,10 @@ export function RatingGoalDone({
 }
 
 export function RatingGoalKeepStep({
-  kept,
-  googleLine,
   pending,
   banner,
   onStart,
 }: Readonly<{
-  /** "4.9" */
-  kept: string
-  /** "Google shows 4.9 from 50 reviews", when Google's numbers are in. */
-  googleLine: string | null
   pending: boolean
   /** The save's refusal, directly above the actions. */
   banner: ReactNode
@@ -68,15 +63,6 @@ export function RatingGoalKeepStep({
 }>) {
   return (
     <>
-      <div className="flex flex-col gap-2">
-        {googleLine === null ? null : (
-          <p className="text-sm text-muted-foreground">{googleLine}</p>
-        )}
-        <p className="text-base">
-          We watch that Google keeps showing {kept}. The goal reads Holding while it does,
-          and Dropped below if it slips.
-        </p>
-      </div>
       {banner}
       <DialogFooter className="mt-auto">
         <DialogCancel />

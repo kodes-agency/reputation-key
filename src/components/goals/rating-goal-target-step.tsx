@@ -37,7 +37,7 @@ type Props = Readonly<{
 const QUIET = 'text-sm text-muted-foreground'
 
 export function RatingGoalTargetStep({ setup, stop, onTargetChange }: Props) {
-  const ids = { line: useId(), reason: useId() }
+  const reasonId = useId()
   const [first] = setup.stops
   const last = setup.stops.at(-1)
   const perfect = setup.perfectStop
@@ -61,9 +61,11 @@ export function RatingGoalTargetStep({ setup, stop, onTargetChange }: Props) {
         <StatusBadge {...STOP_LABEL[stop.label]} />
       </div>
       <div className="flex flex-col gap-1">
+        {/* Described by 5.0's reason only: the value text already says what the
+            live line below does. */}
         <Slider
           aria-label="Goal on Google"
-          aria-describedby={perfect === null ? ids.line : `${ids.line} ${ids.reason}`}
+          aria-describedby={perfect === null ? undefined : reasonId}
           value={stop.targetTenths}
           onValueChange={(tenths) => {
             if (stopAt(setup, tenths) !== null) onTargetChange(tenths)
@@ -84,16 +86,17 @@ export function RatingGoalTargetStep({ setup, stop, onTargetChange }: Props) {
           <span>{tenthsText(max)}</span>
         </div>
         {perfect === null ? null : (
-          <p id={ids.reason} className="text-xs text-muted-foreground">
+          // Under the 5.0 it explains, at the scale's end.
+          <p id={reasonId} className="text-end text-xs text-muted-foreground">
             {tenthsText(perfect.targetTenths)} {PERFECT_STOP_REASON}
           </p>
         )}
       </div>
-      <p id={ids.line} className="text-base font-medium">
-        {targetLine(stop, setup.recentMix)}
-      </p>
+      <p className="text-base font-medium">{targetLine(stop, setup.recentMix)}</p>
       {warning === null ? null : (
-        <Alert variant="warning">
+        // Polite: it changes as the thumb moves, and the slider's own value text
+        // already says "out of reach"; an alert would cut that off at every step.
+        <Alert variant="warning" role="status">
           <AlertDescription>{warning}</AlertDescription>
         </Alert>
       )}

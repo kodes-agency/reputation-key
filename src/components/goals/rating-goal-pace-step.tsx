@@ -1,7 +1,9 @@
-// Step 2, "Pick your pace": the pace there is now, three cards (Steady, Faster
-// preselected, Push) each with its weekly number and forecast, the month and day
-// figures on the chosen one only, and a number of one's own, 1 to 200 a week,
-// with a caution above twice the pace there is now (Google flags surges).
+// Step 2, "Pick your pace": the target the pace is for, the pace there is now,
+// three cards (Steady, Faster preselected, Push) each with its weekly number and
+// forecast, the month and day figures on the chosen one only, and a number of
+// one's own, 1 to 200 a week, with a caution above twice the pace there is now
+// (Google flags surges). Each card is pressed anywhere on it, not only on its
+// radio: the label is stretched over the whole card.
 import { useId } from 'react'
 import type {
   RatingGoalSetupView,
@@ -12,7 +14,7 @@ import { FormNumberField } from '#/components/forms/form-number-field'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Label } from '#/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group'
-import { forecastSentence, perMonthAndDay } from './rating-goal-view'
+import { forecastSentence, perMonthAndDay, ratingText } from './rating-goal-view'
 import {
   currentPaceLine,
   customPaceProblem,
@@ -24,7 +26,10 @@ const CUSTOM = 'custom'
 
 /** A radio card: the chosen one wears the primary edge and tint. */
 const OPTION =
-  'flex items-start gap-3 rounded-lg border p-3 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5'
+  'relative flex min-h-(--control-touch) items-start gap-3 rounded-lg border p-3 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5'
+/** The card's label, stretched over the whole card so any of it picks the pace. */
+const OPTION_LABEL =
+  'cursor-pointer font-normal after:absolute after:inset-0 after:rounded-lg'
 const QUIET = 'text-sm text-muted-foreground'
 
 type Props = Readonly<{
@@ -80,11 +85,15 @@ export function RatingGoalPaceStep({
   const problem = customPaceProblem(customPace)
   return (
     <div className="flex flex-col gap-4">
-      <p id={groupLabel} className={QUIET}>
-        {currentPaceLine(setup.currentPacePerWeek)}
-      </p>
+      <div className="flex flex-col gap-1">
+        <p className="text-sm font-medium">For {ratingText(stop.target)} on Google</p>
+        <p id={groupLabel} className={QUIET}>
+          {currentPaceLine(setup.currentPacePerWeek)}
+        </p>
+      </div>
       <RadioGroup
-        aria-labelledby={groupLabel}
+        aria-label="New Google reviews a week"
+        aria-describedby={groupLabel}
         value={selected}
         onValueChange={(value) => {
           const preset = paceCards(setup, stop).find((card) => card.key === value)
@@ -101,7 +110,10 @@ export function RatingGoalPaceStep({
           return (
             <div key={card.key} className={OPTION}>
               <RadioGroupItem value={card.key} id={id} className="mt-0.5" />
-              <Label htmlFor={id} className="flex flex-col items-start gap-1 font-normal">
+              <Label
+                htmlFor={id}
+                className={`${OPTION_LABEL} flex-col items-start gap-1`}
+              >
                 <span className="text-sm font-medium">{card.name}</span>
                 <span className="text-lg font-semibold tabular-nums">{card.perWeek}</span>
                 <span className={QUIET}>{card.forecast}</span>
@@ -114,7 +126,7 @@ export function RatingGoalPaceStep({
         })}
         <div className={`${OPTION} sm:col-span-3`}>
           <RadioGroupItem value={CUSTOM} id={`${groupLabel}-custom`} className="mt-0.5" />
-          <Label htmlFor={`${groupLabel}-custom`} className="font-normal">
+          <Label htmlFor={`${groupLabel}-custom`} className={OPTION_LABEL}>
             Or type your own number
           </Label>
         </div>

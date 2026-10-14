@@ -27,10 +27,11 @@ import type { RegionRead } from './rating-goal-section'
 import { RatingGoalDone, RatingGoalKeepStep } from './rating-goal-wizard-done'
 import { RatingGoalWizardFrame } from './rating-goal-wizard-frame'
 import { RatingGoalClimbSteps, type ClimbStep } from './rating-goal-wizard-steps'
-import { ratingText, reviewsText, tenthsText } from './rating-goal-view'
+import { tenthsText } from './rating-goal-view'
 import {
   wizardReceipt,
   wizardSubmission,
+  type ClimbDraft,
   type RatingGoalReceipt,
   type RatingGoalWizardIntent,
   type SavedGoal,
@@ -47,6 +48,8 @@ export type RatingGoalWizardProps = Readonly<{
   hasPortals: boolean
   setRatingGoalFn: CommandOf<typeof setRatingGoal>
   changeRatingGoalFn: CommandOf<typeof changeRatingGoal>
+  /** Where the focus goes when the wizard closes: the page knows what opened it. */
+  onCloseAutoFocus?: (event: Event) => void
 }>
 
 /** A server function as the page hands it in: called with its input, nothing more. */
@@ -56,18 +59,37 @@ type CommandOf<F extends (input: never) => unknown> = (
 
 type Step = ClimbStep | 'keep' | 'done'
 
-const DESCRIPTIONS: Readonly<Record<Step, string>> = {
-  goal: 'Step 1 of 2: the number you want Google to show.',
-  pace: 'Step 2 of 2: how many new Google reviews a week you aim for.',
-  keep: 'Watch that Google keeps showing the number it shows now.',
-  done: 'You can change the target or the pace at any time.',
-}
-
 function titleOf(step: Step, intent: RatingGoalWizardIntent): string {
-  if (step === 'goal') return 'Pick your goal'
+  if (step === 'goal')
+    return intent.kind === 'change' ? 'Change your goal' : 'Pick your goal'
   if (step === 'pace') return 'Pick your pace'
   if (step === 'done') return 'Your goal is set'
   return `Keep ${intent.kind === 'keep' ? tenthsText(intent.targetTenths) : ''} on Google`
+}
+
+/** Nothing is higher than 5.0: a goal that keeps it can only be ended. */
+const PERFECT_TENTHS = 50
+
+/** What the done screen says can come next, for the goal just set. */
+function doneDescription(intent: RatingGoalWizardIntent): string {
+  if (intent.kind !== 'keep') return 'You can change the target or the pace at any time.'
+  return intent.targetTenths < PERFECT_TENTHS
+    ? 'You can aim higher at any time.'
+    : 'You can end it at any time.'
+}
+
+/** What the screen is for, in one sentence; the keep step's is the whole step. */
+function descriptionOf(step: Step, intent: RatingGoalWizardIntent): string {
+  switch (step) {
+    case 'goal':
+      return 'Step 1 of 2: the number you want Google to show.'
+    case 'pace':
+      return 'Step 2 of 2: how many new Google reviews a week you aim for.'
+    case 'keep':
+      return `We’ll watch that Google keeps showing ${intent.kind === 'keep' ? tenthsText(intent.targetTenths) : 'its number'}.`
+    case 'done':
+      return doneDescription(intent)
+  }
 }
 
 /** The two commands, refusing in plain words and re-reading the goal when refused. */
@@ -89,13 +111,15 @@ function useRatingGoalCommands(props: RatingGoalWizardProps) {
 
 /**
  * Where the wizard is and what saving does: the step (its title takes the
- * focus when it changes; the dialog focuses the first), the receipt the done
- * screen reads, and the save. A refusal stays on the mutation, which the
- * dialog's banner shows; the rejection is settled here so it is not reported
- * twice.
+ * focus when it changes; the dialog focuses the first), what has been picked
+ * so far, the receipt the done screen reads, and the save. All of it sits
+ * above the frame, which swaps the sheet for the dialog when a phone turns. A
+ * refusal stays on the mutation, which the dialog's banner shows; the
+ * rejection is settled here so it is not reported twice.
  */
 function useWizardFlow(props: RatingGoalWizardProps) {
   const [step, setStep] = useState<Step>(props.intent.kind === 'keep' ? 'keep' : 'goal')
+  const [draft, setDraft] = useState<ClimbDraft>({})
   const [receipt, setReceipt] = useState<RatingGoalReceipt | null>(null)
   const { set, change } = useRatingGoalCommands(props)
   const titleRef = useRef<HTMLHeadingElement>(null)
@@ -120,6 +144,8 @@ function useWizardFlow(props: RatingGoalWizardProps) {
   return {
     step,
     setStep,
+    draft,
+    addToDraft: (pick: ClimbDraft) => setDraft((current) => ({ ...current, ...pick })),
     receipt,
     titleRef,
     save,
@@ -154,8 +180,9 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
       onOpenChange={props.onOpenChange}
       busy={flow.pending}
       title={titleOf(flow.step, intent)}
-      description={DESCRIPTIONS[flow.step]}
+      description={descriptionOf(flow.step, intent)}
       titleRef={flow.titleRef}
+      onCloseAutoFocus={props.onCloseAutoFocus}
     >
       {flow.step === 'done' && flow.receipt !== null ? (
         <RatingGoalDone
@@ -167,8 +194,6 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
         <SetupPending setup={setup} />
       ) : intent.kind === 'keep' ? (
         <RatingGoalKeepStep
-          kept={tenthsText(intent.targetTenths)}
-          googleLine={googleLine(setup.data)}
           pending={flow.pending}
           banner={banner}
           onStart={() => {
@@ -183,6 +208,8 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
           propertyId={propertyId}
           step={flow.step === 'pace' ? 'pace' : 'goal'}
           onStep={flow.setStep}
+          draft={flow.draft}
+          onDraft={flow.addToDraft}
           pending={flow.pending}
           banner={banner}
           onSave={flow.save}
@@ -190,13 +217,6 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
       )}
     </RatingGoalWizardFrame>
   )
-}
-
-/** "Google shows 4.9 from 50 reviews". */
-function googleLine(setup: RatingGoalSetupView): string | null {
-  const google = setup.google
-  if (google === null || google.shows === null) return null
-  return `Google shows ${ratingText(google.shows)} from ${reviewsText(google.reviewCount)}`
 }
 
 /** While the setup reads: the room the step will take, or its failure and "Try again". */

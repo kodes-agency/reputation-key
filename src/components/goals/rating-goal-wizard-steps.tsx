@@ -1,7 +1,8 @@
-// The two steps of a goal to climb, and what they hold between them: the target
-// picked on step 1 and the pace picked on step 2. Going back keeps both. Enter in
-// the pace field saves, as the "Set goal" button does.
-import { useState, type FormEvent, type ReactNode } from 'react'
+// The two steps of a goal to climb. What they hold between them (the target
+// picked on step 1, the pace picked on step 2) is the wizard's draft, held above
+// the frame: going back keeps both, and so does a phone turned to landscape.
+// Enter in the pace field saves, as the "Set goal" button does.
+import type { FormEvent, ReactNode } from 'react'
 import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { BackButton } from '#/components/ui/back-link'
 import { Button } from '#/components/ui/button'
@@ -11,12 +12,10 @@ import { RatingGoalTargetStep } from './rating-goal-target-step'
 import {
   choiceForecast,
   customPaceProblem,
-  openingPace,
-  openingTarget,
   paceChoicePerWeek,
-  stopAt,
+  resolveClimbDraft,
   wizardSubmission,
-  type PaceChoice,
+  type ClimbDraft,
   type RatingGoalWizardIntent,
   type SavedGoal,
   type WizardSubmission,
@@ -30,24 +29,14 @@ type Props = Readonly<{
   propertyId: string
   step: ClimbStep
   onStep: (step: ClimbStep) => void
+  /** What has been picked so far, and how a pick is added to it. */
+  draft: ClimbDraft
+  onDraft: (pick: ClimbDraft) => void
   pending: boolean
   /** The save's refusal, directly above the actions. */
   banner: ReactNode
   onSave: (submission: WizardSubmission, saved: SavedGoal) => Promise<void>
 }>
-
-/**
- * What the two steps hold between them, seeded once per opening: the target,
- * the pace choice and the number typed in. A re-read can move the stops under
- * an open wizard; the target then falls back to where the wizard would open now.
- */
-function useClimbDraft(setup: RatingGoalSetupView, intent: RatingGoalWizardIntent) {
-  const [target, setTarget] = useState(() => openingTarget(setup, intent))
-  const [choice, setChoice] = useState<PaceChoice>(() => openingPace(setup, intent))
-  const [customPace, setCustomPace] = useState(() => paceChoicePerWeek(setup, choice))
-  const stop = stopAt(setup, target) ?? stopAt(setup, openingTarget(setup, intent))
-  return { stop, setTarget, choice, setChoice, customPace, setCustomPace }
-}
 
 /** A Property with no higher tenth on offer: nothing to climb to. */
 function NothingHigher({ banner }: Readonly<{ banner: ReactNode }>) {
@@ -103,12 +92,13 @@ export function RatingGoalClimbSteps({
   propertyId,
   step,
   onStep,
+  draft,
+  onDraft,
   pending,
   banner,
   onSave,
 }: Props) {
-  const draft = useClimbDraft(setup, intent)
-  const { stop, choice } = draft
+  const { stop, choice, customPace } = resolveClimbDraft(setup, intent, draft)
   if (stop === null) return <NothingHigher banner={banner} />
   const perWeek = paceChoicePerWeek(setup, choice)
   const invalidPace = choice.kind === 'custom' && customPaceProblem(perWeek) !== null
@@ -131,18 +121,23 @@ export function RatingGoalClimbSteps({
         <RatingGoalTargetStep
           setup={setup}
           stop={stop}
-          onTargetChange={draft.setTarget}
+          onTargetChange={(target) => onDraft({ target })}
         />
       ) : (
         <RatingGoalPaceStep
           setup={setup}
           stop={stop}
           choice={choice}
-          onChoiceChange={draft.setChoice}
-          customPace={draft.customPace}
-          onCustomPaceChange={draft.setCustomPace}
+          onChoiceChange={(next) => onDraft({ choice: next })}
+          customPace={customPace}
+          onCustomPaceChange={(next) => onDraft({ customPace: next })}
         />
       )}
+      {step === 'pace' && intent.kind === 'change' && submission === null ? (
+        <p className="text-sm text-muted-foreground">
+          Change the goal or the pace to save.
+        </p>
+      ) : null}
       {banner}
       <ClimbFooter
         step={step}

@@ -11,6 +11,7 @@ import {
   paceCards,
   paceChoicePerWeek,
   customPaceProblem,
+  resolveClimbDraft,
   stopValueText,
   targetLine,
   wizardReceipt,
@@ -45,6 +46,30 @@ describe('where the slider opens', () => {
   })
 })
 
+describe('what the two steps hold', () => {
+  it('opens where the wizard opens until something is picked', () => {
+    expect(resolveClimbDraft(SETUP, { kind: 'climb' }, {})).toEqual({
+      stop: stop(44),
+      choice: { kind: 'preset', key: 'faster' },
+      customPace: 11,
+    })
+  })
+
+  it('keeps what was picked, and falls back from a target no longer offered', () => {
+    const picked = { choice: { kind: 'preset', key: 'steady' }, customPace: 30 } as const
+
+    expect(
+      resolveClimbDraft(SETUP, { kind: 'climb' }, { ...picked, target: 46 }),
+    ).toEqual({
+      stop: stop(46),
+      ...picked,
+    })
+    expect(resolveClimbDraft(SETUP, { kind: 'climb' }, { target: 50 }).stop).toEqual(
+      stop(44),
+    )
+  })
+})
+
 describe('what a stop reads as', () => {
   it('says the reviews it needs, or that the recent mix never gets there', () => {
     expect(targetLine(stop(44), SETUP.recentMix)).toBe('About 93 more reviews')
@@ -69,7 +94,7 @@ describe('what a stop reads as', () => {
       'Out of reach: even at 11 new reviews a week this takes more than a year. You can still pick it.',
     )
     expect(outOfReachWarning(stop(48), SETUP)).toBe(
-      'Out of reach: at your recent 4.7★ mix no pace gets Google to show 4.8. You can still pick it.',
+      'You can still pick it. Until your recent stars rise, the goal will show Can’t reach at this mix.',
     )
   })
 

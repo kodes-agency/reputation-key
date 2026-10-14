@@ -724,24 +724,6 @@
       "policy": "defaultOpen seeds the open state of a dialog opened by its own trigger; a controlled open prop remains the render authority when supplied."
     },
     {
-      "id": "src/components/goals/rating-goal-wizard-steps.tsx:useState(target)",
-      "classification": "server_draft",
-      "owner": "Google rating goal wizard",
-      "policy": "Seeded once, when the steps mount for an opening, from the setup read's preselected stop, the next tenth asked for, or the target of the goal being changed. The wizard mounts per opening (keyed by the opening), so a setup refresh while it is open never moves the target the manager picked; when a refresh no longer offers that stop, the steps fall back to where they would open now. The target reaches the server only through Set goal or Save changes."
-    },
-    {
-      "id": "src/components/goals/rating-goal-wizard-steps.tsx:useState(choice)",
-      "classification": "server_draft",
-      "owner": "Google rating goal wizard",
-      "policy": "Seeded once per opening with Faster, or with the pace of the goal being changed (a suggested pace when it is one, otherwise a number of its own). A setup refresh changes the weekly numbers the cards print but never the choice in progress; the pace reaches the server only through Set goal or Save changes."
-    },
-    {
-      "id": "src/components/goals/rating-goal-wizard-steps.tsx:useState(customPace)",
-      "classification": "server_draft",
-      "owner": "Google rating goal wizard",
-      "policy": "The number in the pace field, seeded once per opening from the pace the choice opened on, so choosing \"Or type your own number\" starts from it and switching back to a suggested pace keeps what was typed. It is checked against 1-200 on the page and by the command, and is sent only through Set goal or Save changes."
-    },
-    {
       "id": "src/components/goals/rating-goal-wizard.tsx:useState(step)",
       "classification": "local_runtime",
       "owner": "Google rating goal wizard",

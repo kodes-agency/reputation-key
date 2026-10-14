@@ -27,6 +27,8 @@ type Props = Readonly<{
   /** "Step 1 of 2", or what the screen is for. */
   description: string
   titleRef?: Ref<HTMLHeadingElement>
+  /** Where the focus goes on closing: there is no trigger for Radix to return it to. */
+  onCloseAutoFocus?: (event: Event) => void
   /** The step's body, then its `DialogFooter`, last. */
   children: ReactNode
 }>
@@ -38,6 +40,7 @@ export function RatingGoalWizardFrame({
   title,
   description,
   titleRef,
+  onCloseAutoFocus,
   children,
 }: Props) {
   const phone = useIsMobile()
@@ -61,13 +64,18 @@ export function RatingGoalWizardFrame({
         <SheetContent
           side="bottom"
           data-wizard-frame="sheet"
+          onCloseAutoFocus={onCloseAutoFocus}
           className="h-dvh gap-4 overflow-y-auto p-(--dialog-pad) [--dialog-pad:1rem]"
         >
           {header}
           {children}
         </SheetContent>
       ) : (
-        <DialogContent size="lg" data-wizard-frame="dialog">
+        <DialogContent
+          size="lg"
+          data-wizard-frame="dialog"
+          onCloseAutoFocus={onCloseAutoFocus}
+        >
           {header}
           {children}
         </DialogContent>

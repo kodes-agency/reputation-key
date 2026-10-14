@@ -19,6 +19,7 @@ import type { StatusMap } from '#/components/ui/status-badge'
 import { previewRatingGoalPace } from '#/contexts/reporting/application/rating-goal-preview'
 import { formatNumber } from '#/lib/format'
 import {
+  APPROXIMATE_NUMBERS,
   forecastSentence,
   newReviewsAWeek,
   perMonthAndDay,
@@ -109,7 +110,11 @@ export function stopValueText(stop: RatingStopView, mix: RecentMixView | null): 
   return `${ratingText(stop.target)}, ${STOP_LABEL[stop.label].label.toLowerCase()}, ${line.charAt(0).toLowerCase()}${line.slice(1)}`
 }
 
-/** The warning an out-of-reach stop wears; it can still be picked. */
+/**
+ * The warning an out-of-reach stop wears; it can still be picked. The live line
+ * above it already says a stop the mix never reaches is not reachable, so the
+ * warning says what picking it means instead of saying that again.
+ */
 export function outOfReachWarning(
   stop: RatingStopView,
   setup: RatingGoalSetupView,
@@ -117,7 +122,7 @@ export function outOfReachWarning(
   if (stop.label !== 'out_of_reach') return null
   const pick = 'You can still pick it.'
   if (stop.reviewsNeeded === null) {
-    return `Out of reach: at your ${mixText(setup.recentMix)} mix no pace gets Google to show ${ratingText(stop.target)}. ${pick}`
+    return `${pick} Until your recent stars rise, the goal will show Can’t reach at this mix.`
   }
   const faster = setup.paces.faster.perWeek
   return `Out of reach: even at ${formatNumber(faster)} new ${faster === 1 ? 'review' : 'reviews'} a week this takes more than a year. ${pick}`
@@ -142,10 +147,7 @@ export function howWeWorkItOut(
     `Google shows ${ratingText(stop.target)} once the exact average reaches ${formatNumber(stop.target - 0.05, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`,
   ]
   return setup.exactAverageSource === 'google'
-    ? [
-        ...sentences,
-        'RepKey doesn’t hold every review Google counts yet, so these numbers are approximate.',
-      ]
+    ? [...sentences, APPROXIMATE_NUMBERS]
     : sentences
 }
 
@@ -188,6 +190,37 @@ export function openingPace(
   return preset === undefined
     ? { kind: 'custom', perWeek: current }
     : { kind: 'preset', key: preset }
+}
+
+/**
+ * What the manager has picked so far in the two steps. Held above the frame,
+ * so a phone turned to landscape (the dialog swapping in for the sheet) keeps
+ * it; whatever is not picked yet opens where the wizard opens.
+ */
+export type ClimbDraft = Readonly<{
+  target?: number
+  choice?: PaceChoice
+  /** The number in the pace field, which may not be a valid pace yet. */
+  customPace?: number
+}>
+
+/**
+ * The draft as the steps draw it. A re-read can move the stops under an open
+ * wizard; a target it no longer offers falls back to where the wizard would
+ * open now. Null `stop`: nothing to climb to.
+ */
+export function resolveClimbDraft(
+  setup: RatingGoalSetupView,
+  intent: RatingGoalWizardIntent,
+  draft: ClimbDraft,
+): Readonly<{ stop: RatingStopView | null; choice: PaceChoice; customPace: number }> {
+  const opening = openingPace(setup, intent)
+  return {
+    stop:
+      stopAt(setup, draft.target ?? null) ?? stopAt(setup, openingTarget(setup, intent)),
+    choice: draft.choice ?? opening,
+    customPace: draft.customPace ?? paceChoicePerWeek(setup, opening),
+  }
 }
 
 export const paceChoicePerWeek = (
