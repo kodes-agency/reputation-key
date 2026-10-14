@@ -82,5 +82,82 @@
     "countryCode": "ZZ",
     "expectedStatus": "blocked",
     "expectedReason": "invalid_country"
+  },
+  {
+    "vectorId": "iban-then-one-word",
+    "text": "Pay to BG80 BNBG 9661 1020 3456 78 please.",
+    "countryCode": "BG",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[FINANCIAL]"]
+  },
+  {
+    "vectorId": "iban-then-two-words",
+    "text": "Pay to BG80 BNBG 9661 1020 3456 78 thank you.",
+    "countryCode": "BG",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[FINANCIAL]"]
+  },
+  {
+    "vectorId": "iban-then-three-words",
+    "text": "near BG80 BNBG 9661 1020 3456 78 near the beach.",
+    "countryCode": "BG",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[FINANCIAL]"]
+  },
+  {
+    "vectorId": "iban-then-five-words",
+    "text": "Pay to BG80 BNBG 9661 1020 3456 78 before we check out tomorrow.",
+    "countryCode": "BG",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[FINANCIAL]"]
+  },
+  {
+    "vectorId": "iban-then-five-short-words",
+    "text": "Pay to BG80 BNBG 9661 1020 3456 78 so we can go now.",
+    "countryCode": "BG",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[FINANCIAL]"]
+  },
+  {
+    "vectorId": "iban-lower-case-then-word",
+    "text": "pay to bg80 bnbg 9661 1020 3456 78 please.",
+    "countryCode": "BG",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[FINANCIAL]"]
+  },
+  {
+    "vectorId": "iban-hyphens-then-word",
+    "text": "Pay to GB82-WEST-1234-5698-7654-32 please.",
+    "countryCode": "GB",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[FINANCIAL]"]
+  },
+  {
+    "vectorId": "iban-unspaced-then-word",
+    "text": "BG80BNBG96611020345678 please",
+    "countryCode": "BG",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[FINANCIAL]"]
+  },
+  {
+    "vectorId": "iban-after-code-shaped-word",
+    "text": "Room AB12 NO93 8601 1117 947 please.",
+    "countryCode": "NO",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[FINANCIAL]"]
+  },
+  {
+    "vectorId": "iban-twice-in-one-run",
+    "text": "NO93 8601 1117 947 NO93 8601 1117 947 please",
+    "countryCode": "NO",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[FINANCIAL]", "[FINANCIAL]"]
+  },
+  {
+    "vectorId": "iban-shaped-code-in-prose",
+    "text": "The code BG80 was sent",
+    "countryCode": "BG",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
   }
 ]

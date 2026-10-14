@@ -7,6 +7,11 @@ import {
   type CountryCode,
 } from 'libphonenumber-js/max'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
+import {
+  IBAN_GROUP_SEPARATOR_RE,
+  longestValidIban,
+  luhnValid,
+} from './ai-financial-validators'
 import { AI_UNICODE_CASE_FOLDING_V17 } from './generated/ai-unicode-case-folding-v17'
 
 export const AI_STRUCTURED_MARKER_DETECTORS_VERSION =
@@ -163,6 +168,11 @@ const DETECTOR_MANIFEST = Object.freeze({
       flags: HEX_SECRET_RE.flags,
     }),
     Object.freeze({ id: 'iban', source: IBAN_RE.source, flags: IBAN_RE.flags }),
+    Object.freeze({
+      id: 'iban_group_retry',
+      source: IBAN_GROUP_SEPARATOR_RE.source,
+      flags: IBAN_GROUP_SEPARATOR_RE.flags,
+    }),
     Object.freeze({
       id: 'ip_token',
       source: IP_TOKEN_RE.source,
@@ -331,13 +341,23 @@ function detectOverBoundCandidates(text: string, state: ScanState): void {
   for (const expression of [
     OVERBOUND_PHONE_RE,
     OVERBOUND_CARD_RE,
-    OVERBOUND_IBAN_RE,
     OVERBOUND_COORDINATE_RE,
   ] as const) {
     forEachMatch(expression, text, () => {
       state.blocked = 'ambiguous_candidate'
     })
   }
+  // An over-long run is ambiguous unless it opens with a valid IBAN; then it is
+  // that IBAN and the words after it, read again in case another run starts there.
+  forEachMatch(OVERBOUND_IBAN_RE, text, (match) => {
+    const raw = match[1] ?? ''
+    const iban = longestValidIban(raw)
+    if (iban === null) {
+      state.blocked = 'ambiguous_candidate'
+      return
+    }
+    OVERBOUND_IBAN_RE.lastIndex = match.index + match[0].lastIndexOf(raw) + iban.length
+  })
   if (OVERBOUND_LABELLED_ID_RE.test(text)) state.blocked = 'ambiguous_candidate'
   OVERBOUND_LABELLED_ID_RE.lastIndex = 0
   if (countScalars(text) > 256 && /\p{N}/u.test(text) && ADDRESS_HINT_RE.test(text)) {
@@ -626,37 +646,6 @@ function scanIpsAndCoordinates(text: string, state: ScanState): void {
   })
 }
 
-function luhnValid(digits: string): boolean {
-  let sum = 0
-  let double = false
-  for (let index = digits.length - 1; index >= 0; index -= 1) {
-    let digit = digits.charCodeAt(index) - 0x30
-    if (double) {
-      digit *= 2
-      if (digit > 9) digit -= 9
-    }
-    sum += digit
-    double = !double
-  }
-  return sum % 10 === 0
-}
-
-function ibanValid(value: string): boolean {
-  const compact = value.replace(/[ -]/gu, '').toUpperCase()
-  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/u.test(compact) || compact.length > 34) {
-    return false
-  }
-  const rearranged = compact.slice(4) + compact.slice(0, 4)
-  let remainder = 0
-  for (const character of rearranged) {
-    const expanded = /[A-Z]/u.test(character)
-      ? String(character.charCodeAt(0) - 55)
-      : character
-    for (const digit of expanded) remainder = (remainder * 10 + Number(digit)) % 97
-  }
-  return remainder === 1
-}
-
 function scanFinancial(text: string, state: ScanState): void {
   forEachMatch(CARD_RE, text, (match) => {
     const raw = match[1]
@@ -673,9 +662,19 @@ function scanFinancial(text: string, state: ScanState): void {
   })
   forEachMatch(IBAN_RE, text, (match) => {
     const raw = match[1]
-    if (raw === undefined || !ibanValid(raw)) return
+    if (raw === undefined) return
     const start = match.index + match[0].lastIndexOf(raw)
-    addCandidate(state, text, start, start + raw.length, '[FINANCIAL]', 64)
+    const iban = longestValidIban(raw)
+    if (iban !== null) {
+      addCandidate(state, text, start, start + iban.length, '[FINANCIAL]', 64)
+      // The words the IBAN gave back may hold another IBAN.
+      IBAN_RE.lastIndex = start + iban.length
+      return
+    }
+    // Nothing validates from this start, so an IBAN may begin at the next
+    // group, as in "room AB12 NO93 8601 1117 947".
+    const nextGroup = raw.search(IBAN_GROUP_SEPARATOR_RE)
+    if (nextGroup > 0) IBAN_RE.lastIndex = start + nextGroup
   })
 }
 
