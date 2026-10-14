@@ -1119,7 +1119,11 @@ says they ship with this amendment. They report changes only:
    it is younger) against the goal's pace.
 4. **Entered Can't reach at this mix** (`goal.rating_cant_reach`): the recent
    average stars of new Google reviews no longer clear the target's
-   threshold. It says that average and what new reviews need to average.
+   threshold, at most once every 14 days per goal, like Below pace (a mix that
+   hovers near the threshold would otherwise tell the managers each time it
+   crosses). It says only that new reviews lately average below what the
+   target needs, and opens the goal for what it takes. It states no number of
+   stars.
 5. **A keep goal dropped below** (`goal.rating_keep_dropped`): Google no
    longer shows the tenth a keep goal keeps. It replaces the tenth-lost notice
    for the same change.
@@ -1148,35 +1152,29 @@ repeats a notice. The status a goal is set in, or that a manager's change of
 plan puts it in, is stored without a notice: these notices report what Google
 and the reviews did, never a manager's own change. A goal that ends tells
 nobody. The write is a compare-and-set on the tenth, the known status and the
-time of the last below-pace notice it read, so a second evaluation of the same
-change (a page read, the snapshot consumer, a repeated or late fact) stores
-nothing and tells nobody. Below pace moves with the calendar rather than with
-a new Google fact, so a daily sweep, `rating-goal.evaluate` (`goal.use`, each
-goal's Organization and Property decided by its own scope authorizer),
-evaluates every active goal once a day. The Feed route
+times of the last Below pace and Can't reach notices it read, so a second
+evaluation of the same change (a page read, the snapshot consumer, a repeated or
+late fact) stores nothing and tells nobody. Below pace moves with the calendar
+rather than with a new Google fact, so a daily sweep, `rating-goal.evaluate`
+(`goal.use`, each goal's Organization and Property decided by its own scope
+authorizer), evaluates every active goal once a day. The Feed route
 `notification.on-rating-goal-transitioned` queues one notice per recipient
 under the job id `${eventId}-${recipient}` and records its receipt after; one
 unread row per (reader, type, goal) absorbs a later change of the same kind
 (r.2), and the row states its latest change.
 
-**What the payload may carry (r.8).** The notices state the Property's own
-figures: the tenth Google shows for the Property (and showed before), the
-goal's target, mode and chosen pace, the recent pace of new Google reviews and
-their recent average stars, each a bounded integer in the payload allowlist
-(`rating*`). Never a review's rating, text or reviewer: the rule that "Google
-ratings never enter Notification storage" is about a review's rating, and it
-stands. A Low ratings notice still carries only its outcome.
-
-This narrows one sentence of the 2026-09-30 amendment, "notification rows,
-emails and logs carry no star count", to what it was written to protect: a
-review's own rating. Two Property-level figures are not that: the tenth Google
-shows for the Property, which every one of these notices states in its title or
-body, and the recent average stars of the Property's new reviews, an aggregate
-over many reviews that cannot be traced to one and that the Can't reach notice
-has to state for its advice (what new reviews must average) to be plain. If the
-owner prefers the earlier sentence to stand for the average, the fallback is to
-drop `ratingMixHundredths` from the payload and the Can't reach body, which then
-names only the target.
+**What the payload may carry (r.8).** The notices state the Property-level
+tenths (the tenth Google shows for the Property now and before, and the goal's
+target), the goal's mode and chosen pace, and the recent pace of new Google
+reviews (reviews a week), each a bounded integer in the payload allowlist
+(`rating*`), and nothing else. Never a review's rating, text or reviewer, and
+never an average or any other figure derived from review ratings: the Can't
+reach notice carries no figure of its own, and neither the
+`goal.rating_goal.transitioned` fact nor the payload holds the recent average.
+The 2026-09-30 amendment is not touched. It keeps a review's rating out of job
+data, notification rows, emails and logs (Feed stores only the outcome, never
+the rating), and these notices add no such figure. A Low ratings notice still
+carries only its outcome.
 
 ## Consequences
 

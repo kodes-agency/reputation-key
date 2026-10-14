@@ -114,15 +114,17 @@ metric authority.
   so a late fact never ends a goal set after a Restore.
 - **Property Google rating goal notices**: five, change-only (ADR 0067 decision 6; ADR
   0046, amended 2026-10-14): reached; Google showing another tenth; entered Below pace,
-  at most once in 14 days; entered Can't reach at this mix; a keep goal dropped below.
+  at most once in 14 days; entered Can't reach at this mix, also at most once in 14 days
+  and with no star figure; a keep goal dropped below.
   `domain/rating-goal-notices.ts` decides them from what the goal last stored: the tenth
   Google showed, the last status that was not a wait for Google (`last_known_status`,
-  migration 0057) and when it last told Below pace (`below_pace_noticed_at`). Reached
-  replaces the tenth gained, a keep goal's drop replaces the tenth lost, an ended goal
-  tells nobody, and a status the goal was set in or that a manager's change of plan put
-  it in (a plan change clears the known status) is stored without a notice. The
+  migration 0057) and when it last told Below pace (`below_pace_noticed_at`) and Can't
+  reach (`cant_reach_noticed_at`). Reached replaces the tenth gained, a keep goal's drop
+  replaces the tenth lost, an ended goal tells nobody, and a status the goal was set in or
+  that a manager's change of plan put it in (a plan change clears the known status) is
+  stored without a notice. The
   evaluation write is one transaction that also compares the tenth, known status and
-  below-pace time it read, and writes one identifier-only `goal.rating_goal.transitioned`
+  notice times it read, and writes one identifier-only `goal.rating_goal.transitioned`
   fact per notice, so the same change is told once whichever evaluation stores it first.
   Below pace moves with the calendar, so `rating-goal.evaluate`
   (`infrastructure/jobs/rating-goal-evaluation.job.ts`, daily, `goal.use`) evaluates every
@@ -307,8 +309,8 @@ epoch, so a repeat ends nothing and adds the receipt.
 Reporting writes `goal.rating_goal.transitioned` (`domain/goal-events.ts`), one per rating
 goal notice, inside the evaluation's own write (a read, `goal.google-rating-evaluation` or
 the daily `rating-goal.evaluate`). Its payload is identifiers, closed enums and the
-Property-level figures the notice states (Google's shown tenth, the target, the pace, the
-recent pace and the recent mix), never a review; Feed's
+Property-level figures the notice states (Google's shown tenth, the target, the pace and the
+recent pace), never a review or an average of review ratings; Feed's
 `notification.on-rating-goal-transitioned` consumes it.
 
 ## Verification
