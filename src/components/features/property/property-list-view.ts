@@ -1,7 +1,11 @@
 // The Properties list as data: rows, the view its URL asks for, and the rules
 // that search, filter, sort and summarise them. Pure, so every rule is tested
 // without rendering (docs/plan/property-list-table.md rows 7, 11–13).
-import type { PropertySetupStep } from '#/contexts/reporting/application/public-api'
+import type {
+  FleetRatingGoal,
+  GoogleNumbersView,
+  PropertySetupStep,
+} from '#/contexts/reporting/application/public-api'
 import { countryLabel } from '#/components/features/shared/country-label'
 import { searchMatcher } from '#/components/property/property-search'
 import type {
@@ -41,10 +45,17 @@ export type PropertyAttention = Readonly<{
   goalsBehindPace: number
 }>
 
-/** What the fleet read adds to a row. Rating and reviews are all-time. */
+/** What the fleet read adds to a row. */
 export type PropertyComparison = Readonly<{
-  avgRating: number | null
-  reviewCount: number
+  /** The Property's time zone: a stale number's date is on its clock. */
+  timezone: string
+  /**
+   * Google's own rating and review count, the row's headline (decision 16);
+   * null when Google never sent numbers for the Property's current binding.
+   */
+  google: GoogleNumbersView | null
+  /** The stored Google rating goal, or whether one is offered; null when goals are not read. */
+  ratingGoal: FleetRatingGoal | null
   attention: PropertyAttention
 }>
 
@@ -218,9 +229,9 @@ function keyOf(row: PropertyListRow, sort: Exclude<PropertyListSort, 'name'>): S
     case 'attention':
       return row.comparison?.attention.total ?? null
     case 'rating':
-      return row.comparison?.avgRating ?? null
+      return row.comparison?.google?.shows ?? null
     case 'reviews':
-      return row.comparison?.reviewCount ?? null
+      return row.comparison?.google?.reviewCount ?? null
     case 'setup':
       return row.setup?.completedCount ?? null
   }
@@ -257,8 +268,9 @@ export function sortPropertyListRows(
 
 export type PropertyListSummary = Readonly<{
   properties: number
-  /** Weighted by reviews, as the fleet read weighs it; `null` with no rating. */
+  /** What Google shows, weighted by Google's review counts; `null` with no rating. */
   averageRating: number | null
+  /** Google's reviews behind that average. */
   ratedReviews: number
   needsAttention: number
   propertiesNeedingAttention: number
@@ -277,9 +289,10 @@ export function summarizePropertyList(
   let googleLinked = 0
   for (const row of rows) {
     const figures = row.comparison
-    if (figures && figures.avgRating !== null) {
-      weighted += figures.avgRating * figures.reviewCount
-      ratedReviews += figures.reviewCount
+    const google = figures?.google
+    if (google && google.shows !== null) {
+      weighted += google.shows * google.reviewCount
+      ratedReviews += google.reviewCount
     }
     if (figures && figures.attention.total > 0) {
       needsAttention += figures.attention.total

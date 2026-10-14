@@ -36,15 +36,16 @@ const attention = (overrides: Partial<PropertyAttention> = {}): PropertyAttentio
   ...overrides,
 })
 
-const figures = (
-  avgRating: number | null,
-  reviewCount: number,
-  total = 0,
-): PropertyComparison => ({
-  avgRating,
-  reviewCount,
-  attention: attention({ total, itemsToTriage: total }),
-})
+const ASOF = '2026-10-12T08:00:00.000Z'
+/** Google's own number and count; no number and no count is a Property Google never rated. */
+const figures = (shows: number | null, reviewCount: number, total = 0) =>
+  ({
+    timezone: 'Europe/Sofia',
+    google:
+      (shows ?? reviewCount) ? { shows, reviewCount, asOf: ASOF, current: true } : null,
+    ratingGoal: null,
+    attention: attention({ total, itemsToTriage: total }),
+  }) satisfies PropertyComparison
 
 const step: PropertySetupStep = {
   key: 'portal_published',
@@ -304,7 +305,7 @@ describe('filterPropertyListRows', () => {
 })
 
 describe('summarizePropertyList', () => {
-  it('weights the average by reviews and counts the properties behind each figure', () => {
+  it('weights the average Google shows by Google’s counts, and counts the properties behind each figure', () => {
     expect(summarizePropertyList(rows)).toEqual({
       properties: 6,
       // (3.9·260 + 4.3·412 + 5·20 + 3.1·26 + 5·20) / 738

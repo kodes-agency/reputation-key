@@ -101,8 +101,10 @@ export type {
   FleetEntry,
   FleetOverviewData,
   FleetMetricEvidence,
+  FleetRatingGoal,
   FleetTotals,
 } from '../domain/dashboard-types'
+export type { GoogleNumbersView } from '../domain/google-numbers'
 export type {
   PortalResultsSeries,
   PortalSeriesWeek,

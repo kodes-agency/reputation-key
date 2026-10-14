@@ -56,7 +56,7 @@ export function PropertyListSummaryStrip({ summary, fleet, setup, show, onShow }
         ) : (
           <MetricValue
             value={<RatingFigure value={summary.averageRating} size="md" />}
-            detail={`across ${formatNumber(summary.ratedReviews)} reviews, all-time`}
+            detail={`across ${formatNumber(summary.ratedReviews)} Google reviews`}
           />
         )}
       </Metric>
