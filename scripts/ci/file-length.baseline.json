@@ -1,7 +1,7 @@
 {
   "scripts/seed-e2e-user.ts": 1323,
   "src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts": 1538,
-  "src/contexts/ai/infrastructure/adapters/ai-property-aggregate-store.adapter.ts": 1280,
+  "src/contexts/ai/infrastructure/adapters/ai-property-aggregate-store.adapter.ts": 841,
   "src/contexts/inbox/infrastructure/inbox-command-store.ts": 2754,
   "src/contexts/inbox/infrastructure/repositories/inbox.repository.ts": 887,
   "src/contexts/inbox/infrastructure/response-target.store.ts": 951,
@@ -12,7 +12,7 @@
   "src/contexts/review/infrastructure/google-reply-observation-store.ts": 815,
   "src/contexts/review/infrastructure/reply-command-store.ts": 918,
   "src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts": 1441,
-  "src/contexts/review/infrastructure/repositories/review.repository.ts": 840,
+  "src/contexts/review/infrastructure/repositories/review.repository.ts": 831,
   "src/shared/ai-internal-transport-contract.ts": 1063,
   "src/shared/ai-provider-control/openai-connector.ts": 1178,
   "src/shared/ai-structured-marker-detectors.ts": 815,

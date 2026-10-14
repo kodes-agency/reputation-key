@@ -26,6 +26,8 @@ import { trace } from '#/shared/observability/trace'
 
 export const JOB_NAME = 'ai-operation-execution-reaper' as const
 
+const COMPLETION_MESSAGE = 'AI operation recovery reaper completed'
+
 /**
  * The counts this seam logs — declared here, structurally, rather than imported
  * from the AI context. `src/shared/jobs/**` may not depend on a context (see
@@ -39,6 +41,7 @@ type AiOperationExecutionReaperOutcome = Readonly<{
   operationsDelivered: number
   operationsSettled: number
   operationsRaced: number
+  candidatesFailed: number
   batchFull: boolean
 }>
 
@@ -59,18 +62,24 @@ export const createAiOperationExecutionReaperHandler =
       const outcome = await deps.reap()
       const reservationsReleased = await deps.releaseStaleReservations()
       // Counts only — no operation id, organization, property, review, capability
-      // or provider identifier reaches a log line.
-      getLogger().info(
-        {
-          job: JOB_NAME,
-          recoveryCandidatesVisited: outcome.recoveryCandidatesVisited,
-          operationsFenced: outcome.operationsFenced,
-          operationsDelivered: outcome.operationsDelivered,
-          operationsSettled: outcome.operationsSettled,
-          operationsRaced: outcome.operationsRaced,
-          batchFull: outcome.batchFull,
-          reservationsReleased,
-        },
-        'AI operation recovery reaper completed',
-      )
+      // or provider identifier reaches a log line. A pass in which a candidate
+      // failed is logged at warn: the failure is swallowed so the other tenants
+      // are recovered, which leaves this line as the only signal that a row keeps
+      // failing.
+      const fields = {
+        job: JOB_NAME,
+        recoveryCandidatesVisited: outcome.recoveryCandidatesVisited,
+        operationsFenced: outcome.operationsFenced,
+        operationsDelivered: outcome.operationsDelivered,
+        operationsSettled: outcome.operationsSettled,
+        operationsRaced: outcome.operationsRaced,
+        candidatesFailed: outcome.candidatesFailed,
+        batchFull: outcome.batchFull,
+        reservationsReleased,
+      }
+      if (outcome.candidatesFailed > 0) {
+        getLogger().warn(fields, COMPLETION_MESSAGE)
+        return
+      }
+      getLogger().info(fields, COMPLETION_MESSAGE)
     })

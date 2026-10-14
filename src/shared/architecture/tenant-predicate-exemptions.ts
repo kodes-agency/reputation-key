@@ -300,16 +300,9 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
   },
   {
     file: 'src/contexts/review/infrastructure/repositories/review.repository.ts',
-    symbol: 'findExpiredBatchBeforeAcrossTenants',
+    symbol: 'clockBatchAcrossTenants',
     reason:
-      'The bounded review-content purge sweep intentionally scans all tenants by a stable expiration cursor so every eligible row can be retired.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/review/infrastructure/repositories/review.repository.ts',
-    symbol: 'findExpiringBatchAcrossTenants',
-    reason:
-      'The bounded review-content lifecycle sweep intentionally scans expiration candidates across all tenants and preserves tenant identity on every result.',
+      'The bounded review-content lifecycle sweeps (refresh-expiring and purge-expired) intentionally page live review content across all tenants by one stable expiration cursor so every eligible row is reached, and preserve tenant identity on every result.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {

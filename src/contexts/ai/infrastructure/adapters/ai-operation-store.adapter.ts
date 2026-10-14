@@ -1,7 +1,12 @@
 import { createHash } from 'node:crypto'
-import { and, eq, gt, isNull, lte, or } from 'drizzle-orm'
+import { and, eq, exists, gt, isNull, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { aiOperations, aiReviewAnalyses, eventConsumerReceipts } from '#/shared/db/schema'
+import {
+  aiOperations,
+  aiReviewAnalyses,
+  eventConsumerReceipts,
+  outboxEvents,
+} from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import {
   AI_OPERATION_PROFILES,
@@ -22,6 +27,7 @@ import type {
   AiOperationRecoveryCandidate,
   AiOperationState,
   AiOperationStorePort,
+  AiOperationUnreadableRow,
 } from '../../application/ports/ai-operation-store.port'
 
 type OperationRow = typeof aiOperations.$inferSelect
@@ -584,7 +590,11 @@ export const createAiOperationStoreAdapter = (
       // exact CAS. Persisted results use `markDelivered`'s exact CAS. Every
       // failed analysis row remains selectable while its origin event lacks a
       // receipt, making every terminal-failure-to-settlement crash window
-      // recoverable without maintaining a failure-code whitelist.
+      // recoverable without maintaining a failure-code whitelist. "No receipt"
+      // only means "not yet settled" while the event is still in the outbox:
+      // the retention sweep deletes a published event 30 days after
+      // publication and its receipts with it, long after the operation was
+      // settled, and a row whose event is gone has nothing left to receipt.
       const now = new Date(input.nowEpochMillis)
       const horizonDeadline = new Date(
         input.nowEpochMillis - input.executionHorizonMillis,
@@ -640,6 +650,12 @@ export const createAiOperationStoreAdapter = (
               eq(aiOperations.command, 'analysis'),
               eq(aiOperations.state, 'failed'),
               isNull(eventConsumerReceipts.eventId),
+              exists(
+                db
+                  .select({ retained: sql`1` })
+                  .from(outboxEvents)
+                  .where(eq(outboxEvents.id, aiOperations.originEventId)),
+              ),
             ),
           ),
         )
@@ -652,9 +668,23 @@ export const createAiOperationStoreAdapter = (
           aiOperations.id,
         )
         .limit(input.limit)
-      return rows.map((row) =>
-        recoveryCandidate(mapOperation(row.operation), row.persistedAnalysisStatus),
-      )
+      const candidates: AiOperationRecoveryCandidate[] = []
+      const unreadable: AiOperationUnreadableRow[] = []
+      for (const row of rows) {
+        try {
+          candidates.push(
+            recoveryCandidate(mapOperation(row.operation), row.persistedAnalysisStatus),
+          )
+        } catch {
+          // The reason stays out of the report: a parse failure can quote the
+          // stored value. The row's own identifiers are enough to find it.
+          unreadable.push({
+            operationId: operationId(row.operation.id),
+            organizationId: row.operation.organizationId,
+          })
+        }
+      }
+      return { candidates, unreadable }
     },
 
     async markDelivered(input) {
