@@ -15,3 +15,13 @@ export function RatingGoalCancel({ children }: Readonly<{ children?: ReactNode }
   const inline = use(InlineCancelLabel)
   return <DialogCancel>{inline ?? children ?? 'Cancel'}</DialogCancel>
 }
+
+/**
+ * The way out of a step that has none in a dialog (its Escape and close do
+ * it): inside the setup frame there is neither, so the step offers "Not now"
+ * like every other. Nothing in a dialog.
+ */
+export function RatingGoalInlineCancel() {
+  const inline = use(InlineCancelLabel)
+  return inline === null ? null : <DialogCancel>{inline}</DialogCancel>
+}

@@ -86,13 +86,26 @@ function doneDescription(intent: RatingGoalWizardIntent): string {
     : 'You can end it at any time.'
 }
 
-/** What the screen is for, in one sentence; the keep step's is the whole step. */
-function descriptionOf(step: Step, intent: RatingGoalWizardIntent): string {
+/**
+ * What the screen is for, in one sentence; the keep step's is the whole step.
+ * Inside the Google import's setup frame there is no "Step 1 of 2": the setup
+ * already counts its own steps on the same screen, and two counters read as
+ * one sequence that contradicts itself.
+ */
+function descriptionOf(
+  step: Step,
+  intent: RatingGoalWizardIntent,
+  inline: boolean,
+): string {
   switch (step) {
     case 'goal':
-      return 'Step 1 of 2: the number you want Google to show.'
+      return inline
+        ? 'The number you want Google to show.'
+        : 'Step 1 of 2: the number you want Google to show.'
     case 'pace':
-      return 'Step 2 of 2: how many new Google reviews a week you aim for.'
+      return inline
+        ? 'How many new Google reviews a week you aim for.'
+        : 'Step 2 of 2: how many new Google reviews a week you aim for.'
     case 'keep':
       return `We’ll watch that Google keeps showing ${intent.kind === 'keep' ? tenthsText(intent.targetTenths) : 'its number'}.`
     case 'done':
@@ -199,7 +212,7 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
       onOpenChange={props.onOpenChange}
       busy={flow.pending}
       title={titleOf(flow.step, intent)}
-      description={descriptionOf(flow.step, intent)}
+      description={descriptionOf(flow.step, intent, props.inline === true)}
       titleRef={flow.titleRef}
       onCloseAutoFocus={props.onCloseAutoFocus}
       inline={props.inline}

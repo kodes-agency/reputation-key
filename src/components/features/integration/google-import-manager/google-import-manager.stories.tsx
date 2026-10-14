@@ -134,6 +134,85 @@ export const ProgressRoute: Story = {
   },
 }
 
+const SECOND_PROPERTY_ID = '10000000-0000-4000-8000-000000000012'
+
+/** A Property the setup has nothing to ask about, so what follows it shows at once. */
+const configured = (propertyId: string, name: string) => ({
+  propertyId,
+  name,
+  countryCode: 'FR',
+  publicDisplayNameConfirmed: true,
+  defaultReplyLanguage: 'fr-Latn',
+  aiEnabled: true,
+  managerIds: [STORY_ADMIN.userId],
+})
+
+/** Stands for the rating goal step: the route draws the real one. */
+const ratingGoalStep = (propertyId: string) => <p>Rating goal step for {propertyId}</p>
+
+const twoImported: ImportProgressDto = {
+  ...completed,
+  totalCount: 2,
+  processedCount: 2,
+  counts: { ...completed.counts, imported: 2 },
+  items: [
+    ...completed.items,
+    {
+      ...completed.items[0]!,
+      itemId: '10000000-0000-4000-8000-000000000013',
+      propertyName: 'Studio Seconde',
+      propertyId: SECOND_PROPERTY_ID,
+    },
+  ],
+}
+
+/** A single-Property import ends on that Property's Google rating goal (decision 13). */
+export const SingleImportOffersTheRatingGoal: Story = {
+  args: {
+    initialProgress: completed,
+    setupFns: createSetupFnsFixture({
+      properties: [configured(IMPORTED_PROPERTY_ID, 'Studio Priority')],
+    }),
+    ratingGoalStep: fn(ratingGoalStep),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.findByText('Nothing left to ask', undefined, { timeout: 5_000 }),
+    ).resolves.toBeVisible()
+    await expect(
+      canvas.getByText(`Rating goal step for ${IMPORTED_PROPERTY_ID}`),
+    ).toBeVisible()
+    await expect(args.ratingGoalStep).toHaveBeenCalledWith(IMPORTED_PROPERTY_ID)
+  },
+}
+
+/** A multi-Property import skips it: the setup strip reminds per Property. */
+export const SeveralImportsSkipTheRatingGoal: Story = {
+  args: {
+    initialProgress: twoImported,
+    importFns: {
+      ...importFns,
+      getPropertyImportV2Status: fn(async () => twoImported),
+    } as unknown as GoogleImportFns,
+    setupFns: createSetupFnsFixture({
+      properties: [
+        configured(IMPORTED_PROPERTY_ID, 'Studio Priority'),
+        configured(SECOND_PROPERTY_ID, 'Studio Seconde'),
+      ],
+    }),
+    ratingGoalStep: fn(ratingGoalStep),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.findByText('Nothing left to ask', undefined, { timeout: 5_000 }),
+    ).resolves.toBeVisible()
+    await expect(canvas.queryByText(/Rating goal step for/)).toBeNull()
+    await expect(args.ratingGoalStep).not.toHaveBeenCalled()
+  },
+}
+
 const FUTURE = new Date(Date.now() + 60 * 60 * 1000).toISOString()
 const lease = {
   leaseRef: 'lease.story',

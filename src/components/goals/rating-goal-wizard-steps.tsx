@@ -7,7 +7,7 @@ import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/r
 import { BackButton } from '#/components/ui/back-link'
 import { Button } from '#/components/ui/button'
 import { DialogFooter } from '#/components/ui/dialog'
-import { RatingGoalCancel } from './rating-goal-wizard-cancel'
+import { RatingGoalCancel, RatingGoalInlineCancel } from './rating-goal-wizard-cancel'
 import { RatingGoalPaceStep } from './rating-goal-pace-step'
 import { RatingGoalTargetStep } from './rating-goal-target-step'
 import {
@@ -80,6 +80,7 @@ function ClimbFooter({
       className="mt-auto"
       note={<BackButton label="Back to your goal" disabled={pending} onClick={onBack} />}
     >
+      <RatingGoalInlineCancel />
       <Button type="submit" pending={pending} disabled={!canSave}>
         {intent.kind === 'change' ? 'Save changes' : 'Set goal'}
       </Button>

@@ -18,6 +18,9 @@ const batch = [
   { propertyId: ATHENS, name: 'Athens Rooms', countryCode: 'GR' },
 ] as const
 
+/** Stands for what follows the setup: a single Property's rating goal step. */
+const THEN_MARKER = 'Then: the Google rating goal'
+
 const imported = batch.map((property) => ({
   propertyId: property.propertyId,
   propertyName: property.name,
@@ -233,11 +236,14 @@ export const NotNowAndSkip: Story = {
     properties: [imported[0]!],
     viewerUserId: STORY_ADMIN.userId,
     fns: createSetupFnsFixture({ properties: [batch[0]] }),
+    then: <p>{THEN_MARKER}</p>,
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     const fns = args.fns as ReturnType<typeof createSetupFnsFixture>
 
+    // What follows the setup (a single Property's rating goal) waits for its results.
+    await expect(canvas.queryByText(THEN_MARKER)).toBeNull()
     await userEvent.click(await canvas.findByRole('button', { name: /skip for now/i }))
     await skip(canvasElement)
     await skip(canvasElement)
@@ -251,6 +257,7 @@ export const NotNowAndSkip: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Save setup' }))
 
     await expect(canvas.findByText('Setup saved')).resolves.toBeVisible()
+    await expect(canvas.getByText(THEN_MARKER)).toBeVisible()
     await expect(fns.deferMerchantAiDecision).toHaveBeenCalledOnce()
     await expect(fns.updateProperty).not.toHaveBeenCalled()
     await expect(fns.savePropertyPublicDisplayName).not.toHaveBeenCalled()
@@ -350,10 +357,13 @@ export const NothingLeftToAsk: Story = {
         },
       ],
     }),
+    then: <p>{THEN_MARKER}</p>,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.findByText('Nothing left to ask')).resolves.toBeVisible()
     await expect(canvas.queryByRole('group', { name: /set up properties/i })).toBeNull()
+    // Nothing to ask, so what follows the setup follows at once.
+    await expect(canvas.getByText(THEN_MARKER)).toBeVisible()
   },
 }
