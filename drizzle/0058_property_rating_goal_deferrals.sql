@@ -17,9 +17,9 @@
 -- Goal family (goal-organization-lifecycle.adapter), and the Organization export
 -- carries them (goal-organization-export.adapter).
 --
--- Numbered 0058: 0057 is the rating goal notices' migration on its own branch
--- (`rating_goal_notice_marks`). Whichever lands second moves its journal entry
--- after the other's, keeping its own `when` above it.
+-- Numbered 0058: 0057 is the rating goal notices' migration
+-- (`rating_goal_notice_marks`, #825), already on main. Its columns are on
+-- `property_rating_goals`; this table touches none of them.
 CREATE TABLE "property_rating_goal_deferrals" (
 	"organization_id" varchar(255) NOT NULL,
 	"property_id" uuid PRIMARY KEY NOT NULL,
