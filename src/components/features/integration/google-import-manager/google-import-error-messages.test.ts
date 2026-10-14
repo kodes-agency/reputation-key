@@ -103,7 +103,16 @@ describe('discoveryErrorMessage', () => {
 describe('startErrorMessage', () => {
   it('keeps its own recovery-oriented copy for start failures', () => {
     expect(startErrorMessage(coded('request_conflict'))).toMatch(/already used/i)
-    expect(startErrorMessage(coded('reauthentication_required'))).toMatch(/recover it/i)
+    expect(startErrorMessage(coded('temporarily_unavailable'))).toMatch(/recover it/i)
+  })
+
+  // The connection check runs before anything is committed, so the manager is
+  // told to reconnect rather than to recover a request that never existed.
+  it('tells the manager to reconnect when the connection no longer authenticates', () => {
+    const message = startErrorMessage(coded('reauthentication_required'))
+
+    expect(message).toMatch(/reconnect google/i)
+    expect(message).not.toMatch(/recover it/i)
   })
 
   it('does not present a permanent contract rejection as retryable', () => {

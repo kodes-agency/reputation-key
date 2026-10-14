@@ -268,6 +268,54 @@ describe('Google in-process admission service', () => {
     },
   )
 
+  // Waiting for a semaphore slot and the permit's start round trip both take
+  // time. A grant is signed for what is left of the permit and the call, measured
+  // after them; a clock read before them signed a grant that was already dead,
+  // and the guard that should have refused it could never fire.
+  it.each([
+    ['the call deadline', 10_000, 10_000, 'deadline_exceeded'],
+    ['the permit expiry', 20_000, 30_000, 'permit_expired'],
+  ] as const)(
+    'refuses to sign a grant once %s passed while it waited for a slot',
+    async (_label, lateNowMs, deadlineMs, code) => {
+      let nowMs = 1_000
+      const compiled = compile({
+        routeKey: 'account-management.accounts.list',
+        accessToken: 'access-token',
+      })
+      const fixture = admissionFixture({
+        permit: permitFor('permit-slow-00001', compiled.admission),
+        nowMs: () => nowMs,
+      })
+      vi.mocked(fixture.inFlight.acquire).mockImplementationOnce(async () => {
+        nowMs = lateNowMs
+        return {
+          ok: true as const,
+          lease: Object.freeze({
+            leaseId: 'inflight-lease-slow0001',
+            expiresAtMs: 40_000,
+          }),
+        }
+      })
+
+      await expect(
+        fixture.service.start({
+          permitId: 'permit-slow-00001',
+          gatewayIdentity,
+          admission: compiled.admission,
+          deadlineMs,
+        }),
+      ).resolves.toEqual({ ok: false, code, retryAfterMs: 0 })
+
+      // The started permit is failed and the slot returned, not left to its lease.
+      expect(fixture.failStarted).toHaveBeenCalledWith(
+        expect.objectContaining({ permitId: 'permit-slow-00001' }),
+        'grant_expired',
+      )
+      expect(fixture.release).toHaveBeenCalledTimes(1)
+    },
+  )
+
   it('requires credential-cleanup permits to use only the fixed revoke route', async () => {
     const revoke = compile({ routeKey: 'oauth.revoke', token: 'token-to-revoke' })
     const fixture = admissionFixture({

@@ -9,6 +9,7 @@ import {
 } from '#/shared/domain/ids'
 import type { ExecutionDecision } from '#/shared/auth/execution-policy'
 import { googleAuthorizationPermissionDigest } from '#/shared/domain/google-content-authorization-vector'
+import { BANNED_LOG_KEYS } from '#/shared/observability/metrics-schema'
 import type { GoogleConnection } from '../domain/types'
 import { createGoogleImportCommandAuthorizer } from './google-import-command-authorizer'
 
@@ -831,5 +832,101 @@ describe('authorizeGoogleImportCommand', () => {
         },
       ])
     })
+  })
+})
+
+// Tenant identifiers are never log fields (BANNED_LOG_KEYS). The logger-call-site
+// gate cannot see through the injected `warn`, so the sites that build their
+// fields in a helper are held to the rule here.
+describe('the authorization_changed log', () => {
+  const frozen = {
+    organizationId: actor.organizationId,
+    userId: actor.userId,
+    connectionId,
+    connectionLifecycleVersion: 3,
+    connectionAccessVersion: 4,
+    credentialGeneration: 5,
+    authorizationVector: contentAuthorization().authorizationVector,
+  }
+  const relinkProperties = [
+    {
+      propertyId: destinationId,
+      sourceEpoch: 8,
+      profileVersion: 6,
+      action: 'property.update' as const,
+    },
+  ]
+  const loggedKeys = (value: unknown): string[] =>
+    typeof value === 'object' && value !== null
+      ? Object.entries(value).flatMap(([key, child]) => [key, ...loggedKeys(child)])
+      : []
+  const bannedKeysLogged = (warn: ReturnType<typeof vi.fn>) =>
+    warn.mock.calls
+      .flatMap((call) => loggedKeys(call[0]))
+      .filter((key) => (BANNED_LOG_KEYS as readonly string[]).includes(key))
+
+  it('names the site and the drift without a tenant identifier when the connection regressed', async () => {
+    const warn = vi.fn()
+    const { authorize } = setup({
+      current: connection({ credentialGeneration: 4 }),
+      authorizeGoogleContent: async () =>
+        contentAuthorization({ credentialGeneration: 4 }),
+      warn,
+    })
+
+    await authorize({
+      actor,
+      connectionId,
+      phase: 'publish',
+      expected: frozen,
+      properties: relinkProperties,
+      requireAccessToken: false,
+    })
+
+    expect(warn.mock.calls[0]?.[0]).toMatchObject({
+      site: 'expected_connection_pre_token',
+    })
+    expect(bannedKeysLogged(warn)).toEqual([])
+  })
+
+  it('names the site and the drift without a tenant identifier when the relink target drifted', async () => {
+    const warn = vi.fn()
+    const fixture = setup({ warn })
+    fixture.readProperty.mockResolvedValueOnce({
+      ...(await fixture.readProperty()),
+      sourceEpoch: 9,
+    })
+
+    await fixture.authorize({
+      actor,
+      connectionId,
+      phase: 'publish',
+      expected: frozen,
+      properties: relinkProperties,
+      requireAccessToken: false,
+    })
+
+    expect(warn.mock.calls[0]?.[0]).toMatchObject({ site: 'property_snapshot' })
+    expect(bannedKeysLogged(warn)).toEqual([])
+  })
+
+  it('names the site and the counters without a tenant identifier when the connection moved during token access', async () => {
+    const warn = vi.fn()
+    const fixture = setup({ warn })
+    fixture.findById
+      .mockResolvedValueOnce(connection())
+      .mockResolvedValueOnce(connection({ lifecycleVersion: 4 }))
+
+    await fixture.authorize({
+      actor,
+      connectionId,
+      phase: 'provider_call',
+      requireAccessToken: true,
+    })
+
+    expect(warn.mock.calls[0]?.[0]).toMatchObject({
+      site: 'connection_moved_during_token_access',
+    })
+    expect(bannedKeysLogged(warn)).toEqual([])
   })
 })

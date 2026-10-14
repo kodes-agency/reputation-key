@@ -2,11 +2,11 @@ import { and, eq, gt } from 'drizzle-orm'
 import type { z } from 'zod/v4'
 import type { Database } from '#/shared/db'
 import { googleImportDiscoveryRecords } from '#/shared/db/schema/google-import-discovery.schema'
+import { sameDiscoveryAuthorization } from '../application/google-import-discovery-authorization'
 import type {
   ImportDiscoveryAuthorization,
   ImportReferenceResult,
 } from '../application/ports/google-import-reference-store.port'
-import { sameDurableAuthorization } from './durable-import-reference-codec'
 import {
   type DurableImportReferenceAudience,
   type DurableImportReferenceKeys,
@@ -69,7 +69,7 @@ export const createDurableImportReferenceReader = (
       ) {
         return { ok: false, code: 'malformed' }
       }
-      if (!sameDurableAuthorization(loaded.record.authorization, input.authorization)) {
+      if (!sameDiscoveryAuthorization(loaded.record.authorization, input.authorization)) {
         return { ok: false, code: 'binding_mismatch' }
       }
       const payload = input.schema.safeParse(loaded.record.payload)

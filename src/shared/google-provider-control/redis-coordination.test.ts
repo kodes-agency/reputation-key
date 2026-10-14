@@ -178,6 +178,80 @@ describe('Redis Google provider coordination', () => {
     expect(nowMs).toBe(2_000)
   })
 
+  // The script's advice is when the OLDEST lease lapses, which for a production
+  // lease is 20-30 seconds away. A call that finishes releases its slot long
+  // before that, so a caller that is allowed to wait must poll for the release
+  // instead of comparing the lease's lifetime with its own wait budget.
+  describe('a provider semaphore with a production lease length', () => {
+    const policy: GoogleQuotaPolicy = {
+      ...discoveryPolicy,
+      leaseMs: 30_000,
+      maxWaitMs: 2_000,
+    }
+    const key = { ...quotaKey, requestClass: 'discovery' as const }
+    const setup = (afterSleep: () => Promise<void> = async () => undefined) => {
+      let nowMs = 1_000
+      let sequence = 0
+      const redis = createFakeGoogleCoordinationRedis()
+      const create = () =>
+        createRedisGoogleInFlightCoordinator({
+          redis,
+          nowMs: () => nowMs,
+          leaseId: () => `lease-id-${String(++sequence).padStart(8, '0')}`,
+          policyId: 'google-discovery-read-v1',
+          policy,
+          sleep: async (delayMs) => {
+            nowMs += delayMs
+            await afterSleep()
+          },
+        })
+      return { create, clock: () => nowMs }
+    }
+
+    it('hands a slot to a waiting caller as soon as the holder releases it', async () => {
+      let release: () => Promise<boolean> = async () => false
+      let released = false
+      const fixture = setup(async () => {
+        if (!released && fixture.clock() >= 1_300) {
+          released = true
+          await release()
+        }
+      })
+      const holder = fixture.create()
+      const first = await holder.acquire(key, 5_000)
+      if (!first.ok) throw new Error('expected the first lease')
+      release = () => holder.release(key, first.lease)
+
+      const second = await fixture.create().acquire(key, 5_000)
+
+      expect(second.ok).toBe(true)
+      expect(fixture.clock()).toBe(1_300)
+    })
+
+    it('gives up after its wait budget, advising when the held lease lapses', async () => {
+      const fixture = setup()
+      const first = await fixture.create().acquire(key, 5_000)
+      expect(first.ok).toBe(true)
+
+      await expect(fixture.create().acquire(key, 5_000)).resolves.toEqual({
+        ok: false,
+        code: 'limit_exhausted',
+        retryAfterMs: 28_000,
+      })
+      expect(fixture.clock()).toBe(3_000)
+    })
+
+    it('stops waiting at the caller deadline', async () => {
+      const fixture = setup()
+      await fixture.create().acquire(key, 5_000)
+
+      await expect(fixture.create().acquire(key, 1_500)).resolves.toMatchObject({
+        ok: false,
+        code: 'deadline_exceeded',
+      })
+    })
+  })
+
   it('reserves cleanup quota independently from refresh quota', async () => {
     const redis = createFakeGoogleCoordinationRedis()
     const policy = {

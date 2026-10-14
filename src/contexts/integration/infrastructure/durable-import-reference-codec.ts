@@ -1,9 +1,5 @@
 import { z } from 'zod/v4'
-import { canonicalProviderAuthorizationVector } from '#/shared/provider-ephemeral/authorization-binding'
-import type {
-  ImportDiscoveryAuthorization,
-  ResolvedImportCandidate,
-} from '../application/ports/google-import-reference-store.port'
+import type { ResolvedImportCandidate } from '../application/ports/google-import-reference-store.port'
 
 const providerSuffix = z
   .string()
@@ -103,19 +99,6 @@ export const durableCandidatePayloadSchema = z.object({
 })
 
 export type DurableCandidatePayload = z.infer<typeof durableCandidatePayloadSchema>
-
-export const sameDurableAuthorization = (
-  stored: ImportDiscoveryAuthorization,
-  expected: ImportDiscoveryAuthorization,
-): boolean =>
-  stored.organizationId === expected.organizationId &&
-  stored.userId === expected.userId &&
-  stored.connectionId === expected.connectionId &&
-  stored.connectionLifecycleVersion === expected.connectionLifecycleVersion &&
-  stored.connectionAccessVersion === expected.connectionAccessVersion &&
-  stored.credentialGeneration === expected.credentialGeneration &&
-  canonicalProviderAuthorizationVector(stored.authorizationVector) ===
-    canonicalProviderAuthorizationVector(expected.authorizationVector)
 
 export const affectedPropertyIdFor = (
   candidate: Pick<ResolvedImportCandidate, 'eligibility' | 'affectedPropertyId'>,

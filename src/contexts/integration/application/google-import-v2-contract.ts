@@ -108,6 +108,51 @@ export function reconciledOutcomeCode(
     : receipt.outcome
 }
 
+/** How a terminal write treats the item's retry state and the outcome it records. */
+export type ImportItemTerminalWrite = Readonly<{
+  outcomeCode: ImportOutcomeCode
+  /** Keep the provider identifiers and fences a retry needs; false scrubs them. */
+  retainRetryState: boolean
+}>
+
+/**
+ * `temporarily_unavailable` is the one outcome whose item stays retryable, so it
+ * is the one that must keep its retry state: the items table accepts it no other
+ * way (`gbp_import_request_items_profile_valid`).
+ */
+export function retainsRetryState(outcomeCode: ImportOutcomeCode): boolean {
+  return outcomeCode === 'temporarily_unavailable'
+}
+
+/**
+ * How an item ends once its effect deadline has passed without a receipt. A retry
+ * is refused past the deadline (`retryItem` answers `effect_expired`), so the item
+ * cannot end `temporarily_unavailable`, which promises one; and the table refuses
+ * that outcome without its retry state. It ends as a plain failure with every
+ * provider identifier scrubbed, and the manager imports the location again.
+ */
+export const EXPIRED_ITEM_WRITE: ImportItemTerminalWrite = Object.freeze({
+  outcomeCode: 'internal_error',
+  retainRetryState: false,
+})
+
+/**
+ * The terminal write for an outcome an attempt chose. A retryable outcome keeps
+ * its retry state while a retry is still possible and degrades to
+ * `EXPIRED_ITEM_WRITE` once the effect deadline has passed; every other outcome is
+ * final and scrubbed.
+ */
+export function terminalWriteFor(
+  outcomeCode: ImportOutcomeCode,
+  effectDeadlineAt: Date,
+  now: Date,
+): ImportItemTerminalWrite {
+  if (!retainsRetryState(outcomeCode)) return { outcomeCode, retainRetryState: false }
+  return now < effectDeadlineAt
+    ? { outcomeCode, retainRetryState: true }
+    : EXPIRED_ITEM_WRITE
+}
+
 export type ImportItemUserAction =
   | 'none'
   | 'rediscover'

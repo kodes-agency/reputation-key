@@ -64,7 +64,10 @@ function gatewayFailureKind(failure: GoogleProviderExecutionFailure): GbpApiErro
  * the execution code, and Google's status when it answered — so a caller never
  * reads a write that may have happened as one that did not.
  */
-function gatewayFailureError(operation: string, failure: GoogleProviderExecutionFailure) {
+export function gatewayFailureError(
+  operation: string,
+  failure: GoogleProviderExecutionFailure,
+) {
   const gatewayKind = gatewayFailureKind(failure)
   return createGbpApiError(operation, gatewayKind, {
     retryAfterMs: retryableBackoffMs(gatewayKind, failure.retryAfterMs),
@@ -139,6 +142,40 @@ export type GoogleProviderSuccessfulResponse = Extract<
   { ok: true }
 >
 
+/**
+ * The typed error for a provider answer that is not a 200. A rate limit or an
+ * upstream failure always carries a real wait (`Retry-After`, or the schedule's
+ * floor); the callers that decide what to do with the status itself, like the
+ * single-review read that treats a 404 as an answer, share this mapping instead
+ * of re-deriving it.
+ */
+export function providerStatusError(
+  operation: string,
+  response: GoogleProviderSuccessfulResponse,
+  nowMs: () => number,
+  startedAtMs: number,
+) {
+  const statusKind = classifyProviderStatus(response.status)
+  const observedAtMs = nowMs()
+  return createGbpApiError(operation, statusKind, {
+    providerBodyBytes: response.body.byteLength,
+    dispatch: 'answered',
+    providerStatus: response.status,
+    // A 429 with no Retry-After previously produced no wait at all, so the
+    // caller was told to wait while its retry control stayed enabled.
+    retryAfterMs:
+      statusKind === 'rate_limited' || statusKind === 'upstream_error'
+        ? googleRetryDelayMs({
+            attempt: 1,
+            nowMs: Number.isSafeInteger(observedAtMs) ? observedAtMs : startedAtMs,
+            retryAfter: response.headers.retryAfter,
+            jitter: 1,
+          })
+        : (parseGoogleRetryAfterMs(response.headers.retryAfter, observedAtMs) ??
+          undefined),
+  })
+}
+
 export async function executeGoogleProviderRaw(
   input: Readonly<{
     operation: string
@@ -192,25 +229,7 @@ export async function executeGoogleProviderRaw(
   const providerBodyBytes = result.body.byteLength
   try {
     if (result.status !== 200) {
-      const statusKind = classifyProviderStatus(result.status)
-      const observedAtMs = input.nowMs()
-      throw createGbpApiError(input.operation, statusKind, {
-        providerBodyBytes,
-        dispatch: 'answered',
-        providerStatus: result.status,
-        // A 429 with no Retry-After previously produced no wait at all, so the
-        // caller was told to wait while its retry control stayed enabled.
-        retryAfterMs:
-          statusKind === 'rate_limited' || statusKind === 'upstream_error'
-            ? googleRetryDelayMs({
-                attempt: 1,
-                nowMs: Number.isSafeInteger(observedAtMs) ? observedAtMs : startedAtMs,
-                retryAfter: result.headers.retryAfter,
-                jitter: 1,
-              })
-            : (parseGoogleRetryAfterMs(result.headers.retryAfter, observedAtMs) ??
-              undefined),
-      })
+      throw providerStatusError(input.operation, result, input.nowMs, startedAtMs)
     }
     if (
       result.headers.contentType === null ||

@@ -84,6 +84,314 @@
     "expectedReason": "invalid_country"
   },
   {
+    "vectorId": "decimals-dates-and-abbreviations-are-not-domains",
+    "text": "Rated 4.5 on 12.05.2024, e.g. at 11 a.m.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "domain-with-alphabetic-last-label",
+    "text": "Book on hotel-sofia.bg today.",
+    "countryCode": "BG",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "email-at-numeric-host",
+    "text": "Write to guest@192.0.2.55 please.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "long-review-with-digit-and-street-word-is-safe",
+    "text": "Stayed here for 3 nights with my wife and kids in July. The room was clean, the breakfast was fresh and varied, and the staff went out of their way to help with the luggage. The only complaint is the noise from the street at night, which made it hard to sleep with the window open. We would still come back.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "quantity-before-place-is-not-an-address",
+    "text": "We spent 2 weeks here and it was a wonderful place with lovely staff.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "informal-lowercase-street-address",
+    "text": "Please deliver it to 25 main street after lunch.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "named-street-address-in-a-long-review",
+    "text": "We stayed 3 nights and the hotel at 25 Main Street was easy to find, with a quiet room, a friendly desk, a big breakfast and a pool that the kids loved. Everything was clean, the staff were kind and we would gladly come back again next summer with our friends.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "coordinate-pair-ending-a-sentence",
+    "text": "Our pin is 42.6977, 23.3219.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "lower-case-lane-address",
+    "text": "They live at 7 oak lane now.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "street-first-place-address",
+    "text": "We dined at 8 Place de la Concorde on Friday.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "title-case-minutes-drive-is-not-an-address",
+    "text": "Only 2 Minutes Drive from the beach.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "street-named-love-lane",
+    "text": "Our taxi left us at 1 Love Lane.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "street-named-for-a-unit",
+    "text": "Our taxi left us at 8 Mile Road.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "lower-case-the-old-mill-road",
+    "text": "Our taxi left us at 12 the old mill road.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "street-written-before-its-number",
+    "text": "Our taxi left us at Main Street 25.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "street-with-a-postcode-tail",
+    "text": "We stayed at 12 High Street, London W1D 3AF.",
+    "countryCode": "GB",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "bulgarian-street-word",
+    "text": "Адресът е ул. Витоша 25.",
+    "countryCode": "BG",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "coordinate-with-hemisphere-letters",
+    "text": "The pin is N 42.6977 E 23.3219 near the gate.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "coordinate-with-lat-lon-labels",
+    "text": "We parked at lat 42.6977 lon 23.3219 and walked.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "ip-address-with-a-port",
+    "text": "The portal sent me to 192.0.2.55:8080 which looked odd.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "domain-with-a-blank-before-the-dot",
+    "text": "See hotelsunrise .com for the rooms.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "doors-down-the-road-is-not-an-address",
+    "text": "There is a bakery 2 doors down the road from the hotel.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "a-count-before-a-capitalised-place-is-not-an-address",
+    "text": "A 5 Star Place With A Big Terrace.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "comma-after-a-number-and-praise-is-not-an-address",
+    "text": "Breakfast 7 To 10, Great Place For Families.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "an-address-followed-by-a-street-word-stays-an-address",
+    "text": "We stayed at 12 Oak Road. It was a great place.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-flat-letter-before-the-number-is-not-a-count",
+    "text": "We booked Flat A 12 Oak Road for a week.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-capitalised-unit-name-is-a-street",
+    "text": "We stayed at 12 Miles Avenue last month.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-place-name-with-on-inside-is-a-street",
+    "text": "We stayed at 12 Henley on Thames Road last month.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-lower-case-everyday-name-after-at-is-a-street",
+    "text": "We stayed at 221 love place last month.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-number-last-address-with-a-flat",
+    "text": "Meet us at (Oak Road 12/3) please.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-street-type-beyond-thirteen",
+    "text": "The flat at 12 Oak Close was cosy.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-street-of-another-language",
+    "text": "It was at 12 rue de la Paix near the river.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "an-address-after-a-label-with-no-type-word",
+    "text": "Address: Karlova 12.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-coordinate-pair-with-a-slash",
+    "text": "GPS 42.6977/23.3219 near the cove.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "degrees-minutes-and-seconds",
+    "text": "Pin: 42°41'52.7\"N 23°19'19.2\"E near the cove.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "an-ip-in-brackets-with-a-port-before-a-full-stop",
+    "text": "Their server is [203.0.113.9]:8080. It was down.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "a-zero-padded-ip",
+    "text": "Their server is 192.168.001.001 and it was down.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "a-domain-a-line-break-split-in-its-name",
+    "text": "See hotelsun rise.com for the rooms.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "an-email-a-line-break-split-after-a-dot",
+    "text": "Write to john. smith@gmail.com please.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "a-street-type-a-line-break-split",
+    "text": "We stayed at 12 Oak Ro ad and loved it.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "a-service-before-dot-com-is-prose",
+    "text": "Booking .com said the room was free.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "prices-are-not-a-coordinate-pair",
+    "text": "Prices were 12.50, 14.75 and 9.99 for the menus.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "praise-and-a-rating-is-not-a-number-last-address",
+    "text": "Great Place 10 out of 10 for the stay.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "a-number-written-out-before-a-star-place-is-prose",
+    "text": "Five Star Place to stay, honestly.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
     "vectorId": "iban-then-one-word",
     "text": "Pay to BG80 BNBG 9661 1020 3456 78 please.",
     "countryCode": "BG",

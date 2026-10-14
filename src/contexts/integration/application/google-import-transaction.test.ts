@@ -399,6 +399,25 @@ describe('Google import transaction', () => {
     expect(fixture.releaseCandidateClaims).toHaveBeenCalledTimes(1)
   })
 
+  it.each([
+    ['authorization_denied', 'unauthorized'],
+    ['authorization_changed', 'unauthorized'],
+    ['connection_unavailable', 'reauthentication_required'],
+    ['runtime_unavailable', 'temporarily_unavailable'],
+  ] as const)(
+    'reports a final authorizer %s denial as %s and releases the claims',
+    async (authorizerCode, expectedCode) => {
+      const fixture = setup()
+      fixture.authorizeGoogleImportCommand
+        .mockResolvedValueOnce({ ok: true, authorization, accessToken: null })
+        .mockResolvedValueOnce({ ok: false, code: authorizerCode })
+
+      await expectCode(fixture.transaction.start(startInput(), actor), expectedCode)
+      expect(fixture.commitSaga).not.toHaveBeenCalled()
+      expect(fixture.releaseCandidateClaims).toHaveBeenCalledTimes(1)
+    },
+  )
+
   it('recovers a committed intent after an ambiguous commit response', async () => {
     const fixture = setup()
     fixture.commitSaga.mockImplementationOnce(async (intent) => {

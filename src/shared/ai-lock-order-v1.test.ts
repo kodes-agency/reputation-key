@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   AI_ADVISORY_LOCK_SEED_V1,
@@ -14,7 +15,7 @@ const RUN = '00000000-0000-4000-8000-000000000003'
 const NATIVE_ORG = 'better-auth-org_01'
 
 describe('ai-lock-order-v1', () => {
-  it('pins the PostgreSQL seed and canonical PR2S advisory scopes', () => {
+  it('pins the seed constant and canonical PR2S advisory scopes', () => {
     expect(AI_ADVISORY_LOCK_SEED_V1).toBe(5_928_232_768_719_372_617n)
     expect(createAiAdvisoryScope('provider-source', [ORG, PROPERTY, 7])).toBe(
       `provider-source|${ORG}|${PROPERTY}|7`,
@@ -103,5 +104,16 @@ describe('ai-lock-order-v1', () => {
     expect(() =>
       createAiAdvisoryScope('property-event', ['unsafe|organization', PROPERTY, 1, 1]),
     ).toThrow(/organization identifier/)
+  })
+})
+
+describe('what PostgreSQL hashes for an advisory lock', () => {
+  it('is the bare scope with seed 0, not the framed text or the seed above', () => {
+    const sql = readFileSync(new URL('./db/db-constructs.sql', import.meta.url), 'utf8')
+    const definition =
+      /FUNCTION public\.ai_advisory_lock_key_v1\(p_lock_key text\)[\s\S]*?\$function\$([\s\S]*?)\$function\$/u.exec(
+        sql,
+      )
+    expect(definition?.[1]?.trim()).toBe('SELECT hashtextextended(p_lock_key, 0)')
   })
 })

@@ -292,11 +292,22 @@ export function createGoogleExecutionAdmissionService(
           retryAfterMs: 0,
         }
       }
-      const expiresAtMs = Math.min(permit.expiresAtMs, input.deadlineMs, nowMs + 30_000)
-      if (expiresAtMs <= nowMs) {
+      // Waiting for a slot and the permit's start round trip took time, so the
+      // grant is measured against the clock now, not the one read at entry.
+      const grantedAtMs = deps.nowMs()
+      const expiresAtMs = Math.min(
+        permit.expiresAtMs,
+        input.deadlineMs,
+        grantedAtMs + 30_000,
+      )
+      if (expiresAtMs <= grantedAtMs) {
         await deps.authority.failStarted(permit, 'grant_expired')
         await inFlight.release(inFlightKey, inFlightResult.lease)
-        return { ok: false, code: 'permit_expired', retryAfterMs: 0 }
+        return {
+          ok: false,
+          code: input.deadlineMs <= grantedAtMs ? 'deadline_exceeded' : 'permit_expired',
+          retryAfterMs: 0,
+        }
       }
       const grant = signGoogleAdmissionGrant(
         {

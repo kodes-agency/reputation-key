@@ -1,7 +1,13 @@
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { z } from 'zod/v4'
+import {
+  canonicalProviderAuthorizationVector,
+  providerAuthorizationVectorWithoutCredentialGeneration,
+} from '#/shared/provider-ephemeral/authorization-binding'
 import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import type { GoogleProviderCallAuthorization } from '../application/google-provider-contract'
+import type { GoogleConnection } from '../domain/types'
 
 const NAMESPACE = 'opaque-reference' as const
 const CURSOR_TTL_SECONDS = 30 * 60
@@ -32,12 +38,58 @@ export type GoogleReviewCursorScope = Readonly<{
   pageIndex: number
 }>
 
+/**
+ * What a cursor is bound to. The credential generation is deliberately absent:
+ * a routine access-token refresh moves only it, about once an hour, and a scan
+ * that crosses one must keep its cursor. Reconnect, disconnect and revocation
+ * move the two versions, which stay bound.
+ */
 export type GoogleReviewCursorAuthorization = Readonly<{
   connectionLifecycleVersion: number
   connectionAccessVersion: number
-  credentialGeneration: number
   authorizationVectorSha256: string
 }>
+
+/**
+ * The binding a review cursor is published and redeemed under. Its digest leaves
+ * out the credential generation, both as the authorization's expectation and as
+ * the vector member (see the type above); every other fact stays exact.
+ */
+export function googleReviewCursorAuthorization(
+  connection: Pick<GoogleConnection, 'lifecycleVersion' | 'accessVersion'>,
+  authorization: GoogleProviderCallAuthorization,
+): GoogleReviewCursorAuthorization {
+  const canonical = JSON.stringify({
+    capability: authorization.capability,
+    organizationId: authorization.organizationId,
+    propertyId: authorization.propertyId,
+    connectionId: authorization.connectionId,
+    initiatorUserId: authorization.initiatorUserId,
+    authorizationVector: canonicalProviderAuthorizationVector(
+      providerAuthorizationVectorWithoutCredentialGeneration(
+        authorization.authorizationVector,
+      ),
+    ),
+  })
+  return {
+    connectionLifecycleVersion: connection.lifecycleVersion,
+    connectionAccessVersion: connection.accessVersion,
+    authorizationVectorSha256: createHash('sha256')
+      .update(canonical, 'utf8')
+      .digest('hex'),
+  }
+}
+
+export function sameGoogleReviewCursorAuthorization(
+  left: GoogleReviewCursorAuthorization,
+  right: GoogleReviewCursorAuthorization,
+): boolean {
+  return (
+    left.connectionLifecycleVersion === right.connectionLifecycleVersion &&
+    left.connectionAccessVersion === right.connectionAccessVersion &&
+    left.authorizationVectorSha256 === right.authorizationVectorSha256
+  )
+}
 
 export type GoogleReviewCursorFailureCode =
   | 'not_found'
@@ -83,7 +135,6 @@ const authorizationSchema = z
   .object({
     connectionLifecycleVersion: z.number().int().safe().nonnegative(),
     connectionAccessVersion: z.number().int().safe().nonnegative(),
-    credentialGeneration: z.number().int().safe().nonnegative(),
     authorizationVectorSha256: z.string().regex(/^[a-f0-9]{64}$/u),
   })
   .strict()

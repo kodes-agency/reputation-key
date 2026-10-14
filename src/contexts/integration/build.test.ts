@@ -375,8 +375,10 @@ describe('buildIntegrationContext mandatory policy refresh', () => {
   it('reaches the execution policy after observing the static policy', async () => {
     const { discovery, decide } = discoveryWithRefresh(async () => {})
 
+    // The content authority is unavailable here, which is a dependency fault the
+    // administrator can retry, not a change of their access.
     await expect(discovery.listAccounts({ connectionId }, actor)).rejects.toMatchObject({
-      code: 'unauthorized',
+      code: 'temporarily_unavailable',
     })
 
     expect(decide).toHaveBeenCalled()

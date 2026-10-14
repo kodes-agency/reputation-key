@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { googleConnectionId, propertyId } from '#/shared/domain/ids'
-import type { GoogleImportCommandAuthorizer } from './google-import-discovery'
+import {
+  authorizerDenialErrorCode,
+  type GoogleImportCommandAuthorizer,
+} from './google-import-discovery'
 import type {
   RetryPropertyImportItemInput,
   StartPropertyImportV2Input,
@@ -32,6 +35,8 @@ type OrderedImportCandidate = Readonly<{
 
 export type GoogleImportTransactionErrorCode =
   | 'unauthorized'
+  /** The Google connection no longer authenticates. Reconnect required. */
+  | 'reauthentication_required'
   | 'invalid_reference'
   | 'request_conflict'
   | 'contract_rejected'
@@ -163,7 +168,7 @@ export function createGoogleImportTransaction(
         properties,
         requireAccessToken: false,
       })
-      if (!authorization.ok) fail('unauthorized')
+      if (!authorization.ok) fail(authorizerDenialErrorCode(authorization.code))
     }
   }
 
