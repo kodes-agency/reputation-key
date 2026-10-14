@@ -2,13 +2,13 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-10-15
+amended_on: 2026-10-14
 ---
 
 # Google Business Profile Access Disclosure
 
 **Status:** Accepted for publication
-**Effective date:** 2026-10-15
+**Effective date:** 2026-10-14
 **Version:** 2.1
 **Accountable owner:** Bozhidar Denev
 
@@ -209,7 +209,7 @@ AI purpose, or publication behavior changes.
 
 ## Changes
 
-This disclosure takes effect on 2026-10-15 and is version 2.1. It replaces
+This disclosure takes effect on 2026-10-14 and is version 2.1. It replaces
 version 2.0, which took effect on 2026-09-08.
 
 Version 2.1 adds the subsection on the Property Google rating goal under "How

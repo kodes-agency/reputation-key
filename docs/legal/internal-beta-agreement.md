@@ -2,13 +2,13 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-10-15
+amended_on: 2026-10-14
 ---
 
 # Closed Beta Participation Agreement — Reputation Key
 
 **Status:** Accepted for publication and invited-beta use
-**Effective date:** 2026-10-15
+**Effective date:** 2026-10-14
 **Version:** 2.1
 **Accountable owner:** Bozhidar Denev
 
@@ -282,7 +282,7 @@ capability schedule are available.
 This agreement is accepted together with:
 
 - Privacy Notice version 2.2, effective 2026-10-13, at `/privacy`;
-- Google Business Profile Access Disclosure version 2.1, effective 2026-10-15,
+- Google Business Profile Access Disclosure version 2.1, effective 2026-10-14,
   at `/privacy/google-access-disclosure`;
 - the activated-capability schedule in `docs/BETA.md` section 4; and
 - the retention, provider, transfer, rights, deployment, and change rules in
@@ -295,7 +295,7 @@ invited Participant accepts the Participant obligations by joining.
 
 ## 13. Changes
 
-This agreement takes effect on 2026-10-15 and is version 2.1. It replaces
+This agreement takes effect on 2026-10-14 and is version 2.1. It replaces
 version 2.0, which took effect on 2026-09-08.
 
 Version 2.1 adds the Property Google rating goal to sections 2.2 and 6, and

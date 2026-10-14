@@ -174,7 +174,7 @@ AccountAdmins and PropertyManagers with access to the Property, under `goal.read
 - Dated notes: ADR 0031 (review-derived staff goals), ADR 0041 (Google facts and Goals), ADR 0049 (rule 2).
 - `docs/BETA.md`: §3 (the goal and its guardrails), §2 (the 2.1 documents), §10 (the decision), and the line references into the agreement.
 - `src/contexts/reporting/CONTEXT.md` (core model entry, invariant 10) and `CONTEXT.md` (the Reporting row, the ADR table).
-- `docs/legal/google-access-disclosure.md` 2.1 (a "Property Google rating goal" subsection under "How Google data is used", and the goal's limits under "Uses the product does not allow") and `docs/legal/internal-beta-agreement.md` 2.1 (§2.2 and §6, the acceptance package, and the version of the Privacy Notice that §2.1, §9 and §12 name), each with a closing Changes section, effective on publication, provisionally 2026-10-15.
+- `docs/legal/google-access-disclosure.md` 2.1 (a "Property Google rating goal" subsection under "How Google data is used", and the goal's limits under "Uses the product does not allow") and `docs/legal/internal-beta-agreement.md` 2.1 (§2.2 and §6, the acceptance package, and the version of the Privacy Notice that §2.1, §9 and §12 name), each with a closing Changes section, effective on publication, 2026-10-14.
 - Not changed: `docs/legal/privacy-notice.md` stays 2.2 (the goal processes no new class of personal data, and the Goal Programs its purposes name keep their three measures); `gbp.review_solicitation_gamification` keeps its fate and its explanation, which the goal does not contradict.
 
 ## Proposed copy
@@ -203,7 +203,7 @@ Taken while writing this plan:
 
 - Reviews needed is a ceiling, so 4.6 in the worked example needs 1,300, not 1,299.
 - When the cache does not hold every review Google counts, the plan uses Google's rounded figure and says the numbers are approximate.
-- The 2.1 documents take effect on publication, provisionally 2026-10-15, and say they are not a material change.
+- The 2.1 documents take effect on publication, 2026-10-14, and say they are not a material change.
 - The agreement adds no Participant duty. Its §6 says the Service does not use the goal as a staff quota, ranking, incentive or employment input; the existing §6 last paragraph and §7(5) already bind Participants on staff use. That keeps version 2.1 non-material (open question 2).
 - Agreement 2.1 names Privacy Notice version 2.2 (effective 2026-10-13) in §2.1, §9 and §12, where 2.0 named version 2.0, and says so in its §13 as a correction (open question 4).
 
