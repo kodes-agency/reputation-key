@@ -7,11 +7,12 @@
 // - Scope: tenant + property + date-range predicates live here as builders —
 //   adapters compose them instead of open-coding where-clauses.
 // - Source eligibility: the attention-signals review count applies THE
-//   ADR 0031 predicate (contentExpiresAt non-null and strictly in the future,
-//   `now` injected — BQC-5.3). Dashboard keeps its own copy because review's
-//   application public-api cannot export SQL fragments (application must not
-//   import shared/db); an integration equivalence test pins this predicate
-//   and the review-owned rule selecting the same rows over a shared fixture.
+//   ADR 0031 predicate (a Review whose content is held, contentExpiresAt
+//   non-null and strictly in the future, `now` injected — BQC-5.3). Dashboard
+//   keeps its own copy because review's application public-api cannot export
+//   SQL fragments (application must not import shared/db); an integration
+//   equivalence test pins this predicate and the review-owned rule selecting
+//   the same rows over a shared fixture.
 // - Timeout: every direct read runs inside withStatementTimeout with
 //   DASHBOARD_READ_BUDGET_MS — a slow statement aborts with a tagged
 //   DashboardReadTimeout error instead of holding a pool connection.
@@ -121,6 +122,7 @@ export function eligibleAttentionReviewWhere(
   return and(
     eq(reviews.organizationId, organizationId),
     eq(reviews.propertyId, propertyId),
+    eq(reviews.sourceContentState, 'active'),
     isNotNull(reviews.contentExpiresAt),
     gt(reviews.contentExpiresAt, now),
   )

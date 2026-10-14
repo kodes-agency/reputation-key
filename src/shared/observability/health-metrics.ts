@@ -868,6 +868,11 @@ const readNotificationDeliveryLagMetrics = async (
  * Review content lifecycle health: how many reviews carry a content expiry,
  * how many are inside the refresh window, how many already expired, and how
  * close the nearest hard expiry is (columns from migration 0006 / Drizzle).
+ *
+ * Live Reviews only. An erased Review (a tombstone) holds no content, and one
+ * erased before the erase cleared the clock still carries it: counted, it would
+ * be refresh-due and then expired, and the freshness-deadline alert would page
+ * for a review nothing can refresh.
  */
 async function readReviewContentMetrics(
   db: Database,
@@ -905,6 +910,7 @@ async function readReviewContentMetrics(
       `,
     })
     .from(reviews)
+    .where(eq(reviews.sourceContentState, 'active'))
 
   const row = result[0]
   return {

@@ -9,6 +9,17 @@
 //          use keyset-bounded batch queries (findExpiringBatchAcrossTenants,
 //          findExpiredBatchBeforeAcrossTenants) with caller-supplied limits —
 //          the one-shot 5,000-row scans were removed (not cursor-safe at scale).
+//
+// Erased Reviews: a Review whose provider content was erased (a tombstone,
+// source_content_state other than 'active') has no rating, ids or text, so it
+// cannot be mapped to a `Review`. Every read that maps rows or selects on the
+// content clock is scoped to live rows (`holdsContent`), so an erased Review
+// is ABSENT from them — `findById` answers null, the batch reads skip it —
+// instead of throwing. Two reads need no scope because a tombstone cannot match
+// them: findByConnection and findByExternalId select on columns the
+// reviews_source_content_state_valid CHECK forces to NULL on a tombstone.
+// findStableIdentityByProviderSubjects returns tombstones on purpose: a
+// re-observation needs the erased Review's identity to restore it.
 
 import { timingSafeEqual } from 'node:crypto'
 import {
@@ -24,6 +35,7 @@ import {
   isNotNull,
   sql,
 } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 import type { Database, Tx } from '#/shared/db'
 import { reviews, reviewProviderSubjects } from '#/shared/db/schema/review.schema'
 import type { ReviewRepository } from '../../application/ports/review.repository'
@@ -184,6 +196,51 @@ function aiSourceLookupSql(input: AiReviewSourceRequest) {
     LIMIT 1
   `
 }
+
+/**
+ * Rows whose provider content is still held. A tombstone is the stable
+ * identity of a Review whose content was erased: nothing on it can be mapped,
+ * refreshed, purged or served.
+ */
+const holdsContent = eq(reviews.sourceContentState, 'active')
+
+/** A Review of one Organization whose content is held. */
+const liveIn = (orgId: OrganizationId) =>
+  and(eq(reviews.organizationId, orgId), holdsContent)
+
+type ClockCursor = Readonly<{ contentExpiresAt: Date; id: string }> | null
+
+/**
+ * One keyset page of live Reviews by content clock, oldest first. `bound` is
+ * the comparison of the clock with the sweep's date; the cursor is a strict
+ * row-tuple greater-than, so rows inserted behind it are never skipped or
+ * repeated as it advances. The clock predicate keeps the partial index
+ * (`reviews_content_expires_idx`) usable.
+ */
+async function clockBatchAcrossTenants(
+  db: Database,
+  bound: SQL,
+  cursor: ClockCursor,
+  limit: number,
+) {
+  const rows = await db
+    .select()
+    .from(reviews)
+    .where(
+      and(
+        holdsContent,
+        isNotNull(reviews.contentExpiresAt),
+        bound,
+        cursor
+          ? sql`(${reviews.contentExpiresAt}, ${reviews.id}) > (${cursor.contentExpiresAt}, ${cursor.id})`
+          : undefined,
+      ),
+    )
+    .orderBy(reviews.contentExpiresAt, reviews.id)
+    .limit(limit)
+  return rows.map(reviewFromRow)
+}
+
 export const createReviewRepository = (
   db: Database,
   clock: () => Date,
@@ -193,7 +250,7 @@ export const createReviewRepository = (
       const rows = await db
         .select()
         .from(reviews)
-        .where(and(eq(reviews.id, id), eq(reviews.organizationId, organizationId)))
+        .where(and(eq(reviews.id, id), liveIn(organizationId)))
         .limit(1)
       return rows[0] ? reviewFromRow(rows[0]) : null
     })
@@ -550,9 +607,7 @@ export const createReviewRepository = (
       const rows = await db
         .select()
         .from(reviews)
-        .where(
-          and(inArray(reviews.id, [...ids]), eq(reviews.organizationId, organizationId)),
-        )
+        .where(and(inArray(reviews.id, [...ids]), liveIn(organizationId)))
       return rows.map((r) => reviewFromRow(r))
     })
   },
@@ -748,12 +803,7 @@ export const createReviewRepository = (
       const query = db
         .select()
         .from(reviews)
-        .where(
-          and(
-            eq(reviews.propertyId, propertyId),
-            eq(reviews.organizationId, organizationId),
-          ),
-        )
+        .where(and(eq(reviews.propertyId, propertyId), liveIn(organizationId)))
         .orderBy(desc(reviews.reviewedAt))
 
       // F038: Support LIMIT pushdown instead of fetching 500 rows and sorting in JS
@@ -765,8 +815,8 @@ export const createReviewRepository = (
 
   /**
    * BQC-1.4: serving read for recent reviews — eligible content only.
-   * Eligibility predicate lives in SQL (defense in depth): non-null
-   * contentExpiresAt strictly in the future, newest first.
+   * Eligibility predicate lives in SQL (defense in depth): a live Review with
+   * a non-null contentExpiresAt strictly in the future, newest first.
    */
   findRecentEligibleByPropertyId: async (propertyId, organizationId, options, now) => {
     return trace('review.findRecentEligibleByPropertyId', async () => {
@@ -776,7 +826,7 @@ export const createReviewRepository = (
         .where(
           and(
             eq(reviews.propertyId, propertyId),
-            eq(reviews.organizationId, organizationId),
+            liveIn(organizationId),
             isNotNull(reviews.contentExpiresAt),
             gt(reviews.contentExpiresAt, now),
           ),
@@ -789,11 +839,7 @@ export const createReviewRepository = (
 
   findByOrganizationId: async (orgId: OrganizationId) => {
     return trace('review.findByOrganizationId', async () => {
-      const rows = await db
-        .select()
-        .from(reviews)
-        .where(eq(reviews.organizationId, orgId))
-        .limit(500)
+      const rows = await db.select().from(reviews).where(liveIn(orgId)).limit(500)
       return rows.map(reviewFromRow)
     })
   },
@@ -818,8 +864,8 @@ export const createReviewRepository = (
 
   /**
    * BQC-1.2: eligible content filter for cross-context list queries.
-   * Eligibility predicate lives here (defense in depth): non-null
-   * contentExpiresAt strictly in the future. Text search escapes LIKE
+   * Eligibility predicate lives here (defense in depth): a live Review with
+   * a non-null contentExpiresAt strictly in the future. Text search escapes LIKE
    * wildcards. This returns the complete eligible id set because the inbox
    * uses it for both page results and the matching total; truncating here
    * would silently hide older matches for larger organizations.
@@ -827,7 +873,7 @@ export const createReviewRepository = (
   findIdsByContentFilter: async (orgId, filter, now) => {
     return trace('review.findIdsByContentFilter', async () => {
       const conditions = [
-        eq(reviews.organizationId, orgId),
+        liveIn(orgId),
         isNotNull(reviews.contentExpiresAt),
         gt(reviews.contentExpiresAt, now),
       ]
@@ -853,24 +899,9 @@ export const createReviewRepository = (
    * inserts behind the cursor never cause skips or repeats.
    */
   findExpiringBatchAcrossTenants: async (date, cursor, limit) => {
-    return trace('review.findExpiringBatchAcrossTenants', async () => {
-      const conditions = [
-        isNotNull(reviews.contentExpiresAt),
-        lte(reviews.contentExpiresAt, date),
-      ]
-      if (cursor) {
-        conditions.push(
-          sql`(${reviews.contentExpiresAt}, ${reviews.id}) > (${cursor.contentExpiresAt}, ${cursor.id})`,
-        )
-      }
-      const rows = await db
-        .select()
-        .from(reviews)
-        .where(and(...conditions))
-        .orderBy(reviews.contentExpiresAt, reviews.id)
-        .limit(limit)
-      return rows.map(reviewFromRow)
-    })
+    return trace('review.findExpiringBatchAcrossTenants', () =>
+      clockBatchAcrossTenants(db, lte(reviews.contentExpiresAt, date), cursor, limit),
+    )
   },
 
   /**
@@ -882,24 +913,9 @@ export const createReviewRepository = (
    * fetch clock expires.
    */
   findExpiredBatchBeforeAcrossTenants: async (date, cursor, limit) => {
-    return trace('review.findExpiredBatchBeforeAcrossTenants', async () => {
-      const conditions = [
-        isNotNull(reviews.contentExpiresAt),
-        lt(reviews.contentExpiresAt, date),
-      ]
-      if (cursor) {
-        conditions.push(
-          sql`(${reviews.contentExpiresAt}, ${reviews.id}) > (${cursor.contentExpiresAt}, ${cursor.id})`,
-        )
-      }
-      const rows = await db
-        .select()
-        .from(reviews)
-        .where(and(...conditions))
-        .orderBy(reviews.contentExpiresAt, reviews.id)
-        .limit(limit)
-      return rows.map(reviewFromRow)
-    })
+    return trace('review.findExpiredBatchBeforeAcrossTenants', () =>
+      clockBatchAcrossTenants(db, lt(reviews.contentExpiresAt, date), cursor, limit),
+    )
   },
 
   /**
@@ -912,7 +928,11 @@ export const createReviewRepository = (
         .select({ count: sql<number>`count(*)::int` })
         .from(reviews)
         .where(
-          and(isNotNull(reviews.contentExpiresAt), lt(reviews.contentExpiresAt, date)),
+          and(
+            holdsContent,
+            isNotNull(reviews.contentExpiresAt),
+            lt(reviews.contentExpiresAt, date),
+          ),
         )
       return rows[0]?.count ?? 0
     })

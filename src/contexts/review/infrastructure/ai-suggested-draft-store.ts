@@ -163,6 +163,7 @@ export const createAiSuggestedDraftStore = (
             propertyId: reviews.propertyId,
             sourceEpoch: reviews.sourceEpoch,
             sourceRevision: reviews.sourceRevision,
+            sourceContentState: reviews.sourceContentState,
             contentExpiresAt: reviews.contentExpiresAt,
             replyStateRevision: reviews.replyStateRevision,
           })
@@ -307,6 +308,7 @@ export const createAiSuggestedDraftStore = (
           review.propertyId !== input.propertyId ||
           review.sourceEpoch !== provenance.sourceEpoch ||
           review.sourceRevision !== provenance.sourceRevision ||
+          review.sourceContentState !== 'active' ||
           review.contentExpiresAt === null ||
           review.contentExpiresAt <= databaseNow ||
           provenance.draftExpiresAtEpochMillis > review.contentExpiresAt.getTime()
