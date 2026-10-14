@@ -277,7 +277,7 @@ export const GoogleGoalColumn: Story = {
       canvas.getByRole('link', {
         name: 'Set goal: Google rating goal for Harborline Suites',
       }),
-    ).toHaveAttribute('href', '/properties/prop-harborline/goals')
+    ).toHaveAttribute('href', '/properties/prop-harborline/goals?start=rating-goal')
     // Too few Google reviews, no Google numbers, or paused: nothing to set.
     expect(canvas.getAllByRole('link', { name: /^Set goal:/ })).toHaveLength(1)
   },
@@ -292,8 +292,71 @@ export const GoogleGoalColumnPhone: Story = {
     const elegance = bodyRows(canvas).find((row: HTMLElement) =>
       within(row).queryByText('Hotel Elegance'),
     )!
-    expect(within(elegance).getByText(/Google goal/)).toBeInTheDocument()
-    expect(within(elegance).getByText('4.0 · Below pace')).toBeVisible()
+    expect(within(elegance).getByText('Google goal:')).toBeInTheDocument()
+    const goal = within(elegance).getByRole('link', {
+      name: '4.0 · Below pace: Google rating goal for Hotel Elegance',
+    })
+    expect(goal).toHaveTextContent('4.0·Below pace')
+    expect(goal).toBeVisible()
+  },
+}
+
+/**
+ * The longest statuses at the width the table really gets beside the app's
+ * sidebar (about 1000px): the target stays on its line, the status on the next.
+ */
+export const GoogleGoalLongStatuses: Story = {
+  args: {
+    ...ready,
+    comparison: new Map([
+      ...comparison,
+      [
+        'prop-studio',
+        figures(
+          4.2,
+          140,
+          {},
+          { kind: 'set', mode: 'climb', target: 4.5, status: 'cant_reach_at_mix' },
+        ),
+      ],
+      [
+        'prop-harborline',
+        figures(
+          4.3,
+          412,
+          { total: 4, itemsToTriage: 4 },
+          { kind: 'set', mode: 'climb', target: 4.8, status: 'waiting_for_google' },
+        ),
+      ],
+    ]),
+    setup: new Map([
+      ...setup,
+      ['prop-elegance', progress(6, nextStep('rating_goal', 'goals'))],
+    ]),
+  },
+  decorators: [
+    (Story) => (
+      <div style={{ width: 1000 }}>
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByRole('link', {
+        name: '4.5 · Can’t reach at this mix: Google rating goal for Studio Priority',
+      }),
+    ).toBeVisible()
+    expect(
+      canvas.getByRole('link', {
+        name: '4.8 · Waiting for Google: Google rating goal for Harborline Suites',
+      }),
+    ).toBeVisible()
+    // The setup's next step opens the rating goal wizard on the Goals page.
+    expect(
+      canvas.getByRole('link', { name: /Next: Set a Google rating goal/ }),
+    ).toHaveAttribute('href', '/properties/prop-elegance/goals?start=rating-goal')
   },
 }
 

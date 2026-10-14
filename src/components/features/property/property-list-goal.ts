@@ -5,8 +5,11 @@ import type { FleetRatingGoal } from '#/contexts/reporting/application/public-ap
 import { RATING_GOAL_STATUS, ratingText } from '#/components/goals/rating-goal-view'
 
 export type GoogleGoalCell =
-  /** An active goal: its target and the status it last stored. */
-  | Readonly<{ kind: 'goal'; text: string }>
+  /**
+   * An active goal: its target and the status it last stored (null before the
+   * first), and both as one line ("4.5 · On pace") for a phone and a name.
+   */
+  | Readonly<{ kind: 'goal'; target: string; status: string | null; text: string }>
   /** No goal, one is offered, and the viewer may set it. */
   | Readonly<{ kind: 'set' }>
   | Readonly<{ kind: 'none' }>
@@ -20,7 +23,12 @@ export function googleGoalCell(
   if (goal.kind === 'set') {
     const target = ratingText(goal.target)
     const status = goal.status === null ? null : RATING_GOAL_STATUS[goal.status].label
-    return { kind: 'goal', text: status === null ? target : `${target} · ${status}` }
+    return {
+      kind: 'goal',
+      target,
+      status,
+      text: status === null ? target : `${target} · ${status}`,
+    }
   }
   return goal.offered && canCreate ? { kind: 'set' } : { kind: 'none' }
 }

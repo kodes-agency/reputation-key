@@ -10,7 +10,12 @@ describe('googleGoalCell', () => {
     )
 
     // Assert
-    expect(cell).toEqual({ kind: 'goal', text: '4.5 · On pace' })
+    expect(cell).toEqual({
+      kind: 'goal',
+      target: '4.5',
+      status: 'On pace',
+      text: '4.5 · On pace',
+    })
   })
 
   it('names a goal that keeps a number the same way', () => {
@@ -19,13 +24,13 @@ describe('googleGoalCell', () => {
         { kind: 'set', mode: 'keep', target: 4.3, status: 'holding' },
         false,
       ),
-    ).toEqual({ kind: 'goal', text: '4.3 · Holding' })
+    ).toEqual({ kind: 'goal', target: '4.3', status: 'Holding', text: '4.3 · Holding' })
   })
 
   it('names the target alone while no status is stored yet', () => {
     expect(
       googleGoalCell({ kind: 'set', mode: 'climb', target: 4.4, status: null }, true),
-    ).toEqual({ kind: 'goal', text: '4.4' })
+    ).toEqual({ kind: 'goal', target: '4.4', status: null, text: '4.4' })
   })
 
   it('offers "Set goal" where a goal is offered and the viewer may set one', () => {
