@@ -43,6 +43,15 @@ metric authority.
   and measure. A row that cannot be saved is reported with its reason and never holds back
   the others, and a row reached after the chosen month has ended is not written. There is no
   target that subjects share and no Property total.
+- **Property Google rating goal**: a Property's target for the one-decimal rating Google
+  shows, with a chosen weekly pace of new Google reviews (a climb goal), or a watch that
+  Google keeps showing a tenth it shows now (a keep goal). At most one is active per
+  Property (ADR 0067, `docs/plan/google-rating-goal.md`). It is not a Goal Program: it has
+  no months, subjects, metric readings or monthly results, no deadline and no "missed". It
+  is worked out from Google's own rating and review count (the Current on Google snapshot)
+  and from counts and star sums of the Property's cached Google reviews, read through
+  Review's public API, and it is reached only when Google itself shows the target. Only
+  AccountAdmins and PropertyManagers with access to the Property see, set, change or end it.
 - **Dashboard read model**: content-minimal presentation assembled from governed sources.
 - **Portal lifetime aggregate**: anonymous all-time values with rebuild and seal evidence.
 - **Portal results measures**: the five figures on a Portal's Results view, each named for
@@ -135,6 +144,12 @@ metric authority.
    or several), and changing a goal's status to `active` (starting a scheduled goal, resuming a
    paused one). Pausing and ending are never refused. A month already open still reconciles
    and closes, which is how Goal's purge-readiness check comes to find none left.
+10. The Property Google rating goal and Goal Programs never feed each other. No Goal measure
+    reads Google data (`GOAL_METRICS`, and the metric CHECKs on `goal_program_versions` and
+    `goal_subject_assignments`), no Goal Program target or result is derived from the rating
+    goal, and the rating goal reads no metric reading and no Goal result. The rating goal is
+    never split across Portals, Portal Groups or people, never shown to staff, and never a
+    quota, ranking, incentive or employment input (ADR 0067).
 
 ## Interfaces and dependencies
 

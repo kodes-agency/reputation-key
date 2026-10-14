@@ -11,7 +11,7 @@ Google Business Profile review processing is allowed only through a versioned, e
 
 The review context remains the sole owner of canonical raw Google review and reply content. Raw review text, rating, reviewer information, Google identifiers, and Google-observed reply text are refreshed or removed under the applicable 30-day cache policy; a local read, scheduler touch, copy, backup, or model call never extends that clock. RepKey adopts the conservative interpretation that only a successful authorized Google re-fetch may establish a new cache observation until Google confirms more precise refresh semantics.
 
-AI results may be retained separately only when they are property-scoped derivative metadata that does not reproduce raw content, personally identifiable information, Google identifiers, exact replies, or reversible content fingerprints. Bounded lowercase category labels of no more than four words are permitted derivative metadata only when they identify nobody, contain no proper noun, and are non-reversible; review excerpts and identifiers remain forbidden. Per-review sentiment/aspect analysis, property-local themes/trends/summaries, and manager-requested reply drafts are conditionally allowed. Cross-property AI reports, organization summaries, automatic reply publication, provider training on submitted data, silent cross-region fallback, and review-derived staff goals/badges/leaderboards are denied.
+AI results may be retained separately only when they are property-scoped derivative metadata that does not reproduce raw content, personally identifiable information, Google identifiers, exact replies, or reversible content fingerprints. Bounded lowercase category labels of no more than four words are permitted derivative metadata only when they identify nobody, contain no proper noun, and are non-reversible; review excerpts and identifiers remain forbidden. Per-review sentiment/aspect analysis, property-local themes/trends/summaries, and manager-requested reply drafts are conditionally allowed. Cross-property AI reports, organization summaries, automatic reply publication, provider training on submitted data, silent cross-region fallback, and review-derived staff goals/badges/leaderboards are denied (amended 2026-10-14, below).
 
 Every external AI operation requires all of the following at invocation and persistence time:
 
@@ -92,3 +92,20 @@ The approval that requirement asks for is decided in two other places:
 The decision is unchanged: an external AI operation still needs an approved
 capability, and an unknown one is still denied. This note records where the code
 holds that approval and decides nothing.
+
+## Amended 2026-10-14 — a Property Google rating goal is not a staff goal
+
+Owner decision 2026-10-14, recorded in
+[ADR 0067](0067-property-google-rating-goal.md). The denial of review-derived
+staff goals, badges and leaderboards is unchanged. ADR 0067 adds one
+Property-level goal for the rating Google shows: AccountAdmins and
+PropertyManagers with access to the Property set it, it is never split across
+Portals, Portal Groups or people, it is never shown to staff, and it is never a
+quota, ranking, incentive or employment input. It is not a staff goal.
+
+It reads the review cache only through Review's public API, as counts and star
+sums of reviews that may be served under this policy and were observed under the
+Property's current Google binding. As with Feed's rating read above, a read
+neither extends the cache clock nor copies content. The goal stores no review
+content and no per-review value, only Property-level figures, and no AI
+operation takes part in it.
