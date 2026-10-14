@@ -5,6 +5,7 @@
 // state), so they live together, apart from the registration list.
 
 import { z } from 'zod/v4'
+import { registerEventSchema } from './schema-registry'
 
 const goalMonthlyResultBaseSchema = z
   .object({
@@ -76,3 +77,76 @@ export const goalMonthlyResultRevisedSchema = goalMonthlyResultBaseSchema
       ctx.addIssue({ code: 'custom', message: 'result revision lineage is invalid' })
     }
   })
+
+// ── Property Google rating goal ─────────────────────────────────────
+
+const tenthSchema = z.number().int().min(0).max(50)
+
+/**
+ * `goal.rating_goal.transitioned`: one fact per notice a rating goal's
+ * evaluation raises (ADR 0067 decision 6). Closed enums and Property-level
+ * figures only: Google's shown tenth, the goal's target and pace, the recent
+ * pace and the recent mix. Each transition carries exactly the figures its
+ * notice states.
+ */
+export const goalRatingGoalTransitionedSchema = z
+  .object({
+    organizationId: z.string().trim().min(1),
+    propertyId: z.uuid(),
+    goalId: z.uuid(),
+    transition: z.enum([
+      'reached',
+      'google_rating_changed',
+      'entered_below_pace',
+      'entered_cant_reach',
+      'keep_dropped_below',
+    ]),
+    mode: z.enum(['climb', 'keep']),
+    targetTenths: z.number().int().min(10).max(50),
+    shownTenths: tenthSchema.nullable(),
+    previousTenths: tenthSchema.nullable(),
+    pacePerWeek: z.number().int().min(1).max(200).nullable(),
+    recentPaceTenths: z.number().int().min(0).max(100_000).nullable(),
+    paceWindow: z.enum(['last_4_weeks', 'since_set']).nullable(),
+    mixHundredths: z.number().int().min(0).max(500).nullable(),
+    occurredAt: z.iso.datetime(),
+  })
+  .superRefine((payload, ctx) => {
+    const needs: Readonly<Record<typeof payload.transition, readonly string[]>> = {
+      reached: ['shownTenths'],
+      google_rating_changed: ['shownTenths', 'previousTenths'],
+      entered_below_pace: ['pacePerWeek', 'recentPaceTenths', 'paceWindow'],
+      entered_cant_reach: ['mixHundredths'],
+      keep_dropped_below: ['shownTenths'],
+    }
+    const fields = payload as Readonly<Record<string, unknown>>
+    for (const field of needs[payload.transition]) {
+      if (fields[field] === null) {
+        ctx.addIssue({ code: 'custom', message: `${payload.transition} needs ${field}` })
+      }
+    }
+  })
+
+/** The Goal facts, registered together by ./schema-registrations.ts. */
+export function registerGoalEventSchemas(version: number): void {
+  registerEventSchema({
+    type: 'goal.monthly_result.closed',
+    version,
+    schema: goalMonthlyResultClosedSchema,
+  })
+  registerEventSchema({
+    type: 'goal.monthly_result.reconciled',
+    version,
+    schema: goalMonthlyResultReconciledSchema,
+  })
+  registerEventSchema({
+    type: 'goal.monthly_result.revised',
+    version,
+    schema: goalMonthlyResultRevisedSchema,
+  })
+  registerEventSchema({
+    type: 'goal.rating_goal.transitioned',
+    version,
+    schema: goalRatingGoalTransitionedSchema,
+  })
+}

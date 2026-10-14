@@ -148,7 +148,13 @@ function newGoal(
       googleAverage: reading.google?.averageRating ?? 0,
       exactAverage: reading.exact ? ratioToNumber(reading.exact.value) : 0,
     },
-    lastEvaluation: { displayedTenths: null, status: null, evaluatedAt: null },
+    lastEvaluation: {
+      displayedTenths: null,
+      status: null,
+      evaluatedAt: null,
+      knownStatus: null,
+      belowPaceNoticedAt: null,
+    },
     createdBy: actor.userId,
     createdAt: reading.now,
     updatedAt: reading.now,
@@ -167,10 +173,13 @@ function newGoal(
   )
   return {
     ...goal,
+    // The status it starts in is known: the first change from it is a notice.
     lastEvaluation: {
       displayedTenths: starting.displayedTenths,
       status: starting.status,
       evaluatedAt: reading.now,
+      knownStatus: starting.status === 'waiting_for_google' ? null : starting.status,
+      belowPaceNoticedAt: null,
     },
   }
 }

@@ -5,6 +5,7 @@
 // current PropertyAccessGrant. The policy is asked before anything is read.
 
 import { ratingGoalError, type PropertyRatingGoal } from '../../domain/rating-goal'
+import type { RatingGoalNotice } from '../../domain/rating-goal-notices'
 import { statusPaceWindow } from '../../domain/rating-goal-status'
 import { weekStartInstant } from '../../domain/rating-goal-weeks'
 import type {
@@ -84,6 +85,8 @@ export type EvaluatedRatingGoal = Readonly<{
    */
   previous: Pick<PropertyRatingGoal, 'state' | 'lastEvaluation'>
   stored: boolean
+  /** What this evaluation told the goal's managers: none unless it was stored. */
+  notices: readonly RatingGoalNotice[]
   evaluation: RatingGoalEvaluation
   reading: RatingGoalReading
   /** Reviews created this Property-local week. */
@@ -114,12 +117,17 @@ export async function evaluateActiveRatingGoal(
     deps.repository,
     goal,
     evaluation,
+    {
+      mix: reading.mix?.value ?? null,
+      pace: window ? { reviews: paceWindowCount, window } : null,
+    },
     now,
   )
   return {
     goal: recorded.goal,
     previous: { state: goal.state, lastEvaluation: goal.lastEvaluation },
     stored: recorded.stored,
+    notices: recorded.notices,
     evaluation,
     reading,
     thisWeekCount,

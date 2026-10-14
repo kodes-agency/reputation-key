@@ -4,13 +4,17 @@
 // unique index `property_rating_goals_one_active_idx` is what holds "one
 // active goal per Property" when two managers set one at once: the loser's
 // insert does nothing and is told `active_exists`. A manager's change or end
-// is a compare-and-set on the version. An evaluation never moves the version
-// and writes only when it changes the row, and only onto the plan version it
-// was worked out on and never over a newer evaluation: a reached step decided
-// on a target the manager has since raised, or an older reading landing after
-// a newer one, changes nothing.
+// is a compare-and-set on the version; a change also forgets the known status,
+// so a status the new plan puts the goal in is stored without a notice. An
+// evaluation never moves the version and writes only when it changes the row,
+// and only onto the plan version it was worked out on, never over a newer
+// evaluation, and only onto the tenth, known status and below-pace notice it
+// read: a reached step decided on a target the manager has since raised, an
+// older reading landing after a newer one, or a second evaluation of a change
+// another one already stored, changes nothing and tells nobody. The notices an
+// evaluation raises are written as outbox facts in its own transaction.
 
-import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   propertyRatingGoalChanges,
@@ -18,6 +22,8 @@ import {
 } from '#/shared/db/schema/goal.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import { trace } from '#/shared/observability/trace'
+import { insertOutboxRow } from '#/shared/outbox/commit'
+import { goalRatingGoalTransitioned } from '../../domain/goal-events'
 import type {
   PropertyRatingGoal,
   RatingGoalChange,
@@ -58,6 +64,8 @@ const goalFromRow = (row: GoalRow): PropertyRatingGoal => ({
     displayedTenths: row.lastDisplayedTenths,
     status: row.lastEvaluatedStatus as RatingGoalStatus | null,
     evaluatedAt: row.lastEvaluatedAt,
+    knownStatus: row.lastKnownStatus as RatingGoalStatus | null,
+    belowPaceNoticedAt: row.belowPaceNoticedAt,
   },
   reachedAt: row.reachedAt,
   endedAt: row.endedAt,
@@ -110,6 +118,8 @@ function evaluationSet(write: RatingGoalEvaluationWrite) {
     lastDisplayedTenths: sql`COALESCE(${write.displayedTenths}::smallint, ${propertyRatingGoals.lastDisplayedTenths})`,
     lastEvaluatedStatus: write.status,
     lastEvaluatedAt: write.evaluatedAt,
+    lastKnownStatus: write.knownStatus,
+    belowPaceNoticedAt: write.belowPaceNoticedAt,
     updatedAt: write.evaluatedAt,
   }
   switch (write.outcome.kind) {
@@ -132,8 +142,40 @@ const evaluationChanges = (write: RatingGoalEvaluationWrite) =>
   write.outcome.kind !== 'continues'
     ? sql`true`
     : sql`(${propertyRatingGoals.lastEvaluatedStatus} IS DISTINCT FROM ${write.status}
+        OR ${propertyRatingGoals.lastKnownStatus} IS DISTINCT FROM ${write.knownStatus}::varchar
         OR (${write.displayedTenths}::smallint IS NOT NULL
           AND ${propertyRatingGoals.lastDisplayedTenths} IS DISTINCT FROM ${write.displayedTenths}::smallint))`
+
+/**
+ * The stored tenth, known status and below-pace notice are still the ones the
+ * evaluation read, so its notices are this change's, told once.
+ */
+const markUnchangedSince = ({ expectedMark }: RatingGoalEvaluationWrite) =>
+  sql`(${propertyRatingGoals.lastDisplayedTenths} IS NOT DISTINCT FROM ${expectedMark.displayedTenths}::smallint
+    AND ${propertyRatingGoals.lastKnownStatus} IS NOT DISTINCT FROM ${expectedMark.knownStatus}::varchar
+    AND ${propertyRatingGoals.belowPaceNoticedAt} IS NOT DISTINCT FROM ${expectedMark.belowPaceNoticedAt}::timestamptz)`
+
+/** One `goal.rating_goal.transitioned` fact per notice, in the write's transaction. */
+async function insertNoticeFacts(
+  tx: Tx,
+  write: RatingGoalEvaluationWrite,
+  mode: RatingGoalMode,
+): Promise<void> {
+  for (const notice of write.notices) {
+    await insertOutboxRow(
+      tx,
+      goalRatingGoalTransitioned({
+        organizationId: write.organizationId,
+        propertyId: write.propertyId,
+        goalId: write.goalId,
+        mode,
+        notice,
+        occurredAt: write.evaluatedAt,
+      }),
+      { recordedAt: write.evaluatedAt },
+    )
+  }
+}
 
 export const createPropertyRatingGoalRepository = (
   db: Database,
@@ -221,6 +263,8 @@ export const createPropertyRatingGoalRepository = (
           lastDisplayedTenths: goal.lastEvaluation.displayedTenths,
           lastEvaluatedStatus: goal.lastEvaluation.status,
           lastEvaluatedAt: goal.lastEvaluation.evaluatedAt,
+          lastKnownStatus: goal.lastEvaluation.knownStatus,
+          belowPaceNoticedAt: goal.lastEvaluation.belowPaceNoticedAt,
           createdBy: goal.createdBy,
           createdAt: goal.createdAt,
           updatedAt: goal.updatedAt,
@@ -240,6 +284,9 @@ export const createPropertyRatingGoalRepository = (
             mode: change.plan.mode,
             targetTenths: change.plan.targetTenths,
             pacePerWeek: change.plan.pacePerWeek,
+            // The status the new plan puts the goal in is the manager's own
+            // doing: the next evaluation stores it without a notice.
+            lastKnownStatus: null,
             version: sql`${propertyRatingGoals.version} + 1`,
             updatedAt: change.changedAt,
           })
@@ -291,26 +338,48 @@ export const createPropertyRatingGoalRepository = (
     ),
 
   recordEvaluation: (write) =>
-    trace('reporting.ratingGoal.recordEvaluation', async () => {
-      const updated = await db
-        .update(propertyRatingGoals)
-        .set(evaluationSet(write))
-        .where(
-          and(
-            goalScope(write.organizationId, write.propertyId),
-            eq(propertyRatingGoals.id, write.goalId),
-            eq(propertyRatingGoals.status, 'active'),
-            eq(propertyRatingGoals.version, write.expectedVersion),
-            or(
-              isNull(propertyRatingGoals.lastEvaluatedAt),
-              lte(propertyRatingGoals.lastEvaluatedAt, write.evaluatedAt),
+    trace('reporting.ratingGoal.recordEvaluation', () =>
+      db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(propertyRatingGoals)
+          .set(evaluationSet(write))
+          .where(
+            and(
+              goalScope(write.organizationId, write.propertyId),
+              eq(propertyRatingGoals.id, write.goalId),
+              eq(propertyRatingGoals.status, 'active'),
+              eq(propertyRatingGoals.version, write.expectedVersion),
+              or(
+                isNull(propertyRatingGoals.lastEvaluatedAt),
+                lte(propertyRatingGoals.lastEvaluatedAt, write.evaluatedAt),
+              ),
+              markUnchangedSince(write),
+              evaluationChanges(write),
             ),
-            evaluationChanges(write),
-          ),
-        )
-        .returning({ id: propertyRatingGoals.id })
-      return updated.length > 0
-    }),
+          )
+          .returning({ mode: propertyRatingGoals.mode })
+        if (updated === undefined) return false
+        await insertNoticeFacts(tx, write, updated.mode as RatingGoalMode)
+        return true
+      }),
+    ),
+
+  listActiveGoalScopes: async (after, limit) =>
+    db
+      .select({
+        goalId: propertyRatingGoals.id,
+        organizationId: propertyRatingGoals.organizationId,
+        propertyId: propertyRatingGoals.propertyId,
+      })
+      .from(propertyRatingGoals)
+      .where(
+        and(
+          eq(propertyRatingGoals.status, 'active'),
+          after === null ? undefined : gt(propertyRatingGoals.id, after.goalId),
+        ),
+      )
+      .orderBy(asc(propertyRatingGoals.id))
+      .limit(limit),
 
   endForArchivedProperty: (archive) =>
     trace('reporting.ratingGoal.endForArchivedProperty', async () => {

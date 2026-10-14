@@ -1,16 +1,20 @@
 // The Property Google rating goal repository against real PostgreSQL: one
 // active goal per Property, the version compare-and-set, the change log, the
-// evaluation write that changes the row only when something changed, the
-// tenant scope of every read, and the table checks behind them.
+// evaluation write that changes the row only when something changed and
+// writes its notices as outbox facts with it, the daily listing, the tenant
+// scope of every read, and the table checks behind them.
 //
 // One held transaction per test, always rolled back; a statement expected to
 // fail runs in its own savepoint.
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { and, asc, eq } from 'drizzle-orm'
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   propertyRatingGoalChanges,
   propertyRatingGoals,
 } from '#/shared/db/schema/goal.schema'
+import { outboxEvents } from '#/shared/db/schema/outbox.schema'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   holdTransaction,
   type HeldTransaction,
@@ -52,7 +56,13 @@ const newGoal = (
   targetTenths: 45,
   pacePerWeek: 11,
   baseline: { reviewCount: 812, googleAverage: 4.3, exactAverage: 4.31 },
-  lastEvaluation: { displayedTenths: 43, status: 'getting_started', evaluatedAt: SET_AT },
+  lastEvaluation: {
+    displayedTenths: 43,
+    status: 'getting_started',
+    evaluatedAt: SET_AT,
+    knownStatus: 'getting_started',
+    belowPaceNoticedAt: null,
+  },
   createdBy: 'manager-1',
   createdAt: SET_AT,
   updatedAt: SET_AT,
@@ -73,6 +83,10 @@ async function refused(statement: () => Promise<unknown>): Promise<string | unde
   }
   return undefined
 }
+
+beforeAll(() => {
+  registerAllEventSchemas()
+})
 
 beforeEach(async () => {
   held = await holdTransaction()
@@ -241,21 +255,53 @@ describe('an evaluation write', () => {
     await repository().insert(newGoal())
   })
 
+  /** What the goal holds as set: the mark an evaluation reads first. */
+  const AS_SET: RatingGoalEvaluationWrite['expectedMark'] = {
+    displayedTenths: 43,
+    knownStatus: 'getting_started',
+    belowPaceNoticedAt: null,
+  }
+
+  /** An evaluation read on `expectedMark`; its known status follows its status. */
   const write = (
-    overrides: Partial<
-      Parameters<ReturnType<typeof repository>['recordEvaluation']>[0]
-    > = {},
-  ) => ({
-    organizationId: ORG,
-    propertyId: PROPERTY,
-    goalId: goalId(1),
-    expectedVersion: 1,
-    displayedTenths: 43 as number | null,
-    status: 'on_pace' as RatingGoalStatus,
-    evaluatedAt: LATER,
-    outcome: { kind: 'continues' } as RatingGoalEvaluationWrite['outcome'],
-    ...overrides,
-  })
+    overrides: Partial<RatingGoalEvaluationWrite> = {},
+  ): RatingGoalEvaluationWrite => {
+    const status: RatingGoalStatus = overrides.status ?? 'on_pace'
+    return {
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      goalId: goalId(1),
+      expectedVersion: 1,
+      expectedMark: AS_SET,
+      displayedTenths: 43,
+      status,
+      knownStatus: status === 'waiting_for_google' ? 'getting_started' : status,
+      belowPaceNoticedAt: null,
+      evaluatedAt: LATER,
+      outcome: { kind: 'continues' },
+      notices: [],
+      ...overrides,
+    }
+  }
+
+  /** The facts the held transaction's evaluations wrote, oldest first. */
+  const noticeFacts = () =>
+    held.db
+      .select({
+        eventType: outboxEvents.eventType,
+        organizationId: outboxEvents.organizationId,
+        propertyId: outboxEvents.propertyId,
+        payload: outboxEvents.payload,
+        createdAt: outboxEvents.createdAt,
+      })
+      .from(outboxEvents)
+      .where(
+        and(
+          eq(outboxEvents.organizationId, ORG),
+          eq(outboxEvents.eventType, 'goal.rating_goal.transitioned'),
+        ),
+      )
+      .orderBy(asc(outboxEvents.createdAt))
 
   const reachedAt45 = {
     displayedTenths: 45,
@@ -322,7 +368,10 @@ describe('an evaluation write', () => {
     // A page read that began before the newer numbers landed writes last.
     await expect(
       repository().recordEvaluation(
-        write({ evaluatedAt: new Date(LATER.getTime() - 60_000) }),
+        write({
+          expectedMark: { ...AS_SET, displayedTenths: 44, knownStatus: 'below_pace' },
+          evaluatedAt: new Date(LATER.getTime() - 60_000),
+        }),
       ),
     ).resolves.toBe(false)
 
@@ -333,7 +382,11 @@ describe('an evaluation write', () => {
 
   it('stores a new status and tenth once, and nothing for a repeat', async () => {
     await expect(repository().recordEvaluation(write())).resolves.toBe(true)
-    await expect(repository().recordEvaluation(write())).resolves.toBe(false)
+    await expect(
+      repository().recordEvaluation(
+        write({ expectedMark: { ...AS_SET, knownStatus: 'on_pace' } }),
+      ),
+    ).resolves.toBe(false)
 
     await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
       lastEvaluation: { displayedTenths: 43, status: 'on_pace', evaluatedAt: LATER },
@@ -341,15 +394,165 @@ describe('an evaluation write', () => {
     })
   })
 
-  it('keeps the stored tenth while Google cannot be read', async () => {
+  it('keeps the stored tenth and the known status while Google cannot be read', async () => {
     await repository().recordEvaluation(write())
 
     await repository().recordEvaluation(
-      write({ displayedTenths: null, status: 'waiting_for_google' }),
+      write({
+        expectedMark: { ...AS_SET, knownStatus: 'on_pace' },
+        displayedTenths: null,
+        status: 'waiting_for_google',
+        knownStatus: 'on_pace',
+      }),
     )
 
     await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
-      lastEvaluation: { displayedTenths: 43, status: 'waiting_for_google' },
+      lastEvaluation: {
+        displayedTenths: 43,
+        status: 'waiting_for_google',
+        knownStatus: 'on_pace',
+      },
+    })
+  })
+
+  it('writes one fact per notice with the row, carrying the figures the notice states', async () => {
+    const belowPaceAt = LATER
+
+    await expect(
+      repository().recordEvaluation(
+        write({
+          displayedTenths: 42,
+          status: 'below_pace',
+          belowPaceNoticedAt: belowPaceAt,
+          notices: [
+            {
+              transition: 'google_rating_changed',
+              mode: 'climb',
+              targetTenths: 45,
+              shownTenths: 42,
+              previousTenths: 43,
+            },
+            {
+              transition: 'entered_below_pace',
+              targetTenths: 45,
+              pacePerWeek: 11,
+              recentPaceTenths: 65,
+              paceWindow: 'last_4_weeks',
+            },
+          ],
+        }),
+      ),
+    ).resolves.toBe(true)
+
+    const facts = await noticeFacts()
+    expect(facts).toHaveLength(2)
+    expect(facts.map((fact) => fact.payload)).toEqual([
+      expect.objectContaining({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        goalId: goalId(1),
+        transition: 'google_rating_changed',
+        mode: 'climb',
+        targetTenths: 45,
+        shownTenths: 42,
+        previousTenths: 43,
+        pacePerWeek: null,
+        mixHundredths: null,
+      }),
+      expect.objectContaining({
+        transition: 'entered_below_pace',
+        pacePerWeek: 11,
+        recentPaceTenths: 65,
+        paceWindow: 'last_4_weeks',
+        shownTenths: null,
+      }),
+    ])
+    expect(facts.every((fact) => fact.propertyId === PROPERTY)).toBe(true)
+    await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
+      lastEvaluation: {
+        displayedTenths: 42,
+        knownStatus: 'below_pace',
+        belowPaceNoticedAt: belowPaceAt,
+      },
+    })
+  })
+
+  it('tells a change once: a second evaluation read before it was stored writes nothing', async () => {
+    const gained = write({
+      displayedTenths: 44,
+      notices: [
+        {
+          transition: 'google_rating_changed',
+          mode: 'climb',
+          targetTenths: 45,
+          shownTenths: 44,
+          previousTenths: 43,
+        },
+      ],
+    })
+
+    await expect(repository().recordEvaluation(gained)).resolves.toBe(true)
+    // Read on the same 4.3 a moment later, after Google moved again.
+    await expect(
+      repository().recordEvaluation({
+        ...gained,
+        displayedTenths: 45,
+        evaluatedAt: new Date(LATER.getTime() + 60_000),
+      }),
+    ).resolves.toBe(false)
+
+    await expect(noticeFacts()).resolves.toHaveLength(1)
+    await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
+      lastEvaluation: { displayedTenths: 44, evaluatedAt: LATER },
+    })
+  })
+
+  it('writes no fact for an evaluation that stores nothing', async () => {
+    await repository().recordEvaluation(write())
+
+    await expect(
+      repository().recordEvaluation(
+        write({
+          expectedMark: { ...AS_SET, knownStatus: 'on_pace' },
+          evaluatedAt: new Date(LATER.getTime() + 60_000),
+        }),
+      ),
+    ).resolves.toBe(false)
+    await expect(noticeFacts()).resolves.toEqual([])
+  })
+
+  it('forgets the known status when a manager changes the plan', async () => {
+    await repository().recordEvaluation(write({ status: 'below_pace' }))
+
+    await changePlanTo({ mode: 'climb', targetTenths: 45, pacePerWeek: 8 }, [
+      { field: 'pace', oldValue: '11', newValue: '8' },
+    ])
+
+    await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
+      pacePerWeek: 8,
+      lastEvaluation: { status: 'below_pace', knownStatus: null },
+      version: 2,
+    })
+  })
+
+  it('stores the status a new plan puts the goal in, without a notice', async () => {
+    await changePlanTo({ mode: 'climb', targetTenths: 45, pacePerWeek: 20 }, [
+      { field: 'pace', oldValue: '11', newValue: '20' },
+    ])
+
+    await expect(
+      repository().recordEvaluation(
+        write({
+          expectedVersion: 2,
+          expectedMark: { ...AS_SET, knownStatus: null },
+          status: 'getting_started',
+          knownStatus: 'getting_started',
+          evaluatedAt: new Date(LATER.getTime() + 60_000),
+        }),
+      ),
+    ).resolves.toBe(true)
+    await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
+      lastEvaluation: { status: 'getting_started', knownStatus: 'getting_started' },
     })
   })
 
@@ -430,7 +633,69 @@ describe('a Property archive', () => {
   })
 })
 
+describe('the daily listing of active goals', () => {
+  it('pages through every active goal across Organizations in goal id order', async () => {
+    await repository().insert(newGoal({ id: goalId(3) }))
+    await repository().insert(
+      newGoal({ id: goalId(2), propertyId: OTHER_PROPERTY, organizationId: ORG }),
+    )
+    await repository().insert(
+      newGoal({ id: goalId(4), organizationId: OTHER_ORG, propertyId: FOREIGN_PROPERTY }),
+    )
+
+    // Other suites may hold goals of their own: start below these ids, and
+    // keep to these Organizations.
+    const ours = (scopes: readonly { organizationId: string }[]) =>
+      scopes.filter((scope) => [ORG, OTHER_ORG].includes(scope.organizationId))
+    const first = await repository().listActiveGoalScopes({ goalId: goalId(0) }, 2)
+    const rest = ours(await repository().listActiveGoalScopes({ goalId: goalId(3) }, 2))
+
+    expect(first).toEqual([
+      { goalId: goalId(2), organizationId: ORG, propertyId: OTHER_PROPERTY },
+      { goalId: goalId(3), organizationId: ORG, propertyId: PROPERTY },
+    ])
+    expect(rest).toEqual([
+      { goalId: goalId(4), organizationId: OTHER_ORG, propertyId: FOREIGN_PROPERTY },
+    ])
+  })
+
+  it('leaves reached and ended goals out', async () => {
+    await repository().insert(newGoal())
+    await repository().endByManager({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      goalId: goalId(1),
+      expectedVersion: 1,
+      endedAt: LATER,
+    })
+
+    const scopes = await repository().listActiveGoalScopes({ goalId: goalId(0) }, 10)
+    expect(scopes.filter((scope) => scope.organizationId === ORG)).toEqual([])
+  })
+})
+
 describe('the table holds the plan and the log to their rules', () => {
+  it('refuses a known status that is a wait for Google', async () => {
+    await expect(
+      refused(() =>
+        held.db.insert(propertyRatingGoals).values({
+          id: goalId(9),
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          sourceEpoch: 2,
+          mode: 'climb',
+          targetTenths: 45,
+          pacePerWeek: 11,
+          baselineReviewCount: 812,
+          baselineGoogleAverage: 4.3,
+          baselineExactAverage: 4.31,
+          createdBy: 'manager-1',
+          lastKnownStatus: 'waiting_for_google',
+        }),
+      ),
+    ).resolves.toBe('23514')
+  })
+
   it('refuses a climb without a pace, a climb to 5.0 and a keep with a pace', async () => {
     const insert = (values: Partial<typeof propertyRatingGoals.$inferInsert>) =>
       refused(() =>

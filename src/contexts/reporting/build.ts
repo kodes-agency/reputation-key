@@ -85,6 +85,14 @@ import {
   createRatingGoalRequestApi,
 } from './application/use-cases/rating-goals'
 import { registerRatingGoalEvaluationConsumer } from './infrastructure/rating-goal-outbox-consumers'
+import {
+  sweepRatingGoals,
+  type AuthorizeRatingGoalScope,
+} from './application/use-cases/rating-goal-sweep'
+import {
+  createRatingGoalEvaluationJobHandler,
+  RATING_GOAL_EVALUATION_JOB_NAME,
+} from './infrastructure/jobs/rating-goal-evaluation.job'
 import { registerRatingGoalPropertyLifecycleConsumer } from './infrastructure/rating-goal-property-lifecycle-consumers'
 import { createMonthlyResultNotificationFactsLookup } from './infrastructure/adapters/monthly-result-notification-facts.lookup'
 import { reconcileMetricCorrection } from './application/use-cases/reconcile-metric-correction'
@@ -399,8 +407,8 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
 /**
  * The Property Google rating goal: its own tables and request surface, the
  * Goal permissions and capability, one consumer that evaluates the goal when
- * Review verifies Google's numbers and one that ends it when its Property is
- * archived. Not a Goal Program.
+ * Review verifies Google's numbers, one that ends it when its Property is
+ * archived, and the daily evaluation of every active goal. Not a Goal Program.
  */
 function buildRatingGoalModule(
   input: ReportingContextBuildInput,
@@ -429,6 +437,15 @@ function buildRatingGoalModule(
           db: input.db,
         })
       },
+      evaluation: Object.freeze({
+        jobName: RATING_GOAL_EVALUATION_JOB_NAME,
+        createHandler: (authorizeScope: AuthorizeRatingGoalScope) =>
+          createRatingGoalEvaluationJobHandler({
+            sweep: (authorize) => sweepRatingGoals(deps, authorize),
+            authorizeScope,
+            logger: input.logger,
+          }),
+      }),
     }),
   } as const
 }
@@ -560,6 +577,7 @@ export function buildReportingContext(input: ReportingContextBuildInput) {
         ratingGoal.worker.registerOutboxConsumers(consumerRegistry)
       },
       programMaintenance: goal.worker.programMaintenance,
+      ratingGoalEvaluation: ratingGoal.worker.evaluation,
     }),
     internal: Object.freeze({
       repos: {

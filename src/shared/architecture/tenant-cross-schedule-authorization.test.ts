@@ -128,6 +128,7 @@ const CANDIDATE_DECISIONS: Readonly<Record<string, CandidateDecision>> = {
   // allowlist does not.
   'reconcile-gbp-notification-subscriptions': scopeAuthorizer('allowed'),
   'goal-program.maintain': scopeAuthorizer('refused'),
+  'rating-goal.evaluate': scopeAuthorizer('refused'),
   'digest-notification': scopeAuthorizer('refused'),
   // identity.invite is core too. Recovery asks before each acceptance, the
   // only step that gives an Organization a member.

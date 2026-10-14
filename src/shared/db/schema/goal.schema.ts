@@ -555,6 +555,11 @@ export const propertyRatingGoals = pgTable(
     lastDisplayedTenths: smallint('last_displayed_tenths'),
     lastEvaluatedStatus: varchar('last_evaluated_status', { length: 24 }),
     lastEvaluatedAt: timestamp('last_evaluated_at', { withTimezone: true }),
+    // What the goal's notices compare with (migration 0057): the last status
+    // that was not a wait for Google, and when the managers were last told the
+    // goal fell below pace.
+    lastKnownStatus: varchar('last_known_status', { length: 24 }),
+    belowPaceNoticedAt: timestamp('below_pace_noticed_at', { withTimezone: true }),
     reachedAt: timestamp('reached_at', { withTimezone: true }),
     endedAt: timestamp('ended_at', { withTimezone: true }),
     createdBy: varchar('created_by', { length: 255 }).notNull(),
@@ -606,6 +611,10 @@ export const propertyRatingGoals = pgTable(
       'property_rating_goals_evaluation_check',
       sql`(${t.lastDisplayedTenths} IS NULL OR ${t.lastDisplayedTenths} BETWEEN 0 AND 50)
         AND (${t.lastEvaluatedStatus} IS NULL OR ${t.lastEvaluatedStatus} IN ('waiting_for_google', 'reached', 'cant_reach_at_mix', 'getting_started', 'on_pace', 'below_pace', 'holding', 'dropped_below'))`,
+    ),
+    check(
+      'property_rating_goals_notice_mark_check',
+      sql`${t.lastKnownStatus} IS NULL OR ${t.lastKnownStatus} IN ('reached', 'cant_reach_at_mix', 'getting_started', 'on_pace', 'below_pace', 'holding', 'dropped_below')`,
     ),
     check('property_rating_goals_version_check', sql`${t.version} >= 1`),
   ],

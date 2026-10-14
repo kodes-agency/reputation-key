@@ -4,9 +4,15 @@ import type {
   GoogleRatingSummaryRequest,
   ReviewGoogleRatingReads,
 } from '#/contexts/review/application/public-api'
-import type { PropertyRatingGoal, RatingGoalChange } from '../../domain/rating-goal'
+import type {
+  PropertyRatingGoal,
+  RatingGoalChange,
+  RatingGoalEvaluationMark,
+} from '../../domain/rating-goal'
+import type { RatingGoalNotice } from '../../domain/rating-goal-notices'
 import type {
   PropertyRatingGoalRepository,
+  RatingGoalEvaluationWrite,
   RatingGoalPropertyFacts,
 } from '../ports/property-rating-goal.repository'
 import type { GoalActor, GoalExecutionPolicy } from './goal-program-shared'
@@ -31,6 +37,8 @@ export type FakeWorld = {
   held: boolean
   goals: PropertyRatingGoal[]
   changes: RatingGoalChange[]
+  /** The notices each stored evaluation wrote as facts, in order. */
+  notices: Array<RatingGoalNotice & Readonly<{ goalId: string }>>
   authorizations: string[]
   deny: boolean
   summaryRequests: GoogleRatingSummaryRequest[]
@@ -62,6 +70,7 @@ export function exampleWorld(): FakeWorld {
     held: false,
     goals: [],
     changes: [],
+    notices: [],
     authorizations: [],
     deny: false,
     summaryRequests: [],
@@ -86,6 +95,27 @@ function recording<T extends Readonly<Record<string, AnyPortFunction>>>(
   ])
   return Object.fromEntries(entries) as T
 }
+
+const sameInstant = (left: Date | null, right: Date | null): boolean =>
+  (left?.getTime() ?? null) === (right?.getTime() ?? null)
+
+/** The repository's compare-and-set: the mark is still the one the write read. */
+const markUnchangedSince = (
+  stored: RatingGoalEvaluationMark,
+  { expectedMark }: RatingGoalEvaluationWrite,
+): boolean =>
+  stored.displayedTenths === expectedMark.displayedTenths &&
+  stored.knownStatus === expectedMark.knownStatus &&
+  sameInstant(stored.belowPaceNoticedAt, expectedMark.belowPaceNoticedAt)
+
+const evaluationChanges = (
+  stored: RatingGoalEvaluationMark,
+  write: RatingGoalEvaluationWrite,
+): boolean =>
+  write.outcome.kind !== 'continues' ||
+  stored.status !== write.status ||
+  stored.knownStatus !== write.knownStatus ||
+  (write.displayedTenths !== null && stored.displayedTenths !== write.displayedTenths)
 
 function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
   const find = (predicate: (goal: PropertyRatingGoal) => boolean) =>
@@ -132,7 +162,12 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
       const goal = find((g) => g.id === change.goalId)
       if (!goal || goal.state !== 'active') return 'not_active'
       if (goal.version !== change.expectedVersion) return 'version_conflict'
-      replace({ ...goal, ...change.plan, version: goal.version + 1 })
+      replace({
+        ...goal,
+        ...change.plan,
+        lastEvaluation: { ...goal.lastEvaluation, knownStatus: null },
+        version: goal.version + 1,
+      })
       world.changes = [...world.changes, ...change.changes]
       return 'written'
     },
@@ -158,19 +193,20 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
       if (storedAt !== null && storedAt.getTime() > write.evaluatedAt.getTime()) {
         return false
       }
-      const terminal = write.outcome.kind !== 'continues'
-      const changed =
-        terminal ||
-        goal.lastEvaluation.status !== write.status ||
-        (write.displayedTenths !== null &&
-          goal.lastEvaluation.displayedTenths !== write.displayedTenths)
-      if (!changed) return false
+      if (!markUnchangedSince(goal.lastEvaluation, write)) return false
+      if (!evaluationChanges(goal.lastEvaluation, write)) return false
+      world.notices = [
+        ...world.notices,
+        ...write.notices.map((notice) => ({ ...notice, goalId: goal.id })),
+      ]
       replace({
         ...goal,
         lastEvaluation: {
           status: write.status,
           displayedTenths: write.displayedTenths ?? goal.lastEvaluation.displayedTenths,
           evaluatedAt: write.evaluatedAt,
+          knownStatus: write.knownStatus,
+          belowPaceNoticedAt: write.belowPaceNoticedAt,
         },
         ...(write.outcome.kind === 'reached'
           ? { state: 'reached' as const, reachedAt: write.evaluatedAt }
@@ -185,6 +221,16 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
       })
       return true
     },
+    listActiveGoalScopes: async (after, limit) =>
+      world.goals
+        .filter((g) => g.state === 'active' && (after === null || g.id > after.goalId))
+        .sort((left, right) => (left.id < right.id ? -1 : 1))
+        .slice(0, limit)
+        .map((g) => ({
+          goalId: g.id,
+          organizationId: g.organizationId,
+          propertyId: g.propertyId,
+        })),
     endForArchivedProperty: async (archive) => {
       const goal = find(
         (g) =>
@@ -267,7 +313,13 @@ export function activeGoal(
     state: 'active',
     endedReason: null,
     baseline: { reviewCount: 790, googleAverage: 4.3, exactAverage: 4.29 },
-    lastEvaluation: { displayedTenths: 43, status: 'on_pace', evaluatedAt: null },
+    lastEvaluation: {
+      displayedTenths: 43,
+      status: 'on_pace',
+      evaluatedAt: null,
+      knownStatus: 'on_pace',
+      belowPaceNoticedAt: null,
+    },
     reachedAt: null,
     endedAt: null,
     createdBy: 'manager-1',

@@ -7,9 +7,11 @@ import type {
   PropertyRatingGoal,
   RatingGoalChange,
   RatingGoalEndedReason,
+  RatingGoalEvaluationMark,
   RatingGoalPlan,
   RatingGoalStatus,
 } from '../../domain/rating-goal'
+import type { RatingGoalNotice } from '../../domain/rating-goal-notices'
 
 /** What a rating goal needs to know about its Property, read in one place. */
 export type RatingGoalPropertyFacts = Readonly<{
@@ -59,6 +61,12 @@ export type RatingGoalManagerEnd = Readonly<{
   endedAt: Date
 }>
 
+/** The part of the stored evaluation a notice was worked out against. */
+export type RatingGoalNoticeMark = Pick<
+  RatingGoalEvaluationMark,
+  'displayedTenths' | 'knownStatus' | 'belowPaceNoticedAt'
+>
+
 /** What an evaluation stores, and the terminal step it takes, if any. */
 export type RatingGoalEvaluationWrite = Readonly<{
   organizationId: string
@@ -66,14 +74,27 @@ export type RatingGoalEvaluationWrite = Readonly<{
   goalId: string
   /** The version of the plan the evaluation was worked out on. */
   expectedVersion: number
+  /**
+   * What the goal held when the evaluation read it. The write applies only
+   * onto exactly that, so its notices are told once and from the right "before".
+   */
+  expectedMark: RatingGoalNoticeMark
   /** The tenth Google showed; null keeps the stored one (Google was not readable). */
   displayedTenths: number | null
   status: RatingGoalStatus
+  /** The last status that was not a wait for Google, after this evaluation. */
+  knownStatus: RatingGoalStatus | null
+  belowPaceNoticedAt: Date | null
   evaluatedAt: Date
   outcome:
     | Readonly<{ kind: 'continues' }>
     | Readonly<{ kind: 'reached' }>
     | Readonly<{ kind: 'ended'; reason: Exclude<RatingGoalEndedReason, 'manager'> }>
+  /**
+   * What the goal's managers are told. Each is written as a
+   * `goal.rating_goal.transitioned` fact in the same transaction as the row.
+   */
+  notices: readonly RatingGoalNotice[]
 }>
 
 /** A Property's archive, as its lifecycle fact names it. */
@@ -86,6 +107,16 @@ export type RatingGoalPropertyArchive = Readonly<{
 }>
 
 export type RatingGoalWriteResult = 'written' | 'version_conflict' | 'not_active'
+
+/** One active goal's tenant scope, as the daily evaluation lists them. */
+export type RatingGoalScope = Readonly<{
+  goalId: string
+  organizationId: string
+  propertyId: string
+}>
+
+/** Where the daily evaluation's listing continues: after this goal. */
+export type RatingGoalScopeCursor = Pick<RatingGoalScope, 'goalId'>
 
 export type PropertyRatingGoalRepository = Readonly<{
   /** True when the Organization lifecycle holds the Organization (closure). */
@@ -118,13 +149,24 @@ export type PropertyRatingGoalRepository = Readonly<{
   endByManager(end: RatingGoalManagerEnd): Promise<RatingGoalWriteResult>
   /**
    * Stores an evaluation on an active goal when it differs from the stored one
-   * or takes a terminal step. True when the row changed. Never moves the
-   * version, so a manager's open form stays valid across evaluations; but it
-   * is refused (false) when a manager changed the plan since the evaluation
-   * read it, or when a newer evaluation is already stored. A refused
-   * evaluation is decided again by the next one.
+   * or takes a terminal step, with one outbox fact per notice in the same
+   * transaction. True when the row changed. Never moves the version, so a
+   * manager's open form stays valid across evaluations; but it is refused
+   * (false) when a manager changed the plan since the evaluation read it, when
+   * a newer evaluation is already stored, or when another evaluation stored a
+   * tenth, a known status or a below-pace notice since this one read them. A
+   * refused evaluation tells nobody anything and is decided again by the next.
    */
   recordEvaluation(write: RatingGoalEvaluationWrite): Promise<boolean>
+  /**
+   * The Organization and Property of active goals in goal id order, at most
+   * `limit` after the cursor: the daily evaluation's tenant-cross listing.
+   * Identifiers only.
+   */
+  listActiveGoalScopes(
+    after: RatingGoalScopeCursor | null,
+    limit: number,
+  ): Promise<readonly RatingGoalScope[]>
   /**
    * Ends the Property's active goal `property_archived` when it was set under
    * an epoch before the archive's, so a late or repeated fact never ends a goal
