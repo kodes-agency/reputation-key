@@ -10,7 +10,7 @@
 // on a target the manager has since raised, or an older reading landing after
 // a newer one, changes nothing.
 
-import { and, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   propertyRatingGoalChanges,
@@ -310,6 +310,27 @@ export const createPropertyRatingGoalRepository = (
         )
         .returning({ id: propertyRatingGoals.id })
       return updated.length > 0
+    }),
+
+  endForArchivedProperty: (archive) =>
+    trace('reporting.ratingGoal.endForArchivedProperty', async () => {
+      const ended = await db
+        .update(propertyRatingGoals)
+        .set({
+          status: 'ended',
+          endedReason: 'property_archived',
+          endedAt: archive.endedAt,
+          updatedAt: archive.endedAt,
+        })
+        .where(
+          and(
+            goalScope(archive.organizationId, archive.propertyId),
+            eq(propertyRatingGoals.status, 'active'),
+            lt(propertyRatingGoals.sourceEpoch, archive.archivedEpoch),
+          ),
+        )
+        .returning({ id: propertyRatingGoals.id })
+      return ended.length > 0
     }),
 })
 

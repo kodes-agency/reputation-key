@@ -67,7 +67,7 @@ describe('buildReportingContext', () => {
     ])
   })
 
-  it('evaluates the Google rating goal when Review verifies Google numbers', () => {
+  it('evaluates the Google rating goal when Review verifies Google numbers, and ends it on archive', () => {
     const registry = createConsumerRegistry()
 
     build().worker.registerOutboxConsumers(registry, { authorize: async () => undefined })
@@ -75,6 +75,10 @@ describe('buildReportingContext', () => {
     expect(registry.list()).toContainEqual({
       eventType: 'review.google_reputation_snapshot.verified',
       consumerName: 'goal.google-rating-evaluation',
+    })
+    expect(registry.list()).toContainEqual({
+      eventType: 'property.archived',
+      consumerName: 'goal.on-property-archived',
     })
   })
 

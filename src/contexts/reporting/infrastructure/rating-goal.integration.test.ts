@@ -15,16 +15,18 @@ import {
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { createConsumerRegistry } from '#/shared/outbox'
+import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
 import type {
   GoalActor,
   GoalExecutionPolicy,
 } from '../application/use-cases/goal-programs'
 import {
+  createArchivedPropertyRatingGoalEnder,
   createRatingGoalEvaluator,
   createRatingGoalRequestApi,
 } from '../application/use-cases/rating-goals'
 import { registerRatingGoalEvaluationConsumer } from './rating-goal-outbox-consumers'
+import { registerRatingGoalPropertyLifecycleConsumer } from './rating-goal-property-lifecycle-consumers'
 import { createCurrentGoogleReputationSnapshotRepository } from './repositories/current-google-reputation-snapshot.repository'
 import {
   createPropertyRatingGoalRepository,
@@ -149,7 +151,51 @@ function engine() {
   return {
     api: createRatingGoalRequestApi(deps),
     evaluate: createRatingGoalEvaluator(deps),
+    endForArchivedProperty: createArchivedPropertyRatingGoalEnder(deps),
   }
+}
+
+/** A fact as the relay hands it to a consumer, with its outbox row stored. */
+async function relayedFact(
+  eventType: string,
+  sourceContext: string,
+  payload: Readonly<Record<string, unknown>>,
+): Promise<ConsumerEvent> {
+  const eventId = randomUUID()
+  const sourceAggregateId = randomUUID()
+  await held.client.query(
+    `INSERT INTO outbox_events (id, event_type, event_version, payload, organization_id,
+       property_id, source_context, source_aggregate_id)
+     VALUES ($1, $2, 1, $3, $4, $5, $6, $7)`,
+    [
+      eventId,
+      eventType,
+      JSON.stringify(payload),
+      ORG,
+      PROPERTY,
+      sourceContext,
+      sourceAggregateId,
+    ],
+  )
+  return {
+    eventId,
+    eventType,
+    eventVersion: 1,
+    payload,
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    sourceContext,
+    sourceAggregateId,
+    occurredAt: NOW.toISOString(),
+  }
+}
+
+async function receiptsFor(eventId: string) {
+  const receipts = await held.client.query(
+    `SELECT consumer_name, status FROM event_consumer_receipts WHERE event_id = $1`,
+    [eventId],
+  )
+  return receipts.rows
 }
 
 beforeAll(() => {
@@ -278,6 +324,53 @@ describe('a Property Google rating goal on PostgreSQL', () => {
     )
     expect(receipts.rows).toEqual([
       { consumer_name: 'goal.google-rating-evaluation', status: 'applied' },
+    ])
+  })
+
+  it('is ended by the archive consumer even when nobody looks while the Property is archived', async () => {
+    await seedSnapshot(Math.fround(4.3))
+    const { api, endForArchivedProperty } = engine()
+    const set = await api.set(
+      allow,
+      { propertyId: PROPERTY, mode: 'climb', targetTenths: 44, pacePerWeek: 2 },
+      actor,
+    )
+    await held.client.query(
+      `UPDATE properties SET lifecycle_state = 'archived', source_epoch = 3 WHERE id = $1`,
+      [PROPERTY],
+    )
+    const fact = await relayedFact('property.archived', 'property', {
+      propertyId: PROPERTY,
+      organizationId: ORG,
+      userId: USER,
+      previousState: 'active',
+      sourceEpoch: 3,
+      recoveryDeadline: new Date(NOW.getTime() + 30 * DAY).toISOString(),
+      occurredAt: NOW.toISOString(),
+    })
+    const registry = createConsumerRegistry()
+    registerRatingGoalPropertyLifecycleConsumer(registry, {
+      endForArchivedProperty,
+      db: held.db,
+    })
+    const [consumer] = registry.listFor('property.archived')
+
+    await expect(consumer!.handler(fact)).resolves.toEqual({ status: 'applied' })
+    // Restore moves the epoch again; the goal still reads as ended by the archive.
+    await held.client.query(
+      `UPDATE properties SET lifecycle_state = 'active', source_epoch = 4 WHERE id = $1`,
+      [PROPERTY],
+    )
+
+    await expect(api.history(allow, { propertyId: PROPERTY }, actor)).resolves.toEqual([
+      expect.objectContaining({
+        goalId: set.goalId,
+        state: 'ended',
+        endedReason: 'property_archived',
+      }),
+    ])
+    await expect(receiptsFor(fact.eventId)).resolves.toEqual([
+      { consumer_name: 'goal.on-property-archived', status: 'applied' },
     ])
   })
 

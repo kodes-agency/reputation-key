@@ -104,6 +104,8 @@ const GOAL_METRIC_CORRECTION_OUTBOX =
 const REVIEW_OUTBOX = 'src/contexts/review/infrastructure/outbox-consumers.ts'
 const INBOX_PROPERTY_LIFECYCLE_OUTBOX =
   'src/contexts/inbox/infrastructure/property-lifecycle-outbox-consumers.ts'
+const GOAL_PROPERTY_LIFECYCLE_OUTBOX =
+  'src/contexts/reporting/infrastructure/rating-goal-property-lifecycle-consumers.ts'
 const INBOX_GUEST_FEEDBACK_OUTBOX =
   'src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts'
 const PROPERTY_RETENTION_OUTBOX =
@@ -243,6 +245,8 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     durable('inbox.on-property-archived', INBOX_PROPERTY_LIFECYCLE_OUTBOX),
     durable('review.on-property-archived', REVIEW_OUTBOX),
+    // Ends the Property's Google rating goal (property_archived).
+    durable('goal.on-property-archived', GOAL_PROPERTY_LIFECYCLE_OUTBOX),
     settles('notification.settle-on-property-archived'),
   ]),
   ev('property.restored', [

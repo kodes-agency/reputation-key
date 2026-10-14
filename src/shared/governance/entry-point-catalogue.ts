@@ -100,6 +100,7 @@ export type SystemAction =
   | 'system:integration.gbp_subscription_reconcile'
   | 'system:goal.reconcile'
   | 'system:goal.maintain'
+  | 'system:goal.end_archived_property_goal'
   | 'system:activity.record'
   | 'system:notification.insert'
   | 'system:notification.insert_goal'
@@ -597,6 +598,15 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'goal.google-rating-evaluation',
     'system:goal.reconcile',
     'goal.use',
+    'property',
+  ),
+  // Ending an archived Property's Google rating goal is cleanup: ungated,
+  // because a denied consumer is never retried and a stop on goal.use must
+  // not leave the goal running, and scoped to the one Property the fact names.
+  consumer(
+    'goal.property-lifecycle',
+    'system:goal.end_archived_property_goal',
+    'none',
     'property',
   ),
   consumer(

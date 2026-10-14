@@ -164,6 +164,23 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
       })
       return true
     },
+    endForArchivedProperty: async (archive) => {
+      const goal = find(
+        (g) =>
+          g.organizationId === archive.organizationId &&
+          g.propertyId === archive.propertyId &&
+          g.state === 'active' &&
+          g.sourceEpoch < archive.archivedEpoch,
+      )
+      if (!goal) return false
+      replace({
+        ...goal,
+        state: 'ended',
+        endedReason: 'property_archived',
+        endedAt: archive.endedAt,
+      })
+      return true
+    },
   }
 }
 

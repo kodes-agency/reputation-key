@@ -76,10 +76,12 @@ import {
   createRatingGoalPropertyFactsReader,
 } from './infrastructure/repositories/property-rating-goal.repository'
 import {
+  createArchivedPropertyRatingGoalEnder,
   createRatingGoalEvaluator,
   createRatingGoalRequestApi,
 } from './application/use-cases/rating-goals'
 import { registerRatingGoalEvaluationConsumer } from './infrastructure/rating-goal-outbox-consumers'
+import { registerRatingGoalPropertyLifecycleConsumer } from './infrastructure/rating-goal-property-lifecycle-consumers'
 import { createMonthlyResultNotificationFactsLookup } from './infrastructure/adapters/monthly-result-notification-facts.lookup'
 import { reconcileMetricCorrection } from './application/use-cases/reconcile-metric-correction'
 import { registerGoalMetricCorrectionConsumer } from './infrastructure/metric-correction-outbox-consumers'
@@ -388,8 +390,9 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
 
 /**
  * The Property Google rating goal: its own tables and request surface, the
- * Goal permissions and capability, and one consumer that evaluates the goal
- * when Review verifies Google's numbers. Not a Goal Program.
+ * Goal permissions and capability, one consumer that evaluates the goal when
+ * Review verifies Google's numbers and one that ends it when its Property is
+ * archived. Not a Goal Program.
  */
 function buildRatingGoalModule(
   input: ReportingContextBuildInput,
@@ -404,14 +407,20 @@ function buildRatingGoalModule(
     now: input.clock,
   }
   const evaluate = createRatingGoalEvaluator(deps)
+  const endForArchivedProperty = createArchivedPropertyRatingGoalEnder(deps)
   return {
     publicApi: { ratingGoals: createRatingGoalRequestApi(deps) },
     worker: Object.freeze({
-      registerOutboxConsumers: (consumerRegistry: ConsumerRegistry): void =>
+      registerOutboxConsumers: (consumerRegistry: ConsumerRegistry): void => {
         registerRatingGoalEvaluationConsumer(consumerRegistry, {
           evaluate,
           db: input.db,
-        }),
+        })
+        registerRatingGoalPropertyLifecycleConsumer(consumerRegistry, {
+          endForArchivedProperty,
+          db: input.db,
+        })
+      },
     }),
   } as const
 }

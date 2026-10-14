@@ -384,6 +384,52 @@ describe('an evaluation write', () => {
   })
 })
 
+describe('a Property archive', () => {
+  const archive = (overrides: Record<string, unknown> = {}) => ({
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    // The goal was set under epoch 2; the archive moved the Property to 3.
+    archivedEpoch: 3,
+    endedAt: LATER,
+    ...overrides,
+  })
+
+  it('ends the goal set before it, once, as property_archived', async () => {
+    await repository().insert(newGoal())
+
+    await expect(repository().endForArchivedProperty(archive())).resolves.toBe(true)
+    await expect(repository().endForArchivedProperty(archive())).resolves.toBe(false)
+
+    await expect(repository().findById(ORG, PROPERTY, goalId(1))).resolves.toMatchObject({
+      state: 'ended',
+      endedReason: 'property_archived',
+      endedAt: LATER,
+    })
+  })
+
+  it('leaves a goal set after a Restore alone when the fact arrives late', async () => {
+    // Archive moved the Property to 3, Restore to 4; the new goal is at 4.
+    await repository().insert(newGoal({ sourceEpoch: 4 }))
+
+    await expect(repository().endForArchivedProperty(archive())).resolves.toBe(false)
+    await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
+      state: 'active',
+    })
+  })
+
+  it('ends nothing in another Organization or Property', async () => {
+    await repository().insert(newGoal())
+
+    await expect(
+      repository().endForArchivedProperty(archive({ organizationId: OTHER_ORG })),
+    ).resolves.toBe(false)
+    await expect(
+      repository().endForArchivedProperty(archive({ propertyId: OTHER_PROPERTY })),
+    ).resolves.toBe(false)
+    await expect(repository().findActive(ORG, PROPERTY)).resolves.not.toBeNull()
+  })
+})
+
 describe('the table holds the plan and the log to their rules', () => {
   it('refuses a climb without a pace, a climb to 5.0 and a keep with a pace', async () => {
     const insert = (values: Partial<typeof propertyRatingGoals.$inferInsert>) =>

@@ -76,6 +76,15 @@ export type RatingGoalEvaluationWrite = Readonly<{
     | Readonly<{ kind: 'ended'; reason: Exclude<RatingGoalEndedReason, 'manager'> }>
 }>
 
+/** A Property's archive, as its lifecycle fact names it. */
+export type RatingGoalPropertyArchive = Readonly<{
+  organizationId: string
+  propertyId: string
+  /** The binding epoch the archive moved the Property to. */
+  archivedEpoch: number
+  endedAt: Date
+}>
+
 export type RatingGoalWriteResult = 'written' | 'version_conflict' | 'not_active'
 
 export type PropertyRatingGoalRepository = Readonly<{
@@ -116,4 +125,10 @@ export type PropertyRatingGoalRepository = Readonly<{
    * evaluation is decided again by the next one.
    */
   recordEvaluation(write: RatingGoalEvaluationWrite): Promise<boolean>
+  /**
+   * Ends the Property's active goal `property_archived` when it was set under
+   * an epoch before the archive's, so a late or repeated fact never ends a goal
+   * set after a Restore. True when a goal ended.
+   */
+  endForArchivedProperty(archive: RatingGoalPropertyArchive): Promise<boolean>
 }>

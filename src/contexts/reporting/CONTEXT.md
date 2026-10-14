@@ -67,10 +67,16 @@ metric authority.
   month range in the Property's time zone (mix ± 0.1, pace ± 10%). The review cache is read
   only through Review's `ReviewGoogleRatingReads` (counts and star sums, the serving
   eligibility, the current binding epoch); Google's own numbers come from the Current on
-  Google snapshot. A goal is evaluated by its card and detail reads and by
-  `goal.google-rating-evaluation` when Review verifies Google's numbers, through one
-  evaluation (`application/rating-goal-evaluation.ts`) that stores the tenth and status it
-  saw only when they change, so the next evaluation can tell a transition from a repeat.
+  Google snapshot. A goal may be set only on an active Property with at least ten Google
+  reviews (Google's count decides that first, current or not) and current numbers. A set
+  goal stores the tenth Google showed and the status it starts in. A goal is evaluated by
+  its card and detail reads and by `goal.google-rating-evaluation` when Review verifies
+  Google's numbers, through one evaluation (`application/rating-goal-evaluation.ts`) that
+  stores the tenth and status it saw only when they change, only onto the plan version it
+  read and never over a newer evaluation, so the next evaluation can tell a transition
+  from a repeat. `goal.on-property-archived` ends the goal of an archived Property
+  (`property_archived`) when it was set under an earlier binding epoch than the archive's,
+  so a late fact never ends a goal set after a Restore.
 - **Dashboard read model**: content-minimal presentation assembled from governed sources.
 - **Portal lifetime aggregate**: anonymous all-time values with rebuild and seal evidence.
 - **Portal results measures**: the five figures on a Portal's Results view, each named for
@@ -242,6 +248,9 @@ reconciled. `goal.google-rating-evaluation` takes the same second form on
 `review.google_reputation_snapshot.verified`: the fact only says when to look, the
 evaluation reads the current snapshot, cache and Property as a page read does and writes
 only what changes the stored goal, so a repeat finds nothing to write and adds the receipt.
+`goal.on-property-archived` (`rating-goal-property-lifecycle-consumers.ts`, ungated) does
+the same on `property.archived`: it ends only an active goal set before the archive's
+epoch, so a repeat ends nothing and adds the receipt.
 
 ## Verification
 

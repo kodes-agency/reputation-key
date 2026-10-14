@@ -93,3 +93,23 @@ export function createRatingGoalEvaluator(
     return active === null ? null : evaluateActiveRatingGoal(deps, active)
   }
 }
+
+/**
+ * Ends a Property's active rating goal because the Property was archived:
+ * `property_archived`, when the goal was set before the archive's epoch.
+ * True when a goal ended.
+ */
+export type EndArchivedPropertyRatingGoal = (
+  archive: Readonly<{
+    organizationId: string
+    propertyId: string
+    archivedEpoch: number
+  }>,
+) => Promise<boolean>
+
+export function createArchivedPropertyRatingGoalEnder(
+  deps: Pick<RatingGoalEvaluationDependencies, 'repository' | 'now'>,
+): EndArchivedPropertyRatingGoal {
+  return (archive) =>
+    deps.repository.endForArchivedProperty({ ...archive, endedAt: deps.now() })
+}
