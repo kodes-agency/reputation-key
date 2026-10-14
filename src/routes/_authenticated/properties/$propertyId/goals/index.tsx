@@ -6,7 +6,10 @@ import { Target } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
-import { listGoalPrograms } from '#/contexts/reporting/server/goal-programs'
+import {
+  getGoalListProgress,
+  listGoalPrograms,
+} from '#/contexts/reporting/server/goal-programs'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
 import { buildGoalResultsMatrix } from '#/contexts/reporting/application/public-api'
@@ -36,6 +39,8 @@ import { goalMetricLabel } from '#/components/goals/goal-metric-label'
 import { goalListTarget } from '#/components/goals/goal-month-target-view'
 import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
+import { GoalLiveLine } from '#/components/goals/goal-live-line'
+import { goalListSubjectText, goalListSummary } from '#/components/goals/goal-live-view'
 import { GoalViewTabs } from '#/components/goals/goal-view-tabs'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { formatShortDate } from '#/lib/format'
@@ -46,6 +51,15 @@ const goalsQuery = (propertyId: string) =>
   queryOptions({
     queryKey: goalKeys.list({ propertyId, model: 'program' }),
     queryFn: () => listGoalPrograms({ data: { propertyId } }),
+    staleTime: 30_000,
+  })
+// The month so far of the active goals, read apart from the list so a slow
+// figure never holds the rows back: until it is read, a row shows what it always
+// has.
+const goalsLiveQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: goalKeys.listProgress(propertyId),
+    queryFn: () => getGoalListProgress({ data: { propertyId } }),
     staleTime: 30_000,
   })
 const subjectNamesQuery = (propertyId: string) =>
@@ -98,6 +112,13 @@ function GoalsRoute() {
     enabled: canDo('member.list'),
     retry: false,
   })
+  // Ended goals count no month, so the History view reads no figures.
+  const live = useQuery({
+    ...goalsLiveQuery(propertyId),
+    enabled: view === 'active',
+    retry: false,
+  })
+  const liveByProgram = new Map(live.data?.goals.map((goal) => [goal.programId, goal]))
   const goalId = result === undefined ? null : goalForResult(data.programs, result)
   if (goalId !== null) {
     return (
@@ -153,6 +174,11 @@ function GoalsRoute() {
       />
       <div className="flex flex-col gap-4">
         <GoalViewTabs propertyId={propertyId} view={view} />
+        {live.isError ? (
+          <p className="text-sm text-muted-foreground">
+            This month’s figures can’t be read right now.
+          </p>
+        ) : null}
         {goals.length === 0 ? (
           <EmptyState
             icon={Target}
@@ -184,8 +210,9 @@ function GoalsRoute() {
                 )
                 const setOn =
                   target.setAt === null
-                    ? ''
-                    : ` · set on ${formatShortDate(target.setAt, calendar.timezone, now) ?? 'an unknown date'}`
+                    ? null
+                    : `set on ${formatShortDate(target.setAt, calendar.timezone, now) ?? 'an unknown date'}`
+                const liveGoal = liveByProgram.get(program.id)
                 return (
                   <DataTableRow key={program.id}>
                     <DataTableCell className="min-w-0 whitespace-normal">
@@ -197,11 +224,14 @@ function GoalsRoute() {
                         {program.name}
                       </Link>
                       <p className="text-sm text-muted-foreground">
-                        {goalMetricLabel(target.metric)} · {target.text} ·{' '}
-                        {currentAssignmentCount}{' '}
-                        {currentAssignmentCount === 1 ? 'subject' : 'subjects'}
-                        {setOn}
+                        {goalListSummary([
+                          goalMetricLabel(target.metric),
+                          target.text,
+                          goalListSubjectText(currentAssignmentCount, liveGoal),
+                          setOn,
+                        ])}
                       </p>
+                      {liveGoal === undefined ? null : <GoalLiveLine goal={liveGoal} />}
                     </DataTableCell>
                     <DataTableCell className="col-start-2 row-start-1 justify-self-end">
                       <StatusBadge status={program.status} map={GOAL_STATUS} />
