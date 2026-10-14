@@ -2,11 +2,19 @@
 // Per architecture: integration tests against real Postgres.
 // Tenant isolation test is NON-NEGOTIABLE.
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import {
+  GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  GOOGLE_PROVIDER_FIXTURES_V1,
+} from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { createReviewRepository } from './review.repository'
 import { getDb } from '#/shared/db'
-import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import {
+  googleConnectionId,
+  organizationId,
+  propertyId,
+  reviewId,
+} from '#/shared/domain/ids'
 import type { Review } from '../../domain/types'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
@@ -16,6 +24,8 @@ const ORG_A = organizationId('org-rev-test-aaaa-1111111111111111')
 const ORG_B = organizationId('org-rev-test-bbbb-2222222222222222')
 const PROP_A = propertyId('71a00000-0000-4000-8000-000000000001')
 const PROP_B = propertyId('71b00000-0000-4000-8000-000000000002')
+const { accountId: GBP_ACCOUNT_ID, locationId: GBP_LOCATION_ID } =
+  GOOGLE_PROVIDER_FIXTURES_V1['google-location-primary'].expectedSegments
 
 let pool: Pool
 
@@ -64,6 +74,62 @@ async function seedProperties(pool: Pool) {
      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
      ON CONFLICT (id) DO NOTHING`,
     [PROP_B, ORG_B, 'Test Property B', 'test-prop-b', 'UTC'],
+  )
+}
+
+const SWEEP_PROP = propertyId('71c00000-0000-4000-8000-000000000003')
+const SWEEP_CONNECTION = '71c00000-0000-4000-8000-0000000000c1'
+const SWEEP_OTHER_CONNECTION = '71c00000-0000-4000-8000-0000000000c2'
+
+type SweepPropertyOptions = Readonly<{
+  lifecycleState?: string
+  bindingState?: string
+  connectionStatus?: string
+  /** 'other' binds the Property to a different connection than the reviews'. */
+  propertyConnection?: 'other'
+  deleted?: boolean
+}>
+
+/**
+ * (Re)creates the Property the refresh sweep's reviews sit on, bound to Google
+ * and active unless the options take it out of the set a sync can run for.
+ */
+async function seedSweepProperty(options: SweepPropertyOptions) {
+  await pool.query('DELETE FROM properties WHERE id = $1', [SWEEP_PROP])
+  for (const [id, status] of [
+    [SWEEP_CONNECTION, options.connectionStatus ?? 'active'],
+    [SWEEP_OTHER_CONNECTION, 'active'],
+  ] as const) {
+    await pool.query(
+      `INSERT INTO google_connections
+         (id, organization_id, google_subject, encrypted_access_token,
+          encrypted_refresh_token, token_expires_at, scopes, connected_by,
+          visibility, status, credential_use_state, created_at, updated_at)
+       VALUES ($1, $2, $3, 'enc-a', 'enc-r', NOW() + INTERVAL '1 day',
+               ARRAY['https://www.googleapis.com/auth/business.manage'],
+               'seed-user', 'organization', $4, 'active', NOW(), NOW())
+       ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status`,
+      [id, ORG_A, `subject-${id}`, status],
+    )
+  }
+  const bindingState = options.bindingState ?? 'active'
+  await pool.query(
+    `INSERT INTO properties
+       (id, organization_id, name, slug, timezone, google_connection_id,
+        gbp_account_id, gbp_location_id, google_binding_state, lifecycle_state,
+        deleted_at, created_at, updated_at)
+     VALUES ($1, $2, 'Sweep Property', 'test-prop-sweep', 'UTC', $3, $4, $5, $6, $7,
+             $8, NOW(), NOW())`,
+    [
+      SWEEP_PROP,
+      ORG_A,
+      options.propertyConnection === 'other' ? SWEEP_OTHER_CONNECTION : SWEEP_CONNECTION,
+      GBP_ACCOUNT_ID,
+      `${GBP_LOCATION_ID}-sweep`,
+      bindingState,
+      options.lifecycleState ?? 'active',
+      options.deleted === true ? new Date() : null,
+    ],
   )
 }
 
@@ -117,6 +183,24 @@ function makeReview(
     updatedAt: now,
     ...rest,
   } as Review
+}
+
+/** `count` live Reviews of one Property, newest first by their review date. */
+async function seedBulkReviews(count: number) {
+  await pool.query(
+    `INSERT INTO reviews (
+       id, organization_id, property_id, platform, external_id,
+       external_location_id, reviewer_name, rating, text, reviewed_at, expires_at,
+       first_fetched_at, last_fetched_at, content_expires_at, source_epoch,
+       source_revision, analysis_sequence, ai_source_byte_length, ai_source_digest
+     )
+     SELECT gen_random_uuid(), $1, $2, 'google', 'bulk-' || n, 'locations/bulk',
+            'Jane Doe', 5, 'A live review', NOW() - (n * INTERVAL '1 minute'),
+            NOW() + INTERVAL '25 days', NOW(), NOW(), NOW() + INTERVAL '30 days',
+            0, 0, 0, 1, repeat('0', 64)
+     FROM generate_series(1, $3::int) AS n`,
+    [ORG_A, PROP_A, count],
+  )
 }
 
 describe.sequential('reviewRepository (integration)', () => {
@@ -454,6 +538,12 @@ describe.sequential('reviewRepository (integration)', () => {
     // satisfy the upper-bound predicate.
     const NOW = new Date('1900-06-01T12:00:00Z')
 
+    // The sweep only offers reviews a sync can still be authorized for, so the
+    // walk's reviews sit on an active Property bound to an active connection.
+    beforeEach(async () => {
+      await seedSweepProperty({})
+    })
+
     async function seedExpiring(
       repo: ReturnType<typeof createReviewRepository>,
       idSuffix: string,
@@ -463,6 +553,8 @@ describe.sequential('reviewRepository (integration)', () => {
         makeReview({
           id: `1a000000-0000-0000-0000-0000000000${idSuffix}`,
           externalId: `ext-${idSuffix}`,
+          propertyId: SWEEP_PROP,
+          googleConnectionId: googleConnectionId(SWEEP_CONNECTION),
           contentExpiresAt: expiresAt,
         } as Partial<Omit<Review, 'id'>>),
       )
@@ -526,6 +618,44 @@ describe.sequential('reviewRepository (integration)', () => {
       }
       expect(rest).toEqual(['ext-c2'])
     })
+
+    it('offers the review of a Property a sync can still run for', async () => {
+      const repo = createReviewRepository(getDb(), () => new Date())
+      const threshold = new Date(NOW.getTime() + 30 * 24 * 60 * 60 * 1000)
+      await seedExpiring(repo, 'd0', new Date(NOW.getTime() + 60 * 1000))
+
+      const rows = await repo.findExpiringBatchAcrossTenants(threshold, null, 10)
+
+      expect(rows.map((row) => row.externalId)).toEqual(['ext-d0'])
+    })
+
+    // A sync for these can never succeed: the authorizer refuses a Property that
+    // is not active and bound, or whose connection is not usable, so the sweep
+    // would queue three failing attempts and a dead-letter entry every hour
+    // between day 25 and day 30 (S14-02).
+    it.each([
+      ['archived', { lifecycleState: 'archived' }],
+      ['suspended', { lifecycleState: 'suspended' }],
+      ['soft-deleted', { deleted: true }],
+      ['disconnected from Google', { bindingState: 'disconnected' }],
+      ['bound to another connection than the review', { propertyConnection: 'other' }],
+      [
+        'on a connection that needs reauthorisation',
+        { connectionStatus: 'reauth_required' },
+      ],
+    ] satisfies ReadonlyArray<readonly [string, SweepPropertyOptions]>)(
+      'leaves out the reviews of a Property that is %s',
+      async (_label, options) => {
+        const repo = createReviewRepository(getDb(), () => new Date())
+        const threshold = new Date(NOW.getTime() + 30 * 24 * 60 * 60 * 1000)
+        await seedSweepProperty(options)
+        await seedExpiring(repo, 'd1', new Date(NOW.getTime() + 60 * 1000))
+
+        const rows = await repo.findExpiringBatchAcrossTenants(threshold, null, 10)
+
+        expect(rows.map((row) => row.externalId)).toEqual([])
+      },
+    )
   })
 
   describe('tenant isolation', () => {
@@ -597,6 +727,27 @@ describe.sequential('reviewRepository (integration)', () => {
       expect(reviews).toHaveLength(2)
     })
 
+    it('returns every review of the Property, past the per-request page size', async () => {
+      // The Inbox repair command reads "all review sources"; a silent cap at 500
+      // made a repair of a larger Property look complete (S14-04).
+      const repo = createReviewRepository(getDb(), () => new Date())
+      await seedBulkReviews(501)
+
+      const reviews = await repo.findByPropertyId(PROP_A, ORG_A)
+
+      expect(reviews).toHaveLength(501)
+      expect(reviews[0]?.externalId).toBe('bulk-1')
+    })
+
+    it('still honours an explicit limit, newest first', async () => {
+      const repo = createReviewRepository(getDb(), () => new Date())
+      await seedBulkReviews(5)
+
+      const reviews = await repo.findByPropertyId(PROP_A, ORG_A, { limit: 2 })
+
+      expect(reviews.map((review) => review.externalId)).toEqual(['bulk-1', 'bulk-2'])
+    })
+
     it('returns empty for property with no reviews', async () => {
       const db = getDb()
       const repo = createReviewRepository(db, () => new Date())
@@ -619,6 +770,25 @@ describe.sequential('reviewRepository (integration)', () => {
 
       const reviews = await repo.findByOrganizationId(ORG_A)
       expect(reviews).toHaveLength(2)
+    })
+
+    it('returns every review of the organization, past the per-request page size', async () => {
+      const repo = createReviewRepository(getDb(), () => new Date())
+      await seedBulkReviews(501)
+
+      const reviews = await repo.findByOrganizationId(ORG_A)
+
+      expect(reviews).toHaveLength(501)
+      expect(new Set(reviews.map((review) => review.id)).size).toBe(501)
+    })
+
+    it('returns the reviews of the organization in id order', async () => {
+      const repo = createReviewRepository(getDb(), () => new Date())
+      await seedBulkReviews(40)
+
+      const ids = (await repo.findByOrganizationId(ORG_A)).map((review) => review.id)
+
+      expect(ids).toEqual([...ids].sort())
     })
   })
 

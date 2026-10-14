@@ -97,6 +97,7 @@ function scopeReview(overrides: Partial<Review> = {}): Review {
 }
 
 type ScopeObservationInput = Parameters<ReviewProviderObservationWriter['persist']>[0]
+type RecordedReplyObservation = Parameters<GoogleReplyObservationStore['record']>[0]
 
 function scopeObservation(
   overrides: Partial<ScopeObservationInput> = {},
@@ -163,6 +164,14 @@ function scopeWriter(
     }),
   )
   const readHistoryCutoff = vi.fn(async () => history)
+  const record = vi.fn(async (_observation: RecordedReplyObservation) => ({
+    observationRevision: 1,
+    change: 'unchanged' as const,
+    resolution: 'unchanged' as const,
+    matchedReplyId: null,
+    matchedPublicationCycle: null,
+    duplicate: false,
+  }))
   const writer = createReviewProviderObservationWriter({
     reviewRepo: {
       findByExternalId: vi.fn(async () => existing),
@@ -181,18 +190,18 @@ function scopeWriter(
     googleReplyObservationStore: {
       allocateReadGeneration: vi.fn(async () => 1),
       findCurrentHead: vi.fn(async () => null),
-      record: vi.fn(async () => ({
-        observationRevision: 1,
-        change: 'unchanged' as const,
-        resolution: 'unchanged' as const,
-        matchedReplyId: null,
-        matchedPublicationCycle: null,
-        duplicate: false,
-      })),
+      record,
     } satisfies GoogleReplyObservationStore,
     historyCutoffs: { readHistoryCutoff },
   })
-  return { writer, upsert, upsertAndRecord, reobserveExpiredAndRecord, readHistoryCutoff }
+  return {
+    writer,
+    upsert,
+    upsertAndRecord,
+    reobserveExpiredAndRecord,
+    readHistoryCutoff,
+    record,
+  }
 }
 
 /** The origin the writer recorded, on both the revision write and its event. */
@@ -224,6 +233,130 @@ function revisionOneProvenance(review: GoogleReview) {
       .digest('hex'),
   }
 }
+
+describe('Review provider observation of a Google reply it cannot read', () => {
+  it('records no reply observation for a reply whose original text Google did not return', async () => {
+    // Google shows a reply, but only as a translation envelope: the original
+    // text is not recoverable, so `replyText` is null and `replyUnreadable` is
+    // true. Recording `null` would write an `absent` head for a live reply and
+    // reopen a closed Inbox item as "reply deleted".
+    const { writer, record, upsertAndRecord } = scopeWriter(null)
+
+    await writer.persist(
+      scopeObservation({
+        sourceEpoch: 4,
+        review: { ...SCOPE_PROVIDER_REVIEW, replyText: null, replyUnreadable: true },
+      }),
+    )
+
+    expect(upsertAndRecord).toHaveBeenCalledTimes(1)
+    expect(record).not.toHaveBeenCalled()
+  })
+
+  it('still records an absent reply when Google shows none', async () => {
+    const { writer, record } = scopeWriter(null)
+
+    await writer.persist(
+      scopeObservation({
+        sourceEpoch: 4,
+        review: { ...SCOPE_PROVIDER_REVIEW, replyText: null, replyUnreadable: false },
+      }),
+    )
+
+    expect(record).toHaveBeenCalledTimes(1)
+    expect(record.mock.calls[0]?.[0]).toMatchObject({ observedText: null })
+  })
+})
+
+describe('Review provider observation of text the AI source contract refuses', () => {
+  // 497 x U+FDFA is 1,491 bytes of Google text and 16,401 once NFKC has
+  // expanded it, over the 16,384 byte limit of the canonical AI source (S13-02).
+  const OVER_THE_LIMIT = { ...SCOPE_PROVIDER_REVIEW, text: '\uFDFA'.repeat(497) }
+  const UNPAIRED_SURROGATE = { ...SCOPE_PROVIDER_REVIEW, text: 'Lovely stay \uD83D' }
+  const CANONICAL_LIMIT = 16_384
+
+  it('stores a review whose canonical source is over the limit, marked as over it', async () => {
+    const { writer, upsertAndRecord } = scopeWriter(null)
+
+    await writer.persist(scopeObservation({ sourceEpoch: 4, review: OVER_THE_LIMIT }))
+
+    const stored = upsertAndRecord.mock.calls[0]?.[0]
+    expect(stored?.text).toBe(OVER_THE_LIMIT.text)
+    expect(stored?.aiSourceByteLength).toBeGreaterThan(CANONICAL_LIMIT)
+    expect(stored?.aiSourceDigest).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it('stores a review whose text holds an unpaired surrogate, marked as over the limit', async () => {
+    const { writer, upsertAndRecord } = scopeWriter(null)
+
+    await writer.persist(scopeObservation({ sourceEpoch: 4, review: UNPAIRED_SURROGATE }))
+
+    const stored = upsertAndRecord.mock.calls[0]?.[0]
+    expect(stored?.aiSourceByteLength).toBeGreaterThan(CANONICAL_LIMIT)
+  })
+
+  it('refreshes the same refused review quietly when it is observed again', async () => {
+    const first = scopeWriter(null)
+    await first.writer.persist(
+      scopeObservation({ sourceEpoch: 4, review: OVER_THE_LIMIT }),
+    )
+    const firstWrite = first.upsertAndRecord.mock.calls[0]?.[0]
+    const existing = scopeReview({ ...firstWrite, sourceEpoch: 4 })
+    const { writer, upsert, upsertAndRecord } = scopeWriter(existing)
+
+    await writer.persist(scopeObservation({ sourceEpoch: 4, review: OVER_THE_LIMIT }))
+
+    expect(upsertAndRecord).not.toHaveBeenCalled()
+    expect(upsert).toHaveBeenCalledTimes(1)
+  })
+
+  it('records an update when a refused review is edited to other refused text', async () => {
+    const first = scopeWriter(null)
+    await first.writer.persist(
+      scopeObservation({ sourceEpoch: 4, review: OVER_THE_LIMIT }),
+    )
+    const firstWrite = first.upsertAndRecord.mock.calls[0]?.[0]
+    const existing = scopeReview({ ...firstWrite, sourceEpoch: 4 })
+    const { writer, upsertAndRecord } = scopeWriter(existing)
+
+    await writer.persist(
+      scopeObservation({
+        sourceEpoch: 4,
+        review: { ...OVER_THE_LIMIT, text: '\uFDFB'.repeat(497) },
+      }),
+    )
+
+    expect(upsertAndRecord).toHaveBeenCalledTimes(1)
+  })
+
+  it('records an update when a guest shortens a refused review into one the AI can read', async () => {
+    const first = scopeWriter(null)
+    await first.writer.persist(
+      scopeObservation({ sourceEpoch: 4, review: OVER_THE_LIMIT }),
+    )
+    const firstWrite = first.upsertAndRecord.mock.calls[0]?.[0]
+    const existing = scopeReview({ ...firstWrite, sourceEpoch: 4 })
+    const { writer, upsertAndRecord } = scopeWriter(existing)
+
+    await writer.persist(
+      scopeObservation({ sourceEpoch: 4, review: SCOPE_PROVIDER_REVIEW }),
+    )
+
+    const written = upsertAndRecord.mock.calls[0]?.[0]
+    expect(written?.aiSourceByteLength).toBe(SCOPE_AI_PROVENANCE.byteLength)
+    expect(written?.aiSourceDigest).toBe(SCOPE_AI_PROVENANCE.digest)
+  })
+
+  it('records an update when a guest expands a readable review past the limit', async () => {
+    const existing = scopeReview({ sourceEpoch: 4 })
+    const { writer, upsertAndRecord } = scopeWriter(existing)
+
+    await writer.persist(scopeObservation({ sourceEpoch: 4, review: OVER_THE_LIMIT }))
+
+    const written = upsertAndRecord.mock.calls[0]?.[0]
+    expect(written?.aiSourceByteLength).toBeGreaterThan(CANONICAL_LIMIT)
+  })
+})
 
 describe('Review provider observation under the source text revisions', () => {
   const MULTI_LINE = {

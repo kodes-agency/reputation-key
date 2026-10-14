@@ -144,7 +144,12 @@ describe('cancelPublicationsForConnection', () => {
       cause: 'disconnect',
     })
 
-    expect(result).toEqual({ reviewsScanned: 2, cancelled: 2, batches: 1 })
+    expect(result).toEqual({
+      reviewsScanned: 2,
+      cancelled: 2,
+      batches: 1,
+      complete: true,
+    })
     expect(deps.reviewRepo.findByConnection).toHaveBeenCalledWith(
       ORG_ID,
       CONN_ID,
@@ -181,7 +186,12 @@ describe('cancelPublicationsForConnection', () => {
       cause: 'disconnect',
     })
 
-    expect(result).toEqual({ reviewsScanned: 0, cancelled: 0, batches: 0 })
+    expect(result).toEqual({
+      reviewsScanned: 0,
+      cancelled: 0,
+      batches: 0,
+      complete: true,
+    })
     expect(deps.replyRepo.findUndispatchedPublicationsByReviewIds).not.toHaveBeenCalled()
     expect(deps.commandStore.cancelPublications).not.toHaveBeenCalled()
   })
@@ -199,7 +209,12 @@ describe('cancelPublicationsForConnection', () => {
       cause: 'disconnect',
     })
 
-    expect(result).toEqual({ reviewsScanned: 1, cancelled: 0, batches: 1 })
+    expect(result).toEqual({
+      reviewsScanned: 1,
+      cancelled: 0,
+      batches: 1,
+      complete: true,
+    })
     expect(deps.commandStore.cancelPublications).toHaveBeenCalledWith([])
   })
 
@@ -253,7 +268,56 @@ describe('cancelPublicationsForConnection', () => {
     })
 
     expect(result.batches).toBe(2)
-    expect(deps.reviewRepo.findByConnection).toHaveBeenCalledTimes(2)
+    expect(result.complete).toBe(false)
+  })
+
+  it('reports a scan that ends exactly at the budget as complete', async () => {
+    const deps = makeDeps({
+      reviewsByCall: [[makeReview(REVIEW_1)], [makeReview(REVIEW_2)]],
+      activeReplies: [],
+      cancelResult: 0,
+    })
+
+    const result = await cancelPublicationsForConnection({
+      ...deps,
+      batchSize: 1,
+      maxBatches: 2,
+    })({
+      organizationId: ORG_ID,
+      connectionId: CONN_ID,
+      cause: 'disconnect',
+    })
+
+    expect(result).toEqual({
+      reviewsScanned: 2,
+      cancelled: 0,
+      batches: 2,
+      complete: true,
+    })
+  })
+
+  it('does not stop a connection of more than 5,000 reviews at the old budget', async () => {
+    const batchesOfReviews = Array.from({ length: 11 }, (_, index) => [
+      makeReview(`42000000-0000-4000-8000-${String(index + 100).padStart(12, '0')}`),
+    ])
+    const deps = makeDeps({
+      reviewsByCall: batchesOfReviews,
+      activeReplies: [],
+      cancelResult: 0,
+    })
+
+    const result = await cancelPublicationsForConnection({ ...deps, batchSize: 1 })({
+      organizationId: ORG_ID,
+      connectionId: CONN_ID,
+      cause: 'disconnect',
+    })
+
+    expect(result).toEqual({
+      reviewsScanned: 11,
+      cancelled: 0,
+      batches: 11,
+      complete: true,
+    })
   })
 })
 

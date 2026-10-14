@@ -189,7 +189,7 @@ definitions and security controls live in
 
 **Alert:** `sync.sweep-lag` (P1) — the oldest past-due `review_sync_state.next_incremental_at` is more than 60 minutes overdue (four consecutive 15-minute sweeps failed to reach it).
 
-**What it means:** a property that was scheduled for an incremental sync has not been polled. Every value written to `next_incremental_at` is already in the future by the poll interval, so overdue age is pure sweep lag — the alert is not measuring "properties are waiting", it is measuring "the sweep stopped working". With Google Pub/Sub push dark (`sync.gbp_push_enabled = 0`) the sweep is the ONLY path a new review has into the app: nobody gets notified, the inbox goes quiet, and there is no error anywhere.
+**What it means:** a property that was scheduled for an incremental sync has not been polled. Every value written to `next_incremental_at` is already in the future by the poll interval, so overdue age is pure sweep lag for a Property the sweep still selects (active, not deleted, bound to Google, connection usable; `sync.failed-nonzero` counts the same set). A Property archived, suspended or disconnected keeps the poll time and coded failure it had and the sweep never rewrites them, so the gauges leave it out; it is counted again the day it qualifies. The alert is not measuring "properties are waiting", it is measuring "the sweep stopped working". With Google Pub/Sub push dark (`sync.gbp_push_enabled = 0`) the sweep is the ONLY path a new review has into the app: nobody gets notified, the inbox goes quiet, and there is no error anywhere.
 
 **First three things to check:**
 

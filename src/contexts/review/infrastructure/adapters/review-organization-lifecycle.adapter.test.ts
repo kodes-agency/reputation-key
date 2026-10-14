@@ -183,9 +183,9 @@ describe('Review Organization lifecycle contributor', () => {
     for (const statement of statements) {
       expect(statement).not.toMatch(/\bDROP\b|\bTRUNCATE\b|DISABLE TRIGGER/u)
     }
-    // Independently retained, content-free evidence is never written to:
-    // the publication authorizations are immutable in PostgreSQL, and the
-    // retention/refresh run logs carry no Organization scope at all.
+    // Independently retained, content-free evidence is never written to: the
+    // publication authorizations are kept as the proof of who authorized a
+    // cycle, and the retention/refresh run logs carry no Organization scope.
     for (const retained of [
       'reply_publication_authorizations',
       'retention_runs',
@@ -195,7 +195,7 @@ describe('Review Organization lifecycle contributor', () => {
       expect(statements.some((text) => text.includes(retained))).toBe(false)
     }
     // The identity spine survives as SCRUBBED rows, never as deleted ones,
-    // because immutable authorizations reference it with ON DELETE RESTRICT.
+    // because the retained authorizations reference it with ON DELETE RESTRICT.
     for (const spine of ['replies', 'reviews', 'material_review_revisions']) {
       expect(statements.some((text) => text.startsWith(`UPDATE ${spine} `))).toBe(true)
       expect(statements.some((text) => text.startsWith(`DELETE FROM ${spine} `))).toBe(
@@ -210,6 +210,8 @@ describe('Review Organization lifecycle contributor', () => {
       'reply_publication_attempts',
       'review_provider_subjects',
       'review_provider_history_cutoffs',
+      'property_reply_profiles',
+      'property_reply_templates',
       'idempotency_receipts',
       'review_sync_state',
     ]) {

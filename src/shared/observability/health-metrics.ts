@@ -20,6 +20,9 @@ import { eq, sql, type SQL } from 'drizzle-orm'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { reviews, replies } from '#/shared/db/schema/review.schema'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
+import { googleConnections } from '#/shared/db/schema/google-connection.schema'
+import { properties } from '#/shared/db/schema/property.schema'
+import { propertyIsSyncable } from '#/shared/db/syncable-property'
 import {
   notificationDigestBatchMembers,
   notificationEmailQueue,
@@ -954,7 +957,10 @@ async function readSyncStateMetrics(
       // How far behind the discovery sweep is: the age of the oldest
       // past-due poll time. next_incremental_at is always written in
       // the future by the sync/backoff path, so a positive age here is
-      // purely sweep lag (the poll interval is already priced in).
+      // purely sweep lag (the poll interval is already priced in) — for a
+      // Property the sweep still selects. One that was archived, suspended or
+      // disconnected keeps the poll time and the coded failure it had, and the
+      // sweep never rewrites them, so only syncable Properties are counted.
       oldest_due_age_ms: sql<number | null>`
         EXTRACT(EPOCH FROM (NOW() - MIN(${reviewSyncState.nextIncrementalAt}) FILTER (
           WHERE ${reviewSyncState.nextIncrementalAt} IS NOT NULL
@@ -963,6 +969,9 @@ async function readSyncStateMetrics(
       `,
     })
     .from(reviewSyncState)
+    .innerJoin(properties, sql`${properties.id}::varchar = ${reviewSyncState.propertyId}`)
+    .innerJoin(googleConnections, eq(googleConnections.id, properties.googleConnectionId))
+    .where(propertyIsSyncable)
 
   const row = result[0]
   return {

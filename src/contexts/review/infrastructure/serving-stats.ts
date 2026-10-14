@@ -15,7 +15,7 @@
 // where-builders below (one place per query family).
 
 import type { Database } from '#/shared/db'
-import { reviews, replies } from '#/shared/db/schema'
+import { properties, reviews, replies } from '#/shared/db/schema'
 import { and, count, avg, eq, gte, gt, lt, desc, isNotNull, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
@@ -70,14 +70,22 @@ function servingRecentWhere(
   )
 }
 
-const reviewDate = sql`DATE(${reviews.reviewedAt})`
+/**
+ * The calendar day of a review in its Property's zone. The window of every
+ * period is opened at a Property-local instant and Portal Results count
+ * Property-local days, so the series is bucketed the same way: a review written
+ * at 18:30 in Los Angeles belongs to that day, not to the UTC day after it. The
+ * pool pins the session zone to UTC, so a bare DATE() would be the UTC day.
+ */
+const reviewDate = sql`DATE(${reviews.reviewedAt} AT TIME ZONE ${properties.timezone})`
 
 type DailySeriesRow = Readonly<{ date: string; value: number | null }>
 
 /**
  * THE daily-series skeleton over the serving scope: one row per reviewedAt
- * day, ordered chronologically. `aggregate` picks the per-day value —
- * avgRating (trend) or count (volume); consumers round/project.
+ * day of the Property's calendar, ordered chronologically. `aggregate` picks
+ * the per-day value — avgRating (trend) or count (volume); consumers
+ * round/project.
  */
 async function queryDailySeries(
   db: Database,
@@ -90,6 +98,13 @@ async function queryDailySeries(
       value: aggregate === 'avgRating' ? avg(reviews.rating) : count(),
     })
     .from(reviews)
+    .innerJoin(
+      properties,
+      and(
+        eq(properties.id, reviews.propertyId),
+        eq(properties.organizationId, reviews.organizationId),
+      ),
+    )
     .where(where)
     .groupBy(reviewDate)
     .orderBy(reviewDate)

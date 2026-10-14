@@ -164,6 +164,13 @@ export async function handleGoogleAccountDisconnected(
     connectionId: googleConnectionId(payload.connectionId),
     cause: 'disconnect',
   })
+  if (!result.complete) {
+    // No receipt: the event is redelivered instead of recording as applied
+    // work that left later reviews' replies queued to publish.
+    throw new Error(
+      `Google disconnect reply cancellation stopped at its batch budget after ${result.reviewsScanned} reviews`,
+    )
+  }
   deps.logger.info(
     { ...result },
     'integration.google_account.disconnected: reply publication cancellation complete',

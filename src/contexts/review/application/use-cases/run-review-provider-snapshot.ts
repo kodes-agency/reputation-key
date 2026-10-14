@@ -7,6 +7,7 @@ import type {
 } from '../ports/google-review-api.port'
 import type { PropertySourceEpochPort } from '../ports/property-source-epoch.port'
 import type { GoogleReview } from '../../domain/types'
+import type { GoogleReviewRead } from '../ports/google-review-api.port'
 import type {
   ReviewProviderSubjectDeriver,
   ReviewProviderSubjectKeyService,
@@ -246,7 +247,7 @@ const persistPageObservations = async (
   deriver: ReviewProviderSubjectDeriver,
   input: RunReviewProviderSnapshotInput,
   run: Pick<ReviewProviderSnapshotRun, 'id' | 'observationOrigin' | 'startedAt'>,
-  reviews: readonly GoogleReview[],
+  reviews: readonly GoogleReviewRead[],
   observationScope: string,
   replyReadGeneration: number,
 ): Promise<readonly ReviewProviderPersistedObservation[]> => {

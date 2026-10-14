@@ -3,8 +3,10 @@
 // Reviews table has no deletedAt column, so baseWhere is not used.
 //
 // Query limits:
-//   500  — findByPropertyId, findAllByOrganization: per-request page size. Matches typical
-//          GBP location review counts (<500 for most businesses). Paginate if exceeded.
+//   findByPropertyId takes an optional `limit` (newest first) for a caller that wants a
+//   page; without one, and for findByOrganizationId, the read is every live Review —
+//   the Inbox repair command's source list is "all review sources" and a cap would
+//   make its report look complete.
 //   BQC-8.3: the system-level lifecycle sweeps (refresh-expiring, purge-expired)
 //          use keyset-bounded batch queries (findExpiringBatchAcrossTenants,
 //          findExpiredBatchBeforeAcrossTenants) with caller-supplied limits —
@@ -46,19 +48,20 @@ import { reviewFromRow, reviewToRow } from '../mappers/review.mapper'
 import { reviewError } from '../../domain/errors'
 import { escapeLikePattern } from '#/shared/db/like-pattern'
 import { trace } from '#/shared/observability/trace'
-import type {
-  AiReviewSourceDenial,
-  AiReviewSourceRequest,
-  AiReviewSourceResult,
-} from '../../application/ports/ai-review-source.port'
-import { matchStoredAiReviewSourceProvenance } from '../../application/ai-review-source'
+import type { AiReviewSourceResult } from '../../application/ports/ai-review-source.port'
+import { findStoredAiReviewSourceProvenance } from '../../application/ai-review-source'
 import { upsertReviewSourceContent } from '../review-source-content-store'
+import { reviewIsSyncable } from './syncable-review'
+import {
+  MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
+  MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
+  aiSourceLookupSql,
+  expectationDenial,
+  parseSafeNonnegativeInteger,
+  type AiSourceDatabaseRow,
+} from './ai-source-lookup'
 import { persistReviewObservation } from './review-observation.repository'
 import type { ReviewProviderObservationOrigin } from '../../application/ports/response-target-authority.port'
-
-const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
-const MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1 = 16_384
-const MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1 = 65_536
 
 const INSIGHTS_READ_BUDGET_MS = 5_000
 
@@ -73,128 +76,6 @@ async function withStatementTimeout<T>(
     )
     return read(transaction)
   })
-}
-
-function parseSafeNonnegativeInteger(value: unknown): number | null {
-  try {
-    const parsed =
-      typeof value === 'bigint'
-        ? value
-        : typeof value === 'number' && Number.isSafeInteger(value)
-          ? BigInt(value)
-          : typeof value === 'string' && /^(0|[1-9][0-9]*)$/.test(value)
-            ? BigInt(value)
-            : null
-    if (parsed == null || parsed < 0n || parsed > MAX_SAFE_INTEGER_BIGINT) return null
-    return Number(parsed)
-  } catch {
-    return null
-  }
-}
-
-function expectationDenial(
-  input: AiReviewSourceRequest,
-  row: Readonly<{
-    source_epoch: unknown
-    source_revision: unknown
-    analysis_sequence: unknown
-  }>,
-): AiReviewSourceDenial | null {
-  const sourceEpoch = parseSafeNonnegativeInteger(row.source_epoch)
-  const sourceRevision = parseSafeNonnegativeInteger(row.source_revision)
-  const analysisSequence = parseSafeNonnegativeInteger(row.analysis_sequence)
-  if (sourceEpoch == null || sourceRevision == null || analysisSequence == null) {
-    return 'policy_unavailable'
-  }
-  if (sourceEpoch !== input.expected.sourceEpoch) return 'source_epoch_changed'
-  if (sourceRevision !== input.expected.sourceRevision) return 'source_revision_changed'
-  if (
-    input.expected.kind === 'analysis' &&
-    analysisSequence !== input.expected.analysisSequence
-  ) {
-    return 'analysis_sequence_changed'
-  }
-  return null
-}
-
-type AiSourceDatabaseRow = Readonly<{
-  source_epoch: unknown
-  source_revision: unknown
-  analysis_sequence: unknown
-  content_expires_at_epoch_millis: unknown
-  reviewed_at_epoch_millis: unknown
-  ai_source_byte_length: unknown
-  ai_source_digest: unknown
-  raw_source_bytes: unknown
-  is_unexpired: unknown
-  text: unknown
-  rating: unknown
-  language_code: unknown
-  reviewer_name: unknown
-}>
-
-function aiSourceLookupSql(input: AiReviewSourceRequest) {
-  return sql`
-    WITH captured AS (
-      SELECT transaction_timestamp() AS now
-    )
-    SELECT
-      review.source_epoch,
-      review.source_revision,
-      review.analysis_sequence,
-      ai_epoch_millis_v1(review.content_expires_at) AS content_expires_at_epoch_millis,
-      ai_epoch_millis_v1(review.reviewed_at) AS reviewed_at_epoch_millis,
-      review.ai_source_byte_length,
-      review.ai_source_digest,
-      (
-        COALESCE(octet_length(review.text), 0)::bigint
-        + COALESCE(octet_length(review.language_code), 0)::bigint
-        + COALESCE(octet_length(review.reviewer_name), 0)::bigint
-      ) AS raw_source_bytes,
-      review.content_expires_at > captured.now AS is_unexpired,
-      CASE WHEN
-        review.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
-        AND (
-          COALESCE(octet_length(review.text), 0)::bigint
-          + COALESCE(octet_length(review.language_code), 0)::bigint
-          + COALESCE(octet_length(review.reviewer_name), 0)::bigint
-        ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
-        AND review.content_expires_at > captured.now
-      THEN review.text ELSE NULL END AS text,
-      CASE WHEN
-        review.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
-        AND (
-          COALESCE(octet_length(review.text), 0)::bigint
-          + COALESCE(octet_length(review.language_code), 0)::bigint
-          + COALESCE(octet_length(review.reviewer_name), 0)::bigint
-        ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
-        AND review.content_expires_at > captured.now
-      THEN review.rating ELSE NULL END AS rating,
-      CASE WHEN
-        review.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
-        AND (
-          COALESCE(octet_length(review.text), 0)::bigint
-          + COALESCE(octet_length(review.language_code), 0)::bigint
-          + COALESCE(octet_length(review.reviewer_name), 0)::bigint
-        ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
-        AND review.content_expires_at > captured.now
-      THEN review.language_code ELSE NULL END AS language_code,
-      CASE WHEN
-        review.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
-        AND (
-          COALESCE(octet_length(review.text), 0)::bigint
-          + COALESCE(octet_length(review.language_code), 0)::bigint
-          + COALESCE(octet_length(review.reviewer_name), 0)::bigint
-        ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
-        AND review.content_expires_at > captured.now
-      THEN review.reviewer_name ELSE NULL END AS reviewer_name
-    FROM reviews AS review
-    CROSS JOIN captured
-    WHERE review.organization_id = ${input.organizationId}
-      AND review.property_id = ${input.propertyId}::uuid
-      AND review.id = ${input.reviewId}::uuid
-    LIMIT 1
-  `
 }
 
 /**
@@ -222,6 +103,7 @@ async function clockBatchAcrossTenants(
   bound: SQL,
   cursor: ClockCursor,
   limit: number,
+  scope?: SQL,
 ) {
   const rows = await db
     .select()
@@ -231,6 +113,7 @@ async function clockBatchAcrossTenants(
         holdsContent,
         isNotNull(reviews.contentExpiresAt),
         bound,
+        scope,
         cursor
           ? sql`(${reviews.contentExpiresAt}, ${reviews.id}) > (${cursor.contentExpiresAt}, ${cursor.id})`
           : undefined,
@@ -268,87 +151,88 @@ export const createReviewRepository = (
   },
   readForAi: async (input): Promise<AiReviewSourceResult> => {
     return await trace('review.readForAi', async () => {
-      try {
-        return await db.transaction(async (tx): Promise<AiReviewSourceResult> => {
-          const result = await tx.execute(aiSourceLookupSql(input))
-          const row = result.rows[0] as AiSourceDatabaseRow | undefined
-          if (row == null) return { status: 'not_found' }
+      // A database fault is thrown, not answered. Review analysis settles every
+      // status but `available` and `expired` as a terminal skip, so a pool
+      // timeout or a reset connection read as `policy_unavailable` would drop
+      // the review from the aggregates for good. The outbox consumer and the
+      // backlog drain retry a thrown read.
+      return await db.transaction(async (tx): Promise<AiReviewSourceResult> => {
+        const result = await tx.execute(aiSourceLookupSql(input))
+        const row = result.rows[0] as AiSourceDatabaseRow | undefined
+        if (row == null) return { status: 'not_found' }
 
-          const expectationMismatch = expectationDenial(input, row)
-          if (expectationMismatch != null) return { status: expectationMismatch }
+        const expectationMismatch = expectationDenial(input, row)
+        if (expectationMismatch != null) return { status: expectationMismatch }
 
-          const rawSourceBytes = parseSafeNonnegativeInteger(row.raw_source_bytes)
-          const storedByteLength = parseSafeNonnegativeInteger(row.ai_source_byte_length)
-          if (rawSourceBytes == null || storedByteLength == null) {
-            return { status: 'policy_unavailable' }
-          }
-          if (
-            storedByteLength > MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1 ||
-            rawSourceBytes > MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1
-          ) {
-            return { status: 'source_too_large' }
-          }
-          if (row.is_unexpired !== true) return { status: 'expired' }
+        const rawSourceBytes = parseSafeNonnegativeInteger(row.raw_source_bytes)
+        const storedByteLength = parseSafeNonnegativeInteger(row.ai_source_byte_length)
+        if (rawSourceBytes == null || storedByteLength == null) {
+          return { status: 'policy_unavailable' }
+        }
+        if (
+          storedByteLength > MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1 ||
+          rawSourceBytes > MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1
+        ) {
+          return { status: 'source_too_large' }
+        }
+        if (row.is_unexpired !== true) return { status: 'expired' }
 
-          const reviewedAtEpochMillis = parseSafeNonnegativeInteger(
-            row.reviewed_at_epoch_millis,
-          )
-          const contentExpiresAtEpochMillis = parseSafeNonnegativeInteger(
-            row.content_expires_at_epoch_millis,
-          )
-          const sourceEpoch = parseSafeNonnegativeInteger(row.source_epoch)
-          const sourceRevision = parseSafeNonnegativeInteger(row.source_revision)
-          const analysisSequence = parseSafeNonnegativeInteger(row.analysis_sequence)
-          const rating = Number(row.rating)
-          if (
-            reviewedAtEpochMillis == null ||
-            contentExpiresAtEpochMillis == null ||
-            sourceEpoch == null ||
-            sourceRevision == null ||
-            analysisSequence == null ||
-            ![1, 2, 3, 4, 5].includes(rating) ||
-            (row.text !== null && typeof row.text !== 'string') ||
-            (row.language_code !== null && typeof row.language_code !== 'string') ||
-            (row.reviewer_name !== null && typeof row.reviewer_name !== 'string') ||
-            typeof row.ai_source_digest !== 'string' ||
-            !/^[0-9a-f]{64}$/.test(row.ai_source_digest)
-          ) {
-            return { status: 'policy_unavailable' }
-          }
+        const reviewedAtEpochMillis = parseSafeNonnegativeInteger(
+          row.reviewed_at_epoch_millis,
+        )
+        const contentExpiresAtEpochMillis = parseSafeNonnegativeInteger(
+          row.content_expires_at_epoch_millis,
+        )
+        const sourceEpoch = parseSafeNonnegativeInteger(row.source_epoch)
+        const sourceRevision = parseSafeNonnegativeInteger(row.source_revision)
+        const analysisSequence = parseSafeNonnegativeInteger(row.analysis_sequence)
+        const rating = Number(row.rating)
+        if (
+          reviewedAtEpochMillis == null ||
+          contentExpiresAtEpochMillis == null ||
+          sourceEpoch == null ||
+          sourceRevision == null ||
+          analysisSequence == null ||
+          ![1, 2, 3, 4, 5].includes(rating) ||
+          (row.text !== null && typeof row.text !== 'string') ||
+          (row.language_code !== null && typeof row.language_code !== 'string') ||
+          (row.reviewer_name !== null && typeof row.reviewer_name !== 'string') ||
+          typeof row.ai_source_digest !== 'string' ||
+          !/^[0-9a-f]{64}$/.test(row.ai_source_digest)
+        ) {
+          return { status: 'policy_unavailable' }
+        }
 
-          const provenance = matchStoredAiReviewSourceProvenance(
-            {
-              text: row.text as string | null,
-              rating: rating as Review['rating'],
-              languageCode: row.language_code as string | null,
-              reviewedAtEpochMillis,
-              reviewerDisplayName: row.reviewer_name as string | null,
-            },
-            { digest: row.ai_source_digest, byteLength: storedByteLength },
-          )
-          if (provenance === null) return { status: 'policy_unavailable' }
+        const provenance = findStoredAiReviewSourceProvenance(
+          {
+            text: row.text as string | null,
+            rating: rating as Review['rating'],
+            languageCode: row.language_code as string | null,
+            reviewedAtEpochMillis,
+            reviewerDisplayName: row.reviewer_name as string | null,
+          },
+          { digest: row.ai_source_digest, byteLength: storedByteLength },
+        )
+        if (provenance === null) return { status: 'policy_unavailable' }
 
-          return {
-            status: 'available',
-            observation: {
-              kind: 'review',
-              reviewId: input.reviewId,
-              organizationId: input.organizationId,
-              propertyId: input.propertyId,
-              text: provenance.text,
-              rating: provenance.rating,
-              languageCode: provenance.languageCode,
-              reviewedAtEpochMillis,
-              contentExpiresAtEpochMillis,
-              sourceEpoch,
-              sourceRevision,
-              analysisSequence,
-            },
-          }
-        })
-      } catch {
-        return { status: 'policy_unavailable' }
-      }
+        return {
+          status: 'available',
+          observation: {
+            kind: 'review',
+            reviewId: input.reviewId,
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            text: provenance.text,
+            rating: provenance.rating,
+            languageCode: provenance.languageCode,
+            reviewedAtEpochMillis,
+            contentExpiresAtEpochMillis,
+            sourceEpoch,
+            sourceRevision,
+            analysisSequence,
+          },
+        }
+      })
     })
   },
 
@@ -799,11 +683,15 @@ export const createReviewRepository = (
         .select()
         .from(reviews)
         .where(and(eq(reviews.propertyId, propertyId), liveIn(organizationId)))
-        .orderBy(desc(reviews.reviewedAt))
+        .orderBy(desc(reviews.reviewedAt), asc(reviews.id))
 
-      // F038: Support LIMIT pushdown instead of fetching 500 rows and sorting in JS
-      const limit = options?.limit ?? 500
-      const rows = await query.limit(limit)
+      // F038: LIMIT pushdown for a caller that wants the newest few. Without a
+      // limit the read is every live Review of the Property: the Inbox repair
+      // command's source list is "all review sources", and a silent cap would
+      // make its report look complete (S14-04).
+      const rows = await (options?.limit === undefined
+        ? query
+        : query.limit(options.limit))
       return rows.map(reviewFromRow)
     })
   },
@@ -834,7 +722,12 @@ export const createReviewRepository = (
 
   findByOrganizationId: async (orgId: OrganizationId) => {
     return trace('review.findByOrganizationId', async () => {
-      const rows = await db.select().from(reviews).where(liveIn(orgId)).limit(500)
+      // Every live Review of the Organization, in id order (see findByPropertyId).
+      const rows = await db
+        .select()
+        .from(reviews)
+        .where(liveIn(orgId))
+        .orderBy(asc(reviews.id))
       return rows.map(reviewFromRow)
     })
   },
@@ -895,7 +788,13 @@ export const createReviewRepository = (
    */
   findExpiringBatchAcrossTenants: async (date, cursor, limit) => {
     return trace('review.findExpiringBatchAcrossTenants', () =>
-      clockBatchAcrossTenants(db, lte(reviews.contentExpiresAt, date), cursor, limit),
+      clockBatchAcrossTenants(
+        db,
+        lte(reviews.contentExpiresAt, date),
+        cursor,
+        limit,
+        reviewIsSyncable(db),
+      ),
     )
   },
 

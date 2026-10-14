@@ -29,6 +29,7 @@ import { and, asc, eq, gt, inArray, isNull, lte, notExists, or, sql } from 'driz
 import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
+import { propertyIsSyncable } from '#/shared/db/syncable-property'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
 import {
   gbpImportRequestItems,
@@ -138,11 +139,7 @@ export const createReviewDiscoveryRepository = (
         )
         .where(
           and(
-            isNull(properties.deletedAt),
-            eq(properties.lifecycleState, 'active'),
-            eq(properties.googleBindingState, 'active'),
-            eq(googleConnections.status, 'active'),
-            eq(googleConnections.credentialUseState, 'active'),
+            propertyIsSyncable,
             or(
               isNull(reviewSyncState.nextIncrementalAt),
               lte(reviewSyncState.nextIncrementalAt, due),

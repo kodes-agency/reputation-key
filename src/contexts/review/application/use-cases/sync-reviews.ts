@@ -12,8 +12,8 @@ import type {
 import type { ReviewProviderObservationOrigin } from '../ports/response-target-authority.port'
 import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
 import {
-  computeAiReviewSourceProvenance,
-  matchStoredAiReviewSourceProvenance,
+  findStoredAiReviewSourceProvenance,
+  storedAiReviewSourceProvenance,
 } from '../ai-review-source'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
 import { sha256Hex } from '#/shared/domain/sha256'
@@ -97,26 +97,33 @@ export const createReviewProviderObservationWriter = (
         stableIdentity,
       ),
     })
-    await deps.googleReplyObservationStore.record({
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      reviewId: persisted.id,
-      sourceEpoch: persisted.sourceEpoch,
-      materialReviewRevision: persisted.sourceRevision,
-      readGeneration: input.replyReadGeneration,
-      observationKey: providerReplyObservationKey({
-        providerObservationKey: input.observationKey,
+    // Google showed a reply whose original text it did not return: `replyText`
+    // is null, but that is not "no reply". Recording it would write an `absent`
+    // head over a live reply and reopen a closed Inbox item as deleted. Nothing
+    // is recorded, as in the targeted reads (`reconcile-reply-publication`,
+    // `publish-reply.job`), so the head stays what the last readable read left.
+    if (input.review.replyUnreadable !== true) {
+      await deps.googleReplyObservationStore.record({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        reviewId: persisted.id,
         sourceEpoch: persisted.sourceEpoch,
         materialReviewRevision: persisted.sourceRevision,
-        replyUpdatedAt: input.review.replyUpdatedAt,
-        replyText: input.review.replyText,
-      }),
-      source: 'provider_snapshot',
-      observedText: input.review.replyText,
-      providerUpdatedAt: input.review.replyUpdatedAt,
-      observedAt: now,
-      contentExpiresAt: persisted.contentExpiresAt ?? contentExpiresAtFromFetch(now),
-    })
+        readGeneration: input.replyReadGeneration,
+        observationKey: providerReplyObservationKey({
+          providerObservationKey: input.observationKey,
+          sourceEpoch: persisted.sourceEpoch,
+          materialReviewRevision: persisted.sourceRevision,
+          replyUpdatedAt: input.review.replyUpdatedAt,
+          replyText: input.review.replyText,
+        }),
+        source: 'provider_snapshot',
+        observedText: input.review.replyText,
+        providerUpdatedAt: input.review.replyUpdatedAt,
+        observedAt: now,
+        contentExpiresAt: persisted.contentExpiresAt ?? contentExpiresAtFromFetch(now),
+      })
+    }
     return {
       reviewId: persisted.id,
       sourceRevision: persisted.sourceRevision,
@@ -299,7 +306,7 @@ function buildObservedReview(
     reviewerName: input.review.reviewerName,
     languageCode: input.review.languageCode,
   })
-  const provenance = computeAiReviewSourceProvenance({
+  const provenance = storedAiReviewSourceProvenance({
     text: input.review.text,
     rating: input.review.rating,
     languageCode: input.review.languageCode,
@@ -351,7 +358,7 @@ function aiSourceUnchanged(
 ): boolean {
   return (
     existing.aiSourceDigest === review.aiSourceDigest ||
-    matchStoredAiReviewSourceProvenance(
+    findStoredAiReviewSourceProvenance(
       {
         text: review.text,
         rating: review.rating,

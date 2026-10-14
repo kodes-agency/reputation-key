@@ -189,8 +189,18 @@ type FoldedScalar = Readonly<{
   foldedEnd: number
 }>
 
+/**
+ * Input the contract refuses to encode: a text over the byte limits, an unpaired
+ * surrogate, a malformed language tag. It is a TypeError for every caller that
+ * already treats it as one; a caller that holds provider text it must still
+ * keep (the Review writer) tells it from a programming error by this class.
+ */
+export class AiReviewSourceRefusal extends TypeError {}
+
 function fail(message: string): never {
-  throw new TypeError(`Invalid ${AI_REVIEW_SOURCE_CONTRACT_VERSION} input: ${message}`)
+  throw new AiReviewSourceRefusal(
+    `Invalid ${AI_REVIEW_SOURCE_CONTRACT_VERSION} input: ${message}`,
+  )
 }
 
 function assertScalarString(value: string, field: string): void {

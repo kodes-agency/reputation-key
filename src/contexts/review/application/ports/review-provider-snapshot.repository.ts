@@ -5,6 +5,7 @@ import type {
   ReviewId,
 } from '#/shared/domain/ids'
 import type { GoogleReview } from '../../domain/types'
+import type { GoogleReviewRead } from './google-review-api.port'
 import type { ReviewProviderSubject } from '#/shared/review-provider-subject-contract'
 import type { ReviewProviderObservationOrigin } from './response-target-authority.port'
 
@@ -331,7 +332,8 @@ export type ReviewProviderObservationWriter = Readonly<{
       /** Content-free idempotency digest for one logical provider observation. */
       observationKey: string
       replyReadGeneration: number
-      review: GoogleReview
+      /** As the provider adapter mapped it: `replyUnreadable` rides with it. */
+      review: GoogleReviewRead
       subjects: ReviewProviderSubjectCandidates
     }>,
   ): Promise<Readonly<{ reviewId: ReviewId; sourceRevision: number; isNew: boolean }>>

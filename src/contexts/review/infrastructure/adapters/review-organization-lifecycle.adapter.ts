@@ -71,6 +71,8 @@ const propertyScope = (organizationId: string) => sql`(
 const PRESENCE_PROBE_TABLES = Object.freeze([
   'reviews',
   'replies',
+  'property_reply_profiles',
+  'property_reply_templates',
   'review_provider_snapshot_runs',
   'review_provider_history_cutoffs',
   'review_ai_analysis_heads',
@@ -272,11 +274,12 @@ async function verifyPurgeReadiness(
  *
  * What is retained, and why:
  *
- *  - `reply_publication_authorizations` is retained UNTOUCHED. An ALWAYS trigger
- *    rejects its UPDATE, DELETE and TRUNCATE independently of application code;
- *    that immutability is the proof that a named manager authorized one exact
- *    publication cycle. It is content-free already: identifiers, revisions,
- *    digests and timings, never Reply or Review text.
+ *  - `reply_publication_authorizations` is retained UNTOUCHED, as the proof that
+ *    a named manager authorized one exact publication cycle. It is content-free
+ *    already: identifiers, revisions, digests and timings, never Reply or Review
+ *    text. No trigger guards the table (nothing rejects an UPDATE or DELETE);
+ *    what holds the rows is that this purge does not delete them and that
+ *    `ON DELETE RESTRICT` keeps the rows they reference.
  *  - `replies`, `reviews` and `material_review_revisions` are therefore retained
  *    as SCRUBBED rows, because those authorizations reference them with
  *    `ON DELETE RESTRICT`, and Inbox's retained Handling Cycles reference the
@@ -284,6 +287,14 @@ async function verifyPurgeReadiness(
  *    exact shape the `*_content_state_valid` / `reviews_source_content_state_valid`
  *    CHECK constraints define for erased content, so the database itself
  *    verifies that no provider or guest value survived.
+ *
+ * Known blocker before this purge is armed (S10-04, `docs/operations/
+ * organization-lifecycle.md`): the Property phase's `DELETE FROM properties`
+ * cascades to `reviews` (`reviews_property_tenant_fk`), and the retained
+ * `replies` and authorizations refuse that delete, so the Organization stays
+ * `purging` for any tenant that ever saved a Reply. Either this purge also
+ * deletes the Replies and authorizations (and says what evidence survives), or
+ * the Property phase stops cascading into them; that is a retention decision.
  *  - `retention_runs` and `review_refresh_runs` are untouched: they are
  *    platform-wide, content-free operational evidence with no Organization
  *    scope, and LIF-01 keeps them.
@@ -363,9 +374,21 @@ async function purge(
     tx,
     sql`DELETE FROM review_provider_history_cutoffs WHERE organization_id = ${organizationId}`,
   )
+  // The Property reply library is manager-authored text (a greeting, sign-offs,
+  // an escalation contact, template bodies) and Review owns it. Both tables
+  // hold the Property with RESTRICT foreign keys, so the Property phase could
+  // not delete the Property while a row remained.
+  const replyTemplates = await countAffected(
+    tx,
+    sql`DELETE FROM property_reply_templates WHERE organization_id = ${organizationId}`,
+  )
+  const replyProfiles = await countAffected(
+    tx,
+    sql`DELETE FROM property_reply_profiles WHERE organization_id = ${organizationId}`,
+  )
 
   // Manager-authored Reply text and the actor identifiers around it. The row
-  // survives only because an immutable authorization references it.
+  // survives only because a retained authorization references it.
   const scrubbedReplies = await countAffected(
     tx,
     sql`UPDATE replies
@@ -457,6 +480,8 @@ async function purge(
     { step: 'provider_subjects_deleted', rows: providerSubjects },
     { step: 'provider_snapshot_runs_deleted', rows: snapshotRuns },
     { step: 'history_cutoffs_deleted', rows: historyCutoffs },
+    { step: 'reply_templates_deleted', rows: replyTemplates },
+    { step: 'reply_profiles_deleted', rows: replyProfiles },
     { step: 'replies_scrubbed', rows: scrubbedReplies },
     { step: 'material_revisions_scrubbed', rows: scrubbedMaterialRevisions },
     { step: 'reviews_scrubbed', rows: scrubbedReviews },

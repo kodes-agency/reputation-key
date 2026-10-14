@@ -306,6 +306,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
+    file: 'src/contexts/review/infrastructure/repositories/syncable-review.ts',
+    symbol: 'reviewIsSyncable',
+    reason:
+      'The EXISTS subquery ties the Property to the outer Review on Organization, Property and Google connection; the cross-tenant refresh sweep that embeds it (clockBatchAcrossTenants) is registered as global and returns every Review with its tenant identity.',
+    category: 'TENANT-CORRELATED',
+  },
+  {
     file: 'src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts',
     symbol: 'findCurrentReviewIdsByAspect',
     reason:
