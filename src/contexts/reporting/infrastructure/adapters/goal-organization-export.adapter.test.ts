@@ -16,6 +16,8 @@ const TABLE_MARKERS = [
   'goal_subject_assignments',
   'goal_program_versions',
   'goal_programs',
+  'property_rating_goal_changes',
+  'property_rating_goals',
 ] as const
 
 function queryText(query: SQL): string {
@@ -419,6 +421,101 @@ describe('Goal Organization Export contributor', () => {
       await expect(
         exportResults({ ...FIXTURE, goal_monthly_results: [withoutTarget] }),
       ).rejects.toThrow(/column is missing: target_value/u)
+    })
+  })
+  describe("a Property's Google rating goal", () => {
+    const RATING_GOAL_ROW: Row = {
+      id: 'c0000000-0000-4000-8000-000000000001',
+      property_id: PROGRAM_ROW.property_id,
+      source_epoch: 2,
+      mode: 'climb',
+      target_tenths: 45,
+      pace_per_week: 14,
+      status: 'active',
+      ended_reason: null,
+      baseline_review_count: 812,
+      baseline_google_average: 4.3,
+      baseline_exact_average: 4.31,
+      last_displayed_tenths: 43,
+      last_evaluated_status: 'on_pace',
+      last_evaluated_at: '2026-08-20T06:00:00.000000Z',
+      reached_at: null,
+      ended_at: null,
+      created_by: 'user-1',
+      created_at: '2026-08-01T00:00:00.000000Z',
+      updated_at: '2026-08-10T00:00:00.000000Z',
+      version: 2,
+    }
+    const RATING_GOAL_CHANGE_ROW: Row = {
+      id: 'd0000000-0000-4000-8000-000000000001',
+      goal_id: RATING_GOAL_ROW.id,
+      property_id: PROGRAM_ROW.property_id,
+      field: 'pace',
+      old_value: '11',
+      new_value: '14',
+      changed_by: 'user-2',
+      changed_at: '2026-08-10T00:00:00.000000Z',
+    }
+
+    it('exports each goal and its change log under goal/rating-goals', async () => {
+      const contribution = await createGoalOrganizationExportAdapter(
+        fakeDatabase({
+          ...FIXTURE,
+          property_rating_goals: [RATING_GOAL_ROW],
+          property_rating_goal_changes: [RATING_GOAL_CHANGE_ROW],
+        }),
+      ).contribute({ organizationId: 'org-goal-export', requestId: 'a', asOf: AS_OF })
+      const text = (path: string) =>
+        Buffer.from(
+          contribution.entries.find((entry) => entry.path === path)!.bytes,
+        ).toString('utf8')
+      const json = JSON.parse(text('goal/rating-goals.json')) as {
+        records: Record<string, readonly Record<string, unknown>[]>
+      }
+
+      expect(json.records.property_rating_goal).toEqual([RATING_GOAL_ROW])
+      expect(json.records.property_rating_goal_change).toEqual([RATING_GOAL_CHANGE_ROW])
+      expect(text('goal/rating-goals.csv').split('\n')[1]).toMatch(
+        /^property_rating_goal,c0000000-0000-4000-8000-000000000001,/u,
+      )
+      expect(contribution.entries.map((entry) => entry.path)).toEqual([
+        'goal/programs.csv',
+        'goal/programs.json',
+        'goal/rating-goals.csv',
+        'goal/rating-goals.json',
+        'goal/subject-assignments.csv',
+        'goal/subject-assignments.json',
+      ])
+    })
+
+    it('reads rating goals and their log for this Organization only', async () => {
+      const seen: string[] = []
+      const snapshot = {
+        execute: async (query: SQL) => {
+          const text = queryText(query)
+          seen.push(text)
+          return {
+            rows: text.includes('transaction_timestamp()')
+              ? [{ snapshot_at: SNAPSHOT_AT }]
+              : [],
+          }
+        },
+      }
+      const db = {
+        transaction: async (work: (tx: unknown) => Promise<unknown>) => work(snapshot),
+      } as unknown as Database
+
+      await createGoalOrganizationExportAdapter(db).contribute({
+        organizationId: 'org-goal-export',
+        requestId: 'a',
+        asOf: AS_OF,
+      })
+
+      for (const table of ['property_rating_goals', 'property_rating_goal_changes']) {
+        expect(seen.find((text) => text.includes(`FROM ${table}`))).toMatch(
+          /WHERE organization_id =/u,
+        )
+      }
     })
   })
 })

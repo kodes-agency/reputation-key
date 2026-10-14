@@ -57,6 +57,22 @@ describe('data-fate authority', () => {
     })
   })
 
+  it('files the Google rating goal as Goal authority and its change log as Goal history', () => {
+    const goalFate = (exportName: string) =>
+      DATA_FATE_AUTHORITY.find(
+        (row) => row.schemaFile === 'goal.schema.ts' && row.exportName === exportName,
+      )
+
+    expect(goalFate('propertyRatingGoals')).toEqual({
+      ...goalFate('goalPrograms'),
+      exportName: 'propertyRatingGoals',
+    })
+    expect(goalFate('propertyRatingGoalChanges')).toEqual({
+      ...goalFate('goalMonthTargetChanges'),
+      exportName: 'propertyRatingGoalChanges',
+    })
+  })
+
   it('files no table the retention sweep deletes rows from as a read-only compatibility table', () => {
     // `compatibility_read` says "keep read-only until nothing depends on it".
     // A table the sweep deletes from by age is not being kept, so the two

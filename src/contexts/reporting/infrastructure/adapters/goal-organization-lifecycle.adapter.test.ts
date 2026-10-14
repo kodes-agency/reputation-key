@@ -141,6 +141,21 @@ describe('goal organization lifecycle phases', () => {
     }
   })
 
+  it('purges the Google rating goal change log before the goals it names', async () => {
+    const { tx, statements } = createFakeTx({ tenantRows: 2 })
+
+    await GOAL_ORGANIZATION_LIFECYCLE_PHASES.purge(tx, REQUEST)
+
+    const deleted = statements.flatMap((statement) => {
+      const table = /DELETE FROM (\w+)/u.exec(statement.text)?.[1]
+      return table ? [table] : []
+    })
+    expect(deleted.slice(-2)).toEqual([
+      'property_rating_goal_changes',
+      'property_rating_goals',
+    ])
+  })
+
   it('counts every table of the purge plan as tenant rows', async () => {
     const { tx, statements } = createFakeTx({ tenantRows: 0 })
 

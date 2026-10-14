@@ -41,6 +41,10 @@ export const GOAL_PURGE_TABLES = Object.freeze([
   'goal_subject_assignments',
   'goal_program_versions',
   'goal_programs',
+  // The Google rating goal is its own family (not a Goal Program): its change
+  // log holds the goal with ON DELETE RESTRICT, so the log goes first.
+  'property_rating_goal_changes',
+  'property_rating_goals',
 ] as const)
 
 /**
@@ -91,7 +95,7 @@ function count(value: unknown): number {
   return Number((value as string | number | null | undefined) ?? 0)
 }
 
-/** Total tenant-scoped rows across the canonical Goal Program family. */
+/** Total tenant-scoped rows across the Goal Program and rating goal families. */
 async function countTenantRows(tx: Tx, organization: string): Promise<number> {
   const result = await tx.execute(sql`
     SELECT
@@ -115,6 +119,14 @@ async function countTenantRows(tx: Tx, organization: string): Promise<number> {
       + (
         SELECT count(*) FROM goal_month_target_changes
         WHERE organization_id = ${organization}
+      )
+      + (
+        SELECT count(*) FROM property_rating_goal_changes
+        WHERE organization_id = ${organization}
+      )
+      + (
+        SELECT count(*) FROM property_rating_goals
+        WHERE organization_id = ${organization}
       ) AS rows
   `)
   return count((result.rows[0] as { rows?: unknown } | undefined)?.rows)
@@ -122,6 +134,11 @@ async function countTenantRows(tx: Tx, organization: string): Promise<number> {
 
 /**
  * Closing — STOP EFFECTS, KEEP DATA.
+ *
+ * A Google rating goal starts no work of its own (no schedule; it is evaluated
+ * when Google's numbers arrive or are read), so Closing leaves it as it is and
+ * the rating goal commands refuse to set one while the lifecycle holds the
+ * Organization.
  *
  * Pauses every ACTIVE Goal Program for the tenant. `maintain()` opens months
  * only for an active program, so this stops new months for the Organization
@@ -290,6 +307,13 @@ const purge = async (
     sql`DELETE FROM goal_program_versions WHERE organization_id = ${organization}`,
   )
   await tx.execute(sql`DELETE FROM goal_programs WHERE organization_id = ${organization}`)
+  // The Google rating goal family, its change log first.
+  await tx.execute(
+    sql`DELETE FROM property_rating_goal_changes WHERE organization_id = ${organization}`,
+  )
+  await tx.execute(
+    sql`DELETE FROM property_rating_goals WHERE organization_id = ${organization}`,
+  )
   for (const guard of PURGE_GUARDS) {
     await tx.execute(
       sql`ALTER TABLE ${sql.identifier(guard.table)} ENABLE TRIGGER ${sql.identifier(guard.trigger)}`,
