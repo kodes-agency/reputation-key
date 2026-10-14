@@ -404,6 +404,7 @@ async function purge(
     sql`UPDATE reviews
         SET source_content_state = 'source_expired',
             source_content_erased_at = ${request.occurredAt},
+            content_expires_at = NULL,
             external_id = NULL,
             external_location_id = NULL,
             google_connection_id = NULL,

@@ -37,12 +37,16 @@ import {
 } from '#/shared/merchant-ai-notice-contract'
 import { createPropertyProcessingProfileAdapter } from '#/contexts/ai/infrastructure/adapters/property-processing-profile.adapter'
 import { createReviewRepository } from './repositories/review.repository'
+import { eraseReviewSourceContent } from './review-source-content-store'
 import { createReplyRepository } from './repositories/reply.repository'
 import { createAiSuggestedDraftStore } from './ai-suggested-draft-store'
 import { createAtomicReplyCommandStore } from './reply-command-store'
 import { reviewReplyApproved, reviewReplyPublicationRequested } from '../domain/events'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
+import { eraseKeepingContentClock } from '#/shared/testing/review-tombstone-fixtures'
+import type { Review } from '../domain/types'
+import { getPool } from '#/shared/db/pool'
 
 const NOW = new Date()
 const ORGANIZATION_ID = organizationId('ai-suggested-draft-test-org')
@@ -186,6 +190,44 @@ function groundedProvenanceToken(
   )
 }
 
+/** A live Review in this suite's Property at the revision its operations bind. */
+function reviewFixture(
+  id: ReturnType<typeof reviewId>,
+  externalId: string,
+): Omit<Review, 'createdAt' | 'updatedAt'> {
+  return {
+    id,
+    organizationId: ORGANIZATION_ID,
+    propertyId: PROPERTY_ID,
+    platform: 'google',
+    externalId,
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+    googleConnectionId: null,
+    reviewerName: 'Guest',
+    reviewerProfilePhotoUrl: null,
+    rating: 5,
+    text: 'A thoughtful review',
+    translatedText: null,
+    languageCode: 'en',
+    reviewedAt: NOW,
+    expiresAt: new Date(NOW.getTime() + 30 * 24 * 60 * 60_000),
+    sentimentLabel: null,
+    sentimentScore: null,
+    sourceCreatedAt: NOW,
+    sourceUpdatedAt: NOW,
+    firstFetchedAt: NOW,
+    lastFetchedAt: NOW,
+    contentExpiresAt: new Date(NOW.getTime() + 24 * 60 * 60_000),
+    contentHash: 'd'.repeat(64),
+    sourceSeenGeneration: null,
+    sourceEpoch: SOURCE_EPOCH,
+    sourceRevision: SOURCE_REVISION,
+    analysisSequence: 11,
+    aiSourceByteLength: 20,
+    aiSourceDigest: 'e'.repeat(64),
+  }
+}
+
 describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
   const db = getDb()
   let brandProfileCurrent = true
@@ -260,6 +302,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     permitId: string
     sourceRevision: number
     baseReplyStateRevision: number
+    reviewId?: string
     replyBrandProfileVersion?: number
     replyBrandDisplayNameDigest?: string
   }) => {
@@ -308,7 +351,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       propertyId: PROPERTY_ID,
       actorUserId: ACTOR_USER_ID,
       systemPrincipal: null,
-      reviewId: REVIEW_ID,
+      reviewId: input.reviewId ?? REVIEW_ID,
       sourceEpoch: SOURCE_EPOCH,
       sourceRevision: input.sourceRevision,
       reviewedAtEpochMillis: NOW.getTime(),
@@ -488,37 +531,9 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       })
     })
 
-    await createReviewRepository(db, () => new Date()).upsert({
-      id: REVIEW_ID,
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-      platform: 'google',
-      externalId: 'ai-suggested-draft-review',
-      externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
-      googleConnectionId: null,
-      reviewerName: 'Guest',
-      reviewerProfilePhotoUrl: null,
-      rating: 5,
-      text: 'A thoughtful review',
-      translatedText: null,
-      languageCode: 'en',
-      reviewedAt: NOW,
-      expiresAt: new Date(NOW.getTime() + 30 * 24 * 60 * 60_000),
-      sentimentLabel: null,
-      sentimentScore: null,
-      sourceCreatedAt: NOW,
-      sourceUpdatedAt: NOW,
-      firstFetchedAt: NOW,
-      lastFetchedAt: NOW,
-      contentExpiresAt: new Date(NOW.getTime() + 24 * 60 * 60_000),
-      contentHash: 'd'.repeat(64),
-      sourceSeenGeneration: null,
-      sourceEpoch: SOURCE_EPOCH,
-      sourceRevision: SOURCE_REVISION,
-      analysisSequence: 11,
-      aiSourceByteLength: 20,
-      aiSourceDigest: 'e'.repeat(64),
-    })
+    await createReviewRepository(db, () => new Date()).upsert(
+      reviewFixture(REVIEW_ID, 'ai-suggested-draft-review'),
+    )
     await seedSucceededReplyOperation({
       operationId: '74000000-0000-4000-8000-000000000004',
       permitId: '74000000-0000-4000-8000-000000000104',
@@ -1044,4 +1059,82 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       },
     ])
   })
+
+  // Only the first case isolates the store's state check: its Review keeps the
+  // clock the store used to test alone. The second is a regression case: the
+  // erase clears the clock today, so the clock fence refuses it as well.
+  it.each([
+    {
+      label: 'a Review erased before the content clock was cleared',
+      review: reviewId('74000000-0000-4000-8000-0000000000a1'),
+      operation: '74000000-0000-4000-8000-000000000009',
+      permit: '74000000-0000-4000-8000-000000000109',
+      erase: (id: ReturnType<typeof reviewId>) =>
+        eraseKeepingContentClock(getPool(), {
+          id,
+          organizationId: ORGANIZATION_ID,
+          propertyId: PROPERTY_ID,
+        }),
+    },
+    {
+      label: 'a Review erased today',
+      review: reviewId('74000000-0000-4000-8000-0000000000a2'),
+      operation: '74000000-0000-4000-8000-000000000010',
+      permit: '74000000-0000-4000-8000-000000000110',
+      erase: (id: ReturnType<typeof reviewId>) =>
+        db.transaction(async (tx) => {
+          await eraseReviewSourceContent(tx, {
+            reviewId: id,
+            organizationId: ORGANIZATION_ID,
+            propertyId: PROPERTY_ID,
+            sourceEpoch: SOURCE_EPOCH,
+            expectedSourceRevision: SOURCE_REVISION,
+            state: 'provider_deleted',
+          })
+        }),
+    },
+  ])(
+    'refuses to adopt a suggestion for $label and writes no draft',
+    async ({ review, operation, permit, erase }) => {
+      await createReviewRepository(db, () => new Date()).upsert(
+        reviewFixture(review, `ai-suggested-draft-erased-${operation}`),
+      )
+      await seedSucceededReplyOperation({
+        operationId: operation,
+        permitId: permit,
+        sourceRevision: SOURCE_REVISION,
+        baseReplyStateRevision: 0,
+        reviewId: review,
+      })
+      // The suggestion was generated while the review was live; Google then
+      // deleted it and the sync erased the row before the manager clicked.
+      await erase(review)
+
+      await expect(
+        store.accept({
+          organizationId: ORGANIZATION_ID,
+          propertyId: PROPERTY_ID,
+          reviewId: review,
+          actorUserId: ACTOR_USER_ID,
+          text: SUGGESTION,
+          provenanceToken: provenanceToken({
+            operationId: operation,
+            reviewId: review,
+            baseReplyStateRevision: 0,
+          }),
+          now: NOW,
+        }),
+      ).resolves.toEqual({ status: 'rejected', reason: 'stale' })
+
+      await expect(
+        db.select({ id: replies.id }).from(replies).where(eq(replies.reviewId, review)),
+      ).resolves.toEqual([])
+      await expect(
+        db
+          .select({ disposition: aiOperations.replyAdoptionDisposition })
+          .from(aiOperations)
+          .where(eq(aiOperations.id, operation)),
+      ).resolves.toEqual([{ disposition: 'none' }])
+    },
+  )
 })
