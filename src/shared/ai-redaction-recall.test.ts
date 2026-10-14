@@ -549,3 +549,155 @@ describe('the layouts added for recall leave this prose alone', () => {
     expect(redacted(inShortReview(text), 'BG')).toBe(inShortReview(text))
   })
 })
+
+/**
+ * Coordinate pairs that main removed only because its bare-domain rule took each
+ * decimal for a domain. The first version of this repair read a pair in a comma,
+ * a semicolon or a blank and nothing else.
+ */
+const COORDINATE_FORMS: readonly Shape[] = [
+  ['a slash', 'GPS 42.6977/23.3219.', '42.6977/23.3219'],
+  ['a spaced slash', 'GPS 42.6977 / 23.3219.', '42.6977 / 23.3219'],
+  ['a bar', 'The pin is 42.6977|23.3219 and it was worth the walk.', '42.6977|23.3219'],
+  [
+    'an x',
+    'The hidden cove pin is 42.6977 x 23.3219 and it was worth the walk.',
+    '42.6977 x 23.3219',
+  ],
+  ['a hyphen', 'The pin is 42.6977 - 23.3219 near the cove.', '42.6977 - 23.3219'],
+  ['lat and lon in a query', 'GPS lat=42.6977&lon=23.3219.', 'lat=42.6977&lon=23.3219'],
+  ['lat and lng in a query', 'GPS lat=42.6977&lng=23.3219.', 'lat=42.6977&lng=23.3219'],
+  [
+    'lat and long with and',
+    'The pin is lat 42.6977 and long 23.3219 near the cove.',
+    'lat 42.6977 and long 23.3219',
+  ],
+  [
+    'lat and lon with a comma and and',
+    'The pin is lat 42.6977, and lon 23.3219 near the cove.',
+    'lat 42.6977, and lon 23.3219',
+  ],
+  ['Lat. and Long.', 'GPS Lat. 42.6977 Long. 23.3219.', 'Lat. 42.6977 Long. 23.3219'],
+  [
+    'labels in brackets',
+    'The pin is 42.6977 (lat) 23.3219 (lon) near the cove.',
+    '42.6977 (lat) 23.3219 (lon)',
+  ],
+  [
+    'coords and then',
+    'Pin: coords 42.6977, then 23.3219 near the cove.',
+    '42.6977, then 23.3219',
+  ],
+  [
+    'hemispheres with a slash',
+    'Pin: 42.6977°N/23.3219°E near the cove.',
+    '42.6977°N/23.3219°E',
+  ],
+  ['ISO 6709', 'GPS +42.6977+023.3219/ near the cove.', '+42.6977+023.3219/'],
+  [
+    'degrees, minutes and decimal seconds',
+    'Pin: 42°41\'52.7"N 23°19\'19.2"E near the cove.',
+    '42°41\'52.7"N 23°19\'19.2"E',
+  ],
+  [
+    'spaced degrees, minutes and seconds',
+    'The pin is 42° 41\' 52.7" N, 23° 19\' 19.2" E near the cove.',
+    '42° 41\' 52.7" N, 23° 19\' 19.2" E',
+  ],
+  [
+    'degrees and decimal minutes',
+    "GPS N 42° 41.862' E 23° 19.320' near the cove.",
+    "N 42° 41.862' E 23° 19.320'",
+  ],
+  [
+    'degrees and decimal minutes, hemispheres after',
+    "Pin: 42°41.862'N 23°19.320'E near the cove.",
+    "42°41.862'N 23°19.320'E",
+  ],
+  ['NMEA', 'The pin is 4269.77N 2319.32E near the cove.', '4269.77N 2319.32E'],
+  [
+    'two decimals after pin',
+    'The hidden cove pin is 42.69, 23.32 and it was worth the walk.',
+    '42.69, 23.32',
+  ],
+  ['one decimal after GPS', 'GPS 42.6, 23.3 near the cove.', '42.6, 23.3'],
+]
+
+describe('a coordinate pair is replaced in any layout a guest types', () => {
+  it.each(COORDINATE_FORMS)('%s', (_name, text, pair) => {
+    const wrapped = inShortReview(text)
+    expect(redacted(wrapped)).toBe(replacing(wrapped, pair, '[ADDRESS]'))
+  })
+
+  it.each([
+    ['scores', 'Scores: 8.5, 9.0, 7.5 and 8.0 on four sites.'],
+    ['prices', 'Prices were 12.50, 14.75 and 9.99 for the three menus.'],
+    ['bed sizes', 'Beds were 1.60 x 2.00 and the room 25.5 m2.'],
+    ['a weight', 'Gewicht 1,2345 2,3456 kg.'],
+    ['an exchange rate', 'Kurs 1,0850 1,0920 stieg.'],
+    ['an exchange rate with a semicolon', 'Rate 1,0850; 1,0920 today.'],
+    ['thousands', 'We paid 10,000 and then 12,500 for the room.'],
+    [
+      'a version and a time',
+      'The kiosk ran 2.4.5 and check-in was 14.30, 15.00 at most.',
+    ],
+  ])('leaves %s alone', (_name, text) => {
+    const wrapped = inShortReview(text)
+    expect(redacted(wrapped)).toBe(wrapped)
+  })
+})
+
+/** IP addresses main removed through the bare-domain rule or by accident. */
+const IP_FORMS: readonly Shape[] = [
+  [
+    'a port and a full stop',
+    'Their server is 203.0.113.9:8080. and it was down.',
+    '203.0.113.9:8080',
+  ],
+  ['a port and a colon', 'Their server: 203.0.113.9:8080: was down.', '203.0.113.9:8080'],
+  ['brackets', 'Their server is [203.0.113.9] and it was down.', '[203.0.113.9]'],
+  ['brackets and a full stop', 'Their server: [203.0.113.9]. was down.', '[203.0.113.9]'],
+  [
+    'brackets and a comma',
+    'Their server: [203.0.113.9], thanks was down.',
+    '[203.0.113.9]',
+  ],
+  [
+    'brackets and a port',
+    'Their server is [203.0.113.9]:8080 and it was down.',
+    '[203.0.113.9]:8080',
+  ],
+  ['zero-padded', 'Their server is 192.168.001.001 and it was down.', '192.168.001.001'],
+  [
+    'zero-padded, all groups',
+    'Their server: 010.000.000.001 was down.',
+    '010.000.000.001',
+  ],
+  [
+    'hexadecimal',
+    'Their server is 0xC0.0xA8.0x01.0x01 and it was down.',
+    '0xC0.0xA8.0x01.0x01',
+  ],
+  [
+    'an IPv6 address with a port and a full stop',
+    'Server: [2001:db8::1]:443. It was down.',
+    '[2001:db8::1]:443',
+  ],
+]
+
+describe.each(REVIEW_FRAMES)('an IP address in a rarer layout in %s', (_frame, wrap) => {
+  it.each(IP_FORMS)('%s', (_name, clause, address) => {
+    const text = wrap(clause)
+    expect(redacted(text)).toBe(replacing(text, address, '[CONTACT]'))
+  })
+})
+
+describe('an address-like number that is not an IP address stays', () => {
+  it.each([
+    'Room 300.400.500.600 had a view and the key 1.2.3 worked.',
+    'We rated 4.5.6 on one site and 1.2.3.4.5 on another version.',
+  ])('%s', (text) => {
+    const wrapped = inShortReview(text)
+    expect(redacted(wrapped)).toBe(wrapped)
+  })
+})

@@ -67,12 +67,17 @@ const SPLIT_DOMAIN_TOP_LEVELS: readonly string[] = Object.freeze([
  */
 /* eslint-disable security/detect-unsafe-regex, no-useless-escape */
 const IP_TOKEN_RE =
-  /(?:^|[^A-Fa-f0-9:.\[])((?:\[[A-Fa-f0-9:]+\](?::\d{1,5})?|[A-Fa-f0-9:.]{3,}))(?=$|[^A-Fa-f0-9:.\]])/gu
+  /(?:^|[^A-Fa-f0-9:.\[])((?:\[[A-Fa-f0-9:.]+\](?::\d{1,5})?|[A-Fa-f0-9:.]{3,}))(?=$|\.(?![A-Fa-f0-9:.])|[^A-Fa-f0-9:.\]])/gu
+/** An IPv4 address written in hexadecimal, a byte at a time: `0xC0.0xA8.0x01.0x01`. */
+const HEX_IPV4_RE =
+  /(?<![\p{L}\p{N}.])(0x[0-9A-Fa-f]{1,2}(?:\.0x[0-9A-Fa-f]{1,2}){3})(?![\p{L}\p{N}])/gu
 /** A name (up to three sub-domains and a label) and a top-level domain with a blank in front of the dot. */
 const SPLIT_DOMAIN_RE =
   /(?<![\p{L}\p{N}-])((?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?\.){0,3}[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?)[ \t]+\.(app|bar|bg|biz|ch|co|com|cz|de|dev|dk|edu|eu|fi|fr|gov|gr|hotel|hotels|hu|info|io|net|nl|online|org|pl|ro|ru|se|shop|sk|travel|tr|ua|uk|xyz)(?![\p{L}\p{N}-])/gu
 const IPV4_WITH_PORT_RE = /^(\d{1,3}(?:\.\d{1,3}){3}):\d{1,5}$/u
-const IPV6_WITH_BRACKETS_RE = /^\[([A-Fa-f0-9:]+)\](?::\d{1,5})?$/u
+const IP_WITH_BRACKETS_RE = /^\[([A-Fa-f0-9:.]+)\](?::\d{1,5})?$/u
+/** Four groups of one to three digits, zero-padded or not: `192.168.001.001`. */
+const DOTTED_QUAD_RE = /^\d{1,3}(?:\.\d{1,3}){3}$/u
 /* eslint-enable security/detect-unsafe-regex, no-useless-escape */
 const MAX_DOMAIN_SCALARS = 253
 const MAX_LABEL_SCALARS = 63
@@ -116,23 +121,38 @@ export function endsInAlphabeticLabel(domain: string): boolean {
   return letters >= 2
 }
 
+const MAX_OCTET = 255
+
+/** Whether `value` is an IPv4 address with every group in range, written with or without padding. */
+function isDottedQuad(value: string): boolean {
+  return (
+    DOTTED_QUAD_RE.test(value) &&
+    value.split('.').every((group) => Number(group) <= MAX_OCTET)
+  )
+}
+
+function isAddress(value: string): boolean {
+  return isIP(value) !== 0 || isDottedQuad(value)
+}
+
+/** Whether `candidate` is an IP address, in brackets, with a port, or alone. */
+function isIpWithPort(candidate: string): boolean {
+  const bracketed = IP_WITH_BRACKETS_RE.exec(candidate)
+  if (bracketed !== null) return isAddress(bracketed[1] ?? '')
+  const withPort = IPV4_WITH_PORT_RE.exec(candidate)
+  if (withPort !== null) return isAddress(withPort[1] ?? '')
+  return isAddress(candidate)
+}
+
 /** The part of a token that is an IP address, as an offset and a length, or null. */
 function ipWithin(raw: string): Readonly<{ offset: number; length: number }> | null {
-  const bracketed = IPV6_WITH_BRACKETS_RE.exec(raw)
-  if (bracketed !== null) {
-    return isIP(bracketed[1] ?? '') === 6 ? { offset: 0, length: raw.length } : null
-  }
-  const withPort = IPV4_WITH_PORT_RE.exec(raw)
-  if (withPort !== null) {
-    return isIP(withPort[1] ?? '') === 4 ? { offset: 0, length: raw.length } : null
-  }
   const variants = [
     raw,
-    raw.replace(/\.+$/u, ''),
+    raw.replace(/[.,;:]+$/u, ''),
     raw.replace(/^:+/u, '').replace(/[.:]+$/u, ''),
   ]
   for (const variant of variants) {
-    if (variant.length > 0 && isIP(variant) !== 0) {
+    if (variant.length > 0 && isIpWithPort(variant)) {
       return { offset: raw.indexOf(variant), length: variant.length }
     }
   }
@@ -149,6 +169,9 @@ export function findIpMarkers(text: string): readonly NetworkMarkerSpan[] {
     if (found === null) continue
     const start = match.index + match[0].lastIndexOf(raw) + found.offset
     spans.push({ start, end: start + found.length })
+  }
+  for (const match of text.matchAll(HEX_IPV4_RE)) {
+    spans.push({ start: match.index, end: match.index + match[0].length })
   }
   return spans
 }
@@ -172,6 +195,11 @@ export const NETWORK_MARKER_PROFILE = Object.freeze({
       id: 'ip_token',
       source: IP_TOKEN_RE.source,
       flags: IP_TOKEN_RE.flags,
+    }),
+    Object.freeze({
+      id: 'hex_ipv4',
+      source: HEX_IPV4_RE.source,
+      flags: HEX_IPV4_RE.flags,
     }),
     Object.freeze({
       id: 'split_domain',
