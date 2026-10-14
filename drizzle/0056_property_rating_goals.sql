@@ -18,6 +18,10 @@
 -- reference includes the organization and Property, so a row can only name a
 -- goal of its own Property.
 --
+-- A CHECK passes when its expression is NULL, so each check states IS NOT NULL
+-- wherever a nullable column must hold a value (a climb's pace, an ended goal's
+-- reason, a target or mode change's values).
+--
 -- Both reference with ON DELETE RESTRICT, as the Goal Program family does: the
 -- Organization purge deletes them first (goal-organization-lifecycle.adapter).
 CREATE TABLE "property_rating_goals" (
@@ -44,11 +48,11 @@ CREATE TABLE "property_rating_goals" (
 	"version" integer DEFAULT 1 NOT NULL,
 	CONSTRAINT "property_rating_goals_org_property_id_key" UNIQUE("organization_id","property_id","id"),
 	CONSTRAINT "property_rating_goals_source_epoch_check" CHECK ("property_rating_goals"."source_epoch" BETWEEN 0 AND 2147483647),
-	CONSTRAINT "property_rating_goals_plan_check" CHECK (("property_rating_goals"."mode" = 'climb' AND "property_rating_goals"."target_tenths" BETWEEN 11 AND 49 AND "property_rating_goals"."pace_per_week" BETWEEN 1 AND 200)
-        OR ("property_rating_goals"."mode" = 'keep' AND "property_rating_goals"."target_tenths" BETWEEN 10 AND 50 AND "property_rating_goals"."pace_per_week" IS NULL)),
+	CONSTRAINT "property_rating_goals_plan_check" CHECK (("property_rating_goals"."mode" = 'climb' AND "property_rating_goals"."pace_per_week" IS NOT NULL AND "property_rating_goals"."target_tenths" BETWEEN 11 AND 49 AND "property_rating_goals"."pace_per_week" BETWEEN 1 AND 200)
+        OR ("property_rating_goals"."mode" = 'keep' AND "property_rating_goals"."pace_per_week" IS NULL AND "property_rating_goals"."target_tenths" BETWEEN 10 AND 50)),
 	CONSTRAINT "property_rating_goals_status_check" CHECK (("property_rating_goals"."status" = 'active' AND "property_rating_goals"."ended_reason" IS NULL AND "property_rating_goals"."reached_at" IS NULL AND "property_rating_goals"."ended_at" IS NULL)
         OR ("property_rating_goals"."status" = 'reached' AND "property_rating_goals"."mode" = 'climb' AND "property_rating_goals"."ended_reason" IS NULL AND "property_rating_goals"."reached_at" IS NOT NULL AND "property_rating_goals"."ended_at" IS NULL)
-        OR ("property_rating_goals"."status" = 'ended' AND "property_rating_goals"."ended_reason" IN ('manager', 'google_location_changed', 'property_archived') AND "property_rating_goals"."reached_at" IS NULL AND "property_rating_goals"."ended_at" IS NOT NULL)),
+        OR ("property_rating_goals"."status" = 'ended' AND "property_rating_goals"."ended_reason" IS NOT NULL AND "property_rating_goals"."ended_reason" IN ('manager', 'google_location_changed', 'property_archived') AND "property_rating_goals"."reached_at" IS NULL AND "property_rating_goals"."ended_at" IS NOT NULL)),
 	CONSTRAINT "property_rating_goals_baseline_check" CHECK ("property_rating_goals"."baseline_review_count" BETWEEN 1 AND 10000
         AND "property_rating_goals"."baseline_google_average" BETWEEN 0 AND 5
         AND "property_rating_goals"."baseline_exact_average" BETWEEN 0 AND 5),
@@ -74,11 +78,13 @@ CREATE TABLE "property_rating_goal_changes" (
 	"old_value" varchar(8),
 	"new_value" varchar(8),
 	CONSTRAINT "property_rating_goal_changes_value_check" CHECK ("property_rating_goal_changes"."old_value" IS DISTINCT FROM "property_rating_goal_changes"."new_value" AND (
-        ("property_rating_goal_changes"."field" = 'target' AND "property_rating_goal_changes"."old_value" ~ '^([1-4][0-9]|50)$' AND "property_rating_goal_changes"."new_value" ~ '^([1-4][0-9]|50)$')
+        ("property_rating_goal_changes"."field" = 'target' AND "property_rating_goal_changes"."old_value" IS NOT NULL AND "property_rating_goal_changes"."new_value" IS NOT NULL
+          AND "property_rating_goal_changes"."old_value" ~ '^([1-4][0-9]|50)$' AND "property_rating_goal_changes"."new_value" ~ '^([1-4][0-9]|50)$')
         OR ("property_rating_goal_changes"."field" = 'pace'
           AND ("property_rating_goal_changes"."old_value" IS NULL OR "property_rating_goal_changes"."old_value" ~ '^([1-9][0-9]?|1[0-9][0-9]|200)$')
           AND ("property_rating_goal_changes"."new_value" IS NULL OR "property_rating_goal_changes"."new_value" ~ '^([1-9][0-9]?|1[0-9][0-9]|200)$'))
-        OR ("property_rating_goal_changes"."field" = 'mode' AND "property_rating_goal_changes"."old_value" IN ('climb', 'keep') AND "property_rating_goal_changes"."new_value" IN ('climb', 'keep'))
+        OR ("property_rating_goal_changes"."field" = 'mode' AND "property_rating_goal_changes"."old_value" IS NOT NULL AND "property_rating_goal_changes"."new_value" IS NOT NULL
+          AND "property_rating_goal_changes"."old_value" IN ('climb', 'keep') AND "property_rating_goal_changes"."new_value" IN ('climb', 'keep'))
       ))
 );
 --> statement-breakpoint

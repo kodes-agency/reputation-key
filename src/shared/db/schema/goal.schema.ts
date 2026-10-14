@@ -534,6 +534,8 @@ export const goalMonthTargetChanges = pgTable(
 // binding epoch when the goal was set; a goal outlives no change of it. The
 // `last_*` columns are what the last evaluation stored, so the next one can
 // tell a transition (a tenth gained or lost, a new status) from a repeat.
+// A CHECK passes when its expression is NULL, so every check below states
+// `IS NOT NULL` wherever a nullable column must hold a value.
 export const propertyRatingGoals = pgTable(
   'property_rating_goals',
   {
@@ -584,14 +586,14 @@ export const propertyRatingGoals = pgTable(
     ),
     check(
       'property_rating_goals_plan_check',
-      sql`(${t.mode} = 'climb' AND ${t.targetTenths} BETWEEN 11 AND 49 AND ${t.pacePerWeek} BETWEEN 1 AND 200)
-        OR (${t.mode} = 'keep' AND ${t.targetTenths} BETWEEN 10 AND 50 AND ${t.pacePerWeek} IS NULL)`,
+      sql`(${t.mode} = 'climb' AND ${t.pacePerWeek} IS NOT NULL AND ${t.targetTenths} BETWEEN 11 AND 49 AND ${t.pacePerWeek} BETWEEN 1 AND 200)
+        OR (${t.mode} = 'keep' AND ${t.pacePerWeek} IS NULL AND ${t.targetTenths} BETWEEN 10 AND 50)`,
     ),
     check(
       'property_rating_goals_status_check',
       sql`(${t.status} = 'active' AND ${t.endedReason} IS NULL AND ${t.reachedAt} IS NULL AND ${t.endedAt} IS NULL)
         OR (${t.status} = 'reached' AND ${t.mode} = 'climb' AND ${t.endedReason} IS NULL AND ${t.reachedAt} IS NOT NULL AND ${t.endedAt} IS NULL)
-        OR (${t.status} = 'ended' AND ${t.endedReason} IN ('manager', 'google_location_changed', 'property_archived') AND ${t.reachedAt} IS NULL AND ${t.endedAt} IS NOT NULL)`,
+        OR (${t.status} = 'ended' AND ${t.endedReason} IS NOT NULL AND ${t.endedReason} IN ('manager', 'google_location_changed', 'property_archived') AND ${t.reachedAt} IS NULL AND ${t.endedAt} IS NOT NULL)`,
     ),
     check(
       'property_rating_goals_baseline_check',
@@ -643,11 +645,13 @@ export const propertyRatingGoalChanges = pgTable(
     check(
       'property_rating_goal_changes_value_check',
       sql`${t.oldValue} IS DISTINCT FROM ${t.newValue} AND (
-        (${t.field} = 'target' AND ${t.oldValue} ~ '^([1-4][0-9]|50)$' AND ${t.newValue} ~ '^([1-4][0-9]|50)$')
+        (${t.field} = 'target' AND ${t.oldValue} IS NOT NULL AND ${t.newValue} IS NOT NULL
+          AND ${t.oldValue} ~ '^([1-4][0-9]|50)$' AND ${t.newValue} ~ '^([1-4][0-9]|50)$')
         OR (${t.field} = 'pace'
           AND (${t.oldValue} IS NULL OR ${t.oldValue} ~ '^([1-9][0-9]?|1[0-9][0-9]|200)$')
           AND (${t.newValue} IS NULL OR ${t.newValue} ~ '^([1-9][0-9]?|1[0-9][0-9]|200)$'))
-        OR (${t.field} = 'mode' AND ${t.oldValue} IN ('climb', 'keep') AND ${t.newValue} IN ('climb', 'keep'))
+        OR (${t.field} = 'mode' AND ${t.oldValue} IS NOT NULL AND ${t.newValue} IS NOT NULL
+          AND ${t.oldValue} IN ('climb', 'keep') AND ${t.newValue} IN ('climb', 'keep'))
       )`,
     ),
   ],
