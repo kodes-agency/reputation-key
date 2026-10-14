@@ -110,6 +110,38 @@ The commands:
    WHERE logo ~* '^https?://[^/]*\.amazonaws\.com(:[0-9]+)?/';
   ```
 
+- Replaced rating readings still effective (full-read review 2026-10-14, S16-01) — one read-only SQL query, run against the database of each environment. A guest's rating correction replaces three readings (private rating, rating count, rating average), but before the fix only the first was retracted, so the earlier count and average reading stayed effective beside the replacement and a Goal on either measure was quarantined (`correction_missing`). Migration 0055 adds the missing retractions at deploy (before new code serves); run the query before and after, and expect no rows after. The hourly Goal pass closes the months that were held back once the retractions are in; nothing needs to be re-sent.
+
+  ```sql
+  -- replaced-rating-readings-without-retraction: the earlier reading of a rating
+  -- measure that a corrected rating replaced and no correction retracts.
+  SELECT prior.organization_id, prior.portal_id, prior.definition_version_id,
+         prior.source_event_id AS replaced_source_event_id,
+         replacement.source_event_id AS replacing_source_event_id
+    FROM metric_corrections first_retraction
+    JOIN metric_readings first_prior ON first_prior.id = first_retraction.reading_id
+    JOIN metric_readings prior
+      ON prior.organization_id = first_prior.organization_id
+     AND prior.property_id = first_prior.property_id
+     AND prior.portal_id IS NOT DISTINCT FROM first_prior.portal_id
+     AND prior.group_id IS NOT DISTINCT FROM first_prior.group_id
+     AND prior.source_event_id = first_prior.source_event_id
+     AND prior.definition_version_id <> first_prior.definition_version_id
+    JOIN metric_readings replacement
+      ON replacement.definition_version_id = prior.definition_version_id
+     AND replacement.source_event_id = left(first_retraction.source_event_id, -8)
+     AND replacement.organization_id = prior.organization_id
+     AND replacement.property_id = prior.property_id
+     AND replacement.portal_id IS NOT DISTINCT FROM prior.portal_id
+     AND replacement.group_id IS NOT DISTINCT FROM prior.group_id
+   WHERE first_retraction.kind = 'retract'
+     AND first_retraction.source_event_id LIKE '%:retract'
+     AND NOT EXISTS (
+       SELECT 1 FROM metric_corrections existing
+        WHERE existing.reading_id = prior.id AND existing.supersedes_correction_id IS NULL
+     );
+  ```
+
 - `ops:reparse-review-translations <report|repair> [--property <id>]` — re-split Google's `(Translated by Google) … (Original)` envelope on Review rows stored before the provider adapter split it at ingestion. A targeted column update: the text, `translated_text`, `content_hash` and AI source provenance are recomputed with the sync path's own functions, and the Review lifecycle, `source_revision` and analysis position are untouched. `report` never writes; `repair` is dry-run by default and `--apply` requires `--reason` and `--ticket`. Idempotent.
 - `ops:triage-beta-feedback --operator <id>` — list the global content-free native-feedback support queue. Applying one exact local-reference transition additionally requires all 14 reviewed positional values, `--ticket`, `--reason`, and `--apply`; it is revision/transition-ID guarded, appends immutable evidence, and never reads report text/downloads attachments or creates an engineering issue. §16
 - `ops:recover-recent-activity --operator <id> [--batch-size 100] [--apply --reason <text>] <observed-at> [<after-occurred-at> <after-replay-key>]` — report Recent Activity projection readiness or restore one bounded, cursor-resumable page from Activity-owned replay facts. Report-only is the default. See `recent-activity-recovery.md`.
