@@ -229,6 +229,9 @@ export const goalKeys = {
   /** The live month to date of the goals that target one subject (`portal_group:<id>`). */
   progress: (propertyId: string, subject: string) =>
     [...goalKeys.all, 'progress', propertyId, subject] as const,
+  /** The live month to date of every active goal of a Property (the Goals list). */
+  listProgress: (propertyId: string) =>
+    [...goalKeys.all, 'list-progress', propertyId] as const,
   /** The live month to date of every current subject of one goal. */
   programProgress: (propertyId: string, goalId: string) =>
     [...goalKeys.all, 'program-progress', propertyId, goalId] as const,
