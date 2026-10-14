@@ -8,7 +8,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
-import { GoalLiveLine } from './goal-live-line'
+import { GoalLiveLine, GoalLiveLinePending } from './goal-live-line'
 
 const goal = (patch: Partial<GoalListProgress> = {}): GoalListProgress => ({
   programId: 'program-1',
@@ -154,6 +154,48 @@ export const SeveralSubjectsNotJudged: Story = {
   },
   play: async ({ canvasElement }) => {
     expect(within(canvasElement).getByText('3 subjects')).toBeVisible()
+  },
+}
+
+/**
+ * While the month is read, a count keeps the room of its line and its bar, so
+ * the rows below do not jump when the figure arrives. The Vitest story runner
+ * compiles no Tailwind, so what it can say is what the placeholder is; that it
+ * is exactly as high as the line is measured in Storybook proper
+ * (`e2e/storybook-metrics/goal-live-line.metrics.ts`).
+ */
+export const PendingKeepsTheRoomOfACount: Story = {
+  render: () => (
+    <div className="flex flex-col gap-6">
+      <GoalLiveLinePending shape="line_and_bar" />
+      <GoalLiveLine goal={goal()} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const pending = canvasElement.querySelector('[data-slot="goal-live-line-pending"]')
+    expect(pending).toHaveAttribute('aria-hidden', 'true')
+    expect(pending?.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(2)
+    // Only the loaded line is a bar a reader can find.
+    expect(canvas.getAllByRole('progressbar')).toHaveLength(1)
+    expect(canvas.getByText('64 of 120 so far · 14 days left')).toBeVisible()
+  },
+}
+
+/** An average, or a goal of several subjects, keeps a line and no bar. */
+export const PendingKeepsTheRoomOfALine: Story = {
+  render: () => (
+    <div className="flex flex-col gap-6">
+      <GoalLiveLinePending shape="line" />
+      <GoalLiveLine goal={goal({ subjectCount: 3, month: null, belowPace: 2 })} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const pending = canvasElement.querySelector('[data-slot="goal-live-line-pending"]')
+    expect(pending).toHaveAttribute('aria-hidden', 'true')
+    expect(pending?.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(1)
+    expect(within(canvasElement).queryByRole('progressbar')).toBeNull()
+    expect(within(canvasElement).getByText('3 subjects · 2 below pace')).toBeVisible()
   },
 }
 

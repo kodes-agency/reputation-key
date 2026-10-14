@@ -6,7 +6,10 @@
 // with several subjects gets how many are below pace. A figure that cannot be
 // read says so and is never a zero, and an average too thin to show asks for
 // more ratings. Pure.
-import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
+import type {
+  GoalListProgress,
+  GoalMetric,
+} from '#/contexts/reporting/application/public-api'
 import { goalMetricLabel } from './goal-metric-label'
 import { goalFigure, goalSoFarNote } from './goal-so-far'
 
@@ -84,6 +87,23 @@ export function goalLiveView(goal: GoalListProgress): GoalLiveView | null {
   if (goal.month !== null) return oneSubjectLine(goal, goal.month)
   if (goal.subjectCount > 1) return { text: severalSubjectsText(goal), bar: null }
   return null
+}
+
+/** What a row will hold under it once its month is read: a line, or a line and a bar. */
+export type GoalLiveShape = 'line' | 'line_and_bar'
+
+/**
+ * The room to keep under a row while its month is still being read, so the line
+ * that arrives does not push the rows below it down. It is told from the goal's
+ * own row, before any figure: only an active goal has a live line, and only a
+ * count with one subject draws a bar. Null for a goal that will have none.
+ */
+export function goalLiveShape(
+  row: Readonly<{ status: string; metric: GoalMetric; subjectCount: number }>,
+): GoalLiveShape | null {
+  if (row.status !== 'active' || row.subjectCount < 1) return null
+  const bar = row.subjectCount === 1 && row.metric !== 'portal_rating_average'
+  return bar ? 'line_and_bar' : 'line'
 }
 
 /**

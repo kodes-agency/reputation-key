@@ -39,8 +39,12 @@ import { goalMetricLabel } from '#/components/goals/goal-metric-label'
 import { goalListTarget } from '#/components/goals/goal-month-target-view'
 import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
-import { GoalLiveLine } from '#/components/goals/goal-live-line'
-import { goalListSubjectText, goalListSummary } from '#/components/goals/goal-live-view'
+import { GoalLiveLine, GoalLiveLinePending } from '#/components/goals/goal-live-line'
+import {
+  goalListSubjectText,
+  goalListSummary,
+  goalLiveShape,
+} from '#/components/goals/goal-live-view'
 import { GoalViewTabs } from '#/components/goals/goal-view-tabs'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { formatShortDate } from '#/lib/format'
@@ -213,6 +217,15 @@ function GoalsRoute() {
                     ? null
                     : `set on ${formatShortDate(target.setAt, calendar.timezone, now) ?? 'an unknown date'}`
                 const liveGoal = liveByProgram.get(program.id)
+                // While the month is first being read, keep the room its line
+                // will take, so the rows below do not jump when it arrives.
+                const pendingShape = live.isLoading
+                  ? goalLiveShape({
+                      status: program.status,
+                      metric: target.metric,
+                      subjectCount: currentAssignmentCount,
+                    })
+                  : null
                 return (
                   <DataTableRow key={program.id}>
                     <DataTableCell className="min-w-0 whitespace-normal">
@@ -231,7 +244,11 @@ function GoalsRoute() {
                           setOn,
                         ])}
                       </p>
-                      {liveGoal === undefined ? null : <GoalLiveLine goal={liveGoal} />}
+                      {liveGoal !== undefined ? (
+                        <GoalLiveLine goal={liveGoal} />
+                      ) : pendingShape !== null ? (
+                        <GoalLiveLinePending shape={pendingShape} />
+                      ) : null}
                     </DataTableCell>
                     <DataTableCell className="col-start-2 row-start-1 justify-self-end">
                       <StatusBadge status={program.status} map={GOAL_STATUS} />

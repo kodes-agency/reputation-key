@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
-import { goalListSubjectText, goalListSummary, goalLiveView } from './goal-live-view'
+import {
+  goalListSubjectText,
+  goalListSummary,
+  goalLiveShape,
+  goalLiveView,
+} from './goal-live-view'
 
 const goal = (patch: Partial<GoalListProgress> = {}): GoalListProgress => ({
   programId: 'program-1',
@@ -185,5 +190,58 @@ describe('the quiet line of a row', () => {
     expect(
       goalListSummary(['Qualified scans', 'target 120', null, 'set on Sep 20']),
     ).toBe('Qualified scans · target 120 · set on Sep 20')
+  })
+})
+
+describe('the room a row keeps for its live line while the month is read', () => {
+  const row = (patch: Partial<Parameters<typeof goalLiveShape>[0]> = {}) => ({
+    status: 'active' as const,
+    metric: 'qualified_scans' as const,
+    subjectCount: 1,
+    ...patch,
+  })
+
+  it('keeps a line and a bar for an active count with one subject', () => {
+    expect(goalLiveShape(row())).toBe('line_and_bar')
+    expect(goalLiveShape(row({ metric: 'portal_rating_count' }))).toBe('line_and_bar')
+  })
+
+  it('keeps a line alone for an average, which has no bar', () => {
+    expect(goalLiveShape(row({ metric: 'portal_rating_average' }))).toBe('line')
+  })
+
+  it('keeps a line alone for a goal with several subjects, which has no bar', () => {
+    expect(goalLiveShape(row({ subjectCount: 3 }))).toBe('line')
+    expect(goalLiveShape(row({ subjectCount: 3, metric: 'portal_rating_average' }))).toBe(
+      'line',
+    )
+  })
+
+  it.each(['scheduled', 'paused', 'ended'] as const)(
+    'keeps nothing for a %s goal, which has no live line',
+    (status) => {
+      expect(goalLiveShape(row({ status }))).toBeNull()
+    },
+  )
+
+  it('keeps nothing for a goal with no subject to count', () => {
+    expect(goalLiveShape(row({ subjectCount: 0 }))).toBeNull()
+  })
+
+  it('keeps what the line will use: a bar exactly where the live line draws one', () => {
+    const counted = goal({ subjectCount: 1 })
+    const several = goal({ subjectCount: 3, month: null, belowPace: 1 })
+    const average = goal({
+      metric: 'portal_rating_average',
+      month: { reading: { kind: 'live', value: 4.6, sampleCount: 30 }, targetValue: 4.5 },
+    })
+
+    for (const [live, shape] of [
+      [counted, goalLiveShape(row())],
+      [several, goalLiveShape(row({ subjectCount: 3 }))],
+      [average, goalLiveShape(row({ metric: 'portal_rating_average' }))],
+    ] as const) {
+      expect(shape === 'line_and_bar').toBe(goalLiveView(live)?.bar != null)
+    }
   })
 })

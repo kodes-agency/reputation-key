@@ -46,7 +46,8 @@ metric authority.
   one server call but several statements, a deliberate departure from one set-based read because
   the set-based count below leaves out the outbox completeness proof. A page is bounded instead:
   at most 60 figures, three in flight (two queries each, six of the web pool's ten connections),
-  and the goals past that carry no line.
+  and the goals past that carry no line. While the figures are first read, an active row keeps
+  the room its line will take (`GoalLiveLinePending`), so the rows below do not move.
 - **Goal pace** (`domain/goal-pace.ts`): how far a count goal's running month should have got. A
   count measure expects the month's target times the share of the month gone, in whole
   Property-local calendar days with today included (the Results window's convention). It is
