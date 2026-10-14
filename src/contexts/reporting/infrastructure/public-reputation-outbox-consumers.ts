@@ -130,7 +130,9 @@ export function registerPublicReputationMetricConsumers(
       }
       if (result.status === 'recorded') return { status: 'applied' }
       if (result.status === 'duplicate') return { status: 'duplicate' }
-      throw new Error(`Public Reputation metric rejected: ${result.status}`)
+      // Refused by design and already settled with its receipt (a refusal that
+      // retrying could change fails inside recordMetric).
+      return { status: 'obsolete' }
     },
   })
 }

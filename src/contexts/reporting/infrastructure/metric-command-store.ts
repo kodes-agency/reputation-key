@@ -234,15 +234,16 @@ async function existingReadingId(
 }
 
 async function reserveSourceReceipt(
-  tx: MetricTx,
+  tx: Pick<MetricTx, 'insert'>,
   receipt: MetricSourceReceipt,
+  status: 'applied' | 'obsolete' = 'applied',
 ): Promise<boolean> {
   const rows = await tx
     .insert(eventConsumerReceipts)
     .values({
       eventId: receipt.eventId,
       consumerName: receipt.consumerName,
-      status: 'applied',
+      status,
     })
     .onConflictDoNothing({
       target: [eventConsumerReceipts.eventId, eventConsumerReceipts.consumerName],
@@ -777,7 +778,14 @@ export const createAtomicMetricCommandStore = (
       return committed
     })
 
+  const settleSourceReceipt = async (receipt: MetricSourceReceipt): Promise<void> => {
+    await trace('metric.commandStore.settleSourceReceipt', async () => {
+      await reserveSourceReceipt(db, receipt, 'obsolete')
+    })
+  }
+
   return {
+    settleSourceReceipt,
     recordMetrics,
     recordMetric: async (command: RecordMetricCommand): Promise<ReadingResult> => {
       const { sourceReceipt, ...reading } = command

@@ -5,6 +5,7 @@ import {
   type RecordMetricInput,
 } from './record-metric'
 import type { MetricReading } from '../../domain/metric-reading'
+import type { MetricSourceReceipt } from '../ports/metric-command-store.port'
 import type { GovernedMetricVersion } from '../../domain/metric-registry'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createSequentialMetricCommandStore } from '#/shared/testing/sequential-metric-command-store'
@@ -73,6 +74,7 @@ const input = (overrides: Partial<RecordMetricInput> = {}): RecordMetricInput =>
 
 const createDeps = (version: GovernedMetricVersion | null = governed) => {
   const readings: MetricReading[] = []
+  const receipts: MetricSourceReceipt[] = []
   const outbox = createRecordedOutbox()
   const deps: RecordMetricDeps = {
     commandStore: createSequentialMetricCommandStore({
@@ -81,13 +83,16 @@ const createDeps = (version: GovernedMetricVersion | null = governed) => {
         return reading
       },
       outbox,
+      recordReceipt: async (receipt) => {
+        receipts.push(receipt)
+      },
     }),
     registry: { findVersionById: async () => version },
     clock: () => NOW,
     idGen: () => metricReadingId('d4000000-0000-4000-8000-000000000071'),
     resolvePropertyLocalDate: async () => '2026-08-08',
   }
-  return { deps, readings, outbox }
+  return { deps, readings, receipts, outbox }
 }
 
 describe('recordMetric', () => {
@@ -220,5 +225,114 @@ describe('recordMetric', () => {
       actualSample: 2,
     })
     expect(fakes.readings).toEqual([])
+  })
+
+  it('commits no receipt when a refused fact carries none', async () => {
+    const fakes = createDeps()
+
+    await recordMetric(fakes.deps)(input({ attributionQuality: 'unresolved' }))
+
+    expect(fakes.receipts).toEqual([])
+  })
+})
+
+describe('recordMetric for a durable delivery that yields no reading', () => {
+  const receipt: MetricSourceReceipt = {
+    eventId: 'event-1',
+    consumerName: 'metric.portal-workflow',
+  }
+  const ratio: GovernedMetricVersion = {
+    definition: {
+      ...governed.definition,
+      key: 'portal.approved_destination_ratio',
+      valueKind: 'ratio',
+    },
+    version: {
+      ...governed.version,
+      id: '11111111-1111-4111-8111-111111111103',
+      minimumSample: 5,
+    },
+  }
+
+  it('settles the delivery of a ratio under its minimum sample', async () => {
+    const fakes = createDeps(ratio)
+
+    const result = await recordMetric(fakes.deps)(
+      input({
+        definitionVersionId: ratio.version.id,
+        value: 0.5,
+        numerator: 1,
+        denominator: 2,
+        sampleCount: 2,
+        sourceReceipt: receipt,
+      }),
+    )
+
+    expect(result.status).toBe('insufficient_data')
+    expect(fakes.receipts).toEqual([receipt])
+    expect(fakes.readings).toEqual([])
+  })
+
+  it.each([
+    ['unresolved_attribution', { attributionQuality: 'unresolved' }],
+    ['invalid_reading', { value: -1 }],
+    [
+      'definition_version_not_effective',
+      { occurredAt: new Date('2026-08-01T00:00:00Z') },
+    ],
+  ] as const)(
+    'settles the delivery of a fact refused as %s',
+    async (reason, overrides) => {
+      const fakes = createDeps()
+
+      const result = await recordMetric(fakes.deps)(
+        input({ ...overrides, sourceReceipt: receipt }),
+      )
+
+      expect(result).toMatchObject({ status: 'rejected', reason })
+      expect(fakes.receipts).toEqual([receipt])
+      expect(fakes.readings).toEqual([])
+    },
+  )
+
+  it.each([
+    ['source_policy_not_allowed', { sourcePolicy: 'google_property_derivative' }],
+    ['scope_not_allowed', { scope: 'portal' }],
+  ] as const)(
+    'fails the delivery of a fact the governance configuration refuses (%s), so a fix can replay it',
+    async (reason, overrides) => {
+      const fakes = createDeps()
+
+      await expect(
+        recordMetric(fakes.deps)(input({ ...overrides, sourceReceipt: receipt })),
+      ).rejects.toThrow(`Metric reading was refused by governance: ${reason}`)
+
+      expect(fakes.receipts).toEqual([])
+    },
+  )
+
+  it('fails the delivery of a fact whose version the registry does not know', async () => {
+    const fakes = createDeps(null)
+
+    await expect(
+      recordMetric(fakes.deps)(input({ sourceReceipt: receipt })),
+    ).rejects.toThrow(
+      'Metric reading was refused by governance: unknown_definition_version',
+    )
+    expect(fakes.receipts).toEqual([])
+  })
+
+  it('refuses a receipt that names another fact than the one it settles', async () => {
+    const fakes = createDeps()
+
+    await expect(
+      recordMetric(fakes.deps)(
+        input({
+          attributionQuality: 'unresolved',
+          sourceReceipt: { ...receipt, eventId: 'another-event' },
+        }),
+      ),
+    ).rejects.toThrow('Metric source receipt event does not match its reading')
+    expect(fakes.receipts).toEqual([])
   })
 })
