@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
 import type {
   GoogleReviewApiError,
@@ -22,7 +21,6 @@ import type {
   GoogleReviewSyncProviderCallAuthorization,
 } from '../../application/google-provider-contract'
 import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
-import { canonicalProviderAuthorizationVector } from '#/shared/provider-ephemeral/authorization-binding'
 import {
   parseReviewProviderResource,
   type ReviewProviderResource,
@@ -35,11 +33,15 @@ import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import {
   executeGoogleProviderJson,
   executeGoogleProviderRaw,
+  gatewayFailureError,
+  providerStatusError,
 } from './google-provider-adapter'
-import type {
-  GoogleReviewCursorAuthorization,
-  GoogleReviewCursorFailureCode,
-  GoogleReviewCursorStore,
+import {
+  googleReviewCursorAuthorization,
+  sameGoogleReviewCursorAuthorization,
+  type GoogleReviewCursorAuthorization,
+  type GoogleReviewCursorFailureCode,
+  type GoogleReviewCursorStore,
 } from '../google-review-cursor-store'
 
 const PAGE_SIZE = 50
@@ -305,15 +307,23 @@ function executorErrorToReviewApiError(error: unknown): GoogleReviewApiError {
       failureLabel: label,
     })
   }
-  if (kind !== 'rate_limited') {
-    return reviewApiError('provider_unavailable', true, { failure, failureLabel: label })
-  }
+  // A rate limit AND an upstream failure (a 5xx, a 400, a gateway that could not
+  // decide) carry a real wait. Dropping the second re-ran the same step at queue
+  // speed for as long as the run lasted. Other kinds (an unreadable body) carry
+  // none worth keeping.
   const hint = errorField(error, 'retryAfterMs')
-  return reviewApiError('provider_rate_limited', true, {
-    ...(typeof hint === 'number' ? { retryAfterMs: hint } : {}),
-    failure,
-    failureLabel: label,
-  })
+  const rateLimited = kind === 'rate_limited'
+  return reviewApiError(
+    rateLimited ? 'provider_rate_limited' : 'provider_unavailable',
+    true,
+    {
+      ...(typeof hint === 'number' && (rateLimited || kind === 'upstream_error')
+        ? { retryAfterMs: hint }
+        : {}),
+      failure,
+      failureLabel: label,
+    },
+  )
 }
 
 /**
@@ -584,33 +594,6 @@ function mapReview(
   }
 }
 
-function authorizationDigest(authorization: GoogleProviderCallAuthorization): string {
-  const canonical = JSON.stringify({
-    capability: authorization.capability,
-    organizationId: authorization.organizationId,
-    propertyId: authorization.propertyId,
-    connectionId: authorization.connectionId,
-    initiatorUserId: authorization.initiatorUserId,
-    expectedCredentialGeneration: authorization.expectedCredentialGeneration,
-    authorizationVector: canonicalProviderAuthorizationVector(
-      authorization.authorizationVector,
-    ),
-  })
-  return createHash('sha256').update(canonical, 'utf8').digest('hex')
-}
-
-function sameCursorAuthorization(
-  left: GoogleReviewCursorAuthorization,
-  right: GoogleReviewCursorAuthorization,
-): boolean {
-  return (
-    left.connectionLifecycleVersion === right.connectionLifecycleVersion &&
-    left.connectionAccessVersion === right.connectionAccessVersion &&
-    left.credentialGeneration === right.credentialGeneration &&
-    left.authorizationVectorSha256 === right.authorizationVectorSha256
-  )
-}
-
 function parseJsonBytes(bytes: Uint8Array): unknown {
   if (bytes.byteLength > MAX_RESPONSE_BYTES) {
     throw reviewApiError('malformed_response', false)
@@ -689,12 +672,7 @@ export const createGoogleReviewApiAdapter = (
     return {
       accessToken,
       authorization,
-      cursorAuthorization: {
-        connectionLifecycleVersion: connection.lifecycleVersion,
-        connectionAccessVersion: connection.accessVersion,
-        credentialGeneration: connection.credentialGeneration,
-        authorizationVectorSha256: authorizationDigest(authorization),
-      },
+      cursorAuthorization: googleReviewCursorAuthorization(connection, authorization),
     }
   }
 
@@ -708,7 +686,7 @@ export const createGoogleReviewApiAdapter = (
     expected: GoogleReviewCursorAuthorization,
   ): Promise<void> => {
     const current = await resolveProviderContext(input)
-    if (!sameCursorAuthorization(current.cursorAuthorization, expected)) {
+    if (!sameGoogleReviewCursorAuthorization(current.cursorAuthorization, expected)) {
       throw reviewApiError('authorization_changed', false)
     }
   }
@@ -937,24 +915,30 @@ export const createGoogleReviewApiAdapter = (
           signal: timeout.signal,
         },
       )
+      // The same error vocabulary as the list route: the snapshot confirmation
+      // retries by code alone and waits only as long as the hint, so a refusal
+      // that is named a retryable outage, or an outage that carries no wait,
+      // is re-run at queue speed until the run expires.
       if (!result.ok) {
-        throw reviewApiError('provider_unavailable', true)
+        throw executorErrorToReviewApiError(gatewayFailureError('getReview', result))
       }
       if (result.status === 404) {
         result.body.fill(0)
         await assertAuthorizationCurrent(input, context.cursorAuthorization)
         return { status: 'not_found' }
       }
+      if (result.status !== 200) {
+        result.body.fill(0)
+        throw executorErrorToReviewApiError(
+          providerStatusError('getReview', result, nowMs, nowMs()),
+        )
+      }
       if (
-        result.status !== 200 ||
         !result.headers.contentType ||
         !JSON_CONTENT_TYPE.test(result.headers.contentType)
       ) {
         result.body.fill(0)
-        throw reviewApiError(
-          result.status === 429 ? 'provider_rate_limited' : 'provider_unavailable',
-          result.status === 429 || result.status >= 500,
-        )
+        throw reviewApiError('provider_unavailable', true)
       }
       try {
         raw = parseJsonBytes(result.body)

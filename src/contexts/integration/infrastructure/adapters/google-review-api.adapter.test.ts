@@ -1302,3 +1302,208 @@ describe('GoogleReviewApiAdapter reply failure evidence (D2)', () => {
     expect(execute).not.toHaveBeenCalled()
   })
 })
+
+// The snapshot use case retries a `provider_unavailable` or `provider_rate_limited`
+// step by its code alone, and waits only as long as the error's `retryAfterMs`. An
+// error without that hint is re-run at queue speed (3,225 quota denials in 344 s
+// once), and a permanent refusal that is mapped to a retryable code is re-run
+// until the run expires. Both read routes must therefore hand over the wait the
+// provider plane computed, and must name a refusal as the terminal fact it is.
+describe('GoogleReviewApiAdapter backoff on the read routes', () => {
+  const MIN_WAIT_MS = 5_000
+  const getInput = () => ({
+    organizationId: ORG_ID,
+    propertyId: PROPERTY_ID,
+    connectionId: CONNECTION_ID,
+    sourceEpoch: 17,
+    locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+    reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+  })
+  const answered = (status: number, retryAfter: string | null = null) =>
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status,
+      headers: { contentType: 'application/json', cacheControl: null, retryAfter },
+      body: new TextEncoder().encode('{"error":{"message":"nope"}}'),
+    })
+  const refused = (
+    code: 'admission_denied' | 'transport_error',
+    admissionCode: string | undefined,
+    retryAfterMs: number,
+  ) =>
+    vi.fn().mockResolvedValue({
+      ok: false,
+      code,
+      ...(admissionCode === undefined ? {} : { admissionCode }),
+      dispatch: 'not_sent',
+      retryAfterMs,
+    })
+  const failure = async (promise: Promise<unknown>) => {
+    const outcome = await promise.then(
+      () => null,
+      (error: unknown) => error,
+    )
+    expect(outcome).toBeInstanceOf(Error)
+    return outcome as Error & { code: string; retryAfterMs?: number }
+  }
+
+  describe('listing a page', () => {
+    it.each([
+      ['a 503', answered(503)],
+      ['a 400', answered(400)],
+      ['a 404', answered(404)],
+      [
+        'a gateway that could not reach its coordination store',
+        refused('admission_denied', 'coordination_unavailable', 0),
+      ],
+      ['a transport error', refused('transport_error', undefined, 0)],
+    ])('hands over the provider wait for %s', async (_label, execute) => {
+      const { api } = createAdapter({ execute })
+
+      const error = await failure(api.listReviewsPage(listInput()))
+
+      expect(error.code).toBe('provider_unavailable')
+      expect(error.retryAfterMs).toBeGreaterThanOrEqual(MIN_WAIT_MS)
+    })
+
+    it('keeps the wait the provider asked for on an answered 503', async () => {
+      const { api } = createAdapter({ execute: answered(503, '42') })
+
+      const error = await failure(api.listReviewsPage(listInput()))
+
+      expect(error.retryAfterMs).toBe(42_000)
+    })
+  })
+
+  describe('reading one review', () => {
+    it('hands over the wait of an admission denial for quota', async () => {
+      const { api } = createAdapter({
+        execute: refused('admission_denied', 'quota_exhausted', 1_200),
+      })
+
+      const error = await failure(api.getReview(getInput()))
+
+      expect(error.code).toBe('provider_rate_limited')
+      expect(error.retryAfterMs).toBeGreaterThanOrEqual(MIN_WAIT_MS)
+    })
+
+    it('hands over the wait Google asked for on an answered 429', async () => {
+      const { api } = createAdapter({ execute: answered(429, '7') })
+
+      const error = await failure(api.getReview(getInput()))
+
+      expect(error.code).toBe('provider_rate_limited')
+      expect(error.retryAfterMs).toBe(7_000)
+    })
+
+    it.each([
+      ['a 503', answered(503)],
+      ['a 400', answered(400)],
+      [
+        'a gateway that could not reach its coordination store',
+        refused('admission_denied', 'coordination_unavailable', 0),
+      ],
+    ])('hands over the provider wait for %s', async (_label, execute) => {
+      const { api } = createAdapter({ execute })
+
+      const error = await failure(api.getReview(getInput()))
+
+      expect(error.code).toBe('provider_unavailable')
+      expect(error.retryAfterMs).toBeGreaterThanOrEqual(MIN_WAIT_MS)
+    })
+
+    it.each([
+      ['an answered 401', answered(401)],
+      ['an answered 403', answered(403)],
+      [
+        'a permit that no longer authorizes the call',
+        refused('admission_denied', 'authorization_denied', 0),
+      ],
+    ])(
+      'treats %s as the terminal refusal it is, like the list route',
+      async (_label, execute) => {
+        const { api } = createAdapter({ execute })
+
+        const error = await failure(api.getReview(getInput()))
+
+        expect(error).toMatchObject({ code: 'authorization_changed', recoverable: false })
+        expect(error.retryAfterMs).toBeUndefined()
+      },
+    )
+  })
+})
+
+// A routine access-token refresh moves `credentialGeneration` (the connection
+// column and the authorization vector) about once an hour and changes nothing a
+// cursor binding must protect; a scan that crosses it used to lose its cursor
+// (`cursor_binding_mismatch` -> `cursor_failure`) and restart from page 0.
+// Reconnect and disconnect move the lifecycle and access versions, which stay
+// bound.
+describe('GoogleReviewApiAdapter cursor binding across a token refresh', () => {
+  const CURSOR_REF = `v1.${'b'.repeat(43)}`
+  // A fresh body per call: the adapter zeroes every body it has read.
+  const okPage = () =>
+    vi.fn().mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      headers: { contentType: 'application/json', cacheControl: null, retryAfter: null },
+      body: new TextEncoder().encode(
+        JSON.stringify({
+          reviews: [providerReview()],
+          totalReviewCount: 1,
+          averageRating: 5,
+        }),
+      ),
+    }))
+  const authorizedAt = (credentialGeneration: number) => ({
+    accessToken: 'access-token',
+    authorization: {
+      ...authorization,
+      expectedCredentialGeneration: credentialGeneration,
+      authorizationVector: Object.freeze({
+        propertySourceEpoch: 17,
+        credentialGeneration,
+      }),
+    },
+  })
+  const redeemedBindings = (cursors: GoogleReviewCursorStore) =>
+    vi.mocked(cursors.redeem).mock.calls.map(([input]) => input.authorization)
+
+  it('binds the same cursor authorization before and after a routine refresh', async () => {
+    const cursors = cursorStore()
+    const { api, findById, authorizeProviderCall } = createAdapter({
+      execute: okPage(),
+      cursors,
+      authorizeProviderCall: vi.fn().mockResolvedValue(authorizedAt(3)),
+    })
+
+    await api.listReviewsPage(listInput(CURSOR_REF, 1))
+    findById.mockResolvedValue({ ...connection, credentialGeneration: 4 })
+    authorizeProviderCall.mockResolvedValue(authorizedAt(4))
+    await api.listReviewsPage(listInput(CURSOR_REF, 1))
+
+    const [beforeRefresh, afterRefresh] = redeemedBindings(cursors)
+    expect(afterRefresh).toEqual(beforeRefresh)
+  })
+
+  it('binds a different cursor authorization once the connection was reconnected', async () => {
+    const cursors = cursorStore()
+    const { api, findById, authorizeProviderCall } = createAdapter({
+      execute: okPage(),
+      cursors,
+      authorizeProviderCall: vi.fn().mockResolvedValue(authorizedAt(3)),
+    })
+
+    await api.listReviewsPage(listInput(CURSOR_REF, 1))
+    findById.mockResolvedValue({
+      ...connection,
+      lifecycleVersion: connection.lifecycleVersion + 1,
+      credentialGeneration: 4,
+    })
+    authorizeProviderCall.mockResolvedValue(authorizedAt(4))
+    await api.listReviewsPage(listInput(CURSOR_REF, 1))
+
+    const [beforeReconnect, afterReconnect] = redeemedBindings(cursors)
+    expect(afterReconnect).not.toEqual(beforeReconnect)
+  })
+})
