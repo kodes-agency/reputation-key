@@ -27,7 +27,11 @@
 //             amended 2026-10-14).
 //   FORBIDDEN a Google/provider review's rating and any review content, reply
 //             text, guest/reviewer name, media URLs, sentiment or any other
-//             derived score, and any other employee's NAME or email.
+//             derived score, and any other employee's NAME or email. The one
+//             exception to "derived score" is the Property-level `rating*`
+//             figures named above: an average over a Property's recent
+//             reviews, a bounded integer, never one review's score (ADR 0046,
+//             amended 2026-10-14, narrowing the 2026-09-30 "no star count").
 //
 // `parseNotificationPayload` is the only way a payload enters the domain, and
 // it drops every unrecognised key. A new field must be added here AND to

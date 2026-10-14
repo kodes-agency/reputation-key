@@ -178,6 +178,11 @@ five stars; 4.6 needs about 1,300; 4.8 cannot be reached at this mix.
   measures.
 - Reporting gains two tables (migration 0056) and their Organization export and
   purge. Review gains a read port that hands out counts and star sums only.
+  The notices (PR 5) add two columns to `property_rating_goals`
+  (`last_known_status`, `below_pace_noticed_at`; migration 0057), exported with
+  the table, and a daily job, `rating-goal.evaluate` (`goal.use`), because Below
+  pace moves with the calendar rather than with a Google fact (ADR 0046,
+  amended 2026-10-14).
 - Like every enabled feature (ADR 0049), the goal needs a positive journey, a
   denial journey for a Member, and an emergency switch, which is `goal.use`.
   `goal.use` is a shared switch: turning it off for an Organization or Property

@@ -1167,6 +1167,17 @@ their recent average stars, each a bounded integer in the payload allowlist
 ratings never enter Notification storage" is about a review's rating, and it
 stands. A Low ratings notice still carries only its outcome.
 
+This narrows one sentence of the 2026-09-30 amendment, "notification rows,
+emails and logs carry no star count", to what it was written to protect: a
+review's own rating. Two Property-level figures are not that: the tenth Google
+shows for the Property, which every one of these notices states in its title or
+body, and the recent average stars of the Property's new reviews, an aggregate
+over many reviews that cannot be traced to one and that the Can't reach notice
+has to state for its advice (what new reviews must average) to be plain. If the
+owner prefers the earlier sentence to stand for the average, the fallback is to
+drop `ratingMixHundredths` from the payload and the Can't reach body, which then
+names only the target.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.
