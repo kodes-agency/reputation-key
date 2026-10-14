@@ -32,6 +32,15 @@ export type StableReviewSourceIdentity = Readonly<{
   sentimentScore: number | null
 }>
 
+/**
+ * Every method here that returns Reviews, counts them or selects on the content
+ * clock sees LIVE Reviews only. A Review whose provider content was erased (a
+ * tombstone: `source_content_state` `source_expired` or `provider_deleted`) has
+ * no rating, provider ids or text, so it is not a `Review`; it is simply absent
+ * — `findById` answers null, the lists leave it out, the lifecycle sweeps never
+ * offer it — and a reader never receives an exception for it. Only
+ * `findStableIdentityByProviderSubjects` returns a tombstone, as identity.
+ */
 export type ReviewRepository = Readonly<{
   findById(id: ReviewId, organizationId: OrganizationId): Promise<Review | null>
   readForAi(input: AiReviewSourceRequest): Promise<AiReviewSourceResult>
