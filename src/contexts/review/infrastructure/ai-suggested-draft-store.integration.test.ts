@@ -1060,6 +1060,9 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     ])
   })
 
+  // Only the first case isolates the store's state check: its Review keeps the
+  // clock the store used to test alone. The second is a regression case: the
+  // erase clears the clock today, so the clock fence refuses it as well.
   it.each([
     {
       label: 'a Review erased before the content clock was cleared',

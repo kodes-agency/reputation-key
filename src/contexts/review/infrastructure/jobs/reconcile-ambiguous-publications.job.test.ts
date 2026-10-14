@@ -78,6 +78,8 @@ function makeDeps(opts: {
   /** reply_publication_attempts.created_at for sending/ambiguous rows. */
   attemptStartedAt?: Date | null
   evidence?: 'possibly_dispatched' | 'never_dispatched' | 'too_recent'
+  /** The Review reads as absent: erased by Google's deletion or the expiry. */
+  reviewMissing?: boolean
 }) {
   const batchQueue = [...opts.batches]
   const leaseRelease = vi.fn(async () => {})
@@ -140,10 +142,9 @@ function makeDeps(opts: {
   return {
     replyRepo,
     reviewRepo: {
-      findById: vi.fn(async (id: Reply['reviewId']) => ({
-        id,
-        propertyId: 'prop-1',
-      })),
+      findById: vi.fn(async (id: Reply['reviewId']) =>
+        opts.reviewMissing ? null : { id, propertyId: 'prop-1' },
+      ),
     },
     replyCommandStore: {
       deferPendingPublicationObservation,
@@ -181,7 +182,10 @@ async function runOne(
     attemptStartedAt: Date
     absentObservationCount: number
   }> | null,
-  uncertain: Pick<Parameters<typeof makeDeps>[0], 'attemptStartedAt' | 'evidence'> = {},
+  uncertain: Pick<
+    Parameters<typeof makeDeps>[0],
+    'attemptStartedAt' | 'evidence' | 'reviewMissing'
+  > = {},
 ) {
   const reconcile = vi.fn(async (_input: ReconcileReplyPublicationInput) =>
     ok({ outcome }),
@@ -207,6 +211,25 @@ describe('reconcile-ambiguous-publications sweep', () => {
       }),
       NOW,
     )
+  })
+
+  it('settles a due authorized retry whose Review reads as absent, with no failure notice', async () => {
+    const authorized = makeReply('reply-authorized-erased-review', 'authorized')
+    const { deps } = await runOne(authorized, 'absent', null, { reviewMissing: true })
+
+    expect(deps.reviewRepo.findById).toHaveBeenCalledWith(
+      authorized.reviewId,
+      authorized.organizationId,
+    )
+    // The Property comes from the Review, so an erased Review cannot name the
+    // notice's recipient scope: the reply still settles, with a null event.
+    expect(deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledWith(
+      authorized,
+      'retryable',
+      null,
+      NOW,
+    )
+    expect(deps.logger.warn).not.toHaveBeenCalled()
   })
 
   it.each([

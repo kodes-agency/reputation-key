@@ -219,11 +219,11 @@ async function insertReview(
     `INSERT INTO reviews (
        id, organization_id, property_id, platform, external_id,
        external_location_id, reviewer_name, rating, text, language_code,
-       reviewed_at, expires_at, source_epoch, source_revision,
+       reviewed_at, expires_at, content_expires_at, source_epoch, source_revision,
        source_observation_sequence, analysis_sequence, ai_source_byte_length,
        ai_source_digest, source_content_state, created_at, updated_at
      ) VALUES ($1, $2, $3, 'google', $4, 'locations/review-lifecycle', $5, 4, $6,
-               'en', $7, $8, 0, 1, 1, 1, 24, $9, 'active', $7, $7)`,
+               'en', $7, $8, $8, 0, 1, 1, 1, 24, $9, 'active', $7, $7)`,
     [
       reviewId,
       org,
@@ -695,13 +695,16 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
     expect(after.material_review_revisions).toBe(2)
 
     const review = await pool.query(
-      `SELECT source_content_state, external_id, reviewer_name, rating, text,
-              translated_text, reviewed_at, sentiment_label
+      `SELECT source_content_state, content_expires_at, external_id, reviewer_name,
+              rating, text, translated_text, reviewed_at, sentiment_label
        FROM reviews WHERE id = $1`,
       [PUBLISHED_REVIEW_ID],
     )
+    // The content clock goes with the content: a tombstone holds none, so no
+    // reader that tests the clock may see the scrubbed row as live.
     expect(review.rows[0]).toEqual({
       source_content_state: 'source_expired',
+      content_expires_at: null,
       external_id: null,
       reviewer_name: null,
       rating: null,

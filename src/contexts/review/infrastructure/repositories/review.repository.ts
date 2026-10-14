@@ -815,8 +815,8 @@ export const createReviewRepository = (
 
   /**
    * BQC-1.4: serving read for recent reviews — eligible content only.
-   * Eligibility predicate lives in SQL (defense in depth): non-null
-   * contentExpiresAt strictly in the future, newest first.
+   * Eligibility predicate lives in SQL (defense in depth): a live Review with
+   * a non-null contentExpiresAt strictly in the future, newest first.
    */
   findRecentEligibleByPropertyId: async (propertyId, organizationId, options, now) => {
     return trace('review.findRecentEligibleByPropertyId', async () => {
@@ -864,8 +864,8 @@ export const createReviewRepository = (
 
   /**
    * BQC-1.2: eligible content filter for cross-context list queries.
-   * Eligibility predicate lives here (defense in depth): non-null
-   * contentExpiresAt strictly in the future. Text search escapes LIKE
+   * Eligibility predicate lives here (defense in depth): a live Review with
+   * a non-null contentExpiresAt strictly in the future. Text search escapes LIKE
    * wildcards. This returns the complete eligible id set because the inbox
    * uses it for both page results and the matching total; truncating here
    * would silently hide older matches for larger organizations.

@@ -40,6 +40,9 @@ export type StableReviewSourceIdentity = Readonly<{
  * — `findById` answers null, the lists leave it out, the lifecycle sweeps never
  * offer it — and a reader never receives an exception for it. Only
  * `findStableIdentityByProviderSubjects` returns a tombstone, as identity.
+ * `readForAi` and `assertCurrentForAi` are the exception to the scope: they
+ * test the clock alone and deny a tombstone through its NULL
+ * `ai_source_byte_length` as `policy_unavailable`, the AI settlement outcome.
  */
 export type ReviewRepository = Readonly<{
   findById(id: ReviewId, organizationId: OrganizationId): Promise<Review | null>
@@ -92,8 +95,8 @@ export type ReviewRepository = Readonly<{
   ): Promise<ReadonlyArray<Review>>
   /**
    * BQC-1.4: serving read for recent reviews — eligible content only
-   * (contentExpiresAt IS NOT NULL AND > now, predicate in SQL), newest first.
-   * Operations paths use findByPropertyId instead.
+   * (a live Review whose contentExpiresAt IS NOT NULL AND > now, predicate in
+   * SQL), newest first. Operations paths use findByPropertyId instead.
    */
   findRecentEligibleByPropertyId(
     propertyId: PropertyId,
@@ -117,7 +120,7 @@ export type ReviewRepository = Readonly<{
   ): Promise<ReadonlyArray<Review>>
   /**
    * Review-owned eligible id query for cross-context list filters (BQC-1.2).
-   * Returns ids of reviews whose content is eligible at `now`
+   * Returns ids of live reviews whose content is eligible at `now`
    * (contentExpiresAt IS NOT NULL AND > now), optionally narrowed by rating
    * range and case-insensitive text search. Callers avoid cross-context JOINs.
    */
