@@ -132,9 +132,12 @@ function csvSummary(type: string, record: ExportRecord): readonly ExportScalar[]
     type,
     record.id ?? '',
     record.property_id ?? '',
-    // A record that carries a portal_id column but has none (a Property-wide
-    // page edit) has no Portal: showing its own id there would mislead.
-    'portal_id' in record ? (record.portal_id ?? '') : (record.id ?? ''),
+    // Only a Portal is its own Portal. Every other record names the Portal it
+    // belongs to, or none when it belongs to a group, a Property or an image
+    // (a group, an approved destination, a media asset, the Property's look and
+    // wording, a Property-wide page edit): its own id there would invent a
+    // Portal for a filter or a join on this column.
+    type === 'portal' ? (record.id ?? '') : (record.portal_id ?? ''),
     record.name ?? record.title ?? record.label ?? record.display_name ?? '',
     record.publication_state ?? record.status ?? record.approval_state ?? 'recorded',
     record.created_at ?? record.effective_from ?? record.activated_at ?? '',
@@ -408,14 +411,32 @@ async function readPayload(
             FROM portal_responsible_managers WHERE organization_id = ${organizationId}`,
       )
       // Metadata only: `portal_token_id` is deliberately not selected, because
-      // it is the join key into the address-token secret material.
+      // it is the join key into the address-token secret material. The stored
+      // status is never moved off `published` (retiring an artifact with its
+      // code would end scan counting inside a rotation's grace window), so the
+      // state a reader needs is the code's own: published while the code
+      // resolves, retiring through a rotation's grace window, retired after it,
+      // revoked when the code was stopped.
       const accessArtifacts = await readRows(
         snapshot,
-        sql`SELECT id::text AS id, property_id::text AS property_id,
-                   portal_id::text AS portal_id, channel, status,
-                   ${utc('published_at')} AS published_at,
-                   ${utc('retired_at')} AS retired_at
-            FROM portal_access_artifacts WHERE organization_id = ${organizationId}`,
+        sql`SELECT a.id::text AS id, a.property_id::text AS property_id,
+                   a.portal_id::text AS portal_id, a.channel,
+                   CASE
+                     WHEN t.status = 'revoked' THEN 'revoked'
+                     WHEN t.status = 'rotating'
+                          AND t.grace_period_ends > transaction_timestamp() THEN 'retiring'
+                     WHEN t.status = 'rotating' THEN 'retired'
+                     ELSE a.status
+                   END AS status,
+                   ${utc('a.published_at')} AS published_at,
+                   ${utc('COALESCE(a.retired_at, t.retired_at)')} AS retired_at
+            FROM portal_access_artifacts AS a
+            JOIN portal_tokens AS t
+              ON t.organization_id = a.organization_id
+             AND t.property_id = a.property_id
+             AND t.portal_id = a.portal_id
+             AND t.id = a.portal_token_id
+            WHERE a.organization_id = ${organizationId}`,
       )
       // Who was handed an existing address, and when. `portal_token_id` is left
       // out for the same reason as above; the sealed address is never selected.

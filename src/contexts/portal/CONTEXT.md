@@ -20,7 +20,7 @@ assignment, and governed access artifacts.
 - `PortalRepository` is a read-only production port. Authoritative mutations are available only through Portal command stores; direct PostgreSQL seeding/mutation lives under explicit test scaffolding and is guarded from production wiring by an architecture test.
 - Lifecycle export and purge contributors stay outside `publicApi`; irreversible
   phases are composed only through the reviewed Identity lifecycle coordinator.
-- Not exported, and not queried: `portal_tokens` (address-token hash and the sealed raw address) and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret. `portal_address_downloads` is exported without the token id.
+- Not exported, and not queried: `portal_tokens` (address-token hash and the sealed raw address) and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret. `portal_address_downloads` is exported without the token id. An exported artifact's `status` is the state of its code at the export snapshot (`published` while the code resolves, `retiring` through a rotation's grace window, `retired` after it, `revoked` when it was stopped), read from `portal_tokens` without exposing the join key. The stored column stays `published`: the scan path reads it, and moving it with the code would end scan counting inside a grace window. In the CSV summary `portal_id` names the Portal a record belongs to (its own id on a Portal row) and is empty for a group, an approved destination, a media asset and the Property's look and wording.
 - Not touched by any phase: `portal_metric_lifetime_aggregates` (Metric's anonymous aggregate), `properties`, and the Staff-owned people rows. Each is another owner's receipt.
 
 ## Model
@@ -338,7 +338,17 @@ exceptions to that section's rules:
   before it asks the policy; the list is scoped by the Organization it is given.
 - `revalidatePortalApprovedDestinations` is the worker's control, the same function as
   `worker.revalidateApprovedDestinations`. It takes its scope decision from its caller,
-  and no server function calls it.
+  and no server function calls it. It runs every 15 minutes and is due for every
+  destination validated 10 minutes ago or earlier; the public edge serves an approval up
+  to 30 minutes old, which leaves room for a run that starts up to 10 minutes late
+  (`approved-destination-age.ts`, `approved-destination-age.test.ts`). That holds only
+  while a run can take everything that is due, and a run takes a page of 100
+  destinations, pending and approved together, oldest first, from all tenants. With at
+  most 100 on the platform each run refreshes all of them. Between 100 and 200 a
+  destination waits for the run after next, so the gap is back at the 30 minute cutoff
+  with no room for a late run; above 200 it is longer than the cutoff, as it was before.
+  The page is the subject of review finding S09-02 (deferred: a row that never validates
+  keeps its place in it, and the fix is a per-row retry clock, which needs a migration).
 - One other context calls the surface: Reporting's Portal results adapter
   (`reporting/server/portal-results-overview.ts`) reads the roster through
   `listPortalOverview`, which authorizes the caller itself, and

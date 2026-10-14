@@ -585,6 +585,15 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: RETAINED_HISTORY,
   }),
   ...rows({
+    schemaFile: 'reply-library.schema.ts',
+    exportNames: ['propertyReplyProfiles', 'propertyReplyTemplates'],
+    owner: 'review',
+    disposition: 'active_authority',
+    authority: 'RPL-01/LIF-01',
+    exitCriteria:
+      "The Review lifecycle contributor deletes the Organization's rows at purge; nothing else removes them, and they RESTRICT the Property delete until it has.",
+  }),
+  ...rows({
     schemaFile: 'review-sync.schema.ts',
     exportNames: [
       'retentionRuns',

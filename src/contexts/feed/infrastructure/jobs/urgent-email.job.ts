@@ -53,6 +53,7 @@ import {
   isPropertyAnchoredNotice,
 } from '../../domain/notification-delivery-policy'
 import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-freshness'
+import { isEmailCategoryOfNotice } from '../../domain/notification-low-ratings'
 import {
   isStillActionable,
   NOT_ACTIONABLE_EMAIL_REASON,
@@ -188,7 +189,7 @@ const notificationMatchesEntry = (
   propId: PropertyId | null,
 ): boolean =>
   notification.userId === entry.userId &&
-  notification.category === entry.category &&
+  isEmailCategoryOfNotice(notification.type, notification.category, entry.category) &&
   notification.propertyId === propId
 
 export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
@@ -588,6 +589,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       type: notification.type,
       resourceId: notification.resourceId,
       audience: entry.recipientAudience,
+      recipient: { userId: notification.userId, propertyId: notification.propertyId },
     })
     if (work === false) {
       await suppress(ids, NOT_ACTIONABLE_EMAIL_REASON)

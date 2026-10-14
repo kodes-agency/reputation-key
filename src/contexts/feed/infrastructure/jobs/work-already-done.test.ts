@@ -90,6 +90,7 @@ describe('a notice materialized after its work was done', () => {
       type: 'inbox.escalated',
       resourceId: 'item-1',
       audience: escalated.audience,
+      recipient: { userId: escalated.userId, propertyId: escalated.propertyId },
     })
     expect(settlement.settleObsolete).toHaveBeenCalled()
     expect(settlement.settleAuthorized).not.toHaveBeenCalled()
