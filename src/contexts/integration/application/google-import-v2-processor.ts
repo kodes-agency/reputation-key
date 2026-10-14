@@ -16,8 +16,10 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import { jobRetryDelayUpperBoundMs } from '#/shared/jobs/job-policy'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery'
 import {
+  EXPIRED_ITEM_WRITE,
   GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
   reconciledOutcomeCode,
+  terminalWriteFor,
   type ImportOutcomeCode,
   type ImportProfileField,
 } from './google-import-v2-contract'
@@ -381,7 +383,6 @@ export function createGoogleImportV2Processor(
   const complete = async (
     item: GoogleImportV2ClaimedItem,
     outcomeCode: ImportOutcomeCode,
-    retainRetryState = false,
     detail?: GoogleImportV2OutcomeDetail,
   ): Promise<void> => {
     const now = deps.clock()
@@ -391,8 +392,7 @@ export function createGoogleImportV2Processor(
       itemId: item.itemId,
       retryRevision: item.retryRevision,
       claimFence: item.claimFence,
-      outcomeCode,
-      retainRetryState,
+      ...terminalWriteFor(outcomeCode, item.effectDeadlineAt, now),
       now,
       ...(detail ? { detail } : {}),
     })
@@ -456,7 +456,7 @@ export function createGoogleImportV2Processor(
       }
       return
     }
-    await complete(item, 'temporarily_unavailable', now < item.effectDeadlineAt)
+    await complete(item, 'temporarily_unavailable')
   }
 
   const terminalizeExpired = async (input: ProcessGoogleImportV2Item): Promise<void> => {
@@ -466,8 +466,7 @@ export function createGoogleImportV2Processor(
       organizationId: input.organizationId,
       itemId: input.itemId,
       retryRevision: input.retryRevision,
-      outcomeCode: 'temporarily_unavailable',
-      retainRetryState: false,
+      ...EXPIRED_ITEM_WRITE,
       now,
     })
   }
@@ -653,7 +652,7 @@ export function createGoogleImportV2Processor(
         outcome.outcomeCode === 'already_exists'
           ? await existingPropertyDetail(item)
           : outcome.detail
-      return complete(item, outcome.outcomeCode, false, detail)
+      return complete(item, outcome.outcomeCode, detail)
     }
   }
 

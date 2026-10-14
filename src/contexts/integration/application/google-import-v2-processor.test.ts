@@ -125,6 +125,7 @@ function setup(
     subscribeToNotificationsError?: unknown
     subscribeResult?: GbpSubscribeResult
     defaultPublicDisplayNameError?: unknown
+    clock?: () => Date
   } = {},
 ) {
   const item = claimedItem()
@@ -237,7 +238,7 @@ function setup(
     propertyBindingApi,
     authorizeGoogleImportCommand: authorize,
     resolveActor,
-    clock: () => NOW,
+    clock: over.clock ?? (() => NOW),
     newClaimFence: () => CLAIM_FENCE,
     enqueueReviewSync,
     subscribeToNotifications,
@@ -501,16 +502,19 @@ describe('GoogleImportV2Processor', () => {
     },
   )
 
+  // `temporarily_unavailable` is the one outcome that keeps the item's retry
+  // state: the items table refuses it scrubbed, and a retry is what it promises.
   it.each([
-    ['missing membership', { actor: null }, 'authorization_changed'],
+    ['missing membership', { actor: null }, 'authorization_changed', false],
     [
       'authorization infrastructure outage',
       { resolveActorError: new Error('authorization unavailable') },
       'temporarily_unavailable',
+      true,
     ],
   ] as const)(
     'fails closed on %s before Property mutation',
-    async (_label, override, outcomeCode) => {
+    async (_label, override, outcomeCode, retainRetryState) => {
       const harness = setup(override)
 
       await harness.processor.process({
@@ -523,10 +527,7 @@ describe('GoogleImportV2Processor', () => {
       expect(harness.authorize).not.toHaveBeenCalled()
       expect(harness.createBoundProperty).not.toHaveBeenCalled()
       expect(harness.completeClaim).toHaveBeenCalledWith(
-        expect.objectContaining({
-          outcomeCode,
-          retainRetryState: false,
-        }),
+        expect.objectContaining({ outcomeCode, retainRetryState }),
       )
     },
   )
@@ -575,7 +576,7 @@ describe('GoogleImportV2Processor', () => {
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
-      outcomeCode: 'temporarily_unavailable',
+      outcomeCode: 'internal_error',
       retainRetryState: false,
       now: NOW,
     })
@@ -626,6 +627,35 @@ describe('GoogleImportV2Processor', () => {
       expect.objectContaining({
         outcomeCode: 'temporarily_unavailable',
         retainRetryState: true,
+      }),
+    )
+  })
+
+  // A retry is refused past the effect deadline and the items table refuses a
+  // scrubbed `temporarily_unavailable` row, so an attempt whose failure lands
+  // after the deadline ends as a scrubbed plain failure.
+  it('ends a transient failure that lands after the effect deadline as a scrubbed internal_error', async () => {
+    const item = claimedItem({ effectDeadlineAt: new Date(NOW.getTime() + 60_000) })
+    let now = NOW
+    const harness = setup({ claim: { kind: 'claimed', item }, clock: () => now })
+    harness.createBoundProperty.mockImplementation(async () => {
+      now = new Date(NOW.getTime() + 61_000)
+      throw new Error('database unavailable')
+    })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
+    expect(harness.completeClaim).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        outcomeCode: 'internal_error',
+        retainRetryState: false,
+        now,
       }),
     )
   })

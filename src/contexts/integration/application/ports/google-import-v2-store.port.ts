@@ -97,6 +97,12 @@ export type GoogleImportV2TerminalInput = Readonly<{
   retryRevision: number
   claimFence: string
   outcomeCode: ImportOutcomeCode
+  /**
+   * Whether the item keeps the provider identifiers and fences a retry needs.
+   * It must be true for `temporarily_unavailable` and false for every other
+   * outcome (`retainsRetryState`, `terminalWriteFor`): the items table accepts
+   * no other pairing, and the store refuses one before writing.
+   */
   retainRetryState: boolean
   now: Date
   detail?: GoogleImportV2OutcomeDetail
@@ -168,6 +174,8 @@ export type GoogleImportV2StaleClaimItem = Readonly<{
   retryRevision: number
   claimFence: string
   attemptOrdinal: number
+  /** Past it a retry is refused, which decides how an exhausted item may end. */
+  effectDeadlineAt: Date
 }>
 
 export type GoogleImportV2PurgeCandidate = Readonly<{

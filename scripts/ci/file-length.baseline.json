@@ -7,7 +7,7 @@
   "src/contexts/inbox/infrastructure/response-target.store.ts": 951,
   "src/contexts/integration/build.ts": 1211,
   "src/contexts/integration/infrastructure/adapters/google-review-api.adapter.ts": 925,
-  "src/contexts/integration/infrastructure/google-import-v2-store.ts": 1838,
+  "src/contexts/integration/infrastructure/google-import-v2-store.ts": 1831,
   "src/contexts/property/infrastructure/property-google-binding-store.ts": 900,
   "src/contexts/review/infrastructure/google-reply-observation-store.ts": 815,
   "src/contexts/review/infrastructure/reply-command-store.ts": 918,

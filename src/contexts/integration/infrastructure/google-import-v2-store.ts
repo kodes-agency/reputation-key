@@ -14,6 +14,7 @@ import {
   PROPERTY_IMPORT_RETENTION_RELEASED_EVENT,
   getImportOutcomePresentation,
   isImportProfileField,
+  retainsRetryState,
   type GbpImportItemStatus,
   type ImportOutcomeCode,
   type ImportProgressDto,
@@ -297,6 +298,22 @@ function assertOutcomeDetail(
   if (detail !== undefined) {
     throw new Error(`google import outcome ${outcomeCode} cannot carry this detail`)
   }
+}
+
+/**
+ * The items table accepts a `temporarily_unavailable` row only with its retry
+ * state kept and a row of any other outcome only without it
+ * (`gbp_import_request_items_profile_valid`). Refusing a mismatch here names the
+ * caller's mistake before the write, instead of as a CHECK violation that aborts
+ * the sweep or reaper pass holding the transaction.
+ */
+function assertRetryStateMatchesOutcome(
+  input: Readonly<{ outcomeCode: ImportOutcomeCode; retainRetryState: boolean }>,
+): void {
+  if (input.retainRetryState === retainsRetryState(input.outcomeCode)) return
+  throw new Error(
+    `protected google import state ${input.retainRetryState ? 'may only' : 'must'} survive retryable failure`,
+  )
 }
 
 /**
@@ -1282,6 +1299,7 @@ export const createGoogleImportV2Store = (
             action: gbpImportRequestItems.action,
             destinationPropertyId: gbpImportRequestItems.destinationPropertyId,
             firstTerminalAt: gbpImportRequestItems.firstTerminalAt,
+            status: gbpImportRequestItems.status,
           })
           .from(gbpImportRequestItems)
           .where(
@@ -1293,8 +1311,18 @@ export const createGoogleImportV2Store = (
           .for('update')
           .limit(1)
         if (!item) return 'lost' as const
+        // A cancelled or failed row has no destination: the terminal write that
+        // beat this receipt (a cancel that landed while the effect was in flight)
+        // scrubbed it. There is nothing left to disagree with, and the receipt,
+        // which is keyed by this item, proves the Property exists, so it is
+        // adopted below. An imported row whose destination is gone had it cleared
+        // by its Property's deletion, and stays as it is.
+        const scrubbedByTerminalWrite =
+          item.destinationPropertyId === null &&
+          (item.status === 'cancelled' || item.status === 'failed')
         if (
           (input.destinationPropertyId !== null &&
+            !scrubbedByTerminalWrite &&
             input.destinationPropertyId !== item.destinationPropertyId) ||
           (input.outcomeCode === 'imported' && item.action !== 'create') ||
           (input.outcomeCode === 'relinked' && item.action !== 'relink')
@@ -1327,7 +1355,7 @@ export const createGoogleImportV2Store = (
             existingPropertyId: null,
             destinationPropertyId:
               presentation.status === 'imported' || presentation.status === 'relinked'
-                ? undefined
+                ? (input.destinationPropertyId ?? undefined)
                 : null,
             expectedConnectionLifecycleVersion: null,
             expectedConnectionAccessVersion: null,
@@ -1382,11 +1410,7 @@ export const createGoogleImportV2Store = (
         if (!current) return 'lost' as const
         const presentation = getImportOutcomePresentation(input.outcomeCode)
         if (!presentation) throw new Error('unknown google import outcome')
-        if (input.retainRetryState && input.outcomeCode !== 'temporarily_unavailable') {
-          throw new Error(
-            'protected google import state may only survive retryable failure',
-          )
-        }
+        assertRetryStateMatchesOutcome(input)
         assertOutcomeDetail(input.outcomeCode, input.detail)
         await tx
           .update(gbpImportRequestItems)
@@ -1430,11 +1454,7 @@ export const createGoogleImportV2Store = (
 
     terminalizeItem: async (input) =>
       db.transaction(async (tx) => {
-        if (input.retainRetryState && input.outcomeCode !== 'temporarily_unavailable') {
-          throw new Error(
-            'protected google import state may only survive retryable failure',
-          )
-        }
+        assertRetryStateMatchesOutcome(input)
         const [current] = await tx
           .select({
             importJobId: gbpImportRequestItems.importJobId,
@@ -1656,6 +1676,7 @@ export const createGoogleImportV2Store = (
           retryRevision: gbpImportRequestItems.retryRevision,
           claimFence: gbpImportRequestItems.claimFence,
           attemptOrdinal: gbpImportRequestItems.highestAttemptForRevision,
+          effectDeadlineAt: gbpImportRequestItems.effectDeadlineAt,
         })
         .from(gbpImportRequestItems)
         .where(
@@ -1671,17 +1692,7 @@ export const createGoogleImportV2Store = (
         )
         .limit(limit)
       return rows.flatMap((row) =>
-        row.claimFence === null
-          ? []
-          : [
-              {
-                organizationId: row.organizationId,
-                itemId: row.itemId,
-                retryRevision: row.retryRevision,
-                claimFence: row.claimFence,
-                attemptOrdinal: row.attemptOrdinal,
-              },
-            ],
+        row.claimFence === null ? [] : [{ ...row, claimFence: row.claimFence }],
       )
     },
 
