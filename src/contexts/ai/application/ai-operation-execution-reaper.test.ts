@@ -304,6 +304,7 @@ describe('AI operation execution reaper', () => {
       operationsDelivered: 1,
       operationsSettled: 1,
       operationsRaced: 0,
+      candidatesFailed: 0,
       batchFull: false,
     })
   })
@@ -366,6 +367,7 @@ describe('AI operation execution reaper', () => {
       operationsDelivered: 0,
       operationsSettled: 1,
       operationsRaced: 0,
+      candidatesFailed: 0,
       batchFull: false,
     })
   })
@@ -486,7 +488,69 @@ describe('AI operation execution reaper', () => {
       operationsDelivered: 0,
       operationsSettled: 1,
       operationsRaced: 0,
+      candidatesFailed: 0,
       batchFull: false,
     })
+  })
+
+  it('goes on to the next tenant when one candidate cannot be recovered, and says which one failed', async () => {
+    const OTHER_ORGANIZATION_ID = organizationId('ai-operation-reaper-other-tenant')
+    const abandonedAt = NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS
+    const poisoned = pendingCandidate(OVERDUE_OPERATION_ID, abandonedAt)
+    const healthyBase = pendingCandidate(STALE_OPERATION_ID, abandonedAt)
+    const healthy = {
+      ...healthyBase,
+      organizationId: OTHER_ORGANIZATION_ID,
+      analysis: {
+        ...healthyBase.analysis,
+        eventEnvelopeId: STALE_EVENT_ID,
+        organizationId: OTHER_ORGANIZATION_ID,
+      },
+    }
+    const listExpiredExecutions = vi.fn<AiOperationStorePort['listExpiredExecutions']>(
+      async () => [poisoned, healthy],
+    )
+    const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
+    const settleOutcome = vi.fn(async () => null)
+    const advanceWithoutAnalysis = vi.fn(async () => ({
+      status: 'applied' as const,
+      aggregateRevision: 18,
+    }))
+    const receiptFailure = new Error('insert violates foreign key constraint')
+    const recordAnalysisReceipt = vi.fn(async (eventId: string) => {
+      if (eventId === EVENT_ID) throw receiptFailure
+    })
+    const warn = vi.fn()
+
+    const outcome = await createAiOperationExecutionReaper({
+      store: { listExpiredExecutions, recordFailure, markDelivered: vi.fn() },
+      reviewEvents: { settleOutcome },
+      aggregates: { advanceWithoutAnalysis, applyReviewAnalysis: vi.fn() },
+      recordAnalysisReceipt,
+      logger: { warn },
+      nowEpochMillis: () => NOW,
+    })()
+
+    expect(recordAnalysisReceipt).toHaveBeenCalledWith(STALE_EVENT_ID, 'applied')
+    expect(outcome).toEqual({
+      recoveryCandidatesVisited: 2,
+      operationsFenced: 1,
+      operationsDelivered: 0,
+      operationsSettled: 1,
+      operationsRaced: 0,
+      candidatesFailed: 1,
+      batchFull: false,
+    })
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn).toHaveBeenCalledWith(
+      {
+        err: receiptFailure,
+        operationId: OVERDUE_OPERATION_ID,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        state: 'pending',
+      },
+      'AI operation recovery candidate failed',
+    )
   })
 })

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getDb, type Database } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -15,9 +15,11 @@ import {
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
   aiReviewAnalysisAspects,
+  eventConsumerReceipts,
   materialReviewRevisions,
   merchantAiConsentEvidence,
   merchantAiEnablement,
+  outboxEvents,
   properties,
   reviews,
   reviewAiAnalysisHeads,
@@ -29,10 +31,15 @@ import {
 } from '#/shared/merchant-ai-notice-contract'
 import { ASPECT_TAXONOMY_V1 } from '#/shared/aspect-taxonomy'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import type { AiOperationId } from '../../domain/types'
+import { createAiOperationExecutionReaper } from '../../application/ai-operation-execution-reaper'
+import { AI_REVIEW_ANALYSIS_CONSUMER } from '../outbox-consumers'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter'
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
+import { createAiReviewAnalysisReceiptWriter } from './ai-review-analysis-receipt.adapter'
+import { createAiReviewEventStoreAdapter } from './ai-review-event-store.adapter'
 
 const NOW = new Date('2026-09-08T10:00:00.000Z')
 const COMPLETED_AT = new Date('2026-09-08T10:05:00.000Z')
@@ -185,7 +192,27 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
   const clear = async () => {
     await db.delete(properties).where(eq(properties.id, PROPERTY_ID))
     await deleteTestOrganizations(db, [ORGANIZATION_ID])
+    await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORGANIZATION_ID))
   }
+
+  /** The published fact an analysis operation came from; its receipts cascade. */
+  const seedOriginEvent = (eventId: string) =>
+    db.insert(outboxEvents).values({
+      id: eventId,
+      eventType: 'review.updated',
+      payload: {},
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceContext: 'review',
+      sourceAggregateId: REVIEW_A_ID,
+      publishedAt: NOW,
+    })
+
+  const failOperation = (operationId: AiOperationId, failureCode = 'output_invalid') =>
+    db
+      .update(aiOperations)
+      .set({ state: 'failed', failureCode, nextAttemptAt: null, updatedAt: COMPLETED_AT })
+      .where(eq(aiOperations.id, operationId))
 
   beforeAll(async () => {
     await clear()
@@ -431,6 +458,8 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       .update(aiOperations)
       .set({
         state: 'executing',
+        failureCode: null,
+        nextAttemptAt: null,
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         updatedAt: NOW,
@@ -440,6 +469,10 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       .update(reviews)
       .set({ analysisSequence: 1 })
       .where(eq(reviews.id, REVIEW_A_ID))
+  })
+
+  afterEach(async () => {
+    await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORGANIZATION_ID))
   })
 
   afterAll(async () => {
@@ -602,15 +635,8 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     })
   })
   it('exposes every unreceipted terminal analysis failure to the reaper', async () => {
-    await db
-      .update(aiOperations)
-      .set({
-        state: 'failed',
-        failureCode: 'output_invalid',
-        nextAttemptAt: null,
-        updatedAt: COMPLETED_AT,
-      })
-      .where(eq(aiOperations.id, OPERATION_ID))
+    await seedOriginEvent(ORIGIN_EVENT_ID)
+    await failOperation(OPERATION_ID)
 
     const operations = createAiOperationStoreAdapter(db, () => {
       throw new Error('Recovery does not create operation ids')
@@ -632,6 +658,156 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         }),
       }),
     ])
+  })
+
+  describe('a failed analysis whose origin event the outbox retention has deleted', () => {
+    const operations = createAiOperationStoreAdapter(db, () => {
+      throw new Error('Recovery does not create operation ids')
+    })
+    const EXECUTION_HORIZON_MILLIS = 15 * 60_000
+
+    /** The retention sweep's statement: the event goes, and its receipts with it. */
+    const retireOriginEvent = (eventId: string) =>
+      db.delete(outboxEvents).where(eq(outboxEvents.id, eventId))
+
+    it('is no longer offered to the reaper', async () => {
+      await seedOriginEvent(ORIGIN_EVENT_ID)
+      await failOperation(OPERATION_ID)
+      await retireOriginEvent(ORIGIN_EVENT_ID)
+
+      await expect(
+        operations.listExpiredExecutions({
+          nowEpochMillis: COMPLETED_AT.getTime(),
+          executionHorizonMillis: EXECUTION_HORIZON_MILLIS,
+          limit: 10,
+        }),
+      ).resolves.toEqual([])
+    })
+
+    it('does not stop a reaper pass from fencing the next abandoned attempt', async () => {
+      const abandonedOperationId = '75000000-0000-4000-8000-000000000011' as AiOperationId
+      const abandonedEventId = '75000000-0000-4000-8000-000000000012'
+      const [baseOperation] = await db
+        .select()
+        .from(aiOperations)
+        .where(eq(aiOperations.id, OPERATION_ID))
+        .limit(1)
+      if (!baseOperation) throw new Error('Missing reaper pass fixture')
+      await seedOriginEvent(ORIGIN_EVENT_ID)
+      await seedOriginEvent(abandonedEventId)
+      await failOperation(OPERATION_ID)
+      await retireOriginEvent(ORIGIN_EVENT_ID)
+      // Review B's attempt sorts after review A's and lost its owner mid-flight.
+      await db.insert(aiOperations).values({
+        ...baseOperation,
+        id: abandonedOperationId,
+        idempotencyScope: `analysis:${abandonedOperationId}`,
+        idempotencyKey: abandonedOperationId,
+        reviewId: REVIEW_B_ID,
+        originEventId: abandonedEventId,
+        analysisSequence: 2,
+        state: 'executing',
+        failureCode: null,
+        updatedAt: NOW,
+      })
+      const reviewEvents = createAiReviewEventStoreAdapter(db)
+      const aggregates = createAiPropertyAggregateStoreAdapter(db)
+      const outbox = createOutboxRepository(db)
+      const reaper = createAiOperationExecutionReaper({
+        store: operations,
+        reviewEvents,
+        aggregates,
+        recordAnalysisReceipt: (eventId, status) =>
+          outbox.insertReceipt(eventId, AI_REVIEW_ANALYSIS_CONSUMER, status),
+        nowEpochMillis: () => NOW.getTime() + 60 * 60_000,
+      })
+
+      try {
+        await expect(reaper()).resolves.toEqual({
+          recoveryCandidatesVisited: 1,
+          operationsFenced: 1,
+          operationsDelivered: 0,
+          operationsSettled: 1,
+          operationsRaced: 0,
+          candidatesFailed: 0,
+          batchFull: false,
+        })
+
+        const [fenced] = await db
+          .select({ state: aiOperations.state, failureCode: aiOperations.failureCode })
+          .from(aiOperations)
+          .where(eq(aiOperations.id, abandonedOperationId))
+        expect(fenced).toEqual({ state: 'failed', failureCode: 'operation_ambiguous' })
+        await expect(
+          outbox.hasReceipt(abandonedEventId, AI_REVIEW_ANALYSIS_CONSUMER),
+        ).resolves.toBe(true)
+      } finally {
+        await db.delete(aiOperations).where(eq(aiOperations.id, abandonedOperationId))
+      }
+    })
+  })
+
+  describe('the reaper recording a receipt', () => {
+    const reviewEvents = createAiReviewEventStoreAdapter(db)
+    const aggregates = createAiPropertyAggregateStoreAdapter(db)
+    const writeReceipt = createAiReviewAnalysisReceiptWriter(db)
+
+    const receiptStatuses = async (eventId: string) =>
+      (
+        await db
+          .select({ status: eventConsumerReceipts.status })
+          .from(eventConsumerReceipts)
+          .where(eq(eventConsumerReceipts.eventId, eventId))
+      ).map((row) => row.status)
+
+    it('writes it while the event is in the outbox and keeps the first status', async () => {
+      await seedOriginEvent(ORIGIN_EVENT_ID)
+
+      await writeReceipt(ORIGIN_EVENT_ID, 'applied')
+      await writeReceipt(ORIGIN_EVENT_ID, 'obsolete')
+
+      await expect(receiptStatuses(ORIGIN_EVENT_ID)).resolves.toEqual(['applied'])
+    })
+
+    it('writes nothing, and does not fail, once retention has deleted the event', async () => {
+      await seedOriginEvent(ORIGIN_EVENT_ID)
+      await db.delete(outboxEvents).where(eq(outboxEvents.id, ORIGIN_EVENT_ID))
+
+      await expect(writeReceipt(ORIGIN_EVENT_ID, 'applied')).resolves.toBeUndefined()
+
+      await expect(receiptStatuses(ORIGIN_EVENT_ID)).resolves.toEqual([])
+    })
+
+    it('still delivers a stored analysis whose event was retired before the reaper reached it', async () => {
+      await expect(storeReviewA()).resolves.toBe(true)
+      await seedOriginEvent(ORIGIN_EVENT_ID)
+      await db.delete(outboxEvents).where(eq(outboxEvents.id, ORIGIN_EVENT_ID))
+      const reaper = createAiOperationExecutionReaper({
+        store: createAiOperationStoreAdapter(db, () => {
+          throw new Error('Recovery does not create operation ids')
+        }),
+        reviewEvents,
+        aggregates,
+        recordAnalysisReceipt: writeReceipt,
+        nowEpochMillis: () => COMPLETED_AT.getTime() + 60 * 60_000,
+      })
+
+      await expect(reaper()).resolves.toEqual({
+        recoveryCandidatesVisited: 1,
+        operationsFenced: 0,
+        operationsDelivered: 1,
+        operationsSettled: 0,
+        operationsRaced: 0,
+        candidatesFailed: 0,
+        batchFull: false,
+      })
+
+      const [delivered] = await db
+        .select({ state: aiOperations.state })
+        .from(aiOperations)
+        .where(eq(aiOperations.id, OPERATION_ID))
+      expect(delivered).toEqual({ state: 'succeeded' })
+    })
   })
 
   it('abandons a pending analysis at its own horizon, not the execution horizon', async () => {
@@ -1324,6 +1500,326 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
     expect(settlements).toEqual([{ analysisSequence: 5 }, { analysisSequence: 9 }])
     expect(head).toEqual({ aggregateRevision: 1, terminalAnalysisSequence: 9 })
+  })
+
+  describe('aggregate coverage and withdrawal across the sequences of a review', () => {
+    const aggregates = createAiPropertyAggregateStoreAdapter(db)
+    const WINDOW = {
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: SOURCE_EPOCH,
+      reviewAnalysisEpoch: 1,
+      propertyProfileVersion: 1,
+      startLocalDate: '2026-09-07',
+      endLocalDate: '2026-09-07',
+    }
+    const seededOperationIds: AiOperationId[] = []
+
+    const operationIdFor = (sequence: number) =>
+      `75600000-0000-4000-8000-${String(sequence).padStart(12, '0')}` as AiOperationId
+
+    /** A stored, delivered analysis of one review at one sequence. */
+    const seedAnalysis = async (review: typeof REVIEW_A_ID, sequence: number) => {
+      const operationId = operationIdFor(sequence)
+      const [baseOperation] = await db
+        .select()
+        .from(aiOperations)
+        .where(eq(aiOperations.id, OPERATION_ID))
+        .limit(1)
+      if (!baseOperation) throw new Error('Missing aggregate coverage fixture')
+      await db.insert(aiOperations).values({
+        ...baseOperation,
+        id: operationId,
+        idempotencyScope: `analysis:${operationId}`,
+        idempotencyKey: operationId,
+        originEventId: `75700000-0000-4000-8000-${String(sequence).padStart(12, '0')}`,
+        reviewId: review,
+        analysisSequence: sequence,
+        state: 'succeeded_pending_delivery',
+      })
+      seededOperationIds.push(operationId)
+      await db.insert(aiReviewAnalyses).values({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: review,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: sequence,
+        operationId,
+        authorizationLineageId: LINEAGE_ID,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        analysisProfileVersion: 'review-analysis-v2',
+        status: 'ready',
+        unavailableReason: null,
+        sentiment: 'positive',
+        primaryCategory: 'service',
+        issueLabel: null,
+        attention: 'low',
+        generatedAt: COMPLETED_AT,
+        expiresAt: ANALYSIS_EXPIRES_AT,
+      })
+      await db.insert(aiReviewAnalysisAspects).values({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: review,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence: sequence,
+        aspect: 'service',
+        polarity: 'positive',
+        intensity: 75,
+      })
+    }
+
+    /** The review as its source now stands, and how far the Property has allocated. */
+    const setSequences = async (
+      current: Readonly<{ review: typeof REVIEW_A_ID; sequence: number }>,
+      headSequence: number,
+    ) => {
+      await db
+        .update(reviews)
+        .set({ analysisSequence: current.sequence })
+        .where(eq(reviews.id, current.review))
+      await db
+        .update(reviewAiAnalysisHeads)
+        .set({ headSequence })
+        .where(eq(reviewAiAnalysisHeads.propertyId, PROPERTY_ID))
+    }
+
+    const apply = (review: typeof REVIEW_A_ID, analysisSequence: number) =>
+      aggregates.applyReviewAnalysis({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: review,
+        sourceEpoch: SOURCE_EPOCH,
+        sourceRevision: SOURCE_REVISION,
+        analysisSequence,
+        reviewAnalysisEpoch: 1,
+        propertyProfileVersion: 1,
+        calendarProfileVersion: 'property-calendar-v1',
+      })
+
+    const advanceWithoutAnalysis = (
+      review: typeof REVIEW_A_ID,
+      analysisSequence: number,
+    ) =>
+      aggregates.advanceWithoutAnalysis({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: review,
+        sourceEpoch: SOURCE_EPOCH,
+        reviewAnalysisEpoch: 1,
+        analysisSequence,
+        propertyProfileVersion: 1,
+        dispositionCode: 'provider_deleted',
+      })
+
+    /** What the head says was settled, and what the ledger says was. */
+    const settledCounts = async () => {
+      const [head] = await db
+        .select({
+          settledAnalysisCount: aiPropertyAggregateHeads.settledAnalysisCount,
+          aggregateRevision: aiPropertyAggregateHeads.aggregateRevision,
+        })
+        .from(aiPropertyAggregateHeads)
+        .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
+      const ledger = await db
+        .select({ analysisSequence: aiPropertyAggregateSettlements.analysisSequence })
+        .from(aiPropertyAggregateSettlements)
+        .where(eq(aiPropertyAggregateSettlements.propertyId, PROPERTY_ID))
+      return {
+        headCounter: head?.settledAnalysisCount,
+        ledgerRows: ledger.length,
+        aggregateRevision: head?.aggregateRevision,
+      }
+    }
+
+    const dailyTotals = async () => {
+      const [daily] = await db
+        .select({
+          reviewCount: aiPropertyDailyAggregates.reviewCount,
+          ratingSum: aiPropertyDailyAggregates.ratingSum,
+        })
+        .from(aiPropertyDailyAggregates)
+        .where(eq(aiPropertyDailyAggregates.propertyId, PROPERTY_ID))
+      const aspects = await db
+        .select({ mentionCount: aiPropertyDailyAspectAggregates.mentionCount })
+        .from(aiPropertyDailyAspectAggregates)
+        .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
+      return { ...daily, serviceMentions: aspects[0]?.mentionCount ?? 0 }
+    }
+
+    beforeEach(async () => {
+      await db
+        .delete(aiPropertyDailyAspectAggregates)
+        .where(eq(aiPropertyDailyAspectAggregates.propertyId, PROPERTY_ID))
+      await db
+        .delete(aiPropertyAggregateContributions)
+        .where(eq(aiPropertyAggregateContributions.propertyId, PROPERTY_ID))
+    })
+
+    afterEach(async () => {
+      await db
+        .delete(aiReviewAnalyses)
+        .where(eq(aiReviewAnalyses.propertyId, PROPERTY_ID))
+      await db
+        .delete(aiOperations)
+        .where(inArray(aiOperations.id, seededOperationIds.splice(0)))
+      await db
+        .update(reviews)
+        .set({ analysisSequence: 2 })
+        .where(eq(reviews.id, REVIEW_B_ID))
+      await db
+        .update(reviewAiAnalysisHeads)
+        .set({ headSequence: 2 })
+        .where(eq(reviewAiAnalysisHeads.propertyId, PROPERTY_ID))
+    })
+
+    it('counts the older sequence of an edited review that its newer sequence has superseded', async () => {
+      await seedAnalysis(REVIEW_A_ID, 1)
+      await seedAnalysis(REVIEW_A_ID, 2)
+      await setSequences({ review: REVIEW_A_ID, sequence: 2 }, 2)
+
+      await expect(apply(REVIEW_A_ID, 2)).resolves.toEqual({
+        status: 'applied',
+        aggregateRevision: 1,
+      })
+      await expect(apply(REVIEW_A_ID, 1)).resolves.toEqual({ status: 'stale' })
+
+      await expect(settledCounts()).resolves.toEqual({
+        headCounter: 2,
+        ledgerRows: 2,
+        aggregateRevision: 1,
+      })
+      await expect(aggregates.readWindow(WINDOW)).resolves.toMatchObject({
+        coverage: {
+          settledAnalysisCount: 2,
+          expectedAnalysisCount: 2,
+          awaitingAnalysisCount: 0,
+        },
+        days: [{ localDate: '2026-09-07', reviewCount: 1 }],
+      })
+    })
+
+    it('counts a sequence whose review had moved on before the analysis was applied', async () => {
+      await seedAnalysis(REVIEW_A_ID, 1)
+      await setSequences({ review: REVIEW_A_ID, sequence: 2 }, 2)
+
+      await expect(apply(REVIEW_A_ID, 1)).resolves.toEqual({ status: 'stale' })
+
+      await expect(settledCounts()).resolves.toMatchObject({
+        headCounter: 1,
+        ledgerRows: 1,
+      })
+      await expect(aggregates.readWindow(WINDOW)).resolves.toMatchObject({
+        coverage: {
+          settledAnalysisCount: 1,
+          expectedAnalysisCount: 2,
+          awaitingAnalysisCount: 1,
+        },
+      })
+    })
+
+    it('counts a no-result sequence that a newer sequence of the same review superseded', async () => {
+      await seedAnalysis(REVIEW_A_ID, 2)
+      await setSequences({ review: REVIEW_A_ID, sequence: 2 }, 2)
+
+      await expect(apply(REVIEW_A_ID, 2)).resolves.toMatchObject({ status: 'applied' })
+      await expect(advanceWithoutAnalysis(REVIEW_A_ID, 1)).resolves.toEqual({
+        status: 'stale',
+      })
+
+      await expect(settledCounts()).resolves.toEqual({
+        headCounter: 2,
+        ledgerRows: 2,
+        aggregateRevision: 1,
+      })
+      await expect(dailyTotals()).resolves.toEqual({
+        reviewCount: 1,
+        ratingSum: 5,
+        serviceMentions: 1,
+      })
+    })
+
+    it('takes a review off the day when its next sequence settles without a result', async () => {
+      await seedAnalysis(REVIEW_A_ID, 1)
+      await seedAnalysis(REVIEW_B_ID, 2)
+      await setSequences({ review: REVIEW_A_ID, sequence: 1 }, 3)
+      await expect(apply(REVIEW_A_ID, 1)).resolves.toMatchObject({ status: 'applied' })
+      await expect(apply(REVIEW_B_ID, 2)).resolves.toMatchObject({ status: 'applied' })
+      await expect(dailyTotals()).resolves.toEqual({
+        reviewCount: 2,
+        ratingSum: 9,
+        serviceMentions: 2,
+      })
+
+      // Google deletes review A: its next sequence settles with no result.
+      await setSequences({ review: REVIEW_A_ID, sequence: 3 }, 3)
+      await expect(advanceWithoutAnalysis(REVIEW_A_ID, 3)).resolves.toEqual({
+        status: 'applied',
+        aggregateRevision: 3,
+      })
+
+      await expect(dailyTotals()).resolves.toEqual({
+        reviewCount: 1,
+        ratingSum: 4,
+        serviceMentions: 1,
+      })
+      const window = await aggregates.readWindow(WINDOW)
+      expect(window?.analyzedReviews.map((review) => review.reviewId)).toEqual([
+        REVIEW_B_ID,
+      ])
+      expect(window?.coverage).toEqual({
+        settledAnalysisCount: 3,
+        expectedAnalysisCount: 3,
+        awaitingAnalysisCount: 0,
+      })
+    })
+
+    it('does not take a withdrawn review off the day twice when it is analysed again', async () => {
+      await seedAnalysis(REVIEW_A_ID, 1)
+      await seedAnalysis(REVIEW_B_ID, 2)
+      await seedAnalysis(REVIEW_A_ID, 4)
+      await setSequences({ review: REVIEW_A_ID, sequence: 1 }, 4)
+      await apply(REVIEW_A_ID, 1)
+      await apply(REVIEW_B_ID, 2)
+      await advanceWithoutAnalysis(REVIEW_A_ID, 3)
+
+      // The review is back (a new revision with text): sequence 4 is analysed.
+      await setSequences({ review: REVIEW_A_ID, sequence: 4 }, 4)
+      await expect(apply(REVIEW_A_ID, 4)).resolves.toMatchObject({ status: 'applied' })
+
+      await expect(dailyTotals()).resolves.toEqual({
+        reviewCount: 2,
+        ratingSum: 9,
+        serviceMentions: 2,
+      })
+      const window = await aggregates.readWindow(WINDOW)
+      expect(window?.analyzedReviews.map((review) => review.reviewId).sort()).toEqual(
+        [REVIEW_A_ID, REVIEW_B_ID].sort(),
+      )
+      await expect(settledCounts()).resolves.toMatchObject({
+        headCounter: 4,
+        ledgerRows: 4,
+      })
+    })
+
+    it('leaves a review that never had a contribution untouched when it settles without a result', async () => {
+      await seedAnalysis(REVIEW_A_ID, 1)
+      await setSequences({ review: REVIEW_A_ID, sequence: 1 }, 3)
+      await apply(REVIEW_A_ID, 1)
+
+      await expect(advanceWithoutAnalysis(REVIEW_B_ID, 2)).resolves.toMatchObject({
+        status: 'applied',
+      })
+
+      await expect(dailyTotals()).resolves.toEqual({
+        reviewCount: 1,
+        ratingSum: 5,
+        serviceMentions: 1,
+      })
+    })
   })
 
   it('rejects an analysis after the review is pinned to a newer sequence', async () => {

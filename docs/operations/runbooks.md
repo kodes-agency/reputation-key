@@ -812,7 +812,14 @@ count with the review-head sequence minus the enablement start sequence; do not
 use an aggregate-head watermark or `property_profile_version` as completeness.
 Check the oldest unsettled identifier-only outbox event, the
 `ai.analyze-review-event` consumer receipt, AI operation/reaper state, Queue
-Redis health, and published-event redelivery attempts. For an empty enrollment,
+Redis health, and published-event redelivery attempts. The recovery passes
+isolate a row that keeps failing instead of stopping: the worker's
+`AI operation recovery reaper completed` line counts it as `candidatesFailed`
+and `AI Review Analysis enrollment sweep completed` as `enrollmentsFailed`,
+and each failure is logged at warn as `AI operation recovery candidate failed`
+or `AI review analysis enrollment advance failed` with the operation or
+enrollment, Organization and Property identifiers. A count above zero on
+consecutive ticks names the row to look at. For an empty enrollment,
 re-run the enrollment eligibility predicate at its stored fence and compare the
 eligible count with its snapshot count; never copy review text into the
 incident record.

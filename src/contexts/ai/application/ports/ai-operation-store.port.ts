@@ -150,6 +150,9 @@ export type AiOperationStorePort = Readonly<{
    * originating event has a consumer receipt. That makes the operation row the
    * durable recovery fact if the process dies after fencing the provider call
    * but before advancing the strict aggregate sequence and writing the receipt.
+   * Once the outbox retention has deleted the event, and its receipts with it,
+   * there is nothing left to receipt and the operation is no longer a
+   * candidate.
    *
    * Candidate selection is lock-free and may be stale. Terminal writes perform
    * exact state and attempt CAS checks; failure recovery also checks the prior

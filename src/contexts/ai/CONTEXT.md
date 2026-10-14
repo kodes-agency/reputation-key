@@ -105,6 +105,23 @@ Property Trends compare the latest 30 complete Property-local days with the prio
 and a caught-up enrollment; incomplete settlement coverage reports
 `preparing`/`Updating` rather than a fabricated zero.
 
+The aggregate head counts every sequence the settlement ledger settles for its
+profile generation, including one a newer sequence of the same review had
+already superseded, so coverage can complete. A review whose newest sequence
+settles without an analysis (deleted at Google, expired, its text removed, its
+analysis abandoned) is withdrawn from the daily aggregates, so a day never
+counts a review the Property's population no longer holds. A Trend schedule
+the head has moved past is stale, not retried.
+
+The recurring recovery passes treat each row on its own. The operation reaper
+recovers every ownerless operation it lists independently, and the enrollment
+sweep every enrollment, so one that keeps failing is logged by identifier and
+counted (`candidatesFailed`, `enrollmentsFailed`) without stopping any other
+Organization's recovery. A failed analysis operation is a reaper candidate only
+while its origin event is still in the outbox and unreceipted: the retention
+sweep deletes a published event, and its receipts with it, 30 days after
+publication, and a receipt cannot be written for an event that is gone.
+
 ## Invariants
 
 1. AI processes only currently eligible Google Review content loaded through the Review public source port plus the exact public Property display name loaded through Portal's narrow Brand authority. Brand image URLs, colors, localized content, Private Portal ratings, feedback, contact details, Inbox notes, manager-internal text, and Guest media never enter AI admission, prompts, outputs, logs, or derived tables.

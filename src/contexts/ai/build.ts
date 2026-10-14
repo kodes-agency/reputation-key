@@ -37,6 +37,7 @@ import { createAiOutputStoreAdapter } from './infrastructure/adapters/ai-output-
 import { createAiPropertyCalendarAdapter } from './infrastructure/adapters/ai-property-calendar.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './infrastructure/adapters/ai-property-aggregate-store.adapter'
 import { createAiPropertyTrendScheduleStore } from './infrastructure/adapters/ai-property-trend-schedule-store.adapter'
+import { createAiReviewAnalysisReceiptWriter } from './infrastructure/adapters/ai-review-analysis-receipt.adapter'
 import { createAiReviewEventStoreAdapter } from './infrastructure/adapters/ai-review-event-store.adapter'
 import { createPropertyProcessingProfileAdapter } from './infrastructure/adapters/property-processing-profile.adapter'
 import { createReviewAnalysisEnrollmentAdapter } from './infrastructure/adapters/ai-review-analysis-enrollment.adapter'
@@ -55,7 +56,6 @@ import {
 } from './application/use-cases/request-review-analysis-now'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import {
-  AI_REVIEW_ANALYSIS_CONSUMER,
   registerAiConsumers,
   type RegisterAiConsumersInput,
 } from './infrastructure/outbox-consumers'
@@ -167,13 +167,9 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     store: operations,
     reviewEvents,
     aggregates,
-    recordAnalysisReceipt: (eventEnvelopeId, status) =>
-      input.outboxRepo.insertReceipt(
-        eventEnvelopeId,
-        AI_REVIEW_ANALYSIS_CONSUMER,
-        status,
-      ),
+    recordAnalysisReceipt: createAiReviewAnalysisReceiptWriter(input.db),
     nowEpochMillis,
+    logger: input.logger,
   })
   const advanceReviewAnalysisEnrollments = createAdvanceReviewAnalysisEnrollments({
     authorization,
@@ -181,6 +177,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     enrollments,
     reopen: createAiReviewAnalysisReopenAdapter(input.db),
     nowEpochMillis,
+    logger: input.logger,
   })
   const applyAiAuthorizationLifecycle = createApplyAiAuthorizationLifecycle({
     enrollments,

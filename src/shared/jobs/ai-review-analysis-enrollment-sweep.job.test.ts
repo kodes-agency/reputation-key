@@ -22,6 +22,7 @@ const OUTCOME = Object.freeze({
   enrollmentsCaughtUp: 1,
   enrollmentsSuperseded: 0,
   enrollmentsStalled: 0,
+  enrollmentsFailed: 0,
   batchFull: false,
   analysesReopened: 2,
   analysesLeftUnanalysed: 1,

@@ -1,4 +1,5 @@
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiControlPort } from '../ports/ai-control.port'
@@ -28,6 +29,8 @@ export type AdvanceReviewAnalysisEnrollmentSweepResult = Readonly<{
   enrollmentsCaughtUp: number
   enrollmentsSuperseded: number
   enrollmentsStalled: number
+  /** Enrollments whose advance threw; each is visited again by the next tick. */
+  enrollmentsFailed: number
   batchFull: boolean
   /** Reviews queued again after their analysis was abandoned by a transient failure. */
   analysesReopened: number
@@ -64,6 +67,11 @@ export type AdvanceReviewAnalysisEnrollmentDependencies = Readonly<{
   enrollments: ReviewAnalysisEnrollmentStorePort
   reopen: AiReviewAnalysisReopenPort
   nowEpochMillis: () => number
+  /**
+   * Records an enrollment whose advance threw. Optional so existing
+   * constructions keep working; without it the failure is only counted.
+   */
+  logger?: Pick<LoggerPort, 'warn'>
 }>
 
 type EnrollmentTarget = Pick<
@@ -148,6 +156,32 @@ export function createAdvanceReviewAnalysisEnrollments(
   }
 
   /**
+   * Advances one enrollment, or answers null after logging why it could not.
+   * Every step is idempotent and the enrollment stays actionable, so the next
+   * tick retries it. Identifiers only (AI invariant 12): the shared logger
+   * reduces an Error to its name and code, and a thrown value that is not an
+   * Error is left out.
+   */
+  async function advanceIsolated(
+    target: EnrollmentTarget,
+  ): Promise<ReviewAnalysisEnrollmentAdvance | null> {
+    try {
+      return await advance(target)
+    } catch (error) {
+      dependencies.logger?.warn(
+        {
+          ...(error instanceof Error ? { err: error } : {}),
+          enrollmentId: target.id,
+          organizationId: target.organizationId,
+          propertyId: target.propertyId,
+        },
+        'AI review analysis enrollment advance failed',
+      )
+      return null
+    }
+  }
+
+  /**
    * The safety net under exhaustive coverage (ADR 0058): a review settled
    * without an analysis because its operation gave up on a transient failure
    * is queued again. Only while provider execution accepts work: under a dark
@@ -180,11 +214,19 @@ export function createAdvanceReviewAnalysisEnrollments(
         enrollmentsCaughtUp: 0,
         enrollmentsSuperseded: 0,
         enrollmentsStalled: 0,
+        enrollmentsFailed: 0,
         batchFull: heads.length === AI_REVIEW_ANALYSIS_ENROLLMENT_SWEEP_BATCH_SIZE,
       }
 
       for (const head of heads) {
-        const result = await advance(head)
+        // The oldest enrollments come first every tick, so one that cannot be
+        // advanced would otherwise stop every later Organization's enrollment,
+        // and the reopen pass below, for as long as it stays that way.
+        const result = await advanceIsolated(head)
+        if (result === null) {
+          counts.enrollmentsFailed += 1
+          continue
+        }
         switch (result.status) {
           case 'fence_moved':
             if (result.marked) counts.enrollmentsSuperseded += 1

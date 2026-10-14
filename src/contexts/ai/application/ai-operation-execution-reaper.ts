@@ -14,15 +14,23 @@
 //     committed but before aggregate delivery and the consumer receipt.
 // Recovery performs both halves of terminal delivery: settle the analysis
 // event, then record the origin event's consumer receipt. A
-// reaper-failed analysis remains selectable while that receipt is absent.
+// reaper-failed analysis remains selectable while that receipt is absent and
+// the event is still in the outbox: the retention sweep deletes a published
+// event, and its receipts, 30 days after publication, and a receipt can no
+// longer be written for an event that is gone.
 // A completed analysis remains selectable until `markDelivered` wins, even if
 // its receipt was written first, so either crash window is retried next tick.
+//
+// One candidate that cannot be recovered never stops the pass: each is
+// recovered on its own, a failure is logged with identifiers only and counted,
+// and the rest of the batch (every other tenant's) goes on.
 //
 // Provider safety rests on exact state-and-attempt CAS writes. `claimExecution`
 // can invoke the provider only after changing `pending` to `executing`; the
 // reaper never changes an operation into an executable state and has no
 // inference dependency, so it cannot issue a second billed call.
 
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
   settleReviewAnalysisWithoutResult,
@@ -58,6 +66,8 @@ export type AiOperationExecutionReaperResult = Readonly<{
   operationsSettled: number
   /** Rows that reached a different terminal state before this run's CAS. */
   operationsRaced: number
+  /** Rows whose recovery threw; each is retried by the next tick. */
+  candidatesFailed: number
   /** The scan filled its batch, so a backlog remains for the next tick. */
   batchFull: boolean
 }>
@@ -99,6 +109,7 @@ type RecoveryCounts = {
   operationsDelivered: number
   operationsSettled: number
   operationsRaced: number
+  candidatesFailed: number
 }
 
 function countRecoveryResult(counts: RecoveryCounts, result: RecoveryResult): void {
@@ -135,6 +146,11 @@ export function createAiOperationExecutionReaper(
     ) => Promise<void>
     nowEpochMillis: () => number
     limit?: number
+    /**
+     * Records a candidate whose recovery threw. Optional so existing
+     * constructions keep working; without it the failure is only counted.
+     */
+    logger?: Pick<LoggerPort, 'warn'>
   }>,
 ): AiOperationExecutionReaper {
   const limit = deps.limit ?? AI_EXECUTION_REAPER_BATCH_SIZE
@@ -342,6 +358,39 @@ export function createAiOperationExecutionReaper(
     return settled ? { outcome: 'settled' } : { outcome: 'skipped' }
   }
 
+  function recoverCandidate(
+    candidate: AiOperationRecoveryCandidate,
+    nowEpochMillis: number,
+    horizonDeadline: number,
+  ): Promise<RecoveryResult> {
+    return candidate.state === 'succeeded_pending_delivery'
+      ? recoverDelivery(candidate, nowEpochMillis, horizonDeadline)
+      : recoverStandardCandidate(candidate, nowEpochMillis, horizonDeadline)
+  }
+
+  /**
+   * Every step of a recovery is idempotent and the row stays a candidate until
+   * it is finished, so the next tick retries it. This line is the only place
+   * an operator can see which operation keeps failing and why. Identifiers
+   * only (AI invariant 12): the shared logger reduces an Error to its name and
+   * code, and a thrown value that is not an Error is left out.
+   */
+  function reportFailedCandidate(
+    candidate: AiOperationRecoveryCandidate,
+    error: unknown,
+  ): void {
+    deps.logger?.warn(
+      {
+        ...(error instanceof Error ? { err: error } : {}),
+        operationId: candidate.operationId,
+        organizationId: candidate.organizationId,
+        propertyId: candidate.analysis?.propertyId ?? null,
+        state: candidate.state,
+      },
+      'AI operation recovery candidate failed',
+    )
+  }
+
   return async () => {
     const nowEpochMillis = deps.nowEpochMillis()
     const horizonDeadline = nowEpochMillis - AI_EXECUTION_ABANDONED_AFTER_MILLIS
@@ -355,14 +404,19 @@ export function createAiOperationExecutionReaper(
       operationsDelivered: 0,
       operationsSettled: 0,
       operationsRaced: 0,
+      candidatesFailed: 0,
     }
 
     for (const candidate of candidates) {
-      const result =
-        candidate.state === 'succeeded_pending_delivery'
-          ? await recoverDelivery(candidate, nowEpochMillis, horizonDeadline)
-          : await recoverStandardCandidate(candidate, nowEpochMillis, horizonDeadline)
-      countRecoveryResult(counts, result)
+      try {
+        countRecoveryResult(
+          counts,
+          await recoverCandidate(candidate, nowEpochMillis, horizonDeadline),
+        )
+      } catch (error) {
+        counts.candidatesFailed += 1
+        reportFailedCandidate(candidate, error)
+      }
     }
 
     return Object.freeze({
@@ -371,6 +425,7 @@ export function createAiOperationExecutionReaper(
       operationsDelivered: counts.operationsDelivered,
       operationsSettled: counts.operationsSettled,
       operationsRaced: counts.operationsRaced,
+      candidatesFailed: counts.candidatesFailed,
       batchFull: candidates.length >= limit,
     })
   }

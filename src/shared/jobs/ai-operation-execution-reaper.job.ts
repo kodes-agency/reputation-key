@@ -39,6 +39,7 @@ type AiOperationExecutionReaperOutcome = Readonly<{
   operationsDelivered: number
   operationsSettled: number
   operationsRaced: number
+  candidatesFailed: number
   batchFull: boolean
 }>
 
@@ -68,6 +69,7 @@ export const createAiOperationExecutionReaperHandler =
           operationsDelivered: outcome.operationsDelivered,
           operationsSettled: outcome.operationsSettled,
           operationsRaced: outcome.operationsRaced,
+          candidatesFailed: outcome.candidatesFailed,
           batchFull: outcome.batchFull,
           reservationsReleased,
         },
