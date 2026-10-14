@@ -159,5 +159,33 @@
     "countryCode": "US",
     "expectedStatus": "safe",
     "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "coordinate-with-hemisphere-letters",
+    "text": "The pin is N 42.6977 E 23.3219 near the gate.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "coordinate-with-lat-lon-labels",
+    "text": "We parked at lat 42.6977 lon 23.3219 and walked.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "ip-address-with-a-port",
+    "text": "The portal sent me to 192.0.2.55:8080 which looked odd.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "domain-with-a-blank-before-the-dot",
+    "text": "See hotelsunrise .com for the rooms.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
   }
 ]

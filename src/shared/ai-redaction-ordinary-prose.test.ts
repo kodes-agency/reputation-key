@@ -5,6 +5,8 @@ import {
   redactAiReviewText,
 } from './ai-deterministic-redactor'
 import { ADDRESS_MARKER_PROFILE } from './ai-address-markers'
+import { NETWORK_MARKER_PROFILE } from './ai-network-markers'
+import { canonicalizeRawAiReviewSource } from './ai-review-source-contract'
 import {
   AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
   AI_STRUCTURED_MARKER_DETECTORS_VERSION,
@@ -462,5 +464,155 @@ describe('redaction stays closed on an address it cannot bound', () => {
     const filler = 'The room was quiet and the staff were kind. '.repeat(8)
     const result = redact(`${filler}We stayed 2 nights near the street market.`)
     expect(result.status).toBe('redacted')
+  })
+})
+
+const COORDINATE_LAYOUTS: ReadonlyArray<readonly [string, string, string]> = [
+  [
+    'a pair glued to the word before it by a full stop',
+    'The coordinates.42.6977, 23.3219 are on the sign.',
+    '42.6977, 23.3219',
+  ],
+  [
+    'hemisphere letters before the numbers',
+    'The beach house has its own cove. GPS N 42.6977 E 23.3219',
+    'N 42.6977 E 23.3219',
+  ],
+  [
+    'lat and lon labels',
+    'Great location. We parked at lat 42.6977 lon 23.3219 and walked down.',
+    'lat 42.6977 lon 23.3219',
+  ],
+  [
+    'labels with an equals sign',
+    'Great location. We parked at lat=42.6977,lng=23.3219 and walked down.',
+    'lat=42.6977,lng=23.3219',
+  ],
+  [
+    'a semicolon between the numbers',
+    'The beach house has its own cove. GPS 42.6977; 23.3219',
+    '42.6977; 23.3219',
+  ],
+  [
+    'a space between the numbers',
+    'The hotel is easy to find, the pin is at 42.6977 23.3219 and the entrance faces the garden.',
+    '42.6977 23.3219',
+  ],
+  [
+    'degree signs',
+    'The beach house has its own cove. GPS 42.6977°, 23.3219°',
+    '42.6977°, 23.3219°',
+  ],
+  [
+    'three decimals',
+    'The hotel is easy to find, the pin is at 42.697, 23.321 and the entrance faces the garden.',
+    '42.697, 23.321',
+  ],
+  [
+    'comma decimals and a semicolon',
+    'Great location. We parked at 42,6977; 23,3219 and walked down.',
+    '42,6977; 23,3219',
+  ],
+]
+
+describe('redaction removes a coordinate pair written in any common layout', () => {
+  it.each(COORDINATE_LAYOUTS)('%s', (_name, text, pair) => {
+    const wrapped = inReview(text)
+    expect(redacted(wrapped)).toBe(wrapped.replace(pair, '[ADDRESS]'))
+  })
+
+  it.each([
+    ['one-decimal ratings', 'Rated 4.5, 3.8 and 4.2 by our family, a quiet place.'],
+    ['two-decimal prices', 'Prices were 12.50, 14.75 and 9.99 for the three menus.'],
+    ['a version number', 'The kiosk ran version 1.2.3 and then 2.4.5 after the update.'],
+  ])('leaves %s alone', (_name, text) => {
+    const wrapped = inReview(text)
+    expect(redacted(wrapped)).toBe(wrapped)
+  })
+})
+
+const IP_LAYOUTS: ReadonlyArray<readonly [string, string, string]> = [
+  [
+    'a port',
+    'The portal kept redirecting me to 192.0.2.55:8080 which looked odd.',
+    '192.0.2.55:8080',
+  ],
+  [
+    'a short port',
+    'The portal kept redirecting me to 203.0.113.9:22 which looked odd.',
+    '203.0.113.9:22',
+  ],
+  [
+    'an IP: label',
+    'The portal kept redirecting me to IP:203.0.113.9 which looked odd.',
+    '203.0.113.9',
+  ],
+  [
+    'trailing dots',
+    'The portal kept redirecting me to 203.0.113.9... which looked odd.',
+    '203.0.113.9',
+  ],
+  [
+    'an IPv6 address with a port',
+    'The portal kept redirecting me to [2001:db8::1]:443 which looked odd.',
+    '[2001:db8::1]:443',
+  ],
+]
+
+describe('redaction removes an IP address with a port, a label or trailing dots', () => {
+  it.each(IP_LAYOUTS)('%s', (_name, text, address) => {
+    const wrapped = inReview(text)
+    const out = redacted(wrapped)
+    expect(out).not.toContain(address.replace(/^\[|\]:\d+$/gu, ''))
+    expect(out).toContain('[CONTACT]')
+  })
+
+  it('leaves a version-like number with fewer than four parts alone', () => {
+    const wrapped = inReview('The kiosk ran version 1.2.3 and the Wi-Fi 6.5 was fast.')
+    expect(redacted(wrapped)).toBe(wrapped)
+  })
+})
+
+describe('redaction removes a domain whose dot was separated by a line break', () => {
+  it('reads the canonical text of hotelsunrise, a line break, .com', () => {
+    const canonical = canonicalizeRawAiReviewSource({
+      text: 'Great stay, kind staff. See hotelsunrise\n.com for the rooms.',
+      rating: 5,
+      languageCode: 'en',
+      reviewedAtEpochMillis: 1_700_000_000_000,
+      reviewerDisplayName: null,
+    }).text
+    expect(canonical).toBe('Great stay, kind staff. See hotelsunrise .com for the rooms.')
+    expect(redacted(canonical ?? '')).toBe(
+      'Great stay, kind staff. See [CONTACT] for the rooms.',
+    )
+  })
+
+  it.each([
+    [
+      'a letter and a digit in the last label',
+      'Lovely stay, see hotel.c0m, they have photos.',
+      'hotel.c0m',
+    ],
+  ])('%s', (_name, text, domain) => {
+    expect(redacted(text)).toBe(text.replace(domain, '[CONTACT]'))
+  })
+
+  it('leaves a word and a sentence with a stray space before the full stop alone', () => {
+    const text = 'The room was clean and quiet .Thanks for everything, see you next year.'
+    expect(redacted(text)).toBe(text)
+  })
+})
+
+describe('the top-level domains spelled out in the split-domain pattern agree with the profile list', () => {
+  it('spells out exactly the profile list', () => {
+    const source =
+      NETWORK_MARKER_PROFILE.patterns.find((entry) => entry.id === 'split_domain')
+        ?.source ?? ''
+    const start = source.indexOf('[ \\t]+\\.(') + '[ \\t]+\\.('.length
+    const spelled = source.slice(start, source.indexOf(')', start)).split('|')
+    expect([...spelled].sort()).toEqual(
+      [...NETWORK_MARKER_PROFILE.splitDomainTopLevels].sort(),
+    )
   })
 })

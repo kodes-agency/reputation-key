@@ -1,6 +1,4 @@
 import { createHash } from 'node:crypto'
-import { isIP } from 'node:net'
-import { domainToASCII } from 'node:url'
 import {
   getCountries,
   parsePhoneNumberFromString,
@@ -10,6 +8,14 @@ import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import { AI_UNICODE_CASE_FOLDING_V17 } from './generated/ai-unicode-case-folding-v17'
 import { ADDRESS_MARKER_PROFILE, findAddressMarkers } from './ai-address-markers'
 import { ibanValid, luhnValid } from './ai-financial-validators'
+import { COORDINATE_MARKER_PROFILE, findCoordinateMarkers } from './ai-coordinate-markers'
+import {
+  NETWORK_MARKER_PROFILE,
+  endsInAlphabeticLabel,
+  findIpMarkers,
+  findSplitDomainMarkers,
+  validDomain,
+} from './ai-network-markers'
 
 export const AI_STRUCTURED_MARKER_DETECTORS_VERSION =
   'structured-marker-detectors-v1' as const
@@ -66,7 +72,7 @@ const COUNTRY_CODES = new Set<string>(getCountries())
  * Candidate repetitions are bounded by the profile or consume delimiter-separated
  * atoms monotonically; the security rule cannot model those enclosing invariants.
  */
-/* eslint-disable security/detect-unsafe-regex, no-useless-escape */
+/* eslint-disable security/detect-unsafe-regex */
 const EMAIL_RE = new RegExp(
   "[\\p{L}\\p{N}.!#$%&'*+/=?^_`{|}~-]{1,64}@[\\p{L}\\p{N}-]+(?:\\.[\\p{L}\\p{N}-]+)+",
   'gu',
@@ -85,10 +91,6 @@ const SOCIAL_RE =
   /(?:^|[^\p{L}\p{N}_.])(@[A-Za-z0-9_](?:[A-Za-z0-9_.]{0,28}[A-Za-z0-9_])?)(?=$|[^A-Za-z0-9_.])/gu
 const PHONE_RE =
   /(?:^|[^\p{Nd}])((?:\+?[\p{Nd}][\p{Nd} ().-]{5,30}[\p{Nd}]))(?=$|[^\p{Nd}])/gu
-const IP_TOKEN_RE =
-  /(?:^|[^A-Fa-f0-9:.\[])((?:\[[A-Fa-f0-9:]+\]|[A-Fa-f0-9:.]{3,}))(?=$|[^A-Fa-f0-9:.\]])/gu
-const COORDINATE_RE =
-  /(?:^|[^\p{N}.+-])([+-]?(?:\d{1,3})\.\d{4,8}\s*,\s*[+-]?(?:\d{1,3})\.\d{4,8})(?=$|\.(?!\p{N})|[^\p{N}.])/gu
 const CARD_RE = /(?:^|[^\p{Nd}])((?:\p{Nd}[ -]?){12,18}\p{Nd})(?=$|[^\p{Nd}])/gu
 const IBAN_RE =
   /(?:^|[^A-Za-z0-9])([A-Za-z]{2}\d{2}(?:[ -]?[A-Za-z0-9]){11,30})(?=$|[^A-Za-z0-9])/gu
@@ -110,7 +112,7 @@ const OVERBOUND_IBAN_RE =
   /(?:^|[^A-Za-z0-9])([A-Za-z]{2}\d{2}(?:[ -]?[A-Za-z0-9]){31,})(?=$|[^A-Za-z0-9])/gu
 const OVERBOUND_COORDINATE_RE =
   /[+-]?(?:\d{1,3})\.\d{9,}\s*,\s*[+-]?(?:\d{1,3})\.\d{4,}|[+-]?(?:\d{1,3})\.\d{4,}\s*,\s*[+-]?(?:\d{1,3})\.\d{9,}/gu
-/* eslint-enable security/detect-unsafe-regex, no-useless-escape */
+/* eslint-enable security/detect-unsafe-regex */
 
 const PLACEHOLDER_PRIORITY: Readonly<Record<AiDetectedPlaceholder, number>> = {
   '[SECRET]': 0,
@@ -133,17 +135,14 @@ const DETECTOR_MANIFEST = Object.freeze({
   ]),
   patterns: Object.freeze([
     ...ADDRESS_MARKER_PROFILE.patterns,
+    ...COORDINATE_MARKER_PROFILE.patterns,
+    ...NETWORK_MARKER_PROFILE.patterns,
     Object.freeze({
       id: 'bare_domain',
       source: BARE_DOMAIN_RE.source,
       flags: BARE_DOMAIN_RE.flags,
     }),
     Object.freeze({ id: 'card', source: CARD_RE.source, flags: CARD_RE.flags }),
-    Object.freeze({
-      id: 'coordinate',
-      source: COORDINATE_RE.source,
-      flags: COORDINATE_RE.flags,
-    }),
     Object.freeze({ id: 'email', source: EMAIL_RE.source, flags: EMAIL_RE.flags }),
     Object.freeze({
       id: 'entropy_token',
@@ -156,11 +155,6 @@ const DETECTOR_MANIFEST = Object.freeze({
       flags: HEX_SECRET_RE.flags,
     }),
     Object.freeze({ id: 'iban', source: IBAN_RE.source, flags: IBAN_RE.flags }),
-    Object.freeze({
-      id: 'ip_token',
-      source: IP_TOKEN_RE.source,
-      flags: IP_TOKEN_RE.flags,
-    }),
     Object.freeze({
       id: 'known_secret',
       source: KNOWN_SECRET_RE.source,
@@ -233,14 +227,17 @@ const DETECTOR_MANIFEST = Object.freeze({
   }),
   addressWordLists: ADDRESS_MARKER_PROFILE.wordLists,
   addressMaxLowerCaseNameWords: ADDRESS_MARKER_PROFILE.maxLowerCaseNameWords,
+  coordinateLimits: COORDINATE_MARKER_PROFILE.limits,
+  splitDomainTopLevels: NETWORK_MARKER_PROFILE.splitDomainTopLevels,
   validators: Object.freeze([
     'email-rfc-bounded-v1',
     'whatwg-http-domain-v1',
-    'bare-domain-alphabetic-final-label-v1',
+    'bare-domain-alphabetic-final-label-v2',
+    'split-domain-blank-before-dot-v1',
     'social-handle-v1',
     'libphonenumber-js-1.13.11-max',
-    'node-net-is-ip-v1',
-    'coordinate-rational-v1',
+    'node-net-is-ip-port-and-label-v1',
+    'coordinate-labelled-pair-v1',
     'luhn-v1',
     'iban-mod97-v1',
     'labelled-identifier-v1',
@@ -378,40 +375,6 @@ function trimUrlEnd(value: string): string {
   return value.slice(0, end)
 }
 
-function validDomain(domain: string): boolean {
-  const ascii = domainToASCII(domain)
-  if (ascii.length < 1 || ascii.length > 253 || !ascii.includes('.')) return false
-  const labels = ascii.split('.')
-  return labels.every(
-    (label) =>
-      label.length >= 1 &&
-      label.length <= 63 &&
-      !label.startsWith('-') &&
-      !label.endsWith('-') &&
-      /^[A-Za-z0-9-]+$/u.test(label),
-  )
-}
-
-/**
- * A domain written bare, in running text, is told from a number or an
- * abbreviation by its last label, which is a top-level domain: letters only and
- * at least two of them (`com`, `bg`, `co`, `бг`, or the ASCII form of an
- * internationalised one, `xn--p1ai`). `4.5`, `9.99`, `12.05.2024`, `2.4 GHz`,
- * `e.g`, `a.m`, `т.е` and `U.S.A` are not domains. Email addresses and URLs
- * keep the plainer `validDomain`: their `@` or scheme is already the evidence,
- * and `guest@192.0.2.55` must stay a contact.
- */
-function endsInAlphabeticLabel(domain: string): boolean {
-  const label = domain.slice(domain.lastIndexOf('.') + 1)
-  if (/^xn--[a-z0-9-]+$/iu.test(label)) return true
-  let letters = 0
-  for (const scalar of label) {
-    if (/^\p{L}$/u.test(scalar)) letters += 1
-    else if (!/^\p{M}$/u.test(scalar)) return false
-  }
-  return letters >= 2
-}
-
 function validEmail(value: string): boolean {
   if (countScalars(value) > 254) return false
   const separator = value.indexOf('@')
@@ -535,6 +498,9 @@ function scanUrlsAndDomains(text: string, state: ScanState): void {
     const start = match.index + relative
     addCandidate(state, text, start, start + value.length, '[CONTACT]', 2048)
   })
+  for (const span of findSplitDomainMarkers(text)) {
+    addCandidate(state, text, span.start, span.end, '[CONTACT]', 2048)
+  }
 }
 
 function scanSocialHandles(text: string, state: ScanState): void {
@@ -595,50 +561,13 @@ function scanPhones(text: string, countryCode: CountryCode, state: ScanState): v
   })
 }
 
-function decimalMagnitudeWithin(value: string, maximum: bigint): boolean {
-  const unsigned = value.startsWith('+') || value.startsWith('-') ? value.slice(1) : value
-  const [whole, fraction] = unsigned.split('.')
-  if (
-    whole === undefined ||
-    fraction === undefined ||
-    !/^\d+$/u.test(whole) ||
-    !/^\d+$/u.test(fraction)
-  ) {
-    return false
-  }
-  const scale = 10n ** BigInt(fraction.length)
-  const numerator = BigInt(whole) * scale + BigInt(fraction)
-  return numerator <= maximum * scale
-}
-
 function scanIpsAndCoordinates(text: string, state: ScanState): void {
-  forEachMatch(IP_TOKEN_RE, text, (match) => {
-    const raw = match[1]
-    if (raw === undefined) return
-    const candidate = raw.endsWith('.') ? raw.slice(0, -1) : raw
-    const value =
-      candidate.startsWith('[') && candidate.endsWith(']')
-        ? candidate.slice(1, -1)
-        : candidate
-    if (isIP(value) === 0) return
-    const start = match.index + match[0].lastIndexOf(raw)
-    addCandidate(state, text, start, start + candidate.length, '[CONTACT]', 64)
-  })
-  forEachMatch(COORDINATE_RE, text, (match) => {
-    const value = match[1]
-    if (value === undefined) return
-    const [latitudeText, longitudeText] = value.split(',').map((entry) => entry.trim())
-    if (
-      latitudeText === undefined ||
-      longitudeText === undefined ||
-      !decimalMagnitudeWithin(latitudeText, 90n) ||
-      !decimalMagnitudeWithin(longitudeText, 180n)
-    ) {
-      return
-    }
-    const start = match.index + match[0].lastIndexOf(value)
-    addCandidate(state, text, start, start + value.length, '[ADDRESS]', 64)
-  })
+  for (const span of findIpMarkers(text)) {
+    addCandidate(state, text, span.start, span.end, '[CONTACT]', 64)
+  }
+  for (const span of findCoordinateMarkers(text)) {
+    addCandidate(state, text, span.start, span.end, '[ADDRESS]', 64)
+  }
 }
 
 function scanFinancial(text: string, state: ScanState): void {

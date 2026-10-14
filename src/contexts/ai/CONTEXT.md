@@ -133,6 +133,17 @@ It also reads a word glued to a full stop (`hotel.Staff`, `Dr.Smith`) as a
 domain, because nothing separates it from `example.Com`. Taking any of these is a
 change to the detectors' digest and a decision, not a patch.
 
+Coordinates (`ai-coordinate-markers.ts`) are read as a pair of decimal degrees in
+any common layout (comma, semicolon or blank between them; degree signs;
+hemisphere letters; `lat=`/`lng=` labels; three decimals after a dot, four after
+a comma). IP addresses (`ai-network-markers.ts`) are read with a port, after a
+label and before full stops. A bare domain is told from a number by its last
+label (two letters or more, starting with a letter), and a domain whose dot a
+line break separated from its name (`hotelsunrise .com` in the canonical text) is
+read when the last label is a common top-level domain. A line break inside a
+domain's first label (`hotelsun rise.com`) leaves the first half in the text: the
+canonical text cannot tell it from two words.
+
 ## Runtime
 
 Identity's merchant-AI fact drives one durable lifecycle command, which opens a
