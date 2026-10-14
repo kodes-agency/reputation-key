@@ -34,6 +34,8 @@ export type FakeWorld = {
   authorizations: string[]
   deny: boolean
   summaryRequests: GoogleRatingSummaryRequest[]
+  /** Every port call, in order: `policy.authorize`, `repository.findActive`, ... */
+  calls: string[]
 }
 
 /** Near the owner's worked example: 812 reviews at about 4.31, a 4.70 mix, 7 a week. */
@@ -63,7 +65,26 @@ export function exampleWorld(): FakeWorld {
     authorizations: [],
     deny: false,
     summaryRequests: [],
+    calls: [],
   }
+}
+
+type AnyPortFunction = (...args: never[]) => unknown
+
+/** The same port, each call logged in `world.calls` as `<port>.<method>`. */
+function recording<T extends Readonly<Record<string, AnyPortFunction>>>(
+  world: FakeWorld,
+  port: string,
+  target: T,
+): T {
+  const entries = Object.entries(target).map(([method, call]) => [
+    method,
+    (...args: never[]) => {
+      world.calls = [...world.calls, `${port}.${method}`]
+      return call(...args)
+    },
+  ])
+  return Object.fromEntries(entries) as T
 }
 
 function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
@@ -210,21 +231,23 @@ const fakePolicy = (world: FakeWorld): GoalExecutionPolicy => ({
 export function dependencies(world: FakeWorld): RatingGoalDependencies {
   let next = 0
   return {
-    repository: fakeRepository(world),
-    properties: { findPropertyFacts: async () => world.facts },
-    google: {
+    repository: recording(world, 'repository', fakeRepository(world)),
+    properties: recording(world, 'properties', {
+      findPropertyFacts: async () => world.facts,
+    }),
+    google: recording(world, 'google', {
       getCurrentOnGoogle: async (organizationId, propertyId) =>
         world.snapshot
           ? {
-              semantics: 'current_on_google',
+              semantics: 'current_on_google' as const,
               organizationId,
               propertyId,
               ...world.snapshot,
             }
           : null,
-    },
-    reviews: fakeReviews(world),
-    policy: fakePolicy(world),
+    }),
+    reviews: recording(world, 'reviews', fakeReviews(world)),
+    policy: recording(world, 'policy', fakePolicy(world)),
     id: () => `40000000-0000-4000-8000-${String(++next).padStart(12, '0')}`,
     now: () => NOW,
   }

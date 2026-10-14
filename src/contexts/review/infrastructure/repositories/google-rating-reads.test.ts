@@ -16,8 +16,10 @@ import { organizationId, propertyId } from '#/shared/domain/ids'
 import { createGoogleRatingReads } from '../google-rating-reads'
 
 const ORG = organizationId('org-google-rating-reads-0000000000001')
+const OTHER_ORG = organizationId('org-google-rating-reads-0000000000002')
 const PROPERTY = propertyId('2c100000-0000-4000-8000-000000000001')
 const OTHER_PROPERTY = propertyId('2c100000-0000-4000-8000-000000000002')
+const FOREIGN_PROPERTY = propertyId('2c100000-0000-4000-8000-000000000003')
 const NOW = new Date('2026-10-20T12:00:00.000Z')
 const CACHE_VALID_UNTIL = '2026-11-30T00:00:00Z'
 const DAY = 24 * 60 * 60 * 1000
@@ -26,6 +28,7 @@ let held: HeldTransaction
 
 type ReviewSeed = Readonly<{
   id: string
+  organization?: string
   property?: string
   rating: number
   reviewedAt: string
@@ -48,7 +51,7 @@ async function insertReview(seed: ReviewSeed): Promise<void> {
      )`,
     [
       seed.id,
-      ORG,
+      seed.organization ?? ORG,
       seed.property ?? PROPERTY,
       `ext-${seed.id.slice(-4)}`,
       GOOGLE_LOCATION_PRIMARY_RESOURCE,
@@ -74,19 +77,22 @@ async function insertProviderDeletedReview(id: string): Promise<void> {
 
 beforeEach(async () => {
   held = await holdTransaction()
-  await held.client.query(
-    `INSERT INTO organization (id, name, slug, "createdAt")
-     VALUES ($1, 'Google rating reads', $1, now())`,
-    [ORG],
-  )
-  for (const [id, slug] of [
-    [PROPERTY, 'rating-reads-sofia'],
-    [OTHER_PROPERTY, 'rating-reads-other'],
+  for (const org of [ORG, OTHER_ORG]) {
+    await held.client.query(
+      `INSERT INTO organization (id, name, slug, "createdAt")
+       VALUES ($1, 'Google rating reads', $1, now())`,
+      [org],
+    )
+  }
+  for (const [id, org, slug] of [
+    [PROPERTY, ORG, 'rating-reads-sofia'],
+    [OTHER_PROPERTY, ORG, 'rating-reads-other'],
+    [FOREIGN_PROPERTY, OTHER_ORG, 'rating-reads-foreign'],
   ] as const) {
     await held.client.query(
       `INSERT INTO properties (id, organization_id, name, slug, timezone, source_epoch)
        VALUES ($1, $2, $3, $3, 'Europe/Sofia', 2)`,
-      [id, ORG, slug],
+      [id, org, slug],
     )
   }
   // Counted: four current Google reviews.
@@ -134,6 +140,15 @@ beforeEach(async () => {
     property: OTHER_PROPERTY,
   })
   await insertProviderDeletedReview('2c200000-0000-4000-8000-000000000011')
+  // Another Organization's current Google review, in this Sofia week. (Google
+  // is the only review platform there is, so no other platform can be seeded.)
+  await insertReview({
+    id: '2c200000-0000-4000-8000-000000000012',
+    organization: OTHER_ORG,
+    property: FOREIGN_PROPERTY,
+    rating: 1,
+    reviewedAt: '2026-10-19T10:00:00Z',
+  })
 })
 
 afterEach(async () => {
@@ -213,6 +228,35 @@ describe('Google rating reads for the rating goal', () => {
       { stars: 4, count: 1 },
       { stars: 5, count: 1 },
     ])
+  })
+
+  it('never counts another Organization’s reviews, even asked with this Property’s id', async () => {
+    const since = new Date(NOW.getTime() - 90 * DAY)
+    const request = { mixWindowStart: since, mostRecentLimit: 25, countSince: [since] }
+    const none = { count: 0, sum: 0 }
+
+    // Another Organization asking for this Property sees none of its reviews.
+    await expect(reads().getRatingSummary(OTHER_ORG, PROPERTY, request)).resolves.toEqual(
+      {
+        all: none,
+        mixWindow: none,
+        mostRecent: none,
+        countsSince: [0],
+      },
+    )
+    await expect(reads().getWeeklyCounts(OTHER_ORG, PROPERTY, since)).resolves.toEqual([])
+    await expect(
+      reads().getStarDistribution(OTHER_ORG, PROPERTY, since),
+    ).resolves.toEqual([1, 2, 3, 4, 5].map((stars) => ({ stars, count: 0 })))
+    // Its own review counts for its own Property, and nowhere else.
+    await expect(
+      reads().getRatingSummary(OTHER_ORG, FOREIGN_PROPERTY, request),
+    ).resolves.toMatchObject({ all: { count: 1, sum: 1 } })
+    await expect(reads().getRatingSummary(ORG, PROPERTY, request)).resolves.toMatchObject(
+      {
+        all: { count: 4, sum: 17 },
+      },
+    )
   })
 
   it('refuses more count windows than one read answers', async () => {
