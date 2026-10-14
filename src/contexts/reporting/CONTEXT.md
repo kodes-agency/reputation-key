@@ -56,8 +56,12 @@ metric authority.
   of every running month of an active count goal in one statement
   (`infrastructure/adapters/goal-running-months.ts`), because a month still running stores no
   value: its result row stays `updating` until it closes. That read sums what the goal's own page
-  sums but not the outbox completeness proof, and a month with a reading the governed read would
-  quarantine has no figure and is not counted. A goal counts once however many subjects are behind.
+  sums and reads a goal only where the page could: a Portal or Portal Group that was deleted, or
+  a metric version not in effect for the whole month (`goalVersionIsUsable`, the governed read's
+  own rule), leaves a goal uncounted. It leaves out only the outbox completeness proof, and a
+  month with a reading the governed read would quarantine has no figure and is not counted. An
+  integration test holds its sum to `queryGoalAggregate` on the same readings. A goal counts once
+  however many subjects are behind.
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
   one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
   rows). It is authorised once and its start month is resolved once, so every goal of a save

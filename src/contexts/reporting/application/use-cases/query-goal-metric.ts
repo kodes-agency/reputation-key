@@ -1,6 +1,7 @@
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
 import type { MetricKey } from '#/shared/domain/metric-keys'
+import { goalVersionIsUsable } from '../../domain/goal-metric-version-usable'
 import {
   METRIC_VERSION_IDS,
   type GovernedMetricVersion,
@@ -103,16 +104,12 @@ function governedVersionIsUsable(
   spec: GoalMetricSpec,
   query: GovernedGoalMetricQuery,
 ): boolean {
-  const { definition, version } = governed
-  return (
-    definition.lifecycleStatus === 'approved' &&
-    definition.key === spec.metricKey &&
-    version.permittedConsumers.includes('goal') &&
-    version.employmentDecisionEligible === false &&
-    version.allowedScopes.includes(query.subject.kind) &&
-    version.effectiveFrom <= query.periodStart &&
-    (version.effectiveTo === null || version.effectiveTo >= query.periodEnd)
-  )
+  return goalVersionIsUsable(governed, {
+    metricKey: spec.metricKey,
+    subjectKind: query.subject.kind,
+    periodStart: query.periodStart,
+    periodEnd: query.periodEnd,
+  })
 }
 
 function hasInvalidAggregate(aggregate: GoalMetricAggregate): boolean {

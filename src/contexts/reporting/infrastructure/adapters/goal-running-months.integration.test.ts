@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
-import { organizationId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  portalGroupId,
+  portalId,
+  propertyId as toPropertyId,
+} from '#/shared/domain/ids'
 import {
   holdTransaction,
   type HeldTransaction,
@@ -11,7 +16,11 @@ import {
   seedCountReadings,
   seedGoalMonth,
   type SeedGoalMonthInput,
+  type SeededSubject,
 } from '../testing/goal-running-month-seed'
+import type { GoalMetricSubject } from '../../application/ports/metric.repository'
+import { findMetricVersionById, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { createMetricRepository } from '../repositories/metric.repository'
 import { readRunningCountMonths } from './goal-running-months'
 
 // Day 9 of August 2026 on a UTC calendar.
@@ -112,6 +121,30 @@ afterEach(async () => {
 afterAll(async () => {
   await fixture?.rollBack()
 })
+
+async function correct(
+  sourceEventId: string,
+  kind: 'retract' | 'adjust' | 'replace',
+  amount: { delta?: number; replacement?: number } = {},
+) {
+  await client.query(
+    `INSERT INTO metric_corrections (
+       reading_id, source_event_id, kind, reason, actor_type, actor_id,
+       exact_delta, replacement_value, event_at, recorded_at
+     )
+     SELECT id, $2, $3, 'verified correction', 'system', 'running-months-test',
+       $4, $5, $6, $6
+     FROM metric_readings WHERE source_event_id = $1`,
+    [
+      sourceEventId,
+      `correction-${randomUUID()}`,
+      kind,
+      amount.delta ?? null,
+      amount.replacement ?? null,
+      IN_AUGUST,
+    ],
+  )
+}
 
 describe('the running months of count goals', () => {
   it('counts the readings of the running month against the target of its goal', async () => {
@@ -288,30 +321,6 @@ describe('the running months of count goals', () => {
   })
 
   describe('corrections', () => {
-    async function correct(
-      sourceEventId: string,
-      kind: 'retract' | 'adjust' | 'replace',
-      amount: { delta?: number; replacement?: number } = {},
-    ) {
-      await client.query(
-        `INSERT INTO metric_corrections (
-           reading_id, source_event_id, kind, reason, actor_type, actor_id,
-           exact_delta, replacement_value, event_at, recorded_at
-         )
-         SELECT id, $2, $3, 'verified correction', 'system', 'running-months-test',
-           $4, $5, $6, $6
-         FROM metric_readings WHERE source_event_id = $1`,
-        [
-          sourceEventId,
-          `correction-${randomUUID()}`,
-          kind,
-          amount.delta ?? null,
-          amount.replacement ?? null,
-          IN_AUGUST,
-        ],
-      )
-    }
-
     async function propertyWithReadings() {
       const property = await seedProperty()
       await seedGoalMonth(client, {
@@ -409,6 +418,212 @@ describe('the running months of count goals', () => {
       const property = await goalWithScans(3, patch)
 
       expect(await monthsOf(property)).toEqual([])
+    })
+  })
+
+  describe('a goal the goal page would not read', () => {
+    it('is not read for a Portal that was deleted', async () => {
+      const property = await seedProperty()
+      const lobby = await seedPortal(property)
+      await seedGoalMonth(client, {
+        organizationId: ORG,
+        propertyId: property,
+        subject: { kind: 'portal', portalId: lobby },
+        target: 120,
+      })
+      expect(await monthsOf(property)).toHaveLength(1)
+
+      await client.query('UPDATE portals SET deleted_at = now() WHERE id = $1', [lobby])
+
+      expect(await monthsOf(property)).toEqual([])
+    })
+
+    it('is not read for a Portal Group that was deleted', async () => {
+      const property = await seedProperty()
+      const reception = await seedGroup(property)
+      await seedGoalMonth(client, {
+        organizationId: ORG,
+        propertyId: property,
+        subject: { kind: 'portal_group', groupId: reception },
+        target: 120,
+      })
+      expect(await monthsOf(property)).toHaveLength(1)
+
+      await client.query('UPDATE portal_groups SET deleted_at = now() WHERE id = $1', [
+        reception,
+      ])
+
+      expect(await monthsOf(property)).toEqual([])
+    })
+
+    it('keeps the other subjects of a goal when one of its Portals was deleted', async () => {
+      const property = await seedProperty()
+      const lobby = await seedPortal(property)
+      const bar = await seedPortal(property)
+      const first = await seedGoalMonth(client, {
+        organizationId: ORG,
+        propertyId: property,
+        subject: { kind: 'portal', portalId: lobby },
+        target: 120,
+      })
+      await seedGoalMonth(client, {
+        organizationId: ORG,
+        propertyId: property,
+        subject: { kind: 'portal', portalId: bar },
+        target: 120,
+        program: { programId: first.programId, versionId: first.versionId },
+      })
+      await client.query('UPDATE portals SET deleted_at = now() WHERE id = $1', [lobby])
+
+      expect(await monthsOf(property)).toHaveLength(1)
+    })
+
+    it('is not read for a month the governed version was not yet in effect for', async () => {
+      const property = await seedProperty()
+      await seedGoalMonth(client, {
+        organizationId: ORG,
+        propertyId: property,
+        target: 120,
+        period: { start: '2026-07-01T00:00:00Z', end: '2026-08-01T00:00:00Z' },
+      })
+      const july = new Date('2026-07-20T12:00:00.000Z')
+
+      const months = await readRunningCountMonths(db, {
+        organizationId: organizationId(ORG),
+        properties: sql`results.property_id = ${property}`,
+        now: july,
+      })
+
+      expect(months).toEqual([])
+    })
+  })
+
+  describe('the figure the goal page reads', () => {
+    const AUGUST = {
+      periodStart: new Date('2026-08-01T00:00:00.000Z'),
+      periodEnd: new Date('2026-09-01T00:00:00.000Z'),
+    }
+
+    /** The governed aggregate of the goal's own page, for the same month. */
+    async function pageAggregate(property: string, subject: GoalMetricSubject) {
+      const governed = findMetricVersionById(METRIC_VERSION_IDS.qualifiedScanGoal)
+      if (!governed) throw new Error('The qualified scan goal is not in the registry.')
+      return createMetricRepository(db, () => NOW).queryGoalAggregate({
+        organizationId: organizationId(ORG),
+        propertyId: toPropertyId(property),
+        definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
+        expectedMetricKey: governed.definition.key,
+        allowedSourcePolicies: governed.version.sourcePolicyAllowlist,
+        subject,
+        ...AUGUST,
+      })
+    }
+
+    /** A Property with two Portals and two groups, readings across them, and corrections. */
+    async function busyProperty() {
+      const property = await seedProperty()
+      const lobby = await seedPortal(property)
+      const bar = await seedPortal(property)
+      const reception = await seedGroup(property)
+      const lounge = await seedGroup(property)
+      const readings = async (
+        count: number,
+        where: { portalId?: string; groupId?: string },
+        eventAt = IN_AUGUST,
+      ) =>
+        seedCountReadings(client, {
+          organizationId: ORG,
+          propertyId: property,
+          count,
+          eventAt,
+          ...where,
+        })
+      const lobbyAtReception = await readings(5, { portalId: lobby, groupId: reception })
+      const lobbyAtLounge = await readings(3, { portalId: lobby, groupId: lounge })
+      const barAtReception = await readings(4, { portalId: bar, groupId: reception })
+      await readings(2, { portalId: bar })
+      // Outside the month, on both sides of it.
+      await readings(2, { portalId: lobby, groupId: reception }, '2026-07-31T23:59:59Z')
+      await readings(2, { portalId: lobby, groupId: reception }, '2026-09-01T00:00:00Z')
+      await correct(lobbyAtReception[0]!, 'retract')
+      await correct(lobbyAtReception[1]!, 'adjust', { delta: 4 })
+      await correct(lobbyAtLounge[0]!, 'replace', { replacement: 0 })
+      await correct(barAtReception[0]!, 'adjust', { delta: -1 })
+      return { property, lobby, bar, reception, lounge }
+    }
+
+    type Ids = Awaited<ReturnType<typeof busyProperty>>
+    type Subject = Readonly<{ page: GoalMetricSubject; seeded: SeededSubject }>
+    const SUBJECTS: ReadonlyArray<readonly [string, (ids: Ids) => Subject]> = [
+      [
+        'a Property',
+        (ids) => ({
+          page: { kind: 'property', propertyId: toPropertyId(ids.property) },
+          seeded: { kind: 'property' },
+        }),
+      ],
+      [
+        'a Portal',
+        (ids) => ({
+          page: { kind: 'portal', portalId: portalId(ids.lobby) },
+          seeded: { kind: 'portal', portalId: ids.lobby },
+        }),
+      ],
+      [
+        'a Portal Group',
+        (ids) => ({
+          page: { kind: 'portal_group', portalGroupId: portalGroupId(ids.reception) },
+          seeded: { kind: 'portal_group', groupId: ids.reception },
+        }),
+      ],
+    ]
+
+    it.each(SUBJECTS)(
+      'counts what the goal page counts for %s',
+      async (_name, subjectOf) => {
+        const ids = await busyProperty()
+        const subject = subjectOf(ids)
+        await seedGoalMonth(client, {
+          organizationId: ORG,
+          propertyId: ids.property,
+          subject: subject.seeded,
+          target: 120,
+        })
+
+        const [month] = await monthsOf(ids.property)
+        const aggregate = await pageAggregate(ids.property, subject.page)
+
+        expect(aggregate.sum).toBeGreaterThan(0)
+        expect(month?.value).toBe(aggregate.sum)
+      },
+    )
+
+    it.each([
+      ['a source the measure does not allow', { sourcePolicy: 'first_party_workflow' }],
+      ['an approximate reading', { dataQuality: 'approximate' }],
+      ['a reading of another measure', { metricKey: 'portal.rating_count' }],
+    ] as const)('gives no figure where the goal page finds %s', async (_name, patch) => {
+      const property = await goalWithScans(3)
+      await seedCountReadings(client, {
+        organizationId: ORG,
+        propertyId: property,
+        count: 1,
+        eventAt: IN_AUGUST,
+        ...patch,
+      })
+
+      const [month] = await monthsOf(property)
+      const aggregate = await pageAggregate(property, {
+        kind: 'property',
+        propertyId: toPropertyId(property),
+      })
+
+      expect(month?.value).toBeNull()
+      expect(
+        aggregate.invalidSourceCount +
+          aggregate.approximateCount +
+          aggregate.invalidDefinitionCount,
+      ).toBeGreaterThan(0)
     })
   })
 
