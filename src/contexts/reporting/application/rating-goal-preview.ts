@@ -12,7 +12,20 @@ import { perDay, perMonth, surgeCaution } from '../domain/rating-goal-pace'
 import type {
   RatingGoalForecastInputs,
   RatingGoalPacePreview,
+  RatingPaceView,
 } from './dto/rating-goal.types'
+
+/**
+ * A weekly pace per week, month and day, worded as the setup read words its
+ * suggested paces: for a goal's chosen pace on its card and its detail page.
+ */
+export function ratingGoalPaceView(pacePerWeek: number): RatingPaceView {
+  return {
+    perWeek: pacePerWeek,
+    perMonth: perMonth(pacePerWeek),
+    perDay: perDay(pacePerWeek),
+  }
+}
 
 export function previewRatingGoalPace(
   inputs: RatingGoalForecastInputs,
@@ -20,11 +33,7 @@ export function previewRatingGoalPace(
   pacePerWeek: number,
 ): RatingGoalPacePreview {
   return {
-    pace: {
-      perWeek: pacePerWeek,
-      perMonth: perMonth(pacePerWeek),
-      perDay: perDay(pacePerWeek),
-    },
+    pace: ratingGoalPaceView(pacePerWeek),
     forecast: forecastArrival({
       reviewCount: inputs.reviewCount,
       exact: ratio(inputs.exact.num, inputs.exact.den),

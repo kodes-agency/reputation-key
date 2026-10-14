@@ -161,6 +161,18 @@ describe('goal query keys', () => {
     ])
   })
 
+  it('keeps every read of a Property Google rating goal under one key of that Property', () => {
+    const family = goalKeys.ratingGoal('property-1')
+
+    expect(family).toEqual(['goals', 'rating-goal', 'property-1'])
+    for (const read of ['card', 'detail', 'setup', 'history'] as const) {
+      expect(goalKeys.ratingGoalRead('property-1', read)).toEqual([...family, read])
+    }
+    expect(goalKeys.ratingGoalRead('property-2', 'card')).not.toEqual(
+      goalKeys.ratingGoalRead('property-1', 'card'),
+    )
+  })
+
   it('keeps the portals overview in the property subtree, apart from the plain list', () => {
     expect(portalKeys.overview('property-1')).toEqual([
       'portals',

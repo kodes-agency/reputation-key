@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { previewRatingGoalPace } from './rating-goal-preview'
+import { previewRatingGoalPace, ratingGoalPaceView } from './rating-goal-preview'
 
 // The worked example as the setup read hands it to the page.
 const INPUTS = {
@@ -28,5 +28,12 @@ describe('a pace the manager types in', () => {
     expect(previewRatingGoalPace(INPUTS, 48, 200).forecast).toEqual({
       kind: 'unreachable',
     })
+  })
+})
+
+describe('a chosen pace on the page', () => {
+  it('reads per week, per month and per day, as the setup read words its paces', () => {
+    expect(ratingGoalPaceView(11)).toEqual({ perWeek: 11, perMonth: 48, perDay: 1.6 })
+    expect(ratingGoalPaceView(1)).toEqual({ perWeek: 1, perMonth: 4, perDay: 0.1 })
   })
 })

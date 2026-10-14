@@ -238,6 +238,14 @@ export const goalKeys = {
   /** The month so far for one measure and subject (`portal:<id>`), before its goal exists. */
   monthPreview: (propertyId: string, metric: string, subject: string) =>
     [...goalKeys.all, 'month-preview', propertyId, metric, subject] as const,
+  /**
+   * The Property's Google rating goal. Its four reads sit under this key, so one
+   * invalidation after a set, change or end refreshes them all.
+   */
+  ratingGoal: (propertyId: string) =>
+    [...goalKeys.all, 'rating-goal', propertyId] as const,
+  ratingGoalRead: (propertyId: string, read: 'card' | 'detail' | 'setup' | 'history') =>
+    [...goalKeys.ratingGoal(propertyId), read] as const,
 }
 
 // ── Staff participation and portal responsibility ────────────────────────
