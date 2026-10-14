@@ -127,6 +127,11 @@ metric authority.
 8. A version's target is never updated in place. A different target for a month still
    running is that month's own; a different target for the months after is a new version
    (ADR 0066).
+9. Goal maintenance starts no work in an Organization the lifecycle holds: one with a closure
+   requested or in progress, or one whose closure was cancelled and awaits reactivation. It
+   neither lists nor activates its programs (the Closing phase can pause only active ones; the
+   database has no scheduled -> paused edge). A month already open still reconciles and
+   closes, which is how Goal's purge-readiness check comes to find none left.
 
 ## Interfaces and dependencies
 

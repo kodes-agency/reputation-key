@@ -22,6 +22,7 @@ import {
   listTargetChanges,
 } from './goal-month-target.repository'
 import { createGoalMonthlyResultRepository } from './goal-monthly-result.repository'
+import { organizationLifecycleHoldsProgram } from './goal-organization-lifecycle-hold'
 import {
   assignmentValues,
   GoalProgramRevisionConflict,
@@ -386,10 +387,16 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
     },
 
     async listOperational() {
+      // A closing Organization gets no new Goal work (see the hold's header).
       const rows = await db
         .select()
         .from(goalPrograms)
-        .where(inArray(goalPrograms.status, ['scheduled', 'active']))
+        .where(
+          and(
+            inArray(goalPrograms.status, ['scheduled', 'active']),
+            sql`NOT ${organizationLifecycleHoldsProgram}`,
+          ),
+        )
         .orderBy(
           asc(goalPrograms.organizationId),
           asc(goalPrograms.propertyId),
@@ -628,6 +635,10 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
               eq(goalPrograms.id, input.bundle.program.id),
               eq(goalPrograms.currentVersion, input.bundle.version.version),
               eq(goalPrograms.status, 'scheduled'),
+              // A closure request that lands after maintenance listed this
+              // program still stops it: the Closing fence cannot pause a
+              // scheduled program, so this is the only place that can.
+              sql`NOT ${organizationLifecycleHoldsProgram}`,
             ),
           )
           .returning()
