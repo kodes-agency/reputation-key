@@ -869,6 +869,96 @@ const SPLIT_BY_A_LINE_BREAK: ReadonlyArray<
     ['42.69', '77', '23.3219'],
     '[ADDRESS]',
   ],
+  [
+    'an email split after an underscore',
+    'Write to maria_\nivanova@abv.bg please.',
+    ['maria_', 'ivanova'],
+    '[CONTACT]',
+  ],
+  [
+    'an email split before an underscore',
+    'Write to maria\n_ivanova@abv.bg please.',
+    ['maria', 'ivanova'],
+    '[CONTACT]',
+  ],
+  [
+    'a host split after a dot, three labels',
+    'Great stay, kind staff and a clean room. Our site is menu.\nrestaurant-roma.co.uk now.',
+    ['menu', 'restaurant-roma'],
+    '[CONTACT]',
+  ],
+  [
+    'a host split before a dot, three labels',
+    'Great stay, kind staff and a clean room. Our site is menu\n.restaurant-roma.co.uk now.',
+    ['menu', 'restaurant-roma'],
+    '[CONTACT]',
+  ],
+  [
+    'a host split inside its last name',
+    'Great stay, kind staff and a clean room. Our site is menu.restaurant-ro\nma.co.uk now.',
+    ['menu', 'restaurant-ro', 'ma.co'],
+    '[CONTACT]',
+  ],
+  [
+    'a top-level domain split in two',
+    'Our site is hotelsunrise.c\nom for the rooms.',
+    ['hotelsunrise', 'c om'],
+    '[CONTACT]',
+  ],
+  [
+    'a country top-level domain split in two',
+    'Great stay, kind staff and a clean room. Our site is menu.restaurant-roma.co.u\nk now.',
+    ['restaurant-roma', 'u k'],
+    '[CONTACT]',
+  ],
+  [
+    'a URL split after its host start',
+    'See https://h\notelsunrise.com/rooms for details.',
+    ['hotelsunrise', 'https://h '],
+    '[CONTACT]',
+  ],
+  [
+    'a short handle split',
+    'Insta @j\nohn_smith please.',
+    ['john_smith', 'ohn_smith'],
+    '[CONTACT]',
+  ],
+  [
+    'an at sign and a blank before a handle',
+    'See @\njohn_smith for details.',
+    ['john_smith'],
+    '[CONTACT]',
+  ],
+  [
+    'a coordinate split before the point',
+    'The hidden cove pin 42\n.6977, 23.3219 here.',
+    ['42', '6977', '23.3219'],
+    '[ADDRESS]',
+  ],
+  [
+    'a coordinate split after the point of the second number',
+    'The hidden cove pin N 42.6977 E 23.\n3219 here.',
+    ['42.6977', '3219'],
+    '[ADDRESS]',
+  ],
+  [
+    'a coordinate split inside the second number',
+    'The hidden cove pin 42.6977, 2\n3.3219 here.',
+    ['42.6977', '3.3219'],
+    '[ADDRESS]',
+  ],
+  [
+    'a passport number split after two letters',
+    'My passport AB\n1234567 was checked.',
+    ['1234567'],
+    '[IDENTIFIER]',
+  ],
+  [
+    'a passport number split after the third character',
+    'My passport AB1\n234567 was checked.',
+    ['234567'],
+    '[IDENTIFIER]',
+  ],
 ]
 
 describe('a token a line break split is still removed whole', () => {
@@ -914,5 +1004,37 @@ describe('a token a line break split is still removed whole', () => {
     ],
   ])('takes only the contact after %s', (_name, text, contact) => {
     expect(redacted(text)).toBe(replacing(text, contact, '[CONTACT]'))
+  })
+})
+
+/**
+ * What a line break through the middle of a word still leaves. Pinned so that
+ * closing one is a decision: a word in front of an email address
+ * (`wrote owner@example.com`) cannot be told from the first half of its local
+ * part, and a label split in two (`pa ssport`) is not a label.
+ */
+const BREAKS_THROUGH_A_WORD: ReadonlyArray<
+  readonly [name: string, raw: string, left: string]
+> = [
+  [
+    'a word of the local part of an email address',
+    'Write to joh\nn.smith@gmail.com please, thank you very much for the lovely week.',
+    'joh',
+  ],
+  [
+    'the label of a passport number',
+    'My pa\nssport X12345678 was checked at the lovely desk and the week was great.',
+    'X12345678',
+  ],
+  [
+    'the middle of an IPv6 address',
+    'Their server 200\n1:db8::1 was down all week and the staff were lovely about it.',
+    '200',
+  ],
+]
+
+describe('a line break through a word still leaves these pieces (known gaps)', () => {
+  it.each(BREAKS_THROUGH_A_WORD)('%s', (_name, raw, left) => {
+    expect(redactedRaw(raw)).toContain(left)
   })
 })

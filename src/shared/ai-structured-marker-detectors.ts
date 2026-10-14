@@ -96,7 +96,7 @@ const CARD_RE = /(?:^|[^\p{Nd}])((?:\p{Nd}[ -]?){12,18}\p{Nd})(?=$|[^\p{Nd}])/gu
 const IBAN_RE =
   /(?:^|[^A-Za-z0-9])([A-Za-z]{2}\d{2}(?:[ -]?[A-Za-z0-9]){11,30})(?=$|[^A-Za-z0-9])/gu
 const LABELLED_ID_RE =
-  /\b(?:passport|tax[ \t_-]*id|national[ \t_-]*id|government[ \t_-]*id|driver'?s?[ \t_-]*licen[cs]e|ssn|social[ \t_-]*security|account[ \t_-]*(?:id|number)|customer[ \t_-]*id)\b[ \t]*(?::|#|-)?[ \t]*[A-Za-z0-9][A-Za-z0-9._~-]{3,64}(?:[ \t]\d{3,10}(?![\p{L}\p{N}]))?/giu
+  /\b(?:passport|tax[ \t_-]*id|national[ \t_-]*id|government[ \t_-]*id|driver'?s?[ \t_-]*licen[cs]e|ssn|social[ \t_-]*security|account[ \t_-]*(?:id|number)|customer[ \t_-]*id)\b[ \t]*(?::|#|-)?[ \t]*(?:[A-Za-z0-9][A-Za-z0-9._~-]{3,64}(?:[ \t]\d{3,10}(?![\p{L}\p{N}]))?|[A-Za-z0-9]{1,3}[ \t](?=[A-Za-z]*\d)[A-Za-z0-9]{3,12}(?![\p{L}\p{N}]))/giu
 const POSTAL_LABEL_RE =
   /\b(?:postal[ \t_-]*code|postal|postcode|zip[ \t_-]*code|zip)\b[ \t]*(?::|#|-)?[ \t]*[A-Za-z0-9][A-Za-z0-9 -]{2,11}[A-Za-z0-9]\b/giu
 const KNOWN_SECRET_RE =
