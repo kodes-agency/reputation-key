@@ -74,6 +74,15 @@ fingerprint includes the binding, so its next claim answers `conflict`, the
 review is settled not analysable, and the reaper abandons the operation at its
 expiry, after which the reopen pass queues the review again.
 
+A change to these text rules is not an "analysis contract change" in the sense
+of ADR 0031 (which bumps the capability epoch and re-analyses eligible history):
+it changes what the next request sends, not the contract an analysis is stored
+under, so it leaves the capability epoch alone and reaches only the reviews that
+are analysed after it. If product wants the history analysed again under new
+rules, the epoch bump is the lever (it moves with a Merchant AI authorization
+transition, not a deploy); the options and their cost are listed in the pull
+request that carried the change.
+
 Changing what the canonicalizer produces is not a patch. The Review row stores a
 digest and a byte length of the canonical text (`ai_source_digest`,
 `ai_source_byte_length`), `readForAi` recomputes them from the raw row, and the
@@ -94,10 +103,35 @@ So a rule change needs a new text revision (`AI_SOURCE_TEXT_REVISION`) with:
 
 Revision 2 (2026-10-14) turns a line break or tab between two words into a space
 (revision 1 deleted it and fused the words) and replaces Unicode noncharacters
-with U+FFFD. Redactor and detector changes need none of this: they act on the
-next request and change no stored value. A review the redactor blocked stays
-settled as not analysable (`redaction_blocked` is not a reopen code,
-`review-analysis-reopen.ts`) until something gives it a new analysis sequence.
+with U+FFFD. Two things hold until a stored row is observed again (at most 25
+days): the text it serves is revision 1's although an operation records the
+current canonicalizer digest (the digest names the rules that produced the text
+only after the next observation), and a row that holds a noncharacter fails
+`encodeCanonicalAiReviewSource` where revision 1 let it through to the gateway
+schema, which refused it later. A quiet rewrite that lands while a review's
+analysis is executing makes the store refuse the result (`generation_changed`,
+receipt `obsolete`) and opens no sequence; the reaper fails the abandoned
+operation as `operation_ambiguous`, a code the reopen pass queues a review again
+on. Two inputs are still not handled: a text of 16 KB or more after NFKC
+and a lone surrogate. Either throws in the canonicalizer and fails the Property's
+snapshot page, and whether such a review is skipped or truncated is a product
+question.
+
+Redactor and detector changes need none of this: they act on the next request and
+change no stored value. A review the redactor blocked stays settled as not
+analysable (`redaction_blocked` is not a reopen code, `review-analysis-reopen.ts`)
+until something gives it a new analysis sequence.
+
+The address detector (`ai-address-markers.ts`) takes a house number, a street
+name and a street-type word, in two layouts: name first (`25 Main Street`,
+`7 oak lane`, `12 de la Rosa Street`) and street first, capitalised
+(`100 Boulevard Saint-Germain`, `8 Place de la Concorde`). It does not take, and
+`ai-redaction-ordinary-prose.test.ts` pins this, a street written after its
+number (`Main Street 25`), Bulgarian street words (`ул.`, `бул.`), a street word
+with no English type word (`rue`), or a street-first layout typed in lower case.
+It also reads a word glued to a full stop (`hotel.Staff`, `Dr.Smith`) as a
+domain, because nothing separates it from `example.Com`. Taking any of these is a
+change to the detectors' digest and a decision, not a patch.
 
 ## Runtime
 

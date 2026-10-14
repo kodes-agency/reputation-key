@@ -88,7 +88,7 @@ const PHONE_RE =
 const IP_TOKEN_RE =
   /(?:^|[^A-Fa-f0-9:.\[])((?:\[[A-Fa-f0-9:]+\]|[A-Fa-f0-9:.]{3,}))(?=$|[^A-Fa-f0-9:.\]])/gu
 const COORDINATE_RE =
-  /(?:^|[^\p{N}.+-])([+-]?(?:\d{1,3})\.\d{4,8}\s*,\s*[+-]?(?:\d{1,3})\.\d{4,8})(?=$|[^\p{N}.])/gu
+  /(?:^|[^\p{N}.+-])([+-]?(?:\d{1,3})\.\d{4,8}\s*,\s*[+-]?(?:\d{1,3})\.\d{4,8})(?=$|\.(?!\p{N})|[^\p{N}.])/gu
 const CARD_RE = /(?:^|[^\p{Nd}])((?:\p{Nd}[ -]?){12,18}\p{Nd})(?=$|[^\p{Nd}])/gu
 const IBAN_RE =
   /(?:^|[^A-Za-z0-9])([A-Za-z]{2}\d{2}(?:[ -]?[A-Za-z0-9]){11,30})(?=$|[^A-Za-z0-9])/gu
@@ -231,7 +231,8 @@ const DETECTOR_MANIFEST = Object.freeze({
     address: 256,
     secret: 256,
   }),
-  informalStreetExcludedWords: ADDRESS_MARKER_PROFILE.informalStreetExcludedWords,
+  addressWordLists: ADDRESS_MARKER_PROFILE.wordLists,
+  addressMaxLowerCaseNameWords: ADDRESS_MARKER_PROFILE.maxLowerCaseNameWords,
   validators: Object.freeze([
     'email-rfc-bounded-v1',
     'whatwg-http-domain-v1',
@@ -243,7 +244,7 @@ const DETECTOR_MANIFEST = Object.freeze({
     'luhn-v1',
     'iban-mod97-v1',
     'labelled-identifier-v1',
-    'postal-address-street-shape-v2',
+    'postal-address-street-shape-v3',
     'secret-entropy-v1',
   ]),
 })
