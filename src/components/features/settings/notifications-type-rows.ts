@@ -36,9 +36,10 @@ export const CATEGORY_COPY: Readonly<
     label: 'Workflow and collaboration',
     description: 'Assignments, notes, and reply updates.',
   },
-  // `recognition` carries goal results only (ADR 0046, amended 2026-09-22).
+  // `recognition` carries Goals only: monthly goal results (ADR 0046, amended
+  // 2026-09-22) and the Google rating goal's changes (amended 2026-10-14).
   recognition: {
     label: 'Goals',
-    description: 'Goal results for your properties.',
+    description: 'Goal results and Google rating goal changes for your properties.',
   },
 }

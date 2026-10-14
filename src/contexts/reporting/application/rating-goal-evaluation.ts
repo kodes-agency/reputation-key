@@ -11,11 +11,19 @@
 //      goal Google shows the target of is reached.
 // The write stores the tenth Google showed only when Google could be read,
 // and is applied only when it changes the row, onto the plan version it was
-// worked out on, and never over a newer evaluation (repository
-// .recordEvaluation). So the stored values stay the last ones seen: a later
-// evaluation can tell a tenth gained or lost, or a new status, from a repeat.
+// worked out on, never over a newer evaluation, and only onto the tenth, known
+// status and notice times it read (repository .recordEvaluation). So the
+// stored values stay the last ones seen: a later evaluation can tell a tenth
+// gained or lost, or a new status, from a repeat, and the notices it decides
+// (domain/rating-goal-notices.ts) are written once, with the row.
 
 import type { PropertyRatingGoal, RatingGoalStatus } from '../domain/rating-goal'
+import {
+  decideRatingGoalNotices,
+  type RatingGoalNotice,
+  type RatingGoalNoticeDecision,
+  type RatingGoalNoticeInput,
+} from '../domain/rating-goal-notices'
 import { climbStatus, keepStatus } from '../domain/rating-goal-status'
 import type {
   PropertyRatingGoalRepository,
@@ -88,36 +96,74 @@ export function evaluateRatingGoal(
   }
 }
 
+/** What the notices of an evaluation are worked out from, beside the goal. */
+export type RatingGoalNoticeFacts = Pick<RatingGoalNoticeInput, 'pace'>
+
+/** What an evaluation tells the goal's managers, against the goal as read. */
+export const evaluationNotices = (
+  goal: PropertyRatingGoal,
+  evaluation: RatingGoalEvaluation,
+  facts: RatingGoalNoticeFacts,
+  now: Date,
+): RatingGoalNoticeDecision =>
+  decideRatingGoalNotices({
+    goal,
+    evaluation: {
+      status: evaluation.status,
+      displayedTenths: evaluation.displayedTenths,
+      outcome: evaluation.outcome.kind,
+    },
+    ...facts,
+    now,
+  })
+
 export const evaluationWrite = (
   goal: PropertyRatingGoal,
   evaluation: RatingGoalEvaluation,
+  decision: RatingGoalNoticeDecision,
   now: Date,
 ): RatingGoalEvaluationWrite => ({
   organizationId: goal.organizationId,
   propertyId: goal.propertyId,
   goalId: goal.id,
   expectedVersion: goal.version,
+  expectedMark: {
+    displayedTenths: goal.lastEvaluation.displayedTenths,
+    knownStatus: goal.lastEvaluation.knownStatus,
+    belowPaceNoticedAt: goal.lastEvaluation.belowPaceNoticedAt,
+    cantReachNoticedAt: goal.lastEvaluation.cantReachNoticedAt,
+  },
   status: evaluation.status,
   displayedTenths: evaluation.displayedTenths,
+  knownStatus: decision.knownStatus,
+  belowPaceNoticedAt: decision.belowPaceNoticedAt,
+  cantReachNoticedAt: decision.cantReachNoticedAt,
   evaluatedAt: now,
   outcome: evaluation.outcome,
+  notices: decision.notices,
 })
 
 export type RecordedRatingGoal = Readonly<{
   goal: PropertyRatingGoal
   /** True when this evaluation changed the stored goal. */
   stored: boolean
+  /** What the managers are told: none unless this evaluation was stored. */
+  notices: readonly RatingGoalNotice[]
 }>
 
 function afterEvaluation(
   goal: PropertyRatingGoal,
   evaluation: RatingGoalEvaluation,
+  decision: RatingGoalNoticeDecision,
   now: Date,
 ): PropertyRatingGoal {
   const lastEvaluation = {
     status: evaluation.status,
     displayedTenths: evaluation.displayedTenths ?? goal.lastEvaluation.displayedTenths,
     evaluatedAt: now,
+    knownStatus: decision.knownStatus,
+    belowPaceNoticedAt: decision.belowPaceNoticedAt,
+    cantReachNoticedAt: decision.cantReachNoticedAt,
   }
   switch (evaluation.outcome.kind) {
     case 'continues':
@@ -137,17 +183,29 @@ function afterEvaluation(
 }
 
 /**
- * Stores an evaluation and returns the goal as it now stands. Nothing is
- * stored for a repeat, when another evaluation already took the terminal step
- * or stored a newer reading, or when a manager changed the plan since it was
- * read: the goal comes back as read, and the next evaluation decides again.
+ * Stores an evaluation, with the facts of the notices it raises, and returns
+ * the goal as it now stands. Nothing is stored and nobody is told for a
+ * repeat, when another evaluation already took the terminal step or stored a
+ * newer reading or the same change, or when a manager changed the plan since
+ * it was read: the goal comes back as read, and the next evaluation decides
+ * again.
  */
 export async function recordRatingGoalEvaluation(
   repository: Pick<PropertyRatingGoalRepository, 'recordEvaluation'>,
   goal: PropertyRatingGoal,
   evaluation: RatingGoalEvaluation,
+  facts: RatingGoalNoticeFacts,
   now: Date,
 ): Promise<RecordedRatingGoal> {
-  const stored = await repository.recordEvaluation(evaluationWrite(goal, evaluation, now))
-  return { goal: stored ? afterEvaluation(goal, evaluation, now) : goal, stored }
+  const decision = evaluationNotices(goal, evaluation, facts, now)
+  const stored = await repository.recordEvaluation(
+    evaluationWrite(goal, evaluation, decision, now),
+  )
+  return stored
+    ? {
+        goal: afterEvaluation(goal, evaluation, decision, now),
+        stored,
+        notices: decision.notices,
+      }
+    : { goal, stored, notices: [] }
 }

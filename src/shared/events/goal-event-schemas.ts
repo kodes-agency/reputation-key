@@ -5,6 +5,7 @@
 // state), so they live together, apart from the registration list.
 
 import { z } from 'zod/v4'
+import { registerEventSchema } from './schema-registry'
 
 const goalMonthlyResultBaseSchema = z
   .object({
@@ -44,7 +45,7 @@ const goalMonthlyResultBaseSchema = z
     }
   })
 
-export const goalMonthlyResultClosedSchema = goalMonthlyResultBaseSchema
+const goalMonthlyResultClosedSchema = goalMonthlyResultBaseSchema
   .safeExtend({ status: z.literal('closed') })
   .superRefine((payload, ctx) => {
     if (payload.evaluationState === 'updating') {
@@ -52,11 +53,11 @@ export const goalMonthlyResultClosedSchema = goalMonthlyResultBaseSchema
     }
   })
 
-export const goalMonthlyResultReconciledSchema = goalMonthlyResultBaseSchema.safeExtend({
+const goalMonthlyResultReconciledSchema = goalMonthlyResultBaseSchema.safeExtend({
   status: z.literal('reconciling'),
 })
 
-export const goalMonthlyResultRevisedSchema = goalMonthlyResultBaseSchema
+const goalMonthlyResultRevisedSchema = goalMonthlyResultBaseSchema
   .safeExtend({
     status: z.literal('closed'),
     revisionId: z.uuid(),
@@ -76,3 +77,76 @@ export const goalMonthlyResultRevisedSchema = goalMonthlyResultBaseSchema
       ctx.addIssue({ code: 'custom', message: 'result revision lineage is invalid' })
     }
   })
+
+// ── Property Google rating goal ─────────────────────────────────────
+
+const tenthSchema = z.number().int().min(0).max(50)
+
+/**
+ * `goal.rating_goal.transitioned`: one fact per notice a rating goal's
+ * evaluation raises (ADR 0067 decision 6). Closed enums and Property-level
+ * figures only: Google's shown tenth, the goal's target and pace, and the
+ * recent pace of new reviews. Never a figure RepKey works out from review
+ * ratings (an average, a mix). Each transition carries exactly the figures its
+ * notice states.
+ */
+const goalRatingGoalTransitionedSchema = z
+  .object({
+    organizationId: z.string().trim().min(1),
+    propertyId: z.uuid(),
+    goalId: z.uuid(),
+    transition: z.enum([
+      'reached',
+      'google_rating_changed',
+      'entered_below_pace',
+      'entered_cant_reach',
+      'keep_dropped_below',
+    ]),
+    mode: z.enum(['climb', 'keep']),
+    targetTenths: z.number().int().min(10).max(50),
+    shownTenths: tenthSchema.nullable(),
+    previousTenths: tenthSchema.nullable(),
+    pacePerWeek: z.number().int().min(1).max(200).nullable(),
+    recentPaceTenths: z.number().int().min(0).max(100_000).nullable(),
+    paceWindow: z.enum(['last_4_weeks', 'since_set']).nullable(),
+    occurredAt: z.iso.datetime(),
+  })
+  .superRefine((payload, ctx) => {
+    const needs: Readonly<Record<typeof payload.transition, readonly string[]>> = {
+      reached: ['shownTenths'],
+      google_rating_changed: ['shownTenths', 'previousTenths'],
+      entered_below_pace: ['pacePerWeek', 'recentPaceTenths', 'paceWindow'],
+      entered_cant_reach: [],
+      keep_dropped_below: ['shownTenths'],
+    }
+    const fields = payload as Readonly<Record<string, unknown>>
+    for (const field of needs[payload.transition]) {
+      if (fields[field] === null) {
+        ctx.addIssue({ code: 'custom', message: `${payload.transition} needs ${field}` })
+      }
+    }
+  })
+
+/** The Goal facts, registered together by ./schema-registrations.ts. */
+export function registerGoalEventSchemas(version: number): void {
+  registerEventSchema({
+    type: 'goal.monthly_result.closed',
+    version,
+    schema: goalMonthlyResultClosedSchema,
+  })
+  registerEventSchema({
+    type: 'goal.monthly_result.reconciled',
+    version,
+    schema: goalMonthlyResultReconciledSchema,
+  })
+  registerEventSchema({
+    type: 'goal.monthly_result.revised',
+    version,
+    schema: goalMonthlyResultRevisedSchema,
+  })
+  registerEventSchema({
+    type: 'goal.rating_goal.transitioned',
+    version,
+    schema: goalRatingGoalTransitionedSchema,
+  })
+}

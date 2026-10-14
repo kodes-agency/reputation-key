@@ -506,6 +506,28 @@
 // second route gate on `isBetaInteractiveRole` made that helper a 107 B chunk of
 // its own here; the page gates on `goal.read` alone, as the goal page does. The
 // budget moves to 308,400 B: the measurement plus about 300 B, to the nearest 100.
+// 2026-10-15 (Google rating goal notices): five notification types joined the
+// Goals category (rating goal reached, Google tenth gained, Google tenth lost,
+// below pace, can't reach). Fresh production builds of main (0795dbb43) and of
+// this change: 307,832 B (75 js + 1 css) -> 307,939 B (75 js + 1 css), +107 B.
+// The notification type tables carry the new types' names, categories and
+// delivery policy: `notification-filters` +38 B, `notification-delivery-policy`
+// +34 B and `notifications-type-rows` +13 B. The entry chunk +20 B names those
+// chunks. The other -1 to +2 B are chunks that changed by a byte or two,
+// because they name other chunks by their hashed file names. The five notice
+// templates, the consumers and the Goals evaluation stay on the server. The
+// measurement left 39 B over main's 307,900 B. The budget moves to 308,050 B:
+// the measurement plus 111 B, inside the +150 B the owner allowed for this
+// change. The owner's total for the rating goal work is +2 KB. The Goals card
+// and detail page used +500 B of it (307,900 -> 308,400 B on their branch); the
+// branch that lands second adds its own raise to the other's budget and records
+// its fresh measurement here.
+// 2026-10-15 (both rating goal branches on main): merging main (55ef1feda, the
+// notices #825 at 308,050 B) into the Goals card, wizard and detail page branch
+// measured 308,400 B (75 js + 1 css), exactly this branch's 308,400 B budget.
+// The two raises overlap (+378 B and +107 B on different bases). The budget
+// moves to 308,600 B so chunk-hash noise between builds cannot fail CI; with
+// this the rating goal work has used +700 B of the owner's +2 KB.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -517,7 +539,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 308_400, // raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
+  initialClosureGzip: 308_600, // raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 

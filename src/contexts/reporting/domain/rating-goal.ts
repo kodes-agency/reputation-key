@@ -57,6 +57,16 @@ export type RatingGoalEvaluationMark = Readonly<{
   displayedTenths: number | null
   status: RatingGoalStatus | null
   evaluatedAt: Date | null
+  /**
+   * The last status that was not waiting for Google, which a notice compares
+   * with (domain/rating-goal-notices.ts). Null until the goal knows one, and
+   * again after a manager changes the plan.
+   */
+  knownStatus: RatingGoalStatus | null
+  /** When the managers were last told the goal fell below pace. */
+  belowPaceNoticedAt: Date | null
+  /** When the managers were last told the goal can't be reached at the recent mix. */
+  cantReachNoticedAt: Date | null
 }>
 
 export type PropertyRatingGoal = RatingGoalPlan &

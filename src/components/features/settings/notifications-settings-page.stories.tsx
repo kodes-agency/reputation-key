@@ -176,7 +176,9 @@ export const GoalsAreConfigurable: Story = {
     const fieldset = heading.closest('fieldset')
     if (!fieldset) throw new Error('goal notification fieldset is missing')
     const row = within(fieldset)
-    expect(row.getByText('Goal results for your properties.')).toBeInTheDocument()
+    expect(
+      row.getByText('Goal results and Google rating goal changes for your properties.'),
+    ).toBeInTheDocument()
     expect(
       row.getByLabelText('In-app', { selector: '#recognition-in_app' }),
     ).toBeEnabled()

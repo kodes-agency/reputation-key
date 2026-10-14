@@ -49,15 +49,19 @@ describe('setting a rating goal', () => {
     ['a climb past the recent mix', { targetTenths: 48 }, 'cant_reach_at_mix'],
     ['a keep goal', { mode: 'keep', targetTenths: 43, pacePerWeek: null }, 'holding'],
   ] as const)(
-    'stores the tenth Google shows and the status %s starts in',
+    'stores the tenth Google shows and the status %s starts in, as known',
     async (_name, plan, status) => {
       await setRatingGoal(dependencies(world), { ...climb, ...plan }, actor)
 
-      // The first evaluation can then tell a tenth gained or lost since it was set.
+      // The first evaluation can then tell a tenth gained or lost since it was
+      // set, and a status entered since, without a notice for where it began.
       expect(world.goals[0]!.lastEvaluation).toEqual({
         displayedTenths: 43,
         status,
         evaluatedAt: NOW,
+        knownStatus: status,
+        belowPaceNoticedAt: null,
+        cantReachNoticedAt: null,
       })
     },
   )

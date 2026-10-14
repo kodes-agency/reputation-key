@@ -18,12 +18,19 @@
 //             ended (closed enum), an internal moderation reason
 //             (staff-authored; historical rows only), and whether the notice
 //             is a Low ratings one for its reader (`lowRating`: the outcome of
-//             the reader's own threshold, never the stars), and the one marker
+//             the reader's own threshold, never the stars), the one marker
 //             a Goal notice may carry about its month (`goalMarker`: a closed
-//             enum, never a date, a target or a person).
-//   FORBIDDEN Google/provider review ratings and content, reply text,
-//             guest/reviewer name, media URLs, sentiment or any derived score,
-//             and any other employee's NAME or email.
+//             enum, never a date, a target or a person), and the Property-level
+//             figures a Google rating goal notice states (`rating*`: the tenths
+//             Google shows for the Property now and before and the goal's
+//             target, the goal's mode and pace, and the recent pace of new
+//             reviews; the only rating figures are the tenths Google itself
+//             shows and the target, none RepKey works out from review
+//             ratings; ADR 0046, amended 2026-10-14).
+//   FORBIDDEN a Google/provider review's rating and any review content, reply
+//             text, guest/reviewer name, media URLs, sentiment or any other
+//             derived score (including an average RepKey works out from
+//             review ratings), and any other employee's NAME or email.
 //
 // `parseNotificationPayload` is the only way a payload enters the domain, and
 // it drops every unrecognised key. A new field must be added here AND to
@@ -181,7 +188,27 @@ export type NotificationPayload = Readonly<{
   unansweredCount?: number
   /** The import's closed failure reason; absent unless it failed. */
   importFailureReason?: NotificationImportFailureReason
+  /**
+   * The Google rating goal notices (`goal.rating_*`): Property-level figures
+   * only, never a review's rating. The tenth Google shows now (45 = 4.5), and
+   * before the change for `goal.rating_changed`.
+   */
+  ratingShownTenths?: number
+  ratingPreviousTenths?: number
+  /** The goal's target tenth, or the tenth a keep goal keeps. */
+  ratingTargetTenths?: number
+  ratingGoalMode?: NotificationRatingGoalMode
+  /** The goal's chosen pace, new Google reviews a week. */
+  ratingPacePerWeek?: number
+  /** New Google reviews a week in the pace window, in tenths, rounded down. */
+  ratingRecentPaceTenths?: number
+  ratingPaceWindow?: NotificationRatingPaceWindow
 }>
+
+export type NotificationRatingGoalMode = 'climb' | 'keep'
+
+/** Over which days a below-pace notice counted the reviews. */
+export type NotificationRatingPaceWindow = 'last_4_weeks' | 'since_set'
 
 export type NotificationImportOutcome = 'completed' | 'failed'
 
@@ -332,6 +359,10 @@ const PUBLISH_OUTCOMES: Record<string, true> = {
   unconfirmed: true,
 }
 
+const RATING_GOAL_MODES: Record<string, true> = { climb: true, keep: true }
+
+const RATING_PACE_WINDOWS: Record<string, true> = { last_4_weeks: true, since_set: true }
+
 /** Longest free-ish text we accept. Names, not prose. */
 const MAX_NAME_LENGTH = 120
 /** Staff-authored moderation reasons are capped before durable delivery. */
@@ -372,6 +403,12 @@ const takeInstant = (value: unknown): string | undefined => {
 /** `YYYY-MM`, a real calendar month. Anything else is dropped. */
 const takeMonthKey = (value: unknown): string | undefined =>
   typeof value === 'string' && /^\d{4}-(?:0[1-9]|1[0-2])$/.test(value) ? value : undefined
+
+/** An integer from `min` to `max`; anything else is dropped. */
+const takeIntegerIn = (value: unknown, min: number, max: number): number | undefined =>
+  typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
+    ? value
+    : undefined
 
 /** A real boolean only; "true", 1 and null are not flags. */
 const takeFlag = (value: unknown): boolean | undefined =>
@@ -486,7 +523,29 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
     )
   }
 
+  setRatingGoalFigures(raw, set)
+
   return parsed as NotificationPayload
+}
+
+/** The Google rating goal notices' figures, each in its own range. */
+function setRatingGoalFigures(
+  raw: RawPayload,
+  set: (key: keyof NotificationPayload, value: unknown) => void,
+): void {
+  set('ratingShownTenths', takeIntegerIn(raw.ratingShownTenths, 0, 50))
+  set('ratingPreviousTenths', takeIntegerIn(raw.ratingPreviousTenths, 0, 50))
+  set('ratingTargetTenths', takeIntegerIn(raw.ratingTargetTenths, 10, 50))
+  set(
+    'ratingGoalMode',
+    takeMember<NotificationRatingGoalMode>(raw.ratingGoalMode, RATING_GOAL_MODES),
+  )
+  set('ratingPacePerWeek', takeIntegerIn(raw.ratingPacePerWeek, 1, 200))
+  set('ratingRecentPaceTenths', takeIntegerIn(raw.ratingRecentPaceTenths, 0, 100_000))
+  set(
+    'ratingPaceWindow',
+    takeMember<NotificationRatingPaceWindow>(raw.ratingPaceWindow, RATING_PACE_WINDOWS),
+  )
 }
 
 /** True when the payload carries nothing worth persisting. */

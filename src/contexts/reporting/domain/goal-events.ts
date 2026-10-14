@@ -3,6 +3,12 @@
 import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
 import type { GoalMetricEvaluation } from './goal-program'
+import type { RatingGoalMode } from './rating-goal'
+import type {
+  RatingGoalNotice,
+  RatingGoalPaceWindowKind,
+  RatingGoalTransition,
+} from './rating-goal-notices'
 
 type GoalMonthlyResultEventArgs = Readonly<{
   organizationId: string
@@ -78,8 +84,36 @@ export type GoalMonthlyResultRevised = Readonly<{
   correlationId: string | null
 }>
 
+/**
+ * A Property's Google rating goal moved in a way its managers are told about
+ * (domain/rating-goal-notices.ts). Identifiers, closed enums and Property-level
+ * figures only (ADR 0030): Google's shown tenth, the goal's target and pace,
+ * and the recent pace of new reviews. Never a review, a review's rating or an
+ * average of review ratings.
+ */
+export type GoalRatingGoalTransitioned = Readonly<{
+  _tag: 'goal.rating_goal.transitioned'
+  eventId: string
+  organizationId: string
+  propertyId: string
+  goalId: string
+  transition: RatingGoalTransition
+  mode: RatingGoalMode
+  targetTenths: number
+  shownTenths: number | null
+  previousTenths: number | null
+  pacePerWeek: number | null
+  recentPaceTenths: number | null
+  paceWindow: RatingGoalPaceWindowKind | null
+  occurredAt: Date
+  correlationId: string | null
+}>
+
 export type GoalEvent =
-  GoalMonthlyResultClosed | GoalMonthlyResultReconciled | GoalMonthlyResultRevised
+  | GoalMonthlyResultClosed
+  | GoalMonthlyResultReconciled
+  | GoalMonthlyResultRevised
+  | GoalRatingGoalTransitioned
 
 function validateMonthlyResultEvent(
   args: GoalMonthlyResultEventArgs,
@@ -194,5 +228,41 @@ export const goalMonthlyResultRevised = (
     availabilityChanged: args.availabilityChanged,
     occurredAt: args.occurredAt,
     correlationId: args.correlationId ?? null,
+  }
+}
+
+type RatingGoalTransitionedArgs = Readonly<{
+  organizationId: string
+  propertyId: string
+  goalId: string
+  mode: RatingGoalMode
+  notice: RatingGoalNotice
+  occurredAt: Date
+}>
+
+/** The one fact per notice an evaluation stores, in the same transaction. */
+export const goalRatingGoalTransitioned = (
+  args: RatingGoalTransitionedArgs,
+): GoalRatingGoalTransitioned => {
+  assert(args.organizationId.trim().length > 0, 'rating goal organizationId required')
+  assert(args.propertyId.trim().length > 0, 'rating goal propertyId required')
+  assert(args.goalId.trim().length > 0, 'rating goal goalId required')
+  const { notice } = args
+  return {
+    _tag: 'goal.rating_goal.transitioned',
+    eventId: newEventId(),
+    organizationId: args.organizationId,
+    propertyId: args.propertyId,
+    goalId: args.goalId,
+    transition: notice.transition,
+    mode: args.mode,
+    targetTenths: notice.targetTenths,
+    shownTenths: 'shownTenths' in notice ? notice.shownTenths : null,
+    previousTenths: 'previousTenths' in notice ? notice.previousTenths : null,
+    pacePerWeek: 'pacePerWeek' in notice ? notice.pacePerWeek : null,
+    recentPaceTenths: 'recentPaceTenths' in notice ? notice.recentPaceTenths : null,
+    paceWindow: 'paceWindow' in notice ? notice.paceWindow : null,
+    occurredAt: args.occurredAt,
+    correlationId: null,
   }
 }

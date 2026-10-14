@@ -111,6 +111,13 @@ describe('parseNotificationPayload', () => {
       importedCount: 260,
       unansweredCount: 254,
       importFailureReason: 'google_authorization',
+      ratingShownTenths: 44,
+      ratingPreviousTenths: 43,
+      ratingTargetTenths: 45,
+      ratingGoalMode: 'climb',
+      ratingPacePerWeek: 11,
+      ratingRecentPaceTenths: 65,
+      ratingPaceWindow: 'last_4_weeks',
     }
 
     const parsed = parseNotificationPayload(everyField)
@@ -121,6 +128,47 @@ describe('parseNotificationPayload', () => {
         .filter((key) => key !== 'waitedHours')
         .sort(),
     )
+  })
+
+  it('keeps a rating goal notice’s figures only inside their ranges', () => {
+    expect(
+      parseNotificationPayload({
+        ratingShownTenths: 51,
+        ratingPreviousTenths: 4.4,
+        ratingTargetTenths: 9,
+        ratingGoalMode: 'hold',
+        ratingPacePerWeek: 0,
+        ratingRecentPaceTenths: -1,
+        ratingPaceWindow: 'last_week',
+      }),
+    ).toEqual({})
+    expect(
+      parseNotificationPayload({
+        ratingShownTenths: 0,
+        ratingTargetTenths: 50,
+        ratingGoalMode: 'keep',
+        ratingPacePerWeek: 200,
+        ratingRecentPaceTenths: 0,
+        ratingPaceWindow: 'since_set',
+      }),
+    ).toEqual({
+      ratingShownTenths: 0,
+      ratingTargetTenths: 50,
+      ratingGoalMode: 'keep',
+      ratingPacePerWeek: 200,
+      ratingRecentPaceTenths: 0,
+      ratingPaceWindow: 'since_set',
+    })
+  })
+
+  it('admits no average of review ratings, however a goal notice is built', () => {
+    expect(
+      parseNotificationPayload({
+        ratingTargetTenths: 45,
+        ratingAverageHundredths: 440,
+        recentAverage: 4.4,
+      }),
+    ).toEqual({ ratingTargetTenths: 45 })
   })
 
   // The whole point of the allowlist. If this test ever goes green with

@@ -635,6 +635,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
+    file: 'src/contexts/reporting/infrastructure/repositories/property-rating-goal.repository.ts',
+    symbol: 'listActiveGoalScopes',
+    reason:
+      "The daily rating goal evaluation intentionally lists active Property Google rating goals across tenants, a bounded page in goal id order, returning only each goal's id, Organization and Property; every goal is then authorized and evaluated under its own Organization and Property.",
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/review/infrastructure/repositories/publication-reconciliation-candidate.repository.ts',
     symbol: 'findAmbiguousCandidates',
     reason:
