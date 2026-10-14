@@ -315,6 +315,39 @@ export const NAME_CONNECTOR_WORDS: readonly string[] = Object.freeze([
 ])
 
 /**
+ * Street types beyond the thirteen the first detector knew (`12 Oak Close`, `5
+ * Rose Crescent`, `7 Elm Gardens`). Several are ordinary English words (`close`,
+ * `walk`, `row`, `square`), so a street ends in one only when it is written the
+ * way a proper name is: the type and every word of the name capitalised.
+ */
+export const EXTRA_STREET_TYPE_WORDS: readonly string[] = Object.freeze([
+  'alley',
+  'approach',
+  'cir',
+  'circle',
+  'close',
+  'cres',
+  'crescent',
+  'gardens',
+  'gdns',
+  'grove',
+  'highway',
+  'hwy',
+  'loop',
+  'mews',
+  'parkway',
+  'pkwy',
+  'plaza',
+  'row',
+  'sq',
+  'square',
+  'ter',
+  'terrace',
+  'trail',
+  'walk',
+])
+
+/**
  * Street-type words that are also everyday words, and so how strictly a
  * lower-case name before them is judged. A great PLACE and a 2 bedroom PLACE are
  * praise and a count; a 3 day DRIVE and a 10 mile DRIVE are a count; `all the
@@ -322,12 +355,16 @@ export const NAME_CONNECTOR_WORDS: readonly string[] = Object.freeze([
  * is rarely any of those, and nobody writes `pl` or `dr` for the everyday word,
  * so `12 love lane`, `3 star court` and `12 mile dr` are addresses.
  */
-export const EVALUATIVE_STREET_TYPES: readonly string[] = Object.freeze(['place'])
+export const EVALUATIVE_STREET_TYPES: readonly string[] = Object.freeze([
+  'place',
+  ...EXTRA_STREET_TYPE_WORDS,
+])
 export const UNIT_STREET_TYPES: readonly string[] = Object.freeze(['drive', 'place'])
 export const CLAUSE_STREET_TYPES: readonly string[] = Object.freeze([
   'drive',
   'way',
   'place',
+  ...EXTRA_STREET_TYPE_WORDS,
 ])
 
 /**
@@ -517,6 +554,180 @@ export const NAME_PREPOSITION_WORDS: readonly string[] = Object.freeze([
   'upon',
 ])
 
+/**
+ * A number written after a street is a count, not a house number, when one of
+ * these follows it: `Station Road 2 stops`, `Main Street 3 am`, `10 out of 10`.
+ */
+export const COUNT_FOLLOWER_WORDS: readonly string[] = Object.freeze([
+  'am',
+  'o',
+  'out',
+  'pm',
+  'stop',
+  'stops',
+])
+
+/**
+ * Street-type words of other languages that are typed in lower case before the
+ * name (`12 rue de la Paix`). `via` is left out: it is an English preposition
+ * (`50 via PayPal`), and is read only as `Via Roma`.
+ */
+export const FOREIGN_LOWER_CASE_TYPE_WORDS: readonly string[] = Object.freeze([
+  'allee',
+  'allée',
+  'avenida',
+  'calle',
+  'camino',
+  'carrer',
+  'chemin',
+  'corso',
+  'paseo',
+  'piazza',
+  'plac',
+  'quai',
+  'rua',
+  'rue',
+  'strada',
+  'ul',
+  'ulica',
+  'viale',
+])
+
+/** Particles inside the name of a street of another language. */
+export const FOREIGN_NAME_PARTICLE_WORDS: readonly string[] = Object.freeze([
+  'al',
+  'da',
+  'das',
+  'de',
+  'dei',
+  'del',
+  'della',
+  'dello',
+  'den',
+  'der',
+  'des',
+  'di',
+  'do',
+  'dos',
+  'du',
+  'e',
+  'el',
+  'het',
+  'la',
+  'le',
+  'les',
+  'van',
+  'von',
+  'y',
+])
+
+/**
+ * Words that may stand in the value of an address label though they are not
+ * capitalised names: the labels of a number (`No.`, `house`, `flat`) and the
+ * abbreviations of an address (`str.`, `ul.`, `rd`).
+ */
+export const LABEL_QUALIFIER_WORDS: readonly string[] = Object.freeze([
+  'ap',
+  'apartment',
+  'apt',
+  'ave',
+  'bl',
+  'block',
+  'blvd',
+  'cad',
+  'dr',
+  'ent',
+  'entrance',
+  'et',
+  'flat',
+  'floor',
+  'haus',
+  'house',
+  'hs',
+  'n°',
+  'no',
+  'nr',
+  'nº',
+  'pl',
+  'rd',
+  'sk',
+  'sq',
+  'st',
+  'str',
+  'ul',
+  '№',
+])
+
+/**
+ * Capitalised words that end the value of an address label: the sentence that
+ * follows the address (`We loved it`, `Great hotel`), not part of it.
+ */
+export const LABEL_STOP_WORDS: readonly string[] = Object.freeze([
+  'also',
+  'amazing',
+  'and',
+  'are',
+  'awesome',
+  'best',
+  'but',
+  'clean',
+  'excellent',
+  'fantastic',
+  'good',
+  'great',
+  'he',
+  'here',
+  'i',
+  'is',
+  'it',
+  'love',
+  'loved',
+  'lovely',
+  'my',
+  'nice',
+  'our',
+  'perfect',
+  'quiet',
+  'she',
+  'so',
+  'thank',
+  'thanks',
+  'that',
+  'their',
+  'there',
+  'they',
+  'this',
+  'very',
+  'was',
+  'we',
+  'were',
+  'wonderful',
+  'you',
+])
+
+/**
+ * Generic nouns of a hotel stay and street words: not the whole name of a street
+ * in front of a street word (`Hotel Drive 2 beach`, `Boulevard Plaza 3`).
+ */
+export const GENERIC_NAME_WORDS: readonly string[] = Object.freeze([
+  'apartment',
+  'apartments',
+  'avenue',
+  'beach',
+  'boulevard',
+  'hostel',
+  'hotel',
+  'motel',
+  'pool',
+  'resort',
+  'restaurant',
+  'road',
+  'room',
+  'rooms',
+  'street',
+  'suite',
+])
+
 /** House numbers a guest writes out, for `Twelve Oak Road`. */
 export const NUMBER_WORDS: readonly string[] = Object.freeze([
   'one',
@@ -568,3 +779,6 @@ export const ABBREVIATIONS: ReadonlySet<string> = new Set(LOWER_CASE_ABBREVIATIO
 export const ADDRESS_LEADS: ReadonlySet<string> = new Set(ADDRESS_LEAD_WORDS)
 export const ADDRESS_LABELS: ReadonlySet<string> = new Set(ADDRESS_LABEL_WORDS)
 export const NAME_PREPOSITIONS: ReadonlySet<string> = new Set(NAME_PREPOSITION_WORDS)
+export const EXTRA_STREET_TYPES: ReadonlySet<string> = new Set(EXTRA_STREET_TYPE_WORDS)
+export const COUNT_FOLLOWERS: ReadonlySet<string> = new Set(COUNT_FOLLOWER_WORDS)
+export const GENERIC_NAMES: ReadonlySet<string> = new Set(GENERIC_NAME_WORDS)

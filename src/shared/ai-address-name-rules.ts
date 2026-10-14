@@ -27,6 +27,10 @@
 
 import {
   ABBREVIATIONS,
+  ADDRESS_LABELS,
+  ADDRESS_LEADS,
+  COUNT_LEADS,
+  RATING_LEADS,
   CLAUSE_TYPES,
   CONNECTORS,
   DETERMINERS,
@@ -92,6 +96,36 @@ export type NumberLead = Readonly<{
 }>
 
 export const NO_LEAD: NumberLead = { rating: false, count: false, address: false }
+
+/** The word in front of a number. */
+const WORD_BEFORE_RE = /([\p{L}.]+)[ \t]*[:=–-]?[ \t]*$/u
+const LEAD_LOOKBEHIND_SCALARS = 48
+const ADDRESS_LABEL_REACH = 3
+
+/** The words just before `start`, nearest last, at most `count` of them. */
+function wordsBefore(text: string, start: number, count: number): readonly string[] {
+  const window = text.slice(Math.max(0, start - LEAD_LOOKBEHIND_SCALARS), start)
+  return (window.match(/[\p{L}.]+/gu) ?? [])
+    .slice(-count)
+    .map((word) => word.toLowerCase())
+}
+
+/** What stands in front of the number at `start`: `10/10`, `Top 10`, `a 5`, `at 12`. */
+export function leadOf(text: string, start: number): NumberLead {
+  if (start < 0) return NO_LEAD
+  if (text[start - 1] === '/') return { rating: true, count: false, address: false }
+  const found = WORD_BEFORE_RE.exec(text.slice(Math.max(0, start - 16), start))
+  const word = (found?.[1] ?? '').toLowerCase()
+  return {
+    rating: RATING_LEADS.has(word),
+    count: COUNT_LEADS.has(word),
+    address:
+      ADDRESS_LEADS.has(word) ||
+      wordsBefore(text, start, ADDRESS_LABEL_REACH).some((label) =>
+        ADDRESS_LABELS.has(label),
+      ),
+  }
+}
 
 function bareOf(word: string): string {
   return word.toLowerCase().replace(/\.$/u, '')
@@ -283,6 +317,24 @@ function carriesCount(bare: readonly string[]): boolean {
   )
 }
 
+/**
+ * Whether a word of the name is an everyday word: a unit, a span of time, praise
+ * or glue. A number written out is a house number only before a name without
+ * one (`Twelve Oak Road`, not `Five Star Place` or `One Way Street`).
+ */
+export function hasEverydayWord(words: readonly string[]): boolean {
+  return words
+    .map(bareOf)
+    .some(
+      (word) =>
+        isCounted(word) ||
+        SOFT_UNITS.has(word) ||
+        EVALUATIVES.has(word) ||
+        WEAK_GLUE.has(word) ||
+        STRONG_GLUE.has(word),
+    )
+}
+
 /** Whether the words between the number and the street-type word read as prose. */
 export function rejectsName(shape: NameShape): boolean {
   const bare = shape.words.map(bareOf)
@@ -317,5 +369,7 @@ export const ADDRESS_NAME_RULE_PROFILE = Object.freeze({
   plainConnectors: Object.freeze([...PLAIN_CONNECTORS].sort()),
   maxPlainNameWords: MAX_PLAIN_NAME_WORDS,
   maxAddressLeadNameWords: MAX_ADDRESS_LEAD_NAME_WORDS,
+  leadLookbehindScalars: LEAD_LOOKBEHIND_SCALARS,
+  addressLabelReach: ADDRESS_LABEL_REACH,
   namePrepositions: Object.freeze([...NAME_PREPOSITIONS].sort()),
 })

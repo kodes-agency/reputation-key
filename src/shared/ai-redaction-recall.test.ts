@@ -312,3 +312,240 @@ describe('a lower-case street with an everyday word is replaced after at or a la
     expect(out).toBe(text.replace('12 Oak Road', '[ADDRESS]'))
   })
 })
+
+/** A review long enough that main refused it whenever it held a digit and a street word. */
+const LONG_REVIEW_LEAD =
+  'We stayed for 3 nights in July with our two kids and everything went smoothly. The room was clean, the breakfast was fresh and varied, the staff were very helpful with the luggage, and the pool was warm every afternoon. We would happily come back next year.'
+
+function inShortReview(clause: string): string {
+  return `The room was quiet, the breakfast was fresh and the staff were kind. ${clause} We would gladly come back with our friends next summer.`
+}
+
+function inLongReview(clause: string): string {
+  return `${LONG_REVIEW_LEAD} ${clause}`
+}
+
+const REVIEW_FRAMES: ReadonlyArray<readonly [string, (clause: string) => string]> = [
+  ['a short review', inShortReview],
+  ['a long review', inLongReview],
+]
+
+/**
+ * Main refused every review over 256 characters that held a digit and one of
+ * thirteen street words, so each of these layouts was withheld from the provider
+ * in a long review by accident and, in a short one, was never read. Each is read
+ * on purpose now.
+ */
+const NUMBER_LAST_LAYOUTS: readonly Shape[] = [
+  ['a flat after a slash', 'Meet us at (Oak Road 12/3) please.', 'Oak Road 12/3'],
+  [
+    'a number in brackets with a label',
+    'Address: Oak Road (no. 12).',
+    'Oak Road (no. 12)',
+  ],
+  [
+    'house and a number',
+    'Address: Oak Road, house 12 Sofia 1000',
+    'Oak Road, house 12 Sofia 1000',
+  ],
+  ['a number with a label and a colon', 'Street: Oak Road, No: 12', 'Oak Road, No: 12'],
+  [
+    'a number written out ending a list item',
+    '- Oak Street twelve - free parking',
+    'Oak Street twelve',
+  ],
+  ['house nr.', 'Address: Oak Road house nr. 12.', 'Oak Road house nr. 12'],
+  [
+    'a lower-case street and a number',
+    'Address: oak road 12 Sofia 1000',
+    'oak road 12 Sofia 1000',
+  ],
+  ['N°', '- Oak Road N° 12 - free parking', 'Oak Road N° 12'],
+  ['an ordinal house', 'Address: Oak Road, 12th house.', 'Oak Road, 12th house'],
+  [
+    'a lower-case street in a sentence',
+    'We met at main street 25 near the station.',
+    'main street 25',
+  ],
+  ['a lower-case abbreviation', 'We stayed on oak rd 12 for a week.', 'oak rd 12'],
+]
+
+describe.each(REVIEW_FRAMES)('a number-last layout is replaced in %s', (_frame, wrap) => {
+  it.each(NUMBER_LAST_LAYOUTS)('%s', (_name, clause, personal) => {
+    const text = wrap(clause)
+    expect(redacted(text)).toBe(replacing(text, personal, '[ADDRESS]'))
+  })
+})
+
+/** Street types beyond the thirteen, written the way a proper name is. */
+const OTHER_ENGLISH_TYPES: readonly Shape[] = [
+  ['Close', 'The flat at 12 Oak Close was cosy.', '12 Oak Close'],
+  ['Crescent', 'Our host lives at 5 Rose Crescent in the old town.', '5 Rose Crescent'],
+  ['Gardens', 'We stayed at 7 Elm Gardens last month.', '7 Elm Gardens'],
+  ['Square', 'We stayed at 14 Victoria Square last month.', '14 Victoria Square'],
+  ['Parkway', 'We stayed at 55 Ocean Parkway last month.', '55 Ocean Parkway'],
+  ['Terrace', 'We stayed at 742 Evergreen Terrace last month.', '742 Evergreen Terrace'],
+  ['Grove', 'We stayed at 18 Willow Grove last month.', '18 Willow Grove'],
+  ['Circle', 'We stayed at 9 Cedar Circle last month.', '9 Cedar Circle'],
+  ['Walk', 'We stayed at 61 Hawthorn Walk last month.', '61 Hawthorn Walk'],
+  ['Trail', 'We stayed at 100 Lakeview Trail last month.', '100 Lakeview Trail'],
+  ['Loop', 'We stayed at 1 Infinite Loop last month.', '1 Infinite Loop'],
+  ['Hwy', 'We stayed at 88 Harbour Hwy last month.', '88 Harbour Hwy'],
+  ['Mews', 'We stayed at 20 Rose Mews last month.', '20 Rose Mews'],
+  ['Approach', 'We stayed at 6 Station Approach last month.', '6 Station Approach'],
+  ['Alley', 'We stayed at 3 Pine Alley last month.', '3 Pine Alley'],
+  ['Plaza', 'We stayed at 4 Palm Plaza last month.', '4 Palm Plaza'],
+  ['Pkwy', 'We stayed at 9 Cedar Pkwy last month.', '9 Cedar Pkwy'],
+  ['Row', 'We stayed at 2 Abbey Row last month.', '2 Abbey Row'],
+  ['a type that is its own street', 'The shop at 50 Broadway was fine.', '50 Broadway'],
+  ['Close, number last', 'We found Oak Close 12 easily.', 'Oak Close 12'],
+]
+
+describe.each(REVIEW_FRAMES)(
+  'an English street type beyond thirteen in %s',
+  (_frame, wrap) => {
+    it.each(OTHER_ENGLISH_TYPES)('%s', (_name, clause, personal) => {
+      const text = wrap(clause)
+      expect(redacted(text)).toBe(replacing(text, personal, '[ADDRESS]'))
+    })
+  },
+)
+
+describe('the street types that are everyday words stay prose in lower case', () => {
+  it.each([
+    'We had 3 close friends with us all week.',
+    'There was a nice walk to the beach, 2 walk paths in the park.',
+    'It is a 10 minute walk from the station.',
+    'We booked 2 rooms on the square and 4 rows of loungers by the pool.',
+    'Top 10 Best Terrace Restaurants in Sofia, honestly.',
+  ])('%s', (text) => {
+    expect(redacted(text)).toBe(text)
+  })
+})
+
+/** Streets of other languages, with the type before the name or at its end. */
+const FOREIGN_STREETS: readonly Shape[] = [
+  ['rue', 'It was at 12 rue de la Paix near the river.', '12 rue de la Paix'],
+  [
+    'rue in lower case with a lower-case name',
+    'We stayed at 16 rue de rivoli last week.',
+    '16 rue de rivoli',
+  ],
+  [
+    'Rue with a capital',
+    'We stayed at 5 Rue Victor Hugo last week.',
+    '5 Rue Victor Hugo',
+  ],
+  ['calle', 'Calle Mayor 5 was easy to find.', 'Calle Mayor 5'],
+  [
+    'calle with the number first',
+    'We stayed at 5 Calle Mayor last week.',
+    '5 Calle Mayor',
+  ],
+  ['via', 'We stayed at Via Roma 10 for a week.', 'Via Roma 10'],
+  [
+    'rua with a particle',
+    'We stayed at Rua das Flores 23 for a week.',
+    'Rua das Flores 23',
+  ],
+  ['strada', 'We stayed at Strada Victoriei 12 for a week.', 'Strada Victoriei 12'],
+  ['Straße', 'We found Hauptstraße 12 easily.', 'Hauptstraße 12'],
+  ['strasse', 'We found Pestalozzistrasse 3 easily.', 'Pestalozzistrasse 3'],
+  ['straat', 'We found Hoofdstraat 12 easily.', 'Hoofdstraat 12'],
+  ['gatan', 'We found Kungsgatan 12 easily.', 'Kungsgatan 12'],
+  ['gata', 'We found Storgata 12 easily.', 'Storgata 12'],
+  ['gade', 'We found Nørregade 12 easily.', 'Nørregade 12'],
+  ['Caddesi', 'We found Atatürk Caddesi No: 5 easily.', 'Atatürk Caddesi No: 5'],
+  ['ut', 'We found Andrassy ut 12 easily.', 'Andrassy ut 12'],
+]
+
+describe.each(REVIEW_FRAMES)('a street of another language in %s', (_frame, wrap) => {
+  it.each(FOREIGN_STREETS)('%s', (_name, clause, personal) => {
+    const text = wrap(clause)
+    expect(redacted(text)).toBe(replacing(text, personal, '[ADDRESS]'))
+  })
+})
+
+/** The address after a label, whatever the language of its street. */
+const LABELLED_ADDRESSES: readonly Shape[] = [
+  ['no type word', 'Address: Karlova 12.', 'Karlova 12'],
+  ['a Greek street', 'Address: Vasilissis Sofias 12.', 'Vasilissis Sofias 12'],
+  [
+    'a postcode and a city',
+    'Address: Karlova 12, 110 00 Praha 1.',
+    'Karlova 12, 110 00 Praha 1',
+  ],
+  ['a label with a different spelling', 'Adresse: Karlova 12 Praha.', 'Karlova 12 Praha'],
+  ['a Bulgarian label', 'Адрес: Витоша 25 София.', 'Витоша 25 София'],
+]
+
+describe.each(REVIEW_FRAMES)('the address after a label in %s', (_frame, wrap) => {
+  it.each(LABELLED_ADDRESSES)('%s', (_name, clause, personal) => {
+    const text = wrap(clause)
+    expect(redacted(text)).toBe(replacing(text, personal, '[ADDRESS]'))
+  })
+
+  it.each([
+    'Address: easy to find, 5 min from the beach.',
+    'Address: perfect location! Rooms: clean.',
+    'The address was in the booking confirmation and check-in was at 3 pm.',
+    'Address: Sofia.',
+  ])('leaves a label with prose after it alone: %s', (clause) => {
+    const text = wrap(clause)
+    expect(redacted(text)).toBe(text)
+  })
+})
+
+/**
+ * Prose that the layouts added for recall (the number last, a number written
+ * out, the street word first, Bulgarian street words) took for an address in the
+ * first version of this repair. Main left every one alone.
+ */
+const PROSE_THE_NEW_LAYOUTS_LEAVE_ALONE: ReadonlyArray<readonly [string, string]> = [
+  ['praise and a rating out of ten', 'Great Place 10 out of 10'],
+  ['praise in lower case and a rating', 'Great place 10 out of 10'],
+  ['praise, a rating and more praise', 'Awesome Place 10 and a great pool'],
+  ['best way and a digit for to', 'Best Way 2 travel is by train'],
+  ['best way and a rank', 'Best Way 1 to go.'],
+  ['best place for families', 'Best place 4 families.'],
+  ['top place and a rank', 'Top place 1 in town.'],
+  ['a quiet street at three a.m.', 'Quiet street 3 am at night'],
+  ['a road and stops', 'Take Station Road 2 stops from here.'],
+  ['a street and hours', 'Main Street 24h parking is free.'],
+  ['a hotel, a drive and a digit for to', 'Hotel Drive 2 beach was easy.'],
+  ['rated great place', 'Rated Great Place 9 by guests'],
+  ['nice way to relax', 'Nice way 2 relax'],
+  ['excellent place and a score', 'Excellent Place 10'],
+  ['wonderful place and a score', 'Wonderful Place 9 and cheap.'],
+  ['great street and a rating', 'Great Street 8 rating.'],
+  ['a number written out and a star place', 'Five Star Place to stay, honestly.'],
+  ['a number written out and a bedroom place', 'Two Bedroom Place with a view.'],
+  ['a number written out and a day drive', 'Three Day Drive from the capital was fine.'],
+  [
+    'a number written out and a one way street',
+    'One Way Street signs everywhere in the old town.',
+  ],
+  ['a number written out and a star court', 'Four Star Court Hotel was lovely.'],
+  [
+    'a number written out and a day drive along the coast',
+    'Seven Day Drive along the coast.',
+  ],
+  ['a number written out and a lane road', 'Twenty Lane Road to the beach.'],
+  ['a number written out and a two way street', 'Two Way Street for sure, they listen.'],
+  ['a number written out and a day place', 'One Day Place Visit worth it.'],
+  ['a number written out and a mile drive', 'Nine Mile Drive was fun.'],
+  ['a street word first and a hotel', 'Avenue Hotel 5 was lovely.'],
+  ['a street word first and a song', 'Ave Maria 2 and another song.'],
+  ['a street word first and mats', 'Place Mats 4 pieces.'],
+  ['a street word first and a plaza', 'Boulevard Plaza 3 was great.'],
+  ['a street word first and settings', 'Place Settings 12 were nice.'],
+  ['a Bulgarian street word and free', 'ул. Красива маса 2 безплатни'],
+  ['a Bulgarian street word and a rating', 'бул. работа 10 от 10'],
+  ['a Bulgarian square word and coffee', 'пл. Кофе 3 без захар'],
+]
+
+describe('the layouts added for recall leave this prose alone', () => {
+  it.each(PROSE_THE_NEW_LAYOUTS_LEAVE_ALONE)('%s', (_name, text) => {
+    expect(redacted(inShortReview(text), 'BG')).toBe(inShortReview(text))
+  })
+})

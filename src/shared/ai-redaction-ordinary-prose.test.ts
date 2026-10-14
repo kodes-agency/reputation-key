@@ -324,13 +324,23 @@ describe('the connector words of a street name', () => {
  */
 const NOT_DETECTED_ADDRESSES: ReadonlyArray<readonly [string, string, string]> = [
   [
-    'a street word with no English type word',
-    'We stayed at 16 rue de rivoli last week.',
+    'a street of another language with no type word and no label',
+    'We stayed at Karlova 12 last week.',
     'US',
   ],
   [
-    'a street written after its number in lower case',
-    'We met at main street 25 near the station.',
+    'a lower-case name with an everyday word and nothing that introduces the address',
+    'If you come by car, 7 wonderful place is right by the church.',
+    'US',
+  ],
+  [
+    'a lower-case name that is a function word',
+    'We stayed at 12 not road last month.',
+    'US',
+  ],
+  [
+    'a lower-case name that is a plural span of time',
+    'We stayed at 12 weeks place last month.',
     'US',
   ],
 ]

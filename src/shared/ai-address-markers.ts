@@ -21,9 +21,12 @@
 // - STREET FIRST: the number, a street-type word, the name (`100 Boulevard
 //   Saint-Germain`, `8 Place de la Concorde`, `100 boulevard haussmann`), or
 //   the street-type word, the name and the number (`Pl. de Catalunya 5`).
-// - NUMBER LAST: a capitalised name and a street-type word, then the number
-//   (`Main Street 25`, `Baker Street 221B`, `High Street, 12`, `Station Road
-//   no. 5`).
+// - NUMBER LAST (`ai-address-number-last.ts`): the name and the street-type
+//   word, then the number (`Main Street 25`, `Baker Street 221B`, `Oak Road
+//   (no. 12)`).
+// - OTHER LANGUAGES, own-type streets and the address after a label
+//   (`ai-foreign-address-markers.ts`): `12 rue de la Paix`, `Hauptstraße 12`,
+//   `50 Broadway`, `Address: Karlova 12`.
 // - BULGARIAN: `ул.`, `бул.` or `пл.`, the name and the number, with a
 //   district before it (`ж.к. Лозенец, ул. Златоврах 5`).
 //
@@ -37,22 +40,23 @@
 // words that are everyday words themselves (`lane`, `drive`, `way`, `court`,
 // `place`), no counted unit and no praise.
 //
-// Not detected, before or after: a street written after its number in lower
-// case (`main street 25`), street words in other languages (`rue`, `calle`,
-// `Straße`), and a street first typed in lower case with `place` and no
-// particle (`10 place to stay`, which is prose).
+// Not detected: a street first typed in lower case with `place` and no particle
+// (`10 place to stay`, which is prose), a street of another language with no
+// type word and no label (`Karlova 12`), and a lower-case name that holds an
+// everyday word when nothing introduces the address (`7 wonderful place`).
 
 import {
   ADDRESS_LABEL_WORDS,
-  ADDRESS_LABELS,
   ADDRESS_LEAD_WORDS,
-  ADDRESS_LEADS,
   CONNECTORS,
   EVALUATIVE_WORDS,
   CLAUSE_STREET_TYPES,
-  COUNT_LEADS,
   COUNT_LEAD_WORDS,
   DETERMINER_WORDS,
+  COUNT_FOLLOWER_WORDS,
+  EXTRA_STREET_TYPES,
+  EXTRA_STREET_TYPE_WORDS,
+  GENERIC_NAME_WORDS,
   EVALUATIVE_STREET_TYPES,
   LONE_NAME_WORDS,
   UNIT_STREET_TYPES,
@@ -63,9 +67,7 @@ import {
   PLACE_PREPOSITION_WORDS,
   QUANTITIES,
   QUANTITY_WORDS,
-  RATING_LEADS,
   RATING_LEAD_WORDS,
-  SOFT_UNITS,
   SOFT_UNIT_WORDS,
   STRONG_GLUE,
   STRONG_GLUE_WORDS,
@@ -76,8 +78,9 @@ import {
 import {
   ADDRESS_NAME_RULE_PROFILE,
   FOREIGN_CONNECTORS,
+  hasEverydayWord,
+  leadOf,
   LOWER_NAME_WORD_RE,
-  NO_LEAD,
   OPEN_STREET_TYPES,
   PLAIN_CONNECTORS,
   endsSentence,
@@ -85,18 +88,29 @@ import {
   rejectsName,
   shapeOf,
   type NameShape,
-  type NumberLead,
 } from './ai-address-name-rules'
+import {
+  findForeignAddressMarkers,
+  FOREIGN_ADDRESS_PROFILE,
+} from './ai-foreign-address-markers'
+import { findNumberLast, NUMBER_LAST_PROFILE } from './ai-address-number-last'
+import {
+  NUMBER_FOLLOWER_LOOKAHEAD_SCALARS,
+  endsClause,
+  POSTAL_TAIL_RE,
+  WORD_AFTER_RE,
+  followedByQuantity,
+  tokensOf,
+  withPostalTail,
+  wordsOf,
+  type AddressMarkerSpan,
+  type Token,
+} from './ai-address-spans'
 
-export type AddressMarkerSpan = Readonly<{ start: number; end: number }>
+export type { AddressMarkerSpan }
 
 const MAX_STREET_FIRST_NAME_WORDS = 4
-const MAX_NUMBER_LAST_NAME_WORDS = 4
-const NUMBER_LAST_LOOKBEHIND_SCALARS = 96
 const NUMBER_FIRST_LOOKBEHIND_SCALARS = 24
-const NUMBER_FOLLOWER_LOOKAHEAD_SCALARS = 24
-const LEAD_LOOKBEHIND_SCALARS = 48
-const ADDRESS_LABEL_REACH = 3
 
 /*
  * Candidate repetitions are bounded ({1,6}, {1,5}, {0,3}) and every repeated unit
@@ -113,7 +127,7 @@ const ADDRESS_LABEL_REACH = 3
  * shape of the words is judged in code, so this only finds the candidates.
  */
 const NAME_FIRST_RE =
-  /(?<!\p{N}[.,:])(?<![$€£])\b(\d{1,8}(?:[A-Za-z](?!\p{L}))?)([ \t]+|[ \t]*[,;–-][ \t]*|(?=\p{L}))((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,8})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)\b/giu
+  /(?<!\p{N}[.,:])(?<![$€£])\b(\d{1,8}(?:[A-Za-z](?!\p{L}))?)([ \t]+|[ \t]*[,;–-][ \t]*|(?=\p{L}))((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,8})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|close|crescent|cres|gardens|gdns|square|sq|parkway|pkwy|terrace|ter|grove|circle|cir|walk|trail|loop|highway|hwy|mews|approach|alley|plaza|row)\b/giu
 /**
  * A number written out, one to five name words, a street-type word. The number
  * words are spelled out here because a pattern that took any first word would
@@ -129,54 +143,31 @@ const SPELLED_FIRST_RE =
  * `place`, as a clause, and then up to `Road`, as the address it holds.
  */
 const NAME_FIRST_REREAD_RE =
-  /^([ \t]+|[ \t]*[,;–-][ \t]*|(?=\p{L}))((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,8})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)\b/iu
+  /^([ \t]+|[ \t]*[,;–-][ \t]*|(?=\p{L}))((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,8})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl|close|crescent|cres|gardens|gdns|square|sq|parkway|pkwy|terrace|ter|grove|circle|cir|walk|trail|loop|highway|hwy|mews|approach|alley|plaza|row)\b/iu
 const SPELLED_FIRST_REREAD_RE =
   /^([ \t]+)((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,5})(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)\b/iu
 /** Street first: the street-type word, then up to five words of its name. */
 const STREET_FIRST_RE =
   /(?<![\p{L}\p{M}])(avenue|ave|boulevard|blvd|place|pl)\b\.?((?:[ \t]+(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)){1,5})/giu
-/** Number last: the street-type word and the number after it. */
-const NUMBER_LAST_RE =
-  /(?<![\p{L}\p{M}])(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)\b(\.?)[ \t]*[,;]?[ \t]*(?:(?:no|nr|№|#)\.?[ \t]*)?(\d{1,5}[A-Za-z]?)(?![\p{L}\p{N}/:%]|\.\d)/giu
-/** The words in front of a street-type word: up to four, each with its blank. */
-const NAME_BEFORE_RE =
-  /((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,4})$/u
 /** The house number in front of a word: digits, a letter, blanks. */
 const NUMBER_BEFORE_RE = /(\d{1,8}(?:[A-Za-z](?!\p{L}))?)[ \t]+$/u
 /** The house number after a street's name, and what may sit between. */
 const NUMBER_AFTER_RE =
-  /[ \t]*[,;]?[ \t]*(?:(?:no|nr|№|#)\.?[ \t]*)?(\d{1,5}[A-Za-z]?)(?![\p{L}\p{N}/:%]|\.\d)/iuy
-/** The word in front of a number. */
-const WORD_BEFORE_RE = /([\p{L}.]+)[ \t]*[:=–-]?[ \t]*$/u
-/** The word after a number. */
-const WORD_AFTER_RE = /^[ \t]+(\p{L}+)/u
+  /[ \t]*[,;]?[ \t]*(?:(?:no|nr|№|#)\.?[ \t]*)?(\d{1,5}[A-Ea-e]?)(?![\p{L}\p{N}/:%]|\.\d)/iuy
 /**
  * Bulgarian: an optional district (`ж.к. Лозенец,`), `ул.`, `бул.` or `пл.` (or
  * the Latin `ul.` and `bul.`), the name (quoted or up to four words) and the number.
  */
 const BULGARIAN_STREET_RE =
-  /(?<![\p{L}\p{M}])((?:(?:ж\.?[ \t]?к\.?|жк)[ \t]+[\p{L}\p{M}-]+(?:[ \t]+[\p{L}\p{M}-]+)?[ \t]*,?[ \t]*)?)(?:(?:ул|бул|пл|улица|булевард|площад)(?![\p{L}\p{M}])\.?|(?:ul|bul)\.)[ \t]*(?:[„"«][^„“"»«\r\n]{1,60}[“"»]|(?:[\p{L}\p{M}'’-]+\.?[ \t]+){0,3}[\p{L}\p{M}'’-]+)[ \t]*[,;]?[ \t]*(?:(?:№|N|No|#)[ \t]*)?(\d{1,4}\p{L}?)(?![\p{L}\p{N}/:%]|\.\d)/giu
-/**
- * What follows the street on the same line: up to three capitalised words (a
- * city, a state) and a postcode (digits, a British or Canadian or Dutch code).
- * Case-sensitive and sticky: it is tried at the end of a street already found.
- */
-const POSTAL_TAIL_RE =
-  /[, \t]+(?:\p{Lu}[\p{L}\p{M}'’.-]*[, \t]+){0,3}(?:\d{4,10}(?:-\d{3,4})?|[A-Z]{1,2}\d[A-Z\d]?[ \t]?\d[A-Z]{2}|[A-Z]\d[A-Z][ \t]?\d[A-Z]\d|\d{4}[ \t]?[A-Z]{2})(?![\p{L}\p{N}])/uy
+  /(?<![\p{L}\p{M}])((?:(?:ж\.?[ \t]?к\.?|жк)[ \t]+[\p{L}\p{M}-]+(?:[ \t]+[\p{L}\p{M}-]+)?[ \t]*,?[ \t]*)?)(?:(?:ул|бул|пл|улица|булевард|площад)(?![\p{L}\p{M}])\.?|(?:ul|bul)\.)[ \t]*([„"«][^„“"»«\r\n]{1,60}[“"»]|(?:[\p{L}\p{M}'’-]+\.?[ \t]+){0,3}[\p{L}\p{M}'’-]+)[ \t]*[,;]?[ \t]*(?:(?:№|N|No|#)[ \t]*)?(\d{1,4}\p{L}?)(?![\p{L}\p{N}/:%]|\.\d)/giu
 /* eslint-enable security/detect-unsafe-regex */
 
-const ABBREVIATED_TYPES: ReadonlySet<string> = new Set([
-  'st',
-  'rd',
-  'ave',
-  'blvd',
-  'ln',
-  'dr',
-  'ct',
-  'pl',
-])
-/** Words after a Bulgarian house number that make it a quantity. */
+/**
+ * Words after a Bulgarian house number that make it a quantity (`2 нощувки`) or
+ * the start of a prose clause (`3 без захар`, `10 от 10`).
+ */
 const BULGARIAN_QUANTITIES: ReadonlySet<string> = new Set([
+  'без',
   'дни',
   'дена',
   'евро',
@@ -188,55 +179,14 @@ const BULGARIAN_QUANTITIES: ReadonlySet<string> = new Set([
   'минути',
   'нощи',
   'нощувки',
+  'от',
   'пъти',
   'часа',
   'часове',
 ])
 
-type Token = Readonly<{ word: string; start: number; end: number }>
-
-function tokensOf(run: string, base: number): readonly Token[] {
-  return [...run.matchAll(/[^ \t]+/gu)].map((match) => ({
-    word: match[0],
-    start: base + match.index,
-    end: base + match.index + match[0].length,
-  }))
-}
-
-/** The end of a street plus its postal tail, if there is one. */
-function withPostalTail(text: string, start: number, end: number): AddressMarkerSpan {
-  POSTAL_TAIL_RE.lastIndex = end
-  const tail = POSTAL_TAIL_RE.exec(text)
-  return { start, end: tail === null ? end : end + tail[0].length }
-}
-
 function isPlainBlank(separator: string): boolean {
   return /^[ \t]+$/u.test(separator)
-}
-
-/** The words just before `start`, nearest last, at most `count` of them. */
-function wordsBefore(text: string, start: number, count: number): readonly string[] {
-  const window = text.slice(Math.max(0, start - LEAD_LOOKBEHIND_SCALARS), start)
-  return (window.match(/[\p{L}.]+/gu) ?? [])
-    .slice(-count)
-    .map((word) => word.toLowerCase())
-}
-
-/** What stands in front of the number at `start`: `10/10`, `Top 10`, `a 5`, `at 12`. */
-function leadOf(text: string, start: number): NumberLead {
-  if (start < 0) return NO_LEAD
-  if (text[start - 1] === '/') return { rating: true, count: false, address: false }
-  const found = WORD_BEFORE_RE.exec(text.slice(Math.max(0, start - 16), start))
-  const word = (found?.[1] ?? '').toLowerCase()
-  return {
-    rating: RATING_LEADS.has(word),
-    count: COUNT_LEADS.has(word),
-    address:
-      ADDRESS_LEADS.has(word) ||
-      wordsBefore(text, start, ADDRESS_LABEL_REACH).some((label) =>
-        ADDRESS_LABELS.has(label),
-      ),
-  }
 }
 
 /**
@@ -284,6 +234,16 @@ function readingsOf(
   }
 }
 
+/**
+ * A street type that is also an everyday word (`close`, `walk`, `row`) ends a
+ * street only when it is written the way a proper name is: the type and every
+ * word of the name capitalised.
+ */
+function extraTypeAccepted(type: string, shape: NameShape): boolean {
+  if (!EXTRA_STREET_TYPES.has(type.toLowerCase())) return true
+  return shape.named && /^\p{Lu}/u.test(type)
+}
+
 function findNameFirst(text: string): readonly AddressMarkerSpan[] {
   const spans: AddressMarkerSpan[] = []
   for (const match of text.matchAll(NAME_FIRST_RE)) {
@@ -299,7 +259,9 @@ function findNameFirst(text: string): readonly AddressMarkerSpan[] {
     const accepted = readings.find((reading) => {
       const shape = shapeOf(wordsOf(reading.run), reading.type, lead)
       return (
-        separatorAccepted(reading.separator, reading.run, shape) && !rejectsName(shape)
+        extraTypeAccepted(reading.type, shape) &&
+        separatorAccepted(reading.separator, reading.run, shape) &&
+        !rejectsName(shape)
       )
     })
     if (accepted !== undefined) {
@@ -307,10 +269,6 @@ function findNameFirst(text: string): readonly AddressMarkerSpan[] {
     }
   }
   return spans
-}
-
-function wordsOf(run: string): readonly string[] {
-  return run.trim().split(/[ \t]+/u)
 }
 
 function findSpelledFirst(text: string): readonly AddressMarkerSpan[] {
@@ -328,7 +286,7 @@ function findSpelledFirst(text: string): readonly AddressMarkerSpan[] {
     )
     const accepted = readings.find((reading) => {
       const shape = shapeOf(wordsOf(reading.run), reading.type, lead)
-      return shape.named && !rejectsName(shape)
+      return shape.named && !hasEverydayWord(shape.words) && !rejectsName(shape)
     })
     if (accepted !== undefined) {
       spans.push(withPostalTail(text, match.index, match.index + accepted.whole.length))
@@ -345,16 +303,6 @@ function numberBefore(text: string, index: number): number {
   const start = from + found.index
   const prior = text[start - 1]
   return prior !== undefined && /[\p{L}\p{N}.,:$€£]/u.test(prior) ? -1 : start
-}
-
-/** A quantity word right after a number turns it into a count: `Street 5 times`. */
-function followedByQuantity(text: string, end: number): boolean {
-  const next = WORD_AFTER_RE.exec(
-    text.slice(end, end + NUMBER_FOLLOWER_LOOKAHEAD_SCALARS),
-  )?.[1]
-  if (next === undefined) return false
-  const word = next.toLowerCase()
-  return QUANTITIES.has(word) || SOFT_UNITS.has(word)
 }
 
 /** Where the house number after `index` ends, or -1. */
@@ -452,7 +400,7 @@ function streetFirstSpan(text: string, match: RegExpExecArray): AddressMarkerSpa
   const before = numberBefore(text, match.index)
   const nameEnd = trimmedEnd(last)
   const after = typeCapitalised ? numberAfter(text, nameEnd) : -1
-  if (before < 0 && after < 0) return null
+  if (before < 0 && (after < 0 || !endsClause(text, after))) return null
   const words = name.map((token) => withoutSentenceStop(token.word)[0])
   if (
     rejectsName({
@@ -480,54 +428,29 @@ function findStreetFirst(text: string): readonly AddressMarkerSpan[] {
   return spans
 }
 
-/** The tail of capitalised words (and particles) just before a street-type word. */
-function nameRunBefore(text: string, index: number): readonly Token[] {
-  let from = Math.max(0, index - NUMBER_LAST_LOOKBEHIND_SCALARS)
-  if (from > 0 && /[^ \t]/u.test(text[from - 1] ?? ' ')) {
-    const blank = text.slice(from, index).search(/[ \t]/u)
-    from = blank < 0 ? index : from + blank + 1
-  }
-  const found = NAME_BEFORE_RE.exec(text.slice(from, index))
-  if (found === null) return []
-  const tokens = tokensOf(found[1] ?? '', from + found.index)
-  const kept: Token[] = []
-  for (const token of [...tokens].reverse()) {
-    if (kept.length >= MAX_NUMBER_LAST_NAME_WORDS) break
-    if (endsSentence(token.word)) break
-    if (!isNameWord(token.word) && !CONNECTORS.has(token.word)) break
-    kept.unshift(token)
-  }
-  while (kept.length > 0 && !isNameWord(kept[0]?.word ?? '')) kept.shift()
-  return kept
-}
+/** Particles inside the name of a Bulgarian street (`Св. Св. Кирил и Методий`). */
+const BULGARIAN_NAME_PARTICLES: ReadonlySet<string> = new Set(['и', 'на', 'от', 'де'])
 
-function numberLastSpan(text: string, match: RegExpExecArray): AddressMarkerSpan | null {
-  const [whole, rawType = '', dot = ''] = match
-  const type = rawType.toLowerCase()
-  if (dot !== '' && !ABBREVIATED_TYPES.has(type)) return null
-  const name = nameRunBefore(text, match.index)
-  const first = name[0]
-  if (first === undefined) return null
-  const end = match.index + whole.length
-  if (followedByQuantity(text, end)) return null
-  const words = name.map((token) => token.word)
-  if (rejectsName({ words, type, named: true, lead: NO_LEAD, numberFirst: false }))
-    return null
-  return withPostalTail(text, first.start, end)
-}
-
-function findNumberLast(text: string): readonly AddressMarkerSpan[] {
-  const spans: AddressMarkerSpan[] = []
-  for (const match of text.matchAll(NUMBER_LAST_RE)) {
-    const span = numberLastSpan(text, match)
-    if (span !== null) spans.push(span)
-  }
-  return spans
+/**
+ * A Bulgarian street's name is quoted or written in capitals, word by word,
+ * with a particle between its words: `ул. Витоша`, `бул. „Граф Игнатиев“`, and
+ * not `ул. Красива маса`, `бул. работа`.
+ */
+function bulgarianNameAccepted(name: string): boolean {
+  if (/^[„"«]/u.test(name)) return true
+  return name
+    .trim()
+    .split(/[ \t]+/u)
+    .every(
+      (word, index) =>
+        /^\p{Lu}/u.test(word) || (index > 0 && BULGARIAN_NAME_PARTICLES.has(word)),
+    )
 }
 
 function findBulgarianStreets(text: string): readonly AddressMarkerSpan[] {
   const spans: AddressMarkerSpan[] = []
   for (const match of text.matchAll(BULGARIAN_STREET_RE)) {
+    if (!bulgarianNameAccepted(match[2] ?? '')) continue
     const end = match.index + match[0].length
     const next = WORD_AFTER_RE.exec(
       text.slice(end, end + NUMBER_FOLLOWER_LOOKAHEAD_SCALARS),
@@ -544,6 +467,7 @@ const ADDRESS_FINDERS: ReadonlyArray<(text: string) => readonly AddressMarkerSpa
   findStreetFirst,
   findNumberLast,
   findBulgarianStreets,
+  findForeignAddressMarkers,
 ]
 
 /** Every address-shaped span of `text`; spans of different layouts may overlap. */
@@ -559,16 +483,16 @@ export const ADDRESS_MARKER_PROFILE = Object.freeze({
         ['address_name_first', NAME_FIRST_RE],
         ['address_spelled_first', SPELLED_FIRST_RE],
         ['address_street_first', STREET_FIRST_RE],
-        ['address_number_last', NUMBER_LAST_RE],
-        ['address_name_before', NAME_BEFORE_RE],
         ['address_number_before', NUMBER_BEFORE_RE],
         ['address_number_after', NUMBER_AFTER_RE],
         ['address_bulgarian_street', BULGARIAN_STREET_RE],
         ['address_postal_tail', POSTAL_TAIL_RE],
       ] as const
-    ).map(([id, expression]) =>
-      Object.freeze({ id, source: expression.source, flags: expression.flags }),
-    ),
+    )
+      .map(([id, expression]) =>
+        Object.freeze({ id, source: expression.source, flags: expression.flags }),
+      )
+      .concat(NUMBER_LAST_PROFILE.patterns, FOREIGN_ADDRESS_PROFILE.patterns),
   ),
   wordLists: Object.freeze({
     quantities: QUANTITY_WORDS,
@@ -591,17 +515,19 @@ export const ADDRESS_MARKER_PROFILE = Object.freeze({
     countLeads: COUNT_LEAD_WORDS,
     lowerCaseAbbreviations: LOWER_CASE_ABBREVIATIONS,
     numberWords: NUMBER_WORDS,
+    extraStreetTypes: EXTRA_STREET_TYPE_WORDS,
+    genericNames: GENERIC_NAME_WORDS,
+    countFollowers: COUNT_FOLLOWER_WORDS,
+    foreign: FOREIGN_ADDRESS_PROFILE.wordLists,
     bulgarianQuantities: Object.freeze([...BULGARIAN_QUANTITIES].sort()),
   }),
   nameRules: ADDRESS_NAME_RULE_PROFILE,
-  abbreviatedTypes: Object.freeze([...ABBREVIATED_TYPES].sort()),
+  abbreviatedTypes: NUMBER_LAST_PROFILE.abbreviatedTypes,
   limits: Object.freeze({
     maxStreetFirstNameWords: MAX_STREET_FIRST_NAME_WORDS,
-    maxNumberLastNameWords: MAX_NUMBER_LAST_NAME_WORDS,
-    numberLastLookbehindScalars: NUMBER_LAST_LOOKBEHIND_SCALARS,
+    numberLast: NUMBER_LAST_PROFILE.limits,
+    foreign: FOREIGN_ADDRESS_PROFILE.limits,
     numberFirstLookbehindScalars: NUMBER_FIRST_LOOKBEHIND_SCALARS,
-    leadLookbehindScalars: LEAD_LOOKBEHIND_SCALARS,
-    addressLabelReach: ADDRESS_LABEL_REACH,
     numberFollowerLookaheadScalars: NUMBER_FOLLOWER_LOOKAHEAD_SCALARS,
   }),
 })
