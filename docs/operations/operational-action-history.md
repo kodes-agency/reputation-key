@@ -72,8 +72,11 @@ The registered durable source-fact coverage is intentionally explicit:
 
 Each accepted fact keeps its exact event id/version/source aggregate and copies
 only allowlisted actor, tenant, Property, and resource identifiers. A historical
-Google-connect v2 fact reads `connectedBy`; current v3 reads `userId`. Source
-facts that carry no actor, including Property delete, Google disconnect,
+Google-connect v2 fact reads `connectedBy`; current v3 reads `userId`. A Google
+disconnect names the AccountAdmin who made it in `userId` and is recorded as
+that user's action; the recovery reconciler's disconnect of an attempt it cannot
+attribute, and a fact recorded before 2026-09-24, carry none and are recorded as
+system actions. Source facts that carry no actor, including Property delete,
 Merchant AI, approved-destination, and hero-completion facts, are recorded as
 system actions rather than receiving invented attribution. This list is not
 complete action coverage: authentication/authorization and Property-access

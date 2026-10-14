@@ -374,6 +374,39 @@ describe('Activity durable Recent Activity consumer', () => {
       resourceId: 'google-connection-1',
     },
     {
+      // A disconnect names the AccountAdmin who made it.
+      eventType: 'integration.google_account.disconnected',
+      eventVersion: 1,
+      payload: {
+        organizationId: 'org-1',
+        connectionId: 'google-connection-named',
+        userId: 'admin-google-disconnect',
+      },
+      propertyId: null,
+      actorType: 'user',
+      actorId: 'admin-google-disconnect',
+      action: 'google_connection.disconnected',
+      resourceType: 'google_connection',
+      resourceId: 'google-connection-named',
+    },
+    {
+      // The recovery reconciler cannot attribute some disconnects.
+      eventType: 'integration.google_account.disconnected',
+      eventVersion: 1,
+      payload: {
+        organizationId: 'org-1',
+        connectionId: 'google-connection-unattributed',
+        userId: null,
+      },
+      propertyId: null,
+      actorType: 'system',
+      actorId: null,
+      action: 'google_connection.disconnected',
+      resourceType: 'google_connection',
+      resourceId: 'google-connection-unattributed',
+    },
+    {
+      // Facts recorded before the field existed carry no actor at all.
       eventType: 'integration.google_account.disconnected',
       eventVersion: 1,
       payload: {
@@ -678,6 +711,38 @@ describe('Activity durable Recent Activity consumer', () => {
       expect(JSON.stringify(applyOnce.mock.calls)).not.toContain('must-not-be-retained')
     },
   )
+
+  it.each([
+    ['names the AccountAdmin who disconnected Google', 'admin-google-disconnect'],
+    ['names nobody when the disconnect cannot be attributed', null],
+  ] as const)('%s in Recent Activity', async (_title, disconnectedBy) => {
+    const { deps, applyOnce } = dependencies()
+    const source = event('integration.google_account.disconnected', {
+      organizationId: 'org-1',
+      connectionId: 'google-connection-1',
+      userId: disconnectedBy,
+      occurredAt: '2026-08-28T08:57:00.000Z',
+    })
+
+    await expect(handleRecentActivityFact(deps, source)).resolves.toEqual({
+      status: 'applied',
+    })
+
+    expect(applyOnce).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entry: expect.objectContaining({
+          action: 'disconnected',
+          resourceType: 'integration',
+          resourceId: 'google-connection-1',
+        }),
+        replayFact: expect.objectContaining({
+          sourceEventType: 'integration.google_account.disconnected',
+          actorSubjectId: disconnectedBy,
+        }),
+      }),
+    )
+    expect(deps.userLookup.lookup).toHaveBeenCalledTimes(disconnectedBy === null ? 0 : 1)
+  })
 
   it('attributes an operator-run publication to the system, with no actor to look up', async () => {
     const { deps, applyOnce } = dependencies()

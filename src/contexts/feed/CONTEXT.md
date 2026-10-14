@@ -51,7 +51,13 @@ fallback name). Operational Action History is append-oriented,
 organization-scoped evidence with restricted list/export access and legal-hold
 handling. `listOperationalActionHistoryFn` and `exportOperationalActionHistoryFn`
 are that restricted AccountAdmin API and have no UI on purpose
-(`docs/operations/operational-action-history.md`, "Access and export").
+(`docs/operations/operational-action-history.md`, "Access and export"). A
+restricted read and a retention assessment take the tenant's sequence-head lock
+first and read after it, at the default isolation level: an append in flight
+makes them wait, where a snapshot taken before the lock ended them with
+SQLSTATE 40001 and a false "authority unavailable" access record. A Google
+disconnect is recorded as the AccountAdmin's action when its fact names one, and
+as a system action when it does not.
 
 Notifications are mutable delivery records. Copy is rendered from typed
 payloads at read/send time so in-app rows, urgent email, and digests cannot

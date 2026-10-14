@@ -371,7 +371,7 @@ const mapRecentActivityFact = async (
         action: 'disconnected',
         resourceType: 'integration',
         resourceId: stringValue(payload, 'connectionId'),
-        userId: null,
+        userId: actor(),
         source: 'web',
         payload: { subject: 'integration', from: null, to: null, detail: null },
       })
@@ -595,14 +595,18 @@ const operationalActionProjection = (
         resourceType: 'google_connection',
         resourceId: stringValue(payload, 'connectionId'),
       }
-    case 'integration.google_account.disconnected':
+    case 'integration.google_account.disconnected': {
+      // The AccountAdmin who disconnected; absent for a disconnect the recovery
+      // reconciler cannot attribute and for facts older than the field.
+      const actorId = optionalString(payload, 'userId')
       return {
-        actorType: 'system',
-        actorId: null,
+        actorType: actorId === null ? 'system' : 'user',
+        actorId,
         action: 'google_connection.disconnected',
         resourceType: 'google_connection',
         resourceId: stringValue(payload, 'connectionId'),
       }
+    }
     case 'portal.publication.published': {
       const operatorId = operatorActorOf(payload)
       return {

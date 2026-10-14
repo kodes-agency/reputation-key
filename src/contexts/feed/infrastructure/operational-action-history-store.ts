@@ -320,22 +320,22 @@ export const createOperationalActionHistoryStore = (
     }),
 
   readWithAccess: ({ query, accessRecord }) =>
-    transact(
-      database,
-      async (transaction) => {
-        if (!isAccessRecord(accessRecord, query.organizationId)) {
-          throw new Error('Operational Action History access record is invalid')
-        }
-        // Serialize restricted reads with identifier redaction and hold lifecycle
-        // so a snapshot cannot return attribution after a concurrent redaction
-        // has committed ahead of its access receipt.
-        await lockSequenceHead(transaction, query.organizationId)
-        const page = await queryPage(transaction, query)
-        await appendInTransaction(transaction, accessRecord)
-        return page
-      },
-      true,
-    ),
+    transact(database, async (transaction) => {
+      if (!isAccessRecord(accessRecord, query.organizationId)) {
+        throw new Error('Operational Action History access record is invalid')
+      }
+      // Serialize restricted reads with identifier redaction and hold lifecycle
+      // so a read cannot return attribution after a concurrent redaction has
+      // committed ahead of its access receipt. The head lock is that
+      // serialization, and the page is read after it is held: the read runs at
+      // the default isolation level because a repeatable-read snapshot would
+      // be taken before the lock, and an append committing while the read
+      // waited for it would end the read with SQLSTATE 40001.
+      await lockSequenceHead(transaction, query.organizationId)
+      const page = await queryPage(transaction, query)
+      await appendInTransaction(transaction, accessRecord)
+      return page
+    }),
 
   readReadiness: (tenantId) =>
     transact(
@@ -404,26 +404,27 @@ export const createOperationalActionHistoryStore = (
     ),
 
   assessRetention: ({ organizationId: tenantId, cutoff, assessmentRecord }) =>
-    transact(
-      database,
-      async (transaction) => {
-        if (
-          !isLifecycleRecord(assessmentRecord, {
-            organizationId: tenantId,
-            action: 'operational_history.retention_assessed',
-            reasonCode: 'report_only_pending_counsel',
-          })
-        ) {
-          throw new Error(
-            'Operational Action History retention-assessment record is invalid',
-          )
-        }
-        await appendInTransaction(transaction, assessmentRecord)
-        const result = await transaction.execute<{
-          eligible_count: string
-          held_count: string
-          oldest_eligible_at: Date | string | null
-        }>(sql`
+    transact(database, async (transaction) => {
+      if (
+        !isLifecycleRecord(assessmentRecord, {
+          organizationId: tenantId,
+          action: 'operational_history.retention_assessed',
+          reasonCode: 'report_only_pending_counsel',
+        })
+      ) {
+        throw new Error(
+          'Operational Action History retention-assessment record is invalid',
+        )
+      }
+      // One statement after the head lock the append takes: coherent without
+      // a repeatable-read snapshot, which would be taken before that lock and
+      // fail with SQLSTATE 40001 behind a concurrent append.
+      await appendInTransaction(transaction, assessmentRecord)
+      const result = await transaction.execute<{
+        eligible_count: string
+        held_count: string
+        oldest_eligible_at: Date | string | null
+      }>(sql`
           SELECT count(*) FILTER (WHERE NOT EXISTS (
                    SELECT 1
                    FROM operational_action_history_legal_holds AS hold
@@ -443,19 +444,17 @@ export const createOperationalActionHistoryStore = (
           WHERE record.organization_id = ${tenantId as string}
             AND record.occurred_at < ${cutoff}
         `)
-        const row = result.rows[0]
-        if (!row) throw new Error('Operational Action History retention read failed')
-        return {
-          eligibleCount: safeInteger(row.eligible_count, 'eligible retention count'),
-          heldCount: safeInteger(row.held_count, 'held retention count'),
-          oldestEligibleAt: dateOrNull(
-            row.oldest_eligible_at,
-            'oldest eligible retention time',
-          ),
-        }
-      },
-      true,
-    ),
+      const row = result.rows[0]
+      if (!row) throw new Error('Operational Action History retention read failed')
+      return {
+        eligibleCount: safeInteger(row.eligible_count, 'eligible retention count'),
+        heldCount: safeInteger(row.held_count, 'held retention count'),
+        oldestEligibleAt: dateOrNull(
+          row.oldest_eligible_at,
+          'oldest eligible retention time',
+        ),
+      }
+    }),
 
   placeLegalHold: ({ hold, actionRecord }) =>
     transact(database, async (transaction) => {
