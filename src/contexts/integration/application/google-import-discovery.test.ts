@@ -234,6 +234,66 @@ describe('Google import discovery', () => {
     expect(JSON.stringify(page)).not.toContain('provider-accounts-next')
   })
 
+  // A routine access-token refresh moves only `credentialGeneration`, about once
+  // an hour and from whichever job touches the connection first. The page was
+  // loaded for the same grant, so it is published, under the generation now live.
+  it('publishes the page when a token refresh moved the credential generation during the provider call', async () => {
+    const vectorAt = (credentialGeneration: number) => ({
+      ...authorization().authorizationVector,
+      credentialGeneration,
+    })
+    const before = authorization({
+      credentialGeneration: 5,
+      authorizationVector: vectorAt(5),
+    })
+    const refreshed = authorization({
+      credentialGeneration: 6,
+      authorizationVector: vectorAt(6),
+    })
+    const authorize = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, authorization: before, accessToken: 'access' })
+      .mockResolvedValueOnce({ ok: true, authorization: refreshed, accessToken: null })
+    const { discovery, references } = setup({ authorize })
+
+    await discovery.listAccounts({ connectionId }, actor)
+
+    expect(references.publishAccountPage).toHaveBeenCalledWith(
+      expect.objectContaining({ authorization: refreshed }),
+    )
+  })
+
+  it('discards the page when the credential generation went backwards during the provider call', async () => {
+    const vectorAt = (credentialGeneration: number) => ({
+      ...authorization().authorizationVector,
+      credentialGeneration,
+    })
+    const authorize = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        authorization: authorization({
+          credentialGeneration: 5,
+          authorizationVector: vectorAt(5),
+        }),
+        accessToken: 'access',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        authorization: authorization({
+          credentialGeneration: 4,
+          authorizationVector: vectorAt(4),
+        }),
+        accessToken: null,
+      })
+    const { discovery, references } = setup({ authorize })
+
+    await expect(discovery.listAccounts({ connectionId }, actor)).rejects.toMatchObject({
+      code: 'unauthorized',
+    })
+    expect(references.publishAccountPage).not.toHaveBeenCalled()
+  })
+
   it('redeems an account cursor before loading only the requested next page', async () => {
     const { discovery, accounts, references } = setup()
 
@@ -295,6 +355,33 @@ describe('Google import discovery', () => {
     expect(accounts.listAccounts).not.toHaveBeenCalled()
     expect(references.publishAccountPage).not.toHaveBeenCalled()
   })
+
+  // The authorizer's four refusals are four different facts. Only the first two
+  // are "your access changed"; a dead connection needs a reconnect and a failed
+  // dependency read clears by itself, and telling an administrator the first
+  // about the second sends them to the wrong place.
+  it.each([
+    ['authorization_denied', 'unauthorized'],
+    ['authorization_changed', 'unauthorized'],
+    ['connection_unavailable', 'reauthentication_required'],
+    ['runtime_unavailable', 'temporarily_unavailable'],
+  ] as const)(
+    'reports an authorizer %s denial as %s',
+    async (authorizerCode, expectedCode) => {
+      const authorize = vi.fn(async () => ({
+        ok: false as const,
+        code: authorizerCode,
+      }))
+      const { discovery } = setup({ authorize })
+
+      await expect(discovery.listAccounts({ connectionId }, actor)).rejects.toMatchObject(
+        {
+          code: expectedCode,
+          message: `Google import discovery failed: ${expectedCode}`,
+        },
+      )
+    },
+  )
 
   it('discards a parsed provider page when post-call authorization changes', async () => {
     const authorize = vi

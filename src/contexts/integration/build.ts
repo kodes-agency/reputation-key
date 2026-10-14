@@ -701,7 +701,8 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       clock: deps.clock,
       // The refusal is otherwise invisible: six checks share the
       // `authorization_changed` outcome code and the persisted item row cannot
-      // say which fired. Content-free fields (ids, version counters, a sha256).
+      // say which fired. Content-free fields (version counters, a sha256); no tenant
+      // identifier, which BANNED_LOG_KEYS forbids as a log field.
       warn: (fields, message) => deps.logger.warn(fields, message),
     })
     reauthorizeGoogleImportProviderCall = async ({ authorization }) => {
