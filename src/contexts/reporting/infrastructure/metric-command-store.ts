@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { metricCorrections, metricReadings } from '#/shared/db/schema/metric.schema'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
@@ -299,6 +299,24 @@ async function insertReadingOrDescribeDuplicate(
 }
 
 /**
+ * The source key of the retraction of one reading: the fact that caused it and
+ * the measure (definition version) it retracts. One fact is projected into
+ * several measures, and `metric_corrections_source_unique` allows one
+ * correction per key, so a key that names no measure can retract only one of
+ * them. A withdrawal and a replacement both write this key.
+ */
+const retractionSourceKey = (sourceEventId: string, definitionVersionId: string) =>
+  `${sourceEventId}:${definitionVersionId}`
+
+/**
+ * What a replacement wrote before every measure had its own key:
+ * `<fact id>:retract`, on the fact's first reading only. Rows written that way
+ * stay as they are (corrections are append-only), so they are still read, and
+ * a redelivery that finds one is a replay and not a new correction.
+ */
+const legacyReplacementSourceKey = (sourceEventId: string) => `${sourceEventId}:retract`
+
+/**
  * Retract the superseded reading and describe the correction for the outbox.
  *
  * The insert is idempotent on the correction's source key, matching the reading
@@ -312,6 +330,12 @@ async function insertReadingOrDescribeDuplicate(
  * On conflict the existing correction ID is reused rather than the freshly
  * generated one, so a replay records the same fact as the first delivery
  * instead of describing a second correction that was never written.
+ *
+ * The key names the measure as well as the fact. A rating correction replaces
+ * the rating's readings under three measures at once, each in this function;
+ * with the fact alone as the key, the second and third inserts hit the unique
+ * index, were swallowed as a replay, and left the earlier count and average
+ * reading effective beside their replacements.
  */
 async function recordRetractionCorrection(
   tx: MetricTx,
@@ -320,7 +344,10 @@ async function recordRetractionCorrection(
   correctedReadingId: string,
   supersedesSourceEventId: string,
 ): Promise<MetricCorrected> {
-  const correctionSourceEventId = `${command.reading.sourceEventId}:retract`
+  const correctionSourceEventId = retractionSourceKey(
+    command.reading.sourceEventId,
+    command.reading.definitionVersionId,
+  )
   const inserted = await tx
     .insert(metricCorrections)
     .values({
@@ -347,7 +374,18 @@ async function recordRetractionCorrection(
     const [row] = await tx
       .select({ id: metricCorrections.id })
       .from(metricCorrections)
-      .where(eq(metricCorrections.sourceEventId, correctionSourceEventId))
+      .where(
+        or(
+          eq(metricCorrections.sourceEventId, correctionSourceEventId),
+          and(
+            eq(
+              metricCorrections.sourceEventId,
+              legacyReplacementSourceKey(command.reading.sourceEventId),
+            ),
+            eq(metricCorrections.readingId, correctedReadingId),
+          ),
+        ),
+      )
       .limit(1)
     if (!row) {
       // Nothing inserted and nothing there: the conflict was on some other
@@ -444,7 +482,10 @@ async function existingRetractionResult(
   tx: MetricTx,
   command: RetractMetricCommand,
 ): Promise<DuplicateRetractionResult | null> {
-  const correctionSourceEventId = `${command.sourceEventId}:${command.definitionVersionId}`
+  const correctionSourceEventId = retractionSourceKey(
+    command.sourceEventId,
+    command.definitionVersionId,
+  )
   const duplicate = await tx
     .select({
       readingId: metricCorrections.readingId,
@@ -478,7 +519,10 @@ async function retractMetricEntry(
   idGen: () => string,
   knownDuplicate?: DuplicateRetractionResult | null,
 ): Promise<RetractMetricResult> {
-  const correctionSourceEventId = `${command.sourceEventId}:${command.definitionVersionId}`
+  const correctionSourceEventId = retractionSourceKey(
+    command.sourceEventId,
+    command.definitionVersionId,
+  )
   const duplicate =
     knownDuplicate === undefined
       ? await existingRetractionResult(tx, command)

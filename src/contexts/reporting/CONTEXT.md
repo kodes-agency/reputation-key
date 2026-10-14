@@ -20,7 +20,12 @@ metric authority.
 
 - **Metric definition/version**: frozen code-reviewed measurement policy.
 - **Metric reading**: immutable, version-pinned fact with event-time attribution.
-- **Metric correction**: append-only retraction, replacement, or adjustment.
+- **Metric correction**: append-only retraction, replacement, or adjustment. A fact that
+  is projected into several measures is corrected measure by measure: a correction's source
+  key is `<fact id>:<definition version id>`, so a corrected rating retracts its private
+  rating, its rating count and its rating average, and a Goal on either Goal measure finds
+  the retraction of its own reading. The key `<fact id>:retract` of the earlier code, one
+  for the first reading only, is still read.
 - **Goal Program**: versioned monthly target over an approved metric and subject set. A month
   still running can carry its own target; once its period ends that target is locked.
 - **Goal monthly result**: evaluation head with append-only revision evidence.
