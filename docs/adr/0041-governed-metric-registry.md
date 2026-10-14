@@ -11,7 +11,7 @@ The current `metric_readings` table stores a string key and `real` value without
 
 ## Decision
 
-A centralized **governed metric registry** is the only route from source facts to Goal Programs and governed reporting.
+A centralized **governed metric registry** is the only route from source facts to Goal Programs and governed reporting (amended 2026-10-14, below).
 
 ### Structure
 
@@ -79,10 +79,12 @@ and counts and star sums of the Property's cached Google reviews through
 Review's public API. Its rules live in ADR 0067, not in a metric-definition
 version.
 
-That is a second route from Google facts to a Reporting surface, outside this
-registry. ADR 0067 bounds it: Property scope only, never split across Portals,
-Portal Groups or people, never staff-facing, and never a quota, ranking,
-incentive or employment input.
+The rating goal is neither a Goal Program nor governed reporting in the sense of
+this ADR. Like the Current on Google snapshot it reads, it sits outside this
+registry, so the registry stays the only route to Goal Programs and to governed
+metric readings. ADR 0067 bounds the rating goal: Property scope only, never
+split across Portals, Portal Groups or people, never staff-facing, and never a
+quota, ranking, incentive or employment input.
 
 For Goal Programs nothing changes. "They never enter a Goal unless that exact
 version allows it" still governs them, and no Goal measure version admits a

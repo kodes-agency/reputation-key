@@ -25,11 +25,14 @@ allows exactly three Goal measures, all first-party Portal facts. ADR 0031 denie
 review-derived staff goals, badges and leaderboards; ADR 0041 keeps
 Google-derived analytics out of Goals unless a metric version allows it; ADR 0049
 rule 2 says no Google fact may drive Goals or workforce recognition; and
-`gbp.review_solicitation_gamification` is `permanently_denied`. The Google
-response disposition of 2026-07-14 records why: "review volume/rating" and
-"public-review conversion" never drive staff goals, badges or leaderboards.
-Google's review policies forbid incentivised reviews and selective solicitation,
-and Google flags unusual review volumes.
+`gbp.review_solicitation_gamification` is `permanently_denied`. RepKey's own
+disposition of the Google response of 2026-07-14 (its executable policy row,
+`denied_by_separate_policy`) states the rule: review clicks, request scans,
+review volume/rating, named mentions and public-review conversion never drive
+staff goals, badges or leaderboards. Google's reply did not address goals, so
+that rule is RepKey's own policy, and it stays as written. Google's review
+policies forbid incentivised reviews and selective solicitation, and Google
+flags unusual review volumes.
 
 A Property-level target was proposed on 2026-09-30. On 2026-10-11 it was reshaped
 into an automatic "next tenth" display beside the rating pages, never called a
@@ -73,7 +76,10 @@ Two facts about the data, checked read-only on the beta on 2026-10-14:
 6. **Notices go to the Property's responsible managers** in the existing Goals
    category (bell and daily digest), with AccountAdmins as the fallback, as Goal
    notices are routed today. They report changes only. The notices and their
-   ADR 0046 amendment ship together.
+   ADR 0046 amendment ship together. The Goals category is the `recognition`
+   category of ADR 0046, shown as "Goals", in name only: these are change notices
+   to the Property's managers about a Property figure, not workforce recognition
+   (ADR 0049 rule 2), and the ADR 0046 amendment must say so.
 
 ## Guardrails
 
@@ -174,6 +180,21 @@ five stars; 4.6 needs about 1,300; 4.8 cannot be reached at this mix.
   purge. Review gains a read port that hands out counts and star sums only.
 - Like every enabled feature (ADR 0049), the goal needs a positive journey, a
   denial journey for a Member, and an emergency switch, which is `goal.use`.
+  `goal.use` is a shared switch: turning it off for an Organization or Property
+  also turns off Portal Goal Programs there, and turning it on offers both. The
+  `goal.use` explanation in `capability-fate.ts` ("Property, Portal Group, and
+  individual Portal Goals over scans, rating count, and rating average") is
+  updated in PR 2 to name the rating goal and to keep the Portal measures
+  described as private ratings; its fate stays `controlled_beta`. A separate
+  capability for the rating goal is the alternative if the owner wants to switch
+  the two apart (plan, open question 8).
+- Google's wording is not the only external check. The disclosure's change
+  control asks the release owner to recheck Google's public Business Profile
+  and review policies whenever a data flow changes, and the goal adds a flow
+  (counts and star sums to Reporting; Google's rating and a weekly pace of new
+  reviews). The release owner does that recheck before the change that shows the
+  goal ships (PR 3), and refreshes the disclosure's "last refreshed" date if
+  Google's policies changed.
 - A weekly pace could be read as a solicitation quota. The guardrails are the
   control: the goal is not shown to staff, Push is capped at about twice the
   current pace and a custom pace above that shows a surge caution, and the copy
