@@ -486,6 +486,26 @@
 // feed/server/notifications.ts and identity/server/organizations.update.ts
 // export for their tests. When a `*.dto` chunk shows in the closure list again,
 // find the export or the barrel that names it; do not raise the budget for it.
+//
+// 2026-10-14 (Property Google rating goal, PR 3: the Goals page's Google section,
+// the wizard and the detail page /properties/$propertyId/goals/google-rating):
+// fresh production builds of the branch base (76068c0bf: the engine #823 and the
+// Portal live pace #824 on main, measured 307,705 B, 75 js + 1 css) and of this
+// change: 308,083 B (75 js + 1 css), +378 B. The entry chunk +531 B: the new
+// route's table entry and config (its title, the `goal.read` gate and a loader
+// that imports the goal's reads on demand), the Goals loader's on-demand import of
+// the section's reads, and the new lazy chunks' names in the preload map. Query
+// keys +28 B (goalKeys.ratingGoal and ratingGoalRead), the stylesheet +32 B, and
+// the shared `use-property-id` chunk (557 B) regrouped as `use-mobile` (349 B),
+// -208 B, once the wizard's lazy frame read useIsMobile. What stayed out: every
+// component, the wizard, the Slider, the recharts weekly bars and the goal's
+// reads are lazy; the DTO types are type-only; and the seven server functions
+// are fetched with their first use (routes/.../goals/-rating-goal-queries.ts)
+// because, imported by two lazy pages, they were grouped with the eager stubs
+// (`app-server-fns`, merged under 16 KiB) and put 318 B into this closure. A
+// second route gate on `isBetaInteractiveRole` made that helper a 107 B chunk of
+// its own here; the page gates on `goal.read` alone, as the goal page does. The
+// budget moves to 308,400 B: the measurement plus about 300 B, to the nearest 100.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -497,7 +517,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 307_900, // lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
+  initialClosureGzip: 308_400, // raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
