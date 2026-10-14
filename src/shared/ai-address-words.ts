@@ -314,6 +314,27 @@ export const NAME_CONNECTOR_WORDS: readonly string[] = Object.freeze([
   'von',
 ])
 
+/** The street types the first detector knew, case-insensitive: the types of `12 Oak Road`. */
+export const BASE_STREET_TYPE_WORDS: readonly string[] = Object.freeze([
+  'avenue',
+  'ave',
+  'blvd',
+  'boulevard',
+  'ct',
+  'court',
+  'dr',
+  'drive',
+  'lane',
+  'ln',
+  'pl',
+  'place',
+  'rd',
+  'road',
+  'st',
+  'street',
+  'way',
+])
+
 /**
  * Street types beyond the thirteen the first detector knew (`12 Oak Close`, `5
  * Rose Crescent`, `7 Elm Gardens`). Several are ordinary English words (`close`,
@@ -782,3 +803,4 @@ export const NAME_PREPOSITIONS: ReadonlySet<string> = new Set(NAME_PREPOSITION_W
 export const EXTRA_STREET_TYPES: ReadonlySet<string> = new Set(EXTRA_STREET_TYPE_WORDS)
 export const COUNT_FOLLOWERS: ReadonlySet<string> = new Set(COUNT_FOLLOWER_WORDS)
 export const GENERIC_NAMES: ReadonlySet<string> = new Set(GENERIC_NAME_WORDS)
+export const BASE_STREET_TYPES: ReadonlySet<string> = new Set(BASE_STREET_TYPE_WORDS)

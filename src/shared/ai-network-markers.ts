@@ -10,6 +10,8 @@
 //   blank; main joined the two and removed it whole. A last label from a short
 //   list of top-level domains, in lower case, is what tells it from a sentence
 //   with a stray blank before a full stop.
+//   The name is a domain's when it is lower case and long, or holds a digit or a
+//   hyphen: `Booking .com said` and `The word .com` are prose.
 // - A last label for a bare domain is told from a number or an abbreviation:
 //   at least two letters, starting with a letter (`com`, `bg`, `бг`, `c0m`,
 //   or the ASCII form of an internationalised one, `xn--p1ai`).
@@ -20,7 +22,7 @@ import { domainToASCII } from 'node:url'
 export type NetworkMarkerSpan = Readonly<{ start: number; end: number }>
 
 /** Top-level domains a split domain may end in; none is a word of ordinary prose. */
-const SPLIT_DOMAIN_TOP_LEVELS: readonly string[] = Object.freeze([
+export const SPLIT_DOMAIN_TOP_LEVEL_WORDS: readonly string[] = Object.freeze([
   'app',
   'bar',
   'bg',
@@ -33,6 +35,7 @@ const SPLIT_DOMAIN_TOP_LEVELS: readonly string[] = Object.freeze([
   'dev',
   'dk',
   'edu',
+  'es',
   'eu',
   'fi',
   'fr',
@@ -43,6 +46,7 @@ const SPLIT_DOMAIN_TOP_LEVELS: readonly string[] = Object.freeze([
   'hu',
   'info',
   'io',
+  'it',
   'net',
   'nl',
   'online',
@@ -73,7 +77,7 @@ const HEX_IPV4_RE =
   /(?<![\p{L}\p{N}.])(0x[0-9A-Fa-f]{1,2}(?:\.0x[0-9A-Fa-f]{1,2}){3})(?![\p{L}\p{N}])/gu
 /** A name (up to three sub-domains and a label) and a top-level domain with a blank in front of the dot. */
 const SPLIT_DOMAIN_RE =
-  /(?<![\p{L}\p{N}-])((?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?\.){0,3}[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?)[ \t]+\.(app|bar|bg|biz|ch|co|com|cz|de|dev|dk|edu|eu|fi|fr|gov|gr|hotel|hotels|hu|info|io|net|nl|online|org|pl|ro|ru|se|shop|sk|travel|tr|ua|uk|xyz)(?![\p{L}\p{N}-])/gu
+  /(?<![\p{L}\p{N}-])((?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?\.){0,3}[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?)[ \t]+\.(app|bar|bg|biz|ch|co|com|cz|de|dev|dk|edu|es|eu|fi|fr|gov|gr|hotel|hotels|hu|info|io|it|net|nl|online|org|pl|ro|ru|se|shop|sk|travel|tr|ua|uk|xyz)(?![\p{L}\p{N}-])/giu
 const IPV4_WITH_PORT_RE = /^(\d{1,3}(?:\.\d{1,3}){3}):\d{1,5}$/u
 const IP_WITH_BRACKETS_RE = /^\[([A-Fa-f0-9:.]+)\](?::\d{1,5})?$/u
 /** Four groups of one to three digits, zero-padded or not: `192.168.001.001`. */
@@ -176,13 +180,36 @@ export function findIpMarkers(text: string): readonly NetworkMarkerSpan[] {
   return spans
 }
 
+const MIN_SPLIT_NAME_SCALARS = 6
+
+/**
+ * The name in front of a blank and a dot is the name of a domain, and not a word
+ * of the sentence (`The word .com`, `Booking .com said`, `in .de or .fr`), when
+ * its last label is lower case and either long (six letters) or holds a digit
+ * or a hyphen: `hotelsunrise .com`, `sunrise-hotel .bg`, `hotel24 .bg`, or
+ * written in camel case, `HotelSunrise .com`. A name a guest wrote with a single
+ * capital is a service named in a sentence.
+ */
+export function isDomainLikeName(name: string): boolean {
+  const label = name.slice(name.lastIndexOf('.') + 1)
+  const long = [...label].length >= MIN_SPLIT_NAME_SCALARS
+  if (/^\p{Lu}/u.test(label)) return long && /\p{Lu}/u.test(label.slice(1))
+  return long || /[\p{N}-]/u.test(label)
+}
+
 /** Every domain whose dot is separated from its name by a blank. */
 export function findSplitDomainMarkers(text: string): readonly NetworkMarkerSpan[] {
   const spans: NetworkMarkerSpan[] = []
   for (const match of text.matchAll(SPLIT_DOMAIN_RE)) {
     const [whole, name = '', topLevel = ''] = match
     const joined = `${name}.${topLevel}`
-    if (!validDomain(joined) || !endsInAlphabeticLabel(joined)) continue
+    if (
+      !isDomainLikeName(name) ||
+      !validDomain(joined) ||
+      !endsInAlphabeticLabel(joined)
+    ) {
+      continue
+    }
     spans.push({ start: match.index, end: match.index + whole.length })
   }
   return spans
@@ -207,5 +234,6 @@ export const NETWORK_MARKER_PROFILE = Object.freeze({
       flags: SPLIT_DOMAIN_RE.flags,
     }),
   ]),
-  splitDomainTopLevels: SPLIT_DOMAIN_TOP_LEVELS,
+  splitDomainTopLevels: SPLIT_DOMAIN_TOP_LEVEL_WORDS,
+  minSplitNameScalars: MIN_SPLIT_NAME_SCALARS,
 })

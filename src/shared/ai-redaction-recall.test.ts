@@ -9,6 +9,7 @@ import {
   AI_REDACTION_PROFILE_VERSION,
   redactAiReviewText,
 } from './ai-deterministic-redactor'
+import { canonicalizeRawAiReviewSource } from './ai-review-source-contract'
 import {
   AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
   AI_STRUCTURED_MARKER_DETECTORS_VERSION,
@@ -27,6 +28,18 @@ function redacted(text: string, countryCode = 'US'): string {
     throw new Error(`expected a redacted result, got ${result.status}:${result.reason}`)
   }
   return result.text
+}
+
+/** The pipeline as it runs: the raw text of the review, its canonical source text, the redactor. */
+function redactedRaw(raw: string, countryCode = 'US'): string {
+  const canonical = canonicalizeRawAiReviewSource({
+    text: raw,
+    rating: 5,
+    languageCode: 'en',
+    reviewedAtEpochMillis: 1_700_000_000_000,
+    reviewerDisplayName: null,
+  }).text
+  return redacted(canonical, countryCode)
 }
 
 /** The text with `personal` replaced by `placeholder` and nothing else changed. */
@@ -699,5 +712,207 @@ describe('an address-like number that is not an IP address stays', () => {
   ])('%s', (text) => {
     const wrapped = inShortReview(text)
     expect(redacted(wrapped)).toBe(wrapped)
+  })
+})
+
+/**
+ * Revision 2 of the source text turns a line break into a blank, so a token a
+ * break split reaches the redactor as two pieces. Main joined them and removed
+ * the whole; the first version of this repair removed only the piece that still
+ * looked like a contact. Each case is the raw text of a review: what must not
+ * survive, and the placeholder that must stand in its place.
+ */
+const SPLIT_BY_A_LINE_BREAK: ReadonlyArray<
+  readonly [name: string, raw: string, gone: readonly string[], placeholder: string]
+> = [
+  [
+    'a domain split inside its name',
+    'See hotelsun\nrise.com for the rooms.',
+    ['hotelsun', 'rise.com'],
+    '[CONTACT]',
+  ],
+  [
+    'a domain split inside its name, with a path',
+    'See hotelsun\nrise.bg/rooms now.',
+    ['hotelsun', 'rise.bg'],
+    '[CONTACT]',
+  ],
+  [
+    'a domain split at a hyphen',
+    'Our site is sunrise-ho\ntel.bg for the rooms.',
+    ['sunrise-ho', 'tel.bg'],
+    '[CONTACT]',
+  ],
+  [
+    'a domain split after its dot',
+    'Our site is hotelsunrise.\ncom for the rooms.',
+    ['hotelsunrise', 'com for'],
+    '[CONTACT]',
+  ],
+  [
+    'a domain split after its dot, bg',
+    'Our site is hotelsunrise.\nbg for the rooms.',
+    ['hotelsunrise', 'bg for'],
+    '[CONTACT]',
+  ],
+  [
+    'a domain split before its dot, it',
+    'Our site is hotelsunrise\n.it for the rooms.',
+    ['hotelsunrise'],
+    '[CONTACT]',
+  ],
+  [
+    'a domain split before its dot, es',
+    'Our site is hotelsunrise\n.es for the rooms.',
+    ['hotelsunrise'],
+    '[CONTACT]',
+  ],
+  [
+    'a domain split before its dot, upper case',
+    'Our site is hotelsunrise\n.COM for the rooms.',
+    ['hotelsunrise'],
+    '[CONTACT]',
+  ],
+  [
+    'a domain in camel case split before its dot',
+    'Our site is HotelSunrise\n.com for the rooms.',
+    ['HotelSunrise'],
+    '[CONTACT]',
+  ],
+  [
+    'an email split after a dot',
+    'Write to john.\nsmith@gmail.com please.',
+    ['john.', 'smith@gmail'],
+    '[CONTACT]',
+  ],
+  [
+    'an email split before a dot',
+    'Write to john\n.smith@gmail.com please.',
+    ['john', 'smith@gmail'],
+    '[CONTACT]',
+  ],
+  [
+    'an email split in its domain',
+    'Write to john.smith@gma\nil.com please.',
+    ['john.smith', 'gma', 'il.com'],
+    '[CONTACT]',
+  ],
+  [
+    'a handle split after the at sign',
+    'Insta @\njohn_smith please.',
+    ['john_smith'],
+    '[CONTACT]',
+  ],
+  [
+    'a handle split after an underscore',
+    'Insta @john_\nsmith please.',
+    ['john_', 'smith'],
+    '[CONTACT]',
+  ],
+  [
+    'an IP address split after a dot',
+    'Router 192.168.\n1.1 is slow.',
+    ['192.168', '1.1'],
+    '[CONTACT]',
+  ],
+  [
+    'an IP address split before a dot',
+    'Router 192.168.1\n.1 is slow.',
+    ['192.168.1'],
+    '[CONTACT]',
+  ],
+  [
+    'an IP address split inside a group',
+    'Router 192.16\n8.1.1 is slow.',
+    ['192.16', '8.1.1'],
+    '[CONTACT]',
+  ],
+  [
+    'an IP address split before its last group',
+    'Router 203.0.113.\n9 is slow.',
+    ['203.0.113', ' 9'],
+    '[CONTACT]',
+  ],
+  [
+    'a phone number split after its plus',
+    'Call +\n359888123456 now.',
+    ['359888123456'],
+    '[CONTACT]',
+  ],
+  [
+    'a passport number split in two',
+    'My passport AB12\n34567 was checked.',
+    ['AB12', '34567'],
+    '[IDENTIFIER]',
+  ],
+  [
+    'a street type split in two',
+    'We stayed at 12 Oak Ro\nad and loved it.',
+    ['12 Oak', 'Ro', 'ad and'],
+    '[ADDRESS]',
+  ],
+  [
+    'a street type split in two, with a postal tail',
+    'Visit 12 Oak Ro\nad Sofia 1000 and then go on.',
+    ['12 Oak', 'Sofia 1000'],
+    '[ADDRESS]',
+  ],
+  [
+    'a street name split in two',
+    'We stayed at 12 Ma\nin Street and loved it.',
+    ['12 Ma', 'in Street'],
+    '[ADDRESS]',
+  ],
+  [
+    'a coordinate split inside its fraction',
+    'The hidden cove pin 42.69\n77, 23.3219 here.',
+    ['42.69', '77', '23.3219'],
+    '[ADDRESS]',
+  ],
+]
+
+describe('a token a line break split is still removed whole', () => {
+  it.each(SPLIT_BY_A_LINE_BREAK)('%s', (_name, raw, gone, placeholder) => {
+    const out = redactedRaw(raw)
+    for (const piece of gone) expect(out).not.toContain(piece)
+    expect(out).toContain(placeholder)
+  })
+
+  it.each([
+    ['a service named in a sentence', 'Booking .com said the room was free.'],
+    ['two services', 'Hotels .com and Booking .com both had it.'],
+    ['the word com', 'The word .com is on the sign.'],
+    ['a typo', 'Typo like hotel .com is common.'],
+    ['an extension named', 'This is the .info page.'],
+    ['an app', 'The best .app we found.'],
+    ['two extensions', 'Not a .bar or a .shop.'],
+    ['two country codes', 'Chat in .de or .fr is fine.'],
+    ['a verb and an extension', 'He wrote that .org is better.'],
+    ['cash and de', 'We paid in cash .de was the plan.'],
+    ['cash and co', 'We paid in cash .co was the plan.'],
+  ])('leaves %s alone', (_name, text) => {
+    const wrapped = inShortReview(text)
+    expect(redacted(wrapped)).toBe(wrapped)
+  })
+
+  it.each([
+    [
+      'a word that introduces a domain',
+      'Please visit booking.com for rooms.',
+      'booking.com',
+    ],
+    [
+      'a preposition before a domain',
+      'We booked on booking.com and paid there.',
+      'booking.com',
+    ],
+    ['a short word before a domain', 'You can see booking.com for rooms.', 'booking.com'],
+    [
+      'a sentence before an email',
+      'Contact us. info@hotel.com for rooms.',
+      'info@hotel.com',
+    ],
+  ])('takes only the contact after %s', (_name, text, contact) => {
+    expect(redacted(text)).toBe(replacing(text, contact, '[CONTACT]'))
   })
 })

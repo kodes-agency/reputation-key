@@ -8,6 +8,7 @@ import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import { AI_UNICODE_CASE_FOLDING_V17 } from './generated/ai-unicode-case-folding-v17'
 import { ADDRESS_MARKER_PROFILE, findAddressMarkers } from './ai-address-markers'
 import { ibanValid, luhnValid } from './ai-financial-validators'
+import { BROKEN_TOKEN_PROFILE, findBrokenTokenMarkers } from './ai-broken-token-markers'
 import { COORDINATE_MARKER_PROFILE, findCoordinateMarkers } from './ai-coordinate-markers'
 import {
   NETWORK_MARKER_PROFILE,
@@ -90,12 +91,12 @@ const BARE_DOMAIN_RE =
 const SOCIAL_RE =
   /(?:^|[^\p{L}\p{N}_.])(@[A-Za-z0-9_](?:[A-Za-z0-9_.]{0,28}[A-Za-z0-9_])?)(?=$|[^A-Za-z0-9_.])/gu
 const PHONE_RE =
-  /(?:^|[^\p{Nd}])((?:\+?[\p{Nd}][\p{Nd} ().-]{5,30}[\p{Nd}]))(?=$|[^\p{Nd}])/gu
+  /(?:^|[^\p{Nd}])((?:(?:\+[ \t]?)?[\p{Nd}][\p{Nd} ().-]{5,30}[\p{Nd}]))(?=$|[^\p{Nd}])/gu
 const CARD_RE = /(?:^|[^\p{Nd}])((?:\p{Nd}[ -]?){12,18}\p{Nd})(?=$|[^\p{Nd}])/gu
 const IBAN_RE =
   /(?:^|[^A-Za-z0-9])([A-Za-z]{2}\d{2}(?:[ -]?[A-Za-z0-9]){11,30})(?=$|[^A-Za-z0-9])/gu
 const LABELLED_ID_RE =
-  /\b(?:passport|tax[ \t_-]*id|national[ \t_-]*id|government[ \t_-]*id|driver'?s?[ \t_-]*licen[cs]e|ssn|social[ \t_-]*security|account[ \t_-]*(?:id|number)|customer[ \t_-]*id)\b[ \t]*(?::|#|-)?[ \t]*[A-Za-z0-9][A-Za-z0-9._~-]{3,64}/giu
+  /\b(?:passport|tax[ \t_-]*id|national[ \t_-]*id|government[ \t_-]*id|driver'?s?[ \t_-]*licen[cs]e|ssn|social[ \t_-]*security|account[ \t_-]*(?:id|number)|customer[ \t_-]*id)\b[ \t]*(?::|#|-)?[ \t]*[A-Za-z0-9][A-Za-z0-9._~-]{3,64}(?:[ \t]\d{3,10}(?![\p{L}\p{N}]))?/giu
 const POSTAL_LABEL_RE =
   /\b(?:postal[ \t_-]*code|postal|postcode|zip[ \t_-]*code|zip)\b[ \t]*(?::|#|-)?[ \t]*[A-Za-z0-9][A-Za-z0-9 -]{2,11}[A-Za-z0-9]\b/giu
 const KNOWN_SECRET_RE =
@@ -137,6 +138,7 @@ const DETECTOR_MANIFEST = Object.freeze({
     ...ADDRESS_MARKER_PROFILE.patterns,
     ...COORDINATE_MARKER_PROFILE.patterns,
     ...NETWORK_MARKER_PROFILE.patterns,
+    ...BROKEN_TOKEN_PROFILE.patterns,
     Object.freeze({
       id: 'bare_domain',
       source: BARE_DOMAIN_RE.source,
@@ -229,19 +231,26 @@ const DETECTOR_MANIFEST = Object.freeze({
   addressLimits: ADDRESS_MARKER_PROFILE.limits,
   coordinateLimits: COORDINATE_MARKER_PROFILE.limits,
   splitDomainTopLevels: NETWORK_MARKER_PROFILE.splitDomainTopLevels,
+  minSplitNameScalars: NETWORK_MARKER_PROFILE.minSplitNameScalars,
+  brokenTokens: Object.freeze({
+    afterDotTopLevels: BROKEN_TOKEN_PROFILE.afterDotTopLevels,
+    introducingWords: BROKEN_TOKEN_PROFILE.introducingWords,
+    limits: BROKEN_TOKEN_PROFILE.limits,
+  }),
   validators: Object.freeze([
     'email-rfc-bounded-v1',
     'whatwg-http-domain-v1',
     'bare-domain-alphabetic-final-label-v2',
-    'split-domain-blank-before-dot-v1',
+    'split-domain-blank-before-dot-v2',
+    'broken-token-single-blank-v1',
     'social-handle-v1',
     'libphonenumber-js-1.13.11-max',
-    'node-net-is-ip-port-and-label-v1',
-    'coordinate-labelled-pair-v1',
+    'node-net-is-ip-port-and-label-v2',
+    'coordinate-labelled-pair-v2',
     'luhn-v1',
     'iban-mod97-v1',
     'labelled-identifier-v1',
-    'postal-address-street-shape-v4',
+    'postal-address-street-shape-v5',
     'secret-entropy-v1',
   ]),
 })
@@ -540,7 +549,7 @@ function scanPhones(text: string, countryCode: CountryCode, state: ScanState): v
   forEachMatch(PHONE_RE, text, (match) => {
     const raw = match[1]
     if (raw === undefined) return
-    const value = normalizeDecimalDigits(raw)
+    const value = normalizeDecimalDigits(raw)?.replace(/^\+[ \t]+/u, '+') ?? null
     if (value === null) {
       state.blocked = 'scanner_unavailable'
       return
@@ -567,6 +576,12 @@ function scanIpsAndCoordinates(text: string, state: ScanState): void {
   }
   for (const span of findCoordinateMarkers(text)) {
     addCandidate(state, text, span.start, span.end, '[ADDRESS]', 64)
+  }
+}
+
+function scanBrokenTokens(text: string, state: ScanState): void {
+  for (const marker of findBrokenTokenMarkers(text)) {
+    addCandidate(state, text, marker.start, marker.end, marker.placeholder, 256)
   }
 }
 
@@ -765,6 +780,7 @@ export function scanStructuredMarkerCandidates(
     scanSocialHandles(input.text, state)
     scanPhones(input.text, input.countryCode as CountryCode, state)
     scanIpsAndCoordinates(input.text, state)
+    scanBrokenTokens(input.text, state)
     scanFinancial(input.text, state)
     scanIdentifiersAndAddresses(input.text, state)
     scanSecrets(input.text, state)

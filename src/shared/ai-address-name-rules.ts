@@ -298,11 +298,13 @@ function namedUnitRejected(shape: NameShape, bare: readonly string[]): boolean {
 }
 
 function namedRejected(shape: NameShape, bare: readonly string[]): boolean {
+  // After `at`, a short name written with capitals is the address, whatever its words.
+  const introduced = shape.lead.address && bare.length <= MAX_ADDRESS_LEAD_NAME_WORDS
   return (
     clausePhraseRejected(shape, bare) ||
     praiseOfPlaceRejected(shape, bare) ||
     namedUnitRejected(shape, bare) ||
-    sentenceWordRejected(bare, true)
+    (!introduced && sentenceWordRejected(bare, true))
   )
 }
 
