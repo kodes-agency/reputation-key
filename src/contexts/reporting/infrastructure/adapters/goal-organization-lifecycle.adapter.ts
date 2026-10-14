@@ -10,10 +10,11 @@
 // Goal owns an active tenant-cross maintenance schedule that activates
 // scheduled programs and appends, reconciles, or closes monthly results.
 // Organization closure must stop it starting work through the recoverable
-// window: the Closing phase pauses the active programs, and maintenance does
-// not list or activate any program of an Organization the lifecycle holds
-// (goal-organization-lifecycle-hold.ts). A month that is already open still
-// reconciles and closes, which is how purge readiness comes to find none.
+// window: the Closing phase pauses the active programs, maintenance does not
+// list or activate any program of an Organization the lifecycle holds, and
+// the use cases refuse a manager who would create, start or resume a goal
+// there (goal-organization-lifecycle-hold.ts). A month that is already open
+// still reconciles and closes, which is how purge readiness comes to find none.
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -142,9 +143,12 @@ async function countTenantRows(tx: Tx, organization: string): Promise<number> {
  * performs no mutation until `maintain()` activates it. A closure request
  * suspends nothing, so activation is what stops: `maintain()` neither lists
  * nor activates a program whose Organization the lifecycle holds (a closure
- * requested or in progress, or cancelled and awaiting reactivation). Without
- * that, the job would activate a goal set for next month inside the recovery
- * window and the readiness check below would refuse the Organization for good.
+ * requested or in progress, or cancelled and awaiting reactivation), and the
+ * use cases refuse to create, start or resume a goal there
+ * (`organization_closing`). Without that, the job would activate a goal set
+ * for next month inside the recovery window, and a manager could resume a goal
+ * this phase paused or set one for the current month; the readiness check
+ * below would refuse the Organization for good.
  */
 const prepareClosing = async (
   tx: Tx,

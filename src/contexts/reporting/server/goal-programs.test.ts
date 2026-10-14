@@ -198,7 +198,7 @@ describe('canonical Goal Program server functions', () => {
     }
   })
 
-  it.each(['subject_has_goal', 'start_month_changed'] as const)(
+  it.each(['subject_has_goal', 'start_month_changed', 'organization_closing'] as const)(
     'answers %s as a conflict the form can explain',
     async (code) => {
       mocks.create.mockRejectedValue(new GoalProgramError(code))
@@ -342,10 +342,13 @@ describe('canonical Goal Program server functions', () => {
       })
     const end = (): Promise<unknown> =>
       changeGoalProgramStatus({ data: { ...identity, status: 'ended' } })
+    const resume = (): Promise<unknown> =>
+      changeGoalProgramStatus({ data: { ...identity, status: 'active' } })
     it.each([
       ['a revision', 'revision_conflict', mocks.revise, revise],
       ['a revision', 'subject_has_goal', mocks.revise, revise],
       ['a status change', 'revision_conflict', mocks.changeStatus, end],
+      ['a status change', 'organization_closing', mocks.changeStatus, resume],
     ] as const)(
       'answers %s refused with %s as a conflict',
       async (_name, code, mock, run) => {

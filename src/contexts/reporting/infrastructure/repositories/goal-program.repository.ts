@@ -22,7 +22,10 @@ import {
   listTargetChanges,
 } from './goal-month-target.repository'
 import { createGoalMonthlyResultRepository } from './goal-monthly-result.repository'
-import { organizationLifecycleHoldsProgram } from './goal-organization-lifecycle-hold'
+import {
+  isOrganizationHeldByLifecycle,
+  organizationLifecycleHoldsProgram,
+} from './goal-organization-lifecycle-hold'
 import {
   assignmentValues,
   GoalProgramRevisionConflict,
@@ -431,6 +434,10 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
           asc(goalPrograms.id),
         )
       return hydrateBundles(db, rows)
+    },
+
+    isOrganizationHeld(organizationId) {
+      return isOrganizationHeldByLifecycle(db, organizationId)
     },
 
     async changeStatus(input) {

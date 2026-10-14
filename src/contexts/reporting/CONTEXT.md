@@ -127,11 +127,14 @@ metric authority.
 8. A version's target is never updated in place. A different target for a month still
    running is that month's own; a different target for the months after is a new version
    (ADR 0066).
-9. Goal maintenance starts no work in an Organization the lifecycle holds: one with a closure
-   requested or in progress, or one whose closure was cancelled and awaits reactivation. It
-   neither lists nor activates its programs (the Closing phase can pause only active ones; the
-   database has no scheduled -> paused edge). A month already open still reconciles and
-   closes, which is how Goal's purge-readiness check comes to find none left.
+9. Nothing puts a Goal Program into `active` in an Organization the lifecycle holds: one with a
+   closure requested or in progress, or one whose closure was cancelled and awaits
+   reactivation (the Closing phase can pause only active programs; the database has no
+   scheduled -> paused edge). Maintenance neither lists nor activates its programs, and the
+   commands that would start one are refused with `organization_closing`: creating a goal (one
+   or several), and changing a goal's status to `active` (starting a scheduled goal, resuming a
+   paused one). Pausing and ending are never refused. A month already open still reconciles
+   and closes, which is how Goal's purge-readiness check comes to find none left.
 
 ## Interfaces and dependencies
 

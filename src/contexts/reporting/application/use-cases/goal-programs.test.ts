@@ -67,6 +67,7 @@ const governedVersion = (id: string, minimumSample: number) => ({
 function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
   let id = 0
   let now = initialNow
+  let organizationHeld = false
   let created: GoalProgramBundle | null = null
   const results = new Map<string, GoalMonthlyResult>()
   const resultRevisions = new Map<string, GoalResultRevision>()
@@ -89,6 +90,7 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
         ? [created]
         : [],
     ),
+    isOrganizationHeld: vi.fn(async () => organizationHeld),
     changeStatus: vi.fn(async (input) => {
       if (!created || created.program.status !== input.expectedStatus) return null
       const program = {
@@ -348,6 +350,10 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
     getCreated: () => created,
     setNow: (next: Date) => {
       now = next
+    },
+    /** The Organization's lifecycle holds it (a closure requested or in progress). */
+    holdOrganization: () => {
+      organizationHeld = true
     },
   }
 }
@@ -2024,6 +2030,91 @@ describe('canonical Goal Program service', () => {
       failed: 0,
     })
     expect(repository.appendResults).not.toHaveBeenCalled()
+  })
+
+  // The Closing phase can pause only an active program and the database has no
+  // scheduled -> paused edge. So once a closure is requested nothing may put a
+  // program into `active` again: Goal's purge-readiness check would find it
+  // there on every pass and the Organization would stay in `closing` for good.
+  describe('an Organization whose closure the lifecycle holds', () => {
+    const definition = {
+      propertyId: 'property-1',
+      name: 'March ratings',
+      metric: 'portal_rating_count' as const,
+      targetValue: 20,
+      subjects: [{ kind: 'portal' as const, portalId: 'portal-1' }],
+    }
+    const change = (programId: string, status: 'paused' | 'active' | 'ended') => ({
+      propertyId: 'property-1',
+      programId,
+      status,
+    })
+
+    it('creates no goal', async () => {
+      const { service, repository, holdOrganization } = setup()
+      holdOrganization()
+
+      await expect(service.create(definition, actor)).rejects.toMatchObject({
+        name: 'GoalProgramError',
+        code: 'organization_closing',
+      })
+
+      expect(repository.isOrganizationHeld).toHaveBeenCalledExactlyOnceWith('org-1')
+      expect(repository.create).not.toHaveBeenCalled()
+    })
+
+    it('does not resume a goal its Closing phase paused', async () => {
+      const { service, repository, holdOrganization } = setup()
+      const created = await service.create(definition, actor)
+      await service.changeStatus(change(created.program.id, 'paused'), actor)
+      vi.mocked(repository.isOrganizationHeld).mockClear()
+      holdOrganization()
+
+      await expect(
+        service.changeStatus(change(created.program.id, 'active'), actor),
+      ).rejects.toMatchObject({ name: 'GoalProgramError', code: 'organization_closing' })
+
+      expect(repository.changeStatus).toHaveBeenCalledTimes(1)
+      expect(repository.isOrganizationHeld).toHaveBeenCalledExactlyOnceWith('org-1')
+    })
+
+    it('does not start a goal that is still scheduled', async () => {
+      const { service, repository, holdOrganization } = setup(
+        new Date('2026-03-15T12:00:00.000Z'),
+      )
+      const created = await service.create(definition, actor)
+      expect(created.program.status).toBe('scheduled')
+      holdOrganization()
+
+      await expect(
+        service.changeStatus(change(created.program.id, 'active'), actor),
+      ).rejects.toMatchObject({ name: 'GoalProgramError', code: 'organization_closing' })
+
+      expect(repository.changeStatus).not.toHaveBeenCalled()
+    })
+
+    it('still pauses and ends a goal, which only stops work', async () => {
+      const { service, holdOrganization } = setup()
+      const created = await service.create(definition, actor)
+      holdOrganization()
+
+      await expect(
+        service.changeStatus(change(created.program.id, 'paused'), actor),
+      ).resolves.toMatchObject({ status: 'paused' })
+      await expect(
+        service.changeStatus(change(created.program.id, 'ended'), actor),
+      ).resolves.toMatchObject({ status: 'ended' })
+    })
+
+    it('does not ask the lifecycle about a change that is not a start', async () => {
+      const { service, repository } = setup()
+      const created = await service.create(definition, actor)
+      vi.mocked(repository.isOrganizationHeld).mockClear()
+
+      await service.changeStatus(change(created.program.id, 'paused'), actor)
+
+      expect(repository.isOrganizationHeld).not.toHaveBeenCalled()
+    })
   })
 
   it('retains terminal Program history and denies later assignment changes', async () => {

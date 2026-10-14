@@ -163,6 +163,9 @@ function setup(initialNow = MARCH_15) {
       return 'created'
     }),
     get: vi.fn<GoalProgramRepository['get']>(async () => stored),
+    isOrganizationHeld: vi.fn<GoalProgramRepository['isOrganizationHeld']>(
+      async () => false,
+    ),
     findAssignmentConflicts: vi.fn<GoalProgramRepository['findAssignmentConflicts']>(
       async () => [],
     ),

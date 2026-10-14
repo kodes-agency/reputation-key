@@ -7,6 +7,12 @@
 // recovery window, and Goal's purge-readiness check then refused the
 // Organization for good: it throws on an active program.
 //
+// The same hold refuses a person: nothing may put a goal into `active` in such
+// an Organization, or the purge-readiness check meets it again. The Closing
+// phase has run once by then, so a manager could resume a goal it paused, or
+// set a goal for the current month, and the Organization would stay in
+// `closing` on every pass.
+//
 // Nothing is committed: monthly results cannot be deleted, so the fixture and
 // every statement run in one held transaction that is rolled back.
 
@@ -18,10 +24,15 @@ import {
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
 import type { Tx } from '#/shared/outbox/commit'
-import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import {
+  findMetricVersionById,
+  METRIC_DEFINITION_IDS,
+  METRIC_VERSION_IDS,
+} from '../../domain/metric-registry'
 import type { GoalProgramBundle } from '../../application/ports/goal-program.repository'
 import type { GoalProgramDependencies } from '../../application/use-cases/goal-program-shared'
 import { maintain } from '../../application/use-cases/goal-program-maintenance'
+import { createGoalProgramService } from '../../application/use-cases/goal-programs'
 import { GOAL_ORGANIZATION_LIFECYCLE_PHASES } from '../adapters/goal-organization-lifecycle.adapter'
 import { createGoalProgramRepository } from './goal-program.repository'
 
@@ -182,6 +193,7 @@ describe.sequential('Goal maintenance in a closing Organization (integration)', 
           sourceCompleteThrough: null,
           reason: null,
         }),
+        getApprovedGoalVersion: async (versionId) => findMetricVersionById(versionId),
       },
       id: randomUUID,
       now: () => NOW,
@@ -266,6 +278,119 @@ describe.sequential('Goal maintenance in a closing Organization (integration)', 
 
     await expect(verifyPurgeReadiness(goal)).resolves.toMatchObject({
       outcome: 'complete',
+    })
+  })
+
+  it.each([
+    ['active', false],
+    ['closure_requested', true],
+    ['closing', true],
+    ['cancelled', true],
+  ] as const)('reads an Organization that is %s as held: %s', async (state, isHeld) => {
+    const goal = await scheduledGoal(state)
+
+    await expect(
+      createGoalProgramRepository(db).isOrganizationHeld(goal.program.organizationId),
+    ).resolves.toBe(isHeld)
+  })
+
+  it('reads an Organization with no lifecycle row as not held', async () => {
+    await expect(
+      createGoalProgramRepository(db).isOrganizationHeld(`goal-closing-${randomUUID()}`),
+    ).resolves.toBe(false)
+  })
+
+  describe('a manager in an Organization whose Closing phase has run', () => {
+    const actor = {
+      organizationId: '',
+      userId: 'manager-1',
+      role: 'AccountAdmin',
+    } as const
+
+    /** A goal that was active, then paused by the Closing phase of a closing Organization. */
+    async function fencedGoal() {
+      const goal = await scheduledGoal('active')
+      const deps = dependencies(goal)
+      await expect(maintain(deps)).resolves.toMatchObject({ activated: 1 })
+      await setLifecycle(goal.program.organizationId, 'closing')
+      await GOAL_ORGANIZATION_LIFECYCLE_PHASES.prepareClosing(db as unknown as Tx, {
+        organizationId: goal.program.organizationId,
+        closureLineageId: randomUUID(),
+        lifecycleRevision: 2,
+        recoverableUntil: RECOVERABLE_UNTIL,
+        occurredAt: NOW,
+      })
+      await expect(statusOf(goal)).resolves.toBe('paused')
+      return {
+        goal,
+        service: createGoalProgramService(deps),
+        actor: { ...actor, organizationId: goal.program.organizationId },
+      }
+    }
+
+    it('cannot resume the goal the phase paused, so the purge is not blocked again', async () => {
+      const { goal, service, actor: manager } = await fencedGoal()
+
+      await expect(
+        service.changeStatus(
+          {
+            propertyId: goal.program.propertyId,
+            programId: goal.program.id,
+            status: 'active',
+          },
+          manager,
+        ),
+      ).rejects.toMatchObject({ name: 'GoalProgramError', code: 'organization_closing' })
+
+      await expect(statusOf(goal)).resolves.toBe('paused')
+      await expect(verifyPurgeReadiness(goal)).resolves.toMatchObject({
+        outcome: 'complete',
+      })
+    })
+
+    it('cannot set a goal for the current month', async () => {
+      const { goal, service, actor: manager } = await fencedGoal()
+      const before = await client.query(
+        `SELECT count(*)::int AS programs FROM goal_programs WHERE organization_id = $1`,
+        [goal.program.organizationId],
+      )
+
+      await expect(
+        service.create(
+          {
+            propertyId: goal.program.propertyId,
+            name: 'Rating average this month',
+            // Another measure than the paused goal's, so only the lifecycle
+            // can stand in the way.
+            metric: 'portal_rating_average',
+            targetValue: 4.5,
+            subjects: [{ kind: 'property', propertyId: goal.program.propertyId }],
+            startMonth: '2026-10',
+          },
+          manager,
+        ),
+      ).rejects.toMatchObject({ name: 'GoalProgramError', code: 'organization_closing' })
+
+      const after = await client.query(
+        `SELECT count(*)::int AS programs FROM goal_programs WHERE organization_id = $1`,
+        [goal.program.organizationId],
+      )
+      expect(after.rows).toEqual(before.rows)
+    })
+
+    it('can still end the paused goal', async () => {
+      const { goal, service, actor: manager } = await fencedGoal()
+
+      await expect(
+        service.changeStatus(
+          {
+            propertyId: goal.program.propertyId,
+            programId: goal.program.id,
+            status: 'ended',
+          },
+          manager,
+        ),
+      ).resolves.toMatchObject({ status: 'ended' })
     })
   })
 })
