@@ -10,9 +10,10 @@
 //   3. otherwise the domain status (domain/rating-goal-status.ts), and a climb
 //      goal Google shows the target of is reached.
 // The write stores the tenth Google showed only when Google could be read,
-// and is applied only when it changes the row (repository.recordEvaluation),
-// so the stored values stay the last ones seen: a later evaluation can tell a
-// tenth gained or lost, or a new status, from a repeat.
+// and is applied only when it changes the row, onto the plan version it was
+// worked out on, and never over a newer evaluation (repository
+// .recordEvaluation). So the stored values stay the last ones seen: a later
+// evaluation can tell a tenth gained or lost, or a new status, from a repeat.
 
 import type { PropertyRatingGoal, RatingGoalStatus } from '../domain/rating-goal'
 import { climbStatus, keepStatus } from '../domain/rating-goal-status'
@@ -95,6 +96,7 @@ export const evaluationWrite = (
   organizationId: goal.organizationId,
   propertyId: goal.propertyId,
   goalId: goal.id,
+  expectedVersion: goal.version,
   status: evaluation.status,
   displayedTenths: evaluation.displayedTenths,
   evaluatedAt: now,
@@ -136,8 +138,9 @@ function afterEvaluation(
 
 /**
  * Stores an evaluation and returns the goal as it now stands. Nothing is
- * stored for a repeat, or when another evaluation already took the terminal
- * step: the goal comes back as read, and the next read finds it in History.
+ * stored for a repeat, when another evaluation already took the terminal step
+ * or stored a newer reading, or when a manager changed the plan since it was
+ * read: the goal comes back as read, and the next evaluation decides again.
  */
 export async function recordRatingGoalEvaluation(
   repository: Pick<PropertyRatingGoalRepository, 'recordEvaluation'>,

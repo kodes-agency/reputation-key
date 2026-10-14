@@ -4,10 +4,13 @@
 // unique index `property_rating_goals_one_active_idx` is what holds "one
 // active goal per Property" when two managers set one at once: the loser's
 // insert does nothing and is told `active_exists`. A manager's change or end
-// is a compare-and-set on the version; an evaluation never moves the version
-// and writes only when it changes the row.
+// is a compare-and-set on the version. An evaluation never moves the version
+// and writes only when it changes the row, and only onto the plan version it
+// was worked out on and never over a newer evaluation: a reached step decided
+// on a target the manager has since raised, or an older reading landing after
+// a newer one, changes nothing.
 
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   propertyRatingGoalChanges,
@@ -215,6 +218,9 @@ export const createPropertyRatingGoalRepository = (
           baselineReviewCount: goal.baseline.reviewCount,
           baselineGoogleAverage: goal.baseline.googleAverage,
           baselineExactAverage: goal.baseline.exactAverage,
+          lastDisplayedTenths: goal.lastEvaluation.displayedTenths,
+          lastEvaluatedStatus: goal.lastEvaluation.status,
+          lastEvaluatedAt: goal.lastEvaluation.evaluatedAt,
           createdBy: goal.createdBy,
           createdAt: goal.createdAt,
           updatedAt: goal.updatedAt,
@@ -294,6 +300,11 @@ export const createPropertyRatingGoalRepository = (
             goalScope(write.organizationId, write.propertyId),
             eq(propertyRatingGoals.id, write.goalId),
             eq(propertyRatingGoals.status, 'active'),
+            eq(propertyRatingGoals.version, write.expectedVersion),
+            or(
+              isNull(propertyRatingGoals.lastEvaluatedAt),
+              lte(propertyRatingGoals.lastEvaluatedAt, write.evaluatedAt),
+            ),
             evaluationChanges(write),
           ),
         )

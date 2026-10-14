@@ -14,15 +14,19 @@ import type {
   RatingGoalMode,
   RatingGoalStatus,
 } from '../../domain/rating-goal'
+import type {
+  RatingGoalEligibility,
+  RatingStopLabel,
+} from '../../domain/rating-goal-stops'
 
 export type {
   RatingGoalChangeField,
   RatingGoalEndedReason,
   RatingGoalMode,
   RatingGoalStatus,
+  RatingStopLabel,
 }
 
-export type RatingStopLabel = 'realistic' | 'stretch' | 'out_of_reach'
 export type RatingPaceKey = 'steady' | 'faster' | 'push'
 
 /** When a target is expected. `YYYY-MM` months in the Property's time zone. */
@@ -71,10 +75,11 @@ export type RatingStopView = Readonly<{
   forecasts: Readonly<Record<RatingPaceKey, RatingForecastView>>
 }>
 
-export type RatingGoalEligibilityView =
-  | Readonly<{ eligible: true }>
-  | Readonly<{ eligible: false; reason: 'few_reviews'; reviewCount: number }>
-  | Readonly<{ eligible: false; reason: 'waiting_for_google' }>
+/**
+ * Whether a goal may be set: `property_not_active` first, then `few_reviews`
+ * (Google's count, current or not), then `waiting_for_google`.
+ */
+export type RatingGoalEligibilityView = RatingGoalEligibility
 
 /**
  * The exact inputs the forecast is worked out from, for a pace the manager

@@ -12,7 +12,7 @@ import type {
 import type { GoalActor, GoalExecutionPolicy } from './goal-program-shared'
 import type { RatingGoalDependencies } from './rating-goal-shared'
 
-export const ORG = 'org-rating-goal'
+const ORG = 'org-rating-goal'
 export const PROPERTY = '30000000-0000-4000-8000-000000000001'
 export const NOW = new Date('2026-10-14T12:00:00.000Z')
 export const DAY = 24 * 60 * 60 * 1000
@@ -100,7 +100,6 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
           ...goal,
           state: 'active',
           endedReason: null,
-          lastEvaluation: { displayedTenths: null, status: null, evaluatedAt: null },
           reachedAt: null,
           endedAt: null,
           version: 1,
@@ -131,7 +130,13 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
     },
     recordEvaluation: async (write) => {
       const goal = find((g) => g.id === write.goalId)
-      if (!goal || goal.state !== 'active') return false
+      if (!goal || goal.state !== 'active' || goal.version !== write.expectedVersion) {
+        return false
+      }
+      const storedAt = goal.lastEvaluation.evaluatedAt
+      if (storedAt !== null && storedAt.getTime() > write.evaluatedAt.getTime()) {
+        return false
+      }
       const terminal = write.outcome.kind !== 'continues'
       const changed =
         terminal ||

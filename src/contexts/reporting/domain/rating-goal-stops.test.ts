@@ -136,16 +136,35 @@ describe('when Keep comes first', () => {
 describe('who may set a rating goal', () => {
   it('needs ten Google reviews and says how many there are', () => {
     expect(MIN_GOOGLE_REVIEWS_FOR_RATING_GOAL).toBe(10)
-    expect(ratingGoalEligibility({ reviewCount: 6 })).toEqual({
+    expect(ratingGoalEligibility({ reviewCount: 6 }, true)).toEqual({
       eligible: false,
       reason: 'few_reviews',
       reviewCount: 6,
     })
-    expect(ratingGoalEligibility({ reviewCount: 10 })).toEqual({ eligible: true })
+    expect(ratingGoalEligibility({ reviewCount: 10 }, true)).toEqual({ eligible: true })
   })
 
-  it('waits for Google when there are no numbers yet', () => {
-    expect(ratingGoalEligibility(null)).toEqual({
+  it('says how many reviews there are even while the numbers are not current', () => {
+    // A Property with no Google review has no average, so its numbers never
+    // become usable: it must still hear "You have 0", not "Waiting for Google".
+    expect(ratingGoalEligibility({ reviewCount: 0 }, false)).toEqual({
+      eligible: false,
+      reason: 'few_reviews',
+      reviewCount: 0,
+    })
+    expect(ratingGoalEligibility({ reviewCount: 6 }, false)).toEqual({
+      eligible: false,
+      reason: 'few_reviews',
+      reviewCount: 6,
+    })
+  })
+
+  it('waits for Google when there are no numbers yet, or they are not current', () => {
+    expect(ratingGoalEligibility(null, false)).toEqual({
+      eligible: false,
+      reason: 'waiting_for_google',
+    })
+    expect(ratingGoalEligibility({ reviewCount: 10 }, false)).toEqual({
       eligible: false,
       reason: 'waiting_for_google',
     })

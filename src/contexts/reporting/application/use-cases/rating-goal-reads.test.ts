@@ -88,6 +88,47 @@ describe('the setup read', () => {
     })
   })
 
+  it('says a Property without a Google review has none yet, with fresh numbers', async () => {
+    world.snapshot = { ...world.snapshot!, reviewCount: 0, averageRating: null }
+    world.summary = {
+      ...world.summary,
+      all: { count: 0, sum: 0 },
+      mixWindow: { count: 0, sum: 0 },
+      mostRecent: { count: 0, sum: 0 },
+    }
+
+    const setup = await getRatingGoalSetup(dependencies(world), input, actor)
+
+    expect(setup).toMatchObject({
+      eligibility: { eligible: false, reason: 'few_reviews', reviewCount: 0 },
+      google: { shows: null, reviewCount: 0, current: true },
+      stops: [],
+    })
+  })
+
+  it('says how many reviews there are while Google’s numbers are a day old', async () => {
+    world.snapshot = {
+      ...world.snapshot!,
+      reviewCount: 6,
+      verifiedAt: new Date(NOW.getTime() - 25 * 3600_000),
+    }
+
+    const setup = await getRatingGoalSetup(dependencies(world), input, actor)
+
+    expect(setup).toMatchObject({
+      eligibility: { eligible: false, reason: 'few_reviews', reviewCount: 6 },
+      google: { reviewCount: 6, current: false },
+    })
+  })
+
+  it('offers no goal for a Property that is not active, as setting one refuses', async () => {
+    world.facts = { ...world.facts!, lifecycleState: 'suspended' }
+
+    const setup = await getRatingGoalSetup(dependencies(world), input, actor)
+
+    expect(setup.eligibility).toEqual({ eligible: false, reason: 'property_not_active' })
+  })
+
   it('waits for Google without a snapshot, and has nothing to offer', async () => {
     world.snapshot = null
 

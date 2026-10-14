@@ -22,15 +22,15 @@ import {
 /** A rating goal needs at least this many Google reviews. */
 export const MIN_GOOGLE_REVIEWS_FOR_RATING_GOAL = 10
 /** A stop is Realistic when the Faster pace gets there within this many weeks. */
-export const REALISTIC_WITHIN_WEEKS = 26
+const REALISTIC_WITHIN_WEEKS = 26
 /** A stop is a Stretch when the Faster pace gets there within this many weeks. */
-export const STRETCH_WITHIN_WEEKS = 52
+const STRETCH_WITHIN_WEEKS = 52
 /** The highest target a manager can pick (4.9). */
 export const HIGHEST_TARGET_TENTHS = 49
 /** 5.0: shown, never selectable. */
 export const PERFECT_TENTHS = 50
 /** The preselected stop is at most this many tenths above what Google shows. */
-export const PRESELECT_MAX_STEP_TENTHS = 3
+const PRESELECT_MAX_STEP_TENTHS = 3
 
 export type RatingStopLabel = 'realistic' | 'stretch' | 'out_of_reach'
 
@@ -59,6 +59,8 @@ export type PerfectStop = Readonly<{
 
 export type RatingGoalEligibility =
   | Readonly<{ eligible: true }>
+  /** The Property is not active (suspended, archived, on its way out). */
+  | Readonly<{ eligible: false; reason: 'property_not_active' }>
   | Readonly<{ eligible: false; reason: 'few_reviews'; reviewCount: number }>
   | Readonly<{ eligible: false; reason: 'waiting_for_google' }>
 
@@ -70,7 +72,7 @@ function labelFor(needed: ReviewsNeeded, fasterPerWeek: number): RatingStopLabel
 }
 
 /** One target's reviews needed, best case and label at the Faster pace. */
-export function ratingStop(
+function ratingStop(
   basis: RatingGoalBasis,
   targetTenths: number,
   fasterPerWeek: number,
@@ -129,13 +131,21 @@ export function offerKeepFirst(basis: RatingGoalBasis): boolean {
   return compareRatios(basis.mix, next) <= 0
 }
 
-/** Rating goals start at ten Google reviews; without numbers, wait for Google. */
+/**
+ * Rating goals start at ten Google reviews. The count of Google's latest
+ * snapshot decides that first, current or not, so a Property with no review
+ * (and so no average to plan with) hears how many it has rather than waiting
+ * for Google for good. With ten or more, the numbers must be current.
+ */
 export function ratingGoalEligibility(
   google: Readonly<{ reviewCount: number }> | null,
+  numbersCurrent: boolean,
 ): RatingGoalEligibility {
-  if (google === null) return { eligible: false, reason: 'waiting_for_google' }
-  if (google.reviewCount < MIN_GOOGLE_REVIEWS_FOR_RATING_GOAL) {
+  if (google !== null && google.reviewCount < MIN_GOOGLE_REVIEWS_FOR_RATING_GOAL) {
     return { eligible: false, reason: 'few_reviews', reviewCount: google.reviewCount }
+  }
+  if (google === null || !numbersCurrent) {
+    return { eligible: false, reason: 'waiting_for_google' }
   }
   return { eligible: true }
 }

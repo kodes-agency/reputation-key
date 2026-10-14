@@ -7,7 +7,7 @@
 // is always allowed while the goal is active. Nothing here is a deadline.
 
 import { ratioToNumber } from '../../domain/rating-goal-numbers'
-import { ratingGoalEligibility } from '../../domain/rating-goal-stops'
+import type { RatingGoalEligibility } from '../../domain/rating-goal-stops'
 import {
   paceProblem,
   planChanges,
@@ -22,8 +22,17 @@ import type {
   RatingGoalEndResult,
   RatingGoalSetResult,
 } from '../dto/rating-goal.types'
-import type { RatingGoalWriteResult } from '../ports/property-rating-goal.repository'
-import { ratingBasis, type RatingGoalReading } from '../rating-goal-reading'
+import type {
+  NewPropertyRatingGoal,
+  RatingGoalWriteResult,
+} from '../ports/property-rating-goal.repository'
+import { evaluateRatingGoal } from '../rating-goal-evaluation'
+import {
+  numbersEligibility,
+  ratingBasis,
+  setupEligibility,
+  type RatingGoalReading,
+} from '../rating-goal-reading'
 import type { GoalActor } from './goal-program-shared'
 import {
   authorizeRatingGoal,
@@ -53,10 +62,12 @@ export type EndRatingGoalInput = Readonly<{
   expectedVersion: number
 }>
 
-/** The tenth Google shows now, when a goal may rely on it. */
-function currentDisplayedTenths(reading: RatingGoalReading): number {
+/** The tenth Google shows now, when the eligibility lets a goal rely on it. */
+function currentDisplayedTenths(
+  reading: RatingGoalReading,
+  eligibility: RatingGoalEligibility,
+): number {
   const basis = ratingBasis(reading)
-  const eligibility = ratingGoalEligibility(reading.waiting ? null : reading.google)
   if (!eligibility.eligible || basis === null) {
     throw ratingGoalError('not_eligible', 'A rating goal needs Google numbers', {
       reason: eligibility.eligible ? 'waiting_for_google' : eligibility.reason,
@@ -98,17 +109,34 @@ export async function setRatingGoal(
   if (await deps.repository.findActive(actor.organizationId, input.propertyId)) {
     throw ratingGoalError('goal_exists', 'This Property already has a rating goal')
   }
-  const now = deps.now()
-  const reading = await requireReading(deps, actor.organizationId, input.propertyId, now)
-  if (reading.facts.lifecycleState !== 'active') {
-    throw ratingGoalError('not_eligible', 'The Property is not active', {
-      reason: 'property_not_active',
-    })
+  const reading = await requireReading(
+    deps,
+    actor.organizationId,
+    input.propertyId,
+    deps.now(),
+  )
+  assertPlan(input, currentDisplayedTenths(reading, setupEligibility(reading)))
+  const goal = newGoal(deps.id(), input, actor, reading)
+  const inserted = await deps.repository.insert(goal)
+  if (inserted === 'active_exists') {
+    throw ratingGoalError('goal_exists', 'This Property already has a rating goal')
   }
-  assertPlan(input, currentDisplayedTenths(reading))
-  const goalId = deps.id()
-  const inserted = await deps.repository.insert({
-    id: goalId,
+  return { goalId: goal.id, version: 1 }
+}
+
+/**
+ * The goal a set stores: its plan, the binding it is set under, the baselines
+ * its progress starts from, and what it starts at (the tenth Google shows and
+ * the status, evaluated as any later evaluation would be).
+ */
+function newGoal(
+  id: string,
+  input: SetRatingGoalInput,
+  actor: GoalActor,
+  reading: RatingGoalReading,
+): NewPropertyRatingGoal {
+  const goal: NewPropertyRatingGoal = {
+    id,
     organizationId: actor.organizationId,
     propertyId: input.propertyId,
     sourceEpoch: reading.facts.sourceEpoch,
@@ -120,14 +148,31 @@ export async function setRatingGoal(
       googleAverage: reading.google?.averageRating ?? 0,
       exactAverage: reading.exact ? ratioToNumber(reading.exact.value) : 0,
     },
+    lastEvaluation: { displayedTenths: null, status: null, evaluatedAt: null },
     createdBy: actor.userId,
-    createdAt: now,
-    updatedAt: now,
-  })
-  if (inserted === 'active_exists') {
-    throw ratingGoalError('goal_exists', 'This Property already has a rating goal')
+    createdAt: reading.now,
+    updatedAt: reading.now,
   }
-  return { goalId, version: 1 }
+  const starting = evaluateRatingGoal(
+    {
+      ...goal,
+      state: 'active',
+      endedReason: null,
+      reachedAt: null,
+      endedAt: null,
+      version: 1,
+    },
+    reading,
+    null,
+  )
+  return {
+    ...goal,
+    lastEvaluation: {
+      displayedTenths: starting.displayedTenths,
+      status: starting.status,
+      evaluatedAt: reading.now,
+    },
+  }
 }
 
 /** The plan a change leaves: a keep goal has no pace. */
@@ -177,10 +222,12 @@ export async function changeRatingGoal(
   if (changes.length === 0) throw ratingGoalError('no_change', 'Nothing changed')
   const now = deps.now()
   const targetMoves = plan.mode !== goal.mode || plan.targetTenths !== goal.targetTenths
-  const displayed = targetMoves
-    ? currentDisplayedTenths(
-        await requireReading(deps, actor.organizationId, input.propertyId, now),
-      )
+  const reading = targetMoves
+    ? await requireReading(deps, actor.organizationId, input.propertyId, now)
+    : null
+  // A change keeps a running goal going; only setting one needs an active Property.
+  const displayed = reading
+    ? currentDisplayedTenths(reading, numbersEligibility(reading))
     : null
   assertPlan(plan, displayed)
   const result = await deps.repository.changePlan({

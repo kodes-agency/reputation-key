@@ -15,7 +15,15 @@ import {
   holdTransaction,
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
-import type { NewPropertyRatingGoal } from '../../application/ports/property-rating-goal.repository'
+import type {
+  NewPropertyRatingGoal,
+  RatingGoalEvaluationWrite,
+} from '../../application/ports/property-rating-goal.repository'
+import type {
+  RatingGoalChangeRow,
+  RatingGoalPlan,
+  RatingGoalStatus,
+} from '../../domain/rating-goal'
 import {
   createPropertyRatingGoalRepository,
   createRatingGoalPropertyFactsReader,
@@ -44,6 +52,7 @@ const newGoal = (
   targetTenths: 45,
   pacePerWeek: 11,
   baseline: { reviewCount: 812, googleAverage: 4.3, exactAverage: 4.31 },
+  lastEvaluation: { displayedTenths: 43, status: 'getting_started', evaluatedAt: SET_AT },
   createdBy: 'manager-1',
   createdAt: SET_AT,
   updatedAt: SET_AT,
@@ -91,7 +100,7 @@ afterEach(async () => {
 })
 
 describe('one active rating goal per Property', () => {
-  it('stores a goal and finds it as the Property’s active goal', async () => {
+  it('stores a goal with the tenth and status it was set at, and finds it as the Property’s active goal', async () => {
     await expect(repository().insert(newGoal())).resolves.toBe('inserted')
 
     const active = await repository().findActive(ORG, PROPERTY)
@@ -104,7 +113,12 @@ describe('one active rating goal per Property', () => {
       state: 'active',
       sourceEpoch: 2,
       baseline: { reviewCount: 812, googleAverage: 4.3, exactAverage: 4.31 },
-      lastEvaluation: { displayedTenths: null, status: null, evaluatedAt: null },
+      // The first evaluation can tell a tenth gained since the goal was set.
+      lastEvaluation: {
+        displayedTenths: 43,
+        status: 'getting_started',
+        evaluatedAt: SET_AT,
+      },
       version: 1,
     })
   })
@@ -235,11 +249,86 @@ describe('an evaluation write', () => {
     organizationId: ORG,
     propertyId: PROPERTY,
     goalId: goalId(1),
+    expectedVersion: 1,
     displayedTenths: 43 as number | null,
-    status: 'on_pace' as const,
+    status: 'on_pace' as RatingGoalStatus,
     evaluatedAt: LATER,
-    outcome: { kind: 'continues' as const },
+    outcome: { kind: 'continues' } as RatingGoalEvaluationWrite['outcome'],
     ...overrides,
+  })
+
+  const reachedAt45 = {
+    displayedTenths: 45,
+    status: 'reached',
+    outcome: { kind: 'reached' },
+  } as const
+
+  /** A manager's change of the plan, logged as the use case logs it. */
+  const changePlanTo = (plan: RatingGoalPlan, fields: readonly RatingGoalChangeRow[]) =>
+    repository().changePlan({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      goalId: goalId(1),
+      expectedVersion: 1,
+      plan,
+      changes: fields.map((field, index) => ({
+        ...field,
+        id: goalId(300 + index),
+        goalId: goalId(1),
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        changedBy: 'manager-2',
+        changedAt: LATER,
+      })),
+      changedAt: LATER,
+    })
+
+  it('refuses an evaluation worked out on a target a manager has since changed', async () => {
+    // Read on 4.5 while Google showed 4.5; the manager then moved the target to 4.6.
+    await changePlanTo({ mode: 'climb', targetTenths: 46, pacePerWeek: 11 }, [
+      { field: 'target', oldValue: '45', newValue: '46' },
+    ])
+
+    await expect(repository().recordEvaluation(write(reachedAt45))).resolves.toBe(false)
+
+    await expect(repository().findById(ORG, PROPERTY, goalId(1))).resolves.toMatchObject({
+      state: 'active',
+      targetTenths: 46,
+      reachedAt: null,
+      version: 2,
+    })
+  })
+
+  it('refuses a reached evaluation from before a switch to keep, without breaking the table rules', async () => {
+    await changePlanTo({ mode: 'keep', targetTenths: 43, pacePerWeek: null }, [
+      { field: 'mode', oldValue: 'climb', newValue: 'keep' },
+      { field: 'target', oldValue: '45', newValue: '43' },
+      { field: 'pace', oldValue: '11', newValue: null },
+    ])
+
+    await expect(repository().recordEvaluation(write(reachedAt45))).resolves.toBe(false)
+
+    await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
+      mode: 'keep',
+      state: 'active',
+    })
+  })
+
+  it('never lets an older reading overwrite what a newer one stored', async () => {
+    await repository().recordEvaluation(
+      write({ displayedTenths: 44, status: 'below_pace' }),
+    )
+
+    // A page read that began before the newer numbers landed writes last.
+    await expect(
+      repository().recordEvaluation(
+        write({ evaluatedAt: new Date(LATER.getTime() - 60_000) }),
+      ),
+    ).resolves.toBe(false)
+
+    await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
+      lastEvaluation: { displayedTenths: 44, status: 'below_pace', evaluatedAt: LATER },
+    })
   })
 
   it('stores a new status and tenth once, and nothing for a repeat', async () => {

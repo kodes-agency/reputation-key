@@ -43,6 +43,25 @@ describe('setting a rating goal', () => {
     expect(world.goals[0]!.baseline.exactAverage).toBeCloseTo(3500 / 812, 10)
   })
 
+  it.each([
+    ['a climb in reach', { targetTenths: 44 }, 'getting_started'],
+    // 4.8 starts at 4.75, above the 4.70 recent mix: no pace gets there.
+    ['a climb past the recent mix', { targetTenths: 48 }, 'cant_reach_at_mix'],
+    ['a keep goal', { mode: 'keep', targetTenths: 43, pacePerWeek: null }, 'holding'],
+  ] as const)(
+    'stores the tenth Google shows and the status %s starts in',
+    async (_name, plan, status) => {
+      await setRatingGoal(dependencies(world), { ...climb, ...plan }, actor)
+
+      // The first evaluation can then tell a tenth gained or lost since it was set.
+      expect(world.goals[0]!.lastEvaluation).toEqual({
+        displayedTenths: 43,
+        status,
+        evaluatedAt: NOW,
+      })
+    },
+  )
+
   it('asks the policy for goal.create on the Property before reading anything', async () => {
     world.deny = true
 
@@ -64,6 +83,21 @@ describe('setting a rating goal', () => {
 
   it('refuses a Property with fewer than ten Google reviews', async () => {
     world.snapshot = { ...world.snapshot!, reviewCount: 6 }
+
+    await expect(setRatingGoal(dependencies(world), climb, actor)).rejects.toMatchObject({
+      code: 'not_eligible',
+      context: { reason: 'few_reviews' },
+    })
+  })
+
+  it('refuses a Property without a Google review as having too few', async () => {
+    world.snapshot = { ...world.snapshot!, reviewCount: 0, averageRating: null }
+    world.summary = {
+      ...world.summary,
+      all: { count: 0, sum: 0 },
+      mixWindow: { count: 0, sum: 0 },
+      mostRecent: { count: 0, sum: 0 },
+    }
 
     await expect(setRatingGoal(dependencies(world), climb, actor)).rejects.toMatchObject({
       code: 'not_eligible',
@@ -113,13 +147,17 @@ describe('setting a rating goal', () => {
     })
   })
 
-  it('sets nothing for an archived Property', async () => {
-    world.facts = { ...world.facts!, lifecycleState: 'archived' }
+  it('sets nothing for an archived or suspended Property', async () => {
+    for (const lifecycleState of ['archived', 'suspended']) {
+      world.facts = { ...world.facts!, lifecycleState }
 
-    await expect(setRatingGoal(dependencies(world), climb, actor)).rejects.toMatchObject({
-      code: 'not_eligible',
-      context: { reason: 'property_not_active' },
-    })
+      await expect(
+        setRatingGoal(dependencies(world), climb, actor),
+      ).rejects.toMatchObject({
+        code: 'not_eligible',
+        context: { reason: 'property_not_active' },
+      })
+    }
   })
 })
 

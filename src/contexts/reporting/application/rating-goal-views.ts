@@ -26,7 +26,6 @@ import {
   offerKeepFirst,
   perfectStop,
   preselectedTarget,
-  ratingGoalEligibility,
   ratingStops,
   type RatingGoalBasis,
   type RatingStop,
@@ -53,7 +52,11 @@ import type {
   RatingStopView,
   RecentMixView,
 } from './dto/rating-goal.types'
-import { ratingBasis, type RatingGoalReading } from './rating-goal-reading'
+import {
+  ratingBasis,
+  setupEligibility,
+  type RatingGoalReading,
+} from './rating-goal-reading'
 
 const JUST_SET_DAYS = 7
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -68,7 +71,7 @@ export const tenthsToRating = (tenths: number): number => tenths / 10
 const neededView = (needed: ReviewsNeeded): number | null =>
   needed === 'unreachable' ? null : needed
 
-export function googleView(reading: RatingGoalReading): GoogleNumbersView | null {
+function googleView(reading: RatingGoalReading): GoogleNumbersView | null {
   const { google } = reading
   if (google === null) return null
   return {
@@ -76,7 +79,7 @@ export function googleView(reading: RatingGoalReading): GoogleNumbersView | null
       google.displayedTenths === null ? null : tenthsToRating(google.displayedTenths),
     reviewCount: google.reviewCount,
     asOf: google.verifiedAt.toISOString(),
-    current: !reading.waiting,
+    current: reading.googleCurrent,
   }
 }
 
@@ -89,7 +92,7 @@ export const mixView = (mix: RecentMix | null): RecentMixView | null =>
         basis: mix.basis,
       }
 
-export const paceView = (perWeek: number): RatingPaceView => ({
+const paceView = (perWeek: number): RatingPaceView => ({
   perWeek,
   perMonth: perMonth(perWeek),
   perDay: perDay(perWeek),
@@ -158,9 +161,7 @@ export function buildSetupView(
 ): RatingGoalSetupView {
   const paces = paceSuggestions(reading.reviewsLast28Days)
   const basis = ratingBasis(reading)
-  const eligibility = ratingGoalEligibility(
-    reading.waiting || reading.google === null ? null : reading.google,
-  )
+  const eligibility = setupEligibility(reading)
   const stops = basis ? ratingStops(basis, paces.faster) : []
   return {
     eligibility,

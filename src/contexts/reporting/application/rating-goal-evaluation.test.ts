@@ -42,6 +42,7 @@ const reading = (overrides: Partial<RatingGoalReading> = {}): RatingGoalReading 
     displayedTenths: 43,
     verifiedAt: new Date(NOW.getTime() - 60 * 60 * 1000),
   },
+  googleCurrent: true,
   waiting: false,
   exact: { value: ratio(431, 100), source: 'cache' },
   mix: { value: ratio(470, 100), reviewCount: 30, basis: 'last_90_days' },
@@ -133,13 +134,16 @@ describe('evaluating an active rating goal', () => {
 })
 
 describe('what an evaluation writes', () => {
-  it('names the goal, the status, the tenth and the time', () => {
+  it('names the goal, the plan version it was worked out on, the status, the tenth and the time', () => {
+    const changed = goal({ version: 3 })
+
     expect(
-      evaluationWrite(goal(), evaluateRatingGoal(goal(), reading(), 40), NOW),
+      evaluationWrite(changed, evaluateRatingGoal(changed, reading(), 40), NOW),
     ).toEqual({
       organizationId: 'org-1',
       propertyId: 'property-1',
       goalId: 'goal-1',
+      expectedVersion: 3,
       status: 'on_pace',
       displayedTenths: 43,
       evaluatedAt: NOW,

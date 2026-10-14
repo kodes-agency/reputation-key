@@ -24,7 +24,11 @@ import {
 } from '../domain/rating-goal-numbers'
 import { PACE_WINDOW_DAYS } from '../domain/rating-goal-pace'
 import { googleIsWaiting } from '../domain/rating-goal-status'
-import type { RatingGoalBasis } from '../domain/rating-goal-stops'
+import {
+  ratingGoalEligibility,
+  type RatingGoalBasis,
+  type RatingGoalEligibility,
+} from '../domain/rating-goal-stops'
 import type {
   RatingGoalPropertyFacts,
   RatingGoalPropertyFactsReader,
@@ -51,7 +55,9 @@ export type RatingGoalReading = Readonly<{
   now: Date
   facts: RatingGoalPropertyFacts
   google: GoogleNumbers | null
-  /** No usable numbers: no snapshot, a stale one, an inactive binding, or no cache. */
+  /** Google's snapshot is there, under an active binding, and at most a day old. */
+  googleCurrent: boolean
+  /** No usable numbers: Google's are not current, or there is no average or mix. */
   waiting: boolean
   exact: ExactAverage | null
   mix: RecentMix | null
@@ -101,15 +107,14 @@ export async function readRatingGoalInputs(
     : null
   const exact = google ? exactAverage(summary.all, google) : null
   const mix = recentMix(summary.mixWindow, summary.mostRecent)
+  const googleCurrent = !googleIsWaiting(google, facts.googleBindingActive, now)
   return {
     now,
     facts,
     google,
+    googleCurrent,
     waiting:
-      googleIsWaiting(google, facts.googleBindingActive, now) ||
-      google?.displayedTenths == null ||
-      exact === null ||
-      mix === null,
+      !googleCurrent || google?.displayedTenths == null || exact === null || mix === null,
     exact,
     mix,
     reviewsLast28Days: summary.countsSince[0] ?? 0,
@@ -132,3 +137,13 @@ export function ratingBasis(reading: RatingGoalReading): RatingGoalBasis | null 
     mix: mix.value,
   }
 }
+
+/** Whether Google's numbers let a goal be planned: ten reviews, then current numbers. */
+export const numbersEligibility = (reading: RatingGoalReading): RatingGoalEligibility =>
+  ratingGoalEligibility(reading.google, !reading.waiting)
+
+/** Whether a goal may be set: an active Property first, then the numbers. */
+export const setupEligibility = (reading: RatingGoalReading): RatingGoalEligibility =>
+  reading.facts.lifecycleState === 'active'
+    ? numbersEligibility(reading)
+    : { eligible: false, reason: 'property_not_active' }

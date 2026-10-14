@@ -30,9 +30,14 @@ export type RatingGoalPropertyFactsReader = Readonly<{
   ): Promise<RatingGoalPropertyFacts | null>
 }>
 
+/**
+ * A goal as it is set: active, version 1. Its `lastEvaluation` is what the
+ * set saw (the tenth Google showed, the status it starts in), so the first
+ * evaluation can tell a tenth gained or lost since then from a first reading.
+ */
 export type NewPropertyRatingGoal = Omit<
   PropertyRatingGoal,
-  'state' | 'endedReason' | 'lastEvaluation' | 'reachedAt' | 'endedAt' | 'version'
+  'state' | 'endedReason' | 'reachedAt' | 'endedAt' | 'version'
 >
 
 export type RatingGoalPlanChange = Readonly<{
@@ -59,6 +64,8 @@ export type RatingGoalEvaluationWrite = Readonly<{
   organizationId: string
   propertyId: string
   goalId: string
+  /** The version of the plan the evaluation was worked out on. */
+  expectedVersion: number
   /** The tenth Google showed; null keeps the stored one (Google was not readable). */
   displayedTenths: number | null
   status: RatingGoalStatus
@@ -103,7 +110,10 @@ export type PropertyRatingGoalRepository = Readonly<{
   /**
    * Stores an evaluation on an active goal when it differs from the stored one
    * or takes a terminal step. True when the row changed. Never moves the
-   * version: a manager's open form stays valid across evaluations.
+   * version, so a manager's open form stays valid across evaluations; but it
+   * is refused (false) when a manager changed the plan since the evaluation
+   * read it, or when a newer evaluation is already stored. A refused
+   * evaluation is decided again by the next one.
    */
   recordEvaluation(write: RatingGoalEvaluationWrite): Promise<boolean>
 }>
