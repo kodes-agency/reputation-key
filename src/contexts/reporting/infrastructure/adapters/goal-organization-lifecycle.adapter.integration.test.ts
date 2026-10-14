@@ -193,6 +193,27 @@ async function seedTenantRows(
     ],
   )
 
+  // ── Google rating goal family ────────────────────────────────────────
+  // The change log names its goal with ON DELETE RESTRICT, so purge must
+  // delete the log first.
+  const ratingGoalId = randomUUID()
+  await lease.pool.query(
+    `INSERT INTO property_rating_goals
+       (id, organization_id, property_id, source_epoch, mode, target_tenths,
+        pace_per_week, baseline_review_count, baseline_google_average,
+        baseline_exact_average, created_by, created_at, updated_at)
+     VALUES ($1::uuid, $2, $3::uuid, 0, 'climb', 45, 11, 812, 4.3, 4.31,
+             'user:test', $4, $4)`,
+    [ratingGoalId, organizationId, fixture.propertyId, VERSION_FROM],
+  )
+  await lease.pool.query(
+    `INSERT INTO property_rating_goal_changes
+       (id, goal_id, organization_id, property_id, changed_by, changed_at, field,
+        old_value, new_value)
+     VALUES ($1::uuid, $2::uuid, $3, $4::uuid, 'user:test', $5, 'pace', '11', '14')`,
+    [randomUUID(), ratingGoalId, organizationId, fixture.propertyId, VERSION_FROM],
+  )
+
   return fixture
 }
 

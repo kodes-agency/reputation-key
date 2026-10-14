@@ -139,6 +139,42 @@ const MONTH_TARGET_CHANGE_COLUMNS = [
   'created_at',
 ] as const
 
+/** A Property's Google rating goal: its plan, baselines, state and last evaluation. */
+const RATING_GOAL_COLUMNS = [
+  'id',
+  'property_id',
+  'source_epoch',
+  'mode',
+  'target_tenths',
+  'pace_per_week',
+  'status',
+  'ended_reason',
+  'baseline_review_count',
+  'baseline_google_average',
+  'baseline_exact_average',
+  'last_displayed_tenths',
+  'last_evaluated_status',
+  'last_evaluated_at',
+  'reached_at',
+  'ended_at',
+  'created_by',
+  'created_at',
+  'updated_at',
+  'version',
+] as const
+
+/** Each change to a rating goal's target, pace or mode: who, when, old -> new. */
+const RATING_GOAL_CHANGE_COLUMNS = [
+  'id',
+  'goal_id',
+  'property_id',
+  'field',
+  'old_value',
+  'new_value',
+  'changed_by',
+  'changed_at',
+] as const
+
 const RESULT_REVISION_COLUMNS = [
   'id',
   'monthly_result_id',
@@ -423,6 +459,50 @@ async function readFamilies(
             ORDER BY program_id, monthly_result_id, created_at, id`,
       )
 
+      // A Property's Google rating goals (not Goal Programs) and their log.
+      const ratingGoals = await readRows(
+        snapshot,
+        sql`SELECT
+              id,
+              property_id,
+              source_epoch,
+              mode,
+              target_tenths,
+              pace_per_week,
+              status,
+              ended_reason,
+              baseline_review_count,
+              baseline_google_average,
+              baseline_exact_average,
+              last_displayed_tenths,
+              last_evaluated_status,
+              to_char(last_evaluated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS last_evaluated_at,
+              to_char(reached_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS reached_at,
+              to_char(ended_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS ended_at,
+              created_by,
+              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
+              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at,
+              version
+            FROM property_rating_goals
+            WHERE organization_id = ${organizationId}
+            ORDER BY property_id, created_at, id`,
+      )
+      const ratingGoalChanges = await readRows(
+        snapshot,
+        sql`SELECT
+              id,
+              goal_id,
+              property_id,
+              field,
+              old_value,
+              new_value,
+              changed_by,
+              to_char(changed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS changed_at
+            FROM property_rating_goal_changes
+            WHERE organization_id = ${organizationId}
+            ORDER BY goal_id, changed_at, id`,
+      )
+
       // Declared in ascending path order so the emitted entries already agree
       // with the archive's UTF-8 byte ordering.
       return [
@@ -438,6 +518,21 @@ async function readFamilies(
               recordType: 'goal_program_version',
               columns: PROGRAM_VERSION_COLUMNS,
               records: projectRows(programVersions, PROGRAM_VERSION_COLUMNS),
+            },
+          ],
+        },
+        {
+          name: 'rating-goals',
+          collections: [
+            {
+              recordType: 'property_rating_goal',
+              columns: RATING_GOAL_COLUMNS,
+              records: projectRows(ratingGoals, RATING_GOAL_COLUMNS),
+            },
+            {
+              recordType: 'property_rating_goal_change',
+              columns: RATING_GOAL_CHANGE_COLUMNS,
+              records: projectRows(ratingGoalChanges, RATING_GOAL_CHANGE_COLUMNS),
             },
           ],
         },
@@ -489,7 +584,8 @@ async function readFamilies(
  * Exports each Goal Program and its immutable version intervals, Property,
  * Portal Group, and Portal subject assignments, and every monthly result with
  * its own target (when it has one), its revision chain, and the log of changes
- * to its target.
+ * to its target. It also exports each Property's Google rating goals and the
+ * log of changes to their target, pace and mode.
  *
  * It reads no metric table: a Goal result carries its own value, sample count,
  * state, and completeness evidence, while Metric stays the single owner of

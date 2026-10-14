@@ -105,6 +105,16 @@ export type {
 // eligibility enforced at the owner, clock-injected). The dashboard build
 // depends on this type; composition wires the infrastructure implementation.
 export type { ReviewServingStats } from './ports/serving-stats.port'
+// Reporting's Property Google rating goal reads current Google review counts
+// and star sums through this Review-owned port (eligibility enforced here).
+export type {
+  GoogleRatingStarCount,
+  GoogleRatingSummary,
+  GoogleRatingSummaryRequest,
+  GoogleRatingTotals,
+  GoogleRatingWeekCount,
+  ReviewGoogleRatingReads,
+} from './ports/google-rating-reads.port'
 export type {
   AiReviewSourcePort,
   AiReviewCurrentSource,

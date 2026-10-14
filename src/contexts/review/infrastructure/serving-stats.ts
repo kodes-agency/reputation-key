@@ -29,9 +29,10 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 /**
  * THE serving-eligibility predicate (ADR 0031). Kept next to the queries so
  * every serving read composes it; the dashboard's own attention-signals copy
- * is pinned equivalent by an integration test over a shared fixture set.
+ * is pinned equivalent by an integration test over a shared fixture set. The
+ * rating goal reads (google-rating-reads.ts) compose this one.
  */
-const contentEligible = (now: Date) =>
+export const contentEligible = (now: Date) =>
   and(
     eq(reviews.sourceContentState, 'active'),
     isNotNull(reviews.rating),

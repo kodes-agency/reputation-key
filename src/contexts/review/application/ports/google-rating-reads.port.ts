@@ -1,0 +1,74 @@
+// Review context — ReviewGoogleRatingReads port (Property Google rating goal).
+//
+// Review-owned aggregate reads that Reporting's rating goal plans with: how
+// many of a Property's current Google reviews there are and the sum of their
+// stars, in windows by the date Google created them (`reviews.reviewed_at`,
+// Google's createTime). They return counts and sums only, never a review.
+//
+// A review counts when it is servable under the same eligibility as
+// ReviewServingStats (ADR 0031: active source content with a rating, a review
+// instant and an unexpired cache clock, `now` from the injected clock) and was
+// observed under the Property's CURRENT Google binding epoch. A review Google
+// removed (provider_deleted), one whose content was erased or has expired, and
+// one from an earlier binding never count, so the cache count can be compared
+// with Google's own count to tell whether the cache is complete.
+
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+
+/** A count of ratings and the sum of their stars. */
+export type GoogleRatingTotals = Readonly<{ count: number; sum: number }>
+
+/** Most count windows one summary read answers. */
+export const GOOGLE_RATING_SUMMARY_MAX_COUNT_WINDOWS = 4
+
+export type GoogleRatingSummaryRequest = Readonly<{
+  /** The recent-mix window starts here. */
+  mixWindowStart: Date
+  /** How many of the most recently created reviews the mix falls back to. */
+  mostRecentLimit: number
+  /** Reviews created at or after each instant are counted, in this order. */
+  countSince: readonly Date[]
+}>
+
+export type GoogleRatingSummary = Readonly<{
+  /** Every current Google review with a rating. */
+  all: GoogleRatingTotals
+  /** Those created at or after `mixWindowStart`. */
+  mixWindow: GoogleRatingTotals
+  /** The `mostRecentLimit` most recently created, or all when fewer. */
+  mostRecent: GoogleRatingTotals
+  /** One count per `countSince` instant, in the same order. */
+  countsSince: readonly number[]
+}>
+
+/** Reviews created in one Monday-to-Sunday week of the Property's time zone. */
+export type GoogleRatingWeekCount = Readonly<{
+  /** The week's Monday in the Property's time zone, `YYYY-MM-DD`. */
+  weekStart: string
+  count: number
+}>
+
+export type GoogleRatingStarCount = Readonly<{ stars: number; count: number }>
+
+export type ReviewGoogleRatingReads = Readonly<{
+  /** Totals, the recent-mix inputs and windowed counts, in one read. */
+  getRatingSummary(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    request: GoogleRatingSummaryRequest,
+  ): Promise<GoogleRatingSummary>
+
+  /** Reviews created at or after `since`, per Property-local Monday-to-Sunday week. */
+  getWeeklyCounts(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    since: Date,
+  ): Promise<readonly GoogleRatingWeekCount[]>
+
+  /** Reviews created at or after `since`, per star (1 to 5, every star present). */
+  getStarDistribution(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    since: Date,
+  ): Promise<readonly GoogleRatingStarCount[]>
+}>

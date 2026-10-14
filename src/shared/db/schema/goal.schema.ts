@@ -9,6 +9,8 @@ import {
   varchar,
   numeric,
   integer,
+  smallint,
+  doublePrecision,
   boolean,
   text,
   timestamp,
@@ -522,6 +524,136 @@ export const goalMonthTargetChanges = pgTable(
     check(
       'goal_month_target_changes_value_check',
       sql`${t.newTargetValue} > 0 AND ${t.newTargetValue} <> ${t.previousTargetValue}`,
+    ),
+  ],
+)
+
+// Property Google rating goal (ADR 0067). Not a Goal Program: no months,
+// subjects or metric readings. One active goal per Property, aimed at the
+// one-decimal number Google shows. `source_epoch` is the Property's Google
+// binding epoch when the goal was set; a goal outlives no change of it. The
+// `last_*` columns are what the set or the last evaluation stored, so the next
+// one can tell a transition (a tenth gained or lost, a new status) from a
+// repeat.
+// A CHECK passes when its expression is NULL, so every check below states
+// `IS NOT NULL` wherever a nullable column must hold a value.
+export const propertyRatingGoals = pgTable(
+  'property_rating_goals',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    mode: varchar('mode', { length: 8 }).notNull(),
+    targetTenths: smallint('target_tenths').notNull(),
+    pacePerWeek: smallint('pace_per_week'),
+    status: varchar('status', { length: 8 }).notNull().default('active'),
+    endedReason: varchar('ended_reason', { length: 32 }),
+    baselineReviewCount: integer('baseline_review_count').notNull(),
+    baselineGoogleAverage: doublePrecision('baseline_google_average').notNull(),
+    baselineExactAverage: doublePrecision('baseline_exact_average').notNull(),
+    lastDisplayedTenths: smallint('last_displayed_tenths'),
+    lastEvaluatedStatus: varchar('last_evaluated_status', { length: 24 }),
+    lastEvaluatedAt: timestamp('last_evaluated_at', { withTimezone: true }),
+    reachedAt: timestamp('reached_at', { withTimezone: true }),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    createdBy: varchar('created_by', { length: 255 }).notNull(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+    version: integer('version').notNull().default(1),
+  },
+  (t) => [
+    unique('property_rating_goals_org_property_id_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.id,
+    ),
+    uniqueIndex('property_rating_goals_one_active_idx')
+      .on(t.organizationId, t.propertyId)
+      .where(sql`${t.status} = 'active'`),
+    index('property_rating_goals_property_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.createdAt,
+    ),
+    foreignKey({
+      name: 'property_rating_goals_property_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('restrict'),
+    check(
+      'property_rating_goals_source_epoch_check',
+      sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647`,
+    ),
+    check(
+      'property_rating_goals_plan_check',
+      sql`(${t.mode} = 'climb' AND ${t.pacePerWeek} IS NOT NULL AND ${t.targetTenths} BETWEEN 11 AND 49 AND ${t.pacePerWeek} BETWEEN 1 AND 200)
+        OR (${t.mode} = 'keep' AND ${t.pacePerWeek} IS NULL AND ${t.targetTenths} BETWEEN 10 AND 50)`,
+    ),
+    check(
+      'property_rating_goals_status_check',
+      sql`(${t.status} = 'active' AND ${t.endedReason} IS NULL AND ${t.reachedAt} IS NULL AND ${t.endedAt} IS NULL)
+        OR (${t.status} = 'reached' AND ${t.mode} = 'climb' AND ${t.endedReason} IS NULL AND ${t.reachedAt} IS NOT NULL AND ${t.endedAt} IS NULL)
+        OR (${t.status} = 'ended' AND ${t.endedReason} IS NOT NULL AND ${t.endedReason} IN ('manager', 'google_location_changed', 'property_archived') AND ${t.reachedAt} IS NULL AND ${t.endedAt} IS NOT NULL)`,
+    ),
+    check(
+      'property_rating_goals_baseline_check',
+      sql`${t.baselineReviewCount} BETWEEN 1 AND 10000
+        AND ${t.baselineGoogleAverage} BETWEEN 0 AND 5
+        AND ${t.baselineExactAverage} BETWEEN 0 AND 5`,
+    ),
+    check(
+      'property_rating_goals_evaluation_check',
+      sql`(${t.lastDisplayedTenths} IS NULL OR ${t.lastDisplayedTenths} BETWEEN 0 AND 50)
+        AND (${t.lastEvaluatedStatus} IS NULL OR ${t.lastEvaluatedStatus} IN ('waiting_for_google', 'reached', 'cant_reach_at_mix', 'getting_started', 'on_pace', 'below_pace', 'holding', 'dropped_below'))`,
+    ),
+    check('property_rating_goals_version_check', sql`${t.version} >= 1`),
+  ],
+)
+
+// Each change to a rating goal's target, pace or mode: who, when, old -> new,
+// one row per field. No reason (ADR 0067). Values are text: a target in
+// tenths, a pace a week (NULL when a goal keeps instead), or a mode.
+export const propertyRatingGoalChanges = pgTable(
+  'property_rating_goal_changes',
+  {
+    id: uuid('id').primaryKey(),
+    goalId: uuid('goal_id').notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    changedBy: varchar('changed_by', { length: 255 }).notNull(),
+    changedAt: timestamp('changed_at', { withTimezone: true }).notNull(),
+    field: varchar('field', { length: 8 }).notNull(),
+    oldValue: varchar('old_value', { length: 8 }),
+    newValue: varchar('new_value', { length: 8 }),
+  },
+  (t) => [
+    index('property_rating_goal_changes_goal_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.goalId,
+      t.changedAt,
+    ),
+    foreignKey({
+      name: 'property_rating_goal_changes_goal_fk',
+      columns: [t.organizationId, t.propertyId, t.goalId],
+      foreignColumns: [
+        propertyRatingGoals.organizationId,
+        propertyRatingGoals.propertyId,
+        propertyRatingGoals.id,
+      ],
+    }).onDelete('restrict'),
+    check(
+      'property_rating_goal_changes_value_check',
+      sql`${t.oldValue} IS DISTINCT FROM ${t.newValue} AND (
+        (${t.field} = 'target' AND ${t.oldValue} IS NOT NULL AND ${t.newValue} IS NOT NULL
+          AND ${t.oldValue} ~ '^([1-4][0-9]|50)$' AND ${t.newValue} ~ '^([1-4][0-9]|50)$')
+        OR (${t.field} = 'pace'
+          AND (${t.oldValue} IS NULL OR ${t.oldValue} ~ '^([1-9][0-9]?|1[0-9][0-9]|200)$')
+          AND (${t.newValue} IS NULL OR ${t.newValue} ~ '^([1-9][0-9]?|1[0-9][0-9]|200)$'))
+        OR (${t.field} = 'mode' AND ${t.oldValue} IS NOT NULL AND ${t.newValue} IS NOT NULL
+          AND ${t.oldValue} IN ('climb', 'keep') AND ${t.newValue} IN ('climb', 'keep'))
+      )`,
     ),
   ],
 )

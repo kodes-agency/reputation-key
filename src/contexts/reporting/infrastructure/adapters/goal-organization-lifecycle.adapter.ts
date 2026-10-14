@@ -41,7 +41,26 @@ export const GOAL_PURGE_TABLES = Object.freeze([
   'goal_subject_assignments',
   'goal_program_versions',
   'goal_programs',
+  // The Google rating goal is its own family (not a Goal Program): its change
+  // log holds the goal with ON DELETE RESTRICT, so the log goes first.
+  'property_rating_goal_changes',
+  'property_rating_goals',
 ] as const)
+
+/**
+ * Total tenant-scoped rows across the Goal Program and rating goal families,
+ * counted over the purge plan itself so no table it deletes can go uncounted.
+ * Every table in it carries its own `organization_id`; the identifiers come
+ * only from this file's static plan.
+ */
+async function countTenantRows(tx: Tx, organization: string): Promise<number> {
+  const tableCounts = GOAL_PURGE_TABLES.map(
+    (table) =>
+      sql`(SELECT count(*) FROM ${sql.identifier(table)} WHERE organization_id = ${organization})`,
+  )
+  const result = await tx.execute(sql`SELECT ${sql.join(tableCounts, sql` + `)} AS rows`)
+  return count((result.rows[0] as { rows?: unknown } | undefined)?.rows)
+}
 
 /**
  * The monthly-result validation guard rejects deletion alongside enforcing its
@@ -91,37 +110,13 @@ function count(value: unknown): number {
   return Number((value as string | number | null | undefined) ?? 0)
 }
 
-/** Total tenant-scoped rows across the canonical Goal Program family. */
-async function countTenantRows(tx: Tx, organization: string): Promise<number> {
-  const result = await tx.execute(sql`
-    SELECT
-      (SELECT count(*) FROM goal_programs WHERE organization_id = ${organization})
-      + (
-        SELECT count(*) FROM goal_program_versions
-        WHERE organization_id = ${organization}
-      )
-      + (
-        SELECT count(*) FROM goal_subject_assignments
-        WHERE organization_id = ${organization}
-      )
-      + (
-        SELECT count(*) FROM goal_monthly_results
-        WHERE organization_id = ${organization}
-      )
-      + (
-        SELECT count(*) FROM goal_result_revisions
-        WHERE organization_id = ${organization}
-      )
-      + (
-        SELECT count(*) FROM goal_month_target_changes
-        WHERE organization_id = ${organization}
-      ) AS rows
-  `)
-  return count((result.rows[0] as { rows?: unknown } | undefined)?.rows)
-}
-
 /**
  * Closing — STOP EFFECTS, KEEP DATA.
+ *
+ * A Google rating goal starts no work of its own (no schedule; it is evaluated
+ * when Google's numbers arrive or are read), so Closing leaves it as it is and
+ * the rating goal commands refuse to set one while the lifecycle holds the
+ * Organization.
  *
  * Pauses every ACTIVE Goal Program for the tenant. `maintain()` opens months
  * only for an active program, so this stops new months for the Organization
@@ -290,6 +285,13 @@ const purge = async (
     sql`DELETE FROM goal_program_versions WHERE organization_id = ${organization}`,
   )
   await tx.execute(sql`DELETE FROM goal_programs WHERE organization_id = ${organization}`)
+  // The Google rating goal family, its change log first.
+  await tx.execute(
+    sql`DELETE FROM property_rating_goal_changes WHERE organization_id = ${organization}`,
+  )
+  await tx.execute(
+    sql`DELETE FROM property_rating_goals WHERE organization_id = ${organization}`,
+  )
   for (const guard of PURGE_GUARDS) {
     await tx.execute(
       sql`ALTER TABLE ${sql.identifier(guard.table)} ENABLE TRIGGER ${sql.identifier(guard.trigger)}`,

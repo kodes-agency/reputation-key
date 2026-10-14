@@ -16,7 +16,10 @@ import type {
 } from '#/contexts/portal/application/public-api'
 import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { ReviewServingStats } from '#/contexts/review/application/public-api'
+import type {
+  ReviewGoogleRatingReads,
+  ReviewServingStats,
+} from '#/contexts/review/application/public-api'
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
 import type { MetricPublicApi } from './application/public-api'
 
@@ -68,6 +71,17 @@ import {
   type GoalProgressRequestApi,
 } from './application/use-cases/goal-progress'
 import type { GoalProgramRepository } from './application/ports/goal-program.repository'
+import {
+  createPropertyRatingGoalRepository,
+  createRatingGoalPropertyFactsReader,
+} from './infrastructure/repositories/property-rating-goal.repository'
+import {
+  createArchivedPropertyRatingGoalEnder,
+  createRatingGoalEvaluator,
+  createRatingGoalRequestApi,
+} from './application/use-cases/rating-goals'
+import { registerRatingGoalEvaluationConsumer } from './infrastructure/rating-goal-outbox-consumers'
+import { registerRatingGoalPropertyLifecycleConsumer } from './infrastructure/rating-goal-property-lifecycle-consumers'
 import { createMonthlyResultNotificationFactsLookup } from './infrastructure/adapters/monthly-result-notification-facts.lookup'
 import { reconcileMetricCorrection } from './application/use-cases/reconcile-metric-correction'
 import { registerGoalMetricCorrectionConsumer } from './infrastructure/metric-correction-outbox-consumers'
@@ -127,6 +141,8 @@ export type ReportingContextBuildInput = Readonly<{
   propertyApi: PropertyFactsPublicApi
   staffPublicApi: StaffPublicApi
   reviewServingStats: ReviewServingStats
+  /** Review's counts and star sums of current Google reviews (rating goal). */
+  reviewGoogleRatingReads: ReviewGoogleRatingReads
   inboxTargets: Pick<InboxPublicApi, 'getGoogleReviewTargetCountsByProperty'>
   guestResponseIntegrity: GetPortalAnalyticsDeps['responseIntegrity']
 }>
@@ -372,6 +388,43 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
   } as const
 }
 
+/**
+ * The Property Google rating goal: its own tables and request surface, the
+ * Goal permissions and capability, one consumer that evaluates the goal when
+ * Review verifies Google's numbers and one that ends it when its Property is
+ * archived. Not a Goal Program.
+ */
+function buildRatingGoalModule(
+  input: ReportingContextBuildInput,
+  metricApi: MetricPublicApi,
+) {
+  const deps = {
+    repository: createPropertyRatingGoalRepository(input.db),
+    properties: createRatingGoalPropertyFactsReader(input.db),
+    google: metricApi,
+    reviews: input.reviewGoogleRatingReads,
+    id: input.idGen,
+    now: input.clock,
+  }
+  const evaluate = createRatingGoalEvaluator(deps)
+  const endForArchivedProperty = createArchivedPropertyRatingGoalEnder(deps)
+  return {
+    publicApi: { ratingGoals: createRatingGoalRequestApi(deps) },
+    worker: Object.freeze({
+      registerOutboxConsumers: (consumerRegistry: ConsumerRegistry): void => {
+        registerRatingGoalEvaluationConsumer(consumerRegistry, {
+          evaluate,
+          db: input.db,
+        })
+        registerRatingGoalPropertyLifecycleConsumer(consumerRegistry, {
+          endForArchivedProperty,
+          db: input.db,
+        })
+      },
+    }),
+  } as const
+}
+
 function buildDashboardModule(
   input: ReportingContextBuildInput,
   portalMetrics: GetPortalAnalyticsDeps['portalMetrics'],
@@ -474,6 +527,7 @@ function buildDashboardModule(
 export function buildReportingContext(input: ReportingContextBuildInput) {
   const metric = buildMetricModule(input)
   const goal = buildGoalModule(input, metric.publicApi)
+  const ratingGoal = buildRatingGoalModule(input, metric.publicApi)
   const dashboard = buildDashboardModule(
     input,
     metric.publicApi.portalAnalytics,
@@ -484,6 +538,7 @@ export function buildReportingContext(input: ReportingContextBuildInput) {
     publicApi: Object.freeze({
       ...metric.publicApi,
       ...goal.publicApi,
+      ...ratingGoal.publicApi,
       ...dashboard.publicApi,
     }),
     maintenance: metric.maintenance,
@@ -494,6 +549,7 @@ export function buildReportingContext(input: ReportingContextBuildInput) {
       ): void => {
         metric.worker.registerOutboxConsumers(consumerRegistry)
         goal.worker.registerOutboxConsumers(consumerRegistry, goalPolicy)
+        ratingGoal.worker.registerOutboxConsumers(consumerRegistry)
       },
       programMaintenance: goal.worker.programMaintenance,
     }),

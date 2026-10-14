@@ -140,6 +140,7 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
     propertyApi: input.property.publicApi,
     staffPublicApi: input.identity.publicApi.people,
     reviewServingStats: input.reviewServingStats,
+    reviewGoogleRatingReads: input.review.lookups.googleRatingReads,
     inboxTargets: input.inbox.publicApi,
     guestResponseIntegrity: input.guest.publicApi,
   })

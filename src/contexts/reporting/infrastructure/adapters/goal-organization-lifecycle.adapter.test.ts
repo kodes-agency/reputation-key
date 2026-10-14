@@ -16,7 +16,10 @@ const REQUEST = Object.freeze({
 
 type Recorded = Readonly<{ text: string; params: readonly unknown[] }>
 
-/** Renders a drizzle SQL object back to text plus its bound parameters. */
+/**
+ * Renders a drizzle SQL object back to text plus its bound parameters, nested
+ * fragments (`sql.join`, a `sql` inside a `sql`) included.
+ */
 function renderSql(statement: unknown): Recorded {
   const chunks = (statement as { queryChunks?: readonly unknown[] }).queryChunks ?? []
   const params: unknown[] = []
@@ -26,6 +29,11 @@ function renderSql(statement: unknown): Recorded {
       const value = (chunk as { value?: unknown } | null)?.value
       if (kind === 'StringChunk') return (value as readonly string[]).join('')
       if (kind === 'Name') return String(value)
+      if (kind === 'SQL') {
+        const nested = renderSql(chunk)
+        params.push(...nested.params)
+        return nested.text
+      }
       // A plain template value is stored raw; a drizzle Param wraps it.
       params.push(value === undefined ? chunk : value)
       return '?'
@@ -139,6 +147,21 @@ describe('goal organization lifecycle phases', () => {
       expect(statement.text).toMatch(/organization_id = \?/u)
       expect(statement.params).toEqual([ORGANIZATION_ID])
     }
+  })
+
+  it('purges the Google rating goal change log before the goals it names', async () => {
+    const { tx, statements } = createFakeTx({ tenantRows: 2 })
+
+    await GOAL_ORGANIZATION_LIFECYCLE_PHASES.purge(tx, REQUEST)
+
+    const deleted = statements.flatMap((statement) => {
+      const table = /DELETE FROM (\w+)/u.exec(statement.text)?.[1]
+      return table ? [table] : []
+    })
+    expect(deleted.slice(-2)).toEqual([
+      'property_rating_goal_changes',
+      'property_rating_goals',
+    ])
   })
 
   it('counts every table of the purge plan as tenant rows', async () => {

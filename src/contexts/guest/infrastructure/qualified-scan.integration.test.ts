@@ -88,6 +88,7 @@ function buildReportingFixture() {
     propertyApi: {} as ReportingContextBuildInput['propertyApi'],
     staffPublicApi: {} as ReportingContextBuildInput['staffPublicApi'],
     reviewServingStats: {} as ReportingContextBuildInput['reviewServingStats'],
+    reviewGoogleRatingReads: {} as ReportingContextBuildInput['reviewGoogleRatingReads'],
     inboxTargets: {} as ReportingContextBuildInput['inboxTargets'],
     guestResponseIntegrity: {} as ReportingContextBuildInput['guestResponseIntegrity'],
   }

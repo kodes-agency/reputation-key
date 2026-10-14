@@ -52,6 +52,31 @@ metric authority.
   and from counts and star sums of the Property's cached Google reviews, read through
   Review's public API, and it is reached only when Google itself shows the target. Only
   AccountAdmins and PropertyManagers with access to the Property see, set, change or end it.
+- **Property Google rating goal (implementation)**: One active goal per Property (`property_rating_goals`, a partial unique index); a
+  climb goal names a tenth from 1.1 to 4.9 and a pace from 1 to 200 a week, a keep goal a
+  tenth Google shows now and no pace. There is no deadline and no "missed": a goal runs
+  until Google shows the target (reached), or it is ended by a manager, by its Google
+  location changing (the Property's binding epoch moved) or by its Property being archived.
+  Changes of target, pace or mode are logged with who, when, old and new value, and no
+  reason (`property_rating_goal_changes`). The maths is pure and exact
+  (`domain/rating-goal-*.ts`, BigInt rationals): Google's number rounds half up (4.45
+  shows 4.5, one named rule), so a target's threshold is five hundredths below it; the exact
+  average is the cache's sum over count when the cache holds every review Google counts,
+  otherwise Google's figure; the recent mix is the last 90 days at ten reviews or more,
+  else the most recent 25; reviews needed is ceil(N(θ − E)/(m − θ)); the forecast is a
+  month range in the Property's time zone (mix ± 0.1, pace ± 10%). The review cache is read
+  only through Review's `ReviewGoogleRatingReads` (counts and star sums, the serving
+  eligibility, the current binding epoch); Google's own numbers come from the Current on
+  Google snapshot. A goal may be set only on an active Property with at least ten Google
+  reviews (Google's count decides that first, current or not) and current numbers. A set
+  goal stores the tenth Google showed and the status it starts in. A goal is evaluated by
+  its card and detail reads and by `goal.google-rating-evaluation` when Review verifies
+  Google's numbers, through one evaluation (`application/rating-goal-evaluation.ts`) that
+  stores the tenth and status it saw only when they change, only onto the plan version it
+  read and never over a newer evaluation, so the next evaluation can tell a transition
+  from a repeat. `goal.on-property-archived` ends the goal of an archived Property
+  (`property_archived`) when it was set under an earlier binding epoch than the archive's,
+  so a late fact never ends a goal set after a Restore.
 - **Dashboard read model**: content-minimal presentation assembled from governed sources.
 - **Portal lifetime aggregate**: anonymous all-time values with rebuild and seal evidence.
 - **Portal results measures**: the five figures on a Portal's Results view, each named for
@@ -191,8 +216,9 @@ interface.
 
 ## Persistence
 
-Reporting owns the metric, Goal Program, dashboard setup-checklist, Portal lifetime, and
-Current on Google tables declared in the shared schema package. Repositories remain split by
+Reporting owns the metric, Goal Program, Property Google rating goal, dashboard
+setup-checklist, Portal lifetime, and Current on Google tables declared in the shared schema
+package. Repositories remain split by
 aggregate and read purpose even though they share a bounded context.
 
 ## Durable facts
@@ -218,7 +244,13 @@ second consumer, `metric.correction-reconciliation`
 (`correction-outbox-consumers.ts`). Despite its name it reconciles nothing: it
 checks the fact's attribution and writes its receipt, so its receipt says that
 Metric saw the fact, and only the Goal consumer's says the correction was
-reconciled.
+reconciled. `goal.google-rating-evaluation` takes the same second form on
+`review.google_reputation_snapshot.verified`: the fact only says when to look, the
+evaluation reads the current snapshot, cache and Property as a page read does and writes
+only what changes the stored goal, so a repeat finds nothing to write and adds the receipt.
+`goal.on-property-archived` (`rating-goal-property-lifecycle-consumers.ts`, ungated) does
+the same on `property.archived`: it ends only an active goal set before the archive's
+epoch, so a repeat ends nothing and adds the receipt.
 
 ## Verification
 

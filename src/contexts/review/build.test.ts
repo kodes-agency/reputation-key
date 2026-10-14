@@ -106,8 +106,14 @@ describe('Review context build', () => {
       'findByOrganizationId',
       'findByPropertyId',
     ])
+    expect(Object.keys(api.lookups.googleRatingReads).sort()).toEqual([
+      'getRatingSummary',
+      'getStarDistribution',
+      'getWeeklyCounts',
+    ])
     expect(Object.isFrozen(api.lookups.reply)).toBe(true)
     expect(Object.isFrozen(api.lookups.review)).toBe(true)
+    expect(Object.isFrozen(api.lookups.googleRatingReads)).toBe(true)
     // A spread is what once carried the reply writes across to Inbox.
     expect({ ...api.lookups.reply }).not.toHaveProperty('upsert')
     expect({ ...api.lookups.reply }).not.toHaveProperty('saveDraft')
