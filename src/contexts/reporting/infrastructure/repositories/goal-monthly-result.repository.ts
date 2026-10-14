@@ -263,11 +263,18 @@ export const createGoalMonthlyResultRepository = (
           achieved: updated.evaluation.achieved,
           occurredAt: updated.updatedAt,
         } as const
-        const event =
-          updated.status === 'closed'
-            ? goalMonthlyResultClosed(eventArgs)
-            : goalMonthlyResultReconciled(eventArgs)
-        await insertOutboxRow(tx, event, { recordedAt: updated.updatedAt })
+        // The facts say a month closed, or started reconciling: transitions,
+        // each once. A month that stays reconciling is re-evaluated every
+        // hour, and a fact per pass would be a new Recent Activity row each.
+        if (updated.status === 'closed') {
+          await insertOutboxRow(tx, goalMonthlyResultClosed(eventArgs), {
+            recordedAt: updated.updatedAt,
+          })
+        } else if (input.expectedStatus !== updated.status) {
+          await insertOutboxRow(tx, goalMonthlyResultReconciled(eventArgs), {
+            recordedAt: updated.updatedAt,
+          })
+        }
         return updated
       })
     },

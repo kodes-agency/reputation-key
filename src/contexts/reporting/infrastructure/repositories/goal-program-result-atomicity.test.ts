@@ -35,7 +35,9 @@ describe.sequential('Goal Program result CAS and outbox (integration)', () => {
     await lease?.release()
   })
 
-  async function seedReconcilingResult(): Promise<GoalMonthlyResult> {
+  async function seedReconcilingResult(
+    status: 'open' | 'reconciling' = 'reconciling',
+  ): Promise<GoalMonthlyResult> {
     const createdAt = new Date('2026-07-01T00:00:00.000Z')
     const periodEnd = new Date('2026-08-01T00:00:00.000Z')
     const programId = randomUUID()
@@ -58,7 +60,7 @@ describe.sequential('Goal Program result CAS and outbox (integration)', () => {
       periodStart: createdAt,
       periodEnd,
       propertyTimezone: 'UTC',
-      status: 'reconciling',
+      status,
       targetValue: null,
       evaluation: {
         state: 'eligible',
@@ -355,6 +357,71 @@ describe.sequential('Goal Program result CAS and outbox (integration)', () => {
         outcomeChanged: true,
       }),
     ])
+  })
+
+  it('records the reconciled fact when a month starts reconciling, and none while it stays so', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const open = await seedReconcilingResult('open')
+    const startedAt = new Date('2026-08-01T01:00:00.000Z')
+    const stillAt = new Date('2026-08-01T02:00:00.000Z')
+    const closedAt = new Date('2026-08-02T12:00:00.000Z')
+    const reconciledFacts = async () =>
+      (
+        await lease.pool.query<{ count: number }>(
+          `SELECT count(*)::int AS count FROM outbox_events
+           WHERE event_type = 'goal.monthly_result.reconciled'
+             AND payload->>'monthlyResultId' = $1`,
+          [open.id],
+        )
+      ).rows[0]?.count
+
+    await expect(
+      repository.updateResult({
+        result: {
+          ...open,
+          status: 'reconciling',
+          evaluationWatermark: startedAt,
+          updatedAt: startedAt,
+        },
+        expectedStatus: 'open',
+      }),
+    ).resolves.toMatchObject({ status: 'reconciling' })
+    await expect(reconciledFacts()).resolves.toBe(1)
+
+    // The next hourly pass re-evaluates the month and finds it still reconciling.
+    await expect(
+      repository.updateResult({
+        result: {
+          ...open,
+          status: 'reconciling',
+          evaluationWatermark: stillAt,
+          updatedAt: stillAt,
+        },
+        expectedStatus: 'reconciling',
+      }),
+    ).resolves.toMatchObject({ status: 'reconciling', evaluationWatermark: stillAt })
+    await expect(reconciledFacts()).resolves.toBe(1)
+
+    await expect(
+      repository.updateResult({
+        result: {
+          ...open,
+          status: 'closed',
+          closedAt,
+          evaluationWatermark: closedAt,
+          updatedAt: closedAt,
+        },
+        expectedStatus: 'reconciling',
+      }),
+    ).resolves.toMatchObject({ status: 'closed' })
+    await expect(reconciledFacts()).resolves.toBe(1)
+    const closedFacts = await lease.pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM outbox_events
+       WHERE event_type = 'goal.monthly_result.closed'
+         AND payload->>'monthlyResultId' = $1`,
+      [open.id],
+    )
+    expect(closedFacts.rows[0]?.count).toBe(1)
   })
 
   it('rolls back the result transition when its outbox insert cannot commit', async () => {
