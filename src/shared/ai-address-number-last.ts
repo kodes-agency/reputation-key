@@ -62,7 +62,7 @@ const NAME_BEFORE_RE =
   /((?:(?:\d{1,3}(?:st|nd|rd|th)|[\p{L}\p{M}][\p{L}\p{M}'’-]*\.?)[ \t]+){1,4})$/u
 /* eslint-enable security/detect-unsafe-regex */
 
-export const ABBREVIATED_TYPES: ReadonlySet<string> = new Set([
+const ABBREVIATED_TYPES: ReadonlySet<string> = new Set([
   'st',
   'rd',
   'ave',

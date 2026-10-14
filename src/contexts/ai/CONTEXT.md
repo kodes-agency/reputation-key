@@ -122,43 +122,83 @@ change no stored value. A review the redactor blocked stays settled as not
 analysable (`redaction_blocked` is not a reopen code, `review-analysis-reopen.ts`)
 until something gives it a new analysis sequence.
 
-The address detector (`ai-address-markers.ts`, the decision in
-`ai-address-name-rules.ts`, the word lists in `ai-address-words.ts`) finds the
-shapes with patterns and decides in code whether the words are a street's name
-or a clause of a review. It reads the number first (`25 Main Street`,
-`7 oak lane`, `12 de la Rosa Street`, `12, Oak Road`, `Twelve Oak Road`), the
-street-type word first (`100 Boulevard Saint-Germain`, `8 place de la concorde`),
-the number last (`Main Street 25`, `Baker Street 221B`, `Pl. de Catalunya 5`)
-and Bulgarian street words (`ул.`, `бул.`, `ж.к.`), each with the city and
-postcode that follow on the same line. A capitalised name is a street unless it
-holds a word no street carries (`was`, `to`, `nights`) or follows an article
-(`a 5 Star Place`): capital letters are the evidence, and an address sent to the
-provider costs more than a few words replaced. A name in lower case must also
-hold none of the everyday words (`down`, `this`, `star`, `great`), and before
-`place`, `drive` and `way` no count or praise. `ai-redaction-ordinary-prose.test.ts`
-pins both sides. What still reaches the provider, pinned there too: a street
-written after its number in lower case (`main street 25`); a lower-case name
-holding a glue word (`12 all saints road`, `1 more street`); a lower-case count
-or praise before `place` or `drive` (`12 star drive`, `12 love place`), which is
-`a 5 star place` and `a 10 mile drive` in prose; street words of other languages
-(`rue`, `calle`, `Straße`, `via`) and English types such as `Close`, `Crescent`
-and `Gardens`; `(no. 12)` after a street. The Property market is Bulgarian, so
-Latin and Cyrillic street words are read; the other languages are an owner
-decision.
+The address detector (`ai-address-markers.ts` for the number-first, street-first
+and Bulgarian layouts, `ai-address-number-last.ts`, `ai-foreign-address-markers.ts`,
+the decision in `ai-address-name-rules.ts`, the word lists in `ai-address-words.ts`)
+finds the shapes with patterns and decides in code whether the words are a
+street's name or a clause of a review. It reads the number first (`25 Main
+Street`, `7 oak lane`, `12 de la Rosa Street`, `12, Oak Road`, `12 St.James
+Street`, `Twelve Oak Road`), the street-type word first (`100 Boulevard
+Saint-Germain`, `8 place de la concorde`), the number last (`Main Street 25`,
+`Baker Street 221B`, `Oak Road (no. 12)`, `Oak Road 12/3`, `oak road 12`, `Pl. de
+Catalunya 5`), Bulgarian street words (`ул.`, `бул.`, `ж.к.`), street types
+beyond thirteen when the name is written in capitals (`Close`, `Crescent`,
+`Gardens`, `Square`, `Terrace`, `Walk`, `Row`... and `50 Broadway`), streets of
+other languages (`12 rue de la Paix`, `Calle Mayor 5`, `Via Roma 10`,
+`Hauptstraße 12`, `Kungsgatan 12`, `Atatürk Caddesi No: 5`), and whatever follows
+`Address:` and its translations when it holds a digit (`Address: Karlova 12`).
+Each takes the city and postcode that follow on the same line. A real address
+followed by another street-type word (`12 Oak Road. It was a great place`) is
+read again with the window cut before each street-type word, longest first, so
+the shorter reading that is the address is found.
 
-Coordinates (`ai-coordinate-markers.ts`) are read as a pair of decimal degrees in
-any common layout (comma, semicolon or blank between them; degree signs;
-hemisphere letters; `lat=`/`lng=` labels; three decimals after a dot, four after
-a comma). IP addresses (`ai-network-markers.ts`) are read with a port, after a
-label and before full stops. A bare domain is told from a number by its last
-label (two letters or more, starting with a letter), and a domain whose dot a
-line break separated from its name (`hotelsunrise .com` in the canonical text) is
-read when the last label is a common top-level domain. A line break inside a
-domain's first label (`hotelsun rise.com`) leaves the first half in the text: the
-canonical text cannot tell it from two words. The detectors read a word glued to
-a full stop (`hotel.Staff`, `Dr.Smith`) as a domain, because nothing separates it
-from `example.Com`. Taking any of the rest is a change to the detectors' digest
-and a decision, not a patch.
+Capital letters are the evidence: a capitalised name is a street unless it holds
+a word no street carries (`was`, `to`), follows an article with a count or praise
+in the name (`a 5 Star Place`; `Flat A 12 Oak Road` and `the 5 Park Lane` are
+addresses), or is a title-case clause (`5 Nights Near Main Street`). A unit or a
+span of time in a capitalised name is a street's own before a street, road or
+avenue (`12 Miles Avenue`, `40 Weeks Street`, `9 Pounds Lane`) and, before a
+drive, a way or a place, unless a word that makes the number a measure leads
+(`Only 2 Minutes Drive`, `It is 5 Minutes Drive`, `within 10 Min Walk`, an article,
+a rating label) or the number starts a sentence (`Taxi to 7 Days Way` is an
+address). `on`, `in` and `upon` between two words are a place's (`Henley on
+Thames Road`).
+A name in lower case must hold none of the everyday words (`down`, `this`, `star`,
+`great`), and before `place`, `drive` and `way` no count or praise, unless a word
+introduces the address: after `at` or within three words of `address`, a name of
+up to three words is a street (`We stayed at 12 love place`, `12 all saints
+road`), and a capitalised short name too (`12 About Road`). Function words and
+plural spans of time in a lower-case name still rule it out. The layouts added
+for recall ask more of prose: a count word, `am`, `pm`, `stops` or `out of` after
+a number, a name that is only praise or a generic noun, a spelled-out number
+before a unit, praise or glue word, a street-first number not followed by the end
+of a clause, and a Bulgarian name that is not in capitals are prose.
+`ai-redaction-ordinary-prose.test.ts` and `ai-redaction-recall.test.ts` pin both
+sides. What still reaches the provider, pinned there too: a lower-case name
+holding an everyday word with nothing that introduces the address (`7 wonderful
+place`, `1400 mile end drive` after `near`), which is `a 5 star place` and `a 10
+mile drive` in prose; a lower-case name that is a function word, a particle alone
+or a plural span of time (`12 not road`, `12 of street`, `12 weeks place`: no street
+is named so); a foreign street with no type word and no label (`Karlova 12`);
+street words of languages not listed. The Property market is Bulgarian, so Latin
+and Cyrillic street words are read; the other languages are an owner decision.
+
+Coordinates (`ai-coordinate-markers.ts`) are read as a pair of decimal degrees
+with a comma, a semicolon, a blank, a slash, a bar, an `x`, a hyphen, `&lon=`,
+`and long` or labels in brackets between them; with degree signs and hemisphere
+letters; in ISO 6709, in degrees with minutes (and seconds), in NMEA; three
+decimals after a dot, four after a comma, or fewer after `GPS`, `Pin:`, a label
+or a hemisphere letter. `Prices were 12.50, 14.75` and `Kurs 1,0850 1,0920` are not
+pairs. IP addresses (`ai-network-markers.ts`) are read with a port, in brackets,
+zero-padded, in the four-byte hexadecimal form, after a label and before full
+stops or colons. A bare domain is told from a number by its last label (two
+letters or more, starting with a letter).
+
+A line break is a blank in the canonical text, so a token it split reaches the
+redactor in two pieces (`ai-broken-token-markers.ts`): a domain (`hotelsun
+rise.com`, `hotelsunrise .com`, `hotelsunrise. com`, `hotelsunrise.c om`), an
+email split beside a dot, an underscore or a hyphen or inside its domain, an IP
+address, a coordinate, a short handle, a passport number, a street whose type or
+name a break split. The blank before a dot reads a name as a domain's only when
+the name is lower case and long, holds a digit or a hyphen, or is in camel case
+(`Booking .com said` is prose). What a break through the middle of a word still
+leaves, pinned in `ai-redaction-recall.test.ts`: the first half of an email's
+local part (`joh` and `n.smith@gmail.com`; `wrote owner@example.com` cannot be
+told from it), a split passport label (`pa ssport`), an IPv6 address split
+inside a group, the tail of a URL path. The detectors read a word glued to a full
+stop (`hotel.Staff`, `Dr.Smith`) as a domain, because nothing separates it from
+`example.Com`. Taking any of the rest is a change to the detectors' digest and a
+decision, not a patch.
 
 ## Runtime
 
