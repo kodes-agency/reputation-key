@@ -2120,6 +2120,84 @@ describe('canonical Goal Program service', () => {
     })
   })
 
+  describe('a failed maintenance run', () => {
+    async function failingActivation(failure: unknown) {
+      const { service, repository, setNow } = setup(new Date('2026-03-15T12:00:00.000Z'))
+      await service.create(
+        {
+          propertyId: 'property-1',
+          name: 'April ratings',
+          metric: 'portal_rating_count',
+          targetValue: 25,
+          subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        },
+        actor,
+      )
+      setNow(new Date('2026-04-01T00:00:00.000Z'))
+      vi.mocked(repository.activate).mockRejectedValueOnce(failure)
+      return service.maintain()
+    }
+
+    it('names the SQL state of a database refusal in the error, with no identifier', async () => {
+      const refusal = Object.assign(new Error('Failed query: update "goal_programs"'), {
+        cause: Object.assign(new Error('guard'), { code: '23514' }),
+      })
+
+      await expect(failingActivation(refusal)).rejects.toMatchObject({
+        name: 'GoalProgramMaintenanceError',
+        message: 'Goal Program maintenance had 1 failed operation(s): sqlstate_23514 x1',
+        stats: { failed: 1, failureCauses: { sqlstate_23514: 1 } },
+      })
+    })
+
+    it('names the error class of any other failure', async () => {
+      await expect(failingActivation(new TypeError('db down'))).rejects.toMatchObject({
+        message: 'Goal Program maintenance had 1 failed operation(s): TypeError x1',
+        stats: { failed: 1, failureCauses: { TypeError: 1 } },
+      })
+    })
+  })
+
+  describe('a due result another run settled first', () => {
+    async function dueResult() {
+      const { service, repository, setNow } = setup()
+      await service.create(
+        {
+          propertyId: 'property-1',
+          name: 'March ratings',
+          metric: 'portal_rating_count',
+          targetValue: 25,
+          subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        },
+        actor,
+      )
+      setNow(new Date('2026-04-03T00:00:00.000Z'))
+      return { service, repository }
+    }
+
+    it('is a lost race and not a failure when it is already closed', async () => {
+      const { service, repository } = await dueResult()
+      vi.mocked(repository.getDueResult).mockResolvedValue(null)
+
+      await expect(service.maintain()).resolves.toMatchObject({
+        raced: 1,
+        reconciled: 0,
+        failed: 0,
+      })
+    })
+
+    it('is a lost race and not a failure when its compare-and-set loses', async () => {
+      const { service, repository } = await dueResult()
+      vi.mocked(repository.updateResult).mockResolvedValue(null)
+
+      await expect(service.maintain()).resolves.toMatchObject({
+        raced: 1,
+        reconciled: 0,
+        failed: 0,
+      })
+    })
+  })
+
   // A result whose month runs past its version or assignment window can never
   // be updated: the database guard rejects every write. Before revisions
   // respected the open month, a timezone move could leave one behind, and it

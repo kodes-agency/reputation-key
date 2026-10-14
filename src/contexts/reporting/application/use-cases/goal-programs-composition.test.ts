@@ -54,7 +54,9 @@ describe('Goal Program service composition', () => {
       denied: 0,
       unavailable: 0,
       stranded: 0,
+      raced: 0,
       failed: 0,
+      failureCauses: {},
     })
     expect(listOperational).toHaveBeenCalledTimes(1)
     expect(listDueResults).toHaveBeenCalledWith(now)

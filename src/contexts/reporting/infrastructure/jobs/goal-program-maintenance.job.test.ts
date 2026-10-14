@@ -21,7 +21,9 @@ const stats = (
   denied: 0,
   unavailable: 0,
   stranded: 0,
+  raced: 0,
   failed: 0,
+  failureCauses: {},
   ...overrides,
 })
 
@@ -61,6 +63,30 @@ describe('goal-program maintenance job', () => {
     expect(logger.warn).toHaveBeenCalledWith(
       { jobName: GOAL_PROGRAM_MAINTENANCE_JOB_NAME, stranded: 2, inspected: 3 },
       expect.stringContaining('outside their version window'),
+    )
+  })
+
+  // A failed run used to leave an operator a count and no cause. The error
+  // names the causes; the log carries them as fields, counts and codes only.
+  it('says what the failed operations died of, with no identifier', async () => {
+    const failure = new GoalProgramMaintenanceError(
+      stats({ failed: 3, failureCauses: { sqlstate_23514: 2, TypeError: 1 } }),
+    )
+    const { logger, run } = harness(vi.fn().mockRejectedValue(failure))
+
+    await expect(run()).rejects.toBe(failure)
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      {
+        jobName: GOAL_PROGRAM_MAINTENANCE_JOB_NAME,
+        failed: 3,
+        failureCauses: { sqlstate_23514: 2, TypeError: 1 },
+        inspected: 3,
+      },
+      expect.stringContaining('operations failed'),
+    )
+    expect(failure.message).toBe(
+      'Goal Program maintenance had 3 failed operation(s): sqlstate_23514 x2, TypeError x1',
     )
   })
 
