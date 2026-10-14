@@ -14,6 +14,7 @@ import { eligibleAttentionReviewWhere } from '../read-facade'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
+import { insertLegacyTombstone } from '#/shared/testing/review-tombstone-fixtures'
 
 const ORG = organizationId('org-attn-equiv-test-aaaa-1111111111')
 const PROP = propertyId('2b000000-0000-0000-0000-0000000000f1')
@@ -24,6 +25,7 @@ const IDS = {
   expired: '2b000000-0000-0000-0000-0000000000c2',
   clockLess: '2b000000-0000-0000-0000-0000000000c3',
   otherOrg: '2b000000-0000-0000-0000-0000000000c4',
+  erased: '2b000000-0000-0000-0000-0000000000c5',
 } as const
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -104,6 +106,16 @@ describe('attention-signals eligibility ⇔ review governed rule (BQC-5.5)', () 
       OTHER_PROP,
       new Date(Date.now() + 10 * DAY_MS),
     )
+
+    // An erased Review that kept the content clock it had: not content, so
+    // neither predicate may select it while the clock is still running.
+    await insertLegacyTombstone(pool, {
+      id: IDS.erased,
+      organizationId: ORG,
+      propertyId: PROP,
+      lastFetchedAt: new Date(),
+      contentExpiresAt: new Date(Date.now() + 10 * DAY_MS),
+    })
 
     const now = new Date()
 

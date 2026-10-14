@@ -141,7 +141,7 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `queue.stalled`                                | P2  | any lease held > 2× its lease (single eval — stalled work IS the impact)                                                          | §7      |
 | `queue.quarantine-growth`                      | P2  | oldest quarantined job > 24h (redrive SLA)                                                                                        | §4      |
 | `queue.quarantine-nonempty`                    | P1  | any job in the unconsumed quarantine > 15min (dropped work; §4 is the same condition aged past the redrive SLA)                   | §14     |
-| `source.freshness-deadline`                    | P1  | nearest hard expiry among refresh-due reviews < 2d away                                                                           | §3      |
+| `source.freshness-deadline`                    | P1  | nearest hard expiry among refresh-due reviews (live ones: an erased review has no content to refresh) < 2d away                   | §3      |
 | `sync.sweep-lag`                               | P1  | oldest past-due incremental sync > 60min overdue (4 missed 15-min sweeps — new reviews are not arriving)                          | §13     |
 | `sync.failed-nonzero`                          | P2  | any coded sync failure whose retry is due                                                                                         | §13     |
 | `ai.review-analysis-stalled`                   | P2  | incomplete enabled coverage with no new settlement for > 15min; monitor failure also fires                                        | §22     |
