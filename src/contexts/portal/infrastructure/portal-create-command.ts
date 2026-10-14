@@ -31,6 +31,11 @@ import { assertCommittedRevision } from './portal-command-guards'
 import { assertCreateCommand } from './portal-create-guards'
 import { joinPortalGroupInTransaction } from './portal-group-commands'
 import { upsertLinkTexts } from './portal-link-texts-store'
+import {
+  PORTAL_SLUG_UNIQUE,
+  refusingWhenTaken,
+  slugTaken,
+} from './portal-unique-violation'
 
 export type PortalCreateCommandStore = Pick<PortalCommandStore, 'createPortal'>
 
@@ -146,32 +151,15 @@ async function insertInitialHealth(tx: Tx, command: CreatePortalCommand): Promis
   })
 }
 
-const SLUG_UNIQUE_CONSTRAINT = 'portals_org_property_slug_unique'
-
-/** Whether the database refused the Portal because its address is already in use at the Property. */
-function isSlugConflict(error: unknown): boolean {
-  let current = error
-  for (let depth = 0; depth < 3; depth += 1) {
-    if (!current || typeof current !== 'object') return false
-    const { code, constraint } = current as { code?: unknown; constraint?: unknown }
-    if (code === '23505' && constraint === SLUG_UNIQUE_CONSTRAINT) return true
-    current = (current as { cause?: unknown }).cause
-  }
-  return false
-}
-
 export const createPortalCreateCommand = (db: Database): PortalCreateCommandStore => ({
   createPortal: async (command) =>
     trace('portal.commandStore.createPortal', async () => {
       assertCreateCommand(command)
-      try {
-        await commitCreate(db, command)
-      } catch (error) {
-        if (isSlugConflict(error)) {
-          throw portalError('slug_taken', 'a portal with this slug already exists')
-        }
-        throw error
-      }
+      await refusingWhenTaken(
+        () => commitCreate(db, command),
+        PORTAL_SLUG_UNIQUE,
+        slugTaken,
+      )
     }),
 })
 

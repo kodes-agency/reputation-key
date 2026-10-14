@@ -547,6 +547,149 @@ describe.sequential('Portal Organization Export contributor', () => {
     )
   })
 
+  // The CSV summary's portal_id column says which Portal a row belongs to, and
+  // only a Portal row is its own Portal.
+  it('puts a Portal in the portal_id column of the rows that belong to one, and nothing in the others', async () => {
+    const fixture = await seedFixture()
+    const contribution = await createPortalOrganizationExportContributor(db).contribute({
+      organizationId: fixture.organizationId,
+      requestId: randomUUID(),
+      asOf: new Date(Date.now() - 1000),
+    })
+
+    const csv = Buffer.from(contribution.entries[0]!.bytes).toString('utf8')
+    const portalIdOf = (recordType: string) =>
+      csv
+        .split('\n')
+        .find((line) => line.startsWith(`${recordType},`))
+        ?.split(',')[3]
+    expect(portalIdOf('portal')).toBe(fixture.portalId)
+    for (const recordType of [
+      'portal_link',
+      'publication_snapshot',
+      'access_artifact',
+      'health_interval',
+    ]) {
+      expect(portalIdOf(recordType), recordType).toBe(fixture.portalId)
+    }
+    for (const recordType of [
+      'portal_group',
+      'portal_media_asset',
+      'approved_destination',
+      'property_brand_profile',
+      'property_brand_content',
+    ]) {
+      expect(portalIdOf(recordType), recordType).toBe('')
+    }
+  })
+
+  // A rotated code keeps working for its grace window and then stops; a stopped
+  // code stops at once. Neither is a published artifact once it no longer
+  // resolves, and the export says which kind each pair of artifacts is.
+  it('reports the artifacts of a replaced or stopped code as such, and only the current code’s as published', async () => {
+    const fixture = await seedFixture()
+    const DAY_MS = 86_400_000
+    const code = async (
+      version: number,
+      state: Readonly<{
+        status: 'rotating' | 'revoked'
+        graceEndsAt?: Date
+        retiredAt: Date
+      }>,
+    ) => {
+      const tokenId = randomUUID()
+      await lease.pool.query(
+        `INSERT INTO portal_tokens (
+           id, organization_id, property_id, portal_id, token_identifier, token_hash,
+           version, status, issued_at, grace_period_ends, retired_at, revoked_at,
+           created_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now() - interval '30 days', $9, $10,
+                   $11, now() - interval '30 days')`,
+        [
+          tokenId,
+          fixture.organizationId,
+          fixture.propertyId,
+          fixture.portalId,
+          randomUUID().replaceAll('-', '').slice(0, 24),
+          randomUUID().replaceAll('-', '').padEnd(64, 'e').slice(0, 64),
+          version,
+          state.status,
+          state.graceEndsAt ?? null,
+          state.retiredAt,
+          state.status === 'revoked' ? state.retiredAt : null,
+        ],
+      )
+      const ids = { qr: randomUUID(), nfc: randomUUID() }
+      for (const [channel, id] of Object.entries(ids)) {
+        await lease.pool.query(
+          `INSERT INTO portal_access_artifacts (
+             id, organization_id, property_id, portal_id, portal_token_id, channel,
+             status, published_at
+           ) VALUES ($1, $2, $3, $4, $5, $6, 'published', now() - interval '30 days')`,
+          [
+            id,
+            fixture.organizationId,
+            fixture.propertyId,
+            fixture.portalId,
+            tokenId,
+            channel,
+          ],
+        )
+      }
+      return ids
+    }
+    const inGrace = await code(2, {
+      status: 'rotating',
+      graceEndsAt: new Date(Date.now() + DAY_MS),
+      retiredAt: new Date(Date.now() + DAY_MS),
+    })
+    const pastGrace = await code(3, {
+      status: 'rotating',
+      graceEndsAt: new Date(Date.now() - 2 * DAY_MS),
+      retiredAt: new Date(Date.now() - 2 * DAY_MS),
+    })
+    const stopped = await code(4, {
+      status: 'revoked',
+      retiredAt: new Date(Date.now() - DAY_MS),
+    })
+
+    const contribution = await createPortalOrganizationExportContributor(db).contribute({
+      organizationId: fixture.organizationId,
+      requestId: randomUUID(),
+      asOf: new Date(Date.now() - 1000),
+    })
+
+    const json = contribution.entries.find(
+      ({ mediaType }) => mediaType === 'application/json',
+    )!
+    const artifacts = (
+      JSON.parse(Buffer.from(json.bytes).toString('utf8')) as {
+        accessArtifacts: readonly Readonly<{
+          id: string
+          status: string
+          retired_at: string | null
+        }>[]
+      }
+    ).accessArtifacts
+    const stateOf = (id: string) => artifacts.find((artifact) => artifact.id === id)
+    expect(stateOf(fixture.artifactId)).toMatchObject({
+      status: 'published',
+      retired_at: null,
+    })
+    for (const id of Object.values(inGrace)) {
+      expect(stateOf(id)).toMatchObject({ status: 'retiring' })
+      expect(stateOf(id)?.retired_at).not.toBeNull()
+    }
+    for (const id of Object.values(pastGrace)) {
+      expect(stateOf(id)).toMatchObject({ status: 'retired' })
+      expect(stateOf(id)?.retired_at).not.toBeNull()
+    }
+    for (const id of Object.values(stopped)) {
+      expect(stateOf(id)).toMatchObject({ status: 'revoked' })
+      expect(stateOf(id)?.retired_at).not.toBeNull()
+    }
+  })
+
   it('answers no_data for an Organization that owns no Portal row', async () => {
     const organizationId = await seedOrganization()
 

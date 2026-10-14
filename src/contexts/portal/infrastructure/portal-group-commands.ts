@@ -34,6 +34,11 @@ import {
   lockSamePropertyPortal,
   recordGroupHistory,
 } from './portal-group-writes'
+import {
+  groupNameTaken,
+  PORTAL_GROUP_NAME_UNIQUE,
+  refusingWhenTaken,
+} from './portal-unique-violation'
 
 export type PortalGroupCommandStore = Pick<
   PortalCommandStore,
@@ -224,12 +229,16 @@ export async function joinPortalGroupInTransaction(
 }
 
 export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore => {
+  /** A transaction whose group-name collision is the refusal the use case's own check gives. */
+  const namingGroup = <T>(run: (tx: Tx) => Promise<T>): Promise<T> =>
+    refusingWhenTaken(() => db.transaction(run), PORTAL_GROUP_NAME_UNIQUE, groupNameTaken)
+
   return {
     createPortalGroup: async (command) =>
       trace('portal.commandStore.createPortalGroup', async () => {
         assertCreatePortalGroupCommand(command)
         const { group } = command
-        await db.transaction(async (tx) => {
+        await namingGroup(async (tx) => {
           await fencePortalGroupsInOrder(
             tx,
             command.sourceGroups.map((fence) => ({
@@ -321,7 +330,7 @@ export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore
     updatePortalGroup: async (command) =>
       trace('portal.commandStore.updatePortalGroup', async () => {
         assertUpdatePortalGroupCommand(command)
-        await db.transaction(async (tx) => {
+        await namingGroup(async (tx) => {
           await fencePortalGroup(tx, command, { name: command.name })
           if (command.name !== command.previousName) {
             await recordGroupHistory(tx, [

@@ -462,6 +462,7 @@ function createCommand(
   overrides: Partial<CreatePortalGroupCommand> & {
     portals: ReadonlyArray<Readonly<{ portal: PortalId; from: PortalGroupId | null }>>
     fromExpected?: Date
+    name?: string
   },
 ): CreatePortalGroupCommand {
   const at = MOVED_AT
@@ -469,7 +470,7 @@ function createCommand(
     id: GROUP_NEW,
     organizationId: ORG_A,
     propertyId: PROPERTY,
-    name: 'Fresh Group',
+    name: overrides.name ?? 'Fresh Group',
     sortKey: null,
     createdBy: MANAGER,
     createdAt: at,
@@ -737,3 +738,53 @@ describe.sequential(
     })
   },
 )
+
+// Two managers can submit the same name inside one another's pre-check, so the
+// store is where a name already held at the Property is told apart from a fault.
+describe.sequential('Portal Group names (real PostgreSQL)', () => {
+  it('says the name is taken when a creation meets a group that holds it, and creates nothing', async () => {
+    await expect(
+      store().createPortalGroup(createCommand({ portals: [], name: 'Group A' })),
+    ).rejects.toMatchObject({ code: 'group_name_taken' })
+
+    const created = await getPool().query(
+      `SELECT id FROM portal_groups WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, GROUP_NEW],
+    )
+    expect(created.rows).toEqual([])
+    expect(await historyRows()).toEqual([])
+    expect(await factTypes()).toEqual([])
+  })
+
+  it('says the name is taken when a rename meets a group that holds it, and renames nothing', async () => {
+    await expect(
+      store().updatePortalGroup({
+        organizationId: ORG_A,
+        propertyId: PROPERTY,
+        portalGroupId: GROUP_B,
+        expectedUpdatedAt: GROUP_REVISION,
+        name: 'Group A',
+        previousName: 'Group B',
+        changedBy: MANAGER,
+        revision: MOVED_AT,
+        occurredAt: MOVED_AT,
+        event: portalGroupUpdated({
+          organizationId: ORG_A,
+          propertyId: PROPERTY,
+          portalGroupId: GROUP_B,
+          name: 'Group A',
+          sourceAggregateVersion: MOVED_AT.toISOString(),
+          occurredAt: MOVED_AT,
+        }),
+      }),
+    ).rejects.toMatchObject({ code: 'group_name_taken' })
+
+    const stored = await getPool().query(
+      `SELECT name, updated_at FROM portal_groups WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, GROUP_B],
+    )
+    expect(stored.rows).toEqual([{ name: 'Group B', updated_at: GROUP_REVISION }])
+    expect(await historyRows()).toEqual([])
+    expect(await factTypes()).toEqual([])
+  })
+})

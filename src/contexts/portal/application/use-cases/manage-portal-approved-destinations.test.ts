@@ -73,6 +73,25 @@ describe('revalidatePortalApprovedDestinations', () => {
     })
   })
 
+  it('takes every approval validated ten minutes ago or earlier, so each run refreshes all of them', async () => {
+    // The job runs every fifteen minutes. An approval due only at fifteen would
+    // wait for the run after next and sit at the thirty-minute cutoff the
+    // public edge drops it at.
+    const listDueForNetworkRevalidation = vi.fn(async () => [])
+    const useCase = revalidatePortalApprovedDestinations({
+      destinationRepo: { listDueForNetworkRevalidation } as never,
+      destinationNetworkValidator: { validate: vi.fn() },
+      clock: () => NOW,
+    })
+
+    await useCase({ authorizeScope: async () => true })
+
+    expect(listDueForNetworkRevalidation).toHaveBeenCalledWith(
+      new Date(NOW.getTime() - 10 * 60 * 1_000),
+      100,
+    )
+  })
+
   it('does not mutate on transient network failure or denied scope', async () => {
     const recordNetworkValidation = vi.fn()
     const useCase = revalidatePortalApprovedDestinations({
