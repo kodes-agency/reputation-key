@@ -1,29 +1,28 @@
-// A goal that the read just found reached or ended. The read returns it this
-// once, then it sits in History, so the card says what happened and offers
-// what comes next: after reaching, the next tenth (preselected in the wizard)
-// or "Keep 4.5"; after an end it did not choose, a new goal (ADR 0067).
-import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
+// A goal reached, or ended by something other than a manager, told on the Goals
+// page for a while after it happened (`recentOutcome`): the snapshot consumer
+// usually reaches a goal before anyone looks, so the news comes from History as
+// often as from the read that found it. It says what happened, on which day,
+// and offers what comes next: after reaching, the next tenth (preselected in
+// the wizard) or "Keep 4.5"; after an end it did not choose, a new goal
+// (ADR 0067, decision 6).
 import { Button } from '#/components/ui/button'
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '#/components/ui/card'
+import { Card, CardContent } from '#/components/ui/card'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { formatShortDate } from '#/lib/format'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { endedSentence, ratingText } from './rating-goal-view'
+import { RatingGoalCardHeader } from './rating-goal-card'
+import { endedSentence, ratingText, type RatingGoalOutcomeView } from './rating-goal-view'
 import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
 
 /** The highest tenth a goal can climb to (4.9): there is no "next" past it. */
 const HIGHEST_TENTHS = 49
 
 type Props = Readonly<{
-  card: RatingGoalCardView
-  /** When the read that found it was made: the day it was reached or ended. */
-  readAt: Date
+  outcome: RatingGoalOutcomeView
+  /** What Google shows now, when the setup has read it: it may have moved since. */
+  googleShowsNow: number | null
+  /** False when the Property cannot have a goal now (archived, too few reviews). */
+  canSetNext: boolean
   timezone: string
   now: Date
   onStart: (intent: RatingGoalWizardIntent) => void
@@ -34,51 +33,65 @@ const OUTCOME = {
   ended: { label: 'Ended', tone: 'neutral' },
 } as const
 
-export function RatingGoalOutcome({ card, readAt, timezone, now, onStart }: Props) {
+/** "Google shows 4.5 — goal reached on Oct 12", or what it shows now if it slipped since. */
+function reachedSentence(
+  outcome: RatingGoalOutcomeView,
+  googleShowsNow: number | null,
+  day: string | null,
+): string {
+  const target = ratingText(outcome.target)
+  const on = day === null ? '' : ` on ${day}`
+  if (googleShowsNow === null || googleShowsNow >= outcome.target) {
+    return `Google shows ${target} — goal reached${on}`
+  }
+  return `Goal reached${on}: Google showed ${target}. It shows ${ratingText(googleShowsNow)} now.`
+}
+
+function NextSteps({ outcome, onStart }: Pick<Props, 'outcome' | 'onStart'>) {
+  const { targetTenths } = outcome
+  if (outcome.state === 'ended') {
+    return <Button onClick={() => onStart({ kind: 'climb' })}>Set a new goal</Button>
+  }
+  return (
+    <>
+      {targetTenths < HIGHEST_TENTHS ? (
+        <Button
+          onClick={() => onStart({ kind: 'climb', preselectTenths: targetTenths + 1 })}
+        >
+          Set your next goal
+        </Button>
+      ) : null}
+      <Button variant="outline" onClick={() => onStart({ kind: 'keep', targetTenths })}>
+        {`Keep ${ratingText(outcome.target)}`}
+      </Button>
+    </>
+  )
+}
+
+export function RatingGoalOutcome({
+  outcome,
+  googleShowsNow,
+  canSetNext,
+  timezone,
+  now,
+  onStart,
+}: Props) {
   const { can } = usePermissions()
-  const canSet = can('goal.create')
-  const target = ratingText(card.target)
-  const day = formatShortDate(readAt, timezone, now)
-  const reached = card.state === 'reached'
+  const day = formatShortDate(outcome.at, timezone, now)
   return (
     <Card data-slot="rating-goal-outcome" className="gap-4">
-      <CardHeader>
-        <CardTitle as="h2">Google rating goal</CardTitle>
-        <CardAction>
-          <StatusBadge {...OUTCOME[reached ? 'reached' : 'ended']} />
-        </CardAction>
-      </CardHeader>
+      <RatingGoalCardHeader>
+        <StatusBadge {...OUTCOME[outcome.state]} />
+      </RatingGoalCardHeader>
       <CardContent className="flex flex-col gap-4">
-        {reached ? (
-          <p className="text-lg font-semibold">
-            Google shows {target} — goal reached{day === null ? '' : ` on ${day}`}
-          </p>
-        ) : (
-          <p className="text-lg font-semibold">
-            {endedSentence(card.endedReason)}. Your goal was {target} on Google.
-          </p>
-        )}
-        {canSet ? (
+        <p className="text-lg font-semibold">
+          {outcome.state === 'reached'
+            ? reachedSentence(outcome, googleShowsNow, day)
+            : `${endedSentence(outcome.endedReason)}. Your goal was ${ratingText(outcome.target)} on Google.`}
+        </p>
+        {can('goal.create') && canSetNext ? (
           <div className="flex flex-wrap gap-2">
-            {reached && card.targetTenths < HIGHEST_TENTHS ? (
-              <Button
-                onClick={() =>
-                  onStart({ kind: 'climb', preselectTenths: card.targetTenths + 1 })
-                }
-              >
-                Set your next goal
-              </Button>
-            ) : null}
-            {reached ? (
-              <Button
-                variant="outline"
-                onClick={() => onStart({ kind: 'keep', targetTenths: card.targetTenths })}
-              >
-                {`Keep ${target}`}
-              </Button>
-            ) : (
-              <Button onClick={() => onStart({ kind: 'climb' })}>Set a new goal</Button>
-            )}
+            <NextSteps outcome={outcome} onStart={onStart} />
           </div>
         ) : null}
       </CardContent>

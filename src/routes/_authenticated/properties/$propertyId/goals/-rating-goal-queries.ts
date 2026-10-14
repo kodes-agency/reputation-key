@@ -68,17 +68,35 @@ export const ratingGoalHistoryQuery = (propertyId: string) =>
   })
 
 /**
- * Primes the Goals page's Google section: the card, and the setup when there is
- * no goal (its empty state says why or offers the wizard). A failure is left to
- * the section, which says so in its own region: the Portal goals below it never
- * wait on Google.
+ * Primes the Goals page's Google section: the card, the setup (the empty states
+ * and the wizard) and the History (a goal reached or ended lately), all at once,
+ * so the page waits for no Google read after another. A failure is left to the
+ * section, which says so in its own region; the Portal goals never fail with it.
  */
 export async function prefetchRatingGoalSection(
   queryClient: QueryClient,
   propertyId: string,
 ): Promise<void> {
-  const card = await queryClient
-    .fetchQuery(ratingGoalCardQuery(propertyId))
-    .catch(() => undefined)
-  if (card === null) await queryClient.prefetchQuery(ratingGoalSetupQuery(propertyId))
+  // `prefetchQuery` never throws: a failed read is the section's to say.
+  await Promise.all([
+    queryClient.prefetchQuery(ratingGoalCardQuery(propertyId)),
+    queryClient.prefetchQuery(ratingGoalSetupQuery(propertyId)),
+    queryClient.prefetchQuery(ratingGoalHistoryQuery(propertyId)),
+  ])
 }
+
+/**
+ * Marks every read of the goal stale without reading any of it again now: the
+ * next page that draws one reads it afresh. For a page that is leaving (the
+ * detail, once its goal is ended) or has learned the goal moved on (a detail
+ * read that found it reached), where a refetch here would only flash the
+ * page's own "no goal" state.
+ */
+export const markRatingGoalReadsStale = (
+  queryClient: QueryClient,
+  propertyId: string,
+): Promise<void> =>
+  queryClient.invalidateQueries({
+    queryKey: goalKeys.ratingGoal(propertyId),
+    refetchType: 'none',
+  })

@@ -1,8 +1,8 @@
 // The Google section of the Goals page in every state it can be in: the simple
-// card of an active goal (each status, and a goal to keep), the goal a read just
-// found reached or ended, the door into the wizard, the "keep" door, the reasons
-// there is no goal yet, a read on its way or failed, and a reader who cannot set
-// goals. The Storybook Vitest project compiles no Tailwind, so the plays assert
+// card of an active goal (each status, and a goal to keep), a goal reached or
+// ended lately (found by the card read, or by the snapshot consumer and so read
+// from History), the door into the wizard, the "keep" door, the reasons there is
+// no goal yet, a read on its way or failed, and a reader who cannot set goals. The Storybook Vitest project compiles no Tailwind, so the plays assert
 // words, roles and what each door opens, not pixels.
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
@@ -24,7 +24,10 @@ import {
   SETUP_FEW_REVIEWS,
   SETUP_KEEP_FIRST,
 } from './rating-goal.stories.fixtures'
-import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
+import type {
+  RatingGoalCardView,
+  RatingGoalHistoryEntry,
+} from '#/contexts/reporting/application/dto/rating-goal.types'
 
 const NOW = new Date(FIXTURE_NOW)
 const read = <T,>(data: T | undefined, failed = false) => ({
@@ -38,6 +41,19 @@ const cardRead = (data: RatingGoalCardView | null | undefined, failed = false) =
   readAt: NOW,
 })
 
+/** The goal of CARD, reached two days ago: the snapshot consumer got there first. */
+const REACHED_LATELY: RatingGoalHistoryEntry = {
+  ...HISTORY[0]!,
+  goalId: CARD.goalId,
+  targetTenths: 45,
+  target: 4.5,
+  pacePerWeek: 11,
+  setAt: CARD.setAt,
+  reachedAt: '2026-10-12T05:10:00.000Z',
+}
+/** What the setup reads once Google shows the target. */
+const SETUP_SHOWS_45 = { ...SETUP, google: { ...SETUP.google!, shows: 4.5 } }
+
 const meta: Meta<typeof RatingGoalSection> = {
   title: 'Goals/RatingGoalSection',
   component: RatingGoalSection,
@@ -48,6 +64,8 @@ const meta: Meta<typeof RatingGoalSection> = {
     now: NOW,
     card: cardRead(CARD),
     setup: read(undefined),
+    history: read([]),
+    hasPortals: true,
     onStart: fn(),
   },
   render: (args) => (
@@ -136,11 +154,8 @@ export const WaitingForGoogle: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Waiting for Google')).toBeVisible()
     await expect(canvas.getByText('as of Oct 12')).toBeVisible()
-    await expect(
-      canvas.getByText(
-        /^Waiting for Google’s latest numbers\. These are from Oct 12, 2026/,
-      ),
-    ).toBeVisible()
+    // The headline dates the numbers; the sentence does not say it again.
+    await expect(canvas.getByText('Waiting for Google’s latest numbers.')).toBeVisible()
   },
 }
 
@@ -196,7 +211,10 @@ export const Reached: Story = {
   },
 }
 
-/** The read that found the goal reached returns it once; the section keeps the news on screen. */
+/**
+ * The read that found the goal reached returns it once; the next read has no
+ * goal, and the news then comes from History, with the day it was reached.
+ */
 function ReadAgainHarness() {
   const [card, setCard] = useState<RatingGoalCardView | null>(CARD_REACHED)
   return (
@@ -209,7 +227,9 @@ function ReadAgainHarness() {
         timezone={FIXTURE_TIMEZONE}
         now={NOW}
         card={cardRead(card)}
-        setup={read(SETUP)}
+        setup={read(SETUP_SHOWS_45)}
+        history={read([{ ...REACHED_LATELY, reachedAt: FIXTURE_NOW }])}
+        hasPortals
         onStart={fn()}
       />
     </div>
@@ -228,6 +248,122 @@ export const ReachedStaysAfterTheNextRead: Story = {
       canvas.getByText('Google shows 4.5 — goal reached on Oct 14'),
     ).toBeVisible()
     await expect(canvas.queryByText('Set your Google rating goal')).toBeNull()
+  },
+}
+
+/**
+ * The usual way a goal is reached: the snapshot consumer reaches it before
+ * anyone looks, so the card read has no goal and History has the news, with
+ * the real day, the next tenth and "Keep".
+ */
+export const ReachedBeforeAnyoneLooked: Story = {
+  args: {
+    card: cardRead(null),
+    setup: read(SETUP_SHOWS_45),
+    history: read([REACHED_LATELY, ...HISTORY]),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText('Google shows 4.5 — goal reached on Oct 12'),
+    ).toBeVisible()
+    await expect(canvas.queryByText('Set your Google rating goal')).toBeNull()
+    await userEvent.click(canvas.getByRole('button', { name: 'Set your next goal' }))
+    await expect(args.onStart).toHaveBeenCalledWith({
+      kind: 'climb',
+      preselectTenths: 46,
+    })
+    await userEvent.click(canvas.getByRole('button', { name: 'Keep 4.5' }))
+    await expect(args.onStart).toHaveBeenCalledWith({ kind: 'keep', targetTenths: 45 })
+  },
+}
+
+/** Google slipped back under the target since: the news says what it shows now. */
+export const ReachedThenSlipped: Story = {
+  args: {
+    card: cardRead(null),
+    setup: read({ ...SETUP, google: { ...SETUP.google!, shows: 4.4 } }),
+    history: read([REACHED_LATELY]),
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText(
+        'Goal reached on Oct 12: Google showed 4.5. It shows 4.4 now.',
+      ),
+    ).toBeVisible()
+  },
+}
+
+/** Two weeks on, a reached goal is History, not news: the plain door is back. */
+export const ReachedLongAgo: Story = {
+  args: {
+    card: cardRead(null),
+    setup: read(SETUP),
+    history: read([{ ...REACHED_LATELY, reachedAt: '2026-09-20T05:10:00.000Z' }]),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Set your Google rating goal')).toBeVisible()
+    await expect(canvas.queryByText(/goal reached/)).toBeNull()
+  },
+}
+
+/** A goal the manager ended is no news to them: the plain door. */
+export const EndedByAManager: Story = {
+  args: {
+    card: cardRead(null),
+    setup: read(SETUP),
+    history: read([
+      {
+        ...REACHED_LATELY,
+        state: 'ended',
+        endedReason: 'manager',
+        reachedAt: null,
+        endedAt: '2026-10-13T09:00:00.000Z',
+      },
+    ]),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Set your Google rating goal')).toBeVisible()
+    await expect(canvas.queryByText(/^Ended/)).toBeNull()
+  },
+}
+
+/** Archived: the news is told, and no new goal is offered to a Property that cannot have one. */
+export const EndedByArchive: Story = {
+  args: {
+    card: cardRead(null),
+    setup: read({
+      ...SETUP,
+      eligibility: { eligible: false, reason: 'property_not_active' },
+    }),
+    history: read([
+      {
+        ...REACHED_LATELY,
+        state: 'ended',
+        endedReason: 'property_archived',
+        reachedAt: null,
+        endedAt: '2026-10-13T09:00:00.000Z',
+      },
+    ]),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText('Ended: property archived. Your goal was 4.5 on Google.'),
+    ).toBeVisible()
+    await expect(canvas.queryByRole('button')).toBeNull()
+  },
+}
+
+/** While History is still read, the section keeps its room rather than guess. */
+export const ReadingHistory: Story = {
+  args: { card: cardRead(null), setup: read(SETUP), history: read(undefined) },
+  play: async ({ canvasElement }) => {
+    await expect(
+      canvasElement.querySelector('[data-slot="rating-goal-pending"]'),
+    ).toBeInTheDocument()
   },
 }
 
@@ -289,12 +425,26 @@ export const FewReviews: Story = {
     await expect(
       canvas.getByText('Rating goals start at 10 Google reviews'),
     ).toBeVisible()
-    await expect(canvas.getByText(/^You have 6\./)).toBeVisible()
+    // The count only: never a number of reviews to go and ask for.
+    await expect(canvas.getByText('You have 6.')).toBeVisible()
     await expect(canvas.getByRole('link', { name: 'Go to portals' })).toHaveAttribute(
       'href',
       `/properties/${FIXTURE_PROPERTY_ID}/portals`,
     )
     await expect(canvas.queryByRole('button', { name: 'Set goal' })).toBeNull()
+  },
+}
+
+/** No Portal yet: the link makes the first one, not an empty list. */
+export const FewReviewsNoPortals: Story = {
+  args: { card: cardRead(null), setup: read(SETUP_FEW_REVIEWS), hasPortals: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('link', { name: 'Create a portal' })).toHaveAttribute(
+      'href',
+      `/properties/${FIXTURE_PROPERTY_ID}/portals/new`,
+    )
+    await expect(canvas.queryByRole('link', { name: 'Go to portals' })).toBeNull()
   },
 }
 
@@ -356,10 +506,20 @@ export const ReadFailed: Story = {
 export const OnPacePhone: Story = {
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
   play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByText('This week: 6 of 11 reviews'),
-    ).toBeVisible()
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('This week: 6 of 11 reviews')).toBeVisible()
+    // The card's one way on is a button-shaped link: a tap target on a phone.
+    await expect(canvas.getByRole('link', { name: 'View details' })).toHaveAttribute(
+      'data-slot',
+      'button',
+    )
   },
+}
+
+/** The long chip drops below the title on a phone instead of squeezing it. */
+export const CantReachPhone: Story = {
+  ...CantReachAtThisMix,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
 }
 
 export const OnPaceLight: Story = { parameters: { theme: 'light' } }

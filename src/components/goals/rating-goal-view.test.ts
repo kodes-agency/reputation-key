@@ -11,14 +11,19 @@ import {
   forecastSentence,
   googleShows,
   historyEntryView,
+  OUTCOME_SHOWN_FOR_DAYS,
+  outcomeFromCard,
   RATING_GOAL_STATUS,
   ratingText,
+  recentOutcome,
   reviewsText,
+  waitingSentence,
 } from './rating-goal-view'
 import {
   CARD,
   CARD_JUST_SET,
   CARD_KEEP,
+  CARD_REACHED,
   FIXTURE_NOW,
   FIXTURE_TIMEZONE,
   HISTORY,
@@ -107,36 +112,45 @@ describe('the simple card', () => {
 
   it('has no pace line for a goal that keeps a number', () => {
     expect(cardPaceLine(CARD_KEEP)).toBeNull()
-    expect(cardOutlook(CARD_KEEP, FIXTURE_TIMEZONE)).toBeNull()
+    expect(cardOutlook(CARD_KEEP, FIXTURE_TIMEZONE, NOW)).toBeNull()
   })
 
   it('forecasts, or says why it cannot, one line', () => {
-    expect(cardOutlook(CARD, FIXTURE_TIMEZONE)).toBe('Expected around Jul–Sep 2027')
-    expect(cardOutlook({ ...CARD, googleShowsSoon: true }, FIXTURE_TIMEZONE)).toBe(
+    expect(cardOutlook(CARD, FIXTURE_TIMEZONE, NOW)).toBe('Expected around Jul–Sep 2027')
+    expect(cardOutlook({ ...CARD, googleShowsSoon: true }, FIXTURE_TIMEZONE, NOW)).toBe(
       'Google should show 4.5 soon',
     )
     expect(
       cardOutlook(
         { ...CARD, status: 'cant_reach_at_mix', forecast: { kind: 'unreachable' } },
         FIXTURE_TIMEZONE,
+        NOW,
       ),
     ).toBe(
       'No pace reaches 4.5 at the recent star mix. A lower goal can still be reached.',
     )
   })
 
-  it('waits for Google with the time its numbers were read', () => {
+  it('waits for Google without repeating the day the headline already gives', () => {
     const waiting = {
       ...CARD,
       status: 'waiting_for_google' as const,
       google: { ...CARD.google!, current: false, asOf: '2026-10-12T08:00:00.000Z' },
     }
 
-    expect(cardOutlook(waiting, FIXTURE_TIMEZONE)).toBe(
-      'Waiting for Google’s latest numbers. These are from Oct 12, 2026, 11:00 AM GMT+3.',
+    expect(cardOutlook(waiting, FIXTURE_TIMEZONE, NOW)).toBe(
+      'Waiting for Google’s latest numbers.',
     )
-    expect(cardOutlook({ ...waiting, google: null }, FIXTURE_TIMEZONE)).toBe(
+    expect(cardOutlook({ ...waiting, google: null }, FIXTURE_TIMEZONE, NOW)).toBe(
       'Waiting for Google’s numbers.',
+    )
+  })
+
+  it('names the day of numbers the headline does not date, and never a clock time', () => {
+    const google = { ...CARD.google!, current: true, asOf: '2026-10-12T08:00:00.000Z' }
+
+    expect(waitingSentence(google, FIXTURE_TIMEZONE, NOW)).toBe(
+      'Waiting for Google’s latest numbers. These are from Oct 12.',
     )
   })
 
@@ -172,6 +186,53 @@ describe('the history', () => {
       summary: 'set Nov 10, 2025 · ended Feb 20 · Google location changed',
       status: { label: 'Ended', tone: 'neutral' },
     })
+  })
+})
+
+describe('a goal reached or ended lately', () => {
+  const DAY = 24 * 60 * 60 * 1000
+  const reached = { ...HISTORY[0]!, reachedAt: '2026-10-12T05:10:00.000Z' }
+
+  it('is the goal the card read found reached, on the day of that read', () => {
+    expect(outcomeFromCard(CARD_REACHED, NOW)).toEqual({
+      goalId: CARD_REACHED.goalId,
+      state: 'reached',
+      targetTenths: 45,
+      target: 4.5,
+      endedReason: null,
+      at: FIXTURE_NOW,
+    })
+    expect(outcomeFromCard(CARD, NOW)).toBeNull()
+  })
+
+  it('is the newest goal in History, on the day it was really reached', () => {
+    expect(recentOutcome([reached, HISTORY[1]!], NOW)).toEqual({
+      goalId: reached.goalId,
+      state: 'reached',
+      targetTenths: 43,
+      target: 4.3,
+      endedReason: null,
+      at: '2026-10-12T05:10:00.000Z',
+    })
+  })
+
+  it('tells a goal ended by a Google location change, but not one a manager ended', () => {
+    const ended = { ...HISTORY[1]!, endedAt: '2026-10-13T14:00:00.000Z' }
+
+    expect(recentOutcome([ended], NOW)).toMatchObject({
+      state: 'ended',
+      endedReason: 'google_location_changed',
+      at: '2026-10-13T14:00:00.000Z',
+    })
+    expect(recentOutcome([{ ...ended, endedReason: 'manager' }, reached], NOW)).toBeNull()
+  })
+
+  it('is no news once it is more than two weeks old, or when History is empty', () => {
+    const old = new Date(NOW.getTime() - (OUTCOME_SHOWN_FOR_DAYS + 1) * DAY)
+
+    expect(recentOutcome([{ ...reached, reachedAt: old.toISOString() }], NOW)).toBeNull()
+    expect(recentOutcome([], NOW)).toBeNull()
+    expect(recentOutcome(undefined, NOW)).toBeNull()
   })
 })
 

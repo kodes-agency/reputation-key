@@ -14,6 +14,8 @@ import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
 type Props = Readonly<{
   setup: RatingGoalSetupView
   propertyId: string
+  /** Too few reviews links to the Portals, or to a first Portal when there is none. */
+  hasPortals: boolean
   onStart: (intent: RatingGoalWizardIntent) => void
 }>
 
@@ -24,8 +26,11 @@ function googleSentence(setup: RatingGoalSetupView): string | null {
   return `Google shows ${ratingText(google.shows)} from ${reviewsText(google.reviewCount)}.`
 }
 
-/** Why there is no goal to set yet, in one title and one sentence. */
-function NotEligible({ setup, propertyId }: Omit<Props, 'onStart'>) {
+/**
+ * Why there is no goal to set yet, in one title and one sentence. Too few
+ * reviews says only the count: never a number of reviews to go and ask for.
+ */
+function NotEligible({ setup, propertyId, hasPortals }: Omit<Props, 'onStart'>) {
   const { eligibility } = setup
   if (eligibility.eligible) return null
   if (eligibility.reason === 'few_reviews') {
@@ -33,12 +38,18 @@ function NotEligible({ setup, propertyId }: Omit<Props, 'onStart'>) {
       <EmptyState
         icon={Target}
         title="Rating goals start at 10 Google reviews"
-        description={`You have ${eligibility.reviewCount}. Your portals invite guests to leave one.`}
+        description={`You have ${eligibility.reviewCount}.`}
         action={
           <Button asChild variant="outline">
-            <Link to="/properties/$propertyId/portals" params={{ propertyId }}>
-              Go to portals
-            </Link>
+            {hasPortals ? (
+              <Link to="/properties/$propertyId/portals" params={{ propertyId }}>
+                Go to portals
+              </Link>
+            ) : (
+              <Link to="/properties/$propertyId/portals/new" params={{ propertyId }}>
+                Create a portal
+              </Link>
+            )}
           </Button>
         }
       />
@@ -69,10 +80,10 @@ function NotEligible({ setup, propertyId }: Omit<Props, 'onStart'>) {
   )
 }
 
-export function RatingGoalEmpty({ setup, propertyId, onStart }: Props) {
+export function RatingGoalEmpty({ setup, propertyId, hasPortals, onStart }: Props) {
   const { can } = usePermissions()
   if (!setup.eligibility.eligible)
-    return <NotEligible setup={setup} propertyId={propertyId} />
+    return <NotEligible setup={setup} propertyId={propertyId} hasPortals={hasPortals} />
   const google = googleSentence(setup)
   const shows = setup.google?.shows ?? null
   const readOnly = (

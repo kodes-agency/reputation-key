@@ -90,8 +90,20 @@ describe('RatingGoalCard', () => {
     )
 
     expect(text).toContain('Waiting for Google')
-    expect(text).toContain('Google shows 4.3 as of Oct 12')
-    expect(text).not.toContain('Expected around')
+    // The date sits under the two numbers, so they never break apart around it.
+    expect(text).toContain('Google shows 4.3 → your goal 4.5 as of Oct 12')
+    expect(text).toContain('Waiting for Google’s latest numbers.')
+    expect(text).not.toMatch(/GMT|Expected around/u)
+  })
+
+  it('keeps each number with its words, and the arrow with the first', () => {
+    const html = render(CARD)
+
+    expect(html).toMatch(
+      /<span class="[^"]*whitespace-nowrap[^"]*"><span[^>]*>Google shows<\/span><span[^>]*>4\.3<\/span><span aria-hidden="true"[^>]*>→<\/span><\/span>/u,
+    )
+    expect(html).toContain('id="google-rating-goal-title"')
+    expect(html).toContain('data-slot="button"')
   })
 
   it('prints a dash only when Google never sent a number', () => {

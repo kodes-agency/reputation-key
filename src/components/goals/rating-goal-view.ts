@@ -13,12 +13,7 @@ import type {
   RatingGoalStatus,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import type { StatusMap, StatusPresentation } from '#/components/ui/status-badge'
-import {
-  formatMonthKey,
-  formatNumber,
-  formatShortDate,
-  formatZonedTimestamp,
-} from '#/lib/format'
+import { formatMonthKey, formatNumber, formatShortDate } from '#/lib/format'
 
 /** How a rating goal's status reads as a pill. */
 export const RATING_GOAL_STATUS: StatusMap<RatingGoalStatus> = {
@@ -31,6 +26,10 @@ export const RATING_GOAL_STATUS: StatusMap<RatingGoalStatus> = {
   holding: { label: 'Holding', tone: 'positive' },
   dropped_below: { label: 'Dropped below', tone: 'warn' },
 }
+
+/** Why the numbers are approximate: RepKey's copy of the reviews is short of Google's count. */
+export const APPROXIMATE_NUMBERS =
+  'RepKey doesn’t hold every review Google counts yet, so these numbers are approximate.'
 
 /** "4.5": a rating to one decimal, as Google prints it. */
 export const ratingText = (value: number): string =>
@@ -114,16 +113,21 @@ export function cardPaceLine(card: RatingGoalCardView): string | null {
   return `This week: ${formatNumber(card.thisWeekCount)} of ${reviewsText(card.pacePerWeek)}`
 }
 
-/** Why the goal waits for Google, with the time the last numbers were read. */
+/**
+ * Why the goal waits for Google. The headline already dates numbers that are
+ * not current ("as of Oct 12"), so the sentence names the day only when it
+ * does not; never a clock time, which would have to name its zone.
+ */
 export function waitingSentence(
   google: GoogleNumbersView | null,
   timezone: string,
+  now: Date,
 ): string {
   if (google === null) return 'Waiting for Google’s numbers.'
-  const at = formatZonedTimestamp(google.asOf, timezone)
-  return at === null
+  const day = google.current ? formatShortDate(google.asOf, timezone, now) : null
+  return day === null
     ? 'Waiting for Google’s latest numbers.'
-    : `Waiting for Google’s latest numbers. These are from ${at}.`
+    : `Waiting for Google’s latest numbers. These are from ${day}.`
 }
 
 /**
@@ -131,8 +135,14 @@ export function waitingSentence(
  * that stands in for it (waiting for Google, Google about to show the target,
  * no pace reaching it at the recent mix). None for a goal that keeps a number.
  */
-export function cardOutlook(card: RatingGoalCardView, timezone: string): string | null {
-  if (card.status === 'waiting_for_google') return waitingSentence(card.google, timezone)
+export function cardOutlook(
+  card: RatingGoalCardView,
+  timezone: string,
+  now: Date,
+): string | null {
+  if (card.status === 'waiting_for_google') {
+    return waitingSentence(card.google, timezone, now)
+  }
   if (card.mode === 'keep') return null
   if (card.googleShowsSoon) return `Google should show ${ratingText(card.target)} soon`
   if (card.status === 'cant_reach_at_mix') {
@@ -152,6 +162,60 @@ export const endedSentence = (reason: RatingGoalEndedReason | null): string => {
   const words = reason === null ? null : ENDED_REASON[reason]
   if (words === null) return 'Ended'
   return reason === 'manager' ? 'Ended by a manager' : `Ended: ${words}`
+}
+
+/** A goal reached, or ended by something other than a manager, as the Goals page tells it. */
+export type RatingGoalOutcomeView = Readonly<{
+  goalId: string
+  state: 'reached' | 'ended'
+  targetTenths: number
+  target: number
+  endedReason: RatingGoalEndedReason | null
+  /** When it was reached or ended (ISO). */
+  at: string
+}>
+
+/**
+ * How long the Goals page keeps telling a goal was reached or ended. The
+ * snapshot consumer usually reaches a goal before anyone looks, so the news
+ * comes from History, not from the read that found it.
+ */
+export const OUTCOME_SHOWN_FOR_DAYS = 14
+const OUTCOME_SHOWN_FOR_MS = OUTCOME_SHOWN_FOR_DAYS * 24 * 60 * 60 * 1000
+
+/** The goal this card read found reached or ended; null for an active goal. */
+export function outcomeFromCard(
+  card: RatingGoalCardView,
+  readAt: Date,
+): RatingGoalOutcomeView | null {
+  if (card.state === 'active') return null
+  const { goalId, targetTenths, target, endedReason } = card
+  return {
+    goalId,
+    state: card.state,
+    targetTenths,
+    target,
+    endedReason,
+    at: readAt.toISOString(),
+  }
+}
+
+/**
+ * The newest goal in History while it is news: reached, or ended because its
+ * Google location changed or its Property was archived, in the last
+ * `OUTCOME_SHOWN_FOR_DAYS`. A goal a manager ended is not news to tell.
+ */
+export function recentOutcome(
+  history: readonly RatingGoalHistoryEntry[] | undefined,
+  now: Date,
+): RatingGoalOutcomeView | null {
+  const latest = history?.[0]
+  if (latest === undefined) return null
+  if (latest.state === 'ended' && latest.endedReason === 'manager') return null
+  const at = latest.state === 'reached' ? latest.reachedAt : latest.endedAt
+  if (at === null || now.getTime() - Date.parse(at) > OUTCOME_SHOWN_FOR_MS) return null
+  const { goalId, targetTenths, target, endedReason } = latest
+  return { goalId, state: latest.state, targetTenths, target, endedReason, at }
 }
 
 const HISTORY_STATUS: Readonly<Record<'reached' | 'ended', StatusPresentation>> = {

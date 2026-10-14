@@ -1,19 +1,26 @@
 // The Google section of the Goals page, first on it and apart from the Portal
 // goals below (no shared numbers, ADR 0067). It shows one of: the simple card of
-// the active goal, the goal the read just found reached or ended, or, with no
-// goal, the door into the wizard or the reason there is none. A read that is on
-// its way keeps the card's room; one that failed says so here and nowhere else.
-import { useState } from 'react'
+// the active goal; a goal reached, or ended by something other than a manager,
+// while it is news (from the read that found it, or from History when the
+// snapshot consumer got there first); or, with no goal, the door into the
+// wizard or the reason there is none. A read that is on its way keeps the
+// card's room; one that failed says so here and nowhere else.
 import type {
   RatingGoalCardView,
+  RatingGoalHistoryEntry,
   RatingGoalSetupView,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { RegionError } from '#/components/ui/region-error'
 import { SectionTitle } from '#/components/ui/section-title'
 import { Skeleton } from '#/components/ui/skeleton'
-import { RatingGoalCard } from './rating-goal-card'
+import { RATING_GOAL_HEADING_ID, RatingGoalCard } from './rating-goal-card'
 import { RatingGoalEmpty } from './rating-goal-empty'
 import { RatingGoalOutcome } from './rating-goal-outcome'
+import {
+  outcomeFromCard,
+  recentOutcome,
+  type RatingGoalOutcomeView,
+} from './rating-goal-view'
 import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
 
 /** A read as a region draws it: its data, whether it failed, and its "Try again". */
@@ -28,28 +35,16 @@ type Props = Readonly<{
   propertyId: string
   timezone: string
   now: Date
-  /** The card read, and when it was made (the day a goal was found reached). */
+  /** The card read, and when it was made (the day a goal it found reached was reached). */
   card: RegionRead<RatingGoalCardView | null> & Readonly<{ readAt: Date }>
-  /** Read only while there is no goal: the empty states and the wizard need it. */
+  /** Read while there is no active goal: the empty states and the wizard need it. */
   setup: RegionRead<RatingGoalSetupView>
+  /** Read while there is no active goal: a goal reached or ended lately is news. */
+  history: RegionRead<readonly RatingGoalHistoryEntry[]>
+  /** The few-reviews state links to the Portals, or to a first one. */
+  hasPortals: boolean
   onStart: (intent: RatingGoalWizardIntent) => void
 }>
-
-type Outcome = Readonly<{ card: RatingGoalCardView; readAt: Date }>
-
-/**
- * A goal the read found reached or ended is returned that once; the next read
- * has none. The section keeps showing it while the page is open, so a refetch
- * does not take the news away before it was read.
- */
-function useHeldOutcome(card: Props['card']): Outcome | null {
-  const [held, setHeld] = useState<Outcome | null>(null)
-  const data = card.data
-  if (data && data.state !== 'active' && held?.card.goalId !== data.goalId) {
-    setHeld({ card: data, readAt: card.readAt })
-  }
-  return data?.state === 'active' ? null : held
-}
 
 const Pending = () => (
   <Skeleton
@@ -61,21 +56,33 @@ const Pending = () => (
 
 /** The section's title where the card does not bring its own. */
 const Titled = ({ children }: Readonly<{ children: React.ReactNode }>) => (
-  <section aria-labelledby="google-rating-goal-title" className="flex flex-col gap-3">
-    <SectionTitle id="google-rating-goal-title">Google rating goal</SectionTitle>
+  <section aria-labelledby={RATING_GOAL_HEADING_ID} className="flex flex-col gap-3">
+    <SectionTitle id={RATING_GOAL_HEADING_ID} tabIndex={-1} className="outline-none">
+      Google rating goal
+    </SectionTitle>
     {children}
   </section>
 )
 
-export function RatingGoalSection({
-  propertyId,
-  timezone,
-  now,
-  card,
-  setup,
-  onStart,
-}: Props) {
-  const outcome = useHeldOutcome(card)
+/**
+ * With no active goal: the goal the card read found reached or ended, else the
+ * newest in History while it is news. Undefined while History is still read
+ * (a failed History read is no news, not an error: the empty state stands).
+ */
+function outcomeOf(
+  card: Props['card'],
+  history: Props['history'],
+  now: Date,
+): RatingGoalOutcomeView | null | undefined {
+  if (card.data !== null && card.data !== undefined) {
+    return outcomeFromCard(card.data, card.readAt)
+  }
+  if (history.data === undefined && !history.failed) return undefined
+  return recentOutcome(history.data, now)
+}
+
+export function RatingGoalSection(props: Props) {
+  const { propertyId, timezone, now, card, setup, onStart } = props
   if (card.failed) {
     return (
       <Titled>
@@ -99,9 +106,18 @@ export function RatingGoalSection({
       />
     )
   }
+  const outcome = outcomeOf(card, props.history, now)
+  if (outcome === undefined) return <Pending />
   if (outcome !== null) {
     return (
-      <RatingGoalOutcome {...outcome} timezone={timezone} now={now} onStart={onStart} />
+      <RatingGoalOutcome
+        outcome={outcome}
+        googleShowsNow={setup.data?.google?.shows ?? null}
+        canSetNext={setup.data?.eligibility.eligible !== false}
+        timezone={timezone}
+        now={now}
+        onStart={onStart}
+      />
     )
   }
   if (setup.failed) {
@@ -118,7 +134,12 @@ export function RatingGoalSection({
   if (setup.data === undefined) return <Pending />
   return (
     <Titled>
-      <RatingGoalEmpty setup={setup.data} propertyId={propertyId} onStart={onStart} />
+      <RatingGoalEmpty
+        setup={setup.data}
+        propertyId={propertyId}
+        hasPortals={props.hasPortals}
+        onStart={onStart}
+      />
     </Titled>
   )
 }
