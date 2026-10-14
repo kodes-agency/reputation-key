@@ -4,6 +4,7 @@ import type {
   PropertySetupStep,
   PropertySetupStepKey,
 } from '#/contexts/reporting/application/public-api'
+import { RATING_GOAL_ARRIVAL_SEARCH } from '#/components/goals/rating-goal-arrival-search'
 import type { PropertySettingsSectionKey } from './property-settings-sections'
 
 const STEP_LABEL: Readonly<Record<PropertySetupStepKey, string>> = {
@@ -83,9 +84,9 @@ export type PropertySetupStepTarget =
 
 /**
  * The page that finishes a step: its settings section, or the Portals or Goals
- * page, which live outside the hub (the Goals page's Google section opens the
- * rating goal wizard). `null` for a step with nothing to edit (the first
- * review sync).
+ * page, which live outside the hub (the Goals page opens the rating goal wizard
+ * on arrival, `propertySetupStepSearch`). `null` for a step with nothing to
+ * edit (the first review sync).
  */
 export function propertySetupStepTarget(
   step: PropertySetupStep,
@@ -94,4 +95,28 @@ export function propertySetupStepTarget(
   if (step.section === 'portals') return '/properties/$propertyId/portals'
   if (step.section === 'goals') return '/properties/$propertyId/goals'
   return `/properties/$propertyId/settings/${step.section}`
+}
+
+/**
+ * What a step's link carries: the rating goal step opens its wizard on arrival
+ * at the Goals page, one click as the Overview's prompt is. No other step does.
+ */
+export function propertySetupStepSearch(
+  step: PropertySetupStep,
+): typeof RATING_GOAL_ARRIVAL_SEARCH | undefined {
+  return step.key === 'rating_goal' ? RATING_GOAL_ARRIVAL_SEARCH : undefined
+}
+
+/**
+ * Whether a manager chose "Not now" for the Google rating goal: the Overview's
+ * prompt then says nothing. `undefined` until setup is available; false where
+ * the step is open, done, or not the viewer's.
+ */
+export function ratingGoalNotNowChosen(
+  setup: PropertySetup | undefined,
+): boolean | undefined {
+  if (setup === undefined) return undefined
+  return setup.steps.some(
+    (step) => step.key === 'rating_goal' && step.status === 'deferred',
+  )
 }

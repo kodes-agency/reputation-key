@@ -19,9 +19,19 @@ type Props = Readonly<{
   timezone: string
   /** The wizard's done screen offers portal goals when there are Portals, a Portal when not. */
   hasPortals: boolean
+  /**
+   * A manager chose "Not now" for the goal (the setup checklist the Overview
+   * reads): the prompt then says nothing. Undefined until it is read.
+   */
+  notNowChosen: boolean | undefined
 }>
 
-export function OverviewRatingGoal({ propertyId, timezone, hasPortals }: Props) {
+export function OverviewRatingGoal({
+  propertyId,
+  timezone,
+  hasPortals,
+  notNowChosen,
+}: Props) {
   const { card, noActiveGoal } = useRatingGoalCard(propertyId)
   const { can } = usePermissions()
   const [now] = useState(() => new Date())
@@ -51,6 +61,7 @@ export function OverviewRatingGoal({ propertyId, timezone, hasPortals }: Props) 
         cardReadAt={new Date(card.dataUpdatedAt)}
         setup={setup.data}
         history={history.data}
+        notNowChosen={notNowChosen}
         onStart={start}
       />
       {wizard}

@@ -1,8 +1,8 @@
 // The Google rating goal on the Property Overview, between the attention band
 // and "How you are doing" (owner, 2026-10-14): the same simple card the Goals
-// page draws, a goal reached or ended lately, or one line into the wizard.
-// Nothing else, and nothing at all where none of those applies
-// (`overviewGoalView`).
+// page draws, a goal reached or ended lately, or one line into the wizard
+// (not after a manager chose "Not now"). Nothing else, and nothing at all where
+// none of those applies (`overviewGoalView`).
 import { Target } from 'lucide-react'
 import type {
   RatingGoalCardView,
@@ -26,6 +26,8 @@ type Props = Readonly<{
   cardReadAt: Date
   setup: RatingGoalSetupView | undefined
   history: readonly RatingGoalHistoryEntry[] | undefined
+  /** A manager chose "Not now" (the setup checklist); undefined until it is read. */
+  notNowChosen: boolean | undefined
   onStart: (intent: RatingGoalWizardIntent) => void
 }>
 

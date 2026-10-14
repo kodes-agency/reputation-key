@@ -329,7 +329,10 @@ export const SetupStripHiddenWhenDone: Story = {
   },
 }
 
-/** The Google rating goal step: an eighth that counts, opens the Goals page, and has "Not now". */
+/**
+ * The Google rating goal step: an eighth that counts, opens the wizard on the
+ * Goals page (`?start=rating-goal`), and has "Not now".
+ */
 const withRatingGoal: PropertySetup = {
   ...freshlyImported,
   attentionCount: 5,
@@ -353,7 +356,7 @@ export const SetupStripWithRatingGoal: Story = {
     expect(canvas.getByText('2 of 8 done')).toBeVisible()
     expect(
       canvas.getByRole('link', { name: /set a google rating goal/i }),
-    ).toHaveAttribute('href', `/properties/${PROPERTY_ID}/goals`)
+    ).toHaveAttribute('href', `/properties/${PROPERTY_ID}/goals?start=rating-goal`)
     await userEvent.click(
       canvas.getByRole('button', { name: 'Not now: Set a Google rating goal' }),
     )

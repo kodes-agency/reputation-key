@@ -111,7 +111,8 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
 
 function GoalsRoute() {
   const { propertyId } = Route.useParams()
-  const { view, result } = Route.useSearch()
+  const { view, result, start } = Route.useSearch()
+  const navigate = Route.useNavigate()
   const { can: canDo } = usePermissions()
   const [now] = useState(() => new Date())
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
@@ -170,6 +171,14 @@ function GoalsRoute() {
           timezone={propData.property.timezone}
           view={view}
           hasPortals={subjectNames.portals.length > 0}
+          startOnArrival={start !== undefined}
+          // Answered once: off the address, so a reload or Back does not open it again.
+          onArrivalHandled={() =>
+            void navigate({
+              search: (prev) => ({ ...prev, start: undefined }),
+              replace: true,
+            })
+          }
         />
       </div>
       <section aria-labelledby="portal-goals-title" className="flex flex-col gap-4">

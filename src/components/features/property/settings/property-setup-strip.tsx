@@ -13,6 +13,7 @@ import {
   completedPropertySetupStepCount,
   openPropertySetupSteps,
   propertySetupStepLabel,
+  propertySetupStepSearch,
   propertySetupStepTarget,
 } from './property-setup-steps'
 
@@ -52,6 +53,7 @@ function StepLink({
     <Link
       to={target}
       params={{ propertyId }}
+      search={propertySetupStepSearch(step)}
       className={cn(
         chip,
         'bg-background font-medium hover:border-primary/40 hover:bg-primary/5 focus-ring',

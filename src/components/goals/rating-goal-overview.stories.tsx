@@ -1,8 +1,8 @@
 // The Google rating goal on the Property Overview in each state it can be in:
 // the simple card of an active goal, a goal reached lately, the one-line prompt
 // into the wizard (to climb, or to keep the number when nothing higher is in
-// reach), and nothing at all (too few Google reviews, a viewer who may not set
-// goals, a read on its way or failed). The Storybook Vitest project compiles no
+// reach), and nothing at all (too few Google reviews, "Not now" chosen, a viewer
+// who may not set goals, a read on its way or failed). The Storybook Vitest project compiles no
 // Tailwind, so the plays assert words, roles and what each door opens.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
@@ -33,6 +33,7 @@ const meta: Meta<typeof RatingGoalOverview> = {
     cardReadAt: NOW,
     setup: undefined,
     history: undefined,
+    notNowChosen: false,
     onStart: fn(),
   },
   render: (args) => (
@@ -99,6 +100,14 @@ export const Reached: Story = {
 /** Fewer than ten Google reviews: the Overview says nothing about a goal. */
 export const TooFewReviews: Story = {
   args: { card: null, setup: SETUP_FEW_REVIEWS, history: [] },
+  play: async ({ canvasElement }) => {
+    await expect(canvasElement.textContent).toBe('')
+  },
+}
+
+/** A manager chose "Not now" in the setup strip: the Overview stops asking. */
+export const AfterNotNow: Story = {
+  args: { card: null, setup: SETUP, history: [], notNowChosen: true },
   play: async ({ canvasElement }) => {
     await expect(canvasElement.textContent).toBe('')
   },

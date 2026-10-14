@@ -13,6 +13,7 @@ import { cn } from '#/lib/utils'
 import { PROPERTY_LIFECYCLE_STATUS } from './property-lifecycle-model'
 import {
   propertySetupStepLabel,
+  propertySetupStepSearch,
   propertySetupStepTarget,
 } from './settings/property-setup-steps'
 import {
@@ -265,6 +266,7 @@ export function SetupValue({
     <Link
       to={target}
       params={{ propertyId }}
+      search={propertySetupStepSearch(nextStep)}
       aria-label={`Setup ${completedCount} of ${stepCount} at ${propertyName}. Next: ${next}`}
       className={cn('flex flex-col gap-0.5', ROW_FIGURE_LINK)}
     >

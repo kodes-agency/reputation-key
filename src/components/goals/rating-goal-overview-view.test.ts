@@ -18,6 +18,7 @@ const read = {
   setup: SETUP,
   history: [],
   canCreate: true,
+  notNowChosen: false,
   now: NOW,
 } as const
 
@@ -78,6 +79,21 @@ describe('overviewGoalView', () => {
 
   it('says nothing to a viewer who may not set goals', () => {
     expect(overviewGoalView({ ...read, canCreate: false })).toEqual({ kind: 'nothing' })
+  })
+
+  it('says nothing once a manager chose "Not now", or until that choice is read', () => {
+    expect(overviewGoalView({ ...read, notNowChosen: true })).toEqual({
+      kind: 'nothing',
+    })
+    expect(overviewGoalView({ ...read, notNowChosen: undefined })).toEqual({
+      kind: 'nothing',
+    })
+  })
+
+  it('still tells a goal reached lately after "Not now": news is not a reminder', () => {
+    expect(
+      overviewGoalView({ ...read, notNowChosen: true, card: CARD_REACHED }),
+    ).toMatchObject({ kind: 'outcome' })
   })
 
   it('says nothing where no goal can be set, or before the setup is read', () => {

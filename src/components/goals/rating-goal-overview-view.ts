@@ -3,8 +3,10 @@
 // thing: the simple card of the active goal; a goal reached, or ended by
 // something other than a manager, while that is news (the Goals page's rule);
 // or, with no goal, a one-line prompt into the wizard, only where a goal can be
-// set and the viewer may set it. Nothing otherwise, and nothing while a read is
-// on its way or failed: the goal never holds the Overview back.
+// set, the viewer may set it and no manager chose "Not now" for it (the setup
+// strip's choice: a reminder after "Not now" is a nag). Nothing otherwise, and
+// nothing while a read is on its way or failed: the goal never holds the
+// Overview back.
 import type {
   RatingGoalCardView,
   RatingGoalHistoryEntry,
@@ -37,6 +39,11 @@ export type OverviewGoalReads = Readonly<{
   history: readonly RatingGoalHistoryEntry[] | undefined
   /** The viewer holds `goal.create`. */
   canCreate: boolean
+  /**
+   * A manager chose "Not now" for the goal (the setup checklist's rating goal
+   * step); undefined until the checklist is read.
+   */
+  notNowChosen: boolean | undefined
   now: Date
 }>
 
@@ -71,7 +78,9 @@ export function overviewGoalView(reads: OverviewGoalReads): OverviewGoalView {
       canSetNext: setup?.eligibility.eligible !== false,
     }
   }
-  if (setup === undefined || !reads.canCreate) return NOTHING
+  if (setup === undefined || !reads.canCreate || reads.notNowChosen !== false) {
+    return NOTHING
+  }
   if (!setup.eligibility.eligible || setup.hasActiveGoal) return NOTHING
   return { kind: 'prompt', intent: ratingGoalStartIntent(setup) }
 }
