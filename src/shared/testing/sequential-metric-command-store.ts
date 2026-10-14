@@ -30,6 +30,9 @@ export function createSequentialMetricCommandStore(deps: {
     commands.map(() => ({ status: 'source_reading_not_found' as const }))
 
   return {
+    settleSourceReceipt: async (receipt: MetricSourceReceipt) => {
+      await deps.recordReceipt?.(receipt)
+    },
     recordMetrics,
     recordMetric: async (command: RecordMetricCommand) => {
       const { sourceReceipt, ...reading } = command

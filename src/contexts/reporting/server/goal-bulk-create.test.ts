@@ -106,6 +106,7 @@ describe('the server function that sets goals for several subjects', () => {
 
   it.each([
     ['start_month_changed', 409],
+    ['organization_closing', 409],
     ['duplicate_subject', 400],
     ['assignment_limit_exceeded', 400],
     ['invalid_subject', 400],

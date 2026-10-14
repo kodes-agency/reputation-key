@@ -320,6 +320,20 @@ describe('createGoalProgressReader', () => {
     expect(queryGoalMetric).not.toHaveBeenCalled()
   })
 
+  it('dates a paused goal by the month it is in, not the month its assignment began', async () => {
+    const JUNE_START = new Date('2026-05-31T21:00:00.000Z')
+    const { progress, queryGoalMetric } = reader([
+      bundle({ status: 'paused', effectiveFrom: JUNE_START }),
+    ])
+
+    const [goal] = await progress(input, actor)
+
+    expect(goal?.period.start).toEqual(SEPTEMBER_START)
+    expect(goal?.period.end).toEqual(OCTOBER_START)
+    expect(goal?.reading).toEqual({ kind: 'not_started' })
+    expect(queryGoalMetric).not.toHaveBeenCalled()
+  })
+
   it('does not show an average the month so far cannot support', async () => {
     const { progress } = reader(
       [bundle({ metric: 'portal_rating_average', target: 4.6 })],

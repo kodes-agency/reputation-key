@@ -58,6 +58,15 @@ export type RetractMetricResult =
   | Readonly<{ status: 'source_reading_not_found' }>
 
 export type MetricCommandStore = Readonly<{
+  /**
+   * Settles a delivery that produced no reading, for a fact the registry
+   * refuses by design (a ratio under its minimum sample, a fact that cannot
+   * be attributed): the consumer's receipt is committed as processed without
+   * effect. A fact lacking a receipt is redelivered and then counted as an
+   * exhausted delivery, and only a reading's own commit writes one otherwise.
+   * Idempotent: a second call finds the receipt.
+   */
+  settleSourceReceipt(receipt: MetricSourceReceipt): Promise<void>
   recordMetrics(command: RecordMetricsCommand): Promise<readonly ReadingResult[]>
   recordMetric(command: RecordMetricCommand): Promise<ReadingResult>
   retractMetrics(

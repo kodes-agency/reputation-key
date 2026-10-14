@@ -111,10 +111,30 @@ export class GoalProgramError extends Error {
       // The month has ended: its target can no longer change.
       | 'month_locked'
       // The goal has no month running yet.
-      | 'no_open_month',
+      | 'no_open_month'
+      // The Organization's closure is requested or in progress, or was
+      // cancelled and awaits reactivation: no goal starts, resumes or is created.
+      | 'organization_closing',
   ) {
     super(code)
     this.name = 'GoalProgramError'
+  }
+}
+
+/**
+ * Refuses a command that would put a Program into `active` while the
+ * Organization's lifecycle holds the Organization. The Closing phase pauses
+ * the Programs that are active when it runs and the database has no
+ * scheduled -> paused edge, so a Program that became active afterwards would
+ * stay active, and Goal's purge-readiness check would refuse the Organization
+ * on every pass. Pausing and ending are never refused: they only stop work.
+ */
+export async function assertOrganizationFreeToStartGoals(
+  deps: GoalProgramDependencies,
+  organizationId: string,
+): Promise<void> {
+  if (await deps.repository.isOrganizationHeld(organizationId)) {
+    throw new GoalProgramError('organization_closing')
   }
 }
 

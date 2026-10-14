@@ -36,6 +36,27 @@ function warnAboutStranded(
   )
 }
 
+/**
+ * A failed run reaches BullMQ as an error whose message is the count and the
+ * causes; this says it in the log too, as fields. Causes are content-free codes
+ * and error classes, never a message or an identifier (BQC-7.3).
+ */
+function warnAboutFailures(
+  logger: Pick<LoggerPort, 'warn'>,
+  stats: GoalProgramMaintenanceStats,
+): void {
+  if (stats.failed === 0) return
+  logger.warn(
+    {
+      jobName: GOAL_PROGRAM_MAINTENANCE_JOB_NAME,
+      failed: stats.failed,
+      failureCauses: stats.failureCauses,
+      inspected: stats.inspected,
+    },
+    'Goal maintenance: operations failed',
+  )
+}
+
 export const createGoalProgramMaintenanceHandler = (
   service: GoalProgramService,
   logger: Pick<LoggerPort, 'warn'>,
@@ -48,6 +69,7 @@ export const createGoalProgramMaintenanceHandler = (
     } catch (error) {
       if (error instanceof GoalProgramMaintenanceError) {
         warnAboutStranded(logger, error.stats)
+        warnAboutFailures(logger, error.stats)
       }
       throw error
     }

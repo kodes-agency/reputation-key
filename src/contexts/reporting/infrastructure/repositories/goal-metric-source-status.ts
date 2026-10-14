@@ -248,12 +248,17 @@ export const createGoalMetricSourceStatus = (
               AND corrected_reading.source_event_id = source.payload ->> 'supersedesSourceEventId'
               AND corrected_reading.portal_id::text = source.payload ->> 'portalId'
           ) AS correction_present,
+          -- A replacement retracts the reading it replaces under this measure's own
+          -- key; an older one keyed the fact alone (fact id and ':retract').
           EXISTS (
             SELECT 1
             FROM metric_corrections AS correction
             JOIN metric_readings AS corrected_reading
               ON corrected_reading.id = correction.reading_id
-            WHERE correction.source_event_id = source.id::text || ':retract'
+            WHERE correction.source_event_id IN (
+                    source.id::text || ':' || ${query.definitionVersionId},
+                    source.id::text || ':retract'
+                  )
               AND correction.kind = 'retract'
               AND corrected_reading.definition_version_id = ${query.definitionVersionId}::uuid
               AND corrected_reading.source_event_id = source.payload ->> 'supersedesSourceEventId'

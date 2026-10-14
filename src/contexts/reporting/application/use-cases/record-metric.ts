@@ -232,6 +232,43 @@ export async function buildRecordMetricEntry(
   }
 }
 
+/**
+ * Refusals that come from this deployment's governance configuration, not from
+ * the fact: a registry or policy change makes the same fact recordable, so its
+ * delivery must fail and be retried rather than be settled as processed.
+ */
+const GOVERNANCE_REJECTIONS: ReadonlySet<string> = new Set([
+  'unknown_definition_version',
+  'definition_not_approved',
+  'source_policy_not_allowed',
+  'scope_not_allowed',
+])
+
+/**
+ * A fact that yields no reading. The registry refuses some by design (a ratio
+ * under its minimum sample, a fact that cannot be attributed, one from before
+ * its measure took effect, one whose content is invalid), and no retry can
+ * change that. A durable delivery is settled all the same: the store commits
+ * the consumer's receipt only with a reading, and a fact without it is
+ * redelivered for nothing and then counted as an exhausted delivery.
+ */
+async function settleUnrecorded(
+  deps: RecordMetricDeps,
+  input: RecordMetricsInput,
+  result: ReadingResult,
+): Promise<readonly ReadingResult[]> {
+  const { sourceReceipt } = input
+  if (sourceReceipt === undefined) return [result]
+  if (result.status === 'rejected' && GOVERNANCE_REJECTIONS.has(result.reason)) {
+    throw new Error(`Metric reading was refused by governance: ${result.reason}`)
+  }
+  if (sourceReceipt.eventId !== input.readings[0]?.sourceEventId) {
+    throw new Error('Metric source receipt event does not match its reading')
+  }
+  await deps.commandStore.settleSourceReceipt(sourceReceipt)
+  return [result]
+}
+
 export const recordMetrics =
   (deps: RecordMetricDeps): RecordMetrics =>
   async (input) => {
@@ -239,7 +276,8 @@ export const recordMetrics =
     for (const reading of input.readings) {
       const built = await buildRecordMetricEntry(deps, reading)
       if (built.kind === 'result') {
-        if (input.readings.length === 1) return [built.result]
+        if (input.readings.length === 1)
+          return settleUnrecorded(deps, input, built.result)
         throw new Error(`Metric batch entry was not recordable: ${built.result.status}`)
       }
       entries.push(built.entry)

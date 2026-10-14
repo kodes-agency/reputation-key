@@ -32,6 +32,8 @@ const SENTENCES: Readonly<Record<GoalProgramError['code'], string>> = {
   start_month_changed: 'The month has changed. Check the start and save again.',
   month_locked: 'This month has ended. Its target can’t be changed.',
   no_open_month: 'This month’s result isn’t open yet. Try again in a few minutes.',
+  organization_closing:
+    'This organization is being closed, so goals can’t be created, started or resumed.',
 }
 
 /** A caller's own sentence for some codes, where it can say more than the table. */

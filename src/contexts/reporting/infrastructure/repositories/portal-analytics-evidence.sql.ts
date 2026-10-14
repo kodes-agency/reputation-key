@@ -98,11 +98,15 @@ export function portalMetricEvidenceSql(
                 source.payload ->> 'supersedesSourceEventId' IS NOT NULL
                 AND NOT EXISTS (
                   SELECT 1
+                  -- The replacement retracts the reading it replaces under this
+                  -- measure's own key; an older one keyed the fact alone.
                   FROM metric_corrections AS replacement_correction
                   JOIN metric_readings AS superseded_reading
                     ON superseded_reading.id = replacement_correction.reading_id
-                  WHERE replacement_correction.source_event_id =
+                  WHERE replacement_correction.source_event_id IN (
+                          source.id::text || ':' || families.definition_version_id::text,
                           source.id::text || ':retract'
+                        )
                     AND replacement_correction.kind = 'retract'
                     AND superseded_reading.definition_version_id =
                           families.definition_version_id

@@ -25,6 +25,7 @@ import { resolveGoalStart, type GoalMonthlyPeriod } from '../../domain/goal-star
 import { goalMetricLabel } from '../goal-metric-label'
 import { createGoalCore } from './goal-program-create'
 import {
+  assertOrganizationFreeToStartGoals,
   GoalProgramError,
   type GoalActor,
   type GoalExecutionPolicy,
@@ -171,9 +172,10 @@ async function createGoalForRow(
 /**
  * Create one goal per row. Refuses the whole save when its rows are not a
  * valid set (`invalid_subject`, `assignment_limit_exceeded`,
- * `duplicate_subject`) or its month is no longer the current or the next one
- * on the Property's calendar (`start_month_changed`). After that every row has
- * an outcome.
+ * `duplicate_subject`), its month is no longer the current or the next one
+ * on the Property's calendar (`start_month_changed`), or the Organization's
+ * lifecycle holds it (`organization_closing`). After that every row has an
+ * outcome.
  *
  * The rows are written one after another, so a save for this month can still
  * be running when the month ends. A goal written then would open a month that
@@ -190,6 +192,7 @@ export async function createGoalsForSubjects(
     propertyId: input.propertyId,
     action: 'goal.create',
   })
+  await assertOrganizationFreeToStartGoals(deps, actor.organizationId)
   const rows = bulkRows(input.items)
   const timezone = await deps.subjects.getTimezone(actor.organizationId, input.propertyId)
   if (!timezone) throw new GoalProgramError('not_found')

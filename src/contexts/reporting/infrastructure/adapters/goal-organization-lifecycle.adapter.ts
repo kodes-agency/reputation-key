@@ -9,8 +9,12 @@
 //
 // Goal owns an active tenant-cross maintenance schedule that activates
 // scheduled programs and appends, reconciles, or closes monthly results.
-// Organization closure must stop those mutations through the recoverable
-// window.
+// Organization closure must stop it starting work through the recoverable
+// window: the Closing phase pauses the active programs, maintenance does not
+// list or activate any program of an Organization the lifecycle holds, and
+// the use cases refuse a manager who would create, start or resume a goal
+// there (goal-organization-lifecycle-hold.ts). A month that is already open
+// still reconciles and closes, which is how purge readiness comes to find none.
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -119,10 +123,10 @@ async function countTenantRows(tx: Tx, organization: string): Promise<number> {
 /**
  * Closing — STOP EFFECTS, KEEP DATA.
  *
- * Pauses every ACTIVE Goal Program for the tenant. `maintain()` skips a
- * program that is not active, so this stops result creation, reconciliation
- * and closure for the Organization without deleting or scrubbing a single
- * business row.
+ * Pauses every ACTIVE Goal Program for the tenant. `maintain()` opens months
+ * only for an active program, so this stops new months for the Organization
+ * without deleting or scrubbing a single business row. (A month already open
+ * still reconciles and closes: purge readiness waits for none to be left.)
  *
  * Idempotent: the predicate only matches rows still in `active`, so a replay
  * (or the shared store's receipt replay) mutates nothing.
@@ -136,9 +140,15 @@ async function countTenantRows(tx: Tx, organization: string): Promise<number> {
  * recording the closure fence there is what makes this pause identifiable and
  * reversible by an operator. `scheduled` programs are deliberately untouched:
  * the trigger declares no `scheduled -> paused` edge, and a scheduled program
- * performs no mutation until `maintain()` activates it — which first
- * re-authorizes the tenant against the CURRENT Organization policy that the
- * closure request already suspended.
+ * performs no mutation until `maintain()` activates it. A closure request
+ * suspends nothing, so activation is what stops: `maintain()` neither lists
+ * nor activates a program whose Organization the lifecycle holds (a closure
+ * requested or in progress, or cancelled and awaiting reactivation), and the
+ * use cases refuse to create, start or resume a goal there
+ * (`organization_closing`). Without that, the job would activate a goal set
+ * for next month inside the recovery window, and a manager could resume a goal
+ * this phase paused or set one for the current month; the readiness check
+ * below would refuse the Organization for good.
  */
 const prepareClosing = async (
   tx: Tx,
