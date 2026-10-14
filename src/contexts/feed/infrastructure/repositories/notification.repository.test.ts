@@ -132,6 +132,7 @@ describe.sequential('notification repository (real PostgreSQL)', () => {
 
     const refreshed = await repo.refreshUnread(
       applyCoalescence(readRow, { waitingHours: 9 }, NOW),
+      readRow.coalescedCount,
     )
 
     expect(refreshed).toBe(false)
@@ -140,6 +141,91 @@ describe.sequential('notification repository (real PostgreSQL)', () => {
       .from(notifications)
       .where(eq(notifications.id, readRow.id))
     expect(stored).toMatchObject({ status: 'read', coalescedCount: 1 })
+  })
+
+  // ── Two events that read the same waiting row ─────────────────────
+  //
+  // The bump wrote the count the lookup saw plus one. Two events that both read
+  // a count of one both wrote two, so a third note was folded into a row that
+  // said "2 notes added", and the later writer's merged payload replaced the
+  // earlier one's.
+
+  it('keeps every increment when another event bumps the row between the lookup and the write', async () => {
+    const repo = createNotificationRepository(db)
+    const resourceId = '85000000-0000-4000-8000-000000000006'
+    const first = escalation(
+      '85000000-0000-4000-8000-000000000061',
+      'lost-bump-event-1',
+      { propertyName: 'Raced Property', waitingHours: 3 },
+      resourceId,
+    )
+    await repo.insert(first)
+    let nextId = 62
+    const logger: LoggerPort = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      child: () => logger,
+    }
+    const insertThrough = (notificationRepo: typeof repo) =>
+      insertNotification({
+        notificationRepo,
+        emailRepo: createNotificationEmailRepository(db),
+        preferenceRepo: createNotificationPreferenceRepository(db),
+        ratingForRouting: async () => null,
+        clock: () => NOW,
+        idGen: () =>
+          notificationId(`85000000-0000-4000-8000-0000000000${String(nextId++)}`),
+        emailIdGen: () =>
+          notificationEmailId(`85000000-0000-4000-9000-0000000000${String(nextId++)}`),
+        logger,
+        organizationEmailStop: createNotificationOrganizationEmailStopReader(db),
+      })
+    const event = (n: number) => ({
+      userId: USER,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      type: 'inbox.escalated' as const,
+      resourceType: 'inbox_item' as const,
+      resourceId,
+      eventId: `lost-bump-event-${String(n)}`,
+      payload: { propertyName: 'Raced Property', waitingHours: 3 * n },
+    })
+    // Event 2 has read the row at a count of one; before it writes, event 3
+    // reads the same row, bumps it and commits.
+    let raced = false
+    const racedRepo = {
+      ...repo,
+      findUnreadByUserTypeResource: async (
+        ...args: Parameters<typeof repo.findUnreadByUserTypeResource>
+      ) => {
+        const found = await repo.findUnreadByUserTypeResource(...args)
+        if (found && !raced) {
+          raced = true
+          await insertThrough(repo)(event(3))
+        }
+        return found
+      },
+    }
+
+    await insertThrough(racedRepo)(event(2))
+
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.organizationId, ORG),
+          eq(notifications.resourceId, resourceId),
+        ),
+      )
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      id: first.id,
+      coalescedCount: 3,
+      payload: expect.objectContaining({ occurrences: 3 }),
+    })
   })
 
   it.each([

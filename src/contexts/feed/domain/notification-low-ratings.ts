@@ -14,7 +14,7 @@
 //   flag. A notification row lives on and an email cannot be recalled, so
 //   neither ever carries the stars.
 
-import type { NotificationType } from './notification-types'
+import type { NotificationCategory, NotificationType } from './notification-types'
 
 /** The ratings a Low-ratings channel can be set to include: "N★ or lower". */
 export const LOW_RATING_THRESHOLDS = [1, 2, 3, 4] as const
@@ -42,3 +42,26 @@ export const isLowFor = (
   preference: LowRatingChannelPreference,
   rating: number | null,
 ): boolean => preference.enabled && rating !== null && rating <= preference.maxRating
+
+/** The two categories a rated notice's row and its email are filed under. */
+const RATED_CATEGORIES: ReadonlySet<NotificationCategory> = new Set([
+  'low_ratings',
+  'arrivals',
+])
+
+/**
+ * Whether a queued email is filed under a category that fits the notice row it
+ * was queued for. They agree when equal. A rated notice is filed by channel, so
+ * its row (the channel that shows it) and its email (the channel that sends it)
+ * may legitimately be Low ratings and New reviews in either order; any other
+ * pairing means the email does not belong to the row.
+ */
+export const isEmailCategoryOfNotice = (
+  type: NotificationType,
+  rowCategory: NotificationCategory,
+  emailCategory: NotificationCategory,
+): boolean =>
+  rowCategory === emailCategory ||
+  (RATED_NOTIFICATION_TYPES.has(type) &&
+    RATED_CATEGORIES.has(rowCategory) &&
+    RATED_CATEGORIES.has(emailCategory))

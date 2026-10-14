@@ -127,6 +127,7 @@ export const createInsertNotificationHandler = (deps: InsertNotificationJobDeps)
           type: job.data.type,
           resourceId: job.data.resourceId,
           audience,
+          recipient: { userId: job.data.userId, propertyId: job.data.propertyId },
         })
         if (work === false) {
           await settleObsolete()

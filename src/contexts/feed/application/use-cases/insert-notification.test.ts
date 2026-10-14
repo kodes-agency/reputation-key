@@ -290,8 +290,12 @@ describe('insertNotification', () => {
         occurrences: 2,
       },
     })
-    // The bumped row is what gets persisted, verbatim.
-    expect(deps.notificationRepo.refreshUnread).toHaveBeenCalledWith(result)
+    // The bumped row is what gets persisted, verbatim, against the count the
+    // lookup saw.
+    expect(deps.notificationRepo.refreshUnread).toHaveBeenCalledWith(
+      result,
+      existing.coalescedCount,
+    )
   })
 
   it('re-renders the coalesced copy so a repeat row does not read like a first one', async () => {

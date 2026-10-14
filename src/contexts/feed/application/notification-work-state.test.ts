@@ -32,6 +32,7 @@ function build(
   overrides: Partial<{
     isEscalated: boolean | null
     cycle: HandlingCycleNotificationFacts | null
+    cycleOf: (item: string) => HandlingCycleNotificationFacts | null
     reply: ReplyWorkStatus | null
     managers: ReadonlyArray<string>
     health: Readonly<{ status: string; reason: string }> | null
@@ -54,9 +55,10 @@ function build(
       ),
     },
     inboxItemLookup: {
-      findHandlingCycleNotificationFacts: vi.fn(async () =>
-        overrides.cycle === undefined ? cycle() : overrides.cycle,
-      ),
+      findHandlingCycleNotificationFacts: vi.fn(async (item: string) => {
+        if (overrides.cycleOf) return overrides.cycleOf(item)
+        return overrides.cycle === undefined ? cycle() : overrides.cycle
+      }),
     },
     replyStates: {
       findReplyStatus: vi.fn(async () =>
@@ -93,7 +95,10 @@ const ask = (
   type: Parameters<ReturnType<typeof build>['isWaiting']>[0]['type'],
   resourceId: string = ITEM,
   audience?: unknown,
-) => state.isWaiting({ organizationId: ORG, type, resourceId, audience })
+  recipient?: Parameters<ReturnType<typeof build>['isWaiting']>[0]['recipient'],
+) => state.isWaiting({ organizationId: ORG, type, resourceId, audience, recipient })
+
+const RECIPIENT = { userId: userId('user-recipient'), propertyId: propertyId(PROPERTY) }
 
 describe('whether the work a notice asks for still waits', () => {
   it('asks the Inbox whether an escalation still stands', async () => {
@@ -181,20 +186,52 @@ describe('whether the work a notice asks for still waits', () => {
     ).resolves.toBe(false)
   })
 
-  it('counts the items of a grouped assignment that are still open', async () => {
+  it('counts the items of a grouped assignment that are still open and still the recipient’s', async () => {
+    const audience = {
+      kind: 'bulk_inbox_assignee',
+      inboxItemIds: ['mine-open', 'mine-closed', 'moved-on', 'other-property', 'gone'],
+    }
+    const facts: Record<string, HandlingCycleNotificationFacts | null> = {
+      'mine-open': cycle({ assignedTo: RECIPIENT.userId }),
+      'mine-closed': cycle({ assignedTo: RECIPIENT.userId, status: 'closed' }),
+      'moved-on': cycle({ assignedTo: userId('user-colleague') }),
+      'other-property': cycle({ assignedTo: RECIPIENT.userId, propertyId: PORTAL }),
+      gone: null,
+    }
+    const state = build({ cycleOf: (item) => facts[item] ?? null })
+
+    await expect(
+      ask(state, 'inbox.bulk_assigned', ITEM, audience, RECIPIENT),
+    ).resolves.toEqual({ itemCount: 1 })
+  })
+
+  it('retires a grouped assignment once none of its items is open and the recipient’s', async () => {
     const audience = { kind: 'bulk_inbox_assignee', inboxItemIds: [ITEM, 'item-two'] }
 
-    await expect(ask(build(), 'inbox.bulk_assigned', ITEM, audience)).resolves.toEqual({
-      itemCount: 2,
-    })
     await expect(
       ask(
-        build({ cycle: cycle({ status: 'closed' }) }),
+        build({ cycle: cycle({ assignedTo: userId('user-colleague') }) }),
         'inbox.bulk_assigned',
         ITEM,
         audience,
+        RECIPIENT,
       ),
     ).resolves.toBe(false)
+    await expect(
+      ask(
+        build({ cycle: cycle({ assignedTo: RECIPIENT.userId, status: 'closed' }) }),
+        'inbox.bulk_assigned',
+        ITEM,
+        audience,
+        RECIPIENT,
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('cannot count a grouped assignment without its recipient, and so neither holds it nor retires it', async () => {
+    const audience = { kind: 'bulk_inbox_assignee', inboxItemIds: [ITEM] }
+
+    await expect(ask(build(), 'inbox.bulk_assigned', ITEM, audience)).resolves.toBe(true)
   })
 
   it('keeps a Portal Health notice waiting only while Health still needs a person', async () => {

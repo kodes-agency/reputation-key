@@ -109,7 +109,12 @@ at or below it, the notice is Low ratings for that reader (per channel, 3★ or
 lower in the app and 2★ or lower by email unless they choose). Feed reads a
 Google review's rating for that decision only, through Review's eligible read,
 and keeps only the outcome — the category and the payload's `lowRating` flag,
-never the stars (ADR 0046, amended 2026-09-24, 2026-09-28 and 2026-09-30).
+never the stars (ADR 0046, amended 2026-09-24, 2026-09-28 and 2026-09-30). A
+reader whose answers differ by channel gets the row under one of Low ratings and
+New reviews and its queued email under the other, in either order; the
+pre-send check pairs them on user and Property and accepts that pair for these
+three types and no other (`isEmailCategoryOfNotice`), so the email is neither
+suppressed as `notification_unavailable` nor paired with an unrelated row.
 
 Every new Inbox Item is announced to its responsible recipients except Google
 history: an item whose first Handling Cycle was observed as
@@ -191,7 +196,10 @@ and the delivery-lag report times it from its own event, read from that key.
 
 A read, dismiss or settlement that lands between the unread lookup and the
 bump is kept: the bump only touches a row whose work still waits, and the
-event opens a fresh unread row (with its own email) instead.
+event opens a fresh unread row (with its own email) instead. So is another
+event's bump: the write carries the count the lookup saw, and a row that has
+moved on is not overwritten with a stale sum. The event falls through to the
+insert, whose conflict rule counts it with a relative `coalesced_count + 1`.
 
 The settings page and in-app timestamps read the same effective timezone the
 delivery jobs resolve (ADR 0046 r.3): the user's own, else the Organization's
@@ -449,8 +457,9 @@ the Property's responsible managers, less the departing member and less
 whoever released them, counting only the open items released.
 So a grouped reopen stands while any of its items is still the open head the
 recipient is responsible for, and says how many are when it is delivered; a
-grouped assignment likewise stands for the items still assigned to its
-recipient. Both counts are restated at send. A closed cycle settles a grouped
+grouped assignment likewise stands for the items that are still open and still
+assigned to its recipient on that Property (the work check is given the
+recipient for it). Both counts are restated at send. A closed cycle settles a grouped
 reopen in-app once none of its items stands, except a row that coalesced a
 second bulk reopen.
 The activity worker also exposes bounded projection recovery. Notification
