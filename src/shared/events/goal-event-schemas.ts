@@ -45,7 +45,7 @@ const goalMonthlyResultBaseSchema = z
     }
   })
 
-export const goalMonthlyResultClosedSchema = goalMonthlyResultBaseSchema
+const goalMonthlyResultClosedSchema = goalMonthlyResultBaseSchema
   .safeExtend({ status: z.literal('closed') })
   .superRefine((payload, ctx) => {
     if (payload.evaluationState === 'updating') {
@@ -53,11 +53,11 @@ export const goalMonthlyResultClosedSchema = goalMonthlyResultBaseSchema
     }
   })
 
-export const goalMonthlyResultReconciledSchema = goalMonthlyResultBaseSchema.safeExtend({
+const goalMonthlyResultReconciledSchema = goalMonthlyResultBaseSchema.safeExtend({
   status: z.literal('reconciling'),
 })
 
-export const goalMonthlyResultRevisedSchema = goalMonthlyResultBaseSchema
+const goalMonthlyResultRevisedSchema = goalMonthlyResultBaseSchema
   .safeExtend({
     status: z.literal('closed'),
     revisionId: z.uuid(),
@@ -89,7 +89,7 @@ const tenthSchema = z.number().int().min(0).max(50)
  * pace and the recent mix. Each transition carries exactly the figures its
  * notice states.
  */
-export const goalRatingGoalTransitionedSchema = z
+const goalRatingGoalTransitionedSchema = z
   .object({
     organizationId: z.string().trim().min(1),
     propertyId: z.uuid(),

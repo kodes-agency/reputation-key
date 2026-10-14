@@ -38,14 +38,6 @@ export type RatingGoalTransition =
   | 'entered_cant_reach'
   | 'keep_dropped_below'
 
-export const RATING_GOAL_TRANSITIONS = [
-  'reached',
-  'google_rating_changed',
-  'entered_below_pace',
-  'entered_cant_reach',
-  'keep_dropped_below',
-] as const satisfies readonly RatingGoalTransition[]
-
 /** Over which days a below-pace notice measured the reviews. */
 export type RatingGoalPaceWindowKind = 'last_4_weeks' | 'since_set'
 
