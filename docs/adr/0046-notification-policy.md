@@ -1102,6 +1102,71 @@ provider and the sweep then stops for a day, the day's digest is not sent at
 all. Its in-app notifications are untouched, and a day-old digest is worth
 less than a duplicate costs.
 
+## Amended 2026-10-14 — the Property Google rating goal's five change notices are Goals
+
+ADR 0067 (decision 6) gives a Property's Google rating goal five notices and
+says they ship with this amendment. They report changes only:
+
+1. **Reached** (`goal.rating_reached`): Google shows the target. It is the
+   only notice of that evaluation, even when the same change is a tenth
+   gained. It offers the next goal ("Set next goal", the Property's Goals
+   page).
+2. **A tenth gained or lost** (`goal.rating_changed`): Google shows another
+   tenth than the goal last saw, up or down.
+3. **Entered Below pace** (`goal.rating_below_pace`): a climb goal fell below
+   90% of its chosen pace, at most once every 14 days per goal. It says the
+   new reviews a week over the last four weeks (since the goal was set, while
+   it is younger) against the goal's pace.
+4. **Entered Can't reach at this mix** (`goal.rating_cant_reach`): the recent
+   average stars of new Google reviews no longer clear the target's
+   threshold. It says that average and what new reviews need to average.
+5. **A keep goal dropped below** (`goal.rating_keep_dropped`): Google no
+   longer shows the tenth a keep goal keeps. It replaces the tenth-lost notice
+   for the same change.
+
+**Category.** All five are `recognition`, shown as **Goals**, in name only:
+they tell a Property's managers about a Property figure, Google's own rating,
+and are not workforce recognition (ADR 0049 rule 2). They share the Goals
+settings row, filter tab and Mute action, and add no setting. Goal email is
+still a daily digest only (amended 2026-09-22); in the app they are on by
+default and by email opt-in, like the monthly results. The Goals settings
+description now names them.
+
+**Recipients.** The Property's responsible managers, with the AccountAdmins as
+the fallback when nobody is responsible: the resolver the Goal notices use
+(`resolveResponsibleRecipients`, Property scope). Never staff: a Member is
+never a responsible manager and never sees the goal (ADR 0067). The queued
+audience is `responsible_scope` for the Property, so delivery asks again who is
+responsible.
+
+**Change only, once.** Reporting decides the notices
+(`reporting/domain/rating-goal-notices.ts`) in the evaluation that stores the
+change, and writes one identifier-only `goal.rating_goal.transitioned` fact
+per notice in the same transaction. A status is "entered" against the last
+status that was not a wait for Google, so a day without Google's numbers never
+repeats a notice. The status a goal is set in, or that a manager's change of
+plan puts it in, is stored without a notice: these notices report what Google
+and the reviews did, never a manager's own change. A goal that ends tells
+nobody. The write is a compare-and-set on the tenth, the known status and the
+time of the last below-pace notice it read, so a second evaluation of the same
+change (a page read, the snapshot consumer, a repeated or late fact) stores
+nothing and tells nobody. Below pace moves with the calendar rather than with
+a new Google fact, so a daily sweep, `rating-goal.evaluate` (`goal.use`, each
+goal's Organization and Property decided by its own scope authorizer),
+evaluates every active goal once a day. The Feed route
+`notification.on-rating-goal-transitioned` queues one notice per recipient
+under the job id `${eventId}-${recipient}` and records its receipt after; one
+unread row per (reader, type, goal) absorbs a later change of the same kind
+(r.2), and the row states its latest change.
+
+**What the payload may carry (r.8).** The notices state the Property's own
+figures: the tenth Google shows for the Property (and showed before), the
+goal's target, mode and chosen pace, the recent pace of new Google reviews and
+their recent average stars, each a bounded integer in the payload allowlist
+(`rating*`). Never a review's rating, text or reviewer: the rule that "Google
+ratings never enter Notification storage" is about a review's rating, and it
+stands. A Low ratings notice still carries only its outcome.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

@@ -313,6 +313,23 @@ own calendar. A surface with no timezone — the frozen snapshot written at
 insert time — leaves the target time out rather than guessing UTC, and every
 live surface re-renders.
 
+A Property's Google rating goal raises five Goals notices (ADR 0046, amended
+2026-10-14): reached, a tenth gained or lost on Google, entered Below pace (at
+most once in 14 days), entered Can't reach at this mix, and a keep goal
+dropped below. Reporting decides them and writes one
+`goal.rating_goal.transitioned` fact per notice with the change it stores, so
+each is told once; `notification.on-rating-goal-transitioned`
+(`infrastructure/rating-goal-notice-consumers.ts`) only fans each fact out to
+the Property's responsible managers, AccountAdmins as the fallback, under a
+`responsible_scope` audience. They are `recognition` ("Goals") in name only:
+change notices about a Property figure, never workforce recognition. The fact
+carries the figures the copy states and Feed reads nothing from Reporting for
+them: the tenth Google shows for the Property, the goal's target, mode and
+pace, the recent pace and the recent average stars of new reviews, admitted by
+the payload allowlist as bounded integers (`rating*`). A review's rating never
+is. The copy lives in `domain/notification-templates-rating-goal.ts`; a row
+states its latest change and opens the Property's Goals page.
+
 Each surface states a fact once. Titles name the Property; a locally
 collected rating and a waiting age sit beside the copy (the in-app strip,
 email's facts line) and never inside a sentence; a property-grouped digest
