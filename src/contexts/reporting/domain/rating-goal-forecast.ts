@@ -2,14 +2,15 @@
 //
 // There is no deadline: a goal shows a forecast month range that moves with
 // the numbers. The range allows for drift in both inputs. Its early end is the
-// mix 0.1★ better and the pace 10% faster; its late end the mix 0.1★ worse
-// and the pace 10% slower. When the worse mix no longer clears the threshold
-// the late end is open. Months are named in the Property's time zone, counted
+// mix 0.1★ better (never above five stars) and the pace 10% faster; its late
+// end the mix 0.1★ worse and the pace 10% slower. When the worse mix no longer
+// clears the threshold the late end is open. Months are named in the Property's time zone, counted
 // from an injected `now` (ADR 0017).
 
 import { propertyWallClockAt } from '#/shared/domain/property-calendar'
 import {
   compareRatios,
+  FIVE_STARS,
   fromThousandths,
   ratioToNumber,
   reviewsNeeded,
@@ -18,9 +19,9 @@ import {
 } from './rating-goal-numbers'
 
 /** The forecast allows the recent mix to drift this far either way (0.1★). */
-export const FORECAST_MIX_DRIFT_THOUSANDTHS = 100
+const FORECAST_MIX_DRIFT_THOUSANDTHS = 100
 /** The forecast allows the pace to drift this far either way. */
-export const FORECAST_PACE_DRIFT_PERCENT = 10
+const FORECAST_PACE_DRIFT_PERCENT = 10
 /** Nothing is forecast further out than ten years. */
 export const FORECAST_HORIZON_WEEKS = 520
 
@@ -71,6 +72,10 @@ const scalePace = (pace: Ratio, percent: number): Ratio => ({
 const monthAfterWeeks = (input: ForecastInput, weeks: number): string =>
   monthKeyAt(new Date(input.now.getTime() + Math.round(weeks * WEEK_MS)), input.timezone)
 
+/** A mix no better than five stars: no review brings more. */
+const atMostFiveStars = (mix: Ratio): Ratio =>
+  compareRatios(mix, FIVE_STARS) > 0 ? FIVE_STARS : mix
+
 /** Weeks to the threshold at a given mix and pace, or null when the mix never gets there. */
 function weeksAt(input: ForecastInput, mix: Ratio, pace: Ratio): number | null {
   const needed = reviewsNeeded({ ...input, mix })
@@ -85,7 +90,7 @@ export function forecastArrival(input: ForecastInput): RatingForecast {
 
   const early = weeksAt(
     input,
-    shiftByThousandths(input.mix, FORECAST_MIX_DRIFT_THOUSANDTHS),
+    atMostFiveStars(shiftByThousandths(input.mix, FORECAST_MIX_DRIFT_THOUSANDTHS)),
     scalePace(input.pacePerWeek, FORECAST_PACE_DRIFT_PERCENT),
   )
   if (early === null || early > FORECAST_HORIZON_WEEKS) return { kind: 'beyond_horizon' }

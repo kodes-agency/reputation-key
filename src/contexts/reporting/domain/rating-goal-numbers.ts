@@ -9,19 +9,21 @@
 //
 // Google's own average arrives already rounded to one decimal and stored as a
 // float32 artefact (3.9000000953674316 for 3.9), so it is read to the nearest
-// thousandth first. It never carries the exact average: that comes from the
-// review cache when the cache holds every review Google counts.
+// millionth first: a float32 near 5 is off by at most 2.4e-7, so this strips
+// the artefact and nothing a finer figure carries (4.4496 still shows 4.4).
+// It never carries the exact average: that comes from the review cache when
+// the cache holds every review Google counts (ADR 0067).
 
 /** Google rounds its one-decimal number half up: 4.45 shows as 4.5. */
 export const GOOGLE_DISPLAY_ROUNDING = 'half_up' as const
 
 /** Where a shown tenth starts below it, in thousandths: 4.5 starts at 4.45. */
-export const DISPLAY_THRESHOLD_OFFSET_THOUSANDTHS = 50
+const DISPLAY_THRESHOLD_OFFSET_THOUSANDTHS = 50
 
 /** Average stars of the reviews created in this many days is the recent mix. */
 export const RECENT_MIX_WINDOW_DAYS = 90
 /** The window is used only when it holds at least this many reviews. */
-export const RECENT_MIX_MINIMUM_REVIEWS = 10
+const RECENT_MIX_MINIMUM_REVIEWS = 10
 /** Otherwise the mix is the average of this many most recent reviews. */
 export const RECENT_MIX_FALLBACK_REVIEWS = 25
 
@@ -60,6 +62,9 @@ export function ratio(num: number | bigint, den: number | bigint): Ratio {
 export const ratioToNumber = (value: Ratio): number =>
   Number(value.num) / Number(value.den)
 
+/** Five stars: the best mix there is. */
+export const FIVE_STARS: Ratio = ratio(5, 1)
+
 /** The ratio of a value given in thousandths. */
 export const fromThousandths = (thousandths: number): Ratio => ratio(thousandths, 1000)
 
@@ -83,13 +88,16 @@ export function compareRatios(left: Ratio, right: Ratio): number {
   return delta === 0n ? 0 : delta < 0n ? -1 : 1
 }
 
-/** A value to the nearest thousandth, which strips Google's float32 artefact. */
-export const thousandthsOf = (value: number): number => Math.round(value * 1000)
+const MILLION = 1_000_000
+
+/** A value to the nearest millionth, which strips Google's float32 artefact. */
+const millionthsOf = (value: number): number => Math.round(value * MILLION)
 
 /** The tenth Google shows for its average (45 = 4.5), rounded half up. */
 export function displayedTenths(googleAverage: number): number {
   return Math.floor(
-    (thousandthsOf(googleAverage) + DISPLAY_THRESHOLD_OFFSET_THOUSANDTHS) / 100,
+    (millionthsOf(googleAverage) + DISPLAY_THRESHOLD_OFFSET_THOUSANDTHS * 1000) /
+      (MILLION / 10),
   )
 }
 
@@ -110,7 +118,7 @@ export function exactAverage(
     return { value: ratio(cache.sum, cache.count), source: 'cache' }
   }
   if (google.averageRating === null || google.reviewCount === 0) return null
-  return { value: fromThousandths(thousandthsOf(google.averageRating)), source: 'google' }
+  return { value: ratio(millionthsOf(google.averageRating), MILLION), source: 'google' }
 }
 
 /**
@@ -165,5 +173,5 @@ export function reviewsNeeded(input: ReviewsNeededInput): ReviewsNeeded {
 export function bestCaseReviewsNeeded(
   input: Omit<ReviewsNeededInput, 'mix'>,
 ): ReviewsNeeded {
-  return reviewsNeeded({ ...input, mix: ratio(5, 1) })
+  return reviewsNeeded({ ...input, mix: FIVE_STARS })
 }

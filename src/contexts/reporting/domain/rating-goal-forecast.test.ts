@@ -52,6 +52,22 @@ describe('when a target is expected', () => {
     ).toMatchObject({ kind: 'range', toMonth: null })
   })
 
+  it('never works the early end out at a mix above five stars', () => {
+    // At a 5.0 mix, 4.8 from 100 reviews at 4.70 needs 20, the best case. A mix
+    // of 5.1 would ask for 15 and bring the early end a month too soon:
+    // 20 reviews at 1.1 a week is 18.2 weeks (February), 15 is 13.6 (January).
+    expect(
+      forecastArrival({
+        ...EXAMPLE,
+        reviewCount: 100,
+        exact: ratio(470, 100),
+        mix: ratio(5, 1),
+        thresholdThousandths: 4750,
+        pacePerWeek: ratio(1, 1),
+      }),
+    ).toMatchObject({ kind: 'range', fromMonth: '2027-02' })
+  })
+
   it('says no pace reaches a target the recent mix does not clear', () => {
     expect(
       forecastArrival({

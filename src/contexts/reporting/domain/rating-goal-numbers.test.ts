@@ -11,8 +11,8 @@ import {
   thresholdThousandths,
 } from './rating-goal-numbers'
 
-// The worked example the owner agreed (DECISIONS.md Q4/Q5): 812 Google reviews
-// at an exact 4.31, a recent mix of 4.70.
+// The worked example of ADR 0067: 812 Google reviews at an exact 4.31, a
+// recent mix of 4.70.
 const EXAMPLE = {
   reviewCount: 812,
   exact: ratio(431, 100),
@@ -30,10 +30,18 @@ describe('the number Google shows', () => {
   })
 
   it('reads the float32 artefacts Google sends as the decimal they stand for', () => {
-    // Beta fact (DECISIONS.md): 3.9 arrives stored as 3.9000000953674316.
+    // Beta fact (ADR 0067): 3.9 arrives stored as 3.9000000953674316.
     expect(displayedTenths(3.9000000953674316)).toBe(39)
     // 4.45 as a float32 is 4.449999809265137; it still shows 4.5.
     expect(displayedTenths(Math.fround(4.45))).toBe(45)
+  })
+
+  it('rounds a figure just below the half down, as half up does', () => {
+    // Read to the thousandth first, 4.4496 would become 4.450 and show 4.5.
+    expect(displayedTenths(4.4496)).toBe(44)
+    expect(displayedTenths(Math.fround(4.4499))).toBe(44)
+    expect(displayedTenths(Math.fround(4.4496))).toBe(44)
+    expect(displayedTenths(4.44999)).toBe(44)
   })
 
   it('places each target threshold five hundredths below the tenth', () => {
