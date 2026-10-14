@@ -2289,6 +2289,47 @@ describe('canonical Goal Program service', () => {
     })
   })
 
+  describe('a due result whose program, assignment or version row is missing', () => {
+    // Not a lost race: nothing settled the result, a row it points to is gone.
+    // That is a broken reference and the run must say so.
+    it.each([
+      ['program', 'get'],
+      ['assignment', 'getAssignment'],
+      ['version', 'getVersion'],
+    ] as const)(
+      'fails the run and names its cause when the %s is missing',
+      async (_row, read) => {
+        const { service, repository, setNow } = setup()
+        await service.create(
+          {
+            propertyId: 'property-1',
+            name: 'March ratings',
+            metric: 'portal_rating_count',
+            targetValue: 25,
+            subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+          },
+          actor,
+        )
+        setNow(new Date('2026-04-03T00:00:00.000Z'))
+        // Only the due-result pass runs, and the row it reads is gone.
+        vi.mocked(repository.listOperational).mockResolvedValue([])
+        vi.mocked(repository[read]).mockResolvedValue(null)
+
+        await expect(service.maintain()).rejects.toMatchObject({
+          name: 'GoalProgramMaintenanceError',
+          message:
+            'Goal Program maintenance had 1 failed operation(s): GoalResultReferenceMissingError x1',
+          stats: {
+            raced: 0,
+            reconciled: 0,
+            failed: 1,
+            failureCauses: { GoalResultReferenceMissingError: 1 },
+          },
+        })
+      },
+    )
+  })
+
   // A result whose month runs past its version or assignment window can never
   // be updated: the database guard rejects every write. Before revisions
   // respected the open month, a timezone move could leave one behind, and it

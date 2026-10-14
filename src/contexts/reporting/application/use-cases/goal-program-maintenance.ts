@@ -162,6 +162,21 @@ class GoalResultOutsideWindowError extends Error {
   }
 }
 
+/**
+ * Raised when a due result's program, assignment or version row is missing.
+ * Unlike a result another run settled first, nothing settled it: a row it
+ * points to is gone, which the foreign keys make close to impossible. The run
+ * fails and names this class as its cause, instead of counting a lost race.
+ */
+class GoalResultReferenceMissingError extends Error {
+  constructor() {
+    super(
+      'Goal monthly result refers to a program, assignment or version that is missing',
+    )
+    this.name = 'GoalResultReferenceMissingError'
+  }
+}
+
 /** Mirrors the monthly-result guard's window check in the database. */
 function isOutsideItsWindow(
   result: GoalMonthlyResult,
@@ -384,8 +399,9 @@ type DueResultOutcome =
 
 /**
  * 'closed' also counts as reconciled; the caller tallies both. A result the run
- * lost to another (already closed, or its compare-and-set lost) was settled by
- * the winner and is not a failure.
+ * lost to another (already closed, so `not_found` for a result that is not due
+ * any more, or its compare-and-set lost) was settled by the winner and is not a
+ * failure. A result whose references are missing is a failure and names itself.
  */
 async function reconcileDueResult(
   reconcile: () => Promise<Readonly<{ status: string }>>,
@@ -441,7 +457,7 @@ export async function reconcileResult(
       result.programVersionId,
     ),
   ])
-  if (!program || !assignment || !version) throw new GoalProgramError('not_found')
+  if (!program || !assignment || !version) throw new GoalResultReferenceMissingError()
   if (isOutsideItsWindow(result, assignment, version)) {
     throw new GoalResultOutsideWindowError()
   }
