@@ -53,11 +53,13 @@ export type PersonalizedReplyDraftResult =
 /* eslint-disable security/detect-unsafe-regex -- every repeated unit is a literal stem plus one letter class, followed by whitespace or the end; nothing overlaps, and a reply is at most 1,200 characters */
 const PROHIBITED_REPLY_PATTERNS = Object.freeze([
   // Compensation, pricing, or commitments that the Review cannot authorize.
-  /\b(?:refund\w*|reimburs\w*|compensat\w*|free\s+(?:stay|night|meal|upgrade)s?|guarantee\w*|promise\w*)\b/iu,
+  /\b(?:refund\w*|reimburs\w*|compensat\w*|free\s+(?:stay|night|meal|upgrade|room)s?|free\s+\w+(?:\s+\w+)?\s+on\s+us|money\s+back|voucher\w*|discount\w*|on\s+the\s+house|guarantee\w*|promise\w*)\b/iu,
   // Admissions or legal conclusions.
-  /\b(?:liable|liability|admit\w*\s+(?:fault|liability)|our\s+fault|at\s+fault)\b/iu,
-  // Bulgarian equivalents of compensation, promises, and admissions.
-  /(?:обезщет\p{L}*|компенс\p{L}*|възстанов\p{L}*\s+(?:на\s+)?(?:сум\p{L}*|пар\p{L}*)|върн\p{L}*\s+(?:ви\s+)?(?:сум\p{L}*|пар\p{L}*)|безплат\p{L}*\s+(?:нощув\p{L}*|престо\p{L}*|хран\p{L}*|ъпгрейд\p{L}*|надграж\p{L}*)|гарантир\p{L}*|обеща\p{L}*|признав\p{L}*\s+(?:си\s+)?вин\p{L}*|(?:наша|нашата)\s+вина)/iu,
+  /\b(?:liable|liability|admit\w*\s+(?:fault|liability)|our\s+fault|at\s+fault|(?:take|takes|taking|took|accept\w*)\s+(?:full\s+)?responsibility|full\s+responsibility)\b/iu,
+  // Bulgarian equivalents of compensation, promises, and admissions. A refund
+  // may name the sum or the price a few words after the verb (`ще ви върнем
+  // платената сума`) or before it (`сумата ще ви бъде възстановена`).
+  /(?:обезщет\p{L}*|компенс\p{L}*|(?:възстанов|върн)\p{L}*(?:\s+\p{L}+){0,3}?\s+(?:сум|пар|цен)\p{L}*|(?:сум|пар|цен)\p{L}*(?:\s+\p{L}+){0,3}?\s+(?:възстановен|върнат)\p{L}*|безплат\p{L}*\s+(?:нощув\p{L}*|престо\p{L}*|хран\p{L}*|ъпгрейд\p{L}*|надграж\p{L}*)|ваучер\p{L}*|отстъпк\p{L}*|гарантир\p{L}*|обеща\p{L}*|признав\p{L}*\s+(?:си\s+)?(?:вин|грешк)\p{L}*|пое\p{L}*\s+(?:пълна\s+)?отговорност\p{L}*|(?:наша|нашата)\s+вина)/iu,
 ] as const)
 /* eslint-enable security/detect-unsafe-regex */
 
@@ -260,7 +262,10 @@ function containsProhibitedContent(
  * Validate provider output before it can enter the browser's ephemeral reply
  * draft. The validator accepts only English/Bulgarian, requires bidirectional
  * source/reply evidence, and refuses unsafe commitments or structured/private
- * material. It does not persist the suggestion.
+ * material. The commitments are a list of stems in two languages, not a
+ * guarantee: a promise in words the list does not hold passes, and the manager
+ * who reads every draft before it is published is the control for that. It does
+ * not persist the suggestion.
  */
 export function parsePersonalizedReplyDraft(
   input: PersonalizedReplyDraftInput,

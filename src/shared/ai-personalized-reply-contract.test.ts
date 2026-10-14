@@ -421,6 +421,14 @@ describe('compensation, promise and admission filter', () => {
     'That is guaranteed from now on.',
     'We promised to look into it.',
     'Our team was at fault here.',
+    'We will send your money back this week.',
+    'A voucher for your next visit is on its way.',
+    'We would like to offer you a discount.',
+    'Your next dinner is on the house.',
+    'We can arrange a free room change.',
+    'The first drink is a free welcome one on us.',
+    'We take full responsibility for this.',
+    'The hotel accepts responsibility for the noise.',
   ])('rejects the English reply sentence "%s"', (sentence) => {
     expect(englishReplyWith(sentence)).toEqual({
       status: 'rejected',
@@ -447,6 +455,14 @@ describe('compensation, promise and admission filter', () => {
     'Обещаваме да се подобрим.',
     'Давам ви обещание за промяна.',
     'Ще ви изплатим обезщетение.',
+    'Ще Ви възстановим заплатената сума.',
+    'Сумата ще ви бъде възстановена.',
+    'Ще ви върнем платената сума утре.',
+    'Ще възстановим цената за престоя.',
+    'Признаваме грешката си.',
+    'Поемаме отговорност за случилото се.',
+    'Предлагаме ви ваучер за следващия престой.',
+    'Ще ви направим отстъпка при следващо посещение.',
   ])('rejects the Bulgarian reply sentence "%s"', (sentence) => {
     expect(bulgarianReplyWith(sentence)).toEqual({
       status: 'rejected',
@@ -458,6 +474,9 @@ describe('compensation, promise and admission filter', () => {
     'We are glad the free breakfast was enjoyable.',
     'The staff will pass your kind words on to the whole team.',
     'We hope to welcome you again soon.',
+    'You can count on us to keep the room as quiet as you found it.',
+    'We are responsible for the garden, and your kind words mean a lot.',
+    'Thank you for booking directly with us.',
   ])('accepts the ordinary English reply sentence "%s"', (sentence) => {
     expect(englishReplyWith(sentence).status).toBe('accepted')
   })
@@ -467,6 +486,9 @@ describe('compensation, promise and admission filter', () => {
     'Ще предадем отзива ви на колегите от рецепцията.',
     'Надяваме се скоро отново да ви посрещнем.',
     'Закуската ни е гордост и се радваме, че ви хареса.',
+    'Ще се радваме да се върнете при нас и да ви посрещнем отново.',
+    'Благодарим, че оценихте цената и качеството на услугата.',
+    'Радваме се, че се чувствахте добре и ще предадем думите ви на екипа.',
   ])('accepts the ordinary Bulgarian reply sentence "%s"', (sentence) => {
     expect(bulgarianReplyWith(sentence).status).toBe('accepted')
   })
