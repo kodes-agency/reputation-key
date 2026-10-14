@@ -42,7 +42,7 @@ the presence of a route, table, or retained legacy module.
 |     | Review      | Stable Reviews, source observations/lifecycle, and RepKey-owned Reply workflow                   | Review, ReviewSourceObservation, Reply              |
 |     | AI          | Governed review analysis, reply drafting, and Property trends                                    | AiOperation, AiReviewAnalysis                       |
 |     | Inbox       | Stable Inbox Items with numbered Handling Cycles for Google and private feedback work            | InboxItem, HandlingCycle, InboxNote                 |
-|     | Reporting   | Governed metrics, monthly Goal Programs, and dashboard read models                               | MetricReading, GoalProgram, GoalMonthlyResult       |
+|     | Reporting   | Governed metrics, monthly Goal Programs, Property Google rating goals, and dashboard read models | MetricReading, GoalProgram, GoalMonthlyResult       |
 |     | Badge       | Inert legacy recognition inventory; no beta product behavior                                     | Historical BadgeAward envelope                      |
 |     | Leaderboard | Legacy ranking data retained for controlled contraction; not a beta product authority            | LeaderboardEntry, LeaderboardSnapshot               |
 |     | Feed        | Recent Activity, restricted Operational Action History, and user-facing notifications            | RecentActivityEntry, OperationalActionHistoryRecord |
@@ -230,6 +230,7 @@ decisions now live in that ADR, so an old citation can be followed:
 | 0056 | Operational Action History Integrity Claims                  | Activity, Audit, Honest Claims               | 0010, 0045                    |
 | 0057 | Inbox Queues                                                 | Inbox Workspace                              | —                             |
 | 0058 | AI Admission Lanes and Paced Review Analysis                 | AI, Review Analysis                          | —                             |
+| 0067 | Property Google Rating Goal                                  | Reporting, Goals, Google Data                | —                             |
 
 ## Key Files
 

@@ -2,13 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
+amended_on: 2026-10-14
 ---
 
 # Closed Beta Participation Agreement — Reputation Key
 
 **Status:** Accepted for publication and invited-beta use
-**Effective date:** 2026-09-08
-**Version:** 2.0
+**Effective date:** 2026-10-14
+**Version:** 2.1
 **Accountable owner:** Bozhidar Denev
 
 ## 1. Parties and beta purpose
@@ -46,7 +47,7 @@ release readiness, the core product includes:
 
 Core analytics are part of the Service. There is no product option to decline
 the affected operational metrics while continuing to use the workflow. The
-accepted [Privacy Notice version 2.0](/privacy), effective 2026-09-08, forms part
+accepted [Privacy Notice version 2.2](/privacy), effective 2026-10-13, forms part
 of this agreement and states the applicable roles, legal bases, and rights
 process.
 
@@ -61,6 +62,7 @@ and each feature's release evidence permit it:
 - Guest private rating and optional private feedback;
 - Contact Request, only after its separate privacy/handling gate closes;
 - Property, Portal Group, and individual Portal Goal Programs;
+- the Property Google rating goal;
 - Review Analysis;
 - Reply Drafting; and
 - Property Trends, which also depends on Review Analysis.
@@ -168,6 +170,21 @@ private-rating average for a Property, Portal Group, or individual Portal. They
 do not use completed Google reviews, Google review ratings, or Google review
 volume.
 
+A Property may also have one Google rating goal at a time, which is not a Goal
+Program. An AccountAdmin, or a Property Manager with access to the Property,
+sets it, in one of two ways. To raise the rating, they set a target above the
+rating Google shows for the Property now and choose a weekly pace of new Google
+reviews to plan with. To hold the rating, they ask to be told if Google stops
+showing the rating it shows now, and choose no pace. The Service works out
+progress from the rating and review count that Google reports for the location
+and from the Property's cached Google reviews, and for a higher target it also
+works out an expected time range. It keeps no review content for the goal. The
+goal is shown only to the Organization's AccountAdmins and to Property Managers
+with access to that Property. It is never split across Portals, Portal Groups,
+or people, and it is not shown to staff. The Service does not use it as a staff
+quota, ranking, incentive, or employment input. It does not change the Guest
+journey described in section 3.
+
 Staff attribution, metrics, and goals are non-competitive manager
 decision-support evidence. Badge and Leaderboard behavior is unreachable. The
 Service provides no ordinal ranking, bottom list, composite staff score, or
@@ -213,7 +230,7 @@ agreement does not create them.
 
 ## 9. Data handling, retention, and providers
 
-The accepted [Privacy Notice version 2.0](/privacy), effective 2026-09-08, and
+The accepted [Privacy Notice version 2.2](/privacy), effective 2026-10-13, and
 its retention and provider schedules form part of this agreement. They cover
 Participant, Google source, Portal and Guest, manager-authored, AI-derived,
 monitoring, export, backup, and independently retained evidence classes.
@@ -264,8 +281,8 @@ capability schedule are available.
 
 This agreement is accepted together with:
 
-- Privacy Notice version 2.0, effective 2026-09-08, at `/privacy`;
-- Google Business Profile Access Disclosure version 2.0, effective 2026-09-08,
+- Privacy Notice version 2.2, effective 2026-10-13, at `/privacy`;
+- Google Business Profile Access Disclosure version 2.1, effective 2026-10-14,
   at `/privacy/google-access-disclosure`;
 - the activated-capability schedule in `docs/BETA.md` section 4; and
 - the retention, provider, transfer, rights, deployment, and change rules in
@@ -275,3 +292,26 @@ The signed release manifest, live deployment evidence, and original Google
 correspondence remain operational release records rather than additional terms.
 An AccountAdmin accepts for the Organization through the invitation flow; each
 invited Participant accepts the Participant obligations by joining.
+
+## 13. Changes
+
+This agreement takes effect on 2026-10-14 and is version 2.1. It replaces
+version 2.0, which took effect on 2026-09-08.
+
+Version 2.1 adds the Property Google rating goal to sections 2.2 and 6, and
+section 12 names version 2.1 of the Google Business Profile Access Disclosure,
+which describes the same goal. The goal is a separately controlled function that
+exists only once a manager sets it. It uses no new class of data and changes no
+retention period, provider, or Guest journey, and it adds no duty for
+Participants. Goal Programs still do not use Google data, and the existing
+limits on staff use, in section 6 and in section 7, still apply as written.
+
+Version 2.1 also corrects the version of the Privacy Notice that sections 2.1,
+9, and 12 name. Version 2.0 of this agreement named Privacy Notice version 2.0,
+effective 2026-09-08. The Privacy Notice has since been replaced by version 2.1
+and then by version 2.2, effective 2026-10-13, which is the version served at
+`/privacy`. Version 2.1 of this agreement names version 2.2. This changes no
+term of the Privacy Notice.
+
+Nothing else changes. For these reasons the changes in version 2.1 are not
+material, and version 2.1 takes effect on the day it is published.

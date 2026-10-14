@@ -14,7 +14,7 @@ The existing capability policy already has organization/property persistence, ro
 ## Decision
 
 1. Beta activation is a persisted organization/property policy decision. Promoted capabilities remain non-core and off by default; an operator must allowlist the organization and target property. Role permissions, `property_access_grant`, purpose/consent, suspension, global kill switches, audit, and delayed-work reauthorization remain first-deny controls.
-2. Permanent hard blocks are limited to Google auto-publish, cross-property AI summaries, and review-solicitation gamification. No Portal response, private response, Google, AI, scan, click, or named-mention fact may drive Goals or workforce recognition.
+2. Permanent hard blocks are limited to Google auto-publish, cross-property AI summaries, and review-solicitation gamification. No Portal response, private response, Google, AI, scan, click, or named-mention fact may drive Goals or workforce recognition (amended 2026-10-14, below).
 3. Public Portal requests resolve the opaque token to minimal organization/property scope before one authoritative `ExecutionPolicy` decision. Public content and stored redirects remain available when optional analytics or response dependencies are denied; external side effects and private submissions fail closed.
 4. `beta-local-1` is the release evidence profile. Required gates are `security-privacy`, `local-scale-recovery`, `source-lifecycle`, `runtime-fault-matrix`, `migration-upgrade`, `product-journeys`, and `release-bundle`. Hosted capacity/PITR, region-fault, live-provider, real-property, and 14-day pilot observations are explicitly post-beta and remain unmeasured until executed.
 5. BQC-8 runs the existing deterministic 100-organization/5,000-property/500,000-review catalogue locally, plus a separate one-organization authorized 5,000-property fleet fixture. BQC-9 is the local product journey matrix across Inbox, Dashboard, Portal, Goals, Leadership, and Settings. The application runs from production-profile Docker images; host Playwright owns only the browser.
@@ -36,3 +36,22 @@ The existing capability policy already has organization/property persistence, ro
 ## Supersession
 
 This ADR supersedes the beta-boundary portions of the earlier BQC-2.6, BQC-6.6, BQC-8, BQC-9, and post-beta product plans. Their historical implementation notes remain immutable; live status and new evidence use this decision.
+
+## Amendment 2026-10-14 — the Property Google rating goal
+
+Owner decision 2026-10-14, recorded in
+[ADR 0067](0067-property-google-rating-goal.md). Rule 2 gains one exception.
+Google's own rating and review count for a Property, and counts and star sums of
+its cached Google reviews, may drive the Property Google rating goal: one goal
+per Property, seen and changed only by AccountAdmins and PropertyManagers with
+access to the Property, never split across Portals, Portal Groups or people,
+never shown to staff, and never workforce recognition, a quota, a ranking, an
+incentive or an employment input. It changes nothing in the public Portal
+journey.
+
+The rest of rule 2 stands. No Google fact drives a Goal Program or workforce
+recognition, and the permanent hard block on review-solicitation gamification
+remains (`gbp.review_solicitation_gamification` is `permanently_denied`). The
+goal is offered under the controlled-beta capability `goal.use`, so rule 1's
+persisted Organization and Property policy decides where it exists, and it
+needs the journeys and the emergency switch every enabled feature needs.

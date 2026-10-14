@@ -11,7 +11,7 @@ The current `metric_readings` table stores a string key and `real` value without
 
 ## Decision
 
-A centralized **governed metric registry** is the only route from source facts to Goal Programs and governed reporting.
+A centralized **governed metric registry** is the only route from source facts to Goal Programs and governed reporting (amended 2026-10-14, below).
 
 ### Structure
 
@@ -29,7 +29,7 @@ A centralized **governed metric registry** is the only route from source facts t
 ## Consequences
 
 - Goal Programs and dashboards consume versioned definitions — never raw SQL or ad-hoc joins.
-- Google-derived Property analytics appear in reporting only when ADR 0031 and the metric-definition version permit; they never enter a Goal unless that exact version allows it.
+- Google-derived Property analytics appear in reporting only when ADR 0031 and the metric-definition version permit; they never enter a Goal unless that exact version allows it (amended 2026-10-14, below).
 - Review-solicitation analytics are never Goal inputs.
 - Existing `metric_readings` require migration to add definition version, source event ID, and attribution quality.
 
@@ -68,3 +68,29 @@ attribution text to say what the reading always recorded), adds no permitted con
 every reading, source-policy allowlist and effective date as it was. Anything else, such as a new
 consumer, a different formula, a moved effective date or a narrowed scope, still needs a new
 version under rule 2.
+
+## Amendment 2026-10-14 — the Property Google rating goal reads outside the registry
+
+Owner decision 2026-10-14, recorded in
+[ADR 0067](0067-property-google-rating-goal.md). A Property may have one Google
+rating goal. It is not a Goal Program and is not fed by metric readings: it
+reads Google's own rating and review count from the Current on Google snapshot,
+and counts and star sums of the Property's cached Google reviews through
+Review's public API. Its rules live in ADR 0067, not in a metric-definition
+version.
+
+The rating goal is neither a Goal Program nor governed reporting in the sense of
+this ADR. Like the Current on Google snapshot it reads, it sits outside this
+registry, so the registry stays the only route to Goal Programs and to governed
+metric readings. ADR 0067 bounds the rating goal: Property scope only, never
+split across Portals, Portal Groups or people, never staff-facing, and never a
+quota, ranking, incentive or employment input.
+
+For Goal Programs nothing changes. "They never enter a Goal unless that exact
+version allows it" still governs them, and no Goal measure version admits a
+Google source: the three Goal measures stay first-party Portal measures
+(`GOAL_METRICS`, and the metric CHECKs on `goal_program_versions` and
+`goal_subject_assignments`). The rating goal reads no metric reading and no Goal
+result, and no Goal Program reads the rating goal. Review-solicitation analytics
+stay out of both: the rating goal never reads Portal Google-link opens.
+`employment_decision_eligible` stays `false`.
