@@ -20,6 +20,11 @@ const last30Days = {
   timeRange: '30d' as const,
   propertyTimezone: 'UTC',
 }
+const allTime = {
+  ...last30Days,
+  startDate: new Date('2020-01-01T00:00:00.000Z'),
+  timeRange: 'all' as const,
+}
 
 const metricKpi = (value: number, priorValue: number, trend: number): MetricKPIValue => ({
   value,
@@ -113,7 +118,7 @@ describe('getPropertyOverview', () => {
     expect(repo.calls.filter((call) => call === 'getKPIs')).toHaveLength(1)
   })
 
-  it('leads with Google’s own number and count, read beside the dashboard', async () => {
+  it('leads the all-time read with Google’s own number and count, and reads them only there', async () => {
     // Arrange
     const repo = createInMemoryDashboardRepository()
     const google = {
@@ -141,11 +146,15 @@ describe('getPropertyOverview', () => {
     })
 
     // Act
-    const overview = await getOverview(last30Days, ADMIN)
+    const overview = await getOverview(allTime, ADMIN)
+    const windowed = await getOverview(last30Days, ADMIN)
 
     // Assert
     expect(overview.google).toEqual(google)
     expect(googleNumbers).toHaveBeenCalledWith(ORG, PROPERTY, NOW)
+    // Google's numbers have no window: a 30-day read does not read them again.
+    expect(windowed.google).toBeNull()
+    expect(googleNumbers).toHaveBeenCalledOnce()
   })
 
   it('refuses a manager with no grant on the Property before anything is read', async () => {

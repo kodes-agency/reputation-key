@@ -16,11 +16,15 @@ export type PropertyOverviewData = Readonly<{
   signals: AttentionSignals
   /**
    * Google's own rating and review count (decision 16): the Rating tile's
-   * headline, never RepKey's average. Null when Google never sent numbers for
-   * the Property's current binding.
+   * headline, never RepKey's average. They have no window, so only the
+   * all-time read carries them: null on a windowed read, and when Google never
+   * sent numbers for the Property's current binding.
    */
   google: GoogleNumbersView | null
 }>
+
+/** The one range whose read carries Google's numbers (the Overview reads two). */
+const GOOGLE_NUMBERS_RANGE = 'all'
 
 export type GetPropertyOverviewInput = GetDashboardDataInput
 
@@ -55,7 +59,9 @@ export const getPropertyOverview =
         propertyIds: [input.propertyId],
         now,
       }),
-      deps.googleNumbers(input.organizationId, input.propertyId, now),
+      input.timeRange === GOOGLE_NUMBERS_RANGE
+        ? deps.googleNumbers(input.organizationId, input.propertyId, now)
+        : null,
     ])
 
     return {
