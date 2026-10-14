@@ -17,6 +17,7 @@
 
 import { isRatingGoalError } from '../../domain/rating-goal'
 import type { RatingGoalScope } from '../ports/property-rating-goal.repository'
+import { unclassifiedFailureCause } from './failure-cause'
 import {
   evaluateActiveRatingGoal,
   type RatingGoalEvaluationDependencies,
@@ -65,21 +66,8 @@ export class RatingGoalSweepError extends Error {
   }
 }
 
-const SQLSTATE = /^[0-9A-Z]{5}$/u
-
-/** The SQLSTATE of a database refusal, through the query error that wraps it. */
-function sqlStateOf(error: unknown): string | null {
-  if (typeof error !== 'object' || error === null) return null
-  const { code, cause } = error as { code?: unknown; cause?: unknown }
-  if (typeof code === 'string' && SQLSTATE.test(code)) return code
-  return sqlStateOf(cause)
-}
-
 function failureCauseOf(error: unknown): string {
-  if (isRatingGoalError(error)) return error.code
-  const sqlState = sqlStateOf(error)
-  if (sqlState !== null) return `sqlstate_${sqlState}`
-  return error instanceof Error ? error.name : 'unknown'
+  return isRatingGoalError(error) ? error.code : unclassifiedFailureCause(error)
 }
 
 type ScopeOutcome =
