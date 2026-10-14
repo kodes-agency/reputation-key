@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { createHash } from 'node:crypto'
-import { canonicalizeRawAiReviewSourcePreviousRevision } from '#/shared/ai-review-source-contract'
+import {
+  AiReviewSourceRefusal,
+  canonicalizeRawAiReviewSourcePreviousRevision,
+} from '#/shared/ai-review-source-contract'
 import {
   REFUSED_AI_SOURCE_BYTE_LENGTH,
   computeAiReviewSourceProvenance,
@@ -296,9 +299,10 @@ describe('a source the AI contract refuses', () => {
   })
 
   it('still throws what is not a refusal of the source', () => {
-    expect(() =>
-      storedAiReviewSourceProvenance({ ...REFUSED, text: 5 as never }),
-    ).toThrow('is not a function')
+    const attempt = () => storedAiReviewSourceProvenance({ ...REFUSED, text: 5 as never })
+
+    expect(attempt).toThrow(TypeError)
+    expect(attempt).not.toThrow(AiReviewSourceRefusal)
   })
 
   it('describes no stored row, instead of failing, when looked up with findStored', () => {

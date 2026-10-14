@@ -443,7 +443,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['sync.oldestDueAgeMs'],
     emitted: true,
     description:
-      'Age of the OLDEST past-due next_incremental_at — discovery-sweep lag. A count of due properties cannot distinguish a sweep mid-run from a dead sweep; this can. Null/absent when nothing is overdue.',
+      'Age of the OLDEST past-due next_incremental_at — discovery-sweep lag, for Properties the sweep selects and from the later of the poll time and the day the Property qualified again. A count of due properties cannot distinguish a sweep mid-run from a dead sweep; this can. Null/absent when nothing is overdue.',
   }),
   def({
     name: 'sync.failed',
@@ -757,7 +757,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     labels: {},
     snapshotPath: ['reviews.refreshDueCount'],
     emitted: true,
-    description: 'Reviews past the refresh-due threshold (25d).',
+    description: 'Reviews past the refresh-due threshold (25d) the sweep can offer.',
   }),
   def({
     name: 'source.expired',
@@ -775,7 +775,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     labels: {},
     snapshotPath: ['reviews.oldestDueAgeSeconds'],
     emitted: true,
-    description: 'Seconds until the nearest hard expiry among refresh-due rows.',
+    description: 'Seconds to the nearest hard expiry among refresh-due rows offered.',
   }),
   def({
     name: 'source.purge.failures',

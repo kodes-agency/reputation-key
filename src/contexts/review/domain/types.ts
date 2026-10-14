@@ -66,9 +66,16 @@ export type Review = Readonly<{
   sourceRevision: number
   /** Gap-free source event sequence within the Property/source epoch. */
   analysisSequence: number
-  /** Exact canonical ai-source-v1 byte length retained only in Review storage. */
+  /**
+   * Exact canonical ai-source-v1 byte length retained only in Review storage.
+   * For a source the AI contract refuses it is the marker one over the
+   * canonical limit (16,385), which every AI reader denies as too large.
+   */
   aiSourceByteLength: number
-  /** Lowercase SHA-256 over the domain-separated canonical source bytes. */
+  /**
+   * Lowercase SHA-256 over the domain-separated canonical source bytes (over the
+   * raw source fields, for a source the AI contract refuses).
+   */
   aiSourceDigest: string
   createdAt: Date
   updatedAt: Date
@@ -141,7 +148,10 @@ export function defaultReviewLifecycle(args: {
   contentHash?: string | null
   /** Current property binding generation. */
   sourceEpoch?: number
-  /** Exact canonical source byte length computed by the infrastructure boundary. */
+  /**
+   * Exact canonical source byte length computed by the infrastructure boundary,
+   * or the over-the-limit marker for a source the AI contract refuses.
+   */
   aiSourceByteLength: number
   /** Domain-separated lowercase SHA-256 computed by the infrastructure boundary. */
   aiSourceDigest: string

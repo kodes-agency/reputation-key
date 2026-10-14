@@ -12,6 +12,10 @@
 // observation writer with a fake Google listing and prove that the cutoff is
 // fixed before any run can observe the epoch and outlives the import run, and
 // that only the history an import takes over is silent history.
+//
+// The same harness proves that a review the AI source contract refuses (text
+// over the canonical limit, an unpaired surrogate) is stored, marked, instead of
+// failing its page for good.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sql } from 'drizzle-orm'
@@ -34,6 +38,7 @@ import type {
   GoogleReviewApiPort,
   GoogleReviewPage,
 } from '../application/ports/google-review-api.port'
+import type { AiReviewSourceRequest } from '../application/ports/ai-review-source.port'
 import type { ReviewProviderObservationWriter } from '../application/ports/review-provider-snapshot.repository'
 import {
   GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
@@ -59,6 +64,7 @@ const JOINED_IMPORT_PROPERTY = propertyId('74000000-0000-4000-8000-00000000b001'
 const COMPLETED_IMPORT_PROPERTY = propertyId('74000000-0000-4000-8000-00000000c002')
 const RELINKED_PROPERTY = propertyId('74000000-0000-4000-8000-00000000c003')
 const NEVER_IMPORTED_PROPERTY = propertyId('74000000-0000-4000-8000-00000000d001')
+const REFUSED_SOURCE_PROPERTY = propertyId('74000000-0000-4000-8000-00000000e001')
 const PROPERTIES = [
   FAILED_IMPORT_PROPERTY,
   ADMITTED_IMPORT_PROPERTY,
@@ -66,6 +72,7 @@ const PROPERTIES = [
   COMPLETED_IMPORT_PROPERTY,
   RELINKED_PROPERTY,
   NEVER_IMPORTED_PROPERTY,
+  REFUSED_SOURCE_PROPERTY,
 ] as const
 const ACCOUNT = 'history-cutoff-account'
 const TEST_KEY_VERSION = 'history-cutoff-test-v1'
@@ -309,6 +316,77 @@ async function createdEventOrigin(review: GoogleReview): Promise<string | null> 
 async function databaseNow(): Promise<Date> {
   const result = await db.execute(sql`SELECT clock_timestamp() AS now`)
   return new Date(String(result.rows[0]?.now))
+}
+
+/** 497 x U+FDFA: 1,491 bytes as Google sends it, 16,401 once NFKC has expanded it. */
+const OVERSIZE_TEXT = '\uFDFA'.repeat(497)
+/** The byte length a refused source is stored under: one over the 16,384 limit. */
+const REFUSED_BYTE_LENGTH = 16_385
+
+type StoredSource = Readonly<{
+  reviewId: string
+  byteLength: number
+  digest: string
+  sourceRevision: number
+  analysisSequence: number
+}>
+
+async function storedSource(review: GoogleReview): Promise<StoredSource> {
+  const result = await db.execute(sql`
+    SELECT id, ai_source_byte_length, ai_source_digest, source_revision, analysis_sequence
+    FROM reviews WHERE organization_id = ${ORG} AND external_id = ${review.externalId}
+  `)
+  const row = result.rows[0]
+  if (row == null) throw new Error(`${review.externalId} was not stored`)
+  return {
+    reviewId: String(row.id),
+    byteLength: Number(row.ai_source_byte_length),
+    digest: String(row.ai_source_digest),
+    sourceRevision: Number(row.source_revision),
+    analysisSequence: Number(row.analysis_sequence),
+  }
+}
+
+async function updatedEventCount(): Promise<number> {
+  const result = await db.execute(sql`
+    SELECT count(*)::int AS n FROM outbox_events
+    WHERE organization_id = ${ORG} AND event_type = 'review.updated'
+  `)
+  return Number(result.rows[0]?.n)
+}
+
+/** One whole sync of the Property: list, confirm, settle. Returns the last step. */
+async function syncToCompletion(
+  property: PropertyId,
+  reviews: readonly GoogleReview[],
+  at: Date,
+): Promise<RunReviewProviderSnapshotResult> {
+  observedAt = at
+  const samePage = page(reviews, reviews.length, null)
+  listing = new Map([
+    ['main:0', samePage],
+    ['confirmation:0', samePage],
+  ])
+  const first = await step(property, 'ongoing')
+  expect(first).toMatchObject({ status: 'checkpointed', state: 'confirming' })
+  await expect(step(property, 'ongoing', first.runId)).resolves.toMatchObject({
+    status: 'deleting',
+  })
+  return step(property, 'ongoing', first.runId)
+}
+
+function aiReadOf(source: StoredSource): AiReviewSourceRequest {
+  return {
+    organizationId: ORG,
+    propertyId: REFUSED_SOURCE_PROPERTY,
+    reviewId: reviewId(source.reviewId),
+    expected: {
+      kind: 'analysis',
+      sourceEpoch: 0,
+      sourceRevision: source.sourceRevision,
+      analysisSequence: source.analysisSequence,
+    },
+  }
 }
 
 async function clear(): Promise<void> {
@@ -675,5 +753,88 @@ describe('initial import history cutoff (real PostgreSQL)', () => {
     expect(await revisionsOf(old)).toEqual([
       { revision: 1, eligibility: 'measured', startAt: YEARS_AGO },
     ])
+  })
+})
+
+// A review the AI contract cannot encode used to throw out of the writer, fail
+// its whole page as `observation_failed` and discard the run's cursors, so the
+// next run met the same page and no run of the Property ever completed. It is
+// Google's content and the Inbox needs it: it is stored, marked as over the
+// limit, which every AI reader already denies.
+describe('a review the AI source contract refuses (real PostgreSQL)', () => {
+  const property = REFUSED_SOURCE_PROPERTY
+  const oversize = () =>
+    providerReview(property, 'oversize', LAST_YEAR, { text: OVERSIZE_TEXT })
+  const loneSurrogate = () =>
+    providerReview(property, 'lone-surrogate', LAST_YEAR, {
+      text: 'Lovely stay \uD800 truly',
+    })
+  const plain = () => providerReview(property, 'plain', LAST_YEAR)
+
+  it('completes the page, stores the review marked, and refreshes it quietly', async () => {
+    const reviews = [oversize(), loneSurrogate(), plain()]
+    const firstAt = new Date(observedAt.getTime() + HOUR_MS)
+
+    await expect(syncToCompletion(property, reviews, firstAt)).resolves.toMatchObject({
+      status: 'completed',
+    })
+
+    const refused = await storedSource(oversize())
+    const surrogate = await storedSource(loneSurrogate())
+    const ordinary = await storedSource(plain())
+    expect([refused.byteLength, surrogate.byteLength]).toEqual([
+      REFUSED_BYTE_LENGTH,
+      REFUSED_BYTE_LENGTH,
+    ])
+    expect(ordinary.byteLength).toBeLessThan(REFUSED_BYTE_LENGTH)
+    expect(refused.digest).not.toBe(surrogate.digest)
+    // The AI readers deny it; nothing recomputes the refused text.
+    const reviewRepo = createReviewRepository(db, () => observedAt)
+    await expect(reviewRepo.readForAi(aiReadOf(refused))).resolves.toEqual({
+      status: 'source_too_large',
+    })
+    await expect(reviewRepo.readForAi(aiReadOf(surrogate))).resolves.toEqual({
+      status: 'source_too_large',
+    })
+
+    // The same listing again is a refresh, not an edit.
+    await expect(
+      syncToCompletion(property, reviews, new Date(firstAt.getTime() + HOUR_MS)),
+    ).resolves.toMatchObject({ status: 'completed' })
+    expect(await storedSource(oversize())).toEqual(refused)
+    expect(await storedSource(loneSurrogate())).toEqual(surrogate)
+    expect(await updatedEventCount()).toBe(0)
+  })
+
+  it('reads an edit of a refused review as a new revision, and a shortening as readable', async () => {
+    const firstAt = new Date(observedAt.getTime() + HOUR_MS)
+    await syncToCompletion(property, [oversize(), loneSurrogate()], firstAt)
+    const refused = await storedSource(oversize())
+    const surrogate = await storedSource(loneSurrogate())
+
+    const editedAt = new Date(firstAt.getTime() + HOUR_MS)
+    const longer = providerReview(property, 'oversize', LAST_YEAR, {
+      text: `${OVERSIZE_TEXT}\uFDFA`,
+      sourceUpdatedAt: editedAt,
+    })
+    const readable = providerReview(property, 'lone-surrogate', LAST_YEAR, {
+      text: 'Lovely stay, truly',
+      sourceUpdatedAt: editedAt,
+    })
+    await expect(
+      syncToCompletion(property, [longer, readable], editedAt),
+    ).resolves.toMatchObject({ status: 'completed' })
+
+    const editedRefused = await storedSource(longer)
+    expect(editedRefused.byteLength).toBe(REFUSED_BYTE_LENGTH)
+    expect(editedRefused.digest).not.toBe(refused.digest)
+    expect(editedRefused.sourceRevision).toBe(refused.sourceRevision + 1)
+    const editedReadable = await storedSource(readable)
+    expect(editedReadable.byteLength).toBeLessThan(REFUSED_BYTE_LENGTH)
+    expect(editedReadable.sourceRevision).toBe(surrogate.sourceRevision + 1)
+    expect(await updatedEventCount()).toBe(2)
+    await expect(
+      createReviewRepository(db, () => observedAt).readForAi(aiReadOf(editedReadable)),
+    ).resolves.toMatchObject({ status: 'available' })
   })
 })

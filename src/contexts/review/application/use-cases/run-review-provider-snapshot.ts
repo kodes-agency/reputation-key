@@ -4,10 +4,10 @@ import { sha256Hex } from '#/shared/domain/sha256'
 import type {
   GoogleReviewApiPort,
   GoogleReviewPage,
+  GoogleReviewRead,
 } from '../ports/google-review-api.port'
 import type { PropertySourceEpochPort } from '../ports/property-source-epoch.port'
 import type { GoogleReview } from '../../domain/types'
-import type { GoogleReviewRead } from '../ports/google-review-api.port'
 import type {
   ReviewProviderSubjectDeriver,
   ReviewProviderSubjectKeyService,

@@ -31,6 +31,7 @@ const { accountId: GBP_ACCOUNT_ID, locationId: GBP_LOCATION_ID } =
 const MARKER_ORG = 'org-obs-freshness'
 const SYNC_CONNECTION_ACTIVE = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e70'
 const SYNC_CONNECTION_REAUTH = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e71'
+const SYNC_CONNECTION_RECONNECTED = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e72'
 const SYNC_PROPERTY_PREFIX = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5f'
 const MARKER_PROP_UUID = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e60'
 const DENIED_PROP_UUID = '3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e61'
@@ -57,7 +58,14 @@ afterEach(async () => {
   )
 })
 
-async function seedSyncConnection(id: string, status: string) {
+/** A Property or connection nobody has touched for a month: settled. */
+const SETTLED_MINUTES_AGO = 30 * 24 * 60
+
+async function seedSyncConnection(
+  id: string,
+  status: string,
+  authorizedMinutesAgo = SETTLED_MINUTES_AGO,
+) {
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
     VALUES (${MARKER_ORG}, 'Freshness Org', 't-obs-freshness', NOW())
@@ -67,11 +75,13 @@ async function seedSyncConnection(id: string, status: string) {
     INSERT INTO google_connections
       (id, organization_id, google_subject, encrypted_access_token,
        encrypted_refresh_token, token_expires_at, scopes, connected_by,
-       visibility, status, credential_use_state, created_at, updated_at)
+       credential_authorized_at, visibility, status, credential_use_state,
+       created_at, updated_at)
     VALUES (${id}, ${MARKER_ORG}, ${`subject-${id}`}, 'enc-a', 'enc-r',
             NOW() + INTERVAL '1 day',
             ARRAY['https://www.googleapis.com/auth/business.manage'],
-            'seed-user', 'organization', ${status}, 'active', NOW(), NOW())
+            'seed-user', NOW() - (${authorizedMinutesAgo} * INTERVAL '1 minute'),
+            'organization', ${status}, 'active', NOW(), NOW())
     ON CONFLICT (id) DO NOTHING
   `)
 }
@@ -83,6 +93,8 @@ type SyncProperty = Readonly<{
   bindingState?: string
   connectionId?: string
   deleted?: boolean
+  /** When an administrator last changed the Property (restore, rebind, edit). */
+  updatedMinutesAgo?: number
 }>
 
 /** A Property the discovery sweep polls, unless an override takes it out. */
@@ -103,7 +115,8 @@ async function seedSyncProperty(property: SyncProperty): Promise<string> {
             ${bound ? GBP_ACCOUNT_ID : null},
             ${bound ? `${GBP_LOCATION_ID}-${property.suffix}` : null},
             ${bindingState}, ${property.lifecycleState ?? 'active'},
-            ${property.deleted === true ? sql`NOW()` : null}, NOW(), NOW())
+            ${property.deleted === true ? sql`NOW()` : null}, NOW(),
+            NOW() - (${property.updatedMinutesAgo ?? SETTLED_MINUTES_AGO} * INTERVAL '1 minute'))
   `)
   return id
 }
@@ -185,6 +198,61 @@ describe('sync freshness aggregate (real reads)', () => {
       expect(after.oldestDueAgeMs === null).toBe(baseline.oldestDueAgeMs === null)
     },
   )
+
+  // A Property that left the set kept the poll time it had, and nothing
+  // rewrites it until the sweep next polls the Property. Measured from that
+  // stale time, a restore or a Google reconnect would page "new reviews are
+  // not arriving" at once. The lag runs from the later of the poll time and the
+  // moment the Property qualified again.
+  describe('a Property that qualifies again', () => {
+    const THREE_DAYS_MINUTES = 3 * 24 * 60
+    const SLACK_MS = MINUTE_MS
+
+    const reentries = [
+      [
+        'restored, resumed or re-bound',
+        (minutesAgo) => seedSyncProperty({ suffix: '07', updatedMinutesAgo: minutesAgo }),
+      ],
+      [
+        'whose Google connection was reconnected',
+        async (minutesAgo) => {
+          await seedSyncConnection(SYNC_CONNECTION_RECONNECTED, 'active', minutesAgo)
+          return seedSyncProperty({
+            suffix: '07',
+            connectionId: SYNC_CONNECTION_RECONNECTED,
+          })
+        },
+      ],
+    ] satisfies ReadonlyArray<readonly [string, (minutesAgo: number) => Promise<string>]>
+
+    it.each(reentries)(
+      'is not overdue while its first sweep is still due (%s)',
+      async (_label, requalify) => {
+        const baseline = (await checker.check()).sync
+
+        await seedSyncState(await requalify(5), THREE_DAYS_MINUTES)
+
+        const after = (await checker.check()).sync
+        expect(after.dueForIncrementalCount).toBe(baseline.dueForIncrementalCount + 1)
+        const ceiling = Math.max(baseline.oldestDueAgeMs ?? 0, 6 * MINUTE_MS) + SLACK_MS
+        expect(after.oldestDueAgeMs ?? 0).toBeLessThanOrEqual(ceiling)
+      },
+    )
+
+    it.each(reentries)(
+      'is overdue, from the day it qualified, once its first sweep is late (%s)',
+      async (_label, requalify) => {
+        const baseline = (await checker.check()).sync
+
+        await seedSyncState(await requalify(90), THREE_DAYS_MINUTES)
+
+        const after = (await checker.check()).sync
+        const ceiling = Math.max(baseline.oldestDueAgeMs ?? 0, 91 * MINUTE_MS) + SLACK_MS
+        expect(after.oldestDueAgeMs!).toBeGreaterThanOrEqual(89 * MINUTE_MS)
+        expect(after.oldestDueAgeMs!).toBeLessThanOrEqual(ceiling)
+      },
+    )
+  })
 })
 
 async function seedProperty() {

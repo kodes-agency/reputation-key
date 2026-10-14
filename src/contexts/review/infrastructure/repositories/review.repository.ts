@@ -51,10 +51,12 @@ import { trace } from '#/shared/observability/trace'
 import type { AiReviewSourceResult } from '../../application/ports/ai-review-source.port'
 import { findStoredAiReviewSourceProvenance } from '../../application/ai-review-source'
 import { upsertReviewSourceContent } from '../review-source-content-store'
-import { reviewIsSyncable } from './syncable-review'
+import { reviewIsSyncable } from '#/shared/db/syncable-review'
 import {
   MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
   MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
+} from '#/shared/ai-review-source-contract'
+import {
   aiSourceLookupSql,
   expectationDenial,
   parseSafeNonnegativeInteger,
@@ -793,7 +795,7 @@ export const createReviewRepository = (
         lte(reviews.contentExpiresAt, date),
         cursor,
         limit,
-        reviewIsSyncable(db),
+        reviewIsSyncable(),
       ),
     )
   },
