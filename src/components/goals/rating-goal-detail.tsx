@@ -56,10 +56,7 @@ type Props = Readonly<{
   readAt: Date
   timezone: string
   now: Date
-  /**
-   * The setup read: the fix suggested when no pace reaches the target, and
-   * whether the exact average is RepKey's own or Google's rounded number.
-   */
+  /** The setup read: the fix suggested when no pace reaches the target. */
   setup?: RatingGoalSetupView
   personName: (userId: string) => string | null
 }>
