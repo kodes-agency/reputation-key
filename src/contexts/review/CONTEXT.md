@@ -326,7 +326,11 @@ Property already holds is refused as `invalid_input`, on create and on rename,
 and never overwrites that template. The operations importer deliberately
 remains title-keyed for repeatability: re-importing a manager-renamed
 template&rsquo;s former source title creates a separate row and never
-overwrites the renamed template.
+overwrites the renamed template. Both tables hang off the Property alone and
+RESTRICT its delete, so the Organization purge deletes them with the rest of
+Review&rsquo;s tenant content and the presence probe counts them: an
+Organization that holds only a library still gets `complete`, never `no_data`.
+The Organization Export does not carry the library yet.
 
 ## Runtime
 

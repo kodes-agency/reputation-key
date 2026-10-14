@@ -110,17 +110,20 @@ function infoMap(raw: string): ReadonlyMap<string, string> {
   return result
 }
 
+/**
+ * `ACL DRYRUN` answers with a string: `OK` when the user may run the command,
+ * a reason when it may not. It never throws for the inspected command, so an
+ * error (including NOPERM, which means the user may not run `ACL DRYRUN`
+ * itself) is an inspection that could not be made. It propagates to the
+ * caller, where any unavailable control is a denial of readiness.
+ */
 async function commandDenied(
   redis: Redis,
   user: string,
   command: readonly string[],
 ): Promise<boolean> {
-  try {
-    const result = await redis.call('ACL', 'DRYRUN', user, ...command)
-    return typeof result === 'string' && result.toUpperCase() !== 'OK'
-  } catch (error) {
-    return error instanceof Error && error.message.startsWith('NOPERM')
-  }
+  const result = await redis.call('ACL', 'DRYRUN', user, ...command)
+  return typeof result === 'string' && result.toUpperCase() !== 'OK'
 }
 
 /**

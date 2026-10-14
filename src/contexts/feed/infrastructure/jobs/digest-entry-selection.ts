@@ -371,6 +371,10 @@ async function stillWaiting(
     type: item.notification.type,
     resourceId: item.notification.resourceId,
     audience: item.entry.recipientAudience,
+    recipient: {
+      userId: item.notification.userId,
+      propertyId: item.notification.propertyId,
+    },
   })
   if (work === false) return null
   return { ...item, notification: withStandingItemCount(item.notification, work) }

@@ -1118,6 +1118,36 @@ describe('GoogleReviewApiAdapter reply failure evidence (D2)', () => {
     expect(error.message).not.toContain('backend error')
   })
 
+  // The reply workflow classifies an answered 4xx as a terminal rejection from
+  // this evidence, never from the code, so naming the code for what it is
+  // (Google rejected the request) changes no reply outcome.
+  it.each([400, 404])(
+    'carries an answered %i of a reply as a rejection with its status',
+    async (status) => {
+      const execute = vi.fn().mockResolvedValue({
+        ok: true,
+        status,
+        headers: {
+          contentType: 'application/json',
+          cacheControl: null,
+          retryAfter: null,
+        },
+        body: new TextEncoder().encode('{"error":{"message":"gone"}}'),
+      })
+
+      const error = await rejection(replyAdapter(execute).replyToReview(replyInput()))
+
+      expect(error).toMatchObject({
+        code: 'provider_rejected',
+        recoverable: false,
+        failure: { executionCode: null, dispatch: 'answered', providerStatus: status },
+      })
+      expect(error.message).toBe(
+        `Google review API request failed (upstream_error; answered; status ${status})`,
+      )
+    },
+  )
+
   it('keeps the rate-limit hint alongside the answered 429', async () => {
     const execute = vi.fn().mockResolvedValue({
       ok: true,
@@ -1300,5 +1330,346 @@ describe('GoogleReviewApiAdapter reply failure evidence (D2)', () => {
       failure: { dispatch: 'not_sent' },
     })
     expect(execute).not.toHaveBeenCalled()
+  })
+})
+
+// The snapshot use case retries a `provider_unavailable` or `provider_rate_limited`
+// step by its code alone, and waits only as long as the error's `retryAfterMs`. An
+// error without that hint is re-run at queue speed (3,225 quota denials in 344 s
+// once), and a permanent refusal that is mapped to a retryable code is re-run
+// until the run expires. Both read routes must therefore hand over the wait the
+// provider plane computed, and must name a refusal as the terminal fact it is.
+describe('GoogleReviewApiAdapter backoff on the read routes', () => {
+  const MIN_WAIT_MS = 5_000
+  const getInput = () => ({
+    organizationId: ORG_ID,
+    propertyId: PROPERTY_ID,
+    connectionId: CONNECTION_ID,
+    sourceEpoch: 17,
+    locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+    reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+  })
+  const answered = (
+    status: number,
+    retryAfter: string | null = null,
+    contentType = 'application/json',
+  ) =>
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status,
+      headers: { contentType, cacheControl: null, retryAfter },
+      body: new TextEncoder().encode('{"error":{"message":"nope"}}'),
+    })
+  const refused = (
+    code: 'admission_denied' | 'transport_error',
+    admissionCode: string | undefined,
+    retryAfterMs: number,
+  ) =>
+    vi.fn().mockResolvedValue({
+      ok: false,
+      code,
+      ...(admissionCode === undefined ? {} : { admissionCode }),
+      dispatch: 'not_sent',
+      retryAfterMs,
+    })
+  const failure = async (promise: Promise<unknown>) => {
+    const outcome = await promise.then(
+      () => null,
+      (error: unknown) => error,
+    )
+    expect(outcome).toBeInstanceOf(Error)
+    return outcome as Error & { code: string; retryAfterMs?: number }
+  }
+
+  describe('listing a page', () => {
+    it.each([
+      ['a 503', answered(503)],
+      [
+        'a gateway that could not reach its coordination store',
+        refused('admission_denied', 'coordination_unavailable', 0),
+      ],
+      ['a transport error', refused('transport_error', undefined, 0)],
+      ['a 200 that is not JSON', answered(200, null, 'text/html')],
+    ])('hands over the provider wait for %s', async (_label, execute) => {
+      const { api } = createAdapter({ execute })
+
+      const error = await failure(api.listReviewsPage(listInput()))
+
+      expect(error.code).toBe('provider_unavailable')
+      expect(error.retryAfterMs).toBeGreaterThanOrEqual(MIN_WAIT_MS)
+    })
+
+    // A Property bound to a Location Google no longer has (404) or a request
+    // Google calls invalid (400) gets the same answer on every retry. Naming it
+    // a retryable outage looped the run until its 12 h expiry (S03-02, B).
+    it.each([400, 404])(
+      'ends the run on an answered %i: a retry gets the same answer',
+      async (status) => {
+        const { api } = createAdapter({ execute: answered(status) })
+
+        const error = await failure(api.listReviewsPage(listInput()))
+
+        expect(error).toMatchObject({
+          code: 'provider_rejected',
+          recoverable: false,
+          failure: { executionCode: null, dispatch: 'answered', providerStatus: status },
+        })
+        expect(error.retryAfterMs).toBeUndefined()
+      },
+    )
+
+    it('keeps the wait the provider asked for on an answered 503', async () => {
+      const { api } = createAdapter({ execute: answered(503, '42') })
+
+      const error = await failure(api.listReviewsPage(listInput()))
+
+      expect(error.retryAfterMs).toBe(42_000)
+    })
+  })
+
+  describe('reading one review', () => {
+    it('hands over the wait of an admission denial for quota', async () => {
+      const { api } = createAdapter({
+        execute: refused('admission_denied', 'quota_exhausted', 1_200),
+      })
+
+      const error = await failure(api.getReview(getInput()))
+
+      expect(error.code).toBe('provider_rate_limited')
+      expect(error.retryAfterMs).toBeGreaterThanOrEqual(MIN_WAIT_MS)
+    })
+
+    it('hands over the wait Google asked for on an answered 429', async () => {
+      const { api } = createAdapter({ execute: answered(429, '7') })
+
+      const error = await failure(api.getReview(getInput()))
+
+      expect(error.code).toBe('provider_rate_limited')
+      expect(error.retryAfterMs).toBe(7_000)
+    })
+
+    it.each([
+      ['a 503', answered(503)],
+      [
+        'a gateway that could not reach its coordination store',
+        refused('admission_denied', 'coordination_unavailable', 0),
+      ],
+      ['a 200 that is not JSON', answered(200, null, 'text/html')],
+    ])('hands over the provider wait for %s', async (_label, execute) => {
+      const { api } = createAdapter({ execute })
+
+      const error = await failure(api.getReview(getInput()))
+
+      expect(error.code).toBe('provider_unavailable')
+      expect(error.retryAfterMs).toBeGreaterThanOrEqual(MIN_WAIT_MS)
+    })
+
+    it('ends the confirmation on a 400, which Google answers the same on every retry', async () => {
+      const { api } = createAdapter({ execute: answered(400) })
+
+      const error = await failure(api.getReview(getInput()))
+
+      expect(error).toMatchObject({ code: 'provider_rejected', recoverable: false })
+      expect(error.retryAfterMs).toBeUndefined()
+    })
+
+    it.each([
+      ['an answered 401', answered(401)],
+      ['an answered 403', answered(403)],
+      [
+        'a permit that no longer authorizes the call',
+        refused('admission_denied', 'authorization_denied', 0),
+      ],
+    ])(
+      'treats %s as the terminal refusal it is, like the list route',
+      async (_label, execute) => {
+        const { api } = createAdapter({ execute })
+
+        const error = await failure(api.getReview(getInput()))
+
+        expect(error).toMatchObject({ code: 'authorization_changed', recoverable: false })
+        expect(error.retryAfterMs).toBeUndefined()
+      },
+    )
+  })
+
+  // The wait is not the transport's alone: any retryable failure the snapshot
+  // use case sees is re-run at queue speed unless it carries one. The cursor
+  // store sits on the provider-ephemeral Redis, whose outage fails every page
+  // after the first before any provider call is made.
+  describe('a retryable failure that is not a provider answer', () => {
+    const CURSOR_REF = `v1.${'c'.repeat(43)}`
+    const pageWithNext = () =>
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: {
+          contentType: 'application/json',
+          cacheControl: null,
+          retryAfter: null,
+        },
+        body: new TextEncoder().encode(
+          JSON.stringify({
+            reviews: [providerReview()],
+            totalReviewCount: 2,
+            averageRating: 4.5,
+            nextPageToken: 'provider-next-page-token',
+          }),
+        ),
+      })
+
+    it('waits when the cursor store throws while redeeming the page token', async () => {
+      const redeem = vi.fn().mockRejectedValue(new Error('redis command timed out'))
+      const execute = vi.fn()
+      const { api } = createAdapter({
+        execute,
+        cursors: cursorStore({ redeem }),
+      })
+
+      const error = await failure(api.listReviewsPage(listInput(CURSOR_REF, 1)))
+
+      expect(error).toMatchObject({ code: 'provider_unavailable', recoverable: true })
+      expect(error.retryAfterMs).toBeGreaterThanOrEqual(MIN_WAIT_MS)
+      expect(execute).not.toHaveBeenCalled()
+    })
+
+    it.each(['unavailable', 'conflict'] as const)(
+      'waits when the cursor store answers %s to a redeem',
+      async (code) => {
+        const redeem = vi.fn().mockResolvedValue({ ok: false, code })
+        const { api } = createAdapter({
+          execute: vi.fn(),
+          cursors: cursorStore({ redeem }),
+        })
+
+        const error = await failure(api.listReviewsPage(listInput(CURSOR_REF, 1)))
+
+        expect(error.code).toBe('provider_unavailable')
+        expect(error.retryAfterMs).toBeGreaterThanOrEqual(MIN_WAIT_MS)
+      },
+    )
+
+    it('waits when the cursor store cannot publish the next page', async () => {
+      const publishNext = vi.fn().mockResolvedValue({ ok: false, code: 'unavailable' })
+      const { api } = createAdapter({
+        execute: pageWithNext(),
+        cursors: cursorStore({ publishNext }),
+      })
+
+      const error = await failure(api.listReviewsPage(listInput()))
+
+      expect(error.code).toBe('provider_unavailable')
+      expect(error.retryAfterMs).toBeGreaterThanOrEqual(MIN_WAIT_MS)
+    })
+
+    it('waits when discarding the run cursors throws', async () => {
+      const discardRun = vi.fn().mockRejectedValue(new Error('redis command timed out'))
+      const { api } = createAdapter({
+        execute: vi.fn(),
+        cursors: cursorStore({ discardRun }),
+      })
+
+      const error = await failure(
+        api.discardReviewCursors({
+          organizationId: ORG_ID,
+          propertyId: PROPERTY_ID,
+          sourceEpoch: 17,
+          runId: RUN_ID,
+        }),
+      )
+
+      expect(error.code).toBe('provider_unavailable')
+      expect(error.retryAfterMs).toBeGreaterThanOrEqual(MIN_WAIT_MS)
+    })
+
+    it('waits when the review sync authorizer is not wired', async () => {
+      const api = createGoogleReviewApiAdapter({
+        connectionRepo: { findById: vi.fn() } as never,
+        logger: { warn: vi.fn() } as never,
+        cursorStore: cursorStore(),
+        executor: { execute: vi.fn() },
+        nowMs: () => Date.parse('2026-08-12T12:00:00.000Z'),
+      })
+
+      const error = await failure(api.listReviewsPage(listInput()))
+
+      expect(error.code).toBe('provider_unavailable')
+      expect(error.retryAfterMs).toBeGreaterThanOrEqual(MIN_WAIT_MS)
+    })
+  })
+})
+
+// A routine access-token refresh moves `credentialGeneration` (the connection
+// column and the authorization vector) about once an hour and changes nothing a
+// cursor binding must protect; a scan that crosses it used to lose its cursor
+// (`cursor_binding_mismatch` -> `cursor_failure`) and restart from page 0.
+// Reconnect and disconnect move the lifecycle and access versions, which stay
+// bound.
+describe('GoogleReviewApiAdapter cursor binding across a token refresh', () => {
+  const CURSOR_REF = `v1.${'b'.repeat(43)}`
+  // A fresh body per call: the adapter zeroes every body it has read.
+  const okPage = () =>
+    vi.fn().mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      headers: { contentType: 'application/json', cacheControl: null, retryAfter: null },
+      body: new TextEncoder().encode(
+        JSON.stringify({
+          reviews: [providerReview()],
+          totalReviewCount: 1,
+          averageRating: 5,
+        }),
+      ),
+    }))
+  const authorizedAt = (credentialGeneration: number) => ({
+    accessToken: 'access-token',
+    authorization: {
+      ...authorization,
+      expectedCredentialGeneration: credentialGeneration,
+      authorizationVector: Object.freeze({
+        propertySourceEpoch: 17,
+        credentialGeneration,
+      }),
+    },
+  })
+  const redeemedBindings = (cursors: GoogleReviewCursorStore) =>
+    vi.mocked(cursors.redeem).mock.calls.map(([input]) => input.authorization)
+
+  it('binds the same cursor authorization before and after a routine refresh', async () => {
+    const cursors = cursorStore()
+    const { api, findById, authorizeProviderCall } = createAdapter({
+      execute: okPage(),
+      cursors,
+      authorizeProviderCall: vi.fn().mockResolvedValue(authorizedAt(3)),
+    })
+
+    await api.listReviewsPage(listInput(CURSOR_REF, 1))
+    findById.mockResolvedValue({ ...connection, credentialGeneration: 4 })
+    authorizeProviderCall.mockResolvedValue(authorizedAt(4))
+    await api.listReviewsPage(listInput(CURSOR_REF, 1))
+
+    const [beforeRefresh, afterRefresh] = redeemedBindings(cursors)
+    expect(afterRefresh).toEqual(beforeRefresh)
+  })
+
+  it('binds a different cursor authorization once the connection was reconnected', async () => {
+    const cursors = cursorStore()
+    const { api, findById, authorizeProviderCall } = createAdapter({
+      execute: okPage(),
+      cursors,
+      authorizeProviderCall: vi.fn().mockResolvedValue(authorizedAt(3)),
+    })
+
+    await api.listReviewsPage(listInput(CURSOR_REF, 1))
+    findById.mockResolvedValue({
+      ...connection,
+      lifecycleVersion: connection.lifecycleVersion + 1,
+      credentialGeneration: 4,
+    })
+    authorizeProviderCall.mockResolvedValue(authorizedAt(4))
+    await api.listReviewsPage(listInput(CURSOR_REF, 1))
+
+    const [beforeReconnect, afterReconnect] = redeemedBindings(cursors)
+    expect(afterReconnect).not.toEqual(beforeReconnect)
   })
 })

@@ -46,6 +46,9 @@ const REPLY_TEXT = 'REVIEW_MANAGER_REPLY_MUST_NOT_SURVIVE'
 const LIBRARY_CONTACT = 'REVIEW_LIBRARY_CONTACT_MUST_NOT_SURVIVE'
 const LIBRARY_TEMPLATE_BODY = 'REVIEW_LIBRARY_TEMPLATE_MUST_NOT_SURVIVE'
 const PROVIDER_MESSAGE_ID = 'REVIEW_PROVIDER_MESSAGE_MUST_NOT_SURVIVE'
+const REPLY_LIBRARY_GREETING = 'LIBRARY_GREETING_MUST_NOT_SURVIVE'
+const REPLY_LIBRARY_CONTACT = 'LIBRARY_ESCALATION_CONTACT_MUST_NOT_SURVIVE'
+const REPLY_LIBRARY_BODY = 'LIBRARY_TEMPLATE_BODY_MUST_NOT_SURVIVE'
 
 /** Every Organization-scoped Review table, in child-before-parent order. */
 const REVIEW_ORG_TABLES = Object.freeze([
@@ -65,6 +68,8 @@ const REVIEW_ORG_TABLES = Object.freeze([
   'review_provider_history_cutoffs',
   'material_review_revisions',
   'reviews',
+  'property_reply_templates',
+  'property_reply_profiles',
 ] as const)
 
 const db: Database = getDb()
@@ -277,6 +282,27 @@ async function insertHistoryCutoff(org: string, propertyId: string): Promise<voi
        (organization_id, property_id, source_epoch, cutoff_at, created_at)
      VALUES ($1, $2, 0, $3, $3)`,
     [org, propertyId, AT],
+  )
+}
+
+/**
+ * The Property's reply library: the manager-written voice and templates. Both
+ * tables RESTRICT the Property's own delete.
+ */
+async function insertReplyLibrary(org: string, propertyId: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO property_reply_profiles (
+       organization_id, property_id, greeting, sign_off_positive, sign_off_negative,
+       escalation_contact, updated_by
+     ) VALUES ($1, $2, $3, 'Warm regards', 'Sincerely', $4, $5)`,
+    [org, propertyId, REPLY_LIBRARY_GREETING, REPLY_LIBRARY_CONTACT, MANAGER_ID],
+  )
+  await pool.query(
+    `INSERT INTO property_reply_templates (
+       organization_id, property_id, title, rating_min, rating_max, has_text,
+       language_tag, body, updated_by
+     ) VALUES ($1, $2, 'Thanks for five stars', 5, 5, true, 'en-Latn', $3, $4)`,
+    [org, propertyId, REPLY_LIBRARY_BODY, MANAGER_ID],
   )
 }
 
@@ -848,5 +874,36 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
       await createReviewOrganizationLifecycleContributor(db).prepareClosing(request)
 
     expect(result.outcome).toBe('complete')
+  })
+
+  // The reply library hangs off the Property alone, so an Organization can hold
+  // it with no Review at all.
+  it('counts the Property reply library as Review data, even when it is all Review holds', async () => {
+    await insertReplyLibrary(ORG_ID, PROPERTY_ID)
+    const request = await advanceAuthorityTo('closure_requested')
+
+    const result =
+      await createReviewOrganizationLifecycleContributor(db).prepareClosing(request)
+
+    expect(result.outcome).toBe('complete')
+  })
+
+  it('erases the reply library at purge, and only this Organization’s, so the Property can be deleted', async () => {
+    await insertReplyLibrary(ORG_ID, PROPERTY_ID)
+    await insertReplyLibrary(OTHER_ORG_ID, OTHER_PROPERTY_ID)
+    const request = await advanceAuthorityTo('purging')
+
+    const result = await createReviewOrganizationLifecycleContributor(db).purge(request)
+
+    expect(result.outcome).toBe('complete')
+    const after = await rowCounts(ORG_ID)
+    expect(after.property_reply_profiles).toBe(0)
+    expect(after.property_reply_templates).toBe(0)
+    const bystander = await rowCounts(OTHER_ORG_ID)
+    expect(bystander.property_reply_profiles).toBe(1)
+    expect(bystander.property_reply_templates).toBe(1)
+    await expect(
+      pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG_ID]),
+    ).resolves.toBeDefined()
   })
 })

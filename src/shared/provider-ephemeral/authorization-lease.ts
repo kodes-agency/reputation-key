@@ -147,6 +147,20 @@ export function createProviderAuthorizationLeaseService(
     }
   }
 
+  /**
+   * Housekeeping for a lease that was just refused. The verdict does not depend
+   * on it, because every renew re-reads and re-checks the record and the record
+   * dies with its own TTL (at most 30 seconds), so a failed removal must not turn
+   * the typed refusal into a thrown error.
+   */
+  const discard = async (storeKey: string): Promise<void> => {
+    try {
+      await deps.store.remove('authorization-lease', storeKey)
+    } catch {
+      // Left to the record's TTL.
+    }
+  }
+
   return Object.freeze({
     issue: async (input) => {
       if (!(await ready())) return { ok: false, code: 'runtime_unavailable' }
@@ -230,17 +244,17 @@ export function createProviderAuthorizationLeaseService(
       try {
         candidate = JSON.parse(encoded)
       } catch {
-        await deps.store.remove('authorization-lease', parsedHandle.storeKey)
+        await discard(parsedHandle.storeKey)
         return { ok: false, code: 'malformed' }
       }
       const parsedRecord = leaseRecordSchema.safeParse(candidate)
       if (!parsedRecord.success) {
-        await deps.store.remove('authorization-lease', parsedHandle.storeKey)
+        await discard(parsedHandle.storeKey)
         return { ok: false, code: 'malformed' }
       }
       const record = parsedRecord.data
       if (record.expiresAtMs <= input.nowMs || record.absoluteDeadlineMs <= input.nowMs) {
-        await deps.store.remove('authorization-lease', parsedHandle.storeKey)
+        await discard(parsedHandle.storeKey)
         return { ok: false, code: 'expired' }
       }
       if (
@@ -258,7 +272,7 @@ export function createProviderAuthorizationLeaseService(
         return { ok: false, code: 'malformed' }
       }
       if (record.authorizationFenceSha256 !== input.authorizationFenceSha256) {
-        await deps.store.remove('authorization-lease', parsedHandle.storeKey)
+        await discard(parsedHandle.storeKey)
         return { ok: false, code: 'authorization_changed' }
       }
       let authorization: Awaited<ReturnType<typeof deps.revalidate>>
@@ -268,11 +282,11 @@ export function createProviderAuthorizationLeaseService(
         return { ok: false, code: 'runtime_unavailable' }
       }
       if (!authorization.allowed) {
-        await deps.store.remove('authorization-lease', parsedHandle.storeKey)
+        await discard(parsedHandle.storeKey)
         return { ok: false, code: 'authorization_denied' }
       }
       if (authorization.authorizationFenceSha256 !== record.authorizationFenceSha256) {
-        await deps.store.remove('authorization-lease', parsedHandle.storeKey)
+        await discard(parsedHandle.storeKey)
         return { ok: false, code: 'authorization_changed' }
       }
       const expiresAtMs = Math.min(

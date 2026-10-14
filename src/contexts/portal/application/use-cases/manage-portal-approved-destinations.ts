@@ -4,6 +4,7 @@ import { portalApprovedDestinationId, portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
+import { APPROVED_DESTINATION_REVALIDATION_DUE_AFTER_MS } from '../approved-destination-age'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { validatePortalDestinationUri } from '../../domain/approved-destination'
 import { portalError } from '../../domain/errors'
@@ -186,7 +187,9 @@ export const revalidatePortalApprovedDestinations =
     }>,
   ) => {
     const limit = Math.min(500, Math.max(1, input.limit ?? 100))
-    const before = new Date(deps.clock().getTime() - 15 * 60 * 1_000)
+    const before = new Date(
+      deps.clock().getTime() - APPROVED_DESTINATION_REVALIDATION_DUE_AFTER_MS,
+    )
     const candidates = await deps.destinationRepo.listDueForNetworkRevalidation(
       before,
       limit,

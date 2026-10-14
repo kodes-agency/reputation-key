@@ -24,6 +24,8 @@ import {
   reviewId,
   type InboxItemId,
   type OrganizationId,
+  type PropertyId,
+  type UserId,
 } from '#/shared/domain/ids'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { Notification, NotificationType } from '../domain/notification-types'
@@ -49,6 +51,12 @@ export type NotificationWorkSubject = Readonly<{
    * cycles its audience names; nothing else reads it.
    */
   audience?: unknown
+  /**
+   * The reader the notice is for, on the Property it is filed under. A grouped
+   * assignment counts the items still theirs; asked without one it cannot
+   * count, and passes.
+   */
+  recipient?: Readonly<{ userId: UserId; propertyId: PropertyId | null }>
 }>
 
 /**
@@ -164,17 +172,27 @@ const groupStillOpen: WorkCheck = async (deps, { organizationId, audience }) => 
 
 /**
  * A grouped assignment stands for the items its audience names, and counts
- * only those still open, so a mail sent later says how many are really left.
+ * only those still open and still assigned to its recipient on the Property
+ * it is filed under, so a mail sent later says how many are really left to
+ * them. An item reassigned to a colleague is open but no longer theirs.
  */
-const assignedItemsStillOpen: WorkCheck = async (deps, { organizationId, audience }) => {
+const assignedItemsStillOpen: WorkCheck = async (
+  deps,
+  { organizationId, audience, recipient },
+) => {
   const parsed = parseNotificationAudience(audience)
-  if (parsed?.kind !== 'bulk_inbox_assignee') return null
-  const open = await Promise.all(
-    parsed.inboxItemIds.map(
-      async (item) => (await cycleOf(deps, organizationId, item))?.status === 'open',
-    ),
+  if (parsed?.kind !== 'bulk_inbox_assignee' || recipient === undefined) return null
+  const standing = await Promise.all(
+    parsed.inboxItemIds.map(async (item) => {
+      const facts = await cycleOf(deps, organizationId, item)
+      return (
+        facts?.status === 'open' &&
+        facts.assignedTo === recipient.userId &&
+        facts.propertyId === recipient.propertyId
+      )
+    }),
   )
-  const itemCount = open.filter(Boolean).length
+  const itemCount = standing.filter(Boolean).length
   return itemCount === 0 ? false : { itemCount }
 }
 

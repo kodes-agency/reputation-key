@@ -12,7 +12,7 @@ import {
   portalPublicationActivations,
   portalPublicationSnapshots,
 } from '#/shared/db/schema'
-import { insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { lockPortalPublicationProperty } from './portal-publication-serialization'
 import { resolvePortalPendingContentChanges } from './portal-pending-content-changes'
 import { readPortalSettings, recordPortalSettingsChange } from './portal-settings-edits'
@@ -41,6 +41,11 @@ import {
   snapshotToRow,
 } from './portal-publication-commands'
 import { createPortalCreateCommand } from './portal-create-command'
+import {
+  PORTAL_SLUG_UNIQUE,
+  refusingWhenTaken,
+  slugTaken,
+} from './portal-unique-violation'
 import { NO_SEALED_ADDRESS } from './portal-sealed-address-columns'
 
 type PortalSetValues = {
@@ -411,6 +416,10 @@ function assertDeleteCommand(command: DeletePortalCommand): void {
 }
 
 export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore => {
+  /** A transaction whose address collision is the refusal the use case's own check gives. */
+  const addressing = <T>(run: (tx: Tx) => Promise<T>): Promise<T> =>
+    refusingWhenTaken(() => db.transaction(run), PORTAL_SLUG_UNIQUE, slugTaken)
+
   return {
     ...createPortalLinkCommands(db),
     ...createPortalGroupCommands(db),
@@ -420,7 +429,7 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
     updatePortal: async (command) =>
       trace('portal.commandStore.updatePortal', async () => {
         assertUpdateCommand(command)
-        await db.transaction(async (tx) => {
+        await addressing(async (tx) => {
           if (command.publication?.kind === 'publish') {
             await lockPortalPublicationProperty(
               tx,

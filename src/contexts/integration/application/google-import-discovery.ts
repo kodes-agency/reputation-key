@@ -12,6 +12,7 @@ import type {
   GoogleAccountManagementPort,
   GoogleBusinessInformationPort,
 } from './google-provider-contract'
+import { sameDiscoveryAuthorization } from './google-import-discovery-authorization'
 import type {
   ImportAccountPageDto,
   ImportCandidatePageDto,
@@ -99,6 +100,27 @@ function deny(code: GoogleImportDiscoveryErrorCode): never {
 }
 
 /**
+ * What the administrator is told for each way the command authorizer refuses.
+ * Only the first two are a change of access. A connection that is no longer
+ * usable needs a reconnect, and a failed dependency read (the token refresh, the
+ * policy store) clears by itself; reporting either as "your access changed" sends
+ * the administrator to the wrong place and offers no restart.
+ */
+export function authorizerDenialErrorCode(
+  code: Extract<GoogleImportCommandAuthorizationResult, { ok: false }>['code'],
+): 'unauthorized' | 'reauthentication_required' | 'temporarily_unavailable' {
+  switch (code) {
+    case 'authorization_denied':
+    case 'authorization_changed':
+      return 'unauthorized'
+    case 'connection_unavailable':
+      return 'reauthentication_required'
+    case 'runtime_unavailable':
+      return 'temporarily_unavailable'
+  }
+}
+
+/**
  * Provider failures are classified, never collapsed. The adapter boundary has
  * already separated a permanent denial from a transient outage, so presenting an
  * expired credential or a refused account as "temporarily unavailable" would send
@@ -116,35 +138,6 @@ function providerDenialCode(error: unknown): GoogleImportDiscoveryErrorCode {
     case 'parse_error':
       return 'provider_unavailable'
   }
-}
-
-function sameAuthorization(
-  actual: ImportDiscoveryAuthorization,
-  expected: ImportDiscoveryAuthorization,
-): boolean {
-  const actualVector = JSON.stringify(
-    Object.fromEntries(
-      Object.entries(actual.authorizationVector).sort(([left], [right]) =>
-        left.localeCompare(right),
-      ),
-    ),
-  )
-  const expectedVector = JSON.stringify(
-    Object.fromEntries(
-      Object.entries(expected.authorizationVector).sort(([left], [right]) =>
-        left.localeCompare(right),
-      ),
-    ),
-  )
-  return (
-    actual.organizationId === expected.organizationId &&
-    actual.userId === expected.userId &&
-    actual.connectionId === expected.connectionId &&
-    actual.connectionLifecycleVersion === expected.connectionLifecycleVersion &&
-    actual.connectionAccessVersion === expected.connectionAccessVersion &&
-    actual.credentialGeneration === expected.credentialGeneration &&
-    actualVector === expectedVector
-  )
 }
 
 function unwrapReference<T>(
@@ -271,8 +264,11 @@ export function createGoogleImportDiscovery(
     }>,
   ) => {
     const result = await deps.authorizeGoogleImportCommand(input)
-    if (!result.ok) return deny('unauthorized')
-    if (input.expected && !sameAuthorization(result.authorization, input.expected)) {
+    if (!result.ok) return deny(authorizerDenialErrorCode(result.code))
+    if (
+      input.expected &&
+      !sameDiscoveryAuthorization(input.expected, result.authorization)
+    ) {
       return deny('unauthorized')
     }
     if (input.requireAccessToken && !result.accessToken) return deny('unauthorized')

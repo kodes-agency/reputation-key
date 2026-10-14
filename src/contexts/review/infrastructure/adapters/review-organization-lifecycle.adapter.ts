@@ -66,7 +66,9 @@ const propertyScope = (organizationId: string) => sql`(
  *
  * Child tables (source contents/observations, reply publication attempts,
  * Google reply observations and heads, snapshot members) are omitted: each one
- * hangs off a row already probed here.
+ * hangs off a row already probed here. The Property reply library is not one:
+ * it hangs off `properties` alone, so an Organization can hold it with no
+ * Review.
  */
 const PRESENCE_PROBE_TABLES = Object.freeze([
   'reviews',
@@ -77,6 +79,8 @@ const PRESENCE_PROBE_TABLES = Object.freeze([
   'review_provider_history_cutoffs',
   'review_ai_analysis_heads',
   'review_google_reputation_snapshot_facts',
+  'property_reply_profiles',
+  'property_reply_templates',
 ] as const)
 
 function phaseEvidenceRef(
@@ -468,6 +472,19 @@ async function purge(
         WHERE property_id IN (SELECT property_id FROM ${propertyScope(organizationId)} AS scope)`,
   )
 
+  // The Property's reply library: greeting, sign-offs, an escalation contact
+  // and template text a manager wrote. Nothing references the rows, and both
+  // tables RESTRICT the Property's own delete, so they have to go here for the
+  // Property phase to finish.
+  const replyTemplates = await countAffected(
+    tx,
+    sql`DELETE FROM property_reply_templates WHERE organization_id = ${organizationId}`,
+  )
+  const replyProfiles = await countAffected(
+    tx,
+    sql`DELETE FROM property_reply_profiles WHERE organization_id = ${organizationId}`,
+  )
+
   return outcomeFor(hasData, 'purge', request, [
     { step: 'attempt_confirmations_released', rows: releasedConfirmations },
     { step: 'reply_observation_heads_deleted', rows: observationHeads },
@@ -488,6 +505,8 @@ async function purge(
     { step: 'webhook_receipts_deleted', rows: webhookReceipts },
     { step: 'sync_runs_deleted', rows: syncRuns },
     { step: 'sync_state_deleted', rows: syncState },
+    { step: 'reply_templates_deleted', rows: replyTemplates },
+    { step: 'reply_profiles_deleted', rows: replyProfiles },
   ])
 }
 

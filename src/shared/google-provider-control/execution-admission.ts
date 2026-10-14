@@ -10,6 +10,14 @@ import {
   GOOGLE_PROVIDER_ROUTE_POLICIES,
 } from './route-catalogue'
 
+// NOT THE PRODUCTION ADMISSION. This is the in-memory execution admission the
+// control tests run against. Production admits through
+// `createGoogleExecutionAdmissionService` (`admission-service.ts`), whose permit
+// snapshot carries no capability, so `CAPABILITY_ROUTES` below is consulted by no
+// production path. The capability-to-route fence production has is the permit
+// start predicate in `start_google_execution_permit` (`db-constructs.sql`), and
+// docs/BETA.md says which capabilities it covers.
+
 const SHA256 = /^[a-f0-9]{64}$/
 const SAFE_ID = /^[A-Za-z0-9._:@/-]{1,255}$/
 const MAX_ADMISSION_BYTES = 8 * 1024 * 1024

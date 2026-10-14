@@ -155,11 +155,14 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
   },
 
   countTenantRows: async (tx, organizationId) => {
-    // The five roots of the plan: four tables, and media assets, which hang
-    // off `properties` and need no Portal or Brand Profile (a hero or logo
-    // upload needs only a Property). Every other Portal table is a foreign-key
-    // child of one of the four, so a non-zero count here is exactly "this
-    // Organization owns Portal-context rows".
+    // The roots of the plan: the tables a row can sit in with no other Portal
+    // row above it. Portals, groups, Brand Profiles, approved destinations and
+    // media assets hang off `properties` alone, and so do the Property's guest
+    // wording (written with or without a Portal or a Brand Profile) and the
+    // page-edit ledger (its Property-wide lines belong to no Portal, and an
+    // image upload needs only a Property). Every other table of the plan is a
+    // foreign-key child of one of these, so a non-zero count here is exactly
+    // "this Organization owns Portal-context rows".
     const result = await tx.execute(sql`
       SELECT
         (
@@ -175,12 +178,20 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
           WHERE ${propertyPortalBrandProfiles.organizationId} = ${organizationId}
         )
         + (
+          SELECT COUNT(*)::int FROM ${propertyPortalBrandContents}
+          WHERE ${propertyPortalBrandContents.organizationId} = ${organizationId}
+        )
+        + (
           SELECT COUNT(*)::int FROM ${portalApprovedDestinations}
           WHERE ${portalApprovedDestinations.organizationId} = ${organizationId}
         )
         + (
           SELECT COUNT(*)::int FROM ${portalMediaAssets}
           WHERE ${portalMediaAssets.organizationId} = ${organizationId}
+        )
+        + (
+          SELECT COUNT(*)::int FROM ${portalPageEdits}
+          WHERE ${portalPageEdits.organizationId} = ${organizationId}
         ) AS "rows"
     `)
     return count(result.rows[0], 'rows')

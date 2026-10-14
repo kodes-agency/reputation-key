@@ -111,7 +111,6 @@ function propertyDrift(
   property: PropertyAuthorizationView | null,
 ): Readonly<Record<string, unknown>> {
   return {
-    propertyId: expectedProperty.propertyId,
     expected: {
       sourceEpoch: expectedProperty.sourceEpoch,
       profileVersion: expectedProperty.profileVersion,
@@ -199,9 +198,10 @@ export function createGoogleImportCommandAuthorizer(
    * persisted outcome code cannot say which one fired — the note in the
    * property loop below records an investigation that lost its bearings to
    * exactly that ambiguity. Every site therefore names itself and logs the
-   * values that differed. Content-free by construction: identifiers, integer
-   * version counters, booleans, and `permissionDigest`, which is already a
-   * sha256.
+   * values that differed. Content-free by construction: integer version
+   * counters, booleans, and `permissionDigest`, which is already a sha256. No
+   * tenant identifier (BANNED_LOG_KEYS): the site names the check and the
+   * counters carry the drift.
    */
   const denyChanged = (fields: Readonly<Record<string, unknown>>): Denied => {
     warn(fields, 'google_import.authorization_changed_detail')
@@ -240,8 +240,6 @@ export function createGoogleImportCommandAuthorizer(
     if (input.expected && !sameExpectedConnection(connection, input.expected)) {
       return denyChanged({
         site,
-        organizationId: input.actor.organizationId,
-        connectionId: input.connectionId,
         expected: frozenCounters(input.expected),
         observed: observedCounters(connection),
       })
@@ -361,8 +359,6 @@ export function createGoogleImportCommandAuthorizer(
     ) {
       return denyChanged({
         site: 'connection_moved_during_token_access',
-        organizationId: input.actor.organizationId,
-        connectionId: input.connectionId,
         before: observedCounters(connectionBeforeTokenAccess),
         after: observedCounters(connection),
       })

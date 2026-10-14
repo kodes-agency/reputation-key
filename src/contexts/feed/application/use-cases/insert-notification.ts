@@ -508,11 +508,15 @@ const foldIntoWaitingRow = async (
     return null
   }
   const coalesced = applyCoalescence(existing, notification.payload, deps.clock())
-  // The bump only lands on a row that is still waiting. When a read, dismiss
-  // or settlement committed after the lookup, the event is not the user's old
-  // news: it falls through to a fresh unread row, whose upsert re-coalesces
-  // atomically if yet another waiting row appeared meanwhile.
-  if (!(await deps.notificationRepo.refreshUnread(coalesced))) return null
+  // The bump only lands on a row that is still waiting and still at the count
+  // the lookup saw. When a read, dismiss or settlement committed after the
+  // lookup, the event is not the user's old news; when another event bumped the
+  // row, writing this sum would drop that event. Either way it falls through to
+  // a fresh unread row, whose upsert re-coalesces atomically if yet another
+  // waiting row appeared meanwhile.
+  if (!(await deps.notificationRepo.refreshUnread(coalesced, existing.coalescedCount))) {
+    return null
+  }
   const mailsRepeat = channels.emailEnabled && isMandatoryRepeat(coalesced, input)
   if (mailsRepeat) {
     await enqueueEmailEntry(

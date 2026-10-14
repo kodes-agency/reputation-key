@@ -526,8 +526,16 @@ export const createNotificationRepository = (db: Database) => ({
   // and the latest-arrival stamp. `updatedAt` is the entity's, not `now()`, so
   // the row matches exactly what the use case returned to the caller. The
   // lookup took no lock, so the row may have been read, dismissed or settled
-  // since: the guard leaves such a row alone and reports the miss.
-  refreshUnread: async (notification: Notification): Promise<boolean> => {
+  // since, or bumped by another event: the status guard and the count the
+  // lookup saw (`seenCount`) leave such a row alone and report the miss. The
+  // count is a compare-and-set because the entity carries an absolute sum;
+  // writing it over another bump would drop that event from the row. The
+  // caller's fresh row then folds into the waiting one with the insert's own
+  // relative `coalesced_count + 1`.
+  refreshUnread: async (
+    notification: Notification,
+    seenCount: number,
+  ): Promise<boolean> => {
     const bumped = await db
       .update(notifications)
       .set({
@@ -543,6 +551,7 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.id, unbrand(notification.id)),
           eq(notifications.userId, unbrand(notification.userId)),
           eq(notifications.organizationId, unbrand(notification.organizationId)),
+          eq(notifications.coalescedCount, seenCount),
           stillWaiting,
         ),
       )

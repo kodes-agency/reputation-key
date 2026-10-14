@@ -44,6 +44,16 @@ export function providerAuthorizationVectorSha256(
  */
 export const PROVIDER_AUTHORIZATION_FENCE_EXCLUDED_KEY = 'credentialGeneration'
 
+export function providerAuthorizationVectorWithoutCredentialGeneration(
+  vector: Readonly<Record<string, ProviderAuthorizationVectorValue>>,
+): Readonly<Record<string, ProviderAuthorizationVectorValue>> {
+  return Object.fromEntries(
+    Object.entries(vector).filter(
+      ([key]) => key !== PROVIDER_AUTHORIZATION_FENCE_EXCLUDED_KEY,
+    ),
+  )
+}
+
 export function providerAuthorizationFenceSha256(
   input: Readonly<{
     connectionLifecycleVersion: number
@@ -51,10 +61,8 @@ export function providerAuthorizationFenceSha256(
     authorizationVector: Readonly<Record<string, ProviderAuthorizationVectorValue>>
   }>,
 ): string {
-  const fenced = Object.fromEntries(
-    Object.entries(input.authorizationVector).filter(
-      ([key]) => key !== PROVIDER_AUTHORIZATION_FENCE_EXCLUDED_KEY,
-    ),
+  const fenced = providerAuthorizationVectorWithoutCredentialGeneration(
+    input.authorizationVector,
   )
   return createHash('sha256')
     .update(

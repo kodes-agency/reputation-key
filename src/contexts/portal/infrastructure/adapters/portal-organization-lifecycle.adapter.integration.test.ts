@@ -303,6 +303,38 @@ async function seedMediaOnlyFixture(): Promise<Fixture> {
   }
 }
 
+/**
+ * A Property with only its Property-wide rows: the guest wording, or a line of
+ * the page-edit ledger that belongs to no Portal. Neither hangs off a Portal,
+ * a group, a Brand Profile, a destination or an image.
+ */
+async function seedPropertyWideOnlyFixture(rows: 'wording' | 'ledger'): Promise<Fixture> {
+  const fixture = await seedMediaOnlyFixture()
+  await lease.pool.query(`DELETE FROM portal_media_assets WHERE organization_id = $1`, [
+    fixture.organizationId,
+  ])
+  for (const key of storedKeys()) await objectStore.deleteObject(key)
+  if (rows === 'wording') {
+    await lease.pool.query(
+      `INSERT INTO property_portal_brand_contents (
+         id, organization_id, property_id, locale, title, short_description,
+         updated_by, created_at, updated_at
+       ) VALUES ($1, $2, $3, 'en', 'Harbour House', 'By the water', 'wording-actor',
+                 now(), now())`,
+      [randomUUID(), fixture.organizationId, fixture.propertyId],
+    )
+  } else {
+    await lease.pool.query(
+      `INSERT INTO portal_page_edits (
+         id, organization_id, property_id, portal_id, change_kind, change_key,
+         actor_user_id, occurred_at
+       ) VALUES ($1, $2, $3, NULL, 'property_brand_content', 'en', 'ledger-actor', now())`,
+      [randomUUID(), fixture.organizationId, fixture.propertyId],
+    )
+  }
+  return fixture
+}
+
 async function seedAuthority(
   fixture: Fixture,
   lineage: string,
@@ -607,6 +639,49 @@ describe.sequential('Portal Organization lifecycle contributor', () => {
         [fixture.organizationId],
       )
       expect(Number(left.rows[0]?.count)).toBe(0)
+      await expect(
+        lease.pool.query(`DELETE FROM properties WHERE organization_id = $1`, [
+          fixture.organizationId,
+        ]),
+      ).resolves.toBeDefined()
+    })
+  })
+
+  // The guest wording is written for a Property, with or without a Portal, and
+  // the ledger keeps a Property-wide line for it. Both RESTRICT the Property
+  // delete, so an Organization that has only these still owns Portal rows.
+  describe.each([
+    ['the Property’s guest wording', 'wording', 'property_portal_brand_contents'],
+    ['a Property-wide line of the page-edit ledger', 'ledger', 'portal_page_edits'],
+  ] as const)('an Organization whose only Portal rows are %s', (_name, rows, table) => {
+    it('reports complete, not no_data, on Closing', async () => {
+      const fixture = await seedPropertyWideOnlyFixture(rows)
+      const lineage = randomUUID()
+      const revision = await seedAuthority(fixture, lineage, 'closure_requested')
+
+      const result = await createPortalOrganizationLifecycleContributor(
+        db,
+        objectStore,
+      ).prepareClosing(input(fixture, lineage, revision))
+
+      expect(result.outcome).toBe('complete')
+    })
+
+    it('purges the rows, after which the Property can be deleted', async () => {
+      const fixture = await seedPropertyWideOnlyFixture(rows)
+      const lineage = randomUUID()
+      const revision = await seedAuthority(fixture, lineage, 'purging')
+
+      const purged = await createPortalOrganizationLifecycleContributor(
+        db,
+        objectStore,
+      ).purge(input(fixture, lineage, revision))
+
+      expect(purged).toEqual({
+        outcome: 'complete',
+        evidenceRef: `portal:purge:complete:${lineage}:r${revision}`,
+      })
+      expect((await counts(fixture.organizationId))[table]).toBe(0)
       await expect(
         lease.pool.query(`DELETE FROM properties WHERE organization_id = $1`, [
           fixture.organizationId,

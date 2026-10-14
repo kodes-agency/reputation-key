@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -376,6 +377,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
         retryRevision: 0,
         claimFence,
         attemptOrdinal: 1,
+        effectDeadlineAt: intent().items[0]!.effectDeadlineAt,
       },
     ])
 
@@ -1084,6 +1086,276 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       },
     })
   })
+  // The table forbids a scrubbed `temporarily_unavailable` row: the outcome
+  // means "the tenant may retry", so the retry state has to survive it. An item
+  // past its deadline cannot be retried at all, so it must end some other way.
+  // These run the real lifecycle sweep and claim reaper against the real table;
+  // the unit tests mock the store and cannot see the CHECK.
+  describe('an item the import cannot finish', () => {
+    const deadline = () => intent().items[0]!.effectDeadlineAt
+    const readItem = async () => {
+      const [row] = await db
+        .select()
+        .from(gbpImportRequestItems)
+        .where(eq(gbpImportRequestItems.id, ITEM_ID))
+      return row
+    }
+    const claimLastAttempt = async (at: Date) => {
+      for (let attemptOrdinal = 1; attemptOrdinal <= 5; attemptOrdinal++) {
+        const claimFence = `10000000-0000-4000-8000-0000000001${attemptOrdinal}0`
+        await store.claimItem({
+          organizationId: ORG_ID,
+          itemId: ITEM_ID,
+          retryRevision: 0,
+          attemptOrdinal,
+          claimFence,
+          now: at,
+          leaseExpiresAt: new Date(at.getTime() + 60_000),
+        })
+        if (attemptOrdinal < 5) {
+          await store.releaseClaimForRetry({
+            organizationId: ORG_ID,
+            itemId: ITEM_ID,
+            retryRevision: 0,
+            claimFence,
+            now: at,
+          })
+        }
+      }
+      return new Date(at.getTime() + 60_000)
+    }
+    const retry = (now: Date) =>
+      store.retryItem({
+        organizationId: ORG_ID,
+        initiatingUserId: USER_ID,
+        itemId: ITEM_ID,
+        retryRequestId: RETRY_REQUEST_ID,
+        expectedRetryRevision: 0,
+        requestDigest: { keyVersion: 'v1', digest: 'C'.repeat(43) },
+        now,
+        outboxEventId: RETRY_OUTBOX_ID,
+        matchesRequestDigest: matchesDigest({ keyVersion: 'v1', digest: 'C'.repeat(43) }),
+        authorize: async () => 'authorized' as const,
+      })
+
+    it('ends an item that outlived its deadline through the sweep, with nothing left to retry', async () => {
+      await resetIntent()
+      const lifecycle = createGoogleImportV2Lifecycle({
+        store,
+        propertyBindingApi: {
+          readReceipt: async () => null,
+          sweepReleasedExpired: async () => 0,
+          countUnreleasedExpired: async () => 0,
+          cleanupOrganization: async () => 0,
+        },
+        clock: deadline,
+        newEventId: () => randomUUID(),
+      })
+
+      await expect(lifecycle.sweep()).resolves.toMatchObject({
+        expiredItemsVisited: 1,
+        itemsTerminalized: 1,
+      })
+
+      await expect(readItem()).resolves.toMatchObject({
+        status: 'failed',
+        outcomeCode: 'internal_error',
+        connectionId: null,
+        providerAccountSuffix: null,
+        providerLocationSuffix: null,
+      })
+      await expect(retry(deadline())).resolves.toEqual({
+        kind: 'rejected',
+        reason: 'not_retryable',
+      })
+    })
+
+    it('keeps an item whose attempts ran out before its deadline retryable', async () => {
+      await resetIntent()
+      const leaseExpiresAt = await claimLastAttempt(NOW)
+
+      const reaped = await createGoogleImportV2ClaimReaper({
+        store,
+        clock: () => leaseExpiresAt,
+      })()
+
+      expect(reaped).toMatchObject({ itemsTerminalized: 1, claimsLost: 0 })
+      await expect(readItem()).resolves.toMatchObject({
+        status: 'failed',
+        outcomeCode: 'temporarily_unavailable',
+        connectionId: CONNECTION_ID,
+        providerAccountSuffix: 'account-1',
+        providerLocationSuffix: 'location-1',
+      })
+      await expect(retry(leaseExpiresAt)).resolves.toEqual({
+        kind: 'accepted',
+        importJobId: REQUEST_ID,
+        retryRevision: 1,
+      })
+    })
+
+    // A cancel that lands while the effect is in flight scrubs the item's
+    // destination before the effect's receipt is read back. The receipt is the
+    // proof the Property exists, so it must win over the cancel.
+    it('adopts the receipt of an effect that committed after a cancel scrubbed the item', async () => {
+      await resetIntent()
+      await expect(
+        store.terminalizeItem({
+          organizationId: ORG_ID,
+          itemId: ITEM_ID,
+          retryRevision: 0,
+          outcomeCode: 'user_cancelled',
+          retainRetryState: false,
+          now: NOW,
+        }),
+      ).resolves.toBe('completed')
+      await expect(readItem()).resolves.toMatchObject({
+        status: 'cancelled',
+        destinationPropertyId: null,
+      })
+
+      await expect(
+        store.reconcileFromReceipt({
+          organizationId: ORG_ID,
+          itemId: ITEM_ID,
+          destinationPropertyId: PROPERTY_ID,
+          outcomeCode: 'imported',
+          now: NOW,
+        }),
+      ).resolves.toBe('completed')
+
+      await expect(readItem()).resolves.toMatchObject({
+        status: 'imported',
+        outcomeCode: 'imported',
+        destinationPropertyId: PROPERTY_ID,
+      })
+    })
+
+    // The same row shape reached another way: its Property was deleted and the
+    // deletion sweep cleared the reference. That item is not a cancelled one.
+    it('does not give a deleted Property back to an imported item whose reference was cleared', async () => {
+      await resetIntent()
+      await store.reconcileFromReceipt({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        destinationPropertyId: PROPERTY_ID,
+        outcomeCode: 'imported',
+        now: NOW,
+      })
+      await store.scrubLifecycleItems({
+        organizationId: ORG_ID,
+        itemIds: [ITEM_ID],
+        now: NOW,
+      })
+
+      await expect(
+        store.reconcileFromReceipt({
+          organizationId: ORG_ID,
+          itemId: ITEM_ID,
+          destinationPropertyId: PROPERTY_ID,
+          outcomeCode: 'imported',
+          now: NOW,
+        }),
+      ).resolves.toBe('lost')
+
+      await expect(readItem()).resolves.toMatchObject({
+        status: 'imported',
+        destinationPropertyId: null,
+      })
+    })
+
+    it('still refuses a receipt that names a different Property than the item holds', async () => {
+      await resetIntent()
+
+      await expect(
+        store.reconcileFromReceipt({
+          organizationId: ORG_ID,
+          itemId: ITEM_ID,
+          destinationPropertyId: '10000000-0000-4000-8000-0000000000ff',
+          outcomeCode: 'imported',
+          now: NOW,
+        }),
+      ).resolves.toBe('lost')
+
+      await expect(readItem()).resolves.toMatchObject({
+        status: 'pending',
+        destinationPropertyId: PROPERTY_ID,
+      })
+    })
+
+    // The same defect from the other write: a caller that asks for a scrubbed
+    // `temporarily_unavailable` is told so before the transaction, not by a CHECK
+    // violation that aborts a whole sweep or reaper pass.
+    it('refuses to scrub a retryable failure or to keep the state of a final one', async () => {
+      await resetIntent()
+      const claimFence = '10000000-0000-4000-8000-0000000001a0'
+      await store.claimItem({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        attemptOrdinal: 1,
+        claimFence,
+        now: NOW,
+        leaseExpiresAt: new Date(NOW.getTime() + 60_000),
+      })
+      const settle = {
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        now: NOW,
+      }
+
+      await expect(
+        store.terminalizeItem({
+          ...settle,
+          outcomeCode: 'temporarily_unavailable',
+          retainRetryState: false,
+        }),
+      ).rejects.toThrow('protected google import state must survive retryable failure')
+      await expect(
+        store.completeClaim({
+          ...settle,
+          claimFence,
+          outcomeCode: 'temporarily_unavailable',
+          retainRetryState: false,
+        }),
+      ).rejects.toThrow('protected google import state must survive retryable failure')
+      await expect(
+        store.completeClaim({
+          ...settle,
+          claimFence,
+          outcomeCode: 'internal_error',
+          retainRetryState: true,
+        }),
+      ).rejects.toThrow(
+        'protected google import state may only survive retryable failure',
+      )
+      await expect(readItem()).resolves.toMatchObject({
+        status: 'processing',
+        connectionId: CONNECTION_ID,
+      })
+    })
+
+    it('ends an item whose attempts ran out past its deadline without offering a retry', async () => {
+      await resetIntent()
+      const claimedAt = new Date(deadline().getTime() - 30_000)
+      const leaseExpiresAt = await claimLastAttempt(claimedAt)
+
+      const reaped = await createGoogleImportV2ClaimReaper({
+        store,
+        clock: () => leaseExpiresAt,
+      })()
+
+      expect(reaped).toMatchObject({ itemsTerminalized: 1, claimsLost: 0 })
+      await expect(readItem()).resolves.toMatchObject({
+        status: 'failed',
+        outcomeCode: 'internal_error',
+        connectionId: null,
+        providerAccountSuffix: null,
+      })
+    })
+  })
+
   describe('who asked for a Property to be imported', () => {
     it('names the initiator of the import that produced the Property', async () => {
       await resetIntent()

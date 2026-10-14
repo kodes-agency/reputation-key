@@ -23,6 +23,7 @@ function staleClaim(
     retryRevision: 2,
     claimFence: FENCE_A,
     attemptOrdinal: 1,
+    effectDeadlineAt: new Date(NOW.getTime() + 60 * 60 * 1_000),
     ...over,
   }
 }
@@ -87,7 +88,9 @@ describe('GoogleImportV2ClaimReaper', () => {
   // Releasing an item with no attempt left would park it 'pending' forever,
   // so the budget-spent case terminalizes instead — with the RETRYABLE
   // outcome, because the work never proved impossible: its owner vanished.
-  it('terminalizes temporarily_unavailable once the attempt budget is spent', async () => {
+  // That outcome promises a retry, so the item keeps the state a retry needs
+  // (the items table refuses the outcome without it).
+  it('terminalizes temporarily_unavailable once the attempt budget is spent, keeping its retry state', async () => {
     const harness = setup([
       staleClaim({
         itemId: EXHAUSTED_ITEM_ID,
@@ -109,6 +112,31 @@ describe('GoogleImportV2ClaimReaper', () => {
       itemId: EXHAUSTED_ITEM_ID,
       retryRevision: 3,
       outcomeCode: 'temporarily_unavailable',
+      retainRetryState: true,
+      now: NOW,
+    })
+  })
+
+  // A retry is refused past the effect deadline, and the items table refuses a
+  // scrubbed `temporarily_unavailable` row, so the exhausted item ends as a
+  // plain failure there instead of wedging the reaper on the table's CHECK.
+  it('ends an item whose attempts ran out past its effect deadline as a scrubbed internal_error', async () => {
+    const harness = setup([
+      staleClaim({
+        itemId: EXHAUSTED_ITEM_ID,
+        retryRevision: 3,
+        attemptOrdinal: GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
+        effectDeadlineAt: new Date(NOW.getTime() - 1),
+      }),
+    ])
+
+    await harness.reap()
+
+    expect(harness.terminalizeItem).toHaveBeenCalledExactlyOnceWith({
+      organizationId: ORG_ID,
+      itemId: EXHAUSTED_ITEM_ID,
+      retryRevision: 3,
+      outcomeCode: 'internal_error',
       retainRetryState: false,
       now: NOW,
     })
