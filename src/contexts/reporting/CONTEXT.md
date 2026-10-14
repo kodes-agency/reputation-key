@@ -36,6 +36,25 @@ metric authority.
   changed it when it is no longer the one the month started with. It is never a result: it evaluates nothing, is never stored, and an
   average under the metric's minimum sample or a reading that cannot be trusted is shown as
   such, never as a zero.
+- **Goals list progress**: the month so far of every active goal of a Property, read in one
+  request for the Goals list (`getGoalListProgress`, `createGoalListProgressReader`): one Program
+  list read, then each goal through the same `progressOf` as its own page. One subject gets its
+  figure against the running month's target and the days left; several subjects on a count get how
+  many are below pace; an average with several subjects, or more subjects than a goal's page
+  reads, gets the count of subjects alone. A scheduled, paused or ended goal has no line. The
+  governed metric read has no set-based form, so a page is bounded instead: at most 60 figures,
+  six in flight, and the goals past that carry no line.
+- **Goal pace** (`domain/goal-pace.ts`): how far a count goal's running month should have got. A
+  count measure expects the month's target times the share of the month gone, in whole
+  Property-local calendar days with today included (the Results window's convention). It is
+  behind pace below 90% of that, and exactly 90% is on pace. The first three days of a month are
+  not judged, and an average has no pace. One rule feeds the Goals list ("N below pace"), the
+  Overview chip and the Properties list. The chip and the list count the figure from the readings
+  of every running month of an active count goal in one statement
+  (`infrastructure/adapters/goal-running-months.ts`), because a month still running stores no
+  value: its result row stays `updating` until it closes. That read sums what the goal's own page
+  sums but not the outbox completeness proof, and a month with a reading the governed read would
+  quarantine has no figure and is not counted. A goal counts once however many subjects are behind.
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
   one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
   rows). It is authorised once and its start month is resolved once, so every goal of a save

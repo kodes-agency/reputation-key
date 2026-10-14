@@ -9,7 +9,7 @@ export type AttentionCounts = Readonly<{
   itemsToTriage: number
   escalated: number
   goalsBehindPace: number
-  /** Distinct Inbox-source and Goal anchors. */
+  /** Distinct Inbox-source anchors plus goals behind pace. */
   attentionWork: number
 }>
 

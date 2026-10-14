@@ -625,7 +625,7 @@ The slice was replayed on main with Slice 4 (#774) on 2026-10-12. Seven files co
 
 ## Out of scope, noted
 
-- The "behind pace" signal cannot fire: open rows are inserted as `updating` and nothing produces an open and eligible row. Only its target expression is touched.
+- The "behind pace" signal cannot fire: open rows are inserted as `updating` and nothing produces an open and eligible row. Only its target expression is touched. (Fixed on 2026-10-14, after this plan: the signal counts the live month to date from the readings, `domain/goal-pace.ts` and `infrastructure/adapters/goal-running-months.ts`; the target is still read as `coalesce(month, version)`.)
 - Resume after a pause back-fills missed months against the version target. Unchanged.
 - Changing the start month of a never-started goal by editing (decision d′).
 

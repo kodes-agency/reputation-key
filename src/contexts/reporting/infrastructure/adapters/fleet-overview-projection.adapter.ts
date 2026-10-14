@@ -17,7 +17,9 @@ import type {
 import { FLEET_PAGE_SIZE } from '../../application/ports/fleet-overview-projection.port'
 import { RATING_DROP_THRESHOLD } from '../../application/utils'
 import { MIN_RATING_COMPARISON_SAMPLE } from '../../domain/portal-results-thresholds'
+import { goalsBehindPaceByProperty } from '../../domain/goal-pace'
 import { DASHBOARD_READ_BUDGET_MS, withStatementTimeout } from '../read-facade'
+import { readRunningCountMonths } from './goal-running-months'
 
 const FRESHNESS_WINDOW_MS = 48 * 60 * 60 * 1_000
 type FleetMetricPolicy = Readonly<{
@@ -102,7 +104,6 @@ type MainRow = Readonly<{
   feedback_source_policies: readonly string[] | null
   items_to_triage: string | number | null
   escalated: string | number | null
-  goals_behind_pace: string | number | null
   needs_attention: string | number | null
   total_attention_work: string | number
 }>
@@ -182,9 +183,8 @@ export const createFleetOverviewProjectionAdapter = (
     // Read capabilities are organization-wide, so they stay statement constants
     // rather than a per-Property CTE the statement would have to join.
     const portalEnabled = sql`${input.portalReadEnabled}::boolean`
-    const goalEnabled = sql`${input.goalReadEnabled}::boolean`
 
-    const mainResult = await withStatementTimeout(
+    const { mainResult, goalMonths } = await withStatementTimeout(
       db,
       DASHBOARD_READ_BUDGET_MS,
       async (tx) => {
@@ -489,67 +489,12 @@ export const createFleetOverviewProjectionAdapter = (
               ) AS escalated
             FROM inbox_attention_items
             GROUP BY inbox_attention_items.property_id
-          ), goal_attention_items AS MATERIALIZED (
-            SELECT goal_monthly_results.property_id,
-              goal_monthly_results.id AS goal_result_id
-            FROM goal_monthly_results
-            JOIN goal_programs
-              ON goal_programs.organization_id = goal_monthly_results.organization_id
-              AND goal_programs.property_id = goal_monthly_results.property_id
-              AND goal_programs.id = goal_monthly_results.program_id
-            JOIN goal_program_versions
-              ON goal_program_versions.organization_id = goal_monthly_results.organization_id
-              AND goal_program_versions.property_id = goal_monthly_results.property_id
-              AND goal_program_versions.program_id = goal_monthly_results.program_id
-              AND goal_program_versions.id = goal_monthly_results.program_version_id
-            WHERE ${goalEnabled}
-              AND goal_monthly_results.organization_id = ${input.organizationId}
-              AND goal_monthly_results.property_id IN (
-                SELECT property_id FROM scoped
-              )
-              AND goal_programs.status = 'active'
-              AND goal_monthly_results.status = 'open'
-              AND goal_monthly_results.period_start <= ${input.now}
-              AND goal_monthly_results.period_end > ${input.now}
-              AND goal_monthly_results.evaluation_state = 'eligible'
-              AND goal_program_versions.metric_key IN (
-                'qualified_scans',
-                'portal_rating_count'
-              )
-              AND goal_monthly_results.value <
-                coalesce(
-                  goal_monthly_results.target_value,
-                  goal_program_versions.target_value
-                )
-                * greatest(
-                  0,
-                  least(
-                    1,
-                    extract(epoch FROM (
-                      ${input.now} - goal_monthly_results.period_start
-                    ))
-                      / nullif(
-                          extract(epoch FROM (
-                            goal_monthly_results.period_end
-                            - goal_monthly_results.period_start
-                          )),
-                          0
-                        )
-                  )
-                )
-          ), goal_attention AS MATERIALIZED (
-            SELECT property_id, count(*) AS goals_behind_pace
-            FROM goal_attention_items
-            GROUP BY property_id
           ), attention_work AS MATERIALIZED (
             SELECT property_id, count(*) AS needs_attention
             FROM (
               SELECT property_id, source_type::text || ':' || source_id::text
                 AS work_key
               FROM inbox_attention_items
-              UNION
-              SELECT property_id, 'goal-result:' || goal_result_id::text AS work_key
-              FROM goal_attention_items
             ) work
             GROUP BY property_id
           ), totals AS MATERIALIZED (
@@ -588,7 +533,6 @@ export const createFleetOverviewProjectionAdapter = (
             page.feedback_source_policies,
             coalesce(inbox_attention.items_to_triage, 0) AS items_to_triage,
             coalesce(inbox_attention.escalated, 0) AS escalated,
-            coalesce(goal_attention.goals_behind_pace, 0) AS goals_behind_pace,
             coalesce(attention_work.needs_attention, 0) AS needs_attention,
             totals.total_attention_work,
             summary.property_count,
@@ -600,12 +544,32 @@ export const createFleetOverviewProjectionAdapter = (
           CROSS JOIN totals
           LEFT JOIN page ON true
           LEFT JOIN inbox_attention USING (property_id)
-          LEFT JOIN goal_attention USING (property_id)
           LEFT JOIN attention_work USING (property_id)
           ORDER BY lower(page.name), page.property_id
         `)
-        return mainResult
+        // Goals behind pace are counted for every Property in scope, not only
+        // the page, because the total below sums them all. A capability the
+        // reader lacks reads no goal.
+        const goalMonths = input.goalReadEnabled
+          ? await readRunningCountMonths(tx, {
+              organizationId: input.organizationId,
+              properties: sql`results.property_id IN (
+                SELECT properties.id FROM properties
+                WHERE properties.organization_id = ${input.organizationId}
+                  AND properties.deleted_at IS NULL
+                  AND properties.lifecycle_state IN ('active', 'suspended')
+                  AND ${accessFilter}
+              )`,
+              now: input.now,
+            })
+          : []
+        return { mainResult, goalMonths }
       },
+    )
+    const goalsBehindPace = goalsBehindPaceByProperty(goalMonths, input.now)
+    const allGoalsBehindPace = [...goalsBehindPace.values()].reduce(
+      (total, count) => total + count,
+      0,
     )
 
     const main = mainResult.rows as unknown as readonly MainRow[]
@@ -645,8 +609,9 @@ export const createFleetOverviewProjectionAdapter = (
         overdue: 0,
         itemsToTriage: numeric(row.items_to_triage),
         escalated: numeric(row.escalated),
-        goalsBehindPace: numeric(row.goals_behind_pace),
-        needsAttention: numeric(row.needs_attention),
+        goalsBehindPace: goalsBehindPace.get(row.property_id) ?? 0,
+        needsAttention:
+          numeric(row.needs_attention) + (goalsBehindPace.get(row.property_id) ?? 0),
         reviewEvidence: evidence({
           definitionVersionId: METRIC_VERSION_IDS.propertyReviewDashboard,
           periodStart,
@@ -692,7 +657,9 @@ export const createFleetOverviewProjectionAdapter = (
 
     const propertyCount = numeric(head?.property_count)
     const totalAttention =
-      numeric(head?.total_attention_work) + numeric(head?.rating_drop_total)
+      numeric(head?.total_attention_work) +
+      allGoalsBehindPace +
+      numeric(head?.rating_drop_total)
     const last = page.at(-1)
     const nextAnchor =
       head?.has_more === true && last

@@ -133,7 +133,13 @@ const figures = (
 const comparison: ReadonlyMap<string, PropertyComparison> = new Map([
   [
     'prop-elegance',
-    figures(3.9, 260, { total: 7, overdue: 3, itemsToTriage: 6, escalated: 1 }),
+    figures(3.9, 260, {
+      total: 8,
+      overdue: 3,
+      itemsToTriage: 6,
+      escalated: 1,
+      goalsBehindPace: 1,
+    }),
   ],
   ['prop-harborline', figures(4.3, 412, { total: 4, itemsToTriage: 4 })],
   ['prop-kodes', figures(5, 20, { total: 1, itemsToTriage: 1 })],
@@ -197,7 +203,7 @@ export const Default: Story = {
     // The count opens the queue that holds it; overdue is its qualifier, not a part.
     expect(
       canvas.getByRole('link', {
-        name: '7 need attention at Hotel Elegance: 3 overdue, 1 escalated',
+        name: '8 need attention at Hotel Elegance: 3 overdue, 1 escalated, 1 goal behind pace',
       }),
     ).toHaveAttribute('href', '/properties/prop-elegance/reviews?queue=open')
     expect(
@@ -304,7 +310,7 @@ export const ShowNeedsAttention: Story = {
     const canvas = within(canvasElement)
     const strip = within(canvas.getByLabelText('Portfolio summary'))
 
-    await userEvent.click(strip.getByRole('button', { name: /12\s*in 3 properties/ }))
+    await userEvent.click(strip.getByRole('button', { name: /13\s*in 3 properties/ }))
     expect(bodyRows(canvas)).toHaveLength(3)
     expect(canvas.getByText('3 of 6')).toBeVisible()
     expect(canvas.getByRole('button', { name: 'Show: Needs attention' })).toBeVisible()
