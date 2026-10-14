@@ -488,6 +488,35 @@ export const COUNT_LEAD_WORDS: readonly string[] = Object.freeze([
   'your',
 ])
 
+/**
+ * Words that introduce an address: `We stayed at 12 love place`. A number after
+ * one of them is a house number, so the everyday words a lower-case name holds
+ * (`love`, `star`, `mile`, `way`) are the name of a street and not the praise or
+ * the count they are in prose (`a 5 star place`). The same holds for a number
+ * within three words of a label (`The hotel address is 19 six mile place`).
+ * `to` and `from` are left out: `taxi to 12 mile drive area` is prose.
+ */
+export const ADDRESS_LEAD_WORDS: readonly string[] = Object.freeze(['at'])
+export const ADDRESS_LABEL_WORDS: readonly string[] = Object.freeze([
+  'addr',
+  'address',
+  'addresses',
+  'adress',
+])
+
+/**
+ * Prepositions inside a place's name, between two of its words: `Henley on
+ * Thames Road`, `Sutton in Ashfield Road`, `Stratford upon Avon Way`. No other
+ * word of the strong glue list is part of a street's name.
+ */
+export const NAME_PREPOSITION_WORDS: readonly string[] = Object.freeze([
+  'at',
+  'by',
+  'in',
+  'on',
+  'upon',
+])
+
 /** House numbers a guest writes out, for `Twelve Oak Road`. */
 export const NUMBER_WORDS: readonly string[] = Object.freeze([
   'one',
@@ -536,3 +565,6 @@ export const DETERMINERS: ReadonlySet<string> = new Set(DETERMINER_WORDS)
 export const RATING_LEADS: ReadonlySet<string> = new Set(RATING_LEAD_WORDS)
 export const COUNT_LEADS: ReadonlySet<string> = new Set(COUNT_LEAD_WORDS)
 export const ABBREVIATIONS: ReadonlySet<string> = new Set(LOWER_CASE_ABBREVIATIONS)
+export const ADDRESS_LEADS: ReadonlySet<string> = new Set(ADDRESS_LEAD_WORDS)
+export const ADDRESS_LABELS: ReadonlySet<string> = new Set(ADDRESS_LABEL_WORDS)
+export const NAME_PREPOSITIONS: ReadonlySet<string> = new Set(NAME_PREPOSITION_WORDS)

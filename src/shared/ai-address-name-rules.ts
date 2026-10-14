@@ -2,18 +2,28 @@
 //
 // `ai-address-markers.ts` finds the shapes (`12 Oak Road`, `Main Street 25`,
 // `8 Place de la Concorde`) with patterns; this module decides, from the words
-// between the house number and the street-type word, whether they read as a
-// street's name or as prose (`2 weeks here and it was a wonderful place`).
+// between the house number and the street-type word and from the word in front
+// of the number, whether they read as a street's name or as prose (`2 weeks
+// here and it was a wonderful place`).
 //
-// - A name that holds a word no street is named after (`was`, `to`, `nights`),
-//   or follows an article (`a 5 Star Place`), is a clause, in any case.
-// - A capitalised name (`Mile End`, `Love`, `Golf Course`, `All Saints`) is
-//   otherwise a street: capital letters are the evidence, and an address sent to
-//   the provider costs more than a few words of praise replaced.
+// - A name that holds a word no street is named after (`was`, `to`), a sentence
+//   stop, or a counted unit that a clause can carry, is a clause of the review.
+// - A capitalised name (`Mile End`, `Love`, `Golf Course`, `All Saints`, `Miles`,
+//   `Weeks Mill`, `Henley on Thames`) is otherwise a street: capital letters are
+//   the evidence, and an address sent to the provider costs more than a few
+//   words of praise replaced. A counted unit in a capitalised name rules it out
+//   only before a street word that is an everyday word (`2 Minutes Drive`) or
+//   when a word of place or time follows it (`5 Nights Near Main Street`).
 // - A name typed in lower case is a street only when it holds none of the words
 //   that are also everyday English (`down`, `this`, `star`, `great`) and, before
 //   the street words that are everyday words themselves (`lane`, `drive`, `way`,
-//   `court`, `place`), no counted unit and no praise.
+//   `court`, `place`), no counted unit and no praise. After a word that
+//   introduces an address (`at`, `to`, `from`, `address`) those everyday words
+//   are a street's name (`We stayed at 12 love place`): what no street is named
+//   after (function words, spans of time) still rules the name out.
+// - A number after an article or a possessive (`a`, `the`, `our`) is a count only
+//   when the name carries one (`a 5 Star Place`, `a 2 Bedroom Place`); `Flat A 12
+//   Oak Road` and `the 5 Park Lane` are addresses.
 
 import {
   ABBREVIATIONS,
@@ -24,6 +34,7 @@ import {
   EVALUATIVES,
   LONE_NAMES,
   NAME_CONNECTOR_WORDS,
+  NAME_PREPOSITIONS,
   PLACE_PREPOSITIONS,
   QUANTITIES,
   SOFT_UNITS,
@@ -34,6 +45,8 @@ import {
 } from './ai-address-words'
 
 const MAX_PLAIN_NAME_WORDS = 6
+/** After `at`, a name of more words than this is read as a sentence, not as a street. */
+const MAX_ADDRESS_LEAD_NAME_WORDS = 3
 
 /** A capitalised word, an abbreviation like `St.` or `Jr.`, or an ordinal. */
 const NAME_WORD_RE =
@@ -68,10 +81,17 @@ export type NameShape = Readonly<{
   numberFirst: boolean
 }>
 
-/** Whether the number reads as a rating (`10/10`, `Top 10`) or as a count (`a 5`). */
-export type NumberLead = Readonly<{ rating: boolean; count: boolean }>
+/**
+ * What stands in front of the house number: a rating (`10/10`, `Top 10`), a
+ * count (`a 5`), or a word that introduces an address (`at 12`, `address is 12`).
+ */
+export type NumberLead = Readonly<{
+  rating: boolean
+  count: boolean
+  address: boolean
+}>
 
-export const NO_LEAD: NumberLead = { rating: false, count: false }
+export const NO_LEAD: NumberLead = { rating: false, count: false, address: false }
 
 function bareOf(word: string): string {
   return word.toLowerCase().replace(/\.$/u, '')
@@ -107,12 +127,14 @@ function isNamedRun(words: readonly string[]): boolean {
 
 /**
  * A name of nothing but particles is no name (`10 the place`), except `the`
- * before a street word that is rarely anything else: `10 the avenue`.
+ * before a street word that is rarely anything else (`10 the avenue`) and after
+ * a word that introduces an address (`at 12 the drive`, a street in many towns).
  */
 function hasNoContentWord(shape: NameShape, bare: readonly string[]): boolean {
   if (bare.some((word) => !CONNECTORS.has(word))) return false
   const lone = bare.length === 1 && bare[0] === 'the'
-  return !(lone && !CLAUSE_TYPES.has(shape.type.toLowerCase()))
+  const clauseType = CLAUSE_TYPES.has(shape.type.toLowerCase())
+  return !(lone && (shape.lead.address || !clauseType))
 }
 
 /**
@@ -151,12 +173,44 @@ function connectorMisplaced(bare: readonly string[]): boolean {
   })
 }
 
+/**
+ * Words no street is named after: the glue of a sentence (`was`, `to`, `we`),
+ * and the pronoun `I` (`305 I loved the place`; a last `I` is a Roman numeral,
+ * `Knyaz Boris I Street`). A preposition between two words of a name is a
+ * place's own (`Henley on Thames`) when the name is a proper one or follows a
+ * word that introduces an address.
+ */
+function sentenceWordRejected(
+  bare: readonly string[],
+  prepositionsAllowed: boolean,
+): boolean {
+  return bare.some((word, index) => {
+    if (!STRONG_GLUE.has(word)) return false
+    if (word === 'i') return index !== bare.length - 1
+    const between = index > 0 && index < bare.length - 1
+    return !(prepositionsAllowed && between && NAME_PREPOSITIONS.has(word))
+  })
+}
+
+/** A span of time in the name: no lower-case street is named after one. */
+function timeUnitRejected(bare: readonly string[]): boolean {
+  return bare.some((word) => TIME_UNITS.has(word))
+}
+
 /** A name typed in lower case (or in a mix): judged by its words. */
 function plainNameRejected(shape: NameShape, bare: readonly string[]): boolean {
-  return (
+  const atAddress = shape.lead.address
+  if (
     bare.length > MAX_PLAIN_NAME_WORDS ||
     hasNoContentWord(shape, bare) ||
     connectorMisplaced(bare) ||
+    timeUnitRejected(bare) ||
+    sentenceWordRejected(bare, atAddress)
+  ) {
+    return true
+  }
+  if (atAddress && bare.length <= MAX_ADDRESS_LEAD_NAME_WORDS) return false
+  return (
     bare.some((word) => QUANTITIES.has(word)) ||
     weakGlueRejected(shape, bare) ||
     everydayTypeRejected(shape, bare)
@@ -189,15 +243,43 @@ function praiseOfPlaceRejected(shape: NameShape, bare: readonly string[]): boole
   )
 }
 
+function isCounted(word: string): boolean {
+  return QUANTITIES.has(word) || TIME_UNITS.has(word)
+}
+
 /**
- * Words no street's name contains, and the pronoun `I`: `305 I loved the place`.
- * A last `I` is a Roman numeral (`Knyaz Boris I Street`, `I Street`).
+ * A counted unit in a capitalised name is a street's own (`12 Miles Avenue`,
+ * `40 Weeks Street`, `34 Weeks Mill Drive`) unless the name is a title-case
+ * clause: before a drive, a way or a place (`2 Minutes Drive`) that no address
+ * introduces, or with a word of place or time after the unit (`5 Nights Near
+ * Main Street`, `3 Weeks In`).
  */
-function sentenceWordRejected(bare: readonly string[]): boolean {
+function namedUnitRejected(shape: NameShape, bare: readonly string[]): boolean {
+  const everyday = CLAUSE_TYPES.has(shape.type.toLowerCase()) && !shape.lead.address
+  if (everyday && (QUANTITIES.has(bare[0] ?? '') || timeUnitRejected(bare))) return true
+  return bare.some((word, index) => {
+    const next = bare[index + 1] ?? ''
+    return isCounted(word) && (PLACE_PREPOSITIONS.has(next) || STRONG_GLUE.has(next))
+  })
+}
+
+function namedRejected(shape: NameShape, bare: readonly string[]): boolean {
+  return (
+    clausePhraseRejected(shape, bare) ||
+    praiseOfPlaceRejected(shape, bare) ||
+    namedUnitRejected(shape, bare) ||
+    sentenceWordRejected(bare, true)
+  )
+}
+
+/**
+ * Whether a name carries what a count needs: a unit, a span of time, praise. A
+ * number after an article is a house number when it has none (`Flat A 12 Oak
+ * Road`, `the 5 Park Lane`), a count when it has one (`a 5 Star Place`).
+ */
+function carriesCount(bare: readonly string[]): boolean {
   return bare.some(
-    (word, index) =>
-      TIME_UNITS.has(word) ||
-      (STRONG_GLUE.has(word) && !(word === 'i' && index === bare.length - 1)),
+    (word) => isCounted(word) || SOFT_UNITS.has(word) || EVALUATIVES.has(word),
   )
 }
 
@@ -205,11 +287,8 @@ function sentenceWordRejected(bare: readonly string[]): boolean {
 export function rejectsName(shape: NameShape): boolean {
   const bare = shape.words.map(bareOf)
   if (shape.words.some(endsSentence)) return true
-  if (QUANTITIES.has(bare[0] ?? '') || sentenceWordRejected(bare)) return true
-  if (shape.lead.count) return true
-  if (shape.named)
-    return clausePhraseRejected(shape, bare) || praiseOfPlaceRejected(shape, bare)
-  return plainNameRejected(shape, bare)
+  if (shape.lead.count && carriesCount(bare)) return true
+  return shape.named ? namedRejected(shape, bare) : plainNameRejected(shape, bare)
 }
 
 export function shapeOf(
@@ -237,4 +316,6 @@ export const ADDRESS_NAME_RULE_PROFILE = Object.freeze({
   openStreetTypes: Object.freeze([...OPEN_STREET_TYPES].sort()),
   plainConnectors: Object.freeze([...PLAIN_CONNECTORS].sort()),
   maxPlainNameWords: MAX_PLAIN_NAME_WORDS,
+  maxAddressLeadNameWords: MAX_ADDRESS_LEAD_NAME_WORDS,
+  namePrepositions: Object.freeze([...NAME_PREPOSITIONS].sort()),
 })

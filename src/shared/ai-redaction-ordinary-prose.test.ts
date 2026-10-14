@@ -333,26 +333,6 @@ const NOT_DETECTED_ADDRESSES: ReadonlyArray<readonly [string, string, string]> =
     'We met at main street 25 near the station.',
     'US',
   ],
-  [
-    'a lower-case name holding all',
-    'The villa is at 12 all saints road near the pier.',
-    'US',
-  ],
-  [
-    'a lower-case name holding under',
-    'The villa is at 12 under hill street near the pier.',
-    'US',
-  ],
-  [
-    'a lower-case name that is a count before a drive',
-    'The villa is at 12 star drive near the pier.',
-    'US',
-  ],
-  [
-    'a lower-case name that is praise before a place',
-    'The villa is at 12 love place near the pier.',
-    'US',
-  ],
 ]
 
 describe('redaction does not take these address shapes (known gaps)', () => {

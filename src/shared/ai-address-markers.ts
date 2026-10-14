@@ -43,6 +43,10 @@
 // particle (`10 place to stay`, which is prose).
 
 import {
+  ADDRESS_LABEL_WORDS,
+  ADDRESS_LABELS,
+  ADDRESS_LEAD_WORDS,
+  ADDRESS_LEADS,
   CONNECTORS,
   EVALUATIVE_WORDS,
   CLAUSE_STREET_TYPES,
@@ -54,6 +58,7 @@ import {
   UNIT_STREET_TYPES,
   LOWER_CASE_ABBREVIATIONS,
   NAME_CONNECTOR_WORDS,
+  NAME_PREPOSITION_WORDS,
   NUMBER_WORDS,
   PLACE_PREPOSITION_WORDS,
   QUANTITIES,
@@ -90,6 +95,8 @@ const MAX_NUMBER_LAST_NAME_WORDS = 4
 const NUMBER_LAST_LOOKBEHIND_SCALARS = 96
 const NUMBER_FIRST_LOOKBEHIND_SCALARS = 24
 const NUMBER_FOLLOWER_LOOKAHEAD_SCALARS = 24
+const LEAD_LOOKBEHIND_SCALARS = 48
+const ADDRESS_LABEL_REACH = 3
 
 /*
  * Candidate repetitions are bounded ({1,6}, {1,5}, {0,3}) and every repeated unit
@@ -140,7 +147,7 @@ const NUMBER_BEFORE_RE = /(\d{1,8}(?:[A-Za-z](?!\p{L}))?)[ \t]+$/u
 const NUMBER_AFTER_RE =
   /[ \t]*[,;]?[ \t]*(?:(?:no|nr|№|#)\.?[ \t]*)?(\d{1,5}[A-Za-z]?)(?![\p{L}\p{N}/:%]|\.\d)/iuy
 /** The word in front of a number. */
-const WORD_BEFORE_RE = /([\p{L}.]+)[ \t]*$/u
+const WORD_BEFORE_RE = /([\p{L}.]+)[ \t]*[:=–-]?[ \t]*$/u
 /** The word after a number. */
 const WORD_AFTER_RE = /^[ \t]+(\p{L}+)/u
 /**
@@ -207,13 +214,29 @@ function isPlainBlank(separator: string): boolean {
   return /^[ \t]+$/u.test(separator)
 }
 
-/** What stands in front of the number at `start`: `10/10`, `Top 10`, `a 5`. */
+/** The words just before `start`, nearest last, at most `count` of them. */
+function wordsBefore(text: string, start: number, count: number): readonly string[] {
+  const window = text.slice(Math.max(0, start - LEAD_LOOKBEHIND_SCALARS), start)
+  return (window.match(/[\p{L}.]+/gu) ?? [])
+    .slice(-count)
+    .map((word) => word.toLowerCase())
+}
+
+/** What stands in front of the number at `start`: `10/10`, `Top 10`, `a 5`, `at 12`. */
 function leadOf(text: string, start: number): NumberLead {
   if (start < 0) return NO_LEAD
-  if (text[start - 1] === '/') return { rating: true, count: false }
+  if (text[start - 1] === '/') return { rating: true, count: false, address: false }
   const found = WORD_BEFORE_RE.exec(text.slice(Math.max(0, start - 16), start))
   const word = (found?.[1] ?? '').toLowerCase()
-  return { rating: RATING_LEADS.has(word), count: COUNT_LEADS.has(word) }
+  return {
+    rating: RATING_LEADS.has(word),
+    count: COUNT_LEADS.has(word),
+    address:
+      ADDRESS_LEADS.has(word) ||
+      wordsBefore(text, start, ADDRESS_LABEL_REACH).some((label) =>
+        ADDRESS_LABELS.has(label),
+      ),
+  }
 }
 
 /**
@@ -555,6 +578,9 @@ export const ADDRESS_MARKER_PROFILE = Object.freeze({
     weakGlue: WEAK_GLUE_WORDS,
     evaluatives: EVALUATIVE_WORDS,
     nameConnectors: NAME_CONNECTOR_WORDS,
+    addressLeads: ADDRESS_LEAD_WORDS,
+    addressLabels: ADDRESS_LABEL_WORDS,
+    namePrepositions: NAME_PREPOSITION_WORDS,
     evaluativeStreetTypes: EVALUATIVE_STREET_TYPES,
     unitStreetTypes: UNIT_STREET_TYPES,
     clauseStreetTypes: CLAUSE_STREET_TYPES,
@@ -574,6 +600,8 @@ export const ADDRESS_MARKER_PROFILE = Object.freeze({
     maxNumberLastNameWords: MAX_NUMBER_LAST_NAME_WORDS,
     numberLastLookbehindScalars: NUMBER_LAST_LOOKBEHIND_SCALARS,
     numberFirstLookbehindScalars: NUMBER_FIRST_LOOKBEHIND_SCALARS,
+    leadLookbehindScalars: LEAD_LOOKBEHIND_SCALARS,
+    addressLabelReach: ADDRESS_LABEL_REACH,
     numberFollowerLookaheadScalars: NUMBER_FOLLOWER_LOOKAHEAD_SCALARS,
   }),
 })
