@@ -67,6 +67,7 @@ const governedVersion = (id: string, minimumSample: number) => ({
 function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
   let id = 0
   let now = initialNow
+  let organizationHeld = false
   let created: GoalProgramBundle | null = null
   const results = new Map<string, GoalMonthlyResult>()
   const resultRevisions = new Map<string, GoalResultRevision>()
@@ -89,6 +90,7 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
         ? [created]
         : [],
     ),
+    isOrganizationHeld: vi.fn(async () => organizationHeld),
     changeStatus: vi.fn(async (input) => {
       if (!created || created.program.status !== input.expectedStatus) return null
       const program = {
@@ -348,6 +350,10 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
     getCreated: () => created,
     setNow: (next: Date) => {
       now = next
+    },
+    /** The Organization's lifecycle holds it (a closure requested or in progress). */
+    holdOrganization: () => {
+      organizationHeld = true
     },
   }
 }
@@ -2026,6 +2032,91 @@ describe('canonical Goal Program service', () => {
     expect(repository.appendResults).not.toHaveBeenCalled()
   })
 
+  // The Closing phase can pause only an active program and the database has no
+  // scheduled -> paused edge. So once a closure is requested nothing may put a
+  // program into `active` again: Goal's purge-readiness check would find it
+  // there on every pass and the Organization would stay in `closing` for good.
+  describe('an Organization whose closure the lifecycle holds', () => {
+    const definition = {
+      propertyId: 'property-1',
+      name: 'March ratings',
+      metric: 'portal_rating_count' as const,
+      targetValue: 20,
+      subjects: [{ kind: 'portal' as const, portalId: 'portal-1' }],
+    }
+    const change = (programId: string, status: 'paused' | 'active' | 'ended') => ({
+      propertyId: 'property-1',
+      programId,
+      status,
+    })
+
+    it('creates no goal', async () => {
+      const { service, repository, holdOrganization } = setup()
+      holdOrganization()
+
+      await expect(service.create(definition, actor)).rejects.toMatchObject({
+        name: 'GoalProgramError',
+        code: 'organization_closing',
+      })
+
+      expect(repository.isOrganizationHeld).toHaveBeenCalledExactlyOnceWith('org-1')
+      expect(repository.create).not.toHaveBeenCalled()
+    })
+
+    it('does not resume a goal its Closing phase paused', async () => {
+      const { service, repository, holdOrganization } = setup()
+      const created = await service.create(definition, actor)
+      await service.changeStatus(change(created.program.id, 'paused'), actor)
+      vi.mocked(repository.isOrganizationHeld).mockClear()
+      holdOrganization()
+
+      await expect(
+        service.changeStatus(change(created.program.id, 'active'), actor),
+      ).rejects.toMatchObject({ name: 'GoalProgramError', code: 'organization_closing' })
+
+      expect(repository.changeStatus).toHaveBeenCalledTimes(1)
+      expect(repository.isOrganizationHeld).toHaveBeenCalledExactlyOnceWith('org-1')
+    })
+
+    it('does not start a goal that is still scheduled', async () => {
+      const { service, repository, holdOrganization } = setup(
+        new Date('2026-03-15T12:00:00.000Z'),
+      )
+      const created = await service.create(definition, actor)
+      expect(created.program.status).toBe('scheduled')
+      holdOrganization()
+
+      await expect(
+        service.changeStatus(change(created.program.id, 'active'), actor),
+      ).rejects.toMatchObject({ name: 'GoalProgramError', code: 'organization_closing' })
+
+      expect(repository.changeStatus).not.toHaveBeenCalled()
+    })
+
+    it('still pauses and ends a goal, which only stops work', async () => {
+      const { service, holdOrganization } = setup()
+      const created = await service.create(definition, actor)
+      holdOrganization()
+
+      await expect(
+        service.changeStatus(change(created.program.id, 'paused'), actor),
+      ).resolves.toMatchObject({ status: 'paused' })
+      await expect(
+        service.changeStatus(change(created.program.id, 'ended'), actor),
+      ).resolves.toMatchObject({ status: 'ended' })
+    })
+
+    it('does not ask the lifecycle about a change that is not a start', async () => {
+      const { service, repository } = setup()
+      const created = await service.create(definition, actor)
+      vi.mocked(repository.isOrganizationHeld).mockClear()
+
+      await service.changeStatus(change(created.program.id, 'paused'), actor)
+
+      expect(repository.isOrganizationHeld).not.toHaveBeenCalled()
+    })
+  })
+
   it('retains terminal Program history and denies later assignment changes', async () => {
     const { service } = setup()
     const created = await service.create(
@@ -2118,6 +2209,125 @@ describe('canonical Goal Program service', () => {
       name: 'GoalProgramMaintenanceError',
       stats: { inspected: 1, failed: 1 },
     })
+  })
+
+  describe('a failed maintenance run', () => {
+    async function failingActivation(failure: unknown) {
+      const { service, repository, setNow } = setup(new Date('2026-03-15T12:00:00.000Z'))
+      await service.create(
+        {
+          propertyId: 'property-1',
+          name: 'April ratings',
+          metric: 'portal_rating_count',
+          targetValue: 25,
+          subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        },
+        actor,
+      )
+      setNow(new Date('2026-04-01T00:00:00.000Z'))
+      vi.mocked(repository.activate).mockRejectedValueOnce(failure)
+      return service.maintain()
+    }
+
+    it('names the SQL state of a database refusal in the error, with no identifier', async () => {
+      const refusal = Object.assign(new Error('Failed query: update "goal_programs"'), {
+        cause: Object.assign(new Error('guard'), { code: '23514' }),
+      })
+
+      await expect(failingActivation(refusal)).rejects.toMatchObject({
+        name: 'GoalProgramMaintenanceError',
+        message: 'Goal Program maintenance had 1 failed operation(s): sqlstate_23514 x1',
+        stats: { failed: 1, failureCauses: { sqlstate_23514: 1 } },
+      })
+    })
+
+    it('names the error class of any other failure', async () => {
+      await expect(failingActivation(new TypeError('db down'))).rejects.toMatchObject({
+        message: 'Goal Program maintenance had 1 failed operation(s): TypeError x1',
+        stats: { failed: 1, failureCauses: { TypeError: 1 } },
+      })
+    })
+  })
+
+  describe('a due result another run settled first', () => {
+    async function dueResult() {
+      const { service, repository, setNow } = setup()
+      await service.create(
+        {
+          propertyId: 'property-1',
+          name: 'March ratings',
+          metric: 'portal_rating_count',
+          targetValue: 25,
+          subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        },
+        actor,
+      )
+      setNow(new Date('2026-04-03T00:00:00.000Z'))
+      return { service, repository }
+    }
+
+    it('is a lost race and not a failure when it is already closed', async () => {
+      const { service, repository } = await dueResult()
+      vi.mocked(repository.getDueResult).mockResolvedValue(null)
+
+      await expect(service.maintain()).resolves.toMatchObject({
+        raced: 1,
+        reconciled: 0,
+        failed: 0,
+      })
+    })
+
+    it('is a lost race and not a failure when its compare-and-set loses', async () => {
+      const { service, repository } = await dueResult()
+      vi.mocked(repository.updateResult).mockResolvedValue(null)
+
+      await expect(service.maintain()).resolves.toMatchObject({
+        raced: 1,
+        reconciled: 0,
+        failed: 0,
+      })
+    })
+  })
+
+  describe('a due result whose program, assignment or version row is missing', () => {
+    // Not a lost race: nothing settled the result, a row it points to is gone.
+    // That is a broken reference and the run must say so.
+    it.each([
+      ['program', 'get'],
+      ['assignment', 'getAssignment'],
+      ['version', 'getVersion'],
+    ] as const)(
+      'fails the run and names its cause when the %s is missing',
+      async (_row, read) => {
+        const { service, repository, setNow } = setup()
+        await service.create(
+          {
+            propertyId: 'property-1',
+            name: 'March ratings',
+            metric: 'portal_rating_count',
+            targetValue: 25,
+            subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+          },
+          actor,
+        )
+        setNow(new Date('2026-04-03T00:00:00.000Z'))
+        // Only the due-result pass runs, and the row it reads is gone.
+        vi.mocked(repository.listOperational).mockResolvedValue([])
+        vi.mocked(repository[read]).mockResolvedValue(null)
+
+        await expect(service.maintain()).rejects.toMatchObject({
+          name: 'GoalProgramMaintenanceError',
+          message:
+            'Goal Program maintenance had 1 failed operation(s): GoalResultReferenceMissingError x1',
+          stats: {
+            raced: 0,
+            reconciled: 0,
+            failed: 1,
+            failureCauses: { GoalResultReferenceMissingError: 1 },
+          },
+        })
+      },
+    )
   })
 
   // A result whose month runs past its version or assignment window can never

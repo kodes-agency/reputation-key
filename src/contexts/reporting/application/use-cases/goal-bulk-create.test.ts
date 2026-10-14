@@ -72,6 +72,7 @@ function setup(instants: readonly Date[] = [MID_MARCH]) {
         saved.push(bundle)
         return 'created' as const
       }),
+      isOrganizationHeld: vi.fn(async () => false),
       findAssignmentConflicts: vi.fn(
         async (query: {
           metric: GoalMetric
@@ -237,6 +238,20 @@ describe('createGoalsForSubjects', () => {
     expect(fakes.subjects.getTimezone).not.toHaveBeenCalled()
     expect(fakes.subjectNames.getSubjectName).not.toHaveBeenCalled()
     expect(fakes.repository.create).not.toHaveBeenCalled()
+  })
+
+  it('refuses the whole save for an Organization the lifecycle holds', async () => {
+    const { fakes, saved, deps } = setup()
+    fakes.repository.isOrganizationHeld.mockResolvedValueOnce(true)
+
+    await expect(
+      createGoalsForSubjects(deps, save([row(lobby), row(bar)]), actor),
+    ).rejects.toMatchObject({ name: 'GoalProgramError', code: 'organization_closing' })
+
+    expect(fakes.repository.isOrganizationHeld).toHaveBeenCalledExactlyOnceWith('org-1')
+    expect(fakes.subjectNames.getSubjectName).not.toHaveBeenCalled()
+    expect(fakes.repository.create).not.toHaveBeenCalled()
+    expect(saved).toEqual([])
   })
 
   it('a row whose subject already has a goal is reported and the others are saved', async () => {

@@ -166,6 +166,7 @@ describe.sequential('AI budget ledger (real PostgreSQL)', () => {
         operationsDelivered: 0,
         operationsSettled: 0,
         operationsRaced: 0,
+        candidatesFailed: 0,
         batchFull: false,
       }),
       releaseStaleReservations: async () => {

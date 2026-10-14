@@ -20,7 +20,12 @@ metric authority.
 
 - **Metric definition/version**: frozen code-reviewed measurement policy.
 - **Metric reading**: immutable, version-pinned fact with event-time attribution.
-- **Metric correction**: append-only retraction, replacement, or adjustment.
+- **Metric correction**: append-only retraction, replacement, or adjustment. A fact that
+  is projected into several measures is corrected measure by measure: a correction's source
+  key is `<fact id>:<definition version id>`, so a corrected rating retracts its private
+  rating, its rating count and its rating average, and a Goal on either Goal measure finds
+  the retraction of its own reading. The key `<fact id>:retract` of the earlier code, one
+  for the first reading only, is still read.
 - **Goal Program**: versioned monthly target over an approved metric and subject set. A month
   still running can carry its own target; once its period ends that target is locked.
 - **Goal monthly result**: evaluation head with append-only revision evidence.
@@ -122,6 +127,14 @@ metric authority.
 8. A version's target is never updated in place. A different target for a month still
    running is that month's own; a different target for the months after is a new version
    (ADR 0066).
+9. Nothing puts a Goal Program into `active` in an Organization the lifecycle holds: one with a
+   closure requested or in progress, or one whose closure was cancelled and awaits
+   reactivation (the Closing phase can pause only active programs; the database has no
+   scheduled -> paused edge). Maintenance neither lists nor activates its programs, and the
+   commands that would start one are refused with `organization_closing`: creating a goal (one
+   or several), and changing a goal's status to `active` (starting a scheduled goal, resuming a
+   paused one). Pausing and ending are never refused. A month already open still reconciles
+   and closes, which is how Goal's purge-readiness check comes to find none left.
 
 ## Interfaces and dependencies
 
@@ -172,7 +185,13 @@ aggregate and read purpose even though they share a bounded context.
 Metric and Goal event modules are named `metric-events.ts` and `goal-events.ts`. Their event
 tags remain stable for outbox replay compatibility. Reporting consumes Guest, Portal, Review,
 and metric-correction facts through the shared durable consumer registry. Each
-consumer holds a receipt for a fact it has finished. The Goal correction consumer
+consumer holds a receipt for a fact it has finished. A fact that yields no reading is
+finished too: when the registry refuses it by design (a destination ratio under its minimum
+sample, a fact that cannot be attributed, one from before its measure took effect) the store
+commits an `obsolete` receipt and no reading, so it is not redelivered for nothing. A refusal
+that a registry or policy change would undo (`source_policy_not_allowed`, `scope_not_allowed`,
+`definition_not_approved`, `unknown_definition_version`) fails the delivery instead, and the
+retry applies once the change is deployed. The Goal correction consumer
 writes its receipt after a complete reconciliation pass, outside the result
 transactions, which is the second form the consumer contract allows
 (`ConsumerRegistration.handler` in `src/shared/outbox/consumer-registry.ts`):

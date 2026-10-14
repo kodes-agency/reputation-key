@@ -30,3 +30,24 @@ export function ibanValid(value: string): boolean {
   }
   return remainder === 1
 }
+
+export const IBAN_GROUP_SEPARATOR_RE = /[ -]/gu
+
+/*
+ * The IBAN pattern is greedy, so the words after an IBAN ("… 3456 78 please")
+ * join the match and fail the checksum. A failed match retries each shorter
+ * prefix that ends where a group does, longest first; ibanValid holds every
+ * try to the 15 to 34 characters an IBAN takes.
+ */
+export function longestValidIban(raw: string): string | null {
+  if (ibanValid(raw)) return raw
+  const groupEnds = Array.from(
+    raw.matchAll(IBAN_GROUP_SEPARATOR_RE),
+    (separator) => separator.index,
+  )
+  for (let index = groupEnds.length - 1; index >= 0; index -= 1) {
+    const prefix = raw.slice(0, groupEnds[index])
+    if (ibanValid(prefix)) return prefix
+  }
+  return null
+}

@@ -154,15 +154,8 @@ describe('Public Reputation metric durable consumer', () => {
     ).rejects.toThrow('occurredAt')
   })
 
-  it('propagates transient persistence failures and explicit rejections', async () => {
-    const recordMetric = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('database unavailable'))
-      .mockResolvedValueOnce({
-        status: 'rejected',
-        reason: 'definition_not_approved',
-        sourceEventId: 'event-review-created',
-      })
+  it('propagates a transient persistence failure so delivery retries', async () => {
+    const recordMetric = vi.fn().mockRejectedValueOnce(new Error('database unavailable'))
     registerPublicReputationMetricConsumers(consumerRegistry, {
       recordMetric,
       reviewRatingLookup: { getEligibleRatingById: vi.fn(async () => 4) },
@@ -171,8 +164,25 @@ describe('Public Reputation metric durable consumer', () => {
     const registration = mocks.registerConsumer.mock.calls[0]![0]
 
     await expect(registration.handler(envelope())).rejects.toThrow('database unavailable')
-    await expect(registration.handler(envelope())).rejects.toThrow(
-      'Public Reputation metric rejected',
-    )
+  })
+
+  it('reports a fact the registry refuses by design as processed without effect', async () => {
+    // recordMetric has already committed the consumer's receipt for it; a
+    // refusal that a registry fix could undo fails inside recordMetric instead.
+    const recordMetric = vi.fn().mockResolvedValue({
+      status: 'rejected',
+      reason: 'definition_version_not_effective',
+      sourceEventId: 'event-review-created',
+    })
+    registerPublicReputationMetricConsumers(consumerRegistry, {
+      recordMetric,
+      reviewRatingLookup: { getEligibleRatingById: vi.fn(async () => 4) },
+      db: receiptDb,
+    })
+    const registration = mocks.registerConsumer.mock.calls[0]![0]
+
+    await expect(registration.handler(envelope())).resolves.toEqual({
+      status: 'obsolete',
+    })
   })
 })

@@ -539,6 +539,7 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       operationsDelivered: 1,
       operationsSettled: 0,
       operationsRaced: 0,
+      candidatesFailed: 0,
       batchFull: false,
     })
 

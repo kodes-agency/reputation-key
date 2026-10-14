@@ -461,6 +461,114 @@ describe('Portal results measures (integration)', () => {
     expect(foreignEvidence.reviewLinkClicks.state).toBe('ready')
   })
 
+  describe('replacement evidence for corrected ratings', () => {
+    const CORRECTION_START = new Date('2026-12-01T00:00:00.000Z')
+    const CORRECTION_END = new Date('2027-01-01T00:00:00.000Z')
+    const ORIGINAL = 'd4000000-0000-4000-8000-000000000001'
+    const REPLACEMENT = 'd4000000-0000-4000-8000-000000000002'
+    const RATING_VERSION = METRIC_VERSION_IDS.portalRatingAnalytics
+    const ORIGINAL_AT = '2026-12-05T10:00:00.000Z'
+    const CORRECTED_AT = '2026-12-05T10:20:00.000Z'
+
+    async function seedRating(id: string, occurredAt: string, supersedes: string | null) {
+      await pool.query(
+        `INSERT INTO outbox_events (
+           id, event_type, event_version, payload, organization_id, property_id,
+           source_context, source_aggregate_id, created_at, published_at
+         ) VALUES (
+           $1, 'guest.rating.submitted', 1, jsonb_strip_nulls(jsonb_build_object(
+             'organizationId', $3::text,
+             'propertyId', $4::text,
+             'portalId', $5::text,
+             'occurredAt', $2::text,
+             'supersedesSourceEventId', $6::text
+           )), $3, $4, 'guest', $5, $2::timestamptz, $2::timestamptz
+         )`,
+        [id, occurredAt, ORG, PROP, PORTAL, supersedes],
+      )
+      await pool.query(
+        `INSERT INTO event_consumer_receipts (event_id, consumer_name, status)
+         VALUES ($1, 'metric.guest-analytics', 'applied')`,
+        [id],
+      )
+      await pool.query(
+        `INSERT INTO metric_readings (
+           organization_id, property_id, portal_id, metric_key, value,
+           definition_version_id, source_event_id, source_policy, exact_value,
+           sample_count, attribution_quality, recorded_at, event_at,
+           property_local_date, data_quality, retention_class
+         )
+         VALUES ($1, $2, $3, 'portal.rating', 4, $4, $5,
+           'first_party_guest_private', 4, 1, 'exact',
+           $6, $6, '2026-12-05', 'exact', 'standard')`,
+        [ORG, PROP, PORTAL, RATING_VERSION, id, occurredAt],
+      )
+    }
+
+    async function retractOriginal(correctionKey: string) {
+      await pool.query(
+        `INSERT INTO metric_corrections (
+           reading_id, source_event_id, kind, reason, actor_type, actor_id, event_at
+         )
+         SELECT id, $2, 'retract', 'source_reconciliation', 'system',
+           'results-measures-test', $3
+         FROM metric_readings
+         WHERE organization_id = $1 AND source_event_id = $4
+           AND definition_version_id = $5`,
+        [ORG, correctionKey, CORRECTED_AT, ORIGINAL, RATING_VERSION],
+      )
+    }
+
+    const ratingsEvidence = async () =>
+      (
+        await repository().getPortalMetricEvidence(
+          ORG,
+          PROP,
+          PORTAL,
+          CORRECTION_START,
+          CORRECTION_END,
+        )
+      ).privateRatings
+
+    beforeAll(async () => {
+      await seedRating(ORIGINAL, ORIGINAL_AT, null)
+      await seedRating(REPLACEMENT, CORRECTED_AT, ORIGINAL)
+    })
+
+    it('waits for the replacement to retract the rating it replaces', async () => {
+      await expect(ratingsEvidence()).resolves.toMatchObject({
+        state: 'unavailable',
+        availabilityReason: 'projection_missing',
+      })
+    })
+
+    it('is ready once the replacement has retracted the earlier rating under its measure', async () => {
+      await retractOriginal(`${REPLACEMENT}:${RATING_VERSION}`)
+
+      await expect(ratingsEvidence()).resolves.toMatchObject({
+        state: 'ready',
+        availabilityReason: null,
+      })
+    })
+
+    it('still reads a retraction written under the fact id alone', async () => {
+      await pool.query('DELETE FROM metric_corrections WHERE source_event_id = $1', [
+        `${REPLACEMENT}:${RATING_VERSION}`,
+      ])
+      await expect(ratingsEvidence()).resolves.toMatchObject({
+        state: 'unavailable',
+        availabilityReason: 'projection_missing',
+      })
+
+      await retractOriginal(`${REPLACEMENT}:retract`)
+
+      await expect(ratingsEvidence()).resolves.toMatchObject({
+        state: 'ready',
+        availabilityReason: null,
+      })
+    })
+  })
+
   describe('retraction evidence for qualified scans', () => {
     const RETRACTION_START = new Date('2026-11-01T00:00:00.000Z')
     const RETRACTION_END = new Date('2026-12-01T00:00:00.000Z')

@@ -7,7 +7,11 @@ import {
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import { AI_UNICODE_CASE_FOLDING_V17 } from './generated/ai-unicode-case-folding-v17'
 import { ADDRESS_MARKER_PROFILE, findAddressMarkers } from './ai-address-markers'
-import { ibanValid, luhnValid } from './ai-financial-validators'
+import {
+  IBAN_GROUP_SEPARATOR_RE,
+  longestValidIban,
+  luhnValid,
+} from './ai-financial-validators'
 import { BROKEN_TOKEN_PROFILE, findBrokenTokenMarkers } from './ai-broken-token-markers'
 import { COORDINATE_MARKER_PROFILE, findCoordinateMarkers } from './ai-coordinate-markers'
 import {
@@ -157,6 +161,11 @@ const DETECTOR_MANIFEST = Object.freeze({
       flags: HEX_SECRET_RE.flags,
     }),
     Object.freeze({ id: 'iban', source: IBAN_RE.source, flags: IBAN_RE.flags }),
+    Object.freeze({
+      id: 'iban_group_retry',
+      source: IBAN_GROUP_SEPARATOR_RE.source,
+      flags: IBAN_GROUP_SEPARATOR_RE.flags,
+    }),
     Object.freeze({
       id: 'known_secret',
       source: KNOWN_SECRET_RE.source,
@@ -333,13 +342,23 @@ function detectOverBoundCandidates(text: string, state: ScanState): void {
   for (const expression of [
     OVERBOUND_PHONE_RE,
     OVERBOUND_CARD_RE,
-    OVERBOUND_IBAN_RE,
     OVERBOUND_COORDINATE_RE,
   ] as const) {
     forEachMatch(expression, text, () => {
       state.blocked = 'ambiguous_candidate'
     })
   }
+  // An over-long run is ambiguous unless it opens with a valid IBAN; then it is
+  // that IBAN and the words after it, read again in case another run starts there.
+  forEachMatch(OVERBOUND_IBAN_RE, text, (match) => {
+    const raw = match[1] ?? ''
+    const iban = longestValidIban(raw)
+    if (iban === null) {
+      state.blocked = 'ambiguous_candidate'
+      return
+    }
+    OVERBOUND_IBAN_RE.lastIndex = match.index + match[0].lastIndexOf(raw) + iban.length
+  })
   if (OVERBOUND_LABELLED_ID_RE.test(text)) state.blocked = 'ambiguous_candidate'
   OVERBOUND_LABELLED_ID_RE.lastIndex = 0
 }
@@ -601,9 +620,19 @@ function scanFinancial(text: string, state: ScanState): void {
   })
   forEachMatch(IBAN_RE, text, (match) => {
     const raw = match[1]
-    if (raw === undefined || !ibanValid(raw)) return
+    if (raw === undefined) return
     const start = match.index + match[0].lastIndexOf(raw)
-    addCandidate(state, text, start, start + raw.length, '[FINANCIAL]', 64)
+    const iban = longestValidIban(raw)
+    if (iban !== null) {
+      addCandidate(state, text, start, start + iban.length, '[FINANCIAL]', 64)
+      // The words the IBAN gave back may hold another IBAN.
+      IBAN_RE.lastIndex = start + iban.length
+      return
+    }
+    // Nothing validates from this start, so an IBAN may begin at the next
+    // group, as in "room AB12 NO93 8601 1117 947".
+    const nextGroup = raw.search(IBAN_GROUP_SEPARATOR_RE)
+    if (nextGroup > 0) IBAN_RE.lastIndex = start + nextGroup
   })
 }
 

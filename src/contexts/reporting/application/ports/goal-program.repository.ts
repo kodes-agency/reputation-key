@@ -228,7 +228,18 @@ export type GoalProgramRepository = Readonly<{
     programId: string,
   ): Promise<GoalProgramBundle | null>
   list(organizationId: string, propertyId: string): Promise<readonly GoalProgramBundle[]>
+  /**
+   * The Programs maintenance works on: scheduled and active ones, except those
+   * of an Organization the lifecycle holds (see `isOrganizationHeld`).
+   */
   listOperational(): Promise<readonly GoalProgramBundle[]>
+  /**
+   * True while the Organization's lifecycle holds it: a closure requested or in
+   * progress, or a cancelled closure that still awaits its explicit
+   * reactivation. Goal then starts nothing in it: no Program is created,
+   * started or resumed, and maintenance activates none.
+   */
+  isOrganizationHeld(organizationId: string): Promise<boolean>
   /**
    * Null when the Program is no longer in `expectedStatus`, or when ending it
    * finds its version history changed under it. Nothing is written then.

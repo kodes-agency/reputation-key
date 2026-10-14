@@ -23,6 +23,10 @@ import {
 } from './goal-month-target.repository'
 import { createGoalMonthlyResultRepository } from './goal-monthly-result.repository'
 import {
+  isOrganizationHeldByLifecycle,
+  organizationLifecycleHoldsProgram,
+} from './goal-organization-lifecycle-hold'
+import {
   assignmentValues,
   GoalProgramRevisionConflict,
   hasPostgresErrorCode,
@@ -35,6 +39,32 @@ import {
   versionValues,
 } from './goal-program.rows'
 
+/**
+ * PostgreSQL takes at most 65,535 bound values in one statement, and
+ * node-postgres writes the count as a 16-bit integer: past it the statement
+ * fails ("bind message has N parameter formats but 0 parameters"). Closed
+ * months are kept, so the maintenance listing, which loads every scheduled and
+ * active program of every tenant, would one day cross it and fail every hour
+ * for all of them. Ids are bound in chunks well under the limit.
+ */
+const MAX_BOUND_IDS = 10_000
+
+/**
+ * Runs `select` for each chunk of `ids`, one after the other, and joins the
+ * rows. A row belongs to one id, so it appears in one chunk and a chunk's own
+ * order is kept within it.
+ */
+async function selectByIds<Row>(
+  ids: readonly string[],
+  select: (chunk: readonly string[]) => Promise<readonly Row[]>,
+): Promise<readonly Row[]> {
+  const rows: Row[] = []
+  for (let start = 0; start < ids.length; start += MAX_BOUND_IDS) {
+    rows.push(...(await select(ids.slice(start, start + MAX_BOUND_IDS))))
+  }
+  return rows
+}
+
 async function hydrateBundles(
   db: Database,
   programs: readonly (typeof goalPrograms.$inferSelect)[],
@@ -42,37 +72,39 @@ async function hydrateBundles(
   if (programs.length === 0) return []
   const programIds = programs.map((program) => program.id)
   const [versions, assignments, results] = await Promise.all([
-    db
-      .select()
-      .from(goalProgramVersions)
-      .where(inArray(goalProgramVersions.programId, programIds)),
-    db
-      .select()
-      .from(goalSubjectAssignments)
-      .where(inArray(goalSubjectAssignments.programId, programIds))
-      .orderBy(asc(goalSubjectAssignments.createdAt), asc(goalSubjectAssignments.id)),
-    db
-      .select()
-      .from(goalMonthlyResults)
-      .where(inArray(goalMonthlyResults.programId, programIds))
-      .orderBy(asc(goalMonthlyResults.periodStart), asc(goalMonthlyResults.id)),
+    selectByIds(programIds, (ids) =>
+      db
+        .select()
+        .from(goalProgramVersions)
+        .where(inArray(goalProgramVersions.programId, [...ids])),
+    ),
+    selectByIds(programIds, (ids) =>
+      db
+        .select()
+        .from(goalSubjectAssignments)
+        .where(inArray(goalSubjectAssignments.programId, [...ids]))
+        .orderBy(asc(goalSubjectAssignments.createdAt), asc(goalSubjectAssignments.id)),
+    ),
+    selectByIds(programIds, (ids) =>
+      db
+        .select()
+        .from(goalMonthlyResults)
+        .where(inArray(goalMonthlyResults.programId, [...ids]))
+        .orderBy(asc(goalMonthlyResults.periodStart), asc(goalMonthlyResults.id)),
+    ),
   ])
-  const revisions =
-    results.length === 0
-      ? []
-      : await db
-          .select()
-          .from(goalResultRevisions)
-          .where(
-            inArray(
-              goalResultRevisions.monthlyResultId,
-              results.map((result) => result.id),
-            ),
-          )
-          .orderBy(
-            asc(goalResultRevisions.monthlyResultId),
-            asc(goalResultRevisions.revision),
-          )
+  const revisions = await selectByIds(
+    results.map((result) => result.id),
+    (ids) =>
+      db
+        .select()
+        .from(goalResultRevisions)
+        .where(inArray(goalResultRevisions.monthlyResultId, [...ids]))
+        .orderBy(
+          asc(goalResultRevisions.monthlyResultId),
+          asc(goalResultRevisions.revision),
+        ),
+  )
   const correctionByResultId = new Map<string, typeof goalResultRevisions.$inferSelect>()
   for (const revision of revisions) {
     correctionByResultId.set(revision.monthlyResultId, revision)
@@ -386,16 +418,26 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
     },
 
     async listOperational() {
+      // A closing Organization gets no new Goal work (see the hold's header).
       const rows = await db
         .select()
         .from(goalPrograms)
-        .where(inArray(goalPrograms.status, ['scheduled', 'active']))
+        .where(
+          and(
+            inArray(goalPrograms.status, ['scheduled', 'active']),
+            sql`NOT ${organizationLifecycleHoldsProgram}`,
+          ),
+        )
         .orderBy(
           asc(goalPrograms.organizationId),
           asc(goalPrograms.propertyId),
           asc(goalPrograms.id),
         )
       return hydrateBundles(db, rows)
+    },
+
+    isOrganizationHeld(organizationId) {
+      return isOrganizationHeldByLifecycle(db, organizationId)
     },
 
     async changeStatus(input) {
@@ -628,6 +670,10 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
               eq(goalPrograms.id, input.bundle.program.id),
               eq(goalPrograms.currentVersion, input.bundle.version.version),
               eq(goalPrograms.status, 'scheduled'),
+              // A closure request that lands after maintenance listed this
+              // program still stops it: the Closing fence cannot pause a
+              // scheduled program, so this is the only place that can.
+              sql`NOT ${organizationLifecycleHoldsProgram}`,
             ),
           )
           .returning()

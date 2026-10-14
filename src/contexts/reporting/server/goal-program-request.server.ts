@@ -58,6 +58,7 @@ const goalProgramStatus = (error: GoalProgramError): number => {
     case 'start_month_changed':
     case 'month_locked':
     case 'no_open_month':
+    case 'organization_closing':
       return 409
     case 'invalid_name':
     case 'invalid_target':

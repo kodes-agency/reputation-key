@@ -48,7 +48,18 @@ export type GoalProgramMaintenanceStats = Readonly<{
    * reported here instead of failing every run.
    */
   stranded: number
+  /**
+   * Due results another run settled first (already closed, or its
+   * compare-and-set lost). The run that won did the work; nothing failed.
+   */
+  raced: number
   failed: number
+  /**
+   * What the failed operations died of, by content-free cause: a Goal error
+   * code, `sqlstate_<code>` for a database refusal, else the error's class.
+   * Never a message or an identifier (BQC-7.3).
+   */
+  failureCauses: Readonly<Record<string, number>>
 }>
 
 /**
@@ -62,9 +73,39 @@ export type GoalProgramMaintenanceStats = Readonly<{
 // string-matching `error.name`.
 export class GoalProgramMaintenanceError extends Error {
   constructor(readonly stats: GoalProgramMaintenanceStats) {
-    super(`Goal Program maintenance had ${stats.failed} failed operation(s)`)
+    super(
+      `Goal Program maintenance had ${stats.failed} failed operation(s)${causesOf(stats.failureCauses)}`,
+    )
     this.name = 'GoalProgramMaintenanceError'
   }
+}
+
+function causesOf(causes: Readonly<Record<string, number>>): string {
+  const named = Object.entries(causes)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([cause, count]) => `${cause} x${count}`)
+  return named.length === 0 ? '' : `: ${named.join(', ')}`
+}
+
+const SQLSTATE = /^[0-9A-Z]{5}$/u
+
+/** The SQLSTATE of a database refusal, through the query error that wraps it. */
+function sqlStateOf(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) return null
+  const { code, cause } = error as { code?: unknown; cause?: unknown }
+  if (typeof code === 'string' && SQLSTATE.test(code)) return code
+  return sqlStateOf(cause)
+}
+
+/**
+ * What an operation failed of, in words that name no tenant: the code of a Goal
+ * error, the SQLSTATE of a database refusal, else the class of the error.
+ */
+function failureCauseOf(error: unknown): string {
+  if (error instanceof GoalProgramError) return error.code
+  const sqlState = sqlStateOf(error)
+  if (sqlState !== null) return `sqlstate_${sqlState}`
+  return error instanceof Error ? error.name : 'unknown'
 }
 
 function evaluationFromGovernedRead(
@@ -118,6 +159,21 @@ class GoalResultOutsideWindowError extends Error {
   constructor() {
     super('Goal monthly result falls outside its assignment or version window')
     this.name = 'GoalResultOutsideWindowError'
+  }
+}
+
+/**
+ * Raised when a due result's program, assignment or version row is missing.
+ * Unlike a result another run settled first, nothing settled it: a row it
+ * points to is gone, which the foreign keys make close to impossible. The run
+ * fails and names this class as its cause, instead of counting a lost race.
+ */
+class GoalResultReferenceMissingError extends Error {
+  constructor() {
+    super(
+      'Goal monthly result refers to a program, assignment or version that is missing',
+    )
+    this.name = 'GoalResultReferenceMissingError'
   }
 }
 
@@ -283,6 +339,8 @@ type ProgramMaintenanceTally = Readonly<{
   scheduledResults: number
   unavailable: number
   failed: number
+  /** Why it failed; null when it did not. */
+  failureCause: string | null
 }>
 
 /**
@@ -300,10 +358,22 @@ async function maintainProgram(
   try {
     const activation = await activateScheduledProgram(deps, original, now)
     if (activation.kind === 'unavailable') {
-      return { activated, scheduledResults, unavailable: 1, failed: 0 }
+      return {
+        activated,
+        scheduledResults,
+        unavailable: 1,
+        failed: 0,
+        failureCause: null,
+      }
     }
     if (activation.kind === 'skipped') {
-      return { activated, scheduledResults, unavailable: 0, failed: 0 }
+      return {
+        activated,
+        scheduledResults,
+        unavailable: 0,
+        failed: 0,
+        failureCause: null,
+      }
     }
     const bundle = activation.kind === 'activated' ? activation.bundle : original
     if (activation.kind === 'activated') {
@@ -311,24 +381,43 @@ async function maintainProgram(
       scheduledResults = activation.scheduledResults
     }
     scheduledResults += (await appendDueResults(deps, bundle, now)).opened
-    return { activated, scheduledResults, unavailable: 0, failed: 0 }
-  } catch {
-    return { activated, scheduledResults, unavailable: 0, failed: 1 }
+    return { activated, scheduledResults, unavailable: 0, failed: 0, failureCause: null }
+  } catch (error) {
+    return {
+      activated,
+      scheduledResults,
+      unavailable: 0,
+      failed: 1,
+      failureCause: failureCauseOf(error),
+    }
   }
 }
 
-/** 'closed' also counts as reconciled; the caller tallies both. */
+type DueResultOutcome =
+  | Readonly<{ kind: 'reconciled' | 'closed' | 'denied' | 'stranded' | 'raced' }>
+  | Readonly<{ kind: 'failed'; cause: string }>
+
+/**
+ * 'closed' also counts as reconciled; the caller tallies both. A result the run
+ * lost to another (already closed, so `not_found` for a result that is not due
+ * any more, or its compare-and-set lost) was settled by the winner and is not a
+ * failure. A result whose references are missing is a failure and names itself.
+ */
 async function reconcileDueResult(
   reconcile: () => Promise<Readonly<{ status: string }>>,
-): Promise<'reconciled' | 'closed' | 'denied' | 'stranded' | 'failed'> {
+): Promise<DueResultOutcome> {
   try {
     const updated = await reconcile()
-    return updated.status === 'closed' ? 'closed' : 'reconciled'
+    return { kind: updated.status === 'closed' ? 'closed' : 'reconciled' }
   } catch (error) {
-    if (error instanceof GoalResultOutsideWindowError) return 'stranded'
-    return error instanceof GoalProgramError && error.code === 'forbidden'
-      ? 'denied'
-      : 'failed'
+    if (error instanceof GoalResultOutsideWindowError) return { kind: 'stranded' }
+    if (error instanceof GoalProgramError) {
+      if (error.code === 'forbidden') return { kind: 'denied' }
+      if (error.code === 'not_found' || error.code === 'revision_conflict') {
+        return { kind: 'raced' }
+      }
+    }
+    return { kind: 'failed', cause: failureCauseOf(error) }
   }
 }
 
@@ -368,7 +457,7 @@ export async function reconcileResult(
       result.programVersionId,
     ),
   ])
-  if (!program || !assignment || !version) throw new GoalProgramError('not_found')
+  if (!program || !assignment || !version) throw new GoalResultReferenceMissingError()
   if (isOutsideItsWindow(result, assignment, version)) {
     throw new GoalResultOutsideWindowError()
   }
@@ -502,7 +591,13 @@ export async function maintain(
   let denied = 0
   let unavailable = 0
   let stranded = 0
+  let raced = 0
   let failed = 0
+  const failureCauses = new Map<string, number>()
+  const recordFailure = (cause: string) => {
+    failed++
+    failureCauses.set(cause, (failureCauses.get(cause) ?? 0) + 1)
+  }
 
   for (const original of operational) {
     if (!(await maintenanceAuthorized(deps, original))) {
@@ -513,7 +608,7 @@ export async function maintain(
     activated += tally.activated
     scheduledResults += tally.scheduledResults
     unavailable += tally.unavailable
-    failed += tally.failed
+    if (tally.failureCause !== null) recordFailure(tally.failureCause)
   }
 
   const due = await deps.repository.listDueResults(now)
@@ -525,12 +620,13 @@ export async function maintain(
         resultId: result.id,
       }),
     )
-    if (outcome === 'denied') denied++
-    else if (outcome === 'stranded') stranded++
-    else if (outcome === 'failed') failed++
+    if (outcome.kind === 'failed') recordFailure(outcome.cause)
+    else if (outcome.kind === 'denied') denied++
+    else if (outcome.kind === 'stranded') stranded++
+    else if (outcome.kind === 'raced') raced++
     else {
       reconciled++
-      if (outcome === 'closed') closed++
+      if (outcome.kind === 'closed') closed++
     }
   }
 
@@ -543,7 +639,9 @@ export async function maintain(
     denied,
     unavailable,
     stranded,
+    raced,
     failed,
+    failureCauses: Object.fromEntries(failureCauses),
   }
   if (failed > 0) throw new GoalProgramMaintenanceError(stats)
   return stats

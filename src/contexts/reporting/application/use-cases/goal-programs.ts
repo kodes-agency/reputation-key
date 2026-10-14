@@ -30,6 +30,7 @@ import {
   type GoalProgramMaintenanceStats,
 } from './goal-program-maintenance'
 import {
+  assertOrganizationFreeToStartGoals,
   assertSubjectsAreFree,
   assignmentFor,
   GoalProgramError,
@@ -305,6 +306,11 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       if (!current) throw new GoalProgramError('not_found')
       if (!canTransitionGoalProgram(current.program.status, input.status)) {
         throw new GoalProgramError('invalid_transition')
+      }
+      // Starting or resuming a goal is what an Organization on its way to
+      // closure may not do; pausing and ending only stop work.
+      if (input.status === 'active') {
+        await assertOrganizationFreeToStartGoals(deps, actor.organizationId)
       }
       if (
         current.program.status === 'scheduled' &&
