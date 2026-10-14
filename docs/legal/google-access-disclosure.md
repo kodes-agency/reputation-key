@@ -2,13 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
+amended_on: 2026-10-15
 ---
 
 # Google Business Profile Access Disclosure
 
 **Status:** Accepted for publication
-**Effective date:** 2026-09-08
-**Version:** 2.0
+**Effective date:** 2026-10-15
+**Version:** 2.1
 **Accountable owner:** Bozhidar Denev
 
 ## What access Reputation Key requests
@@ -112,6 +113,20 @@ Portal Goals use the Portal's own qualified scans and private rating metrics.
 They do not use Google review completion, Google review rating, or Google review
 volume.
 
+The one goal that uses Google data is the Property Google rating goal. A
+Property has at most one. An account administrator, or a Property manager with
+access to the Property, sets a target for the rating Google shows for the
+Property and chooses a weekly pace of new Google reviews to plan with. Reputation
+Key works out progress and an expected time range from the rating and review
+count that Google reports for the location and from the Property's cached Google
+reviews, and keeps no review content for the goal. The goal is shown only to the
+Organization's account administrators and to Property managers with access to
+that Property. It is never split across Portals, Portal Groups, or people, and
+it is not shown to staff. Reputation Key does not use it as a staff quota,
+ranking, incentive, or employment input. It does not change the Portal guest
+journey: every guest is offered the same Google Review action, with the same
+order, timing, copy, and prominence, whatever the goal.
+
 ## Storage and deletion posture
 
 Google-controlled review content—including review text, per-review star rating,
@@ -180,3 +195,18 @@ AI purpose, or publication behavior changes.
 - named provider, region, no-training, and minimum-retention evidence for any
   enabled AI capability; and
 - dated accountable-owner, product, security, and provider-policy acceptance.
+
+## Changes
+
+This disclosure takes effect on 2026-10-15 and is version 2.1. It replaces
+version 2.0, which took effect on 2026-09-08.
+
+Version 2.1 adds the paragraph on the Property Google rating goal under "Uses
+the product does not allow". Everything else is unchanged, including the
+prohibition on using Google review solicitation, ratings, or review volume for
+competitive staff goals, badges, rankings, or leaderboards, and the statement
+that Portal Goals do not use Google review completion, rating, or volume. The
+goal uses no new class of Google data, keeps no review content, changes no
+retention period or provider, and changes nothing a guest sees, and it exists
+only once a manager sets it. For these reasons it is not a material change, and
+version 2.1 takes effect on the day it is published.
