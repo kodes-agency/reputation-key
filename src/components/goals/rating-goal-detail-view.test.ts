@@ -5,7 +5,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   aboutHowLong,
-  averageProgressText,
   bestCaseLine,
   cantReachSuggestion,
   detailForecasts,
@@ -67,16 +66,6 @@ describe('the progress', () => {
         nextTenth: { targetTenths: 45, target: 4.5, reviewsNeeded: 212 },
       }).marker,
     ).toBeNull()
-  })
-
-  it('names the average exact from the complete cache, approximate from Google’s number', () => {
-    expect(averageProgressText(DETAIL, false)).toBe('Exact average 4.38 of 4.45')
-    expect(averageProgressText({ ...DETAIL, exactAverage: 4.3 }, true)).toBe(
-      'About 4.30 of 4.45',
-    )
-    expect(averageProgressText({ ...DETAIL, exactAverage: null }, true)).toBe(
-      'Exact average not known yet',
-    )
   })
 
   it('says how far the next tenth is', () => {

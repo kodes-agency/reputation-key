@@ -112,6 +112,20 @@ export const JustSet: Story = {
   },
 }
 
+/** RepKey holds fewer reviews than Google counts: the bar says "About", never "Exact". */
+export const ApproximateNumbers: Story = {
+  args: {
+    card: cardRead({ ...CARD, exactAverage: 4.3, exactAverageSource: 'google' }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const bar = canvas.getByRole('progressbar', {
+      name: 'Progress toward Google showing 4.5',
+    })
+    await expect(bar).toHaveAttribute('aria-valuetext', 'About 4.30 of 4.45')
+  },
+}
+
 export const BelowPace: Story = {
   args: { card: cardRead({ ...CARD, status: 'below_pace', thisWeekCount: 2 }) },
   play: async ({ canvasElement }) => {

@@ -29,6 +29,13 @@ export type {
 
 export type RatingPaceKey = 'steady' | 'faster' | 'push'
 
+/**
+ * Where the exact average comes from: `cache` when RepKey holds every review
+ * Google counts, `google` when it does not and the figure is Google's own
+ * one-decimal number, so every sentence about it says "about".
+ */
+export type RatingExactAverageSource = 'cache' | 'google'
+
 /** When a target is expected. `YYYY-MM` months in the Property's time zone. */
 export type RatingForecastView =
   /** The recent mix does not clear the target: no pace reaches it. */
@@ -101,7 +108,7 @@ export type RatingGoalSetupView = Readonly<{
   hasActiveGoal: boolean
   google: GoogleNumbersView | null
   exactAverage: number | null
-  exactAverageSource: 'cache' | 'google' | null
+  exactAverageSource: RatingExactAverageSource | null
   recentMix: RecentMixView | null
   /** Reviews of the last 28 days per week, two decimals. */
   currentPacePerWeek: number
@@ -135,6 +142,8 @@ export type RatingGoalCardView = Readonly<{
   status: RatingGoalStatus
   google: GoogleNumbersView | null
   exactAverage: number | null
+  /** Null when there is no exact average. */
+  exactAverageSource: RatingExactAverageSource | null
   /** The exact average at which Google shows the target (4.45 for 4.5). */
   threshold: number
   /** From the baseline to the threshold, 0 to 1; null for a keep goal. */

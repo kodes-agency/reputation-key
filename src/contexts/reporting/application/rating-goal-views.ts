@@ -83,6 +83,19 @@ function googleView(reading: RatingGoalReading): GoogleNumbersView | null {
   }
 }
 
+/** The exact average to three decimals and where it comes from, or neither. */
+function exactView(
+  reading: RatingGoalReading,
+): Pick<RatingGoalCardView, 'exactAverage' | 'exactAverageSource'> {
+  const { exact } = reading
+  return exact === null
+    ? { exactAverage: null, exactAverageSource: null }
+    : {
+        exactAverage: round(ratioToNumber(exact.value), 3),
+        exactAverageSource: exact.source,
+      }
+}
+
 export const mixView = (mix: RecentMix | null): RecentMixView | null =>
   mix === null
     ? null
@@ -167,8 +180,7 @@ export function buildSetupView(
     eligibility,
     hasActiveGoal,
     google: googleView(reading),
-    exactAverage: reading.exact ? round(ratioToNumber(reading.exact.value), 3) : null,
-    exactAverageSource: reading.exact?.source ?? null,
+    ...exactView(reading),
     recentMix: mixView(reading.mix),
     currentPacePerWeek: round(
       ratioToNumber(currentPacePerWeek(reading.reviewsLast28Days)),
@@ -228,7 +240,7 @@ export function buildCardView(
     pacePerWeek: goal.pacePerWeek,
     status,
     google: googleView(reading),
-    exactAverage: reading.exact ? round(ratioToNumber(reading.exact.value), 3) : null,
+    ...exactView(reading),
     threshold: threshold / 1000,
     progress:
       goal.mode === 'climb' && reading.exact

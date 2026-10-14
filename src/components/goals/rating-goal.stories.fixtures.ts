@@ -157,6 +157,7 @@ export const CARD: RatingGoalCardView = {
   status: 'on_pace',
   google: GOOGLE,
   exactAverage: 4.382,
+  exactAverageSource: 'cache',
   threshold: 4.45,
   progress: 0.52,
   googleShowsSoon: false,

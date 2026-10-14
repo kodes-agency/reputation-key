@@ -172,6 +172,7 @@ describe('the simple card', () => {
       target: 4.5,
       threshold: 4.45,
       google: { shows: 4.3, reviewCount: 812 },
+      exactAverageSource: 'cache',
       thisWeekCount: 6,
       justSet: false,
       googleShowsSoon: false,
@@ -184,6 +185,16 @@ describe('the simple card', () => {
       status: 'on_pace',
       displayedTenths: 43,
     })
+  })
+
+  it('names the average Google’s own while the cache holds fewer reviews than Google counts', async () => {
+    world.goals = [activeGoal()]
+    // 700 of Google's 812 reviews: the exact average falls back to Google's figure.
+    world.summary = { ...world.summary, all: { count: 700, sum: 3000 } }
+
+    const card = await getRatingGoalCard(dependencies(world), input, actor)
+
+    expect(card).toMatchObject({ exactAverage: 4.3, exactAverageSource: 'google' })
   })
 
   it('forecasts at the chosen pace while the goal is young', async () => {
@@ -251,6 +262,7 @@ describe('the detail read', () => {
     const detail = await getRatingGoalDetail(dependencies(world), input, actor)
 
     expect(detail).toMatchObject({
+      exactAverageSource: 'cache',
       lastFourWeeksPerWeek: 7,
       stillNeeded: 454,
       bestCase: 207,

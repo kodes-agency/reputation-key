@@ -189,8 +189,7 @@ export const WaitingForGoogle: Story = {
 /** RepKey holds fewer reviews than Google counts: the average is Google's, and says so. */
 export const ApproximateNumbers: Story = {
   args: {
-    detail: { ...DETAIL, exactAverage: 4.3 },
-    setup: { ...SETUP, exactAverageSource: 'google' },
+    detail: { ...DETAIL, exactAverage: 4.3, exactAverageSource: 'google' },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

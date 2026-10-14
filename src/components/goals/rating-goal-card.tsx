@@ -17,9 +17,9 @@ import {
 import { ProgressBar } from '#/components/ui/progress-bar'
 import { StatusBadge } from '#/components/ui/status-badge'
 import {
+  averageProgressText,
   cardOutlook,
   cardPaceLine,
-  exactProgressText,
   googleShows,
   RATING_GOAL_STATUS,
   ratingText,
@@ -122,7 +122,7 @@ export function RatingGoalCard({ card, propertyId, timezone, now }: Props) {
             value={Math.round(card.progress * BAR_STEPS)}
             max={BAR_STEPS}
             label={`Progress toward Google showing ${target}`}
-            valueText={`Exact average ${exactProgressText(card.exactAverage, card.threshold)}`}
+            valueText={averageProgressText(card)}
           />
         )}
         {pace === null ? null : <p className="text-sm">{pace}</p>}

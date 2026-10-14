@@ -54,6 +54,23 @@ export function exactProgressText(exact: number | null, threshold: number): stri
 }
 
 /**
+ * The exact average against the threshold, named for what it is: "Exact average
+ * 4.38 of 4.45" from RepKey's complete copy of the reviews, or "About 4.30 of
+ * 4.45" while that copy is short of Google's count and the figure is Google's
+ * own rounded number (plan, Terms). The card's bar and the detail page say it
+ * the same way.
+ */
+export function averageProgressText(
+  view: Pick<RatingGoalCardView, 'exactAverage' | 'exactAverageSource' | 'threshold'>,
+): string {
+  const progress = exactProgressText(view.exactAverage, view.threshold)
+  if (view.exactAverage === null) return progress
+  return view.exactAverageSource === 'google'
+    ? `About ${progress}`
+    : `Exact average ${progress}`
+}
+
+/**
  * What Google shows, as the headline prints it: Google's own last number, with
  * its date while it is stale ("as of Oct 12"), and a dash only when Google has
  * never sent one.

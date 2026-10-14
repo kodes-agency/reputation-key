@@ -29,7 +29,6 @@ import {
   RatingGoalTiles,
 } from './rating-goal-detail-parts'
 import {
-  averageProgressText,
   bestCaseLine,
   cantReachSuggestion,
   detailForecasts,
@@ -38,6 +37,7 @@ import {
 } from './rating-goal-detail-view'
 import {
   APPROXIMATE_NUMBERS,
+  averageProgressText,
   endedSentence,
   perMonthAndDay,
   ratingText,
@@ -125,12 +125,12 @@ function Summary({ detail, timezone, now, setup }: Props) {
   )
 }
 
-function Progress({ detail, setup }: Pick<Props, 'detail' | 'setup'>) {
+function Progress({ detail }: Pick<Props, 'detail'>) {
   if (detail.progress === null) return null
   const marks = progressMarks(detail)
   const next = nextTenthLine(detail)
-  const approximate = setup?.exactAverageSource === 'google'
-  const average = averageProgressText(detail, approximate)
+  const approximate = detail.exactAverageSource === 'google'
+  const average = averageProgressText(detail)
   return (
     <Card className="gap-4">
       <CardHeader>
@@ -203,7 +203,7 @@ export function RatingGoalDetail(props: Props) {
     <div data-slot="rating-goal-detail" className="flex flex-col gap-6">
       <Moved detail={detail} />
       <Summary {...props} />
-      {active ? <Progress detail={detail} setup={props.setup} /> : null}
+      {active ? <Progress detail={detail} /> : null}
       {active ? <RatingGoalTiles detail={detail} /> : null}
       <WeeklyBars detail={detail} />
       <RatingGoalStarMix detail={detail} />

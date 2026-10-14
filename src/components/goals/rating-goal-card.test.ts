@@ -61,6 +61,13 @@ describe('RatingGoalCard', () => {
     expect(text).toContain('View details')
   })
 
+  it('says the average is about that, not exact, while it is Google’s own rounded figure', () => {
+    const html = render({ ...CARD, exactAverage: 4.3, exactAverageSource: 'google' })
+
+    expect(html).toContain('aria-valuetext="About 4.30 of 4.45"')
+    expect(html).not.toContain('Exact average')
+  })
+
   it('asks for a pace while the goal is new', () => {
     const text = textOf(render(CARD_JUST_SET))
 
