@@ -1,14 +1,10 @@
 import { z } from 'zod/v4'
 import type {
   GoogleReviewApiError,
-  GoogleReviewApiErrorCode,
   GoogleReviewApiPort,
   StarRating,
 } from '#/contexts/review/application/public-api'
-import type {
-  GoogleReviewApiFailure,
-  GoogleReviewRead,
-} from '#/contexts/review/application/ports/google-review-api.port'
+import type { GoogleReviewRead } from '#/contexts/review/application/ports/google-review-api.port'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleConnectionRepository } from '../../application/ports/google-connection.repository'
@@ -37,10 +33,18 @@ import {
   providerStatusError,
 } from './google-provider-adapter'
 import {
+  cursorFailureCode,
+  executorErrorToReviewApiError,
+  invalidRequest,
+  isAcceptedNonJsonWrite,
+  isGoogleReviewApiError,
+  replyAuthorizationRefusal,
+  reviewApiError,
+} from './google-review-api-errors'
+import {
   googleReviewCursorAuthorization,
   sameGoogleReviewCursorAuthorization,
   type GoogleReviewCursorAuthorization,
-  type GoogleReviewCursorFailureCode,
   type GoogleReviewCursorStore,
 } from '../google-review-cursor-store'
 
@@ -173,216 +177,6 @@ type ProviderContext = Readonly<{
   authorization: GoogleProviderCallAuthorization
   cursorAuthorization: GoogleReviewCursorAuthorization
 }>
-
-function defineEnumerable<T>(value: T): PropertyDescriptor {
-  return {
-    value,
-    enumerable: true,
-    writable: false,
-    configurable: false,
-  }
-}
-
-type ReviewApiErrorDetails = Readonly<{
-  retryAfterMs?: number
-  /** Dispatch evidence; when present the message names it (content-free). */
-  failure?: GoogleReviewApiFailure
-  /** The code or kind the message leads with; defaults to the review code. */
-  failureLabel?: string
-}>
-
-/** Reaches BullMQ's failedReason, so codes, dispatch and status only. */
-function failureMessage(label: string, failure: GoogleReviewApiFailure): string {
-  const status =
-    failure.providerStatus === null ? '' : `; status ${failure.providerStatus}`
-  return `Google review API request failed (${label}; ${failure.dispatch}${status})`
-}
-
-/**
- * `retryAfterMs` carries the provider's own backoff hint to the scheduler.
- *
- * Dropping it was a live amplification bug: a `quota_exhausted` admission
- * denial surfaces as `provider_rate_limited`, the snapshot use case checkpoints
- * WITHOUT advancing its cursor, and the sync job re-enqueued the continuation
- * with no delay - so a provider asking for a ~1s pause got hammered at queue
- * speed instead (observed: 3,225 denials over 344s, ~9/s, which starved every
- * other Google route sharing the quota, reply publishing included).
- */
-function reviewApiError(
-  code: GoogleReviewApiErrorCode,
-  recoverable: boolean,
-  details: ReviewApiErrorDetails = {},
-): GoogleReviewApiError {
-  const { retryAfterMs, failure } = details
-  const error = new Error(
-    failure === undefined
-      ? 'Google review API request failed'
-      : failureMessage(details.failureLabel ?? code, failure),
-  ) as GoogleReviewApiError
-  Object.defineProperties(error, {
-    name: defineEnumerable('GoogleReviewApiError'),
-    _tag: defineEnumerable('GoogleReviewApiError'),
-    code: defineEnumerable(code),
-    recoverable: defineEnumerable(recoverable),
-    ...(retryAfterMs === undefined
-      ? {}
-      : { retryAfterMs: defineEnumerable(retryAfterMs) }),
-    ...(failure === undefined
-      ? {}
-      : { failure: defineEnumerable(Object.freeze({ ...failure })) }),
-  })
-  return error
-}
-
-const NOT_SENT: GoogleReviewApiFailure = Object.freeze({
-  executionCode: null,
-  dispatch: 'not_sent',
-  providerStatus: null,
-})
-
-/** Every `invalid_request` is thrown before the executor is called. */
-function invalidRequest(): GoogleReviewApiError {
-  return reviewApiError('invalid_request', false, { failure: NOT_SENT })
-}
-
-// The codes below are read from an `unknown` rejection, so they are only
-// trusted as log/message material when they look like a closed-union code.
-const CONTENT_FREE_CODE = /^[a-z][a-z0-9_]{0,63}$/u
-
-function errorField(error: unknown, key: string): unknown {
-  return typeof error === 'object' && error !== null && key in error
-    ? (error as Record<string, unknown>)[key]
-    : undefined
-}
-
-function contentFreeCode(value: unknown): string | null {
-  return typeof value === 'string' && CONTENT_FREE_CODE.test(value) ? value : null
-}
-
-/**
- * Reads the GbpApiError dispatch fields `executeGoogleProviderRaw` records. A
- * missing or unrecognised dispatch is `unknown`: only the provider plane's
- * explicit `not_sent` may later make a failure safe to retry.
- */
-function executorFailure(
-  error: unknown,
-): Readonly<{ label: string; failure: GoogleReviewApiFailure }> {
-  const executionCode =
-    contentFreeCode(errorField(error, 'executionAdmissionCode')) ??
-    contentFreeCode(errorField(error, 'executionCode'))
-  const dispatch = errorField(error, 'dispatch')
-  const status = errorField(error, 'providerStatus')
-  return {
-    label: executionCode ?? contentFreeCode(errorField(error, 'kind')) ?? 'unclassified',
-    failure: {
-      executionCode,
-      dispatch: dispatch === 'not_sent' || dispatch === 'answered' ? dispatch : 'unknown',
-      providerStatus:
-        typeof status === 'number' && Number.isSafeInteger(status) ? status : null,
-    },
-  }
-}
-
-/**
- * Maps an authorized-executor rejection onto the review API's error vocabulary,
- * preserving the backoff hint the executor already computed
- * (`googleRetryFloorMs` over Retry-After or the admission denial). Dropping it
- * turned a rate-limited provider into a queue-speed retry loop.
- *
- * The code mapping stays coarse, but the dispatch evidence rides along: the
- * incident reply's compile refusal (no permit, no fetch) arrived here as
- * `parse_error`, left as a bare `provider_unavailable`, and was classified
- * ambiguous (reply-publication-workflow.ts classifyPublicationFailure).
- */
-function executorErrorToReviewApiError(error: unknown): GoogleReviewApiError {
-  const kind = errorField(error, 'kind')
-  const { label, failure } = executorFailure(error)
-  // A refusal is an ANSWER, not an outage. Collapsing 401/403 into
-  // `provider_unavailable` told the reply publication workflow the outcome was
-  // unknown, so a permanently refused write burned every retry and never
-  // reached publish_failed.
-  if (kind === 'auth_failed' || kind === 'permission_denied') {
-    return reviewApiError('authorization_changed', false, {
-      failure,
-      failureLabel: label,
-    })
-  }
-  // A rate limit AND an upstream failure (a 5xx, a 400, a gateway that could not
-  // decide) carry a real wait. Dropping the second re-ran the same step at queue
-  // speed for as long as the run lasted. Other kinds (an unreadable body) carry
-  // none worth keeping.
-  const hint = errorField(error, 'retryAfterMs')
-  const rateLimited = kind === 'rate_limited'
-  return reviewApiError(
-    rateLimited ? 'provider_rate_limited' : 'provider_unavailable',
-    true,
-    {
-      ...(typeof hint === 'number' && (rateLimited || kind === 'upstream_error')
-        ? { retryAfterMs: hint }
-        : {}),
-      failure,
-      failureLabel: label,
-    },
-  )
-}
-
-/**
- * The reply authorizer refused, or could not decide, before any credential or
- * provider access, so nothing was sent. The refusal stays terminal, but its
- * closed code rides along as not-sent evidence: `stale_source` (the Property
- * is no longer active at the cycle's source epoch) is RepKey's own policy,
- * which the publish job cancels instead of reporting it as Google's answer.
- */
-function replyAuthorizationRefusal(refusal: unknown): GoogleReviewApiError {
-  const executionCode = contentFreeCode(errorField(refusal, 'code'))
-  return reviewApiError('authorization_changed', false, {
-    failure: { ...NOT_SENT, executionCode },
-    ...(executionCode === null ? {} : { failureLabel: executionCode }),
-  })
-}
-
-/**
- * `executeGoogleProviderRaw` refuses a 200 whose content type is not JSON, but
- * for a write that refusal is about the body, not the outcome: Google answered
- * 200, so the reply was accepted. That branch is the only `parse_error` with an
- * answered 200 and no executor code (an executor failure always names its
- * code, e.g. `response_too_large`), so nothing else is read as acceptance.
- */
-function isAcceptedNonJsonWrite(error: unknown): boolean {
-  return (
-    errorField(error, '_tag') === 'GbpApiError' &&
-    errorField(error, 'kind') === 'parse_error' &&
-    errorField(error, 'dispatch') === 'answered' &&
-    errorField(error, 'providerStatus') === 200 &&
-    errorField(error, 'executionCode') === undefined
-  )
-}
-
-function isGoogleReviewApiError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    '_tag' in error &&
-    error._tag === 'GoogleReviewApiError'
-  )
-}
-
-function cursorFailureCode(
-  code: GoogleReviewCursorFailureCode,
-): GoogleReviewApiErrorCode {
-  const mapping: Readonly<
-    Record<GoogleReviewCursorFailureCode, GoogleReviewApiErrorCode>
-  > = {
-    not_found: 'cursor_not_found',
-    expired: 'cursor_expired',
-    binding_mismatch: 'cursor_binding_mismatch',
-    exhausted: 'cursor_exhausted',
-    capacity_exceeded: 'cursor_capacity_exceeded',
-    conflict: 'provider_unavailable',
-    unavailable: 'provider_unavailable',
-  }
-  return mapping[code]
-}
 
 function withTimeout(ms: number): Readonly<{
   signal: AbortSignal
