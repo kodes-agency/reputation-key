@@ -507,6 +507,35 @@ describe('an evaluation write', () => {
     })
   })
 
+  it('applies a later evaluation onto the below-pace notice time it read back', async () => {
+    await repository().recordEvaluation(
+      write({ status: 'below_pace', belowPaceNoticedAt: LATER }),
+    )
+    const stored = await repository().findActive(ORG, PROPERTY)
+
+    await expect(
+      repository().recordEvaluation(
+        write({
+          expectedMark: {
+            displayedTenths: stored!.lastEvaluation.displayedTenths,
+            knownStatus: stored!.lastEvaluation.knownStatus,
+            belowPaceNoticedAt: stored!.lastEvaluation.belowPaceNoticedAt,
+          },
+          status: 'on_pace',
+          belowPaceNoticedAt: LATER,
+          evaluatedAt: new Date(LATER.getTime() + 60_000),
+        }),
+      ),
+    ).resolves.toBe(true)
+    await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
+      lastEvaluation: {
+        status: 'on_pace',
+        knownStatus: 'on_pace',
+        belowPaceNoticedAt: LATER,
+      },
+    })
+  })
+
   it('writes no fact for an evaluation that stores nothing', async () => {
     await repository().recordEvaluation(write())
 
