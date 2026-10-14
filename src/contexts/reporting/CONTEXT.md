@@ -39,12 +39,15 @@ metric authority.
 - **Goals list progress**: the month so far of every active goal of a Property, read in one
   request for the Goals list (`getGoalListProgress`, `createGoalListProgressReader`): one Program
   list read, then each goal through the same `progressOf` as its own page. One subject gets its
-  figure against the running month's target and the days left; several subjects on a count get how
-  many are below pace; an average with several subjects, or more subjects than a goal's page
-  reads, gets the count of subjects alone. A scheduled, paused or ended goal has no line. Each
-  figure is the governed read of the goal's own page, so the list and the page cannot disagree:
-  one server call but several statements, a deliberate departure from one set-based read because
-  the set-based count below leaves out the outbox completeness proof. A page is bounded instead:
+  figure against the running month's target and the days left, and on a count that is below pace
+  the quiet amber words "below pace" after them (`belowPace` is 1 or 0 for one subject, null when
+  nothing was judged, the same figures and the same `goalPace` as several subjects); several
+  subjects on a count get how many are below pace; an average with several subjects, or more
+  subjects than a goal's page reads, gets the count of subjects alone. A scheduled, paused or
+  ended goal has no line. Each figure is the governed read of the goal's own page, so the list
+  and the page cannot disagree: one server call but several statements, a deliberate departure
+  from one set-based read because the set-based count below leaves out the outbox completeness
+  proof. A page is bounded instead:
   at most 60 figures, three in flight (two queries each, six of the web pool's ten connections),
   and the goals past that carry no line. While the figures are first read, an active row keeps
   the room its line will take (`GoalLiveLinePending`), so the rows below do not move.
@@ -52,9 +55,10 @@ metric authority.
   count measure expects the month's target times the share of the month gone, in whole
   Property-local calendar days with today included (the Results window's convention). It is
   behind pace below 90% of that, and exactly 90% is on pace. The first three days of a month are
-  not judged, and an average has no pace. One rule feeds the Goals list ("N below pace"), the
-  Overview chip and the Properties list. The chip and the list count the figure from the readings
-  of every running month of an active count goal in one statement
+  not judged, and an average has no pace. One rule feeds the Goals list ("below pace" on a row
+  with one subject, "N below pace" on one with several), the Overview chip and the Properties
+  list. The chip and the list count the figure from the readings of every running month of an
+  active count goal in one statement
   (`infrastructure/adapters/goal-running-months.ts`), because a month still running stores no
   value: its result row stays `updating` until it closes. That read sums what the goal's own page
   sums and reads a goal only where the page could: a Portal or Portal Group that was deleted, or
