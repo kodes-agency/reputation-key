@@ -8,6 +8,8 @@ import {
 } from 'libphonenumber-js/max'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import { AI_UNICODE_CASE_FOLDING_V17 } from './generated/ai-unicode-case-folding-v17'
+import { ADDRESS_MARKER_PROFILE, findAddressMarkers } from './ai-address-markers'
+import { ibanValid, luhnValid } from './ai-financial-validators'
 
 export const AI_STRUCTURED_MARKER_DETECTORS_VERSION =
   'structured-marker-detectors-v1' as const
@@ -92,8 +94,6 @@ const IBAN_RE =
   /(?:^|[^A-Za-z0-9])([A-Za-z]{2}\d{2}(?:[ -]?[A-Za-z0-9]){11,30})(?=$|[^A-Za-z0-9])/gu
 const LABELLED_ID_RE =
   /\b(?:passport|tax[ \t_-]*id|national[ \t_-]*id|government[ \t_-]*id|driver'?s?[ \t_-]*licen[cs]e|ssn|social[ \t_-]*security|account[ \t_-]*(?:id|number)|customer[ \t_-]*id)\b[ \t]*(?::|#|-)?[ \t]*[A-Za-z0-9][A-Za-z0-9._~-]{3,64}/giu
-const ADDRESS_RE =
-  /\b\d{1,8}[ \t]+(?:[\p{L}\p{M}][\p{L}\p{M}.'’-]*[ \t]+){0,8}(?:street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)\b(?:[, \t]+\d{4,10}(?:-\d{3,4})?)?/giu
 const POSTAL_LABEL_RE =
   /\b(?:postal[ \t_-]*code|postal|postcode|zip[ \t_-]*code|zip)\b[ \t]*(?::|#|-)?[ \t]*[A-Za-z0-9][A-Za-z0-9 -]{2,11}[A-Za-z0-9]\b/giu
 const KNOWN_SECRET_RE =
@@ -110,8 +110,6 @@ const OVERBOUND_IBAN_RE =
   /(?:^|[^A-Za-z0-9])([A-Za-z]{2}\d{2}(?:[ -]?[A-Za-z0-9]){31,})(?=$|[^A-Za-z0-9])/gu
 const OVERBOUND_COORDINATE_RE =
   /[+-]?(?:\d{1,3})\.\d{9,}\s*,\s*[+-]?(?:\d{1,3})\.\d{4,}|[+-]?(?:\d{1,3})\.\d{4,}\s*,\s*[+-]?(?:\d{1,3})\.\d{9,}/gu
-const ADDRESS_HINT_RE =
-  /\b(?:street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|place|pl)\b/iu
 /* eslint-enable security/detect-unsafe-regex, no-useless-escape */
 
 const PLACEHOLDER_PRIORITY: Readonly<Record<AiDetectedPlaceholder, number>> = {
@@ -134,12 +132,7 @@ const DETECTOR_MANIFEST = Object.freeze({
     'contact',
   ]),
   patterns: Object.freeze([
-    Object.freeze({ id: 'address', source: ADDRESS_RE.source, flags: ADDRESS_RE.flags }),
-    Object.freeze({
-      id: 'address_hint',
-      source: ADDRESS_HINT_RE.source,
-      flags: ADDRESS_HINT_RE.flags,
-    }),
+    ...ADDRESS_MARKER_PROFILE.patterns,
     Object.freeze({
       id: 'bare_domain',
       source: BARE_DOMAIN_RE.source,
@@ -238,9 +231,11 @@ const DETECTOR_MANIFEST = Object.freeze({
     address: 256,
     secret: 256,
   }),
+  informalStreetExcludedWords: ADDRESS_MARKER_PROFILE.informalStreetExcludedWords,
   validators: Object.freeze([
     'email-rfc-bounded-v1',
     'whatwg-http-domain-v1',
+    'bare-domain-alphabetic-final-label-v1',
     'social-handle-v1',
     'libphonenumber-js-1.13.11-max',
     'node-net-is-ip-v1',
@@ -248,7 +243,7 @@ const DETECTOR_MANIFEST = Object.freeze({
     'luhn-v1',
     'iban-mod97-v1',
     'labelled-identifier-v1',
-    'postal-address-keyword-v1',
+    'postal-address-street-shape-v2',
     'secret-entropy-v1',
   ]),
 })
@@ -340,9 +335,6 @@ function detectOverBoundCandidates(text: string, state: ScanState): void {
   }
   if (OVERBOUND_LABELLED_ID_RE.test(text)) state.blocked = 'ambiguous_candidate'
   OVERBOUND_LABELLED_ID_RE.lastIndex = 0
-  if (countScalars(text) > 256 && /\p{N}/u.test(text) && ADDRESS_HINT_RE.test(text)) {
-    state.blocked = 'ambiguous_candidate'
-  }
 }
 
 function addCandidate(
@@ -397,6 +389,26 @@ function validDomain(domain: string): boolean {
       !label.endsWith('-') &&
       /^[A-Za-z0-9-]+$/u.test(label),
   )
+}
+
+/**
+ * A domain written bare, in running text, is told from a number or an
+ * abbreviation by its last label, which is a top-level domain: letters only and
+ * at least two of them (`com`, `bg`, `co`, `бг`, or the ASCII form of an
+ * internationalised one, `xn--p1ai`). `4.5`, `9.99`, `12.05.2024`, `2.4 GHz`,
+ * `e.g`, `a.m`, `т.е` and `U.S.A` are not domains. Email addresses and URLs
+ * keep the plainer `validDomain`: their `@` or scheme is already the evidence,
+ * and `guest@192.0.2.55` must stay a contact.
+ */
+function endsInAlphabeticLabel(domain: string): boolean {
+  const label = domain.slice(domain.lastIndexOf('.') + 1)
+  if (/^xn--[a-z0-9-]+$/iu.test(label)) return true
+  let letters = 0
+  for (const scalar of label) {
+    if (/^\p{L}$/u.test(scalar)) letters += 1
+    else if (!/^\p{M}$/u.test(scalar)) return false
+  }
+  return letters >= 2
 }
 
 function validEmail(value: string): boolean {
@@ -515,7 +527,9 @@ function scanUrlsAndDomains(text: string, state: ScanState): void {
   })
   forEachMatch(BARE_DOMAIN_RE, text, (match) => {
     const value = match[1]
-    if (value === undefined || !validDomain(value)) return
+    if (value === undefined || !validDomain(value) || !endsInAlphabeticLabel(value)) {
+      return
+    }
     const relative = match[0].lastIndexOf(value)
     const start = match.index + relative
     addCandidate(state, text, start, start + value.length, '[CONTACT]', 2048)
@@ -626,37 +640,6 @@ function scanIpsAndCoordinates(text: string, state: ScanState): void {
   })
 }
 
-function luhnValid(digits: string): boolean {
-  let sum = 0
-  let double = false
-  for (let index = digits.length - 1; index >= 0; index -= 1) {
-    let digit = digits.charCodeAt(index) - 0x30
-    if (double) {
-      digit *= 2
-      if (digit > 9) digit -= 9
-    }
-    sum += digit
-    double = !double
-  }
-  return sum % 10 === 0
-}
-
-function ibanValid(value: string): boolean {
-  const compact = value.replace(/[ -]/gu, '').toUpperCase()
-  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/u.test(compact) || compact.length > 34) {
-    return false
-  }
-  const rearranged = compact.slice(4) + compact.slice(0, 4)
-  let remainder = 0
-  for (const character of rearranged) {
-    const expanded = /[A-Z]/u.test(character)
-      ? String(character.charCodeAt(0) - 55)
-      : character
-    for (const digit of expanded) remainder = (remainder * 10 + Number(digit)) % 97
-  }
-  return remainder === 1
-}
-
 function scanFinancial(text: string, state: ScanState): void {
   forEachMatch(CARD_RE, text, (match) => {
     const raw = match[1]
@@ -690,17 +673,18 @@ function scanIdentifiersAndAddresses(text: string, state: ScanState): void {
       256,
     )
   })
-  for (const expression of [POSTAL_LABEL_RE, ADDRESS_RE] as const) {
-    forEachMatch(expression, text, (match) => {
-      addCandidate(
-        state,
-        text,
-        match.index,
-        match.index + match[0].length,
-        '[ADDRESS]',
-        256,
-      )
-    })
+  forEachMatch(POSTAL_LABEL_RE, text, (match) => {
+    addCandidate(
+      state,
+      text,
+      match.index,
+      match.index + match[0].length,
+      '[ADDRESS]',
+      256,
+    )
+  })
+  for (const span of findAddressMarkers(text)) {
+    addCandidate(state, text, span.start, span.end, '[ADDRESS]', 256)
   }
 }
 

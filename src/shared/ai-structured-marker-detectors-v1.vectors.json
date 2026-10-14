@@ -82,5 +82,54 @@
     "countryCode": "ZZ",
     "expectedStatus": "blocked",
     "expectedReason": "invalid_country"
+  },
+  {
+    "vectorId": "decimals-dates-and-abbreviations-are-not-domains",
+    "text": "Rated 4.5 on 12.05.2024, e.g. at 11 a.m.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "domain-with-alphabetic-last-label",
+    "text": "Book on hotel-sofia.bg today.",
+    "countryCode": "BG",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "email-at-numeric-host",
+    "text": "Write to guest@192.0.2.55 please.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "long-review-with-digit-and-street-word-is-safe",
+    "text": "Stayed here for 3 nights with my wife and kids in July. The room was clean, the breakfast was fresh and varied, and the staff went out of their way to help with the luggage. The only complaint is the noise from the street at night, which made it hard to sleep with the window open. We would still come back.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "quantity-before-place-is-not-an-address",
+    "text": "We spent 2 weeks here and it was a wonderful place with lovely staff.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": []
+  },
+  {
+    "vectorId": "informal-lowercase-street-address",
+    "text": "Please deliver it to 25 main street after lunch.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "named-street-address-in-a-long-review",
+    "text": "We stayed 3 nights and the hotel at 25 Main Street was easy to find, with a quiet room, a friendly desk, a big breakfast and a pool that the kids loved. Everything was clean, the staff were kind and we would gladly come back again next summer with our friends.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
   }
 ]

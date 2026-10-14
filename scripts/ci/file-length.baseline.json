@@ -15,7 +15,6 @@
   "src/contexts/review/infrastructure/repositories/review.repository.ts": 840,
   "src/shared/ai-internal-transport-contract.ts": 1063,
   "src/shared/ai-provider-control/openai-connector.ts": 1178,
-  "src/shared/ai-structured-marker-detectors.ts": 815,
   "src/shared/db/schema-drift.ts": 947,
   "src/shared/db/schema/ai.schema.ts": 1290,
   "src/shared/db/schema/inbox.schema.ts": 869,
