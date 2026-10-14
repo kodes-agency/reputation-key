@@ -7,11 +7,14 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
-import { RatingGoalDetail } from './rating-goal-detail'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import { RatingGoalDetail, RatingGoalMissing } from './rating-goal-detail'
 import { RatingGoalDetailActions } from './rating-goal-detail-actions'
+import { withRatingGoalRefusals } from './rating-goal-refusal'
 import {
   DETAIL,
   FIXTURE_NOW,
+  FIXTURE_PROPERTY_ID,
   FIXTURE_TIMEZONE,
   SETUP,
   SETUP_KEEP_FIRST,
@@ -133,6 +136,7 @@ export const KeepGoal: Story = {
   },
 }
 
+/** No pace reaches it: said once, with the fix, and not again under each pace. */
 export const CantReachSuggestsAFix: Story = {
   args: {
     detail: {
@@ -148,6 +152,8 @@ export const CantReachSuggestsAFix: Story = {
     await expect(canvas.getByRole('alert')).toHaveTextContent(
       'No pace reaches 4.5 at the recent star mix. The highest goal you can reach now is 4.7.',
     )
+    await expect(canvas.getAllByText(/No pace reaches 4\.5/)).toHaveLength(1)
+    await expect(canvas.queryByText(/^At your chosen pace/)).toBeNull()
     await expect(canvas.getByText('Not reachable')).toBeVisible()
   },
 }
@@ -161,12 +167,94 @@ export const GoogleShouldShowItSoon: Story = {
   },
 }
 
-export const FoundReached: Story = {
-  args: { detail: { ...DETAIL, state: 'reached', status: 'reached' } },
+/** Google's numbers are a day old: the last number with its date, and the chip says why. */
+export const WaitingForGoogle: Story = {
+  args: {
+    detail: {
+      ...DETAIL,
+      status: 'waiting_for_google',
+      google: { ...DETAIL.google!, current: false, asOf: '2026-10-12T08:00:00.000Z' },
+    },
+    readAt: NOW,
+  },
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('as of Oct 12')).toBeVisible()
     await expect(
-      within(canvasElement).getByText(/^Google shows 4\.5: the goal is reached\./),
+      canvas.getByText('Google numbers checked 2 days ago · Owners and managers only'),
     ).toBeVisible()
+  },
+}
+
+/** RepKey holds fewer reviews than Google counts: the average is Google's, and says so. */
+export const ApproximateNumbers: Story = {
+  args: {
+    detail: { ...DETAIL, exactAverage: 4.3 },
+    setup: { ...SETUP, exactAverageSource: 'google' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('About 4.30 of 4.45')).toBeVisible()
+    await expect(canvas.queryByText(/^Exact average/)).toBeNull()
+    await expect(
+      canvas.getByText(
+        'RepKey doesn’t hold every review Google counts yet, so these numbers are approximate.',
+      ),
+    ).toBeVisible()
+  },
+}
+
+/** Found reached: what it was and how it went, nothing that looks ahead. */
+export const FoundReached: Story = {
+  args: {
+    detail: {
+      ...DETAIL,
+      state: 'reached',
+      status: 'reached',
+      google: { ...DETAIL.google!, shows: 4.5 },
+      exactAverage: 4.452,
+      progress: 1,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(/^Google shows 4\.5: the goal is reached\./),
+    ).toBeVisible()
+    await expect(canvas.queryByText(/^Expected around/)).toBeNull()
+    await expect(canvas.queryByText(/^Your pace/)).toBeNull()
+    await expect(canvas.queryByRole('progressbar')).toBeNull()
+    await expect(canvasElement.querySelector('[data-slot="metric-strip"]')).toBeNull()
+    await expect(canvas.getByText('Pace 14 → 11 a week')).toBeVisible()
+  },
+}
+
+export const FoundEnded: Story = {
+  args: {
+    detail: { ...DETAIL, state: 'ended', endedReason: 'google_location_changed' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(/^Ended: Google location changed\. It is in History now/),
+    ).toBeVisible()
+    await expect(canvas.queryByText(/^Expected around/)).toBeNull()
+    await expect(canvas.queryByRole('progressbar')).toBeNull()
+  },
+}
+
+/** The page of a Property with no goal (ended elsewhere, or never set): the way back. */
+export const NoGoal: StoryObj<typeof RatingGoalMissing> = {
+  render: () => <RatingGoalMissing propertyId={FIXTURE_PROPERTY_ID} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText('This property has no Google rating goal'),
+    ).toBeVisible()
+    await expect(canvas.getByRole('link', { name: 'Go to goals' })).toHaveAttribute(
+      'href',
+      `/properties/${FIXTURE_PROPERTY_ID}/goals`,
+    )
   },
 }
 
@@ -210,6 +298,43 @@ export const Actions: StoryObj<typeof RatingGoalDetailActions> = {
     await expect(dialog.getByText('End the Google rating goal?')).toBeVisible()
     await userEvent.click(dialog.getByRole('button', { name: 'End goal' }))
     await waitFor(() => expect(onEnd).toHaveBeenCalledOnce())
+  },
+}
+
+const refusedEnd = withRatingGoalRefusals(async (_: void): Promise<never> => {
+  throw new ServerFunctionError(
+    'RatingGoalError',
+    'version_conflict',
+    'version_conflict',
+    409,
+  )
+})
+const endRefused = fn(() => refusedEnd(undefined))
+
+/** Ending refused (another manager changed it first): the confirmation stays and says why. */
+export const EndRefused: StoryObj<typeof RatingGoalDetailActions> = {
+  render: () => (
+    <div className="flex gap-2">
+      <RatingGoalDetailActions
+        goal={DETAIL}
+        setup={SETUP}
+        onChange={fn()}
+        onEnd={endRefused}
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    endRefused.mockClear()
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'End goal' }))
+    const dialog = within(await within(document.body).findByRole('alertdialog'))
+    await userEvent.click(dialog.getByRole('button', { name: 'End goal' }))
+    await expect(
+      await dialog.findByText(
+        'This goal changed after you opened this. Close it and open it again to start from the latest.',
+      ),
+    ).toBeVisible()
+    await expect(endRefused).toHaveBeenCalledOnce()
+    await expect(dialog.getByRole('button', { name: 'Keep goal' })).toBeEnabled()
   },
 }
 

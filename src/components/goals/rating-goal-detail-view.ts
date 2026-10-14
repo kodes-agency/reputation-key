@@ -8,7 +8,12 @@ import type {
   RatingGoalSetupView,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { formatNumber } from '#/lib/format'
-import { forecastSentence, ratingText, reviewsText } from './rating-goal-view'
+import {
+  exactProgressText,
+  forecastSentence,
+  ratingText,
+  reviewsText,
+} from './rating-goal-view'
 
 const WEEKS_A_YEAR = 52
 /** Below this many weeks a span reads in weeks; below this many months, in months. */
@@ -33,11 +38,15 @@ export function aboutHowLong(reviews: number, perWeek: number): string {
 const perWeekText = (perWeek: number): string =>
   `${formatNumber(perWeek, { maximumFractionDigits: 2 })} a week`
 
-/** Both forecasts the detail shows: at the chosen pace and at the actual one. */
+/**
+ * Both forecasts the detail shows: at the chosen pace and at the actual one.
+ * None while no pace reaches the target at the recent mix: the page says that
+ * once, with its suggested fix, rather than once per pace.
+ */
 export function detailForecasts(
   detail: RatingGoalDetailView,
 ): readonly Readonly<{ label: string; text: string }>[] {
-  if (detail.pacePerWeek === null) return []
+  if (detail.pacePerWeek === null || detail.status === 'cant_reach_at_mix') return []
   const lines = [
     detail.forecastAtChosenPace === null
       ? null
@@ -85,6 +94,21 @@ export function progressMarks(detail: RatingGoalDetailView): Readonly<{
     start: `Started at ${twoDecimals(from)}`,
     end: `${twoDecimals(detail.threshold)} shows ${ratingText(detail.target)}`,
   }
+}
+
+/**
+ * The exact average against the threshold, named for what it is: "Exact average
+ * 4.38 of 4.45" from RepKey's complete copy of the reviews, or "About 4.30 of
+ * 4.45" while that copy is short of Google's count and the figure is Google's
+ * own rounded number (plan, Terms).
+ */
+export function averageProgressText(
+  detail: Pick<RatingGoalDetailView, 'exactAverage' | 'threshold'>,
+  approximate: boolean,
+): string {
+  const progress = exactProgressText(detail.exactAverage, detail.threshold)
+  if (detail.exactAverage === null) return progress
+  return approximate ? `About ${progress}` : `Exact average ${progress}`
 }
 
 /** "Next: Google shows 4.4 after about 31 more reviews". */

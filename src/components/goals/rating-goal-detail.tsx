@@ -4,6 +4,8 @@
 // weeks, and the best case; the bar from where the goal started with the next
 // tenth marked; this week, the last four weeks and what is still needed; the
 // weekly bars against the pace; the stars since it was set; the change log.
+// A goal the read found reached or ended looks forward no more: what it was,
+// the weeks, the stars and the changes stay, the forecasts and the bar go.
 import { lazy, Suspense } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Target } from 'lucide-react'
@@ -27,6 +29,7 @@ import {
   RatingGoalTiles,
 } from './rating-goal-detail-parts'
 import {
+  averageProgressText,
   bestCaseLine,
   cantReachSuggestion,
   detailForecasts,
@@ -34,8 +37,8 @@ import {
   progressMarks,
 } from './rating-goal-detail-view'
 import {
+  APPROXIMATE_NUMBERS,
   endedSentence,
-  exactProgressText,
   perMonthAndDay,
   ratingText,
 } from './rating-goal-view'
@@ -53,16 +56,58 @@ type Props = Readonly<{
   readAt: Date
   timezone: string
   now: Date
-  /** The setup read, for the fix suggested when no pace reaches the target. */
+  /**
+   * The setup read: the fix suggested when no pace reaches the target, and
+   * whether the exact average is RepKey's own or Google's rounded number.
+   */
   setup?: RatingGoalSetupView
   personName: (userId: string) => string | null
 }>
 
 const QUIET = 'text-sm text-muted-foreground'
 
-function Summary({ detail, timezone, now, setup }: Props) {
+/** What an active goal looks forward to: its pace, the forecasts and the best case. */
+function Outlook({ detail, setup }: Pick<Props, 'detail' | 'setup'>) {
   const target = ratingText(detail.target)
   const best = bestCaseLine(detail)
+  const forecasts = detailForecasts(detail)
+  return (
+    <>
+      {detail.pacePerWeek === null ? null : (
+        <p className="text-base">
+          Your pace: {detail.pacePerWeek} a week ·{' '}
+          {perMonthAndDay(ratingGoalPaceView(detail.pacePerWeek))}
+        </p>
+      )}
+      {detail.googleShowsSoon ? (
+        <Alert variant="info">
+          <AlertDescription>
+            Google should show {target} soon. Its number can take up to two weeks to catch
+            up.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {detail.status === 'cant_reach_at_mix' ? (
+        <Alert variant="warning">
+          <AlertDescription>{cantReachSuggestion(detail.target, setup)}</AlertDescription>
+        </Alert>
+      ) : null}
+      {forecasts.length === 0 ? null : (
+        <DescriptionList stacked aria-label="When Google is expected to show it">
+          {forecasts.map((line) => (
+            <DescriptionItem key={line.label} term={line.label}>
+              {line.text}
+            </DescriptionItem>
+          ))}
+        </DescriptionList>
+      )}
+      {best === null ? null : <p className={QUIET}>{best}</p>}
+    </>
+  )
+}
+
+function Summary({ detail, timezone, now, setup }: Props) {
+  const target = ratingText(detail.target)
   return (
     <Card className="gap-4">
       <CardHeader>
@@ -74,46 +119,18 @@ function Summary({ detail, timezone, now, setup }: Props) {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <RatingGoalHeadline card={detail} timezone={timezone} now={now} />
-        {detail.pacePerWeek === null ? null : (
-          <p className="text-base">
-            Your pace: {detail.pacePerWeek} a week ·{' '}
-            {perMonthAndDay(ratingGoalPaceView(detail.pacePerWeek))}
-          </p>
-        )}
-        {detail.googleShowsSoon ? (
-          <Alert variant="info">
-            <AlertDescription>
-              Google should show {target} soon. Its number can take up to two weeks to
-              catch up.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {detail.status === 'cant_reach_at_mix' ? (
-          <Alert variant="warning">
-            <AlertDescription>
-              {cantReachSuggestion(detail.target, setup)}
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {detailForecasts(detail).length === 0 ? null : (
-          <DescriptionList stacked aria-label="When Google is expected to show it">
-            {detailForecasts(detail).map((line) => (
-              <DescriptionItem key={line.label} term={line.label}>
-                {line.text}
-              </DescriptionItem>
-            ))}
-          </DescriptionList>
-        )}
-        {best === null ? null : <p className={QUIET}>{best}</p>}
+        {detail.state === 'active' ? <Outlook detail={detail} setup={setup} /> : null}
       </CardContent>
     </Card>
   )
 }
 
-function Progress({ detail }: Pick<Props, 'detail'>) {
+function Progress({ detail, setup }: Pick<Props, 'detail' | 'setup'>) {
   if (detail.progress === null) return null
   const marks = progressMarks(detail)
   const next = nextTenthLine(detail)
+  const approximate = setup?.exactAverageSource === 'google'
+  const average = averageProgressText(detail, approximate)
   return (
     <Card className="gap-4">
       <CardHeader>
@@ -125,15 +142,14 @@ function Progress({ detail }: Pick<Props, 'detail'>) {
           max={1000}
           marker={marks.marker}
           label={`Progress toward Google showing ${ratingText(detail.target)}`}
-          valueText={`Exact average ${exactProgressText(detail.exactAverage, detail.threshold)}`}
+          valueText={average}
         />
         <div className="flex justify-between gap-4 text-xs text-muted-foreground tabular-nums">
           <span>{marks.start}</span>
           <span>{marks.end}</span>
         </div>
-        <p className="text-sm tabular-nums">
-          Exact average {exactProgressText(detail.exactAverage, detail.threshold)}
-        </p>
+        <p className="text-sm tabular-nums">{average}</p>
+        {approximate ? <p className={QUIET}>{APPROXIMATE_NUMBERS}</p> : null}
         {next === null ? null : <p className={QUIET}>{next}</p>}
       </CardContent>
     </Card>
@@ -155,28 +171,40 @@ function WeeklyBars({ detail }: Pick<Props, 'detail'>) {
   )
 }
 
+/** Said once, first, when the read found the goal reached or ended. */
+function Moved({ detail }: Pick<Props, 'detail'>) {
+  if (detail.state === 'reached') {
+    return (
+      <Alert variant="success">
+        <AlertDescription>
+          Google shows {ratingText(detail.target)}: the goal is reached. It is in History
+          now, and you can set your next goal on the Goals page.
+        </AlertDescription>
+      </Alert>
+    )
+  }
+  if (detail.state === 'ended') {
+    return (
+      <Alert variant="info">
+        <AlertDescription>
+          {endedSentence(detail.endedReason)}. It is in History now, and you can set a new
+          goal on the Goals page.
+        </AlertDescription>
+      </Alert>
+    )
+  }
+  return null
+}
+
 export function RatingGoalDetail(props: Props) {
   const { detail } = props
+  const active = detail.state === 'active'
   return (
     <div data-slot="rating-goal-detail" className="flex flex-col gap-6">
-      {detail.state === 'reached' ? (
-        <Alert variant="success">
-          <AlertDescription>
-            Google shows {ratingText(detail.target)}: the goal is reached. It is in
-            History now, and you can set your next goal on the Goals page.
-          </AlertDescription>
-        </Alert>
-      ) : detail.state === 'ended' ? (
-        <Alert variant="info">
-          <AlertDescription>
-            {endedSentence(detail.endedReason)}. It is in History now, and you can set a
-            new goal on the Goals page.
-          </AlertDescription>
-        </Alert>
-      ) : null}
+      <Moved detail={detail} />
       <Summary {...props} />
-      <Progress detail={detail} />
-      <RatingGoalTiles detail={detail} />
+      {active ? <Progress detail={detail} setup={props.setup} /> : null}
+      {active ? <RatingGoalTiles detail={detail} /> : null}
       <WeeklyBars detail={detail} />
       <RatingGoalStarMix detail={detail} />
       <RatingGoalChangeLog

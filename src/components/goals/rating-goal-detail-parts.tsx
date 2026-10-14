@@ -15,7 +15,13 @@ export function RatingGoalTiles({ detail }: Detail) {
   const tiles = detailTiles(detail)
   if (tiles.length === 0) return null
   return (
-    <MetricStrip aria-label="This goal in numbers" variant="tiles" columns={3}>
+    // Three tiles, never two and one: stacked until there is room for all three.
+    <MetricStrip
+      aria-label="This goal in numbers"
+      variant="tiles"
+      columns={3}
+      className="@max-2xl:grid-cols-1"
+    >
       {tiles.map((tile) => (
         <Metric key={tile.label} label={tile.label}>
           <MetricValue value={tile.value} detail={tile.detail} />

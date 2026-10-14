@@ -3,7 +3,7 @@
 // goal routes (the Goals layout), for owners and managers (`goal.read`). Its
 // read is primed by the loader from a module fetched on demand, so neither the
 // read nor its server function joins first paint.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -25,7 +25,11 @@ import { withRatingGoalRefusals } from '#/components/goals/rating-goal-refusal'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
 import { RATING_GOAL_STATUS } from '#/components/goals/rating-goal-view'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { ratingGoalCommands, ratingGoalDetailQuery } from './-rating-goal-queries'
+import {
+  markRatingGoalReadsStale,
+  ratingGoalCommands,
+  ratingGoalDetailQuery,
+} from './-rating-goal-queries'
 import { useRatingGoalWizard } from './-rating-goal-wizard-host'
 
 const TITLE = 'Google rating goal'
@@ -41,29 +45,46 @@ export const Route = createFileRoute(
       throw roleUnavailable(TITLE, 'properties')
     }
   },
+  // `fetchQuery`, not `ensureQueryData`: a read that a set, change or end has
+  // marked stale is read again before the page draws, never shown first.
   loader: async ({ params, context }) => {
     const queries = await import('./-rating-goal-queries')
-    await context.queryClient.ensureQueryData(
-      queries.ratingGoalDetailQuery(params.propertyId),
-    )
+    await context.queryClient.fetchQuery(queries.ratingGoalDetailQuery(params.propertyId))
   },
   component: GoogleRatingGoalRoute,
 })
 
-/** Ends the goal, then goes back to the Goals page, where its History is. */
+/**
+ * Ends the goal, then goes back to the Goals page, where its History is. The
+ * reads are marked stale, not read again here: a refetch of this page's own
+ * read would draw its "no goal" state for the length of the way back. The Goals
+ * page's loader reads them afresh.
+ */
 function useEndRatingGoal(propertyId: string) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const family = goalKeys.ratingGoal(propertyId)
   return useActionMutation(withRatingGoalRefusals(ratingGoalCommands.endRatingGoal), {
     successMessage: 'Google rating goal ended',
-    invalidateKeys: [family],
     // A refusal usually means this page is behind: read the goal again.
     onError: () => void queryClient.invalidateQueries({ queryKey: family }),
     onSuccess: async () => {
+      await markRatingGoalReadsStale(queryClient, propertyId)
       await navigate({ to: '/properties/$propertyId/goals', params: { propertyId } })
     },
   })
+}
+
+/**
+ * A detail read that found the goal reached or ended has moved it to History:
+ * the Goals page's reads of it are behind, and are read afresh when it is next
+ * drawn (it then tells the news, and offers the next goal).
+ */
+function useGoalsPageCatchesUp(propertyId: string, moved: boolean) {
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (moved) void markRatingGoalReadsStale(queryClient, propertyId)
+  }, [moved, queryClient, propertyId])
 }
 
 function GoogleRatingGoalRoute() {
@@ -87,6 +108,7 @@ function GoogleRatingGoalRoute() {
     retry: false,
   })
   const end = useEndRatingGoal(propertyId)
+  useGoalsPageCatchesUp(propertyId, detail !== null && !active)
   return (
     <PageShell key={propertyId}>
       <PageHeader

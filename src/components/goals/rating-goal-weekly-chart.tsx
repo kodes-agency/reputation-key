@@ -73,11 +73,17 @@ export function RatingGoalWeeklyChart({ weeks, pacePerWeek }: Props) {
             strokeDasharray="6 4"
             strokeWidth={2}
             ifOverflow="extendDomain"
+            // A halo in the card's colour keeps the label legible where a bar
+            // runs up behind it, as one does on a phone.
             label={{
               value: `Pace ${pacePerWeek}`,
               position: 'insideTopRight',
               fill: 'var(--foreground)',
               fontSize: 12,
+              stroke: 'var(--card)',
+              strokeWidth: 4,
+              strokeLinejoin: 'round',
+              paintOrder: 'stroke',
             }}
           />
         )}
