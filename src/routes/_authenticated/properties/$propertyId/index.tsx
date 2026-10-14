@@ -14,7 +14,11 @@ import { PropertySetupStrip } from '#/components/features/property/settings/prop
 import { countBlockedPortals } from '#/components/features/portal/portal-overview/portal-attention'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
+import { can } from '#/shared/domain/permissions'
+import type { AuthRouteContext } from '#/routes/_authenticated'
 import { portalOverviewQuery } from './portals/-portal-overview-data'
+import { OverviewRatingGoal } from './goals/-rating-goal-overview'
+import { useRatingGoalNotNow } from './goals/-rating-goal-not-now'
 import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 
 /**
@@ -37,9 +41,17 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/')(
   staticData: { page: { title: 'Overview', tier: 'dashboard', under: 'property' } },
   staleTime: 60_000,
   loader: async ({ params: { propertyId }, context }) => {
+    const { role, capabilities } = context as AuthRouteContext
     await Promise.all([
       context.queryClient.ensureQueryData(overviewQuery(propertyId, LIFETIME)),
       context.queryClient.ensureQueryData(overviewQuery(propertyId, PULSE)),
+      // The Google rating goal, from a module fetched on demand so its reads
+      // stay out of first paint; a failed read leaves the goal out, no more.
+      can(role, 'goal.read') && capabilities.allowed.includes('goal.use')
+        ? import('./goals/-rating-goal-queries').then((queries) =>
+            queries.prefetchRatingGoalOverview(context.queryClient, propertyId),
+          )
+        : undefined,
     ])
   },
   component: PropertyOverviewRoute,
@@ -51,7 +63,9 @@ function PropertyOverviewRoute() {
   const { data: lifetime } = useSuspenseQuery(overviewQuery(propertyId, LIFETIME))
   const { data: pulse } = useSuspenseQuery(overviewQuery(propertyId, PULSE))
   const { data: setup } = useQuery(propertySetupQuery(propertyId))
-  const blockedPortals = useBlockedPortals(propertyId)
+  const portals = usePortalSummary(propertyId)
+  const goals = useGoalsShown()
+  const notNow = useRatingGoalNotNow(propertyId)
 
   return (
     <PropertyOverview
@@ -59,11 +73,27 @@ function PropertyOverviewRoute() {
       propertyId={propertyId}
       lifetime={lifetime.dashboard}
       pulse={pulse.dashboard}
+      google={lifetime.google}
       // Attention is a standing count, not a windowed one — the all-time read
       // carries the same signals, so the pulse read's copy is redundant.
       signals={lifetime.signals}
-      blockedPortals={blockedPortals}
-      setupStrip={<PropertySetupStrip propertyId={propertyId} setup={setup} />}
+      blockedPortals={portals.blocked}
+      setupStrip={
+        <PropertySetupStrip
+          propertyId={propertyId}
+          setup={setup}
+          ratingGoalNotNow={notNow}
+        />
+      }
+      ratingGoal={
+        goals ? (
+          <OverviewRatingGoal
+            propertyId={propertyId}
+            timezone={propData.property.timezone}
+            hasPortals={portals.any}
+          />
+        ) : null
+      }
       guestVoiceFns={{
         getTrend: getPropertyAiTrendFn,
         getAggregates: getPropertyAiAggregatesFn,
@@ -77,12 +107,15 @@ function PropertyOverviewRoute() {
 }
 
 /**
- * How many portals guests cannot use, for the attention band. A side read, never a
+ * How many portals guests cannot use, for the attention band, and whether there
+ * are any, for the rating goal wizard's one next step. A side read, never a
  * reason to hold the page: a reader who may not read portals (or whose portal read is
  * off) is not asked, and a failed read leaves the chip out rather than the page in an
  * error. It is the Portals page's own read, so the two share one cache entry.
  */
-function useBlockedPortals(propertyId: string): number {
+function usePortalSummary(
+  propertyId: string,
+): Readonly<{ blocked: number; any: boolean }> {
   const { can } = usePermissions()
   const { has } = useCapabilities()
   const { data } = useQuery({
@@ -90,5 +123,13 @@ function useBlockedPortals(propertyId: string): number {
     enabled: can('portal.read') && has('portal.read'),
     retry: false,
   })
-  return data ? countBlockedPortals(data.portals) : 0
+  if (!data) return { blocked: 0, any: true }
+  return { blocked: countBlockedPortals(data.portals), any: data.portals.length > 0 }
+}
+
+/** The Google rating goal is the viewer's to see: `goal.read`, with Goals on. */
+function useGoalsShown(): boolean {
+  const { can } = usePermissions()
+  const { has } = useCapabilities()
+  return can('goal.read') && has('goal.use')
 }

@@ -12,9 +12,11 @@ import type { ReactNode } from 'react'
 // history can no longer read `REVIEWS 3 · AVG RATING 2.3` next to `252 items to
 // triage` just because a 30-day default was in force.
 import { Link } from '@tanstack/react-router'
+import { useState } from 'react'
 import type {
   AttentionSignals,
   DashboardData,
+  GoogleNumbersView,
 } from '#/contexts/reporting/application/public-api'
 import { Button } from '#/components/ui/button'
 import { PageShell } from '#/components/layout/page-shell'
@@ -32,20 +34,23 @@ import {
   OverviewProfileViews,
   type OverviewProfileViewsServerFns,
 } from './overview-profile-views'
-import { formatNumber } from '#/lib/format'
+import { formatNumber, formatShortDate } from '#/lib/format'
 import { MetricDelta } from '#/components/ui/metric-delta'
 import { RatingFigure } from '#/components/ui/rating-figure'
 
-/** The ten-ratings-per-period rule the read model already enforces. */
-const MIN_RATING_COMPARISON_SAMPLE = 10
-
 export interface PropertyOverviewProps {
-  property: Readonly<{ id: string; name: string }>
+  /** The Property's zone: Google's date is on its clock. */
+  property: Readonly<{ id: string; name: string; timezone: string }>
   propertyId: string
   /** All-time read: the numbers a manager recognises. */
   lifetime: DashboardData
   /** Last 30 days against the 30 before: the pulse. */
   pulse: DashboardData
+  /**
+   * Google's own rating and review count (decision 16): the Rating tile leads
+   * with it. Null when Google never sent numbers for the current binding.
+   */
+  google: GoogleNumbersView | null
   signals: AttentionSignals
   /** Portals guests cannot use, for the attention band's one portal chip; left out: no chip. */
   blockedPortals?: number
@@ -53,45 +58,52 @@ export interface PropertyOverviewProps {
   profileViewsFns: OverviewProfileViewsServerFns
   /** What is left to set the property up; renders nothing once it is done. */
   setupStrip?: ReactNode
+  /**
+   * The Google rating goal: its simple card, its news, or one line into its
+   * wizard; between the attention band and "How you are doing".
+   */
+  ratingGoal?: ReactNode
 }
 
-function ratingTile(lifetime: DashboardData, pulse: DashboardData, propertyId: string) {
-  const allTime = lifetime.kpis.avgRating
-  const recent = pulse.kpis.avgRating
+/** "812 reviews on Google", and Google's date while its numbers are not current. */
+function googleCaption(
+  google: GoogleNumbersView,
+  timezone: string,
+  now: Date,
+): React.ReactNode {
+  const count = `${formatNumber(google.reviewCount)} ${
+    google.reviewCount === 1 ? 'review' : 'reviews'
+  } on Google`
+  const asOf = google.current ? null : formatShortDate(google.asOf, timezone, now)
+  return asOf === null ? count : <TileCaption caption={count} detail={`as of ${asOf}`} />
+}
 
+/**
+ * Google's own number and count lead (decision 16), never RepKey's average of
+ * the reviews it holds. Numbers more than a day old, or read while Google is not
+ * linked, are Google's last ones and keep their date; a Property Google never
+ * sent numbers for says so. The Ratings page keeps RepKey's period averages.
+ */
+function ratingTile(
+  google: GoogleNumbersView | null,
+  propertyId: string,
+  timezone: string,
+  now: Date,
+) {
   let context: React.ReactNode
-  if (allTime.value === null) {
-    context = 'No ratings yet.'
-  } else if (recent.value === null) {
-    context = `From ${formatNumber(allTime.sampleCount)} ratings · none in the last 30 days`
-  } else if (
-    recent.comparison !== null &&
-    recent.sampleCount >= MIN_RATING_COMPARISON_SAMPLE
-  ) {
-    context = (
-      <TileCaption
-        caption={`${recent.value.toFixed(1)} over the last 30 days`}
-        detail={
-          <MetricDelta
-            value={recent.comparison}
-            comparisonLabel={PULSE_COMPARISON_LABEL}
-          />
-        }
-      />
-    )
+  if (google === null) {
+    context = 'Google hasn’t sent this property’s rating yet.'
+  } else if (google.shows === null) {
+    context = 'No Google reviews yet.'
   } else {
-    // Below the sample rule there is no delta to show, so say what there is.
-    context = `${formatNumber(recent.sampleCount)} new ${
-      recent.sampleCount === 1 ? 'rating' : 'ratings'
-    } in the last 30 days`
+    context = googleCaption(google, timezone, now)
   }
 
   return (
     <OverviewTile
       label="Rating"
-      // Identity leads: this is the number on the Google profile.
       value={
-        allTime.value === null ? null : <RatingFigure value={allTime.value} size="lg" />
+        google?.shows == null ? null : <RatingFigure value={google.shows} size="lg" />
       }
       context={context}
       link={{ to: '/properties/$propertyId/ratings', params: { propertyId } }}
@@ -100,10 +112,17 @@ function ratingTile(lifetime: DashboardData, pulse: DashboardData, propertyId: s
   )
 }
 
-function reviewsTile(lifetime: DashboardData, pulse: DashboardData, propertyId: string) {
+function reviewsTile(
+  lifetime: DashboardData,
+  pulse: DashboardData,
+  google: GoogleNumbersView | null,
+  propertyId: string,
+) {
   // Pulse leads here: the all-time count is trivia, the recent count is news.
+  // The all-time count is Google's own where Google sent one, as the Rating
+  // tile's is, so the two tiles never name two totals.
   const recent = pulse.kpis.reviews.value
-  const allTime = lifetime.kpis.reviews.value
+  const allTime = google?.reviewCount ?? lifetime.kpis.reviews.value
 
   return (
     <OverviewTile
@@ -173,12 +192,16 @@ export function PropertyOverview({
   propertyId,
   lifetime,
   pulse,
+  google,
   signals,
   blockedPortals,
   guestVoiceFns,
   profileViewsFns,
   setupStrip,
+  ratingGoal,
 }: PropertyOverviewProps) {
+  const [now] = useState(() => new Date())
+  const { timezone } = property
   return (
     <PageShell tier="dashboard">
       <PageHeader
@@ -199,18 +222,20 @@ export function PropertyOverview({
         blockedPortals={blockedPortals}
       />
 
+      {ratingGoal}
+
       <section aria-labelledby="overview-scorecard" className="space-y-3">
         <h2 id="overview-scorecard" className="text-lg font-semibold tracking-tight">
           How you are doing
         </h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {ratingTile(lifetime, pulse, propertyId)}
-          {reviewsTile(lifetime, pulse, propertyId)}
+          {ratingTile(google, propertyId, timezone, now)}
+          {reviewsTile(lifetime, pulse, google, propertyId)}
           {replyTile(pulse, propertyId)}
           <OverviewProfileViews propertyId={propertyId} serverFns={profileViewsFns} />
         </div>
         <p className="text-sm text-muted-foreground">
-          Last 30 days against the 30 before · rating is all-time.
+          Last 30 days against the 30 before · the rating is Google’s own.
         </p>
       </section>
 

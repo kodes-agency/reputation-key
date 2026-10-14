@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { ReactFormExtendedApi } from '@tanstack/react-form'
 import type {
   GoogleConnectionDto,
@@ -105,6 +106,11 @@ export type GoogleImportManagerProps = Readonly<{
   setupFns: GoogleImportSetupFns
   /** The importing admin, the default responsible manager (decision 2). */
   viewerUserId: string
+  /**
+   * The last thing a single-Property import offers: the Property's Google
+   * rating goal (decision 9). A multi-Property import skips it.
+   */
+  ratingGoalStep?: (propertyId: string) => ReactNode
 }>
 
 export type GoogleImportReviewOptions = Readonly<{

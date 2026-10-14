@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { RegionError } from '#/components/ui/region-error'
@@ -38,6 +38,11 @@ type Props = Readonly<{
   properties: readonly SetupImportedProperty[]
   fns: PropertySetupFns
   viewerUserId: string
+  /**
+   * What follows once the answers are saved, or when there is nothing to ask:
+   * the Google rating goal of a single-Property import (decision 9).
+   */
+  then?: ReactNode
 }>
 
 function writeFnsFrom(fns: PropertySetupFns): SetupWriteFns {
@@ -69,12 +74,14 @@ function SetupFlow({
   notice,
   fns,
   viewerUserId,
+  then,
 }: Readonly<{
   facts: readonly SetupPropertyFacts[]
   members: ReadonlyMap<string, SetupMember>
   notice: MerchantAiNoticeDto
   fns: PropertySetupFns
   viewerUserId: string
+  then: ReactNode
 }>) {
   const queryClient = useQueryClient()
   const [phase, setPhase] = useState<'questions' | 'review' | 'results'>('questions')
@@ -127,13 +134,16 @@ function SetupFlow({
 
   if (phase === 'results') {
     return (
-      <SetupResults
-        plan={plan}
-        results={results}
-        retrying={saving}
-        onRetry={() => void save(failedSetupTasks(results))}
-        getReviewAnalysisProgress={fns.getReviewAnalysisProgress}
-      />
+      <>
+        <SetupResults
+          plan={plan}
+          results={results}
+          retrying={saving}
+          onRetry={() => void save(failedSetupTasks(results))}
+          getReviewAnalysisProgress={fns.getReviewAnalysisProgress}
+        />
+        {then}
+      </>
     )
   }
   if (phase === 'review') {
@@ -176,24 +186,20 @@ function SetupStepBody({
   ready,
   fns,
   viewerUserId,
+  then,
 }: Readonly<{
   ready: Extract<SetupFactsState, { status: 'ready' }>
   fns: PropertySetupFns
   viewerUserId: string
+  then: ReactNode
 }>) {
   const [snapshot] = useState(ready)
   if (setupQuestionCount(snapshot.facts) === 0) {
     return (
-      <Alert variant="info">
-        <AlertTitle>Nothing left to ask</AlertTitle>
-        <AlertDescription>
-          These properties already have a public display name, a reply language, a
-          responsible manager and an AI decision.{' '}
-          <InlineLink to="/properties" underline="always">
-            View properties
-          </InlineLink>
-        </AlertDescription>
-      </Alert>
+      <>
+        <NothingLeftToAsk />
+        {then}
+      </>
     )
   }
   return (
@@ -203,7 +209,23 @@ function SetupStepBody({
       notice={snapshot.notice}
       fns={fns}
       viewerUserId={viewerUserId}
+      then={then}
     />
+  )
+}
+
+function NothingLeftToAsk() {
+  return (
+    <Alert variant="info">
+      <AlertTitle>Nothing left to ask</AlertTitle>
+      <AlertDescription>
+        These properties already have a public display name, a reply language, a
+        responsible manager and an AI decision.{' '}
+        <InlineLink to="/properties" underline="always">
+          View properties
+        </InlineLink>
+      </AlertDescription>
+    </Alert>
   )
 }
 
@@ -212,7 +234,7 @@ function SetupStepBody({
  * three questions answered once for every property the import produced, then
  * one review and one save.
  */
-export function SetupPropertiesStep({ properties, fns, viewerUserId }: Props) {
+export function SetupPropertiesStep({ properties, fns, viewerUserId, then }: Props) {
   const state = useSetupFacts(properties, fns)
 
   return (
@@ -246,7 +268,7 @@ export function SetupPropertiesStep({ properties, fns, viewerUserId }: Props) {
           retrying={state.retrying}
         />
       ) : (
-        <SetupStepBody ready={state} fns={fns} viewerUserId={viewerUserId} />
+        <SetupStepBody ready={state} fns={fns} viewerUserId={viewerUserId} then={then} />
       )}
     </section>
   )

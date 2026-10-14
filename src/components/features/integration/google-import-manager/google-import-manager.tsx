@@ -6,6 +6,7 @@ import {
   SetupPropertiesStep,
   SetupWizard,
 } from '#/components/features/property-setup'
+import { ratingGoalImportProperty } from '#/components/features/property-setup/setup-rating-goal-offer'
 import type { GoogleImportManagerProps } from './google-import-manager-contract'
 import { GoogleImportManagerView } from './google-import-manager-view'
 import { GoogleImportProgressView } from './google-import-progress-view'
@@ -37,6 +38,7 @@ export function GoogleImportManager({
   importFns,
   setupFns,
   viewerUserId,
+  ratingGoalStep,
 }: GoogleImportManagerProps) {
   const navigate = useNavigate()
   const mounted = useRef(true)
@@ -198,6 +200,7 @@ export function GoogleImportManager({
 
   if (discovery.step === 'progress' && progress.progress) {
     const importedProperties = importedPropertiesForAi(progress.progress)
+    const goalProperty = ratingGoalImportProperty(importedProperties)
     return (
       <SetupWizard
         step={importWizardStep({
@@ -219,6 +222,7 @@ export function GoogleImportManager({
               properties={importedProperties}
               fns={setupFns}
               viewerUserId={viewerUserId}
+              then={goalProperty === null ? null : ratingGoalStep?.(goalProperty)}
             />
           }
         />

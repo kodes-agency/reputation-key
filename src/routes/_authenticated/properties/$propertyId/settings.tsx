@@ -16,6 +16,7 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queries'
 import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { useRatingGoalNotNow } from './goals/-rating-goal-not-now'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/settings')({
   staticData: {
@@ -36,6 +37,7 @@ function PropertySettingsLayout() {
   const { can: canDo } = usePermissions()
   const { data } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: setup } = useQuery(propertySetupQuery(propertyId))
+  const notNow = useRatingGoalNotNow(propertyId)
   const sections = visiblePropertySettingsSections(canDo)
   const active = useRouterState({
     select: (state) => activePropertySettingsSection(state.location.pathname),
@@ -57,7 +59,11 @@ function PropertySettingsLayout() {
       <SectionNavLayout frame="inline">
         <PropertySettingsNav propertyId={propertyId} sections={sections} />
         <div className="flex min-w-0 flex-col gap-6">
-          <PropertySetupStrip propertyId={propertyId} setup={setup} />
+          <PropertySetupStrip
+            propertyId={propertyId}
+            setup={setup}
+            ratingGoalNotNow={notNow}
+          />
           <Outlet />
         </div>
       </SectionNavLayout>

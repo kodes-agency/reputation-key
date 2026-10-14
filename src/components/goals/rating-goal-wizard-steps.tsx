@@ -6,7 +6,8 @@ import type { FormEvent, ReactNode } from 'react'
 import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { BackButton } from '#/components/ui/back-link'
 import { Button } from '#/components/ui/button'
-import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
+import { DialogFooter } from '#/components/ui/dialog'
+import { RatingGoalCancel } from './rating-goal-wizard-cancel'
 import { RatingGoalPaceStep } from './rating-goal-pace-step'
 import { RatingGoalTargetStep } from './rating-goal-target-step'
 import {
@@ -47,7 +48,7 @@ function NothingHigher({ banner }: Readonly<{ banner: ReactNode }>) {
       </p>
       {banner}
       <DialogFooter className="mt-auto">
-        <DialogCancel>Close</DialogCancel>
+        <RatingGoalCancel>Close</RatingGoalCancel>
       </DialogFooter>
     </>
   )
@@ -69,7 +70,7 @@ function ClimbFooter({
   if (step === 'goal') {
     return (
       <DialogFooter className="mt-auto">
-        <DialogCancel />
+        <RatingGoalCancel />
         <Button type="submit">Next</Button>
       </DialogFooter>
     )

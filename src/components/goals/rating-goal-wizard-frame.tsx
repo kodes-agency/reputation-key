@@ -2,7 +2,11 @@
 // full-screen sheet on a phone (ADR 0067, decision 10), one component and one
 // set of steps. Both are the same Radix dialog underneath, so the app's `Dialog`
 // root holds either: a request in flight keeps it from being dismissed (`busy`),
-// and its title and description name it for a screen reader.
+// and its title and description name it for a screen reader. At the end of a
+// Google import it sits inside the setup frame instead (`inline`): the same
+// steps on the page, no overlay and nothing to dismiss, and each step's way out
+// reads "Not now". The `Dialog` root is still there, not modal and with no
+// content of its own, so the steps' titles and buttons work as they do in it.
 //
 // The step's title takes the focus when the step changes (`titleRef`, tabIndex
 // -1), so a keyboard or screen-reader user hears where they are now instead of
@@ -17,6 +21,7 @@ import {
   DialogTitle,
 } from '#/components/ui/dialog'
 import { SheetContent } from '#/components/ui/sheet'
+import { RatingGoalInlineCancelLabel } from './rating-goal-wizard-cancel'
 
 type Props = Readonly<{
   open: boolean
@@ -29,6 +34,8 @@ type Props = Readonly<{
   titleRef?: Ref<HTMLHeadingElement>
   /** Where the focus goes on closing: there is no trigger for Radix to return it to. */
   onCloseAutoFocus?: (event: Event) => void
+  /** Inside the Google import's setup frame, on the page; its way out is "Not now". */
+  inline?: boolean
   /** The step's body, then its `DialogFooter`, last. */
   children: ReactNode
 }>
@@ -41,6 +48,7 @@ export function RatingGoalWizardFrame({
   description,
   titleRef,
   onCloseAutoFocus,
+  inline = false,
   children,
 }: Props) {
   const phone = useIsMobile()
@@ -56,6 +64,25 @@ export function RatingGoalWizardFrame({
       <DialogDescription>{description}</DialogDescription>
     </DialogHeader>
   )
+  if (inline) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange} busy={busy} modal={false}>
+        <RatingGoalInlineCancelLabel value="Not now">
+          <section
+            aria-label="Google rating goal"
+            data-wizard-frame="inline"
+            className="flex flex-col gap-4 rounded-xl border bg-background p-(--dialog-pad) [--dialog-pad:1.5rem]"
+          >
+            <p className="text-sm font-medium text-muted-foreground">
+              Google rating goal
+            </p>
+            {header}
+            {children}
+          </section>
+        </RatingGoalInlineCancelLabel>
+      </Dialog>
+    )
+  }
   return (
     <Dialog open={open} onOpenChange={onOpenChange} busy={busy}>
       {phone ? (

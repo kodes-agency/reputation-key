@@ -6,6 +6,10 @@ import type {
 } from '#/contexts/reporting/application/public-api'
 import { cn } from '#/lib/utils'
 import {
+  PropertySetupNotNowStep,
+  type RatingGoalNotNow,
+} from './property-setup-not-now-step'
+import {
   completedPropertySetupStepCount,
   openPropertySetupSteps,
   propertySetupStepLabel,
@@ -15,8 +19,12 @@ import {
 type Props = Readonly<{
   propertyId: string
   setup: PropertySetup | undefined
+  /** Offered beside the Google rating goal step; without it the step is a link alone. */
+  ratingGoalNotNow?: RatingGoalNotNow
   className?: string
 }>
+
+export type { RatingGoalNotNow }
 
 function StepLink({
   propertyId,
@@ -57,10 +65,16 @@ function StepLink({
 
 /**
  * What is left to set this property up, as one row of links. It disappears
- * once nothing is left for the viewer to do; a deferred AI decision counts as
- * decided, so it never nags.
+ * once nothing is left for the viewer to do; a deferred AI decision, and a
+ * Google rating goal the manager said "Not now" to, count as decided, so they
+ * never nag.
  */
-export function PropertySetupStrip({ propertyId, setup, className }: Props) {
+export function PropertySetupStrip({
+  propertyId,
+  setup,
+  ratingGoalNotNow,
+  className,
+}: Props) {
   if (!setup) return null
   const open = openPropertySetupSteps(setup)
   if (open.length === 0) return null
@@ -85,7 +99,15 @@ export function PropertySetupStrip({ propertyId, setup, className }: Props) {
       <ul className="mt-3 flex flex-wrap gap-2">
         {open.map((step) => (
           <li key={step.key}>
-            <StepLink propertyId={propertyId} step={step} />
+            {step.key === 'rating_goal' && ratingGoalNotNow ? (
+              <PropertySetupNotNowStep
+                step={step}
+                notNow={ratingGoalNotNow}
+                link={<StepLink propertyId={propertyId} step={step} />}
+              />
+            ) : (
+              <StepLink propertyId={propertyId} step={step} />
+            )}
           </li>
         ))}
       </ul>
