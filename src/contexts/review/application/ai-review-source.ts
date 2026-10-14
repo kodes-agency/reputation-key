@@ -93,11 +93,26 @@ export function matchStoredAiReviewSourceProvenance(
   input: AiReviewSourceInput,
   stored: StoredAiReviewSourceProvenance,
 ): AiReviewSourceProvenance | null {
-  const current = computeAiReviewSourceProvenance(input)
-  if (sameStoredProvenance(current, stored)) return current
+  let currentFailure: unknown = null
   try {
-    const previous = provenanceOf(canonicalizeRawAiReviewSourcePreviousRevision(input))
-    return sameStoredProvenance(previous, stored) ? previous : null
+    const current = computeAiReviewSourceProvenance(input)
+    if (sameStoredProvenance(current, stored)) return current
+  } catch (error) {
+    // A line break kept as a space can push a text past the byte limit that
+    // revision 1 stayed under: the stored row may still be revision 1's.
+    currentFailure = error
+  }
+  const previous = previousRevisionProvenance(input)
+  if (previous !== null && sameStoredProvenance(previous, stored)) return previous
+  if (currentFailure !== null) throw currentFailure
+  return null
+}
+
+function previousRevisionProvenance(
+  input: AiReviewSourceInput,
+): AiReviewSourceProvenance | null {
+  try {
+    return provenanceOf(canonicalizeRawAiReviewSourcePreviousRevision(input))
   } catch {
     return null
   }
