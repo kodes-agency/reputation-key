@@ -64,6 +64,7 @@ import { Route as ApiWebhooksGbpNotificationsRouteImport } from './routes/api/we
 import { Route as ApiWebhooksResendEventsRouteImport } from './routes/api/webhooks/resend/events'
 import { Route as AuthenticatedPropertiesPropertyIdGoalsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/goals/index'
 import { Route as AuthenticatedPropertiesPropertyIdGoalsGoalIdRouteImport } from './routes/_authenticated/properties/$propertyId/goals/$goalId'
+import { Route as AuthenticatedPropertiesPropertyIdGoalsGoogleRatingRouteImport } from './routes/_authenticated/properties/$propertyId/goals/google-rating'
 import { Route as AuthenticatedPropertiesPropertyIdGoalsNewRouteImport } from './routes/_authenticated/properties/$propertyId/goals/new'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/portals/index'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId'
@@ -386,6 +387,12 @@ const AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute =
     path: '/$goalId',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdGoalsRoute,
   } as any)
+const AuthenticatedPropertiesPropertyIdGoalsGoogleRatingRoute =
+  AuthenticatedPropertiesPropertyIdGoalsGoogleRatingRouteImport.update({
+    id: '/google-rating',
+    path: '/google-rating',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdGoalsRoute,
+  } as any)
 const AuthenticatedPropertiesPropertyIdGoalsNewRoute =
   AuthenticatedPropertiesPropertyIdGoalsNewRouteImport.update({
     id: '/new',
@@ -543,6 +550,7 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/properties/import-google/': typeof AuthenticatedPropertiesImportGoogleIndexRoute
   '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
+  '/properties/$propertyId/goals/google-rating': typeof AuthenticatedPropertiesPropertyIdGoalsGoogleRatingRoute
   '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren
   '/properties/$propertyId/portals/look': typeof AuthenticatedPropertiesPropertyIdPortalsLookRoute
@@ -612,6 +620,7 @@ export interface FileRoutesByTo {
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/properties/import-google': typeof AuthenticatedPropertiesImportGoogleIndexRoute
   '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
+  '/properties/$propertyId/goals/google-rating': typeof AuthenticatedPropertiesPropertyIdGoalsGoogleRatingRoute
   '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/properties/$propertyId/portals/look': typeof AuthenticatedPropertiesPropertyIdPortalsLookRoute
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
@@ -686,6 +695,7 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/_authenticated/properties/import-google/': typeof AuthenticatedPropertiesImportGoogleIndexRoute
   '/_authenticated/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
+  '/_authenticated/properties/$propertyId/goals/google-rating': typeof AuthenticatedPropertiesPropertyIdGoalsGoogleRatingRoute
   '/_authenticated/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/_authenticated/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren
   '/_authenticated/properties/$propertyId/portals/look': typeof AuthenticatedPropertiesPropertyIdPortalsLookRoute
@@ -761,6 +771,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/'
     | '/properties/import-google/'
     | '/properties/$propertyId/goals/$goalId'
+    | '/properties/$propertyId/goals/google-rating'
     | '/properties/$propertyId/goals/new'
     | '/properties/$propertyId/portals/$portalId'
     | '/properties/$propertyId/portals/look'
@@ -830,6 +841,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId'
     | '/properties/import-google'
     | '/properties/$propertyId/goals/$goalId'
+    | '/properties/$propertyId/goals/google-rating'
     | '/properties/$propertyId/goals/new'
     | '/properties/$propertyId/portals/look'
     | '/properties/$propertyId/portals/new'
@@ -903,6 +915,7 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/'
     | '/_authenticated/properties/import-google/'
     | '/_authenticated/properties/$propertyId/goals/$goalId'
+    | '/_authenticated/properties/$propertyId/goals/google-rating'
     | '/_authenticated/properties/$propertyId/goals/new'
     | '/_authenticated/properties/$propertyId/portals/$portalId'
     | '/_authenticated/properties/$propertyId/portals/look'
@@ -1339,6 +1352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRoute
     }
+    '/_authenticated/properties/$propertyId/goals/google-rating': {
+      id: '/_authenticated/properties/$propertyId/goals/google-rating'
+      path: '/google-rating'
+      fullPath: '/properties/$propertyId/goals/google-rating'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdGoalsGoogleRatingRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRoute
+    }
     '/_authenticated/properties/$propertyId/goals/new': {
       id: '/_authenticated/properties/$propertyId/goals/new'
       path: '/new'
@@ -1495,6 +1515,7 @@ const AuthenticatedSettingsRouteWithChildren =
 
 interface AuthenticatedPropertiesPropertyIdGoalsRouteChildren {
   AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute: typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
+  AuthenticatedPropertiesPropertyIdGoalsGoogleRatingRoute: typeof AuthenticatedPropertiesPropertyIdGoalsGoogleRatingRoute
   AuthenticatedPropertiesPropertyIdGoalsNewRoute: typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   AuthenticatedPropertiesPropertyIdGoalsIndexRoute: typeof AuthenticatedPropertiesPropertyIdGoalsIndexRoute
 }
@@ -1503,6 +1524,8 @@ const AuthenticatedPropertiesPropertyIdGoalsRouteChildren: AuthenticatedProperti
   {
     AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute:
       AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute,
+    AuthenticatedPropertiesPropertyIdGoalsGoogleRatingRoute:
+      AuthenticatedPropertiesPropertyIdGoalsGoogleRatingRoute,
     AuthenticatedPropertiesPropertyIdGoalsNewRoute:
       AuthenticatedPropertiesPropertyIdGoalsNewRoute,
     AuthenticatedPropertiesPropertyIdGoalsIndexRoute:
