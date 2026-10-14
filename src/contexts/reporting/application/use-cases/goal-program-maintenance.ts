@@ -6,6 +6,7 @@
 // and re-exports the maintenance error so its importers stay where they were.
 // The one piece a request uses is `loadCaughtUpProgram`: the change commands
 // open a Program's due months with it before they read its head.
+import { unclassifiedFailureCause } from './failure-cause'
 import type { GovernedGoalMetricResult } from './query-goal-metric'
 import {
   organizationId as toOrganizationId,
@@ -87,25 +88,12 @@ function causesOf(causes: Readonly<Record<string, number>>): string {
   return named.length === 0 ? '' : `: ${named.join(', ')}`
 }
 
-const SQLSTATE = /^[0-9A-Z]{5}$/u
-
-/** The SQLSTATE of a database refusal, through the query error that wraps it. */
-function sqlStateOf(error: unknown): string | null {
-  if (typeof error !== 'object' || error === null) return null
-  const { code, cause } = error as { code?: unknown; cause?: unknown }
-  if (typeof code === 'string' && SQLSTATE.test(code)) return code
-  return sqlStateOf(cause)
-}
-
 /**
  * What an operation failed of, in words that name no tenant: the code of a Goal
- * error, the SQLSTATE of a database refusal, else the class of the error.
+ * error, else the SQLSTATE of a database refusal or the class of the error.
  */
 function failureCauseOf(error: unknown): string {
-  if (error instanceof GoalProgramError) return error.code
-  const sqlState = sqlStateOf(error)
-  if (sqlState !== null) return `sqlstate_${sqlState}`
-  return error instanceof Error ? error.name : 'unknown'
+  return error instanceof GoalProgramError ? error.code : unclassifiedFailureCause(error)
 }
 
 function evaluationFromGovernedRead(

@@ -457,6 +457,18 @@ export async function bootstrap(
     'registered canonical Goal Program maintenance job handler',
   )
 
+  // ── Daily Property Google rating goal evaluation (ADR 0067) ──────
+  // Tenant-cross enumeration only: every goal's Organization and Property are
+  // decided under the schedule's own action before the goal is evaluated.
+  const ratingGoalEvaluation = container.goalWorkerRuntime.ratingGoalEvaluation
+  registerCapabilityGatedJob(
+    ratingGoalEvaluation.jobName,
+    'goal.use',
+    ratingGoalEvaluation.createHandler(
+      createScheduledScopeAuthorizer('system:goal.evaluate_rating_goals'),
+    ),
+  )
+
   // ── Retention sweep (BQC-1.6: bounded, evidence-backed, daily) ──────
   const { createRetentionSweepHandler, JOB_NAME: RETENTION_SWEEP_JOB_NAME } =
     await import('#/shared/jobs/retention-sweep.job')

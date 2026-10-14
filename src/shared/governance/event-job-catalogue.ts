@@ -14,6 +14,7 @@ import type { SystemAction } from './entry-point-catalogue'
 import { PORTAL_BACKGROUND_JOB_ROWS } from './portal-job-rows'
 import { IDENTITY_ROWS } from './event-job-catalogue-identity'
 import { REVIEW_ROWS } from './event-job-catalogue-review'
+import { GOAL_BACKGROUND_JOB_ROWS, GOAL_ROWS } from './event-job-catalogue-goal'
 import {
   durable,
   ev,
@@ -138,8 +139,6 @@ const NOTIFICATION_HANDLING_CYCLE_OUTBOX =
   'src/contexts/feed/infrastructure/handling-cycle-outbox-consumers.ts'
 const NOTIFICATION_RESPONSE_TARGET_OUTBOX =
   'src/contexts/feed/infrastructure/response-target-outbox-consumers.ts'
-const NOTIFICATION_GOAL_OUTBOX =
-  'src/contexts/feed/infrastructure/goal-outbox-consumers.ts'
 
 // ── Event families ──────────────────────────────────────────────────
 
@@ -397,20 +396,6 @@ const METRIC_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('metric.corrected', [
     durable('metric.correction-reconciliation', METRIC_CORRECTION_OUTBOX),
     durable('goal.metric-correction-reconciliation', GOAL_METRIC_CORRECTION_OUTBOX),
-  ]),
-]
-
-const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
-  ev('goal.monthly_result.closed', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-    durable('notification.on-goal-monthly-result-closed', NOTIFICATION_GOAL_OUTBOX),
-  ]),
-  ev('goal.monthly_result.reconciled', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-  ]),
-  ev('goal.monthly_result.revised', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-    durable('notification.on-goal-monthly-result-revised', NOTIFICATION_GOAL_OUTBOX),
   ]),
 ]
 
@@ -687,18 +672,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
     { retryBackoff: 'exponential:300000', timeoutMs: 300_000 },
   ),
-  job(
-    'goal-program.maintain',
-    'src/contexts/reporting/infrastructure/jobs/goal-program-maintenance.job.ts',
-    {
-      queue: 'background',
-      capability: 'goal.use',
-      action: 'system:goal.maintain',
-      schedule: 'every:3600000',
-      registration: 'enabled',
-    },
-    { timeoutMs: 300_000 },
-  ),
+  ...GOAL_BACKGROUND_JOB_ROWS,
   job(
     'retention-sweep',
     'src/shared/jobs/retention-sweep.job.ts',

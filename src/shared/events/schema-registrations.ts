@@ -14,11 +14,7 @@
 import { z } from 'zod/v4'
 import { registerEventSchema, isEventRegistered } from './schema-registry'
 import { additionalGuestLocalesSchema, guestLocaleSchema } from '../guest-locale-schemas'
-import {
-  goalMonthlyResultClosedSchema,
-  goalMonthlyResultReconciledSchema,
-  goalMonthlyResultRevisedSchema,
-} from './goal-event-schemas'
+import { registerGoalEventSchemas } from './goal-event-schemas'
 import {
   portalApprovedDestinationRatioRecordedV1Schema,
   portalApprovedDestinationRatioRecordedV2Schema,
@@ -1619,22 +1615,8 @@ export function registerAllEventSchemas(): void {
     schema: guestReviewLinkClickedSchema,
   })
 
-  // Goal events
-  registerEventSchema({
-    type: 'goal.monthly_result.closed',
-    version: EVENT_VERSION,
-    schema: goalMonthlyResultClosedSchema,
-  })
-  registerEventSchema({
-    type: 'goal.monthly_result.reconciled',
-    version: EVENT_VERSION,
-    schema: goalMonthlyResultReconciledSchema,
-  })
-  registerEventSchema({
-    type: 'goal.monthly_result.revised',
-    version: EVENT_VERSION,
-    schema: goalMonthlyResultRevisedSchema,
-  })
+  // Goal events: the monthly results and the Property Google rating goal
+  registerGoalEventSchemas(EVENT_VERSION)
 
   // Identity events (consumed by activity)
   registerEventSchema({

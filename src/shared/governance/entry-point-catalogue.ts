@@ -100,6 +100,7 @@ export type SystemAction =
   | 'system:integration.gbp_subscription_reconcile'
   | 'system:goal.reconcile'
   | 'system:goal.maintain'
+  | 'system:goal.evaluate_rating_goals'
   | 'system:goal.end_archived_property_goal'
   | 'system:activity.record'
   | 'system:notification.insert'
@@ -252,6 +253,12 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
   ),
   job('goal-program.maintain', 'system:goal.maintain', 'goal.use', 'tenant_cross'),
+  job(
+    'rating-goal.evaluate',
+    'system:goal.evaluate_rating_goals',
+    'goal.use',
+    'tenant_cross',
+  ),
   job('retention-sweep', 'system:retention.sweep', 'none', 'tenant_cross'),
   job('quarantine-ttl-sweep', 'system:quarantine.ttl', 'none', 'tenant_cross'),
   job(
@@ -479,6 +486,13 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.goal-outbox-consumers',
+    'system:notification.insert_goal',
+    'goal.use',
+    'property',
+  ),
+  // The Property Google rating goal's notices, under the same Goal switch.
+  consumer(
+    'notification.rating-goal-notice-consumers',
     'system:notification.insert_goal',
     'goal.use',
     'property',
@@ -770,6 +784,12 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
   schedule(
     'goal-program.maintain-recurring',
     'system:goal.maintain',
+    'goal.use',
+    'tenant_cross',
+  ),
+  schedule(
+    'rating-goal.evaluate-recurring',
+    'system:goal.evaluate_rating_goals',
     'goal.use',
     'tenant_cross',
   ),

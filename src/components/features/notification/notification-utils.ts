@@ -185,6 +185,13 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'integration.google_disconnected': Unplug,
   'goal.completed': Target,
   'goal.result_revised': Target,
+  // The Google rating goal's notices are Goals too; a glyph of their own would
+  // cost first-paint bytes for five row types.
+  'goal.rating_reached': Target,
+  'goal.rating_changed': Target,
+  'goal.rating_below_pace': Target,
+  'goal.rating_cant_reach': Target,
+  'goal.rating_keep_dropped': Target,
   // The reporter's own beta report; the same speech bubble as the Feedback entry.
   'beta_feedback.outcome': MessageSquare,
 }

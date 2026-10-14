@@ -53,12 +53,14 @@ describe('buildReportingContext', () => {
     expect(Object.keys(build().publicApi)).not.toContain('queryAggregate')
   })
 
-  it('owns both reporting consumer families and Goal maintenance', () => {
+  it('owns both reporting consumer families, Goal maintenance and the daily rating goal evaluation', () => {
     const context = build()
 
     expect(typeof context.worker.registerOutboxConsumers).toBe('function')
     expect(typeof context.worker.programMaintenance.createHandler).toBe('function')
     expect(context.worker.programMaintenance.jobName).toBe('goal-program.maintain')
+    expect(typeof context.worker.ratingGoalEvaluation.createHandler).toBe('function')
+    expect(context.worker.ratingGoalEvaluation.jobName).toBe('rating-goal.evaluate')
     expect(Object.keys(context.internal.repos).sort()).toEqual([
       'dashboardRepo',
       'goalProgramRepo',

@@ -13,7 +13,8 @@ metric authority.
 - Create, revise, assign, schedule, evaluate, and close monthly Goal Programs.
 - Produce property, fleet, staff, Portal analytics, Portals overview results, attention, setup-checklist, and
   per-Property setup reads.
-- Register metric projection consumers, Goal correction consumers, and Goal maintenance.
+- Register metric projection consumers, Goal correction consumers, Goal maintenance, and the
+  daily evaluation of every Property Google rating goal.
 - Contribute Reporting-owned records to organization export and lifecycle operations.
 
 ## Core model
@@ -111,6 +112,25 @@ metric authority.
   from a repeat. `goal.on-property-archived` ends the goal of an archived Property
   (`property_archived`) when it was set under an earlier binding epoch than the archive's,
   so a late fact never ends a goal set after a Restore.
+- **Property Google rating goal notices**: five, change-only (ADR 0067 decision 6; ADR
+  0046, amended 2026-10-14): reached; Google showing another tenth; entered Below pace,
+  at most once in 14 days; entered Can't reach at this mix, also at most once in 14 days
+  and with no star figure; a keep goal dropped below.
+  `domain/rating-goal-notices.ts` decides them from what the goal last stored: the tenth
+  Google showed, the last status that was not a wait for Google (`last_known_status`,
+  migration 0057) and when it last told Below pace (`below_pace_noticed_at`) and Can't
+  reach (`cant_reach_noticed_at`). Reached replaces the tenth gained, a keep goal's drop
+  replaces the tenth lost, an ended goal tells nobody, and a status the goal was set in or
+  that a manager's change of plan put it in (a plan change clears the known status) is
+  stored without a notice. The
+  evaluation write is one transaction that also compares the tenth, known status and
+  notice times it read, and writes one identifier-only `goal.rating_goal.transitioned`
+  fact per notice, so the same change is told once whichever evaluation stores it first.
+  Below pace moves with the calendar, so `rating-goal.evaluate`
+  (`infrastructure/jobs/rating-goal-evaluation.job.ts`, daily, `goal.use`) evaluates every
+  active goal; it lists goals across tenants by identifier only and asks its scope
+  authorizer about each goal's Organization and Property before reading anything. Feed
+  turns the facts into notices for the Property's responsible managers.
 - **Dashboard read model**: content-minimal presentation assembled from governed sources.
 - **Portal lifetime aggregate**: anonymous all-time values with rebuild and seal evidence.
 - **Portal results measures**: the five figures on a Portal's Results view, each named for
@@ -285,6 +305,13 @@ only what changes the stored goal, so a repeat finds nothing to write and adds t
 `goal.on-property-archived` (`rating-goal-property-lifecycle-consumers.ts`, ungated) does
 the same on `property.archived`: it ends only an active goal set before the archive's
 epoch, so a repeat ends nothing and adds the receipt.
+
+Reporting writes `goal.rating_goal.transitioned` (`domain/goal-events.ts`), one per rating
+goal notice, inside the evaluation's own write (a read, `goal.google-rating-evaluation` or
+the daily `rating-goal.evaluate`). Its payload is identifiers, closed enums and the
+Property-level figures the notice states (Google's shown tenth, the target, the pace and the
+recent pace), never a review or a figure RepKey works out from review ratings; Feed's
+`notification.on-rating-goal-transitioned` consumes it.
 
 ## Verification
 

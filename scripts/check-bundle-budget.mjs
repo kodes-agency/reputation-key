@@ -486,6 +486,23 @@
 // feed/server/notifications.ts and identity/server/organizations.update.ts
 // export for their tests. When a `*.dto` chunk shows in the closure list again,
 // find the export or the barrel that names it; do not raise the budget for it.
+//
+// 2026-10-15 (Google rating goal notices): five notification types joined the
+// Goals category (rating goal reached, Google tenth gained, Google tenth lost,
+// below pace, can't reach). Fresh production builds of main (0795dbb43) and of
+// this change: 307,832 B (75 js + 1 css) -> 307,939 B (75 js + 1 css), +107 B.
+// The notification type tables carry the new types' names, categories and
+// delivery policy: `notification-filters` +38 B, `notification-delivery-policy`
+// +34 B and `notifications-type-rows` +13 B. The entry chunk +20 B names those
+// chunks. The other -1 to +2 B are chunks that changed by a byte or two,
+// because they name other chunks by their hashed file names. The five notice
+// templates, the consumers and the Goals evaluation stay on the server. The
+// measurement left 39 B over main's 307,900 B. The budget moves to 308,050 B:
+// the measurement plus 111 B, inside the +150 B the owner allowed for this
+// change. The owner's total for the rating goal work is +2 KB. The Goals card
+// and detail page used +500 B of it (307,900 -> 308,400 B on their branch); the
+// branch that lands second adds its own raise to the other's budget and records
+// its fresh measurement here.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -497,7 +514,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 307_900, // lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
+  initialClosureGzip: 308_050, // raised on 2026-10-15 for the five rating goal notice types, measured 307,939 (main 307,832); lowered to 307,900 on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 

@@ -3,7 +3,9 @@
 // read, the goal tables, and the evaluation consumer, all wired as the build
 // wires them. A goal is set from the setup read, reached on the read that
 // finds Google showing the target, and ended by the consumer when the Google
-// location changes under it.
+// location changes under it. Its notices are written once, as outbox facts,
+// by whichever evaluation first stores the change: a read, the consumer or
+// the daily sweep.
 //
 // One held transaction per test, always rolled back.
 
@@ -25,6 +27,7 @@ import {
   createRatingGoalEvaluator,
   createRatingGoalRequestApi,
 } from '../application/use-cases/rating-goals'
+import { sweepRatingGoals } from '../application/use-cases/rating-goal-sweep'
 import { registerRatingGoalEvaluationConsumer } from './rating-goal-outbox-consumers'
 import { registerRatingGoalPropertyLifecycleConsumer } from './rating-goal-property-lifecycle-consumers'
 import { createCurrentGoogleReputationSnapshotRepository } from './repositories/current-google-reputation-snapshot.repository'
@@ -94,27 +97,41 @@ async function seedReviews(): Promise<void> {
     ...[47, 52].map((daysAgo) => ({ rating: 4, daysAgo })),
   ]
   for (const [index, review] of reviews.entries()) {
-    await held.client.query(
-      `INSERT INTO reviews (
-         id, organization_id, property_id, platform, external_id, external_location_id,
-         reviewer_name, rating, text, reviewed_at, expires_at, content_expires_at,
-         first_fetched_at, last_fetched_at, source_epoch, source_revision,
-         analysis_sequence, ai_source_byte_length, ai_source_digest
-       ) VALUES (
-         $1, $2, $3, 'google', $4, 'rating-goal-location', 'Guest', $5, 'Stay', $6,
-         $7, $7, $6, $6, 2, 0, 0, 1, $8
-       )`,
-      [
-        randomUUID(),
-        ORG,
-        PROPERTY,
-        `rating-goal-e2e-${index}`,
-        review.rating,
-        new Date(NOW.getTime() - review.daysAgo * DAY),
-        new Date(NOW.getTime() + 20 * DAY),
-        '0'.repeat(64),
-      ],
-    )
+    await insertReview(review, `rating-goal-e2e-${index}`)
+  }
+}
+
+async function insertReview(
+  review: Readonly<{ rating: number; daysAgo: number }>,
+  externalId: string,
+): Promise<void> {
+  await held.client.query(
+    `INSERT INTO reviews (
+       id, organization_id, property_id, platform, external_id, external_location_id,
+       reviewer_name, rating, text, reviewed_at, expires_at, content_expires_at,
+       first_fetched_at, last_fetched_at, source_epoch, source_revision,
+       analysis_sequence, ai_source_byte_length, ai_source_digest
+     ) VALUES (
+       $1, $2, $3, 'google', $4, 'rating-goal-location', 'Guest', $5, 'Stay', $6,
+       $7, $7, $6, $6, 2, 0, 0, 1, $8
+     )`,
+    [
+      randomUUID(),
+      ORG,
+      PROPERTY,
+      externalId,
+      review.rating,
+      new Date(NOW.getTime() - review.daysAgo * DAY),
+      new Date(NOW.getTime() + 20 * DAY),
+      '0'.repeat(64),
+    ],
+  )
+}
+
+/** Eight 1★ reviews in the last ten days: the recent mix falls to 61 / 19 = 3.21. */
+async function seedRecentOneStarReviews(): Promise<void> {
+  for (const daysAgo of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    await insertReview({ rating: 1, daysAgo }, `rating-goal-e2e-low-${daysAgo}`)
   }
 }
 
@@ -152,7 +169,19 @@ function engine() {
     api: createRatingGoalRequestApi(deps),
     evaluate: createRatingGoalEvaluator(deps),
     endForArchivedProperty: createArchivedPropertyRatingGoalEnder(deps),
+    sweep: () => sweepRatingGoals(deps, async () => true),
   }
+}
+
+/** The notice facts the evaluations of this test wrote, oldest first. */
+async function noticeFacts() {
+  const rows = await held.client.query(
+    `SELECT payload, property_id FROM outbox_events
+     WHERE organization_id = $1 AND event_type = 'goal.rating_goal.transitioned'
+     ORDER BY created_at, id`,
+    [ORG],
+  )
+  return rows.rows as Array<{ payload: Record<string, unknown>; property_id: string }>
 }
 
 /** A fact as the relay hands it to a consumer, with its outbox row stored. */
@@ -396,5 +425,205 @@ describe('a Property Google rating goal on PostgreSQL', () => {
         actor,
       ),
     ).rejects.toMatchObject({ code: 'not_eligible' })
+  })
+})
+
+describe('the notices of a Property Google rating goal on PostgreSQL', () => {
+  it('writes one reached fact from the read that finds the target, and none for the consumer after it', async () => {
+    await seedSnapshot(Math.fround(4.3))
+    const { api, evaluate } = engine()
+    const set = await api.set(
+      allow,
+      { propertyId: PROPERTY, mode: 'climb', targetTenths: 44, pacePerWeek: 2 },
+      actor,
+    )
+    await seedSnapshot(Math.fround(4.4))
+
+    await api.card(allow, { propertyId: PROPERTY }, actor)
+    await evaluate(ORG, PROPERTY)
+
+    const facts = await noticeFacts()
+    expect(facts).toEqual([
+      {
+        property_id: PROPERTY,
+        payload: expect.objectContaining({
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          goalId: set.goalId,
+          transition: 'reached',
+          mode: 'climb',
+          targetTenths: 44,
+          shownTenths: 44,
+          previousTenths: null,
+        }),
+      },
+    ])
+  })
+
+  it('tells a tenth gained once, however many evaluations see it', async () => {
+    await seedSnapshot(Math.fround(4.3))
+    const { api, evaluate } = engine()
+    await api.set(
+      allow,
+      { propertyId: PROPERTY, mode: 'climb', targetTenths: 46, pacePerWeek: 2 },
+      actor,
+    )
+    await seedSnapshot(Math.fround(4.4))
+
+    await evaluate(ORG, PROPERTY)
+    await evaluate(ORG, PROPERTY)
+    await api.detail(allow, { propertyId: PROPERTY }, actor)
+
+    expect((await noticeFacts()).map((fact) => fact.payload)).toEqual([
+      expect.objectContaining({
+        transition: 'google_rating_changed',
+        shownTenths: 44,
+        previousTenths: 43,
+        targetTenths: 46,
+      }),
+    ])
+  })
+
+  it('finds Below pace in the daily sweep, once, and tells nobody again the next day', async () => {
+    await seedSnapshot(Math.fround(4.3))
+    const { api, sweep } = engine()
+    const set = await api.set(
+      allow,
+      { propertyId: PROPERTY, mode: 'climb', targetTenths: 44, pacePerWeek: 20 },
+      actor,
+    )
+    // Thirty days on: six reviews in the last 28 days is 1.5 a week, far
+    // under 90% of 20.
+    await held.client.query(
+      `UPDATE property_rating_goals SET created_at = $2 WHERE id = $1`,
+      [set.goalId, new Date(NOW.getTime() - 30 * DAY)],
+    )
+
+    await expect(sweep()).resolves.toMatchObject({ evaluated: 1, notices: 1 })
+    await expect(sweep()).resolves.toMatchObject({ evaluated: 1, notices: 0 })
+
+    expect((await noticeFacts()).map((fact) => fact.payload)).toEqual([
+      expect.objectContaining({
+        goalId: set.goalId,
+        transition: 'entered_below_pace',
+        pacePerWeek: 20,
+        recentPaceTenths: 15,
+        paceWindow: 'last_4_weeks',
+      }),
+    ])
+    const stored = await held.client.query(
+      `SELECT last_evaluated_status, last_known_status, below_pace_noticed_at,
+              cant_reach_noticed_at
+       FROM property_rating_goals WHERE id = $1`,
+      [set.goalId],
+    )
+    expect(stored.rows).toEqual([
+      {
+        last_evaluated_status: 'below_pace',
+        last_known_status: 'below_pace',
+        below_pace_noticed_at: NOW,
+        cant_reach_noticed_at: null,
+      },
+    ])
+  })
+
+  describe("Can't reach at this mix in the daily sweep", () => {
+    /** A 4.4 goal set while the recent mix clears it; then the mix falls under 4.35. */
+    async function goalWhoseMixThenFalls() {
+      await seedSnapshot(Math.fround(4.3))
+      const { api, sweep } = engine()
+      const set = await api.set(
+        allow,
+        { propertyId: PROPERTY, mode: 'climb', targetTenths: 44, pacePerWeek: 2 },
+        actor,
+      )
+      await seedRecentOneStarReviews()
+      return { goalId: set.goalId, sweep }
+    }
+
+    const storedMarks = async (goalId: string) =>
+      (
+        await held.client.query(
+          `SELECT last_known_status, below_pace_noticed_at, cant_reach_noticed_at
+           FROM property_rating_goals WHERE id = $1`,
+          [goalId],
+        )
+      ).rows
+
+    it('is told once, with the target alone, and not again the next day', async () => {
+      const { goalId, sweep } = await goalWhoseMixThenFalls()
+
+      await expect(sweep()).resolves.toMatchObject({ evaluated: 1, notices: 1 })
+      await expect(sweep()).resolves.toMatchObject({ evaluated: 1, notices: 0 })
+
+      expect((await noticeFacts()).map((fact) => fact.payload)).toEqual([
+        expect.objectContaining({
+          goalId,
+          transition: 'entered_cant_reach',
+          targetTenths: 44,
+          shownTenths: null,
+          previousTenths: null,
+          pacePerWeek: null,
+          recentPaceTenths: null,
+          paceWindow: null,
+        }),
+      ])
+      await expect(storedMarks(goalId)).resolves.toEqual([
+        {
+          last_known_status: 'cant_reach_at_mix',
+          below_pace_noticed_at: null,
+          cant_reach_noticed_at: NOW,
+        },
+      ])
+    })
+
+    it('is told again only 14 days after the last time', async () => {
+      const { goalId, sweep } = await goalWhoseMixThenFalls()
+      await sweep()
+      const backToOnPace = (toldDaysAgo: number) =>
+        held.client.query(
+          `UPDATE property_rating_goals
+           SET last_known_status = 'on_pace', cant_reach_noticed_at = $2 WHERE id = $1`,
+          [goalId, new Date(NOW.getTime() - toldDaysAgo * DAY)],
+        )
+
+      // The mix recovered and fell again, 13 days after the managers were told.
+      await backToOnPace(13)
+      await expect(sweep()).resolves.toMatchObject({ evaluated: 1, notices: 0 })
+      await expect(storedMarks(goalId)).resolves.toEqual([
+        {
+          last_known_status: 'cant_reach_at_mix',
+          below_pace_noticed_at: null,
+          cant_reach_noticed_at: new Date(NOW.getTime() - 13 * DAY),
+        },
+      ])
+
+      await backToOnPace(14)
+      await expect(sweep()).resolves.toMatchObject({ evaluated: 1, notices: 1 })
+      await expect(storedMarks(goalId)).resolves.toEqual([
+        {
+          last_known_status: 'cant_reach_at_mix',
+          below_pace_noticed_at: null,
+          cant_reach_noticed_at: NOW,
+        },
+      ])
+      expect(await noticeFacts()).toHaveLength(2)
+    })
+  })
+
+  it('sends no notice for the status a goal is set in, even out of reach', async () => {
+    await seedSnapshot(Math.fround(4.3))
+    const { api, evaluate, sweep } = engine()
+    // 4.9 starts at 4.85, above the 4.818 recent mix.
+    await api.set(
+      allow,
+      { propertyId: PROPERTY, mode: 'climb', targetTenths: 49, pacePerWeek: 2 },
+      actor,
+    )
+
+    await evaluate(ORG, PROPERTY)
+    await sweep()
+
+    await expect(noticeFacts()).resolves.toEqual([])
   })
 })

@@ -111,6 +111,7 @@ export type {
   GoalEvent,
   GoalMonthlyResultClosed,
   GoalMonthlyResultReconciled,
+  GoalRatingGoalTransitioned,
 } from '#/contexts/reporting/domain/goal-events'
 
 // Reporting metric events
