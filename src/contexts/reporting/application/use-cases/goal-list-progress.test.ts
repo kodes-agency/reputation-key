@@ -210,7 +210,8 @@ describe('the month so far of the goals on the Goals list', () => {
   })
 
   it('gives a goal with one count subject its figure, target and days left', async () => {
-    const { listProgress } = reader([bundle({ target: 120 })])
+    // 100 of 120 on day 24 of 30 keeps up with the 96 the line expects.
+    const { listProgress } = reader([bundle({ target: 120 })], () => counted(100))
 
     const goals = await listProgress(input, actor)
 
@@ -221,10 +222,10 @@ describe('the month so far of the goals on the Goals list', () => {
         subjectCount: 1,
         daysLeft: 6,
         month: {
-          reading: { kind: 'live', value: 64, sampleCount: 64 },
+          reading: { kind: 'live', value: 100, sampleCount: 100 },
           targetValue: 120,
         },
-        belowPace: null,
+        belowPace: 0,
       },
     ])
   })
@@ -256,6 +257,64 @@ describe('the month so far of the goals on the Goals list', () => {
     expect(await listProgress(input, actor)).toMatchObject([
       { month: { reading: { kind: 'unavailable' } } },
     ])
+  })
+
+  describe('the pace of a goal with one count subject', () => {
+    // Day 24 of 30, target 120: the line expects 96; 90% of it is 86.4.
+    const paced = (value: number, now = NOW) =>
+      reader([bundle({ target: 120 })], () => counted(value), now).listProgress
+
+    it('says the subject is below pace under 90% of what the line expects', async () => {
+      expect(await paced(86)(input, actor)).toMatchObject([
+        { subjectCount: 1, belowPace: 1 },
+      ])
+    })
+
+    it('says it keeps up from 90% of what the line expects', async () => {
+      expect(await paced(87)(input, actor)).toMatchObject([
+        { subjectCount: 1, belowPace: 0 },
+      ])
+    })
+
+    it('judges it by the pace of the running month’s own target', async () => {
+      const { listProgress } = reader([bundle({ target: 120, monthTarget: 400 })], () =>
+        counted(100),
+      )
+
+      // 100 clears the 120 of the version and misses the 400 of the month.
+      expect(await listProgress(input, actor)).toMatchObject([{ belowPace: 1 }])
+    })
+
+    it('judges nothing in the first days of the month', async () => {
+      expect(await paced(0, EARLY)(input, actor)).toMatchObject([
+        { belowPace: null, daysLeft: 28 },
+      ])
+    })
+
+    it('judges nothing for an average, which has no pace', async () => {
+      const { listProgress } = reader(
+        [bundle({ metric: 'portal_rating_average', target: 4.5 })],
+        () => counted(2.1, 31),
+      )
+
+      expect(await listProgress(input, actor)).toMatchObject([{ belowPace: null }])
+    })
+
+    it('judges nothing when the figure cannot be read', async () => {
+      const { listProgress } = reader([bundle()], () => broken)
+
+      expect(await listProgress(input, actor)).toMatchObject([{ belowPace: null }])
+    })
+
+    it('judges the same figure the same way as one of several subjects', async () => {
+      const one = await paced(86)(input, actor)
+      const several = await reader([bundle({ target: 120, subjects: portals(2) })], () =>
+        counted(86),
+      ).listProgress(input, actor)
+
+      expect(one[0]?.belowPace).toBe(1)
+      expect(several[0]?.belowPace).toBe(2)
+    })
   })
 
   it('counts the subjects of a count goal that are below pace', async () => {

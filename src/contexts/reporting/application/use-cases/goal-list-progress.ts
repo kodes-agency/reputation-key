@@ -8,7 +8,8 @@
 //
 // The list needs less than the page of a goal, so it reads less:
 //
-// - one subject: its figure against the running month's target;
+// - one subject: its figure against the running month's target, and on a count
+//   whether it is below pace (`goalPace`);
 // - several subjects on a count: a figure for each, to say how many are below
 //   pace (`goalPace`), up to the subjects a goal's page reads;
 // - several subjects on an average, or more than that many: no figure, the
@@ -62,9 +63,10 @@ export type GoalListProgress = Readonly<{
   /** The one subject's month so far; null for a goal with several subjects. */
   month: Readonly<{ reading: CountingReading; targetValue: number }> | null
   /**
-   * Subjects below pace, for a count goal with several subjects. Null when
-   * nothing was judged: an average, a month in its first days, subjects too
-   * many to read, or figures that cannot be read.
+   * Subjects below pace, for a count goal: how many of several, or 1 or 0 for
+   * a goal with one subject. Null when nothing was judged: an average, a month
+   * in its first days, subjects too many to read, or figures that cannot be
+   * read.
    */
   belowPace: number | null
 }>
@@ -183,7 +185,7 @@ function entryOf(
   return {
     ...base,
     month: { reading: first.reading, targetValue: first.targetValue },
-    belowPace: null,
+    belowPace: belowPaceOf(read, now),
   }
 }
 
