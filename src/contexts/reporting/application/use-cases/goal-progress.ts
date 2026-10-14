@@ -243,9 +243,12 @@ async function progressOf(
   const assignment = assignmentFor(bundle, subject, now)
   if (!assignment) return null
   const version = versionOf(bundle, assignment)
-  const started = status === 'active' && assignment.effectiveFrom <= now
+  // A goal that is running, paused or not, is in the month it is now. One that
+  // has not started is dated by its start. Only an active one reads a figure.
+  const begun = status !== 'scheduled' && assignment.effectiveFrom <= now
+  const started = status === 'active' && begun
   const period = calendarPeriodRange(
-    started ? now : assignment.effectiveFrom,
+    begun ? now : assignment.effectiveFrom,
     version.propertyTimezone,
     'monthly',
   )
