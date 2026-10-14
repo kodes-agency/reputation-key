@@ -11,7 +11,10 @@ import type {
 } from '../ports/review-provider-snapshot.repository'
 import type { ReviewProviderObservationOrigin } from '../ports/response-target-authority.port'
 import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
-import { computeAiReviewSourceProvenance } from '../ai-review-source'
+import {
+  computeAiReviewSourceProvenance,
+  matchStoredAiReviewSourceProvenance,
+} from '../ai-review-source'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
 import { sha256Hex } from '#/shared/domain/sha256'
 import { domainError } from '#/shared/domain/errors'
@@ -335,6 +338,32 @@ function buildObservedReview(
   }
 }
 
+/** Whether the AI source the stored row describes is the one this observation
+ * brings. A row stored under revision 1 of the source text rules
+ * (`AI_SOURCE_TEXT_REVISION`) holds a digest the current rules no longer
+ * compute for text with a line break or tab inside it; it still describes the
+ * same review, so it takes the refresh path that rewrites the digest quietly. A
+ * `review.updated` here would tell the Inbox and the managers' notices that a
+ * review changed when nothing did, and would open a new analysis sequence. */
+function aiSourceUnchanged(
+  existing: Review,
+  review: Omit<Review, 'createdAt' | 'updatedAt'>,
+): boolean {
+  return (
+    existing.aiSourceDigest === review.aiSourceDigest ||
+    matchStoredAiReviewSourceProvenance(
+      {
+        text: review.text,
+        rating: review.rating,
+        languageCode: review.languageCode,
+        reviewedAtEpochMillis: review.reviewedAt.getTime(),
+        reviewerDisplayName: review.reviewerName,
+      },
+      { digest: existing.aiSourceDigest, byteLength: existing.aiSourceByteLength },
+    ) !== null
+  )
+}
+
 /** Which write path this observation takes: a first sighting, an epoch carry
  * or material change that needs a recorded update, expired-content restore,
  * or a same-epoch unchanged body that only refreshes the source cache. */
@@ -355,7 +384,7 @@ function classifyObservation(
       existing != null &&
       existing.sourceEpoch === review.sourceEpoch &&
       !expired &&
-      existing.aiSourceDigest === review.aiSourceDigest,
+      aiSourceUnchanged(existing, review),
   }
 }
 

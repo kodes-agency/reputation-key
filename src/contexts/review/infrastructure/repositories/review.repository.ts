@@ -39,7 +39,7 @@ import type {
   AiReviewSourceRequest,
   AiReviewSourceResult,
 } from '../../application/ports/ai-review-source.port'
-import { computeAiReviewSourceProvenance } from '../../application/ai-review-source'
+import { matchStoredAiReviewSourceProvenance } from '../../application/ai-review-source'
 import { upsertReviewSourceContent } from '../review-source-content-store'
 import { persistReviewObservation } from './review-observation.repository'
 import type { ReviewProviderObservationOrigin } from '../../application/ports/response-target-authority.port'
@@ -259,22 +259,17 @@ export const createReviewRepository = (
             return { status: 'policy_unavailable' }
           }
 
-          const provenance = computeAiReviewSourceProvenance({
-            text: row.text as string | null,
-            rating: rating as Review['rating'],
-            languageCode: row.language_code as string | null,
-            reviewedAtEpochMillis,
-            reviewerDisplayName: row.reviewer_name as string | null,
-          })
-          const persistedDigest = Buffer.from(row.ai_source_digest, 'hex')
-          const recomputedDigest = Buffer.from(provenance.digest, 'hex')
-          if (
-            provenance.byteLength !== storedByteLength ||
-            persistedDigest.byteLength !== recomputedDigest.byteLength ||
-            !timingSafeEqual(persistedDigest, recomputedDigest)
-          ) {
-            return { status: 'policy_unavailable' }
-          }
+          const provenance = matchStoredAiReviewSourceProvenance(
+            {
+              text: row.text as string | null,
+              rating: rating as Review['rating'],
+              languageCode: row.language_code as string | null,
+              reviewedAtEpochMillis,
+              reviewerDisplayName: row.reviewer_name as string | null,
+            },
+            { digest: row.ai_source_digest, byteLength: storedByteLength },
+          )
+          if (provenance === null) return { status: 'policy_unavailable' }
 
           return {
             status: 'available',

@@ -58,6 +58,47 @@ it must never be the first.
 Operations, settlements, derivative generations, enrollment heads, schedules,
 and output lineage pin authorization, source, policy, model, and lifecycle fences.
 
+## Source text
+
+The text a model reads is made in two versioned stages. Review canonicalizes the
+raw provider text and masks the reviewer's name (`ai-review-source-contract.ts`,
+`ai-source-v1`); the gateway redacts that text at request time with the deployed
+code (`gbp-review-global-v1` over `structured-marker-detectors-v1`, the second
+with `ai-address-markers.ts`). Every operation binding records the canonicalizer
+(`AI_SOURCE_CANONICALIZER_DIGEST_V1`), and the operation profile attests the
+detectors and the redactor by digest, so a change to a rule moves a digest. Both
+digests are recomputed from the code; no stored analysis, aggregate or Trend is
+compared with them, so a bump hides nothing that was already produced. The one
+exception is an operation still pending when the new build starts: its request
+fingerprint includes the binding, so its next claim answers `conflict`, the
+review is settled not analysable, and the reaper abandons the operation at its
+expiry, after which the reopen pass queues the review again.
+
+Changing what the canonicalizer produces is not a patch. The Review row stores a
+digest and a byte length of the canonical text (`ai_source_digest`,
+`ai_source_byte_length`), `readForAi` recomputes them from the raw row, and the
+output store refuses a result whose operation digest differs from the Review's.
+So a rule change needs a new text revision (`AI_SOURCE_TEXT_REVISION`) with:
+
+1. the previous revision kept reproducible for one content lifetime (30 days,
+   ADR 0031), only to recognise a digest stored under it;
+2. `readForAi` serving a row under the revision its stored digest names
+   (`matchStoredAiReviewSourceProvenance`), so no row turns `policy_unavailable`
+   and the digests the AI context compares stay equal;
+3. the Review sync treating a stored digest of the previous revision as
+   unchanged (`aiSourceUnchanged`), so the row is rewritten quietly on its next
+   observation instead of raising `review.updated`, a new analysis sequence and
+   a manager notice for a review nobody changed;
+4. a new `AI_SOURCE_CANONICALIZER_DIGEST_V1`, derived from the rules named in
+   `ai-source-profile.test.ts`.
+
+Revision 2 (2026-10-14) turns a line break or tab between two words into a space
+(revision 1 deleted it and fused the words) and replaces Unicode noncharacters
+with U+FFFD. Redactor and detector changes need none of this: they act on the
+next request and change no stored value. A review the redactor blocked stays
+settled as not analysable (`redaction_blocked` is not a reopen code,
+`review-analysis-reopen.ts`) until something gives it a new analysis sequence.
+
 ## Runtime
 
 Identity's merchant-AI fact drives one durable lifecycle command, which opens a
