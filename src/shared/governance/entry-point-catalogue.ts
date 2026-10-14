@@ -591,6 +591,14 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'goal.use',
     'property',
   ),
+  // Evaluates a Property's Google rating goal (reached, ended, status) when
+  // Review verifies Google's numbers; a reconciliation of Goal state.
+  consumer(
+    'goal.google-rating-evaluation',
+    'system:goal.reconcile',
+    'goal.use',
+    'property',
+  ),
   consumer(
     'metric.portal-workflow',
     'system:metric.record_portal_workflow',

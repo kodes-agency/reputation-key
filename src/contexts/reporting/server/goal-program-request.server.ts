@@ -22,10 +22,16 @@ import type { GoalBulkCreateRequestApi } from '../application/use-cases/goal-bul
 import type { GoalMonthPreviewRequestApi } from '../application/use-cases/goal-month-preview'
 import type { GoalProgressRequestApi } from '../application/use-cases/goal-progress'
 
-const requestActor = (ctx: Awaited<ReturnType<typeof resolveTenantContext>>): GoalActor =>
-  ctx
+export const requestActor = (
+  ctx: Awaited<ReturnType<typeof resolveTenantContext>>,
+): GoalActor => ctx
 
-const requestPolicy = (
+/**
+ * The request's Goal policy: the caller acts only as themselves in their own
+ * Organization, and every action asks the execution policy with goal.use on
+ * the Property. The Property Google rating goal requests use it too.
+ */
+export const requestPolicy = (
   ctx: Awaited<ReturnType<typeof resolveTenantContext>>,
 ): GoalExecutionPolicy => ({
   authorize: async (request) => {

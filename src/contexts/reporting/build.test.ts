@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createConsumerRegistry } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildReportingContext, type ReportingContextBuildInput } from './build'
 
@@ -14,6 +15,7 @@ function build() {
     propertyApi: {} as ReportingContextBuildInput['propertyApi'],
     staffPublicApi: {} as ReportingContextBuildInput['staffPublicApi'],
     reviewServingStats: {} as ReportingContextBuildInput['reviewServingStats'],
+    reviewGoogleRatingReads: {} as ReportingContextBuildInput['reviewGoogleRatingReads'],
     inboxTargets: {} as ReportingContextBuildInput['inboxTargets'],
     guestResponseIntegrity: {} as ReportingContextBuildInput['guestResponseIntegrity'],
   }
@@ -33,6 +35,15 @@ describe('buildReportingContext', () => {
     expect(typeof context.publicApi.getPortalResultsOverview).toBe('function')
     expect(typeof context.publicApi.getPropertySetup).toBe('function')
     expect(typeof context.publicApi.listPropertySetupSummaries).toBe('function')
+    expect(Object.keys(context.publicApi.ratingGoals).sort()).toEqual([
+      'card',
+      'change',
+      'detail',
+      'end',
+      'history',
+      'set',
+      'setup',
+    ])
   })
 
   it('publishes governed metric reads only, never the raw aggregate query', () => {
@@ -54,6 +65,17 @@ describe('buildReportingContext', () => {
       'propertySetupRepo',
       'setupChecklistRepo',
     ])
+  })
+
+  it('evaluates the Google rating goal when Review verifies Google numbers', () => {
+    const registry = createConsumerRegistry()
+
+    build().worker.registerOutboxConsumers(registry, { authorize: async () => undefined })
+
+    expect(registry.list()).toContainEqual({
+      eventType: 'review.google_reputation_snapshot.verified',
+      consumerName: 'goal.google-rating-evaluation',
+    })
   })
 
   it('builds no Organization export or lifecycle contributor of its own', () => {
