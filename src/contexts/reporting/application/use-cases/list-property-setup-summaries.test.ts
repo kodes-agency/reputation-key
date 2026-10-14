@@ -23,7 +23,7 @@ const FACTS: readonly PropertySetupFacts[] = [
     portalPublished: true,
     propertyActive: true,
     googleReviewCount: null,
-    ratingGoalActive: false,
+    ratingGoalSet: false,
     ratingGoalDeferred: false,
   },
   {
@@ -38,7 +38,7 @@ const FACTS: readonly PropertySetupFacts[] = [
     portalPublished: false,
     propertyActive: true,
     googleReviewCount: null,
-    ratingGoalActive: false,
+    ratingGoalSet: false,
     ratingGoalDeferred: false,
   },
 ]

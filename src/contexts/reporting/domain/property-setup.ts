@@ -6,10 +6,12 @@
 // step that stops being true (a disconnected Google binding, an unpublished
 // Portal) returns to needing attention.
 //
-// Seven steps always; an eighth, the Google rating goal (ADR 0067), only where
-// a goal can be set: an active Property Google counts ten reviews for, seen by
-// a viewer who may set one. It is done when a goal is active or a manager
-// chose "Not now", which counts as done the way a deferred AI decision does.
+// Seven steps always; an eighth, the Google rating goal (ADR 0067), only on an
+// active Property and only where a goal can be set: Google counts ten reviews
+// for it, and the viewer may set one. It is done once a goal was set (active,
+// reached, or ended by a manager: a manager decided) or a manager chose "Not
+// now", which counts as done the way a deferred AI decision does. A goal its
+// Google location ended decided nothing about the new place, so it does not.
 
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import type { PropertyId } from '#/shared/domain/ids'
@@ -80,8 +82,12 @@ export type PropertySetupFacts = Readonly<{
   propertyActive: boolean
   /** Google's review count at the current binding; null when Google sent none. */
   googleReviewCount: number | null
-  /** The Property has an active Google rating goal. */
-  ratingGoalActive: boolean
+  /**
+   * A manager set a Google rating goal for the Property: it is active, was
+   * reached, or a manager ended it. A goal ended by its Google location changing
+   * or its Property being archived does not count.
+   */
+  ratingGoalSet: boolean
   /** A manager chose "Not now" for the Property's Google rating goal. */
   ratingGoalDeferred: boolean
 }>
@@ -165,13 +171,14 @@ const STATUS_OF = {
   reply_voice: (facts) => doneOr(facts.replyVoiceConfigured, 'pending'),
   portal_published: (facts) => doneOr(facts.portalPublished, 'pending'),
   rating_goal: (facts) =>
-    decided(facts.ratingGoalActive, facts.ratingGoalDeferred, 'pending'),
+    decided(facts.ratingGoalSet, facts.ratingGoalDeferred, 'pending'),
 } as const satisfies Readonly<Record<PropertySetupStepKey, StatusRule>>
 
 /**
- * Whether a step is the viewer's to see. The rating goal step is, where a goal
- * can be set or one is already active (it stays counted when Google's count is
- * not read any more).
+ * Whether a step is the viewer's to see. The rating goal step is, on an active
+ * Property, where a goal can be set or one was set already (it stays counted
+ * when Google's count is not read any more). A suspended Property keeps its
+ * goal, but not the step.
  */
 function stepShown(
   key: PropertySetupStepKey,
@@ -179,8 +186,8 @@ function stepShown(
   viewer: PropertySetupViewer,
 ): boolean {
   if (key !== 'rating_goal') return true
-  if (viewer.ratingGoalsEnabled !== true) return false
-  return facts.ratingGoalActive || ratingGoalOffered(facts)
+  if (viewer.ratingGoalsEnabled !== true || !facts.propertyActive) return false
+  return facts.ratingGoalSet || ratingGoalOffered(facts)
 }
 
 /** The steps the viewer sees, in setup order: seven, or eight with the rating goal. */

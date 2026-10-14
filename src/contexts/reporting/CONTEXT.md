@@ -192,10 +192,12 @@ metric authority.
   voice, published Portal), and an eighth, "Set a Google rating goal", where a goal can be
   set: an active Property Google counts ten reviews for (the Current on Google snapshot at
   the current binding), seen by a viewer with `goal.create` while `goal.use` is on. The
-  eighth counts toward "n of m done": it is done when the Property has an active rating
-  goal or a manager chose "Not now" (`property_rating_goal_deferrals`, one row per
-  Property, written by the rating goal's "Not now" command), which counts as decided the
-  way a deferred AI decision does. It records no milestones, unlike the Organization
+  eighth counts toward "n of m done": it is done once a manager decided it, by setting a
+  goal (active, reached, or ended by a manager; a goal its Google location or an archive
+  ended decided nothing) or by choosing "Not now" (`property_rating_goal_deferrals`, one
+  row per Property, written by the rating goal's "Not now" command), which counts as
+  decided the way a deferred AI decision does. A Property that is not active shows no
+  eighth step, even with a goal. It records no milestones, unlike the Organization
   checklist.
 
 ## Invariants

@@ -22,7 +22,7 @@ const UNCONFIGURED: PropertySetupFacts = {
   portalPublished: false,
   propertyActive: true,
   googleReviewCount: null,
-  ratingGoalActive: false,
+  ratingGoalSet: false,
   ratingGoalDeferred: false,
 }
 

@@ -44,7 +44,7 @@ function facts(overrides: Partial<PropertySetupFacts> = {}): PropertySetupFacts 
     portalPublished: false,
     propertyActive: true,
     googleReviewCount: null,
-    ratingGoalActive: false,
+    ratingGoalSet: false,
     ratingGoalDeferred: false,
     ...overrides,
   }
@@ -396,9 +396,9 @@ describe('the Google rating goal step', () => {
     }
   })
 
-  it('is done once a goal is active', () => {
-    // Arrange
-    const withGoal = facts({ ...offered, ratingGoalActive: true })
+  it('is done once a goal is set, and stays done after it is reached or a manager ends it', () => {
+    // Arrange: the repository counts an active goal, one reached, and one a manager ended.
+    const withGoal = facts({ ...offered, ratingGoalSet: true })
 
     // Act
     const steps = derivePropertySetupSteps(withGoal, goalViewer('PropertyManager'))
@@ -424,7 +424,7 @@ describe('the Google rating goal step', () => {
 
   it('lets an active goal complete the step even beside an earlier "Not now"', () => {
     // Arrange
-    const both = facts({ ...offered, ratingGoalActive: true, ratingGoalDeferred: true })
+    const both = facts({ ...offered, ratingGoalSet: true, ratingGoalDeferred: true })
 
     // Act / Assert
     expect(ratingGoalStep(both, 'AccountAdmin')?.status).toBe('complete')
@@ -463,10 +463,27 @@ describe('the Google rating goal step', () => {
     const withGoal = facts({
       ...COMPLETE,
       googleReviewCount: null,
-      ratingGoalActive: true,
+      ratingGoalSet: true,
     })
 
     // Act / Assert
     expect(ratingGoalStep(withGoal, 'AccountAdmin')?.status).toBe('complete')
+  })
+
+  it('is hidden off an active Property even when a goal was set there', () => {
+    // Arrange: suspending a Property does not end its goal.
+    const suspended = facts({
+      ...offered,
+      propertyActive: false,
+      ratingGoalSet: true,
+      ratingGoalDeferred: true,
+    })
+
+    // Act
+    const steps = derivePropertySetupSteps(suspended, goalViewer('AccountAdmin'))
+
+    // Assert
+    expect(steps.map((step) => step.key)).not.toContain('rating_goal')
+    expect(propertySetupCompletedCount(steps)).toBe(7)
   })
 })

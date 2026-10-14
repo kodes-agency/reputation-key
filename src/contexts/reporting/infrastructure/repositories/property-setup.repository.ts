@@ -34,7 +34,7 @@ type FactRow = Readonly<{
   portal_published: unknown
   property_active: unknown
   google_review_count: unknown
-  rating_goal_active: unknown
+  rating_goal_set: unknown
   rating_goal_deferred: unknown
 }>
 
@@ -89,7 +89,7 @@ function toFacts(row: FactRow): PropertySetupFacts {
     portalPublished: readFlag(row, 'portal_published'),
     propertyActive: readFlag(row, 'property_active'),
     googleReviewCount: readGoogleReviewCount(row),
-    ratingGoalActive: readFlag(row, 'rating_goal_active'),
+    ratingGoalSet: readFlag(row, 'rating_goal_set'),
     ratingGoalDeferred: readFlag(row, 'rating_goal_deferred'),
   })
 }
@@ -109,9 +109,10 @@ function toFacts(row: FactRow): PropertySetupFacts {
  * - Google's review count is the Current on Google snapshot's at the
  *   Property's current binding epoch, as every rating goal read takes it; a
  *   snapshot from an earlier binding is no count.
+ * - A rating goal counts as set when a manager decided it: active, reached, or
+ *   ended by a manager. One its Google location or an archive ended does not.
  * - The remaining per-Property lookups are index-backed correlated subqueries
- *   (the rating goal's partial unique index on active goals, the "Not now"
- *   row's primary key).
+ *   (the rating goals' Property index, the "Not now" row's primary key).
  */
 function propertyFactsSql(organizationId: OrganizationId, scope: SQL): SQL {
   return sql`
@@ -176,8 +177,11 @@ function propertyFactsSql(organizationId: OrganizationId, scope: SQL): SQL {
         FROM ${propertyRatingGoals} goal
         WHERE goal.organization_id = ${organizationId}
           AND goal.property_id = p.id
-          AND goal.status = 'active'
-      ) AS rating_goal_active,
+          AND (
+            goal.status IN ('active', 'reached')
+            OR (goal.status = 'ended' AND goal.ended_reason = 'manager')
+          )
+      ) AS rating_goal_set,
       EXISTS (
         SELECT 1
         FROM ${propertyRatingGoalDeferrals} not_now
