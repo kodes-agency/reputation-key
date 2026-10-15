@@ -27,6 +27,12 @@ export async function resolveApprovedPortalDestination(
     )
   }
   if (networkValidation.outcome === 'unavailable') {
+    if (networkValidation.reason === 'dns_not_found') {
+      throw portalError(
+        'invalid_url',
+        'We could not find that web address. Check it for a typo and try again.',
+      )
+    }
     throw portalError(
       'destination_not_approved',
       'Destination validation is temporarily unavailable. Please try again.',

@@ -31,6 +31,12 @@ async function assertDestinationNetworkSafe(
       'Destination could not be approved because its network address or redirect is unsafe',
     )
   }
+  if (validation.reason === 'dns_not_found') {
+    throw portalError(
+      'invalid_url',
+      'We could not find that web address. Check it for a typo and try again.',
+    )
+  }
   throw portalError(
     'destination_not_approved',
     'Destination validation is temporarily unavailable. Please try again.',

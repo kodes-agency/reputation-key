@@ -17,7 +17,13 @@ export type PortalDestinationNetworkValidation =
     }>
   | Readonly<{
       outcome: 'unavailable'
-      reason: 'dns_unavailable' | 'request_unavailable' | 'invalid_response'
+      /**
+       * `dns_not_found` is the one reason a manager can act on: the hostname
+       * does not exist, so retrying never helps. The others are genuinely
+       * transient, and revalidation treats every reason here as soft.
+       */
+      reason:
+        'dns_not_found' | 'dns_unavailable' | 'request_unavailable' | 'invalid_response'
       observedAt: Date
     }>
 
