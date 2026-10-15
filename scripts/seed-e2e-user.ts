@@ -35,15 +35,12 @@ import { OFFERED_GUEST_LOCALES } from '../src/shared/domain/guest-locale'
 import { snapshotMirrorColumns } from '../src/contexts/portal/infrastructure/mappers/portal-publication-snapshot.mapper'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../src/contexts/portal/domain/approved-destination'
 import { portalGroups } from '../src/shared/db/schema/portal-group.schema'
-import { reviews } from '../src/shared/db/schema/review.schema'
-import { computeAiReviewSourceProvenance } from '../src/contexts/review/application/ai-review-source'
 import {
   staffParticipants,
   staffParticipations,
   portalResponsibilities,
   portalGroupMemberships,
 } from '../src/shared/db/schema/people-access.schema'
-import { metricReadings } from '../src/shared/db/schema/metric.schema'
 import {
   notifications,
   notificationEmailQueue,
@@ -70,6 +67,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { Redis } from 'ioredis'
 import { localEnvOverlayPaths, localEnvSetting } from './local/provider-modes'
 import { ensureCredentialUser } from './local/seed-credential-user'
+import { ensureGoogleNumbers, ensureReviews } from './local/seed-google-reviews'
 
 assertLocalToolExecutionIdentity(process.env)
 
@@ -121,7 +119,6 @@ const GOOGLE_REVIEW_DESTINATION = {
 
 const LOCKED_ORG_ID = 'e2e-locked-org-b'
 const FIXTURE_AT = new Date('2026-08-01T12:00:00.000Z')
-const FAR_FUTURE = new Date('2030-01-01T00:00:00.000Z')
 
 const IDS = {
   p1: '11111111-1111-4111-8111-111111111111',
@@ -1010,120 +1007,6 @@ async function ensureNotificationPreferences(input: {
     })
 }
 
-async function ensureReviews(input: {
-  orgAId: string
-  p1Id: string
-  p2Id: string
-  p3Id: string
-  boundedIds: readonly string[]
-}): Promise<void> {
-  const db = getDb()
-  // Keep the seeded review windows stable as wall-clock time advances: the
-  // newest fixture is always 15 days old, so the 30-day fleet view contains
-  // 30 P1 reviews and 15 P2 reviews.
-  const reviewedAtAnchor = new Date()
-  reviewedAtAnchor.setUTCHours(12, 0, 0, 0)
-  reviewedAtAnchor.setUTCDate(reviewedAtAnchor.getUTCDate() - 15)
-  const propertyFor = (index: number) => {
-    if (index < 40) return { organizationId: input.orgAId, propertyId: input.p1Id }
-    if (index < 60) return { organizationId: input.orgAId, propertyId: input.p2Id }
-    if (index < 80) return { organizationId: LOCKED_ORG_ID, propertyId: input.p3Id }
-    return {
-      organizationId: input.orgAId,
-      propertyId: input.boundedIds[(index - 80) % input.boundedIds.length]!,
-    }
-  }
-
-  for (let index = 0; index < 100; index += 1) {
-    const ordinal = index + 1
-    const scope = propertyFor(index)
-    const id = `50000000-0000-4000-8000-${ordinal.toString(16).padStart(12, '0')}`
-    const reviewedAt = new Date(reviewedAtAnchor)
-    reviewedAt.setUTCDate(reviewedAt.getUTCDate() - (index % 20))
-    const text = `Deterministic local beta review ${ordinal}.`
-    const reviewerName = `E2E Reviewer ${ordinal}`
-    const provenance = computeAiReviewSourceProvenance({
-      text,
-      rating: ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5,
-      languageCode: 'en',
-      reviewedAtEpochMillis: reviewedAt.getTime(),
-      reviewerDisplayName: reviewerName,
-    })
-    await db
-      .insert(reviews)
-      .values({
-        id,
-        ...scope,
-        platform: 'google',
-        externalId: `e2e-beta-review-${ordinal.toString().padStart(3, '0')}`,
-        externalLocationId: `e2e-location-${scope.propertyId}`,
-        reviewerName,
-        rating: (index % 5) + 1,
-        text,
-        languageCode: 'en',
-        reviewedAt,
-        expiresAt: FAR_FUTURE,
-        contentExpiresAt: FAR_FUTURE,
-        sourceCreatedAt: reviewedAt,
-        sourceUpdatedAt: reviewedAt,
-        firstFetchedAt: reviewedAt,
-        lastFetchedAt: reviewedAt,
-        sourceEpoch: 0,
-        sourceRevision: 1,
-        analysisSequence: 0,
-        aiSourceByteLength: provenance.byteLength,
-        aiSourceDigest: provenance.digest,
-      })
-      .onConflictDoUpdate({
-        target: reviews.id,
-        set: {
-          organizationId: scope.organizationId,
-          propertyId: scope.propertyId,
-          rating: (index % 5) + 1,
-          reviewedAt,
-          aiSourceByteLength: provenance.byteLength,
-          aiSourceDigest: provenance.digest,
-          expiresAt: FAR_FUTURE,
-          contentExpiresAt: FAR_FUTURE,
-        },
-      })
-    const metricReadingId = `51000000-0000-4000-8000-${ordinal
-      .toString(16)
-      .padStart(12, '0')}`
-    await db
-      .insert(metricReadings)
-      .values({
-        id: metricReadingId,
-        ...scope,
-        metricKey: 'property.review',
-        value: (index % 5) + 1,
-        definitionVersionId: '11111111-1111-4111-8111-111111111205',
-        sourceEventId: `e2e-review-created-${ordinal}`,
-        sourcePolicy: 'google_property_derivative',
-        exactValue: (index % 5) + 1,
-        sampleCount: 1,
-        attributionQuality: 'exact',
-        occurredAt: reviewedAt,
-        eventAt: reviewedAt,
-        propertyLocalDate: reviewedAt.toISOString().slice(0, 10),
-        dataQuality: 'exact',
-        retentionClass: 'standard',
-      })
-      .onConflictDoUpdate({
-        target: metricReadings.id,
-        set: {
-          organizationId: scope.organizationId,
-          propertyId: scope.propertyId,
-          value: (index % 5) + 1,
-          exactValue: (index % 5) + 1,
-          occurredAt: reviewedAt,
-          eventAt: reviewedAt,
-          propertyLocalDate: reviewedAt.toISOString().slice(0, 10),
-          dataQuality: 'exact',
-        },
-      })
-  }
-}
 async function ensureDueEmailFixture(input: {
   notificationId: string
   emailQueueId: string
@@ -1433,7 +1316,22 @@ async function main(): Promise<void> {
     propertyId: p1Id,
     managerUserId,
   })
-  await ensureReviews({ orgAId, p1Id, p2Id, p3Id, boundedIds })
+  await ensureReviews(getDb(), {
+    orgAId,
+    lockedOrgId: LOCKED_ORG_ID,
+    p1Id,
+    p2Id,
+    p3Id,
+    boundedIds,
+  })
+  // What a Google import ends with: the numbers Google shows for those reviews,
+  // which every headline rating reads (the Properties list, the Rating tile).
+  const googleNumbers = await ensureGoogleNumbers(getDb(), [
+    p1Id,
+    p2Id,
+    p3Id,
+    ...boundedIds,
+  ])
 
   await ensureDueEmailFixture({
     notificationId: IDS.p1Notification,
@@ -1502,7 +1400,7 @@ async function main(): Promise<void> {
   })
   const clearedLimits = await clearGuestRateLimitCounters()
   console.log(
-    `E2E beta-local-1 landscape ready: P1 on, P2/P3 off, 7 bounded rows, 100 reviews, ${clearedLimits} rate-limit counters cleared`,
+    `E2E beta-local-1 landscape ready: P1 on, P2/P3 off, 7 bounded rows, 100 reviews, Google's numbers for ${googleNumbers.length} properties, ${clearedLimits} rate-limit counters cleared`,
   )
 }
 

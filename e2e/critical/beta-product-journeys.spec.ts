@@ -1775,7 +1775,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // The row renders its name immediately; the comparison figures arrive with
     // their own query, so this waits for the figure rather than reading a row
     // that is attached but not yet complete. A figure that never renders still
-    // fails here.
+    // fails here. The figure is Google's own number, from the snapshot the seed
+    // writes the way a Google import does (scripts/local/seed-google-reviews.ts);
+    // a Property Google never sent numbers for shows a dash.
     const RATING = /^\d\.\d$/
     const extractRating = async (row: Locator) => {
       const rating = row.getByText(RATING)
@@ -1796,11 +1798,11 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // beside a fixed 30-day pulse, so there is nothing to put in the URL
     // (docs/plan/dashboard-redesign.md row 5). The 30-day default that used to
     // be asserted here is now a property of the page rather than the link, and
-    // the scorecard's caption states it.
+    // the scorecard's caption states it, with whose rating it is (decision 16).
     await expect(page).toHaveURL(new RegExp(`/properties/${seed.p1PropertyId}$`))
     await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible()
     await expect(
-      page.getByText('Last 30 days against the 30 before · rating is all-time.'),
+      page.getByText('Last 30 days against the 30 before · the rating is Google’s own.'),
     ).toBeVisible()
     await page.goBack()
     await expect(page).toHaveURL(/\/properties$/)
