@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RatingGoalHistoryEntry } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { overviewGoalView } from './rating-goal-overview-view'
+import { SETUP_BETA } from './rating-goal-plan.stories.fixtures'
 import {
   CARD,
   CARD_REACHED,
@@ -70,7 +71,14 @@ describe('overviewGoalView', () => {
     })
   })
 
-  it('opens the prompt on keeping the number when nothing higher is in reach', () => {
+  it('opens the prompt on plans for a low rating whose recent reviews fall short', () => {
+    expect(overviewGoalView({ ...read, setup: SETUP_BETA })).toEqual({
+      kind: 'prompt',
+      intent: { kind: 'climb' },
+    })
+  })
+
+  it('opens the prompt on keeping the number when Google shows 5.0', () => {
     expect(overviewGoalView({ ...read, setup: SETUP_KEEP_FIRST })).toEqual({
       kind: 'prompt',
       intent: { kind: 'keep', targetTenths: 50 },

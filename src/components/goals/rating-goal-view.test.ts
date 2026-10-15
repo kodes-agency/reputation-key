@@ -15,6 +15,7 @@ import {
   OUTCOME_SHOWN_FOR_DAYS,
   outcomeFromCard,
   RATING_GOAL_STATUS,
+  ratingGoalStatusBadge,
   ratingText,
   recentOutcome,
   reviewsText,
@@ -137,7 +138,7 @@ describe('the simple card', () => {
         FIXTURE_TIMEZONE,
         NOW,
       ),
-    ).toBe('New reviews since the goal was set average below what 4.5 needs.')
+    ).toBe('Since you set the goal, new reviews average below what 4.5 needs.')
   })
 
   it('waits for Google without repeating the day the headline already gives', () => {
@@ -177,6 +178,20 @@ describe('the simple card', () => {
       label: 'Dropped below',
       tone: 'warn',
     })
+  })
+
+  it('names the target where new reviews are too low for it, and only there', () => {
+    expect(ratingGoalStatusBadge({ status: 'reviews_too_low', target: 4 })).toEqual({
+      label: 'New reviews too low for 4.0',
+      tone: 'warn',
+    })
+    expect(ratingGoalStatusBadge(CARD)).toEqual({ label: 'On pace', tone: 'positive' })
+  })
+
+  it('reads a status from a server newer than the page as Unknown', () => {
+    expect(
+      ratingGoalStatusBadge({ ...CARD, status: 'brand_new' as typeof CARD.status }),
+    ).toEqual({ label: 'Unknown', tone: 'neutral' })
   })
 })
 

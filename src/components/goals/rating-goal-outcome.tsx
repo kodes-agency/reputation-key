@@ -2,8 +2,9 @@
 // page for a while after it happened (`recentOutcome`): the snapshot consumer
 // usually reaches a goal before anyone looks, so the news comes from History as
 // often as from the read that found it. It says what happened, on which day,
-// and offers what comes next: after reaching, the next tenth (preselected in
-// the wizard) or "Keep 4.5"; after an end it did not choose, a new goal
+// and offers what comes next: after reaching, "Set your next goal" ("Pick a
+// plan", whose plans start from the next tenth or a realistic one a little
+// higher, round 2) or "Keep 4.5"; after an end it did not choose, a new goal
 // (ADR 0067, decision 6).
 import { Button } from '#/components/ui/button'
 import { Card, CardContent } from '#/components/ui/card'
@@ -55,11 +56,7 @@ function NextSteps({ outcome, onStart }: Pick<Props, 'outcome' | 'onStart'>) {
   return (
     <>
       {targetTenths < HIGHEST_TENTHS ? (
-        <Button
-          onClick={() => onStart({ kind: 'climb', preselectTenths: targetTenths + 1 })}
-        >
-          Set your next goal
-        </Button>
+        <Button onClick={() => onStart({ kind: 'climb' })}>Set your next goal</Button>
       ) : null}
       <Button variant="outline" onClick={() => onStart({ kind: 'keep', targetTenths })}>
         {`Keep ${ratingText(outcome.target)}`}

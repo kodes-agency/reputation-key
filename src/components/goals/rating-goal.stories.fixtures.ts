@@ -40,7 +40,7 @@ const FORECAST_INPUTS: RatingGoalForecastInputs = {
  * Every target at its own recommended quality, worked out by the engine's own
  * planning from the inputs, so the page and its stories never disagree.
  */
-export const SETUP_STOPS: readonly RatingStopView[] = ratingGoalStops(FORECAST_INPUTS)
+const SETUP_STOPS: readonly RatingStopView[] = ratingGoalStops(FORECAST_INPUTS)
 
 const GOOGLE = {
   shows: 4.3,

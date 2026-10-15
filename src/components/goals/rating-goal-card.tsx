@@ -21,7 +21,7 @@ import {
   cardOutlook,
   cardPaceLine,
   googleShows,
-  RATING_GOAL_STATUS,
+  ratingGoalStatusBadge,
   ratingText,
 } from './rating-goal-view'
 
@@ -109,7 +109,7 @@ export function RatingGoalCard({ card, propertyId, timezone, now }: Props) {
   return (
     <Card data-slot="rating-goal-card" className="gap-4">
       <RatingGoalCardHeader>
-        <StatusBadge status={card.status} map={RATING_GOAL_STATUS} />
+        <StatusBadge {...ratingGoalStatusBadge(card)} />
       </RatingGoalCardHeader>
       <CardContent className="flex flex-col gap-3">
         {card.mode === 'keep' ? (

@@ -11,6 +11,7 @@ import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import { Button } from '#/components/ui/button'
 import { RatingGoalHistory } from './rating-goal-history'
 import { RatingGoalSection } from './rating-goal-section'
+import { SETUP_BETA } from './rating-goal-plan.stories.fixtures'
 import {
   CARD,
   CARD_JUST_SET,
@@ -145,10 +146,11 @@ export const NewReviewsTooLow: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('New reviews too low')).toBeVisible()
+    // The chip names the target; the outlook is the notice's own words (R2-5, R2-10).
+    await expect(canvas.getByText('New reviews too low for 4.5')).toBeVisible()
     await expect(
       canvas.getByText(
-        'New reviews since the goal was set average below what 4.5 needs.',
+        'Since you set the goal, new reviews average below what 4.5 needs.',
       ),
     ).toBeVisible()
     await expect(canvas.queryByText(/^Expected around/)).toBeNull()
@@ -207,7 +209,29 @@ export const KeepDroppedBelow: Story = {
   },
 }
 
-/** Reached: the day, the next tenth preselected, or keep the number. */
+type Canvas = ReturnType<typeof within>
+
+/** After a goal is reached: "Set your next goal" opens Pick a plan, "Keep 4.5" keeps it. */
+async function expectNextGoalDoors(canvas: Canvas, onStart: unknown) {
+  await userEvent.click(canvas.getByRole('button', { name: 'Set your next goal' }))
+  await expect(onStart).toHaveBeenCalledWith({ kind: 'climb' })
+  await userEvent.click(canvas.getByRole('button', { name: 'Keep 4.5' }))
+  await expect(onStart).toHaveBeenCalledWith({ kind: 'keep', targetTenths: 45 })
+}
+
+/** With no goal: the title, its sentence, and "Set goal", which opens Pick a plan. */
+async function expectPlanDoor(
+  canvas: Canvas,
+  onStart: unknown,
+  description: string | RegExp,
+) {
+  await expect(canvas.getByText('Set your Google rating goal')).toBeVisible()
+  await expect(canvas.getByText(description)).toBeVisible()
+  await userEvent.click(canvas.getByRole('button', { name: 'Set goal' }))
+  await expect(onStart).toHaveBeenCalledWith({ kind: 'climb' })
+}
+
+/** Reached: the day, then the next goal ("Pick a plan") or keep the number. */
 export const Reached: Story = {
   args: { card: cardRead(CARD_REACHED) },
   play: async ({ canvasElement, args }) => {
@@ -215,13 +239,7 @@ export const Reached: Story = {
     await expect(
       canvas.getByText('Google shows 4.5 — goal reached on Oct 14'),
     ).toBeVisible()
-    await userEvent.click(canvas.getByRole('button', { name: 'Set your next goal' }))
-    await expect(args.onStart).toHaveBeenCalledWith({
-      kind: 'climb',
-      preselectTenths: 46,
-    })
-    await userEvent.click(canvas.getByRole('button', { name: 'Keep 4.5' }))
-    await expect(args.onStart).toHaveBeenCalledWith({ kind: 'keep', targetTenths: 45 })
+    await expectNextGoalDoors(canvas, args.onStart)
   },
 }
 
@@ -268,7 +286,7 @@ export const ReachedStaysAfterTheNextRead: Story = {
 /**
  * The usual way a goal is reached: the snapshot consumer reaches it before
  * anyone looks, so the card read has no goal and History has the news, with
- * the real day, the next tenth and "Keep".
+ * the real day, the next goal and "Keep".
  */
 export const ReachedBeforeAnyoneLooked: Story = {
   args: {
@@ -282,13 +300,7 @@ export const ReachedBeforeAnyoneLooked: Story = {
       canvas.getByText('Google shows 4.5 — goal reached on Oct 12'),
     ).toBeVisible()
     await expect(canvas.queryByText('Set your Google rating goal')).toBeNull()
-    await userEvent.click(canvas.getByRole('button', { name: 'Set your next goal' }))
-    await expect(args.onStart).toHaveBeenCalledWith({
-      kind: 'climb',
-      preselectTenths: 46,
-    })
-    await userEvent.click(canvas.getByRole('button', { name: 'Keep 4.5' }))
-    await expect(args.onStart).toHaveBeenCalledWith({ kind: 'keep', targetTenths: 45 })
+    await expectNextGoalDoors(canvas, args.onStart)
   },
 }
 
@@ -403,11 +415,29 @@ export const EndedByGoogleLocation: Story = {
 export const SetYourGoal: Story = {
   args: { card: cardRead(null), setup: read(SETUP) },
   play: async ({ canvasElement, args }) => {
+    await expectPlanDoor(
+      within(canvasElement),
+      args.onStart,
+      /^Google shows 4\.3 from 812 reviews\./,
+    )
+  },
+}
+
+/**
+ * The beta property (3.9 from 261, recent reviews under what 4.0 needs) is
+ * offered a plan to raise it, never "keep it" (round 2): Keep is first only when
+ * Google shows 4.9 or 5.0.
+ */
+export const LowRatingPicksAPlan: Story = {
+  args: { card: cardRead(null), setup: read(SETUP_BETA) },
+  play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Set your Google rating goal')).toBeVisible()
-    await expect(canvas.getByText(/^Google shows 4\.3 from 812 reviews\./)).toBeVisible()
-    await userEvent.click(canvas.getByRole('button', { name: 'Set goal' }))
-    await expect(args.onStart).toHaveBeenCalledWith({ kind: 'climb' })
+    await expect(canvas.queryByText(/keep/i)).toBeNull()
+    await expectPlanDoor(
+      canvas,
+      args.onStart,
+      'Google shows 3.9 from 261 reviews. Pick a plan to raise it: the number to reach, how good new reviews will be and a weekly pace.',
+    )
   },
 }
 

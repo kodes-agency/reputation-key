@@ -50,8 +50,9 @@ export type OverviewGoalReads = Readonly<{
 const NOTHING: OverviewGoalView = { kind: 'nothing' }
 
 /**
- * A door into the wizard opens it on what the setup offers first: a climb, or
- * keeping the number when nothing higher is in reach.
+ * A door into the wizard opens it on what the setup offers first: "Pick a
+ * plan", or keeping the number when Google shows 4.9 or 5.0 and nothing is
+ * higher (round 2, R2-9). A low rating is always offered plans.
  */
 export function ratingGoalStartIntent(
   setup: RatingGoalSetupView,

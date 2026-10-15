@@ -1,8 +1,8 @@
-// The Google rating goal wizard (ADR 0067, decisions 9 and 10): "Pick your
-// goal", "Pick your pace", then "Your goal is set"; or, for a goal that keeps
-// the number Google shows, one step. A change opens it on the goal's own target
-// and pace, saves only what differs against the version it was opened on, and
-// closes with a toast.
+// The Google rating goal wizard (ADR 0067, decision 9; round 2, R2-6): "Pick a
+// plan", then "Your goal is set"; or, for a goal that keeps the number Google
+// shows (offered only at 4.9 or 5.0), one step. A change opens "Pick a plan" on
+// the goal's own plan, saves only what differs against the version it was
+// opened on, and closes with a toast.
 //
 // A component with its two commands (set and change): the route hands in the
 // server functions and this owns the mutations, as the month target dialog
@@ -27,12 +27,12 @@ import { withRatingGoalRefusals } from './rating-goal-refusal'
 import type { RegionRead } from './rating-goal-section'
 import { RatingGoalDone, RatingGoalKeepStep } from './rating-goal-wizard-done'
 import { RatingGoalWizardFrame } from './rating-goal-wizard-frame'
-import { RatingGoalClimbSteps, type ClimbStep } from './rating-goal-wizard-steps'
-import { tenthsText } from './rating-goal-view'
+import { RatingGoalPlanStep } from './rating-goal-plan-step'
+import type { PlanDraft } from './rating-goal-plan-view'
+import { ratingText, reviewsText, tenthsText } from './rating-goal-view'
 import {
   wizardReceipt,
   wizardSubmission,
-  type ClimbDraft,
   type RatingGoalReceipt,
   type RatingGoalWizardIntent,
   type SavedGoal,
@@ -65,12 +65,10 @@ type CommandOf<F extends (input: never) => unknown> = (
   input: Parameters<F>[0],
 ) => ReturnType<F>
 
-type Step = ClimbStep | 'keep' | 'done'
+type Step = 'plan' | 'keep' | 'done'
 
 function titleOf(step: Step, intent: RatingGoalWizardIntent): string {
-  if (step === 'goal')
-    return intent.kind === 'change' ? 'Change your goal' : 'Pick your goal'
-  if (step === 'pace') return 'Pick your pace'
+  if (step === 'plan') return 'Pick a plan'
   if (step === 'done') return 'Your goal is set'
   return `Keep ${intent.kind === 'keep' ? tenthsText(intent.targetTenths) : ''} on Google`
 }
@@ -80,32 +78,28 @@ const PERFECT_TENTHS = 50
 
 /** What the done screen says can come next, for the goal just set. */
 function doneDescription(intent: RatingGoalWizardIntent): string {
-  if (intent.kind !== 'keep') return 'You can change the target or the pace at any time.'
+  if (intent.kind !== 'keep') return 'You can change the plan at any time.'
   return intent.targetTenths < PERFECT_TENTHS
     ? 'You can aim higher at any time.'
     : 'You can end it at any time.'
 }
 
 /**
- * What the screen is for, in one sentence; the keep step's is the whole step.
- * Inside the Google import's setup frame there is no "Step 1 of 2": the setup
- * already counts its own steps on the same screen, and two counters read as
- * one sequence that contradicts itself.
+ * What the screen starts from, in one sentence: what Google shows now for the
+ * plans; the keep step's is the whole step.
  */
 function descriptionOf(
   step: Step,
   intent: RatingGoalWizardIntent,
-  inline: boolean,
+  setup?: RatingGoalSetupView,
 ): string {
   switch (step) {
-    case 'goal':
-      return inline
-        ? 'The number you want Google to show.'
-        : 'Step 1 of 2: the number you want Google to show.'
-    case 'pace':
-      return inline
-        ? 'How many new Google reviews a week you aim for.'
-        : 'Step 2 of 2: how many new Google reviews a week you aim for.'
+    case 'plan': {
+      const google = setup?.google
+      return google === undefined || google === null || google.shows === null
+        ? 'The number you want Google to show, and how to get there.'
+        : `Google shows ${ratingText(google.shows)} from ${reviewsText(google.reviewCount)}.`
+    }
     case 'keep':
       return `We’ll watch that Google keeps showing ${intent.kind === 'keep' ? tenthsText(intent.targetTenths) : 'its number'}.`
     case 'done':
@@ -149,8 +143,8 @@ function useRatingGoalCommands(props: RatingGoalWizardProps) {
  * rejection is settled here so it is not reported twice.
  */
 function useWizardFlow(props: RatingGoalWizardProps) {
-  const [step, setStep] = useState<Step>(props.intent.kind === 'keep' ? 'keep' : 'goal')
-  const [draft, setDraft] = useState<ClimbDraft>({})
+  const [step, setStep] = useState<Step>(props.intent.kind === 'keep' ? 'keep' : 'plan')
+  const [draft, setDraft] = useState<PlanDraft>({})
   const [receipt, setReceipt] = useState<RatingGoalReceipt | null>(null)
   const { set, change } = useRatingGoalCommands(props)
   const titleRef = useRef<HTMLHeadingElement>(null)
@@ -175,9 +169,8 @@ function useWizardFlow(props: RatingGoalWizardProps) {
   }
   return {
     step,
-    setStep,
     draft,
-    addToDraft: (pick: ClimbDraft) => setDraft((current) => ({ ...current, ...pick })),
+    setDraft,
     receipt,
     titleRef,
     save,
@@ -212,7 +205,7 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
       onOpenChange={props.onOpenChange}
       busy={flow.pending}
       title={titleOf(flow.step, intent)}
-      description={descriptionOf(flow.step, intent, props.inline === true)}
+      description={descriptionOf(flow.step, intent, setup.data)}
       titleRef={flow.titleRef}
       onCloseAutoFocus={props.onCloseAutoFocus}
       inline={props.inline}
@@ -235,14 +228,12 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
           }}
         />
       ) : (
-        <RatingGoalClimbSteps
+        <RatingGoalPlanStep
           setup={setup.data}
           intent={intent}
           propertyId={propertyId}
-          step={flow.step === 'pace' ? 'pace' : 'goal'}
-          onStep={flow.setStep}
           draft={flow.draft}
-          onDraft={flow.addToDraft}
+          onDraft={flow.setDraft}
           pending={flow.pending}
           banner={banner}
           onSave={flow.save}

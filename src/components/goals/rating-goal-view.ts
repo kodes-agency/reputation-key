@@ -27,6 +27,34 @@ export const RATING_GOAL_STATUS: StatusMap<RatingGoalStatus> = {
   dropped_below: { label: 'Dropped below', tone: 'warn' },
 }
 
+/**
+ * A goal's status as its card and its page draw it: "New reviews too low"
+ * names the target there ("New reviews too low for 4.0"), where the status is
+ * the only thing said about it (round 2, R2-5). The Properties list prints the
+ * target on the line above, so it keeps the plain label.
+ */
+export function ratingGoalStatusBadge(
+  goal: Pick<RatingGoalCardView, 'status' | 'target'>,
+): StatusPresentation {
+  if (goal.status !== 'reviews_too_low') {
+    // A status from a server newer than the page reads as "Unknown", as StatusBadge's map does.
+    return Object.hasOwn(RATING_GOAL_STATUS, goal.status)
+      ? RATING_GOAL_STATUS[goal.status]
+      : { label: 'Unknown', tone: 'neutral' }
+  }
+  return {
+    label: `${RATING_GOAL_STATUS.reviews_too_low.label} for ${ratingText(goal.target)}`,
+    tone: RATING_GOAL_STATUS.reviews_too_low.tone,
+  }
+}
+
+/**
+ * What "New reviews too low" means, in the notice's own words (R2-10): the
+ * reviews since the goal was set average at or below what the target needs.
+ */
+export const reviewsTooLowSentence = (target: number): string =>
+  `Since you set the goal, new reviews average below what ${ratingText(target)} needs.`
+
 /** Why the numbers are approximate: RepKey's copy of the reviews is short of Google's count. */
 export const APPROXIMATE_NUMBERS =
   'RepKey doesn’t hold every review Google counts yet, so these numbers are approximate.'
@@ -162,9 +190,7 @@ export function cardOutlook(
   }
   if (card.mode === 'keep') return null
   if (card.googleShowsSoon) return `Google should show ${ratingText(card.target)} soon`
-  if (card.status === 'reviews_too_low') {
-    return `New reviews since the goal was set average below what ${ratingText(card.target)} needs.`
-  }
+  if (card.status === 'reviews_too_low') return reviewsTooLowSentence(card.target)
   return card.forecast === null ? null : forecastSentence(card.forecast, card.target)
 }
 
