@@ -206,7 +206,7 @@ export const PickYourPace: Story = {
 
     // A card's words pick its pace, not only its radio. (The label also stretches
     // over the card's padding; that is CSS, which this project does not compile.)
-    await userEvent.click(dialog.getByText('Around Dec 2026 – Feb 2027'))
+    await userEvent.click(dialog.getByText('Around Dec 2026 – Mar 2027'))
     await expect(dialog.getByRole('radio', { name: /^Steady/ })).toBeChecked()
   },
 }
@@ -251,6 +251,7 @@ export const SetsTheGoal: Story = {
           propertyId: FIXTURE_PROPERTY_ID,
           mode: 'climb',
           targetTenths: 44,
+          qualityTenths: 47,
           pacePerWeek: 11,
         },
       }),
@@ -321,6 +322,7 @@ export const KeepFirst: Story = {
           propertyId: FIXTURE_PROPERTY_ID,
           mode: 'keep',
           targetTenths: 50,
+          qualityTenths: null,
           pacePerWeek: null,
         },
       }),

@@ -77,6 +77,7 @@ export const SetsAGoal: Story = {
         propertyId: FIXTURE_PROPERTY_ID,
         mode: 'climb',
         targetTenths: 44,
+        qualityTenths: 47,
         pacePerWeek: 11,
       },
     })
