@@ -2,6 +2,8 @@
 
 Date: 2026-10-14. Status: owner-approved decisions (17), being built in six pull requests. Written from the owner grilling of 2026-10-14 against `origin/main` at `78f4d0b80`. The decision record is [ADR 0067](../adr/0067-property-google-rating-goal.md). Paths are relative to the repository root.
 
+**Amended 2026-10-15 (round 2, planned review quality).** A plan now also assumes the average stars of new Google reviews, a manager picks one of three complete plans (or builds one), and "New reviews too low" replaces "Can't reach at this mix". See [Round 2](#round-2-planned-review-quality-2026-10-15); where an earlier section disagrees, round 2 wins, and the sections it changes say so.
+
 ## Why the Google goal was missed
 
 - **2026-09-30.** The owner asked for a rating target at Property import ("3.7, pick 4.0 or 4.2, how many reviews"). A Property-only rating plan was proposed, design only.
@@ -81,20 +83,22 @@ With N Google reviews:
 
 ## Statuses
 
-The first that holds wins.
+The first that holds wins. (Amended 2026-10-15: "New reviews too low" replaces "Can't reach at this mix", which judged the recent mix; see Round 2.)
 
-| Status                  | When                                                                                                  | Tone                          |
-| ----------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------- |
-| Waiting for Google      | no Google numbers, numbers older than 24 hours, or Google disconnected                                | neutral; numbers "as of"      |
-| Reached                 | Google shows the target                                                                               | celebrate; moves to History   |
-| Can't reach at this mix | the recent mix is at or below the threshold                                                           | amber, with one suggested fix |
-| Getting started         | the first 14 days                                                                                     | neutral                       |
-| On pace                 | reviews in the last 28 days (since the goal was set, before day 28) at 90% of the chosen pace or more | green                         |
-| Below pace              | otherwise                                                                                             | amber                         |
+| Status              | When                                                                                                  | Tone                        |
+| ------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------- |
+| Waiting for Google  | no Google numbers, numbers older than 24 hours, or Google disconnected                                | neutral; numbers "as of"    |
+| Reached             | Google shows the target                                                                               | celebrate; moves to History |
+| New reviews too low | at least 10 Google reviews since the goal was set, averaging at or below the target's threshold       | amber                       |
+| Getting started     | the first 14 days                                                                                     | neutral                     |
+| On pace             | reviews in the last 28 days (since the goal was set, before day 28) at 90% of the chosen pace or more | green                       |
+| Below pace          | otherwise                                                                                             | amber                       |
 
 A keep goal is Holding while Google shows the kept tenth and Dropped below when it does not; it waits for Google the same way.
 
 ## Setting a goal
+
+Amended 2026-10-15: the two steps below (a slider, then a pace) are replaced by one step, "Pick a plan" (Round 2). The doors, the done screen and the not-eligible cases stay.
 
 - **Doors**: the last, skippable step of Property setup when Google's numbers are ready (single-Property import only); the Goals page empty state "Set your Google rating goal"; one item in the setup strip. The setup strip's item and the Properties list's "Set goal" open the Goals page with `?start=rating-goal`, and the wizard opens on arrival (PR 4). The Overview's one-line prompt opens it in place, and says nothing once a manager chose "Not now" (PR 4, orchestrator call). The setup step counts as decided once a goal was set (active, reached, or ended by a manager) or "Not now" was chosen; a goal ended by a Google location change or an archive does not decide it.
 - **Step 1, "Pick your goal"**: headline "Google shows 4.3 from 812 reviews"; the slider preselected on the Realistic stop with its chip; one live line, "About 93 more reviews"; a "How we work this out" disclosure.
@@ -125,7 +129,7 @@ Change-only, in the Goals category (bell and daily digest), to the Property's re
 1. reached, with "Set your next goal";
 2. Google gained or lost a tenth;
 3. entered Below pace (at most once every two weeks);
-4. entered Can't reach at this mix (at most once every two weeks, like Below pace, and with no star figure);
+4. entered New reviews too low (at most once every two weeks, like Below pace, and with no star figure; it replaced "entered Can't reach at this mix" on 2026-10-15, see Round 2);
 5. a keep goal dropped below.
 
 No weekly summary for now. PR 5 amends ADR 0046 for them.
@@ -139,15 +143,45 @@ No weekly summary for now. PR 5 amends ADR 0046 for them.
 - **Daily.** `rating-goal.evaluate` (02:00 UTC, `goal.use`, tenant-cross with a scope authorizer per goal) evaluates every active goal, because Below pace moves with the calendar, not with a new Google fact.
 - **Copy** (sentence case; "review" means a Google review):
 
-| Notice                  | Title                                                                      | Body                                                                                                               | Action        |
-| ----------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------- |
-| Reached                 | Google now shows 4.5 for Riverside Hotel: goal reached                     | Set your next goal, or keep 4.5.                                                                                   | Set next goal |
-| Tenth gained or lost    | Google now shows 4.4 for Riverside Hotel, up from 4.3 (or "down from 4.5") | Your goal is 4.5. (a keep goal: "You’re keeping 4.5.")                                                             | View goal     |
-| Below pace              | Riverside Hotel is below its Google review pace                            | 6 new reviews a week over the last 4 weeks; the goal’s pace is 11 a week. ("since the goal was set" before day 28) | View goal     |
-| Can't reach at this mix | Riverside Hotel’s Google goal can’t be reached at the recent mix           | New reviews lately average below what 4.5 needs. Open the goal to see what it takes.                               | View goal     |
-| Keep dropped below      | Google now shows 4.4 for Riverside Hotel, below the 4.5 you’re keeping     | Open the goal to see what it takes to get back.                                                                    | View goal     |
+| Notice               | Title                                                                      | Body                                                                                                               | Action        |
+| -------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------- |
+| Reached              | Google now shows 4.5 for Riverside Hotel: goal reached                     | Set your next goal, or keep 4.5.                                                                                   | Set next goal |
+| Tenth gained or lost | Google now shows 4.4 for Riverside Hotel, up from 4.3 (or "down from 4.5") | Your goal is 4.5. (a keep goal: "You’re keeping 4.5.")                                                             | View goal     |
+| Below pace           | Riverside Hotel is below its Google review pace                            | 6 new reviews a week over the last 4 weeks; the goal’s pace is 11 a week. ("since the goal was set" before day 28) | View goal     |
+| New reviews too low  | New Google reviews for Riverside Hotel are too low for 4.5                 | Since you set the goal they average below what 4.5 needs. Open the goal to see what helps.                         | View goal     |
+| Keep dropped below   | Google now shows 4.4 for Riverside Hotel, below the 4.5 you’re keeping     | Open the goal to see what it takes to get back.                                                                    | View goal     |
 
 "Set your next goal" became "Set next goal": an action label is at most three words. The recent pace is rounded down to a tenth, so it never reads as meeting the pace it misses. The Can't reach notice states no number of stars: the recent average is not in the event or the notification payload (open question 9).
+
+Amended 2026-10-15 (round 2): the Can't reach notice (`goal.rating_cant_reach`, transition `entered_cant_reach`) is retired, and the table's fourth row is its replacement, New reviews too low (`goal.rating_too_low`, transition `entered_reviews_too_low`), with the same limit of once in 14 days (kept in `cant_reach_noticed_at`), the same recipients and category, and no star figure.
+
+## Round 2: planned review quality (2026-10-15)
+
+The owner grilled the beta Property that shows 3.9 from 261 reviews (exact 1,021 / 261 = 3.9119): its last 25 reviews average 3.92, under 4.0's threshold of 3.95, so the goal told it a higher number was not reachable "at your recent star mix" and offered Keep. Properties with weak ratings can raise their mix on purpose, so the plan now says what quality it assumes and lets the manager choose it. Decisions R2-1 to R2-12 are in `~/kodes/google-rating-goal/DECISIONS.md`; R2-6 supersedes R2-2 and the round-1 slider. As built in the engine (PR "rating goal plans"):
+
+- **Planned quality q**: the average stars a plan assumes new Google reviews bring, a tenth of a star, stored on a climb goal (`quality_tenths`, migration 0059) and part of its version-checked plan; a keep goal has none. Reviews needed = ⌈N(θ − E) / (q − θ)⌉, the forecast's mix is q (± 0.1★, pace ± 10%, as before).
+- **Floor**: q must clear the target's threshold by 0.15★, as a tenth: q ≥ T + 0.1 (4.0 needs 4.1 or more). Near the threshold the count explodes (4.5★ against 4.45 asks about five times what 4.7★ does). The database holds only q ≥ T (above θ) and q ≤ 5.0; the 0.15★ floor is the domain's rule.
+- **Evidence anchors** (never arithmetic offsets): "Like now" (the recent mix as a tenth, half up), "Like your best year" (the best calendar year in the Property's time zone with at least 10 reviews, highest exact average, the later year on a tie; Review's new `getYearlyTotals` read, counts and star sums only), "A step above what {T} needs" (θ + 0.3 rounded up to a tenth, at most 5.0; it always clears the floor), "Excellent" (4.8). Anchors under the floor are dropped; two on one tenth keep the earlier of like now, best year, step above, Excellent.
+- **Recommended quality of a target** (R2-3): like now if it clears the floor, else the best year if it does, else a step above. The quality options are the recommendation between its nearest anchors below and above, or two from one side when the other has none (at most three).
+- **Stops** (R2-4): every tenth from the next one to 4.9 is worked out at its own recommended quality and labelled at the Faster pace (Realistic ≤ 26 weeks, Stretch ≤ 52, Out of reach beyond). No stop is unreachable any more.
+- **Recommended target**: the highest Realistic stop at most three tenths up, else the next tenth. **Target row** of Build your own (R2-9): the next tenth and the two above when that is the recommendation, otherwise one below, the recommendation and one above, never above 4.9.
+- **Plans** (R2-7): one shared quality, the recommended target's recommended quality. Cautious = the recommended target at Steady; Recommended = the same at Faster (preselected); Ambitious = the highest row target the shared quality clears by 0.15★, at Push, or the recommended target at Push when it clears no higher one. Each plan carries its target, quality, pace per week, month and day, reviews needed, best case and forecast. Changing the shared quality works the three out again (Ambitious too).
+- **Build your own**: any target, quality and pace, worked out on the page from the setup read's exact inputs (`previewRatingGoalPlan`), with the same rules the commands apply: target from the next tenth to 4.9, quality from the floor to 5.0 in tenths, pace 1 to 200 whole a week.
+- **Keep** (R2-9): offered only when Google shows 4.9 or 5.0, in place of plans.
+- **Tracking** (R2-5, R2-11): until 10 Google reviews arrived since the goal was set there is no verdict on their stars, and the goal's numbers (forecast, still needed, next tenth) assume the planned quality; from the tenth on they assume those reviews' average. The status is New reviews too low when that average is at or below the target's threshold, where Can't reach stood. Trailing the plan's quality is a line on the detail page ("New reviews average 4.2★ · plan 4.5★"), not a status and not a notice. The detail read adds "Your plan": the target and the tenth Google shows, the planned quality and the reviews since the set (count, and their average after 10), the chosen pace and the last four weeks', and the forecast at those so-far values.
+- **Notice** (R2-10): `goal.rating_too_low` replaces `goal.rating_cant_reach` (no row of the old type exists): when a goal enters New reviews too low, at most once in 14 days, to the same recipients in the same Goals category. Title "New Google reviews for {Property} are too low for {T}", body "Since you set the goal they average below what {T} needs. Open the goal to see what helps." No star figures. The 14-day mark is stored in the column the retired notice used (`cant_reach_noticed_at`, kept under its name so the release running while web migrates keeps working).
+- **Change log**: a new field, quality (tenths as text; NULL when a goal switches to keep).
+- **Policy line** under the plans (R2-12, approved verbatim): "Your Portals offer every guest the same Google review link. Asking every guest, not only the ones who would write anyway, and better stays are what move this number."
+
+Worked example (the beta Property, 2026-10-15; about one review in 28 days, so 1 / 2 / 3 a week): the recent mix 3.9 is under 4.0's floor of 4.1 and drops; the best year, 2024 (26 reviews, 4.46), is 4.5; a step above 4.0 is 4.3. Options 4.3 · 4.5 (recommended) · 4.8. 4.0 at 4.5★: ⌈261 × (3.95 − 3.9119) / (4.5 − 3.95)⌉ = 19 reviews, Realistic at 2 a week, so the plans open on 4.0: Cautious 4.0 at 1 a week (Jan – Apr 2027), Recommended 4.0 at 2 a week (Dec 2026 – Jan 2027), Ambitious 4.2 at 3 a week (178 reviews, Aug 2027 – Jul 2028). Target row 4.0 (Realistic) · 4.1 (Stretch, 81) · 4.2 (Out of reach, 178).
+
+Defaults taken while building the engine (owner may object):
+
+- The best year is a calendar year in the Property's time zone, the current year to date included, rather than a rolling 12 months: it gives the owner's copy its label ("like your best year (2024)").
+- Anchors round half up to a tenth (4.46 is 4.5), and the floor is judged on that tenth.
+- With more than one anchor on a side of the recommendation, the nearest is offered.
+- A migrated climb goal (none exists on the beta) gets a step above what its target needs as its planned quality.
+- A stored "Can't reach at this mix" status is cleared, not translated; the next evaluation writes the status.
 
 ## Access
 
@@ -168,6 +202,7 @@ AccountAdmins and PropertyManagers with access to the Property, under `goal.read
 - Google's own numbers: the Current on Google snapshot (Reporting), as Review publishes it after a verified run, refreshed every 15 minutes to 6 hours.
 - The cache: read only through Review's public API, as counts and star sums of reviews that may be served and were observed under the Property's current Google binding; reviews per Monday-to-Sunday week in the Property's time zone; stars since an instant. No review content leaves Review.
 - Stored: the goal (mode, target, pace, state, binding epoch, baselines, the tenth and status last seen, reached or ended date and reason, a version for compare-and-set) and its change log. Exported and purged with the Organization's Goal records.
+- Stored (round 2, migration 0059): a climb goal's planned quality (`quality_tenths`), part of its version-checked plan and its change log (field `quality`); the status vocabulary without `cant_reach_at_mix` and with `reviews_too_low`. Read (round 2): the totals of the reviews created since a goal was set, in the same summary read, and each Property-local calendar year's totals, both counts and star sums only.
 - Stored (PR 4, migration 0058; 0057 is PR 5's): a manager's "Not now" for a Property's goal (`property_rating_goal_deferrals`, who and when, one row per Property), so the setup strip's "Set a Google rating goal" step counts as decided. It sets, changes and blocks no goal. Exported and purged with the Goal records, and gone with its Property.
 
 ## Pull requests

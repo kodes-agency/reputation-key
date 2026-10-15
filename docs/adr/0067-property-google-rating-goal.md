@@ -209,6 +209,67 @@ five stars; 4.6 needs about 1,300; 4.8 cannot be reached at this mix.
 - The rounding rule is not verified. It is one constant, and reached does not
   depend on it.
 
+## Amended 2026-10-15 — planned review quality
+
+A beta Property that Google shows at 3.9 had its last 25 reviews at 3.92, under
+4.0's threshold of 3.95, so the goal said a higher number was not reachable at
+the recent star mix and offered Keep. A Property with weak ratings can raise
+its mix on purpose, so a plan now states the quality it assumes. The owner's
+round 2 decisions (R2-1 to R2-12; the plan's "Round 2") amend decisions 1 and 3
+and the maths:
+
+1. **A plan has three parts.** A climb goal is a target, a _planned quality_
+   (the average stars it assumes new Google reviews bring, a tenth of a star)
+   and a weekly pace. The quality is stored on the goal and is part of its
+   version-checked plan; a change of it is logged like target and pace. A keep
+   goal has none.
+2. **The quality comes from evidence.** Its options are anchors, never
+   arithmetic offsets: the recent mix ("Like now"), the best calendar year with
+   at least ten reviews ("Like your best year"), "a step above what {T} needs"
+   (the threshold + 0.3★, rounded up) and "Excellent" (4.8★). A quality must
+   clear the target's threshold by 0.15★, because reviews needed =
+   gap / (quality − threshold) explodes near it; anchors below that floor are
+   dropped, and a manager's own quality obeys it. The recommendation is the
+   recent mix if it clears, else the best year, else a step above.
+3. **Pick a plan.** Setting a goal is one step: three complete plans that share
+   one quality (Cautious: the recommended target at Steady; Recommended: at
+   Faster; Ambitious: a higher target the quality clears, at Push), or "Build
+   your own" from a target row, a quality row and a pace row. Every target is
+   worked out at its own recommended quality, so no stop is "never at this mix".
+   Keep is offered only when Google shows 4.9 or 5.0.
+4. **New reviews are judged once there are ten.** Until ten Google reviews
+   have arrived since the goal was set there is no verdict on their stars and
+   the goal's numbers assume the planned quality; from the tenth on they assume
+   those reviews' average. The status "New reviews too low" (that average at
+   or below the target's threshold) replaces "Can't reach at this mix", which
+   judged the recent mix, and its notice replaces the Can't reach notice
+   (ADR 0046, amended 2026-10-15). Trailing the plan's quality is a line on the
+   detail page, not a status and not a notice.
+
+The maths is otherwise unchanged: reviews needed is ⌈N(θ − E) / (q − θ)⌉ with
+the planned quality q in place of the recent mix, the forecast drifts q by
+0.1★ and the pace by 10%, and counts stay exact rationals. Worked example (the
+beta Property, about one review in 28 days): 4.0 at the best year's 4.5★ needs
+19 reviews, Realistic at 2 a week; the quality options are 4.3, 4.5
+(recommended) and 4.8.
+
+**Data.** Migration 0059 adds `quality_tenths` to `property_rating_goals` (a
+climb goal's quality, at least the target so above its threshold, at most
+5.0; the 0.15★ floor stays the domain's rule), lets the change log take
+`quality`, and replaces `cant_reach_at_mix` with `reviews_too_low` in both
+status CHECKs; a stored retired status is cleared, not translated. The notice
+time keeps its column, `cant_reach_noticed_at`, so the release still running
+while web migrates keeps working. Review's rating read gains two counts-and-sums
+answers: the totals since an instant (the reviews since a goal was set) and
+each Property-local calendar year's totals (the best year). No review content,
+reviewer or per-review value leaves Review, as before.
+
+**Guardrails.** Unchanged. The quality is a planning figure for the Property,
+like the pace, never a staff target. The copy says what moves the number
+without asking for selective solicitation (R2-12): "Your Portals offer every
+guest the same Google review link. Asking every guest, not only the ones who
+would write anyway, and better stays are what move this number."
+
 ## Rejected alternatives
 
 - **A fourth Goal measure for the Google rating.** It would put Google data into
