@@ -1,5 +1,5 @@
 import { lookup as dnsLookup } from 'node:dns/promises'
-import { BlockList, isIP } from 'node:net'
+import { BlockList, isIP, type LookupFunction } from 'node:net'
 import { Agent, fetch } from 'undici'
 import type {
   PortalDestinationNetworkValidation,
@@ -71,16 +71,33 @@ async function resolvePublicAddresses(hostname: string): Promise<ResolvedAddress
   return [...unique.values()]
 }
 
-async function pinnedHead(
+/**
+ * Answers the connector with the one address that was vetted above, in the
+ * shape that connector asked for. Happy Eyeballs (`autoSelectFamily`, on by
+ * default since Node 20) passes `all: true` and expects a LIST; the older
+ * contract expects `(address, family)`. Answering the list form with a bare
+ * string made every connection fail with `ERR_INVALID_IP_ADDRESS`, so every
+ * destination read as "temporarily unavailable" in production while unit
+ * tests, which inject their own `request`, stayed green.
+ */
+export function pinnedLookup(address: ResolvedAddress): LookupFunction {
+  return (_hostname, options, callback) => {
+    if (options.all === true) {
+      callback(null, [{ address: address.address, family: address.family }])
+      return
+    }
+    callback(null, address.address, address.family)
+  }
+}
+
+export async function pinnedHead(
   uri: string,
   address: ResolvedAddress,
   timeoutMs: number,
 ): Promise<PinnedResponse> {
   const agent = new Agent({
     connect: {
-      lookup: (_hostname, _options, callback) => {
-        callback(null, address.address, address.family)
-      },
+      lookup: pinnedLookup(address),
       timeout: timeoutMs,
     },
     headersTimeout: timeoutMs,
@@ -128,6 +145,26 @@ type AdapterDeps = Readonly<{
 }>
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
+
+/** A hostname that does not exist is the manager's to fix; retrying cannot. */
+const DNS_NOT_FOUND_CODES = new Set(['ENOTFOUND', 'EAI_NONAME', 'NOTFOUND'])
+
+function dnsFailureReason(error: unknown): 'dns_not_found' | 'dns_unavailable' {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as Readonly<{ code: unknown }>).code)
+      : ''
+  return DNS_NOT_FOUND_CODES.has(code) ? 'dns_not_found' : 'dns_unavailable'
+}
+
+/**
+ * An apex host and its `www` form are the same site, and sites commonly serve
+ * one and redirect the other. Any other host change still fails: the approved
+ * destination must stay the site the manager approved.
+ */
+function isSameSiteHostname(next: string, original: string): boolean {
+  return next === original || next === `www.${original}` || `www.${next}` === original
+}
 
 type UnsafeReason = Extract<
   PortalDestinationNetworkValidation,
@@ -183,8 +220,8 @@ export const createPortalDestinationNetworkValidator = (
     let addresses: readonly ResolvedAddress[]
     try {
       addresses = await resolve(new URL(currentUri).hostname)
-    } catch {
-      return { ok: false, validation: unavailable('dns_unavailable') }
+    } catch (error) {
+      return { ok: false, validation: unavailable(dnsFailureReason(error)) }
     }
     if (
       addresses.length === 0 ||
@@ -216,7 +253,7 @@ export const createPortalDestinationNetworkValidator = (
     } catch {
       return { ok: false, validation: unsafe('redirect_target_invalid') }
     }
-    if (next.hostname !== originalHostname) {
+    if (!isSameSiteHostname(next.hostname, originalHostname)) {
       return { ok: false, validation: unsafe('redirect_host_changed') }
     }
     return { ok: true, uri: next.normalizedUri }
