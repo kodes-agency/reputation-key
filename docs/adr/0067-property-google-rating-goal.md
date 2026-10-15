@@ -270,6 +270,17 @@ without asking for selective solicitation (R2-12): "Your Portals offer every
 guest the same Google review link. Asking every guest, not only the ones who
 would write anyway, and better stays are what move this number."
 
+**Screens (2026-10-15).** "Pick a plan" is one step: the shared quality line
+with its "Change", the three plans as radio cards, the policy line and "Build
+your own", a disclosure that is the plan being set while it is open (closing it
+returns to the card it was opened from). "Change" opens Build your own on its
+quality row; the three plans keep their quality, so the first screen does not
+change under the manager. A change of a goal adds its own plan as a fourth
+card, "Your plan", checked, with Build your own prefilled from it. The card's
+chip names the target while new reviews are too low ("New reviews too low for
+4.0"), and the detail page's "Your plan" sets the goal, the new reviews'
+average (after ten) and the pace against the plan, above the forecasts.
+
 ## Rejected alternatives
 
 - **A fourth Goal measure for the Google rating.** It would put Google data into
