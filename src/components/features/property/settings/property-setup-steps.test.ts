@@ -7,7 +7,9 @@ import {
   openPropertySetupSteps,
   propertyAiIsOn,
   propertySetupStepLabel,
+  propertySetupStepSearch,
   propertySetupStepTarget,
+  ratingGoalNotNowChosen,
 } from './property-setup-steps'
 
 const setup = (
@@ -76,6 +78,45 @@ describe('property setup steps', () => {
     expect(propertySetupStepTarget(sync!)).toBeNull()
   })
 
+  it('sends the Google rating goal step to the Goals page, never into the hub', () => {
+    // Arrange
+    const goal = {
+      key: 'rating_goal',
+      status: 'pending',
+      asked: false,
+      section: 'goals',
+    } as const
+    const withGoal: PropertySetup = { ...setup({}), steps: [...setup({}).steps, goal] }
+
+    // Act / Assert
+    expect(propertySetupStepTarget(goal)).toBe('/properties/$propertyId/goals')
+    expect(propertySetupStepLabel(goal)).toBe('Set a Google rating goal')
+    expect(firstPropertySetupSection(withGoal)).toBeNull()
+    expect(completedPropertySetupStepCount(withGoal)).toBe(7)
+    expect(
+      completedPropertySetupStepCount({
+        ...withGoal,
+        steps: [...setup({}).steps, { ...goal, status: 'deferred' }],
+      }),
+    ).toBe(8)
+  })
+
+  it('opens the rating goal wizard on arrival at the Goals page, and no other step', () => {
+    // Arrange
+    const goal = {
+      key: 'rating_goal',
+      status: 'pending',
+      asked: false,
+      section: 'goals',
+    } as const
+    const [google, , , , , , portal] = setup({}).steps
+
+    // Act / Assert
+    expect(propertySetupStepSearch(goal)).toEqual({ start: 'rating-goal' })
+    expect(propertySetupStepSearch(google!)).toBeUndefined()
+    expect(propertySetupStepSearch(portal!)).toBeUndefined()
+  })
+
   it('words a waiting sync and an admin-only AI decision for what the viewer can do', () => {
     const current = setup({ ai_decision: 'needs_admin', reviews_synced: 'waiting' })
     const labels = openPropertySetupSteps(current).map(propertySetupStepLabel)
@@ -100,5 +141,32 @@ describe('propertyAiIsOn', () => {
 
   it('is unknown until setup is available', () => {
     expect(propertyAiIsOn(undefined)).toBeUndefined()
+  })
+})
+
+// The Overview's one-line prompt honours the strip's "Not now" (orchestrator call,
+// PR 4 review): it reads the choice from the setup the Overview already loads.
+describe('ratingGoalNotNowChosen', () => {
+  const goal = (status: 'pending' | 'deferred' | 'complete') =>
+    ({
+      ...setup({}),
+      steps: [
+        ...setup({}).steps,
+        { key: 'rating_goal', status, asked: false, section: 'goals' },
+      ],
+    }) as PropertySetup
+
+  it('is true once a manager chose "Not now" for the rating goal step', () => {
+    expect(ratingGoalNotNowChosen(goal('deferred'))).toBe(true)
+  })
+
+  it('is false while the step is open, done, or not the viewer’s', () => {
+    expect(ratingGoalNotNowChosen(goal('pending'))).toBe(false)
+    expect(ratingGoalNotNowChosen(goal('complete'))).toBe(false)
+    expect(ratingGoalNotNowChosen(setup({}))).toBe(false)
+  })
+
+  it('is unknown until setup is available', () => {
+    expect(ratingGoalNotNowChosen(undefined)).toBeUndefined()
   })
 })

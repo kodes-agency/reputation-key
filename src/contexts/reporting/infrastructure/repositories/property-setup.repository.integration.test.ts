@@ -213,6 +213,49 @@ async function insertManager(
   )
 }
 
+async function insertGoogleSnapshot(
+  property: string,
+  sourceEpoch: number,
+  reviewCount: number,
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO metric_current_google_reputation_snapshots (
+       property_id, organization_id, source_epoch, source_run_id, source_event_id,
+       review_count, average_rating, evaluated_at, updated_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, 4.3, $7, $7)`,
+    [property, ORG, sourceEpoch, randomUUID(), randomUUID(), reviewCount, AT],
+  )
+}
+
+type GoalEnd = 'manager' | 'google_location_changed' | 'property_archived'
+
+/** An active or reached goal, or one ended for `endedReason`. */
+async function insertRatingGoal(
+  property: string,
+  status: 'active' | 'reached' | 'ended',
+  endedReason: GoalEnd = 'manager',
+) {
+  const ended = status === 'ended'
+  await pool.query(
+    `INSERT INTO property_rating_goals (
+       id, organization_id, property_id, source_epoch, mode, target_tenths,
+       pace_per_week, status, ended_reason, ended_at, reached_at,
+       baseline_review_count, baseline_google_average, baseline_exact_average,
+       created_by
+     ) VALUES ($1, $2, $3, 2, 'climb', 45, 11, $4, $5, $6, $7, 812, 4.3, 4.31, $8)`,
+    [
+      randomUUID(),
+      ORG,
+      property,
+      status,
+      ended ? endedReason : null,
+      ended ? AT : null,
+      status === 'reached' ? AT : null,
+      OWNER,
+    ],
+  )
+}
+
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 1 })
   await pool.query('BEGIN')
@@ -282,6 +325,8 @@ beforeAll(async () => {
     publicationState: 'published',
     activation: 'open',
   })
+  await insertGoogleSnapshot(CONFIGURED, 2, 812)
+  await insertRatingGoal(CONFIGURED, 'active')
 
   // Nothing configured yet.
   await insertProperty({
@@ -344,6 +389,18 @@ beforeAll(async () => {
     deleted: true,
   })
   await insertPortal({ property: LAPSED, publicationState: 'draft', activation: 'none' })
+  // Google's count from the binding before this one; a goal its Google location
+  // ended (no manager decided it); "Not now".
+  await insertGoogleSnapshot(LAPSED, 2, 812)
+  await insertRatingGoal(LAPSED, 'ended', 'google_location_changed')
+  await pool.query(
+    `INSERT INTO property_rating_goal_deferrals (property_id, organization_id, deferred_by, deferred_at)
+     VALUES ($1, $2, $3, $4)`,
+    [LAPSED, ORG, OWNER, AT],
+  )
+  await pool.query(`UPDATE properties SET lifecycle_state = 'suspended' WHERE id = $1`, [
+    LAPSED,
+  ])
 
   // Deleted Properties never appear, however configured.
   await insertProperty({
@@ -388,6 +445,10 @@ describe('property setup repository', () => {
       responsibleManagerAssigned: true,
       replyVoiceConfigured: true,
       portalPublished: true,
+      propertyActive: true,
+      googleReviewCount: 812,
+      ratingGoalSet: true,
+      ratingGoalDeferred: false,
     })
   })
 
@@ -407,6 +468,10 @@ describe('property setup repository', () => {
       responsibleManagerAssigned: false,
       replyVoiceConfigured: false,
       portalPublished: false,
+      propertyActive: true,
+      googleReviewCount: null,
+      ratingGoalSet: false,
+      ratingGoalDeferred: false,
     })
   })
 
@@ -429,6 +494,12 @@ describe('property setup repository', () => {
       replyVoiceConfigured: false,
       // Closed activation, disabled Portal, deleted Portal, unpublished draft.
       portalPublished: false,
+      propertyActive: false,
+      // Google's count was read under the binding before this one.
+      googleReviewCount: null,
+      // The only goal ended with its Google location; a manager chose "Not now".
+      ratingGoalSet: false,
+      ratingGoalDeferred: true,
     })
   })
 
@@ -479,5 +550,38 @@ describe('property setup repository', () => {
         accessiblePropertyIds: null,
       }),
     ).resolves.toEqual([expect.objectContaining({ propertyId: FOREIGN })])
+  })
+
+  // Last: it adds Properties of its own, which the listing tests above do not expect.
+  it('counts a goal reached or ended by a manager as set, and one an archive ended as not', async () => {
+    // Arrange
+    const reached = propertyId(randomUUID())
+    const managerEnded = propertyId(randomUUID())
+    const archiveEnded = propertyId(randomUUID())
+    for (const id of [reached, managerEnded, archiveEnded]) {
+      await insertProperty({
+        id,
+        organization: ORG,
+        bound: false,
+        sourceEpoch: 2,
+        replyLanguage: null,
+      })
+    }
+    await insertRatingGoal(reached, 'reached')
+    await insertRatingGoal(managerEnded, 'ended', 'manager')
+    await insertRatingGoal(archiveEnded, 'ended', 'property_archived')
+    const repository = createPropertySetupRepository(db)
+
+    // Act
+    const facts = await repository.listPropertyFacts({
+      organizationId: ORG,
+      accessiblePropertyIds: [reached, managerEnded, archiveEnded],
+    })
+
+    // Assert
+    const set = new Map(facts.map((fact) => [fact.propertyId, fact.ratingGoalSet]))
+    expect(set.get(reached)).toBe(true)
+    expect(set.get(managerEnded)).toBe(true)
+    expect(set.get(archiveEnded)).toBe(false)
   })
 })

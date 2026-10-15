@@ -178,6 +178,9 @@ const RATING_GOAL_CHANGE_COLUMNS = [
   'changed_at',
 ] as const
 
+/** A manager's "Not now" for a Property's rating goal: who chose it and when. */
+const RATING_GOAL_NOT_NOW_COLUMNS = ['property_id', 'deferred_by', 'deferred_at'] as const
+
 const RESULT_REVISION_COLUMNS = [
   'id',
   'monthly_result_id',
@@ -508,6 +511,16 @@ async function readFamilies(
             WHERE organization_id = ${organizationId}
             ORDER BY goal_id, changed_at, id`,
       )
+      const ratingGoalNotNow = await readRows(
+        snapshot,
+        sql`SELECT
+              property_id,
+              deferred_by,
+              to_char(deferred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS deferred_at
+            FROM property_rating_goal_deferrals
+            WHERE organization_id = ${organizationId}
+            ORDER BY property_id`,
+      )
 
       // Declared in ascending path order so the emitted entries already agree
       // with the archive's UTF-8 byte ordering.
@@ -539,6 +552,11 @@ async function readFamilies(
               recordType: 'property_rating_goal_change',
               columns: RATING_GOAL_CHANGE_COLUMNS,
               records: projectRows(ratingGoalChanges, RATING_GOAL_CHANGE_COLUMNS),
+            },
+            {
+              recordType: 'property_rating_goal_not_now',
+              columns: RATING_GOAL_NOT_NOW_COLUMNS,
+              records: projectRows(ratingGoalNotNow, RATING_GOAL_NOT_NOW_COLUMNS),
             },
           ],
         },

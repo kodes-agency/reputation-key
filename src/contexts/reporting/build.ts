@@ -123,6 +123,7 @@ import {
   getPropertyOverview,
   type GetPropertyOverview,
 } from './application/use-cases/get-property-overview'
+import { readGoogleNumbers } from './application/google-numbers-read'
 import {
   getFleetOverview,
   type GetFleetOverview,
@@ -452,9 +453,14 @@ function buildRatingGoalModule(
 
 function buildDashboardModule(
   input: ReportingContextBuildInput,
-  portalMetrics: GetPortalAnalyticsDeps['portalMetrics'],
-  portalLifetime: GetPortalAnalyticsDeps['portalLifetime'],
+  metricApi: MetricPublicApi,
 ) {
+  const portalMetrics = metricApi.portalAnalytics
+  const portalLifetime = metricApi.portalLifetime
+  const googleNumbersDeps = {
+    properties: createRatingGoalPropertyFactsReader(input.db),
+    google: metricApi,
+  }
   const metricStats = createMetricStatsAdapter(input.db)
   const attentionSignals = createAttentionSignalsAdapter(input.db, input.clock)
   const fleetOverviewProjection = createFleetOverviewProjectionAdapter(input.db)
@@ -497,6 +503,8 @@ function buildDashboardModule(
     attention: attentionSignals,
     inboxTargets: input.inboxTargets,
     clock: input.clock,
+    googleNumbers: (organizationId, propertyId, now) =>
+      readGoogleNumbers(googleNumbersDeps, organizationId, propertyId, now),
   })
   const getFleet: GetFleetOverview = getFleetOverview({
     projection: fleetOverviewProjection,
@@ -553,11 +561,7 @@ export function buildReportingContext(input: ReportingContextBuildInput) {
   const metric = buildMetricModule(input)
   const goal = buildGoalModule(input, metric.publicApi)
   const ratingGoal = buildRatingGoalModule(input, metric.publicApi)
-  const dashboard = buildDashboardModule(
-    input,
-    metric.publicApi.portalAnalytics,
-    metric.publicApi.portalLifetime,
-  )
+  const dashboard = buildDashboardModule(input, metric.publicApi)
 
   return Object.freeze({
     publicApi: Object.freeze({

@@ -96,7 +96,7 @@ A keep goal is Holding while Google shows the kept tenth and Dropped below when 
 
 ## Setting a goal
 
-- **Doors**: the last, skippable step of Property setup when Google's numbers are ready (single-Property import only); the Goals page empty state "Set your Google rating goal"; one item in the setup strip.
+- **Doors**: the last, skippable step of Property setup when Google's numbers are ready (single-Property import only); the Goals page empty state "Set your Google rating goal"; one item in the setup strip. The setup strip's item and the Properties list's "Set goal" open the Goals page with `?start=rating-goal`, and the wizard opens on arrival (PR 4). The Overview's one-line prompt opens it in place, and says nothing once a manager chose "Not now" (PR 4, orchestrator call). The setup step counts as decided once a goal was set (active, reached, or ended by a manager) or "Not now" was chosen; a goal ended by a Google location change or an archive does not decide it.
 - **Step 1, "Pick your goal"**: headline "Google shows 4.3 from 812 reviews"; the slider preselected on the Realistic stop with its chip; one live line, "About 93 more reviews"; a "How we work this out" disclosure.
 - **Step 2, "Pick your pace"**: Steady / Faster (preselected) / Push cards with the weekly number and the forecast; per month and per day only on the selected card; "type your own number" (whole numbers 1–200; above 2× the current pace shows a surge caution).
 - **Done, "Your goal is set"**: a summary, one next step (Create a Portal, or Set portal goals once Portals exist) and "Go to Goals".
@@ -168,6 +168,7 @@ AccountAdmins and PropertyManagers with access to the Property, under `goal.read
 - Google's own numbers: the Current on Google snapshot (Reporting), as Review publishes it after a verified run, refreshed every 15 minutes to 6 hours.
 - The cache: read only through Review's public API, as counts and star sums of reviews that may be served and were observed under the Property's current Google binding; reviews per Monday-to-Sunday week in the Property's time zone; stars since an instant. No review content leaves Review.
 - Stored: the goal (mode, target, pace, state, binding epoch, baselines, the tenth and status last seen, reached or ended date and reason, a version for compare-and-set) and its change log. Exported and purged with the Organization's Goal records.
+- Stored (PR 4, migration 0058; 0057 is PR 5's): a manager's "Not now" for a Property's goal (`property_rating_goal_deferrals`, who and when, one row per Property), so the setup strip's "Set a Google rating goal" step counts as decided. It sets, changes and blocks no goal. Exported and purged with the Goal records, and gone with its Property.
 
 ## Pull requests
 

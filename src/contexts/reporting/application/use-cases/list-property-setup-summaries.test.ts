@@ -21,6 +21,10 @@ const FACTS: readonly PropertySetupFacts[] = [
     responsibleManagerAssigned: true,
     replyVoiceConfigured: true,
     portalPublished: true,
+    propertyActive: true,
+    googleReviewCount: null,
+    ratingGoalSet: false,
+    ratingGoalDeferred: false,
   },
   {
     propertyId: DEFERRED,
@@ -32,6 +36,10 @@ const FACTS: readonly PropertySetupFacts[] = [
     responsibleManagerAssigned: false,
     replyVoiceConfigured: false,
     portalPublished: false,
+    propertyActive: true,
+    googleReviewCount: null,
+    ratingGoalSet: false,
+    ratingGoalDeferred: false,
   },
 ]
 
@@ -51,6 +59,7 @@ describe('listPropertySetupSummaries', () => {
         organizationId: ORG,
         role: 'AccountAdmin',
         accessiblePropertyIds: null,
+        ratingGoalsEnabled: false,
       }),
     ).resolves.toEqual([
       {
@@ -88,6 +97,7 @@ describe('listPropertySetupSummaries', () => {
         organizationId: ORG,
         role: 'PropertyManager',
         accessiblePropertyIds: [DEFERRED],
+        ratingGoalsEnabled: false,
       }),
     ).resolves.toEqual([
       {
@@ -118,6 +128,7 @@ describe('listPropertySetupSummaries', () => {
         organizationId: ORG,
         role: 'PropertyManager',
         accessiblePropertyIds: [],
+        ratingGoalsEnabled: false,
       }),
     ).resolves.toEqual([])
     expect(repo.listPropertyFacts).not.toHaveBeenCalled()
@@ -131,6 +142,7 @@ describe('listPropertySetupSummaries', () => {
         organizationId: ORG,
         role: 'Member',
         accessiblePropertyIds: null,
+        ratingGoalsEnabled: false,
       }),
     ).rejects.toMatchObject({ _tag: 'DashboardError', code: 'forbidden' })
     expect(repo.listPropertyFacts).not.toHaveBeenCalled()

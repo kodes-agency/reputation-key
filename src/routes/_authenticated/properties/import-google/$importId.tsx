@@ -10,6 +10,7 @@ import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { requireGoogleImportRole } from './-route-access'
+import { ImportRatingGoalStep } from './-import-rating-goal-step'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/import-google/$importId',
@@ -66,6 +67,7 @@ function ImportProgressPage() {
         importFns={importFns}
         setupFns={importSetupFns}
         viewerUserId={user.id}
+        ratingGoalStep={(propertyId) => <ImportRatingGoalStep propertyId={propertyId} />}
       />
     </PageShell>
   )

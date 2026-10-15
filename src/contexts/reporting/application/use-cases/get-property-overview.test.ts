@@ -20,6 +20,11 @@ const last30Days = {
   timeRange: '30d' as const,
   propertyTimezone: 'UTC',
 }
+const allTime = {
+  ...last30Days,
+  startDate: new Date('2020-01-01T00:00:00.000Z'),
+  timeRange: 'all' as const,
+}
 
 const metricKpi = (value: number, priorValue: number, trend: number): MetricKPIValue => ({
   value,
@@ -96,6 +101,7 @@ describe('getPropertyOverview', () => {
         },
       },
       clock: () => NOW,
+      googleNumbers: async () => null,
     })
 
     const result = await getOverview(last30Days, ADMIN)
@@ -112,10 +118,50 @@ describe('getPropertyOverview', () => {
     expect(repo.calls.filter((call) => call === 'getKPIs')).toHaveLength(1)
   })
 
+  it('leads the all-time read with Google’s own number and count, and reads them only there', async () => {
+    // Arrange
+    const repo = createInMemoryDashboardRepository()
+    const google = {
+      shows: 4.3,
+      reviewCount: 812,
+      asOf: '2026-08-25T09:00:00.000Z',
+      current: true,
+    }
+    const googleNumbers = vi.fn(async () => google)
+    const getOverview = getPropertyOverview({
+      getDashboardData: getDashboardData({ repo, propertyAccess: async () => null }),
+      propertyAccess: async () => null,
+      attention: {
+        getAttentionCounts: async () => ({
+          overdue: 0,
+          itemsToTriage: 0,
+          escalated: 0,
+          goalsBehindPace: 0,
+          attentionWork: 0,
+        }),
+      },
+      inboxTargets: { getGoogleReviewTargetCountsByProperty: async () => new Map() },
+      clock: () => NOW,
+      googleNumbers,
+    })
+
+    // Act
+    const overview = await getOverview(allTime, ADMIN)
+    const windowed = await getOverview(last30Days, ADMIN)
+
+    // Assert
+    expect(overview.google).toEqual(google)
+    expect(googleNumbers).toHaveBeenCalledWith(ORG, PROPERTY, NOW)
+    // Google's numbers have no window: a 30-day read does not read them again.
+    expect(windowed.google).toBeNull()
+    expect(googleNumbers).toHaveBeenCalledOnce()
+  })
+
   it('refuses a manager with no grant on the Property before anything is read', async () => {
     const repo = createInMemoryDashboardRepository()
     const getAttentionCounts = vi.fn<AttentionSignalsPort['getAttentionCounts']>()
     const getGoogleReviewTargetCountsByProperty = vi.fn(async () => new Map())
+    const googleNumbers = vi.fn(async () => null)
     const grantsElsewhere = async () => [
       propertyId('a0000000-0000-4000-8000-000000000002'),
     ]
@@ -125,6 +171,7 @@ describe('getPropertyOverview', () => {
       attention: { getAttentionCounts },
       inboxTargets: { getGoogleReviewTargetCountsByProperty },
       clock: () => NOW,
+      googleNumbers,
     })
     const manager = buildTestAuthContext({ organizationId: ORG, role: 'PropertyManager' })
 
@@ -135,6 +182,7 @@ describe('getPropertyOverview', () => {
     expect(repo.calls).toEqual([])
     expect(getAttentionCounts).not.toHaveBeenCalled()
     expect(getGoogleReviewTargetCountsByProperty).not.toHaveBeenCalled()
+    expect(googleNumbers).not.toHaveBeenCalled()
   })
 
   // A Member holds dashboard.read for the staff dashboard, not
@@ -151,6 +199,7 @@ describe('getPropertyOverview', () => {
       attention: { getAttentionCounts },
       inboxTargets: { getGoogleReviewTargetCountsByProperty },
       clock: () => NOW,
+      googleNumbers: async () => null,
     })
     const member = buildTestAuthContext({ organizationId: ORG, role: 'Member' })
 
@@ -180,6 +229,7 @@ describe('getPropertyOverview', () => {
       },
       inboxTargets: { getGoogleReviewTargetCountsByProperty: async () => new Map() },
       clock: () => NOW,
+      googleNumbers: async () => null,
     })
     const manager = buildTestAuthContext({ organizationId: ORG, role: 'PropertyManager' })
 

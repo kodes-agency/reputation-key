@@ -1,6 +1,6 @@
-// The Property Google rating goal's four reads, defined once for the Goals page
-// and the goal's detail page (route-query-definitions.test.ts), and its three
-// commands.
+// The Property Google rating goal's four reads, defined once for the Goals page,
+// the goal's detail page, the Property Overview and the Google import's last
+// step (route-query-definitions.test.ts), and its four commands.
 //
 // None of it may reach first paint (scripts/check-bundle-budget.mjs):
 //
@@ -23,7 +23,10 @@ const server = (): Promise<RatingGoalServer> =>
 
 type Input<K extends keyof RatingGoalServer> = Parameters<RatingGoalServer[K]>[0]
 
-/** Set, change and end: the commands the wizard and the detail page send. */
+/**
+ * Set, change and end: the commands the wizard and the detail page send; and
+ * "Not now", which the setup strip and the import's last step send.
+ */
 export const ratingGoalCommands = {
   setRatingGoal: async (input: Input<'setRatingGoal'>) =>
     (await server()).setRatingGoal(input),
@@ -31,6 +34,8 @@ export const ratingGoalCommands = {
     (await server()).changeRatingGoal(input),
   endRatingGoal: async (input: Input<'endRatingGoal'>) =>
     (await server()).endRatingGoal(input),
+  deferRatingGoal: async (input: Input<'deferRatingGoal'>) =>
+    (await server()).deferRatingGoal(input),
 }
 
 export type RatingGoalCommands = typeof ratingGoalCommands
@@ -80,6 +85,29 @@ export async function prefetchRatingGoalSection(
   // `prefetchQuery` never throws: a failed read is the section's to say.
   await Promise.all([
     queryClient.prefetchQuery(ratingGoalCardQuery(propertyId)),
+    queryClient.prefetchQuery(ratingGoalSetupQuery(propertyId)),
+    queryClient.prefetchQuery(ratingGoalHistoryQuery(propertyId)),
+  ])
+}
+
+/**
+ * Primes the Property Overview's Google goal: the card first, then, only when
+ * there is no active goal, the setup (whether the one-line prompt shows) and
+ * History (a goal reached or ended lately). A Property with a goal costs the
+ * Overview one goal read. `prefetchQuery` never throws: a failed read leaves the
+ * Overview without the goal, never in an error.
+ */
+// Used through the Overview loader's on-demand import, which fallow does not follow.
+// fallow-ignore-next-line unused-export
+export async function prefetchRatingGoalOverview(
+  queryClient: QueryClient,
+  propertyId: string,
+): Promise<void> {
+  const card = ratingGoalCardQuery(propertyId)
+  await queryClient.prefetchQuery(card)
+  const read = queryClient.getQueryData(card.queryKey)
+  if (read === undefined || read?.state === 'active') return
+  await Promise.all([
     queryClient.prefetchQuery(ratingGoalSetupQuery(propertyId)),
     queryClient.prefetchQuery(ratingGoalHistoryQuery(propertyId)),
   ])

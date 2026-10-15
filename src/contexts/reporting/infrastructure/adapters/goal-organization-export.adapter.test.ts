@@ -17,6 +17,7 @@ const TABLE_MARKERS = [
   'goal_program_versions',
   'goal_programs',
   'property_rating_goal_changes',
+  'property_rating_goal_deferrals',
   'property_rating_goals',
 ] as const
 
@@ -460,12 +461,19 @@ describe('Goal Organization Export contributor', () => {
       changed_at: '2026-08-10T00:00:00.000000Z',
     }
 
-    it('exports each goal and its change log under goal/rating-goals', async () => {
+    const RATING_GOAL_NOT_NOW_ROW: Row = {
+      property_id: '10000000-0000-4000-8000-000000000002',
+      deferred_by: 'user-3',
+      deferred_at: '2026-08-12T00:00:00.000000Z',
+    }
+
+    it('exports each goal, its change log and each "Not now" under goal/rating-goals', async () => {
       const contribution = await createGoalOrganizationExportAdapter(
         fakeDatabase({
           ...FIXTURE,
           property_rating_goals: [RATING_GOAL_ROW],
           property_rating_goal_changes: [RATING_GOAL_CHANGE_ROW],
+          property_rating_goal_deferrals: [RATING_GOAL_NOT_NOW_ROW],
         }),
       ).contribute({ organizationId: 'org-goal-export', requestId: 'a', asOf: AS_OF })
       const text = (path: string) =>
@@ -478,6 +486,7 @@ describe('Goal Organization Export contributor', () => {
 
       expect(json.records.property_rating_goal).toEqual([RATING_GOAL_ROW])
       expect(json.records.property_rating_goal_change).toEqual([RATING_GOAL_CHANGE_ROW])
+      expect(json.records.property_rating_goal_not_now).toEqual([RATING_GOAL_NOT_NOW_ROW])
       expect(text('goal/rating-goals.csv').split('\n')[1]).toMatch(
         /^property_rating_goal,c0000000-0000-4000-8000-000000000001,/u,
       )
@@ -514,7 +523,11 @@ describe('Goal Organization Export contributor', () => {
         asOf: AS_OF,
       })
 
-      for (const table of ['property_rating_goals', 'property_rating_goal_changes']) {
+      for (const table of [
+        'property_rating_goals',
+        'property_rating_goal_changes',
+        'property_rating_goal_deferrals',
+      ]) {
         expect(seen.find((text) => text.includes(`FROM ${table}`))).toMatch(
           /WHERE organization_id =/u,
         )

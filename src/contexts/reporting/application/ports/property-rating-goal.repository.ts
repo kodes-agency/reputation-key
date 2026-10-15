@@ -119,6 +119,14 @@ export type RatingGoalScope = Readonly<{
 /** Where the daily evaluation's listing continues: after this goal. */
 export type RatingGoalScopeCursor = Pick<RatingGoalScope, 'goalId'>
 
+/** A manager's "Not now" for a Property's rating goal. */
+export type RatingGoalNotNow = Readonly<{
+  organizationId: string
+  propertyId: string
+  chosenBy: string
+  chosenAt: Date
+}>
+
 export type PropertyRatingGoalRepository = Readonly<{
   /** True when the Organization lifecycle holds the Organization (closure). */
   isOrganizationHeld(organizationId: string): Promise<boolean>
@@ -174,4 +182,9 @@ export type PropertyRatingGoalRepository = Readonly<{
    * set after a Restore. True when a goal ended.
    */
   endForArchivedProperty(archive: RatingGoalPropertyArchive): Promise<boolean>
+  /**
+   * Records that a manager chose "Not now" for the Property's rating goal. A
+   * repeat keeps the first choice. True when this call recorded it.
+   */
+  recordNotNow(choice: RatingGoalNotNow): Promise<boolean>
 }>

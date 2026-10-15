@@ -158,9 +158,10 @@ describe('goal organization lifecycle phases', () => {
       const table = /DELETE FROM (\w+)/u.exec(statement.text)?.[1]
       return table ? [table] : []
     })
-    expect(deleted.slice(-2)).toEqual([
+    expect(deleted.slice(-3)).toEqual([
       'property_rating_goal_changes',
       'property_rating_goals',
+      'property_rating_goal_deferrals',
     ])
   })
 

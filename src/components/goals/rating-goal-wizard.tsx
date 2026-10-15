@@ -18,10 +18,11 @@ import type {
 import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
-import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
+import { DialogFooter } from '#/components/ui/dialog'
+import { RatingGoalCancel } from './rating-goal-wizard-cancel'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
-import { goalKeys } from '#/shared/queries/query-keys'
+import { dashboardKeys, goalKeys, propertyKeys } from '#/shared/queries/query-keys'
 import { withRatingGoalRefusals } from './rating-goal-refusal'
 import type { RegionRead } from './rating-goal-section'
 import { RatingGoalDone, RatingGoalKeepStep } from './rating-goal-wizard-done'
@@ -50,6 +51,13 @@ export type RatingGoalWizardProps = Readonly<{
   changeRatingGoalFn: CommandOf<typeof changeRatingGoal>
   /** Where the focus goes when the wizard closes: the page knows what opened it. */
   onCloseAutoFocus?: (event: Event) => void
+  /**
+   * Inside the Google import's setup frame instead of a dialog (decision 10):
+   * every step's way out reads "Not now" and closes it as `onOpenChange(false)`.
+   */
+  inline?: boolean
+  /** A goal was set: the done screen is on, and its way out goes on from there. */
+  onSaved?: () => void
 }>
 
 /** A server function as the page hands it in: called with its input, nothing more. */
@@ -78,13 +86,26 @@ function doneDescription(intent: RatingGoalWizardIntent): string {
     : 'You can end it at any time.'
 }
 
-/** What the screen is for, in one sentence; the keep step's is the whole step. */
-function descriptionOf(step: Step, intent: RatingGoalWizardIntent): string {
+/**
+ * What the screen is for, in one sentence; the keep step's is the whole step.
+ * Inside the Google import's setup frame there is no "Step 1 of 2": the setup
+ * already counts its own steps on the same screen, and two counters read as
+ * one sequence that contradicts itself.
+ */
+function descriptionOf(
+  step: Step,
+  intent: RatingGoalWizardIntent,
+  inline: boolean,
+): string {
   switch (step) {
     case 'goal':
-      return 'Step 1 of 2: the number you want Google to show.'
+      return inline
+        ? 'The number you want Google to show.'
+        : 'Step 1 of 2: the number you want Google to show.'
     case 'pace':
-      return 'Step 2 of 2: how many new Google reviews a week you aim for.'
+      return inline
+        ? 'How many new Google reviews a week you aim for.'
+        : 'Step 2 of 2: how many new Google reviews a week you aim for.'
     case 'keep':
       return `We’ll watch that Google keeps showing ${intent.kind === 'keep' ? tenthsText(intent.targetTenths) : 'its number'}.`
     case 'done':
@@ -92,18 +113,28 @@ function descriptionOf(step: Step, intent: RatingGoalWizardIntent): string {
   }
 }
 
-/** The two commands, refusing in plain words and re-reading the goal when refused. */
+/**
+ * The two commands, refusing in plain words and re-reading the goal when
+ * refused. A goal set or changed also moves the Property's setup step and its
+ * Properties list cell, so those are read again too.
+ */
 function useRatingGoalCommands(props: RatingGoalWizardProps) {
   const queryClient = useQueryClient()
   const family = goalKeys.ratingGoal(props.propertyId)
   const reRead = () => void queryClient.invalidateQueries({ queryKey: family })
+  const refreshed = [
+    family,
+    propertyKeys.setup(props.propertyId),
+    propertyKeys.setupSummaries(),
+    dashboardKeys.fleets(),
+  ]
   const set = useActionMutation(withRatingGoalRefusals(props.setRatingGoalFn), {
-    invalidateKeys: [family],
+    invalidateKeys: refreshed,
     onError: reRead,
   })
   const change = useActionMutation(withRatingGoalRefusals(props.changeRatingGoalFn), {
     successMessage: 'Google rating goal changed',
-    invalidateKeys: [family],
+    invalidateKeys: refreshed,
     onError: reRead,
   })
   return { set, change }
@@ -137,6 +168,7 @@ function useWizardFlow(props: RatingGoalWizardProps) {
       await set({ data: submission.data })
       setReceipt(wizardReceipt(saved))
       setStep('done')
+      props.onSaved?.()
     } catch {
       // Held by the mutation: DialogErrorBanner says it above the actions.
     }
@@ -180,9 +212,10 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
       onOpenChange={props.onOpenChange}
       busy={flow.pending}
       title={titleOf(flow.step, intent)}
-      description={descriptionOf(flow.step, intent)}
+      description={descriptionOf(flow.step, intent, props.inline === true)}
       titleRef={flow.titleRef}
       onCloseAutoFocus={props.onCloseAutoFocus}
+      inline={props.inline}
     >
       {flow.step === 'done' && flow.receipt !== null ? (
         <RatingGoalDone
@@ -234,7 +267,7 @@ function SetupPending({ setup }: Readonly<{ setup: RegionRead<RatingGoalSetupVie
         <Skeleton aria-hidden="true" className="h-64 rounded-lg" />
       )}
       <DialogFooter className="mt-auto">
-        <DialogCancel />
+        <RatingGoalCancel />
       </DialogFooter>
     </>
   )

@@ -13,6 +13,7 @@ import { cn } from '#/lib/utils'
 import { PROPERTY_LIFECYCLE_STATUS } from './property-lifecycle-model'
 import {
   propertySetupStepLabel,
+  propertySetupStepSearch,
   propertySetupStepTarget,
 } from './settings/property-setup-steps'
 import {
@@ -24,7 +25,7 @@ import {
   type PropertyListRow,
   type PropertySetupProgress,
 } from './property-list-view'
-import { formatNumber } from '#/lib/format'
+import { formatNumber, formatShortDate } from '#/lib/format'
 
 function Pending({ className }: Readonly<{ className?: string }>) {
   return <Skeleton className={cn('h-4', className)} aria-hidden="true" />
@@ -75,19 +76,55 @@ type FigureProps = Readonly<{
   fleet: DataState
 }>
 
-export function RatingValue({ comparison, fleet }: FigureProps) {
-  if (!comparison)
-    return fleet === 'loading' ? <Pending className="ml-auto w-10" /> : null
-  if (comparison.avgRating === null) {
-    return <span className="text-muted-foreground">No ratings</span>
-  }
-  return <RatingFigure value={comparison.avgRating} className="font-medium" />
+/** No Google numbers for the Property's current binding: a dash, named for a screen reader. */
+function NoGoogleNumbers({ what }: Readonly<{ what: string }>) {
+  return (
+    <span className="text-muted-foreground">
+      <span aria-hidden="true">–</span>
+      <span className="sr-only">{what}</span>
+    </span>
+  )
 }
 
+/**
+ * Google's own number (decision 16). Numbers more than a day old, or read
+ * while Google is not linked, are Google's last ones: they keep their date.
+ */
+export function RatingValue({
+  comparison,
+  fleet,
+  now,
+}: FigureProps & Readonly<{ now: Date }>) {
+  if (!comparison)
+    return fleet === 'loading' ? <Pending className="ml-auto w-10" /> : null
+  const { google } = comparison
+  if (google === null) return <NoGoogleNumbers what="No rating from Google yet" />
+  if (google.shows === null) {
+    return <span className="text-muted-foreground">No reviews</span>
+  }
+  const asOf = google.current
+    ? null
+    : formatShortDate(google.asOf, comparison.timezone, now)
+  return (
+    <span className="inline-flex flex-col items-end">
+      <RatingFigure value={google.shows} className="font-medium" />
+      {asOf === null ? null : (
+        <span className="text-xs whitespace-nowrap text-muted-foreground">
+          as of {asOf}
+        </span>
+      )}
+    </span>
+  )
+}
+
+/** Google's own review count. */
 export function ReviewsValue({ comparison, fleet }: FigureProps) {
   if (!comparison)
     return fleet === 'loading' ? <Pending className="ml-auto w-12" /> : null
-  const count = comparison.reviewCount
+  if (comparison.google === null) {
+    return <NoGoogleNumbers what="No review count from Google yet" />
+  }
+  const count = comparison.google.reviewCount
   return (
     <span className="tabular-nums">
       {formatNumber(count)}
@@ -229,6 +266,7 @@ export function SetupValue({
     <Link
       to={target}
       params={{ propertyId }}
+      search={propertySetupStepSearch(nextStep)}
       aria-label={`Setup ${completedCount} of ${stepCount} at ${propertyName}. Next: ${next}`}
       className={cn('flex flex-col gap-0.5', ROW_FIGURE_LINK)}
     >

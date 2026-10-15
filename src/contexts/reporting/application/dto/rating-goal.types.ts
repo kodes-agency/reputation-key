@@ -18,8 +18,10 @@ import type {
   RatingGoalEligibility,
   RatingStopLabel,
 } from '../../domain/rating-goal-stops'
+import type { GoogleNumbersView } from '../../domain/google-numbers'
 
 export type {
+  GoogleNumbersView,
   RatingGoalChangeField,
   RatingGoalEndedReason,
   RatingGoalMode,
@@ -46,16 +48,6 @@ export type RatingForecastView =
   | Readonly<{ kind: 'beyond_horizon' }>
   /** `toMonth` is null when the late end is open. */
   | Readonly<{ kind: 'range'; fromMonth: string; toMonth: string | null }>
-
-export type GoogleNumbersView = Readonly<{
-  /** Google's one-decimal number (4.3); null when Google has no average. */
-  shows: number | null
-  reviewCount: number
-  /** When Review last verified these numbers with Google (ISO). */
-  asOf: string
-  /** False when older than 24 hours or the Google binding is not active. */
-  current: boolean
-}>
 
 export type RecentMixView = Readonly<{
   /** Average stars of the reviews the mix is taken from, three decimals. */
@@ -210,6 +202,9 @@ export type RatingGoalHistoryEntry = Readonly<{
 export type RatingGoalSetResult = Readonly<{ goalId: string; version: number }>
 export type RatingGoalChangeResult = Readonly<{ goalId: string; version: number }>
 export type RatingGoalEndResult = Readonly<{ goalId: string; ended: true }>
+
+/** "Not now" was recorded for the Property's rating goal (or already was). */
+export type RatingGoalNotNowResult = Readonly<{ propertyId: string }>
 
 /** A pace the manager types in, worked out for one target. */
 export type RatingGoalPacePreview = Readonly<{

@@ -11,6 +11,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   propertyRatingGoalChanges,
+  propertyRatingGoalDeferrals,
   propertyRatingGoals,
 } from '#/shared/db/schema/goal.schema'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
@@ -887,6 +888,58 @@ describe('the table holds the plan and the log to their rules', () => {
       logRow({ field: 'mode', oldValue: 'climb', newValue: 'hold' }),
     ).resolves.toBe('23514')
     await expect(logRow({ id: goalId(202) })).resolves.toBeUndefined()
+  })
+})
+
+describe('"Not now" for a Property’s rating goal', () => {
+  const choice = { organizationId: ORG, propertyId: PROPERTY, chosenBy: 'manager-1' }
+
+  it('records who chose it and when, once per Property', async () => {
+    // Act
+    const first = await repository().recordNotNow({ ...choice, chosenAt: SET_AT })
+    const again = await repository().recordNotNow({
+      ...choice,
+      chosenBy: 'manager-2',
+      chosenAt: LATER,
+    })
+
+    // Assert
+    expect([first, again]).toEqual([true, false])
+    const rows = await held.db.select().from(propertyRatingGoalDeferrals)
+    expect(rows).toEqual([
+      {
+        propertyId: PROPERTY,
+        organizationId: ORG,
+        deferredBy: 'manager-1',
+        deferredAt: SET_AT,
+      },
+    ])
+  })
+
+  it('refuses a Property of another Organization', async () => {
+    // Act
+    const code = await refused(() =>
+      repository().recordNotNow({
+        ...choice,
+        propertyId: FOREIGN_PROPERTY,
+        chosenAt: SET_AT,
+      }),
+    )
+
+    // Assert: the tenant foreign key.
+    expect(code).toBe('23503')
+  })
+
+  it('goes with its Property', async () => {
+    // Arrange
+    await repository().recordNotNow({ ...choice, chosenAt: SET_AT })
+
+    // Act
+    await held.client.query(`DELETE FROM properties WHERE id = $1::uuid`, [PROPERTY])
+
+    // Assert
+    const rows = await held.db.select().from(propertyRatingGoalDeferrals)
+    expect(rows).toEqual([])
   })
 })
 

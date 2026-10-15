@@ -73,6 +73,20 @@ describe('data-fate authority', () => {
     })
   })
 
+  it('files a rating goal’s "Not now" as live Goal authority, like the goal itself', () => {
+    // Arrange
+    const goalFate = (exportName: string) =>
+      DATA_FATE_AUTHORITY.find(
+        (row) => row.schemaFile === 'goal.schema.ts' && row.exportName === exportName,
+      )
+
+    // Act / Assert
+    expect(goalFate('propertyRatingGoalDeferrals')).toEqual({
+      ...goalFate('propertyRatingGoals'),
+      exportName: 'propertyRatingGoalDeferrals',
+    })
+  })
+
   it('files no table the retention sweep deletes rows from as a read-only compatibility table', () => {
     // `compatibility_read` says "keep read-only until nothing depends on it".
     // A table the sweep deletes from by age is not being kept, so the two

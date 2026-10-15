@@ -8,11 +8,23 @@ import {
   requirePropertyOverviewAccess,
   type DashboardPropertyAccess,
 } from '../dashboard-property-access'
+import type { ReadGoogleNumbers } from '../google-numbers-read'
+import type { GoogleNumbersView } from '../../domain/google-numbers'
 
 export type PropertyOverviewData = Readonly<{
   dashboard: DashboardData
   signals: AttentionSignals
+  /**
+   * Google's own rating and review count (decision 16): the Rating tile's
+   * headline, never RepKey's average. They have no window, so only the
+   * all-time read carries them: null on a windowed read, and when Google never
+   * sent numbers for the Property's current binding.
+   */
+  google: GoogleNumbersView | null
 }>
+
+/** The one range whose read carries Google's numbers (the Overview reads two). */
+const GOOGLE_NUMBERS_RANGE = 'all'
 
 export type GetPropertyOverviewInput = GetDashboardDataInput
 
@@ -28,6 +40,7 @@ export const getPropertyOverview =
     attention: AttentionSignalsPort
     inboxTargets: Pick<InboxPublicApi, 'getGoogleReviewTargetCountsByProperty'>
     clock: () => Date
+    googleNumbers: ReadGoogleNumbers
   }): GetPropertyOverview =>
   async (input, ctx) => {
     // Before the parallel reads: the attention counts are read beside the
@@ -38,7 +51,7 @@ export const getPropertyOverview =
       propertyIds: [input.propertyId],
     })
     const now = deps.clock()
-    const [dashboard, counts, targetCounts] = await Promise.all([
+    const [dashboard, counts, targetCounts, google] = await Promise.all([
       deps.getDashboardData(input, ctx),
       deps.attention.getAttentionCounts(input.organizationId, input.propertyId),
       deps.inboxTargets.getGoogleReviewTargetCountsByProperty({
@@ -46,10 +59,14 @@ export const getPropertyOverview =
         propertyIds: [input.propertyId],
         now,
       }),
+      input.timeRange === GOOGLE_NUMBERS_RANGE
+        ? deps.googleNumbers(input.organizationId, input.propertyId, now)
+        : null,
     ])
 
     return {
       dashboard,
+      google,
       signals: attentionSignalsFrom(
         {
           ...counts,

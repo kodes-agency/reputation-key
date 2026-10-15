@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   set: vi.fn(),
   change: vi.fn(),
   end: vi.fn(),
+  defer: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
 }))
@@ -30,6 +31,7 @@ vi.mock('#/composition', () => ({
         set: mocks.set,
         change: mocks.change,
         end: mocks.end,
+        defer: mocks.defer,
       },
     },
   }),
@@ -51,6 +53,7 @@ import {
 } from '../application/dto/rating-goal.dto'
 import {
   changeRatingGoal,
+  deferRatingGoal,
   endRatingGoal,
   getRatingGoalCard,
   getRatingGoalDetail,
@@ -127,6 +130,18 @@ describe('Property Google rating goal server functions', () => {
       manager,
     )
     expect(mocks.end).toHaveBeenCalledWith(expect.any(Object), identity, manager)
+  })
+
+  it('forwards "Not now" for one Property with the resolved actor', async () => {
+    // Arrange
+    mocks.defer.mockResolvedValue({ propertyId: PROPERTY_ID })
+    const input = { propertyId: PROPERTY_ID }
+
+    // Act
+    await withStartContext(() => deferRatingGoal({ data: input }))
+
+    // Assert
+    expect(mocks.defer).toHaveBeenCalledWith(expect.any(Object), input, manager)
   })
 
   it('asks the execution policy for goal.use and the action on the named Property', async () => {

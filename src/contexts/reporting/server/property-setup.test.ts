@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   getAccessiblePropertyIds: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
+  checkScopedCapability: vi.fn(),
 }))
 
 vi.mock('#/composition', () => ({
@@ -32,6 +33,9 @@ vi.mock('#/shared/auth/middleware', () => ({
 }))
 vi.mock('#/shared/auth/execution-policy', () => ({
   requireExecutionAllowed: mocks.requireExecutionAllowed,
+}))
+vi.mock('#/shared/auth/beta-capabilities', () => ({
+  checkScopedCapability: mocks.checkScopedCapability,
 }))
 vi.mock('#/shared/observability/traced-server-fn', () => ({
   tracedHandler: (handler: unknown) => handler,
@@ -60,6 +64,7 @@ describe('property setup server functions', () => {
       attentionCount: 0,
     })
     mocks.listPropertySetupSummaries.mockResolvedValue([])
+    mocks.checkScopedCapability.mockReturnValue({ allowed: true })
   })
 
   it('reads one Property organization-wide for an AccountAdmin behind the property gate', async () => {
@@ -81,7 +86,50 @@ describe('property setup server functions', () => {
       role: 'AccountAdmin',
       propertyId: PROPERTY_ID,
       accessiblePropertyIds: null,
+      ratingGoalsEnabled: true,
     })
+    expect(mocks.checkScopedCapability).toHaveBeenCalledWith(
+      { organizationId: ORG_ID, propertyId: PROPERTY_ID },
+      'goal.use',
+    )
+  })
+
+  it('leaves the rating goal step out while Goals are off for the Property', async () => {
+    // Arrange
+    mocks.resolveTenantContext.mockResolvedValue(accountAdmin)
+    mocks.getAccessiblePropertyIds.mockResolvedValue(null)
+    mocks.checkScopedCapability.mockReturnValue({ allowed: false })
+
+    // Act
+    await withStartContext(() =>
+      getPropertySetupFn({ data: { propertyId: PROPERTY_ID } }),
+    )
+
+    // Assert
+    expect(mocks.getPropertySetup).toHaveBeenCalledWith(
+      expect.objectContaining({ ratingGoalsEnabled: false }),
+    )
+  })
+
+  it('leaves the rating goal step out for a viewer who may not set goals', async () => {
+    // Arrange
+    mocks.resolveTenantContext.mockResolvedValue({
+      ...accountAdmin,
+      role: 'Member',
+      effectivePermissions: new Set(['property.read']),
+    })
+    mocks.getAccessiblePropertyIds.mockResolvedValue(null)
+
+    // Act
+    await withStartContext(() =>
+      getPropertySetupFn({ data: { propertyId: PROPERTY_ID } }),
+    )
+
+    // Assert
+    expect(mocks.getPropertySetup).toHaveBeenCalledWith(
+      expect.objectContaining({ ratingGoalsEnabled: false }),
+    )
+    expect(mocks.checkScopedCapability).not.toHaveBeenCalled()
   })
 
   it('passes a PropertyManager grant set and role through to the use case', async () => {
@@ -149,7 +197,12 @@ describe('property setup server functions', () => {
       organizationId: ORG_ID,
       role: 'PropertyManager',
       accessiblePropertyIds: [PROPERTY_ID],
+      ratingGoalsEnabled: true,
     })
+    expect(mocks.checkScopedCapability).toHaveBeenCalledWith(
+      { organizationId: ORG_ID },
+      'goal.use',
+    )
   })
 
   it('maps a forbidden summary read for a beta-dark role', async () => {

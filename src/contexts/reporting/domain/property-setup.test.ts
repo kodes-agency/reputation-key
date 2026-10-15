@@ -42,6 +42,10 @@ function facts(overrides: Partial<PropertySetupFacts> = {}): PropertySetupFacts 
     responsibleManagerAssigned: false,
     replyVoiceConfigured: false,
     portalPublished: false,
+    propertyActive: true,
+    googleReviewCount: null,
+    ratingGoalSet: false,
+    ratingGoalDeferred: false,
     ...overrides,
   }
 }
@@ -81,11 +85,13 @@ function everyFactCombination(): readonly PropertySetupFacts[] {
 
 /**
  * The agreed step table (plan B1, decisions 1, 2 and 8), spelled as data:
- * when each step is complete, and what it is otherwise for each role.
+ * when each step is complete, and what it is otherwise for each role. The
+ * rating goal step is not one of a viewer's who may not set goals (these
+ * viewers); it has a describe of its own below.
  */
 const SPEC: Readonly<
   Record<
-    PropertySetupStepKey,
+    Exclude<PropertySetupStepKey, 'rating_goal'>,
     Readonly<{
       complete: (subject: PropertySetupFacts) => boolean
       otherwise: (
@@ -353,5 +359,131 @@ describe('nextPropertySetupStep', () => {
     expect(
       nextPropertySetupStep(derivePropertySetupSteps(syncing, { role: 'AccountAdmin' })),
     ).toMatchObject({ key: 'reviews_synced', status: 'waiting', section: null })
+  })
+})
+
+describe('the Google rating goal step', () => {
+  const offered = facts({ ...COMPLETE, googleReviewCount: 812 })
+  const goalViewer = (role: BetaInteractiveRole) => ({ role, ratingGoalsEnabled: true })
+  const ratingGoalStep = (subject: PropertySetupFacts, role: BetaInteractiveRole) =>
+    derivePropertySetupSteps(subject, goalViewer(role)).find(
+      (step) => step.key === 'rating_goal',
+    )
+
+  it('comes last, as an eighth step that opens the Goals page', () => {
+    // Act
+    const steps = derivePropertySetupSteps(offered, goalViewer('AccountAdmin'))
+
+    // Assert
+    expect(steps).toHaveLength(8)
+    expect(steps.at(-1)).toEqual({
+      key: 'rating_goal',
+      status: 'pending',
+      asked: false,
+      section: 'goals',
+    })
+  })
+
+  it('is open work for either role until a goal is set', () => {
+    for (const role of ROLES) {
+      // Act
+      const setup = derivePropertySetup(offered, goalViewer(role))
+
+      // Assert
+      expect(ratingGoalStep(offered, role)?.status).toBe('pending')
+      expect(setup.attentionCount).toBe(1)
+      expect(nextPropertySetupStep(setup.steps)).toMatchObject({ key: 'rating_goal' })
+    }
+  })
+
+  it('is done once a goal is set, and stays done after it is reached or a manager ends it', () => {
+    // Arrange: the repository counts an active goal, one reached, and one a manager ended.
+    const withGoal = facts({ ...offered, ratingGoalSet: true })
+
+    // Act
+    const steps = derivePropertySetupSteps(withGoal, goalViewer('PropertyManager'))
+
+    // Assert
+    expect(ratingGoalStep(withGoal, 'PropertyManager')?.status).toBe('complete')
+    expect(propertySetupCompletedCount(steps)).toBe(8)
+    expect(nextPropertySetupStep(steps)).toBeNull()
+  })
+
+  it('counts "Not now" as done, so it never nags', () => {
+    // Arrange
+    const notNow = facts({ ...offered, ratingGoalDeferred: true })
+
+    // Act
+    const setup = derivePropertySetup(notNow, goalViewer('AccountAdmin'))
+
+    // Assert
+    expect(ratingGoalStep(notNow, 'AccountAdmin')?.status).toBe('deferred')
+    expect(propertySetupCompletedCount(setup.steps)).toBe(8)
+    expect(setup.attentionCount).toBe(0)
+  })
+
+  it('lets an active goal complete the step even beside an earlier "Not now"', () => {
+    // Arrange
+    const both = facts({ ...offered, ratingGoalSet: true, ratingGoalDeferred: true })
+
+    // Act / Assert
+    expect(ratingGoalStep(both, 'AccountAdmin')?.status).toBe('complete')
+  })
+
+  it('is hidden below ten Google reviews, without Google’s numbers, or off an active Property', () => {
+    const hidden = [
+      facts({ ...COMPLETE, googleReviewCount: 9 }),
+      facts({ ...COMPLETE, googleReviewCount: null }),
+      facts({ ...COMPLETE, googleReviewCount: 812, propertyActive: false }),
+    ]
+
+    for (const subject of hidden) {
+      // Act
+      const steps = derivePropertySetupSteps(subject, goalViewer('AccountAdmin'))
+
+      // Assert
+      expect(steps.map((step) => step.key)).not.toContain('rating_goal')
+      expect(steps).toHaveLength(7)
+    }
+  })
+
+  it('is hidden from a viewer who cannot set rating goals here', () => {
+    // Act
+    const steps = derivePropertySetupSteps(offered, {
+      role: 'AccountAdmin',
+      ratingGoalsEnabled: false,
+    })
+
+    // Assert
+    expect(steps.map((step) => step.key)).not.toContain('rating_goal')
+  })
+
+  it('keeps a set goal counted when Google’s count is not read any more', () => {
+    // Arrange
+    const withGoal = facts({
+      ...COMPLETE,
+      googleReviewCount: null,
+      ratingGoalSet: true,
+    })
+
+    // Act / Assert
+    expect(ratingGoalStep(withGoal, 'AccountAdmin')?.status).toBe('complete')
+  })
+
+  it('is hidden off an active Property even when a goal was set there', () => {
+    // Arrange: suspending a Property does not end its goal.
+    const suspended = facts({
+      ...offered,
+      propertyActive: false,
+      ratingGoalSet: true,
+      ratingGoalDeferred: true,
+    })
+
+    // Act
+    const steps = derivePropertySetupSteps(suspended, goalViewer('AccountAdmin'))
+
+    // Assert
+    expect(steps.map((step) => step.key)).not.toContain('rating_goal')
+    expect(propertySetupCompletedCount(steps)).toBe(7)
   })
 })

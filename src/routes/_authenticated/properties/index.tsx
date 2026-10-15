@@ -44,7 +44,9 @@ import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashb
  * "3 in the last 30 days" on its own Overview, because all 259 were ingested
  * today. Reconciling the two event-time semantics is a read-model decision, so
  * this list shows the figure both sources agree on and leaves the 30-day pulse
- * to the property's own page, where one basis is in force.
+ * to the property's own page, where one basis is in force. The Rating and
+ * Reviews columns are Google's own number and count (decision 16), which the
+ * same read carries.
  */
 const LIFETIME: TimeRangePreset = 'all'
 
@@ -107,8 +109,9 @@ function PropertyListRoute() {
     for (const entry of page.entries) {
       const signals = entry.attentionSignals
       comparison.set(entry.propertyId, {
-        avgRating: entry.avgRating,
-        reviewCount: entry.reviewCount,
+        timezone: entry.timezone,
+        google: entry.google,
+        ratingGoal: entry.ratingGoal,
         attention: {
           total: entry.totalAttention,
           overdue: signals.overdue,

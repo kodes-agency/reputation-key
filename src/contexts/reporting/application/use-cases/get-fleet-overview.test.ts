@@ -83,8 +83,31 @@ function row(
     reviewEvidence: evidence,
     scanEvidence: evidence,
     feedbackEvidence: evidence,
+    google: null,
+    lifecycleActive: true,
+    ratingGoal: null,
     ...overrides,
   }
+}
+
+const GOOGLE_VERIFIED = new Date('2025-06-15T09:00:00Z')
+const google = (
+  overrides: Partial<NonNullable<FleetOverviewProjectionRow['google']>> = {},
+) => ({
+  reviewCount: 812,
+  averageRating: 4.300000190734863,
+  verifiedAt: GOOGLE_VERIFIED,
+  bindingActive: true,
+  ...overrides,
+})
+
+function fleetOf(rows: readonly FleetOverviewProjectionRow[]) {
+  return getFleetOverview({
+    projection: projection(rows),
+    resolveAccessiblePropertyIds,
+    clock: () => NOW,
+    inboxTargets: zeroInboxTargets,
+  })
 }
 
 function projection(
@@ -277,5 +300,112 @@ describe('getFleetOverview (use case)', () => {
       ratingSampleCount: 0,
     })
     expect(result.entries.every((entry) => entry.avgRating === null)).toBe(true)
+  })
+})
+
+describe('Google’s own numbers on the Properties list (decision 16)', () => {
+  it('leads each row with the number and count Google shows, current within a day', async () => {
+    // Act
+    const result = await fleetOf([row(PROP_A, { google: google() })])(baseInput)
+
+    // Assert
+    expect(result.entries[0]?.google).toEqual({
+      shows: 4.3,
+      reviewCount: 812,
+      asOf: GOOGLE_VERIFIED.toISOString(),
+      current: true,
+    })
+  })
+
+  it('keeps Google’s last numbers with their date once they are over a day old', async () => {
+    // Arrange
+    const stale = google({ verifiedAt: new Date('2025-06-14T11:59:59Z') })
+
+    // Act
+    const result = await fleetOf([row(PROP_A, { google: stale })])(baseInput)
+
+    // Assert
+    expect(result.entries[0]?.google).toMatchObject({ shows: 4.3, current: false })
+  })
+
+  it('treats numbers read under an inactive binding as not current', async () => {
+    // Act
+    const result = await fleetOf([
+      row(PROP_A, { google: google({ bindingActive: false }) }),
+    ])(baseInput)
+
+    // Assert
+    expect(result.entries[0]?.google?.current).toBe(false)
+  })
+
+  it('has no Google numbers for a Property Google never sent any for', async () => {
+    // Act
+    const result = await fleetOf([row(PROP_A)])(baseInput)
+
+    // Assert
+    expect(result.entries[0]?.google).toBeNull()
+  })
+})
+
+describe('the Google goal column', () => {
+  it('names the stored target, mode and last known status of an active goal', async () => {
+    // Arrange
+    const goal = {
+      mode: 'climb' as const,
+      targetTenths: 45,
+      lastStatus: 'on_pace' as const,
+    }
+
+    // Act
+    const result = await fleetOf([row(PROP_A, { google: google(), ratingGoal: goal })])(
+      baseInput,
+    )
+
+    // Assert
+    expect(result.entries[0]?.ratingGoal).toEqual({
+      kind: 'set',
+      mode: 'climb',
+      target: 4.5,
+      status: 'on_pace',
+    })
+  })
+
+  it('offers a goal to an active Property Google counts ten reviews for', async () => {
+    // Act
+    const result = await fleetOf([
+      row(PROP_A, { google: google({ reviewCount: 10 }) }),
+      row(PROP_B, { google: google({ reviewCount: 9 }) }),
+    ])(baseInput)
+
+    // Assert
+    expect(result.entries.map((entry) => entry.ratingGoal)).toEqual([
+      { kind: 'none', offered: true },
+      { kind: 'none', offered: false },
+    ])
+  })
+
+  it('offers none to a paused Property or one without Google’s numbers', async () => {
+    // Act
+    const result = await fleetOf([
+      row(PROP_A, { google: google(), lifecycleActive: false }),
+      row(PROP_B),
+    ])(baseInput)
+
+    // Assert
+    expect(result.entries.map((entry) => entry.ratingGoal)).toEqual([
+      { kind: 'none', offered: false },
+      { kind: 'none', offered: false },
+    ])
+  })
+
+  it('says nothing about goals to a reader whose goal read is off', async () => {
+    // Act
+    const result = await fleetOf([row(PROP_A, { google: google() })])({
+      ...baseInput,
+      goalReadEnabled: false,
+    })
+
+    // Assert
+    expect(result.entries[0]?.ratingGoal).toBeNull()
   })
 })

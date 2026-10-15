@@ -9,12 +9,21 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../.storybook/AuthedRouterDecorator'
-import type { DashboardData } from '#/contexts/reporting/application/public-api'
+import type {
+  DashboardData,
+  GoogleNumbersView,
+} from '#/contexts/reporting/application/public-api'
 import type { getPropertyGooglePerformance } from '#/contexts/integration/server/google-performance'
 import type { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import type { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-aggregates'
 import { reviewId } from '#/shared/domain/ids'
 import { PropertyOverview } from './property-overview'
+import { RatingGoalCard } from '#/components/goals/rating-goal-card'
+import {
+  CARD,
+  FIXTURE_NOW,
+  FIXTURE_TIMEZONE,
+} from '#/components/goals/rating-goal.stories.fixtures'
 import {
   activeSignals,
   calmSignals,
@@ -184,6 +193,14 @@ const weekOne: DashboardData = {
   ],
 }
 
+/** Google's own number and count, read an hour before the stories' clock. */
+const GOOGLE: GoogleNumbersView = {
+  shows: 4.3,
+  reviewCount: 412,
+  asOf: '2026-10-14T11:00:00.000Z',
+  current: true,
+}
+
 const meta: Meta<typeof PropertyOverview> = {
   title: 'Property/PropertyOverview',
   component: PropertyOverview,
@@ -195,6 +212,7 @@ const meta: Meta<typeof PropertyOverview> = {
     propertyId: property.id,
     lifetime: populatedDashboard,
     pulse: populatedDashboard,
+    google: GOOGLE,
     signals: activeSignals,
     guestVoiceFns: aiReady,
     profileViewsFns: googleReady,
@@ -228,10 +246,13 @@ export const Ready: Story = {
     // No range control: Overview is a reading, not a report you configure.
     expect(canvas.queryByRole('radiogroup', { name: 'Time range' })).toBeNull()
 
-    // Identity beside pulse. The rating leads all-time; reviews lead recent.
+    // Identity beside pulse. The rating is Google's own, with Google's count;
+    // reviews lead recent.
     expect(canvas.getByText('4.3')).toBeVisible()
-    expect(canvas.getByText(/4\.3 over the last 30 days/)).toBeVisible()
+    expect(canvas.getByText('412 reviews on Google')).toBeVisible()
+    expect(canvas.queryByText(/over the last 30 days/)).toBeNull()
     expect(await canvas.findByText('1,190')).toBeVisible()
+    expect(canvas.getByText(/the rating is Google’s own/)).toBeVisible()
 
     // Every tile is the door to the page that explains it.
     expect(canvas.getByRole('link', { name: 'Rating — open Ratings' })).toBeVisible()
@@ -301,6 +322,7 @@ export const WeekOne: Story = {
     signals: calmSignals,
     guestVoiceFns: aiOff,
     profileViewsFns: googleUnavailable,
+    google: { ...GOOGLE, shows: 5, reviewCount: 2 },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -309,7 +331,7 @@ export const WeekOne: Story = {
     expect(canvas.queryByText('—')).toBeNull()
 
     expect(canvas.getByText('5.0')).toBeVisible()
-    expect(canvas.getByText(/2 new ratings in the last 30 days/)).toBeVisible()
+    expect(canvas.getByText('2 reviews on Google')).toBeVisible()
     expect(canvas.getByText('2')).toBeVisible()
     // Two reviews arrived and neither has a reply: 0% is a true figure, not a
     // dash, and the line says what is missing rather than printing `—`.
@@ -366,5 +388,64 @@ export const Compact390: Story = {
     expect(await canvas.findByText('1,190')).toBeVisible()
     const height = canvasElement.ownerDocument.documentElement.scrollHeight
     expect(height).toBeLessThanOrEqual(844 * 2)
+  },
+}
+
+/** Google's numbers are more than a day old: its last number, with its date, never RepKey's. */
+export const GoogleNumbersStale: Story = {
+  args: { google: { ...GOOGLE, asOf: '2026-10-12T08:00:00.000Z', current: false } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('4.3')).toBeVisible()
+    expect(canvas.getByText('412 reviews on Google')).toBeVisible()
+    expect(canvas.getByText('as of Oct 12')).toBeVisible()
+  },
+}
+
+/** Google never sent numbers for this binding: the tile says so; it shows no other average. */
+export const GoogleNumbersNever: Story = {
+  args: { google: null },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByText('Google hasn’t sent this property’s rating yet.'),
+    ).toBeVisible()
+    expect(canvas.queryByText('4.3')).toBeNull()
+  },
+}
+
+/** Google is not linked: the tile says what to do, not to wait, and shows no other average. */
+export const GoogleNotLinked: Story = {
+  args: { google: null, property: { ...property, googleBindingState: 'unbound' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Link Google to see this property’s rating.')).toBeVisible()
+    expect(canvas.queryByText(/hasn’t sent/)).toBeNull()
+  },
+}
+
+/** The Google rating goal sits between the attention band and "How you are doing". */
+export const WithRatingGoal: Story = {
+  args: {
+    ratingGoal: (
+      <RatingGoalCard
+        card={CARD}
+        propertyId={property.id}
+        timezone={FIXTURE_TIMEZONE}
+        now={new Date(FIXTURE_NOW)}
+      />
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const goal = canvas.getByRole('heading', { name: 'Google rating goal', level: 2 })
+    const band = canvas.getByRole('heading', { name: 'Needs attention', level: 2 })
+    const scorecard = canvas.getByRole('heading', { name: 'How you are doing', level: 2 })
+    expect(
+      band.compareDocumentPosition(goal) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      goal.compareDocumentPosition(scorecard) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   },
 }

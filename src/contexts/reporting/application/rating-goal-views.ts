@@ -15,6 +15,7 @@ import {
   type ReviewsNeeded,
 } from '../domain/rating-goal-numbers'
 import { forecastArrival, type RatingForecast } from '../domain/rating-goal-forecast'
+import { googleNumbersView } from '../domain/google-numbers'
 import {
   currentPacePerWeek,
   paceSuggestions,
@@ -71,17 +72,8 @@ export const tenthsToRating = (tenths: number): number => tenths / 10
 const neededView = (needed: ReviewsNeeded): number | null =>
   needed === 'unreachable' ? null : needed
 
-function googleView(reading: RatingGoalReading): GoogleNumbersView | null {
-  const { google } = reading
-  if (google === null) return null
-  return {
-    shows:
-      google.displayedTenths === null ? null : tenthsToRating(google.displayedTenths),
-    reviewCount: google.reviewCount,
-    asOf: google.verifiedAt.toISOString(),
-    current: reading.googleCurrent,
-  }
-}
+const googleView = (reading: RatingGoalReading): GoogleNumbersView | null =>
+  googleNumbersView(reading.google, reading.facts.googleBindingActive, reading.now)
 
 /** The exact average to three decimals and where it comes from, or neither. */
 function exactView(

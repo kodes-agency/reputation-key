@@ -528,6 +528,12 @@
 // The two raises overlap (+378 B and +107 B on different bases). The budget
 // moves to 308,600 B so chunk-hash noise between builds cannot fail CI; with
 // this the rating goal work has used +700 B of the owner's +2 KB.
+// 2026-10-15 (Property Google rating goal, PR 4: the Overview card and prompt,
+// Google's own number on the Overview and the Properties list, the Google goal
+// column, the setup-strip step and the import step): fresh production builds on
+// the PR 3 branch tip measured 308,596 B (75 js + 1 css), +196 B, twice with the
+// same bytes. That left 4 B, so the budget moves to 308,800 B. With this the
+// rating goal work has raised the budget +900 B of the owner's +2 KB.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -539,7 +545,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 308_600, // raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
+  initialClosureGzip: 308_800, // raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 

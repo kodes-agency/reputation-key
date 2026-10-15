@@ -113,13 +113,19 @@ const disconnectingProperty = property('prop-hillside', 'Hillside Inn', {
   lifecycleState: 'disconnecting',
 })
 
+/** Google's own number and count; none at all is a Property Google never sent numbers for. */
 const figures = (
-  avgRating: number | null,
+  shows: number | null,
   reviewCount: number,
   attention: Partial<PropertyComparison['attention']> = {},
+  ratingGoal: PropertyComparison['ratingGoal'] = { kind: 'none', offered: false },
 ): PropertyComparison => ({
-  avgRating,
-  reviewCount,
+  timezone: 'Europe/Sofia',
+  google:
+    shows === null && reviewCount === 0
+      ? null
+      : { shows, reviewCount, asOf: '2026-10-12T08:00:00.000Z', current: true },
+  ratingGoal,
   attention: {
     total: 0,
     overdue: 0,
@@ -133,16 +139,32 @@ const figures = (
 const comparison: ReadonlyMap<string, PropertyComparison> = new Map([
   [
     'prop-elegance',
-    figures(3.9, 260, {
-      total: 8,
-      overdue: 3,
-      itemsToTriage: 6,
-      escalated: 1,
-      goalsBehindPace: 1,
-    }),
+    figures(
+      3.9,
+      260,
+      {
+        total: 8,
+        overdue: 3,
+        itemsToTriage: 6,
+        escalated: 1,
+        goalsBehindPace: 1,
+      },
+      { kind: 'set', mode: 'climb', target: 4, status: 'below_pace' },
+    ),
   ],
-  ['prop-harborline', figures(4.3, 412, { total: 4, itemsToTriage: 4 })],
-  ['prop-kodes', figures(5, 20, { total: 1, itemsToTriage: 1 })],
+  [
+    'prop-harborline',
+    figures(4.3, 412, { total: 4, itemsToTriage: 4 }, { kind: 'none', offered: true }),
+  ],
+  [
+    'prop-kodes',
+    figures(
+      5,
+      20,
+      { total: 1, itemsToTriage: 1 },
+      { kind: 'set', mode: 'keep', target: 5, status: 'holding' },
+    ),
+  ],
   // A week-one property in a fleet of established ones.
   ['prop-initech', figures(null, 0)],
   ['prop-studio', figures(5, 4)],
@@ -197,9 +219,10 @@ export const Default: Story = {
     // Most work first.
     expect(within(bodyRows(canvas)[0]!).getByText('Hotel Elegance')).toBeVisible()
     expect(canvas.getByText('3.9')).toBeVisible()
-    // A property with no ratings says so rather than showing a dash (row 12).
-    expect(canvas.getByText('No ratings')).toBeVisible()
-    expect(canvas.queryByText('—')).toBeNull()
+    // Google never sent numbers for Initech: a dash, named for a screen reader
+    // (owner, 2026-10-14: a dash only when no Google numbers ever existed).
+    expect(canvas.getByText('No rating from Google yet')).toBeInTheDocument()
+    expect(canvas.getByText('No review count from Google yet')).toBeInTheDocument()
     // The count opens the queue that holds it; overdue is its qualifier, not a part.
     expect(
       canvas.getByRole('link', {
@@ -218,7 +241,10 @@ export const Default: Story = {
     expect(canvas.getByText('6 properties')).toBeVisible()
     expect(canvas.getByText('1 paused')).toBeVisible()
     expect(
-      canvas.getByText('Ratings and review counts are all-time.', { exact: false }),
+      canvas.getByText('Ratings and review counts are Google’s own.', { exact: false }),
+    ).toBeVisible()
+    expect(
+      within(canvas.getByLabelText('Portfolio summary')).getByText(/Google reviews$/),
     ).toBeVisible()
     // The slug and the IANA timezone left the list.
     expect(canvas.queryByText(/Los_Angeles/)).toBeNull()
@@ -229,6 +255,151 @@ export const Default: Story = {
 }
 
 export const DefaultLight: Story = { args: ready, parameters: { theme: 'light' } }
+
+/** The Google goal column (decision 13): a goal's target and status, "Set goal", or a dash. */
+export const GoogleGoalColumn: Story = {
+  args: ready,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByRole('columnheader', { name: 'Google goal' })).toBeVisible()
+    expect(
+      canvas.getByRole('link', {
+        name: '4.0 · Below pace: Google rating goal for Hotel Elegance',
+      }),
+    ).toHaveAttribute('href', '/properties/prop-elegance/goals/google-rating')
+    expect(
+      canvas.getByRole('link', {
+        name: '5.0 · Holding: Google rating goal for KODES agency',
+      }),
+    ).toBeVisible()
+    // No goal, ten Google reviews or more, a manager who may set one.
+    expect(
+      canvas.getByRole('link', {
+        name: 'Set goal: Google rating goal for Harborline Suites',
+      }),
+    ).toHaveAttribute('href', '/properties/prop-harborline/goals?start=rating-goal')
+    // Too few Google reviews, no Google numbers, or paused: nothing to set.
+    expect(canvas.getAllByRole('link', { name: /^Set goal:/ })).toHaveLength(1)
+  },
+}
+
+/** Stacked on a phone, the goal is one quiet line of the row, and a row with no goal says nothing. */
+export const GoogleGoalColumnPhone: Story = {
+  args: ready,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const elegance = bodyRows(canvas).find((row: HTMLElement) =>
+      within(row).queryByText('Hotel Elegance'),
+    )!
+    expect(within(elegance).getByText('Google goal:')).toBeInTheDocument()
+    const goal = within(elegance).getByRole('link', {
+      name: '4.0 · Below pace: Google rating goal for Hotel Elegance',
+    })
+    expect(goal).toHaveTextContent('4.0·Below pace')
+    expect(goal).toBeVisible()
+  },
+}
+
+/**
+ * The longest statuses at the width the table really gets beside the app's
+ * sidebar (about 1000px): the target stays on its line, the status on the next.
+ */
+export const GoogleGoalLongStatuses: Story = {
+  args: {
+    ...ready,
+    comparison: new Map([
+      ...comparison,
+      [
+        'prop-studio',
+        figures(
+          4.2,
+          140,
+          {},
+          { kind: 'set', mode: 'climb', target: 4.5, status: 'cant_reach_at_mix' },
+        ),
+      ],
+      [
+        'prop-harborline',
+        figures(
+          4.3,
+          412,
+          { total: 4, itemsToTriage: 4 },
+          { kind: 'set', mode: 'climb', target: 4.8, status: 'waiting_for_google' },
+        ),
+      ],
+    ]),
+    setup: new Map([
+      ...setup,
+      ['prop-elegance', progress(6, nextStep('rating_goal', 'goals'))],
+    ]),
+  },
+  decorators: [
+    (Story) => (
+      <div style={{ width: 1000 }}>
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByRole('link', {
+        name: '4.5 · Can’t reach at this mix: Google rating goal for Studio Priority',
+      }),
+    ).toBeVisible()
+    expect(
+      canvas.getByRole('link', {
+        name: '4.8 · Waiting for Google: Google rating goal for Harborline Suites',
+      }),
+    ).toBeVisible()
+    // The setup's next step opens the rating goal wizard on the Goals page.
+    expect(
+      canvas.getByRole('link', { name: /Next: Set a Google rating goal/ }),
+    ).toHaveAttribute('href', '/properties/prop-elegance/goals?start=rating-goal')
+  },
+}
+
+/** Google's numbers more than a day old: the last ones, with their date, never a dash. */
+export const StaleGoogleNumbers: Story = {
+  args: {
+    ...ready,
+    comparison: new Map([
+      ...comparison,
+      [
+        'prop-harborline',
+        {
+          ...comparison.get('prop-harborline')!,
+          google: {
+            shows: 4.3,
+            reviewCount: 412,
+            asOf: '2026-10-12T08:00:00.000Z',
+            current: false,
+          },
+        },
+      ],
+    ]),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const harborline = bodyRows(canvas).find((row: HTMLElement) =>
+      within(row).queryByText('Harborline Suites'),
+    )!
+    expect(within(harborline).getByText('4.3')).toBeVisible()
+    expect(within(harborline).getByText('as of Oct 12')).toBeVisible()
+    expect(within(harborline).getByText('412')).toBeVisible()
+  },
+}
+
+/** A reader who may not set goals sees each goal and no "Set goal". */
+export const GoogleGoalColumnReadOnly: Story = {
+  args: ready,
+  decorators: [withRole('Member')],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('link', { name: /^Set goal:/ })).toBeNull()
+  },
+}
 
 export const FiguresPending: Story = {
   args: {
@@ -243,7 +414,7 @@ export const FiguresPending: Story = {
     // The order waits for the figures: name order until they arrive.
     expect(within(bodyRows(canvas)[0]!).getByText('Globex HQ')).toBeVisible()
     expect(canvas.getByRole('button', { name: 'Sort: Needs attention' })).toBeVisible()
-    expect(canvas.queryByText(/all-time/)).toBeNull()
+    expect(canvas.queryByText(/Google’s own/)).toBeNull()
   },
 }
 

@@ -329,6 +329,63 @@ export const SetupStripHiddenWhenDone: Story = {
   },
 }
 
+/**
+ * The Google rating goal step: an eighth that counts, opens the wizard on the
+ * Goals page (`?start=rating-goal`), and has "Not now".
+ */
+const withRatingGoal: PropertySetup = {
+  ...freshlyImported,
+  attentionCount: 5,
+  steps: [
+    ...freshlyImported.steps,
+    { key: 'rating_goal', status: 'pending', asked: false, section: 'goals' },
+  ],
+}
+const chooseNotNow = fn()
+
+export const SetupStripWithRatingGoal: Story = {
+  render: () => (
+    <PropertySetupStrip
+      propertyId={PROPERTY_ID}
+      setup={withRatingGoal}
+      ratingGoalNotNow={{ choose: chooseNotNow, pending: false }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('2 of 8 done')).toBeVisible()
+    expect(
+      canvas.getByRole('link', { name: /set a google rating goal/i }),
+    ).toHaveAttribute('href', `/properties/${PROPERTY_ID}/goals?start=rating-goal`)
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Not now: Set a Google rating goal' }),
+    )
+    expect(chooseNotNow).toHaveBeenCalledOnce()
+  },
+}
+
+/** After "Not now" the step counts as decided and is no longer listed. */
+export const SetupStripRatingGoalNotNow: Story = {
+  render: () => (
+    <PropertySetupStrip
+      propertyId={PROPERTY_ID}
+      setup={{
+        ...withRatingGoal,
+        steps: withRatingGoal.steps.map((step) =>
+          step.key === 'rating_goal' ? { ...step, status: 'deferred' } : step,
+        ),
+      }}
+      ratingGoalNotNow={{ choose: fn(), pending: false }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('3 of 8 done')).toBeVisible()
+    expect(canvas.queryByRole('link', { name: /set a google rating goal/i })).toBeNull()
+    expect(canvas.queryByRole('button', { name: /not now/i })).toBeNull()
+  },
+}
+
 export const ProfileResetRestoresTheSavedName: Story = {
   render: () => (
     <div className="max-w-2xl">

@@ -186,7 +186,7 @@ export function PropertyListPage({
           )}
           {fleet === 'ready' ? (
             <p className="text-sm text-muted-foreground">
-              Ratings and review counts are all-time.{' '}
+              Ratings and review counts are Google’s own.{' '}
               <GlossaryTerm term="needs-attention">Needs attention</GlossaryTerm> counts
               work waiting on you.
             </p>

@@ -26,4 +26,17 @@ describe('goalListSearchSchema', () => {
       view: 'history',
     })
   })
+
+  it('reads a request to open the Google rating goal wizard on arrival', () => {
+    expect(goalListSearchSchema.parse({ start: 'rating-goal' })).toEqual({
+      view: 'active',
+      start: 'rating-goal',
+    })
+  })
+
+  it('drops a start it does not know', () => {
+    expect(goalListSearchSchema.parse({ start: 'portal-goal' })).toEqual({
+      view: 'active',
+    })
+  })
 })

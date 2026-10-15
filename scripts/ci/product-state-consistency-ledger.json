@@ -740,6 +740,24 @@
       "classification": "local_runtime",
       "owner": "Google rating goal page",
       "policy": "The instant the page was opened, taken once so a stale Google number's date and the change log's days print their year only when it is not the current one; it is not server state and is never written back, and a remount of the route is its reset boundary."
+    },
+    {
+      "id": "src/routes/_authenticated/properties/$propertyId/goals/-rating-goal-overview.tsx:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Property Overview, Google rating goal",
+      "policy": "The instant the Overview was opened, taken once so a stale Google number's date prints its year only when it is not the current one and a goal reached lately is told for its 14 days; it is not server state and is never written back, and a remount of the route is its reset boundary."
+    },
+    {
+      "id": "src/components/features/property/property-overview.tsx:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Property Overview, Rating tile",
+      "policy": "The instant the Overview was drawn, taken once so the date of Google's last number prints its year only when it is not the current one; the number and its date are the overview read's, it is never written back, and a remount of the page is its reset boundary."
+    },
+    {
+      "id": "src/components/features/property/property-list-table.tsx:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Properties list, Rating column",
+      "policy": "The instant the table was drawn, taken once so the date of Google's last number prints its year only when it is not the current one; the numbers are the fleet read's, it is never written back, and a remount of the list is its reset boundary."
     }
   ],
   "classificationDefinitions": {

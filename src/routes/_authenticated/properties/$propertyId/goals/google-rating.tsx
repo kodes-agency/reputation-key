@@ -10,7 +10,7 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { can } from '#/shared/domain/permissions'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { goalKeys } from '#/shared/queries/query-keys'
+import { dashboardKeys, goalKeys, propertyKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -66,6 +66,12 @@ function useEndRatingGoal(propertyId: string) {
   const family = goalKeys.ratingGoal(propertyId)
   return useActionMutation(withRatingGoalRefusals(ratingGoalCommands.endRatingGoal), {
     successMessage: 'Google rating goal ended',
+    // The Property's setup step and its Properties list cell move with the goal.
+    invalidateKeys: [
+      propertyKeys.setup(propertyId),
+      propertyKeys.setupSummaries(),
+      dashboardKeys.fleets(),
+    ],
     // A refusal usually means this page is behind: read the goal again.
     onError: () => void queryClient.invalidateQueries({ queryKey: family }),
     onSuccess: async () => {

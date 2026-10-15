@@ -9,6 +9,7 @@ import { Link } from '@tanstack/react-router'
 import { CircleCheck } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
+import { RatingGoalCancel } from './rating-goal-wizard-cancel'
 import { TONE_INK } from '#/components/ui/tone'
 import type { RatingGoalReceipt } from './rating-goal-wizard-view'
 
@@ -65,7 +66,7 @@ export function RatingGoalKeepStep({
     <>
       {banner}
       <DialogFooter className="mt-auto">
-        <DialogCancel />
+        <RatingGoalCancel />
         <Button pending={pending} onClick={onStart}>
           Start watching
         </Button>
