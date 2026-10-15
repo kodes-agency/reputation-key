@@ -432,6 +432,7 @@ describe('Goal Organization Export contributor', () => {
       mode: 'climb',
       target_tenths: 45,
       pace_per_week: 14,
+      quality_tenths: 47,
       status: 'active',
       ended_reason: null,
       baseline_review_count: 812,

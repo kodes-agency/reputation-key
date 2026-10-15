@@ -414,6 +414,13 @@
       "when": 1793900000000,
       "tag": "0058_property_rating_goal_deferrals",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1794000000000,
+      "tag": "0059_rating_goal_planned_quality",
+      "breakpoints": true
     }
   ]
 }

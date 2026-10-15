@@ -9,7 +9,8 @@
 // evaluation never moves the version and writes only when it changes the row,
 // and only onto the plan version it was worked out on, never over a newer
 // evaluation, and only onto the tenth, known status and below-pace notice it
-// read: a reached step decided on a target the manager has since raised, an
+// read: a reached step decided on a target the manager has since raised (or a
+// quality or pace they changed: all of the plan moves the version), an
 // older reading landing after a newer one, or a second evaluation of a change
 // another one already stored, changes nothing and tells nobody. The notices an
 // evaluation raises are written as outbox facts in its own transaction.
@@ -53,6 +54,7 @@ const goalFromRow = (row: GoalRow): PropertyRatingGoal => ({
   sourceEpoch: row.sourceEpoch,
   mode: row.mode as RatingGoalMode,
   targetTenths: row.targetTenths,
+  qualityTenths: row.qualityTenths,
   pacePerWeek: row.pacePerWeek,
   state: row.status as RatingGoalState,
   endedReason: row.endedReason as RatingGoalEndedReason | null,
@@ -67,7 +69,7 @@ const goalFromRow = (row: GoalRow): PropertyRatingGoal => ({
     evaluatedAt: row.lastEvaluatedAt,
     knownStatus: row.lastKnownStatus as RatingGoalStatus | null,
     belowPaceNoticedAt: row.belowPaceNoticedAt,
-    cantReachNoticedAt: row.cantReachNoticedAt,
+    tooLowNoticedAt: row.tooLowNoticedAt,
   },
   reachedAt: row.reachedAt,
   endedAt: row.endedAt,
@@ -89,9 +91,9 @@ const changeFromRow = (row: ChangeRow): RatingGoalChange => ({
   newValue: row.newValue,
 })
 
-/** One change writes its rows at one instant: mode, then target, then pace. */
+/** One change writes its rows at one instant: mode, target, quality, then pace. */
 const changeFieldOrder = sql`CASE ${propertyRatingGoalChanges.field}
-  WHEN 'mode' THEN 0 WHEN 'target' THEN 1 ELSE 2 END`
+  WHEN 'mode' THEN 0 WHEN 'target' THEN 1 WHEN 'quality' THEN 2 ELSE 3 END`
 
 const goalScope = (organizationId: string, propertyId: string) =>
   and(
@@ -122,7 +124,7 @@ function evaluationSet(write: RatingGoalEvaluationWrite) {
     lastEvaluatedAt: write.evaluatedAt,
     lastKnownStatus: write.knownStatus,
     belowPaceNoticedAt: write.belowPaceNoticedAt,
-    cantReachNoticedAt: write.cantReachNoticedAt,
+    tooLowNoticedAt: write.tooLowNoticedAt,
     updatedAt: write.evaluatedAt,
   }
   switch (write.outcome.kind) {
@@ -157,7 +159,7 @@ const markUnchangedSince = ({ expectedMark }: RatingGoalEvaluationWrite) =>
   sql`(${propertyRatingGoals.lastDisplayedTenths} IS NOT DISTINCT FROM ${expectedMark.displayedTenths}::smallint
     AND ${propertyRatingGoals.lastKnownStatus} IS NOT DISTINCT FROM ${expectedMark.knownStatus}::varchar
     AND ${propertyRatingGoals.belowPaceNoticedAt} IS NOT DISTINCT FROM ${expectedMark.belowPaceNoticedAt}::timestamptz
-    AND ${propertyRatingGoals.cantReachNoticedAt} IS NOT DISTINCT FROM ${expectedMark.cantReachNoticedAt}::timestamptz)`
+    AND ${propertyRatingGoals.tooLowNoticedAt} IS NOT DISTINCT FROM ${expectedMark.tooLowNoticedAt}::timestamptz)`
 
 /** One `goal.rating_goal.transitioned` fact per notice, in the write's transaction. */
 async function insertNoticeFacts(
@@ -259,6 +261,7 @@ export const createPropertyRatingGoalRepository = (
           sourceEpoch: goal.sourceEpoch,
           mode: goal.mode,
           targetTenths: goal.targetTenths,
+          qualityTenths: goal.qualityTenths,
           pacePerWeek: goal.pacePerWeek,
           status: 'active',
           baselineReviewCount: goal.baseline.reviewCount,
@@ -269,7 +272,7 @@ export const createPropertyRatingGoalRepository = (
           lastEvaluatedAt: goal.lastEvaluation.evaluatedAt,
           lastKnownStatus: goal.lastEvaluation.knownStatus,
           belowPaceNoticedAt: goal.lastEvaluation.belowPaceNoticedAt,
-          cantReachNoticedAt: goal.lastEvaluation.cantReachNoticedAt,
+          tooLowNoticedAt: goal.lastEvaluation.tooLowNoticedAt,
           createdBy: goal.createdBy,
           createdAt: goal.createdAt,
           updatedAt: goal.updatedAt,
@@ -288,6 +291,7 @@ export const createPropertyRatingGoalRepository = (
           .set({
             mode: change.plan.mode,
             targetTenths: change.plan.targetTenths,
+            qualityTenths: change.plan.qualityTenths,
             pacePerWeek: change.plan.pacePerWeek,
             // The status the new plan puts the goal in is the manager's own
             // doing: the next evaluation stores it without a notice.
