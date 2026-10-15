@@ -80,7 +80,7 @@ describe('RatingGoalCard', () => {
     const html = render(CARD_KEEP)
     const text = textOf(html)
 
-    expect(text).toContain('Keeping 4.3 on Google')
+    expect(text).toContain('Keeping 4.9 on Google')
     expect(text).toContain('Holding')
     expect(text).not.toContain('your goal')
     expect(html).not.toContain('progressbar')

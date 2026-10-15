@@ -73,15 +73,15 @@ function titleOf(step: Step, intent: RatingGoalWizardIntent): string {
   return `Keep ${intent.kind === 'keep' ? tenthsText(intent.targetTenths) : ''} on Google`
 }
 
-/** Nothing is higher than 5.0: a goal that keeps it can only be ended. */
-const PERFECT_TENTHS = 50
-
-/** What the done screen says can come next, for the goal just set. */
+/**
+ * What the done screen says can come next, for the goal just set. A goal to
+ * keep is set only at 4.9 or 5.0 (R2-9), where there is nothing higher to aim
+ * for: it can only be ended.
+ */
 function doneDescription(intent: RatingGoalWizardIntent): string {
-  if (intent.kind !== 'keep') return 'You can change the plan at any time.'
-  return intent.targetTenths < PERFECT_TENTHS
-    ? 'You can aim higher at any time.'
-    : 'You can end it at any time.'
+  return intent.kind === 'keep'
+    ? 'You can end it at any time.'
+    : 'You can change the plan at any time.'
 }
 
 /**

@@ -23,11 +23,24 @@ describe('reached', () => {
       }),
     ).toEqual({
       title: 'Google now shows 4.5 for Riverside Hotel: goal reached',
-      body: 'Set your next goal, or keep 4.5.',
+      body: 'Set your next goal.',
       detail: '',
       actionLabel: 'Set next goal',
       summary: 'Riverside Hotel · Google rating goal reached',
     })
+  })
+
+  it('offers to keep the number only when Google shows 4.9 or 5.0 (R2-9)', () => {
+    const reached = (tenths: number) =>
+      copy('goal.rating_reached', {
+        ...AT,
+        ratingShownTenths: tenths,
+        ratingTargetTenths: tenths,
+      }).body
+
+    expect(reached(48)).toBe('Set your next goal.')
+    expect(reached(49)).toBe('Set your next goal, or keep 4.9.')
+    expect(reached(50)).toBe('Set your next goal, or keep 5.0.')
   })
 
   it('still says the goal was reached without its figures', () => {

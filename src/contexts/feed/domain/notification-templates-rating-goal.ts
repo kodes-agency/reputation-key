@@ -42,14 +42,22 @@ const googleShows = (p: NotificationPayload): string | null =>
     ? null
     : `Google now shows ${tenths(p.ratingShownTenths)}${forProperty(p)}`
 
+/**
+ * Keep is offered only while Google shows 4.9 or 5.0, where no higher tenth can
+ * be planned (round 2, R2-9; Reporting's `offerKeepFirst`, restated here as
+ * Feed reads no Reporting module).
+ */
+const KEEP_OFFERED_FROM_TENTHS = 49
+
 export const renderRatingGoalReached = (p: NotificationPayload): RatingGoalNoticeCopy => {
   const shows = googleShows(p)
+  const keepOffered =
+    p.ratingShownTenths !== undefined && p.ratingShownTenths >= KEEP_OFFERED_FROM_TENTHS
   return {
     title: shows === null ? 'Google rating goal reached' : `${shows}: goal reached`,
-    body:
-      shows === null
-        ? 'Set your next goal.'
-        : `Set your next goal, or keep ${tenths(p.ratingShownTenths)}.`,
+    body: keepOffered
+      ? `Set your next goal, or keep ${tenths(p.ratingShownTenths)}.`
+      : 'Set your next goal.',
     actionLabel: 'Set next goal',
     summary: summaryOf(p, 'Google rating goal reached'),
   }

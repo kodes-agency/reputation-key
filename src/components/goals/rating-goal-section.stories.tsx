@@ -188,7 +188,7 @@ export const KeepHolding: Story = {
   args: { card: cardRead(CARD_KEEP) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Keeping 4.3 on Google')).toBeVisible()
+    await expect(canvas.getByText('Keeping 4.9 on Google')).toBeVisible()
     await expect(canvas.getByText('Holding')).toBeVisible()
     await expect(canvas.queryByRole('progressbar')).toBeNull()
     await expect(canvas.queryByText(/a week/)).toBeNull()
@@ -201,7 +201,7 @@ export const KeepDroppedBelow: Story = {
     card: cardRead({
       ...CARD_KEEP,
       status: 'dropped_below',
-      google: { ...CARD_KEEP.google!, shows: 4.2 },
+      google: { ...CARD_KEEP.google!, shows: 4.8 },
     }),
   },
   play: async ({ canvasElement }) => {
@@ -211,12 +211,14 @@ export const KeepDroppedBelow: Story = {
 
 type Canvas = ReturnType<typeof within>
 
-/** After a goal is reached: "Set your next goal" opens Pick a plan, "Keep 4.5" keeps it. */
+/**
+ * After a goal is reached: "Set your next goal" opens Pick a plan. Keep is
+ * offered only at 4.9 or 5.0 (R2-9), so 4.5 has no "Keep 4.5".
+ */
 async function expectNextGoalDoors(canvas: Canvas, onStart: unknown) {
   await userEvent.click(canvas.getByRole('button', { name: 'Set your next goal' }))
   await expect(onStart).toHaveBeenCalledWith({ kind: 'climb' })
-  await userEvent.click(canvas.getByRole('button', { name: 'Keep 4.5' }))
-  await expect(onStart).toHaveBeenCalledWith({ kind: 'keep', targetTenths: 45 })
+  await expect(canvas.queryByRole('button', { name: /^Keep/ })).toBeNull()
 }
 
 /** With no goal: the title, its sentence, and "Set goal", which opens Pick a plan. */
@@ -231,7 +233,7 @@ async function expectPlanDoor(
   await expect(onStart).toHaveBeenCalledWith({ kind: 'climb' })
 }
 
-/** Reached: the day, then the next goal ("Pick a plan") or keep the number. */
+/** Reached: the day, then the next goal ("Pick a plan"). */
 export const Reached: Story = {
   args: { card: cardRead(CARD_REACHED) },
   play: async ({ canvasElement, args }) => {
@@ -240,6 +242,25 @@ export const Reached: Story = {
       canvas.getByText('Google shows 4.5 — goal reached on Oct 14'),
     ).toBeVisible()
     await expectNextGoalDoors(canvas, args.onStart)
+  },
+}
+
+/** Reached at 4.9: nothing higher can be planned, so the one next step is to keep it. */
+export const ReachedAtFourNine: Story = {
+  args: {
+    card: cardRead({
+      ...CARD_REACHED,
+      targetTenths: 49,
+      target: 4.9,
+      threshold: 4.85,
+      google: { ...CARD_REACHED.google!, shows: 4.9 },
+    }),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.queryByRole('button', { name: 'Set your next goal' })).toBeNull()
+    await userEvent.click(canvas.getByRole('button', { name: 'Keep 4.9' }))
+    await expect(args.onStart).toHaveBeenCalledWith({ kind: 'keep', targetTenths: 49 })
   },
 }
 

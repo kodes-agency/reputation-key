@@ -438,14 +438,17 @@ export const KeepFirst: Story = {
   },
 }
 
-/** "Keep 4.5" after reaching it: one step, and the done screen offers to aim higher. */
+/**
+ * "Keep 4.9" after reaching it (Keep is offered only at 4.9 or 5.0, R2-9): one
+ * step, and the done screen says it can be ended, as nothing is higher to aim for.
+ */
 export const KeepAfterReaching: Story = {
-  args: { intent: { kind: 'keep', targetTenths: 45 } },
+  args: { intent: { kind: 'keep', targetTenths: 49 } },
   play: async ({ canvasElement }) => {
-    const dialog = await open(canvasElement, 'Keep 4.5 on Google')
+    const dialog = await open(canvasElement, 'Keep 4.9 on Google')
     await userEvent.click(dialog.getByRole('button', { name: 'Start watching' }))
-    await expect(await dialog.findByText('Keeping 4.5 on Google')).toBeVisible()
-    await expect(dialog.getByText('You can aim higher at any time.')).toBeVisible()
+    await expect(await dialog.findByText('Keeping 4.9 on Google')).toBeVisible()
+    await expect(dialog.getByText('You can end it at any time.')).toBeVisible()
   },
 }
 

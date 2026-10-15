@@ -24,6 +24,20 @@ const climb = {
   pacePerWeek: 11,
 } as const
 
+const keep49 = {
+  propertyId: PROPERTY,
+  mode: 'keep',
+  targetTenths: 49,
+  qualityTenths: null,
+  pacePerWeek: null,
+} as const
+
+/** Google shows 4.9 (3980 / 812 = 4.9015): the only numbers Keep is set at (R2-9). */
+function showingFourNine(at: FakeWorld): void {
+  at.snapshot = { ...at.snapshot!, averageRating: Math.fround(4.9) }
+  at.summary = { ...at.summary, all: { count: 812, sum: 3980 } }
+}
+
 describe('setting a rating goal', () => {
   it('stores the plan, the binding epoch and the baselines it starts from', async () => {
     const result = await setRatingGoal(dependencies(world), climb, actor)
@@ -54,11 +68,6 @@ describe('setting a rating goal', () => {
       { targetTenths: 48, qualityTenths: 50 },
       'getting_started',
     ],
-    [
-      'a keep goal',
-      { mode: 'keep', targetTenths: 43, qualityTenths: null, pacePerWeek: null },
-      'holding',
-    ],
   ] as const)(
     'stores the tenth Google shows and the status %s starts in, as known',
     async (_name, plan, status) => {
@@ -77,6 +86,18 @@ describe('setting a rating goal', () => {
     },
   )
 
+  it('stores the tenth Google shows and the status a keep goal starts in, as known', async () => {
+    showingFourNine(world)
+
+    await setRatingGoal(dependencies(world), keep49, actor)
+
+    expect(world.goals[0]!.lastEvaluation).toMatchObject({
+      displayedTenths: 49,
+      status: 'holding',
+      knownStatus: 'holding',
+    })
+  })
+
   it('refuses a planned quality that does not clear the target’s floor by 0.15★', async () => {
     // 4.4 shows from 4.35, so new reviews must average 4.5 or more.
     await expect(
@@ -89,18 +110,10 @@ describe('setting a rating goal', () => {
   })
 
   it('refuses a planned quality on a keep goal', async () => {
+    showingFourNine(world)
+
     await expect(
-      setRatingGoal(
-        dependencies(world),
-        {
-          propertyId: PROPERTY,
-          mode: 'keep',
-          targetTenths: 43,
-          qualityTenths: 47,
-          pacePerWeek: null,
-        },
-        actor,
-      ),
+      setRatingGoal(dependencies(world), { ...keep49, qualityTenths: 47 }, actor),
     ).rejects.toMatchObject({ code: 'invalid_quality' })
   })
 
@@ -168,24 +181,23 @@ describe('setting a rating goal', () => {
   })
 
   it('keeps a tenth Google shows without a pace', async () => {
-    await setRatingGoal(
-      dependencies(world),
-      {
-        propertyId: PROPERTY,
-        mode: 'keep',
-        targetTenths: 43,
-        qualityTenths: null,
-        pacePerWeek: null,
-      },
-      actor,
-    )
+    showingFourNine(world)
+
+    await setRatingGoal(dependencies(world), keep49, actor)
 
     expect(world.goals[0]).toMatchObject({
       mode: 'keep',
-      targetTenths: 43,
+      targetTenths: 49,
       qualityTenths: null,
       pacePerWeek: null,
     })
+  })
+
+  it('keeps nothing while Google shows less than 4.9 (R2-9)', async () => {
+    await expect(
+      setRatingGoal(dependencies(world), { ...keep49, targetTenths: 43 }, actor),
+    ).rejects.toMatchObject({ code: 'invalid_target' })
+    expect(world.goals).toEqual([])
   })
 
   it('sets nothing while the Organization closure holds it', async () => {
@@ -292,15 +304,17 @@ describe('changing a rating goal', () => {
   })
 
   it('drops the quality and the pace when the goal switches to keep', async () => {
+    showingFourNine(world)
+
     await changeRatingGoal(
       dependencies(world),
-      { ...change, mode: 'keep', targetTenths: 43 },
+      { ...change, mode: 'keep', targetTenths: 49 },
       actor,
     )
 
     expect(world.goals[0]).toMatchObject({
       mode: 'keep',
-      targetTenths: 43,
+      targetTenths: 49,
       qualityTenths: null,
       pacePerWeek: null,
     })

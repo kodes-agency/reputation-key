@@ -310,10 +310,10 @@ describe('a Property Google rating goal on PostgreSQL', () => {
       allow,
       {
         propertyId: PROPERTY,
-        mode: 'keep',
-        targetTenths: 43,
-        qualityTenths: null,
-        pacePerWeek: null,
+        mode: 'climb',
+        targetTenths: 44,
+        qualityTenths: 48,
+        pacePerWeek: 2,
       },
       actor,
     )

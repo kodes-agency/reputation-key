@@ -113,13 +113,21 @@ export const Monitoring: Story = {
   },
 }
 
+/** A goal to keep, set while Google showed 4.9 (Keep is offered only at 4.9 or 5.0). */
 export const KeepGoal: Story = {
   args: {
     detail: {
       ...DETAIL,
       mode: 'keep',
-      targetTenths: 43,
-      target: 4.3,
+      targetTenths: 49,
+      target: 4.9,
+      threshold: 4.85,
+      google: { ...DETAIL.google!, shows: 4.9 },
+      exactAverage: 4.912,
+      qualityTenths: null,
+      quality: null,
+      qualityBasis: null,
+      plan: null,
       pacePerWeek: null,
       status: 'holding',
       progress: null,
@@ -135,7 +143,7 @@ export const KeepGoal: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      canvas.getByRole('heading', { name: 'Keeping 4.3 on Google' }),
+      canvas.getByRole('heading', { name: 'Keeping 4.9 on Google' }),
     ).toBeVisible()
     await expect(canvas.queryByText(/^Your pace/)).toBeNull()
     await expect(canvas.queryByRole('progressbar')).toBeNull()

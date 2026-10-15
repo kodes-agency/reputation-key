@@ -4,8 +4,9 @@
 // often as from the read that found it. It says what happened, on which day,
 // and offers what comes next: after reaching, "Set your next goal" ("Pick a
 // plan", whose plans start from the next tenth or a realistic one a little
-// higher, round 2) or "Keep 4.5"; after an end it did not choose, a new goal
-// (ADR 0067, decision 6).
+// higher, round 2), or "Keep 4.9" at 4.9 or 5.0, where no higher tenth can be
+// planned and the only place Keep is offered (R2-9); after an end it did not
+// choose, a new goal (ADR 0067, decision 6).
 import { Button } from '#/components/ui/button'
 import { Card, CardContent } from '#/components/ui/card'
 import { StatusBadge } from '#/components/ui/status-badge'
@@ -15,7 +16,7 @@ import { RatingGoalCardHeader } from './rating-goal-card'
 import { endedSentence, ratingText, type RatingGoalOutcomeView } from './rating-goal-view'
 import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
 
-/** The highest tenth a goal can climb to (4.9): there is no "next" past it. */
+/** The highest tenth a goal can climb to (4.9): there is no "next" past it, only Keep. */
 const HIGHEST_TENTHS = 49
 
 type Props = Readonly<{
@@ -53,15 +54,12 @@ function NextSteps({ outcome, onStart }: Pick<Props, 'outcome' | 'onStart'>) {
   if (outcome.state === 'ended') {
     return <Button onClick={() => onStart({ kind: 'climb' })}>Set a new goal</Button>
   }
-  return (
-    <>
-      {targetTenths < HIGHEST_TENTHS ? (
-        <Button onClick={() => onStart({ kind: 'climb' })}>Set your next goal</Button>
-      ) : null}
-      <Button variant="outline" onClick={() => onStart({ kind: 'keep', targetTenths })}>
-        {`Keep ${ratingText(outcome.target)}`}
-      </Button>
-    </>
+  return targetTenths < HIGHEST_TENTHS ? (
+    <Button onClick={() => onStart({ kind: 'climb' })}>Set your next goal</Button>
+  ) : (
+    <Button variant="outline" onClick={() => onStart({ kind: 'keep', targetTenths })}>
+      {`Keep ${ratingText(outcome.target)}`}
+    </Button>
   )
 }
 

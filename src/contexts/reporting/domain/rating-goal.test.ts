@@ -19,9 +19,15 @@ describe('the target a rating goal may hold', () => {
 
   it('keeps a tenth Google shows now, or a lower one, including 5.0', () => {
     expect(targetProblem('keep', 50, 50)).toBeNull()
-    expect(targetProblem('keep', 45, 46)).toBeNull()
-    expect(targetProblem('keep', 47, 46)).toBe('invalid_target')
-    expect(targetProblem('keep', 9, 46)).toBe('invalid_target')
+    expect(targetProblem('keep', 49, 49)).toBeNull()
+    expect(targetProblem('keep', 48, 49)).toBeNull()
+    expect(targetProblem('keep', 50, 49)).toBe('invalid_target')
+    expect(targetProblem('keep', 9, 49)).toBe('invalid_target')
+  })
+
+  it('keeps nothing while Google shows less than 4.9 (round 2, R2-9)', () => {
+    expect(targetProblem('keep', 48, 48)).toBe('invalid_target')
+    expect(targetProblem('keep', 45, 46)).toBe('invalid_target')
   })
 })
 

@@ -135,16 +135,19 @@ export const CARD_JUST_SET: RatingGoalCardView = {
   setAt: '2026-10-13T09:00:00.000Z',
 }
 
+/** A goal to keep, which is set only while Google shows 4.9 or 5.0 (R2-9). */
 export const CARD_KEEP: RatingGoalCardView = {
   ...CARD,
   mode: 'keep',
-  targetTenths: 43,
-  target: 4.3,
+  targetTenths: 49,
+  target: 4.9,
   qualityTenths: null,
   quality: null,
   pacePerWeek: null,
   status: 'holding',
-  threshold: 4.25,
+  google: { ...GOOGLE, shows: 4.9 },
+  exactAverage: 4.912,
+  threshold: 4.85,
   progress: null,
   forecast: null,
   forecastBasis: null,
