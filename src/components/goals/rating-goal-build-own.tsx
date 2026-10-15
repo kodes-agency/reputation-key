@@ -1,9 +1,12 @@
 // "Build your own" (round 2, R2-6): three rows, Goal on Google, New reviews will
 // average and New reviews a week, each with its options and "Own", then the live
-// total from the engine's own preview. "Own" is the slider of tenths for the
-// goal (5.0 shown and never chosen), a number in 0.1★ steps for the average
-// (held to the target's floor with a clear message) and a whole number a week
-// (1 to 200, with a caution above twice the pace now: Google flags surges).
+// total from the engine's own preview, with "More than a year" beside it when the
+// plan is out of reach at its pace. "Own" is the slider of tenths for the goal
+// (the goal picked large with its label above it, 5.0 shown and never chosen), a
+// number in 0.1★ steps for the average (held to the target's floor with a clear
+// message) and a whole number a week (1 to 200, with a caution above twice the
+// pace now: Google flags surges). A new goal keeps a picked average it also
+// offers and moves one it does not to its recommendation (`ownWithTarget`).
 import type { Ref } from 'react'
 import type {
   RatingGoalForecastInputs,
@@ -14,8 +17,11 @@ import type {
 import { FormNumberField } from '#/components/forms/form-number-field'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Slider } from '#/components/ui/slider'
+import { StatusBadge } from '#/components/ui/status-badge'
 import {
+  ownCaution,
   ownTotal,
+  ownWithTarget,
   paceOptions,
   qualityFloorStars,
   qualityHint,
@@ -23,10 +29,12 @@ import {
   rowProblems,
   targetOptions,
 } from './rating-goal-build-own-view'
+import { QUIET } from './rating-goal-option'
 import { RatingGoalPlanRow } from './rating-goal-plan-row'
 import type { OwnPlan, RowPick } from './rating-goal-plan-view'
 import { tenthsText } from './rating-goal-view'
 import { PERFECT_STOP_REASON, STOP_LABEL } from './rating-goal-wizard-view'
+import { RatingGoalWholeDates } from './rating-goal-whole-dates'
 
 type Props = Readonly<{
   setup: RatingGoalSetupView
@@ -67,14 +75,27 @@ function OwnTarget({
   const last = setup.stops.at(-1)
   if (first === undefined || last === undefined) return null
   const perfect = setup.perfectStop
+  const stopAt = (tenths: number) =>
+    setup.stops.find((each) => each.targetTenths === tenths)
   const labelOf = (tenths: number) => {
-    const stop = setup.stops.find((each) => each.targetTenths === tenths)
+    const stop = stopAt(tenths)
     return stop === undefined
       ? tenthsText(tenths)
       : `${tenthsText(tenths)}, ${STOP_LABEL[stop.label].label.toLowerCase()}`
   }
+  const picked = stopAt(pick.value)
   return (
     <div className="flex flex-col gap-1">
+      {/* The goal picked, large, with the label the target row's options wear. */}
+      <p className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="flex items-baseline gap-1.5">
+          <span className="text-2xl leading-none font-semibold tabular-nums">
+            {tenthsText(pick.value)}
+          </span>{' '}
+          <span className={QUIET}>on Google</span>
+        </span>{' '}
+        {picked === undefined ? null : <StatusBadge {...STOP_LABEL[picked.label]} />}
+      </p>
       <Slider
         aria-label="Your own goal on Google"
         value={pick.value}
@@ -112,20 +133,16 @@ export function RatingGoalBuildOwn({
 }: Props) {
   const problems = rowProblems(preview, own)
   const target = own.target.value
+  const caution = ownCaution(preview)
+  const pickTarget = (pick: RowPick) => onOwn(ownWithTarget(inputs, own, pick))
   return (
     <div className="flex flex-col gap-5">
       <RatingGoalPlanRow
         label="Goal on Google"
         options={targetOptions(planning)}
         pick={own.target}
-        onPick={(pick) => onOwn({ ...own, target: pick })}
-        own={
-          <OwnTarget
-            setup={setup}
-            pick={own.target}
-            onPick={(pick) => onOwn({ ...own, target: pick })}
-          />
-        }
+        onPick={pickTarget}
+        own={<OwnTarget setup={setup} pick={own.target} onPick={pickTarget} />}
       />
       <RatingGoalPlanRow
         label="New reviews will average"
@@ -174,8 +191,14 @@ export function RatingGoalBuildOwn({
           </AlertDescription>
         </Alert>
       ) : null}
-      <p aria-live="polite" className="text-base font-medium tabular-nums">
-        {ownTotal(preview, own)}
+      <p
+        aria-live="polite"
+        className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-medium tabular-nums"
+      >
+        <span>
+          <RatingGoalWholeDates text={ownTotal(preview, own)} />
+        </span>{' '}
+        {caution === null ? null : <StatusBadge tone="warn" label={caution} />}
       </p>
     </div>
   )

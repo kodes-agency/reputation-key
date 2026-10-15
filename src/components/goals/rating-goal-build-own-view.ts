@@ -19,7 +19,13 @@ import { previewRatingGoalPlan } from '#/contexts/reporting/application/rating-g
 import type { StatusPresentation } from '#/components/ui/status-badge'
 import { formatNumber } from '#/lib/format'
 import { forecastSentence, tenthsText } from './rating-goal-view'
-import { ownValues, starsText, type OwnPlan, type RowPick } from './rating-goal-plan-view'
+import {
+  ownValues,
+  planCaution,
+  starsText,
+  type OwnPlan,
+  type RowPick,
+} from './rating-goal-plan-view'
 import { STOP_LABEL } from './rating-goal-wizard-view'
 
 /** One option of a row: what it reads, its chip, and whether it is the recommendation. */
@@ -172,15 +178,54 @@ export function rowProblems(preview: RatingGoalPlanPreview, own: OwnPlan): RowPr
   return { target: text('target'), quality: text('quality'), pace: text('pace') }
 }
 
+/**
+ * A new goal for "Build your own". An average picked from the row stays when the
+ * new goal offers it too, and moves to the new goal's recommendation when it
+ * does not, so the row never turns to "Own" behind the manager's back; an
+ * average typed in as "Own" stays as typed, and the row says if it is too low.
+ */
+export function ownWithTarget(
+  inputs: RatingGoalForecastInputs,
+  own: OwnPlan,
+  target: RowPick,
+): OwnPlan {
+  if (own.quality.own || !Number.isInteger(target.value)) return { ...own, target }
+  const choice = ratingGoalQualityChoice(inputs, target.value)
+  const offered = choice.options.some(
+    (option) => Math.abs(option.quality - own.quality.value) < 1e-9,
+  )
+  return offered
+    ? { ...own, target }
+    : { ...own, target, quality: { own: false, value: choice.recommended.quality } }
+}
+
 /** "Build your own" worked out: the engine's preview of what it holds. */
 export const ownPreview = (
   inputs: RatingGoalForecastInputs,
   own: OwnPlan,
 ): RatingGoalPlanPreview => previewRatingGoalPlan(inputs, ownValues(own))
 
+const ROW_TO_FIX: Readonly<Record<RatingPlanProblem['field'], string>> = {
+  target: 'the goal',
+  quality: 'the average',
+  pace: 'the weekly number',
+}
+
+/** The live total while the plan cannot be set: which row to fix, so it is heard too. */
+function fixLine(problems: readonly RatingPlanProblem[]): string {
+  const [only] = problems
+  const what =
+    problems.length === 1 && only !== undefined ? ROW_TO_FIX[only.field] : 'the numbers'
+  return `Fix ${what} marked above to see what this plan takes.`
+}
+
+/** "More than a year" beside the total when the plan is out of reach at its own pace. */
+export const ownCaution = (preview: RatingGoalPlanPreview): string | null =>
+  preview.valid ? planCaution(preview.reach, preview.forecast) : null
+
 /** The live total: "19 more reviews · around Dec 2026 – Jan 2027". */
 export function ownTotal(preview: RatingGoalPlanPreview, own: OwnPlan): string {
-  if (!preview.valid) return 'Fix the number marked above to see what this plan takes.'
+  if (!preview.valid) return fixLine(preview.problems)
   const target = own.target.value / 10
   const when = forecastSentence(preview.forecast, target, 'around')
   if (preview.reviewsNeeded === null) return when

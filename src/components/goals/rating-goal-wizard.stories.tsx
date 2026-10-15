@@ -16,6 +16,7 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { Button } from '#/components/ui/button'
 import { RatingGoalWizard, type RatingGoalWizardProps } from './rating-goal-wizard'
 import { PLAN_POLICY_LINE } from './rating-goal-plan-view'
+import { wholeText } from './rating-goal-wizard.stories.play'
 import { SETUP_BETA } from './rating-goal-plan.stories.fixtures'
 import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
 import {
@@ -150,6 +151,8 @@ export const PickAPlan: Story = {
       'Plans assume new reviews average 4.5★, like your best year (2024)',
     )
     await expect(plan(dialog, /^Recommended 4\.0 on Google$/)).toBeChecked()
+    // The dialog opens on the plan it has picked, not on "Change" above it.
+    await waitFor(() => expect(plan(dialog, /^Recommended/)).toHaveFocus())
     await expect(plan(dialog, /^Recommended/)).toHaveAccessibleDescription(
       '2 a week · new reviews 4.5★ · 19 reviews Around Dec 2026 – Jan 2027',
     )
@@ -157,7 +160,8 @@ export const PickAPlan: Story = {
       '1 a week · new reviews 4.5★ · 19 reviews Around Jan–Apr 2027',
     )
     await expect(plan(dialog, /^Ambitious 4\.2/)).toHaveAccessibleDescription(
-      '3 a week · new reviews 4.5★ · 178 reviews Around Aug 2027 – Jul 2028',
+      // 178 reviews at 3 a week run past a year: the one label a plan card wears.
+      '3 a week · new reviews 4.5★ · 178 reviews Around Aug 2027 – Jul 2028 More than a year',
     )
     await expect(dialog.getByText(PLAN_POLICY_LINE)).toBeVisible()
     // Build your own waits, folded: the first screen leads with the three plans.
@@ -182,7 +186,7 @@ export const HealthyProperty: Story = {
       '11 a week · new reviews 4.7★ · 93 reviews Around Nov 2026 – Jan 2027',
     )
     await expect(plan(dialog, /^Ambitious 4\.6/)).toHaveAccessibleDescription(
-      '14 a week · new reviews 4.7★ · 1,300 reviews Around Oct 2027 – Sep 2032',
+      '14 a week · new reviews 4.7★ · 1,300 reviews Around Oct 2027 – Sep 2032 More than a year',
     )
   },
 }
@@ -211,7 +215,9 @@ export const SetsTheRecommendedPlan: Story = {
     )
     await expect(dialog.getByText('4.0 on Google')).toBeVisible()
     await expect(dialog.getByText('About 2 new reviews a week')).toBeVisible()
-    await expect(dialog.getByText('Expected around Dec 2026 – Jan 2027')).toBeVisible()
+    await expect(
+      dialog.getByText(wholeText('Expected around Dec 2026 – Jan 2027')),
+    ).toBeVisible()
     // One next step, and the way back to the Goals page.
     await expect(dialog.getByRole('link', { name: 'Set portal goals' })).toBeVisible()
     await expect(dialog.queryByRole('link', { name: 'Create a portal' })).toBeNull()
@@ -259,11 +265,13 @@ export const ChangeTheQuality: Story = {
       'Like your best year (2024) · about 19 reviews Recommended',
     )
     await expect(
-      dialog.getByText('19 more reviews · around Dec 2026 – Jan 2027'),
+      dialog.getByText(wholeText('19 more reviews · around Dec 2026 – Jan 2027')),
     ).toBeVisible()
 
     await userEvent.click(quality.getByRole('radio', { name: '4.8★' }))
-    await expect(dialog.getByText('12 more reviews · around Nov–Dec 2026')).toBeVisible()
+    await expect(
+      dialog.getByText(wholeText('12 more reviews · around Nov–Dec 2026')),
+    ).toBeVisible()
     await setsPlan(dialog, 40, 48, 2)
   },
 }
@@ -293,8 +301,40 @@ export const BuildYourOwn: Story = {
       row(dialog, 'New reviews will average').getByRole('radio', { name: '4.4★' }),
     ).toHaveAccessibleDescription('A step above what 4.1 needs · about 103 reviews')
     await userEvent.click(pace.getByRole('radio', { name: 'Push' }))
-    await expect(dialog.getByText('81 more reviews · around Mar–Jul 2027')).toBeVisible()
+    await expect(
+      dialog.getByText(wholeText('81 more reviews · around Mar–Jul 2027')),
+    ).toBeVisible()
     await setsPlan(dialog, 41, 45, 3)
+  },
+}
+
+/**
+ * A new goal keeps a picked average it also offers, and moves one it does not
+ * to its recommendation, so the average row never turns to "Own" unseen; a plan
+ * more than a year away says so beside the total.
+ */
+export const AverageFollowsTheGoal: Story = {
+  play: async ({ canvasElement }) => {
+    const dialog = await open(canvasElement)
+    await openBuildYourOwn(dialog)
+    const quality = row(dialog, 'New reviews will average')
+    await userEvent.click(quality.getByRole('radio', { name: '4.3★' }))
+    await expect(
+      dialog.getByText(wholeText('29 more reviews · around Dec 2026 – Mar 2027')),
+    ).toBeVisible()
+
+    // 4.2 offers 4.5★ (recommended) and 4.8★, not "a step above what 4.0 needs".
+    await userEvent.click(
+      row(dialog, 'Goal on Google').getByRole('radio', { name: '4.2' }),
+    )
+    await expect(quality.getByRole('radio', { name: '4.5★' })).toBeChecked()
+    await expect(quality.getByRole('radio', { name: 'Own' })).not.toBeChecked()
+    // 178 reviews at 2 a week: "More than a year" beside the total, as on Ambitious.
+    await expect(
+      dialog.getByText(wholeText('178 more reviews · around Dec 2027 – Jun 2029')),
+    ).toBeVisible()
+    await expect(dialog.getAllByText('More than a year')).toHaveLength(2)
+    await setsPlan(dialog, 42, 45, 2)
   },
 }
 
@@ -327,12 +367,18 @@ export const OwnGoalSlider: Story = {
     await expect(
       dialog.getByText('5.0 needs every review from now on to be 5★'),
     ).toBeVisible()
+    // The goal picked, large, with its label, as the target row's options wear it.
+    await expect(dialog.getAllByText('Realistic')).toHaveLength(2)
     slider.focus()
     await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}')
     await expect(slider).toHaveAttribute('aria-valuetext', '4.3, out of reach')
+    await expect(dialog.getByText('4.3')).toBeVisible()
+    await expect(dialog.getAllByText('Out of reach')).toHaveLength(2)
     await expect(
-      dialog.getByText('353 more reviews · around Dec 2028 – Jan 2033'),
+      dialog.getByText(wholeText('353 more reviews · around Dec 2028 – Jan 2033')),
     ).toBeVisible()
+    // More than a year at 2 a week, said before Set goal is pressed (and on Ambitious).
+    await expect(dialog.getAllByText('More than a year')).toHaveLength(2)
     await userEvent.keyboard('{End}{ArrowRight}')
     await expect(slider).toHaveAttribute('aria-valuenow', '49')
   },
@@ -358,11 +404,13 @@ export const OwnAverageFloor: Story = {
     ).toBeVisible()
     await expect(save).toBeDisabled()
     await expect(
-      dialog.getByText('Fix the number marked above to see what this plan takes.'),
+      dialog.getByText('Fix the average marked above to see what this plan takes.'),
     ).toBeVisible()
     await userEvent.clear(field)
     await userEvent.type(field, '4.2')
-    await expect(dialog.getByText('40 more reviews · around Jan–Jul 2027')).toBeVisible()
+    await expect(
+      dialog.getByText(wholeText('40 more reviews · around Jan–Jul 2027')),
+    ).toBeVisible()
     await expect(save).toBeEnabled()
   },
 }
@@ -391,7 +439,7 @@ export const OwnPaceBounds: Story = {
     await userEvent.type(field, '12')
     await expect(dialog.queryByRole('alert')).toBeNull()
     await expect(
-      dialog.getByText('93 more reviews · around Nov 2026 – Jan 2027'),
+      dialog.getByText(wholeText('93 more reviews · around Nov 2026 – Jan 2027')),
     ).toBeVisible()
   },
 }
@@ -467,8 +515,9 @@ export const ChangePlan: Story = {
     )
     const save = dialog.getByRole('button', { name: 'Save changes' })
     await expect(save).toBeDisabled()
-    // A dead button says why it is dead.
+    // A dead button says why it is dead, beside it in the footer.
     await expect(dialog.getByText('Change the plan to save.')).toBeVisible()
+    await expect(save).toHaveAccessibleDescription('Change the plan to save.')
 
     await openBuildYourOwn(dialog)
     await expect(
@@ -481,7 +530,9 @@ export const ChangePlan: Story = {
     await expect(pace.getByRole('radio', { name: 'Faster' })).toBeChecked()
     await userEvent.click(pace.getByRole('radio', { name: 'Push' }))
     await expect(dialog.queryByText('Change the plan to save.')).toBeNull()
-    await expect(dialog.getByText('455 more reviews · around Mar–Dec 2027')).toBeVisible()
+    await expect(
+      dialog.getByText(wholeText('455 more reviews · around Mar–Dec 2027')),
+    ).toBeVisible()
     await userEvent.click(save)
     await waitFor(() =>
       expect(changeMock).toHaveBeenCalledWith({
@@ -635,7 +686,9 @@ export const KeepsWhatWasPickedAcrossTheFrames: Story = {
       await expect(
         row(sheet, 'New reviews a week').getByRole('radio', { name: 'Push' }),
       ).toBeChecked()
-      await expect(sheet.getByText('81 more reviews · around Mar–Jul 2027')).toBeVisible()
+      await expect(
+        sheet.getByText(wholeText('81 more reviews · around Mar–Jul 2027')),
+      ).toBeVisible()
     } finally {
       undo()
     }

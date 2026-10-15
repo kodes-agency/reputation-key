@@ -74,6 +74,20 @@ describe('the plans', () => {
     ])
   })
 
+  it('warn on a plan more than a year away at its own pace, and only there', () => {
+    const cautions = (setup: RatingGoalSetupView) =>
+      planCards(planningOf(setup), null).map(({ name, caution }) => [name, caution])
+
+    // Ambitious: 178 reviews at 3 a week, and 1,300 at 14 a week.
+    for (const setup of [SETUP_BETA, SETUP]) {
+      expect(cautions(setup)).toEqual([
+        ['Cautious', null],
+        ['Recommended', null],
+        ['Ambitious', 'More than a year'],
+      ])
+    }
+  })
+
   it('say the quality they share and the evidence for it', () => {
     expect(qualityAssumption(planningOf(SETUP_BETA))).toBe(
       'Plans assume new reviews average 4.5★, like your best year (2024)',

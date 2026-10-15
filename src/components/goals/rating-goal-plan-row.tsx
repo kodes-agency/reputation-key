@@ -1,12 +1,15 @@
 // One row of "Build your own" (round 2, R2-6): what it picks, a line on what it
 // takes, up to three options with one marked Recommended, and "Own", which
 // shows the row's own control under the options. The row is a radio group
-// named by its label; the options are radio cards.
+// named by its label; the options are radio cards. An option's detail and chips
+// run the card's whole width under its radio and title, and a chip wraps its
+// words rather than leave the card, so a phone's two columns hold them.
 import { useId, type ReactNode, type Ref } from 'react'
 import { Badge } from '#/components/ui/badge'
 import { Label } from '#/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group'
 import { StatusBadge } from '#/components/ui/status-badge'
+import { cn } from '#/lib/utils'
 import {
   OWN,
   pickFromRadio,
@@ -28,31 +31,41 @@ type Props = Readonly<{
   groupRef?: Ref<HTMLDivElement>
 }>
 
+/** A chip that wraps its words inside a narrow card instead of running past it. */
+const WRAPPING_CHIP = 'max-w-full whitespace-normal'
+
 /** An option's radio is named by its title ("4.5★") and described by the rest. */
 function OptionCard({ option, id }: Readonly<{ option: RowOption; id: string }>) {
   const hasDetail = option.detail !== null || option.chip !== null || option.recommended
   return (
-    <div className={OPTION}>
+    <div className={cn(OPTION, 'flex-wrap gap-y-1')}>
       <RadioGroupItem
         value={String(option.value)}
         id={id}
         aria-describedby={hasDetail ? `${id}-detail` : undefined}
         className="mt-0.5"
       />
-      <div className="flex min-w-0 flex-col gap-1">
-        <Label htmlFor={id} className={OPTION_LABEL}>
-          <span className="text-base font-semibold tabular-nums">{option.title}</span>
-        </Label>
-        {hasDetail ? (
-          <p id={`${id}-detail`} className="flex flex-col items-start gap-1">
-            {option.detail === null ? null : (
-              <span className="text-xs text-muted-foreground">{option.detail}</span>
-            )}{' '}
-            {option.chip === null ? null : <StatusBadge {...option.chip} />}{' '}
-            {option.recommended ? <Badge variant="outline">Recommended</Badge> : null}
-          </p>
-        ) : null}
-      </div>
+      <Label htmlFor={id} className={cn(OPTION_LABEL, 'min-w-0 flex-1')}>
+        <span className="text-base font-semibold tabular-nums">{option.title}</span>
+      </Label>
+      {hasDetail ? (
+        <p
+          id={`${id}-detail`}
+          className="flex min-w-0 basis-full flex-col items-start gap-1"
+        >
+          {option.detail === null ? null : (
+            <span className="text-xs text-muted-foreground">{option.detail}</span>
+          )}{' '}
+          {option.chip === null ? null : (
+            <StatusBadge {...option.chip} className={WRAPPING_CHIP} />
+          )}{' '}
+          {option.recommended ? (
+            <Badge variant="outline" className={WRAPPING_CHIP}>
+              Recommended
+            </Badge>
+          ) : null}
+        </p>
+      ) : null}
     </div>
   )
 }

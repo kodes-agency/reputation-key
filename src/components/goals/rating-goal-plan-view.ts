@@ -12,6 +12,7 @@ import type {
   RatingPlanKey,
   RatingPlanView,
   RatingQualityAnchorKind,
+  RatingStopLabel,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { ratingGoalQualityChoice } from '#/contexts/reporting/application/rating-goal-planning'
 import { previewRatingGoalPlan } from '#/contexts/reporting/application/rating-goal-preview'
@@ -61,6 +62,11 @@ export type PlanCard = Readonly<{
   line: string
   /** "Around Dec 2026 – Jan 2027", or why no month can be given. */
   forecastText: string | null
+  /**
+   * "More than a year" on a plan out of reach at its own pace: the cards wear
+   * no Realistic or Stretch label, but a headline plan years away says so.
+   */
+  caution: string | null
   values: PlanValues
   forecast: RatingForecastView | null
 }>
@@ -71,6 +77,21 @@ const PLAN_NAMES: Readonly<Record<PlanCardKey, string>> = {
   recommended: 'Recommended',
   ambitious: 'Ambitious',
 }
+
+/** What a plan out of reach at its own pace says: it takes more than 52 weeks. */
+const MORE_THAN_A_YEAR = 'More than a year'
+
+/**
+ * "More than a year" for a plan out of reach at its own pace, unless its
+ * forecast already says "More than ten years away".
+ */
+export const planCaution = (
+  reach: RatingStopLabel | null,
+  forecast: RatingForecastView | null,
+): string | null =>
+  reach === 'out_of_reach' && forecast?.kind !== 'beyond_horizon'
+    ? MORE_THAN_A_YEAR
+    : null
 
 /** The policy line under the plans (R2-12, approved verbatim). */
 export const PLAN_POLICY_LINE =
@@ -97,19 +118,25 @@ function planLine(values: PlanValues, reviewsNeeded: number | null): string {
     .join(' · ')
 }
 
-function cardOf(
-  key: PlanCardKey,
-  values: PlanValues,
-  reviewsNeeded: number | null,
-  forecast: RatingForecastView | null,
-): PlanCard {
+/** What a plan needs and when it is expected, as the engine worked it out. */
+type PlanOutlook = Readonly<{
+  reviewsNeeded: number | null
+  forecast: RatingForecastView | null
+  reach: RatingStopLabel | null
+}>
+
+const NO_OUTLOOK: PlanOutlook = { reviewsNeeded: null, forecast: null, reach: null }
+
+function cardOf(key: PlanCardKey, values: PlanValues, outlook: PlanOutlook): PlanCard {
   const target = values.targetTenths / 10
+  const { forecast } = outlook
   return {
     key,
     name: PLAN_NAMES[key],
     target: ratingText(target),
-    line: planLine(values, reviewsNeeded),
+    line: planLine(values, outlook.reviewsNeeded),
     forecastText: forecast === null ? null : forecastSentence(forecast, target, 'Around'),
+    caution: planCaution(outlook.reach, forecast),
     values,
     forecast,
   }
@@ -123,8 +150,7 @@ const planCard = (plan: RatingPlanView): PlanCard =>
       qualityTenths: plan.qualityTenths,
       pacePerWeek: plan.pace.perWeek,
     },
-    plan.reviewsNeeded,
-    plan.forecast,
+    plan,
   )
 
 /**
@@ -148,9 +174,7 @@ export function currentPlanCard(
     pacePerWeek: goal.pacePerWeek,
   }
   const preview = previewRatingGoalPlan(inputs, values)
-  return preview.valid
-    ? cardOf('current', values, preview.reviewsNeeded, preview.forecast)
-    : cardOf('current', values, null, null)
+  return cardOf('current', values, preview.valid ? preview : NO_OUTLOOK)
 }
 
 /** "Your plan" first when there is one, then Cautious, Recommended and Ambitious. */

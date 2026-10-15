@@ -5,8 +5,10 @@
 import { describe, expect, it } from 'vitest'
 import type { RatingGoalForecastInputs } from '#/contexts/reporting/application/dto/rating-goal.types'
 import {
+  ownCaution,
   ownPreview,
   ownTotal,
+  ownWithTarget,
   paceOptions,
   pickFromRadio,
   qualityFloorStars,
@@ -140,7 +142,67 @@ describe('the live total', () => {
       pace: 'Enter a whole number from 1 to 200.',
     })
     expect(ownTotal(ownPreview(BETA, noPace), noPace)).toBe(
-      'Fix the number marked above to see what this plan takes.',
+      'Fix the weekly number marked above to see what this plan takes.',
     )
+  })
+
+  it('names the row to fix, so a number a goal change made too low is heard', () => {
+    // The average was typed as 4.3★, then the goal moved to 4.4: 4.3★ is under
+    // its floor, in a row the slider may have scrolled away.
+    const moved = {
+      ...OWN,
+      target: { own: true, value: 44 },
+      quality: { own: true, value: 4.3 },
+    }
+    const both = { ...moved, pace: { own: true, value: 0 } }
+
+    expect(ownTotal(ownPreview(BETA, moved), moved)).toBe(
+      'Fix the average marked above to see what this plan takes.',
+    )
+    expect(ownTotal(ownPreview(BETA, both), both)).toBe(
+      'Fix the numbers marked above to see what this plan takes.',
+    )
+  })
+
+  it('says "More than a year" when the plan is out of reach at its own pace', () => {
+    // 4.2 at 4.5★ is 178 reviews: 89 weeks at 2 a week, 20 weeks at 9.
+    const far = { ...OWN, target: { own: false, value: 42 } }
+    const faster = { ...far, pace: { own: true, value: 9 } }
+
+    expect(ownCaution(ownPreview(BETA, far))).toBe('More than a year')
+    expect(ownCaution(ownPreview(BETA, faster))).toBeNull()
+    expect(ownCaution(ownPreview(BETA, OWN))).toBeNull()
+    // 4.9 at 5.0★ is 1,633 reviews: the total already says more than ten years.
+    const decade = {
+      ...far,
+      target: { own: false, value: 49 },
+      quality: { own: false, value: 5 },
+    }
+    expect(ownTotal(ownPreview(BETA, decade), decade)).toBe(
+      '1,633 more reviews · more than ten years away at this pace',
+    )
+    expect(ownCaution(ownPreview(BETA, decade))).toBeNull()
+  })
+})
+
+describe('changing the goal', () => {
+  it('moves a picked average the new goal does not offer to its recommendation', () => {
+    // 4.3★ is "a step above what 4.0 needs"; 4.2 offers 4.5★ (recommended) and 4.8★.
+    const stepAbove = { ...OWN, quality: { own: false, value: 4.3 } }
+
+    expect(ownWithTarget(BETA, stepAbove, { own: false, value: 42 })).toEqual({
+      ...stepAbove,
+      target: { own: false, value: 42 },
+      quality: { own: false, value: 4.5 },
+    })
+  })
+
+  it('keeps an average the new goal also offers, and one typed in as "Own"', () => {
+    const excellent = { ...OWN, quality: { own: false, value: 4.8 } }
+    const typed = { ...OWN, quality: { own: true, value: 4.3 } }
+    const to42 = { own: false, value: 42 }
+
+    expect(ownWithTarget(BETA, excellent, to42).quality).toEqual(excellent.quality)
+    expect(ownWithTarget(BETA, typed, to42).quality).toEqual(typed.quality)
   })
 })

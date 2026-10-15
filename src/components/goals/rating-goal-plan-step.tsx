@@ -3,7 +3,7 @@
 // a change), the policy line, and "Build your own", which is the plan being set
 // while it is open. What is picked is the wizard's draft, held above the frame,
 // so a phone turned to landscape keeps it. Enter in a number saves, as the
-// button does.
+// button does. The frame opens with the focus on the checked plan.
 import { useEffect, useId, useRef, type FormEvent, type ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
 import type {
@@ -155,23 +155,24 @@ export function RatingGoalPlanStep(props: Props) {
   }
   return (
     <form className="flex flex-1 flex-col gap-4" onSubmit={submit} noValidate>
-      <p className="flex flex-wrap items-center gap-x-2 text-sm">
-        {/* The dot stays with the sentence, so a narrow screen never starts a line on it. */}
-        <span>
-          <span id={`${id}-quality`}>{qualityAssumption(planning)}</span>
+      <p className="text-sm">
+        <span id={`${id}-quality`}>{qualityAssumption(planning)}</span>{' '}
+        {/* "· Change" is a link in the line, kept together, so a narrow screen
+            breaks before the dot and never leaves it hanging at a line's end. */}
+        <span className="whitespace-nowrap">
           <span aria-hidden="true" className="text-muted-foreground">
-            {' ·'}
+            ·{' '}
           </span>
+          <Button
+            type="button"
+            variant="link"
+            size="inline"
+            aria-describedby={`${id}-quality`}
+            onClick={changeQuality}
+          >
+            Change
+          </Button>
         </span>
-        <Button
-          type="button"
-          variant="link"
-          className="px-0"
-          aria-describedby={`${id}-quality`}
-          onClick={changeQuality}
-        >
-          Change
-        </Button>
       </p>
       <RatingGoalPlanCards
         cards={resolved.cards}
@@ -215,11 +216,25 @@ export function RatingGoalPlanStep(props: Props) {
           />
         </CollapsibleContent>
       </Collapsible>
-      {unchanged ? <p className={QUIET}>Change the plan to save.</p> : null}
       {banner}
-      <DialogFooter className="mt-auto">
+      {/* Why "Save changes" is dead sits in the pinned footer, beside the button
+          it describes, so a phone shows the two together. A change always has
+          the note's place, so the buttons are not rebuilt when it comes and goes. */}
+      <DialogFooter
+        className="mt-auto"
+        note={
+          intent.kind === 'change' ? (
+            <p id={`${id}-unchanged`}>{unchanged ? 'Change the plan to save.' : null}</p>
+          ) : undefined
+        }
+      >
         <RatingGoalCancel />
-        <Button type="submit" pending={pending} disabled={chosen.submission === null}>
+        <Button
+          type="submit"
+          pending={pending}
+          disabled={chosen.submission === null}
+          aria-describedby={unchanged ? `${id}-unchanged` : undefined}
+        >
           {intent.kind === 'change' ? 'Save changes' : 'Set goal'}
         </Button>
       </DialogFooter>
