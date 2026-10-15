@@ -1204,6 +1204,11 @@ which kept its name.
 of stars. Neither the `goal.rating_goal.transitioned` fact nor the payload holds
 the average of the reviews since the goal was set, nor the planned quality.
 
+**Reached** (same day, review fixes). ADR 0067 now offers Keep only while
+Google shows 4.9 or 5.0. The Reached notice's body follows it: "Set your next
+goal." below 4.9, and "Set your next goal, or keep 4.9." (or 5.0) only there. Its
+title, action, payload, recipients and category are unchanged.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

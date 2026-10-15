@@ -92,7 +92,8 @@ metric authority.
   climb goal names a tenth from 1.1 to 4.9, a planned quality in tenths (`quality_tenths`,
   migration 0059: at least 0.15★ above the target's threshold in the domain, at least the
   target in the database) and a pace from 1 to 200 a week, a keep goal a tenth Google shows
-  now and neither. The plan (target, quality, pace) is version-checked as a whole. There is no deadline and no "missed": a goal runs
+  now and neither, set only while Google shows 4.9 or 5.0 (R2-9: the commands refuse a
+  keep goal below, as the screens offer none). The plan (target, quality, pace) is version-checked as a whole. There is no deadline and no "missed": a goal runs
   until Google shows the target (reached), or it is ended by a manager, by its Google
   location changing (the Property's binding epoch moved) or by its Property being archived.
   Changes of target, quality, pace or mode are logged with who, when, old and new value,
@@ -111,7 +112,9 @@ metric authority.
   what the target needs, Excellent 4.8), never below the floor; every target is worked out
   at its own recommended quality; three plans share the recommended target's quality
   (Cautious, Recommended, Ambitious), and "Build your own" is worked out on the page from
-  the setup read's exact inputs (`application/rating-goal-preview.ts`). Until ten reviews
+  the setup read's exact inputs (`application/rating-goal-preview.ts`). A plan and a
+  preview carry their reach, the target label's rule at the plan's own pace, so a screen
+  can say a plan is more than a year away. Until ten reviews
   arrived since a goal was set its numbers assume the planned quality, then those reviews'
   average; `reviews_too_low` (that average at or below the threshold) replaced
   `cant_reach_at_mix`. The review cache is read only through Review's

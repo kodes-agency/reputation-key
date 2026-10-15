@@ -314,7 +314,8 @@ insert time — leaves the target time out rather than guessing UTC, and every
 live surface re-renders.
 
 A Property's Google rating goal raises five Goals notices (ADR 0046, amended
-2026-10-14 and 2026-10-15): reached, a tenth gained or lost on Google, entered
+2026-10-14 and 2026-10-15): reached (offering to keep the number only when
+Google shows 4.9 or 5.0), a tenth gained or lost on Google, entered
 Below pace (at most once in 14 days), entered New reviews too low
 (`goal.rating_too_low`: ten or more reviews since the goal was set average at or
 below what its target needs; also at most once in 14 days; it replaced the

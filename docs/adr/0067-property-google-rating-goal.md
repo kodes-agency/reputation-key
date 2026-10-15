@@ -270,6 +270,17 @@ without asking for selective solicitation (R2-12): "Your Portals offer every
 guest the same Google review link. Asking every guest, not only the ones who
 would write anyway, and better stays are what move this number."
 
+**Keep, and plans more than a year away (2026-10-15, review fixes).** Keep is
+offered only while Google shows 4.9 or 5.0, everywhere: the reached news offers
+"Keep 4.9" at 4.9 and only "Set your next goal" below it, the Reached notice
+offers to keep the number only there (ADR 0046), and the set and change commands
+refuse a keep goal while Google shows less, so no stale page sets one. A plan
+and a Build your own preview carry their reach, the target label's rule at the
+plan's own pace; a plan card wears no Realistic or Stretch label, but one more
+than a year away at its own pace says "More than a year", and so does the live
+total of a plan built by hand. The Ambitious rule (R2-9) is unchanged: its card
+says when it runs past a year rather than being replaced by a nearer target.
+
 **Screens (2026-10-15).** "Pick a plan" is one step: the shared quality line
 with its "Change", the three plans as radio cards, the policy line and "Build
 your own", a disclosure that is the plan being set while it is open (closing it
