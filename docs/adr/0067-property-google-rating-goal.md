@@ -233,7 +233,8 @@ and the maths:
    recent mix if it clears, else the best year, else a step above.
 3. **Pick a plan.** Setting a goal is one step: three complete plans that share
    one quality (Cautious: the recommended target at Steady; Recommended: at
-   Faster; Ambitious: a higher target the quality clears, at Push), or "Build
+   Faster; Ambitious: the highest higher target the quality clears that Push
+   reaches within a year, else the recommended target at Push), or "Build
    your own" from a target row, a quality row and a pace row. Every target is
    worked out at its own recommended quality, so no stop is "never at this mix".
    Keep is offered only when Google shows 4.9 or 5.0.
@@ -278,8 +279,11 @@ refuse a keep goal while Google shows less, so no stale page sets one. A plan
 and a Build your own preview carry their reach, the target label's rule at the
 plan's own pace; a plan card wears no Realistic or Stretch label, but one more
 than a year away at its own pace says "More than a year", and so does the live
-total of a plan built by hand. The Ambitious rule (R2-9) is unchanged: its card
-says when it runs past a year rather than being replaced by a nearer target.
+total of a plan built by hand. Amended 2026-10-15 (owner, R2-13, amends R2-9):
+the Ambitious plan stays within a year. It is the highest target of the row that
+the shared quality clears by 0.15★ and that the Push pace reaches within 52
+weeks, else the recommended target at Push; a target past a year stays in Build
+your own, which says "More than a year".
 
 **Screens (2026-10-15).** "Pick a plan" is one step: the shared quality line
 with its "Change", the three plans as radio cards, the policy line and "Build

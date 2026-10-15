@@ -101,8 +101,9 @@ describe('the setup read', () => {
     ).toEqual([
       ['cautious', 44, 7],
       ['recommended', 44, 11],
-      // 4.7 clears 4.6's threshold, 4.55, by exactly 0.15.
-      ['ambitious', 46, 14],
+      // 4.7 clears 4.6's threshold, 4.55, by exactly 0.15, but 1,298 reviews at
+      // 14 a week is 93 weeks; 4.5 needs 454, 33 weeks.
+      ['ambitious', 45, 14],
     ])
   })
 

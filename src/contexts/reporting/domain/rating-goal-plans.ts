@@ -14,8 +14,10 @@
 //     never above 4.9 (R2-9).
 //   - Three plans share the recommended target's quality (R2-7): Cautious is
 //     the recommended target at Steady, Recommended the same at Faster, and
-//     Ambitious the highest row target that quality clears by 0.15★ at Push,
-//     or the recommended target at Push when it clears no higher one.
+//     Ambitious the highest row target that quality clears by 0.15★ and that
+//     the Push pace reaches within a year (R2-13, 2026-10-15), or the
+//     recommended target at Push when no higher one qualifies. A target past
+//     a year stays available in "Build your own".
 //   - Keep is offered only when Google shows 4.9 or 5.0, in place of plans.
 
 import {
@@ -132,26 +134,35 @@ export function targetRow(displayedTenths: number, recommendedTenths: number): n
   )
 }
 
-/** The highest row target above the recommendation the quality clears by 0.15★. */
-function ambitiousTarget(
-  displayedTenths: number,
-  recommendedTenths: number,
-  qualityTenths: number,
-): number {
-  const higher = targetRow(displayedTenths, recommendedTenths).filter(
-    (tenths) =>
-      tenths > recommendedTenths && qualityTenths >= minimumQualityTenths(tenths),
-  )
-  return higher.at(-1) ?? recommendedTenths
-}
-
 export type RatingPlansInput = Readonly<{
-  displayedTenths: number
+  /** Google's count, the tenth it shows and the exact average. */
+  numbers: RatingGoalNumbers
   recommendedTenths: number
   /** The one quality every plan assumes. */
   qualityTenths: number
   paces: PaceSuggestions
 }>
+
+/**
+ * The highest row target above the recommendation that the quality clears by
+ * 0.15★ and that the Push pace reaches within a year (the plan's own reach,
+ * stopLabel); else the recommendation.
+ */
+function ambitiousTarget(input: RatingPlansInput): number {
+  const { numbers, recommendedTenths, qualityTenths } = input
+  const withinAYear = (tenths: number): boolean =>
+    stopLabel(
+      planNeeds(numbers, tenths, qualityTenths).reviewsNeeded,
+      input.paces.push,
+    ) !== 'out_of_reach'
+  const higher = targetRow(numbers.displayedTenths, recommendedTenths).filter(
+    (tenths) =>
+      tenths > recommendedTenths &&
+      qualityTenths >= minimumQualityTenths(tenths) &&
+      withinAYear(tenths),
+  )
+  return higher.at(-1) ?? recommendedTenths
+}
 
 /** Cautious, Recommended and Ambitious, in that order. */
 export function ratingPlans(input: RatingPlansInput): RatingPlan[] {
@@ -165,15 +176,7 @@ export function ratingPlans(input: RatingPlansInput): RatingPlan[] {
   return [
     plan('cautious', input.recommendedTenths, 'steady'),
     plan('recommended', input.recommendedTenths, 'faster'),
-    plan(
-      'ambitious',
-      ambitiousTarget(
-        input.displayedTenths,
-        input.recommendedTenths,
-        input.qualityTenths,
-      ),
-      'push',
-    ),
+    plan('ambitious', ambitiousTarget(input), 'push'),
   ]
 }
 

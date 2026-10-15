@@ -111,7 +111,8 @@ metric authority.
   from evidence anchors (like now, the best calendar year with ten reviews, a step above
   what the target needs, Excellent 4.8), never below the floor; every target is worked out
   at its own recommended quality; three plans share the recommended target's quality
-  (Cautious, Recommended, Ambitious), and "Build your own" is worked out on the page from
+  (Cautious, Recommended, Ambitious: the highest row target the quality clears by 0.15★
+  and Push reaches within 52 weeks, R2-13), and "Build your own" is worked out on the page from
   the setup read's exact inputs (`application/rating-goal-preview.ts`). A plan and a
   preview carry their reach, the target label's rule at the plan's own pace, so a screen
   can say a plan is more than a year away. Until ten reviews

@@ -83,30 +83,43 @@ describe('Pick a plan', () => {
         forecast: { kind: 'range', fromMonth: '2026-12', toMonth: '2027-01' },
         reach: 'realistic',
       },
+      // 4.2 needs 178 reviews, 59 weeks at 3 a week: past a year. 4.1 needs
+      // 81, 27 weeks, so the Ambitious plan stops there.
       {
         key: 'ambitious',
-        targetTenths: 42,
-        target: 4.2,
+        targetTenths: 41,
+        target: 4.1,
         qualityTenths: 45,
         quality: 4.5,
         paceKey: 'push',
         pace: { perWeek: 3, perMonth: 13, perDay: 0.4 },
-        reviewsNeeded: 178,
-        bestCase: 74,
-        forecast: { kind: 'range', fromMonth: '2027-08', toMonth: '2028-07' },
-        reach: 'out_of_reach',
+        reviewsNeeded: 81,
+        bestCase: 38,
+        forecast: { kind: 'range', fromMonth: '2027-03', toMonth: '2027-07' },
+        reach: 'stretch',
       },
     ])
   })
 
   it('says how far each plan is at its own pace, so a card can say "More than a year"', () => {
-    // Ambitious: 178 reviews at 3 a week is about 59 weeks, past a year.
+    // Ambitious: 81 reviews at 3 a week is 27 weeks, within the year.
     expect(ratingGoalPlanning(BETA)?.plans.map(({ key, reach }) => [key, reach])).toEqual(
       [
         ['cautious', 'realistic'],
         ['recommended', 'realistic'],
-        ['ambitious', 'out_of_reach'],
+        ['ambitious', 'stretch'],
       ],
+    )
+  })
+
+  it('never sets an Ambitious plan past a year while a nearer target is within reach', () => {
+    const ambitious = ratingGoalPlanning(BETA)?.plans.find(
+      (plan) => plan.key === 'ambitious',
+    )
+
+    expect(ambitious?.reach).not.toBe('out_of_reach')
+    expect(ratingGoalStops(BETA).find((stop) => stop.targetTenths === 42)?.label).toBe(
+      'out_of_reach',
     )
   })
 

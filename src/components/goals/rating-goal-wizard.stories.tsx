@@ -159,9 +159,9 @@ export const PickAPlan: Story = {
     await expect(plan(dialog, /^Cautious 4\.0/)).toHaveAccessibleDescription(
       '1 a week · new reviews 4.5★ · 19 reviews Around Jan–Apr 2027',
     )
-    await expect(plan(dialog, /^Ambitious 4\.2/)).toHaveAccessibleDescription(
-      // 178 reviews at 3 a week run past a year: the one label a plan card wears.
-      '3 a week · new reviews 4.5★ · 178 reviews Around Aug 2027 – Jul 2028 More than a year',
+    await expect(plan(dialog, /^Ambitious 4\.1/)).toHaveAccessibleDescription(
+      // 81 reviews at 3 a week are 27 weeks: Ambitious stays within a year (4.2 would not).
+      '3 a week · new reviews 4.5★ · 81 reviews Around Mar–Jul 2027',
     )
     await expect(dialog.getByText(PLAN_POLICY_LINE)).toBeVisible()
     // Build your own waits, folded: the first screen leads with the three plans.
@@ -185,8 +185,9 @@ export const HealthyProperty: Story = {
     await expect(plan(dialog, /^Recommended 4\.4/)).toHaveAccessibleDescription(
       '11 a week · new reviews 4.7★ · 93 reviews Around Nov 2026 – Jan 2027',
     )
-    await expect(plan(dialog, /^Ambitious 4\.6/)).toHaveAccessibleDescription(
-      '14 a week · new reviews 4.7★ · 1,300 reviews Around Oct 2027 – Sep 2032 More than a year',
+    // 4.7★ clears 4.6 too, but 1,300 reviews at 14 a week run past a year: 4.5 (455) does not.
+    await expect(plan(dialog, /^Ambitious 4\.5/)).toHaveAccessibleDescription(
+      '14 a week · new reviews 4.7★ · 455 reviews Around Mar–Dec 2027',
     )
   },
 }
@@ -202,7 +203,7 @@ export const PicksAnotherPlan: Story = {
     await waitFor(() => expect(plan(dialog, /^Ambitious/)).toHaveFocus())
     await userEvent.keyboard('{/ArrowRight}')
     await expect(plan(dialog, /^Ambitious/)).toBeChecked()
-    await setsPlan(dialog, 42, 45, 3)
+    await setsPlan(dialog, 41, 45, 3)
   },
 }
 
@@ -329,11 +330,12 @@ export const AverageFollowsTheGoal: Story = {
     )
     await expect(quality.getByRole('radio', { name: '4.5★' })).toBeChecked()
     await expect(quality.getByRole('radio', { name: 'Own' })).not.toBeChecked()
-    // 178 reviews at 2 a week: "More than a year" beside the total, as on Ambitious.
+    // 178 reviews at 2 a week: "More than a year" beside the total. No plan card
+    // says it: Ambitious stays within a year, 4.2 is only here, in Build your own.
     await expect(
       dialog.getByText(wholeText('178 more reviews · around Dec 2027 – Jun 2029')),
     ).toBeVisible()
-    await expect(dialog.getAllByText('More than a year')).toHaveLength(2)
+    await expect(dialog.getAllByText('More than a year')).toHaveLength(1)
     await setsPlan(dialog, 42, 45, 2)
   },
 }
@@ -377,8 +379,8 @@ export const OwnGoalSlider: Story = {
     await expect(
       dialog.getByText(wholeText('353 more reviews · around Dec 2028 – Jan 2033')),
     ).toBeVisible()
-    // More than a year at 2 a week, said before Set goal is pressed (and on Ambitious).
-    await expect(dialog.getAllByText('More than a year')).toHaveLength(2)
+    // More than a year at 2 a week, said before Set goal is pressed.
+    await expect(dialog.getAllByText('More than a year')).toHaveLength(1)
     await userEvent.keyboard('{End}{ArrowRight}')
     await expect(slider).toHaveAttribute('aria-valuenow', '49')
   },

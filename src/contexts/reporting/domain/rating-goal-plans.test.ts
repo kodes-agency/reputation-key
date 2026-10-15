@@ -126,7 +126,7 @@ describe('the target row of Build your own', () => {
 describe('the three plans', () => {
   it('share one quality and differ in target and pace', () => {
     const plans = ratingPlans({
-      displayedTenths: 39,
+      numbers: BETA,
       recommendedTenths: 40,
       qualityTenths: 45,
       paces: paceSuggestions(1),
@@ -147,10 +147,11 @@ describe('the three plans', () => {
         paceKey: 'faster',
         pacePerWeek: 2,
       },
-      // 4.5★ clears 4.2's threshold 4.15 by 0.35: the row's upper option.
+      // 4.5★ clears 4.2 by 0.35 but 4.2 needs 178 reviews, 59 weeks at 3 a week;
+      // 4.1 needs 81, 27 weeks: the highest target within a year.
       {
         key: 'ambitious',
-        targetTenths: 42,
+        targetTenths: 41,
         qualityTenths: 45,
         paceKey: 'push',
         pacePerWeek: 3,
@@ -158,25 +159,54 @@ describe('the three plans', () => {
     ])
   })
 
-  it('aims the Ambitious plan at the highest row target the quality clears by 0.15★', () => {
-    // 4.7★ clears 4.6 (θ 4.55) by exactly 0.15.
+  it('aims the Ambitious plan at the highest target within a year, not the highest the quality clears', () => {
+    // 4.7★ clears 4.6 (θ 4.55) by exactly 0.15, but 1,298 reviews at 14 a week
+    // is 93 weeks; 4.5 needs 454, 33 weeks.
     const plans = ratingPlans({
-      displayedTenths: 43,
+      numbers: EXAMPLE,
       recommendedTenths: 44,
       qualityTenths: 47,
       paces: paceSuggestions(28),
     })
 
     expect(plans.find((plan) => plan.key === 'ambitious')).toMatchObject({
-      targetTenths: 46,
+      targetTenths: 45,
       pacePerWeek: 14,
+    })
+  })
+
+  it('reaches for the row’s top target when a year is enough for it', () => {
+    // 4.8★ makes 4.2 cost 96 reviews: 32 weeks at 3 a week.
+    const plans = ratingPlans({
+      numbers: BETA,
+      recommendedTenths: 40,
+      qualityTenths: 48,
+      paces: paceSuggestions(1),
+    })
+
+    expect(plans.find((plan) => plan.key === 'ambitious')?.targetTenths).toBe(42)
+  })
+
+  it('keeps the recommended target at Push when every higher one is more than a year away', () => {
+    // 4.5 needs 454 and 4.6 needs 1,298 reviews; Push is 3 a week, 156 in a year.
+    const plans = ratingPlans({
+      numbers: EXAMPLE,
+      recommendedTenths: 44,
+      qualityTenths: 47,
+      paces: paceSuggestions(4),
+    })
+
+    expect(plans.find((plan) => plan.key === 'ambitious')).toMatchObject({
+      targetTenths: 44,
+      paceKey: 'push',
+      pacePerWeek: 3,
     })
   })
 
   it('keeps the recommended target at Push when the quality clears no higher one', () => {
     // 4.6★ clears 4.5 (θ 4.45) by 0.15, but not 4.6 (θ 4.55).
     const plans = ratingPlans({
-      displayedTenths: 44,
+      numbers: { reviewCount: 812, displayedTenths: 44, exact: ratio(3600, 812) },
       recommendedTenths: 45,
       qualityTenths: 46,
       paces: paceSuggestions(28),
@@ -186,6 +216,23 @@ describe('the three plans', () => {
       targetTenths: 45,
       paceKey: 'push',
     })
+  })
+
+  it('counts a year as 52 weeks at the Push pace', () => {
+    // Google shows 3.8 from 261 reviews; 4.1 at 4.5★ needs 156 reviews with
+    // 987 stars, 158 with 986: 52 × 3 a week is 156.
+    const ambitiousTarget = (stars: number) =>
+      ratingPlans({
+        numbers: { reviewCount: 261, displayedTenths: 38, exact: ratio(stars, 261) },
+        recommendedTenths: 39,
+        qualityTenths: 45,
+        paces: paceSuggestions(1),
+      }).find((plan) => plan.key === 'ambitious')?.targetTenths
+
+    expect(planNeeds({ ...BETA, exact: ratio(987, 261) }, 41, 45).reviewsNeeded).toBe(156)
+    expect(planNeeds({ ...BETA, exact: ratio(986, 261) }, 41, 45).reviewsNeeded).toBe(158)
+    expect(ambitiousTarget(987)).toBe(41)
+    expect(ambitiousTarget(986)).toBe(40)
   })
 })
 

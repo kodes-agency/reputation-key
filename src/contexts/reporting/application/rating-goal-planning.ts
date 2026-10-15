@@ -198,7 +198,7 @@ function plansAt(
   qualityTenths: number,
 ): RatingPlanView[] {
   return ratingPlans({
-    displayedTenths: inputs.displayedTenths,
+    numbers: planningBasis(inputs),
     recommendedTenths,
     qualityTenths,
     paces: paceSuggestions(inputs.reviewsLast28Days),
