@@ -5,6 +5,11 @@
 // stars, in windows by the date Google created them (`reviews.reviewed_at`,
 // Google's createTime). They return counts and sums only, never a review.
 //
+// Since round 2 (2026-10-15) the goal also asks for the totals of the reviews
+// created since it was set (their average judges whether new reviews are too
+// low), and for each Property-local calendar year's totals (the best year is
+// evidence for a planned quality). Still counts and sums only.
+//
 // A review counts when it is servable under the same eligibility as
 // ReviewServingStats (ADR 0031: active source content with a rating, a review
 // instant and an unexpired cache clock, `now` from the injected clock) and was
@@ -28,6 +33,8 @@ export type GoogleRatingSummaryRequest = Readonly<{
   mostRecentLimit: number
   /** Reviews created at or after each instant are counted, in this order. */
   countSince: readonly Date[]
+  /** When given, the count and star sum of the reviews created at or after it. */
+  totalsSince?: Date
 }>
 
 export type GoogleRatingSummary = Readonly<{
@@ -39,7 +46,12 @@ export type GoogleRatingSummary = Readonly<{
   mostRecent: GoogleRatingTotals
   /** One count per `countSince` instant, in the same order. */
   countsSince: readonly number[]
+  /** Those created at or after `totalsSince`; null when it was not asked for. */
+  totalsSince: GoogleRatingTotals | null
 }>
+
+/** The reviews created in one calendar year of the Property's time zone. */
+export type GoogleRatingYearTotals = GoogleRatingTotals & Readonly<{ year: number }>
 
 /** Reviews created in one Monday-to-Sunday week of the Property's time zone. */
 export type GoogleRatingWeekCount = Readonly<{
@@ -64,6 +76,12 @@ export type ReviewGoogleRatingReads = Readonly<{
     propertyId: PropertyId,
     since: Date,
   ): Promise<readonly GoogleRatingWeekCount[]>
+
+  /** Totals per Property-local calendar year, oldest first; a year without reviews is absent. */
+  getYearlyTotals(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+  ): Promise<readonly GoogleRatingYearTotals[]>
 
   /** Reviews created at or after `since`, per star (1 to 5, every star present). */
   getStarDistribution(

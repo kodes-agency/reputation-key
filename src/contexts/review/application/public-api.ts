@@ -113,6 +113,7 @@ export type {
   GoogleRatingSummaryRequest,
   GoogleRatingTotals,
   GoogleRatingWeekCount,
+  GoogleRatingYearTotals,
   ReviewGoogleRatingReads,
 } from './ports/google-rating-reads.port'
 export type {

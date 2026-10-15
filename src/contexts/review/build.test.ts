@@ -110,6 +110,7 @@ describe('Review context build', () => {
       'getRatingSummary',
       'getStarDistribution',
       'getWeeklyCounts',
+      'getYearlyTotals',
     ])
     expect(Object.isFrozen(api.lookups.reply)).toBe(true)
     expect(Object.isFrozen(api.lookups.review)).toBe(true)
