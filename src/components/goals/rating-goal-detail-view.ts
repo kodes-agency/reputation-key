@@ -1,11 +1,22 @@
 // The detail page of the Property Google rating goal, worked out (pure): the
-// full monitoring view the simple card leaves out. Forecasts at the chosen pace
-// and at the pace of the last four weeks, the best case, the bar from where the
+// full monitoring view the simple card leaves out. "Your plan" against what
+// happened since it was set (round 2, R2-11), forecasts at the chosen pace and
+// at the pace of the last four weeks, the best case, the bar from where the
 // goal started to the line Google shows the target at, the next tenth, the
 // tiles, the star mix and how fresh Google's numbers are (ADR 0067, decision 7).
-import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/rating-goal.types'
+import type {
+  RatingGoalDetailView,
+  RatingGoalPlanProgressView,
+} from '#/contexts/reporting/application/dto/rating-goal.types'
+import { ratingGoalPaceView } from '#/contexts/reporting/application/rating-goal-preview'
 import { formatNumber } from '#/lib/format'
-import { forecastSentence, ratingText, reviewsText } from './rating-goal-view'
+import {
+  forecastSentence,
+  perMonthAndDay,
+  ratingText,
+  reviewsText,
+  tenthsText,
+} from './rating-goal-view'
 
 const WEEKS_A_YEAR = 52
 /** Below this many weeks a span reads in weeks; below this many months, in months. */
@@ -88,13 +99,27 @@ export function progressMarks(detail: RatingGoalDetailView): Readonly<{
   }
 }
 
+/**
+ * The average the goal's numbers assume: the plan's until ten reviews arrived
+ * since it was set, then theirs (round 2, R2-5).
+ */
+export function assumedAverageWords(
+  detail: Pick<RatingGoalDetailView, 'qualityBasis' | 'quality'>,
+): string {
+  if (detail.qualityBasis === 'since_set') return 'at the new reviews’ average'
+  if (detail.qualityBasis === 'planned' && detail.quality !== null) {
+    return `at your plan’s ${ratingText(detail.quality)}★`
+  }
+  return 'at the recent star mix'
+}
+
 /** "Next: Google shows 4.4 after about 31 more reviews". */
 export function nextTenthLine(detail: RatingGoalDetailView): string | null {
   const next = detail.nextTenth
   if (next === null) return null
   const shows = `Next: Google shows ${ratingText(next.target)}`
   return next.reviewsNeeded === null
-    ? `${shows} — not reachable at the recent star mix`
+    ? `${shows} — not reachable ${assumedAverageWords(detail)}`
     : `${shows} after about ${formatNumber(next.reviewsNeeded)} more ${next.reviewsNeeded === 1 ? 'review' : 'reviews'}`
 }
 
@@ -119,14 +144,14 @@ export function detailTiles(detail: RatingGoalDetailView): readonly DetailTile[]
       ? {
           label: 'Still needed',
           value: 'Not reachable',
-          detail: 'at the recent star mix',
+          detail: assumedAverageWords(detail),
         }
       : {
           label: 'Still needed',
           value: reviewsText(detail.stillNeeded),
           detail:
             detail.bestCase === null
-              ? 'at the recent star mix'
+              ? assumedAverageWords(detail)
               : `best case ${formatNumber(detail.bestCase)}, if every new review is 5★`,
         },
   ]
@@ -178,10 +203,51 @@ export function freshnessText(asOf: string, readAt: Date): string {
   return `Google numbers checked ${when}`
 }
 
+/** One line of "Your plan": what happened so far against the plan. */
+export type PlanLine = Readonly<{ term: string; value: string; note: string | null }>
+
+/** "4.61★": an average of new reviews, to the hundredth, never rounded onto a tenth it is not. */
+const starsSoFar = (average: number): string =>
+  `${formatNumber(average, { maximumFractionDigits: 2 })}★`
+
+function newReviewsLine(plan: RatingGoalPlanProgressView): PlanLine {
+  const planned = `plan ${tenthsText(plan.qualityTenths)}★`
+  const { reviewCount, average } = plan.sinceSet
+  const since =
+    reviewCount === 0
+      ? 'No new reviews since the goal was set'
+      : `${reviewsText(reviewCount)} since the goal was set`
+  return {
+    term: 'New reviews average',
+    value:
+      average === null
+        ? `after 10 reviews · ${planned}`
+        : `${starsSoFar(average)} · ${planned}`,
+    note: since,
+  }
+}
+
 /**
- * What the detail page says while ten or more reviews since the goal was set
- * average at or below what its target needs (round 2). The screens give the
- * plan beside it.
+ * "Your plan" (R2-11): the goal against what Google shows now, the planned
+ * average against the reviews since the goal was set ("after 10 reviews" until
+ * there are ten), and the chosen pace against the last four weeks.
  */
-export const tooLowSentence = (target: number): string =>
-  `New reviews since the goal was set average below what ${ratingText(target)} needs.`
+export function yourPlanLines(plan: RatingGoalPlanProgressView): readonly PlanLine[] {
+  const goal = `goal ${tenthsText(plan.targetTenths)}`
+  return [
+    {
+      term: 'Google shows',
+      value:
+        plan.googleShowsTenths === null
+          ? `not known yet · ${goal}`
+          : `${tenthsText(plan.googleShowsTenths)} · ${goal}`,
+      note: null,
+    },
+    newReviewsLine(plan),
+    {
+      term: 'Pace, last 4 weeks',
+      value: `${perWeekText(plan.lastFourWeeksPerWeek)} · plan ${perWeekText(plan.pacePerWeek)}`,
+      note: `Your plan is ${perMonthAndDay(ratingGoalPaceView(plan.pacePerWeek))}`,
+    },
+  ]
+}

@@ -1,5 +1,6 @@
-// The Google rating goal's detail page, the full monitoring view: both
-// forecasts and the best case, the bar from the start with the next tenth, the
+// The Google rating goal's detail page, the full monitoring view: "Your plan"
+// against what happened since it was set (before and after ten reviews, and
+// new reviews too low), both forecasts and the best case, the bar from the start with the next tenth, the
 // three tiles, the weekly bars against the pace, the star mix, the change log
 // and the foot; and its actions, which only a manager allowed to change or end
 // a goal sees. The Storybook Vitest project compiles no Tailwind, so the plays
@@ -11,6 +12,7 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { RatingGoalDetail, RatingGoalMissing } from './rating-goal-detail'
 import { RatingGoalDetailActions } from './rating-goal-detail-actions'
 import { withRatingGoalRefusals } from './rating-goal-refusal'
+import { DETAIL_BEFORE_TEN, DETAIL_TOO_LOW } from './rating-goal-plan.stories.fixtures'
 import {
   DETAIL,
   FIXTURE_NOW,
@@ -50,9 +52,16 @@ export const Monitoring: Story = {
     await expect(
       canvas.getByRole('heading', { name: 'Reach 4.5 on Google' }),
     ).toBeVisible()
-    await expect(
-      canvas.getByText('Your pace: 11 a week · 48 a month · 1.6 a day'),
-    ).toBeVisible()
+    const plan = within(canvas.getByRole('region', { name: 'Your plan' }))
+    await expect(plan.getByText('Google shows')).toBeVisible()
+    await expect(plan.getByText('4.3 · goal 4.5')).toBeVisible()
+    await expect(plan.getByText('New reviews average')).toBeVisible()
+    await expect(plan.getByText('4.61★ · plan 4.7★')).toBeVisible()
+    await expect(plan.getByText('107 reviews since the goal was set')).toBeVisible()
+    await expect(plan.getByText('9.5 a week · plan 11 a week')).toBeVisible()
+    await expect(plan.getByText('Your plan is 48 a month · 1.6 a day')).toBeVisible()
+    // The plan's pace is in the plan, not said again above it.
+    await expect(canvas.queryByText(/^Your pace:/)).toBeNull()
     await expect(canvas.getByText('At your chosen pace, 11 a week')).toBeVisible()
     await expect(canvas.getByText('Expected around Mar–Nov 2027')).toBeVisible()
     await expect(
@@ -135,25 +144,59 @@ export const KeepGoal: Story = {
   },
 }
 
-/** New reviews since the set are too low for the target: said once, not under each pace. */
-export const NewReviewsTooLow: Story = {
-  args: {
-    detail: {
-      ...DETAIL,
-      status: 'reviews_too_low',
-      stillNeeded: null,
-      forecastAtChosenPace: { kind: 'unreachable' },
-      forecastAtActualPace: { kind: 'unreachable' },
-    },
+/**
+ * The beta property's goal a fortnight in: four reviews since it was set, so no
+ * verdict on their stars yet, and the numbers assume the plan's 4.5★.
+ */
+export const BeforeTenReviews: Story = {
+  args: { detail: DETAIL_BEFORE_TEN },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const plan = within(canvas.getByRole('region', { name: 'Your plan' }))
+    await expect(plan.getByText('3.9 · goal 4.0')).toBeVisible()
+    await expect(plan.getByText('after 10 reviews · plan 4.5★')).toBeVisible()
+    await expect(plan.getByText('4 reviews since the goal was set')).toBeVisible()
+    await expect(plan.getByText('2 a week · plan 2 a week')).toBeVisible()
+    await expect(canvas.queryByRole('alert')).toBeNull()
+    // Both forecasts assume the plan's 4.5★ until there are ten reviews.
+    await expect(canvas.getAllByText('Expected around Dec 2026 – Feb 2027')).toHaveLength(
+      2,
+    )
   },
+}
+
+/**
+ * Twelve reviews since the set average 3.75★, at or below what 4.0 needs: said
+ * once, with what helps, not under each pace; the plan shows the average as it is.
+ */
+export const NewReviewsTooLow: Story = {
+  args: { detail: DETAIL_TOO_LOW },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('alert')).toHaveTextContent(
-      'New reviews since the goal was set average below what 4.5 needs.',
+      'Since you set the goal, new reviews average below what 4.0 needs. Your Portals offer every guest the same Google review link.',
     )
-    await expect(canvas.getAllByText(/average below what 4\.5 needs/)).toHaveLength(1)
+    await expect(canvas.getAllByText(/average below what 4\.0 needs/)).toHaveLength(1)
     await expect(canvas.queryByText(/^At your chosen pace/)).toBeNull()
     await expect(canvas.getByText('Not reachable')).toBeVisible()
+    await expect(canvas.getByText('at the new reviews’ average')).toBeVisible()
+    const plan = within(canvas.getByRole('region', { name: 'Your plan' }))
+    await expect(plan.getByText('3.75★ · plan 4.5★')).toBeVisible()
+  },
+}
+
+export const NewReviewsTooLowLight: Story = {
+  args: { detail: DETAIL_TOO_LOW },
+  parameters: { theme: 'light' },
+}
+
+export const BeforeTenReviewsPhone: Story = {
+  args: { detail: DETAIL_BEFORE_TEN },
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText('after 10 reviews · plan 4.5★'),
+    ).toBeVisible()
   },
 }
 
@@ -288,7 +331,7 @@ export const Actions: StoryObj<typeof RatingGoalDetailActions> = {
     onChange.mockClear()
     onEnd.mockClear()
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Change target or pace' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Change plan' }))
     await expect(onChange).toHaveBeenCalledOnce()
 
     await userEvent.click(canvas.getByRole('button', { name: 'End goal' }))
@@ -349,7 +392,7 @@ export const ActionsHiddenWithoutPermission: StoryObj<typeof RatingGoalDetailAct
   },
 }
 
-/** A goal to keep changes only to a higher number the setup offers. */
+/** A goal to keep changes only to a plan the setup offers: none while Google shows 5.0. */
 export const KeepGoalWithNothingHigher: StoryObj<typeof RatingGoalDetailActions> = {
   render: () => (
     <div className="flex gap-2">

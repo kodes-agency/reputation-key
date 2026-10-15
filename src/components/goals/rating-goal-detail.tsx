@@ -1,7 +1,8 @@
 // The Google rating goal's detail page: the full monitoring view, one click from
-// the simple card (ADR 0067, decision 7). What Google shows against the goal and
-// the chosen pace; the forecast at that pace and at the pace of the last four
-// weeks, and the best case; the bar from where the goal started with the next
+// the simple card (ADR 0067, decision 7). What Google shows against the goal;
+// "Your plan" against what happened since it was set (round 2, R2-11); the
+// forecast at the chosen pace and at the pace of the last four weeks, and the
+// best case; the bar from where the goal started with the next
 // tenth marked; this week, the last four weeks and what is still needed; the
 // weekly bars against the pace; the stars since it was set; the change log.
 // A goal the read found reached or ended looks forward no more: what it was,
@@ -30,14 +31,16 @@ import {
   detailForecasts,
   nextTenthLine,
   progressMarks,
-  tooLowSentence,
+  yourPlanLines,
 } from './rating-goal-detail-view'
+import { PLAN_POLICY_LINE } from './rating-goal-plan-view'
 import {
   APPROXIMATE_NUMBERS,
   averageProgressText,
   endedSentence,
   perMonthAndDay,
   ratingText,
+  reviewsTooLowSentence,
 } from './rating-goal-view'
 
 // Recharts is a chunk of its own, loaded once the page is up.
@@ -58,14 +61,34 @@ type Props = Readonly<{
 
 const QUIET = 'text-sm text-muted-foreground'
 
-/** What an active goal looks forward to: its pace, the forecasts and the best case. */
+/** "Your plan": the goal, the new reviews' average and the pace, each against the plan. */
+function YourPlan({
+  plan,
+}: Readonly<{ plan: NonNullable<RatingGoalDetailView['plan']> }>) {
+  return (
+    <section aria-labelledby="rating-goal-your-plan" className="flex flex-col gap-3">
+      <h3 id="rating-goal-your-plan" className="text-base font-medium">
+        Your plan
+      </h3>
+      <DescriptionList termWidth="wide">
+        {yourPlanLines(plan).map((line) => (
+          <DescriptionItem key={line.term} term={line.term} note={line.note ?? undefined}>
+            <span className="tabular-nums">{line.value}</span>
+          </DescriptionItem>
+        ))}
+      </DescriptionList>
+    </section>
+  )
+}
+
+/** What an active goal looks forward to: its plan, the forecasts and the best case. */
 function Outlook({ detail }: Pick<Props, 'detail'>) {
   const target = ratingText(detail.target)
   const best = bestCaseLine(detail)
   const forecasts = detailForecasts(detail)
   return (
     <>
-      {detail.pacePerWeek === null ? null : (
+      {detail.pacePerWeek === null || detail.plan !== null ? null : (
         <p className="text-base">
           Your pace: {detail.pacePerWeek} a week ·{' '}
           {perMonthAndDay(ratingGoalPaceView(detail.pacePerWeek))}
@@ -80,10 +103,14 @@ function Outlook({ detail }: Pick<Props, 'detail'>) {
         </Alert>
       ) : null}
       {detail.status === 'reviews_too_low' ? (
+        // What helps: the approved words on how guests are asked (R2-12).
         <Alert variant="warning">
-          <AlertDescription>{tooLowSentence(detail.target)}</AlertDescription>
+          <AlertDescription>
+            {reviewsTooLowSentence(detail.target)} {PLAN_POLICY_LINE}
+          </AlertDescription>
         </Alert>
       ) : null}
+      {detail.plan === null ? null : <YourPlan plan={detail.plan} />}
       {forecasts.length === 0 ? null : (
         <DescriptionList stacked aria-label="When Google is expected to show it">
           {forecasts.map((line) => (

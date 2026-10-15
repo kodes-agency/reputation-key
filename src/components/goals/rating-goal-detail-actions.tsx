@@ -1,5 +1,6 @@
 // What the detail page lets a manager do with an active Google rating goal:
-// change its target or pace (goal.update), or end it (goal.cancel). A goal the
+// change its plan, which opens "Pick a plan" on it (goal.update), or end it
+// (goal.cancel). A goal the
 // read found reached or ended has no actions; the Goals page offers the next.
 // Ending is final, so it confirms in the destructive tone; the confirmation
 // stays open on a refusal and says it.
@@ -17,7 +18,7 @@ import { ratingText } from './rating-goal-view'
 
 type Props = Readonly<{
   goal: RatingGoalCardView
-  /** The setup read: a goal that keeps a number can change only to a higher one it offers. */
+  /** The setup read: a goal that keeps a number can change only to a plan it offers. */
   setup: RatingGoalSetupView | undefined
   onChange: () => void
   /** Ends the goal; rejects with the refusal, which the confirmation says. */
@@ -28,12 +29,12 @@ export function RatingGoalDetailActions({ goal, setup, onChange, onEnd }: Props)
   const { can } = usePermissions()
   if (goal.state !== 'active') return null
   const keep = goal.mode === 'keep'
-  const changeOffered = !keep || (setup?.stops.length ?? 0) > 0
+  const changeOffered = !keep || (setup?.planning ?? null) !== null
   return (
     <>
       {can('goal.update') && changeOffered ? (
         <Button variant="outline" onClick={onChange}>
-          {keep ? 'Aim for a higher number' : 'Change target or pace'}
+          {keep ? 'Aim for a higher number' : 'Change plan'}
         </Button>
       ) : null}
       {can('goal.cancel') ? (

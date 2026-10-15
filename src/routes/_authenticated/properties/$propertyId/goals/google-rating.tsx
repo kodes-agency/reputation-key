@@ -23,7 +23,7 @@ import {
 import { RatingGoalDetailActions } from '#/components/goals/rating-goal-detail-actions'
 import { withRatingGoalRefusals } from '#/components/goals/rating-goal-refusal'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
-import { RATING_GOAL_STATUS } from '#/components/goals/rating-goal-view'
+import { ratingGoalStatusBadge } from '#/components/goals/rating-goal-view'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
   markRatingGoalReadsStale,
@@ -121,13 +121,7 @@ function GoogleRatingGoalRoute() {
         meta={
           detail === null
             ? undefined
-            : [
-                <StatusBadge
-                  key="status"
-                  status={detail.status}
-                  map={RATING_GOAL_STATUS}
-                />,
-              ]
+            : [<StatusBadge key="status" {...ratingGoalStatusBadge(detail)} />]
         }
         breadcrumbs={trailCrumbs('goals', { propertyId, propertyName: name }, TITLE)}
         actions={
