@@ -153,12 +153,11 @@ export const OutOfReachWarns: Story = {
     )
     await expect(dialog.queryByRole('alert')).toBeNull()
     await userEvent.keyboard('{ArrowRight}{ArrowRight}')
-    await expect(dialog.getByText('Not reachable at your recent 4.7★ mix')).toBeVisible()
-    // The live line says it is not reachable; the warning says what picking it means.
+    // 4.8 is worked out at its own recommended quality (5.0★), so it is a count.
+    await expect(dialog.getByText('About 1,430 more reviews')).toBeVisible()
     await expect(dialog.getByRole('status')).toHaveTextContent(
-      'You can still pick it. Until your recent stars rise, the goal will show Can’t reach at this mix.',
+      'Out of reach: even at 11 new reviews a week this takes more than a year. You can still pick it.',
     )
-    await expect(dialog.getAllByText(/4\.7★/)).toHaveLength(1)
     await expect(dialog.getByRole('button', { name: 'Next' })).toBeEnabled()
   },
 }

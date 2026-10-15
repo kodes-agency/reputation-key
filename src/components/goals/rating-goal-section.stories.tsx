@@ -135,20 +135,20 @@ export const BelowPace: Story = {
   },
 }
 
-export const CantReachAtThisMix: Story = {
+export const NewReviewsTooLow: Story = {
   args: {
     card: cardRead({
       ...CARD,
-      status: 'cant_reach_at_mix',
+      status: 'reviews_too_low',
       forecast: { kind: 'unreachable' },
     }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Can’t reach at this mix')).toBeVisible()
+    await expect(canvas.getByText('New reviews too low')).toBeVisible()
     await expect(
       canvas.getByText(
-        'No pace reaches 4.5 at the recent star mix. A lower goal can still be reached.',
+        'New reviews since the goal was set average below what 4.5 needs.',
       ),
     ).toBeVisible()
     await expect(canvas.queryByText(/^Expected around/)).toBeNull()
@@ -531,8 +531,8 @@ export const OnPacePhone: Story = {
 }
 
 /** The long chip drops below the title on a phone instead of squeezing it. */
-export const CantReachPhone: Story = {
-  ...CantReachAtThisMix,
+export const NewReviewsTooLowPhone: Story = {
+  ...NewReviewsTooLow,
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
 }
 

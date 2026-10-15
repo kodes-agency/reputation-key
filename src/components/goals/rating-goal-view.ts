@@ -19,7 +19,7 @@ import { formatMonthKey, formatNumber, formatShortDate } from '#/lib/format'
 export const RATING_GOAL_STATUS: StatusMap<RatingGoalStatus> = {
   waiting_for_google: { label: 'Waiting for Google', tone: 'neutral' },
   reached: { label: 'Reached', tone: 'positive' },
-  cant_reach_at_mix: { label: 'Can’t reach at this mix', tone: 'warn' },
+  reviews_too_low: { label: 'New reviews too low', tone: 'warn' },
   getting_started: { label: 'Getting started', tone: 'neutral' },
   on_pace: { label: 'On pace', tone: 'positive' },
   below_pace: { label: 'Below pace', tone: 'warn' },
@@ -162,8 +162,8 @@ export function cardOutlook(
   }
   if (card.mode === 'keep') return null
   if (card.googleShowsSoon) return `Google should show ${ratingText(card.target)} soon`
-  if (card.status === 'cant_reach_at_mix') {
-    return `No pace reaches ${ratingText(card.target)} at the recent star mix. A lower goal can still be reached.`
+  if (card.status === 'reviews_too_low') {
+    return `New reviews since the goal was set average below what ${ratingText(card.target)} needs.`
   }
   return card.forecast === null ? null : forecastSentence(card.forecast, card.target)
 }
@@ -289,5 +289,7 @@ export function changeText(change: RatingGoalChangeView): string {
         : `Pace ${paceValue(oldValue)} → ${paceValue(newValue)}`
     case 'mode':
       return `Goal ${MODE_WORD[oldValue ?? ''] ?? 'none'} → ${MODE_WORD[newValue ?? ''] ?? 'none'}`
+    case 'quality':
+      return `New reviews ${tenthsValue(oldValue)} → ${tenthsValue(newValue)}`
   }
 }

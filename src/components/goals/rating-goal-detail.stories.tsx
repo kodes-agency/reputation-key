@@ -32,7 +32,6 @@ const meta: Meta<typeof RatingGoalDetail> = {
     readAt: NOW,
     timezone: FIXTURE_TIMEZONE,
     now: NOW,
-    setup: SETUP,
     personName: (userId: string) => NAMES[userId] ?? null,
   },
   render: (args) => (
@@ -136,12 +135,12 @@ export const KeepGoal: Story = {
   },
 }
 
-/** No pace reaches it: said once, with the fix, and not again under each pace. */
-export const CantReachSuggestsAFix: Story = {
+/** New reviews since the set are too low for the target: said once, not under each pace. */
+export const NewReviewsTooLow: Story = {
   args: {
     detail: {
       ...DETAIL,
-      status: 'cant_reach_at_mix',
+      status: 'reviews_too_low',
       stillNeeded: null,
       forecastAtChosenPace: { kind: 'unreachable' },
       forecastAtActualPace: { kind: 'unreachable' },
@@ -150,9 +149,9 @@ export const CantReachSuggestsAFix: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('alert')).toHaveTextContent(
-      'No pace reaches 4.5 at the recent star mix. The highest goal you can reach now is 4.7.',
+      'New reviews since the goal was set average below what 4.5 needs.',
     )
-    await expect(canvas.getAllByText(/No pace reaches 4\.5/)).toHaveLength(1)
+    await expect(canvas.getAllByText(/average below what 4\.5 needs/)).toHaveLength(1)
     await expect(canvas.queryByText(/^At your chosen pace/)).toBeNull()
     await expect(canvas.getByText('Not reachable')).toBeVisible()
   },

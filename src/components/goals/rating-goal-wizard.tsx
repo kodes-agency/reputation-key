@@ -192,7 +192,7 @@ function keepSave(
   propertyId: string,
 ): Readonly<{ submission: WizardSubmission | null; saved: SavedGoal }> {
   return {
-    submission: wizardSubmission(intent, propertyId, intent.targetTenths, null),
+    submission: wizardSubmission(intent, propertyId, intent.targetTenths, null, null),
     saved: {
       mode: 'keep',
       targetTenths: intent.targetTenths,

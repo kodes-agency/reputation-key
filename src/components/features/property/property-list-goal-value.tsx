@@ -2,8 +2,8 @@
 // the fleet read carries: a goal's target and status open the goal's page,
 // "Set goal" opens the wizard on the Goals page, and a dash says there is
 // neither. In the table the target and the status are two deliberate lines
-// (the target never breaks; the longest status, "Can’t reach at this mix",
-// gets a line of its own); stacked on a phone they are one quiet line of the
+// (the target never breaks; the longest status, "New reviews too low", gets a
+// line of its own); stacked on a phone they are one quiet line of the
 // row, "Google goal: 4.5 · On pace", whose link is padded into a tap target
 // that stays inside the row's gaps. "Set goal" is the column's one action, so
 // it is in the medium weight with a chevron that says it goes on (to the

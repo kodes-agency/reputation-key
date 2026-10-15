@@ -31,7 +31,7 @@ import {
 /** The goal a change starts from, as the card read it. */
 export type RatingGoalBeingChanged = Pick<
   RatingGoalCardView,
-  'goalId' | 'version' | 'mode' | 'targetTenths' | 'pacePerWeek'
+  'goalId' | 'version' | 'mode' | 'targetTenths' | 'qualityTenths' | 'pacePerWeek'
 >
 
 /** Why the wizard opened: a goal to climb, a goal to keep, or a change. */
@@ -121,9 +121,7 @@ export function outOfReachWarning(
 ): string | null {
   if (stop.label !== 'out_of_reach') return null
   const pick = 'You can still pick it.'
-  if (stop.reviewsNeeded === null) {
-    return `${pick} Until your recent stars rise, the goal will show Can’t reach at this mix.`
-  }
+  if (stop.reviewsNeeded === null) return pick
   const faster = setup.paces.faster.perWeek
   return `Out of reach: even at ${formatNumber(faster)} new ${faster === 1 ? 'review' : 'reviews'} a week this takes more than a year. ${pick}`
 }
@@ -251,6 +249,7 @@ export function wizardSubmission(
   propertyId: string,
   targetTenths: number,
   pacePerWeek: number | null,
+  qualityTenths: number | null,
 ): WizardSubmission | null {
   if (intent.kind !== 'change') {
     const mode = intent.kind === 'keep' ? 'keep' : 'climb'
@@ -260,6 +259,7 @@ export function wizardSubmission(
         propertyId,
         mode,
         targetTenths,
+        qualityTenths: mode === 'keep' ? null : qualityTenths,
         pacePerWeek: mode === 'keep' ? null : pacePerWeek,
       },
     }
@@ -268,6 +268,7 @@ export function wizardSubmission(
   const changes = {
     ...(goal.mode === 'climb' ? {} : { mode: 'climb' as const }),
     ...(goal.targetTenths === targetTenths ? {} : { targetTenths }),
+    ...(goal.qualityTenths === qualityTenths ? {} : { qualityTenths }),
     ...(goal.pacePerWeek === pacePerWeek ? {} : { pacePerWeek }),
   }
   if (Object.keys(changes).length === 0) return null

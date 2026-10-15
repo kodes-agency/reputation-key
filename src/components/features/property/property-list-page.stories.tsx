@@ -316,7 +316,7 @@ export const GoogleGoalLongStatuses: Story = {
           4.2,
           140,
           {},
-          { kind: 'set', mode: 'climb', target: 4.5, status: 'cant_reach_at_mix' },
+          { kind: 'set', mode: 'climb', target: 4.5, status: 'reviews_too_low' },
         ),
       ],
       [
@@ -345,7 +345,7 @@ export const GoogleGoalLongStatuses: Story = {
     const canvas = within(canvasElement)
     expect(
       canvas.getByRole('link', {
-        name: '4.5 · Can’t reach at this mix: Google rating goal for Studio Priority',
+        name: '4.5 · New reviews too low: Google rating goal for Studio Priority',
       }),
     ).toBeVisible()
     expect(

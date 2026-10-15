@@ -3,10 +3,7 @@
 // and at the pace of the last four weeks, the best case, the bar from where the
 // goal started to the line Google shows the target at, the next tenth, the
 // tiles, the star mix and how fresh Google's numbers are (ADR 0067, decision 7).
-import type {
-  RatingGoalDetailView,
-  RatingGoalSetupView,
-} from '#/contexts/reporting/application/dto/rating-goal.types'
+import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { formatNumber } from '#/lib/format'
 import { forecastSentence, ratingText, reviewsText } from './rating-goal-view'
 
@@ -41,7 +38,7 @@ const perWeekText = (perWeek: number): string =>
 export function detailForecasts(
   detail: RatingGoalDetailView,
 ): readonly Readonly<{ label: string; text: string }>[] {
-  if (detail.pacePerWeek === null || detail.status === 'cant_reach_at_mix') return []
+  if (detail.pacePerWeek === null || detail.status === 'reviews_too_low') return []
   const lines = [
     detail.forecastAtChosenPace === null
       ? null
@@ -182,22 +179,9 @@ export function freshnessText(asOf: string, readAt: Date): string {
 }
 
 /**
- * The one suggested fix while no pace reaches the target at the recent mix: the
- * highest goal that a pace does reach, from the setup read, or keeping what
- * Google shows when none does.
+ * What the detail page says while ten or more reviews since the goal was set
+ * average at or below what its target needs (round 2). The screens give the
+ * plan beside it.
  */
-export function cantReachSuggestion(
-  target: number,
-  setup: Pick<RatingGoalSetupView, 'stops' | 'google'> | undefined,
-): string {
-  const lead = `No pace reaches ${ratingText(target)} at the recent star mix.`
-  if (setup === undefined) return `${lead} A lower goal can still be reached.`
-  const reachable = setup.stops.filter((stop) => stop.reviewsNeeded !== null).at(-1)
-  if (reachable !== undefined) {
-    return `${lead} The highest goal you can reach now is ${ratingText(reachable.target)}.`
-  }
-  const shows = setup.google?.shows ?? null
-  return shows === null
-    ? `${lead} A lower goal can still be reached.`
-    : `${lead} You can keep ${ratingText(shows)} instead.`
-}
+export const tooLowSentence = (target: number): string =>
+  `New reviews since the goal was set average below what ${ratingText(target)} needs.`

@@ -104,7 +104,13 @@ export function RatingGoalClimbSteps({
   if (stop === null) return <NothingHigher banner={banner} />
   const perWeek = paceChoicePerWeek(setup, choice)
   const invalidPace = choice.kind === 'custom' && customPaceProblem(perWeek) !== null
-  const submission = wizardSubmission(intent, propertyId, stop.targetTenths, perWeek)
+  const submission = wizardSubmission(
+    intent,
+    propertyId,
+    stop.targetTenths,
+    perWeek,
+    stop.qualityTenths,
+  )
   const canSave = submission !== null && !invalidPace
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()

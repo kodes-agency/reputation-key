@@ -102,11 +102,10 @@ function GoogleRatingGoalRoute() {
   const detail = read.data
   const { timezone, name } = propData.property
   const active = detail?.state === 'active'
-  // The wizard's setup, read ahead while the goal can change: the change opens
-  // on it, and a goal no pace reaches names its suggested fix from it.
+  // The wizard's setup, read ahead while the goal can change: the change opens on it.
   const { start, wizard, setup } = useRatingGoalWizard(propertyId, {
     hasPortals: true,
-    readSetup: active && (canDo('goal.update') || detail.status === 'cant_reach_at_mix'),
+    readSetup: active && canDo('goal.update'),
   })
   const members = useQuery({
     ...membersQuery,
@@ -158,7 +157,6 @@ function GoogleRatingGoalRoute() {
           readAt={new Date(read.dataUpdatedAt)}
           timezone={timezone}
           now={now}
-          setup={setup.data}
           personName={goalPersonNames(members.data?.members)}
         />
       )}

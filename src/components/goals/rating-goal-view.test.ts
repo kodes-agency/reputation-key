@@ -133,13 +133,11 @@ describe('the simple card', () => {
     )
     expect(
       cardOutlook(
-        { ...CARD, status: 'cant_reach_at_mix', forecast: { kind: 'unreachable' } },
+        { ...CARD, status: 'reviews_too_low', forecast: { kind: 'unreachable' } },
         FIXTURE_TIMEZONE,
         NOW,
       ),
-    ).toBe(
-      'No pace reaches 4.5 at the recent star mix. A lower goal can still be reached.',
-    )
+    ).toBe('New reviews since the goal was set average below what 4.5 needs.')
   })
 
   it('waits for Google without repeating the day the headline already gives', () => {
@@ -168,8 +166,8 @@ describe('the simple card', () => {
   it('labels every status, with the tone of its verdict', () => {
     expect(RATING_GOAL_STATUS.on_pace).toEqual({ label: 'On pace', tone: 'positive' })
     expect(RATING_GOAL_STATUS.below_pace).toEqual({ label: 'Below pace', tone: 'warn' })
-    expect(RATING_GOAL_STATUS.cant_reach_at_mix).toEqual({
-      label: 'Can’t reach at this mix',
+    expect(RATING_GOAL_STATUS.reviews_too_low).toEqual({
+      label: 'New reviews too low',
       tone: 'warn',
     })
     expect(RATING_GOAL_STATUS.getting_started.tone).toBe('neutral')

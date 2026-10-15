@@ -9,10 +9,7 @@
 import { lazy, Suspense } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Target } from 'lucide-react'
-import type {
-  RatingGoalDetailView,
-  RatingGoalSetupView,
-} from '#/contexts/reporting/application/dto/rating-goal.types'
+import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { ratingGoalPaceView } from '#/contexts/reporting/application/rating-goal-preview'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
@@ -30,10 +27,10 @@ import {
 } from './rating-goal-detail-parts'
 import {
   bestCaseLine,
-  cantReachSuggestion,
   detailForecasts,
   nextTenthLine,
   progressMarks,
+  tooLowSentence,
 } from './rating-goal-detail-view'
 import {
   APPROXIMATE_NUMBERS,
@@ -56,15 +53,13 @@ type Props = Readonly<{
   readAt: Date
   timezone: string
   now: Date
-  /** The setup read: the fix suggested when no pace reaches the target. */
-  setup?: RatingGoalSetupView
   personName: (userId: string) => string | null
 }>
 
 const QUIET = 'text-sm text-muted-foreground'
 
 /** What an active goal looks forward to: its pace, the forecasts and the best case. */
-function Outlook({ detail, setup }: Pick<Props, 'detail' | 'setup'>) {
+function Outlook({ detail }: Pick<Props, 'detail'>) {
   const target = ratingText(detail.target)
   const best = bestCaseLine(detail)
   const forecasts = detailForecasts(detail)
@@ -84,9 +79,9 @@ function Outlook({ detail, setup }: Pick<Props, 'detail' | 'setup'>) {
           </AlertDescription>
         </Alert>
       ) : null}
-      {detail.status === 'cant_reach_at_mix' ? (
+      {detail.status === 'reviews_too_low' ? (
         <Alert variant="warning">
-          <AlertDescription>{cantReachSuggestion(detail.target, setup)}</AlertDescription>
+          <AlertDescription>{tooLowSentence(detail.target)}</AlertDescription>
         </Alert>
       ) : null}
       {forecasts.length === 0 ? null : (
@@ -103,7 +98,7 @@ function Outlook({ detail, setup }: Pick<Props, 'detail' | 'setup'>) {
   )
 }
 
-function Summary({ detail, timezone, now, setup }: Props) {
+function Summary({ detail, timezone, now }: Props) {
   const target = ratingText(detail.target)
   return (
     <Card className="gap-4">
@@ -116,7 +111,7 @@ function Summary({ detail, timezone, now, setup }: Props) {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <RatingGoalHeadline card={detail} timezone={timezone} now={now} />
-        {detail.state === 'active' ? <Outlook detail={detail} setup={setup} /> : null}
+        {detail.state === 'active' ? <Outlook detail={detail} /> : null}
       </CardContent>
     </Card>
   )

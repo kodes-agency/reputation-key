@@ -74,7 +74,9 @@ describe('what a stop reads as', () => {
   it('says the reviews it needs, or that the recent mix never gets there', () => {
     expect(targetLine(stop(44), SETUP.recentMix)).toBe('About 93 more reviews')
     expect(targetLine(stop(46), SETUP.recentMix)).toBe('About 1,300 more reviews')
-    expect(targetLine(stop(48), SETUP.recentMix)).toBe(
+    // Each stop is worked out at its own recommended quality: 4.8 at 5.0★.
+    expect(targetLine(stop(48), SETUP.recentMix)).toBe('About 1,430 more reviews')
+    expect(targetLine({ ...stop(48), reviewsNeeded: null }, SETUP.recentMix)).toBe(
       'Not reachable at your recent 4.7★ mix',
     )
   })
@@ -84,7 +86,7 @@ describe('what a stop reads as', () => {
       '4.4, realistic, about 93 more reviews',
     )
     expect(stopValueText(stop(48), SETUP.recentMix)).toBe(
-      '4.8, out of reach, not reachable at your recent 4.7★ mix',
+      '4.8, out of reach, about 1,430 more reviews',
     )
   })
 
@@ -93,8 +95,8 @@ describe('what a stop reads as', () => {
     expect(outOfReachWarning(stop(46), SETUP)).toBe(
       'Out of reach: even at 11 new reviews a week this takes more than a year. You can still pick it.',
     )
-    expect(outOfReachWarning(stop(48), SETUP)).toBe(
-      'You can still pick it. Until your recent stars rise, the goal will show Can’t reach at this mix.',
+    expect(outOfReachWarning({ ...stop(48), reviewsNeeded: null }, SETUP)).toBe(
+      'You can still pick it.',
     )
   })
 
@@ -134,7 +136,7 @@ describe('the paces', () => {
         name: 'Steady',
         perWeek: '7 a week',
         perMonthAndDay: '30 a month · 1 a day',
-        forecast: 'Around Jul 2027 – Aug 2028',
+        forecast: 'Around Aug 2027 – Feb 2029',
       },
       {
         key: 'faster',
@@ -148,7 +150,7 @@ describe('the paces', () => {
         name: 'Push',
         perWeek: '14 a week',
         perMonthAndDay: '61 a month · 2 a day',
-        forecast: 'Around Feb–Nov 2027',
+        forecast: 'Around Mar–Dec 2027',
       },
     ])
   })
@@ -186,23 +188,31 @@ describe('the paces', () => {
 
 describe('what is saved', () => {
   it('sets a goal to climb with its pace, or a goal to keep with none', () => {
-    expect(wizardSubmission({ kind: 'climb' }, FIXTURE_PROPERTY_ID, 44, 11)).toEqual({
+    expect(wizardSubmission({ kind: 'climb' }, FIXTURE_PROPERTY_ID, 44, 11, 47)).toEqual({
       kind: 'set',
       data: {
         propertyId: FIXTURE_PROPERTY_ID,
         mode: 'climb',
         targetTenths: 44,
+        qualityTenths: 47,
         pacePerWeek: 11,
       },
     })
     expect(
-      wizardSubmission({ kind: 'keep', targetTenths: 49 }, FIXTURE_PROPERTY_ID, 49, null),
+      wizardSubmission(
+        { kind: 'keep', targetTenths: 49 },
+        FIXTURE_PROPERTY_ID,
+        49,
+        null,
+        null,
+      ),
     ).toEqual({
       kind: 'set',
       data: {
         propertyId: FIXTURE_PROPERTY_ID,
         mode: 'keep',
         targetTenths: 49,
+        qualityTenths: null,
         pacePerWeek: null,
       },
     })
@@ -210,7 +220,7 @@ describe('what is saved', () => {
 
   it('changes only what differs, against the version the wizard opened on', () => {
     expect(
-      wizardSubmission({ kind: 'change', goal: CARD }, FIXTURE_PROPERTY_ID, 45, 14),
+      wizardSubmission({ kind: 'change', goal: CARD }, FIXTURE_PROPERTY_ID, 45, 14, 47),
     ).toEqual({
       kind: 'change',
       data: {
@@ -221,7 +231,13 @@ describe('what is saved', () => {
       },
     })
     expect(
-      wizardSubmission({ kind: 'change', goal: CARD_KEEP }, FIXTURE_PROPERTY_ID, 44, 11),
+      wizardSubmission(
+        { kind: 'change', goal: CARD_KEEP },
+        FIXTURE_PROPERTY_ID,
+        44,
+        11,
+        47,
+      ),
     ).toEqual({
       kind: 'change',
       data: {
@@ -230,6 +246,7 @@ describe('what is saved', () => {
         expectedVersion: 3,
         mode: 'climb',
         targetTenths: 44,
+        qualityTenths: 47,
         pacePerWeek: 11,
       },
     })
@@ -237,7 +254,7 @@ describe('what is saved', () => {
 
   it('has nothing to send when a change changes nothing', () => {
     expect(
-      wizardSubmission({ kind: 'change', goal: CARD }, FIXTURE_PROPERTY_ID, 45, 11),
+      wizardSubmission({ kind: 'change', goal: CARD }, FIXTURE_PROPERTY_ID, 45, 11, 47),
     ).toBeNull()
   })
 })

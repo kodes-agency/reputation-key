@@ -6,16 +6,16 @@ import { describe, expect, it } from 'vitest'
 import {
   aboutHowLong,
   bestCaseLine,
-  cantReachSuggestion,
   detailForecasts,
   detailTiles,
   freshnessText,
   nextTenthLine,
   progressMarks,
   starMixSummary,
+  tooLowSentence,
   weeklyCaption,
 } from './rating-goal-detail-view'
-import { DETAIL, SETUP, SETUP_KEEP_FIRST } from './rating-goal.stories.fixtures'
+import { DETAIL } from './rating-goal.stories.fixtures'
 
 describe('how long a count of reviews takes', () => {
   it('says weeks, then months, then years', () => {
@@ -36,8 +36,8 @@ describe('the forecasts', () => {
     ])
   })
 
-  it('gives no forecast while no pace reaches the target: the page says so once', () => {
-    expect(detailForecasts({ ...DETAIL, status: 'cant_reach_at_mix' })).toEqual([])
+  it('gives no forecast while new reviews are too low: the page says so once', () => {
+    expect(detailForecasts({ ...DETAIL, status: 'reviews_too_low' })).toEqual([])
   })
 
   it('says the best case quietly', () => {
@@ -137,19 +137,10 @@ describe('the rest of the page', () => {
   })
 })
 
-describe('the fix suggested when no pace reaches the target', () => {
-  it('names the highest goal a pace reaches, from the setup read', () => {
-    expect(cantReachSuggestion(4.8, SETUP)).toBe(
-      'No pace reaches 4.8 at the recent star mix. The highest goal you can reach now is 4.7.',
-    )
-  })
-
-  it('offers to keep what Google shows when no higher goal is reachable', () => {
-    expect(cantReachSuggestion(4.9, { ...SETUP_KEEP_FIRST, google: SETUP.google })).toBe(
-      'No pace reaches 4.9 at the recent star mix. You can keep 4.3 instead.',
-    )
-    expect(cantReachSuggestion(4.9, undefined)).toBe(
-      'No pace reaches 4.9 at the recent star mix. A lower goal can still be reached.',
+describe('what the page says while new reviews are too low', () => {
+  it('says new reviews since the set average below what the target needs, with no star figure', () => {
+    expect(tooLowSentence(4)).toBe(
+      'New reviews since the goal was set average below what 4.0 needs.',
     )
   })
 })
