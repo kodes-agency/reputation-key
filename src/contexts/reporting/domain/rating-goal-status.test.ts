@@ -9,7 +9,9 @@ import {
   keepStatus,
   nextTenthMilestone,
   ratingProgress,
+  reviewsTooLow,
   statusPaceWindow,
+  trackingMix,
 } from './rating-goal-status'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -21,7 +23,8 @@ const climb = (overrides: Partial<Parameters<typeof climbStatus>[0]> = {}) =>
     waiting: false,
     displayedTenths: 43,
     targetTenths: 45,
-    mix: ratio(470, 100),
+    // 12 reviews since the goal was set, averaging 4.67.
+    sinceSet: { count: 12, sum: 56 },
     goalCreatedAt: daysAgo(30),
     now: NOW,
     chosenPerWeek: 10,
@@ -48,15 +51,27 @@ describe('the status of a climb goal, top rule first', () => {
   })
 
   it('is reached when Google shows the target', () => {
-    expect(climb({ displayedTenths: 45, mix: ratio(4, 1) })).toBe('reached')
+    expect(climb({ displayedTenths: 45, sinceSet: { count: 10, sum: 30 } })).toBe(
+      'reached',
+    )
     expect(climb({ displayedTenths: 46 })).toBe('reached')
   })
 
-  it("can't reach the target when the recent mix does not clear its threshold", () => {
-    expect(climb({ mix: ratio(445, 100) })).toBe('cant_reach_at_mix')
-    expect(climb({ mix: ratio(445, 100), goalCreatedAt: daysAgo(1) })).toBe(
-      'cant_reach_at_mix',
+  it('says new reviews are too low once ten since the set average at or below the threshold', () => {
+    // 20 reviews at exactly 4.45 against 4.5's threshold 4.45.
+    expect(climb({ sinceSet: { count: 20, sum: 89 } })).toBe('reviews_too_low')
+    expect(climb({ sinceSet: { count: 10, sum: 40 }, goalCreatedAt: daysAgo(1) })).toBe(
+      'reviews_too_low',
     )
+  })
+
+  it('gives no quality verdict before ten reviews arrived since the set', () => {
+    // Nine reviews at one star each.
+    expect(climb({ sinceSet: { count: 9, sum: 9 } })).toBe('on_pace')
+  })
+
+  it('is not too low while the since-set average clears the threshold', () => {
+    expect(climb({ sinceSet: { count: 20, sum: 90 } })).toBe('on_pace')
   })
 
   it('is getting started for the first 14 days', () => {
@@ -81,6 +96,29 @@ describe('the status of a climb goal, top rule first', () => {
 
   it('is below pace with no reviews at all', () => {
     expect(climb({ reviewsInPaceWindow: 0 })).toBe('below_pace')
+  })
+})
+
+describe('the stars new reviews are expected to average', () => {
+  it('is the planned quality until ten reviews arrived since the goal was set', () => {
+    expect(trackingMix(47, { count: 9, sum: 9 })).toEqual({
+      mix: ratio(47, 10),
+      basis: 'planned',
+    })
+  })
+
+  it('is their own average from the tenth review on', () => {
+    expect(trackingMix(47, { count: 10, sum: 42 })).toEqual({
+      mix: ratio(42, 10),
+      basis: 'since_set',
+    })
+  })
+
+  it('is too low only at ten reviews or more, at or below the threshold', () => {
+    // 3.95 is 4.0's threshold.
+    expect(reviewsTooLow({ count: 20, sum: 79 }, 40)).toBe(true)
+    expect(reviewsTooLow({ count: 20, sum: 80 }, 40)).toBe(false)
+    expect(reviewsTooLow({ count: 9, sum: 9 }, 40)).toBe(false)
   })
 })
 

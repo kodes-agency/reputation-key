@@ -25,6 +25,9 @@ const SURGE_CAUTION_MULTIPLE = 2
 
 export type PaceSuggestions = Readonly<{ steady: number; faster: number; push: number }>
 
+/** Steady, Faster or Push. */
+export type PaceKey = keyof PaceSuggestions
+
 /** Reviews created in the last 28 days, per week. */
 export const currentPacePerWeek = (reviewsLast28Days: number): Ratio =>
   ratio(reviewsLast28Days, PACE_WINDOW_WEEKS)

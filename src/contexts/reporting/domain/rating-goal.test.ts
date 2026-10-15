@@ -4,6 +4,7 @@ import {
   ratingGoalError,
   planChanges,
   paceProblem,
+  planQualityProblem,
   targetProblem,
 } from './rating-goal'
 
@@ -34,23 +35,53 @@ describe('the pace a rating goal may hold', () => {
   })
 })
 
+describe('the planned quality a rating goal may hold', () => {
+  it('needs a quality that clears the target’s threshold by 0.15★ to climb', () => {
+    expect(planQualityProblem('climb', 40, 41)).toBeNull()
+    expect(planQualityProblem('climb', 40, 40)).toBe('invalid_quality')
+    expect(planQualityProblem('climb', 40, null)).toBe('invalid_quality')
+  })
+
+  it('has none to keep', () => {
+    expect(planQualityProblem('keep', 49, null)).toBeNull()
+    expect(planQualityProblem('keep', 49, 50)).toBe('invalid_quality')
+  })
+})
+
 describe('the change log rows a change writes', () => {
-  const current = { mode: 'climb', targetTenths: 45, pacePerWeek: 11 } as const
+  const current = {
+    mode: 'climb',
+    targetTenths: 45,
+    qualityTenths: 47,
+    pacePerWeek: 11,
+  } as const
 
   it('writes one row per changed field, old to new, as text', () => {
     expect(
-      planChanges(current, { ...current, targetTenths: 46, pacePerWeek: 14 }),
+      planChanges(current, {
+        ...current,
+        targetTenths: 46,
+        qualityTenths: 48,
+        pacePerWeek: 14,
+      }),
     ).toEqual([
       { field: 'target', oldValue: '45', newValue: '46' },
+      { field: 'quality', oldValue: '47', newValue: '48' },
       { field: 'pace', oldValue: '11', newValue: '14' },
     ])
   })
 
-  it('logs the pace leaving when a goal switches to keep', () => {
+  it('logs the quality and the pace leaving when a goal switches to keep', () => {
     expect(
-      planChanges(current, { mode: 'keep', targetTenths: 45, pacePerWeek: null }),
+      planChanges(current, {
+        mode: 'keep',
+        targetTenths: 45,
+        qualityTenths: null,
+        pacePerWeek: null,
+      }),
     ).toEqual([
       { field: 'mode', oldValue: 'climb', newValue: 'keep' },
+      { field: 'quality', oldValue: '47', newValue: null },
       { field: 'pace', oldValue: '11', newValue: null },
     ])
   })

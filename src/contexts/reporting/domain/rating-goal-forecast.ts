@@ -1,7 +1,10 @@
 // Property Google rating goal — when a target is expected (pure).
 //
 // There is no deadline: a goal shows a forecast month range that moves with
-// the numbers. The range allows for drift in both inputs. Its early end is the
+// the numbers. The mix is the average stars new reviews are expected to bring:
+// a plan's planned quality, or a goal's tracking mix (its planned quality until
+// ten reviews arrived since it was set, then their average; round 2). The
+// range allows for drift in both inputs. Its early end is the
 // mix 0.1★ better (never above five stars) and the pace 10% faster; its late
 // end the mix 0.1★ worse and the pace 10% slower. When the worse mix no longer
 // clears the threshold the late end is open. Months are named in the Property's time zone, counted
@@ -28,7 +31,7 @@ export const FORECAST_HORIZON_WEEKS = 520
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 export type RatingForecast =
-  /** The recent mix does not clear the threshold: no pace reaches it. */
+  /** The mix does not clear the threshold: no pace reaches it. */
   | Readonly<{ kind: 'unreachable' }>
   /** The pace is zero. */
   | Readonly<{ kind: 'no_pace' }>
