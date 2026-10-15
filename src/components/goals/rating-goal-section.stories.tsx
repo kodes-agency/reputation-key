@@ -29,6 +29,7 @@ import type {
   RatingGoalCardView,
   RatingGoalHistoryEntry,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
+import { wholeText } from './rating-goal-wizard.stories.play'
 
 const NOW = new Date(FIXTURE_NOW)
 const read = <T,>(data: T | undefined, failed = false) => ({
@@ -95,7 +96,9 @@ export const OnPace: Story = {
     })
     await expect(bar).toHaveAttribute('aria-valuetext', 'Exact average 4.38 of 4.45')
     await expect(canvas.getByText('This week: 6 of 11 reviews')).toBeVisible()
-    await expect(canvas.getByText('Expected around Jul–Sep 2027')).toBeVisible()
+    await expect(
+      canvas.getByText(wholeText('Expected around Jul–Sep 2027')),
+    ).toBeVisible()
     await expect(canvas.getByRole('link', { name: 'View details' })).toHaveAttribute(
       'href',
       `/properties/${FIXTURE_PROPERTY_ID}/goals/google-rating`,
@@ -109,7 +112,9 @@ export const JustSet: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Getting started')).toBeVisible()
     await expect(canvas.getByText('Aim for about 11 new reviews a week')).toBeVisible()
-    await expect(canvas.getByText('Expected around Apr 2027 – Apr 2028')).toBeVisible()
+    await expect(
+      canvas.getByText(wholeText('Expected around Apr 2027 – Apr 2028')),
+    ).toBeVisible()
   },
 }
 

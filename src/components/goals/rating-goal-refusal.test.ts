@@ -28,7 +28,8 @@ describe('a rating goal refusal', () => {
     ['goal_exists', /already has a Google rating goal/u],
     ['not_eligible', /at least 10 Google reviews/u],
     ['invalid_target', /Google’s number may have moved/u],
-    ['no_change', /^Nothing has changed/u],
+    ['invalid_quality', /^That average is too close to what the goal needs/u],
+    ['no_change', /^Nothing has changed\. Pick another plan, or cancel\.$/u],
   ])('words %s in plain words', (code, sentence) => {
     expect((ratingGoalRefusal(refused(code)) as Error).message).toMatch(sentence)
   })

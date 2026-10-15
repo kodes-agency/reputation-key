@@ -12,6 +12,7 @@ import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { RatingGoalCancel } from './rating-goal-wizard-cancel'
 import { TONE_INK } from '#/components/ui/tone'
 import type { RatingGoalReceipt } from './rating-goal-wizard-view'
+import { RatingGoalWholeDates } from './rating-goal-whole-dates'
 
 export function RatingGoalDone({
   receipt,
@@ -27,7 +28,9 @@ export function RatingGoalDone({
         </p>
         {receipt.pace === null ? null : <p className="text-base">{receipt.pace}</p>}
         {receipt.forecast === null ? null : (
-          <p className="text-sm text-muted-foreground">{receipt.forecast}</p>
+          <p className="text-sm text-muted-foreground">
+            <RatingGoalWholeDates text={receipt.forecast} />
+          </p>
         )}
       </div>
       <DialogFooter className="mt-auto">

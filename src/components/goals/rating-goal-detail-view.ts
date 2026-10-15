@@ -11,6 +11,7 @@ import type {
 import { ratingGoalPaceView } from '#/contexts/reporting/application/rating-goal-preview'
 import { formatNumber } from '#/lib/format'
 import {
+  assumedAverageWords,
   forecastSentence,
   perMonthAndDay,
   ratingText,
@@ -43,25 +44,29 @@ const perWeekText = (perWeek: number): string =>
 
 /**
  * Both forecasts the detail shows: at the chosen pace and at the actual one.
- * None while no pace reaches the target at the recent mix: the page says that
- * once, with its suggested fix, rather than once per pace.
+ * None while new reviews are too low for the target: the page says that once,
+ * with what helps, rather than once per pace. A forecast no pace reaches names
+ * the average it was worked out at (the plan's, then the new reviews').
  */
 export function detailForecasts(
   detail: RatingGoalDetailView,
 ): readonly Readonly<{ label: string; text: string }>[] {
   if (detail.pacePerWeek === null || detail.status === 'reviews_too_low') return []
+  const average = assumedAverageWords(detail)
+  const sentence = (forecast: NonNullable<RatingGoalDetailView['forecast']>) =>
+    forecastSentence(forecast, detail.target, undefined, average)
   const lines = [
     detail.forecastAtChosenPace === null
       ? null
       : {
           label: `At your chosen pace, ${perWeekText(detail.pacePerWeek)}`,
-          text: forecastSentence(detail.forecastAtChosenPace, detail.target),
+          text: sentence(detail.forecastAtChosenPace),
         },
     detail.forecastAtActualPace === null
       ? null
       : {
           label: `At your pace of the last 4 weeks, ${perWeekText(detail.lastFourWeeksPerWeek)}`,
-          text: forecastSentence(detail.forecastAtActualPace, detail.target),
+          text: sentence(detail.forecastAtActualPace),
         },
   ]
   return lines.filter((line) => line !== null)
@@ -97,20 +102,6 @@ export function progressMarks(detail: RatingGoalDetailView): Readonly<{
     start: `Started at ${twoDecimals(from)}`,
     end: `${twoDecimals(detail.threshold)} shows ${ratingText(detail.target)}`,
   }
-}
-
-/**
- * The average the goal's numbers assume: the plan's until ten reviews arrived
- * since it was set, then theirs (round 2, R2-5).
- */
-export function assumedAverageWords(
-  detail: Pick<RatingGoalDetailView, 'qualityBasis' | 'quality'>,
-): string {
-  if (detail.qualityBasis === 'since_set') return 'at the new reviews’ average'
-  if (detail.qualityBasis === 'planned' && detail.quality !== null) {
-    return `at your plan’s ${ratingText(detail.quality)}★`
-  }
-  return 'at the recent star mix'
 }
 
 /** "Next: Google shows 4.4 after about 31 more reviews". */

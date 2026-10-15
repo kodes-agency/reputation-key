@@ -125,17 +125,60 @@ export function forecastMonths({ fromMonth, toMonth }: ForecastRange): string {
   return `${formatMonthKey(fromMonth, { year: false }) ?? fromMonth}–${to}`
 }
 
-/** A forecast as one sentence: when, or why no month can be given. */
+/** A run of a sentence, and whether a line may break inside it. */
+export type TextPart = Readonly<{ text: string; whole: boolean }>
+
+/** "Jan 2027", with the dash after it when it starts a range ("Dec 2026 –"). */
+const MONTH_YEAR = /[A-Z][a-z]+ \d{4}(?: –)?/gu
+
+/**
+ * A forecast cut where a line may break: between the two ends of a month range,
+ * never inside "Jan 2027" nor before the dash ("Dec 2026 –" then "Jan 2027").
+ * The words are unchanged, so a screen reader and a test read the same text.
+ */
+export function dateParts(text: string): readonly TextPart[] {
+  const parts: TextPart[] = []
+  let from = 0
+  for (const match of text.matchAll(MONTH_YEAR)) {
+    if (match.index > from)
+      parts.push({ text: text.slice(from, match.index), whole: false })
+    parts.push({ text: match[0], whole: true })
+    from = match.index + match[0].length
+  }
+  if (from < text.length) parts.push({ text: text.slice(from), whole: false })
+  return parts
+}
+
+/**
+ * The average a goal's numbers assume: the plan's until ten reviews arrived
+ * since it was set, then theirs (round 2, R2-5).
+ */
+export function assumedAverageWords(
+  goal: Pick<RatingGoalCardView, 'qualityBasis' | 'quality'>,
+): string {
+  if (goal.qualityBasis === 'since_set') return 'at the new reviews’ average'
+  if (goal.qualityBasis === 'planned' && goal.quality !== null) {
+    return `at your plan’s ${ratingText(goal.quality)}★`
+  }
+  return 'at the recent star mix'
+}
+
+/**
+ * A forecast as one sentence: when, or why no month can be given. A goal's
+ * forecast that no pace reaches names the average it was worked out at
+ * (`assumedAverageWords`); a plan's names "this average", the one beside it.
+ */
 export function forecastSentence(
   forecast: RatingForecastView,
   target: number,
   lead = 'Expected around',
+  average = 'at this average',
 ): string {
   switch (forecast.kind) {
     case 'range':
       return `${lead} ${forecastMonths(forecast)}`
     case 'unreachable':
-      return `No pace reaches ${ratingText(target)} at the recent star mix`
+      return `No pace reaches ${ratingText(target)} ${average}`
     case 'no_pace':
       return 'No new reviews in the last 4 weeks to forecast from'
     case 'beyond_horizon':
@@ -191,7 +234,9 @@ export function cardOutlook(
   if (card.mode === 'keep') return null
   if (card.googleShowsSoon) return `Google should show ${ratingText(card.target)} soon`
   if (card.status === 'reviews_too_low') return reviewsTooLowSentence(card.target)
-  return card.forecast === null ? null : forecastSentence(card.forecast, card.target)
+  return card.forecast === null
+    ? null
+    : forecastSentence(card.forecast, card.target, undefined, assumedAverageWords(card))
 }
 
 const ENDED_REASON: Readonly<Record<RatingGoalEndedReason, string>> = {
@@ -303,7 +348,19 @@ const tenthsValue = (value: string | null): string =>
 const paceValue = (value: string | null): string =>
   value === null ? 'none' : `${formatNumber(Number(value))} a week`
 
-/** One change, old to new: "Target 4.4 → 4.5", "Pace 14 → 11 a week". */
+/** "New reviews average 4.5★ → 4.7★", "set to 4.5★" on a goal that had none. */
+function qualityChangeText(oldValue: string | null, newValue: string | null): string {
+  const stars = (value: string | null) =>
+    value === null ? 'none' : `${tenthsText(Number(value))}★`
+  return oldValue === null && newValue !== null
+    ? `New reviews average set to ${stars(newValue)}`
+    : `New reviews average ${stars(oldValue)} → ${stars(newValue)}`
+}
+
+/**
+ * One change, old to new: "Target 4.4 → 4.5", "Pace 14 → 11 a week", "New
+ * reviews average 4.5★ → 4.7★".
+ */
 export function changeText(change: RatingGoalChangeView): string {
   const { oldValue, newValue } = change
   switch (change.field) {
@@ -316,6 +373,6 @@ export function changeText(change: RatingGoalChangeView): string {
     case 'mode':
       return `Goal ${MODE_WORD[oldValue ?? ''] ?? 'none'} → ${MODE_WORD[newValue ?? ''] ?? 'none'}`
     case 'quality':
-      return `New reviews ${tenthsValue(oldValue)} → ${tenthsValue(newValue)}`
+      return qualityChangeText(oldValue, newValue)
   }
 }

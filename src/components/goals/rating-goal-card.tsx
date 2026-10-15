@@ -24,6 +24,7 @@ import {
   ratingGoalStatusBadge,
   ratingText,
 } from './rating-goal-view'
+import { RatingGoalWholeDates } from './rating-goal-whole-dates'
 
 /** The bar counts in thousandths of the way from the start to the threshold. */
 const BAR_STEPS = 1000
@@ -126,7 +127,11 @@ export function RatingGoalCard({ card, propertyId, timezone, now }: Props) {
           />
         )}
         {pace === null ? null : <p className="text-sm">{pace}</p>}
-        {outlook === null ? null : <p className={QUIET}>{outlook}</p>}
+        {outlook === null ? null : (
+          <p className={QUIET}>
+            <RatingGoalWholeDates text={outlook} />
+          </p>
+        )}
       </CardContent>
       <CardFooter>
         {/* The card's one way on: a tap target on a phone, not a link in a sentence. */}

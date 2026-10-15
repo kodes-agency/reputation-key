@@ -21,6 +21,7 @@ import {
   SETUP,
   SETUP_KEEP_FIRST,
 } from './rating-goal.stories.fixtures'
+import { wholeText } from './rating-goal-wizard.stories.play'
 
 const NOW = new Date(FIXTURE_NOW)
 const NAMES: Readonly<Record<string, string>> = { 'user-ana': 'Ana Petrova' }
@@ -63,11 +64,15 @@ export const Monitoring: Story = {
     // The plan's pace is in the plan, not said again above it.
     await expect(canvas.queryByText(/^Your pace:/)).toBeNull()
     await expect(canvas.getByText('At your chosen pace, 11 a week')).toBeVisible()
-    await expect(canvas.getByText('Expected around Mar–Nov 2027')).toBeVisible()
+    await expect(
+      canvas.getByText(wholeText('Expected around Mar–Nov 2027')),
+    ).toBeVisible()
     await expect(
       canvas.getByText('At your pace of the last 4 weeks, 9.5 a week'),
     ).toBeVisible()
-    await expect(canvas.getByText('Expected around Jul–Sep 2027')).toBeVisible()
+    await expect(
+      canvas.getByText(wholeText('Expected around Jul–Sep 2027')),
+    ).toBeVisible()
     await expect(
       canvas.getByText(
         'If every new review is 5★: 97 more reviews, about 2 months at 11 a week.',
@@ -167,9 +172,9 @@ export const BeforeTenReviews: Story = {
     await expect(plan.getByText('2 a week · plan 2 a week')).toBeVisible()
     await expect(canvas.queryByRole('alert')).toBeNull()
     // Both forecasts assume the plan's 4.5★ until there are ten reviews.
-    await expect(canvas.getAllByText('Expected around Dec 2026 – Feb 2027')).toHaveLength(
-      2,
-    )
+    await expect(
+      canvas.getAllByText(wholeText('Expected around Dec 2026 – Feb 2027')),
+    ).toHaveLength(2)
   },
 }
 

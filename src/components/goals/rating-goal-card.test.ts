@@ -40,7 +40,15 @@ function render(card: RatingGoalCardView): string {
 }
 
 /** The text a reader gets, tags dropped. */
-const textOf = (html: string) => html.replace(/<[^>]+>/gu, ' ').replace(/\s+/gu, ' ')
+/**
+ * The words as a reader gets them: a tag reads as a space, but a span that only
+ * keeps a forecast's "Sep 2027" on one line is part of its word.
+ */
+const textOf = (html: string) =>
+  html
+    .replace(/<\/?span class="whitespace-nowrap">/gu, '')
+    .replace(/<[^>]+>/gu, ' ')
+    .replace(/\s+/gu, ' ')
 
 describe('RatingGoalCard', () => {
   it('leads with what Google shows and the goal, then one bar, one pace line and one forecast', () => {

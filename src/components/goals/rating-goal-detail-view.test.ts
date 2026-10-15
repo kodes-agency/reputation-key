@@ -5,7 +5,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   aboutHowLong,
-  assumedAverageWords,
   bestCaseLine,
   detailForecasts,
   detailTiles,
@@ -17,6 +16,7 @@ import {
   yourPlanLines,
 } from './rating-goal-detail-view'
 import { DETAIL_BEFORE_TEN, DETAIL_TOO_LOW } from './rating-goal-plan.stories.fixtures'
+import { assumedAverageWords } from './rating-goal-view'
 import { DETAIL } from './rating-goal.stories.fixtures'
 
 describe('how long a count of reviews takes', () => {
@@ -40,6 +40,28 @@ describe('the forecasts', () => {
 
   it('gives no forecast while new reviews are too low: the page says so once', () => {
     expect(detailForecasts({ ...DETAIL, status: 'reviews_too_low' })).toEqual([])
+  })
+
+  it('names the average the numbers assume: the plan’s until ten reviews, then theirs', () => {
+    expect(assumedAverageWords(DETAIL_BEFORE_TEN)).toBe('at your plan’s 4.5★')
+    expect(assumedAverageWords(DETAIL)).toBe('at the new reviews’ average')
+    expect(assumedAverageWords({ qualityBasis: null, quality: null })).toBe(
+      'at the recent star mix',
+    )
+  })
+
+  it('names the new reviews’ average when no pace reaches the target at it', () => {
+    // Waiting for Google keeps the status from saying "New reviews too low",
+    // so the forecasts say it, at the average they were worked out at.
+    const waiting = {
+      ...DETAIL_TOO_LOW,
+      status: 'waiting_for_google' as const,
+    }
+
+    expect(detailForecasts(waiting).map((line) => line.text)).toEqual([
+      'No pace reaches 4.0 at the new reviews’ average',
+      'No pace reaches 4.0 at the new reviews’ average',
+    ])
   })
 
   it('says the best case quietly', () => {
@@ -103,14 +125,6 @@ describe('the tiles', () => {
       value: 'Not reachable',
       detail: 'at the new reviews’ average',
     })
-  })
-
-  it('names the average the numbers assume: the plan’s until ten reviews, then theirs', () => {
-    expect(assumedAverageWords(DETAIL_BEFORE_TEN)).toBe('at your plan’s 4.5★')
-    expect(assumedAverageWords(DETAIL)).toBe('at the new reviews’ average')
-    expect(assumedAverageWords({ qualityBasis: null, quality: null })).toBe(
-      'at the recent star mix',
-    )
   })
 })
 
