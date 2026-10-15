@@ -142,6 +142,12 @@ export type RatingPlanView = Readonly<{
   reviewsNeeded: number | null
   bestCase: number | null
   forecast: RatingForecastView
+  /**
+   * How far the plan is at its own pace, by the rule that labels a target:
+   * Realistic within 26 weeks, Stretch within 52, Out of reach beyond. The
+   * cards show no label; one out of reach says "More than a year".
+   */
+  reach: RatingStopLabel
 }>
 
 /**
@@ -392,5 +398,7 @@ export type RatingGoalPlanPreview =
       forecast: RatingForecastView
       /** Above twice the current pace: Google may flag a surge. */
       surgeCaution: boolean
+      /** How far the plan is at its own pace, as a plan's `reach`. */
+      reach: RatingStopLabel
     }>
   | Readonly<{ valid: false; problems: readonly RatingPlanProblem[] }>

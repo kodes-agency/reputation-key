@@ -14,7 +14,11 @@ import {
 } from '../domain/rating-goal-pace'
 import { planNeeds } from '../domain/rating-goal-plans'
 import { minimumQualityTenths, qualityChoice } from '../domain/rating-goal-quality'
-import { HIGHEST_TARGET_TENTHS, PERFECT_TENTHS } from '../domain/rating-goal-stops'
+import {
+  HIGHEST_TARGET_TENTHS,
+  PERFECT_TENTHS,
+  stopLabel,
+} from '../domain/rating-goal-stops'
 import type {
   RatingGoalForecastInputs,
   RatingGoalPacePreview,
@@ -120,5 +124,6 @@ export function previewRatingGoalPlan(
       draft.pacePerWeek,
     ),
     surgeCaution: surgeCaution(draft.pacePerWeek, inputs.reviewsLast28Days),
+    reach: stopLabel(needs.reviewsNeeded, draft.pacePerWeek),
   }
 }

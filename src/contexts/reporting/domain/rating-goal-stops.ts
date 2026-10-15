@@ -51,11 +51,15 @@ export type RatingGoalEligibility =
   | Readonly<{ eligible: false; reason: 'few_reviews'; reviewCount: number }>
   | Readonly<{ eligible: false; reason: 'waiting_for_google' }>
 
-/** Realistic within 26 weeks at the Faster pace, Stretch within 52, else Out of reach. */
-export function stopLabel(needed: ReviewsNeeded, fasterPerWeek: number): RatingStopLabel {
+/**
+ * Realistic within 26 weeks at a pace, Stretch within 52, else Out of reach. A
+ * target is labelled at the Faster pace; a plan's reach is the same rule at the
+ * plan's own pace (round 2).
+ */
+export function stopLabel(needed: ReviewsNeeded, perWeek: number): RatingStopLabel {
   if (needed === 'unreachable') return 'out_of_reach'
-  if (needed <= REALISTIC_WITHIN_WEEKS * fasterPerWeek) return 'realistic'
-  if (needed <= STRETCH_WITHIN_WEEKS * fasterPerWeek) return 'stretch'
+  if (needed <= REALISTIC_WITHIN_WEEKS * perWeek) return 'realistic'
+  if (needed <= STRETCH_WITHIN_WEEKS * perWeek) return 'stretch'
   return 'out_of_reach'
 }
 

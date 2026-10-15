@@ -68,6 +68,7 @@ describe('Pick a plan', () => {
         reviewsNeeded: 19,
         bestCase: 10,
         forecast: { kind: 'range', fromMonth: '2027-01', toMonth: '2027-04' },
+        reach: 'realistic',
       },
       {
         key: 'recommended',
@@ -80,6 +81,7 @@ describe('Pick a plan', () => {
         reviewsNeeded: 19,
         bestCase: 10,
         forecast: { kind: 'range', fromMonth: '2026-12', toMonth: '2027-01' },
+        reach: 'realistic',
       },
       {
         key: 'ambitious',
@@ -92,8 +94,20 @@ describe('Pick a plan', () => {
         reviewsNeeded: 178,
         bestCase: 74,
         forecast: { kind: 'range', fromMonth: '2027-08', toMonth: '2028-07' },
+        reach: 'out_of_reach',
       },
     ])
+  })
+
+  it('says how far each plan is at its own pace, so a card can say "More than a year"', () => {
+    // Ambitious: 178 reviews at 3 a week is about 59 weeks, past a year.
+    expect(ratingGoalPlanning(BETA)?.plans.map(({ key, reach }) => [key, reach])).toEqual(
+      [
+        ['cautious', 'realistic'],
+        ['recommended', 'realistic'],
+        ['ambitious', 'out_of_reach'],
+      ],
+    )
   })
 
   it('offers the target row with each stop’s label, the recommendation marked', () => {

@@ -38,6 +38,7 @@ import {
   qualityProblem,
   type QualityAnchor,
 } from '../domain/rating-goal-quality'
+import { stopLabel } from '../domain/rating-goal-stops'
 import type {
   RatingGoalForecastInputs,
   RatingGoalPlanningView,
@@ -176,6 +177,7 @@ function planView(inputs: RatingGoalForecastInputs, plan: RatingPlan): RatingPla
       plan.qualityTenths,
       plan.pacePerWeek,
     ),
+    reach: stopLabel(needs.reviewsNeeded, plan.pacePerWeek),
   }
 }
 

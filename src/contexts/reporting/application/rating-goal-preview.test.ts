@@ -68,7 +68,18 @@ describe('Build your own: a whole plan the manager puts together', () => {
       pace: { perWeek: 2, perMonth: 9, perDay: 0.3 },
       forecast: { kind: 'range', fromMonth: '2026-12', toMonth: '2027-01' },
       surgeCaution: false,
+      reach: 'realistic',
     })
+  })
+
+  it('says how far the plan is at its own pace: past a year is out of reach', () => {
+    const at = (pacePerWeek: number) =>
+      previewRatingGoalPlan(BETA, { targetTenths: 42, qualityTenths: 45, pacePerWeek })
+
+    // 178 reviews: 89 weeks at 2 a week, 45 weeks at 4, 22 weeks at 9.
+    expect(at(2)).toMatchObject({ valid: true, reach: 'out_of_reach' })
+    expect(at(4)).toMatchObject({ valid: true, reach: 'stretch' })
+    expect(at(9)).toMatchObject({ valid: true, reach: 'realistic' })
   })
 
   it('needs new reviews to clear the target’s threshold by 0.15★', () => {
