@@ -191,13 +191,13 @@ describe('the Google rating goal notice route', () => {
       },
     ],
     [
-      'entered_cant_reach',
+      'entered_reviews_too_low',
       {
-        transition: 'entered_cant_reach',
+        transition: 'entered_reviews_too_low',
         shownTenths: null,
         previousTenths: null,
       },
-      'goal.rating_cant_reach',
+      'goal.rating_too_low',
       {},
     ],
     [
@@ -233,7 +233,7 @@ describe('the Google rating goal notice route', () => {
     await handleRatingGoalTransitioned(
       deps,
       event({
-        transition: 'entered_cant_reach',
+        transition: 'entered_reviews_too_low',
         shownTenths: null,
         previousTenths: null,
         averageHundredths: 440,

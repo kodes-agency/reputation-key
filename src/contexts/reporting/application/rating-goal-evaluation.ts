@@ -8,7 +8,10 @@
 //   2. the Property's Google binding epoch is not the goal's: the Google
 //      location changed under it, the goal ends, `google_location_changed`;
 //   3. otherwise the domain status (domain/rating-goal-status.ts), and a climb
-//      goal Google shows the target of is reached.
+//      goal Google shows the target of is reached. A climb goal's verdict on
+//      new reviews reads the reviews created since it was set
+//      (`reading.sinceSet`; none when the read did not ask, as when a goal is
+//      being set).
 // The write stores the tenth Google showed only when Google could be read,
 // and is applied only when it changes the row, onto the plan version it was
 // worked out on, never over a newer evaluation, and only onto the tenth, known
@@ -18,6 +21,7 @@
 // (domain/rating-goal-notices.ts) are written once, with the row.
 
 import type { PropertyRatingGoal, RatingGoalStatus } from '../domain/rating-goal'
+import type { RatingTotals } from '../domain/rating-goal-numbers'
 import {
   decideRatingGoalNotices,
   type RatingGoalNotice,
@@ -33,6 +37,8 @@ import type { RatingGoalReading } from './rating-goal-reading'
 
 /** Property lifecycle states in which a rating goal keeps running. */
 const LIVE_PROPERTY_STATES: ReadonlySet<string> = new Set(['active', 'suspended'])
+
+const NO_REVIEWS: RatingTotals = { count: 0, sum: 0 }
 
 export type RatingGoalEvaluation = Readonly<{
   status: RatingGoalStatus
@@ -59,7 +65,7 @@ function goalStatus(
     waiting: false,
     displayedTenths: displayed,
     targetTenths: goal.targetTenths,
-    mix: reading.mix.value,
+    sinceSet: reading.sinceSet ?? NO_REVIEWS,
     goalCreatedAt: goal.createdAt,
     now: reading.now,
     chosenPerWeek: goal.pacePerWeek ?? 0,
@@ -131,13 +137,13 @@ export const evaluationWrite = (
     displayedTenths: goal.lastEvaluation.displayedTenths,
     knownStatus: goal.lastEvaluation.knownStatus,
     belowPaceNoticedAt: goal.lastEvaluation.belowPaceNoticedAt,
-    cantReachNoticedAt: goal.lastEvaluation.cantReachNoticedAt,
+    tooLowNoticedAt: goal.lastEvaluation.tooLowNoticedAt,
   },
   status: evaluation.status,
   displayedTenths: evaluation.displayedTenths,
   knownStatus: decision.knownStatus,
   belowPaceNoticedAt: decision.belowPaceNoticedAt,
-  cantReachNoticedAt: decision.cantReachNoticedAt,
+  tooLowNoticedAt: decision.tooLowNoticedAt,
   evaluatedAt: now,
   outcome: evaluation.outcome,
   notices: decision.notices,
@@ -163,7 +169,7 @@ function afterEvaluation(
     evaluatedAt: now,
     knownStatus: decision.knownStatus,
     belowPaceNoticedAt: decision.belowPaceNoticedAt,
-    cantReachNoticedAt: decision.cantReachNoticedAt,
+    tooLowNoticedAt: decision.tooLowNoticedAt,
   }
   switch (evaluation.outcome.kind) {
     case 'continues':

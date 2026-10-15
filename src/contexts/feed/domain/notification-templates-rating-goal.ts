@@ -1,7 +1,8 @@
 // Feed notification surface — copy for the Property Google rating goal notices.
 //
-// Five change-only notices (ADR 0067; ADR 0046, amended 2026-10-14), split out
-// of ./notification-templates.ts, which lists these renderers in its table.
+// Five change-only notices (ADR 0067; ADR 0046, amended 2026-10-14 and
+// 2026-10-15), split out of ./notification-templates.ts, which lists these
+// renderers in its table.
 // Named exports, as the account notices are: a spread of an imported record
 // moved a whole module's copy into first paint's chunk. This module is a leaf;
 // its copy type is restated structurally below.
@@ -41,14 +42,22 @@ const googleShows = (p: NotificationPayload): string | null =>
     ? null
     : `Google now shows ${tenths(p.ratingShownTenths)}${forProperty(p)}`
 
+/**
+ * Keep is offered only while Google shows 4.9 or 5.0, where no higher tenth can
+ * be planned (round 2, R2-9; Reporting's `offerKeepFirst`, restated here as
+ * Feed reads no Reporting module).
+ */
+const KEEP_OFFERED_FROM_TENTHS = 49
+
 export const renderRatingGoalReached = (p: NotificationPayload): RatingGoalNoticeCopy => {
   const shows = googleShows(p)
+  const keepOffered =
+    p.ratingShownTenths !== undefined && p.ratingShownTenths >= KEEP_OFFERED_FROM_TENTHS
   return {
     title: shows === null ? 'Google rating goal reached' : `${shows}: goal reached`,
-    body:
-      shows === null
-        ? 'Set your next goal.'
-        : `Set your next goal, or keep ${tenths(p.ratingShownTenths)}.`,
+    body: keepOffered
+      ? `Set your next goal, or keep ${tenths(p.ratingShownTenths)}.`
+      : 'Set your next goal.',
     actionLabel: 'Set next goal',
     summary: summaryOf(p, 'Google rating goal reached'),
   }
@@ -117,23 +126,25 @@ export const renderRatingGoalBelowPace = (
   }
 }
 
-/** "New reviews lately average below what 4.5 needs", without a number of stars. */
-const cantReachBody = (p: NotificationPayload): string => {
-  const needs =
-    p.ratingTargetTenths === undefined ? 'the goal' : tenths(p.ratingTargetTenths)
-  return `New reviews lately average below what ${needs} needs. Open the goal to see what it takes.`
-}
+/** "for 4.5", or "for the goal" without the target. */
+const forTarget = (p: NotificationPayload): string =>
+  p.ratingTargetTenths === undefined
+    ? 'for the goal'
+    : `for ${tenths(p.ratingTargetTenths)}`
 
-export const renderRatingGoalCantReach = (
-  p: NotificationPayload,
-): RatingGoalNoticeCopy => {
-  const body = cantReachBody(p)
+/**
+ * Ten or more Google reviews since the goal was set average at or below what
+ * its target needs (round 2, 2026-10-15). It states no number of stars.
+ */
+export const renderRatingGoalTooLow = (p: NotificationPayload): RatingGoalNoticeCopy => {
+  const needs = p.ratingTargetTenths === undefined ? 'it' : tenths(p.ratingTargetTenths)
+  const body = `Since you set the goal they average below what ${needs} needs. Open the goal to see what helps.`
   return {
-    title: `${p.propertyName === undefined ? 'Your' : `${p.propertyName}’s`} Google goal can’t be reached at the recent mix`,
+    title: `New Google reviews${forProperty(p)} are too low ${forTarget(p)}`,
     body,
     detail: body,
     actionLabel: VIEW_GOAL,
-    summary: summaryOf(p, 'out of reach at the recent mix'),
+    summary: summaryOf(p, 'new reviews too low'),
   }
 }
 

@@ -99,7 +99,7 @@ const goalRatingGoalTransitionedSchema = z
       'reached',
       'google_rating_changed',
       'entered_below_pace',
-      'entered_cant_reach',
+      'entered_reviews_too_low',
       'keep_dropped_below',
     ]),
     mode: z.enum(['climb', 'keep']),
@@ -116,7 +116,7 @@ const goalRatingGoalTransitionedSchema = z
       reached: ['shownTenths'],
       google_rating_changed: ['shownTenths', 'previousTenths'],
       entered_below_pace: ['pacePerWeek', 'recentPaceTenths', 'paceWindow'],
-      entered_cant_reach: [],
+      entered_reviews_too_low: [],
       keep_dropped_below: ['shownTenths'],
     }
     const fields = payload as Readonly<Record<string, unknown>>

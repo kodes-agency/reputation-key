@@ -2,27 +2,31 @@
 //
 // A Property's Google rating goal is NOT a Goal Program: it has no months, no
 // subjects and no metric reading. One Property holds at most one active goal.
-// A climb goal aims at a tenth Google will show and carries a weekly pace; a
-// keep goal watches a tenth Google shows now and carries no pace. A goal runs
-// until Google shows the target (reached), or it is ended: by a manager, by
-// the Google location changing under it, or by the Property being archived.
-// Changes to target, pace or mode are logged with who and when, old -> new,
-// and no reason (ADR 0067).
+// A climb goal aims at a tenth Google will show and carries a plan: the
+// average stars it assumes new Google reviews bring (its planned quality,
+// round 2, 2026-10-15) and a weekly pace; a keep goal watches a tenth Google
+// shows now and carries neither. A goal runs until Google shows the target
+// (reached), or it is ended: by a manager, by the Google location changing
+// under it, or by the Property being archived. Changes to target, quality,
+// pace or mode are logged with who and when, old -> new, and no reason
+// (ADR 0067).
 
 import { createErrorFactory } from '#/shared/domain/errors'
 import { isValidPace } from './rating-goal-pace'
+import { qualityProblem } from './rating-goal-quality'
 import { HIGHEST_TARGET_TENTHS, PERFECT_TENTHS } from './rating-goal-stops'
 
 export type RatingGoalMode = 'climb' | 'keep'
 export type RatingGoalState = 'active' | 'reached' | 'ended'
 export type RatingGoalEndedReason =
   'manager' | 'google_location_changed' | 'property_archived'
-export type RatingGoalChangeField = 'target' | 'pace' | 'mode'
+export type RatingGoalChangeField = 'target' | 'quality' | 'pace' | 'mode'
 
 export type RatingGoalStatus =
   | 'waiting_for_google'
   | 'reached'
-  | 'cant_reach_at_mix'
+  /** Ten or more reviews since the goal was set average at or below its threshold. */
+  | 'reviews_too_low'
   | 'getting_started'
   | 'on_pace'
   | 'below_pace'
@@ -40,6 +44,8 @@ export const LOWEST_TARGET_TENTHS = 10
 export type RatingGoalPlan = Readonly<{
   mode: RatingGoalMode
   targetTenths: number
+  /** A climb goal's planned quality of new reviews, in tenths of a star; none to keep. */
+  qualityTenths: number | null
   pacePerWeek: number | null
 }>
 
@@ -65,8 +71,12 @@ export type RatingGoalEvaluationMark = Readonly<{
   knownStatus: RatingGoalStatus | null
   /** When the managers were last told the goal fell below pace. */
   belowPaceNoticedAt: Date | null
-  /** When the managers were last told the goal can't be reached at the recent mix. */
-  cantReachNoticedAt: Date | null
+  /**
+   * When the managers were last told new reviews are too low for the target
+   * (stored in `cant_reach_noticed_at`, the column the retired Can't reach
+   * notice used, migration 0059).
+   */
+  tooLowNoticedAt: Date | null
 }>
 
 export type PropertyRatingGoal = RatingGoalPlan &
@@ -118,6 +128,8 @@ export type RatingGoalErrorCode =
   /** The goal changed since the form was opened. */
   | 'version_conflict'
   | 'invalid_target'
+  /** A planned quality below the target's floor, above five stars, or on a keep goal. */
+  | 'invalid_quality'
   | 'invalid_pace'
   /** A change that changes nothing. */
   | 'no_change'
@@ -143,8 +155,9 @@ const isTenth = (value: number): boolean => Number.isInteger(value)
 
 /**
  * A climb goal names a tenth above what Google shows, up to 4.9 (5.0 needs
- * every review to be five stars). A keep goal names a tenth Google shows now
- * or a lower one, 5.0 included.
+ * every review to be five stars). A keep goal is set only while Google shows
+ * 4.9 or 5.0, where no higher tenth can be planned (round 2, R2-9), and names
+ * a tenth Google shows now or a lower one, 5.0 included.
  */
 export function targetProblem(
   mode: RatingGoalMode,
@@ -157,7 +170,8 @@ export function targetProblem(
       ? null
       : 'invalid_target'
   }
-  return targetTenths >= LOWEST_TARGET_TENTHS &&
+  return displayedTenths >= HIGHEST_TARGET_TENTHS &&
+    targetTenths >= LOWEST_TARGET_TENTHS &&
     targetTenths <= Math.min(displayedTenths, PERFECT_TENTHS)
     ? null
     : 'invalid_target'
@@ -172,10 +186,22 @@ export function paceProblem(
   return pacePerWeek !== null && isValidPace(pacePerWeek) ? null : 'invalid_pace'
 }
 
+/** A climb goal plans a quality that clears its target's floor; a keep goal plans none. */
+export function planQualityProblem(
+  mode: RatingGoalMode,
+  targetTenths: number,
+  qualityTenths: number | null,
+): 'invalid_quality' | null {
+  if (mode === 'keep') return qualityTenths === null ? null : 'invalid_quality'
+  return qualityTenths === null
+    ? 'invalid_quality'
+    : qualityProblem(targetTenths, qualityTenths)
+}
+
 const asText = (value: number | null): string | null =>
   value === null ? null : String(value)
 
-/** The change log rows that take a plan from `current` to `next`, mode first. */
+/** The change log rows that take a plan from `current` to `next`: mode, target, quality, pace. */
 export function planChanges(
   current: RatingGoalPlan,
   next: RatingGoalPlan,
@@ -189,6 +215,13 @@ export function planChanges(
       field: 'target',
       oldValue: asText(current.targetTenths),
       newValue: asText(next.targetTenths),
+    })
+  }
+  if (current.qualityTenths !== next.qualityTenths) {
+    rows.push({
+      field: 'quality',
+      oldValue: asText(current.qualityTenths),
+      newValue: asText(next.qualityTenths),
     })
   }
   if (current.pacePerWeek !== next.pacePerWeek) {

@@ -55,6 +55,7 @@ const newGoal = (
   sourceEpoch: 2,
   mode: 'climb',
   targetTenths: 45,
+  qualityTenths: 47,
   pacePerWeek: 11,
   baseline: { reviewCount: 812, googleAverage: 4.3, exactAverage: 4.31 },
   lastEvaluation: {
@@ -63,7 +64,7 @@ const newGoal = (
     evaluatedAt: SET_AT,
     knownStatus: 'getting_started',
     belowPaceNoticedAt: null,
-    cantReachNoticedAt: null,
+    tooLowNoticedAt: null,
   },
   createdBy: 'manager-1',
   createdAt: SET_AT,
@@ -125,6 +126,7 @@ describe('one active rating goal per Property', () => {
       id: goalId(1),
       mode: 'climb',
       targetTenths: 45,
+      qualityTenths: 47,
       pacePerWeek: 11,
       state: 'active',
       sourceEpoch: 2,
@@ -178,7 +180,12 @@ describe('a manager’s change', () => {
     propertyId: PROPERTY,
     goalId: goalId(1),
     expectedVersion,
-    plan: { mode: 'climb' as const, targetTenths: 46, pacePerWeek: 14 },
+    plan: {
+      mode: 'climb' as const,
+      targetTenths: 46,
+      qualityTenths: 48,
+      pacePerWeek: 14,
+    },
     changes: [
       {
         id: goalId(101),
@@ -202,6 +209,17 @@ describe('a manager’s change', () => {
         oldValue: '11',
         newValue: '14',
       },
+      {
+        id: goalId(103),
+        goalId: goalId(1),
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        changedBy: 'manager-2',
+        changedAt: LATER,
+        field: 'quality' as const,
+        oldValue: '47',
+        newValue: '48',
+      },
     ],
     changedAt: LATER,
   })
@@ -211,6 +229,7 @@ describe('a manager’s change', () => {
 
     await expect(repository().findById(ORG, PROPERTY, goalId(1))).resolves.toMatchObject({
       targetTenths: 46,
+      qualityTenths: 48,
       pacePerWeek: 14,
       version: 2,
     })
@@ -223,7 +242,9 @@ describe('a manager’s change', () => {
         changedBy,
       ]),
     ).toEqual([
+      // One change at one instant reads mode, target, quality, then pace.
       ['target', '45', '46', 'manager-2'],
+      ['quality', '47', '48', 'manager-2'],
       ['pace', '11', '14', 'manager-2'],
     ])
   })
@@ -262,7 +283,7 @@ describe('an evaluation write', () => {
     displayedTenths: 43,
     knownStatus: 'getting_started',
     belowPaceNoticedAt: null,
-    cantReachNoticedAt: null,
+    tooLowNoticedAt: null,
   }
 
   /** An evaluation read on `expectedMark`; its known status follows its status. */
@@ -280,7 +301,7 @@ describe('an evaluation write', () => {
       status,
       knownStatus: status === 'waiting_for_google' ? 'getting_started' : status,
       belowPaceNoticedAt: null,
-      cantReachNoticedAt: null,
+      tooLowNoticedAt: null,
       evaluatedAt: LATER,
       outcome: { kind: 'continues' },
       notices: [],
@@ -335,9 +356,10 @@ describe('an evaluation write', () => {
 
   it('refuses an evaluation worked out on a target a manager has since changed', async () => {
     // Read on 4.5 while Google showed 4.5; the manager then moved the target to 4.6.
-    await changePlanTo({ mode: 'climb', targetTenths: 46, pacePerWeek: 11 }, [
-      { field: 'target', oldValue: '45', newValue: '46' },
-    ])
+    await changePlanTo(
+      { mode: 'climb', targetTenths: 46, qualityTenths: 47, pacePerWeek: 11 },
+      [{ field: 'target', oldValue: '45', newValue: '46' }],
+    )
 
     await expect(repository().recordEvaluation(write(reachedAt45))).resolves.toBe(false)
 
@@ -350,11 +372,15 @@ describe('an evaluation write', () => {
   })
 
   it('refuses a reached evaluation from before a switch to keep, without breaking the table rules', async () => {
-    await changePlanTo({ mode: 'keep', targetTenths: 43, pacePerWeek: null }, [
-      { field: 'mode', oldValue: 'climb', newValue: 'keep' },
-      { field: 'target', oldValue: '45', newValue: '43' },
-      { field: 'pace', oldValue: '11', newValue: null },
-    ])
+    await changePlanTo(
+      { mode: 'keep', targetTenths: 43, qualityTenths: null, pacePerWeek: null },
+      [
+        { field: 'mode', oldValue: 'climb', newValue: 'keep' },
+        { field: 'target', oldValue: '45', newValue: '43' },
+        { field: 'quality', oldValue: '47', newValue: null },
+        { field: 'pace', oldValue: '11', newValue: null },
+      ],
+    )
 
     await expect(repository().recordEvaluation(write(reachedAt45))).resolves.toBe(false)
 
@@ -523,7 +549,7 @@ describe('an evaluation write', () => {
             displayedTenths: stored!.lastEvaluation.displayedTenths,
             knownStatus: stored!.lastEvaluation.knownStatus,
             belowPaceNoticedAt: stored!.lastEvaluation.belowPaceNoticedAt,
-            cantReachNoticedAt: stored!.lastEvaluation.cantReachNoticedAt,
+            tooLowNoticedAt: stored!.lastEvaluation.tooLowNoticedAt,
           },
           status: 'on_pace',
           belowPaceNoticedAt: LATER,
@@ -540,13 +566,13 @@ describe('an evaluation write', () => {
     })
   })
 
-  it('writes the Can’t reach fact with the target alone, and stores when it was told', async () => {
+  it('writes the too-low fact with the target alone, and stores when it was told', async () => {
     await expect(
       repository().recordEvaluation(
         write({
-          status: 'cant_reach_at_mix',
-          cantReachNoticedAt: LATER,
-          notices: [{ transition: 'entered_cant_reach', targetTenths: 45 }],
+          status: 'reviews_too_low',
+          tooLowNoticedAt: LATER,
+          notices: [{ transition: 'entered_reviews_too_low', targetTenths: 45 }],
         }),
       ),
     ).resolves.toBe(true)
@@ -554,7 +580,7 @@ describe('an evaluation write', () => {
     const [fact, ...rest] = await noticeFacts()
     expect(rest).toEqual([])
     expect(fact?.payload).toMatchObject({
-      transition: 'entered_cant_reach',
+      transition: 'entered_reviews_too_low',
       targetTenths: 45,
       shownTenths: null,
       previousTenths: null,
@@ -564,16 +590,16 @@ describe('an evaluation write', () => {
     })
     await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
       lastEvaluation: {
-        knownStatus: 'cant_reach_at_mix',
-        cantReachNoticedAt: LATER,
+        knownStatus: 'reviews_too_low',
+        tooLowNoticedAt: LATER,
         belowPaceNoticedAt: null,
       },
     })
   })
 
-  it('applies a later evaluation onto the Can’t reach notice time it read back', async () => {
+  it('applies a later evaluation onto the too-low notice time it read back', async () => {
     await repository().recordEvaluation(
-      write({ status: 'cant_reach_at_mix', cantReachNoticedAt: LATER }),
+      write({ status: 'reviews_too_low', tooLowNoticedAt: LATER }),
     )
     const stored = await repository().findActive(ORG, PROPERTY)
 
@@ -584,10 +610,10 @@ describe('an evaluation write', () => {
             displayedTenths: stored!.lastEvaluation.displayedTenths,
             knownStatus: stored!.lastEvaluation.knownStatus,
             belowPaceNoticedAt: stored!.lastEvaluation.belowPaceNoticedAt,
-            cantReachNoticedAt: stored!.lastEvaluation.cantReachNoticedAt,
+            tooLowNoticedAt: stored!.lastEvaluation.tooLowNoticedAt,
           },
           status: 'on_pace',
-          cantReachNoticedAt: LATER,
+          tooLowNoticedAt: LATER,
           evaluatedAt: new Date(LATER.getTime() + 60_000),
         }),
       ),
@@ -596,15 +622,15 @@ describe('an evaluation write', () => {
       lastEvaluation: {
         status: 'on_pace',
         knownStatus: 'on_pace',
-        cantReachNoticedAt: LATER,
+        tooLowNoticedAt: LATER,
       },
     })
   })
 
-  it('refuses an evaluation read before the Can’t reach notice time it would overwrite was stored', async () => {
-    // Stored: a below-pace goal whose managers were told Can't reach at LATER.
+  it('refuses an evaluation read before the too-low notice time it would overwrite was stored', async () => {
+    // Stored: a below-pace goal whose managers were told new reviews were too low at LATER.
     await repository().recordEvaluation(
-      write({ status: 'below_pace', cantReachNoticedAt: LATER }),
+      write({ status: 'below_pace', tooLowNoticedAt: LATER }),
     )
 
     // Read on the same tenth and known status, but before that time landed.
@@ -613,14 +639,14 @@ describe('an evaluation write', () => {
         write({
           expectedMark: { ...AS_SET, knownStatus: 'below_pace' },
           status: 'on_pace',
-          cantReachNoticedAt: null,
+          tooLowNoticedAt: null,
           evaluatedAt: new Date(LATER.getTime() + 60_000),
         }),
       ),
     ).resolves.toBe(false)
 
     await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
-      lastEvaluation: { status: 'below_pace', cantReachNoticedAt: LATER },
+      lastEvaluation: { status: 'below_pace', tooLowNoticedAt: LATER },
     })
   })
 
@@ -643,13 +669,14 @@ describe('an evaluation write', () => {
       write({
         status: 'below_pace',
         belowPaceNoticedAt: LATER,
-        cantReachNoticedAt: SET_AT,
+        tooLowNoticedAt: SET_AT,
       }),
     )
 
-    await changePlanTo({ mode: 'climb', targetTenths: 45, pacePerWeek: 8 }, [
-      { field: 'pace', oldValue: '11', newValue: '8' },
-    ])
+    await changePlanTo(
+      { mode: 'climb', targetTenths: 45, qualityTenths: 47, pacePerWeek: 8 },
+      [{ field: 'pace', oldValue: '11', newValue: '8' }],
+    )
 
     await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
       pacePerWeek: 8,
@@ -657,16 +684,17 @@ describe('an evaluation write', () => {
         status: 'below_pace',
         knownStatus: null,
         belowPaceNoticedAt: LATER,
-        cantReachNoticedAt: SET_AT,
+        tooLowNoticedAt: SET_AT,
       },
       version: 2,
     })
   })
 
   it('stores the status a new plan puts the goal in, without a notice', async () => {
-    await changePlanTo({ mode: 'climb', targetTenths: 45, pacePerWeek: 20 }, [
-      { field: 'pace', oldValue: '11', newValue: '20' },
-    ])
+    await changePlanTo(
+      { mode: 'climb', targetTenths: 45, qualityTenths: 47, pacePerWeek: 20 },
+      [{ field: 'pace', oldValue: '11', newValue: '20' }],
+    )
 
     await expect(
       repository().recordEvaluation(
@@ -813,6 +841,7 @@ describe('the table holds the plan and the log to their rules', () => {
           sourceEpoch: 2,
           mode: 'climb',
           targetTenths: 45,
+          qualityTenths: 47,
           pacePerWeek: 11,
           baselineReviewCount: 812,
           baselineGoogleAverage: 4.3,
@@ -822,6 +851,69 @@ describe('the table holds the plan and the log to their rules', () => {
         }),
       ),
     ).resolves.toBe('23514')
+  })
+
+  it('refuses the retired status, as last seen or as known', async () => {
+    const insert = (values: Partial<typeof propertyRatingGoals.$inferInsert>) =>
+      refused(() =>
+        held.db.insert(propertyRatingGoals).values({
+          id: goalId(9),
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          sourceEpoch: 2,
+          mode: 'climb',
+          targetTenths: 45,
+          qualityTenths: 47,
+          pacePerWeek: 11,
+          baselineReviewCount: 812,
+          baselineGoogleAverage: 4.3,
+          baselineExactAverage: 4.31,
+          createdBy: 'manager-1',
+          ...values,
+        }),
+      )
+
+    await expect(insert({ lastEvaluatedStatus: 'cant_reach_at_mix' })).resolves.toBe(
+      '23514',
+    )
+    await expect(insert({ lastKnownStatus: 'cant_reach_at_mix' })).resolves.toBe('23514')
+    await expect(
+      insert({
+        lastEvaluatedStatus: 'reviews_too_low',
+        lastKnownStatus: 'reviews_too_low',
+      }),
+    ).resolves.toBeUndefined()
+  })
+
+  it('refuses a climb without a planned quality or below its target, and a keep with one', async () => {
+    const insert = (values: Partial<typeof propertyRatingGoals.$inferInsert>) =>
+      refused(() =>
+        held.db.insert(propertyRatingGoals).values({
+          id: goalId(9),
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          sourceEpoch: 2,
+          mode: 'climb',
+          targetTenths: 45,
+          qualityTenths: 47,
+          pacePerWeek: 11,
+          baselineReviewCount: 812,
+          baselineGoogleAverage: 4.3,
+          baselineExactAverage: 4.31,
+          createdBy: 'manager-1',
+          ...values,
+        }),
+      )
+
+    await expect(insert({ qualityTenths: null })).resolves.toBe('23514')
+    // At or below the threshold no count of reviews gets there; the floor
+    // above it is the domain's rule.
+    await expect(insert({ qualityTenths: 44 })).resolves.toBe('23514')
+    await expect(insert({ qualityTenths: 51 })).resolves.toBe('23514')
+    await expect(
+      insert({ mode: 'keep', targetTenths: 43, pacePerWeek: null, qualityTenths: 47 }),
+    ).resolves.toBe('23514')
+    await expect(insert({ qualityTenths: 45 })).resolves.toBeUndefined()
   })
 
   it('refuses a climb without a pace, a climb to 5.0 and a keep with a pace', async () => {
@@ -834,6 +926,7 @@ describe('the table holds the plan and the log to their rules', () => {
           sourceEpoch: 2,
           mode: 'climb',
           targetTenths: 45,
+          qualityTenths: 47,
           pacePerWeek: 11,
           baselineReviewCount: 812,
           baselineGoogleAverage: 4.3,
@@ -845,7 +938,7 @@ describe('the table holds the plan and the log to their rules', () => {
 
     await expect(insert({ pacePerWeek: null })).resolves.toBe('23514')
     await expect(insert({ targetTenths: 50 })).resolves.toBe('23514')
-    await expect(insert({ mode: 'keep' })).resolves.toBe('23514')
+    await expect(insert({ mode: 'keep', qualityTenths: null })).resolves.toBe('23514')
     await expect(insert({ status: 'reached' })).resolves.toBe('23514')
     await expect(insert({ status: 'ended', endedAt: LATER })).resolves.toBe('23514')
     await expect(
@@ -886,6 +979,15 @@ describe('the table holds the plan and the log to their rules', () => {
     ).resolves.toBeUndefined()
     await expect(
       logRow({ field: 'mode', oldValue: 'climb', newValue: 'hold' }),
+    ).resolves.toBe('23514')
+    await expect(
+      logRow({ id: goalId(204), field: 'quality', oldValue: '47', newValue: '48' }),
+    ).resolves.toBeUndefined()
+    await expect(
+      logRow({ id: goalId(205), field: 'quality', oldValue: '47', newValue: null }),
+    ).resolves.toBeUndefined()
+    await expect(
+      logRow({ field: 'quality', oldValue: '47', newValue: '51' }),
     ).resolves.toBe('23514')
     await expect(logRow({ id: goalId(202) })).resolves.toBeUndefined()
   })

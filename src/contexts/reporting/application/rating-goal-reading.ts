@@ -5,7 +5,8 @@
 //     (`getCurrentOnGoogle`, which answers only at the Property's current
 //     binding epoch);
 //   - the review cache, through Review's own read (counts and star sums of the
-//     current Google reviews, never a review);
+//     current Google reviews, never a review), with the totals since a goal
+//     was set when an evaluation asks for them;
 //   - the Property's time zone, lifecycle state, binding epoch and binding.
 
 import type { ReviewGoogleRatingReads } from '#/contexts/review/application/public-api'
@@ -20,6 +21,7 @@ import {
   RECENT_MIX_FALLBACK_REVIEWS,
   RECENT_MIX_WINDOW_DAYS,
   type ExactAverage,
+  type RatingTotals,
   type RecentMix,
 } from '../domain/rating-goal-numbers'
 import { PACE_WINDOW_DAYS } from '../domain/rating-goal-pace'
@@ -62,22 +64,32 @@ export type RatingGoalReading = Readonly<{
   exact: ExactAverage | null
   mix: RecentMix | null
   reviewsLast28Days: number
-  /** Reviews created since each `extraCountSince` instant, in the same order. */
+  /** Reviews created since each `countSince` instant, in the same order. */
   extraCounts: readonly number[]
+  /** Reviews created since `totalsSince` and their stars; null when it was not asked. */
+  sinceSet: RatingTotals | null
+}>
+
+/** What a read asks for beyond the numbers every read takes. */
+export type RatingGoalReadRequest = Readonly<{
+  /** Up to three more windowed counts, from the Property's facts (its time zone). */
+  countSince?: (facts: RatingGoalPropertyFacts) => readonly Date[]
+  /** The instant a goal was set: the totals of the reviews created since. */
+  totalsSince?: Date
 }>
 
 /**
  * Reads the numbers for one Property at `now`. Null when the Property does
- * not exist in the Organization. `extraCountSince` asks, from the Property's
- * facts (its time zone), for up to three more windowed counts in the same
- * read: this week, a goal's pace window.
+ * not exist in the Organization. The request asks, in the same read, for
+ * more windowed counts (this week, a goal's pace window) and for the totals
+ * since a goal was set.
  */
 export async function readRatingGoalInputs(
   deps: RatingGoalReadDeps,
   organizationId: string,
   propertyId: string,
   now: Date,
-  extraCountSince: (facts: RatingGoalPropertyFacts) => readonly Date[] = () => [],
+  request: RatingGoalReadRequest = {},
 ): Promise<RatingGoalReading | null> {
   const facts = await deps.properties.findPropertyFacts(organizationId, propertyId)
   if (facts === null) return null
@@ -90,8 +102,9 @@ export async function readRatingGoalInputs(
       mostRecentLimit: RECENT_MIX_FALLBACK_REVIEWS,
       countSince: [
         new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS),
-        ...extraCountSince(facts),
+        ...(request.countSince?.(facts) ?? []),
       ],
+      ...(request.totalsSince === undefined ? {} : { totalsSince: request.totalsSince }),
     }),
   ])
   const google: GoogleNumbers | null = snapshot
@@ -119,13 +132,16 @@ export async function readRatingGoalInputs(
     mix,
     reviewsLast28Days: summary.countsSince[0] ?? 0,
     extraCounts: summary.countsSince.slice(1),
+    sinceSet: summary.totalsSince,
   }
 }
 
 /**
- * The numbers a plan is worked out from, or null when there are none. Stale
- * numbers still form a basis (a page shows them "as of"); `reading.waiting`
- * says whether a status or a new goal may rely on them.
+ * The numbers a plan is worked out from, at the recent mix, or null when
+ * there are none. Stale numbers still form a basis (a page shows them "as
+ * of"); `reading.waiting` says whether a status or a new goal may rely on
+ * them. A goal's own numbers assume its tracking mix instead
+ * (rating-goal-views.ts goalBasis).
  */
 export function ratingBasis(reading: RatingGoalReading): RatingGoalBasis | null {
   const { google, exact, mix } = reading

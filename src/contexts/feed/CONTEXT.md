@@ -314,9 +314,12 @@ insert time — leaves the target time out rather than guessing UTC, and every
 live surface re-renders.
 
 A Property's Google rating goal raises five Goals notices (ADR 0046, amended
-2026-10-14): reached, a tenth gained or lost on Google, entered Below pace (at
-most once in 14 days), entered Can't reach at this mix (also at most once in 14
-days), and a keep goal dropped below. Reporting decides them and writes one
+2026-10-14 and 2026-10-15): reached (offering to keep the number only when
+Google shows 4.9 or 5.0), a tenth gained or lost on Google, entered
+Below pace (at most once in 14 days), entered New reviews too low
+(`goal.rating_too_low`: ten or more reviews since the goal was set average at or
+below what its target needs; also at most once in 14 days; it replaced the
+Can't reach notice), and a keep goal dropped below. Reporting decides them and writes one
 `goal.rating_goal.transitioned` fact per notice with the change it stores, so
 each is told once; `notification.on-rating-goal-transitioned`
 (`infrastructure/rating-goal-notice-consumers.ts`) only fans each fact out to
@@ -329,7 +332,7 @@ target, the goal's mode and pace, and the recent pace of new reviews, admitted
 by the payload allowlist as bounded integers (`rating*`). A review's rating
 never is, and neither is any figure RepKey works out from review ratings (the
 only rating figures are the tenths Google itself shows and the target): the
-Can't reach copy states no star figure. The copy lives in `domain/notification-templates-rating-goal.ts`; a row
+New reviews too low copy states no star figure. The copy lives in `domain/notification-templates-rating-goal.ts`; a row
 states its latest change and opens the Property's Goals page.
 
 Each surface states a fact once. Titles name the Property; a locally

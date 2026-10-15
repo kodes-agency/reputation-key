@@ -93,7 +93,7 @@ export function PropertyListTable({ rows, view, fleet, setup, onSort }: Props) {
             <SortHead column="reviews" align="end" className="w-24" {...head}>
               Reviews
             </SortHead>
-            {/* Room for the longest status ("Can’t reach at this mix") on its own line. */}
+            {/* Room for the longest status ("New reviews too low") on its own line. */}
             {goals ? <DataTableHead className="w-40">Google goal</DataTableHead> : null}
             <SortHead column="attention" className={goals ? 'w-48' : 'w-56'} {...head}>
               Needs attention

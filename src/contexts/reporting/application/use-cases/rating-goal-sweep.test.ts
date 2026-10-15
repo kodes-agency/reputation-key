@@ -69,11 +69,27 @@ describe('the daily evaluation of every active rating goal', () => {
     expect(world.notices).toHaveLength(1)
   })
 
-  describe('when the recent mix no longer clears the threshold', () => {
+  describe('when new reviews since the set average too low for the target', () => {
     beforeEach(() => {
-      // 30 reviews at 4.33 against the 4.45 a 4.5 needs. With no review in the
-      // pace window too, Can't reach is still the status: it comes first.
-      world.summary = { ...world.summary, mixWindow: { count: 30, sum: 130 } }
+      // 30 reviews since the goal was set at 4.33 against the 4.45 a 4.5
+      // needs. With no review in the pace window too, it is still the status:
+      // it comes first.
+      world.summary = { ...world.summary, sinceSet: { count: 30, sum: 130 } }
+    })
+
+    it('says nothing about a recent mix that trails the threshold before ten new reviews', async () => {
+      world.summary = {
+        ...world.summary,
+        mixWindow: { count: 30, sum: 130 },
+        sinceSet: { count: 9, sum: 9 },
+      }
+      world.goals = [goalNumbered(1)]
+
+      await sweepRatingGoals(dependencies(world), allowEverything)
+
+      expect(world.notices.map((notice) => notice.transition)).toEqual([
+        'entered_below_pace',
+      ])
     })
 
     it('tells its managers once, with the target and no star figure', async () => {
@@ -84,24 +100,24 @@ describe('the daily evaluation of every active rating goal', () => {
       expect(world.notices).toEqual([
         {
           goalId: goalNumbered(1).id,
-          transition: 'entered_cant_reach',
+          transition: 'entered_reviews_too_low',
           targetTenths: 45,
         },
       ])
       expect(world.goals[0]!.lastEvaluation).toMatchObject({
-        status: 'cant_reach_at_mix',
-        knownStatus: 'cant_reach_at_mix',
-        cantReachNoticedAt: NOW,
+        status: 'reviews_too_low',
+        knownStatus: 'reviews_too_low',
+        tooLowNoticedAt: NOW,
         belowPaceNoticedAt: null,
       })
     })
 
-    it('keeps quiet within 14 days of the last Can’t reach notice, and still stores the status', async () => {
+    it('keeps quiet within 14 days of the last too-low notice, and still stores the status', async () => {
       const told = new Date(NOW.getTime() - 13 * DAY)
       world.goals = [
         activeGoal({
           ...goalNumbered(1),
-          lastEvaluation: { ...goalNumbered(1).lastEvaluation, cantReachNoticedAt: told },
+          lastEvaluation: { ...goalNumbered(1).lastEvaluation, tooLowNoticedAt: told },
         }),
       ]
 
@@ -109,8 +125,8 @@ describe('the daily evaluation of every active rating goal', () => {
 
       expect(world.notices).toEqual([])
       expect(world.goals[0]!.lastEvaluation).toMatchObject({
-        knownStatus: 'cant_reach_at_mix',
-        cantReachNoticedAt: told,
+        knownStatus: 'reviews_too_low',
+        tooLowNoticedAt: told,
       })
     })
 
@@ -120,7 +136,7 @@ describe('the daily evaluation of every active rating goal', () => {
           ...goalNumbered(1),
           lastEvaluation: {
             ...goalNumbered(1).lastEvaluation,
-            cantReachNoticedAt: new Date(NOW.getTime() - 14 * DAY),
+            tooLowNoticedAt: new Date(NOW.getTime() - 14 * DAY),
           },
         }),
       ]
@@ -128,9 +144,9 @@ describe('the daily evaluation of every active rating goal', () => {
       await sweepRatingGoals(dependencies(world), allowEverything)
 
       expect(world.notices.map((notice) => notice.transition)).toEqual([
-        'entered_cant_reach',
+        'entered_reviews_too_low',
       ])
-      expect(world.goals[0]!.lastEvaluation.cantReachNoticedAt).toEqual(NOW)
+      expect(world.goals[0]!.lastEvaluation.tooLowNoticedAt).toEqual(NOW)
     })
   })
 

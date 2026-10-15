@@ -4,7 +4,10 @@
 //   waiting_for_google  no current snapshot, one older than 24 hours, or the
 //                       Google binding is not active
 //   reached             Google shows the target
-//   cant_reach_at_mix   the recent mix does not clear the target's threshold
+//   reviews_too_low     at least ten reviews arrived since the goal was set,
+//                       and their average does not clear the target's
+//                       threshold (round 2, 2026-10-15; it replaced "Can't
+//                       reach at this mix", which judged the recent mix)
 //   getting_started     the goal is younger than 14 days
 //   on_pace             reviews in the pace window at 90% of the chosen pace
 //   below_pace          otherwise
@@ -12,14 +15,20 @@
 // that the days since it was set (only judged from day 14). A keep goal holds
 // while Google shows the kept tenth, and waits for Google the same way.
 // There is no deadline and no "missed".
+//
+// Until ten reviews arrived since the goal was set there is no verdict on
+// their stars, and the goal's numbers assume its planned quality; from the
+// tenth on they assume the average of those reviews (trackingMix).
 
 import {
   compareRatios,
   fromThousandths,
+  ratio,
   ratioToNumber,
   reviewsNeeded,
   thresholdThousandths,
   type Ratio,
+  type RatingTotals,
   type ReviewsNeeded,
 } from './rating-goal-numbers'
 import type { RatingGoalBasis } from './rating-goal-stops'
@@ -33,6 +42,8 @@ const GETTING_STARTED_DAYS = 14
 const FULL_PACE_WINDOW_DAYS = 28
 /** On pace at this share of the chosen pace or more. */
 const ON_PACE_PERCENT = 90
+/** New reviews are judged, and plan with their own average, from this many since the set. */
+const QUALITY_VERDICT_MIN_REVIEWS = 10
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
@@ -75,11 +86,34 @@ function isOnPace(reviews: number, window: PaceWindow, chosenPerWeek: number): b
   return reviews * WEEK_MS * 100 >= ON_PACE_PERCENT * chosenPerWeek * windowMs
 }
 
+/** `planned` until ten reviews arrived since the goal was set, then `since_set`. */
+export type QualityBasis = 'planned' | 'since_set'
+
+export type TrackingMix = Readonly<{ mix: Ratio; basis: QualityBasis }>
+
+/** The stars new reviews are expected to average: the plan's, then their own from the tenth on. */
+export function trackingMix(
+  plannedQualityTenths: number,
+  sinceSet: RatingTotals,
+): TrackingMix {
+  return sinceSet.count >= QUALITY_VERDICT_MIN_REVIEWS
+    ? { mix: ratio(sinceSet.sum, sinceSet.count), basis: 'since_set' }
+    : { mix: ratio(plannedQualityTenths, 10), basis: 'planned' }
+}
+
+/** Ten or more reviews since the set average at or below the target's threshold. */
+export function reviewsTooLow(sinceSet: RatingTotals, targetTenths: number): boolean {
+  if (sinceSet.count < QUALITY_VERDICT_MIN_REVIEWS) return false
+  const threshold = fromThousandths(thresholdThousandths(targetTenths))
+  return compareRatios(ratio(sinceSet.sum, sinceSet.count), threshold) <= 0
+}
+
 export type ClimbStatusInput = Readonly<{
   waiting: boolean
   displayedTenths: number
   targetTenths: number
-  mix: Ratio
+  /** Reviews created since the goal was set, and their stars. */
+  sinceSet: RatingTotals
   goalCreatedAt: Date
   now: Date
   chosenPerWeek: number
@@ -90,8 +124,7 @@ export type ClimbStatusInput = Readonly<{
 export function climbStatus(input: ClimbStatusInput): RatingGoalStatus {
   if (input.waiting) return 'waiting_for_google'
   if (input.displayedTenths >= input.targetTenths) return 'reached'
-  const threshold = fromThousandths(thresholdThousandths(input.targetTenths))
-  if (compareRatios(input.mix, threshold) <= 0) return 'cant_reach_at_mix'
+  if (reviewsTooLow(input.sinceSet, input.targetTenths)) return 'reviews_too_low'
   const window = statusPaceWindow(input.goalCreatedAt, input.now)
   if (window === null || input.reviewsInPaceWindow === null) return 'getting_started'
   return isOnPace(input.reviewsInPaceWindow, window, input.chosenPerWeek)

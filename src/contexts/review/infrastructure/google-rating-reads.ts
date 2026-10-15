@@ -59,6 +59,17 @@ const sumFrom = (instant: Date) =>
 /** The Monday of a review's week in its Property's time zone. */
 const reviewWeek = sql<string>`TO_CHAR(DATE_TRUNC('week', ${reviews.reviewedAt} AT TIME ZONE ${properties.timezone}), 'YYYY-MM-DD')`
 
+/** The calendar year of a review in its Property's time zone. */
+const reviewYear = sql<number>`EXTRACT(YEAR FROM ${reviews.reviewedAt} AT TIME ZONE ${properties.timezone})::int`
+
+/** The count and sum since an instant, when the request asks for them. */
+const totalsSinceColumns = (
+  instant: Date | undefined,
+): Readonly<Record<string, SQL<number | null>>> =>
+  instant === undefined
+    ? {}
+    : { totalsCount: countFrom(instant), totalsSum: sumFrom(instant) }
+
 export const createGoogleRatingReads = (deps: {
   db: Database
   clock: Clock
@@ -92,6 +103,7 @@ export const createGoogleRatingReads = (deps: {
               sum: sum(reviews.rating),
               mixCount: countFrom(request.mixWindowStart),
               mixSum: sumFrom(request.mixWindowStart),
+              ...totalsSinceColumns(request.totalsSince),
               ...windows,
             })
             .from(reviews)
@@ -109,6 +121,10 @@ export const createGoogleRatingReads = (deps: {
           countsSince: request.countSince.map((_, index) =>
             Number(aggregate[`since${index}`] ?? 0),
           ),
+          totalsSince:
+            request.totalsSince === undefined
+              ? null
+              : totalsOf({ count: aggregate.totalsCount, sum: aggregate.totalsSum }),
         }
       })
     },
@@ -123,6 +139,19 @@ export const createGoogleRatingReads = (deps: {
           .groupBy(reviewWeek)
           .orderBy(reviewWeek)
         return rows.map((row) => ({ weekStart: row.weekStart, count: Number(row.count) }))
+      })
+    },
+
+    async getYearlyTotals(organizationId, propertyId) {
+      return trace('review.googleRatingReads.getYearlyTotals', async () => {
+        const rows = await deps.db
+          .select({ year: reviewYear, count: count(), sum: sum(reviews.rating) })
+          .from(reviews)
+          .innerJoin(properties, currentBinding)
+          .where(currentGoogleReviews(organizationId, propertyId, deps.clock()))
+          .groupBy(reviewYear)
+          .orderBy(reviewYear)
+        return rows.map((row) => ({ year: Number(row.year), ...totalsOf(row) }))
       })
     },
 

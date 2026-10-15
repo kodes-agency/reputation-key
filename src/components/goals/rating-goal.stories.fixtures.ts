@@ -5,10 +5,15 @@
 import type {
   RatingGoalCardView,
   RatingGoalDetailView,
+  RatingGoalForecastInputs,
   RatingGoalHistoryEntry,
   RatingGoalSetupView,
   RatingStopView,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
+import {
+  ratingGoalPlanning,
+  ratingGoalStops,
+} from '#/contexts/reporting/application/rating-goal-planning'
 
 export const FIXTURE_PROPERTY_ID = '6f2c1a52-8a4e-4d43-9d0c-2b6a8f1e9c11'
 export const FIXTURE_GOAL_ID = '0b9e2f7a-3c41-4f6d-8a2b-5e7c9d1f3a24'
@@ -19,73 +24,23 @@ export const FIXTURE_NOW = '2026-10-14T12:00:00.000Z'
 const range = (fromMonth: string, toMonth: string | null) =>
   ({ kind: 'range', fromMonth, toMonth }) as const
 
-const stop = (
-  targetTenths: number,
-  patch: Omit<RatingStopView, 'targetTenths' | 'target'>,
-): RatingStopView => ({ targetTenths, target: targetTenths / 10, ...patch })
+/** The worked example as the setup read hands it to the page. */
+const FORECAST_INPUTS: RatingGoalForecastInputs = {
+  reviewCount: 812,
+  displayedTenths: 43,
+  exact: { num: 431, den: 100 },
+  mix: { num: 47, den: 10 },
+  bestYear: null,
+  reviewsLast28Days: 28,
+  timezone: FIXTURE_TIMEZONE,
+  asOf: FIXTURE_NOW,
+}
 
-export const SETUP_STOPS: readonly RatingStopView[] = [
-  stop(44, {
-    reviewsNeeded: 93,
-    bestCase: 50,
-    label: 'realistic',
-    forecasts: {
-      steady: range('2026-12', '2027-02'),
-      faster: range('2026-11', '2027-01'),
-      push: range('2026-11', '2026-12'),
-    },
-  }),
-  stop(45, {
-    reviewsNeeded: 455,
-    bestCase: 207,
-    label: 'stretch',
-    forecasts: {
-      steady: range('2027-07', '2028-08'),
-      faster: range('2027-04', '2028-04'),
-      push: range('2027-02', '2027-11'),
-    },
-  }),
-  stop(46, {
-    reviewsNeeded: 1300,
-    bestCase: 434,
-    label: 'out_of_reach',
-    forecasts: {
-      steady: { kind: 'beyond_horizon' },
-      faster: range('2028-12', null),
-      push: range('2028-04', null),
-    },
-  }),
-  stop(47, {
-    reviewsNeeded: 5522,
-    bestCase: 789,
-    label: 'out_of_reach',
-    forecasts: {
-      steady: { kind: 'beyond_horizon' },
-      faster: { kind: 'beyond_horizon' },
-      push: { kind: 'beyond_horizon' },
-    },
-  }),
-  stop(48, {
-    reviewsNeeded: null,
-    bestCase: 1430,
-    label: 'out_of_reach',
-    forecasts: {
-      steady: { kind: 'unreachable' },
-      faster: { kind: 'unreachable' },
-      push: { kind: 'unreachable' },
-    },
-  }),
-  stop(49, {
-    reviewsNeeded: null,
-    bestCase: 3654,
-    label: 'out_of_reach',
-    forecasts: {
-      steady: { kind: 'unreachable' },
-      faster: { kind: 'unreachable' },
-      push: { kind: 'unreachable' },
-    },
-  }),
-]
+/**
+ * Every target at its own recommended quality, worked out by the engine's own
+ * planning from the inputs, so the page and its stories never disagree.
+ */
+const SETUP_STOPS: readonly RatingStopView[] = ratingGoalStops(FORECAST_INPUTS)
 
 const GOOGLE = {
   shows: 4.3,
@@ -111,14 +66,8 @@ export const SETUP: RatingGoalSetupView = {
   perfectStop: { targetTenths: 50, disabledReason: 'needs_every_review_5_star' },
   preselectedTenths: 44,
   offerKeepFirst: false,
-  forecastInputs: {
-    reviewCount: 812,
-    exact: { num: 431, den: 100 },
-    mix: { num: 47, den: 10 },
-    reviewsLast28Days: 28,
-    timezone: FIXTURE_TIMEZONE,
-    asOf: FIXTURE_NOW,
-  },
+  planning: ratingGoalPlanning(FORECAST_INPUTS),
+  forecastInputs: FORECAST_INPUTS,
 }
 
 /** Property B of the beta: 19 reviews, all five stars, Google shows 5.0. */
@@ -132,6 +81,7 @@ export const SETUP_KEEP_FIRST: RatingGoalSetupView = {
   perfectStop: null,
   preselectedTenths: null,
   offerKeepFirst: true,
+  planning: null,
   forecastInputs: null,
 }
 
@@ -142,6 +92,7 @@ export const SETUP_FEW_REVIEWS: RatingGoalSetupView = {
   stops: [],
   perfectStop: null,
   preselectedTenths: null,
+  planning: null,
   forecastInputs: null,
 }
 
@@ -153,6 +104,8 @@ export const CARD: RatingGoalCardView = {
   mode: 'climb',
   targetTenths: 45,
   target: 4.5,
+  qualityTenths: 47,
+  quality: 4.7,
   pacePerWeek: 11,
   status: 'on_pace',
   google: GOOGLE,
@@ -165,6 +118,7 @@ export const CARD: RatingGoalCardView = {
   justSet: false,
   forecast: range('2027-07', '2027-09'),
   forecastBasis: 'actual_pace',
+  qualityBasis: 'since_set',
   setAt: '2026-08-03T09:00:00.000Z',
 }
 
@@ -177,20 +131,27 @@ export const CARD_JUST_SET: RatingGoalCardView = {
   justSet: true,
   forecast: range('2027-04', '2028-04'),
   forecastBasis: 'chosen_pace',
+  qualityBasis: 'planned',
   setAt: '2026-10-13T09:00:00.000Z',
 }
 
+/** A goal to keep, which is set only while Google shows 4.9 or 5.0 (R2-9). */
 export const CARD_KEEP: RatingGoalCardView = {
   ...CARD,
   mode: 'keep',
-  targetTenths: 43,
-  target: 4.3,
+  targetTenths: 49,
+  target: 4.9,
+  qualityTenths: null,
+  quality: null,
   pacePerWeek: null,
   status: 'holding',
-  threshold: 4.25,
+  google: { ...GOOGLE, shows: 4.9 },
+  exactAverage: 4.912,
+  threshold: 4.85,
   progress: null,
   forecast: null,
   forecastBasis: null,
+  qualityBasis: null,
 }
 
 export const CARD_REACHED: RatingGoalCardView = {
@@ -249,6 +210,16 @@ export const DETAIL: RatingGoalDetailView = {
       newValue: '45',
     },
   ],
+  plan: {
+    targetTenths: 45,
+    googleShowsTenths: 43,
+    qualityTenths: 47,
+    sinceSet: { reviewCount: 107, average: 4.607, averageTenths: 46 },
+    qualityBasis: 'since_set',
+    pacePerWeek: 11,
+    lastFourWeeksPerWeek: 9.5,
+    forecast: range('2027-07', '2027-09'),
+  },
 }
 
 export const HISTORY: readonly RatingGoalHistoryEntry[] = [
@@ -257,6 +228,7 @@ export const HISTORY: readonly RatingGoalHistoryEntry[] = [
     mode: 'climb',
     targetTenths: 43,
     target: 4.3,
+    qualityTenths: 46,
     pacePerWeek: 9,
     state: 'reached',
     endedReason: null,
@@ -271,6 +243,7 @@ export const HISTORY: readonly RatingGoalHistoryEntry[] = [
     mode: 'keep',
     targetTenths: 42,
     target: 4.2,
+    qualityTenths: null,
     pacePerWeek: null,
     state: 'ended',
     endedReason: 'google_location_changed',

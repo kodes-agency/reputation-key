@@ -1,6 +1,7 @@
 // The Google section of the Goals page when the Property has no rating goal: the
-// door into the wizard, the "keep" door when there is no higher tenth to climb
-// to, or the plain reason a goal cannot be set yet (ADR 0067; plan, Edge cases).
+// door into "Pick a plan", the "keep" door when Google shows 4.9 or 5.0 and there
+// is no higher tenth to climb to (round 2, R2-9), or the plain reason a goal
+// cannot be set yet (ADR 0067; plan, Edge cases).
 // It leads with one sentence and one action, as every first-time screen must.
 import { Link } from '@tanstack/react-router'
 import { Target } from 'lucide-react'
@@ -93,15 +94,16 @@ export function RatingGoalEmpty({ setup, propertyId, hasPortals, onStart }: Prop
   )
   if (setup.offerKeepFirst && shows !== null) {
     const kept = ratingText(shows)
-    const why =
-      setup.stops.length === 0
-        ? 'There’s no higher number to aim for, so the goal is to keep it.'
-        : 'A higher number isn’t reachable at your recent star mix, so the goal is to keep it.'
     return (
       <EmptyState
         icon={Target}
         title={`Keep ${kept} on Google`}
-        description={[google, why].filter(Boolean).join(' ')}
+        description={[
+          google,
+          'There’s no higher number to aim for, so the goal is to keep it.',
+        ]
+          .filter(Boolean)
+          .join(' ')}
         action={
           can('goal.create') ? (
             <Button
@@ -124,7 +126,7 @@ export function RatingGoalEmpty({ setup, propertyId, hasPortals, onStart }: Prop
       title="Set your Google rating goal"
       description={[
         google,
-        'Pick the number you want it to show and a weekly pace to get there.',
+        'Pick a plan to raise it: the number to reach, how good new reviews will be and a weekly pace.',
       ]
         .filter(Boolean)
         .join(' ')}

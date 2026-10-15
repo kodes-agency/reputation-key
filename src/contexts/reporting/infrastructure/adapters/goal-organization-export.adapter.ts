@@ -139,7 +139,12 @@ const MONTH_TARGET_CHANGE_COLUMNS = [
   'created_at',
 ] as const
 
-/** A Property's Google rating goal: its plan, baselines, state and last evaluation. */
+/**
+ * A Property's Google rating goal: its plan (target, planned quality, pace),
+ * baselines, state and last evaluation. `cant_reach_noticed_at` holds when the
+ * managers were last told new reviews are too low (migration 0059 kept the
+ * column's name).
+ */
 const RATING_GOAL_COLUMNS = [
   'id',
   'property_id',
@@ -147,6 +152,7 @@ const RATING_GOAL_COLUMNS = [
   'mode',
   'target_tenths',
   'pace_per_week',
+  'quality_tenths',
   'status',
   'ended_reason',
   'baseline_review_count',
@@ -166,7 +172,7 @@ const RATING_GOAL_COLUMNS = [
   'version',
 ] as const
 
-/** Each change to a rating goal's target, pace or mode: who, when, old -> new. */
+/** Each change to a rating goal's target, planned quality, pace or mode: who, when, old -> new. */
 const RATING_GOAL_CHANGE_COLUMNS = [
   'id',
   'goal_id',
@@ -475,6 +481,7 @@ async function readFamilies(
               mode,
               target_tenths,
               pace_per_week,
+              quality_tenths,
               status,
               ended_reason,
               baseline_review_count,

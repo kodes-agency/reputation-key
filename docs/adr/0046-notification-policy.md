@@ -1178,6 +1178,37 @@ data, notification rows, emails and logs (Feed stores only the outcome, never
 the rating), and these notices add no such figure. A Low ratings notice still
 carries only its outcome.
 
+## Amended 2026-10-15 — "New reviews too low" replaces the Google rating goal's Can't reach notice
+
+ADR 0067 (amended 2026-10-15) gives a climb goal a planned quality and judges
+the Google reviews that arrived since the goal was set, from the tenth of them
+on, instead of the recent mix. Its fourth notice changes with it:
+
+4. **Entered New reviews too low** (`goal.rating_too_low`, transition
+   `entered_reviews_too_low`): at least ten Google reviews since the goal was
+   set average at or below what its target needs. At most once every 14 days
+   per goal, as before. Title "New Google reviews for {Property} are too low for
+   {T}"; body "Since you set the goal they average below what {T} needs. Open
+   the goal to see what helps." Action "View goal", the Property's Goals page.
+
+The Can't reach notice (`goal.rating_cant_reach`, `entered_cant_reach`) is
+retired; no row of it exists, so the type is renamed rather than kept beside
+the new one. There is no notice for merely trailing the plan's quality. The
+category (Goals, `recognition` in name only), the recipients (responsible
+managers, AccountAdmins as the fallback, `responsible_scope`), change-only and
+once (compare-and-set on the mark the evaluation read) are as amended on
+2026-10-14. The 14-day mark is stored in the same column, `cant_reach_noticed_at`,
+which kept its name.
+
+**Payload (r.8).** Unchanged: the notice states the goal's target and no number
+of stars. Neither the `goal.rating_goal.transitioned` fact nor the payload holds
+the average of the reviews since the goal was set, nor the planned quality.
+
+**Reached** (same day, review fixes). ADR 0067 now offers Keep only while
+Google shows 4.9 or 5.0. The Reached notice's body follows it: "Set your next
+goal." below 4.9, and "Set your next goal, or keep 4.9." (or 5.0) only there. Its
+title, action, payload, recipients and category are unchanged.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

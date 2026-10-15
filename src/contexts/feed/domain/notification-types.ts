@@ -80,13 +80,13 @@ export const NOTIFICATION_TYPES = [
   'goal.completed',
   'goal.result_revised',
   // A Property's Google rating goal changed in a way its managers are told
-  // about (ADR 0067; ADR 0046, amended 2026-10-14): reached, Google showing
-  // another tenth, entered Below pace, entered Can't reach at this mix, and a
-  // keep goal dropped below.
+  // about (ADR 0067; ADR 0046, amended 2026-10-14 and 2026-10-15): reached,
+  // Google showing another tenth, entered Below pace, new reviews since the
+  // goal was set too low for its target, and a keep goal dropped below.
   'goal.rating_reached',
   'goal.rating_changed',
   'goal.rating_below_pace',
-  'goal.rating_cant_reach',
+  'goal.rating_too_low',
   'goal.rating_keep_dropped',
   // A beta report the recipient filed reached an outcome (ADR 0059).
   'beta_feedback.outcome',

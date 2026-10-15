@@ -325,7 +325,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
       'goal.rating_reached',
       'goal.rating_changed',
       'goal.rating_below_pace',
-      'goal.rating_cant_reach',
+      'goal.rating_too_low',
       'goal.rating_keep_dropped',
     ],
     ['responsible_scope'],

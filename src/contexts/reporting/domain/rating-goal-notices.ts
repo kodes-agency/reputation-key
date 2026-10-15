@@ -1,15 +1,19 @@
 // Property Google rating goal — which changes its managers are told (pure).
 //
 // Five notices, change-only (ADR 0067 decision 6, ADR 0046 amended
-// 2026-10-14). An evaluation that only repeats what the goal already holds
-// tells nobody anything:
+// 2026-10-14 and 2026-10-15). An evaluation that only repeats what the goal
+// already holds tells nobody anything:
 //   reached                 Google shows the target (the only notice then,
 //                           even when the same change is a tenth gained);
 //   google_rating_changed   Google shows another tenth than it last showed;
 //   entered_below_pace      a climb goal is below its pace, at most once in
 //                           14 days;
-//   entered_cant_reach      the recent mix no longer clears the threshold, at
-//                           most once in 14 days, and with no star figure;
+//   entered_reviews_too_low ten or more reviews since the goal was set
+//                           average at or below the target's threshold, at
+//                           most once in 14 days, and with no star figure
+//                           (round 2, 2026-10-15: it replaced "can't reach at
+//                           the recent mix"; no notice for merely trailing the
+//                           plan's quality);
 //   keep_dropped_below      a keep goal's tenth is no longer shown (in place of
 //                           the tenth lost, which is the same change).
 // A status is "entered" against the last status that was not waiting for
@@ -18,15 +22,15 @@
 // stored without a notice: notices report what Google and the reviews did,
 // never a manager's own change. An evaluation that ends the goal tells nobody.
 // The engine's status order already keeps Below pace out while a goal is
-// waiting, getting started, reached or out of reach (rating-goal-status.ts).
+// waiting, getting started, reached or too low (rating-goal-status.ts).
 
 import type { PropertyRatingGoal, RatingGoalMode, RatingGoalStatus } from './rating-goal'
 import type { PaceWindow } from './rating-goal-status'
 
 /** A goal tells its managers it fell below pace at most once in this many days. */
 export const BELOW_PACE_NOTICE_DAYS = 14
-/** A goal tells its managers it can't be reached at the recent mix at most once in this many days. */
-export const CANT_REACH_NOTICE_DAYS = 14
+/** A goal tells its managers new reviews are too low at most once in this many days. */
+export const TOO_LOW_NOTICE_DAYS = 14
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const WEEK_MS = 7 * DAY_MS
@@ -37,7 +41,7 @@ export type RatingGoalTransition =
   | 'reached'
   | 'google_rating_changed'
   | 'entered_below_pace'
-  | 'entered_cant_reach'
+  | 'entered_reviews_too_low'
   | 'keep_dropped_below'
 
 /** Over which days a below-pace notice measured the reviews. */
@@ -61,7 +65,7 @@ export type RatingGoalNotice =
       recentPaceTenths: number
       paceWindow: RatingGoalPaceWindowKind
     }>
-  | Readonly<{ transition: 'entered_cant_reach'; targetTenths: number }>
+  | Readonly<{ transition: 'entered_reviews_too_low'; targetTenths: number }>
   | Readonly<{
       transition: 'keep_dropped_below'
       targetTenths: number
@@ -89,7 +93,7 @@ export type RatingGoalNoticeDecision = Readonly<{
   /** The status a later evaluation compares with. */
   knownStatus: RatingGoalStatus | null
   belowPaceNoticedAt: Date | null
-  cantReachNoticedAt: Date | null
+  tooLowNoticedAt: Date | null
 }>
 
 /** True when the goal moved into `status` from another status it knew. */
@@ -141,14 +145,12 @@ function belowPaceNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null 
   }
 }
 
-function cantReachNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null {
+function tooLowNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null {
   const { goal } = input
-  if (
-    !mayTell(goal.lastEvaluation.cantReachNoticedAt, input.now, CANT_REACH_NOTICE_DAYS)
-  ) {
+  if (!mayTell(goal.lastEvaluation.tooLowNoticedAt, input.now, TOO_LOW_NOTICE_DAYS)) {
     return null
   }
-  return { transition: 'entered_cant_reach', targetTenths: goal.targetTenths }
+  return { transition: 'entered_reviews_too_low', targetTenths: goal.targetTenths }
 }
 
 /** The notice for a status the goal just entered, if it has one. */
@@ -158,8 +160,8 @@ function statusNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null {
   switch (evaluation.status) {
     case 'below_pace':
       return belowPaceNotice(input)
-    case 'cant_reach_at_mix':
-      return cantReachNotice(input)
+    case 'reviews_too_low':
+      return tooLowNotice(input)
     case 'dropped_below':
       return evaluation.displayedTenths === null
         ? null
@@ -209,12 +211,12 @@ export function decideRatingGoalNotices(
       notices: [],
       knownStatus: previous.knownStatus,
       belowPaceNoticedAt: previous.belowPaceNoticedAt,
-      cantReachNoticedAt: previous.cantReachNoticedAt,
+      tooLowNoticedAt: previous.tooLowNoticedAt,
     }
   }
   const notices = noticesFor(input)
   const toldBelowPace = notices.some((n) => n.transition === 'entered_below_pace')
-  const toldCantReach = notices.some((n) => n.transition === 'entered_cant_reach')
+  const toldTooLow = notices.some((n) => n.transition === 'entered_reviews_too_low')
   return {
     notices,
     knownStatus:
@@ -222,6 +224,6 @@ export function decideRatingGoalNotices(
         ? previous.knownStatus
         : input.evaluation.status,
     belowPaceNoticedAt: toldBelowPace ? input.now : previous.belowPaceNoticedAt,
-    cantReachNoticedAt: toldCantReach ? input.now : previous.cantReachNoticedAt,
+    tooLowNoticedAt: toldTooLow ? input.now : previous.tooLowNoticedAt,
   }
 }

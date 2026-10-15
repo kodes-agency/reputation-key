@@ -239,10 +239,10 @@ async function insertRatingGoal(
   await pool.query(
     `INSERT INTO property_rating_goals (
        id, organization_id, property_id, source_epoch, mode, target_tenths,
-       pace_per_week, status, ended_reason, ended_at, reached_at,
+       pace_per_week, quality_tenths, status, ended_reason, ended_at, reached_at,
        baseline_review_count, baseline_google_average, baseline_exact_average,
        created_by
-     ) VALUES ($1, $2, $3, 2, 'climb', 45, 11, $4, $5, $6, $7, 812, 4.3, 4.31, $8)`,
+     ) VALUES ($1, $2, $3, 2, 'climb', 45, 11, 47, $4, $5, $6, $7, 812, 4.3, 4.31, $8)`,
     [
       randomUUID(),
       ORG,

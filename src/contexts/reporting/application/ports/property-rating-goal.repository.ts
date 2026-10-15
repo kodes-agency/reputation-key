@@ -64,7 +64,7 @@ export type RatingGoalManagerEnd = Readonly<{
 /** The part of the stored evaluation a notice was worked out against. */
 export type RatingGoalNoticeMark = Pick<
   RatingGoalEvaluationMark,
-  'displayedTenths' | 'knownStatus' | 'belowPaceNoticedAt' | 'cantReachNoticedAt'
+  'displayedTenths' | 'knownStatus' | 'belowPaceNoticedAt' | 'tooLowNoticedAt'
 >
 
 /** What an evaluation stores, and the terminal step it takes, if any. */
@@ -85,7 +85,7 @@ export type RatingGoalEvaluationWrite = Readonly<{
   /** The last status that was not a wait for Google, after this evaluation. */
   knownStatus: RatingGoalStatus | null
   belowPaceNoticedAt: Date | null
-  cantReachNoticedAt: Date | null
+  tooLowNoticedAt: Date | null
   evaluatedAt: Date
   outcome:
     | Readonly<{ kind: 'continues' }>

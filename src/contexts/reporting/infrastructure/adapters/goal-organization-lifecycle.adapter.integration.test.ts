@@ -200,9 +200,9 @@ async function seedTenantRows(
   await lease.pool.query(
     `INSERT INTO property_rating_goals
        (id, organization_id, property_id, source_epoch, mode, target_tenths,
-        pace_per_week, baseline_review_count, baseline_google_average,
+        pace_per_week, quality_tenths, baseline_review_count, baseline_google_average,
         baseline_exact_average, created_by, created_at, updated_at)
-     VALUES ($1::uuid, $2, $3::uuid, 0, 'climb', 45, 11, 812, 4.3, 4.31,
+     VALUES ($1::uuid, $2, $3::uuid, 0, 'climb', 45, 11, 47, 812, 4.3, 4.31,
              'user:test', $4, $4)`,
     [ratingGoalId, organizationId, fixture.propertyId, VERSION_FROM],
   )

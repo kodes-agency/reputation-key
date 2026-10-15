@@ -45,7 +45,7 @@ type Transition =
   | 'reached'
   | 'google_rating_changed'
   | 'entered_below_pace'
-  | 'entered_cant_reach'
+  | 'entered_reviews_too_low'
   | 'keep_dropped_below'
 
 type TransitionedPayload = Readonly<{
@@ -66,7 +66,7 @@ const NOTICE_TYPES: Readonly<Record<Transition, NotificationType>> = {
   reached: 'goal.rating_reached',
   google_rating_changed: 'goal.rating_changed',
   entered_below_pace: 'goal.rating_below_pace',
-  entered_cant_reach: 'goal.rating_cant_reach',
+  entered_reviews_too_low: 'goal.rating_too_low',
   keep_dropped_below: 'goal.rating_keep_dropped',
 }
 

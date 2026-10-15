@@ -1,14 +1,15 @@
 // The Google rating goal wizard at the end of a single-Property Google import:
-// the same two steps inside the setup frame, on the page (decision 10), with
-// "Not now" as every step's way out. The Storybook Vitest project compiles no
+// the same "Pick a plan" inside the setup frame, on the page (decision 10;
+// round 2, R2-6), with "Not now" as every step's way out. The Storybook Vitest project compiles no
 // Tailwind, so the plays assert what is on the page and what each button sends.
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import { RatingGoalWizard, type RatingGoalWizardProps } from './rating-goal-wizard'
+import { SETUP_BETA } from './rating-goal-plan.stories.fixtures'
+import { setGoalAndLand } from './rating-goal-wizard.stories.play'
 import {
   FIXTURE_GOAL_ID,
   FIXTURE_PROPERTY_ID,
-  SETUP,
   SETUP_KEEP_FIRST,
 } from './rating-goal.stories.fixtures'
 
@@ -26,7 +27,7 @@ const meta: Meta<typeof RatingGoalWizard> = {
     onSaved: fn(),
     propertyId: FIXTURE_PROPERTY_ID,
     intent: { kind: 'climb' },
-    setup: { data: SETUP, failed: false, retrying: false, retry: () => undefined },
+    setup: { data: SETUP_BETA, failed: false, retrying: false, retry: () => undefined },
     hasPortals: false,
     setRatingGoalFn: fn<SetFn>(async () => ({ goalId: FIXTURE_GOAL_ID, version: 1 })),
     changeRatingGoalFn: fn<ChangeFn>(async () => ({
@@ -45,13 +46,14 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 /** On the page, not over it: no dialog, and "Not now" is the way out. */
-export const PickYourGoal: Story = {
+export const PickAPlan: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await expect(within(document.body).queryByRole('dialog')).toBeNull()
     const step = within(canvas.getByRole('region', { name: 'Google rating goal' }))
-    await expect(step.getByRole('heading', { name: 'Pick your goal' })).toBeVisible()
-    await expect(step.getByText('Google shows 4.3 from 812 reviews')).toBeVisible()
+    await expect(step.getByRole('heading', { name: 'Pick a plan' })).toBeVisible()
+    await expect(step.getByText('Google shows 3.9 from 261 reviews.')).toBeVisible()
+    await expect(step.getByRole('radio', { name: /^Recommended 4\.0/ })).toBeChecked()
     await expect(step.queryByRole('button', { name: 'Cancel' })).toBeNull()
 
     await userEvent.click(step.getByRole('button', { name: 'Not now' }))
@@ -59,25 +61,18 @@ export const PickYourGoal: Story = {
   },
 }
 
-/** Both steps on the page, then the receipt and its one next step: a first Portal. */
+/** The plan on the page, then the receipt and its one next step: a first Portal. */
 export const SetsAGoal: Story = {
   play: async ({ canvasElement, args }) => {
     const step = within(canvasElement)
-    await userEvent.click(step.getByRole('button', { name: 'Next' }))
-    await waitFor(() =>
-      expect(step.getByRole('heading', { name: 'Pick your pace' })).toHaveFocus(),
-    )
-    await userEvent.click(step.getByRole('button', { name: 'Set goal' }))
-
-    await waitFor(() =>
-      expect(step.getByRole('heading', { name: 'Your goal is set' })).toHaveFocus(),
-    )
+    await setGoalAndLand(step)
     await expect(args.setRatingGoalFn).toHaveBeenCalledWith({
       data: {
         propertyId: FIXTURE_PROPERTY_ID,
         mode: 'climb',
-        targetTenths: 44,
-        pacePerWeek: 11,
+        targetTenths: 40,
+        qualityTenths: 45,
+        pacePerWeek: 2,
       },
     })
     await expect(args.onSaved).toHaveBeenCalledOnce()
@@ -90,7 +85,7 @@ export const SetsAGoal: Story = {
   },
 }
 
-/** Nothing higher in reach: one step to keep the number, and "Not now". */
+/** Google shows 5.0, nothing is higher: one step to keep the number, and "Not now". */
 export const KeepTheNumber: Story = {
   args: {
     intent: { kind: 'keep', targetTenths: 50 },

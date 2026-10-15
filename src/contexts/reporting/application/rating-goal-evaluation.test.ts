@@ -20,6 +20,7 @@ const goal = (overrides: Partial<PropertyRatingGoal> = {}): PropertyRatingGoal =
   sourceEpoch: 2,
   mode: 'climb',
   targetTenths: 45,
+  qualityTenths: 47,
   pacePerWeek: 10,
   state: 'active',
   endedReason: null,
@@ -30,7 +31,7 @@ const goal = (overrides: Partial<PropertyRatingGoal> = {}): PropertyRatingGoal =
     evaluatedAt: null,
     knownStatus: 'on_pace',
     belowPaceNoticedAt: null,
-    cantReachNoticedAt: null,
+    tooLowNoticedAt: null,
   },
   reachedAt: null,
   endedAt: null,
@@ -61,6 +62,7 @@ const reading = (overrides: Partial<RatingGoalReading> = {}): RatingGoalReading 
   mix: { value: ratio(470, 100), reviewCount: 30, basis: 'last_90_days' },
   reviewsLast28Days: 40,
   extraCounts: [],
+  sinceSet: { count: 12, sum: 56 },
   ...overrides,
 })
 
@@ -71,6 +73,23 @@ describe('evaluating an active rating goal', () => {
       displayedTenths: 43,
       outcome: { kind: 'continues' },
     })
+  })
+
+  it('says new reviews are too low from the reviews since the goal was set', () => {
+    // 20 reviews since the set at exactly 4.45, the threshold of 4.5.
+    const tooLow = reading({ sinceSet: { count: 20, sum: 89 } })
+
+    expect(evaluateRatingGoal(goal(), tooLow, 40)).toEqual({
+      status: 'reviews_too_low',
+      displayedTenths: 43,
+      outcome: { kind: 'continues' },
+    })
+  })
+
+  it('gives no verdict on new reviews when the read did not count them', () => {
+    expect(evaluateRatingGoal(goal(), reading({ sinceSet: null }), 40).status).toBe(
+      'on_pace',
+    )
   })
 
   it('reaches the goal when Google shows the target', () => {
@@ -125,7 +144,12 @@ describe('evaluating an active rating goal', () => {
   })
 
   it('judges a keep goal by the tenth it keeps', () => {
-    const keep = goal({ mode: 'keep', targetTenths: 44, pacePerWeek: null })
+    const keep = goal({
+      mode: 'keep',
+      targetTenths: 44,
+      qualityTenths: null,
+      pacePerWeek: null,
+    })
 
     expect(evaluateRatingGoal(keep, reading(), null).status).toBe('dropped_below')
     expect(
@@ -138,7 +162,12 @@ describe('evaluating an active rating goal', () => {
   })
 
   it('never reaches a keep goal', () => {
-    const keep = goal({ mode: 'keep', targetTenths: 43, pacePerWeek: null })
+    const keep = goal({
+      mode: 'keep',
+      targetTenths: 43,
+      qualityTenths: null,
+      pacePerWeek: null,
+    })
 
     expect(evaluateRatingGoal(keep, reading(), null).outcome).toEqual({
       kind: 'continues',
@@ -169,13 +198,13 @@ describe('what an evaluation writes', () => {
         displayedTenths: 43,
         knownStatus: 'on_pace',
         belowPaceNoticedAt: null,
-        cantReachNoticedAt: null,
+        tooLowNoticedAt: null,
       },
       status: 'on_pace',
       displayedTenths: 43,
       knownStatus: 'on_pace',
       belowPaceNoticedAt: null,
-      cantReachNoticedAt: null,
+      tooLowNoticedAt: null,
       evaluatedAt: NOW,
       outcome: { kind: 'continues' },
       notices: [],
@@ -219,7 +248,7 @@ describe('what an evaluation writes', () => {
       evaluatedAt: NOW,
       knownStatus: 'on_pace',
       belowPaceNoticedAt: null,
-      cantReachNoticedAt: null,
+      tooLowNoticedAt: null,
     })
   })
 

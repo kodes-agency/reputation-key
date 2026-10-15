@@ -530,7 +530,9 @@ export const goalMonthTargetChanges = pgTable(
 
 // Property Google rating goal (ADR 0067). Not a Goal Program: no months,
 // subjects or metric readings. One active goal per Property, aimed at the
-// one-decimal number Google shows. `source_epoch` is the Property's Google
+// one-decimal number Google shows. A climb goal's plan is its target, its
+// planned quality (the average stars, in tenths, it assumes new reviews bring;
+// migration 0059) and its weekly pace. `source_epoch` is the Property's Google
 // binding epoch when the goal was set; a goal outlives no change of it. The
 // `last_*` columns are what the set or the last evaluation stored, so the next
 // one can tell a transition (a tenth gained or lost, a new status) from a
@@ -547,6 +549,7 @@ export const propertyRatingGoals = pgTable(
     mode: varchar('mode', { length: 8 }).notNull(),
     targetTenths: smallint('target_tenths').notNull(),
     pacePerWeek: smallint('pace_per_week'),
+    qualityTenths: smallint('quality_tenths'),
     status: varchar('status', { length: 8 }).notNull().default('active'),
     endedReason: varchar('ended_reason', { length: 32 }),
     baselineReviewCount: integer('baseline_review_count').notNull(),
@@ -557,10 +560,12 @@ export const propertyRatingGoals = pgTable(
     lastEvaluatedAt: timestamp('last_evaluated_at', { withTimezone: true }),
     // What the goal's notices compare with (migration 0057): the last status
     // that was not a wait for Google, and when the managers were last told the
-    // goal fell below pace, and that it can't be reached at the recent mix.
+    // goal fell below pace, and that new reviews are too low. The last is the
+    // column the retired Can't reach notice used, kept under its name
+    // (migration 0059).
     lastKnownStatus: varchar('last_known_status', { length: 24 }),
     belowPaceNoticedAt: timestamp('below_pace_noticed_at', { withTimezone: true }),
-    cantReachNoticedAt: timestamp('cant_reach_noticed_at', { withTimezone: true }),
+    tooLowNoticedAt: timestamp('cant_reach_noticed_at', { withTimezone: true }),
     reachedAt: timestamp('reached_at', { withTimezone: true }),
     endedAt: timestamp('ended_at', { withTimezone: true }),
     createdBy: varchar('created_by', { length: 255 }).notNull(),
@@ -593,8 +598,8 @@ export const propertyRatingGoals = pgTable(
     ),
     check(
       'property_rating_goals_plan_check',
-      sql`(${t.mode} = 'climb' AND ${t.pacePerWeek} IS NOT NULL AND ${t.targetTenths} BETWEEN 11 AND 49 AND ${t.pacePerWeek} BETWEEN 1 AND 200)
-        OR (${t.mode} = 'keep' AND ${t.pacePerWeek} IS NULL AND ${t.targetTenths} BETWEEN 10 AND 50)`,
+      sql`(${t.mode} = 'climb' AND ${t.pacePerWeek} IS NOT NULL AND ${t.qualityTenths} IS NOT NULL AND ${t.targetTenths} BETWEEN 11 AND 49 AND ${t.pacePerWeek} BETWEEN 1 AND 200 AND ${t.qualityTenths} BETWEEN ${t.targetTenths} AND 50)
+        OR (${t.mode} = 'keep' AND ${t.pacePerWeek} IS NULL AND ${t.qualityTenths} IS NULL AND ${t.targetTenths} BETWEEN 10 AND 50)`,
     ),
     check(
       'property_rating_goals_status_check',
@@ -611,19 +616,20 @@ export const propertyRatingGoals = pgTable(
     check(
       'property_rating_goals_evaluation_check',
       sql`(${t.lastDisplayedTenths} IS NULL OR ${t.lastDisplayedTenths} BETWEEN 0 AND 50)
-        AND (${t.lastEvaluatedStatus} IS NULL OR ${t.lastEvaluatedStatus} IN ('waiting_for_google', 'reached', 'cant_reach_at_mix', 'getting_started', 'on_pace', 'below_pace', 'holding', 'dropped_below'))`,
+        AND (${t.lastEvaluatedStatus} IS NULL OR ${t.lastEvaluatedStatus} IN ('waiting_for_google', 'reached', 'reviews_too_low', 'getting_started', 'on_pace', 'below_pace', 'holding', 'dropped_below'))`,
     ),
     check(
       'property_rating_goals_notice_mark_check',
-      sql`${t.lastKnownStatus} IS NULL OR ${t.lastKnownStatus} IN ('reached', 'cant_reach_at_mix', 'getting_started', 'on_pace', 'below_pace', 'holding', 'dropped_below')`,
+      sql`${t.lastKnownStatus} IS NULL OR ${t.lastKnownStatus} IN ('reached', 'reviews_too_low', 'getting_started', 'on_pace', 'below_pace', 'holding', 'dropped_below')`,
     ),
     check('property_rating_goals_version_check', sql`${t.version} >= 1`),
   ],
 )
 
-// Each change to a rating goal's target, pace or mode: who, when, old -> new,
-// one row per field. No reason (ADR 0067). Values are text: a target in
-// tenths, a pace a week (NULL when a goal keeps instead), or a mode.
+// Each change to a rating goal's target, planned quality, pace or mode: who,
+// when, old -> new, one row per field. No reason (ADR 0067). Values are text:
+// a target or a quality in tenths, a pace a week (a quality or a pace is NULL
+// when a goal keeps instead), or a mode.
 export const propertyRatingGoalChanges = pgTable(
   'property_rating_goal_changes',
   {
@@ -658,6 +664,9 @@ export const propertyRatingGoalChanges = pgTable(
       sql`${t.oldValue} IS DISTINCT FROM ${t.newValue} AND (
         (${t.field} = 'target' AND ${t.oldValue} IS NOT NULL AND ${t.newValue} IS NOT NULL
           AND ${t.oldValue} ~ '^([1-4][0-9]|50)$' AND ${t.newValue} ~ '^([1-4][0-9]|50)$')
+        OR (${t.field} = 'quality'
+          AND (${t.oldValue} IS NULL OR ${t.oldValue} ~ '^([1-4][0-9]|50)$')
+          AND (${t.newValue} IS NULL OR ${t.newValue} ~ '^([1-4][0-9]|50)$'))
         OR (${t.field} = 'pace'
           AND (${t.oldValue} IS NULL OR ${t.oldValue} ~ '^([1-9][0-9]?|1[0-9][0-9]|200)$')
           AND (${t.newValue} IS NULL OR ${t.newValue} ~ '^([1-9][0-9]?|1[0-9][0-9]|200)$'))

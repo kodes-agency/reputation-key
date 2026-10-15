@@ -727,7 +727,7 @@
       "id": "src/components/goals/rating-goal-wizard.tsx:useState(step)",
       "classification": "local_runtime",
       "owner": "Google rating goal wizard",
-      "policy": "Which step the wizard shows: the goal, the pace, the keep step or the done screen. It is the manager's place in the flow, never server state; the wizard mounts per opening, which is its reset boundary."
+      "policy": "Which step the wizard shows: Pick a plan, the keep step or the done screen. It is the manager's place in the flow, never server state; the wizard mounts per opening, which is its reset boundary."
     },
     {
       "id": "src/routes/_authenticated/properties/$propertyId/goals/-rating-goal-panel.tsx:useState(now)",

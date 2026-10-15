@@ -2,15 +2,18 @@
 //
 // Setting a goal needs Google's current numbers and at least ten Google
 // reviews, and refuses while the Property has an active goal. It records the
-// baselines the progress bar starts from. A change names the version its form
-// was opened on, writes one log row per changed field and no reason. Ending
-// is always allowed while the goal is active. Nothing here is a deadline.
+// baselines the progress bar starts from. A climb goal's plan is its target,
+// its planned quality of new reviews (at least 0.15★ above the target's
+// threshold, as a tenth) and its pace. A change names the version its form was
+// opened on, writes one log row per changed field and no reason. Ending is
+// always allowed while the goal is active. Nothing here is a deadline.
 
 import { ratioToNumber } from '../../domain/rating-goal-numbers'
 import type { RatingGoalEligibility } from '../../domain/rating-goal-stops'
 import {
   paceProblem,
   planChanges,
+  planQualityProblem,
   ratingGoalError,
   targetProblem,
   type PropertyRatingGoal,
@@ -44,6 +47,8 @@ export type SetRatingGoalInput = Readonly<{
   propertyId: string
   mode: RatingGoalMode
   targetTenths: number
+  /** The planned quality of new reviews, in tenths; null to keep. */
+  qualityTenths: number | null
   pacePerWeek: number | null
 }>
 
@@ -53,6 +58,7 @@ export type ChangeRatingGoalInput = Readonly<{
   expectedVersion: number
   mode?: RatingGoalMode
   targetTenths?: number
+  qualityTenths?: number | null
   pacePerWeek?: number | null
 }>
 
@@ -81,6 +87,7 @@ function assertPlan(plan: RatingGoalPlan, displayed: number | null): void {
     (displayed === null
       ? null
       : targetProblem(plan.mode, plan.targetTenths, displayed)) ??
+    planQualityProblem(plan.mode, plan.targetTenths, plan.qualityTenths) ??
     paceProblem(plan.mode, plan.pacePerWeek)
   if (problem !== null) {
     throw ratingGoalError(
@@ -142,6 +149,7 @@ function newGoal(
     sourceEpoch: reading.facts.sourceEpoch,
     mode: input.mode,
     targetTenths: input.targetTenths,
+    qualityTenths: input.qualityTenths,
     pacePerWeek: input.pacePerWeek,
     baseline: {
       reviewCount: reading.google?.reviewCount ?? 0,
@@ -154,7 +162,7 @@ function newGoal(
       evaluatedAt: null,
       knownStatus: null,
       belowPaceNoticedAt: null,
-      cantReachNoticedAt: null,
+      tooLowNoticedAt: null,
     },
     createdBy: actor.userId,
     createdAt: reading.now,
@@ -181,12 +189,19 @@ function newGoal(
       evaluatedAt: reading.now,
       knownStatus: starting.status === 'waiting_for_google' ? null : starting.status,
       belowPaceNoticedAt: null,
-      cantReachNoticedAt: null,
+      tooLowNoticedAt: null,
     },
   }
 }
 
-/** The plan a change leaves: a keep goal has no pace. */
+/** A field the change names, else the goal's own; nothing for a keep goal. */
+const climbValue = (
+  mode: RatingGoalMode,
+  given: number | null | undefined,
+  current: number | null,
+): number | null => (mode === 'keep' ? null : given !== undefined ? given : current)
+
+/** The plan a change leaves: a keep goal has no quality and no pace. */
 function nextPlan(
   goal: PropertyRatingGoal,
   input: ChangeRatingGoalInput,
@@ -195,12 +210,8 @@ function nextPlan(
   return {
     mode,
     targetTenths: input.targetTenths ?? goal.targetTenths,
-    pacePerWeek:
-      mode === 'keep'
-        ? null
-        : input.pacePerWeek !== undefined
-          ? input.pacePerWeek
-          : goal.pacePerWeek,
+    qualityTenths: climbValue(mode, input.qualityTenths, goal.qualityTenths),
+    pacePerWeek: climbValue(mode, input.pacePerWeek, goal.pacePerWeek),
   }
 }
 
@@ -220,7 +231,7 @@ async function loadChangeable(
   return goal
 }
 
-/** Changes the target, pace or mode of the active goal. */
+/** Changes the target, planned quality, pace or mode of the active goal. */
 export async function changeRatingGoal(
   deps: RatingGoalDependencies,
   input: ChangeRatingGoalInput,

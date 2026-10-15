@@ -7,17 +7,18 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { RatingGoalWizardProps } from '#/components/goals/rating-goal-wizard'
+import { SETUP_BETA } from '#/components/goals/rating-goal-plan.stories.fixtures'
 import {
   FIXTURE_GOAL_ID,
   FIXTURE_PROPERTY_ID,
-  SETUP,
 } from '#/components/goals/rating-goal.stories.fixtures'
+import { setGoalAndLand } from '#/components/goals/rating-goal-wizard.stories.play'
 import { RATING_GOAL_STEP_APPEARED, SetupRatingGoalStep } from './setup-rating-goal-step'
 
 type SetFn = RatingGoalWizardProps['setRatingGoalFn']
 type ChangeFn = RatingGoalWizardProps['changeRatingGoalFn']
 
-const read = (data: typeof SETUP | undefined) => ({
+const read = (data: typeof SETUP_BETA | undefined) => ({
   data,
   failed: false,
   retrying: false,
@@ -30,7 +31,7 @@ const meta: Meta<typeof SetupRatingGoalStep> = {
   parameters: { layout: 'padded' },
   args: {
     propertyId: FIXTURE_PROPERTY_ID,
-    setup: read(SETUP),
+    setup: read(SETUP_BETA),
     setRatingGoalFn: fn<SetFn>(async () => ({ goalId: FIXTURE_GOAL_ID, version: 1 })),
     changeRatingGoalFn: fn<ChangeFn>(async () => ({
       goalId: FIXTURE_GOAL_ID,
@@ -49,13 +50,28 @@ const meta: Meta<typeof SetupRatingGoalStep> = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+/** The page and the step on it, once it has appeared. */
+async function offeredStep(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  const step = within(await canvas.findByRole('region', { name: 'Google rating goal' }))
+  return { canvas, step }
+}
+
+/** Presses "Not now" and checks it was recorded once. */
+async function pressNotNow(
+  step: Awaited<ReturnType<typeof offeredStep>>['step'],
+  onNotNow: unknown,
+) {
+  await userEvent.click(step.getByRole('button', { name: 'Not now' }))
+  await expect(onNotNow).toHaveBeenCalledOnce()
+}
+
 /** Google's numbers are in: the wizard, on the page, and a status line that says it appeared. */
 export const Offered: Story = {
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const step = within(await canvas.findByRole('region', { name: 'Google rating goal' }))
-    await expect(step.getByRole('heading', { name: 'Pick your goal' })).toBeVisible()
-    await expect(step.getByText('The number you want Google to show.')).toBeVisible()
+    const { canvas, step } = await offeredStep(canvasElement)
+    await expect(step.getByRole('heading', { name: 'Pick a plan' })).toBeVisible()
+    await expect(step.getByText('Google shows 3.9 from 261 reviews.')).toBeVisible()
     await expect(canvas.getByRole('status')).toHaveTextContent(RATING_GOAL_STEP_APPEARED)
   },
 }
@@ -64,7 +80,7 @@ export const Offered: Story = {
 export const WaitingForGoogle: Story = {
   args: {
     setup: read({
-      ...SETUP,
+      ...SETUP_BETA,
       eligibility: { eligible: false, reason: 'waiting_for_google' },
     }),
   },
@@ -78,11 +94,8 @@ export const WaitingForGoogle: Story = {
 /** "Not now" is recorded, then one sentence takes the step's place and the focus. */
 export const NotNow: Story = {
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    const step = within(await canvas.findByRole('region', { name: 'Google rating goal' }))
-    await userEvent.click(step.getByRole('button', { name: 'Not now' }))
-
-    await expect(args.onNotNow).toHaveBeenCalledOnce()
+    const { canvas, step } = await offeredStep(canvasElement)
+    await pressNotNow(step, args.onNotNow)
     const sentence = await canvas.findByText(/No Google rating goal for now/)
     await waitFor(() => expect(sentence).toHaveFocus())
     await expect(canvas.getByRole('link', { name: 'Goals' })).toHaveAttribute(
@@ -93,21 +106,13 @@ export const NotNow: Story = {
   },
 }
 
-/** "Not now" from the pace step, without going back first. */
-export const NotNowFromThePace: Story = {
+/** "Not now" while building a plan of one's own, without closing it first. */
+export const NotNowFromBuildYourOwn: Story = {
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    const step = within(await canvas.findByRole('region', { name: 'Google rating goal' }))
-    await userEvent.click(step.getByRole('button', { name: 'Next' }))
-    await waitFor(() =>
-      expect(step.getByRole('heading', { name: 'Pick your pace' })).toHaveFocus(),
-    )
-    await expect(
-      step.getByText('How many new Google reviews a week you aim for.'),
-    ).toBeVisible()
-    await userEvent.click(step.getByRole('button', { name: 'Not now' }))
-
-    await expect(args.onNotNow).toHaveBeenCalledOnce()
+    const { canvas, step } = await offeredStep(canvasElement)
+    await userEvent.click(step.getByRole('button', { name: 'Build your own' }))
+    await expect(step.getByRole('radiogroup', { name: 'Goal on Google' })).toBeVisible()
+    await pressNotNow(step, args.onNotNow)
     await expect(
       canvas.findByText(/No Google rating goal for now/),
     ).resolves.toBeVisible()
@@ -122,12 +127,9 @@ export const NotNowFails: Story = {
     }),
   },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    const step = within(await canvas.findByRole('region', { name: 'Google rating goal' }))
-    await userEvent.click(step.getByRole('button', { name: 'Not now' }))
-
-    await expect(args.onNotNow).toHaveBeenCalledOnce()
-    await expect(step.getByRole('heading', { name: 'Pick your goal' })).toBeVisible()
+    const { canvas, step } = await offeredStep(canvasElement)
+    await pressNotNow(step, args.onNotNow)
+    await expect(step.getByRole('heading', { name: 'Pick a plan' })).toBeVisible()
     await expect(canvas.queryByText(/No Google rating goal for now/)).toBeNull()
   },
 }
@@ -135,13 +137,8 @@ export const NotNowFails: Story = {
 /** A goal set at the import ends on "Go to goals", which goes on to the Goals page. */
 export const SetThenGoToGoals: Story = {
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    const step = within(await canvas.findByRole('region', { name: 'Google rating goal' }))
-    await userEvent.click(step.getByRole('button', { name: 'Next' }))
-    await userEvent.click(await step.findByRole('button', { name: 'Set goal' }))
-    await waitFor(() =>
-      expect(step.getByRole('heading', { name: 'Your goal is set' })).toHaveFocus(),
-    )
+    const { canvas, step } = await offeredStep(canvasElement)
+    await setGoalAndLand(step)
     await expect(canvas.getByRole('status')).toBeEmptyDOMElement()
 
     await userEvent.click(step.getByRole('button', { name: 'Go to goals' }))

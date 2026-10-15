@@ -21,9 +21,10 @@ import {
   cardOutlook,
   cardPaceLine,
   googleShows,
-  RATING_GOAL_STATUS,
+  ratingGoalStatusBadge,
   ratingText,
 } from './rating-goal-view'
+import { RatingGoalWholeDates } from './rating-goal-whole-dates'
 
 /** The bar counts in thousandths of the way from the start to the threshold. */
 const BAR_STEPS = 1000
@@ -109,7 +110,7 @@ export function RatingGoalCard({ card, propertyId, timezone, now }: Props) {
   return (
     <Card data-slot="rating-goal-card" className="gap-4">
       <RatingGoalCardHeader>
-        <StatusBadge status={card.status} map={RATING_GOAL_STATUS} />
+        <StatusBadge {...ratingGoalStatusBadge(card)} />
       </RatingGoalCardHeader>
       <CardContent className="flex flex-col gap-3">
         {card.mode === 'keep' ? (
@@ -126,7 +127,11 @@ export function RatingGoalCard({ card, propertyId, timezone, now }: Props) {
           />
         )}
         {pace === null ? null : <p className="text-sm">{pace}</p>}
-        {outlook === null ? null : <p className={QUIET}>{outlook}</p>}
+        {outlook === null ? null : (
+          <p className={QUIET}>
+            <RatingGoalWholeDates text={outlook} />
+          </p>
+        )}
       </CardContent>
       <CardFooter>
         {/* The card's one way on: a tap target on a phone, not a link in a sentence. */}

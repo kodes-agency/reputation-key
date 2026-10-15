@@ -79,7 +79,8 @@ metric authority.
   the others, and a row reached after the chosen month has ended is not written. There is no
   target that subjects share and no Property total.
 - **Property Google rating goal**: a Property's target for the one-decimal rating Google
-  shows, with a chosen weekly pace of new Google reviews (a climb goal), or a watch that
+  shows, with a planned quality (the average stars it assumes new Google reviews bring) and
+  a chosen weekly pace of new Google reviews (a climb goal), or a watch that
   Google keeps showing a tenth it shows now (a keep goal). At most one is active per
   Property (ADR 0067, `docs/plan/google-rating-goal.md`). It is not a Goal Program: it has
   no months, subjects, metric readings or monthly results, no deadline and no "missed". It
@@ -88,23 +89,39 @@ metric authority.
   Review's public API, and it is reached only when Google itself shows the target. Only
   AccountAdmins and PropertyManagers with access to the Property see, set, change or end it.
 - **Property Google rating goal (implementation)**: One active goal per Property (`property_rating_goals`, a partial unique index); a
-  climb goal names a tenth from 1.1 to 4.9 and a pace from 1 to 200 a week, a keep goal a
-  tenth Google shows now and no pace. There is no deadline and no "missed": a goal runs
+  climb goal names a tenth from 1.1 to 4.9, a planned quality in tenths (`quality_tenths`,
+  migration 0059: at least 0.15★ above the target's threshold in the domain, at least the
+  target in the database) and a pace from 1 to 200 a week, a keep goal a tenth Google shows
+  now and neither, set only while Google shows 4.9 or 5.0 (R2-9: the commands refuse a
+  keep goal below, as the screens offer none). The plan (target, quality, pace) is version-checked as a whole. There is no deadline and no "missed": a goal runs
   until Google shows the target (reached), or it is ended by a manager, by its Google
   location changing (the Property's binding epoch moved) or by its Property being archived.
-  Changes of target, pace or mode are logged with who, when, old and new value, and no
-  reason (`property_rating_goal_changes`). A manager's "Not now" for a Property's goal is
+  Changes of target, quality, pace or mode are logged with who, when, old and new value,
+  and no reason (`property_rating_goal_changes`). A manager's "Not now" for a Property's goal is
   kept apart (`property_rating_goal_deferrals`): it only lets the setup checklist count the
   step as decided, and sets, changes or blocks no goal. The maths is pure and exact
   (`domain/rating-goal-*.ts`, BigInt rationals): Google's number rounds half up (4.45
   shows 4.5, one named rule), so a target's threshold is five hundredths below it; the exact
   average is the cache's sum over count when the cache holds every review Google counts,
   otherwise Google's figure; the recent mix is the last 90 days at ten reviews or more,
-  else the most recent 25; reviews needed is ceil(N(θ − E)/(m − θ)); the forecast is a
-  month range in the Property's time zone (mix ± 0.1, pace ± 10%). The review cache is read
-  only through Review's `ReviewGoogleRatingReads` (counts and star sums, the serving
-  eligibility, the current binding epoch); Google's own numbers come from the Current on
-  Google snapshot. A goal may be set only on an active Property with at least ten Google
+  else the most recent 25; reviews needed is ceil(N(θ − E)/(q − θ)) at a quality q; the
+  forecast is a month range in the Property's time zone (quality ± 0.1, pace ± 10%).
+  "Pick a plan" (round 2, 2026-10-15; `domain/rating-goal-quality.ts`,
+  `domain/rating-goal-plans.ts`, `application/rating-goal-planning.ts`): a quality comes
+  from evidence anchors (like now, the best calendar year with ten reviews, a step above
+  what the target needs, Excellent 4.8), never below the floor; every target is worked out
+  at its own recommended quality; three plans share the recommended target's quality
+  (Cautious, Recommended, Ambitious: the highest row target the quality clears by 0.15★
+  and Push reaches within 52 weeks, R2-13), and "Build your own" is worked out on the page from
+  the setup read's exact inputs (`application/rating-goal-preview.ts`). A plan and a
+  preview carry their reach, the target label's rule at the plan's own pace, so a screen
+  can say a plan is more than a year away. Until ten reviews
+  arrived since a goal was set its numbers assume the planned quality, then those reviews'
+  average; `reviews_too_low` (that average at or below the threshold) replaced
+  `cant_reach_at_mix`. The review cache is read only through Review's
+  `ReviewGoogleRatingReads` (counts and star sums, the serving eligibility, the current
+  binding epoch; also since a goal was set, and per calendar year); Google's own numbers
+  come from the Current on Google snapshot. A goal may be set only on an active Property with at least ten Google
   reviews (Google's count decides that first, current or not) and current numbers. A set
   goal stores the tenth Google showed and the status it starts in. A goal is evaluated by
   its card and detail reads and by `goal.google-rating-evaluation` when Review verifies
@@ -115,13 +132,15 @@ metric authority.
   (`property_archived`) when it was set under an earlier binding epoch than the archive's,
   so a late fact never ends a goal set after a Restore.
 - **Property Google rating goal notices**: five, change-only (ADR 0067 decision 6; ADR
-  0046, amended 2026-10-14): reached; Google showing another tenth; entered Below pace,
-  at most once in 14 days; entered Can't reach at this mix, also at most once in 14 days
-  and with no star figure; a keep goal dropped below.
+  0046, amended 2026-10-14 and 2026-10-15): reached; Google showing another tenth; entered
+  Below pace, at most once in 14 days; entered New reviews too low (ten or more reviews
+  since the set, averaging at or below the threshold), also at most once in 14 days and
+  with no star figure; a keep goal dropped below.
   `domain/rating-goal-notices.ts` decides them from what the goal last stored: the tenth
   Google showed, the last status that was not a wait for Google (`last_known_status`,
-  migration 0057) and when it last told Below pace (`below_pace_noticed_at`) and Can't
-  reach (`cant_reach_noticed_at`). Reached replaces the tenth gained, a keep goal's drop
+  migration 0057) and when it last told Below pace (`below_pace_noticed_at`) and New
+  reviews too low (`cant_reach_noticed_at`, the retired Can't reach notice's column, kept
+  under its name by migration 0059). Reached replaces the tenth gained, a keep goal's drop
   replaces the tenth lost, an ended goal tells nobody, and a status the goal was set in or
   that a manager's change of plan put it in (a plan change clears the known status) is
   stored without a notice. The

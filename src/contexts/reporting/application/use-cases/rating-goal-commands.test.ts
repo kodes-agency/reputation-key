@@ -20,8 +20,23 @@ const climb = {
   propertyId: PROPERTY,
   mode: 'climb',
   targetTenths: 44,
+  qualityTenths: 47,
   pacePerWeek: 11,
 } as const
+
+const keep49 = {
+  propertyId: PROPERTY,
+  mode: 'keep',
+  targetTenths: 49,
+  qualityTenths: null,
+  pacePerWeek: null,
+} as const
+
+/** Google shows 4.9 (3980 / 812 = 4.9015): the only numbers Keep is set at (R2-9). */
+function showingFourNine(at: FakeWorld): void {
+  at.snapshot = { ...at.snapshot!, averageRating: Math.fround(4.9) }
+  at.summary = { ...at.summary, all: { count: 812, sum: 3980 } }
+}
 
 describe('setting a rating goal', () => {
   it('stores the plan, the binding epoch and the baselines it starts from', async () => {
@@ -34,6 +49,7 @@ describe('setting a rating goal', () => {
       sourceEpoch: 2,
       mode: 'climb',
       targetTenths: 44,
+      qualityTenths: 47,
       pacePerWeek: 11,
       state: 'active',
       createdBy: 'manager-1',
@@ -45,9 +61,13 @@ describe('setting a rating goal', () => {
 
   it.each([
     ['a climb in reach', { targetTenths: 44 }, 'getting_started'],
-    // 4.8 starts at 4.75, above the 4.70 recent mix: no pace gets there.
-    ['a climb past the recent mix', { targetTenths: 48 }, 'cant_reach_at_mix'],
-    ['a keep goal', { mode: 'keep', targetTenths: 43, pacePerWeek: null }, 'holding'],
+    // 4.8 starts at 4.75, above the 4.70 recent mix, but a plan judges the
+    // reviews that arrive after it is set, and none has yet.
+    [
+      'a climb past the recent mix',
+      { targetTenths: 48, qualityTenths: 50 },
+      'getting_started',
+    ],
   ] as const)(
     'stores the tenth Google shows and the status %s starts in, as known',
     async (_name, plan, status) => {
@@ -61,10 +81,41 @@ describe('setting a rating goal', () => {
         evaluatedAt: NOW,
         knownStatus: status,
         belowPaceNoticedAt: null,
-        cantReachNoticedAt: null,
+        tooLowNoticedAt: null,
       })
     },
   )
+
+  it('stores the tenth Google shows and the status a keep goal starts in, as known', async () => {
+    showingFourNine(world)
+
+    await setRatingGoal(dependencies(world), keep49, actor)
+
+    expect(world.goals[0]!.lastEvaluation).toMatchObject({
+      displayedTenths: 49,
+      status: 'holding',
+      knownStatus: 'holding',
+    })
+  })
+
+  it('refuses a planned quality that does not clear the target’s floor by 0.15★', async () => {
+    // 4.4 shows from 4.35, so new reviews must average 4.5 or more.
+    await expect(
+      setRatingGoal(dependencies(world), { ...climb, qualityTenths: 44 }, actor),
+    ).rejects.toMatchObject({ code: 'invalid_quality' })
+    await expect(
+      setRatingGoal(dependencies(world), { ...climb, qualityTenths: null }, actor),
+    ).rejects.toMatchObject({ code: 'invalid_quality' })
+    expect(world.goals).toEqual([])
+  })
+
+  it('refuses a planned quality on a keep goal', async () => {
+    showingFourNine(world)
+
+    await expect(
+      setRatingGoal(dependencies(world), { ...keep49, qualityTenths: 47 }, actor),
+    ).rejects.toMatchObject({ code: 'invalid_quality' })
+  })
 
   it('asks the policy for goal.create on the Property before reading anything', async () => {
     world.deny = true
@@ -130,17 +181,23 @@ describe('setting a rating goal', () => {
   })
 
   it('keeps a tenth Google shows without a pace', async () => {
-    await setRatingGoal(
-      dependencies(world),
-      { propertyId: PROPERTY, mode: 'keep', targetTenths: 43, pacePerWeek: null },
-      actor,
-    )
+    showingFourNine(world)
+
+    await setRatingGoal(dependencies(world), keep49, actor)
 
     expect(world.goals[0]).toMatchObject({
       mode: 'keep',
-      targetTenths: 43,
+      targetTenths: 49,
+      qualityTenths: null,
       pacePerWeek: null,
     })
+  })
+
+  it('keeps nothing while Google shows less than 4.9 (R2-9)', async () => {
+    await expect(
+      setRatingGoal(dependencies(world), { ...keep49, targetTenths: 43 }, actor),
+    ).rejects.toMatchObject({ code: 'invalid_target' })
+    expect(world.goals).toEqual([])
   })
 
   it('sets nothing while the Organization closure holds it', async () => {
@@ -212,6 +269,31 @@ describe('changing a rating goal', () => {
     expect(world.authorizations).toEqual([`goal.update:${PROPERTY}`])
   })
 
+  it('changes the planned quality alone, logged, without asking Google again', async () => {
+    world.snapshot = null
+
+    const result = await changeRatingGoal(
+      dependencies(world),
+      { ...change, qualityTenths: 48 },
+      actor,
+    )
+
+    expect(result.version).toBe(2)
+    expect(world.goals[0]!.qualityTenths).toBe(48)
+    expect(
+      world.changes.map(({ field, oldValue, newValue }) => [field, oldValue, newValue]),
+    ).toEqual([['quality', '47', '48']])
+    expect(world.summaryRequests).toEqual([])
+  })
+
+  it('refuses a target the kept quality no longer clears by 0.15★', async () => {
+    // 4.7 needs new reviews at 4.8 or more; the goal plans 4.7.
+    await expect(
+      changeRatingGoal(dependencies(world), { ...change, targetTenths: 47 }, actor),
+    ).rejects.toMatchObject({ code: 'invalid_quality' })
+    expect(world.changes).toEqual([])
+  })
+
   it('changes a pace without asking Google again', async () => {
     world.snapshot = null
 
@@ -221,19 +303,53 @@ describe('changing a rating goal', () => {
     expect(world.summaryRequests).toEqual([])
   })
 
-  it('drops the pace when the goal switches to keep', async () => {
+  it('drops the quality and the pace when the goal switches to keep', async () => {
+    showingFourNine(world)
+
     await changeRatingGoal(
       dependencies(world),
-      { ...change, mode: 'keep', targetTenths: 43 },
+      { ...change, mode: 'keep', targetTenths: 49 },
       actor,
     )
 
     expect(world.goals[0]).toMatchObject({
       mode: 'keep',
-      targetTenths: 43,
+      targetTenths: 49,
+      qualityTenths: null,
       pacePerWeek: null,
     })
-    expect(world.changes.map((row) => row.field)).toEqual(['mode', 'target', 'pace'])
+    expect(world.changes.map((row) => row.field)).toEqual([
+      'mode',
+      'target',
+      'quality',
+      'pace',
+    ])
+  })
+
+  it('needs a planned quality to switch a keep goal to climb', async () => {
+    world.goals = [
+      activeGoal({
+        mode: 'keep',
+        targetTenths: 43,
+        qualityTenths: null,
+        pacePerWeek: null,
+      }),
+    ]
+
+    await expect(
+      changeRatingGoal(
+        dependencies(world),
+        { ...change, mode: 'climb', targetTenths: 44, pacePerWeek: 11 },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_quality' })
+    await changeRatingGoal(
+      dependencies(world),
+      { ...change, mode: 'climb', targetTenths: 44, qualityTenths: 47, pacePerWeek: 11 },
+      actor,
+    )
+
+    expect(world.goals[0]).toMatchObject({ mode: 'climb', qualityTenths: 47 })
   })
 
   it('refuses a form opened on an older version', async () => {

@@ -1,5 +1,8 @@
 // Property Google rating goal — the reads: setup, simple card, detail, history.
 //
+// The setup read also asks Review for each calendar year's totals: the best
+// year is evidence for the plans' quality ("Like your best year").
+//
 // The card and the detail evaluate the active goal as they read it, through
 // the same evaluation the snapshot consumer runs, so a goal Google now shows
 // the target of is reached (and one whose Property was archived or whose
@@ -19,15 +22,16 @@ import type {
   RatingGoalHistoryEntry,
   RatingGoalSetupView,
 } from '../dto/rating-goal.types'
-import { ratingBasis } from '../rating-goal-reading'
 import {
   buildCardView,
   buildSetupView,
   changeView,
   forecastFor,
+  goalBasis,
   historyEntry,
   mixView,
   nextTenthView,
+  planProgressView,
   stillNeeded,
   tenthsToRating,
 } from '../rating-goal-views'
@@ -49,18 +53,22 @@ export type RatingGoalPropertyInput = Readonly<{ propertyId: string }>
 
 const round2 = (value: number): number => Math.round(value * 100) / 100
 
-/** The setup wizard: Google's numbers, eligibility, stops, paces and forecasts. */
+/** "Pick a plan": Google's numbers, eligibility, plans, stops, paces and forecasts. */
 export async function getRatingGoalSetup(
   deps: RatingGoalDependencies,
   input: RatingGoalPropertyInput,
   actor: GoalActor,
 ): Promise<RatingGoalSetupView> {
   await authorizeRatingGoal(deps, actor, input.propertyId, 'goal.read')
-  const [reading, active] = await Promise.all([
+  const [reading, active, years] = await Promise.all([
     requireReading(deps, actor.organizationId, input.propertyId, deps.now()),
     deps.repository.findActive(actor.organizationId, input.propertyId),
+    deps.reviews.getYearlyTotals(
+      toOrganizationId(actor.organizationId),
+      toPropertyId(input.propertyId),
+    ),
   ])
-  return buildSetupView(reading, active !== null)
+  return buildSetupView(reading, active !== null, years)
 }
 
 const cardOf = (evaluated: EvaluatedRatingGoal): RatingGoalCardView =>
@@ -108,9 +116,10 @@ export async function getRatingGoalDetail(
       RATING_GOAL_CHANGE_LOG_LIMIT,
     ),
   ])
-  const basis = ratingBasis(reading)
+  // At the quality the goal now expects of new reviews (planned, then theirs).
+  const basis = goalBasis(goal, reading)?.basis ?? null
   const actualPace = currentPacePerWeek(reading.reviewsLast28Days)
-  const climbing = goal.mode === 'climb' && basis !== null && goal.pacePerWeek !== null
+  const climbing = basis !== null && goal.pacePerWeek !== null
   return {
     ...cardOf(evaluated),
     lastFourWeeksPerWeek: round2(ratioToNumber(actualPace)),
@@ -131,6 +140,7 @@ export async function getRatingGoalDetail(
     weeks: weeklySeries(goal.createdAt, reading.now, timezone, weekCounts),
     starsSinceSet,
     changes: changes.map(changeView),
+    plan: planProgressView(goal, reading),
   }
 }
 

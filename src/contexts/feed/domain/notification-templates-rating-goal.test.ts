@@ -1,6 +1,6 @@
 // The copy of the five Google rating goal notices (ADR 0067; ADR 0046,
-// amended 2026-10-14). These sentences are the contract: each states the
-// Property's own figures and never a review's rating.
+// amended 2026-10-14 and 2026-10-15). These sentences are the contract: each
+// states the Property's own figures and never a review's rating.
 
 import { describe, expect, it } from 'vitest'
 import type { NotificationPayload } from './notification-payload'
@@ -23,11 +23,24 @@ describe('reached', () => {
       }),
     ).toEqual({
       title: 'Google now shows 4.5 for Riverside Hotel: goal reached',
-      body: 'Set your next goal, or keep 4.5.',
+      body: 'Set your next goal.',
       detail: '',
       actionLabel: 'Set next goal',
       summary: 'Riverside Hotel · Google rating goal reached',
     })
+  })
+
+  it('offers to keep the number only when Google shows 4.9 or 5.0 (R2-9)', () => {
+    const reached = (tenths: number) =>
+      copy('goal.rating_reached', {
+        ...AT,
+        ratingShownTenths: tenths,
+        ratingTargetTenths: tenths,
+      }).body
+
+    expect(reached(48)).toBe('Set your next goal.')
+    expect(reached(49)).toBe('Set your next goal, or keep 4.9.')
+    expect(reached(50)).toBe('Set your next goal, or keep 5.0.')
   })
 
   it('still says the goal was reached without its figures', () => {
@@ -136,29 +149,33 @@ describe('entered Below pace', () => {
   })
 })
 
-describe("entered Can't reach at this mix", () => {
-  it('says new reviews lately average below what the target needs, with no number of stars', () => {
-    const rendered = copy('goal.rating_cant_reach', { ...AT, ratingTargetTenths: 45 })
+describe('entered New reviews too low', () => {
+  it('says new reviews since the goal was set average below what the target needs, with no number of stars', () => {
+    const rendered = copy('goal.rating_too_low', { ...AT, ratingTargetTenths: 40 })
 
     expect(rendered).toEqual({
-      title: 'Riverside Hotel’s Google goal can’t be reached at the recent mix',
-      body: 'New reviews lately average below what 4.5 needs. Open the goal to see what it takes.',
+      title: 'New Google reviews for Riverside Hotel are too low for 4.0',
+      body: 'Since you set the goal they average below what 4.0 needs. Open the goal to see what helps.',
       detail:
-        'New reviews lately average below what 4.5 needs. Open the goal to see what it takes.',
+        'Since you set the goal they average below what 4.0 needs. Open the goal to see what helps.',
       actionLabel: 'View goal',
-      summary: 'Riverside Hotel · out of reach at the recent mix',
+      summary: 'Riverside Hotel · new reviews too low',
     })
-    // The only number in the sentence is the goal's own target.
-    expect(rendered.body.match(/\d+(\.\d+)?/gu)).toEqual(['4.5'])
+    // The only number in the copy is the goal's own target.
+    expect(`${rendered.title} ${rendered.body}`.match(/\d+(\.\d+)?/gu)).toEqual([
+      '4.0',
+      '4.0',
+    ])
   })
 
   it('reads without the Property or the target', () => {
-    expect(copy('goal.rating_cant_reach', {})).toMatchObject({
-      title: 'Your Google goal can’t be reached at the recent mix',
-      body: 'New reviews lately average below what the goal needs. Open the goal to see what it takes.',
+    expect(copy('goal.rating_too_low', {})).toMatchObject({
+      title: 'New Google reviews are too low for the goal',
+      body: 'Since you set the goal they average below what it needs. Open the goal to see what helps.',
+      summary: 'new reviews too low',
     })
-    expect(copy('goal.rating_cant_reach', { ratingTargetTenths: 39 }).body).toBe(
-      'New reviews lately average below what 3.9 needs. Open the goal to see what it takes.',
+    expect(copy('goal.rating_too_low', { ratingTargetTenths: 45 }).title).toBe(
+      'New Google reviews are too low for 4.5',
     )
   })
 })
@@ -187,7 +204,7 @@ describe('where a rating goal notice opens', () => {
     'goal.rating_reached',
     'goal.rating_changed',
     'goal.rating_below_pace',
-    'goal.rating_cant_reach',
+    'goal.rating_too_low',
     'goal.rating_keep_dropped',
   ] as const)('%s opens the Property’s Goals page, not a monthly result', (type) => {
     expect(notificationLink('goal', 'goal-id', 'property-1', type)).toEqual({

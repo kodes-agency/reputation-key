@@ -63,7 +63,13 @@ const USE_CASES: readonly UseCaseRow[] = [
     run: (deps) =>
       setRatingGoal(
         deps,
-        { propertyId: PROPERTY, mode: 'climb', targetTenths: 44, pacePerWeek: 11 },
+        {
+          propertyId: PROPERTY,
+          mode: 'climb',
+          targetTenths: 44,
+          qualityTenths: 47,
+          pacePerWeek: 11,
+        },
         actor,
       ),
   },

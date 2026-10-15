@@ -7,6 +7,7 @@ import {
   cardOutlook,
   cardPaceLine,
   changeText,
+  dateParts,
   exactProgressText,
   forecastMonths,
   forecastSentence,
@@ -15,6 +16,7 @@ import {
   OUTCOME_SHOWN_FOR_DAYS,
   outcomeFromCard,
   RATING_GOAL_STATUS,
+  ratingGoalStatusBadge,
   ratingText,
   recentOutcome,
   reviewsText,
@@ -100,8 +102,18 @@ describe('the forecast', () => {
 
   it('says why there is no range instead of drawing one', () => {
     expect(forecastSentence({ kind: 'unreachable' }, 4.8)).toBe(
-      'No pace reaches 4.8 at the recent star mix',
+      'No pace reaches 4.8 at this average',
     )
+    // A goal's forecasts are worked out at its plan's quality, then at the new
+    // reviews' average: the sentence names which (round 2).
+    expect(
+      forecastSentence(
+        { kind: 'unreachable' },
+        4,
+        'Expected around',
+        'at the new reviews’ average',
+      ),
+    ).toBe('No pace reaches 4.0 at the new reviews’ average')
     expect(forecastSentence({ kind: 'no_pace' }, 4.5)).toBe(
       'No new reviews in the last 4 weeks to forecast from',
     )
@@ -133,13 +145,18 @@ describe('the simple card', () => {
     )
     expect(
       cardOutlook(
-        { ...CARD, status: 'cant_reach_at_mix', forecast: { kind: 'unreachable' } },
+        { ...CARD, status: 'reviews_too_low', forecast: { kind: 'unreachable' } },
         FIXTURE_TIMEZONE,
         NOW,
       ),
-    ).toBe(
-      'No pace reaches 4.5 at the recent star mix. A lower goal can still be reached.',
-    )
+    ).toBe('Since you set the goal, new reviews average below what 4.5 needs.')
+    expect(
+      cardOutlook(
+        { ...CARD, forecast: { kind: 'unreachable' }, qualityBasis: 'since_set' },
+        FIXTURE_TIMEZONE,
+        NOW,
+      ),
+    ).toBe('No pace reaches 4.5 at the new reviews’ average')
   })
 
   it('waits for Google without repeating the day the headline already gives', () => {
@@ -168,8 +185,8 @@ describe('the simple card', () => {
   it('labels every status, with the tone of its verdict', () => {
     expect(RATING_GOAL_STATUS.on_pace).toEqual({ label: 'On pace', tone: 'positive' })
     expect(RATING_GOAL_STATUS.below_pace).toEqual({ label: 'Below pace', tone: 'warn' })
-    expect(RATING_GOAL_STATUS.cant_reach_at_mix).toEqual({
-      label: 'Can’t reach at this mix',
+    expect(RATING_GOAL_STATUS.reviews_too_low).toEqual({
+      label: 'New reviews too low',
       tone: 'warn',
     })
     expect(RATING_GOAL_STATUS.getting_started.tone).toBe('neutral')
@@ -179,6 +196,20 @@ describe('the simple card', () => {
       label: 'Dropped below',
       tone: 'warn',
     })
+  })
+
+  it('names the target where new reviews are too low for it, and only there', () => {
+    expect(ratingGoalStatusBadge({ status: 'reviews_too_low', target: 4 })).toEqual({
+      label: 'New reviews too low for 4.0',
+      tone: 'warn',
+    })
+    expect(ratingGoalStatusBadge(CARD)).toEqual({ label: 'On pace', tone: 'positive' })
+  })
+
+  it('reads a status from a server newer than the page as Unknown', () => {
+    expect(
+      ratingGoalStatusBadge({ ...CARD, status: 'brand_new' as typeof CARD.status }),
+    ).toEqual({ label: 'Unknown', tone: 'neutral' })
   })
 })
 
@@ -248,10 +279,9 @@ describe('a goal reached or ended lately', () => {
 })
 
 describe('the change log', () => {
-  it('reads each change old to new, in the words the page uses', () => {
-    const at = '2026-09-02T08:15:00.000Z'
-    const change = { changedBy: 'user-1', changedAt: at }
+  const change = { changedBy: 'user-1', changedAt: '2026-09-02T08:15:00.000Z' }
 
+  it('reads each change old to new, in the words the page uses', () => {
     expect(
       changeText({ ...change, field: 'target', oldValue: '44', newValue: '45' }),
     ).toBe('Target 4.4 → 4.5')
@@ -264,5 +294,43 @@ describe('the change log', () => {
     expect(
       changeText({ ...change, field: 'mode', oldValue: 'climb', newValue: 'keep' }),
     ).toBe('Goal reach → keep')
+  })
+
+  it('words a planned quality as the new reviews’ average, in stars', () => {
+    const quality = { ...change, field: 'quality' } as const
+
+    expect(changeText({ ...quality, oldValue: '45', newValue: '47' })).toBe(
+      'New reviews average 4.5★ → 4.7★',
+    )
+    // A goal set before round 2 had none; a goal switched to keep has none.
+    expect(changeText({ ...quality, oldValue: null, newValue: '45' })).toBe(
+      'New reviews average set to 4.5★',
+    )
+    expect(changeText({ ...quality, oldValue: '45', newValue: null })).toBe(
+      'New reviews average 4.5★ → none',
+    )
+  })
+})
+
+describe('a forecast on screen', () => {
+  it('breaks a line only between the two ends of a month range', () => {
+    expect(dateParts('around Dec 2026 – Jan 2027')).toEqual([
+      { text: 'around ', whole: false },
+      { text: 'Dec 2026 –', whole: true },
+      { text: ' ', whole: false },
+      { text: 'Jan 2027', whole: true },
+    ])
+    expect(dateParts('19 more reviews · around Jul–Sep 2027')).toEqual([
+      { text: '19 more reviews · around Jul–', whole: false },
+      { text: 'Sep 2027', whole: true },
+    ])
+    expect(dateParts('Expected around Dec 2028 or later')).toEqual([
+      { text: 'Expected around ', whole: false },
+      { text: 'Dec 2028', whole: true },
+      { text: ' or later', whole: false },
+    ])
+    expect(dateParts('Waiting for Google’s numbers.')).toEqual([
+      { text: 'Waiting for Google’s numbers.', whole: false },
+    ])
   })
 })

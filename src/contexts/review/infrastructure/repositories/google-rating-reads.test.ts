@@ -171,7 +171,43 @@ describe('Google rating reads for the rating goal', () => {
       mixWindow: { count: 3, sum: 12 },
       mostRecent: { count: 2, sum: 9 },
       countsSince: [3, 1],
+      totalsSince: null,
     })
+  })
+
+  it('sums the reviews created since an instant when asked, as a goal set then', async () => {
+    const summary = await reads().getRatingSummary(ORG, PROPERTY, {
+      mixWindowStart: new Date(NOW.getTime() - 90 * DAY),
+      mostRecentLimit: 25,
+      countSince: [],
+      // Set on 1 October: the 3★, 4★ and 5★ reviews since count; June's does not.
+      totalsSince: new Date('2026-10-01T10:00:00Z'),
+    })
+
+    expect(summary.totalsSince).toEqual({ count: 3, sum: 12 })
+  })
+
+  it('sums each calendar year of the Property time zone', async () => {
+    // 22:30 UTC on 31 Dec 2025 is 00:30 on 1 Jan 2026 in Sofia; 21:30 is 23:30 on 31 Dec.
+    await insertReview({
+      id: '2c200000-0000-4000-8000-000000000020',
+      rating: 2,
+      reviewedAt: '2025-12-31T22:30:00Z',
+    })
+    await insertReview({
+      id: '2c200000-0000-4000-8000-000000000021',
+      rating: 4,
+      reviewedAt: '2025-12-31T21:30:00Z',
+    })
+
+    const years = await reads().getYearlyTotals(ORG, PROPERTY)
+
+    // The earlier binding, the expired cache, another Property and the removed
+    // review never count.
+    expect(years).toEqual([
+      { year: 2025, count: 1, sum: 4 },
+      { year: 2026, count: 5, sum: 19 },
+    ])
   })
 
   it('takes every review there is when fewer than the most recent limit', async () => {
@@ -242,9 +278,11 @@ describe('Google rating reads for the rating goal', () => {
         mixWindow: none,
         mostRecent: none,
         countsSince: [0],
+        totalsSince: null,
       },
     )
     await expect(reads().getWeeklyCounts(OTHER_ORG, PROPERTY, since)).resolves.toEqual([])
+    await expect(reads().getYearlyTotals(OTHER_ORG, PROPERTY)).resolves.toEqual([])
     await expect(
       reads().getStarDistribution(OTHER_ORG, PROPERTY, since),
     ).resolves.toEqual([1, 2, 3, 4, 5].map((stars) => ({ stars, count: 0 })))

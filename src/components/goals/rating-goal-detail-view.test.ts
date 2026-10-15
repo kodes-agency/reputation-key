@@ -1,12 +1,11 @@
-// The detail page of the Google rating goal, worked out: the forecasts at both
-// paces and the best case, the bar from where the goal started to the line
+// The detail page of the Google rating goal, worked out: "Your plan" against
+// what happened since it was set, the forecasts at both paces and the best case, the bar from where the goal started to the line
 // Google shows the target at with the next tenth marked, the three tiles, the
 // star mix, the weekly chart's words and how fresh Google's numbers are.
 import { describe, expect, it } from 'vitest'
 import {
   aboutHowLong,
   bestCaseLine,
-  cantReachSuggestion,
   detailForecasts,
   detailTiles,
   freshnessText,
@@ -14,8 +13,11 @@ import {
   progressMarks,
   starMixSummary,
   weeklyCaption,
+  yourPlanLines,
 } from './rating-goal-detail-view'
-import { DETAIL, SETUP, SETUP_KEEP_FIRST } from './rating-goal.stories.fixtures'
+import { DETAIL_BEFORE_TEN, DETAIL_TOO_LOW } from './rating-goal-plan.stories.fixtures'
+import { assumedAverageWords } from './rating-goal-view'
+import { DETAIL } from './rating-goal.stories.fixtures'
 
 describe('how long a count of reviews takes', () => {
   it('says weeks, then months, then years', () => {
@@ -36,8 +38,30 @@ describe('the forecasts', () => {
     ])
   })
 
-  it('gives no forecast while no pace reaches the target: the page says so once', () => {
-    expect(detailForecasts({ ...DETAIL, status: 'cant_reach_at_mix' })).toEqual([])
+  it('gives no forecast while new reviews are too low: the page says so once', () => {
+    expect(detailForecasts({ ...DETAIL, status: 'reviews_too_low' })).toEqual([])
+  })
+
+  it('names the average the numbers assume: the plan’s until ten reviews, then theirs', () => {
+    expect(assumedAverageWords(DETAIL_BEFORE_TEN)).toBe('at your plan’s 4.5★')
+    expect(assumedAverageWords(DETAIL)).toBe('at the new reviews’ average')
+    expect(assumedAverageWords({ qualityBasis: null, quality: null })).toBe(
+      'at the recent star mix',
+    )
+  })
+
+  it('names the new reviews’ average when no pace reaches the target at it', () => {
+    // Waiting for Google keeps the status from saying "New reviews too low",
+    // so the forecasts say it, at the average they were worked out at.
+    const waiting = {
+      ...DETAIL_TOO_LOW,
+      status: 'waiting_for_google' as const,
+    }
+
+    expect(detailForecasts(waiting).map((line) => line.text)).toEqual([
+      'No pace reaches 4.0 at the new reviews’ average',
+      'No pace reaches 4.0 at the new reviews’ average',
+    ])
   })
 
   it('says the best case quietly', () => {
@@ -77,7 +101,7 @@ describe('the progress', () => {
         ...DETAIL,
         nextTenth: { targetTenths: 44, target: 4.4, reviewsNeeded: null },
       }),
-    ).toBe('Next: Google shows 4.4 — not reachable at the recent star mix')
+    ).toBe('Next: Google shows 4.4 — not reachable at the new reviews’ average')
     expect(nextTenthLine({ ...DETAIL, nextTenth: null })).toBeNull()
   })
 })
@@ -95,11 +119,11 @@ describe('the tiles', () => {
     ])
   })
 
-  it('says a target the mix does not reach is not reachable', () => {
+  it('says a target the new reviews’ average does not reach is not reachable', () => {
     expect(detailTiles({ ...DETAIL, stillNeeded: null })[2]).toEqual({
       label: 'Still needed',
       value: 'Not reachable',
-      detail: 'at the recent star mix',
+      detail: 'at the new reviews’ average',
     })
   })
 })
@@ -137,19 +161,50 @@ describe('the rest of the page', () => {
   })
 })
 
-describe('the fix suggested when no pace reaches the target', () => {
-  it('names the highest goal a pace reaches, from the setup read', () => {
-    expect(cantReachSuggestion(4.8, SETUP)).toBe(
-      'No pace reaches 4.8 at the recent star mix. The highest goal you can reach now is 4.7.',
-    )
+describe('your plan', () => {
+  it('puts the goal, the new reviews’ average and the pace against the plan', () => {
+    expect(yourPlanLines(DETAIL.plan!)).toEqual([
+      { term: 'Google shows', value: '4.3 · goal 4.5', note: null },
+      {
+        term: 'New reviews average',
+        value: '4.61★ · plan 4.7★',
+        note: '107 reviews since the goal was set',
+      },
+      {
+        term: 'Pace, last 4 weeks',
+        value: '9.5 a week · plan 11 a week',
+        note: 'Your plan is 48 a month · 1.6 a day',
+      },
+    ])
   })
 
-  it('offers to keep what Google shows when no higher goal is reachable', () => {
-    expect(cantReachSuggestion(4.9, { ...SETUP_KEEP_FIRST, google: SETUP.google })).toBe(
-      'No pace reaches 4.9 at the recent star mix. You can keep 4.3 instead.',
-    )
-    expect(cantReachSuggestion(4.9, undefined)).toBe(
-      'No pace reaches 4.9 at the recent star mix. A lower goal can still be reached.',
+  it('gives no average before ten reviews arrived since the goal was set', () => {
+    expect(yourPlanLines(DETAIL_BEFORE_TEN.plan!)[1]).toEqual({
+      term: 'New reviews average',
+      value: 'after 10 reviews · plan 4.5★',
+      note: '4 reviews since the goal was set',
+    })
+    expect(
+      yourPlanLines({
+        ...DETAIL_BEFORE_TEN.plan!,
+        sinceSet: { reviewCount: 0, average: null, averageTenths: null },
+      })[1]?.note,
+    ).toBe('No new reviews since the goal was set')
+  })
+
+  it('shows an average at or below the threshold as it is, never rounded onto the target', () => {
+    expect(yourPlanLines(DETAIL_TOO_LOW.plan!)[1]?.value).toBe('3.75★ · plan 4.5★')
+    expect(
+      yourPlanLines({
+        ...DETAIL_TOO_LOW.plan!,
+        sinceSet: { reviewCount: 20, average: 3.95, averageTenths: 40 },
+      })[1]?.value,
+    ).toBe('3.95★ · plan 4.5★')
+  })
+
+  it('says Google’s number is not known when it is missing', () => {
+    expect(yourPlanLines({ ...DETAIL.plan!, googleShowsTenths: null })[0]?.value).toBe(
+      'not known yet · goal 4.5',
     )
   })
 })
