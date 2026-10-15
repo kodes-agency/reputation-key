@@ -29,9 +29,9 @@ const QUALITY_MARGIN_THOUSANDTHS = 150
 /** "A step above what {T} needs": the threshold plus 0.3★, rounded up to a tenth. */
 const STEP_ABOVE_THOUSANDTHS = 300
 /** "Excellent": 4.8★. */
-export const EXCELLENT_QUALITY_TENTHS = 48
+const EXCELLENT_QUALITY_TENTHS = 48
 /** A calendar year counts as evidence with at least this many reviews. */
-export const BEST_YEAR_MINIMUM_REVIEWS = 10
+const BEST_YEAR_MINIMUM_REVIEWS = 10
 /** The quality cards offer at most this many options. */
 const QUALITY_OPTION_COUNT = 3
 
@@ -92,7 +92,7 @@ export const minimumQualityTenths = (targetTenths: number): number =>
   tenthAtOrAbove(thresholdThousandths(targetTenths) + QUALITY_MARGIN_THOUSANDTHS)
 
 /** "A step above what {T} needs": θ + 0.3★ rounded up, never above five stars. */
-export const stepAboveTenths = (targetTenths: number): number =>
+const stepAboveTenths = (targetTenths: number): number =>
   Math.min(
     PERFECT_TENTHS,
     tenthAtOrAbove(thresholdThousandths(targetTenths) + STEP_ABOVE_THOUSANDTHS),

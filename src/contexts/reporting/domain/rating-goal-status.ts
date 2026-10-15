@@ -43,7 +43,7 @@ const FULL_PACE_WINDOW_DAYS = 28
 /** On pace at this share of the chosen pace or more. */
 const ON_PACE_PERCENT = 90
 /** New reviews are judged, and plan with their own average, from this many since the set. */
-export const QUALITY_VERDICT_MIN_REVIEWS = 10
+const QUALITY_VERDICT_MIN_REVIEWS = 10
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
