@@ -83,6 +83,7 @@ const climb = {
   propertyId: PROPERTY_ID,
   mode: 'climb' as const,
   targetTenths: 45,
+  qualityTenths: 47,
   pacePerWeek: 11,
 }
 
@@ -240,16 +241,34 @@ describe('Property Google rating goal server functions', () => {
 })
 
 describe('Property Google rating goal input', () => {
-  it('needs a pace to climb and none to keep', () => {
+  it('needs a pace and a planned quality to climb, and neither to keep', () => {
+    const keep = { ...climb, mode: 'keep', qualityTenths: null, pacePerWeek: null }
+
     expect(setRatingGoalSchema.safeParse(climb).success).toBe(true)
     expect(setRatingGoalSchema.safeParse({ ...climb, pacePerWeek: null }).success).toBe(
       false,
     )
-    expect(
-      setRatingGoalSchema.safeParse({ ...climb, mode: 'keep', pacePerWeek: null })
-        .success,
-    ).toBe(true)
-    expect(setRatingGoalSchema.safeParse({ ...climb, mode: 'keep' }).success).toBe(false)
+    expect(setRatingGoalSchema.safeParse({ ...climb, qualityTenths: null }).success).toBe(
+      false,
+    )
+    expect(setRatingGoalSchema.safeParse(keep).success).toBe(true)
+    expect(setRatingGoalSchema.safeParse({ ...keep, pacePerWeek: 11 }).success).toBe(
+      false,
+    )
+    expect(setRatingGoalSchema.safeParse({ ...keep, qualityTenths: 47 }).success).toBe(
+      false,
+    )
+  })
+
+  it('takes a planned quality in tenths up to five stars', () => {
+    for (const qualityTenths of [51, 46.5]) {
+      expect(setRatingGoalSchema.safeParse({ ...climb, qualityTenths }).success).toBe(
+        false,
+      )
+    }
+    expect(setRatingGoalSchema.safeParse({ ...climb, qualityTenths: 50 }).success).toBe(
+      true,
+    )
   })
 
   it('takes a target in tenths from 1.0 to 5.0 and a whole pace from 1 to 200', () => {
@@ -273,6 +292,9 @@ describe('Property Google rating goal input', () => {
     expect(changeRatingGoalSchema.safeParse({ ...identity, mode: 'keep' }).success).toBe(
       true,
     )
+    expect(
+      changeRatingGoalSchema.safeParse({ ...identity, qualityTenths: 48 }).success,
+    ).toBe(true)
     expect(
       changeRatingGoalSchema.safeParse({
         ...identity,

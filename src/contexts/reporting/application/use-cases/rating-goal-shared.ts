@@ -8,14 +8,12 @@ import { ratingGoalError, type PropertyRatingGoal } from '../../domain/rating-go
 import type { RatingGoalNotice } from '../../domain/rating-goal-notices'
 import { statusPaceWindow } from '../../domain/rating-goal-status'
 import { weekStartInstant } from '../../domain/rating-goal-weeks'
-import type {
-  PropertyRatingGoalRepository,
-  RatingGoalPropertyFacts,
-} from '../ports/property-rating-goal.repository'
+import type { PropertyRatingGoalRepository } from '../ports/property-rating-goal.repository'
 import {
   readRatingGoalInputs,
   type RatingGoalReadDeps,
   type RatingGoalReading,
+  type RatingGoalReadRequest,
 } from '../rating-goal-reading'
 import {
   evaluateRatingGoal,
@@ -61,14 +59,14 @@ export async function requireReading(
   organizationId: string,
   propertyId: string,
   now: Date,
-  extraCountSince?: (facts: RatingGoalPropertyFacts) => readonly Date[],
+  request?: RatingGoalReadRequest,
 ): Promise<RatingGoalReading> {
   const reading = await readRatingGoalInputs(
     deps,
     organizationId,
     propertyId,
     now,
-    extraCountSince,
+    request,
   )
   if (reading === null) throw ratingGoalError('not_found', 'Property not found')
   return reading
@@ -94,9 +92,10 @@ export type EvaluatedRatingGoal = Readonly<{
 }>
 
 /**
- * Reads an active goal's numbers (with this week and its pace window),
- * evaluates it and stores the evaluation. The goal comes back as it now
- * stands: reached or ended when this evaluation took that step.
+ * Reads an active goal's numbers (with this week, its pace window and the
+ * reviews since it was set), evaluates it and stores the evaluation. The goal
+ * comes back as it now stands: reached or ended when this evaluation took
+ * that step.
  */
 export async function evaluateActiveRatingGoal(
   deps: RatingGoalEvaluationDependencies,
@@ -104,13 +103,10 @@ export async function evaluateActiveRatingGoal(
 ): Promise<EvaluatedRatingGoal> {
   const now = deps.now()
   const window = statusPaceWindow(goal.createdAt, now)
-  const reading = await requireReading(
-    deps,
-    goal.organizationId,
-    goal.propertyId,
-    now,
-    (facts) => [weekStartInstant(now, facts.timezone), window?.start ?? now],
-  )
+  const reading = await requireReading(deps, goal.organizationId, goal.propertyId, now, {
+    countSince: (facts) => [weekStartInstant(now, facts.timezone), window?.start ?? now],
+    totalsSince: goal.createdAt,
+  })
   const [thisWeekCount = 0, paceWindowCount = 0] = reading.extraCounts
   const evaluation = evaluateRatingGoal(goal, reading, window ? paceWindowCount : null)
   const recorded = await recordRatingGoalEvaluation(

@@ -19,6 +19,10 @@ import type {
   RatingStopLabel,
 } from '../../domain/rating-goal-stops'
 import type { GoogleNumbersView } from '../../domain/google-numbers'
+import type { PaceKey } from '../../domain/rating-goal-pace'
+import type { RatingPlanKey } from '../../domain/rating-goal-plans'
+import type { QualityAnchorKind } from '../../domain/rating-goal-quality'
+import type { QualityBasis } from '../../domain/rating-goal-status'
 
 export type {
   GoogleNumbersView,
@@ -26,10 +30,21 @@ export type {
   RatingGoalEndedReason,
   RatingGoalMode,
   RatingGoalStatus,
+  RatingPlanKey,
   RatingStopLabel,
 }
 
-export type RatingPaceKey = 'steady' | 'faster' | 'push'
+export type RatingPaceKey = PaceKey
+
+/**
+ * Where a planned quality comes from: `like_now` the recent mix, `best_year`
+ * the best calendar year with ten reviews (with its `year`), `step_above`
+ * "a step above what {T} needs", `excellent` 4.8★.
+ */
+export type RatingQualityAnchorKind = QualityAnchorKind
+
+/** `planned` until ten reviews arrived since the goal was set, then `since_set`. */
+export type RatingQualityBasis = QualityBasis
 
 /**
  * Where the exact average comes from: `cache` when RepKey holds every review
@@ -40,7 +55,7 @@ export type RatingExactAverageSource = 'cache' | 'google'
 
 /** When a target is expected. `YYYY-MM` months in the Property's time zone. */
 export type RatingForecastView =
-  /** The recent mix does not clear the target: no pace reaches it. */
+  /** The quality new reviews are expected to bring does not clear the target: no pace reaches it. */
   | Readonly<{ kind: 'unreachable' }>
   /** No reviews at the pace this forecast uses. */
   | Readonly<{ kind: 'no_pace' }>
@@ -62,16 +77,92 @@ export type RatingPaceView = Readonly<{
   perDay: number
 }>
 
+/**
+ * One target from the next tenth to 4.9, worked out at its own recommended
+ * planned quality (round 2), its label at the Faster pace.
+ */
 export type RatingStopView = Readonly<{
   targetTenths: number
   target: number
-  /** Null when no count of reviews at the recent mix gets there. */
+  /** The planned quality this stop is worked out at, in tenths: its recommendation. */
+  qualityTenths: number
+  quality: number
+  qualityAnchor: RatingQualityAnchorKind
+  /** Null when no count of reviews at that quality gets there (never, at the floor). */
   reviewsNeeded: number | null
   /** Reviews needed if every new review is five stars. */
   bestCase: number | null
   label: RatingStopLabel
-  /** The forecast at each suggested pace. */
+  /** The forecast at each suggested pace, at the stop's quality. */
   forecasts: Readonly<Record<RatingPaceKey, RatingForecastView>>
+}>
+
+/** One planned quality a manager may pick, with its evidence and its cost. */
+export type RatingQualityOptionView = Readonly<{
+  kind: RatingQualityAnchorKind
+  qualityTenths: number
+  quality: number
+  /** The calendar year of `best_year`; null for every other kind. */
+  year: number | null
+  recommended: boolean
+  /** Reviews needed at this quality for the choice's target ("about 19 reviews"). */
+  reviewsNeeded: number | null
+}>
+
+/**
+ * The quality options of one target ("New reviews will average"): up to three
+ * evidence anchors, the recommendation in the middle where it can be, lowest
+ * first. "Own" takes any tenth from `minimumTenths` to 5.0.
+ */
+export type RatingQualityChoiceView = Readonly<{
+  targetTenths: number
+  /** The target's threshold plus 0.15★, as a tenth: the lowest quality a plan may assume. */
+  minimumTenths: number
+  options: readonly RatingQualityOptionView[]
+  recommended: RatingQualityOptionView
+}>
+
+/** One option of the target row ("Goal on Google"), labelled as its stop is. */
+export type RatingTargetOptionView = Readonly<{
+  targetTenths: number
+  target: number
+  label: RatingStopLabel
+  recommended: boolean
+}>
+
+/** A complete plan: target, planned quality, weekly pace, what it needs and when. */
+export type RatingPlanView = Readonly<{
+  key: RatingPlanKey
+  targetTenths: number
+  target: number
+  qualityTenths: number
+  quality: number
+  paceKey: RatingPaceKey
+  pace: RatingPaceView
+  reviewsNeeded: number | null
+  bestCase: number | null
+  forecast: RatingForecastView
+}>
+
+/**
+ * "Pick a plan": three plans that share one planned quality, and the rows of
+ * "Build your own". Null in the setup view when Google shows 4.9 or 5.0 (Keep
+ * is offered instead) or there are no numbers to plan with.
+ */
+export type RatingGoalPlanningView = Readonly<{
+  recommendedTargetTenths: number
+  /**
+   * The quality every plan assumes, and its options for "Change": the
+   * recommended target's choice ("Plans assume new reviews average 4.5★, like
+   * your best year (2024)").
+   */
+  quality: RatingQualityChoiceView
+  /** Cautious, Recommended (preselected) and Ambitious, in that order. */
+  plans: readonly RatingPlanView[]
+  /** "Goal on Google": the target row, lowest first. */
+  targets: readonly RatingTargetOptionView[]
+  /** "New reviews a week": Faster is recommended; the paces are the setup view's `paces`. */
+  recommendedPaceKey: RatingPaceKey
 }>
 
 /**
@@ -81,13 +172,23 @@ export type RatingStopView = Readonly<{
 export type RatingGoalEligibilityView = RatingGoalEligibility
 
 /**
- * The exact inputs the forecast is worked out from, for a pace the manager
- * types in (`previewRatingGoalPace`). Averages are fractions.
+ * The exact inputs plans and forecasts are worked out from, so the page can
+ * work out what a manager changes with no server call
+ * (`rating-goal-planning.ts`, `rating-goal-preview.ts`). Averages are fractions.
  */
 export type RatingGoalForecastInputs = Readonly<{
   reviewCount: number
+  /** The tenth Google shows. */
+  displayedTenths: number
   exact: Readonly<{ num: number; den: number }>
+  /** The recent mix ("Like now"). */
   mix: Readonly<{ num: number; den: number }>
+  /** The best calendar year with ten reviews ("Like your best year"), or none. */
+  bestYear: Readonly<{
+    year: number
+    average: Readonly<{ num: number; den: number }>
+    reviewCount: number
+  }> | null
   reviewsLast28Days: number
   timezone: string
   /** The instant the forecast counts from (ISO). */
@@ -111,8 +212,11 @@ export type RatingGoalSetupView = Readonly<{
     targetTenths: 50
     disabledReason: 'needs_every_review_5_star'
   }> | null
+  /** The recommended target: the highest Realistic stop up to +0.3, else the next tenth. */
   preselectedTenths: number | null
+  /** Google shows 4.9 or 5.0: Keep is offered in place of plans. */
   offerKeepFirst: boolean
+  planning: RatingGoalPlanningView | null
   forecastInputs: RatingGoalForecastInputs | null
 }>
 
@@ -130,6 +234,9 @@ export type RatingGoalCardView = Readonly<{
   mode: RatingGoalMode
   targetTenths: number
   target: number
+  /** The planned quality of new reviews, in tenths; null for a keep goal. */
+  qualityTenths: number | null
+  quality: number | null
   pacePerWeek: number | null
   status: RatingGoalStatus
   google: GoogleNumbersView | null
@@ -146,10 +253,15 @@ export type RatingGoalCardView = Readonly<{
   thisWeekCount: number
   /** Set in the last 7 days: "Aim for about N new reviews a week". */
   justSet: boolean
-  /** Null for a keep goal. */
+  /**
+   * Null for a keep goal. At the planned quality until ten reviews arrived
+   * since the goal was set, then at their average (`qualityBasis`).
+   */
   forecast: RatingForecastView | null
   /** The chosen pace until the goal is 28 days old, then the actual pace. */
   forecastBasis: 'chosen_pace' | 'actual_pace' | null
+  /** Null for a keep goal. */
+  qualityBasis: RatingQualityBasis | null
   setAt: string
 }>
 
@@ -160,6 +272,31 @@ export type RatingGoalChangeView = Readonly<{
   field: RatingGoalChangeField
   oldValue: string | null
   newValue: string | null
+}>
+
+/**
+ * "Your plan" on the detail page: the plan beside what happened since it was
+ * set, for the goal, new reviews and pace, then the forecast at those values.
+ */
+export type RatingGoalPlanProgressView = Readonly<{
+  /** Goal: the target, and the tenth Google shows now (null without its number). */
+  targetTenths: number
+  googleShowsTenths: number | null
+  /** New reviews: the planned quality against the reviews since the goal was set. */
+  qualityTenths: number
+  sinceSet: Readonly<{
+    reviewCount: number
+    /** Their average to three decimals; null until ten reviews arrived ("after 10 reviews"). */
+    average: number | null
+    /** Their average as a tenth, half up; null until ten reviews arrived. */
+    averageTenths: number | null
+  }>
+  qualityBasis: RatingQualityBasis
+  /** Pace: the chosen pace against the last four weeks (two decimals). */
+  pacePerWeek: number
+  lastFourWeeksPerWeek: number
+  /** At so-far values: the quality the goal now assumes and the last four weeks' pace. */
+  forecast: RatingForecastView
 }>
 
 export type RatingGoalDetailView = RatingGoalCardView &
@@ -182,6 +319,8 @@ export type RatingGoalDetailView = RatingGoalCardView &
     /** Stars of the reviews created since the goal was set. */
     starsSinceSet: readonly Readonly<{ stars: number; count: number }>[]
     changes: readonly RatingGoalChangeView[]
+    /** Null for a keep goal or without Google's numbers. */
+    plan: RatingGoalPlanProgressView | null
   }>
 
 export type RatingGoalHistoryEntry = Readonly<{
@@ -189,6 +328,7 @@ export type RatingGoalHistoryEntry = Readonly<{
   mode: RatingGoalMode
   targetTenths: number
   target: number
+  qualityTenths: number | null
   pacePerWeek: number | null
   state: 'reached' | 'ended'
   endedReason: RatingGoalEndedReason | null
@@ -206,10 +346,51 @@ export type RatingGoalEndResult = Readonly<{ goalId: string; ended: true }>
 /** "Not now" was recorded for the Property's rating goal (or already was). */
 export type RatingGoalNotNowResult = Readonly<{ propertyId: string }>
 
-/** A pace the manager types in, worked out for one target. */
+/** A pace the manager types in, worked out for one target at its recommended quality. */
 export type RatingGoalPacePreview = Readonly<{
   pace: RatingPaceView
   forecast: RatingForecastView
   /** Above twice the current pace: Google may flag a surge. */
   surgeCaution: boolean
 }>
+
+/** What "Build your own" was given: a target, a planned quality and a weekly pace. */
+export type RatingGoalPlanDraft = Readonly<{
+  targetTenths: number
+  qualityTenths: number
+  pacePerWeek: number
+}>
+
+/** Why a draft plan cannot be set, one per field at most. */
+export type RatingPlanProblem =
+  /** A target from the tenth above what Google shows to 4.9, in tenths. */
+  | Readonly<{
+      field: 'target'
+      code: 'target_out_of_range'
+      minimumTenths: number
+      maximumTenths: number
+    }>
+  /** Below the target's floor: "For 4.0, new reviews need to average 4.1★ or more." */
+  | Readonly<{ field: 'quality'; code: 'quality_too_low'; minimumTenths: number }>
+  /** Above five stars, or not a whole tenth. */
+  | Readonly<{ field: 'quality'; code: 'quality_out_of_range'; maximumTenths: number }>
+  /** Whole new reviews a week, 1 to 200. */
+  | Readonly<{
+      field: 'pace'
+      code: 'pace_out_of_range'
+      minimum: number
+      maximum: number
+    }>
+
+/** "Build your own"'s live total, or why the draft cannot be set. */
+export type RatingGoalPlanPreview =
+  | Readonly<{
+      valid: true
+      reviewsNeeded: number | null
+      bestCase: number | null
+      pace: RatingPaceView
+      forecast: RatingForecastView
+      /** Above twice the current pace: Google may flag a surge. */
+      surgeCaution: boolean
+    }>
+  | Readonly<{ valid: false; problems: readonly RatingPlanProblem[] }>

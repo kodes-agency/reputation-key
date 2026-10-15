@@ -2,6 +2,8 @@
 import type {
   GoogleRatingSummary,
   GoogleRatingSummaryRequest,
+  GoogleRatingTotals,
+  GoogleRatingYearTotals,
   ReviewGoogleRatingReads,
 } from '#/contexts/review/application/public-api'
 import type {
@@ -33,8 +35,16 @@ export const actor: GoalActor = {
 export type FakeWorld = {
   facts: RatingGoalPropertyFacts | null
   snapshot: { reviewCount: number; averageRating: number | null; verifiedAt: Date } | null
-  /** Cache totals, the mix inputs and one count per window. */
-  summary: Omit<GoogleRatingSummary, 'countsSince'> & { counts: readonly number[] }
+  /**
+   * Cache totals, the mix inputs, one count per window, and the reviews since
+   * a goal was set (answered only when a read asks for them).
+   */
+  summary: Omit<GoogleRatingSummary, 'countsSince' | 'totalsSince'> & {
+    counts: readonly number[]
+    sinceSet: GoogleRatingTotals
+  }
+  /** Each calendar year's totals, oldest first. */
+  years: GoogleRatingYearTotals[]
   held: boolean
   goals: PropertyRatingGoal[]
   changes: RatingGoalChange[]
@@ -69,7 +79,10 @@ export function exampleWorld(): FakeWorld {
       mixWindow: { count: 30, sum: 141 },
       mostRecent: { count: 25, sum: 118 },
       counts: [28, 0, 0, 0],
+      // Nine reviews since a goal was set: no verdict on their stars yet.
+      sinceSet: { count: 9, sum: 41 },
     },
+    years: [],
     held: false,
     goals: [],
     changes: [],
@@ -111,7 +124,7 @@ const markUnchangedSince = (
   stored.displayedTenths === expectedMark.displayedTenths &&
   stored.knownStatus === expectedMark.knownStatus &&
   sameInstant(stored.belowPaceNoticedAt, expectedMark.belowPaceNoticedAt) &&
-  sameInstant(stored.cantReachNoticedAt, expectedMark.cantReachNoticedAt)
+  sameInstant(stored.tooLowNoticedAt, expectedMark.tooLowNoticedAt)
 
 const evaluationChanges = (
   stored: RatingGoalEvaluationMark,
@@ -212,7 +225,7 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
           evaluatedAt: write.evaluatedAt,
           knownStatus: write.knownStatus,
           belowPaceNoticedAt: write.belowPaceNoticedAt,
-          cantReachNoticedAt: write.cantReachNoticedAt,
+          tooLowNoticedAt: write.tooLowNoticedAt,
         },
         ...(write.outcome.kind === 'reached'
           ? { state: 'reached' as const, reachedAt: write.evaluatedAt }
@@ -268,9 +281,14 @@ function fakeReviews(world: FakeWorld): ReviewGoogleRatingReads {
   return {
     getRatingSummary: async (_org, _property, request) => {
       world.summaryRequests = [...world.summaryRequests, request]
-      const { counts, ...totals } = world.summary
-      return { ...totals, countsSince: request.countSince.map((_, i) => counts[i] ?? 0) }
+      const { counts, sinceSet, ...totals } = world.summary
+      return {
+        ...totals,
+        countsSince: request.countSince.map((_, i) => counts[i] ?? 0),
+        totalsSince: request.totalsSince === undefined ? null : sinceSet,
+      }
     },
+    getYearlyTotals: async () => world.years,
     getWeeklyCounts: async () => [{ weekStart: '2026-10-12', count: 3 }],
     getStarDistribution: async () =>
       [1, 2, 3, 4, 5].map((stars) => ({ stars, count: stars === 5 ? 3 : 0 })),
@@ -322,6 +340,7 @@ export function activeGoal(
     sourceEpoch: 2,
     mode: 'climb',
     targetTenths: 45,
+    qualityTenths: 47,
     pacePerWeek: 11,
     state: 'active',
     endedReason: null,
@@ -332,7 +351,7 @@ export function activeGoal(
       evaluatedAt: null,
       knownStatus: 'on_pace',
       belowPaceNoticedAt: null,
-      cantReachNoticedAt: null,
+      tooLowNoticedAt: null,
     },
     reachedAt: null,
     endedAt: null,

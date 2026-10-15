@@ -1,7 +1,12 @@
 // Property Google rating goal — the views its reads return (pure).
 //
 // Builders from the domain values to the DTO types in dto/rating-goal.types.ts.
-// No I/O: the use cases read, evaluate and pass the results here.
+// No I/O: the use cases read, evaluate and pass the results here. The setup
+// view's plans are built by rating-goal-planning.ts, which the page shares.
+//
+// A goal's own numbers (its forecast, what it still needs, the next tenth)
+// assume the quality the goal now expects of new reviews: its planned quality
+// until ten reviews arrived since it was set, then their average (round 2).
 
 import {
   bestCaseReviewsNeeded,
@@ -11,32 +16,24 @@ import {
   reviewsNeeded,
   thresholdThousandths,
   type Ratio,
+  type RatingTotals,
   type RecentMix,
   type ReviewsNeeded,
 } from '../domain/rating-goal-numbers'
 import { forecastArrival, type RatingForecast } from '../domain/rating-goal-forecast'
 import { googleNumbersView } from '../domain/google-numbers'
-import {
-  currentPacePerWeek,
-  paceSuggestions,
-  perDay,
-  perMonth,
-  type PaceSuggestions,
-} from '../domain/rating-goal-pace'
-import {
-  offerKeepFirst,
-  perfectStop,
-  preselectedTarget,
-  ratingStops,
-  type RatingGoalBasis,
-  type RatingStop,
-} from '../domain/rating-goal-stops'
+import { currentPacePerWeek, paceSuggestions } from '../domain/rating-goal-pace'
+import { offerKeepFirst } from '../domain/rating-goal-plans'
+import { bestYear, nearestTenth, type YearTotals } from '../domain/rating-goal-quality'
 import {
   cacheShowsTargetFirst,
   forecastPaceBasis,
   nextTenthMilestone,
   ratingProgress,
+  trackingMix,
+  type QualityBasis,
 } from '../domain/rating-goal-status'
+import { perfectStop, type RatingGoalBasis } from '../domain/rating-goal-stops'
 import type {
   PropertyRatingGoal,
   RatingGoalChange,
@@ -48,11 +45,11 @@ import type {
   RatingGoalChangeView,
   RatingGoalForecastInputs,
   RatingGoalHistoryEntry,
+  RatingGoalPlanProgressView,
   RatingGoalSetupView,
-  RatingPaceView,
-  RatingStopView,
   RecentMixView,
 } from './dto/rating-goal.types'
+import { paceViewOf, ratingGoalPlanning, ratingGoalStops } from './rating-goal-planning'
 import {
   ratingBasis,
   setupEligibility,
@@ -61,6 +58,7 @@ import {
 
 const JUST_SET_DAYS = 7
 const DAY_MS = 24 * 60 * 60 * 1000
+const NO_REVIEWS: RatingTotals = { count: 0, sum: 0 }
 
 const round = (value: number, decimals: number): number => {
   const scale = 10 ** decimals
@@ -97,13 +95,7 @@ export const mixView = (mix: RecentMix | null): RecentMixView | null =>
         basis: mix.basis,
       }
 
-const paceView = (perWeek: number): RatingPaceView => ({
-  perWeek,
-  perMonth: perMonth(perWeek),
-  perDay: perDay(perWeek),
-})
-
-/** The forecast for one target at one weekly pace. */
+/** The forecast for one target at one weekly pace, at the basis's mix. */
 export function forecastFor(
   basis: RatingGoalBasis,
   reading: Pick<RatingGoalReading, 'now' | 'facts'>,
@@ -121,55 +113,56 @@ export function forecastFor(
   })
 }
 
-function stopView(
-  stop: RatingStop,
-  basis: RatingGoalBasis,
-  reading: RatingGoalReading,
-  paces: PaceSuggestions,
-): RatingStopView {
-  const at = (perWeek: number) =>
-    forecastFor(basis, reading, stop.targetTenths, ratio(perWeek, 1))
-  return {
-    targetTenths: stop.targetTenths,
-    target: tenthsToRating(stop.targetTenths),
-    reviewsNeeded: neededView(stop.reviewsNeeded),
-    bestCase: neededView(stop.bestCase),
-    label: stop.label,
-    forecasts: {
-      steady: at(paces.steady),
-      faster: at(paces.faster),
-      push: at(paces.push),
-    },
-  }
-}
-
 const ratioView = (value: Ratio) => ({ num: Number(value.num), den: Number(value.den) })
 
 function forecastInputs(
   basis: RatingGoalBasis,
   reading: RatingGoalReading,
+  years: readonly YearTotals[],
 ): RatingGoalForecastInputs {
+  const best = bestYear(years)
   return {
     reviewCount: basis.reviewCount,
+    displayedTenths: basis.displayedTenths,
     exact: ratioView(basis.exact),
     mix: ratioView(basis.mix),
+    bestYear:
+      best === null
+        ? null
+        : {
+            year: best.year,
+            average: ratioView(best.average),
+            reviewCount: best.reviewCount,
+          },
     reviewsLast28Days: reading.reviewsLast28Days,
     timezone: reading.facts.timezone,
     asOf: reading.now.toISOString(),
   }
 }
 
-/** Everything the setup wizard shows, worked out from one reading. */
+/** The plans and stops of the setup view, worked out from its exact inputs. */
+function planningOf(
+  inputs: RatingGoalForecastInputs | null,
+): Pick<RatingGoalSetupView, 'stops' | 'preselectedTenths' | 'planning'> {
+  const planning = inputs === null ? null : ratingGoalPlanning(inputs)
+  return {
+    stops: inputs === null ? [] : ratingGoalStops(inputs),
+    preselectedTenths: planning?.recommendedTargetTenths ?? null,
+    planning,
+  }
+}
+
+/** Everything "Pick a plan" shows, worked out from one reading and the yearly totals. */
 export function buildSetupView(
   reading: RatingGoalReading,
   hasActiveGoal: boolean,
+  years: readonly YearTotals[],
 ): RatingGoalSetupView {
   const paces = paceSuggestions(reading.reviewsLast28Days)
   const basis = ratingBasis(reading)
-  const eligibility = setupEligibility(reading)
-  const stops = basis ? ratingStops(basis, paces.faster) : []
+  const inputs = basis ? forecastInputs(basis, reading, years) : null
   return {
-    eligibility,
+    eligibility: setupEligibility(reading),
     hasActiveGoal,
     google: googleView(reading),
     ...exactView(reading),
@@ -179,34 +172,50 @@ export function buildSetupView(
       2,
     ),
     paces: {
-      steady: paceView(paces.steady),
-      faster: paceView(paces.faster),
-      push: paceView(paces.push),
+      steady: paceViewOf(paces.steady),
+      faster: paceViewOf(paces.faster),
+      push: paceViewOf(paces.push),
     },
-    stops: basis ? stops.map((stop) => stopView(stop, basis, reading, paces)) : [],
+    ...planningOf(inputs),
     perfectStop: basis ? perfectStop(basis.displayedTenths) : null,
-    preselectedTenths: basis ? preselectedTarget(basis.displayedTenths, stops) : null,
-    offerKeepFirst: basis ? offerKeepFirst(basis) : false,
-    forecastInputs: basis ? forecastInputs(basis, reading) : null,
+    offerKeepFirst: basis ? offerKeepFirst(basis.displayedTenths) : false,
+    forecastInputs: inputs,
   }
+}
+
+export type GoalBasis = Readonly<{ basis: RatingGoalBasis; qualityBasis: QualityBasis }>
+
+/**
+ * A climb goal's numbers at the quality it now expects of new reviews, or null
+ * for a keep goal or without Google's numbers.
+ */
+export function goalBasis(
+  goal: PropertyRatingGoal,
+  reading: RatingGoalReading,
+): GoalBasis | null {
+  const numbers = ratingBasis(reading)
+  if (goal.mode === 'keep' || numbers === null || goal.qualityTenths === null) return null
+  const tracking = trackingMix(goal.qualityTenths, reading.sinceSet ?? NO_REVIEWS)
+  return { basis: { ...numbers, mix: tracking.mix }, qualityBasis: tracking.basis }
 }
 
 /** The forecast the simple card shows: chosen pace for 28 days, then actual. */
 function cardForecast(
   goal: PropertyRatingGoal,
-  basis: RatingGoalBasis | null,
+  numbers: GoalBasis | null,
   reading: RatingGoalReading,
-): Pick<RatingGoalCardView, 'forecast' | 'forecastBasis'> {
-  if (goal.mode === 'keep' || basis === null || goal.pacePerWeek === null) {
-    return { forecast: null, forecastBasis: null }
+): Pick<RatingGoalCardView, 'forecast' | 'forecastBasis' | 'qualityBasis'> {
+  if (numbers === null || goal.pacePerWeek === null) {
+    return { forecast: null, forecastBasis: null, qualityBasis: null }
   }
   const actual = forecastPaceBasis(goal.createdAt, reading.now) === 'actual'
   const pace = actual
     ? currentPacePerWeek(reading.reviewsLast28Days)
     : ratio(goal.pacePerWeek, 1)
   return {
-    forecast: forecastFor(basis, reading, goal.targetTenths, pace),
+    forecast: forecastFor(numbers.basis, reading, goal.targetTenths, pace),
     forecastBasis: actual ? 'actual_pace' : 'chosen_pace',
+    qualityBasis: numbers.qualityBasis,
   }
 }
 
@@ -219,7 +228,7 @@ export function buildCardView(
   reading: RatingGoalReading,
   counts: CardCounts,
 ): RatingGoalCardView {
-  const basis = ratingBasis(reading)
+  const numbers = goalBasis(goal, reading)
   const threshold = thresholdThousandths(goal.targetTenths)
   return {
     goalId: goal.id,
@@ -229,6 +238,8 @@ export function buildCardView(
     mode: goal.mode,
     targetTenths: goal.targetTenths,
     target: tenthsToRating(goal.targetTenths),
+    qualityTenths: goal.qualityTenths,
+    quality: goal.qualityTenths === null ? null : tenthsToRating(goal.qualityTenths),
     pacePerWeek: goal.pacePerWeek,
     status,
     google: googleView(reading),
@@ -242,12 +253,15 @@ export function buildCardView(
           )
         : null,
     googleShowsSoon:
-      goal.mode === 'climb' && basis !== null
-        ? cacheShowsTargetFirst(basis.exact, basis.displayedTenths, goal.targetTenths)
-        : false,
+      numbers !== null &&
+      cacheShowsTargetFirst(
+        numbers.basis.exact,
+        numbers.basis.displayedTenths,
+        goal.targetTenths,
+      ),
     thisWeekCount: counts.thisWeek,
     justSet: reading.now.getTime() - goal.createdAt.getTime() < JUST_SET_DAYS * DAY_MS,
-    ...cardForecast(goal, basis, reading),
+    ...cardForecast(goal, numbers, reading),
     setAt: goal.createdAt.toISOString(),
   }
 }
@@ -289,11 +303,50 @@ export function nextTenthView(goal: PropertyRatingGoal, basis: RatingGoalBasis |
       }
 }
 
+/** The reviews since the set: their count, and their average once there are ten. */
+function sinceSetView(
+  sinceSet: RatingTotals,
+  qualityBasis: QualityBasis,
+): RatingGoalPlanProgressView['sinceSet'] {
+  if (qualityBasis === 'planned' || sinceSet.count === 0) {
+    return { reviewCount: sinceSet.count, average: null, averageTenths: null }
+  }
+  const average = ratio(sinceSet.sum, sinceSet.count)
+  return {
+    reviewCount: sinceSet.count,
+    average: round(ratioToNumber(average), 3),
+    averageTenths: nearestTenth(average),
+  }
+}
+
+/** "Your plan": the plan beside what happened since it was set, then the forecast. */
+export function planProgressView(
+  goal: PropertyRatingGoal,
+  reading: RatingGoalReading,
+): RatingGoalPlanProgressView | null {
+  const numbers = goalBasis(goal, reading)
+  if (numbers === null || goal.qualityTenths === null || goal.pacePerWeek === null) {
+    return null
+  }
+  const actualPace = currentPacePerWeek(reading.reviewsLast28Days)
+  return {
+    targetTenths: goal.targetTenths,
+    googleShowsTenths: reading.google?.displayedTenths ?? null,
+    qualityTenths: goal.qualityTenths,
+    sinceSet: sinceSetView(reading.sinceSet ?? NO_REVIEWS, numbers.qualityBasis),
+    qualityBasis: numbers.qualityBasis,
+    pacePerWeek: goal.pacePerWeek,
+    lastFourWeeksPerWeek: round(ratioToNumber(actualPace), 2),
+    forecast: forecastFor(numbers.basis, reading, goal.targetTenths, actualPace),
+  }
+}
+
 export const historyEntry = (goal: PropertyRatingGoal): RatingGoalHistoryEntry => ({
   goalId: goal.id,
   mode: goal.mode,
   targetTenths: goal.targetTenths,
   target: tenthsToRating(goal.targetTenths),
+  qualityTenths: goal.qualityTenths,
   pacePerWeek: goal.pacePerWeek,
   state: goal.state === 'reached' ? 'reached' : 'ended',
   endedReason: goal.endedReason,

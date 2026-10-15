@@ -29,6 +29,7 @@ const ratingGoalStatus = (code: RatingGoalErrorCode): number => {
     case 'organization_closing':
       return 409
     case 'invalid_target':
+    case 'invalid_quality':
     case 'invalid_pace':
     case 'no_change':
       return 400
