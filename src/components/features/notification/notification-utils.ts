@@ -190,7 +190,7 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'goal.rating_reached': Target,
   'goal.rating_changed': Target,
   'goal.rating_below_pace': Target,
-  'goal.rating_cant_reach': Target,
+  'goal.rating_too_low': Target,
   'goal.rating_keep_dropped': Target,
   // The reporter's own beta report; the same speech bubble as the Feedback entry.
   'beta_feedback.outcome': MessageSquare,

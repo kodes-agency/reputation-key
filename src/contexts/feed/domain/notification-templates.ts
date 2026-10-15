@@ -37,10 +37,10 @@ import {
 } from './notification-templates-account'
 import {
   renderRatingGoalBelowPace,
-  renderRatingGoalCantReach,
   renderRatingGoalChanged,
   renderRatingGoalKeepDropped,
   renderRatingGoalReached,
+  renderRatingGoalTooLow,
 } from './notification-templates-rating-goal'
 import type {
   NotificationActorRole,
@@ -939,7 +939,7 @@ const RENDERERS: Record<
   'goal.rating_reached': renderRatingGoalReached,
   'goal.rating_changed': renderRatingGoalChanged,
   'goal.rating_below_pace': renderRatingGoalBelowPace,
-  'goal.rating_cant_reach': renderRatingGoalCantReach,
+  'goal.rating_too_low': renderRatingGoalTooLow,
   'goal.rating_keep_dropped': renderRatingGoalKeepDropped,
   'beta_feedback.outcome': renderBetaFeedbackOutcome,
 }
@@ -962,7 +962,7 @@ const REPEATED: Partial<Record<NotificationType, string | null>> = {
   // A rating goal row states where the goal stands now, from its latest change.
   'goal.rating_changed': null,
   'goal.rating_below_pace': null,
-  'goal.rating_cant_reach': null,
+  'goal.rating_too_low': null,
   'goal.rating_keep_dropped': null,
 }
 

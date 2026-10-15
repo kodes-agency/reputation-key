@@ -116,7 +116,7 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'goal.rating_reached': 'recognition',
   'goal.rating_changed': 'recognition',
   'goal.rating_below_pace': 'recognition',
-  'goal.rating_cant_reach': 'recognition',
+  'goal.rating_too_low': 'recognition',
   'goal.rating_keep_dropped': 'recognition',
   // The reporter's own report was accepted, not planned, or resolved. It is
   // collaboration on something they raised: in-app by default, never mailed.
