@@ -296,6 +296,13 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
       `/properties/${propertyId}/reviews?itemId=${inboxItemId}`,
     )
     await expect(moved.locator('a[href*="reviewId="]')).toHaveCount(0)
+    // The low review's warning ink and its link, with the real CSS, both themes.
+    await assertNoAxeViolations(page, 'the rating goal detail with a low review')
+    await page.evaluate(() => window.localStorage.setItem('theme', 'light'))
+    await page.reload()
+    await expect(moved.getByText('set you back about 14 new reviews')).toBeVisible()
+    await expect(page.locator('html')).toHaveClass(/\blight\b/u)
+    await assertNoAxeViolations(page, 'the rating goal detail with a low review (light)')
 
     await open.click()
     await expect(page).toHaveURL(new RegExp(`itemId=${inboxItemId}`, 'u'))
