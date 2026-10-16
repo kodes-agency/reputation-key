@@ -132,9 +132,10 @@ async function expectClimbCard(page: Page, propertyId: string): Promise<void> {
       name: 'Google shows 3.9 now. Your goal is 4.0. 4.1 is possible after that.',
     }),
   ).toBeVisible()
+  // When it arrives: the full sentence on a wide card, the one line on a narrow one (D4).
   await expect(
-    card.getByText(/^4\.0 in about 2 days at your 1 a day, likely/u),
-  ).toBeVisible()
+    card.getByText(/4\.0 in about 2 days/u).filter({ visible: true }),
+  ).toHaveCount(1)
   await expect(card.getByRole('link', { name: 'View details' })).toHaveAttribute(
     'href',
     `/properties/${propertyId}/goals/google-rating`,
