@@ -12,10 +12,11 @@
 //
 // Since rounds 3 and 4 (2026-10-16) the setup also asks for each Property-local
 // calendar month's totals (the best month is evidence for the planned average;
-// only months with enough reviews come back, so no single review's stars can
-// be read off a month) and for the count of reviews on each Property-local
-// date (the busiest 30 days are the proven pace). Dates carry counts only,
-// never sums.
+// a month under ten reviews is never returned, so no month's total is one
+// review's stars) and for the count of reviews on each Property-local date
+// (the busiest 30 days are the proven pace). Dates carry counts only, never
+// sums. Comparing successive reads of a growing month (the current one) is out
+// of scope: managers already see each review in the Inbox.
 //
 // A review counts when it is servable under the same eligibility as
 // ReviewServingStats (ADR 0031: active source content with a rating, a review

@@ -322,10 +322,12 @@ and read; the one-screen setup follows in its own change.
 3. **Two more Review reads, counts and sums only.** Review answers the totals
    of each Property-local calendar month with at least ten reviews and the count
    of reviews on each Property-local date (no sum: a date with one review would
-   expose its rating, and a month under ten is never returned). Reporting trims
-   them to the best month of the last twelve and the busiest 30 consecutive
-   local dates of the last 365, and the setup read returns them with Google's
-   numbers as `setupInputs`. The server runs no planning maths for them; the
+   expose its rating, and a month under ten is never returned, so no month's
+   total is one review's stars; comparing successive reads of the growing
+   current month is out of scope, since managers see each review in the
+   Inbox). Reporting trims them to the best month of the last twelve and the
+   busiest 30 consecutive local dates of the last 365, and the setup read
+   returns them with Google's numbers as `setupInputs`. The server runs no planning maths for them; the
    page works the plan out.
 4. **Waiting for Google on an empty cache.** A reading waits while Google's
    numbers are not current, show no tenth or give no exact average, or the
