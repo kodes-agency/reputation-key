@@ -14,10 +14,10 @@ import { tenthsText } from './rating-goal-view'
  * The headline's unit (Q1, owner 2026-10-16: "new reviews"): the count is of
  * reviews at the plan's average, not of five-star ones.
  */
-export const REVIEW_UNIT = { one: 'new review', many: 'new reviews' } as const
+const REVIEW_UNIT = { one: 'new review', many: 'new reviews' } as const
 
 /** Squares are drawn for this many reviews at most; past it the number stands alone. */
-export const MAX_SLOTS = 30
+const MAX_SLOTS = 30
 
 const WEEKDAYS = [
   'Monday',
@@ -163,7 +163,7 @@ export type ThisWeekView =
     }>
 
 /** "It’s Tuesday" from the server's day of the Property week. */
-export const weekdayName = (weekday: number): string => WEEKDAYS[weekday - 1] ?? 'Today'
+const weekdayName = (weekday: number): string => WEEKDAYS[weekday - 1] ?? 'Today'
 
 /**
  * This week against the plan (R3-7: counted per week, "2 of 7"), with the day

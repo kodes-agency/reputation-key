@@ -40,7 +40,7 @@ const round = (value: number, decimals: number): number => {
 }
 
 /** An arrival as the DTO carries it: the same exact fractions. */
-export function arrivalView(arrival: Arrival): RatingArrivalView {
+function arrivalView(arrival: Arrival): RatingArrivalView {
   if (arrival.kind !== 'days') return { kind: arrival.kind }
   return {
     kind: 'days',
@@ -126,7 +126,7 @@ function nextUpView(
     : { targetTenths: up.targetTenths, reviewsBeyondGoal: up.beyond, days: up.days }
 }
 
-export const baselineView = (goal: PropertyRatingGoal): Tracking['baseline'] => ({
+const baselineView = (goal: PropertyRatingGoal): Tracking['baseline'] => ({
   googleShows: tenthsToRating(displayedTenths(goal.baseline.googleAverage)),
   reviewCount: goal.baseline.reviewCount,
   exactAverage: round(goal.baseline.exactAverage, 3),
