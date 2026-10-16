@@ -52,5 +52,7 @@ jobs:
         if: always()
         with:
           name: traces-${{ matrix.mode }}-${{ matrix.shard }}
-          path: trace-*.txt
+          path: |
+            trace-*.txt
+            stall-trace-*.json
           if-no-files-found: ignore

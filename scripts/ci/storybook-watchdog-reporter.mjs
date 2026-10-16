@@ -8,7 +8,7 @@
 // Debugger domain was enabled while the page was still responsive, so every page
 // is attached (and its debugger enabled) as soon as it appears.
 // Needs Chromium launched with --remote-debugging-port=$CDP_PORT.
-import { appendFileSync } from 'node:fs'
+import { appendFileSync, createWriteStream } from 'node:fs'
 
 const out = process.env.TRACE_FILE ?? '/dev/stderr'
 const STALL_MS = Number(process.env.STALL_MS ?? 45_000)
@@ -77,6 +77,90 @@ const frameLine = (frame) => {
   return `${frame.functionName || '(anonymous)'} ${where}:${line}:${column}`
 }
 
+// Optional (CDP_TRACE=1): a Chrome trace in a ring buffer from the first page
+// on, written out when a story stalls, so the wedged renderer's last native
+// task (layout, style, a sync IPC) is on record.
+const TRACE = process.env.CDP_TRACE === '1'
+const TRACE_OUT = process.env.CDP_TRACE_FILE ?? 'stall-trace.json'
+let browserSession = null
+let tracingStarted = false
+
+async function startTracing() {
+  if (!TRACE || tracingStarted) return
+  try {
+    const version = await (await fetch(`http://127.0.0.1:${PORT}/json/version`)).json()
+    browserSession = cdpSession(version.webSocketDebuggerUrl)
+    await browserSession.opened
+    const started = await browserSession.send(
+      'Tracing.start',
+      {
+        transferMode: 'ReturnAsStream',
+        traceConfig: {
+          recordMode: 'recordContinuously',
+          traceBufferSizeInKb: 400_000,
+          includedCategories: [
+            'toplevel',
+            'blink',
+            'devtools.timeline',
+            'disabled-by-default-devtools.timeline',
+            'renderer.scheduler',
+            'mojom',
+            'ipc',
+            'cc',
+            'v8',
+          ],
+        },
+      },
+      10_000,
+    )
+    tracingStarted = !started.timedOut && !started.error
+    log(
+      `TRACE started: ${tracingStarted ? 'yes' : JSON.stringify(started.error ?? started)}`,
+    )
+  } catch (error) {
+    log(`TRACE could not start: ${error?.message ?? error}`)
+  }
+}
+
+async function dumpTrace() {
+  if (!tracingStarted || browserSession === null) return
+  tracingStarted = false
+  const complete = new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 120_000)
+    browserSession.on((msg) => {
+      if (msg.method !== 'Tracing.tracingComplete') return
+      clearTimeout(timer)
+      resolve(msg.params)
+    })
+  })
+  await browserSession.send('Tracing.end', {}, 30_000)
+  const params = await complete
+  if (params === null || !params.stream) {
+    log('TRACE end: no stream')
+    return
+  }
+  const out = createWriteStream(TRACE_OUT)
+  let bytes = 0
+  for (;;) {
+    const chunk = await browserSession.send(
+      'IO.read',
+      { handle: params.stream, size: 4_000_000 },
+      60_000,
+    )
+    const data = chunk.result
+    if (!data) break
+    const text = data.base64Encoded
+      ? Buffer.from(data.data, 'base64').toString('utf8')
+      : data.data
+    out.write(text)
+    bytes += text.length
+    if (data.eof) break
+  }
+  out.end()
+  await browserSession.send('IO.close', { handle: params.stream }, 10_000)
+  log(`TRACE written to ${TRACE_OUT} (${bytes} bytes)`)
+}
+
 /** Pages attached so far, by target id. */
 const attached = new Map()
 let diagnosing = false
@@ -122,7 +206,10 @@ async function attachNewPages() {
     const response = await fetch(`http://127.0.0.1:${PORT}/json/list`)
     const targets = await response.json()
     for (const target of targets) {
-      if (target.type === 'page' && !attached.has(target.id)) void attach(target)
+      if (target.type === 'page' && !attached.has(target.id)) {
+        void startTracing()
+        void attach(target)
+      }
     }
   } catch {
     // The browser is not up yet, or already gone.
@@ -200,6 +287,7 @@ async function pageSnapshot(entry) {
 
 async function diagnose(reason) {
   log(`WATCHDOG ${reason}`)
+  await dumpTrace().catch((error) => log(`TRACE dump failed: ${error?.message ?? error}`))
   diagnosing = true
   try {
     for (const entry of attached.values()) {
