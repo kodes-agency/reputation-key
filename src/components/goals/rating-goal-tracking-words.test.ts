@@ -21,6 +21,7 @@ import {
   CARD_HARBORLINE_JUST_SET,
   CARD_LAGS,
   CARD_LAGS_MIDDLE,
+  CARD_WAITING,
 } from './rating-goal-tracking.stories.fixtures'
 import { CARD_KEEP } from './rating-goal.stories.fixtures'
 
@@ -34,8 +35,8 @@ describe('the headline', () => {
     const one = { ...CARD_HARBORLINE.next!, reviewsNeeded: 1 }
 
     expect(headlineText({ ...CARD_HARBORLINE, next: one })).toBe('1 new review to 4.1')
-    expect(headlineText(CARD_GOOGLE_SOURCE)).toBe('about 18 new reviews to 4.1')
-    expect(reviewCountText(212, true)).toBe('about 212 new reviews')
+    expect(headlineText(CARD_GOOGLE_SOURCE)).toBe('About 18 new reviews to 4.1')
+    expect(reviewCountText(212, true)).toBe('About 212 new reviews')
   })
 
   it('skips a tenth Google should show soon, and says that beside it', () => {
@@ -58,6 +59,9 @@ describe('the goal’s own total', () => {
     expect(goalLineText(CARD_FAR_GOAL)).toBe('212 new reviews to your goal, 4.5.')
     expect(goalLineText(CARD_HARBORLINE)).toBeNull()
     expect(goalLineText(CARD_LAGS_MIDDLE)).toBeNull()
+    expect(goalLineText({ ...CARD_FAR_GOAL, exactAverageSource: 'google' })).toBe(
+      'About 212 new reviews to your goal, 4.5.',
+    )
   })
 })
 
@@ -119,6 +123,26 @@ describe('the ladder', () => {
     )
   })
 
+  it('offers no number above the goal past three years, as the words do not', () => {
+    // Harborline at 1 a week: 4.2 is 178 reviews, 1,246 days away.
+    const slow = {
+      ...CARD_HARBORLINE,
+      nextUp: {
+        targetTenths: 42,
+        reviewsBeyondGoal: 97,
+        days: { num: 178 * 70, den: 10 },
+      },
+    }
+
+    expect(rungsOf(slow).map((rung) => rung.tag)).toEqual(['start', 'today', 'goal'])
+  })
+
+  it('says what Google showed last, not now, and nothing possible while its numbers are stale', () => {
+    expect(ladderLabel(rungsOf(CARD_WAITING), { current: false })).toBe(
+      'Started at 3.9. Google showed 4.0 last. Your goal is 4.1.',
+    )
+  })
+
   it('shows five numbers at most, dropping the start first', () => {
     const six = {
       ...CARD_LAGS_MIDDLE,
@@ -171,5 +195,9 @@ describe('the first step', () => {
       'Google shows 4.0 now, up from 3.9 when you started.',
     )
     expect(firstStepText(CARD_GETTING_STARTED)).toBeNull()
+  })
+
+  it('is not told as "now" while Google’s numbers are stale', () => {
+    expect(firstStepText(CARD_WAITING)).toBeNull()
   })
 })

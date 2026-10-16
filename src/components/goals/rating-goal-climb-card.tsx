@@ -128,6 +128,7 @@ function Links({ propertyId }: Pick<Props, 'propertyId'>) {
 
 export function RatingGoalClimbCard({ card, propertyId, timezone, now }: Props) {
   const rungs = rungsOf(card)
+  const current = card.google?.current !== false
   const firstStep = firstStepText(card)
   return (
     <Card data-slot="rating-goal-card" className="@container gap-4">
@@ -140,10 +141,10 @@ export function RatingGoalClimbCard({ card, propertyId, timezone, now }: Props) 
           rungs.length > 0 && '@3xl:grid-cols-[14rem_minmax(0,1fr)]',
         )}
       >
-        <RatingGoalLadder rungs={rungs} orientation="upright" />
+        <RatingGoalLadder rungs={rungs} orientation="upright" current={current} />
         <div className="grid gap-5 @2xl:grid-cols-2">
           <div className="flex min-w-0 flex-col gap-3">
-            <RatingGoalLadder rungs={rungs} orientation="across" />
+            <RatingGoalLadder rungs={rungs} orientation="across" current={current} />
             <Story card={card} timezone={timezone} now={now} />
           </div>
           <div className="flex min-w-0 flex-col gap-4 @2xl:border-l @2xl:pl-6">

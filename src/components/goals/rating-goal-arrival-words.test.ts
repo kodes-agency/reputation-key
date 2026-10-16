@@ -92,13 +92,21 @@ describe('the number above the goal', () => {
   it('is possible in about N (R4-4: Harborline’s 4.2 in about 6 months)', () => {
     const nextUp = { targetTenths: 42, reviewsBeyondGoal: 97, days: { num: 178, den: 1 } }
 
-    expect(possibleSentence({ nextUp })).toBe('4.2 is possible in about 6 months.')
+    expect(possibleSentence({ nextUp, status: 'on_pace' })).toBe(
+      '4.2 is possible in about 6 months.',
+    )
   })
 
   it('is not said past three years, nor without one', () => {
     const far = { targetTenths: 42, reviewsBeyondGoal: 900, days: { num: 1100, den: 1 } }
 
-    expect(possibleSentence({ nextUp: far })).toBeNull()
-    expect(possibleSentence({ nextUp: null })).toBeNull()
+    expect(possibleSentence({ nextUp: far, status: 'on_pace' })).toBeNull()
+    expect(possibleSentence({ nextUp: null, status: 'on_pace' })).toBeNull()
+  })
+
+  it('is not said while the card waits for Google’s latest numbers', () => {
+    const nextUp = { targetTenths: 42, reviewsBeyondGoal: 97, days: { num: 178, den: 1 } }
+
+    expect(possibleSentence({ nextUp, status: 'waiting_for_google' })).toBeNull()
   })
 })

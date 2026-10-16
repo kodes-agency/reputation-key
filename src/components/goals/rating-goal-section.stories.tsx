@@ -219,7 +219,7 @@ export const ApproximateNumbers: Story = {
   args: { card: cardRead(CARD_GOOGLE_SOURCE) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(wholeText('about 18 new reviews to 4.1'))).toBeVisible()
+    await expect(canvas.getByText(wholeText('About 18 new reviews to 4.1'))).toBeVisible()
     await expectSquares(canvas, 0)
   },
 }
@@ -261,6 +261,14 @@ export const WaitingForGoogle: Story = {
     // The headline dates the numbers; the sentence does not say it again.
     await expect(canvas.getByText('Waiting for Google’s latest numbers.')).toBeVisible()
     await expectSquares(canvas, 0)
+    // Stale numbers are not "now": no first step, and the ladder says "last".
+    await expect(canvas.queryByText(/ now, up from /u)).toBeNull()
+    await expect(
+      canvas.getAllByRole('img', {
+        name: 'Started at 3.9. Google showed 4.0 last. Your goal is 4.1.',
+        hidden: true,
+      }),
+    ).toHaveLength(2)
   },
 }
 

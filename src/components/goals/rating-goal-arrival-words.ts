@@ -9,6 +9,7 @@ import type {
   RatingArrivalView,
   RatingGoalCardView,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
+import type { RatingFraction } from '#/contexts/reporting/application/dto/rating-goal-setup.types'
 import { paceText } from './rating-goal-pace-words'
 import { likelyText, spanText, whenText } from './rating-goal-setup-time'
 import { ratingText } from './rating-goal-view'
@@ -18,8 +19,12 @@ type DaysArrival = Extract<RatingArrivalView, { kind: 'days' }>
 /** Three years: past it a time is "more than 3 years away", with no range. */
 const THREE_YEARS_DAYS = 3 * 365
 
+/** Whether a time is within three years: past it the card names no number or range. */
+const withinThreeYears = (days: RatingFraction): boolean =>
+  days.num <= THREE_YEARS_DAYS * days.den
+
 const beyondThreeYears = (arrival: DaysArrival): boolean =>
-  arrival.central.num > THREE_YEARS_DAYS * arrival.central.den
+  !withinThreeYears(arrival.central)
 
 /** "in about 3 months, likely 9 weeks to 4 months". */
 const whenLikely = (arrival: DaysArrival): string =>
@@ -88,11 +93,16 @@ export function arrivalSentence(
   return `${target} ${whenText(arrival.central)} ${paceWords(card)}, likely ${likelyText(arrival)}.`
 }
 
-/** "4.2 is possible in about 6 months." (R4-4); none past three years. */
+/**
+ * "4.2 is possible in about 6 months." (R4-4); none past three years, nor while
+ * the card waits for Google's latest numbers (it gives no time then). The
+ * ladder's "possible" rung follows this sentence.
+ */
 export function possibleSentence(
-  card: Pick<RatingGoalCardView, 'nextUp'>,
+  card: Pick<RatingGoalCardView, 'nextUp' | 'status'>,
 ): string | null {
   const up = card.nextUp
-  if (up === null || up.days.num > THREE_YEARS_DAYS * up.days.den) return null
+  if (up === null || card.status === 'waiting_for_google' || !withinThreeYears(up.days))
+    return null
   return `${ratingText(up.targetTenths / 10)} is possible in ${spanText(up.days)}.`
 }

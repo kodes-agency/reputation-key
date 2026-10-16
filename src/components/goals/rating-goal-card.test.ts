@@ -102,7 +102,7 @@ describe('RatingGoalCard', () => {
   it('counts about, with no squares, while the exact average is Google’s own figure', () => {
     const html = render(CARD_GOOGLE_SOURCE)
 
-    expect(textOf(html)).toContain('about 18 new reviews to 4.1')
+    expect(textOf(html)).toContain('About 18 new reviews to 4.1')
     expect(squares(html)).toBe(0)
   })
 

@@ -108,9 +108,15 @@ function AcrossLadder({
 export function RatingGoalLadder({
   rungs,
   orientation,
-}: Readonly<{ rungs: readonly Rung[]; orientation: 'upright' | 'across' }>) {
+  current,
+}: Readonly<{
+  rungs: readonly Rung[]
+  orientation: 'upright' | 'across'
+  /** Whether Google's numbers are current: stale ones are what it showed last. */
+  current: boolean
+}>) {
   if (rungs.length === 0) return null
-  const label = ladderLabel(rungs)
+  const label = ladderLabel(rungs, { current })
   return orientation === 'upright' ? (
     <UprightLadder rungs={rungs} label={label} />
   ) : (
