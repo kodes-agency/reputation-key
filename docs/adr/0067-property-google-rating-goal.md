@@ -582,12 +582,18 @@ and they are read live with the page, never stored, exported or logged.
    assignee leaves Review. The server function turns the ids into the Inbox
    items that open them, and only when the policy also allows the viewer
    `inbox.read` on the Property (one navigation lookup, ADR 0031's Guest voice
-   precedent); the browser gets an item id or none, never a review id, and
-   never a row the page does not show. The page shows at most 10 rows: the
-   newest whose setback is about one new review or more, or, while the goal's
-   numbers say no count reaches it (new reviews too low), the newest ten
-   without a setback. The 4★ ceiling exists because at a goal of 4.6 or more a
-   4★ review sets the goal back; only rows with a real setback show.
+   precedent); the browser gets an item id or none, never a review id, and at
+   most ten rows, which the page may show fewer of beside Google's moves and
+   the plan's changes (those keep their place first). The server keeps at most
+   10 rows: the newest whose setback is about one new review or more, or,
+   while the goal's numbers say no count reaches it (new reviews too low), the
+   newest ten without a setback. A review's setback depends only on its stars
+   given today's numbers, so the read starts at the most stars that still set
+   the goal back half a review (a busy Property's newest 4★ reviews add almost
+   nothing and would otherwise fill the 25 ahead of an older 1★ one), and is
+   skipped when no stars do. For any goal of 4.1 or more a 4★ review is below
+   the threshold and can set the goal back; the `<= 4` ceiling (the owner's
+   Q2) is a backstop that keeps 5★ reviews out whatever the threshold.
 2. **This week's star split**: the existing star distribution of the reviews
    created since this Property-local Monday ("2 new reviews, both 5★"). For one
    review it is that review's stars, the same exposure the star mix since the
