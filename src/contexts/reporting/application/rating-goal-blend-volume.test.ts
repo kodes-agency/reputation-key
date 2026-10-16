@@ -199,26 +199,42 @@ const inWindow = (days: readonly RatingTotals[], day: number, start: Date): numb
 /** One evaluated day: is the goal too low, how many reviews since the set, the averages. */
 type Day = Readonly<{
   tooLow: boolean
+  /** Neither too low nor reached: the chip says nothing about quality. */
+  open: boolean
   reviews: number
   blended: number
   switched: number
+  /** Whether each mix clears the target's threshold that day. */
+  reaches: Readonly<Record<'plain' | 'built' | 'switched', boolean>>
 }>
 
-type Run = Readonly<{
-  notices: readonly string[]
-  days: readonly Day[]
-  /** Too-low days a plain blend (no condition a) and the built one forecast as reachable. */
+type Disagreements = Readonly<{
   plainDisagrees: number
   builtDisagrees: number
-  /**
-   * Days not too low (all before the tenth review: from it on, a blend of two
-   * averages above the threshold is above it) whose mix does not clear the
-   * threshold, so the numbers would read "not reachable" under the chip.
-   */
   plainEarlyUnreachable: number
   builtEarlyUnreachable: number
   switchedEarlyUnreachable: number
 }>
+
+type Run = Readonly<{ notices: readonly string[]; days: readonly Day[] }> & Disagreements
+
+/**
+ * `*Disagrees`: too-low days a plain blend (no condition a) and the built one
+ * forecast as reachable. `*EarlyUnreachable`: days not too low (all before the
+ * tenth review: from it on, a blend of two averages above the threshold is
+ * above it) whose mix does not clear the threshold, so the numbers would read
+ * "not reachable" under the chip.
+ */
+function disagreements(days: readonly Day[]): Disagreements {
+  const countDays = (holds: (day: Day) => boolean) => days.filter(holds).length
+  return {
+    plainDisagrees: countDays((day) => day.tooLow && day.reaches.plain),
+    builtDisagrees: countDays((day) => day.tooLow && day.reaches.built),
+    plainEarlyUnreachable: countDays((day) => day.open && !day.reaches.plain),
+    builtEarlyUnreachable: countDays((day) => day.open && !day.reaches.built),
+    switchedEarlyUnreachable: countDays((day) => day.open && !day.reaches.switched),
+  }
+}
 
 const ALWAYS_STORED = { recordEvaluation: async () => true }
 
@@ -237,18 +253,9 @@ const plainBlend = (plan: number, sinceSet: RatingTotals): Ratio =>
 async function run(scenario: Scenario, plan: number): Promise<Run> {
   const { property } = scenario
   const days = reviewDays(scenario)
-  const threshold = fromThousandths(thresholdThousandths(property.target))
-  const reaches = (mix: Ratio) => compareRatios(mix, threshold) > 0
   let goal = goalOf(property, plan)
-  const result = {
-    notices: [] as string[],
-    days: [] as Day[],
-    plainDisagrees: 0,
-    builtDisagrees: 0,
-    plainEarlyUnreachable: 0,
-    builtEarlyUnreachable: 0,
-    switchedEarlyUnreachable: 0,
-  }
+  const notices: string[] = []
+  const tracked: Day[] = []
   for (let day = 1; day <= DAYS && goal.state === 'active'; day += 1) {
     const reading = readingOn(property, days, day)
     const window = statusPaceWindow(goal.createdAt, reading.now)
@@ -264,28 +271,37 @@ async function run(scenario: Scenario, plan: number): Promise<Run> {
       reading.now,
     )
     goal = recorded.goal
-    result.notices.push(
-      ...recorded.notices.map((notice) => `${day}:${notice.transition}`),
-    )
+    notices.push(...recorded.notices.map((notice) => `${day}:${notice.transition}`))
     const sinceSet = reading.sinceSet ?? { count: 0, sum: 0 }
-    const built = trackingMix(plan, sinceSet, property.target).mix
-    const tooLow = evaluation.status === 'reviews_too_low'
-    result.days.push({
-      tooLow,
-      reviews: sinceSet.count,
-      blended: ratioToNumber(built),
-      switched: ratioToNumber(switchedMix(plan, sinceSet)),
-    })
-    if (tooLow) {
-      result.plainDisagrees += reaches(plainBlend(plan, sinceSet)) ? 1 : 0
-      result.builtDisagrees += reaches(built) ? 1 : 0
-    } else if (evaluation.status !== 'reached') {
-      result.plainEarlyUnreachable += reaches(plainBlend(plan, sinceSet)) ? 0 : 1
-      result.builtEarlyUnreachable += reaches(built) ? 0 : 1
-      result.switchedEarlyUnreachable += reaches(switchedMix(plan, sinceSet)) ? 0 : 1
-    }
+    tracked.push(trackedDay(evaluation.status, plan, sinceSet, property.target))
   }
-  return result
+  return { notices, days: tracked, ...disagreements(tracked) }
+}
+
+/** One day's assumed averages under each rule, and whether each clears the threshold. */
+function trackedDay(
+  status: string,
+  plan: number,
+  sinceSet: RatingTotals,
+  target: number,
+): Day {
+  const threshold = fromThousandths(thresholdThousandths(target))
+  const reaches = (mix: Ratio) => compareRatios(mix, threshold) > 0
+  const built = trackingMix(plan, sinceSet, target).mix
+  const switched = switchedMix(plan, sinceSet)
+  const tooLow = status === 'reviews_too_low'
+  return {
+    tooLow,
+    open: !tooLow && status !== 'reached',
+    reviews: sinceSet.count,
+    blended: ratioToNumber(built),
+    switched: ratioToNumber(switched),
+    reaches: {
+      plain: reaches(plainBlend(plan, sinceSet)),
+      built: reaches(built),
+      switched: reaches(switched),
+    },
+  }
 }
 
 type Rule = 'blended' | 'switched'
