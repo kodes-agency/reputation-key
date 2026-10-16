@@ -18,6 +18,16 @@
 // sums. Comparing successive reads of a growing month (the current one) is out
 // of scope: managers already see each review in the Inbox.
 //
+// Since round 5 (2026-10-16, the tracking page) the goal also asks for two
+// more aggregates, and no window sum leaves Review for them either: the exact
+// average as of the end of each Property-local week (an average over every
+// current review created before then, the whole-history class `all` already
+// is, worked out here with the week sums kept inside; with the count of each
+// week), and Google's own one-decimal number over time, from the verified
+// snapshot facts Review keeps (Property-level figures Google publishes). As
+// with two `all` reads a day apart, the difference of two week-end averages
+// can tell one new review's stars; managers see each review in the Inbox.
+//
 // A review counts when it is servable under the same eligibility as
 // ReviewServingStats (ADR 0031: active source content with a rating, a review
 // instant and an unexpired cache clock, `now` from the injected clock) and was
@@ -77,6 +87,42 @@ export type GoogleRatingDayCount = Readonly<{ day: string; count: number }>
 
 export type GoogleRatingStarCount = Readonly<{ stars: number; count: number }>
 
+/** One Property-local Monday-to-Sunday week of a goal's chart. */
+export type GoogleRatingWeekHistory = Readonly<{
+  /** The week's Monday in the Property's time zone, `YYYY-MM-DD`. */
+  weekStart: string
+  /** Reviews created that week. */
+  count: number
+  /**
+   * The average stars of every current review created before the week ended,
+   * in thousandths, half up (this week: every review there is).
+   */
+  endAverageThousandths: number
+}>
+
+/**
+ * The exact average over time from `since`: where it stood then, and at the
+ * end of every week since then that has reviews (a week without reviews ends
+ * where the one before it ended). Counts and averages only, never a sum.
+ */
+export type GoogleRatingHistory = Readonly<{
+  /** The average of every current review created before `since`; null when none was. */
+  startAverageThousandths: number | null
+  /** Weeks with reviews, oldest first. */
+  weeks: readonly GoogleRatingWeekHistory[]
+}>
+
+/** Google's own number as a verified snapshot recorded it. */
+export type GoogleShownNumber = Readonly<{
+  at: Date
+  /** Google's average as it sent it (one decimal, a float32 artefact possible); null without reviews. */
+  averageRating: number | null
+  reviewCount: number
+}>
+
+/** Most of Google's shown numbers one read returns. */
+export const GOOGLE_SHOWN_NUMBER_LIMIT = 100
+
 export type ReviewGoogleRatingReads = Readonly<{
   /** Totals, the recent-mix inputs and windowed counts, in one read. */
   getRatingSummary(
@@ -118,6 +164,27 @@ export type ReviewGoogleRatingReads = Readonly<{
     propertyId: PropertyId,
     since: Date,
   ): Promise<readonly GoogleRatingDayCount[]>
+
+  /**
+   * The exact average at the end of each Property-local week from `since` (a
+   * week's Monday) on, and where it stood at `since`.
+   */
+  getWeeklyHistory(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    since: Date,
+  ): Promise<GoogleRatingHistory>
+
+  /**
+   * Google's own number under the Property's current binding: the snapshot in
+   * force at `since`, then each one whose one-decimal number differs from the
+   * one before it, oldest first; the newest GOOGLE_SHOWN_NUMBER_LIMIT at most.
+   */
+  getShownNumberChanges(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    since: Date,
+  ): Promise<readonly GoogleShownNumber[]>
 
   /** Reviews created at or after `since`, per star (1 to 5, every star present). */
   getStarDistribution(

@@ -1,11 +1,13 @@
 // In-memory doubles for the Property Google rating goal use-case tests.
 import type {
   GoogleRatingDayCount,
+  GoogleRatingHistory,
   GoogleRatingMonthTotals,
   GoogleRatingSummary,
   GoogleRatingSummaryRequest,
   GoogleRatingTotals,
   GoogleRatingYearTotals,
+  GoogleShownNumber,
   ReviewGoogleRatingReads,
 } from '#/contexts/review/application/public-api'
 import type {
@@ -51,6 +53,10 @@ export type FakeWorld = {
   months: GoogleRatingMonthTotals[]
   /** Reviews per Property-local date, oldest first. */
   days: GoogleRatingDayCount[]
+  /** The exact average at each week's end from the detail's chart start. */
+  history: GoogleRatingHistory
+  /** Google's shown number in force at the chart start, then each change. */
+  shown: GoogleShownNumber[]
   held: boolean
   goals: PropertyRatingGoal[]
   changes: RatingGoalChange[]
@@ -96,6 +102,8 @@ export function exampleWorld(): FakeWorld {
     years: [],
     months: [],
     days: [],
+    history: { startAverageThousandths: 4302, weeks: [] },
+    shown: [],
     held: false,
     goals: [],
     changes: [],
@@ -315,6 +323,8 @@ function fakeReviews(world: FakeWorld): ReviewGoogleRatingReads {
       return world.days
     },
     getWeeklyCounts: async () => [{ weekStart: '2026-10-12', count: 3 }],
+    getWeeklyHistory: async () => world.history,
+    getShownNumberChanges: async () => world.shown,
     getStarDistribution: async () =>
       [1, 2, 3, 4, 5].map((stars) => ({ stars, count: stars === 5 ? 3 : 0 })),
   }
