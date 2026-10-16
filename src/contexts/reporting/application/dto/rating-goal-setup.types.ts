@@ -38,3 +38,105 @@ export type RatingGoalSetupInputs = Readonly<{
   /** The instant the inputs were read at (ISO). */
   asOf: string
 }>
+
+/** What the manager chose on the setup screen; null is "as recommended". */
+export type RatingGoalSetupChoices = Readonly<{
+  pace:
+    | Readonly<{ kind: 'chip'; index: number }>
+    | Readonly<{ kind: 'own'; tenthsPerWeek: number }>
+    | null
+  /** A typed average, in tenths. */
+  ownAverageTenths: number | null
+  /** Change plan: the plan's stored average when it differs from today's automatic one (D30). */
+  keptAverageTenths: number | null
+  /** A goal moved off the recommendation with − / +, in tenths. */
+  pinnedTargetTenths: number | null
+}>
+
+export type RatingPaceChipView = Readonly<{
+  kind: 'a_few_a_week' | 'busiest_month' | 'nice'
+  tenthsPerWeek: number
+}>
+
+/** Where the planned average comes from. */
+export type RatingAverageSource =
+  'best_month' | 'best_year' | 'halfway' | 'own' | 'earlier'
+
+export type RatingAverageEvidenceView =
+  | Readonly<{ kind: 'best_month'; year: number; month: number; tenths: number }>
+  | Readonly<{ kind: 'best_year'; year: number; tenths: number }>
+
+export type RatingSetupAverageView = Readonly<{
+  tenths: number
+  /** Today's automatic average, which "Back to automatic" returns to. */
+  automaticTenths: number
+  source: RatingAverageSource
+  evidence: RatingAverageEvidenceView | null
+  /** The lowest average a manager may type: two tenths above the shown number. */
+  ownMinTenths: number
+  /** A typed or kept average had to move into range. */
+  clamped: boolean
+  /** The automatic average reaches no goal, so only a typed one plans (4.7 and 4.8). */
+  ownOnly: boolean
+}>
+
+export type RatingSetupPaceView = Readonly<{
+  tenthsPerWeek: number
+  chips: readonly RatingPaceChipView[]
+  recommendedIndex: number
+  /** The chip chosen; null for the manager's own pace. */
+  chosenIndex: number | null
+  busiest30: number
+  /** The proven pace in tenths a day ("about 1.5 a day"). */
+  provenDayTenths: number
+  /** Reviews of the last 90 days as a nice number a month. */
+  nowPerMonth: number
+  /** An own pace or a chip index had to move into range. */
+  clamped: boolean
+}>
+
+export type RatingSetupGoalView = Readonly<{
+  shownTenths: number
+  /** The highest tenth the cache already clears; the shown one unless Google lags (D28). */
+  earnedTenths: number
+  minTenths: number
+  maxTenths: number
+  targetTenths: number
+  recommendedTenths: number
+  /** False when no goal is within six months at 0.1★ below plan: the next one is suggested. */
+  recommendedIsSafe: boolean
+  /** Null while the goal follows the recommendation. */
+  pinnedTenths: number | null
+  /** The pinned goal needs more than this average reaches, so the highest is shown. */
+  pinnedAboveMax: boolean
+}>
+
+/** The setup screen, worked out on the page from the inputs and the choices. */
+export type RatingGoalSetupPlanView =
+  /** Google shows 4.9 or 5.0: there is nothing higher to plan. */
+  | Readonly<{ kind: 'keep_only' }>
+  /** The cache already clears every tenth up to 4.9 while Google lags (D28). */
+  | Readonly<{ kind: 'catching_up'; earnedTenths: number }>
+  | Readonly<{
+      kind: 'plan'
+      average: RatingSetupAverageView
+      pace: RatingSetupPaceView
+      goal: RatingSetupGoalView
+      /** Always more than none (D28). */
+      reviewsNeeded: number
+      days: RatingFraction
+      likely: Readonly<{ fast: RatingFraction; slow: RatingFraction | null }>
+      overSixMonths: boolean
+      /** The goal above the recommendation, when the average reaches it. */
+      nextUp: Readonly<{
+        targetTenths: number
+        reviewsNeeded: number
+        days: RatingFraction
+      }> | null
+      /** The chip that gets there within six months (or the fastest), when over six months. */
+      fasterPace: Readonly<{ chipIndex: number; days: RatingFraction }> | null
+      /** The exact average after the reviews needed, in hundredths, half up. */
+      averageAfterHundredths: number
+      /** The same reviews at the last 90 days' pace; null without a review in them. */
+      daysAtTodaysPace: RatingFraction | null
+    }>

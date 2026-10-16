@@ -230,6 +230,11 @@ export type RatingGoalSetupView = Readonly<{
    * while Google's numbers are waiting or show no tenth.
    */
   setupInputs: RatingGoalSetupInputs | null
+  /**
+   * A goal to climb can be planned: eligible, with inputs, and Google shows
+   * less than 4.9. Worked out with no planning maths (D18).
+   */
+  offersClimb: boolean
 }>
 
 export type RatingGoalCardView = Readonly<{

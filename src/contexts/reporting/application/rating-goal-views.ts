@@ -43,7 +43,11 @@ import {
   trackingMix,
   type QualityBasis,
 } from '../domain/rating-goal-status'
-import { perfectStop, type RatingGoalBasis } from '../domain/rating-goal-stops'
+import {
+  HIGHEST_TARGET_TENTHS,
+  perfectStop,
+  type RatingGoalBasis,
+} from '../domain/rating-goal-stops'
 import type {
   PropertyRatingGoal,
   RatingGoalChange,
@@ -235,8 +239,10 @@ export function buildSetupView(
   const paces = paceSuggestions(reading.reviewsLast28Days)
   const basis = ratingBasis(reading)
   const inputs = basis ? forecastInputs(basis, reading, years) : null
+  const eligibility = setupEligibility(reading)
+  const setupInputs = setupInputsOf(reading, evidence)
   return {
-    eligibility: setupEligibility(reading),
+    eligibility,
     hasActiveGoal,
     google: googleView(reading),
     ...exactView(reading),
@@ -254,7 +260,11 @@ export function buildSetupView(
     perfectStop: basis ? perfectStop(basis.displayedTenths) : null,
     offerKeepFirst: basis ? offerKeepFirst(basis.displayedTenths) : false,
     forecastInputs: inputs,
-    setupInputs: setupInputsOf(reading, evidence),
+    setupInputs,
+    offersClimb:
+      eligibility.eligible &&
+      setupInputs !== null &&
+      setupInputs.displayedTenths < HIGHEST_TARGET_TENTHS,
   }
 }
 

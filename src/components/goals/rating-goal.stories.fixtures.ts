@@ -70,6 +70,7 @@ export const SETUP: RatingGoalSetupView = {
   forecastInputs: FORECAST_INPUTS,
   // "Pick a plan" reads none of it; the one-screen setup's stories bring their own.
   setupInputs: null,
+  offersClimb: true,
 }
 
 /** Property B of the beta: 19 reviews, all five stars, Google shows 5.0. */
@@ -83,6 +84,7 @@ export const SETUP_KEEP_FIRST: RatingGoalSetupView = {
   perfectStop: null,
   preselectedTenths: null,
   offerKeepFirst: true,
+  offersClimb: false,
   planning: null,
   forecastInputs: null,
 }
@@ -96,6 +98,7 @@ export const SETUP_FEW_REVIEWS: RatingGoalSetupView = {
   preselectedTenths: null,
   planning: null,
   forecastInputs: null,
+  offersClimb: false,
 }
 
 export const CARD: RatingGoalCardView = {

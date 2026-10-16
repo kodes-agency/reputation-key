@@ -136,7 +136,12 @@ describe('the setup read', () => {
 
     const setup = await getRatingGoalSetup(dependencies(world), input, actor)
 
-    expect(setup).toMatchObject({ offerKeepFirst: true, planning: null, stops: [] })
+    expect(setup).toMatchObject({
+      offerKeepFirst: true,
+      offersClimb: false,
+      planning: null,
+      stops: [],
+    })
   })
 
   it('says how many reviews there are when there are fewer than ten', async () => {
@@ -205,6 +210,7 @@ describe('the setup read', () => {
       planning: null,
       forecastInputs: null,
       setupInputs: null,
+      offersClimb: false,
     })
   })
 
@@ -219,6 +225,8 @@ describe('the setup read', () => {
 
   it('hands the setup its inputs: Google’s numbers, the evidence and the busiest days', async () => {
     const setup = await getRatingGoalSetup(dependencies(world), input, actor)
+
+    expect(setup.offersClimb).toBe(true)
 
     expect(setup.setupInputs).toEqual({
       reviewCount: 812,
