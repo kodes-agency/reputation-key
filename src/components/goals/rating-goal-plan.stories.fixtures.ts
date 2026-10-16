@@ -70,29 +70,3 @@ export const DETAIL_BEFORE_TEN: RatingGoalDetailView = {
   changes: [],
   plan: BEFORE_TEN_PLAN,
 }
-
-/**
- * The same goal later: twelve reviews since it was set average 3.75★, at or
- * below the 3.95 that 4.0 needs, so it is "New reviews too low for 4.0".
- */
-export const DETAIL_TOO_LOW: RatingGoalDetailView = {
-  ...DETAIL_BEFORE_TEN,
-  status: 'reviews_too_low',
-  google: { ...BETA_GOOGLE, reviewCount: 273 },
-  exactAverage: 3.905,
-  forecast: { kind: 'unreachable' },
-  forecastBasis: 'actual_pace',
-  qualityBasis: 'since_set',
-  setAt: '2026-08-03T09:00:00.000Z',
-  stillNeeded: null,
-  next: null,
-  forecastAtChosenPace: { kind: 'unreachable' },
-  forecastAtActualPace: { kind: 'unreachable' },
-  plan: {
-    ...BEFORE_TEN_PLAN,
-    sinceSet: { reviewCount: 12, average: 3.75, averageTenths: 38 },
-    qualityBasis: 'since_set',
-    assumedAverage: 3.75,
-    forecast: { kind: 'unreachable' },
-  },
-}
