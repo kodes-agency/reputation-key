@@ -60,15 +60,20 @@ function between(a: number, b: number, unit: string): string {
 /** The span without its "about": "3 months". */
 const bare = (days: RatingFraction): string => spanText(days).replace(/^about /u, '')
 
+/** "3 months or more", "a year or more", or "more than 3 years". */
+const fromFast = (fast: RatingFraction): string =>
+  beyondThreeYears(fast) ? bare(fast) : `${bare(fast)} or more`
+
 /**
  * "9 weeks to 4 months", "3–6 months", "3–10 weeks", "3 months or more" when
- * the slow end is open, "3 months to over a year" when it is that far.
+ * the slow end is open, "3 months to over a year" when it is that far, and
+ * "a year or more" when the fast end is a year or more itself.
  */
 export function likelyText(
   likely: Readonly<{ fast: RatingFraction; slow: RatingFraction | null }>,
 ): string {
   const { fast, slow } = likely
-  if (slow === null) return beyondThreeYears(fast) ? bare(fast) : `${bare(fast)} or more`
+  if (slow === null || !belowMonths(fast)) return fromFast(fast)
   if (below(slow, IN_DAYS_BELOW)) {
     const a = inDays(fast)
     return between(a, Math.max(a, inDays(slow)), 'day')

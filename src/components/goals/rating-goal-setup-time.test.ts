@@ -61,6 +61,12 @@ describe('the likely range, in words', () => {
     )
   })
 
+  it('starts at the fast end when that is a year or more itself', () => {
+    expect(likelyText({ fast: days(360), slow: days(800) })).toBe('a year or more')
+    expect(likelyText({ fast: days(600), slow: days(900) })).toBe('2 years or more')
+    expect(likelyText({ fast: days(1200), slow: days(2000) })).toBe('more than 3 years')
+  })
+
   it('leaves the slow end open when 0.1★ less never gets there', () => {
     expect(likelyText({ fast: days(91), slow: null })).toBe('3 months or more')
     expect(likelyText({ fast: days(2000), slow: null })).toBe('more than 3 years')
