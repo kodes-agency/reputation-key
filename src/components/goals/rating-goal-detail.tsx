@@ -18,7 +18,7 @@ import { DescriptionItem, DescriptionList } from '#/components/ui/description-li
 import { EmptyState } from '#/components/ui/empty-state'
 import { ProgressBar } from '#/components/ui/progress-bar'
 import { Skeleton } from '#/components/ui/skeleton'
-import { RatingGoalHeadline } from './rating-goal-card'
+import { RatingGoalHeadline } from './rating-goal-headline'
 import {
   RatingGoalChangeLog,
   RatingGoalFoot,

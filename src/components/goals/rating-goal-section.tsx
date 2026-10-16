@@ -13,7 +13,8 @@ import type {
 import { RegionError } from '#/components/ui/region-error'
 import { SectionTitle } from '#/components/ui/section-title'
 import { Skeleton } from '#/components/ui/skeleton'
-import { RATING_GOAL_HEADING_ID, RatingGoalCard } from './rating-goal-card'
+import { RatingGoalCard } from './rating-goal-card'
+import { RATING_GOAL_HEADING_ID } from './rating-goal-card-header'
 import { RatingGoalEmpty } from './rating-goal-empty'
 import { RatingGoalOutcome } from './rating-goal-outcome'
 import {
