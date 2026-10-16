@@ -80,6 +80,27 @@ describe('beta feedback form model', () => {
     expect(impactForType('suggestion', 'important')).toBe('important')
   })
 
+  it.each(['bug', 'suggestion'] as const)(
+    'sends an attached screenshot with a %s, in a shape the contract accepts',
+    (kind) => {
+      const screenshot = {
+        mediaType: 'image/jpeg',
+        base64: Buffer.from(
+          Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        ).toString('base64'),
+      } as const
+      const input = toBetaFeedbackInput(
+        values({ kind, impact: kind === 'bug' ? 'small_issue' : 'helpful' }),
+        ROUTE,
+        null,
+        null,
+        screenshot,
+      )
+
+      expect(betaFeedbackInputSchema.parse(input).screenshot).toEqual(screenshot)
+    },
+  )
+
   it('requires something to have been described', () => {
     expect(() => values({ observed: '  ' })).toThrow(/Please describe what happened/u)
   })

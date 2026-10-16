@@ -25,6 +25,7 @@ const bug: BetaFeedbackInput = {
   impact: 'cannot_complete',
   clientErrorEventId: null,
   maskedLayout: null,
+  screenshot: null,
   message: 'The reviews page did not load.',
   routePath: '/properties/property-1/reviews',
   viewport: 'wide',

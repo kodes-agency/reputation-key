@@ -165,6 +165,37 @@ describe('error monitoring runtime', () => {
     )
   })
 
+  it('hands an attached screenshot to the SDK as an attachment, outside the report text', () => {
+    const sentry = sdk()
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+    monitor.initialize(baseConfig)
+    const bytes = Uint8Array.from([0x89, 0x50, 0x4e, 0x47])
+
+    expect(
+      monitor.captureFeedback({
+        message: 'The total row is missing.',
+        source: 'repkey-native-beta-feedback',
+        tags: { feedback_type: 'bug' },
+        attachments: [
+          { filename: 'screenshot.png', data: bytes, contentType: 'image/png' },
+        ],
+      }),
+    ).toBe('a'.repeat(32))
+
+    const [params, hint] = sentry.captureFeedback.mock.calls[0] ?? []
+    expect(params).not.toHaveProperty('attachments')
+    expect(params?.tags).toMatchObject({ feedback_type: 'bug' })
+    expect(hint).toEqual({
+      includeReplay: false,
+      attachments: [
+        { filename: 'screenshot.png', data: bytes, contentType: 'image/png' },
+      ],
+    })
+    // The SDK adds the scope's attachments to the hint in place, so it must
+    // be an object of this capture's own, never a shared frozen one.
+    expect(Object.isFrozen(hint)).toBe(false)
+  })
+
   it('binds to a preload-initialized SDK without initializing it twice', () => {
     const sentry = sdk()
     sentry.isInitialized.mockReturnValue(true)

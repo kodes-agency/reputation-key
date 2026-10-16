@@ -7,6 +7,14 @@ import {
   formatBetaFeedbackMessage,
 } from './beta-feedback-contract'
 
+/** 1 KiB that starts like a PNG file. */
+const PNG_BASE64 = Buffer.from(
+  Uint8Array.from(
+    { length: 1_024 },
+    (_, index) => [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a][index] ?? 0,
+  ),
+).toString('base64')
+
 describe('beta feedback contract', () => {
   it.each([
     ['bug', 'cannot_complete'],
@@ -28,8 +36,26 @@ describe('beta feedback contract', () => {
       viewport: 'regular',
       clientErrorEventId: null,
       maskedLayout: null,
+      screenshot: null,
     })
   })
+
+  it.each(['bug', 'suggestion'] as const)(
+    'accepts a %s with a screenshot the reporter attached',
+    (kind) => {
+      const screenshot = { mediaType: 'image/png', base64: PNG_BASE64 } as const
+      const parsed = betaFeedbackInputSchema.parse({
+        kind,
+        impact: kind === 'bug' ? 'small_issue' : 'helpful',
+        message: 'The table needs a total row.',
+        routePath: '/inbox',
+        viewport: 'wide',
+        screenshot,
+      })
+
+      expect(parsed.screenshot).toEqual(screenshot)
+    },
+  )
 
   it.each([
     ['bug', 'helpful'],
@@ -78,7 +104,7 @@ describe('beta feedback contract', () => {
     ).toThrow(ZodError)
   })
 
-  it.each(['attachment', 'screenshot', 'replayId'] as const)(
+  it.each(['attachment', 'replayId'] as const)(
     'rejects the removed %s capture field',
     (field) => {
       expect(() =>
@@ -126,6 +152,7 @@ describe('beta feedback contract', () => {
       impact: 'cannot_complete',
       clientErrorEventId: null,
       maskedLayout: null,
+      screenshot: null,
       message: 'The reviews page did not load. '.repeat(300),
       routePath: `/properties/${marker}/reviews`,
       viewport: 'wide',
@@ -135,6 +162,22 @@ describe('beta feedback contract', () => {
     expect(message).toContain('Route: properties.property.reviews')
     expect(message).not.toContain(marker)
     expect(message.length).toBeLessThanOrEqual(6_000)
+  })
+
+  it('tells triage a screenshot is attached, by type and size and not by content', () => {
+    const message = formatBetaFeedbackMessage({
+      kind: 'suggestion',
+      impact: 'helpful',
+      clientErrorEventId: null,
+      maskedLayout: null,
+      screenshot: { mediaType: 'image/png', base64: PNG_BASE64 },
+      message: 'The table needs a total row.',
+      routePath: '/inbox',
+      viewport: 'wide',
+    })
+
+    expect(message).toContain('Screenshot: attached (image/png, 1 KB)')
+    expect(message).not.toContain(PNG_BASE64)
   })
 
   it.each([

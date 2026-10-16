@@ -6,6 +6,7 @@ import {
   clearRecordedErrors,
   rememberRecordedError,
 } from '#/shared/observability/recorded-browser-errors'
+import { BETA_FEEDBACK_SCREENSHOT_MAX_BYTES } from '#/shared/beta-feedback-screenshot'
 import { BetaFeedbackLauncher } from './beta-feedback-launcher'
 import type {
   ListMyBetaFeedback,
@@ -213,6 +214,75 @@ export const GuidedBugWithRecordedError: Story = {
         'What happened:\nThe page stayed empty',
         'What I expected:\nThe reviews should have appeared',
       ].join('\n\n'),
+    )
+  },
+}
+
+/** A full-size retina capture, drawn here so the story needs no fixture file. */
+async function retinaScreenshot(): Promise<File> {
+  const canvas = document.createElement('canvas')
+  canvas.width = 3_024
+  canvas.height = 1_964
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('expected a 2D canvas')
+  context.fillStyle = '#f4f4f5'
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.fillStyle = '#18181b'
+  context.font = '64px sans-serif'
+  context.fillText('The reviews for this property did not load', 160, 240)
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob(
+      (png) => (png ? resolve(png) : reject(new Error('no PNG'))),
+      'image/png',
+    ),
+  )
+  return new File([blob], 'Screenshot 2026-10-16 at 16.02.11.png', { type: 'image/png' })
+}
+
+async function pasteImage(target: HTMLElement, file: File) {
+  const clipboard = new DataTransfer()
+  clipboard.items.add(file)
+  await userEvent.click(target)
+  await userEvent.paste(clipboard)
+}
+
+// The reporter pastes a capture as it is; the form shrinks and re-encodes it
+// in the browser, shows exactly what will be sent, and sends it with the text.
+export const SuggestionWithPastedScreenshot: Story = {
+  args: { submitFeedback },
+  play: async ({ canvasElement }) => {
+    const view = await openFeedbackDialog(canvasElement, '/inbox')
+    await userEvent.click(view.getByRole('radio', { name: /i have an idea/i }))
+    const answer = view.getByLabelText(/what would make your work easier/i)
+    const screenshot = await retinaScreenshot()
+
+    await pasteImage(answer, screenshot)
+    const preview = await view.findByRole(
+      'img',
+      { name: /screenshot to send/i },
+      { timeout: LAZY_CHUNK_TIMEOUT_MS },
+    )
+    expect(preview).toBeVisible()
+    expect(view.getByText(/2560 × 1663/)).toBeInTheDocument()
+
+    // Remove drops it; pasting again attaches it again.
+    await userEvent.click(view.getByRole('button', { name: /remove screenshot/i }))
+    expect(view.queryByRole('img', { name: /screenshot to send/i })).toBeNull()
+    await pasteImage(answer, screenshot)
+    await view.findByRole('img', { name: /screenshot to send/i })
+
+    await userEvent.type(answer, 'Show a total row under the table')
+    await userEvent.click(view.getByRole('button', { name: /send report/i }))
+
+    await waitFor(() => expect(feedbackSpy).toHaveBeenCalledTimes(1))
+    const sent = submittedData()
+    expect(sent).toMatchObject({ kind: 'suggestion' })
+    // Pasting the image left the typed text alone.
+    expect(sent.message).toContain('Show a total row under the table')
+    const attached = sent.screenshot as { mediaType: string; base64: string }
+    expect(['image/webp', 'image/jpeg']).toContain(attached.mediaType)
+    expect(atob(attached.base64).length).toBeLessThanOrEqual(
+      BETA_FEEDBACK_SCREENSHOT_MAX_BYTES,
     )
   },
 }

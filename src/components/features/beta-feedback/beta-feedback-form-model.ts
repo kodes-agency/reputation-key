@@ -14,6 +14,7 @@ import {
   type BetaFeedbackType,
 } from '#/shared/beta-feedback-contract'
 import type { MaskedLayout } from '#/shared/beta-feedback-layout'
+import type { BetaFeedbackScreenshot } from '#/shared/beta-feedback-screenshot'
 import {
   composeBetaFeedbackMessage,
   DEFAULT_IMPACT,
@@ -59,12 +60,14 @@ type RouteContext = Readonly<{
 /**
  * Fold the answers into the wire contract. The recorded error id is attached
  * only for a Bug the reporter opted in on — the contract rejects it otherwise.
+ * A screenshot the reporter attached goes with either kind of report.
  */
 export function toBetaFeedbackInput(
   values: z.output<typeof betaFeedbackFormSchema>,
   route: RouteContext,
   recordedErrorId: string | null,
   maskedLayout: MaskedLayout | null = null,
+  screenshot: BetaFeedbackScreenshot | null = null,
 ): BetaFeedbackInput {
   const attachError =
     values.kind === 'bug' && values.includeRecordedError && recordedErrorId !== null
@@ -83,6 +86,7 @@ export function toBetaFeedbackInput(
     viewport: route.viewport,
     clientErrorEventId: attachError ? recordedErrorId : null,
     maskedLayout: attachLayout ? maskedLayout : null,
+    screenshot,
   }
 }
 
