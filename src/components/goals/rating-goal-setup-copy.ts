@@ -48,10 +48,14 @@ export function averageSourceText(average: Average, shownTenths: number): string
 
 const SWITCH = 'Your real average takes over step by step as reviews arrive.'
 
-/** How the planned average gives way to the real one: a blend, the plan counted as 15 reviews. */
+/**
+ * How the planned average gives way to the real one: a blend, the plan counted
+ * as 15 reviews, unless ten or more new reviews are too low for the goal
+ * (their own average then, condition a).
+ */
 const takesOverText = (q: string): string => {
   const weight = PLANNED_AVERAGE_WEIGHT_REVIEWS
-  return `As new reviews arrive, their real average takes over step by step: we count ${q} stars as if ${weight} reviews gave it, so after ${weight} new ones both weigh the same.`
+  return `As new reviews arrive, their real average takes over step by step: we count ${q} stars as if ${weight} reviews gave it, so after ${weight} new ones both weigh the same. If 10 or more new reviews average too low for your goal, their own average counts alone.`
 }
 
 /** "4.8 needs new reviews averaging 4.9★ or more": the lowest goal at the lowest average. */

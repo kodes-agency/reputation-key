@@ -79,7 +79,7 @@ describe('an average only a typed one plans (X1, D28)', () => {
       `${needs}; type the average you expect. Your real average takes over step by step as reviews arrive.`,
     )
     expect(paragraphs(inputs)[2]).toBe(
-      '4.8 needs new reviews averaging 4.9 stars or more, so we plan at 4.9 until you type your own. As new reviews arrive, their real average takes over step by step: we count 4.9 stars as if 15 reviews gave it, so after 15 new ones both weigh the same.',
+      '4.8 needs new reviews averaging 4.9 stars or more, so we plan at 4.9 until you type your own. As new reviews arrive, their real average takes over step by step: we count 4.9 stars as if 15 reviews gave it, so after 15 new ones both weigh the same. If 10 or more new reviews average too low for your goal, their own average counts alone.',
     )
   })
 
@@ -142,7 +142,7 @@ describe('how we worked out the goal', () => {
     expect(paragraphs(HARBORLINE)).toEqual([
       'Google shows 3.9 from 261 reviews today. 81 new reviews averaging 4.5 stars make the average 4.05, which Google shows as 4.1.',
       '4.1 is the highest number you can count on within 6 months at 1 a day, even if new reviews average 0.1 stars lower than planned. Places that ask every guest manage at least 1 a day, so we suggest 1 a day.',
-      'We plan new reviews at 4.5 stars, never at today’s 3.9: your best year, 2024 averaged 4.5. As new reviews arrive, their real average takes over step by step: we count 4.5 stars as if 15 reviews gave it, so after 15 new ones both weigh the same.',
+      'We plan new reviews at 4.5 stars, never at today’s 3.9: your best year, 2024 averaged 4.5. As new reviews arrive, their real average takes over step by step: we count 4.5 stars as if 15 reviews gave it, so after 15 new ones both weigh the same. If 10 or more new reviews average too low for your goal, their own average counts alone.',
       '“Likely 9 weeks to 4 months” allows for new reviews averaging 0.1 stars lower or higher, and for asking 10% less or more. At today’s 2 a month, the same 81 reviews would take more than 3 years.',
       '4.5 stars is, for example, 5 in 10 guests giving 5 stars and the other 5 giving 4. It is a forecast from your own history, not a target for guests or staff.',
     ])
@@ -155,7 +155,7 @@ describe('how we worked out the goal', () => {
 
   it('says halfway, and why, without evidence (Olive Tree)', () => {
     expect(paragraphs(OLIVE_TREE)[2]).toBe(
-      'We plan new reviews at 4.6 stars, never at today’s 4.2: halfway between 4.2 and 5, because asked guests rate higher than those who write on their own. As new reviews arrive, their real average takes over step by step: we count 4.6 stars as if 15 reviews gave it, so after 15 new ones both weigh the same.',
+      'We plan new reviews at 4.6 stars, never at today’s 4.2: halfway between 4.2 and 5, because asked guests rate higher than those who write on their own. As new reviews arrive, their real average takes over step by step: we count 4.6 stars as if 15 reviews gave it, so after 15 new ones both weigh the same. If 10 or more new reviews average too low for your goal, their own average counts alone.',
     )
   })
 
