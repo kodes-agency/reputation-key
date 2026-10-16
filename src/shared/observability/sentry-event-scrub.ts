@@ -1,5 +1,6 @@
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'
 import { errorFactTags } from './error-facts'
+import { errorMessageWording } from './error-message-wording'
 import { isSensitiveObservabilityField } from './sensitive-field-policy'
 
 export type SentryEventHint = Readonly<{ originalException?: unknown }>
@@ -185,7 +186,14 @@ function scrubEventExceptions(record: Record<string, unknown>): void {
   for (const value of exception.values) {
     const exceptionValue = asRecord(value)
     if (!exceptionValue) continue
-    if ('value' in exceptionValue) exceptionValue.value = REDACTED
+    // A runtime error keeps its wording with every value removed; any other
+    // message is replaced whole (error-message-wording.ts).
+    if ('value' in exceptionValue) {
+      exceptionValue.value = errorMessageWording(
+        exceptionValue.type,
+        exceptionValue.value,
+      )
+    }
     scrubExceptionMechanism(exceptionValue.mechanism)
     scrubStacktrace(exceptionValue.stacktrace)
   }

@@ -307,6 +307,29 @@ describe('scrubErrorEvent', () => {
   })
 })
 
+describe('exception wording', () => {
+  it('keeps what a runtime error says about the program, and nothing it quotes', () => {
+    const marker = 'Jane from room 12'
+    const scrubbed = scrubSentryEvent({
+      exception: {
+        values: [
+          {
+            type: 'TypeError',
+            value: `Cannot read properties of undefined (reading '${marker}')`,
+          },
+          { type: 'InternalError', value: `failed for ${marker}` },
+        ],
+      },
+    }) as { exception: { values: Array<{ value: string }> } }
+
+    expect(scrubbed.exception.values.map(({ value }) => value)).toEqual([
+      'Cannot read properties of undefined (reading "…")',
+      '[REDACTED]',
+    ])
+    expect(JSON.stringify(scrubbed)).not.toContain(marker)
+  })
+})
+
 describe('dropExpectedRefusals', () => {
   const beforeSend = dropExpectedRefusals(scrubSentryEvent)
   const event = () => ({ message: 'password=hunter2 failed' })

@@ -200,7 +200,7 @@ describe('prepared AI invocation', () => {
         createDescriptor: descriptor,
         requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
-    ).toThrow(new TypeError('Prepared AI value has an unsafe property: unsafe'))
+    ).toThrow(new TypeError('Prepared AI value has an unsafe property: "unsafe"'))
     expect(() =>
       createPreparedAiInvocation({
         sourceBytes: Uint8Array.of(1),
@@ -209,7 +209,7 @@ describe('prepared AI invocation', () => {
         createDescriptor: descriptor,
         requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
-    ).toThrow(new TypeError('Prepared AI value has an unsupported property: unsafe'))
+    ).toThrow(new TypeError('Prepared AI value has an unsupported property: "unsafe"'))
     expect(() =>
       createPreparedAiInvocation({
         sourceBytes: Uint8Array.of(1),

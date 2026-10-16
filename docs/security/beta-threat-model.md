@@ -122,6 +122,11 @@
 5. **Error message text** — no runtime scrubber rewrites error messages. A
    tagged error's authored message reaches the client, so a message must never
    interpolate user content or secrets; that is a review rule, not a check.
+   A runtime-type error (TypeError, RangeError, ReferenceError, SyntaxError,
+   URIError, EvalError) also reaches error monitoring as its first line with
+   quoted text, addresses, paths, identifiers, keys and long numbers removed
+   (Privacy Notice 2.4), so our own `throw new TypeError(...)` puts any value
+   it names in quotation marks; every other message is replaced whole.
    Better Auth `APIError`s surface the library's own message or a status-keyed
    fallback. Invited registration returns fixed copy only
    (`src/contexts/identity/application/use-cases/register-invited-user.ts`);

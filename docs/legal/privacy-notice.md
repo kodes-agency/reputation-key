@@ -10,7 +10,7 @@ amended_on: 2026-10-16
 
 **Status:** Accepted for publication
 **Effective date:** 2026-10-16
-**Version:** 2.3
+**Version:** 2.4
 **Accountable owner:** Bozhidar Denev
 
 ## 1. About this notice
@@ -149,8 +149,17 @@ or could not deliver it, for example because it repeated an earlier one, it may
 later send the provider a count of those reports with their kind, the reason,
 and the time, and nothing else. Error reports, operational alerts, and timing
 reports are content-minimized as described above the table; in particular, the
-text of an error message is replaced before a report is sent. A server health
-report is sent as the monitoring software produces it. Because a browser sends
+text of an error message is replaced before a report is sent, unless the error
+is of a kind the browser or server software raises itself about the program,
+such as a TypeError. Such a report keeps the first line of that message, of at
+most 200 characters, after the Service removes anything in quotation marks, web
+addresses, file paths, email addresses, identifiers, keys, and numbers of four
+or more digits; the rest names parts of the program. An error report also
+names the page it came from by its route pattern and not its address, the
+browser's name, major version, and operating system, and the codes the error
+carries, such as a database error code and the names of the table and
+constraint involved. A server health report is sent as the monitoring software
+produces it. Because a browser sends
 its reports itself, the provider's servers also see the network address of that
 connection and what a browser tells any website it contacts, such as its
 user-agent text. The Service does not add a network address to a report.
@@ -353,12 +362,25 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-10-16 and is version 2.3. It replaces version
-2.2, which took effect on 2026-10-13 and had replaced version 2.1, which took
-effect on 2026-10-12 and had replaced version 2.0, which took effect on
-2026-09-08. Material changes will be announced to Participants by
-email at least 14 days before they take effect. The version and effective date
-will remain shown on this page.
+This notice takes effect on 2026-10-16 and is version 2.4. It replaces version
+2.3, which took effect on 2026-10-16 and had replaced version 2.2, which took
+effect on 2026-10-13 and had replaced version 2.1, which took effect on
+2026-10-12 and had replaced version 2.0, which took effect on 2026-09-08.
+Material changes will be announced to Participants by email at least 14 days
+before they take effect. The version and effective date will remain shown on
+this page.
+
+Version 2.4 changes what an error report says about the error (section 2).
+Until version 2.4 the text of every error message was replaced. From version
+2.4 an error of a kind the browser or server software raises itself about the
+program keeps the first line of its message, with anything in quotation marks,
+web addresses, file paths, email addresses, identifiers, keys, and long numbers
+removed; every other error message is still replaced. Version 2.4 also says
+what else an error report names: the page's route pattern, the browser's name,
+major version, and operating system, and codes the error carries. What is
+added describes the program and the browser, not a Participant or Guest, so
+version 2.4 is not treated as a material change and takes effect on the day it
+is published. Nothing else about the Service changes with version 2.4.
 
 Version 2.3 lets a Participant attach a screenshot to a beta feedback report
 (section 2, the provider table, and section 6). The screenshot is sent to the

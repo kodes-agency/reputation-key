@@ -284,6 +284,7 @@ const config = defineConfig(({ mode }) => {
                     '**/shared/observability/sentry-event-scrub.ts',
                     '**/shared/observability/sensitive-field-policy.ts',
                     '**/shared/observability/error-facts.ts',
+                    '**/shared/observability/error-message-wording.ts',
                     '**/shared/observability/browser-error-event.ts',
                     '**/shared/observability/browser-family.ts',
                     '**/shared/observability/browser-route.ts',
