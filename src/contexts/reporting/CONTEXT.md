@@ -126,7 +126,7 @@ metric authority.
   time and a likely range in exact day fractions (`domain/rating-goal-duration.ts`). A tenth
   the cache already clears while Google lags is never a goal. Keep comes first from 4.7.
   Components import these values only from `application/` (the components boundary).
-  A goal's numbers (forecast, still needed, next tenth) assume the planned quality
+  A goal's numbers (forecast, still needed, next number) assume the planned quality
   blended with the reviews since it was set from the first one, the plan counted as 15
   reviews (`trackingMix`, round 4 X3); the verdict still waits for ten reviews and judges
   their own average: `reviews_too_low` (that average at or below the threshold) replaced

@@ -480,6 +480,10 @@ low-review rows and the Monday check-in follow in their own amendments.
    goal, the goal, and the number above it as possible (R4-4: "4.2 is possible
    in about 6 months", at the same pace as the arrival, offered while the
    average clears it by 0.15★), five numbers at most, the start dropped first.
+   The "possible" number is drawn only when the card says it: not past three
+   years and not while the card waits for Google's latest numbers. While
+   Google's numbers are stale the ladder says what Google "showed last", not
+   what it "shows now".
 4. **One empty square per review the headline counts**, from 1 to 30, and only
    while RepKey holds every review Google counts: past 30 the squares are
    noise, and under Google's own rounded figure (where every count reads
@@ -488,13 +492,23 @@ low-review rows and the Monday check-in follow in their own amendments.
    Property week ("It’s Tuesday", worked out on the server at every card read)
    and, once the goal works at its actual pace, the last four weeks' pace a
    day or a week (R3-7, also for a goal set "a month"; no unit is stored).
-   "Google shows 4.0 now, up from 3.9 when you started." once it does. The
-   card's exact-average progress bar is retired; the exact average stays on
-   the detail page.
+   "Google shows 4.0 now, up from 3.9 when you started." once it does, and
+   only while Google's numbers are current. The card's exact-average progress
+   bar is retired; the exact average stays on the detail page. A card under
+   48rem is D4's short card: the ladder, the headline with its squares, one
+   line "This week 2 of 7 · 4.1 in about 3 weeks" and View details; the pace
+   and the likely range, the possible line, the week's bar, the first step and
+   Open Portals are on the wide card (a reason there is no time, such as no
+   pace, is said at every width).
 6. **No new read.** The card read computes everything from the numbers it
    already reads (the next number, what the goal still needs, the number above
    it, the last four weeks, the baseline and the weekday): no extra query, no
    new query key, nothing new in first paint.
+7. **The detail counts as the card does.** Its "Next: Google shows 4.4 after
+   about 31 more reviews" line and the mark on its bar use the card's next
+   number, so with Google lagging on 4.4 the detail says "Google should show
+   4.4 soon" and the card and the detail never disagree. The tenth above what
+   Google shows (`nextTenthMilestone`) is retired.
 
 ## Rejected alternatives
 
