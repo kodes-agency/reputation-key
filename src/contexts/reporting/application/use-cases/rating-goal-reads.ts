@@ -9,8 +9,8 @@
 // Google location changed is ended) the first time anyone looks, even before
 // Google's next numbers arrive.
 
-import { displayedTenths, ratio, ratioToNumber } from '../../domain/rating-goal-numbers'
-import { currentPacePerWeek } from '../../domain/rating-goal-pace'
+import { displayedTenths, ratioToNumber } from '../../domain/rating-goal-numbers'
+import { currentPacePerWeek, paceRatio } from '../../domain/rating-goal-pace'
 import { weeklySeries, weeklySeriesStart } from '../../domain/rating-goal-weeks'
 import {
   organizationId as toOrganizationId,
@@ -119,13 +119,18 @@ export async function getRatingGoalDetail(
   // At the quality the goal now expects of new reviews (planned, then theirs).
   const basis = goalBasis(goal, reading)?.basis ?? null
   const actualPace = currentPacePerWeek(reading.reviewsLast28Days)
-  const climbing = basis !== null && goal.pacePerWeek !== null
+  const climbing = basis !== null && goal.paceTenthsPerWeek !== null
   return {
     ...cardOf(evaluated),
     lastFourWeeksPerWeek: round2(ratioToNumber(actualPace)),
     ...stillNeeded(goal, basis),
     forecastAtChosenPace: climbing
-      ? forecastFor(basis, reading, goal.targetTenths, ratio(goal.pacePerWeek ?? 0, 1))
+      ? forecastFor(
+          basis,
+          reading,
+          goal.targetTenths,
+          paceRatio(goal.paceTenthsPerWeek ?? 0),
+        )
       : null,
     forecastAtActualPace: climbing
       ? forecastFor(basis, reading, goal.targetTenths, actualPace)

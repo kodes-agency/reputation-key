@@ -4,7 +4,8 @@
 // subjects and no metric reading. One Property holds at most one active goal.
 // A climb goal aims at a tenth Google will show and carries a plan: the
 // average stars it assumes new Google reviews bring (its planned quality,
-// round 2, 2026-10-15) and a weekly pace; a keep goal watches a tenth Google
+// round 2, 2026-10-15) and a pace in tenths of a review a week (rounds 3 and
+// 4, 2026-10-16); a keep goal watches a tenth Google
 // shows now and carries neither. A goal runs until Google shows the target
 // (reached), or it is ended: by a manager, by the Google location changing
 // under it, or by the Property being archived. Changes to target, quality,
@@ -12,7 +13,7 @@
 // (ADR 0067).
 
 import { createErrorFactory } from '#/shared/domain/errors'
-import { isValidPace } from './rating-goal-pace'
+import { isValidPaceTenths } from './rating-goal-pace'
 import { qualityProblem } from './rating-goal-quality'
 import { HIGHEST_TARGET_TENTHS, PERFECT_TENTHS } from './rating-goal-stops'
 
@@ -46,7 +47,8 @@ export type RatingGoalPlan = Readonly<{
   targetTenths: number
   /** A climb goal's planned quality of new reviews, in tenths of a star; none to keep. */
   qualityTenths: number | null
-  pacePerWeek: number | null
+  /** A climb goal's pace in tenths of a review a week (105 is 1.5 a day); none to keep. */
+  paceTenthsPerWeek: number | null
 }>
 
 export type RatingGoalBaseline = Readonly<{
@@ -177,13 +179,18 @@ export function targetProblem(
     : 'invalid_target'
 }
 
-/** A climb goal needs a whole weekly pace from 1 to 200; a keep goal has none. */
+/**
+ * A climb goal needs a pace from 1 a week to 50 a day, in whole tenths a week
+ * (10 to 3500); a keep goal has none.
+ */
 export function paceProblem(
   mode: RatingGoalMode,
-  pacePerWeek: number | null,
+  paceTenthsPerWeek: number | null,
 ): 'invalid_pace' | null {
-  if (mode === 'keep') return pacePerWeek === null ? null : 'invalid_pace'
-  return pacePerWeek !== null && isValidPace(pacePerWeek) ? null : 'invalid_pace'
+  if (mode === 'keep') return paceTenthsPerWeek === null ? null : 'invalid_pace'
+  return paceTenthsPerWeek !== null && isValidPaceTenths(paceTenthsPerWeek)
+    ? null
+    : 'invalid_pace'
 }
 
 /** A climb goal plans a quality that clears its target's floor; a keep goal plans none. */
@@ -201,7 +208,10 @@ export function planQualityProblem(
 const asText = (value: number | null): string | null =>
   value === null ? null : String(value)
 
-/** The change log rows that take a plan from `current` to `next`: mode, target, quality, pace. */
+/**
+ * The change log rows that take a plan from `current` to `next`: mode, target,
+ * quality, pace (in tenths a week).
+ */
 export function planChanges(
   current: RatingGoalPlan,
   next: RatingGoalPlan,
@@ -224,11 +234,11 @@ export function planChanges(
       newValue: asText(next.qualityTenths),
     })
   }
-  if (current.pacePerWeek !== next.pacePerWeek) {
+  if (current.paceTenthsPerWeek !== next.paceTenthsPerWeek) {
     rows.push({
       field: 'pace',
-      oldValue: asText(current.pacePerWeek),
-      newValue: asText(next.pacePerWeek),
+      oldValue: asText(current.paceTenthsPerWeek),
+      newValue: asText(next.paceTenthsPerWeek),
     })
   }
   return rows

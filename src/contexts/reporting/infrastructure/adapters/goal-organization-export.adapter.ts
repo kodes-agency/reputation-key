@@ -140,7 +140,8 @@ const MONTH_TARGET_CHANGE_COLUMNS = [
 ] as const
 
 /**
- * A Property's Google rating goal: its plan (target, planned quality, pace),
+ * A Property's Google rating goal: its plan (target, planned quality, pace in
+ * tenths a week and its whole weekly mirror, migration 0060),
  * baselines, state and last evaluation. `cant_reach_noticed_at` holds when the
  * managers were last told new reviews are too low (migration 0059 kept the
  * column's name).
@@ -152,6 +153,7 @@ const RATING_GOAL_COLUMNS = [
   'mode',
   'target_tenths',
   'pace_per_week',
+  'pace_tenths_per_week',
   'quality_tenths',
   'status',
   'ended_reason',
@@ -481,6 +483,7 @@ async function readFamilies(
               mode,
               target_tenths,
               pace_per_week,
+              pace_tenths_per_week,
               quality_tenths,
               status,
               ended_reason,

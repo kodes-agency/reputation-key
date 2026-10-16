@@ -49,7 +49,8 @@ export type SetRatingGoalInput = Readonly<{
   targetTenths: number
   /** The planned quality of new reviews, in tenths; null to keep. */
   qualityTenths: number | null
-  pacePerWeek: number | null
+  /** The pace in tenths of a review a week; null to keep. */
+  paceTenthsPerWeek: number | null
 }>
 
 export type ChangeRatingGoalInput = Readonly<{
@@ -59,7 +60,7 @@ export type ChangeRatingGoalInput = Readonly<{
   mode?: RatingGoalMode
   targetTenths?: number
   qualityTenths?: number | null
-  pacePerWeek?: number | null
+  paceTenthsPerWeek?: number | null
 }>
 
 export type EndRatingGoalInput = Readonly<{
@@ -88,7 +89,7 @@ function assertPlan(plan: RatingGoalPlan, displayed: number | null): void {
       ? null
       : targetProblem(plan.mode, plan.targetTenths, displayed)) ??
     planQualityProblem(plan.mode, plan.targetTenths, plan.qualityTenths) ??
-    paceProblem(plan.mode, plan.pacePerWeek)
+    paceProblem(plan.mode, plan.paceTenthsPerWeek)
   if (problem !== null) {
     throw ratingGoalError(
       problem,
@@ -150,7 +151,7 @@ function newGoal(
     mode: input.mode,
     targetTenths: input.targetTenths,
     qualityTenths: input.qualityTenths,
-    pacePerWeek: input.pacePerWeek,
+    paceTenthsPerWeek: input.paceTenthsPerWeek,
     baseline: {
       reviewCount: reading.google?.reviewCount ?? 0,
       googleAverage: reading.google?.averageRating ?? 0,
@@ -211,7 +212,7 @@ function nextPlan(
     mode,
     targetTenths: input.targetTenths ?? goal.targetTenths,
     qualityTenths: climbValue(mode, input.qualityTenths, goal.qualityTenths),
-    pacePerWeek: climbValue(mode, input.pacePerWeek, goal.pacePerWeek),
+    paceTenthsPerWeek: climbValue(mode, input.paceTenthsPerWeek, goal.paceTenthsPerWeek),
   }
 }
 

@@ -68,7 +68,7 @@ function goalStatus(
     sinceSet: reading.sinceSet ?? NO_REVIEWS,
     goalCreatedAt: goal.createdAt,
     now: reading.now,
-    chosenPerWeek: goal.pacePerWeek ?? 0,
+    chosenTenthsPerWeek: goal.paceTenthsPerWeek ?? 0,
     reviewsInPaceWindow,
   })
 }

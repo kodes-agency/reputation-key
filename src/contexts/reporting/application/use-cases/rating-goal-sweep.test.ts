@@ -47,6 +47,7 @@ describe('the daily evaluation of every active rating goal', () => {
       expect.objectContaining({
         goalId: goalNumbered(1).id,
         transition: 'entered_below_pace',
+        paceTenthsPerWeek: 110,
         pacePerWeek: 11,
         recentPaceTenths: 0,
         paceWindow: 'last_4_weeks',

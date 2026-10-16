@@ -366,7 +366,7 @@ export function activeGoal(
     mode: 'climb',
     targetTenths: 45,
     qualityTenths: 47,
-    pacePerWeek: 11,
+    paceTenthsPerWeek: 110,
     state: 'active',
     endedReason: null,
     baseline: { reviewCount: 790, googleAverage: 4.3, exactAverage: 4.29 },

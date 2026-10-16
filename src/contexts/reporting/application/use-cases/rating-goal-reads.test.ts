@@ -318,8 +318,9 @@ describe('the detail read', () => {
         changedBy: 'manager-2',
         changedAt: new Date('2026-10-06T09:00:00.000Z'),
         field: 'pace',
-        oldValue: '10',
-        newValue: '11',
+        // Logged in tenths a week; "Pick a plan" reads it a week.
+        oldValue: '100',
+        newValue: '105',
       },
     ]
 
@@ -349,7 +350,7 @@ describe('the detail read', () => {
           changedAt: '2026-10-06T09:00:00.000Z',
           field: 'pace',
           oldValue: '10',
-          newValue: '11',
+          newValue: '10.5',
         },
       ],
     })
@@ -368,6 +369,7 @@ describe('the detail read', () => {
       qualityTenths: 47,
       sinceSet: { reviewCount: 9, average: null, averageTenths: null },
       qualityBasis: 'planned',
+      paceTenthsPerWeek: 110,
       pacePerWeek: 11,
       lastFourWeeksPerWeek: 7,
       forecast: detail!.forecastAtActualPace,

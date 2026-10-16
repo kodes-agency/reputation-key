@@ -198,8 +198,10 @@ export type NotificationPayload = Readonly<{
   /** The goal's target tenth, or the tenth a keep goal keeps. */
   ratingTargetTenths?: number
   ratingGoalMode?: NotificationRatingGoalMode
-  /** The goal's chosen pace, new Google reviews a week. */
+  /** The goal's chosen pace, whole new Google reviews a week (the legacy mirror). */
   ratingPacePerWeek?: number
+  /** The goal's chosen pace in tenths of a review a week (105 is 1.5 a day). */
+  ratingPaceTenthsPerWeek?: number
   /** New Google reviews a week in the pace window, in tenths, rounded down. */
   ratingRecentPaceTenths?: number
   ratingPaceWindow?: NotificationRatingPaceWindow
@@ -540,7 +542,8 @@ function setRatingGoalFigures(
     'ratingGoalMode',
     takeMember<NotificationRatingGoalMode>(raw.ratingGoalMode, RATING_GOAL_MODES),
   )
-  set('ratingPacePerWeek', takeIntegerIn(raw.ratingPacePerWeek, 1, 200))
+  set('ratingPacePerWeek', takeIntegerIn(raw.ratingPacePerWeek, 1, 350))
+  set('ratingPaceTenthsPerWeek', takeIntegerIn(raw.ratingPaceTenthsPerWeek, 10, 3500))
   set('ratingRecentPaceTenths', takeIntegerIn(raw.ratingRecentPaceTenths, 0, 100_000))
   set(
     'ratingPaceWindow',

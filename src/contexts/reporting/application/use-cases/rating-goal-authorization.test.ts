@@ -68,7 +68,7 @@ const USE_CASES: readonly UseCaseRow[] = [
           mode: 'climb',
           targetTenths: 44,
           qualityTenths: 47,
-          pacePerWeek: 11,
+          paceTenthsPerWeek: 110,
         },
         actor,
       ),

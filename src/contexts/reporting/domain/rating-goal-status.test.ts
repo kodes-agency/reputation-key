@@ -27,7 +27,7 @@ const climb = (overrides: Partial<Parameters<typeof climbStatus>[0]> = {}) =>
     sinceSet: { count: 12, sum: 56 },
     goalCreatedAt: daysAgo(30),
     now: NOW,
-    chosenPerWeek: 10,
+    chosenTenthsPerWeek: 100,
     reviewsInPaceWindow: 36,
     ...overrides,
   })
@@ -92,6 +92,23 @@ describe('the status of a climb goal, top rule first', () => {
     expect(climb({ goalCreatedAt: daysAgo(21), reviewsInPaceWindow: 26 })).toBe(
       'below_pace',
     )
+  })
+
+  it('judges a pace with a tenth of a review a week', () => {
+    // 1.5 a day is 10.5 a week: 28 days is 42, and 90% is 37.8.
+    expect(climb({ chosenTenthsPerWeek: 105, reviewsInPaceWindow: 38 })).toBe('on_pace')
+    expect(climb({ chosenTenthsPerWeek: 105, reviewsInPaceWindow: 37 })).toBe(
+      'below_pace',
+    )
+  })
+
+  it('decides exactly at 50 a day, past the integers a JS number holds', () => {
+    // 28 days at 350 a week is 1,400; 90% is 1,260. The products compared
+    // pass 2^53 here.
+    const fifty = { chosenTenthsPerWeek: 3500 }
+    expect(climb({ ...fifty, reviewsInPaceWindow: 1260 })).toBe('on_pace')
+    expect(climb({ ...fifty, reviewsInPaceWindow: 1259 })).toBe('below_pace')
+    expect(climb({ ...fifty, reviewsInPaceWindow: 20_000 })).toBe('on_pace')
   })
 
   it('is below pace with no reviews at all', () => {

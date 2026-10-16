@@ -58,6 +58,8 @@ type TransitionedPayload = Readonly<{
   shownTenths: number | null
   previousTenths: number | null
   pacePerWeek: number | null
+  /** Absent from a fact written before the pace was kept in tenths. */
+  paceTenthsPerWeek?: number | null
   recentPaceTenths: number | null
   paceWindow: 'last_4_weeks' | 'since_set' | null
 }>
@@ -94,6 +96,7 @@ function figuresOf(fact: TransitionedPayload): NotificationPayload {
     ratingTargetTenths: fact.targetTenths,
     ratingGoalMode: fact.mode,
     ratingPacePerWeek: fact.pacePerWeek,
+    ratingPaceTenthsPerWeek: fact.paceTenthsPerWeek ?? null,
     ratingRecentPaceTenths: fact.recentPaceTenths,
     ratingPaceWindow: fact.paceWindow,
   }

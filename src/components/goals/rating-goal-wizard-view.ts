@@ -15,10 +15,19 @@ import type {
 import type { StatusMap } from '#/components/ui/status-badge'
 import { forecastSentence, newReviewsAWeek, tenthsText } from './rating-goal-view'
 
-/** The goal a change starts from, as the card read it. */
+/**
+ * The goal a change starts from, as the card read it: "Pick a plan" prefills
+ * from its pace a week, and a change is compared with its stored tenths.
+ */
 export type RatingGoalBeingChanged = Pick<
   RatingGoalCardView,
-  'goalId' | 'version' | 'mode' | 'targetTenths' | 'qualityTenths' | 'pacePerWeek'
+  | 'goalId'
+  | 'version'
+  | 'mode'
+  | 'targetTenths'
+  | 'qualityTenths'
+  | 'pacePerWeek'
+  | 'paceTenthsPerWeek'
 >
 
 /** Why the wizard opened: a goal to climb, a goal to keep, or a change. */
@@ -53,6 +62,8 @@ export function wizardSubmission(
   pacePerWeek: number | null,
   qualityTenths: number | null,
 ): WizardSubmission | null {
+  // "Pick a plan" works in whole reviews a week; a goal stores tenths.
+  const paceTenthsPerWeek = pacePerWeek === null ? null : pacePerWeek * 10
   if (intent.kind !== 'change') {
     const mode = intent.kind === 'keep' ? 'keep' : 'climb'
     return {
@@ -62,7 +73,7 @@ export function wizardSubmission(
         mode,
         targetTenths,
         qualityTenths: mode === 'keep' ? null : qualityTenths,
-        pacePerWeek: mode === 'keep' ? null : pacePerWeek,
+        paceTenthsPerWeek: mode === 'keep' ? null : paceTenthsPerWeek,
       },
     }
   }
@@ -71,7 +82,7 @@ export function wizardSubmission(
     ...(goal.mode === 'climb' ? {} : { mode: 'climb' as const }),
     ...(goal.targetTenths === targetTenths ? {} : { targetTenths }),
     ...(goal.qualityTenths === qualityTenths ? {} : { qualityTenths }),
-    ...(goal.pacePerWeek === pacePerWeek ? {} : { pacePerWeek }),
+    ...(goal.paceTenthsPerWeek === paceTenthsPerWeek ? {} : { paceTenthsPerWeek }),
   }
   if (Object.keys(changes).length === 0) return null
   return {

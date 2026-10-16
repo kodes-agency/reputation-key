@@ -21,7 +21,7 @@ const goal = (overrides: Partial<PropertyRatingGoal> = {}): PropertyRatingGoal =
   mode: 'climb',
   targetTenths: 45,
   qualityTenths: 47,
-  pacePerWeek: 10,
+  paceTenthsPerWeek: 100,
   state: 'active',
   endedReason: null,
   baseline: { reviewCount: 800, googleAverage: 4.3, exactAverage: 4.31 },
@@ -148,7 +148,7 @@ describe('evaluating an active rating goal', () => {
       mode: 'keep',
       targetTenths: 44,
       qualityTenths: null,
-      pacePerWeek: null,
+      paceTenthsPerWeek: null,
     })
 
     expect(evaluateRatingGoal(keep, reading(), null).status).toBe('dropped_below')
@@ -166,7 +166,7 @@ describe('evaluating an active rating goal', () => {
       mode: 'keep',
       targetTenths: 43,
       qualityTenths: null,
-      pacePerWeek: null,
+      paceTenthsPerWeek: null,
     })
 
     expect(evaluateRatingGoal(keep, reading(), null).outcome).toEqual({

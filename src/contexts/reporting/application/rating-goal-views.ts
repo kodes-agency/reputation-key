@@ -22,7 +22,11 @@ import {
 } from '../domain/rating-goal-numbers'
 import { forecastArrival, type RatingForecast } from '../domain/rating-goal-forecast'
 import { googleNumbersView } from '../domain/google-numbers'
-import { currentPacePerWeek, paceSuggestions } from '../domain/rating-goal-pace'
+import {
+  currentPacePerWeek,
+  paceRatio,
+  paceSuggestions,
+} from '../domain/rating-goal-pace'
 import { offerKeepFirst } from '../domain/rating-goal-plans'
 import { bestYear, nearestTenth, type YearTotals } from '../domain/rating-goal-quality'
 import {
@@ -66,6 +70,16 @@ const round = (value: number, decimals: number): number => {
 }
 
 export const tenthsToRating = (tenths: number): number => tenths / 10
+
+/** A pace in tenths a week as a decimal a week, for "Pick a plan" (PR B removes it). */
+const perWeekOf = (paceTenthsPerWeek: number | null): number | null =>
+  paceTenthsPerWeek === null ? null : paceTenthsPerWeek / 10
+
+/** The pace fields every goal view carries: tenths a week, and a decimal a week. */
+const paceFields = (goal: PropertyRatingGoal) => ({
+  paceTenthsPerWeek: goal.paceTenthsPerWeek,
+  pacePerWeek: perWeekOf(goal.paceTenthsPerWeek),
+})
 
 const neededView = (needed: ReviewsNeeded): number | null =>
   needed === 'unreachable' ? null : needed
@@ -205,13 +219,13 @@ function cardForecast(
   numbers: GoalBasis | null,
   reading: RatingGoalReading,
 ): Pick<RatingGoalCardView, 'forecast' | 'forecastBasis' | 'qualityBasis'> {
-  if (numbers === null || goal.pacePerWeek === null) {
+  if (numbers === null || goal.paceTenthsPerWeek === null) {
     return { forecast: null, forecastBasis: null, qualityBasis: null }
   }
   const actual = forecastPaceBasis(goal.createdAt, reading.now) === 'actual'
   const pace = actual
     ? currentPacePerWeek(reading.reviewsLast28Days)
-    : ratio(goal.pacePerWeek, 1)
+    : paceRatio(goal.paceTenthsPerWeek)
   return {
     forecast: forecastFor(numbers.basis, reading, goal.targetTenths, pace),
     forecastBasis: actual ? 'actual_pace' : 'chosen_pace',
@@ -240,7 +254,7 @@ export function buildCardView(
     target: tenthsToRating(goal.targetTenths),
     qualityTenths: goal.qualityTenths,
     quality: goal.qualityTenths === null ? null : tenthsToRating(goal.qualityTenths),
-    pacePerWeek: goal.pacePerWeek,
+    ...paceFields(goal),
     status,
     google: googleView(reading),
     ...exactView(reading),
@@ -266,12 +280,16 @@ export function buildCardView(
   }
 }
 
+/** A logged pace (tenths a week) as a decimal a week, as "Pick a plan" words it. */
+const loggedValue = (field: RatingGoalChange['field'], value: string | null) =>
+  field === 'pace' && value !== null ? String(Number(value) / 10) : value
+
 export const changeView = (change: RatingGoalChange): RatingGoalChangeView => ({
   changedBy: change.changedBy,
   changedAt: change.changedAt.toISOString(),
   field: change.field,
-  oldValue: change.oldValue,
-  newValue: change.newValue,
+  oldValue: loggedValue(change.field, change.oldValue),
+  newValue: loggedValue(change.field, change.newValue),
 })
 
 /** Still needed and its best case at the goal's target, or nothing for keep. */
@@ -325,7 +343,11 @@ export function planProgressView(
   reading: RatingGoalReading,
 ): RatingGoalPlanProgressView | null {
   const numbers = goalBasis(goal, reading)
-  if (numbers === null || goal.qualityTenths === null || goal.pacePerWeek === null) {
+  if (
+    numbers === null ||
+    goal.qualityTenths === null ||
+    goal.paceTenthsPerWeek === null
+  ) {
     return null
   }
   const actualPace = currentPacePerWeek(reading.reviewsLast28Days)
@@ -335,7 +357,8 @@ export function planProgressView(
     qualityTenths: goal.qualityTenths,
     sinceSet: sinceSetView(reading.sinceSet ?? NO_REVIEWS, numbers.qualityBasis),
     qualityBasis: numbers.qualityBasis,
-    pacePerWeek: goal.pacePerWeek,
+    paceTenthsPerWeek: goal.paceTenthsPerWeek,
+    pacePerWeek: goal.paceTenthsPerWeek / 10,
     lastFourWeeksPerWeek: round(ratioToNumber(actualPace), 2),
     forecast: forecastFor(numbers.basis, reading, goal.targetTenths, actualPace),
   }
@@ -347,7 +370,7 @@ export const historyEntry = (goal: PropertyRatingGoal): RatingGoalHistoryEntry =
   targetTenths: goal.targetTenths,
   target: tenthsToRating(goal.targetTenths),
   qualityTenths: goal.qualityTenths,
-  pacePerWeek: goal.pacePerWeek,
+  ...paceFields(goal),
   state: goal.state === 'reached' ? 'reached' : 'ended',
   endedReason: goal.endedReason,
   setAt: goal.createdAt.toISOString(),
