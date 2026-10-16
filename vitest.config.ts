@@ -49,7 +49,11 @@ const storybookProject: TestProjectConfiguration[] =
             browser: {
               enabled: true,
               headless: true,
-              provider: playwright({}),
+              provider: playwright({
+                launchOptions: process.env.CDP_PORT
+                  ? { args: [`--remote-debugging-port=${process.env.CDP_PORT}`] }
+                  : {},
+              }),
               instances: [{ browser: 'chromium' }],
             },
           },
