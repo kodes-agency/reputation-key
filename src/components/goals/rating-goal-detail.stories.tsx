@@ -272,6 +272,14 @@ export const ApproximateNumbers: Story = {
   },
 }
 
+/** A goal the read found reached or ended says so first, and nothing about when. */
+async function saysFirst(canvasElement: HTMLElement, said: RegExp) {
+  const canvas = within(canvasElement)
+  await expect(canvas.getByText(said)).toBeVisible()
+  await expect(canvas.queryByText(/likely/u)).toBeNull()
+  return canvas
+}
+
 /** Found reached: what it was and how it went, nothing that looks ahead. */
 export const FoundReached: Story = {
   args: {
@@ -285,11 +293,10 @@ export const FoundReached: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(
-      canvas.getByText(/^Google shows 4\.5: the goal is reached\./),
-    ).toBeVisible()
-    await expect(canvas.queryByText(/likely/u)).toBeNull()
+    const canvas = await saysFirst(
+      canvasElement,
+      /^Google shows 4\.5: the goal is reached\./,
+    )
     await looksNoFurther(canvas, canvasElement)
     await expect(canvas.getByText('Pace 2 → 1.6 a day')).toBeVisible()
   },
@@ -300,11 +307,10 @@ export const FoundEnded: Story = {
     detail: { ...DETAIL, state: 'ended', endedReason: 'google_location_changed' },
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(
-      canvas.getByText(/^Ended: Google location changed\. It is in History now/),
-    ).toBeVisible()
-    await expect(canvas.queryByText(/likely/u)).toBeNull()
+    const canvas = await saysFirst(
+      canvasElement,
+      /^Ended: Google location changed\. It is in History now/,
+    )
     await expect(canvas.queryByRole('progressbar')).toBeNull()
   },
 }
