@@ -63,6 +63,7 @@ const changeTo = (
   plan: RatingGoalPlan,
   rows: readonly RatingGoalChangeRow[],
   paceSince: Date,
+  forgetsKnownStatus = true,
 ): RatingGoalPlanChange => ({
   organizationId: ORG,
   propertyId: PROPERTY,
@@ -80,6 +81,7 @@ const changeTo = (
   })),
   changedAt: LATER,
   paceSince,
+  forgetsKnownStatus,
 })
 
 const stored = () => repository().findById(ORG, PROPERTY, GOAL)
@@ -138,5 +140,34 @@ describe('the pace start a rating goal stores', () => {
       paceSince: SET_AT,
       createdAt: SET_AT,
     })
+  })
+})
+
+describe('the status a change of plan leaves the goal knowing', () => {
+  it('keeps it on a change of the pace alone, for the fresh start to compare with', async () => {
+    await repository().changePlan(
+      changeTo(
+        { ...PLAN, paceTenthsPerWeek: 140 },
+        [{ field: 'pace', oldValue: '70', newValue: '140' }],
+        LATER,
+        false,
+      ),
+    )
+
+    const goal = await stored()
+    expect(goal?.lastEvaluation.knownStatus).toBe('getting_started')
+  })
+
+  it('forgets it on any other change', async () => {
+    await repository().changePlan(
+      changeTo(
+        { ...PLAN, targetTenths: 46 },
+        [{ field: 'target', oldValue: '45', newValue: '46' }],
+        SET_AT,
+      ),
+    )
+
+    const goal = await stored()
+    expect(goal?.lastEvaluation.knownStatus).toBeNull()
   })
 })

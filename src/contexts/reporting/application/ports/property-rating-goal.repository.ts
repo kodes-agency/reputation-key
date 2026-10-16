@@ -61,6 +61,8 @@ export type RatingGoalPlanChange = Readonly<{
   changedAt: Date
   /** When the plan's pace came into force: `changedAt` when the pace moves (paceSinceAfter). */
   paceSince: Date
+  /** Forget the known status (changeForgetsKnownStatus): every change but one of the pace alone. */
+  forgetsKnownStatus: boolean
 }>
 
 export type RatingGoalManagerEnd = Readonly<{

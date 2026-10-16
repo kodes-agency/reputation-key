@@ -11,6 +11,7 @@
 import { ratioToNumber } from '../../domain/rating-goal-numbers'
 import type { RatingGoalEligibility } from '../../domain/rating-goal-stops'
 import {
+  changeForgetsKnownStatus,
   paceProblem,
   paceSinceAfter,
   planChanges,
@@ -273,6 +274,7 @@ export async function changeRatingGoal(
     })),
     changedAt: now,
     paceSince: paceSinceAfter(goal, plan, now),
+    forgetsKnownStatus: changeForgetsKnownStatus(goal, plan),
   })
   if (result !== 'written') throwWriteRefusal(result)
   return { goalId: goal.id, version: input.expectedVersion + 1 }

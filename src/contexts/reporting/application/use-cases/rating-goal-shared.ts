@@ -102,7 +102,9 @@ export async function evaluateActiveRatingGoal(
   goal: PropertyRatingGoal,
 ): Promise<EvaluatedRatingGoal> {
   const now = deps.now()
-  const window = statusPaceWindow(goal.createdAt, now)
+  // The pace is judged from when it came into force (Q3); the reviews since
+  // the set from the set.
+  const window = statusPaceWindow(goal.paceSince, now)
   const reading = await requireReading(deps, goal.organizationId, goal.propertyId, now, {
     countSince: (facts) => [weekStartInstant(now, facts.timezone), window?.start ?? now],
     totalsSince: goal.createdAt,

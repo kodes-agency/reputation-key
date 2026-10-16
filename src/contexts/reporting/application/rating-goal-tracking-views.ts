@@ -6,8 +6,9 @@
 // carries this week's day and the last four weeks' pace, all worked out here
 // inside the one card read (E8): no new query.
 //
-// The arrival keeps Q8's basis (E4): the chosen pace until the goal is 28 days
-// old, then the reviews of the last 28 days, and the sentence names which.
+// The arrival keeps Q8's basis (E4): the chosen pace until the pace is 28 days
+// old (from the set, or its latest change: round 5 D-3, Q3), then the reviews of
+// the last 28 days, and the sentence names which.
 
 import {
   actualRate,
@@ -68,7 +69,7 @@ export function cardRate(
   reading: Pick<RatingGoalReading, 'now' | 'reviewsLast28Days'>,
 ): CardRate | null {
   if (goal.paceTenthsPerWeek === null) return null
-  return forecastPaceBasis(goal.createdAt, reading.now) === 'actual'
+  return forecastPaceBasis(goal.paceSince, reading.now) === 'actual'
     ? { rate: actualRate(reading.reviewsLast28Days), basis: 'actual_pace' }
     : { rate: chosenRate(goal.paceTenthsPerWeek), basis: 'chosen_pace' }
 }

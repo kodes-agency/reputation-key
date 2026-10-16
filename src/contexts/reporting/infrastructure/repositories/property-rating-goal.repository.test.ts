@@ -224,6 +224,7 @@ describe('a manager’s change', () => {
     ],
     changedAt: LATER,
     paceSince: LATER,
+    forgetsKnownStatus: true,
   })
 
   it('writes the plan and its log rows, and moves the version', async () => {
@@ -398,6 +399,7 @@ describe('an evaluation write', () => {
       })),
       changedAt: LATER,
       paceSince: LATER,
+      forgetsKnownStatus: true,
     })
 
   it('refuses an evaluation worked out on a target a manager has since changed', async () => {
@@ -724,12 +726,12 @@ describe('an evaluation write', () => {
     )
 
     await changePlanTo(
-      { mode: 'climb', targetTenths: 45, qualityTenths: 47, paceTenthsPerWeek: 80 },
-      [{ field: 'pace', oldValue: '110', newValue: '80' }],
+      { mode: 'climb', targetTenths: 46, qualityTenths: 47, paceTenthsPerWeek: 110 },
+      [{ field: 'target', oldValue: '45', newValue: '46' }],
     )
 
     await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
-      paceTenthsPerWeek: 80,
+      targetTenths: 46,
       lastEvaluation: {
         status: 'below_pace',
         knownStatus: null,
@@ -742,8 +744,8 @@ describe('an evaluation write', () => {
 
   it('stores the status a new plan puts the goal in, without a notice', async () => {
     await changePlanTo(
-      { mode: 'climb', targetTenths: 45, qualityTenths: 47, paceTenthsPerWeek: 200 },
-      [{ field: 'pace', oldValue: '110', newValue: '200' }],
+      { mode: 'climb', targetTenths: 46, qualityTenths: 47, paceTenthsPerWeek: 110 },
+      [{ field: 'target', oldValue: '45', newValue: '46' }],
     )
 
     await expect(

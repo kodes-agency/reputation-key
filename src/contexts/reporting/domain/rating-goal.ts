@@ -261,6 +261,22 @@ export function planChanges(
 }
 
 /**
+ * Whether a change of plan forgets the status the goal knew, so the status the
+ * new plan puts it in is stored without a notice (a manager's own doing). A
+ * change that moves the pace and keeps the mode and target does not: the goal
+ * starts afresh (getting started for 14 days, Q3), which never overwrites the
+ * known status, and leaving that fresh start tells only a status that differs
+ * from the one before the change.
+ */
+export const changeForgetsKnownStatus = (
+  current: RatingGoalPlan,
+  next: RatingGoalPlan,
+): boolean =>
+  current.mode !== next.mode ||
+  current.targetTenths !== next.targetTenths ||
+  current.paceTenthsPerWeek === next.paceTenthsPerWeek
+
+/**
  * When the pace a change of plan leaves came into force: the change itself
  * when it moves the pace (a switch between keep and climb included), else
  * when the goal's pace started.

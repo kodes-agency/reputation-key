@@ -222,7 +222,9 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
         ...goal,
         ...change.plan,
         paceSince: change.paceSince,
-        lastEvaluation: { ...goal.lastEvaluation, knownStatus: null },
+        lastEvaluation: change.forgetsKnownStatus
+          ? { ...goal.lastEvaluation, knownStatus: null }
+          : goal.lastEvaluation,
         version: goal.version + 1,
       })
       world.changes = [...world.changes, ...change.changes]

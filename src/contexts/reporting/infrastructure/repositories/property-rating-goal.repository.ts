@@ -5,7 +5,8 @@
 // active goal per Property" when two managers set one at once: the loser's
 // insert does nothing and is told `active_exists`. A manager's change or end
 // is a compare-and-set on the version; a change also forgets the known status,
-// so a status the new plan puts the goal in is stored without a notice. An
+// so a status the new plan puts the goal in is stored without a notice, unless
+// it moves the pace alone (the fresh start keeps it, round 5 Q3). An
 // evaluation never moves the version and writes only when it changes the row,
 // and only onto the plan version it was worked out on, never over a newer
 // evaluation, and only onto the tenth, known status and below-pace notice it
@@ -353,8 +354,9 @@ export const createPropertyRatingGoalRepository = (
             ...paceColumns(change.plan.paceTenthsPerWeek),
             paceSince: change.paceSince,
             // The status the new plan puts the goal in is the manager's own
-            // doing: the next evaluation stores it without a notice.
-            lastKnownStatus: null,
+            // doing: the next evaluation stores it without a notice. A new
+            // pace alone keeps it: the fresh start compares with it (Q3).
+            ...(change.forgetsKnownStatus ? { lastKnownStatus: null } : {}),
             version: sql`${propertyRatingGoals.version} + 1`,
             updatedAt: change.changedAt,
           })
