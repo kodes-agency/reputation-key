@@ -217,6 +217,28 @@ AccountAdmins and PropertyManagers with access to the Property, under `goal.read
 - Stored: the goal (mode, target, pace, state, binding epoch, baselines, the tenth and status last seen, reached or ended date and reason, a version for compare-and-set) and its change log. Exported and purged with the Organization's Goal records.
 - Stored (round 2, migration 0059): a climb goal's planned quality (`quality_tenths`), part of its version-checked plan and its change log (field `quality`); the status vocabulary without `cant_reach_at_mix` and with `reviews_too_low`. Read (round 2): the totals of the reviews created since a goal was set, in the same summary read, and each Property-local calendar year's totals, both counts and star sums only.
 - Stored (rounds 3 and 4, migration 0060): a climb goal's pace in tenths of a review a week (`pace_tenths_per_week`, 10 to 3500), with `pace_per_week` kept for one release as its whole weekly mirror (`GREATEST(1, (tenths + 5) / 10)`, held by the CHECK); the change log's `pace` rows in tenths (the old rows rewritten × 10). For that release the set and change schemas also take a legacy whole weekly `pacePerWeek` (mapped × 10; both together refused), and the fact and the Feed payload carry the tenths beside the widened mirror. A contract migration drops the mirror and the legacy fields afterwards. Read (rounds 3 and 4): each Property-local calendar month's totals with ten reviews and the review count per local date, from which the setup read hands the page the best month of the last twelve and the busiest 30 days of the last 365 (`setupInputs`); dates carry counts only. A reading waits for Google while the cache holds no review.
+- Migration 0060 rolls forward, never back (ADR 0038's forward-only recovery; there is no down migration). For the minutes of its release an old web server shows every rewritten pace log row × 10 ("Pace 50 → 110 a week"), because it prints the stored value. Old images left running on a 0060 database cannot insert a climb goal (no tenths fails the plan CHECK), re-pace a goal (mirror mismatch) or switch a goal between keep and climb, and keep showing the × 10 history, until a roll-forward. If a rollback of the images is ever forced, run this first, in one transaction. It is exact only while both checks return 0 (every stored tenths value a multiple of 10 and at most 2000, true until a setup that offers paces a day ships); otherwise roll forward.
+
+  ```sql
+  BEGIN;
+  SELECT count(*) FROM property_rating_goals
+   WHERE pace_tenths_per_week % 10 <> 0 OR pace_tenths_per_week > 2000;   -- must be 0
+  SELECT count(*) FROM property_rating_goal_changes WHERE field = 'pace'
+     AND (old_value::int % 10 <> 0 OR new_value::int % 10 <> 0
+          OR old_value::int > 2000 OR new_value::int > 2000);              -- must be 0
+  ALTER TABLE property_rating_goal_changes DROP CONSTRAINT property_rating_goal_changes_value_check;
+  UPDATE property_rating_goal_changes SET old_value = (old_value::int / 10)::text
+   WHERE field = 'pace' AND old_value IS NOT NULL;
+  UPDATE property_rating_goal_changes SET new_value = (new_value::int / 10)::text
+   WHERE field = 'pace' AND new_value IS NOT NULL;
+  -- re-add property_rating_goal_changes_value_check exactly as drizzle/0059_rating_goal_planned_quality.sql adds it
+  ALTER TABLE property_rating_goals DROP CONSTRAINT property_rating_goals_plan_check;
+  ALTER TABLE property_rating_goals DROP COLUMN pace_tenths_per_week;
+  -- re-add property_rating_goals_plan_check exactly as drizzle/0059_rating_goal_planned_quality.sql adds it
+  DELETE FROM drizzle.__drizzle_migrations WHERE created_at = 1794100000000;  -- 0060, so a roll-forward runs it again
+  COMMIT;
+  ```
+
 - Stored (PR 4, migration 0058; 0057 is PR 5's): a manager's "Not now" for a Property's goal (`property_rating_goal_deferrals`, who and when, one row per Property), so the setup strip's "Set a Google rating goal" step counts as decided. It sets, changes and blocks no goal. Exported and purged with the Goal records, and gone with its Property.
 
 ## Pull requests

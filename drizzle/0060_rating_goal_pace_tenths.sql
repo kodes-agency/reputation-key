@@ -27,7 +27,21 @@
 -- precedent). Old BROWSER tabs against the new server keep working: the set and
 -- change schemas map a legacy whole weekly pace x 10 for one release. An old
 -- worker keeps reading `pace_per_week`. `last_known_status` is untouched, so no
--- goal changes status and no notice repeats.
+-- goal changes status and no notice repeats. For those minutes an old web
+-- server also shows every rewritten pace log row x 10 ("Pace 50 -> 110 a
+-- week"): it prints the stored value.
+--
+-- Roll forward, never back: there is no down migration. Old code on a 0060
+-- database cannot insert a climb goal (no tenths fails the plan CHECK),
+-- re-pace a goal (mirror mismatch) or switch a goal between keep and climb, and
+-- it keeps showing the x 10 history. If a rollback of the images is ever
+-- forced, first run the down SQL in docs/plan/google-rating-goal.md ("Data and
+-- storage"): in one transaction, drop the change-log CHECK, set the pace log
+-- values to value / 10, re-add 0059's change-log CHECK, drop the plan CHECK
+-- and `pace_tenths_per_week`, re-add 0059's plan CHECK, and delete 0060's row
+-- from drizzle.__drizzle_migrations so a later roll-forward runs it again. It
+-- is exact only while every stored tenths value is a multiple of 10 and at
+-- most 2000 (true until a setup that offers paces a day ships); check first.
 --
 -- Beta state: the closed beta's rating goal count is checked read-only before
 -- the deploy; the statements hold on any data.
