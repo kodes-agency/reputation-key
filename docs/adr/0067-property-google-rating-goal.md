@@ -537,6 +537,26 @@ ten reviews, and no read returns a review.
    These are Property-level figures Google publishes; nothing is stored for
    the goal.
 
+3. **The page.** The header leads with the card's headline and says when the
+   goal arrives at the card's own pace (the same arrival object the chart's
+   likely band is drawn from, so words and shape cannot disagree), where
+   Google stands against where it started, the number possible after it and,
+   once the goal works at the last four weeks' pace, the chosen pace's time
+   too (Q8). "The climb, step by step" draws the exact average at each
+   Monday from four weeks before the set's week (a year back at most), the
+   plan as a cone from the set (the stored baseline) or the latest plan change
+   (the history at that week's Monday, no interpolation; none under a partial
+   cache), the likely band from today, a line for each tenth and Google's own
+   moves, in weeks from today, never dates, in a chunk of its own. "Your
+   plan, so far" sets the last four weeks' pace against the plan and the four
+   full weeks before the goal, the new reviews' average against the plan's,
+   and the steps reached and next. "What moved you" says it in words: this
+   week's count, Google's moves, each change of the plan and what the goal was
+   set with (each field's first logged change, so a long log cannot lose it).
+   The exact-average bar, the tiles, the weekly bars, the star mix since the
+   set, the best case and the separate change log are retired (Q7's detail;
+   R3-8 replaces it).
+
 The per-review rows the mock also shows (low reviews and this week's stars)
 are not part of this amendment: they need the owner's exception (PLAN-D Q2)
 and follow in their own.
