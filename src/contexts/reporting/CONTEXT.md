@@ -145,7 +145,11 @@ metric authority.
   binding epoch; also since a goal was set, per calendar year, per calendar month with ten
   reviews and per local date, counts only; for the detail, the exact average at each
   local week's end, which Review works out with the week sums kept inside, and Google's
-  own number over time from Review's verified snapshot facts); Google's own numbers
+  own number over time from Review's verified snapshot facts; and, by the owner's two
+  per-review exceptions for the detail (ADR 0067, 2026-10-17), the low reviews since the
+  set, below the threshold and at most 4★, and this week's star split, read live and kept
+  nowhere: the server function turns the review ids into Inbox item ids after the policy
+  allows `inbox.read`, so the browser never sees one); Google's own numbers
   come from the Current on Google snapshot. A goal may be set only on an active Property with at least ten Google
   reviews (Google's count decides that first, current or not) and current numbers; a
   reading waits for Google while its numbers are not current, show no tenth or give no
