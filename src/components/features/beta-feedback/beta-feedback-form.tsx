@@ -22,6 +22,11 @@ import { captureCurrentMaskedLayout } from './beta-feedback-capture'
 import { BetaFeedbackChoiceGroup, type BetaFeedbackChoice } from './beta-feedback-choice'
 import { BetaFeedbackErrorNotice } from './beta-feedback-error-notice'
 import { BetaFeedbackLayoutConsent } from './beta-feedback-layout-consent'
+import { BetaFeedbackScreenshotField } from './beta-feedback-screenshot-field'
+import {
+  firstImageFile,
+  useBetaFeedbackScreenshot,
+} from './beta-feedback-screenshot-state'
 import {
   type BetaFeedbackFormProps,
   currentBetaFeedbackContext,
@@ -61,6 +66,7 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
   const [maskedLayout, setMaskedLayout] = useState<MaskedLayout | null>(() =>
     captureCurrentMaskedLayout(),
   )
+  const screenshot = useBetaFeedbackScreenshot()
 
   const form = useForm({
     defaultValues: emptyBetaFeedbackForm,
@@ -73,6 +79,9 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
           currentBetaFeedbackContext(),
           recordedError?.eventId ?? null,
           maskedLayout,
+          screenshot.state.status === 'ready'
+            ? screenshot.state.prepared.screenshot
+            : null,
         ),
       )
       const receipt = await submit({ data })
@@ -92,8 +101,23 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
     }
   }
 
+  // A screenshot pasted anywhere in the form attaches; pasted text still lands
+  // in the field it was pasted into.
+  const onPaste = (event: React.ClipboardEvent<HTMLFormElement>): void => {
+    if (submit.isPending) return
+    const image = firstImageFile(event.clipboardData.files)
+    if (!image) return
+    event.preventDefault()
+    void screenshot.attach(image)
+  }
+
   return (
-    <form onSubmit={submitHandler(form)} onKeyDown={onKeyDown} className="space-y-5">
+    <form
+      onSubmit={submitHandler(form)}
+      onKeyDown={onKeyDown}
+      onPaste={onPaste}
+      className="space-y-5"
+    >
       <form.Field name="kind">
         {(field) => (
           <BetaFeedbackChoiceGroup
@@ -199,6 +223,13 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
         )}
       </div>
 
+      <BetaFeedbackScreenshotField
+        state={screenshot.state}
+        onAttach={(file) => void screenshot.attach(file)}
+        onRemove={screenshot.remove}
+        disabled={submit.isPending}
+      />
+
       <form.Field name="impact">
         {(field) => (
           <BetaFeedbackChoiceGroup
@@ -223,7 +254,11 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
         }
       >
         <DialogCancel />
-        <SubmitButton mutation={submit} form={form}>
+        <SubmitButton
+          mutation={submit}
+          form={form}
+          disabled={screenshot.state.status === 'preparing'}
+        >
           Send report
         </SubmitButton>
       </DialogFooter>

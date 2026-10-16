@@ -109,6 +109,8 @@ const LITERAL_ALLOWED: Readonly<Record<string, string>> = {
     'attribute selectors that match the stroke colours Recharts paints by default, to override them',
   'src/components/ui/strip-scroll.ts':
     'opaque and transparent stops of a fade mask: only their alpha is used',
+  'src/components/features/beta-feedback/beta-feedback-screenshot-encode.ts':
+    'the paper a transparent screenshot is flattened onto for JPEG, which has no transparency: image pixels, not a theme colour',
   'src/components/features/portal/portal-share/portal-qr.ts':
     'the printed QR ink and paper: fixed so the code scans in either theme',
   'src/components/features/portal/portal-share/print-kit-art.tsx':

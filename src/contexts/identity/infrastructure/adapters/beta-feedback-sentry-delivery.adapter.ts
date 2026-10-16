@@ -1,16 +1,41 @@
 import {
+  type BetaFeedbackInput,
   classifyBetaFeedbackRoute,
   formatBetaFeedbackMessage,
 } from '#/shared/beta-feedback-contract'
-import { captureObservabilityFeedback } from '#/shared/observability/telemetry'
+import type { BetaFeedbackScreenshotType } from '#/shared/beta-feedback-screenshot'
+import {
+  captureObservabilityFeedback,
+  type FeedbackAttachment,
+} from '#/shared/observability/telemetry'
 import { betaFeedbackPseudonym } from '../../application/beta-feedback-pseudonym'
 import type { BetaFeedbackDelivery } from '../../application/ports/beta-feedback-submission.port'
+
+const SCREENSHOT_EXTENSIONS: Readonly<Record<BetaFeedbackScreenshotType, string>> = {
+  'image/webp': 'webp',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+}
+
+/** The contract checked the bytes start like their type; here they become the file. */
+function screenshotAttachments(data: BetaFeedbackInput): FeedbackAttachment[] {
+  if (!data.screenshot) return []
+  const { mediaType, base64 } = data.screenshot
+  return [
+    {
+      filename: `screenshot.${SCREENSHOT_EXTENSIONS[mediaType]}`,
+      data: new Uint8Array(Buffer.from(base64, 'base64')),
+      contentType: mediaType,
+    },
+  ]
+}
 
 /** Server-only Sentry delivery seam; never enters the browser module graph. */
 export const deliverBetaFeedback: BetaFeedbackDelivery = (input) => {
   const providerReference = captureObservabilityFeedback({
     message: formatBetaFeedbackMessage(input.data),
     source: 'repkey-native-beta-feedback',
+    attachments: screenshotAttachments(input.data),
     tags: {
       feedback_type: input.data.kind,
       feedback_impact: input.data.impact,

@@ -125,7 +125,7 @@ describe('OBS-01 synthetic privacy exfiltration canary', () => {
     expect(row.payload).not.toHaveProperty('password')
   })
 
-  it('rejects pixel, replay, and attachment material from beta feedback', () => {
+  it('rejects replay and attachment material from beta feedback', () => {
     expect(() =>
       betaFeedbackInputSchema.parse({
         kind: 'bug',
@@ -133,11 +133,36 @@ describe('OBS-01 synthetic privacy exfiltration canary', () => {
         message: 'A reproducible problem.',
         routePath: '/dashboard',
         viewport: 'regular',
-        screenshot: `data:image/png;base64,${SECRET}`,
         replay: { reviewText: REVIEW, contact: CONTACT },
         attachment: { content: SECRET },
       }),
     ).toThrow(ZodError)
+  })
+
+  it('takes a screenshot only as image bytes, never as text under an image type', () => {
+    // Since 2026-10-16 a reporter may attach a screenshot (BETA.md §3). It is
+    // pixels by the owner's decision; what must not happen is the field
+    // becoming a channel for anything that is not an image.
+    const smuggled = [
+      {
+        mediaType: 'image/png',
+        base64: Buffer.from(`${SECRET} ${REVIEW}`).toString('base64'),
+      },
+      { mediaType: 'image/png', base64: `data:image/png;base64,${SECRET}` },
+      { mediaType: 'text/plain', base64: Buffer.from(CONTACT).toString('base64') },
+    ]
+    for (const screenshot of smuggled) {
+      expect(() =>
+        betaFeedbackInputSchema.parse({
+          kind: 'suggestion',
+          impact: 'helpful',
+          message: 'A reproducible problem.',
+          routePath: '/dashboard',
+          viewport: 'regular',
+          screenshot,
+        }),
+      ).toThrow(ZodError)
+    }
   })
 
   it('keeps the masked layout geometry, with no field a marker can survive in', () => {

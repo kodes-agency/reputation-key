@@ -121,10 +121,19 @@ export interface FeedbackCaptureParams {
   readonly message: string
   readonly source: 'repkey-native-beta-feedback'
   readonly tags: Readonly<Record<string, string>>
+  /** A screenshot the reporter attached; sent as a file of the event, not as text. */
+  readonly attachments?: ReadonlyArray<FeedbackAttachment>
+}
+
+export interface FeedbackAttachment {
+  readonly filename: string
+  readonly data: Uint8Array
+  readonly contentType: 'image/webp' | 'image/jpeg' | 'image/png'
 }
 
 export interface FeedbackCaptureHint {
   readonly includeReplay: false
+  readonly attachments?: FeedbackAttachment[]
 }
 
 export interface ErrorMonitor {
@@ -330,7 +339,13 @@ export function createErrorMonitor(deps: {
           source: 'repkey-native-beta-feedback',
           tags: safeTags,
         }
-        const safeHint: FeedbackCaptureHint = { includeReplay: false }
+        // A fresh, unfrozen hint per capture: the SDK merges the scope's
+        // attachments into it in place before it builds the envelope.
+        const attachments = params.attachments ?? []
+        const safeHint: FeedbackCaptureHint =
+          attachments.length > 0
+            ? { includeReplay: false, attachments: [...attachments] }
+            : { includeReplay: false }
 
         // Sentry 10.71 does not pass `type: "feedback"` events through the
         // ordinary `beforeSend` callback. Clear both inherited scopes so
