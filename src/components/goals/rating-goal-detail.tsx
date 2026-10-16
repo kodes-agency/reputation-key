@@ -7,7 +7,6 @@
 // weekly bars against the pace; the stars since it was set; the change log.
 // A goal the read found reached or ended looks forward no more: what it was,
 // the weeks, the stars and the changes stay, the forecasts and the bar go.
-import { lazy, Suspense } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Target } from 'lucide-react'
 import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/rating-goal.types'
@@ -16,38 +15,12 @@ import { Button } from '#/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import { EmptyState } from '#/components/ui/empty-state'
-import { ProgressBar } from '#/components/ui/progress-bar'
-import { Skeleton } from '#/components/ui/skeleton'
 import { RatingGoalHeadline } from './rating-goal-headline'
-import {
-  RatingGoalChangeLog,
-  RatingGoalFoot,
-  RatingGoalStarMix,
-  RatingGoalTiles,
-} from './rating-goal-detail-parts'
-import {
-  bestCaseLine,
-  detailForecasts,
-  nextTenthLine,
-  progressMarks,
-  yourPlanLines,
-} from './rating-goal-detail-view'
+import { RatingGoalChangeLog, RatingGoalFoot } from './rating-goal-detail-parts'
+import { detailForecasts, yourPlanLines } from './rating-goal-detail-view'
 import { PLAN_POLICY_LINE } from './rating-goal-copy'
 import { paceSentence } from './rating-goal-pace-words'
-import {
-  APPROXIMATE_NUMBERS,
-  averageProgressText,
-  endedSentence,
-  ratingText,
-  reviewsTooLowSentence,
-} from './rating-goal-view'
-
-// Recharts is a chunk of its own, loaded once the page is up.
-const RatingGoalWeeklyChart = lazy(() =>
-  import('./rating-goal-weekly-chart').then((module) => ({
-    default: module.RatingGoalWeeklyChart,
-  })),
-)
+import { endedSentence, ratingText, reviewsTooLowSentence } from './rating-goal-view'
 
 type Props = Readonly<{
   detail: RatingGoalDetailView
@@ -57,8 +30,6 @@ type Props = Readonly<{
   now: Date
   personName: (userId: string) => string | null
 }>
-
-const QUIET = 'text-sm text-muted-foreground'
 
 /** "Your plan": the goal, the new reviews' average and the pace, each against the plan. */
 function YourPlan({
@@ -83,7 +54,6 @@ function YourPlan({
 /** What an active goal looks forward to: its plan, the forecasts and the best case. */
 function Outlook({ detail }: Pick<Props, 'detail'>) {
   const target = ratingText(detail.target)
-  const best = bestCaseLine(detail)
   const forecasts = detailForecasts(detail)
   return (
     <>
@@ -116,7 +86,6 @@ function Outlook({ detail }: Pick<Props, 'detail'>) {
           ))}
         </DescriptionList>
       )}
-      {best === null ? null : <p className={QUIET}>{best}</p>}
     </>
   )
 }
@@ -135,55 +104,6 @@ function Summary({ detail, timezone, now }: Props) {
       <CardContent className="flex flex-col gap-4">
         <RatingGoalHeadline card={detail} timezone={timezone} now={now} />
         {detail.state === 'active' ? <Outlook detail={detail} /> : null}
-      </CardContent>
-    </Card>
-  )
-}
-
-function Progress({ detail }: Pick<Props, 'detail'>) {
-  if (detail.progress === null) return null
-  const marks = progressMarks(detail)
-  const next = nextTenthLine(detail)
-  const approximate = detail.exactAverageSource === 'google'
-  const average = averageProgressText(detail)
-  return (
-    <Card className="gap-4">
-      <CardHeader>
-        <CardTitle as="h2">Progress</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        <ProgressBar
-          value={Math.round(marks.value * 1000)}
-          max={1000}
-          marker={marks.marker}
-          label={`Progress toward Google showing ${ratingText(detail.target)}`}
-          valueText={average}
-        />
-        <div className="flex justify-between gap-4 text-xs text-muted-foreground tabular-nums">
-          <span>{marks.start}</span>
-          <span>{marks.end}</span>
-        </div>
-        <p className="text-sm tabular-nums">{average}</p>
-        {approximate ? <p className={QUIET}>{APPROXIMATE_NUMBERS}</p> : null}
-        {next === null ? null : <p className={QUIET}>{next}</p>}
-      </CardContent>
-    </Card>
-  )
-}
-
-function WeeklyBars({ detail }: Pick<Props, 'detail'>) {
-  return (
-    <Card className="gap-4">
-      <CardHeader>
-        <CardTitle as="h2">New Google reviews each week</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Suspense fallback={<Skeleton aria-hidden="true" className="h-60 w-full" />}>
-          <RatingGoalWeeklyChart
-            weeks={detail.weeks}
-            paceTenthsPerWeek={detail.paceTenthsPerWeek}
-          />
-        </Suspense>
       </CardContent>
     </Card>
   )
@@ -216,15 +136,10 @@ function Moved({ detail }: Pick<Props, 'detail'>) {
 
 export function RatingGoalDetail(props: Props) {
   const { detail } = props
-  const active = detail.state === 'active'
   return (
     <div data-slot="rating-goal-detail" className="flex flex-col gap-6">
       <Moved detail={detail} />
       <Summary {...props} />
-      {active ? <Progress detail={detail} /> : null}
-      {active ? <RatingGoalTiles detail={detail} /> : null}
-      <WeeklyBars detail={detail} />
-      <RatingGoalStarMix detail={detail} />
       <RatingGoalChangeLog
         detail={detail}
         personName={props.personName}

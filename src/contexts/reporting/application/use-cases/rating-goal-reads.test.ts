@@ -255,8 +255,6 @@ describe('the simple card', () => {
     expect(forecast?.kind === 'days' && forecast.central.num / forecast.central.den).toBe(
       406,
     )
-    // From the baseline 4.29 to 4.45, the exact 4.3103 is an eighth of the way.
-    expect(card!.progress).toBeCloseTo(0.127, 3)
     expect(world.goals[0]!.lastEvaluation).toMatchObject({
       status: 'on_pace',
       displayedTenths: 43,
@@ -319,7 +317,7 @@ describe('the simple card', () => {
 })
 
 describe('the detail read', () => {
-  it('adds the monitoring numbers, the weeks, the stars and the change log', async () => {
+  it('adds the monitoring numbers and the change log', async () => {
     world.goals = [activeGoal({ createdAt: new Date('2026-10-05T09:00:00.000Z') })]
     world.changes = [
       {
@@ -335,11 +333,6 @@ describe('the detail read', () => {
         newValue: '105',
       },
     ]
-    // Three reviews this week; the weeks come with the chart's history.
-    world.history = {
-      startAverageThousandths: 4302,
-      weeks: [{ weekStart: '2026-10-12', count: 3, endAverageThousandths: 4310 }],
-    }
 
     const detail = await getRatingGoalDetail(dependencies(world), input, actor)
 
@@ -349,20 +342,8 @@ describe('the detail read', () => {
       // At the plan's 4.7 blended with the 9 reviews since the set (4.11 of
       // stars): (15 × 4.7 + 41) / 24 = 4.6458, so (3613.4 − 3500) / 0.1958.
       stillNeeded: 580,
-      bestCase: 207,
       next: { targetTenths: 44, target: 4.4, reviewsNeeded: 109 },
       baseline: { googleShows: 4.3, reviewCount: 790, exactAverage: 4.29 },
-      weeks: [
-        { weekStart: '2026-10-05', count: 0 },
-        { weekStart: '2026-10-12', count: 3 },
-      ],
-      starsSinceSet: [
-        { stars: 1, count: 0 },
-        { stars: 2, count: 0 },
-        { stars: 3, count: 0 },
-        { stars: 4, count: 0 },
-        { stars: 5, count: 3 },
-      ],
       changes: [
         {
           changedBy: 'manager-2',

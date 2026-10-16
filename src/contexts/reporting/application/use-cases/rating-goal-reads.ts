@@ -14,7 +14,6 @@
 // Google's next numbers arrive.
 
 import { actualRate, chosenRate } from '../../domain/rating-goal-arrival'
-import { weeklySeries } from '../../domain/rating-goal-weeks'
 import {
   DAY_READ_LOOKBACK_DAYS,
   EVIDENCE_MIN_REVIEWS,
@@ -31,13 +30,11 @@ import type {
   RatingGoalSetupView,
 } from '../dto/rating-goal.types'
 import {
-  bestCaseNeeded,
   buildCardView,
   buildSetupView,
   changeView,
   goalBasis,
   historyEntry,
-  mixView,
   planProgressView,
 } from '../rating-goal-views'
 import { forecastFor } from '../rating-goal-tracking-views'
@@ -120,13 +117,11 @@ export async function getRatingGoalDetail(
   const { goal, reading } = evaluated
   const org = toOrganizationId(goal.organizationId)
   const property = toPropertyId(goal.propertyId)
-  const timezone = reading.facts.timezone
   // The chart reads from four weeks before the set's week (a year back at most).
   const chartFrom = detailChartStart(goal, reading).instant
-  const [history, shown, starsSinceSet, changes] = await Promise.all([
+  const [history, shown, changes] = await Promise.all([
     deps.reviews.getWeeklyHistory(org, property, chartFrom),
     deps.reviews.getShownNumberChanges(org, property, chartFrom),
-    deps.reviews.getStarDistribution(org, property, goal.createdAt),
     deps.repository.listChanges(
       goal.organizationId,
       goal.propertyId,
@@ -142,16 +137,12 @@ export async function getRatingGoalDetail(
   const card = cardOf(evaluated)
   return {
     ...card,
-    bestCase: bestCaseNeeded(goal, basis),
     forecastAtChosenPace: climbing
       ? forecastFor(basis, goal.targetTenths, chosenRate(pace))
       : null,
     forecastAtActualPace: climbing
       ? forecastFor(basis, goal.targetTenths, actualRate(reading.reviewsLast28Days))
       : null,
-    recentMix: mixView(reading.mix),
-    weeks: weeklySeries(goal.createdAt, reading.now, timezone, history.weeks),
-    starsSinceSet,
     changes: changes.recent.map(changeView),
     plan: planProgressView(goal, reading),
     ...detailTracking({ goal, reading, card, reads: { history, shown, changes } }),

@@ -144,9 +144,7 @@ export const KeepGoal: Story = {
       plan: null,
       paceTenthsPerWeek: null,
       status: 'holding',
-      progress: null,
       stillNeeded: null,
-      bestCase: null,
       forecast: null,
       forecastAtChosenPace: null,
       forecastAtActualPace: null,
@@ -227,7 +225,7 @@ export const BeforeTenReviewsPhone: Story = {
 }
 
 export const GoogleShouldShowItSoon: Story = {
-  args: { detail: { ...DETAIL, googleShowsSoon: true, progress: 1 } },
+  args: { detail: { ...DETAIL, googleShowsSoon: true } },
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByText(/^Google should show 4\.5 soon\./),
@@ -288,7 +286,6 @@ export const FoundReached: Story = {
       status: 'reached',
       google: { ...DETAIL.google!, shows: 4.5 },
       exactAverage: 4.452,
-      progress: 1,
     },
   },
   play: async ({ canvasElement }) => {

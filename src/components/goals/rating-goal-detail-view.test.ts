@@ -1,31 +1,11 @@
 // The detail page of the Google rating goal, worked out: "Your plan" against
-// what happened since it was set, when it arrives at both paces and the best case, the bar from where the goal started to the line
-// Google shows the target at with the next number marked, the three tiles, the
-// star mix, the weekly chart's words and how fresh Google's numbers are.
+// what happened since it was set, when it arrives at both paces, and how fresh
+// Google's numbers are.
 import { describe, expect, it } from 'vitest'
-import {
-  aboutHowLong,
-  bestCaseLine,
-  detailForecasts,
-  detailTiles,
-  freshnessText,
-  nextTenthLine,
-  progressMarks,
-  starMixSummary,
-  weeklyCaption,
-  yourPlanLines,
-} from './rating-goal-detail-view'
+import { detailForecasts, freshnessText, yourPlanLines } from './rating-goal-detail-view'
 import { DETAIL_BEFORE_TEN, DETAIL_TOO_LOW } from './rating-goal-plan.stories.fixtures'
 import { assumedAverageWords } from './rating-goal-view'
 import { DETAIL } from './rating-goal.stories.fixtures'
-
-describe('how long a count of reviews takes', () => {
-  it('says weeks, then months, then years', () => {
-    expect(aboutHowLong(31, 11)).toBe('about 3 weeks')
-    expect(aboutHowLong(207, 11)).toBe('about 4 months')
-    expect(aboutHowLong(1300, 11)).toBe('about 2.3 years')
-  })
-})
 
 describe('the forecasts', () => {
   it('forecasts at the chosen pace and at the pace of the last four weeks', () => {
@@ -74,110 +54,9 @@ describe('the forecasts', () => {
       'No pace reaches 4.0 at the new reviews’ average.',
     ])
   })
-
-  it('says the best case quietly', () => {
-    expect(bestCaseLine(DETAIL)).toBe(
-      'If every new review is 5★: 97 more reviews, about 2 months at 1.6 a day.',
-    )
-    expect(bestCaseLine({ ...DETAIL, bestCase: null })).toBeNull()
-  })
-})
-
-describe('the progress', () => {
-  it('marks the next number on the way from the start to the line', () => {
-    const marks = progressMarks(DETAIL)
-
-    expect(marks.value).toBe(0.52)
-    // 4.35 is two sevenths of the way from 4.31 to 4.45.
-    expect(marks.marker).toBeCloseTo(0.2857, 3)
-    expect(marks.start).toBe('Started at 4.31')
-    expect(marks.end).toBe('4.45 shows 4.5')
-  })
-
-  it('marks nothing when the next number is the target itself', () => {
-    expect(
-      progressMarks({
-        ...DETAIL,
-        next: { targetTenths: 45, target: 4.5, reviewsNeeded: 212 },
-      }).marker,
-    ).toBeNull()
-  })
-
-  it('says how far the next number Google can show is', () => {
-    expect(nextTenthLine(DETAIL)).toBe(
-      'Next: Google shows 4.4 after about 31 more reviews',
-    )
-    expect(nextTenthLine({ ...DETAIL, next: null })).toBeNull()
-  })
-
-  it('agrees with the card while Google lags on a middle number (shown 4.3, exact 4.36)', () => {
-    // The card counts 180 to the goal of 4.5 and says 4.4 is coming soon.
-    const lagsMiddle = {
-      ...DETAIL,
-      google: { ...DETAIL.google!, shows: 4.3 },
-      exactAverage: 4.36,
-      next: { targetTenths: 45, target: 4.5, reviewsNeeded: 180 },
-      earnedTenths: 44,
-      stillNeeded: 180,
-    }
-
-    expect(nextTenthLine(lagsMiddle)).toBe('Google should show 4.4 soon')
-    expect(progressMarks(lagsMiddle).marker).toBeNull()
-  })
-
-  it('says nothing more when the next number is the goal', () => {
-    expect(
-      nextTenthLine({
-        ...DETAIL,
-        next: { targetTenths: 45, target: 4.5, reviewsNeeded: 212 },
-      }),
-    ).toBeNull()
-  })
-})
-
-describe('the tiles', () => {
-  it('counts this week, the last four weeks and what is still needed', () => {
-    expect(detailTiles(DETAIL)).toEqual([
-      { label: 'This week', value: '6 of 11', detail: 'new reviews since Monday' },
-      { label: 'Last 4 weeks', value: '1.4 a day', detail: 'your pace is 1.6 a day' },
-      {
-        label: 'Still needed',
-        value: '212 reviews',
-        detail: 'best case 97, if every new review is 5★',
-      },
-    ])
-  })
-
-  it('says a target the new reviews’ average does not reach is not reachable', () => {
-    // Only new reviews too low for the target leave it out of reach: before the
-    // tenth review the numbers never assume less than the target's minimum
-    // quality (or a plan below it), and from it a blend with reviews that clear
-    // the threshold clears it too (trackingMix).
-    expect(
-      detailTiles({ ...DETAIL, qualityBasis: 'since_set', stillNeeded: null })[2],
-    ).toEqual({
-      label: 'Still needed',
-      value: 'Not reachable',
-      detail: 'at the new reviews’ average',
-    })
-  })
 })
 
 describe('the rest of the page', () => {
-  it('sums the stars of the reviews since the goal was set', () => {
-    expect(starMixSummary(DETAIL.starsSinceSet)).toBe(
-      '107 reviews since the goal was set · average 4.61★',
-    )
-    expect(starMixSummary([])).toBe('No new reviews since the goal was set.')
-  })
-
-  it('reads the weekly chart in one line', () => {
-    expect(weeklyCaption(DETAIL.weeks, 110)).toBe(
-      '107 new reviews in 11 weeks; the plan is 1.6 a day.',
-    )
-    expect(weeklyCaption(DETAIL.weeks, null)).toBe('107 new reviews in 11 weeks.')
-  })
-
   it('says how long ago Google’s numbers were checked', () => {
     const readAt = new Date('2026-10-14T12:00:00.000Z')
 

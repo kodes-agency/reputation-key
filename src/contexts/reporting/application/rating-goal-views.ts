@@ -11,15 +11,12 @@
 // or their own average while they are too low for the target (round 4, X3).
 
 import {
-  bestCaseReviewsNeeded,
   displayedTenths,
   ratio,
   ratioToNumber,
   thresholdThousandths,
   type Ratio,
   type RatingTotals,
-  type RecentMix,
-  type ReviewsNeeded,
 } from '../domain/rating-goal-numbers'
 import { actualRate, earnedTenths } from '../domain/rating-goal-arrival'
 import { googleNumbersView } from '../domain/google-numbers'
@@ -34,7 +31,6 @@ import {
 import {
   cacheShowsTargetFirst,
   QUALITY_VERDICT_MIN_REVIEWS,
-  ratingProgress,
   trackingMix,
   type QualityBasis,
 } from '../domain/rating-goal-status'
@@ -55,7 +51,6 @@ import type {
   RatingGoalHistoryEntry,
   RatingGoalPlanProgressView,
   RatingGoalSetupView,
-  RecentMixView,
 } from './dto/rating-goal.types'
 import type { RatingGoalSetupInputs } from './dto/rating-goal-setup.types'
 import {
@@ -79,9 +74,6 @@ const round = (value: number, decimals: number): number => {
   return Math.round(value * scale) / scale
 }
 
-const neededView = (needed: ReviewsNeeded): number | null =>
-  needed === 'unreachable' ? null : needed
-
 const googleView = (reading: RatingGoalReading): GoogleNumbersView | null =>
   googleNumbersView(reading.google, reading.facts.googleBindingActive, reading.now)
 
@@ -97,15 +89,6 @@ function exactView(
         exactAverageSource: exact.source,
       }
 }
-
-export const mixView = (mix: RecentMix | null): RecentMixView | null =>
-  mix === null
-    ? null
-    : {
-        average: round(ratioToNumber(mix.value), 3),
-        reviewCount: mix.reviewCount,
-        basis: mix.basis,
-      }
 
 const ratioView = (value: Ratio) => ({ num: Number(value.num), den: Number(value.den) })
 
@@ -256,13 +239,6 @@ export function buildCardView(
     google: googleView(reading),
     ...exactView(reading),
     threshold: threshold / 1000,
-    progress:
-      goal.mode === 'climb' && reading.exact
-        ? round(
-            ratingProgress(reading.exact.value, goal.baseline.exactAverage, threshold),
-            3,
-          )
-        : null,
     googleShowsSoon:
       numbers !== null &&
       cacheShowsTargetFirst(
@@ -286,21 +262,6 @@ export const changeView = (change: RatingGoalChange): RatingGoalChangeView => ({
   oldValue: change.oldValue,
   newValue: change.newValue,
 })
-
-/** Reviews to the goal's target if every new one is five stars, or nothing for keep. */
-export function bestCaseNeeded(
-  goal: PropertyRatingGoal,
-  basis: RatingGoalBasis | null,
-): number | null {
-  if (goal.mode === 'keep' || basis === null) return null
-  return neededView(
-    bestCaseReviewsNeeded({
-      reviewCount: basis.reviewCount,
-      exact: basis.exact,
-      thresholdThousandths: thresholdThousandths(goal.targetTenths),
-    }),
-  )
-}
 
 /**
  * The reviews since the set: their count, and their average once there are

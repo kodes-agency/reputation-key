@@ -97,7 +97,6 @@ export const CARD: RatingGoalCardView = {
   exactAverage: 4.382,
   exactAverageSource: 'cache',
   threshold: 4.45,
-  progress: 0.52,
   googleShowsSoon: false,
   thisWeekCount: 6,
   justSet: false,
@@ -120,7 +119,6 @@ export const CARD_JUST_SET: RatingGoalCardView = {
   ...CARD,
   status: 'getting_started',
   exactAverage: 4.31,
-  progress: 0,
   thisWeekCount: 0,
   justSet: true,
   // 454 reviews at 11 a week.
@@ -145,7 +143,6 @@ export const CARD_KEEP: RatingGoalCardView = {
   google: { ...GOOGLE, shows: 4.9 },
   exactAverage: 4.912,
   threshold: 4.85,
-  progress: null,
   forecast: null,
   forecastBasis: null,
   qualityBasis: null,
@@ -159,7 +156,6 @@ export const CARD_REACHED: RatingGoalCardView = {
   status: 'reached',
   google: { ...GOOGLE, shows: 4.5 },
   exactAverage: 4.452,
-  progress: 1,
   forecast: null,
   next: null,
   stillNeeded: null,
@@ -167,31 +163,9 @@ export const CARD_REACHED: RatingGoalCardView = {
 
 export const DETAIL: RatingGoalDetailView = {
   ...CARD,
-  bestCase: 97,
   // 212 reviews at 11 a week, then at 9.5.
   forecastAtChosenPace: inDays(135, 104, 199),
   forecastAtActualPace: inDays(156, 120, 230),
-  recentMix: { average: 4.7, reviewCount: 84, basis: 'last_90_days' },
-  weeks: [
-    { weekStart: '2026-08-03', count: 9 },
-    { weekStart: '2026-08-10', count: 12 },
-    { weekStart: '2026-08-17', count: 11 },
-    { weekStart: '2026-08-24', count: 8 },
-    { weekStart: '2026-08-31', count: 13 },
-    { weekStart: '2026-09-07', count: 10 },
-    { weekStart: '2026-09-14', count: 7 },
-    { weekStart: '2026-09-21', count: 12 },
-    { weekStart: '2026-09-28', count: 9 },
-    { weekStart: '2026-10-05', count: 10 },
-    { weekStart: '2026-10-12', count: 6 },
-  ],
-  starsSinceSet: [
-    { stars: 5, count: 82 },
-    { stars: 4, count: 16 },
-    { stars: 3, count: 4 },
-    { stars: 2, count: 2 },
-    { stars: 1, count: 3 },
-  ],
   changes: [
     {
       changedBy: 'user-ana',

@@ -1,58 +1,13 @@
-// The parts of the Google rating goal's detail page below its summary: the three
-// tiles, the stars since the goal was set, the change log and the page's foot
-// (how fresh Google's numbers are, and who sees this page).
+// The parts of the Google rating goal's detail page below its summary: the
+// change log and the page's foot (how fresh Google's numbers are, and who sees
+// this page).
 import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/rating-goal.types'
-import { RatingDistributionChart } from '#/components/features/shared/rating-distribution-chart'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
-import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { formatShortDate } from '#/lib/format'
-import { detailTiles, freshnessText, starMixSummary } from './rating-goal-detail-view'
+import { freshnessText } from './rating-goal-detail-view'
 import { changeText } from './rating-goal-view'
 
 type Detail = Readonly<{ detail: RatingGoalDetailView }>
-
-export function RatingGoalTiles({ detail }: Detail) {
-  const tiles = detailTiles(detail)
-  if (tiles.length === 0) return null
-  return (
-    // Three tiles, never two and one: stacked until there is room for all three.
-    <MetricStrip
-      aria-label="This goal in numbers"
-      variant="tiles"
-      columns={3}
-      className="@max-2xl:grid-cols-1"
-    >
-      {tiles.map((tile) => (
-        <Metric key={tile.label} label={tile.label}>
-          <MetricValue value={tile.value} detail={tile.detail} />
-        </Metric>
-      ))}
-    </MetricStrip>
-  )
-}
-
-export function RatingGoalStarMix({ detail }: Detail) {
-  return (
-    <Card className="gap-4">
-      <CardHeader>
-        <CardTitle as="h2" id="rating-goal-star-mix">
-          Stars since the goal was set
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <p className="text-sm">{starMixSummary(detail.starsSinceSet)}</p>
-        {detail.starsSinceSet.length === 0 ? null : (
-          <RatingDistributionChart
-            distribution={detail.starsSinceSet}
-            labelledBy="rating-goal-star-mix"
-            label="Stars of the new Google reviews"
-            noun="reviews"
-          />
-        )}
-      </CardContent>
-    </Card>
-  )
-}
 
 export function RatingGoalChangeLog({
   detail,

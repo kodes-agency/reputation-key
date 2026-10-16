@@ -61,13 +61,6 @@ export type RatingArrivalView =
       slow: RatingFraction | null
     }>
 
-export type RecentMixView = Readonly<{
-  /** Average stars of the reviews the mix is taken from, three decimals. */
-  average: number
-  reviewCount: number
-  basis: 'last_90_days' | 'most_recent'
-}>
-
 /**
  * Whether a goal may be set: `property_not_active` first, then `few_reviews`
  * (Google's count, current or not), then `waiting_for_google`.
@@ -122,8 +115,6 @@ export type RatingGoalCardView = Readonly<{
   exactAverageSource: RatingExactAverageSource | null
   /** The exact average at which Google shows the target (4.45 for 4.5). */
   threshold: number
-  /** From the baseline to the threshold, 0 to 1; null for a keep goal. */
-  progress: number | null
   /** The cache has crossed the threshold; Google does not show it yet. */
   googleShowsSoon: boolean
   /** Reviews created this Monday-to-Sunday week. */
@@ -270,14 +261,8 @@ export type RatingGoalMovedView = Readonly<{
 
 export type RatingGoalDetailView = RatingGoalCardView &
   Readonly<{
-    bestCase: number | null
     forecastAtChosenPace: RatingArrivalView | null
     forecastAtActualPace: RatingArrivalView | null
-    recentMix: RecentMixView | null
-    /** Monday-to-Sunday weeks since the goal was set, a year at most. */
-    weeks: readonly Readonly<{ weekStart: string; count: number }>[]
-    /** Stars of the reviews created since the goal was set. */
-    starsSinceSet: readonly Readonly<{ stars: number; count: number }>[]
     changes: readonly RatingGoalChangeView[]
     /** Null for a keep goal or without Google's numbers. */
     plan: RatingGoalPlanProgressView | null

@@ -1,6 +1,6 @@
 // Property Google rating goal — Monday-to-Sunday weeks (pure).
 //
-// "This week" and the weekly bars of a goal count reviews in Monday-to-Sunday
+// "This week" and the detail's chart count reviews in Monday-to-Sunday
 // weeks of the Property's time zone (the owner's default); the card names the
 // day of that week ("It’s Tuesday") from the server, so the page and its first
 // paint agree (PLAN-D E9). The detail's chart counts whole Property-local days
@@ -15,15 +15,11 @@ import {
   propertyWallClockToInstant,
 } from '#/shared/domain/property-calendar'
 
-/** The weekly bars of a goal show at most a year. */
-export const MAX_WEEKLY_BARS = 52
 /** The detail's chart starts this many weeks before the week a goal was set (PLAN-D §4.3). */
 const CHART_WEEKS_BEFORE_SET = 4
 /** And a year back at most. */
 const CHART_MAX_WEEKS = 52
 const DAY_MS = 24 * 60 * 60 * 1000
-
-export type WeekCount = Readonly<{ weekStart: string; count: number }>
 
 type CivilDate = Readonly<{ year: number; month: number; day: number }>
 
@@ -122,35 +118,4 @@ export function chartWeeks(fromKey: string, now: Date, timezone: string): string
     weeks.push(keyOf(monday))
   }
   return weeks
-}
-
-/** The first week the bars show: the goal's own week, or a year back at most. */
-function firstMonday(since: Date, now: Date, timezone: string): CivilDate {
-  const sinceMonday = mondayOf(civilDateAt(since, timezone))
-  const earliest = addDays(
-    mondayOf(civilDateAt(now, timezone)),
-    -7 * (MAX_WEEKLY_BARS - 1),
-  )
-  return keyOf(sinceMonday) < keyOf(earliest) ? earliest : sinceMonday
-}
-
-/** One bar per week from the goal's week to this one; a week without reviews is 0. */
-export function weeklySeries(
-  since: Date,
-  now: Date,
-  timezone: string,
-  counts: readonly WeekCount[],
-): WeekCount[] {
-  const byWeek = new Map(counts.map((row) => [row.weekStart, row.count]))
-  const lastKey = weekStartKey(now, timezone)
-  const series: WeekCount[] = []
-  for (
-    let monday = firstMonday(since, now, timezone);
-    keyOf(monday) <= lastKey;
-    monday = addDays(monday, 7)
-  ) {
-    const weekStart = keyOf(monday)
-    series.push({ weekStart, count: byWeek.get(weekStart) ?? 0 })
-  }
-  return series
 }

@@ -39,7 +39,6 @@ export const CARD_HARBORLINE: RatingGoalCardView = {
   exactAverage: 4.02,
   exactAverageSource: 'cache',
   threshold: 4.05,
-  progress: 0.78,
   googleShowsSoon: false,
   thisWeekCount: 2,
   justSet: false,

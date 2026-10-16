@@ -4,12 +4,10 @@ import {
   chartWeeks,
   dayOfInstant,
   daysFromToday,
-  MAX_WEEKLY_BARS,
   propertyWeekday,
   shiftDateKey,
   weekStartInstant,
   weekStartKey,
-  weeklySeries,
 } from './rating-goal-weeks'
 
 const SOFIA = 'Europe/Sofia'
@@ -56,31 +54,6 @@ describe('the day of the Property week', () => {
 
     expect(propertyWeekday(instant, SOFIA)).toBe(1)
     expect(propertyWeekday(instant, 'UTC')).toBe(7)
-  })
-})
-
-describe('the weekly bars since a goal was set', () => {
-  it('fills every week from the one the goal was set in to this one', () => {
-    expect(
-      weeklySeries(
-        new Date('2026-10-14T12:00:00.000Z'),
-        new Date('2026-10-27T12:00:00.000Z'),
-        SOFIA,
-        [{ weekStart: '2026-10-19', count: 5 }],
-      ),
-    ).toEqual([
-      { weekStart: '2026-10-12', count: 0 },
-      { weekStart: '2026-10-19', count: 5 },
-      { weekStart: '2026-10-26', count: 0 },
-    ])
-  })
-
-  it('shows at most a year of weeks', () => {
-    const now = new Date('2026-10-14T12:00:00.000Z')
-    const twoYearsAgo = new Date('2024-10-14T12:00:00.000Z')
-
-    expect(MAX_WEEKLY_BARS).toBe(52)
-    expect(weeklySeries(twoYearsAgo, now, 'UTC', [])).toHaveLength(52)
   })
 })
 
