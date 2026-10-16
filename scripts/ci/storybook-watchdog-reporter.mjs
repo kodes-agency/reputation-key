@@ -123,7 +123,7 @@ async function attachNewPages() {
 async function sampleStacks(entry) {
   const { session, target } = entry
   log(`  page ${target.url.slice(0, 120)}`)
-  for (let sample = 1; sample <= 4; sample++) {
+  for (let sample = 1; sample <= 8; sample++) {
     const paused = new Promise((resolve) => {
       const timer = setTimeout(() => resolve(null), 6000)
       entry.paused = (msg) => {
@@ -146,11 +146,51 @@ async function sampleStacks(entry) {
   }
 }
 
+/** What each test iframe shows, when the page still answers. */
+const SNAPSHOT = `(() => {
+  const lines = ['top: ' + location.href.replace(/^https?:\\/\\/[^/]+/, '')]
+  for (const frame of document.querySelectorAll('iframe')) {
+    let info
+    try {
+      const win = frame.contentWindow
+      const doc = frame.contentDocument
+      const root = doc?.getElementById('storybook-root') ?? doc?.body
+      const keys = win ? Object.keys(win).filter((k) => k.startsWith('__vitest')).join(',') : '-'
+      info = '\\n    src: ' + frame.getAttribute('src') +
+        '\\n    location: ' + (win?.location?.href ?? '-') +
+        '\\n    readyState: ' + (doc?.readyState ?? '-') + ' title: ' + (doc?.title ?? '-') +
+        '\\n    vitest globals: ' + keys +
+        '\\n    active: ' + (doc?.activeElement?.outerHTML?.slice(0, 200) ?? '-') +
+        '\\n    text: ' + (root?.innerText ?? '').replace(/\\s+/g, ' ').slice(0, 1500)
+    } catch (error) {
+      info = ' (cross-origin or gone: ' + error + ')'
+    }
+    lines.push('iframe' + info)
+  }
+  return lines.join('\\n')
+})()`
+
+async function pageSnapshot(entry) {
+  const result = await entry.session.send(
+    'Runtime.evaluate',
+    { expression: SNAPSHOT, returnByValue: true },
+    4000,
+  )
+  if (result.timedOut) log('  snapshot: the page does not answer (main thread busy)')
+  else
+    log(
+      `  snapshot:\n  ${result.result?.result?.value ?? JSON.stringify(result).slice(0, 300)}`,
+    )
+}
+
 async function diagnose(reason) {
   log(`WATCHDOG ${reason}`)
   diagnosing = true
   try {
-    for (const entry of attached.values()) await sampleStacks(entry)
+    for (const entry of attached.values()) {
+      await sampleStacks(entry)
+      await pageSnapshot(entry)
+    }
   } finally {
     diagnosing = false
   }
@@ -203,7 +243,8 @@ export default class WatchdogReporter {
       }`,
     )
   }
-  onTestRunEnd(_modules, errors, reason) {
+  onTestRunEnd(modules, errors, reason) {
+    void modules
     for (const timer of this.timers) clearInterval(timer)
     for (const entry of attached.values()) entry.session.close()
     log(`RUN END ${reason} errors=${errors.length}`)
