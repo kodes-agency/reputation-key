@@ -3,9 +3,10 @@
 // quiet hotel of the approved setup, a few weeks after its goal of 4.1 at 1 a
 // day: Google shows 4.0, up from 3.9, and 18 new reviews take it to 4.1. The
 // other cards are the states the card has to draw. Every number is entered by
-// hand from the worked examples of PLAN-D §2; the reads compute them.
+// hand, worked out with the domain's own arrival rule (PLAN-D §2) from the
+// counts each card names; the reads compute them.
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
-import { CARD, inDays } from './rating-goal.stories.fixtures'
+import { CARD } from './rating-goal.stories.fixtures'
 
 const HARBORLINE_GOOGLE = {
   shows: 4,
@@ -14,7 +15,18 @@ const HARBORLINE_GOOGLE = {
   current: true,
 } as const
 
-/** Google shows 4.0 from 3.9; 18 new reviews to 4.1; 2 of 7 this week, a Tuesday. */
+/** 18 reviews at 1 a day; 15 at 4.65★ 10% faster, 23 at 4.45★ 10% slower. */
+const HARBORLINE_ARRIVAL = {
+  kind: 'days',
+  central: { num: 18, den: 1 },
+  fast: { num: 15 * 7000, den: 7700 },
+  slow: { num: 23 * 7000, den: 6300 },
+} as const
+
+/**
+ * Google shows 4.0 from 3.9 (300 reviews, 1,206 stars, exact 4.02); at 4.55★
+ * 18 new reviews to 4.1 and 98 to 4.2; 2 of 7 this week, a Tuesday.
+ */
 export const CARD_HARBORLINE: RatingGoalCardView = {
   ...CARD,
   status: 'on_pace',
@@ -31,8 +43,7 @@ export const CARD_HARBORLINE: RatingGoalCardView = {
   googleShowsSoon: false,
   thisWeekCount: 2,
   justSet: false,
-  // 18 reviews at 1 a day; 13 and 29 days at the ends of the likely range.
-  forecast: inDays(18, 13, 29),
+  forecast: HARBORLINE_ARRIVAL,
   forecastBasis: 'chosen_pace',
   qualityBasis: 'blended',
   setAt: '2026-09-24T09:00:00.000Z',
@@ -41,7 +52,7 @@ export const CARD_HARBORLINE: RatingGoalCardView = {
   stillNeeded: 18,
   lastFourWeeksPerWeek: 6.75,
   baseline: { googleShows: 3.9, reviewCount: 261, exactAverage: 3.912 },
-  nextUp: { targetTenths: 42, reviewsBeyondGoal: 95, days: { num: 113, den: 1 } },
+  nextUp: { targetTenths: 42, reviewsBeyondGoal: 80, days: { num: 98, den: 1 } },
   weekday: 2,
 }
 
@@ -49,8 +60,14 @@ export const CARD_HARBORLINE: RatingGoalCardView = {
 export const CARD_ACTUAL_PACE: RatingGoalCardView = {
   ...CARD_HARBORLINE,
   forecastBasis: 'actual_pace',
-  // 18 reviews at 27 in the last 28 days.
-  forecast: inDays(19, 13, 30),
+  // The same 18, 15 and 23 reviews at 27 in the last 28 days.
+  forecast: {
+    kind: 'days',
+    central: { num: 18 * 28, den: 27 },
+    fast: { num: 15 * 28 * 100, den: 27 * 110 },
+    slow: { num: 23 * 28 * 100, den: 27 * 90 },
+  },
+  nextUp: { ...CARD_HARBORLINE.nextUp!, days: { num: 98 * 28, den: 27 } },
   setAt: '2026-09-08T09:00:00.000Z',
 }
 
@@ -93,12 +110,14 @@ export const CARD_LAGS_MIDDLE: RatingGoalCardView = {
     kind: 'days',
     central: { num: 180, den: 1 },
     fast: { num: 129 * 7000, den: 7700 },
-    slow: { num: 270 * 7000, den: 6300 },
+    // 4.6★ clears 4.5 by 0.15★: 300 reviews at 90% of the pace.
+    slow: { num: 300 * 7000, den: 6300 },
   },
   next: { targetTenths: 45, target: 4.5, reviewsNeeded: 180 },
   earnedTenths: 44,
   stillNeeded: 180,
-  nextUp: null,
+  // 4.7★ just clears 4.6's floor of 4.7: 634 reviews in all, 454 past the goal.
+  nextUp: { targetTenths: 46, reviewsBeyondGoal: 454, days: { num: 634, den: 1 } },
   baseline: { googleShows: 4.3, reviewCount: 480, exactAverage: 4.33 },
 }
 
@@ -120,25 +139,48 @@ export const CARD_WAITING: RatingGoalCardView = {
   google: { ...HARBORLINE_GOOGLE, current: false, asOf: '2026-10-12T08:00:00.000Z' },
 }
 
-/** Ten days in: a neutral chip, the same layout. */
+/**
+ * Ten days in, Google still at 3.9: 4 reviews since the set summing 19 (265
+ * reviews, 1,040 stars, exact 3.92), blended 4.55★: 12 new reviews to 4.0 and
+ * 67 to 4.1. A neutral chip, the same layout.
+ */
 export const CARD_GETTING_STARTED: RatingGoalCardView = {
   ...CARD_HARBORLINE,
   status: 'getting_started',
-  google: { ...HARBORLINE_GOOGLE, shows: 3.9 },
+  google: { ...HARBORLINE_GOOGLE, shows: 3.9, reviewCount: 265 },
+  exactAverage: 3.925,
   next: { targetTenths: 40, target: 4, reviewsNeeded: 12 },
-  stillNeeded: 70,
-  forecast: inDays(70, 52, 98),
+  stillNeeded: 67,
+  forecast: {
+    kind: 'days',
+    central: { num: 67, den: 1 },
+    fast: { num: 56 * 7000, den: 7700 },
+    slow: { num: 83 * 7000, den: 6300 },
+  },
+  nextUp: { targetTenths: 42, reviewsBeyondGoal: 82, days: { num: 149, den: 1 } },
   setAt: '2026-10-04T09:00:00.000Z',
 }
 
-/** Set yesterday: the aim a day stands in for this week. */
+/**
+ * Harborline at the set (PLAN-D §2, the setup's receipt): 261 reviews, 3.912,
+ * 19 new reviews to 4.0, 81 to 4.1 and 4.2 possible in 178. The aim a day
+ * stands in for this week.
+ */
 export const CARD_HARBORLINE_JUST_SET: RatingGoalCardView = {
   ...CARD_GETTING_STARTED,
   justSet: true,
   thisWeekCount: 0,
+  google: { ...HARBORLINE_GOOGLE, shows: 3.9, reviewCount: 261 },
+  exactAverage: 3.912,
   next: { targetTenths: 40, target: 4, reviewsNeeded: 19 },
   stillNeeded: 81,
-  forecast: inDays(81, 60, 114),
+  forecast: {
+    kind: 'days',
+    central: { num: 81, den: 1 },
+    fast: { num: 66 * 7000, den: 7700 },
+    slow: { num: 103 * 7000, den: 6300 },
+  },
+  nextUp: { targetTenths: 42, reviewsBeyondGoal: 97, days: { num: 178, den: 1 } },
   setAt: '2026-10-13T09:00:00.000Z',
 }
 
@@ -155,7 +197,7 @@ export const CARD_NO_PACE: RatingGoalCardView = {
 /** 0.1★ less than the average expected no longer reaches 4.1: the range is open. */
 export const CARD_OPEN_SLOW: RatingGoalCardView = {
   ...CARD_HARBORLINE,
-  forecast: inDays(18, 13, null),
+  forecast: { ...HARBORLINE_ARRIVAL, slow: null },
 }
 
 /** RepKey holds fewer reviews than Google counts: every count is "about", no squares. */

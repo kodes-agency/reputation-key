@@ -79,7 +79,14 @@ describe('the card’s climb', () => {
   it('counts to the goal past a tenth Google should show soon (shown 4.3, exact 4.36)', async () => {
     numbers(500, 2180, 4.300000190734863)
     world.summary = { ...world.summary, sinceSet: { count: 0, sum: 0 } }
-    world.goals = [activeGoal({ targetTenths: 45, qualityTenths: 47 })]
+    world.goals = [
+      activeGoal({
+        targetTenths: 45,
+        qualityTenths: 47,
+        paceTenthsPerWeek: 70,
+        createdAt: new Date(NOW.getTime() - 3 * DAY),
+      }),
+    ]
 
     const card = await readCard()
 
@@ -89,7 +96,11 @@ describe('the card’s climb', () => {
       next: { targetTenths: 45, target: 4.5, reviewsNeeded: 180 },
       earnedTenths: 44,
       stillNeeded: 180,
+      // 4.6 clears its 4.7 floor at 4.7: 634 in all, 454 past the goal.
+      nextUp: { targetTenths: 46, reviewsBeyondGoal: 454 },
     })
+    expect(days(card!.forecast)).toEqual({ central: 180, fast: 117.27, slow: 333.33 })
+    expect(card!.nextUp!.days.num / card!.nextUp!.days.den).toBe(634)
   })
 
   it('counts to nothing once the reviews have earned the goal and Google lags', async () => {

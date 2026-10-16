@@ -115,7 +115,7 @@ describe('the ladder', () => {
       'goal',
     ])
     expect(ladderLabel(rungsOf(CARD_LAGS_MIDDLE))).toBe(
-      'Google shows 4.3 now. Google should show 4.4 soon. Your goal is 4.5.',
+      'Google shows 4.3 now. Google should show 4.4 soon. Your goal is 4.5. 4.6 is possible after that.',
     )
   })
 

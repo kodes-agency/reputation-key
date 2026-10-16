@@ -78,7 +78,7 @@ describe('RatingGoalCard', () => {
     expect(text).toContain('On pace')
     expect(text).toContain('18 new reviews to 4.1')
     expect(text).toContain('4.1 in about 3 weeks at your 1 a day, likely 2–4 weeks.')
-    expect(text).toContain('4.2 is possible in about 4 months.')
+    expect(text).toContain('4.2 is possible in about 3 months.')
   })
 
   it('draws the ladder as one picture, upright and across, with its words as its name', () => {

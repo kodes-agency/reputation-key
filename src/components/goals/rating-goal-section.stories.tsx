@@ -133,7 +133,7 @@ export const OnPace: Story = {
     await expect(
       canvas.getByText('4.1 in about 3 weeks at your 1 a day, likely 2–4 weeks.'),
     ).toBeVisible()
-    await expect(canvas.getByText('4.2 is possible in about 4 months.')).toBeVisible()
+    await expect(canvas.getByText('4.2 is possible in about 3 months.')).toBeVisible()
     await expect(
       canvas.getByRole('progressbar', { name: 'New reviews this week' }),
     ).toHaveAttribute('aria-valuetext', '2 of 7 new reviews this week')
@@ -194,6 +194,13 @@ export const JustSet: Story = {
     await expect(canvas.getByText('81 new reviews to your goal, 4.1.')).toBeVisible()
     await expect(canvas.getByText('Aim for about 1 new review a day')).toBeVisible()
     await expect(canvas.queryByRole('progressbar')).toBeNull()
+    // The setup's receipt, word for word (R4-4).
+    await expect(
+      canvas.getByText(
+        '4.1 in about 3 months at your 1 a day, likely 9 weeks to 4 months.',
+      ),
+    ).toBeVisible()
+    await expect(canvas.getByText('4.2 is possible in about 6 months.')).toBeVisible()
   },
 }
 
@@ -278,9 +285,13 @@ export const LagsMiddle: Story = {
     await expect(canvas.queryByText(wholeText('0 new reviews to 4.4'))).toBeNull()
     await expect(
       canvas.getAllByRole('img', {
-        name: 'Google shows 4.3 now. Google should show 4.4 soon. Your goal is 4.5.',
+        name: 'Google shows 4.3 now. Google should show 4.4 soon. Your goal is 4.5. 4.6 is possible after that.',
       }),
     ).toHaveLength(2)
+    await expect(
+      canvas.getByText('4.5 in about 6 months at your 1 a day, likely 4–11 months.'),
+    ).toBeVisible()
+    await expect(canvas.getByText('4.6 is possible in about 2 years.')).toBeVisible()
   },
 }
 
@@ -301,7 +312,7 @@ export const OpenSlowEnd: Story = {
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByText(
-        '4.1 in about 3 weeks at your 1 a day, likely 13 days or more.',
+        '4.1 in about 3 weeks at your 1 a day, likely 14 days or more.',
       ),
     ).toBeVisible()
   },
