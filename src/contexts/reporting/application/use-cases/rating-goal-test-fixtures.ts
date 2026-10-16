@@ -67,10 +67,10 @@ export type FakeWorld = {
   authorizations: string[]
   deny: boolean
   summaryRequests: GoogleRatingSummaryRequest[]
-  /** The bounds each month and day read was asked with, in order. */
+  /** The bounds each month, day, history and shown-number read was asked with, in order. */
   evidenceRequests: Array<
     | Readonly<{ read: 'months'; since: Date; minimumCount: number }>
-    | Readonly<{ read: 'days'; since: Date }>
+    | Readonly<{ read: 'days' | 'history' | 'shown'; since: Date }>
   >
   /** Every port call, in order: `policy.authorize`, `repository.findActive`, ... */
   calls: string[]
@@ -327,9 +327,14 @@ function fakeReviews(world: FakeWorld): ReviewGoogleRatingReads {
       world.evidenceRequests = [...world.evidenceRequests, { read: 'days', since }]
       return world.days
     },
-    getWeeklyCounts: async () => [{ weekStart: '2026-10-12', count: 3 }],
-    getWeeklyHistory: async () => world.history,
-    getShownNumberChanges: async () => world.shown,
+    getWeeklyHistory: async (_org, _property, since) => {
+      world.evidenceRequests = [...world.evidenceRequests, { read: 'history', since }]
+      return world.history
+    },
+    getShownNumberChanges: async (_org, _property, since) => {
+      world.evidenceRequests = [...world.evidenceRequests, { read: 'shown', since }]
+      return world.shown
+    },
     getStarDistribution: async () =>
       [1, 2, 3, 4, 5].map((stars) => ({ stars, count: stars === 5 ? 3 : 0 })),
   }

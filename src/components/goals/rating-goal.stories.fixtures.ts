@@ -221,6 +221,15 @@ export const DETAIL: RatingGoalDetailView = {
     lastFourWeeksPerWeek: 9.5,
     forecast: inDays(156, 120, 230),
   },
+  // Drawn by the round 5 detail; the detail's own fixtures carry the climb.
+  chart: null,
+  planSoFar: { prePlan: null, reachedTenths: null },
+  moved: {
+    shownChanges: [],
+    setBy: 'user-ana',
+    initialTargetTenths: 44,
+    initialPaceTenthsPerWeek: 140,
+  },
 }
 
 export const HISTORY: readonly RatingGoalHistoryEntry[] = [

@@ -335,6 +335,11 @@ describe('the detail read', () => {
         newValue: '105',
       },
     ]
+    // Three reviews this week; the weeks come with the chart's history.
+    world.history = {
+      startAverageThousandths: 4302,
+      weeks: [{ weekStart: '2026-10-12', count: 3, endAverageThousandths: 4310 }],
+    }
 
     const detail = await getRatingGoalDetail(dependencies(world), input, actor)
 

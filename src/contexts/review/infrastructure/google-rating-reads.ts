@@ -248,19 +248,6 @@ export const createGoogleRatingReads = (deps: {
       })
     },
 
-    async getWeeklyCounts(organizationId, propertyId, since) {
-      return trace('review.googleRatingReads.getWeeklyCounts', async () => {
-        const rows = await deps.db
-          .select({ weekStart: reviewWeek, count: count() })
-          .from(reviews)
-          .innerJoin(properties, currentBinding)
-          .where(currentGoogleReviews(organizationId, propertyId, deps.clock(), since))
-          .groupBy(reviewWeek)
-          .orderBy(reviewWeek)
-        return rows.map((row) => ({ weekStart: row.weekStart, count: Number(row.count) }))
-      })
-    },
-
     async getWeeklyHistory(organizationId, propertyId, since) {
       return trace('review.googleRatingReads.getWeeklyHistory', async () => {
         const totals = await weekTotals(deps, organizationId, propertyId, since)

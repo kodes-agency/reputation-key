@@ -112,7 +112,6 @@ describe('Review context build', () => {
       'getRatingSummary',
       'getShownNumberChanges',
       'getStarDistribution',
-      'getWeeklyCounts',
       'getWeeklyHistory',
       'getYearlyTotals',
     ])

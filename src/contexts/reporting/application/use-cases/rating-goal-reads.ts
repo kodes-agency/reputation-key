@@ -14,7 +14,7 @@
 // Google's next numbers arrive.
 
 import { actualRate, chosenRate } from '../../domain/rating-goal-arrival'
-import { weeklySeries, weeklySeriesStart } from '../../domain/rating-goal-weeks'
+import { weeklySeries } from '../../domain/rating-goal-weeks'
 import {
   DAY_READ_LOOKBACK_DAYS,
   EVIDENCE_MIN_REVIEWS,
@@ -41,6 +41,7 @@ import {
   planProgressView,
 } from '../rating-goal-views'
 import { forecastFor } from '../rating-goal-tracking-views'
+import { detailChartStart, detailTracking } from '../rating-goal-detail-views'
 import type { GoalActor } from './goal-program-shared'
 import {
   authorizeRatingGoal,
@@ -120,12 +121,11 @@ export async function getRatingGoalDetail(
   const org = toOrganizationId(goal.organizationId)
   const property = toPropertyId(goal.propertyId)
   const timezone = reading.facts.timezone
-  const [weekCounts, starsSinceSet, changes] = await Promise.all([
-    deps.reviews.getWeeklyCounts(
-      org,
-      property,
-      weeklySeriesStart(goal.createdAt, reading.now, timezone),
-    ),
+  // The chart reads from four weeks before the set's week (a year back at most).
+  const chartFrom = detailChartStart(goal, reading).instant
+  const [history, shown, starsSinceSet, changes] = await Promise.all([
+    deps.reviews.getWeeklyHistory(org, property, chartFrom),
+    deps.reviews.getShownNumberChanges(org, property, chartFrom),
     deps.reviews.getStarDistribution(org, property, goal.createdAt),
     deps.repository.listChanges(
       goal.organizationId,
@@ -139,8 +139,9 @@ export async function getRatingGoalDetail(
   const basis = goalBasis(goal, reading)?.basis ?? null
   const pace = goal.paceTenthsPerWeek
   const climbing = basis !== null && pace !== null
+  const card = cardOf(evaluated)
   return {
-    ...cardOf(evaluated),
+    ...card,
     bestCase: bestCaseNeeded(goal, basis),
     forecastAtChosenPace: climbing
       ? forecastFor(basis, goal.targetTenths, chosenRate(pace))
@@ -149,10 +150,11 @@ export async function getRatingGoalDetail(
       ? forecastFor(basis, goal.targetTenths, actualRate(reading.reviewsLast28Days))
       : null,
     recentMix: mixView(reading.mix),
-    weeks: weeklySeries(goal.createdAt, reading.now, timezone, weekCounts),
+    weeks: weeklySeries(goal.createdAt, reading.now, timezone, history.weeks),
     starsSinceSet,
     changes: changes.recent.map(changeView),
     plan: planProgressView(goal, reading),
+    ...detailTracking({ goal, reading, card, reads: { history, shown, changes } }),
   }
 }
 

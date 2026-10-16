@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  chartStart,
+  chartWeeks,
+  dayOfInstant,
+  daysFromToday,
   MAX_WEEKLY_BARS,
   propertyWeekday,
+  shiftDateKey,
   weekStartInstant,
   weekStartKey,
   weeklySeries,
-  weeklySeriesStart,
 } from './rating-goal-weeks'
 
 const SOFIA = 'Europe/Sofia'
@@ -77,8 +81,54 @@ describe('the weekly bars since a goal was set', () => {
 
     expect(MAX_WEEKLY_BARS).toBe(52)
     expect(weeklySeries(twoYearsAgo, now, 'UTC', [])).toHaveLength(52)
-    expect(weeklySeriesStart(twoYearsAgo, now, 'UTC')).toEqual(
-      new Date('2025-10-20T00:00:00.000Z'),
-    )
+  })
+})
+
+describe('the days of the detail chart', () => {
+  // Tuesday 27 October 2026, after Sofia left summer time on Sunday 25 October.
+  const now = new Date('2026-10-27T10:00:00.000Z')
+
+  it('counts whole Property-local days from today, across the clocks going back', () => {
+    expect(daysFromToday('2026-10-27', now, SOFIA)).toBe(0)
+    expect(daysFromToday('2026-10-19', now, SOFIA)).toBe(-8)
+    expect(daysFromToday('2026-11-02', now, SOFIA)).toBe(6)
+  })
+
+  it('puts an instant on its Property-local date', () => {
+    // 21:30 UTC on Sunday 25 Oct is 23:30 that Sunday in Sofia (UTC+2).
+    expect(dayOfInstant(new Date('2026-10-25T21:30:00.000Z'), now, SOFIA)).toBe(-2)
+    // 22:30 UTC on Sunday 25 Oct is 00:30 on Monday 26 Oct.
+    expect(dayOfInstant(new Date('2026-10-25T22:30:00.000Z'), now, SOFIA)).toBe(-1)
+  })
+
+  it('moves a date by whole days', () => {
+    expect(shiftDateKey('2026-10-12', -28)).toBe('2026-09-14')
+    expect(shiftDateKey('2026-12-28', 7)).toBe('2027-01-04')
+  })
+
+  it('starts four weeks before the Monday of the set’s week', () => {
+    // Set on Wednesday 14 Oct: that week's Monday is 12 Oct, minus 28 days.
+    expect(chartStart(new Date('2026-10-14T09:00:00.000Z'), now, SOFIA)).toEqual({
+      key: '2026-09-14',
+      instant: new Date('2026-09-13T21:00:00.000Z'),
+    })
+  })
+
+  it('starts a year back at most', () => {
+    // This Monday is 26 Oct; 52 weeks before it, Sofia is on winter time.
+    expect(chartStart(new Date('2025-06-01T09:00:00.000Z'), now, SOFIA)).toEqual({
+      key: '2025-10-27',
+      instant: new Date('2025-10-26T22:00:00.000Z'),
+    })
+  })
+
+  it('lists every Monday from the start to this week’s', () => {
+    expect(chartWeeks('2026-09-28', now, SOFIA)).toEqual([
+      '2026-09-28',
+      '2026-10-05',
+      '2026-10-12',
+      '2026-10-19',
+      '2026-10-26',
+    ])
   })
 })

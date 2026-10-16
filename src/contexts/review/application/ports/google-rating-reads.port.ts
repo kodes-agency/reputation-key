@@ -71,13 +71,6 @@ export type GoogleRatingSummary = Readonly<{
 /** The reviews created in one calendar year of the Property's time zone. */
 export type GoogleRatingYearTotals = GoogleRatingTotals & Readonly<{ year: number }>
 
-/** Reviews created in one Monday-to-Sunday week of the Property's time zone. */
-export type GoogleRatingWeekCount = Readonly<{
-  /** The week's Monday in the Property's time zone, `YYYY-MM-DD`. */
-  weekStart: string
-  count: number
-}>
-
 /** The reviews created in one calendar month of the Property's time zone. */
 export type GoogleRatingMonthTotals = GoogleRatingTotals &
   Readonly<{ year: number; month: number }>
@@ -130,13 +123,6 @@ export type ReviewGoogleRatingReads = Readonly<{
     propertyId: PropertyId,
     request: GoogleRatingSummaryRequest,
   ): Promise<GoogleRatingSummary>
-
-  /** Reviews created at or after `since`, per Property-local Monday-to-Sunday week. */
-  getWeeklyCounts(
-    organizationId: OrganizationId,
-    propertyId: PropertyId,
-    since: Date,
-  ): Promise<readonly GoogleRatingWeekCount[]>
 
   /** Totals per Property-local calendar year, oldest first; a year without reviews is absent. */
   getYearlyTotals(
