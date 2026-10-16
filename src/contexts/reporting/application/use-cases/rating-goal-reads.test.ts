@@ -76,6 +76,15 @@ describe('the setup read', () => {
     expect(setup).toMatchObject({ offerKeepFirst: true, offersClimb: false })
   })
 
+  it('offers Keep first, and no climb, when Google shows 4.8 but 4.9 is earned (D28)', async () => {
+    world.snapshot = { ...world.snapshot!, averageRating: Math.fround(4.8) }
+    world.summary = { ...world.summary, all: { count: 812, sum: 3947 } } // 4.861
+
+    const setup = await getRatingGoalSetup(dependencies(world), input, actor)
+
+    expect(setup).toMatchObject({ offerKeepFirst: true, offersClimb: false })
+  })
+
   it('says how many reviews there are when there are fewer than ten', async () => {
     world.snapshot = { ...world.snapshot!, reviewCount: 6 }
 

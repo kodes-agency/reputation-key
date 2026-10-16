@@ -77,8 +77,9 @@ export type RatingGoalSetupView = Readonly<{
    */
   setupInputs: RatingGoalSetupInputs | null
   /**
-   * A goal to climb can be planned: eligible, with inputs, and Google shows
-   * less than 4.9. Worked out with no planning maths (D18).
+   * A goal to climb can be planned: eligible, with inputs, and the reviews
+   * have earned less than 4.9 (so Google shows less too, and is not catching
+   * up with a 4.9, D28). Worked out with no planning maths (D18).
    */
   offersClimb: boolean
 }>

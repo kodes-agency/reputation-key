@@ -21,6 +21,7 @@ import {
   type RecentMix,
   type ReviewsNeeded,
 } from '../domain/rating-goal-numbers'
+import { earnedTenths } from '../domain/rating-goal-duration'
 import { forecastArrival, type RatingForecast } from '../domain/rating-goal-forecast'
 import { googleNumbersView } from '../domain/google-numbers'
 import { currentPacePerWeek, paceRatio } from '../domain/rating-goal-pace'
@@ -193,12 +194,20 @@ export function buildSetupView(
     ...exactView(reading),
     offerKeepFirst: basis !== null && offerKeepFirst(basis.displayedTenths),
     setupInputs,
-    offersClimb:
-      eligibility.eligible &&
-      setupInputs !== null &&
-      setupInputs.displayedTenths < HIGHEST_TARGET_TENTHS,
+    offersClimb: eligibility.eligible && setupInputs !== null && climbable(setupInputs),
   }
 }
+
+/**
+ * A climb is left while the reviews have earned less than 4.9; above it Google
+ * catches up with a tenth already earned (D28). One exact comparison, no plan.
+ */
+const climbable = (inputs: RatingGoalSetupInputs): boolean =>
+  earnedTenths({
+    reviewCount: inputs.reviewCount,
+    displayedTenths: inputs.displayedTenths,
+    exact: ratio(inputs.exact.num, inputs.exact.den),
+  }) < HIGHEST_TARGET_TENTHS
 
 export type GoalBasis = Readonly<{ basis: RatingGoalBasis; qualityBasis: QualityBasis }>
 
