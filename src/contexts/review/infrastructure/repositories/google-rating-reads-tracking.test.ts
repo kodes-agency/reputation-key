@@ -298,6 +298,35 @@ describe('Google’s shown number over time', () => {
     ])
   })
 
+  it('reads nothing older than the number in force at since', async () => {
+    // Years of earlier snapshots, flapping: none is returned, none is a change's "before".
+    await insertFact({ at: '2024-03-01T08:00:00Z', averageRating: 4.5, reviewCount: 90 })
+    await insertFact({ at: '2025-03-01T08:00:00Z', averageRating: 3.0, reviewCount: 150 })
+    await insertFact({ at: '2026-10-05T08:00:00Z', averageRating: 3.9, reviewCount: 255 })
+    await insertFact({ at: '2026-10-14T08:00:00Z', averageRating: 3.9, reviewCount: 258 })
+
+    const shown = await reads().getShownNumberChanges(ORG, PROPERTY, SINCE)
+
+    expect(shown).toEqual([
+      { at: new Date('2026-10-05T08:00:00Z'), averageRating: 3.9, reviewCount: 255 },
+    ])
+  })
+
+  it('starts with the first snapshot after since when none was in force', async () => {
+    await insertFact({ at: '2026-10-20T08:00:00Z', averageRating: 4, reviewCount: 262 })
+    await insertFact({
+      at: '2026-10-22T08:00:00Z',
+      averageRating: 3.95,
+      reviewCount: 263,
+    })
+
+    const shown = await reads().getShownNumberChanges(ORG, PROPERTY, SINCE)
+
+    expect(shown).toEqual([
+      { at: new Date('2026-10-20T08:00:00Z'), averageRating: 4, reviewCount: 262 },
+    ])
+  })
+
   it('starts again from the first snapshot of a new binding epoch', async () => {
     await insertFact({ at: '2026-10-05T08:00:00Z', averageRating: 3.9, reviewCount: 255 })
     await held.client.query(`UPDATE properties SET source_epoch = 3 WHERE id = $1`, [

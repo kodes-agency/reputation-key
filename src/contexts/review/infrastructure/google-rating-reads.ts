@@ -134,9 +134,34 @@ const shownTenths = sql<
 >`floor((round(${snapshotFacts.averageRating} * 1000000) + 50000) / 100000)`
 
 /**
+ * The Property's snapshot facts under its current binding epoch. The epoch is
+ * a scalar subquery (none when the Property is not the tenant's), so every
+ * column of the scope index is bound and the newest-first probe is one index
+ * read.
+ */
+const currentSnapshotFacts = (
+  organizationId: OrganizationId,
+  propertyId: PropertyId,
+) => sql`
+  ${snapshotFacts}
+  WHERE ${snapshotFacts.organizationId} = ${organizationId}
+    AND ${snapshotFacts.propertyId} = ${propertyId}
+    AND ${snapshotFacts.sourceEpoch} = (
+      SELECT ${properties.sourceEpoch} FROM ${properties}
+      WHERE ${properties.id} = ${propertyId}
+        AND ${properties.organizationId} = ${organizationId}
+    )`
+
+/**
  * The snapshot in force at `since` and every later one whose shown tenth
  * differs from the one before it (the newest, when there are more than the
  * limit holds), under the Property's current binding epoch, oldest first.
+ *
+ * The in-force row's instant is found first (the newest at or before
+ * `since`: one probe of the scope index), and the LAG runs only over the facts
+ * from it on (from `since` when there is none): snapshot facts are kept for
+ * good, one per completed sync run, so a scan over all of them would grow
+ * every year.
  */
 async function shownNumberChanges(
   db: Database,
@@ -144,12 +169,22 @@ async function shownNumberChanges(
   propertyId: PropertyId,
   since: Date,
 ): Promise<readonly GoogleShownNumber[]> {
+  const scope = currentSnapshotFacts(organizationId, propertyId)
   const result = await db.execute<{
     evaluatedAt: Date | string
     averageRating: number | null
     reviewCount: number
   }>(sql`
-    WITH facts AS (
+    WITH bound AS (
+      SELECT COALESCE(
+        (
+          SELECT max(${snapshotFacts.evaluatedAt}) FROM ${scope}
+            AND ${snapshotFacts.evaluatedAt} <= ${since}
+        ),
+        ${since}
+      ) AS evaluated_from
+    ),
+    facts AS (
       SELECT ${snapshotFacts.evaluatedAt} AS evaluated_at,
         ${snapshotFacts.averageRating} AS average_rating,
         ${snapshotFacts.reviewCount} AS review_count,
@@ -160,13 +195,8 @@ async function shownNumberChanges(
         ROW_NUMBER() OVER (
           ORDER BY ${snapshotFacts.evaluatedAt}, ${snapshotFacts.runId}
         ) AS position
-      FROM ${snapshotFacts}
-      INNER JOIN ${properties}
-        ON ${properties.id} = ${snapshotFacts.propertyId}
-        AND ${properties.organizationId} = ${snapshotFacts.organizationId}
-        AND ${properties.sourceEpoch} = ${snapshotFacts.sourceEpoch}
-      WHERE ${snapshotFacts.organizationId} = ${organizationId}
-        AND ${snapshotFacts.propertyId} = ${propertyId}
+      FROM ${scope}
+        AND ${snapshotFacts.evaluatedAt} >= (SELECT evaluated_from FROM bound)
     ),
     in_force AS (
       SELECT * FROM facts WHERE evaluated_at <= ${since} ORDER BY position DESC LIMIT 1
