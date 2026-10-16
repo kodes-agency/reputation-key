@@ -116,7 +116,8 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
   test('the owner sets a goal and sees the card on Goals and on the Overview', async ({
     page,
   }) => {
-    test.skip(shownTenths(googleAverage) >= 49, 'P1 shows 4.9: there is nothing to climb')
+    // The seed's P1 shows less than 4.9, so there is a number to climb to.
+    expect(shownTenths(googleAverage)).toBeLessThan(49)
     await signIn(page)
     await page.goto(`/properties/${P1}/goals`)
     const target = await setGoalAsOwner(page, googleAverage)
@@ -131,7 +132,6 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
   test('manager-one sees the card; manager-zero and the staff Member are refused it', async ({
     browser,
   }) => {
-    test.skip(shownTenths(googleAverage) >= 49, 'P1 shows 4.9: there is nothing to climb')
     const target = shownTenths(googleAverage) + 1
 
     const oneContext = await browser.newContext({ baseURL: BASE_ORIGIN })
