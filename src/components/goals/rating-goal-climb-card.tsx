@@ -64,7 +64,7 @@ function Headline({ card }: Pick<Props, 'card'>) {
   return (
     <p className="text-2xl leading-tight font-semibold">
       <span className="tabular-nums">{headline.count}</span> {headline.words}{' '}
-      <span className="text-primary tabular-nums">{headline.target}</span>
+      <span className="text-link tabular-nums">{headline.target}</span>
     </p>
   )
 }

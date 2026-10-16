@@ -11,12 +11,12 @@ import { tenthsText } from './rating-goal-view'
 
 /** Each rung's disc: today filled, the goal ringed, what is ahead dashed. */
 const DISC: Readonly<Record<RungTag, string>> = {
-  start: 'border-2 border-border bg-card',
+  start: 'border-2 border-muted-foreground bg-card',
   today: 'bg-foreground text-background',
   soon: 'border-2 border-foreground bg-card',
   next: 'border-2 border-dashed border-primary bg-card',
   goal: 'border-2 border-primary bg-card',
-  possible: 'border-2 border-dashed border-border bg-card',
+  possible: 'border-2 border-dashed border-muted-foreground bg-card',
 }
 
 const NUMBER: Readonly<Record<RungTag, string>> = {
@@ -24,7 +24,7 @@ const NUMBER: Readonly<Record<RungTag, string>> = {
   today: 'text-lg font-semibold',
   soon: 'text-base',
   next: 'text-base',
-  goal: 'text-xl font-semibold text-primary',
+  goal: 'text-xl font-semibold text-link',
   possible: 'text-base text-muted-foreground',
 }
 
