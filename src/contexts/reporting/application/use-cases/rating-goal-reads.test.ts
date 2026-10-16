@@ -315,7 +315,7 @@ describe('the detail read', () => {
         changedBy: 'manager-2',
         changedAt: new Date('2026-10-06T09:00:00.000Z'),
         field: 'pace',
-        // Logged in tenths a week; "Pick a plan" reads it a week.
+        // Logged in tenths a week.
         oldValue: '100',
         newValue: '105',
       },

@@ -32,7 +32,7 @@ const keep49 = {
   paceTenthsPerWeek: null,
 } as const
 
-/** Google shows 4.9 (3980 / 812 = 4.9015): the only numbers Keep is set at (R2-9). */
+/** Google shows 4.9 (3980 / 812 = 4.9015): no climb is left, only Keep (R2-9, X1). */
 function showingFourNine(at: FakeWorld): void {
   at.snapshot = { ...at.snapshot!, averageRating: Math.fround(4.9) }
   at.summary = { ...at.summary, all: { count: 812, sum: 3980 } }

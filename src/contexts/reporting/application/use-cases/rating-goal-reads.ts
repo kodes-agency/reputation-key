@@ -66,7 +66,10 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const daysBefore = (now: Date, days: number): Date =>
   new Date(now.getTime() - days * DAY_MS)
 
-/** "Pick a plan": Google's numbers, eligibility, plans, stops, paces and forecasts. */
+/**
+ * The setup: Google's numbers, eligibility and the exact inputs the one-screen
+ * setup works its plan out from (with `offersClimb` and `offerKeepFirst`).
+ */
 export async function getRatingGoalSetup(
   deps: RatingGoalDependencies,
   input: RatingGoalPropertyInput,

@@ -114,7 +114,7 @@ export const CARD_JUST_SET: RatingGoalCardView = {
   setAt: '2026-10-13T09:00:00.000Z',
 }
 
-/** A goal to keep, which is set only while Google shows 4.9 or 5.0 (R2-9). */
+/** A goal to keep, which is set from a shown 4.7 (X1; R2-9 said 4.9). */
 export const CARD_KEEP: RatingGoalCardView = {
   ...CARD,
   mode: 'keep',

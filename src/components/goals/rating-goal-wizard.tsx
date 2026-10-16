@@ -1,7 +1,7 @@
 // The Google rating goal wizard (ADR 0067, decision 9; rounds 3 and 4, E2/E4):
 // "Your Google goal", one screen opened already answered, then "Your goal is
-// set"; or, for a goal that keeps the number Google shows (offered first only
-// at 4.9 or 5.0), one step. A change opens the screen on the goal's own plan,
+// set"; or, for a goal that keeps the number Google shows (offered first from
+// a shown 4.7, X1, the only choice at 4.9 or 5.0), one step. A change opens the screen on the goal's own plan,
 // saves only what differs against the version it was opened on, and closes
 // with a toast.
 //
