@@ -72,7 +72,7 @@ export const SetsAGoal: Story = {
         mode: 'climb',
         targetTenths: 40,
         qualityTenths: 45,
-        pacePerWeek: 2,
+        paceTenthsPerWeek: 20,
       },
     })
     await expect(args.onSaved).toHaveBeenCalledOnce()
