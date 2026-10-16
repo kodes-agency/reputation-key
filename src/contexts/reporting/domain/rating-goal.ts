@@ -101,6 +101,17 @@ export type PropertyRatingGoal = RatingGoalPlan &
     createdBy: string
     createdAt: Date
     updatedAt: Date
+    /**
+     * When the pace came into force: the set, or the latest change of the pace
+     * (round 5, owner answer Q3). A new pace is judged only from it: the goal
+     * is getting started again for 14 days and its pace window starts here.
+     */
+    paceSince: Date
+    /**
+     * The Property-local Monday (YYYY-MM-DD) of the week whose check-in a
+     * manager answered with Keep; null until one did (round 5, Q4).
+     */
+    recapAnsweredWeek: string | null
     /** Optimistic concurrency: a change names the version it was made on. */
     version: number
   }>
@@ -248,3 +259,15 @@ export function planChanges(
   }
   return rows
 }
+
+/**
+ * When the pace a change of plan leaves came into force: the change itself
+ * when it moves the pace (a switch between keep and climb included), else
+ * when the goal's pace started.
+ */
+export const paceSinceAfter = (
+  goal: Pick<PropertyRatingGoal, 'paceTenthsPerWeek' | 'paceSince'>,
+  next: RatingGoalPlan,
+  changedAt: Date,
+): Date =>
+  goal.paceTenthsPerWeek === next.paceTenthsPerWeek ? goal.paceSince : changedAt

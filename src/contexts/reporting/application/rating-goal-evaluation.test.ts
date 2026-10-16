@@ -38,6 +38,8 @@ const goal = (overrides: Partial<PropertyRatingGoal> = {}): PropertyRatingGoal =
   createdBy: 'manager-1',
   createdAt: new Date(NOW.getTime() - 40 * DAY),
   updatedAt: new Date(NOW.getTime() - 40 * DAY),
+  paceSince: overrides.createdAt ?? new Date(NOW.getTime() - 40 * DAY),
+  recapAnsweredWeek: null,
   version: 1,
   ...overrides,
 })

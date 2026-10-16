@@ -208,6 +208,8 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
           reachedAt: null,
           endedAt: null,
           version: 1,
+          paceSince: goal.createdAt,
+          recapAnsweredWeek: null,
         },
       ]
       return 'inserted'
@@ -219,6 +221,7 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
       replace({
         ...goal,
         ...change.plan,
+        paceSince: change.paceSince,
         lastEvaluation: { ...goal.lastEvaluation, knownStatus: null },
         version: goal.version + 1,
       })
@@ -423,6 +426,8 @@ export function activeGoal(
     createdBy: 'manager-1',
     createdAt: new Date(NOW.getTime() - 40 * DAY),
     updatedAt: new Date(NOW.getTime() - 40 * DAY),
+    paceSince: overrides.createdAt ?? new Date(NOW.getTime() - 40 * DAY),
+    recapAnsweredWeek: null,
     version: 1,
     ...overrides,
   }

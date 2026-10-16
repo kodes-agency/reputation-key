@@ -33,13 +33,21 @@ export type RatingGoalPropertyFactsReader = Readonly<{
 }>
 
 /**
- * A goal as it is set: active, version 1. Its `lastEvaluation` is what the
- * set saw (the tenth Google showed, the status it starts in), so the first
- * evaluation can tell a tenth gained or lost since then from a first reading.
+ * A goal as it is set: active, version 1, its pace in force from its
+ * `createdAt` (the insert writes it explicitly) and no check-in answered. Its
+ * `lastEvaluation` is what the set saw (the tenth Google showed, the status it
+ * starts in), so the first evaluation can tell a tenth gained or lost since
+ * then from a first reading.
  */
 export type NewPropertyRatingGoal = Omit<
   PropertyRatingGoal,
-  'state' | 'endedReason' | 'reachedAt' | 'endedAt' | 'version'
+  | 'state'
+  | 'endedReason'
+  | 'reachedAt'
+  | 'endedAt'
+  | 'version'
+  | 'paceSince'
+  | 'recapAnsweredWeek'
 >
 
 export type RatingGoalPlanChange = Readonly<{
@@ -51,6 +59,8 @@ export type RatingGoalPlanChange = Readonly<{
   /** One row per changed field, with ids and who/when filled in. */
   changes: readonly RatingGoalChange[]
   changedAt: Date
+  /** When the plan's pace came into force: `changedAt` when the pace moves (paceSinceAfter). */
+  paceSince: Date
 }>
 
 export type RatingGoalManagerEnd = Readonly<{

@@ -100,6 +100,8 @@ const goalFromRow = (row: GoalRow): PropertyRatingGoal => ({
   createdBy: row.createdBy,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
+  paceSince: row.paceSince,
+  recapAnsweredWeek: row.recapAnsweredWeek,
   version: row.version,
 })
 
@@ -329,6 +331,9 @@ export const createPropertyRatingGoalRepository = (
           createdBy: goal.createdBy,
           createdAt: goal.createdAt,
           updatedAt: goal.updatedAt,
+          // Explicit, never the column's DEFAULT: the pace starts with the set,
+          // on the injected clock (ADR 0017).
+          paceSince: goal.createdAt,
         })
         // The only key a fresh id can collide on is the one-active index.
         .onConflictDoNothing()
@@ -346,6 +351,7 @@ export const createPropertyRatingGoalRepository = (
             targetTenths: change.plan.targetTenths,
             qualityTenths: change.plan.qualityTenths,
             ...paceColumns(change.plan.paceTenthsPerWeek),
+            paceSince: change.paceSince,
             // The status the new plan puts the goal in is the manager's own
             // doing: the next evaluation stores it without a notice.
             lastKnownStatus: null,

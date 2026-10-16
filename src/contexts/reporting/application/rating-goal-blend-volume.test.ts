@@ -151,6 +151,8 @@ const goalOf = (property: Property, plan: number): PropertyRatingGoal => ({
   createdBy: 'manager-1',
   createdAt: SET_AT,
   updatedAt: SET_AT,
+  paceSince: SET_AT,
+  recapAnsweredWeek: null,
   version: 1,
 })
 

@@ -223,6 +223,7 @@ describe('a manager’s change', () => {
       },
     ],
     changedAt: LATER,
+    paceSince: LATER,
   })
 
   it('writes the plan and its log rows, and moves the version', async () => {
@@ -396,6 +397,7 @@ describe('an evaluation write', () => {
         changedAt: LATER,
       })),
       changedAt: LATER,
+      paceSince: LATER,
     })
 
   it('refuses an evaluation worked out on a target a manager has since changed', async () => {
