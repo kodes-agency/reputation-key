@@ -11,7 +11,7 @@ export function RatingGoalSlots({ count }: Readonly<{ count: number }>) {
       role="img"
       aria-label={slotsLabel(count)}
       data-slot="rating-goal-slots"
-      className="flex max-w-md flex-wrap gap-1"
+      className="flex max-w-md flex-wrap gap-0.5"
     >
       {Array.from({ length: count }, (_, at) => (
         <span

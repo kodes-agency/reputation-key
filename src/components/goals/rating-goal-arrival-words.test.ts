@@ -5,6 +5,7 @@ import {
   arrivalLine,
   arrivalSentence,
   possibleSentence,
+  shortArrival,
 } from './rating-goal-arrival-words'
 import { CARD, CARD_KEEP } from './rating-goal.stories.fixtures'
 
@@ -85,6 +86,28 @@ describe('an arrival on a line of its own', () => {
     expect(arrivalLine({ kind: 'earned' }, 4.1, AVERAGE)).toBe(
       'Google should show 4.1 soon.',
     )
+  })
+})
+
+describe('the narrow card’s short arrival (D4)', () => {
+  it('names the goal and when, without the pace or the range', () => {
+    expect(shortArrival(HARBORLINE_CARD)).toBe('4.1 in about 3 months')
+  })
+
+  it('says more than 3 years away past three years', () => {
+    const far = { num: 1200, den: 1 }
+
+    expect(
+      shortArrival({
+        ...HARBORLINE_CARD,
+        forecast: { ...HARBORLINE_ARRIVAL, central: far, fast: far, slow: far },
+      }),
+    ).toBe('4.1 is more than 3 years away')
+  })
+
+  it('has none without a time: the full sentence says why', () => {
+    expect(shortArrival({ ...HARBORLINE_CARD, forecast: { kind: 'no_pace' } })).toBeNull()
+    expect(shortArrival(CARD_KEEP)).toBeNull()
   })
 })
 

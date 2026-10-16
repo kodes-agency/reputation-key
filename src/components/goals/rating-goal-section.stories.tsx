@@ -84,8 +84,9 @@ const meta: Meta<typeof RatingGoalSection> = {
     hasPortals: true,
     onStart: fn(),
   },
+  // As wide as the Goals page draws it, so the card reaches its wide layout (D2).
   render: (args) => (
-    <div className="max-w-3xl">
+    <div className="max-w-5xl">
       <RatingGoalSection {...args} />
     </div>
   ),
@@ -113,23 +114,39 @@ async function expectSquares(canvas: Canvas, count: number) {
  * a square for each, when the goal arrives, this week on its day, the first
  * step and the ways on. The title takes the focus back from the wizard.
  */
+/**
+ * The ladder is drawn twice, upright and across, with the same words as its
+ * name; CSS shows one. A hidden picture has no accessible name, so the plays
+ * read the attribute and hold in a browser with or without the stylesheet.
+ */
+async function expectLadder(canvas: Canvas, name: string) {
+  const ladders = canvas
+    .getAllByRole('img', { hidden: true })
+    .filter((picture) => picture.getAttribute('aria-label') === name)
+  await expect(ladders).toHaveLength(2)
+}
+
+/** What the card draws at every width: the title, the chip, the ladder, the headline and its squares. */
+async function expectOnPaceClimb(canvas: Canvas) {
+  const heading = canvas.getByRole('heading', { level: 2, name: 'Google rating goal' })
+  await expect(heading).toHaveAttribute('id', RATING_GOAL_HEADING_ID)
+  heading.focus()
+  await expect(heading).toHaveFocus()
+  await expect(canvas.getByText('On pace')).toBeVisible()
+  // Upright and across: one picture each, the same words (only one shows).
+  await expectLadder(
+    canvas,
+    'Started at 3.9. Google shows 4.0 now. Your goal is 4.1. 4.2 is possible after that.',
+  )
+  await expect(canvas.getByText(wholeText('18 new reviews to 4.1'))).toBeVisible()
+  await expectSquares(canvas, 18)
+}
+
 export const OnPace: Story = {
   args: { card: cardRead(CARD_HARBORLINE) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const heading = canvas.getByRole('heading', { level: 2, name: 'Google rating goal' })
-    await expect(heading).toHaveAttribute('id', RATING_GOAL_HEADING_ID)
-    heading.focus()
-    await expect(heading).toHaveFocus()
-    await expect(canvas.getByText('On pace')).toBeVisible()
-    // Upright and across: one picture each, the same words (only one shows).
-    await expect(
-      canvas.getAllByRole('img', {
-        name: 'Started at 3.9. Google shows 4.0 now. Your goal is 4.1. 4.2 is possible after that.',
-      }),
-    ).toHaveLength(2)
-    await expect(canvas.getByText(wholeText('18 new reviews to 4.1'))).toBeVisible()
-    await expectSquares(canvas, 18)
+    await expectOnPaceClimb(canvas)
     await expect(
       canvas.getByText('4.1 in about 3 weeks at your 1 a day, likely 2–4 weeks.'),
     ).toBeVisible()
@@ -263,12 +280,10 @@ export const WaitingForGoogle: Story = {
     await expectSquares(canvas, 0)
     // Stale numbers are not "now": no first step, and the ladder says "last".
     await expect(canvas.queryByText(/ now, up from /u)).toBeNull()
-    await expect(
-      canvas.getAllByRole('img', {
-        name: 'Started at 3.9. Google showed 4.0 last. Your goal is 4.1.',
-        hidden: true,
-      }),
-    ).toHaveLength(2)
+    await expectLadder(
+      canvas,
+      'Started at 3.9. Google showed 4.0 last. Your goal is 4.1.',
+    )
   },
 }
 
@@ -291,11 +306,10 @@ export const LagsMiddle: Story = {
     await expect(canvas.getByText(wholeText('180 new reviews to 4.5'))).toBeVisible()
     await expect(canvas.getByText('Google should show 4.4 soon')).toBeVisible()
     await expect(canvas.queryByText(wholeText('0 new reviews to 4.4'))).toBeNull()
-    await expect(
-      canvas.getAllByRole('img', {
-        name: 'Google shows 4.3 now. Google should show 4.4 soon. Your goal is 4.5. 4.6 is possible after that.',
-      }),
-    ).toHaveLength(2)
+    await expectLadder(
+      canvas,
+      'Google shows 4.3 now. Google should show 4.4 soon. Your goal is 4.5. 4.6 is possible after that.',
+    )
     await expect(
       canvas.getByText('4.5 in about 6 months at your 1 a day, likely 4–11 months.'),
     ).toBeVisible()
@@ -708,34 +722,91 @@ export const ReadFailed: Story = {
 
 const PHONE = { viewport: { defaultViewport: 'mobileStaff' } } as const
 
+/**
+ * A phone draws D4's short card: this week and when in one line; the pace, the
+ * likely range, the bar, the first step and the Portals wait for the wide card.
+ */
+async function expectNarrowLine(canvas: Canvas, line: string) {
+  await expect(canvas.getByText(line)).toBeVisible()
+}
+
 export const OnPacePhone: Story = {
   ...OnPace,
   parameters: PHONE,
-  play: async (context) => {
-    await OnPace.play?.(context)
-    // The card's ways on are button-shaped links: tap targets on a phone.
-    const canvas = within(context.canvasElement)
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expectOnPaceClimb(canvas)
+    await expectNarrowLine(canvas, 'This week 2 of 7 · 4.1 in about 3 weeks')
+    // The card's way on is a button-shaped link: a tap target on a phone.
     await expect(canvas.getByRole('link', { name: 'View details' })).toHaveAttribute(
       'data-slot',
       'button',
     )
   },
 }
-export const FarGoalPhone: Story = { ...FarGoal, parameters: PHONE }
-export const ActualPacePhone: Story = { ...ActualPace, parameters: PHONE }
-export const JustSetPhone: Story = { ...JustSet, parameters: PHONE }
+export const FarGoalPhone: Story = {
+  ...FarGoal,
+  parameters: PHONE,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(wholeText('31 new reviews to 4.4'))).toBeVisible()
+    await expect(canvas.getByText('212 new reviews to your goal, 4.5.')).toBeVisible()
+    await expectNarrowLine(canvas, 'This week 6 of 11 · 4.5 in about 5 months')
+  },
+}
+export const ActualPacePhone: Story = {
+  ...ActualPace,
+  parameters: PHONE,
+  play: async ({ canvasElement }) => {
+    await expectNarrowLine(
+      within(canvasElement),
+      'This week 2 of 7 · 4.1 in about 3 weeks',
+    )
+  },
+}
+export const JustSetPhone: Story = {
+  ...JustSet,
+  parameters: PHONE,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(wholeText('19 new reviews to 4.0'))).toBeVisible()
+    await expect(canvas.getByText('81 new reviews to your goal, 4.1.')).toBeVisible()
+    await expectNarrowLine(
+      canvas,
+      'Aim for about 1 new review a day · 4.1 in about 3 months',
+    )
+  },
+}
 export const ApproximateNumbersPhone: Story = { ...ApproximateNumbers, parameters: PHONE }
 /** The long chip drops below the title on a phone instead of squeezing it. */
 export const NewReviewsTooLowPhone: Story = { ...NewReviewsTooLow, parameters: PHONE }
 export const WaitingForGooglePhone: Story = { ...WaitingForGoogle, parameters: PHONE }
 export const GoogleShowsSoonPhone: Story = { ...GoogleShowsSoon, parameters: PHONE }
-export const LagsMiddlePhone: Story = { ...LagsMiddle, parameters: PHONE }
+export const LagsMiddlePhone: Story = {
+  ...LagsMiddle,
+  parameters: PHONE,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(wholeText('180 new reviews to 4.5'))).toBeVisible()
+    await expect(canvas.getByText('Google should show 4.4 soon')).toBeVisible()
+    await expectNarrowLine(canvas, 'This week 6 of 7 · 4.5 in about 6 months')
+  },
+}
 export const NoPacePhone: Story = { ...NoPace, parameters: PHONE }
-export const OpenSlowEndPhone: Story = { ...OpenSlowEnd, parameters: PHONE }
+export const OpenSlowEndPhone: Story = {
+  ...OpenSlowEnd,
+  parameters: PHONE,
+  play: async ({ canvasElement }) => {
+    await expectNarrowLine(
+      within(canvasElement),
+      'This week 2 of 7 · 4.1 in about 3 weeks',
+    )
+  },
+}
 
 export const OnPaceLight: Story = { ...OnPace, parameters: { theme: 'light' } }
 export const OnPacePhoneLight: Story = {
-  ...OnPace,
+  ...OnPacePhone,
   parameters: { ...PHONE, theme: 'light' },
 }
 

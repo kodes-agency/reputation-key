@@ -94,6 +94,22 @@ export function arrivalSentence(
 }
 
 /**
+ * The narrow card's arrival (D4): "4.1 in about 3 months", or "4.1 is more than
+ * 3 years away"; the pace and the likely range are on the wide card and the
+ * detail. Null without a time, where the full sentence says why.
+ */
+export function shortArrival(
+  card: Pick<RatingGoalCardView, 'forecast' | 'target'>,
+): string | null {
+  const arrival = card.forecast
+  if (arrival?.kind !== 'days') return null
+  const target = ratingText(card.target)
+  return beyondThreeYears(arrival)
+    ? `${target} is more than 3 years away`
+    : `${target} ${whenText(arrival.central)}`
+}
+
+/**
  * "4.2 is possible in about 6 months." (R4-4); none past three years, nor while
  * the card waits for Google's latest numbers (it gives no time then). The
  * ladder's "possible" rung follows this sentence.

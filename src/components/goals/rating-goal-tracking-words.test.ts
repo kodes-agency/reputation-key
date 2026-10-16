@@ -5,6 +5,7 @@ import {
   goalLineText,
   headlineText,
   ladderLabel,
+  narrowWeekLine,
   reviewCountText,
   rungsOf,
   slotCount,
@@ -186,6 +187,29 @@ describe('this week', () => {
       text: 'Aim for about 1 new review a day',
     })
     expect(thisWeekOf(CARD_KEEP)).toBeNull()
+  })
+})
+
+describe('the narrow card’s one line (D4)', () => {
+  it('says this week and when the goal arrives', () => {
+    expect(narrowWeekLine(CARD_HARBORLINE)).toBe(
+      'This week 2 of 7 · 4.1 in about 3 weeks',
+    )
+  })
+
+  it('asks for the aim a day while the goal is new', () => {
+    expect(narrowWeekLine(CARD_HARBORLINE_JUST_SET)).toBe(
+      'Aim for about 1 new review a day · 4.1 in about 3 months',
+    )
+  })
+
+  it('gives no time while Google should show the goal or its numbers are stale', () => {
+    expect(narrowWeekLine(CARD_LAGS)).toBe('This week 2 of 7')
+    expect(narrowWeekLine(CARD_WAITING)).toBe('This week 2 of 7')
+  })
+
+  it('says nothing for a goal to keep', () => {
+    expect(narrowWeekLine(CARD_KEEP)).toBeNull()
   })
 })
 

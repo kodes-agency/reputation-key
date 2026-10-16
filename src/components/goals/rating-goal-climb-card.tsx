@@ -3,7 +3,10 @@
 // numbers, the new reviews to the next number Google can show with a square
 // for each, when the goal arrives, this week against the plan, the first step
 // once taken, and the way to the detail and the Portals. The card is its own
-// container, so a narrow slot draws the phone layout at any screen width.
+// container, so a narrow slot draws the phone layout at any screen width: D4's
+// short card (the ladder, the headline, the squares, one line for this week
+// and when, one link); the pace, the likely range, what is possible after the
+// goal, the week's bar, the first step and the Portals are on the wide card.
 import { Link } from '@tanstack/react-router'
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { Alert, AlertDescription } from '#/components/ui/alert'
@@ -12,7 +15,11 @@ import { Card, CardContent } from '#/components/ui/card'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { cn } from '#/lib/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { arrivalSentence, possibleSentence } from './rating-goal-arrival-words'
+import {
+  arrivalSentence,
+  possibleSentence,
+  shortArrival,
+} from './rating-goal-arrival-words'
 import { RatingGoalCardHeader } from './rating-goal-card-header'
 import { PLAN_POLICY_LINE } from './rating-goal-copy'
 import { RatingGoalLadder } from './rating-goal-ladder'
@@ -22,6 +29,7 @@ import {
   firstStepText,
   goalLineText,
   headlineOf,
+  narrowWeekLine,
   rungsOf,
   slotCount,
   soonText,
@@ -43,6 +51,8 @@ type Props = Readonly<{
 }>
 
 const QUIET = 'text-sm text-muted-foreground'
+/** Drawn only on a card at least 48rem wide (D2); a narrower one is D4's short card. */
+const WIDE_ONLY = 'hidden @3xl:block'
 
 /** "18 new reviews to 4.1", the figure large; or "Google should show 4.1 soon". */
 function Headline({ card }: Pick<Props, 'card'>) {
@@ -71,7 +81,11 @@ function Waiting({ card, timezone, now }: Omit<Props, 'propertyId'>) {
   )
 }
 
-/** The climb in words: the headline, what is coming soon, the goal, the squares and when. */
+/**
+ * The climb in words: the headline with its squares under it, what is coming
+ * soon, the goal and when. A time the narrow card's one line gives is drawn
+ * in full only on the wide card; why there is no time is said at every width.
+ */
 function Climb({ card }: Pick<Props, 'card'>) {
   const soon = soonText(card)
   const goal = goalLineText(card)
@@ -82,11 +96,13 @@ function Climb({ card }: Pick<Props, 'card'>) {
   return (
     <>
       <Headline card={card} />
+      <RatingGoalSlots count={slotCount(card)} />
       {soon === null ? null : <p className="text-sm">{soon}</p>}
       {goal === null ? null : <p className={QUIET}>{goal}</p>}
-      <RatingGoalSlots count={slotCount(card)} />
-      {arrival === null ? null : <p className={QUIET}>{arrival}</p>}
-      {possible === null ? null : <p className={QUIET}>{possible}</p>}
+      {arrival === null ? null : (
+        <p className={cn(QUIET, shortArrival(card) !== null && WIDE_ONLY)}>{arrival}</p>
+      )}
+      {possible === null ? null : <p className={cn(QUIET, WIDE_ONLY)}>{possible}</p>}
     </>
   )
 }
@@ -116,7 +132,7 @@ function Links({ propertyId }: Pick<Props, 'propertyId'>) {
         </Link>
       </Button>
       {can('portal.read') ? (
-        <Button asChild variant="ghost">
+        <Button asChild variant="ghost" className="hidden @3xl:flex">
           <Link to="/properties/$propertyId/portals" params={{ propertyId }}>
             Open Portals
           </Link>
@@ -130,6 +146,7 @@ export function RatingGoalClimbCard({ card, propertyId, timezone, now }: Props) 
   const rungs = rungsOf(card)
   const current = card.google?.current !== false
   const firstStep = firstStepText(card)
+  const narrow = narrowWeekLine(card)
   return (
     <Card data-slot="rating-goal-card" className="@container gap-4">
       <RatingGoalCardHeader>
@@ -149,10 +166,13 @@ export function RatingGoalClimbCard({ card, propertyId, timezone, now }: Props) 
           </div>
           <div className="flex min-w-0 flex-col gap-4 @2xl:border-l @2xl:pl-6">
             <RatingGoalThisWeek card={card} />
+            {narrow === null ? null : <p className="text-sm @3xl:hidden">{narrow}</p>}
             {firstStep === null ? null : (
-              <Alert variant="success">
-                <AlertDescription>{firstStep}</AlertDescription>
-              </Alert>
+              <div className={WIDE_ONLY}>
+                <Alert variant="success">
+                  <AlertDescription>{firstStep}</AlertDescription>
+                </Alert>
+              </div>
             )}
             <Links propertyId={propertyId} />
           </div>

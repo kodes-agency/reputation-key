@@ -18,6 +18,7 @@ import {
   CARD_FAR_GOAL,
   CARD_GOOGLE_SOURCE,
   CARD_HARBORLINE,
+  CARD_HARBORLINE_JUST_SET,
   CARD_LAGS,
   CARD_LAGS_MIDDLE,
   CARD_TOO_LOW,
@@ -88,6 +89,31 @@ describe('RatingGoalCard', () => {
 
     expect(html.match(new RegExp(`role="img" aria-label="${label}"`, 'gu'))).toHaveLength(
       2,
+    )
+  })
+
+  it('keeps a narrow card to D4’s: one line for this week and when, the rest wide only', () => {
+    const html = render(CARD_HARBORLINE)
+    const wideOnly = (words: string) =>
+      new RegExp(`class="[^"]*hidden @3xl:(block|flex)[^"]*">${words}`, 'u')
+
+    expect(html).toMatch(
+      /class="text-sm @3xl:hidden">This week 2 of 7 · 4.1 in about 3 weeks</u,
+    )
+    expect(html).toMatch(wideOnly('4.1 in about 3 weeks at your 1 a day'))
+    expect(html).toMatch(wideOnly('4.2 is possible'))
+    expect(html).toMatch(
+      /data-slot="rating-goal-this-week" class="hidden[^"]*@3xl:flex"/u,
+    )
+  })
+
+  it('draws the squares under the headline they count', () => {
+    const text = textOf(render(CARD_HARBORLINE_JUST_SET))
+    const html = render(CARD_HARBORLINE_JUST_SET)
+
+    expect(text).toContain('19 new reviews to 4.0 81 new reviews to your goal, 4.1.')
+    expect(html.indexOf('data-slot="rating-goal-slots"')).toBeLessThan(
+      html.indexOf('81 new reviews to your goal'),
     )
   })
 

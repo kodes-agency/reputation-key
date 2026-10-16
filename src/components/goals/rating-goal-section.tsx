@@ -48,11 +48,14 @@ type Props = Readonly<{
 }>
 
 /**
- * The climb card's height, so the read that fills it moves nothing (CLS):
- * measured in the stories (2026-10-16) at 594px on a 390px phone and 312px at
- * 1280px, and held between the two along the viewport in between.
+ * The climb card's height, so the read that fills it moves nothing (CLS),
+ * measured in the stories (2026-10-16, D4's short card on a phone): 386px at
+ * 320px, 340px from 390px until the card turns wide at a 768px viewport, and
+ * 312px on a desktop. The first term follows the small phones, the second
+ * holds 340px below 768px and drops out above it.
  */
-const PENDING_HEIGHT = 'clamp(312px, calc(718px - 31.7vw), 594px)'
+const PENDING_HEIGHT =
+  'max(clamp(312px, calc(596px - 65.7vw), 386px), min(340px, calc((768px - 100vw) * 1000)))'
 
 const Pending = () => (
   <Skeleton

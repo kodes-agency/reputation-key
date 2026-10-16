@@ -7,7 +7,7 @@
 // because a square promises a count it cannot know (E7).
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { formatNumber } from '#/lib/format'
-import { possibleSentence } from './rating-goal-arrival-words'
+import { possibleSentence, shortArrival } from './rating-goal-arrival-words'
 import { actualPaceText, newReviewsAim, weeklyTarget } from './rating-goal-pace-words'
 import { tenthsText } from './rating-goal-view'
 
@@ -210,6 +210,21 @@ export function thisWeekOf(card: Card): ThisWeekView | null {
         ? `${day} · ${actualPaceText(card.lastFourWeeksPerWeek, pace)} over the last 4 weeks`
         : day,
   }
+}
+
+/**
+ * The narrow card's one line under the squares (D4): "This week 2 of 7 · 4.1
+ * in about 3 weeks", the aim a day while the goal is new, and no time while
+ * Google should show the goal or its numbers are stale.
+ */
+export function narrowWeekLine(card: Card): string | null {
+  const week = thisWeekOf(card)
+  const timed = !card.googleShowsSoon && card.status !== 'waiting_for_google'
+  const parts = [
+    week === null ? null : week.kind === 'aim' ? week.text : `This week ${week.value}`,
+    timed ? shortArrival(card) : null,
+  ].filter((part) => part !== null)
+  return parts.length === 0 ? null : parts.join(' · ')
 }
 
 /**

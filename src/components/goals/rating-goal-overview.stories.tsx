@@ -88,10 +88,23 @@ export const ActiveGoal: Story = {
   },
 }
 
-/** The Overview on a phone: the card's own container draws the phone layout. */
+/**
+ * The Overview on a phone: the card's own container draws D4's short card, so
+ * this week and when are one line and the rest waits for the wide card.
+ */
 export const ActiveGoalPhone: Story = {
-  ...ActiveGoal,
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+  play: async ({ canvasElement }) => {
+    const card = within(canvasElement)
+    await expect(card.getByText(words('18 new reviews to 4.1'))).toBeVisible()
+    await expect(
+      card.getByRole('img', {
+        name: '18 empty squares, one for each new review still needed',
+      }),
+    ).toBeVisible()
+    await expect(card.getByText('This week 2 of 7 · 4.1 in about 3 weeks')).toBeVisible()
+    await expect(card.getByRole('link', { name: 'View details' })).toBeVisible()
+  },
 }
 
 export const ActiveGoalLight: Story = { ...ActiveGoal, parameters: { theme: 'light' } }
