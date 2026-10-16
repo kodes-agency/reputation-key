@@ -1,14 +1,15 @@
 // Property Google rating goal — when a target is expected (pure).
 //
-// There is no deadline: a goal shows a forecast month range that moves with
-// the numbers. The mix is the average stars new reviews are expected to bring:
-// a plan's planned quality, or a goal's tracking mix (its planned quality
-// blended with the reviews since it was set, the plan counted as 15 reviews, or
-// their own average while they are too low; round 4, X3). The range allows for drift in both inputs. Its early end is the
-// mix 0.1★ better (never above five stars) and the pace 10% faster; its late
-// end the mix 0.1★ worse and the pace 10% slower. When the worse mix no longer
-// clears the threshold the late end is open. Months are named in the Property's time zone, counted
-// from an injected `now` (ADR 0017).
+// There is no deadline: a goal shows a forecast month range that moves with the
+// numbers. The mix is the average stars new reviews are expected to bring: a
+// plan's planned quality, or a goal's tracking mix (its planned quality blended
+// with the reviews since it was set, the plan counted as 15 reviews, or their
+// own average while they are too low; round 4, X3). The range allows for drift
+// in both inputs. Its early end is the mix 0.1★ better (never above five stars)
+// and the pace 10% faster; its late end the mix 0.1★ worse and the pace 10%
+// slower. When the worse mix no longer clears the threshold the late end is
+// open. Months are named in the Property's time zone, counted from an injected
+// `now` (ADR 0017).
 
 import { propertyWallClockAt } from '#/shared/domain/property-calendar'
 import {
