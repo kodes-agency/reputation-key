@@ -534,6 +534,12 @@
 // the PR 3 branch tip measured 308,596 B (75 js + 1 css), +196 B, twice with the
 // same bytes. That left 4 B, so the budget moves to 308,800 B. With this the
 // rating goal work has raised the budget +900 B of the owner's +2 KB.
+//
+// 2026-10-16 (security: TanStack Start 1.168.58 -> 1.168.60 and Router 1.170.39 ->
+// 1.170.41 for GHSA-qx66-fv34-fjm8, a critical reflected XSS in server-function
+// responses): fresh production builds measured 309,282 B (75 js + 1 css) against
+// 308,612 B on main 7ddd92006, +670 B, all in the TanStack vendor chunk. A
+// critical advisory is not optional, so the budget moves to 309,300 B (18 B spare).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -545,7 +551,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 308_800, // raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
+  initialClosureGzip: 309_300, // raised to 309,300 on 2026-10-16 for the TanStack security release, measured 309,282 (main 308,612); raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
