@@ -1,6 +1,6 @@
 // The Google rating goal wizard at the end of a single-Property Google import:
-// the same "Pick a plan" inside the setup frame, on the page (decision 10;
-// round 2, R2-6), with "Not now" as every step's way out. The Storybook Vitest project compiles no
+// the same one screen, "Your Google goal", inside the setup frame, on the page
+// (decision 10; rounds 3 and 4), with "Not now" as every step's way out. The Storybook Vitest project compiles no
 // Tailwind, so the plays assert what is on the page and what each button sends.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
@@ -46,14 +46,16 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 /** On the page, not over it: no dialog, and "Not now" is the way out. */
-export const PickAPlan: Story = {
+export const YourGoogleGoal: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await expect(within(document.body).queryByRole('dialog')).toBeNull()
     const step = within(canvas.getByRole('region', { name: 'Google rating goal' }))
-    await expect(step.getByRole('heading', { name: 'Pick a plan' })).toBeVisible()
+    await expect(step.getByRole('heading', { name: 'Your Google goal' })).toBeVisible()
     await expect(step.getByText('Google shows 3.9 from 261 reviews.')).toBeVisible()
-    await expect(step.getByRole('radio', { name: /^Recommended 4\.0/ })).toBeChecked()
+    await expect(
+      step.getByRole('spinbutton', { name: 'Goal on Google' }),
+    ).toHaveAttribute('aria-valuenow', '4.1')
     await expect(step.queryByRole('button', { name: 'Cancel' })).toBeNull()
 
     await userEvent.click(step.getByRole('button', { name: 'Not now' }))
@@ -70,9 +72,9 @@ export const SetsAGoal: Story = {
       data: {
         propertyId: FIXTURE_PROPERTY_ID,
         mode: 'climb',
-        targetTenths: 40,
+        targetTenths: 41,
         qualityTenths: 45,
-        paceTenthsPerWeek: 20,
+        paceTenthsPerWeek: 70,
       },
     })
     await expect(args.onSaved).toHaveBeenCalledOnce()

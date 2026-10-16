@@ -142,7 +142,7 @@ export function RatingGoalPaceControl(props: Props) {
   }
   return (
     <div className="flex flex-col">
-      <div className="flex items-center gap-3" style={{ minHeight: 36 }}>
+      <div className="flex flex-wrap items-center gap-x-3" style={{ minHeight: 36 }}>
         <span
           id={`${idBase}-pace`}
           className="text-sm whitespace-nowrap text-muted-foreground"

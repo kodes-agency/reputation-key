@@ -18,6 +18,7 @@ export function RatingGoalSetupStatusLine({
 }>) {
   return (
     <p
+      data-slot="rating-goal-status"
       className={cn(
         'flex items-center gap-x-2 text-sm',
         small && 'flex-wrap justify-center text-center',

@@ -16,9 +16,9 @@ export const wholeText =
     element?.textContent === text &&
     Array.from(element.children).every((child) => child.textContent !== text)
 
-/** Presses "Set goal" and waits for "Your goal is set" to take the focus. */
+/** Presses "Aim for {T}" and waits for "Your goal is set" to take the focus. */
 export async function setGoalAndLand(scope: Scope): Promise<void> {
-  await userEvent.click(scope.getByRole('button', { name: 'Set goal' }))
+  await userEvent.click(scope.getByRole('button', { name: /^Aim for / }))
   await waitFor(() =>
     expect(scope.getByRole('heading', { name: 'Your goal is set' })).toHaveFocus(),
   )

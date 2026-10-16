@@ -178,8 +178,9 @@ export const DETAIL: RatingGoalDetailView = {
       changedBy: 'user-ana',
       changedAt: '2026-09-02T08:15:00.000Z',
       field: 'pace',
-      oldValue: '14',
-      newValue: '11',
+      // As logged: tenths of a review a week.
+      oldValue: '140',
+      newValue: '110',
     },
     {
       changedBy: 'user-ana',

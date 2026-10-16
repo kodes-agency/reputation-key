@@ -234,8 +234,8 @@ export function RatingGoalSetupStep(props: Props) {
       <PlanBehind props={props} plan={view} />
       <div
         className={cn(
-          'flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground',
-          small && 'justify-center text-xs',
+          'flex flex-wrap items-center justify-center gap-x-2 text-center text-sm text-muted-foreground',
+          small && 'text-xs',
         )}
       >
         {small ? null : (

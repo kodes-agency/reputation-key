@@ -22,7 +22,9 @@ export function RatingGoalRatingRuler({
     <div
       aria-hidden="true"
       className="relative w-full"
-      style={{ maxWidth: small ? 300 : 520, height: small ? 56 : 58 }}
+      // The goal's dot rides a full-width layer moved by transform: clip it
+      // sideways so it never widens the screen.
+      style={{ maxWidth: small ? 300 : 520, height: small ? 56 : 58, overflowX: 'clip' }}
     >
       <div
         className="absolute inset-x-0 rounded-full bg-border"

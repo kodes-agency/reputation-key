@@ -1,7 +1,8 @@
 // The approved scenarios of the one-screen setup (E2/E4, PLAN-R4 §2), as the
-// setup read hands them to the page, for the view-model's tests. Each is a
+// setup read hands them to the page, for the view-model's tests and the stories. Each is a
 // Property the owner reviewed: the figures reproduce the approved canvas.
 import type { RatingGoalSetupInputs } from '#/contexts/reporting/application/dto/rating-goal-setup.types'
+import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
 
 type Figures = Partial<RatingGoalSetupInputs> &
   Pick<RatingGoalSetupInputs, 'reviewCount' | 'displayedTenths'>
@@ -89,3 +90,35 @@ export const LOW_RATING = setupInputs(
   { reviewCount: 80, displayedTenths: 25, reviewsLast90Days: 3, busiest30Days: 2 },
   200,
 )
+
+/** 4.8 from 500: Keep first; a climb only at 5.0★ typed (X1). */
+export const EDGE_48 = setupInputs({ reviewCount: 500, displayedTenths: 48 }, 2400)
+
+/** 4.9 from 500: nothing higher to aim for, Keep only. */
+export const EDGE_49 = setupInputs({ reviewCount: 500, displayedTenths: 49 }, 2450)
+
+/** Google shows 4.5 while the cache's 20 reviews average 4.9: every tenth earned (D28). */
+export const CATCHING_UP = setupInputs({ reviewCount: 20, displayedTenths: 45 }, 98)
+
+/**
+ * The setup read a page hands the wizard for these inputs: eligible, Google's
+ * one-decimal number, Keep first from 4.7 (X1) and a climb below 4.9.
+ */
+export function setupViewOf(inputs: RatingGoalSetupInputs): RatingGoalSetupView {
+  const shows = inputs.displayedTenths / 10
+  return {
+    eligibility: { eligible: true },
+    hasActiveGoal: false,
+    google: {
+      shows,
+      reviewCount: inputs.reviewCount,
+      asOf: inputs.asOf,
+      current: true,
+    },
+    exactAverage: Math.round((inputs.exact.num / inputs.exact.den) * 1000) / 1000,
+    exactAverageSource: inputs.exactSource,
+    offerKeepFirst: inputs.displayedTenths >= 47,
+    setupInputs: inputs,
+    offersClimb: inputs.displayedTenths < 49,
+  }
+}
