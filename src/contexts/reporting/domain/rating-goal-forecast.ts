@@ -22,9 +22,9 @@ import {
 } from './rating-goal-numbers'
 
 /** The forecast allows the recent mix to drift this far either way (0.1★). */
-const FORECAST_MIX_DRIFT_THOUSANDTHS = 100
+export const FORECAST_MIX_DRIFT_THOUSANDTHS = 100
 /** The forecast allows the pace to drift this far either way. */
-const FORECAST_PACE_DRIFT_PERCENT = 10
+export const FORECAST_PACE_DRIFT_PERCENT = 10
 /** Nothing is forecast further out than ten years. */
 export const FORECAST_HORIZON_WEEKS = 520
 

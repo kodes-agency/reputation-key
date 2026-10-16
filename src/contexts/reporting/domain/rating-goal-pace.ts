@@ -8,7 +8,7 @@
 // said "about 10" informally). A Property that gets fewer than one review a
 // week is offered at least 1, 2 and 3.
 
-import { ratio, type Ratio } from './rating-goal-numbers'
+import { ratio, roundHalfUpInt as roundHalfUp, type Ratio } from './rating-goal-numbers'
 
 /** The current pace counts the reviews of this many days. */
 export const PACE_WINDOW_DAYS = 28
@@ -35,10 +35,6 @@ export type PaceKey = keyof PaceSuggestions
 /** Reviews created in the last 28 days, per week. */
 export const currentPacePerWeek = (reviewsLast28Days: number): Ratio =>
   ratio(reviewsLast28Days, PACE_WINDOW_WEEKS)
-
-/** round(numerator / denominator), half up, for non-negative integers. */
-const roundHalfUp = (numerator: number, denominator: number): number =>
-  Math.floor((2 * numerator + denominator) / (2 * denominator))
 
 /**
  * Steady = max(1, round(p)), Faster = max(2, round(1.5p)), Push =

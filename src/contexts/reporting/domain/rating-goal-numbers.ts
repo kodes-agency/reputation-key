@@ -59,6 +59,10 @@ export function ratio(num: number | bigint, den: number | bigint): Ratio {
   return { num: n / divisor, den: d / divisor }
 }
 
+/** round(numerator / denominator), half up, for non-negative integers. */
+export const roundHalfUpInt = (numerator: number, denominator: number): number =>
+  Math.floor((2 * numerator + denominator) / (2 * denominator))
+
 export const ratioToNumber = (value: Ratio): number =>
   Number(value.num) / Number(value.den)
 
