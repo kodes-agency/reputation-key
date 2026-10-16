@@ -1,27 +1,27 @@
-// Property Google rating goal — the targets a manager can pick (pure).
+// Property Google rating goal — the targets a goal can name (pure).
 //
-// The targets run from the tenth above what Google shows up to 4.9; 5.0 is
-// shown disabled, because it needs every review from now on to be five stars.
-// A target is labelled from the forecast at the Faster pace: Realistic within
-// 26 weeks, Stretch within 52, Out of reach beyond that (stopLabel). Since
-// round 2 (2026-10-15) each target is worked out at its own recommended
-// planned quality, not at the recent mix: rating-goal-plans.ts builds the
-// stops, the recommended target and the plans from this module's rules.
+// A climb target runs from the tenth above what Google shows up to 4.9; 5.0 is
+// never a target, because it needs every review from now on to be five stars.
+// What a target needs at a planned average is `planNeeds`. Keep is offered
+// first, in place of a climb, only when Google shows 4.9 or 5.0 (R2-9). Rounds
+// 3 and 4 (2026-10-16) retired the Realistic / Stretch labels and the 5.0 stop:
+// the setup recommends one goal and words its time (rating-goal-duration.ts).
 
-import type { Ratio, ReviewsNeeded } from './rating-goal-numbers'
+import {
+  bestCaseReviewsNeeded,
+  ratio,
+  reviewsNeeded,
+  thresholdThousandths,
+  type Ratio,
+  type ReviewsNeeded,
+} from './rating-goal-numbers'
 
 /** A rating goal needs at least this many Google reviews. */
 export const MIN_GOOGLE_REVIEWS_FOR_RATING_GOAL = 10
-/** A stop is Realistic when the Faster pace gets there within this many weeks. */
-const REALISTIC_WITHIN_WEEKS = 26
-/** A stop is a Stretch when the Faster pace gets there within this many weeks. */
-const STRETCH_WITHIN_WEEKS = 52
 /** The highest target a manager can pick (4.9). */
 export const HIGHEST_TARGET_TENTHS = 49
-/** 5.0: shown, never selectable. */
+/** 5.0: never a target. */
 export const PERFECT_TENTHS = 50
-
-export type RatingStopLabel = 'realistic' | 'stretch' | 'out_of_reach'
 
 /** Google's count, the tenth it shows and the exact average. */
 export type RatingGoalNumbers = Readonly<{
@@ -39,35 +39,12 @@ export type RatingGoalNumbers = Readonly<{
  */
 export type RatingGoalBasis = RatingGoalNumbers & Readonly<{ mix: Ratio }>
 
-export type PerfectStop = Readonly<{
-  targetTenths: typeof PERFECT_TENTHS
-  disabledReason: 'needs_every_review_5_star'
-}>
-
 export type RatingGoalEligibility =
   | Readonly<{ eligible: true }>
   /** The Property is not active (suspended, archived, on its way out). */
   | Readonly<{ eligible: false; reason: 'property_not_active' }>
   | Readonly<{ eligible: false; reason: 'few_reviews'; reviewCount: number }>
   | Readonly<{ eligible: false; reason: 'waiting_for_google' }>
-
-/**
- * Realistic within 26 weeks at a pace, Stretch within 52, else Out of reach. A
- * target is labelled at the Faster pace; a plan's reach is the same rule at the
- * plan's own pace (round 2).
- */
-export function stopLabel(needed: ReviewsNeeded, perWeek: number): RatingStopLabel {
-  if (needed === 'unreachable') return 'out_of_reach'
-  if (needed <= REALISTIC_WITHIN_WEEKS * perWeek) return 'realistic'
-  if (needed <= STRETCH_WITHIN_WEEKS * perWeek) return 'stretch'
-  return 'out_of_reach'
-}
-
-/** 5.0, disabled with its reason, while Google shows less. */
-export const perfectStop = (displayedTenths: number): PerfectStop | null =>
-  displayedTenths >= PERFECT_TENTHS
-    ? null
-    : { targetTenths: PERFECT_TENTHS, disabledReason: 'needs_every_review_5_star' }
 
 /**
  * Rating goals start at ten Google reviews. The count of Google's latest
@@ -87,3 +64,29 @@ export function ratingGoalEligibility(
   }
   return { eligible: true }
 }
+
+export type PlanNeeds = Readonly<{
+  reviewsNeeded: ReviewsNeeded
+  bestCase: ReviewsNeeded
+}>
+
+/** Reviews needed at a planned quality, and if every new review is five stars. */
+export function planNeeds(
+  numbers: RatingGoalNumbers,
+  targetTenths: number,
+  qualityTenths: number,
+): PlanNeeds {
+  const plan = {
+    reviewCount: numbers.reviewCount,
+    exact: numbers.exact,
+    thresholdThousandths: thresholdThousandths(targetTenths),
+  }
+  return {
+    reviewsNeeded: reviewsNeeded({ ...plan, mix: ratio(qualityTenths, 10) }),
+    bestCase: bestCaseReviewsNeeded(plan),
+  }
+}
+
+/** Keep is offered first, in place of a climb, only when Google shows 4.9 or 5.0. */
+export const offerKeepFirst = (displayedTenths: number): boolean =>
+  displayedTenths >= HIGHEST_TARGET_TENTHS

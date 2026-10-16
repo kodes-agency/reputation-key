@@ -1,19 +1,15 @@
 // The Property Google rating goal as its reads hand it to the page, for stories
 // and tests. The numbers are the plan's worked example (docs/plan/
 // google-rating-goal.md): 812 Google reviews, exact average 4.31 (Google shows
-// 4.3), recent mix 4.70, 28 reviews in the last 28 days (7 a week), Faster 11.
+// 4.3), 84 reviews in the last 90 days, a goal at 11 a week (110 tenths). The
+// one-screen setup's approved scenarios are in rating-goal-setup.stories.fixtures.ts.
 import type {
   RatingGoalCardView,
   RatingGoalDetailView,
-  RatingGoalForecastInputs,
   RatingGoalHistoryEntry,
   RatingGoalSetupView,
-  RatingStopView,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
-import {
-  ratingGoalPlanning,
-  ratingGoalStops,
-} from '#/contexts/reporting/application/rating-goal-planning'
+import type { RatingGoalSetupInputs } from '#/contexts/reporting/application/dto/rating-goal-setup.types'
 
 export const FIXTURE_PROPERTY_ID = '6f2c1a52-8a4e-4d43-9d0c-2b6a8f1e9c11'
 export const FIXTURE_GOAL_ID = '0b9e2f7a-3c41-4f6d-8a2b-5e7c9d1f3a24'
@@ -25,22 +21,18 @@ const range = (fromMonth: string, toMonth: string | null) =>
   ({ kind: 'range', fromMonth, toMonth }) as const
 
 /** The worked example as the setup read hands it to the page. */
-const FORECAST_INPUTS: RatingGoalForecastInputs = {
+const SETUP_INPUTS: RatingGoalSetupInputs = {
   reviewCount: 812,
   displayedTenths: 43,
   exact: { num: 431, den: 100 },
-  mix: { num: 47, den: 10 },
+  exactSource: 'cache',
+  bestMonth: null,
   bestYear: null,
-  reviewsLast28Days: 28,
+  reviewsLast90Days: 84,
+  busiest30Days: 30,
   timezone: FIXTURE_TIMEZONE,
   asOf: FIXTURE_NOW,
 }
-
-/**
- * Every target at its own recommended quality, worked out by the engine's own
- * planning from the inputs, so the page and its stories never disagree.
- */
-const SETUP_STOPS: readonly RatingStopView[] = ratingGoalStops(FORECAST_INPUTS)
 
 const GOOGLE = {
   shows: 4.3,
@@ -55,21 +47,8 @@ export const SETUP: RatingGoalSetupView = {
   google: GOOGLE,
   exactAverage: 4.31,
   exactAverageSource: 'cache',
-  recentMix: { average: 4.7, reviewCount: 84, basis: 'last_90_days' },
-  currentPacePerWeek: 7,
-  paces: {
-    steady: { perWeek: 7, perMonth: 30, perDay: 1 },
-    faster: { perWeek: 11, perMonth: 48, perDay: 1.6 },
-    push: { perWeek: 14, perMonth: 61, perDay: 2 },
-  },
-  stops: SETUP_STOPS,
-  perfectStop: { targetTenths: 50, disabledReason: 'needs_every_review_5_star' },
-  preselectedTenths: 44,
   offerKeepFirst: false,
-  planning: ratingGoalPlanning(FORECAST_INPUTS),
-  forecastInputs: FORECAST_INPUTS,
-  // "Pick a plan" reads none of it; the one-screen setup's stories bring their own.
-  setupInputs: null,
+  setupInputs: SETUP_INPUTS,
   offersClimb: true,
 }
 
@@ -78,26 +57,21 @@ export const SETUP_KEEP_FIRST: RatingGoalSetupView = {
   ...SETUP,
   google: { ...GOOGLE, shows: 5, reviewCount: 19 },
   exactAverage: 5,
-  recentMix: { average: 5, reviewCount: 19, basis: 'most_recent' },
-  currentPacePerWeek: 0.25,
-  stops: [],
-  perfectStop: null,
-  preselectedTenths: null,
   offerKeepFirst: true,
+  setupInputs: {
+    ...SETUP_INPUTS,
+    reviewCount: 19,
+    displayedTenths: 50,
+    exact: { num: 5, den: 1 },
+  },
   offersClimb: false,
-  planning: null,
-  forecastInputs: null,
 }
 
 export const SETUP_FEW_REVIEWS: RatingGoalSetupView = {
   ...SETUP,
   eligibility: { eligible: false, reason: 'few_reviews', reviewCount: 6 },
   google: { ...GOOGLE, shows: 4.8, reviewCount: 6 },
-  stops: [],
-  perfectStop: null,
-  preselectedTenths: null,
-  planning: null,
-  forecastInputs: null,
+  setupInputs: null,
   offersClimb: false,
 }
 
@@ -112,7 +86,6 @@ export const CARD: RatingGoalCardView = {
   qualityTenths: 47,
   quality: 4.7,
   paceTenthsPerWeek: 110,
-  pacePerWeek: 11,
   status: 'on_pace',
   google: GOOGLE,
   exactAverage: 4.382,
@@ -150,7 +123,6 @@ export const CARD_KEEP: RatingGoalCardView = {
   qualityTenths: null,
   quality: null,
   paceTenthsPerWeek: null,
-  pacePerWeek: null,
   status: 'holding',
   google: { ...GOOGLE, shows: 4.9 },
   exactAverage: 4.912,
@@ -224,7 +196,6 @@ export const DETAIL: RatingGoalDetailView = {
     sinceSet: { reviewCount: 107, average: 4.607, averageTenths: 46 },
     qualityBasis: 'since_set',
     paceTenthsPerWeek: 110,
-    pacePerWeek: 11,
     lastFourWeeksPerWeek: 9.5,
     forecast: range('2027-07', '2027-09'),
   },
@@ -238,7 +209,6 @@ export const HISTORY: readonly RatingGoalHistoryEntry[] = [
     target: 4.3,
     qualityTenths: 46,
     paceTenthsPerWeek: 90,
-    pacePerWeek: 9,
     state: 'reached',
     endedReason: null,
     setAt: '2026-03-02T09:00:00.000Z',
@@ -254,7 +224,6 @@ export const HISTORY: readonly RatingGoalHistoryEntry[] = [
     target: 4.2,
     qualityTenths: null,
     paceTenthsPerWeek: null,
-    pacePerWeek: null,
     state: 'ended',
     endedReason: 'google_location_changed',
     setAt: '2025-11-10T09:00:00.000Z',

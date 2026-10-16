@@ -26,89 +26,23 @@ beforeEach(() => {
 const input = { propertyId: PROPERTY }
 
 describe('the setup read', () => {
-  it('works out stops at their own quality, labels, the recommendation and the three paces', async () => {
+  it('says whether a goal may be set, Google’s numbers and the exact average', async () => {
     const setup = await getRatingGoalSetup(dependencies(world), input, actor)
 
-    expect(setup).toMatchObject({
+    expect(setup).toEqual({
       eligibility: { eligible: true },
       hasActiveGoal: false,
-      google: { shows: 4.3, reviewCount: 812, current: true },
+      google: { shows: 4.3, reviewCount: 812, asOf: expect.any(String), current: true },
+      exactAverage: 4.31,
       exactAverageSource: 'cache',
-      recentMix: { average: 4.7, reviewCount: 30, basis: 'last_90_days' },
-      currentPacePerWeek: 7,
-      paces: {
-        steady: { perWeek: 7, perMonth: 30, perDay: 1 },
-        faster: { perWeek: 11, perMonth: 48, perDay: 1.6 },
-        push: { perWeek: 14, perMonth: 61, perDay: 2 },
-      },
-      preselectedTenths: 44,
       offerKeepFirst: false,
-      perfectStop: { targetTenths: 50, disabledReason: 'needs_every_review_5_star' },
-    })
-    expect(
-      setup.stops.map(({ targetTenths, qualityTenths, reviewsNeeded, label }) => [
-        targetTenths,
-        qualityTenths,
-        reviewsNeeded,
-        label,
-      ]),
-    ).toEqual([
-      // At the recent mix while it clears the floor: (812 × 4.35 − 3500) / 0.35
-      // = 92 exactly; (812 × 4.45 − 3500) / 0.25 = 453.6.
-      [44, 47, 92, 'realistic'],
-      [45, 47, 454, 'stretch'],
-      [46, 47, 1298, 'out_of_reach'],
-      // Then a step above what each needs, which never runs out of reach.
-      [47, 50, 788, 'out_of_reach'],
-      [48, 50, 1428, 'out_of_reach'],
-      [49, 50, 2922, 'out_of_reach'],
-    ])
-    expect(setup.stops[0]!.forecasts.faster).toEqual({
-      kind: 'range',
-      fromMonth: '2026-11',
-      toMonth: '2027-01',
-    })
-    expect(setup.forecastInputs).toEqual({
-      reviewCount: 812,
-      displayedTenths: 43,
-      exact: { num: 125, den: 29 }, // 3500 / 812
-      mix: { num: 47, den: 10 },
-      bestYear: null,
-      reviewsLast28Days: 28,
-      timezone: 'Europe/Sofia',
-      asOf: NOW.toISOString(),
+      setupInputs: expect.objectContaining({ displayedTenths: 43, reviewCount: 812 }),
+      offersClimb: true,
     })
     expect(world.authorizations).toEqual([`goal.read:${PROPERTY}`])
   })
 
-  it('offers three plans on the shared quality, and the rows of Build your own', async () => {
-    const { planning } = await getRatingGoalSetup(dependencies(world), input, actor)
-
-    expect(planning).toMatchObject({
-      recommendedTargetTenths: 44,
-      recommendedPaceKey: 'faster',
-      quality: {
-        recommended: { kind: 'like_now', qualityTenths: 47, reviewsNeeded: 92 },
-      },
-      targets: [
-        { targetTenths: 44, label: 'realistic', recommended: true },
-        { targetTenths: 45, label: 'stretch', recommended: false },
-        { targetTenths: 46, label: 'out_of_reach', recommended: false },
-      ],
-    })
-    expect(
-      planning?.plans.map((plan) => [plan.key, plan.targetTenths, plan.pace.perWeek]),
-    ).toEqual([
-      ['cautious', 44, 7],
-      ['recommended', 44, 11],
-      // 4.7 clears 4.6's threshold, 4.55, by exactly 0.15, but 1,298 reviews at
-      // 14 a week is 93 weeks; 4.5 needs 454, 33 weeks.
-      ['ambitious', 45, 14],
-    ])
-  })
-
-  it('takes the best calendar year with ten reviews as evidence for the quality', async () => {
-    // 4.6 at the recent mix 4.7 is the floor: Like now still leads; 2023 sits above it.
+  it('takes the best calendar year with ten reviews as evidence for the average', async () => {
     world.years = [
       { year: 2023, count: 40, sum: 192 }, // 4.8
       { year: 2025, count: 9, sum: 45 }, // too few
@@ -116,32 +50,21 @@ describe('the setup read', () => {
 
     const setup = await getRatingGoalSetup(dependencies(world), input, actor)
 
-    expect(setup.forecastInputs?.bestYear).toEqual({
+    expect(setup.setupInputs?.bestYear).toEqual({
       year: 2023,
       average: { num: 24, den: 5 },
       reviewCount: 40,
     })
-    expect(setup.planning?.quality.options.map(({ kind, year }) => [kind, year])).toEqual(
-      [
-        ['like_now', null],
-        ['best_year', 2023],
-      ],
-    )
     expect(world.calls).toContain('reviews.getYearlyTotals')
   })
 
-  it('offers Keep in place of plans when Google shows 4.9', async () => {
+  it('offers Keep first, and no climb, when Google shows 4.9', async () => {
     world.snapshot = { ...world.snapshot!, averageRating: 4.900000095367432 }
     world.summary = { ...world.summary, all: { count: 812, sum: 3970 } }
 
     const setup = await getRatingGoalSetup(dependencies(world), input, actor)
 
-    expect(setup).toMatchObject({
-      offerKeepFirst: true,
-      offersClimb: false,
-      planning: null,
-      stops: [],
-    })
+    expect(setup).toMatchObject({ offerKeepFirst: true, offersClimb: false })
   })
 
   it('says how many reviews there are when there are fewer than ten', async () => {
@@ -170,7 +93,8 @@ describe('the setup read', () => {
     expect(setup).toMatchObject({
       eligibility: { eligible: false, reason: 'few_reviews', reviewCount: 0 },
       google: { shows: null, reviewCount: 0, current: true },
-      stops: [],
+      setupInputs: null,
+      offersClimb: false,
     })
   })
 
@@ -205,10 +129,7 @@ describe('the setup read', () => {
     expect(setup).toMatchObject({
       eligibility: { eligible: false, reason: 'waiting_for_google' },
       google: null,
-      stops: [],
-      preselectedTenths: null,
-      planning: null,
-      forecastInputs: null,
+      offerKeepFirst: false,
       setupInputs: null,
       offersClimb: false,
     })
@@ -429,7 +350,6 @@ describe('the detail read', () => {
       sinceSet: { reviewCount: 9, average: null, averageTenths: null },
       qualityBasis: 'planned',
       paceTenthsPerWeek: 110,
-      pacePerWeek: 11,
       lastFourWeeksPerWeek: 7,
       forecast: detail!.forecastAtActualPace,
     })

@@ -35,12 +35,12 @@ import {
   MIN_PACE_TENTHS_PER_WEEK,
 } from '../domain/rating-goal-pace'
 import { nowPerMonth, paceChips, type PaceChips } from '../domain/rating-goal-pace-chips'
-import { planNeeds } from '../domain/rating-goal-plans'
 import { nearestTenth } from '../domain/rating-goal-quality'
 import {
   HIGHEST_TARGET_TENTHS,
   PERFECT_TENTHS,
   type RatingGoalNumbers,
+  planNeeds,
 } from '../domain/rating-goal-stops'
 import type {
   RatingFraction,

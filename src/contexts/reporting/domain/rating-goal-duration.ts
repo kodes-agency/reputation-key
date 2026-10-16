@@ -20,9 +20,8 @@ import {
   thresholdThousandths,
 } from './rating-goal-numbers'
 import type { PaceChip } from './rating-goal-pace-chips'
-import { planNeeds } from './rating-goal-plans'
 import { reachableAt } from './rating-goal-average'
-import { PERFECT_TENTHS, type RatingGoalNumbers } from './rating-goal-stops'
+import { PERFECT_TENTHS, planNeeds, type RatingGoalNumbers } from './rating-goal-stops'
 
 /** "Within six months". */
 export const SIX_MONTHS_DAYS = 182

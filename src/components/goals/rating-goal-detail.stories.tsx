@@ -133,7 +133,7 @@ export const KeepGoal: Story = {
       quality: null,
       qualityBasis: null,
       plan: null,
-      pacePerWeek: null,
+      paceTenthsPerWeek: null,
       status: 'holding',
       progress: null,
       stillNeeded: null,
@@ -410,7 +410,7 @@ export const KeepGoalWithNothingHigher: StoryObj<typeof RatingGoalDetailActions>
   render: () => (
     <div className="flex gap-2">
       <RatingGoalDetailActions
-        goal={{ ...DETAIL, mode: 'keep', pacePerWeek: null }}
+        goal={{ ...DETAIL, mode: 'keep', paceTenthsPerWeek: null }}
         setup={SETUP_KEEP_FIRST}
         onChange={fn()}
         onEnd={fn()}

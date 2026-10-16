@@ -1,31 +1,34 @@
 import { describe, expect, it } from 'vitest'
+import { ratio } from './rating-goal-numbers'
 import {
   MIN_GOOGLE_REVIEWS_FOR_RATING_GOAL,
-  perfectStop,
+  offerKeepFirst,
+  planNeeds,
   ratingGoalEligibility,
-  stopLabel,
 } from './rating-goal-stops'
 
-describe('the label of a target', () => {
-  it('draws the Realistic line at 26 weeks and the Stretch line at 52, at the Faster pace', () => {
-    expect(stopLabel(286, 11)).toBe('realistic')
-    expect(stopLabel(287, 11)).toBe('stretch')
-    expect(stopLabel(572, 11)).toBe('stretch')
-    expect(stopLabel(573, 11)).toBe('out_of_reach')
+/** The beta property: 261 reviews averaging 1,021 / 261 = 3.9119, Google shows 3.9. */
+const BETA = { reviewCount: 261, displayedTenths: 39, exact: ratio(1021, 261) }
+
+describe('what a plan needs', () => {
+  it('counts the reviews at its quality and the best case at five stars', () => {
+    expect(planNeeds(BETA, 40, 45)).toEqual({ reviewsNeeded: 19, bestCase: 10 })
   })
 
-  it('is out of reach when no count of reviews gets there', () => {
-    expect(stopLabel('unreachable', 11)).toBe('out_of_reach')
+  it('needs nothing when the exact average already meets the threshold', () => {
+    expect(planNeeds({ ...BETA, exact: ratio(4351, 1000) }, 44, 47)).toEqual({
+      reviewsNeeded: 0,
+      bestCase: 0,
+    })
   })
 })
 
-describe('5.0', () => {
-  it('is offered only as a disabled stop with its reason', () => {
-    expect(perfectStop(43)).toEqual({
-      targetTenths: 50,
-      disabledReason: 'needs_every_review_5_star',
-    })
-    expect(perfectStop(50)).toBeNull()
+describe('when Keep is offered first', () => {
+  it('is offered only when Google shows 4.9 or 5.0', () => {
+    expect(offerKeepFirst(50)).toBe(true)
+    expect(offerKeepFirst(49)).toBe(true)
+    expect(offerKeepFirst(48)).toBe(false)
+    expect(offerKeepFirst(39)).toBe(false)
   })
 })
 

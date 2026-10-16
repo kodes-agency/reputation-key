@@ -49,7 +49,7 @@ const REACHED_LATELY: RatingGoalHistoryEntry = {
   goalId: CARD.goalId,
   targetTenths: 45,
   target: 4.5,
-  pacePerWeek: 11,
+  paceTenthsPerWeek: 110,
   setAt: CARD.setAt,
   reachedAt: '2026-10-12T05:10:00.000Z',
 }
