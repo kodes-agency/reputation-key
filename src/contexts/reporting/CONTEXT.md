@@ -137,7 +137,9 @@ metric authority.
   and the best year with ten reviews, the reviews of the last 90 days and the busiest 30
   local dates of the last 365 (`domain/rating-goal-evidence.ts`), from which the one-screen
   setup works its plan out on the page; the server runs no planning maths for it (the
-  view's `offersClimb` says whether a climb can be planned at all). A set
+  view's `offersClimb` says whether a climb can be planned at all: eligible, with inputs,
+  and the reviews have earned less than 4.9, so no climb is offered while Google catches
+  up with an earned 4.9). A set
   goal stores the tenth Google showed and the status it starts in. A goal is evaluated by
   its card and detail reads and by `goal.google-rating-evaluation` when Review verifies
   Google's numbers, through one evaluation (`application/rating-goal-evaluation.ts`) that
