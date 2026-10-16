@@ -61,6 +61,7 @@ const reading = (overrides: Partial<RatingGoalReading> = {}): RatingGoalReading 
   exact: { value: ratio(431, 100), source: 'cache' },
   mix: { value: ratio(470, 100), reviewCount: 30, basis: 'last_90_days' },
   reviewsLast28Days: 40,
+  reviewsLast90Days: 30,
   extraCounts: [],
   sinceSet: { count: 12, sum: 56 },
   ...overrides,

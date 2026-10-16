@@ -30,6 +30,12 @@ import {
 import { offerKeepFirst } from '../domain/rating-goal-plans'
 import { bestYear, nearestTenth, type YearTotals } from '../domain/rating-goal-quality'
 import {
+  bestMonth,
+  busiestWindowCount,
+  type DayCount,
+  type MonthTotals,
+} from '../domain/rating-goal-evidence'
+import {
   cacheShowsTargetFirst,
   forecastPaceBasis,
   nextTenthMilestone,
@@ -53,6 +59,7 @@ import type {
   RatingGoalSetupView,
   RecentMixView,
 } from './dto/rating-goal.types'
+import type { RatingGoalSetupInputs } from './dto/rating-goal-setup.types'
 import { paceViewOf, ratingGoalPlanning, ratingGoalStops } from './rating-goal-planning'
 import {
   ratingBasis,
@@ -166,12 +173,65 @@ function planningOf(
   }
 }
 
-/** Everything "Pick a plan" shows, worked out from one reading and the yearly totals. */
+/** The setup's evidence, read from the review cache beside the reading. */
+type SetupEvidence = Readonly<{
+  years: readonly YearTotals[]
+  months: readonly MonthTotals[]
+  days: readonly DayCount[]
+}>
+
+/**
+ * What the one-screen setup works its plan out from, or null while Google's
+ * numbers are waiting or show no tenth. No planning maths runs here.
+ */
+function setupInputsOf(
+  reading: RatingGoalReading,
+  evidence: SetupEvidence,
+): RatingGoalSetupInputs | null {
+  const { google, exact } = reading
+  if (reading.waiting || google?.displayedTenths == null || exact === null) return null
+  const { timezone } = reading.facts
+  const month = bestMonth(evidence.months, reading.now, timezone)
+  const year = bestYear(evidence.years)
+  return {
+    reviewCount: google.reviewCount,
+    displayedTenths: google.displayedTenths,
+    exact: ratioView(exact.value),
+    exactSource: exact.source,
+    bestMonth:
+      month === null
+        ? null
+        : {
+            year: month.year,
+            month: month.month,
+            average: ratioView(month.average),
+            reviewCount: month.reviewCount,
+          },
+    bestYear:
+      year === null
+        ? null
+        : {
+            year: year.year,
+            average: ratioView(year.average),
+            reviewCount: year.reviewCount,
+          },
+    reviewsLast90Days: reading.reviewsLast90Days,
+    busiest30Days: busiestWindowCount(evidence.days, reading.now, timezone),
+    timezone,
+    asOf: reading.now.toISOString(),
+  }
+}
+
+/**
+ * Everything the setup shows: "Pick a plan" worked out from one reading and
+ * the yearly totals, and the one-screen setup's inputs beside it.
+ */
 export function buildSetupView(
   reading: RatingGoalReading,
   hasActiveGoal: boolean,
-  years: readonly YearTotals[],
+  evidence: SetupEvidence,
 ): RatingGoalSetupView {
+  const { years } = evidence
   const paces = paceSuggestions(reading.reviewsLast28Days)
   const basis = ratingBasis(reading)
   const inputs = basis ? forecastInputs(basis, reading, years) : null
@@ -194,6 +254,7 @@ export function buildSetupView(
     perfectStop: basis ? perfectStop(basis.displayedTenths) : null,
     offerKeepFirst: basis ? offerKeepFirst(basis.displayedTenths) : false,
     forecastInputs: inputs,
+    setupInputs: setupInputsOf(reading, evidence),
   }
 }
 

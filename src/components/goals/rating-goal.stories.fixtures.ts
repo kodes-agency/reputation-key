@@ -68,6 +68,8 @@ export const SETUP: RatingGoalSetupView = {
   offerKeepFirst: false,
   planning: ratingGoalPlanning(FORECAST_INPUTS),
   forecastInputs: FORECAST_INPUTS,
+  // "Pick a plan" reads none of it; the one-screen setup's stories bring their own.
+  setupInputs: null,
 }
 
 /** Property B of the beta: 19 reviews, all five stars, Google shows 5.0. */

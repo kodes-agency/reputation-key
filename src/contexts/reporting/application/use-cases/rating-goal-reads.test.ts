@@ -204,6 +204,56 @@ describe('the setup read', () => {
       preselectedTenths: null,
       planning: null,
       forecastInputs: null,
+      setupInputs: null,
+    })
+  })
+
+  it('asks Review for the months and the dates the setup’s evidence comes from', async () => {
+    await getRatingGoalSetup(dependencies(world), input, actor)
+
+    expect(world.evidenceRequests).toEqual([
+      { read: 'months', since: new Date(NOW.getTime() - 400 * DAY), minimumCount: 10 },
+      { read: 'days', since: new Date(NOW.getTime() - 366 * DAY) },
+    ])
+  })
+
+  it('hands the setup its inputs: Google’s numbers, the evidence and the busiest days', async () => {
+    const setup = await getRatingGoalSetup(dependencies(world), input, actor)
+
+    expect(setup.setupInputs).toEqual({
+      reviewCount: 812,
+      displayedTenths: 43,
+      exact: { num: 125, den: 29 }, // 3500 / 812
+      exactSource: 'cache',
+      bestMonth: null,
+      bestYear: null,
+      // The reviews of the last 90 days: the recent mix's window.
+      reviewsLast90Days: 30,
+      busiest30Days: 0,
+      timezone: 'Europe/Sofia',
+      asOf: NOW.toISOString(),
+    })
+  })
+
+  it('takes the best month of the last twelve and the busiest 30 days', async () => {
+    world.months = [
+      { year: 2025, month: 10, count: 40, sum: 200 }, // twelve months back: out
+      { year: 2026, month: 8, count: 11, sum: 52 },
+    ]
+    world.years = [{ year: 2025, count: 116, sum: 522 }]
+    world.days = [
+      { day: '2026-09-01', count: 6 },
+      { day: '2026-09-30', count: 4 },
+      { day: '2026-10-01', count: 5 },
+    ]
+
+    const { setupInputs } = await getRatingGoalSetup(dependencies(world), input, actor)
+
+    expect(setupInputs).toMatchObject({
+      bestMonth: { year: 2026, month: 8, average: { num: 52, den: 11 }, reviewCount: 11 },
+      bestYear: { year: 2025, average: { num: 9, den: 2 }, reviewCount: 116 },
+      // 1 to 30 Sep holds 6 + 4; 2 Sep to 1 Oct holds 4 + 5.
+      busiest30Days: 10,
     })
   })
 

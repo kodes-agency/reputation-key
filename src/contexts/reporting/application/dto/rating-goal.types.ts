@@ -23,6 +23,7 @@ import type { PaceKey } from '../../domain/rating-goal-pace'
 import type { RatingPlanKey } from '../../domain/rating-goal-plans'
 import type { QualityAnchorKind } from '../../domain/rating-goal-quality'
 import type { QualityBasis } from '../../domain/rating-goal-status'
+import type { RatingGoalSetupInputs } from './rating-goal-setup.types'
 
 export type {
   GoogleNumbersView,
@@ -224,6 +225,11 @@ export type RatingGoalSetupView = Readonly<{
   offerKeepFirst: boolean
   planning: RatingGoalPlanningView | null
   forecastInputs: RatingGoalForecastInputs | null
+  /**
+   * What the one-screen setup works its plan out from (rounds 3 and 4); null
+   * while Google's numbers are waiting or show no tenth.
+   */
+  setupInputs: RatingGoalSetupInputs | null
 }>
 
 export type RatingGoalCardView = Readonly<{

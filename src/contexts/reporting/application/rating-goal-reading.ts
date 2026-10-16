@@ -64,6 +64,8 @@ export type RatingGoalReading = Readonly<{
   exact: ExactAverage | null
   mix: RecentMix | null
   reviewsLast28Days: number
+  /** Reviews created in the last 90 days (the recent mix's window). */
+  reviewsLast90Days: number
   /** Reviews created since each `countSince` instant, in the same order. */
   extraCounts: readonly number[]
   /** Reviews created since `totalsSince` and their stars; null when it was not asked. */
@@ -131,6 +133,7 @@ export async function readRatingGoalInputs(
     exact,
     mix,
     reviewsLast28Days: summary.countsSince[0] ?? 0,
+    reviewsLast90Days: summary.mixWindow.count,
     extraCounts: summary.countsSince.slice(1),
     sinceSet: summary.totalsSince,
   }
