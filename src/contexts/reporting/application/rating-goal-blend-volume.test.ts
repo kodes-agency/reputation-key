@@ -7,15 +7,20 @@
 // for 26 weeks on a seeded review stream. Before the blend a goal's numbers
 // switched from the plan to the since-set average at the tenth review (R2-5);
 // now they blend from the first. The check pins what that changes:
-//   - the notices: none. The evaluation and its notices read no forecast
-//     average, so the same goals raise the same Below pace and too-low notices
-//     whatever average the numbers assume (proved by running them at another
-//     planned quality: identical streams);
+//   - the notices: none, by construction. The evaluation and its notices never
+//     read the forecast average (neither imports trackingMix, asserted below),
+//     so notices cannot change. The check does not run the old switch for
+//     notices: it pins today's counts and shows identical streams at another
+//     planned quality;
 //   - the average the numbers assume: it no longer jumps at review ten;
-//   - chip and numbers: a plain blend would forecast a too-low goal as
-//     reachable on many days; the blend as built (their own average while too
-//     low, condition a) never does.
+//   - chip and numbers, both ways: a plain blend would forecast a too-low goal
+//     as reachable on many days (the built one returns their own average then,
+//     condition a, so its zero is a regression guard), and before the tenth
+//     review it would read a goal that is not too low as unreachable, a verdict
+//     R2-5 holds to ten (20 goal-days, against 0 for the switch); the built one
+//     holds the blend at the target's minimum quality then, so it never does.
 // docs/plan/google-rating-goal.md quotes these numbers.
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { PropertyRatingGoal } from '../domain/rating-goal'
 import {
@@ -205,6 +210,14 @@ type Run = Readonly<{
   /** Too-low days a plain blend (no condition a) and the built one forecast as reachable. */
   plainDisagrees: number
   builtDisagrees: number
+  /**
+   * Days not too low (all before the tenth review: from it on, a blend of two
+   * averages above the threshold is above it) whose mix does not clear the
+   * threshold, so the numbers would read "not reachable" under the chip.
+   */
+  plainEarlyUnreachable: number
+  builtEarlyUnreachable: number
+  switchedEarlyUnreachable: number
 }>
 
 const ALWAYS_STORED = { recordEvaluation: async () => true }
@@ -232,6 +245,9 @@ async function run(scenario: Scenario, plan: number): Promise<Run> {
     days: [] as Day[],
     plainDisagrees: 0,
     builtDisagrees: 0,
+    plainEarlyUnreachable: 0,
+    builtEarlyUnreachable: 0,
+    switchedEarlyUnreachable: 0,
   }
   for (let day = 1; day <= DAYS && goal.state === 'active'; day += 1) {
     const reading = readingOn(property, days, day)
@@ -263,6 +279,10 @@ async function run(scenario: Scenario, plan: number): Promise<Run> {
     if (tooLow) {
       result.plainDisagrees += reaches(plainBlend(plan, sinceSet)) ? 1 : 0
       result.builtDisagrees += reaches(built) ? 1 : 0
+    } else if (evaluation.status !== 'reached') {
+      result.plainEarlyUnreachable += reaches(plainBlend(plan, sinceSet)) ? 0 : 1
+      result.builtEarlyUnreachable += reaches(built) ? 0 : 1
+      result.switchedEarlyUnreachable += reaches(switchedMix(plan, sinceSet)) ? 0 : 1
     }
   }
   return result
@@ -344,10 +364,39 @@ describe('the notice volume of blending new reviews into the planned average', (
     })
   })
 
-  it('never forecasts a goal that is too low as reachable, where a plain blend would', async () => {
+  it('reads the notices from the status alone, never from the forecast average', () => {
+    const sources = [
+      './rating-goal-evaluation.ts',
+      '../domain/rating-goal-notices.ts',
+    ].map((path) => readFileSync(new URL(path, import.meta.url), 'utf8'))
+
+    expect(sources.map((source) => source.includes('trackingMix'))).toEqual([
+      false,
+      false,
+    ])
+  })
+
+  it('regression guard: never forecasts a goal that is too low as reachable', async () => {
     const runs = await Promise.all(SCENARIOS.map((each) => run(each, each.property.plan)))
 
+    // Zero by construction (their own average while too low); a plain blend would not be.
     expect(runs.reduce((all, each) => all + each.builtDisagrees, 0)).toBe(0)
     expect(runs.reduce((all, each) => all + each.plainDisagrees, 0)).toBe(340)
+  })
+
+  it('never reads a goal that is not too low as unreachable before the verdict', async () => {
+    const runs = await Promise.all(SCENARIOS.map((each) => run(each, each.property.plan)))
+    const sum = (key: 'plain' | 'built' | 'switched') =>
+      runs.reduce((all, each) => all + each[`${key}EarlyUnreachable`], 0)
+
+    expect({
+      built: sum('built'),
+      switched: sum('switched'),
+      plain: sum('plain'),
+    }).toEqual({
+      built: 0,
+      switched: 0,
+      plain: 20,
+    })
   })
 })
