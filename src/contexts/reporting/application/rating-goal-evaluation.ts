@@ -60,7 +60,7 @@ function goalStatus(
       targetTenths: goal.targetTenths,
     })
   }
-  if (reading.waiting || reading.mix === null) return 'waiting_for_google'
+  if (reading.waiting) return 'waiting_for_google'
   return climbStatus({
     waiting: false,
     displayedTenths: displayed,

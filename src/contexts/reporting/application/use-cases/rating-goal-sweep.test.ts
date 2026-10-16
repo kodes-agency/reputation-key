@@ -60,6 +60,30 @@ describe('the daily evaluation of every active rating goal', () => {
     ])
   })
 
+  it('keeps waiting for Google, and tells nobody, while the review cache is empty', async () => {
+    // Google shows 4.2 from 30 reviews; the cache holds none of them yet. The
+    // goal is 20 days old at 7 a week: with no review counted it would read
+    // as below pace.
+    world.snapshot = { ...world.snapshot!, reviewCount: 30, averageRating: 4.2 }
+    const none = { count: 0, sum: 0 }
+    world.summary = { ...world.summary, all: none, mixWindow: none, mostRecent: none }
+    world.goals = [
+      activeGoal({
+        targetTenths: 44,
+        paceTenthsPerWeek: 70,
+        createdAt: new Date(NOW.getTime() - 20 * DAY),
+      }),
+    ]
+
+    await sweepRatingGoals(dependencies(world), allowEverything)
+
+    expect(world.goals[0]!.lastEvaluation).toMatchObject({
+      status: 'waiting_for_google',
+      knownStatus: 'on_pace',
+    })
+    expect(world.notices).toEqual([])
+  })
+
   it('tells nobody again on the next run', async () => {
     world.goals = [goalNumbered(1)]
     await sweepRatingGoals(dependencies(world), allowEverything)

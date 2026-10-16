@@ -59,7 +59,10 @@ export type RatingGoalReading = Readonly<{
   google: GoogleNumbers | null
   /** Google's snapshot is there, under an active binding, and at most a day old. */
   googleCurrent: boolean
-  /** No usable numbers: Google's are not current, or there is no average or mix. */
+  /**
+   * No usable numbers: Google's are not current, show no tenth or give no
+   * exact average, or the review cache holds no review.
+   */
   waiting: boolean
   exact: ExactAverage | null
   mix: RecentMix | null
@@ -123,13 +126,20 @@ export async function readRatingGoalInputs(
   const exact = google ? exactAverage(summary.all, google) : null
   const mix = recentMix(summary.mixWindow, summary.mostRecent)
   const googleCurrent = !googleIsWaiting(google, facts.googleBindingActive, now)
+  // An empty or expired cache counts no review: a goal would read as below its
+  // pace and a new one would be set before the import filled it. The recent
+  // mix stood for this wait (it is missing exactly when the cache is empty).
+  const cacheHasReviews = summary.all.count > 0
   return {
     now,
     facts,
     google,
     googleCurrent,
     waiting:
-      !googleCurrent || google?.displayedTenths == null || exact === null || mix === null,
+      !googleCurrent ||
+      google?.displayedTenths == null ||
+      exact === null ||
+      !cacheHasReviews,
     exact,
     mix,
     reviewsLast28Days: summary.countsSince[0] ?? 0,
