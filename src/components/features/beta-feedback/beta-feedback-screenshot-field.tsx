@@ -113,10 +113,12 @@ export function BetaFeedbackScreenshotField({
             size="sm"
             className="gap-1.5"
             onClick={() => input.current?.click()}
-            disabled={disabled || state.status === 'preparing'}
+            disabled={disabled}
+            pending={state.status === 'preparing'}
+            pendingLabel="Preparing screenshot…"
           >
             <ImageUp className="size-3.5" />
-            {state.status === 'preparing' ? 'Preparing screenshot…' : 'Add a screenshot'}
+            Add a screenshot
           </Button>
           <p
             className="block text-xs leading-snug text-muted-foreground"
