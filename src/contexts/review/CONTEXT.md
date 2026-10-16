@@ -35,7 +35,7 @@ is not the identity or history authority.
   sums stay inside) and returns Google's own number over time from the
   verified snapshot facts (ADR 0067, round 5, tracking detail). By the owner's
   exception (ADR 0067, 2026-10-17) it also names the low reviews since a goal
-  was set (`getLowReviews`: below the goal's threshold, at most 4★, 25 at most,
+  was set (`getLowReviews`: below a bound Reporting gives, at most 4★, 25 at most,
   an id, stars and a creation time, nothing else) and reads this week's star
   split; Reporting keeps neither.
 

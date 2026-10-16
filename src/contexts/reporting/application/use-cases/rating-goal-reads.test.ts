@@ -487,6 +487,47 @@ describe('the detail read’s low reviews and this week’s stars', () => {
     })
   })
 
+  it('reads past newer 4★ reviews that barely move a busy Property’s goal', async () => {
+    // 2,000 reviews at 4.04, 400 since the set at 4.7, goal 4.1 (from 4.05):
+    // a 4★ review adds about 0.16, a 1★ one about 5.
+    world.goals = [activeGoal({ targetTenths: 41, qualityTenths: 47 })]
+    world.snapshot = { ...world.snapshot!, reviewCount: 2000, averageRating: 4.04 }
+    world.summary = {
+      ...world.summary,
+      all: { count: 2000, sum: 8080 },
+      sinceSet: { count: 400, sum: 1880 },
+    }
+    world.lowReviews = [
+      ...Array.from({ length: 25 }, (_, index) => lowReview(`${index + 1}`, 4, 1)),
+      lowReview('99', 1, 2),
+    ]
+
+    const detail = await getRatingGoalDetail(dependencies(world), input, actor)
+
+    expect(detail?.moved.lowReviews).toEqual([
+      expect.objectContaining({
+        reviewId: '60000000-0000-4000-8000-000000000099',
+        stars: 1,
+        setBack: 5,
+      }),
+    ])
+    expect(world.evidenceRequests).toContainEqual(
+      expect.objectContaining({ read: 'low', belowThousandths: 4000 }),
+    )
+  })
+
+  it('reads no low review when none could set the goal back half a review', async () => {
+    // 812 reviews at 4.3103 already clear a 4.1 goal's 4.05: nothing to set back.
+    world.goals = [activeGoal({ targetTenths: 41, qualityTenths: 47 })]
+    world.snapshot = { ...world.snapshot!, averageRating: 4.04 }
+    world.lowReviews = [lowReview('1', 1, 1)]
+
+    const detail = await getRatingGoalDetail(dependencies(world), input, actor)
+
+    expect(detail?.moved.lowReviews).toEqual([])
+    expect(world.evidenceRequests.map((request) => request.read)).not.toContain('low')
+  })
+
   it('splits this Property-local week’s reviews by star', async () => {
     world.goals = [activeGoal()]
     world.stars = [1, 2, 3, 4, 5].map((stars) => ({ stars, count: stars === 5 ? 2 : 0 }))

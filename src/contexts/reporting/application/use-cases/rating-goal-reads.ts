@@ -27,7 +27,7 @@ import {
   organizationId as toOrganizationId,
   propertyId as toPropertyId,
 } from '#/shared/domain/ids'
-import { thresholdThousandths } from '../../domain/rating-goal-numbers'
+import { lowReviewReadBelow } from '../../domain/rating-goal-setback'
 import { weekStartInstant } from '../../domain/rating-goal-weeks'
 import type {
   RatingGoalCardView,
@@ -147,6 +147,7 @@ export async function getRatingGoalDetail(
     RATING_GOAL_CHANGE_LOG_LIMIT,
   )
   const setback = setbackNumbers(goal, reading)
+  const lowBelow = setback === null ? null : lowReviewReadBelow(setback)
   const [changes, history, shown, low, thisWeek] = await Promise.all([
     changesRead,
     changesRead.then((log) =>
@@ -157,13 +158,13 @@ export async function getRatingGoalDetail(
       ),
     ),
     deps.reviews.getShownNumberChanges(org, property, chartFrom),
-    setback === null
+    lowBelow === null
       ? []
       : deps.reviews.getLowReviews(
           org,
           property,
           goal.createdAt,
-          thresholdThousandths(goal.targetTenths),
+          lowBelow,
           LOW_REVIEW_READ_LIMIT,
         ),
     deps.reviews.getStarDistribution(
