@@ -3,13 +3,14 @@ status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
 corrected_on: 2026-10-13
+amended_on: 2026-10-16
 ---
 
 # Privacy Notice — Reputation Key Closed Beta
 
 **Status:** Accepted for publication
-**Effective date:** 2026-10-13
-**Version:** 2.2
+**Effective date:** 2026-10-16
+**Version:** 2.3
 **Accountable owner:** Bozhidar Denev
 
 ## 1. About this notice
@@ -54,11 +55,15 @@ opt-in.
 - content-free operational history for significant product, support, privacy,
   policy, and release actions.
 
-Suggestions sent through native beta feedback are text-only. For an eligible
-Bug report, a Participant may separately choose to create a preview containing
-only quantized, text-free layout blocks. The preview excludes page text, field
-values, URLs, pixels, images, account details, and ordinary screen replay, and
-can be reviewed or removed before submission.
+A Participant may attach one screenshot or other image to a Bug report or a
+Suggestion. Nothing is captured unless the Participant pastes, drops, or
+chooses an image; the form shows it before sending and it can be removed. A
+screenshot shows whatever was on the screen, which can include Guest names,
+review text, and other personal data. For an eligible Bug report, a Participant
+may also separately choose to create a preview containing only quantized,
+text-free layout blocks. That preview excludes page text, field values, URLs,
+pixels, images, account details, and ordinary screen replay, and can be
+reviewed or removed before submission.
 
 ### Google Business Profile information
 
@@ -125,13 +130,13 @@ the provider table.
 
 The Service uses the following providers:
 
-| Provider | Purpose                                        | Processing location and retention or use controls                                                                                                                                                                                                                                          |
-| -------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Railway  | Hosting, PostgreSQL, Redis, and object storage | United States, US West                                                                                                                                                                                                                                                                     |
-| OpenAI   | AI inference                                   | Global API endpoint with no residency commitment; prompt cache up to 24 hours; ordinary abuse-monitoring retention generally no more than 30 days, subject to documented legal or safety exceptions; API data is not used for training unless Reputation Key's OpenAI organization opts in |
-| Google   | Business Profile APIs and OAuth                | Independent controller of Business Profile data                                                                                                                                                                                                                                            |
-| Resend   | Transactional email                            | United States                                                                                                                                                                                                                                                                              |
-| Sentry   | Error monitoring and beta feedback reports     | United States; required: the deployed Service does not start unless it is configured; receives error, timing, and health reports from its servers, error reports from Participant and Guest browsers, and beta feedback reports, as explained below this table                             |
+| Provider | Purpose                                        | Processing location and retention or use controls                                                                                                                                                                                                                                                         |
+| -------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Railway  | Hosting, PostgreSQL, Redis, and object storage | United States, US West                                                                                                                                                                                                                                                                                    |
+| OpenAI   | AI inference                                   | Global API endpoint with no residency commitment; prompt cache up to 24 hours; ordinary abuse-monitoring retention generally no more than 30 days, subject to documented legal or safety exceptions; API data is not used for training unless Reputation Key's OpenAI organization opts in                |
+| Google   | Business Profile APIs and OAuth                | Independent controller of Business Profile data                                                                                                                                                                                                                                                           |
+| Resend   | Transactional email                            | United States                                                                                                                                                                                                                                                                                             |
+| Sentry   | Error monitoring and beta feedback reports     | United States; required: the deployed Service does not start unless it is configured; receives error, timing, and health reports from its servers, error reports from Participant and Guest browsers, and beta feedback reports with any screenshot a Participant attaches, as explained below this table |
 
 Error monitoring is part of the deployed Service. Its web and worker processes
 do not start unless error monitoring is configured, and they accept only the
@@ -163,8 +168,11 @@ the same on every report from that Participant or Organization. If the
 Participant chose to attach them, the report also names the error report it
 refers to and gives the size and block counts of the masked Bug layout. The
 Service does not add the Participant's name or email address to the report and
-does not send the layout itself. The Service's own database keeps a record of
-each report without its text.
+does not send the layout itself. If the Participant attached a screenshot, the
+report carries it as an image file. The browser reduces it in size and encodes
+it again before sending, to at most 640 KB, which leaves out the metadata the
+original file held. The Service's own database keeps a record of each report
+without its text or its screenshot.
 
 ## 3. Why information is used
 
@@ -259,6 +267,7 @@ repository:
 | Policy-decision and significant-action records                                         | 365 days under the current engineering policy                                                                                                                                              |
 | Google-controlled source content                                                       | Per-row source-policy expiry; intended maximum 30 days from latest fetch                                                                                                                   |
 | Optional masked Bug layout                                                             | Application expiry no later than 30 days after the report is submitted, then deleted by a daily clean-up; kept in the Service's own database and not sent to the error-monitoring provider |
+| Screenshot attached to a beta feedback report                                          | Not kept by the Service; sent to the error-monitoring provider with the report and kept by the provider with it                                                                            |
 | Organization Export object                                                             | At most seven days; single-use retrieval authority at most 24 hours                                                                                                                        |
 
 A Guest response session has a random session identifier. It contains no name,
@@ -344,11 +353,20 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-10-13 and is version 2.2. It replaces version
-2.1, which took effect on 2026-10-12 and had replaced version 2.0, which took
-effect on 2026-09-08. Material changes will be announced to Participants by
+This notice takes effect on 2026-10-16 and is version 2.3. It replaces version
+2.2, which took effect on 2026-10-13 and had replaced version 2.1, which took
+effect on 2026-10-12 and had replaced version 2.0, which took effect on
+2026-09-08. Material changes will be announced to Participants by
 email at least 14 days before they take effect. The version and effective date
 will remain shown on this page.
+
+Version 2.3 lets a Participant attach a screenshot to a beta feedback report
+(section 2, the provider table, and section 6). The screenshot is sent to the
+error-monitoring provider with the report text. Nothing is sent unless a
+Participant attaches a screenshot to a report, and the form shows the
+screenshot and says that it is sent before the report is sent, so version 2.3
+is not treated as a material change and takes effect on the day it is
+published. Nothing else about the Service changes with version 2.3.
 
 Version 2.2 corrects the provider table in section 2, the sentence about beta
 feedback text above it, and the row for the optional masked Bug layout in

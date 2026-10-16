@@ -209,16 +209,21 @@ Guest browser → Signed session → Rating/Feedback → PostgreSQL (IP hashed)
 - Native beta feedback sends the manager-entered report, Bug/Suggestion
   classification, controlled route template, broad viewport category, role,
   release/cell/service tags, and audience-separated HMAC actor/Organization
-  pseudonyms. Suggestions are text-only. After a separate Bug-only consent and
-  explicit capture action on an allowlisted route, a Bug may also send one
-  server-rendered masked-layout SVG made solely from quantized rectangle
-  geometry and closed block kinds. It sends no name/email, raw tenant/property/
-  route identifiers, cookies, request bodies, page text, input values, image or
-  media bytes, ordinary screenshot, or replay. User-entered report text can
+  pseudonyms. Since 2026-10-16 (owner decision, Privacy Notice 2.3) a Bug or a
+  Suggestion may also carry one screenshot the manager pasted, dropped or
+  chose: shrunk and re-encoded in the browser to at most 640 KiB, checked by
+  the server against its declared PNG/JPEG/WebP signature, and sent to Sentry
+  as an attachment of the feedback event. It shows whatever was on screen, so
+  it can hold guest names, review text and other personal data; Sentry keeps
+  it with the event. Separately, after a Bug-only consent and explicit capture
+  action on an allowlisted route, a Bug may keep a masked layout made solely
+  from quantized rectangle geometry and closed block kinds, first-party and
+  never sent to Sentry. A report sends no name/email, raw tenant/property/route
+  identifiers, cookies, request bodies, or replay. User-entered report text can
   still contain personal data despite automated redaction, so the UI warns
-  managers not to submit guest/review/contact/credential content and the Sentry
+  managers not to type guest/review/contact/credential content and the Sentry
   project remains restricted operator data. PostgreSQL keeps only the
-  content-free local receipt and triage evidence.
+  content-free local receipt and triage evidence, never a screenshot.
 
 ## Gap remediation (pre-BETA-1)
 
@@ -227,8 +232,8 @@ Guest browser → Signed session → Rating/Feedback → PostgreSQL (IP hashed)
 - [x] Rate limiting on auth endpoints (login, registration) — shared Redis limiter, fails closed in production; raw `/sign-up/email` and `/send-verification-email` refused at the boundary
 - [x] Initialize Sentry SDK with outbound allowlist scrubbers, a text-only
       Suggestion boundary, and a separately consented Bug-only masked-layout
-      boundary; ordinary screenshots and replay remain prohibited (deployment
-      uses a mandatory US DSN)
+      boundary; replay remains prohibited, and a reporter-attached screenshot
+      has been allowed since 2026-10-16 (deployment uses a mandatory US DSN)
 - [x] Persist a content-free local feedback receipt and revision-fenced,
       append-only triage evidence without report text or attachment bytes
 - [ ] Approve and evidence the exact Sentry event/feedback retention setting,

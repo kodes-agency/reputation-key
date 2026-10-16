@@ -42,6 +42,7 @@ import {
   formatBetaFeedbackMessage,
 } from '#/shared/beta-feedback-contract'
 import { maskedLayoutExpiry } from '#/shared/beta-feedback-layout'
+import { BETA_FEEDBACK_SCREENSHOT_MAX_BYTES } from '#/shared/beta-feedback-screenshot'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 import {
   captureBrowserException,
@@ -52,6 +53,7 @@ import {
   buildObservabilityConfig,
   createErrorMonitor,
   type ErrorMonitoringSdk,
+  type FeedbackCaptureHint,
   type FeedbackCaptureParams,
 } from './telemetry'
 
@@ -75,6 +77,8 @@ const REPORT_TEXT_LIMIT = 6_000
 /** The notice's name for the layout a Participant may attach to a Bug report. */
 const LAYOUT_CLASS = 'Optional masked Bug layout'
 const LAYOUT_TABLE = 'beta_feedback_masked_layouts'
+/** The notice's name for a screenshot a Participant attaches to a report. */
+const SCREENSHOT_CLASS = 'Screenshot attached to a beta feedback report'
 
 /** The lines of the notice from one heading up to the next. */
 function noticePart(
@@ -113,10 +117,10 @@ function providerRow(notice: string): Readonly<{ purpose: string; controls: stri
   return { purpose, controls }
 }
 
-/** What the retention table of section 6 says of the masked Bug layout. */
-function layoutRetention(notice: string): string {
+/** What the retention table of section 6 says of one information class. */
+function retentionHorizon(notice: string, informationClass: string): string {
   const retention = noticePart(notice, '## 6. Current retention posture', '## 7. ')
-  const [horizon = ''] = tableRow(retention, LAYOUT_CLASS)
+  const [horizon = ''] = tableRow(retention, informationClass)
   return horizon
 }
 
@@ -139,7 +143,11 @@ function noticeChanges(notice: string): string {
 }
 
 type ServerSdkOptions = Parameters<ErrorMonitoringSdk['init']>[0]
-type SdkRecord = { feedback: FeedbackCaptureParams[]; started: ServerSdkOptions[] }
+type SdkRecord = {
+  feedback: FeedbackCaptureParams[]
+  started: ServerSdkOptions[]
+  hints?: FeedbackCaptureHint[]
+}
 
 /**
  * The monitoring SDK as the server uses it, recording what it is handed
@@ -154,8 +162,9 @@ function recordingSdk(record: SdkRecord): ErrorMonitoringSdk {
     isInitialized: () => false,
     setTags: () => undefined,
     captureException: () => undefined,
-    captureFeedback: (params) => {
+    captureFeedback: (params, hint) => {
       record.feedback.push(params)
+      if (hint) record.hints?.push(hint)
       return 'a'.repeat(32)
     },
     withScope: (callback) => callback(scope),
@@ -566,7 +575,7 @@ describe('published error monitoring matches what a deployed cell does', () => {
       },
     ])
 
-    const horizon = layoutRetention(notice)
+    const horizon = retentionHorizon(notice, LAYOUT_CLASS)
     expect(horizon).toContain(
       `no later than ${layoutDays} days after the report is submitted`,
     )
@@ -576,6 +585,54 @@ describe('published error monitoring matches what a deployed cell does', () => {
     )
     expect(horizon).not.toMatch(/provider deletion|live proof/)
     expect(prose()).toContain('does not send the layout itself')
+  })
+
+  it('says a screenshot a Participant attaches goes to the provider as an image file of the report', () => {
+    const bytes = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    const screenshot = {
+      filename: 'screenshot.png',
+      data: bytes,
+      contentType: 'image/png',
+    } as const
+    const record: SdkRecord = { feedback: [], started: [], hints: [] }
+    startedMonitor(record).captureFeedback({
+      message: 'The total row is missing.',
+      source: FEEDBACK_SOURCE,
+      tags: {},
+      attachments: [screenshot],
+    })
+
+    // A file of the report, beside its text and never inside it.
+    expect(record.hints).toEqual([{ includeReplay: false, attachments: [screenshot] }])
+    expect(record.feedback.map(({ message }) => message)).toEqual([
+      'The total row is missing.',
+    ])
+
+    expect(providerRow(notice).controls).toContain(
+      'and beta feedback reports with any screenshot a Participant attaches',
+    )
+    expect(prose()).toContain(
+      'If the Participant attached a screenshot, the report carries it as an image file',
+    )
+    expect(prose()).toContain(
+      `to at most ${BETA_FEEDBACK_SCREENSHOT_MAX_BYTES / 1024} KB`,
+    )
+    expect(prose()).toContain('without its text or its screenshot')
+    const horizon = retentionHorizon(notice, SCREENSHOT_CLASS)
+    expect(horizon).toContain('Not kept by the Service')
+    expect(horizon).toContain('kept by the provider with it')
+  })
+
+  it('keeps the record of what version 2.3 changed, in the notice and in the beta contract', () => {
+    expect(noticeChanges(notice)).toContain(
+      'Version 2.3 lets a Participant attach a screenshot to a beta feedback report',
+    )
+    expect(noticeChanges(notice)).toContain(
+      'Nothing is sent unless a Participant attaches a screenshot to a report',
+    )
+    expect(contract).toContain(
+      'Privacy Notice version 2.3, effective 2026-10-16 on publication',
+    )
   })
 
   it('keeps the record of what version 2.2 corrected, in the notice and in the beta contract', () => {

@@ -91,6 +91,7 @@ const bug = {
   impact: 'cannot_complete',
   clientErrorEventId: null,
   maskedLayout: null,
+  screenshot: null,
   message: 'The reviews page did not load.',
   routePath: '/properties/private-property-id/reviews',
   viewport: 'wide',
@@ -164,6 +165,7 @@ describe('submit beta feedback server function', () => {
     expect(mocks.captureFeedback).toHaveBeenCalledWith({
       message: expect.stringContaining('Message: The reviews page did not load.'),
       source: 'repkey-native-beta-feedback',
+      attachments: [],
       tags: {
         feedback_type: 'bug',
         feedback_impact: 'cannot_complete',

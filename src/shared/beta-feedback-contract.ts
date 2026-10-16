@@ -1,5 +1,9 @@
 import { z } from 'zod/v4'
 import { maskedLayoutSchema, summarizeMaskedLayout } from './beta-feedback-layout'
+import {
+  betaFeedbackScreenshotSchema,
+  describeBetaFeedbackScreenshot,
+} from './beta-feedback-screenshot'
 
 const messageSchema = z
   .string()
@@ -42,10 +46,15 @@ export const betaFeedbackInputSchema = z
     /**
      * Optional `masked_layout_v1` geometry, present only when the reporter
      * consented on this submission after previewing it. Rectangles and a
-     * closed role vocabulary — see `beta-feedback-layout.ts` for why this
-     * shape, and not a screenshot, is what the permission is spent on.
+     * closed role vocabulary only — see `beta-feedback-layout.ts`.
      */
     maskedLayout: maskedLayoutSchema.nullable().default(null),
+    /**
+     * Optional image the reporter attached, on a Bug or a Suggestion. Unlike
+     * the masked layout it is pixels, and it goes to monitoring as an
+     * attachment of the report — see `beta-feedback-screenshot.ts`.
+     */
+    screenshot: betaFeedbackScreenshotSchema.nullable().default(null),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -215,6 +224,12 @@ export function formatBetaFeedbackMessage(input: BetaFeedbackInput): string {
     // scale it was at without leaving monitoring. The geometry itself stays
     // first-party; `pnpm ops feedback-layout <reference>` renders it.
     lines.push(`Masked layout: ${summarizeMaskedLayout(input.maskedLayout)}`)
+  }
+  if (input.screenshot) {
+    // The image itself is an attachment of the report; the text only says so.
+    lines.push(
+      `Screenshot: attached (${describeBetaFeedbackScreenshot(input.screenshot)})`,
+    )
   }
   return lines.join('\n\n').slice(0, 6_000)
 }

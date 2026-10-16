@@ -24,12 +24,12 @@ function PrivacyNotice() {
       <ShieldCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="space-y-1 text-muted-foreground">
         <p>
-          Only the text you enter, controlled diagnostic categories, and an opaque receipt
-          are sent.
+          Only the text you enter, a screenshot if you add one, controlled diagnostic
+          categories, and an opaque receipt are sent.
         </p>
         <p>
-          Please don&apos;t include guest names, review text, contact details, passwords,
-          or access codes. RepKey never records a replay or screenshot.
+          Please don&apos;t type guest names, review text, contact details, passwords, or
+          access codes. RepKey never records your screen on its own.
         </p>
       </div>
     </div>

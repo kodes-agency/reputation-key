@@ -101,6 +101,22 @@ scopes so attachment state cannot hitchhike, and `scrubSentryEvent` deletes
 a database CHECK no later than 30 days after capture. `feedback-layout` is how a
 triager looks at it.
 
+## Screenshots, which are in monitoring
+
+Unlike the masked layout, a screenshot is pixels, and it does go to
+monitoring. Since 2026-10-16 (owner decision, Privacy Notice 2.3) a reporter
+may paste, drop or choose one image on a Bug or a Suggestion. The browser
+shrinks and re-encodes it to at most 640 KiB so the report fits the default
+request limit (`beta-feedback-screenshot-encode.ts`); the contract refuses
+bytes that do not start the way the declared PNG, JPEG or WebP type does
+(`src/shared/beta-feedback-screenshot.ts`); and the delivery adapter hands it
+to Sentry as an attachment of the feedback event, through the capture hint,
+so the scope clearing and the `attachments` scrub above stay as they are.
+Open it from the feedback event in Sentry, whose text carries a
+`Screenshot: attached (type, size)` line; the triage table and the GitHub issue
+never hold it. There is no screenshot tag: the scrubber's tag allowlist ships
+in the first-paint bundle too, and the line says the same.
+
 ## Telling the reporter
 
 In the notification bell, and by a marker on the Feedback entry point (ADR 0059).

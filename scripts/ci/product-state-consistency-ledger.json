@@ -310,6 +310,12 @@
       "policy": "Read once from this browser's seen-outcome map when the reports panel opens, so an outcome keeps its New marker for the whole visit. Per-viewer convenience only: nothing server-side reads it, and losing it can only make a marker reappear, never hide an outcome."
     },
     {
+      "id": "src/components/features/beta-feedback/beta-feedback-screenshot-state.ts:useState(state)",
+      "classification": "local_runtime",
+      "owner": "Beta feedback reporting",
+      "policy": "The reporter's one optional screenshot while the form is open: empty, being shrunk in the browser, ready with its preview URL, or refused. It is not server state and is never read back; Remove, a newer attach, or closing the dialog discards it and releases the preview URL."
+    },
+    {
       "id": "src/components/features/guest/public-portal/immersive/use-immersive-guest-response.ts:useState(csrfNonce)",
       "classification": "server_snapshot",
       "owner": "Guest response CSRF lifecycle",
