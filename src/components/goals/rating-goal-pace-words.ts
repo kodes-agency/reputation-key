@@ -18,15 +18,14 @@ const oneDecimal = (value: number): string =>
   formatNumber(value, { maximumFractionDigits: 1 })
 
 /** True when a pace reads a day: one a day or more. */
-export const readsPerDay = (tenthsPerWeek: number): boolean =>
-  tenthsPerWeek >= ONE_A_DAY_TENTHS
+const readsPerDay = (tenthsPerWeek: number): boolean => tenthsPerWeek >= ONE_A_DAY_TENTHS
 
 /** "1.4 a week": a pace a week, one decimal at most. */
 const weekWords = (tenthsPerWeek: number): string =>
   `${oneDecimal(tenthsPerWeek / TENTHS)} a week`
 
 /** "20 a month". */
-export const monthText = (tenthsPerWeek: number): string =>
+const monthText = (tenthsPerWeek: number): string =>
   `${formatNumber(perMonthOf(tenthsPerWeek))} a month`
 
 /** "2 a day" (one decimal), "3 a week" under one a day, or "60 a month". */

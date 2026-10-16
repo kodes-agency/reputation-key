@@ -53,14 +53,12 @@ import type {
 } from './dto/rating-goal-setup.types'
 
 export {
-  A_FEW_A_WEEK_TENTHS,
   OWN_PACE_MIN_TENTHS,
   dayTenthsOf,
   ownPaceTenths,
   perMonthOf,
 } from '../domain/rating-goal-pace-chips'
 export { ownAverageTenths } from '../domain/rating-goal-average'
-export { SIX_MONTHS_DAYS } from '../domain/rating-goal-duration'
 
 type Plan = Extract<RatingGoalSetupPlanView, { kind: 'plan' }>
 

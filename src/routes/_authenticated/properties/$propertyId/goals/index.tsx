@@ -168,7 +168,6 @@ function GoalsRoute() {
         {/* The Google rating goal first, apart from the Portal goals: no shared numbers. */}
         <RatingGoalPanel
           propertyId={propertyId}
-          propertyName={propData.property.name}
           timezone={propData.property.timezone}
           view={view}
           hasPortals={subjectNames.portals.length > 0}

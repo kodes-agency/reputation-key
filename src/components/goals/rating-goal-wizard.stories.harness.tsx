@@ -36,20 +36,24 @@ export type HarnessProps = Partial<RatingGoalWizardProps> &
 
 /** A page with the one door the wizard opens from; a fresh wizard for every opening. */
 export function Harness(props: HarnessProps) {
-  const [opening, setOpening] = useState({ open: false, key: 0 })
+  const [open, setOpen] = useState(false)
+  const [key, setKey] = useState(0)
   const door = useRef<HTMLButtonElement>(null)
   return (
     <>
       <Button
         ref={door}
-        onClick={() => setOpening(({ key }) => ({ open: true, key: key + 1 }))}
+        onClick={() => {
+          setOpen(true)
+          setKey((last) => last + 1)
+        }}
       >
         Open the wizard
       </Button>
       <RatingGoalWizard
-        key={opening.key}
-        open={opening.open}
-        onOpenChange={(open) => setOpening((current) => ({ ...current, open }))}
+        key={key}
+        open={open}
+        onOpenChange={setOpen}
         propertyId={FIXTURE_PROPERTY_ID}
         propertyName="Harborline Suites"
         setup={read(setupViewOf(HARBORLINE))}
@@ -59,7 +63,7 @@ export function Harness(props: HarnessProps) {
         // As the page's host does: no trigger, so the focus is handed back here.
         onCloseAutoFocus={(event) => {
           event.preventDefault()
-          if (!opening.open) door.current?.focus()
+          if (!open) door.current?.focus()
         }}
         {...props}
       />

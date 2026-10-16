@@ -5,14 +5,13 @@
 // earlier average (D30) offers both Change and Back to automatic. At a shown
 // 4.7 or 4.8 only a typed average plans a climb (X1), so the field is open and
 // there is no automatic one to go back to.
-import { useState, type KeyboardEvent } from 'react'
 import { Star } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
 import { RatingFigure } from '#/components/ui/rating-figure'
 import { TONE_INK } from '#/components/ui/tone'
 import { averageSourceText, averageWhyText } from './rating-goal-setup-copy'
 import type { SetupPlan } from './rating-goal-setup-draft'
+import { RatingGoalTypedNumber } from './rating-goal-typed-number'
 import { tenthsText } from './rating-goal-view'
 
 type Props = Readonly<{
@@ -26,32 +25,16 @@ type Props = Readonly<{
 }>
 
 function OwnAverageField({ plan, idBase, onTypeOwn }: Props) {
-  const [typed, setTyped] = useState<string | null>(null)
-  const commit = () => {
-    if (typed === null) return
-    onTypeOwn(typed)
-    setTyped(null)
-  }
-  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== 'Enter') return
-    event.preventDefault()
-    commit()
-  }
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <Input
-        inputMode="decimal"
-        value={typed ?? tenthsText(plan.average.tenths)}
-        onChange={(event) => setTyped(event.target.value)}
-        onBlur={commit}
-        onKeyDown={onKeyDown}
-        aria-labelledby={`${idBase}-average`}
-        aria-describedby={`${idBase}-average-why`}
-        className="text-right font-semibold"
-        style={{ width: 76 }}
-      />
+    <RatingGoalTypedNumber
+      shown={tenthsText(plan.average.tenths)}
+      inputMode="decimal"
+      labelledBy={`${idBase}-average`}
+      describedBy={`${idBase}-average-why`}
+      onCommit={onTypeOwn}
+    >
       <Star aria-hidden="true" className="size-4 shrink-0 fill-current text-rating" />
-    </span>
+    </RatingGoalTypedNumber>
   )
 }
 

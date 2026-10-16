@@ -204,11 +204,72 @@ function keepSave(
   }
 }
 
-export function RatingGoalWizard(props: RatingGoalWizardProps) {
-  const { intent, setup, propertyId } = props
-  const flow = useWizardFlow(props)
+type Flow = ReturnType<typeof useWizardFlow>
+
+/** The keep step, with "Raise it anyway" where a climb is still possible (X1). */
+function KeepStep({
+  props,
+  flow,
+  setup,
+  intent,
+}: Readonly<{
+  props: RatingGoalWizardProps
+  flow: Flow
+  setup: RatingGoalSetupView
+  intent: Extract<RatingGoalWizardIntent, { kind: 'keep' }>
+}>) {
+  return (
+    <RatingGoalKeepStep
+      pending={flow.pending}
+      banner={<DialogErrorBanner error={flow.error} />}
+      reason={setup.offersClimb ? keepFirstSentence(intent.targetTenths) : null}
+      onRaise={setup.offersClimb ? flow.raise : undefined}
+      onStart={() => {
+        const { submission, saved } = keepSave(intent, props.propertyId)
+        if (submission !== null) void flow.save(submission, saved)
+      }}
+    />
+  )
+}
+
+/** What the frame holds: the done screen, the read still going, Keep, or the one screen. */
+function WizardBody({
+  props,
+  flow,
+}: Readonly<{ props: RatingGoalWizardProps; flow: Flow }>) {
+  const { intent, setup } = props
   const small = useIsMobile()
-  const banner = <DialogErrorBanner error={flow.error} />
+  if (flow.step === 'done' && flow.receipt !== null) {
+    return (
+      <RatingGoalDone
+        receipt={flow.receipt}
+        propertyId={props.propertyId}
+        hasPortals={props.hasPortals}
+      />
+    )
+  }
+  if (setup.data === undefined) return <SetupPending setup={setup} />
+  if (intent.kind === 'keep' && flow.step === 'keep') {
+    return <KeepStep props={props} flow={flow} setup={setup.data} intent={intent} />
+  }
+  return (
+    <RatingGoalSetupStep
+      setup={setup.data}
+      intent={intent.kind === 'keep' ? CLIMB : intent}
+      propertyId={props.propertyId}
+      draft={flow.draft ?? openingDraft(intent, setup.data)}
+      onDraft={flow.setDraft}
+      pending={flow.pending}
+      banner={<DialogErrorBanner error={flow.error} />}
+      small={small}
+      onSave={flow.save}
+    />
+  )
+}
+
+export function RatingGoalWizard(props: RatingGoalWizardProps) {
+  const { intent, setup } = props
+  const flow = useWizardFlow(props)
   return (
     <RatingGoalWizardFrame
       open={props.open}
@@ -226,38 +287,7 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
       onCloseAutoFocus={props.onCloseAutoFocus}
       inline={props.inline}
     >
-      {flow.step === 'done' && flow.receipt !== null ? (
-        <RatingGoalDone
-          receipt={flow.receipt}
-          propertyId={propertyId}
-          hasPortals={props.hasPortals}
-        />
-      ) : setup.data === undefined ? (
-        <SetupPending setup={setup} />
-      ) : intent.kind === 'keep' && flow.step === 'keep' ? (
-        <RatingGoalKeepStep
-          pending={flow.pending}
-          banner={banner}
-          reason={setup.data.offersClimb ? keepFirstSentence(intent.targetTenths) : null}
-          onRaise={setup.data.offersClimb ? flow.raise : undefined}
-          onStart={() => {
-            const { submission, saved } = keepSave(intent, propertyId)
-            if (submission !== null) void flow.save(submission, saved)
-          }}
-        />
-      ) : (
-        <RatingGoalSetupStep
-          setup={setup.data}
-          intent={intent.kind === 'keep' ? CLIMB : intent}
-          propertyId={propertyId}
-          draft={flow.draft ?? openingDraft(intent, setup.data)}
-          onDraft={flow.setDraft}
-          pending={flow.pending}
-          banner={banner}
-          small={small}
-          onSave={flow.save}
-        />
-      )}
+      <WizardBody props={props} flow={flow} />
     </RatingGoalWizardFrame>
   )
 }

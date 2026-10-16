@@ -15,6 +15,7 @@ import {
   refusal,
   setMock,
   statusLine,
+  type Dialog,
 } from './rating-goal-wizard.stories.harness'
 
 const meta: Meta<typeof Harness> = {
@@ -26,6 +27,15 @@ const meta: Meta<typeof Harness> = {
 
 export default meta
 type Story = StoryObj<typeof meta>
+
+/** "Your own", then a pace typed and entered; the field it was typed in. */
+async function typeOwnPace(dialog: Dialog, typed: string) {
+  await userEvent.click(dialog.getByRole('button', { name: 'Your own' }))
+  const own = dialog.getByRole('textbox', { name: 'New reviews' })
+  await userEvent.clear(own)
+  await userEvent.type(own, `${typed}{Enter}`)
+  return own
+}
 
 export const PinAndBack: Story = {
   play: async ({ canvasElement }) => {
@@ -79,11 +89,7 @@ export const OwnPaceMonth: Story = {
     const dialog = await openWizard(canvasElement)
     await userEvent.click(dialog.getByRole('radio', { name: 'a month' }))
     await expect(dialog.getByText('30 a month')).toBeVisible()
-    await userEvent.click(dialog.getByRole('button', { name: 'Your own' }))
-    const own = dialog.getByRole('textbox', { name: 'New reviews' })
-    await userEvent.clear(own)
-    await userEvent.type(own, '20{Enter}')
-    await expect(own).toHaveValue('20')
+    await expect(await typeOwnPace(dialog, '20')).toHaveValue('20')
     await expect(
       dialog.getByText('new reviews at 20 a month', { exact: false }),
     ).toBeVisible()
@@ -95,11 +101,7 @@ export const OwnPaceMonth: Story = {
 export const OwnPaceClamp: Story = {
   play: async ({ canvasElement }) => {
     const dialog = await openWizard(canvasElement)
-    await userEvent.click(dialog.getByRole('button', { name: 'Your own' }))
-    const own = dialog.getByRole('textbox', { name: 'New reviews' })
-    await userEvent.clear(own)
-    await userEvent.type(own, '80{Enter}')
-    await expect(own).toHaveValue('50')
+    await expect(await typeOwnPace(dialog, '80')).toHaveValue('50')
     await expect(
       dialog.getByText('We plan with up to 50 a day, so we used 50 a day.'),
     ).toBeVisible()

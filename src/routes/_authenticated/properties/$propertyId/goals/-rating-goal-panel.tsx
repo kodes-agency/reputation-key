@@ -17,6 +17,7 @@ import { wizardOnArrival } from '#/components/goals/rating-goal-arrival'
 import type { RatingGoalWizardIntent } from '#/components/goals/rating-goal-wizard-view'
 import { RatingGoalHistory } from '#/components/goals/rating-goal-history'
 import { RatingGoalSection } from '#/components/goals/rating-goal-section'
+import { propertyQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { ratingGoalHistoryQuery, ratingGoalSetupQuery } from './-rating-goal-queries'
 import {
@@ -28,8 +29,6 @@ import {
 
 type Props = Readonly<{
   propertyId: string
-  /** Named in the wizard's header. */
-  propertyName: string
   timezone: string
   view: 'active' | 'history'
   /** The done screen's one next step (portal goals, or a first Portal), and too few reviews' link. */
@@ -74,7 +73,6 @@ function useWizardOnArrival(
 
 export function RatingGoalPanel({
   propertyId,
-  propertyName,
   timezone,
   view,
   hasPortals,
@@ -94,7 +92,12 @@ export function RatingGoalPanel({
     enabled: view === 'history' || noActiveGoal,
     retry: false,
   })
-  const { start, wizard } = useRatingGoalWizard(propertyId, { hasPortals, propertyName })
+  // The page's loader read the Property: only its name, for the wizard's header.
+  const property = useQuery({ ...propertyQuery(propertyId), retry: false })
+  const { start, wizard } = useRatingGoalWizard(propertyId, {
+    hasPortals,
+    propertyName: property.data?.property.name,
+  })
   useWizardOnArrival({
     asked: startOnArrival && view === 'active',
     card,

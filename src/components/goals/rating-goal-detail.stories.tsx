@@ -47,6 +47,16 @@ const meta: Meta<typeof RatingGoalDetail> = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+/** A goal that looks forward no more: no pace line, no bar, no tiles. */
+async function looksNoFurther(
+  canvas: ReturnType<typeof within>,
+  canvasElement: HTMLElement,
+) {
+  await expect(canvas.queryByText(/^Your pace/)).toBeNull()
+  await expect(canvas.queryByRole('progressbar')).toBeNull()
+  await expect(canvasElement.querySelector('[data-slot="metric-strip"]')).toBeNull()
+}
+
 export const Monitoring: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -150,9 +160,7 @@ export const KeepGoal: Story = {
     await expect(
       canvas.getByRole('heading', { name: 'Keeping 4.9 on Google' }),
     ).toBeVisible()
-    await expect(canvas.queryByText(/^Your pace/)).toBeNull()
-    await expect(canvas.queryByRole('progressbar')).toBeNull()
-    await expect(canvasElement.querySelector('[data-slot="metric-strip"]')).toBeNull()
+    await looksNoFurther(canvas, canvasElement)
     await expect(canvas.getByText('No changes since the goal was set.')).toBeVisible()
   },
 }
@@ -276,9 +284,7 @@ export const FoundReached: Story = {
       canvas.getByText(/^Google shows 4\.5: the goal is reached\./),
     ).toBeVisible()
     await expect(canvas.queryByText(/^Expected around/)).toBeNull()
-    await expect(canvas.queryByText(/^Your pace/)).toBeNull()
-    await expect(canvas.queryByRole('progressbar')).toBeNull()
-    await expect(canvasElement.querySelector('[data-slot="metric-strip"]')).toBeNull()
+    await looksNoFurther(canvas, canvasElement)
     await expect(canvas.getByText('Pace 2 → 1.6 a day')).toBeVisible()
   },
 }

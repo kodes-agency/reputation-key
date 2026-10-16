@@ -6,9 +6,7 @@
 // the thumb sits on the nearest stop, and moving it goes back to the stops. A
 // typed pace is applied on Enter or when the field is left, clamped with its
 // reason.
-import { useState, type KeyboardEvent } from 'react'
 import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import { Slider } from '#/components/ui/slider'
 import { TONE_INK } from '#/components/ui/tone'
@@ -16,6 +14,7 @@ import { cn } from '#/lib/utils'
 import { HOW_TO_ASK_LINE } from './rating-goal-copy'
 import { paceText } from './rating-goal-pace-words'
 import { paceNote } from './rating-goal-setup-copy'
+import { RatingGoalTypedNumber } from './rating-goal-typed-number'
 import type { PaceUnit, SetupPlan } from './rating-goal-setup-draft'
 import {
   dayTenthsOf,
@@ -71,32 +70,17 @@ function stopStyle(index: number, last: number) {
 }
 
 function OwnField({ plan, unit, idBase, onTypeOwn }: Props) {
-  const [typed, setTyped] = useState<string | null>(null)
-  const commit = () => {
-    if (typed === null) return
-    onTypeOwn(typed)
-    setTyped(null)
-  }
-  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== 'Enter') return
-    event.preventDefault()
-    commit()
-  }
   return (
-    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-      <Input
-        inputMode={unit === 'day' ? 'decimal' : 'numeric'}
-        value={typed ?? ownValue(plan.pace.tenthsPerWeek, unit)}
-        onChange={(event) => setTyped(event.target.value)}
-        onBlur={commit}
-        onKeyDown={onKeyDown}
-        aria-labelledby={`${idBase}-pace`}
-        aria-describedby={`${idBase}-pace-note`}
-        className="text-right font-semibold"
-        style={{ width: 76 }}
-      />
+    <RatingGoalTypedNumber
+      shown={ownValue(plan.pace.tenthsPerWeek, unit)}
+      inputMode={unit === 'day' ? 'decimal' : 'numeric'}
+      labelledBy={`${idBase}-pace`}
+      describedBy={`${idBase}-pace-note`}
+      onCommit={onTypeOwn}
+      className="text-muted-foreground"
+    >
       {unit === 'day' ? 'a day' : 'a month'}
-    </span>
+    </RatingGoalTypedNumber>
   )
 }
 
