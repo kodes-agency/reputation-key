@@ -89,6 +89,16 @@ describe('the note under the pace', () => {
     )
   })
 
+  it('says under 1 a month, not none, when one review came in 3 months', () => {
+    const quiet = { ...OLIVE_TREE, reviewsLast90Days: 1 }
+    expect(paceNote(planOf(quiet), 'day')).toBe(
+      'About 30 a month, up from under 1 a month now.',
+    )
+    expect(paragraphs(quiet)[3]).toMatch(
+      /At today’s pace of under 1 a month, the same 40 reviews would take more than 3 years\.$/u,
+    )
+  })
+
   it('says why the pace is recommended, quiet or busy', () => {
     expect(paceWhyText(planOf(HARBORLINE))).toBe(
       'Places that ask every guest manage at least 1 a day, so we suggest 1 a day.',

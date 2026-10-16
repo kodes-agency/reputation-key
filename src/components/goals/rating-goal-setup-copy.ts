@@ -49,9 +49,14 @@ export function averageWhyText(average: Average): string {
   return `Guests who write on their own are often the unhappy ones, so guests you ask usually rate you higher. ${SWITCH}`
 }
 
-/** "up from about 2 a month now." and its siblings, ±5% around today. */
-function comparedWithNow(perMonth: number, now: number): string {
-  if (now === 0) return 'up from none in the last 3 months.'
+/**
+ * "up from about 2 a month now." and its siblings, ±5% around today. "None"
+ * only when no review came in the last 90 days (`daysAtTodaysPace` is null
+ * exactly then); one in 90 days rounds to 0 a month and reads "under 1".
+ */
+function comparedWithNow(perMonth: number, now: number, anyRecent: boolean): string {
+  if (!anyRecent) return 'up from none in the last 3 months.'
+  if (now === 0) return 'up from under 1 a month now.'
   if (perMonth * 100 > now * 105) return `up from about ${formatNumber(now)} a month now.`
   if (perMonth * 100 < now * 95)
     return `fewer than the ${formatNumber(now)} a month you get now.`
@@ -62,7 +67,8 @@ function comparedWithNow(perMonth: number, now: number): string {
 export function paceNote(plan: SetupPlan, unit: PaceUnit): string {
   const tenths = plan.pace.tenthsPerWeek
   const other = unit === 'day' ? paceText(tenths, 'month') : paceText(tenths)
-  return `About ${other}, ${comparedWithNow(perMonthOf(tenths), plan.pace.nowPerMonth)}`
+  const anyRecent = plan.daysAtTodaysPace !== null
+  return `About ${other}, ${comparedWithNow(perMonthOf(tenths), plan.pace.nowPerMonth, anyRecent)}`
 }
 
 /** Why this pace is recommended. */
@@ -124,10 +130,12 @@ export function workedOutParagraphs(
     maximumFractionDigits: 2,
   })
   const about = inputs.exactSource === 'google' ? 'about ' : ''
+  const now = plan.pace.nowPerMonth
+  const todays = now === 0 ? 'pace of under 1' : formatNumber(now)
   const today =
     plan.daysAtTodaysPace === null
       ? ''
-      : ` At today’s ${formatNumber(plan.pace.nowPerMonth)} a month, the same ${formatNumber(plan.reviewsNeeded)} reviews would take ${spanText(plan.daysAtTodaysPace)}.`
+      : ` At today’s ${todays} a month, the same ${formatNumber(plan.reviewsNeeded)} reviews would take ${spanText(plan.daysAtTodaysPace)}.`
   return [
     [
       {
