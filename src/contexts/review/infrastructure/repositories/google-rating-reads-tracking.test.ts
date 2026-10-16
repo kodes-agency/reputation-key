@@ -1,6 +1,7 @@
 // ReviewGoogleRatingReads for the rating goal's tracking page, against real
-// PostgreSQL (round 5, PLAN-D D-2): the exact average at the end of each
-// Property-local week, and Google's own number over time. The same reviews
+// PostgreSQL (round 5, PLAN-D D-2 and D-2b): the exact average at the end of
+// each Property-local week, Google's own number over time, and the low reviews
+// since a goal was set (the owner's per-review exception). The same reviews
 // count as for every other goal read (servable, Google, current binding
 // epoch), weeks run Monday to Sunday in Sofia (UTC+3, UTC+2 from 25 Oct), and
 // no week sum leaves the read.
@@ -42,7 +43,7 @@ type ReviewSeed = Readonly<{
   contentExpiresAt?: string
 }>
 
-async function insertReview(seed: ReviewSeed): Promise<void> {
+async function insertReview(seed: ReviewSeed): Promise<string> {
   const id = nextId('2d200000')
   await held.client.query(
     `INSERT INTO reviews (
@@ -69,6 +70,7 @@ async function insertReview(seed: ReviewSeed): Promise<void> {
       '0'.repeat(64),
     ],
   )
+  return id
 }
 
 type FactSeed = Readonly<{
@@ -362,5 +364,88 @@ describe('Google’s shown number over time', () => {
     expect(shown[0]).toMatchObject({ averageRating: 3.9, reviewCount: 200 })
     expect(shown[1]?.reviewCount).toBe(201 + 21)
     expect(shown.at(-1)?.reviewCount).toBe(201 + 119)
+  })
+})
+
+describe('the low reviews since a goal was set', () => {
+  // A goal of 4.1 starts at 4.05, one of 3.9 at 3.85.
+  const BELOW_41 = 4050
+  const BELOW_39 = 3850
+
+  it('names each review under the threshold up to 4★, newest first', async () => {
+    const two = await insertReview({ rating: 2, reviewedAt: '2026-10-20T10:00:00Z' })
+    const four = await insertReview({ rating: 4, reviewedAt: '2026-10-28T10:00:00Z' })
+    const one = await insertReview({ rating: 1, reviewedAt: '2026-11-02T09:00:00Z' })
+    await insertReview({ rating: 5, reviewedAt: '2026-11-01T10:00:00Z' })
+
+    const low = await reads().getLowReviews(ORG, PROPERTY, SINCE, BELOW_41, 25)
+
+    expect(low).toEqual([
+      { reviewId: one, stars: 1, reviewedAt: new Date('2026-11-02T09:00:00Z') },
+      { reviewId: four, stars: 4, reviewedAt: new Date('2026-10-28T10:00:00Z') },
+      { reviewId: two, stars: 2, reviewedAt: new Date('2026-10-20T10:00:00Z') },
+    ])
+  })
+
+  it('leaves a 4★ review out of a goal it does not set back', async () => {
+    await insertReview({ rating: 4, reviewedAt: '2026-10-28T10:00:00Z' })
+    const three = await insertReview({ rating: 3, reviewedAt: '2026-10-29T10:00:00Z' })
+
+    const low = await reads().getLowReviews(ORG, PROPERTY, SINCE, BELOW_39, 25)
+
+    expect(low.map((review) => review.reviewId)).toEqual([three])
+  })
+
+  it('never names a 5★ review, even under a threshold above it', async () => {
+    await insertReview({ rating: 5, reviewedAt: '2026-10-28T10:00:00Z' })
+    const four = await insertReview({ rating: 4, reviewedAt: '2026-10-29T10:00:00Z' })
+
+    const low = await reads().getLowReviews(ORG, PROPERTY, SINCE, 5050, 25)
+
+    expect(low.map((review) => review.stars)).toEqual([4])
+    expect(low[0]?.reviewId).toBe(four)
+  })
+
+  it('names only reviews since the set that every goal read counts', async () => {
+    await seedCountedReviews()
+    await seedExcludedReviews()
+
+    const low = await reads().getLowReviews(ORG, PROPERTY, SINCE, BELOW_41, 25)
+
+    // The 2★ of Sunday 11 Oct is before the set; every 1★ is excluded.
+    expect(low.map((review) => review.stars)).toEqual([4, 3, 4])
+  })
+
+  it('keeps the newest within the limit, by time and then by id', async () => {
+    const first = await insertReview({ rating: 2, reviewedAt: '2026-10-20T10:00:00Z' })
+    const second = await insertReview({ rating: 3, reviewedAt: '2026-10-20T10:00:00Z' })
+    await insertReview({ rating: 1, reviewedAt: '2026-10-13T10:00:00Z' })
+
+    const low = await reads().getLowReviews(ORG, PROPERTY, SINCE, BELOW_41, 2)
+
+    expect(low.map((review) => review.reviewId)).toEqual([second, first])
+  })
+
+  it('returns an id, stars and a time, nothing else', async () => {
+    await insertReview({ rating: 2, reviewedAt: '2026-10-20T10:00:00Z' })
+
+    const low = await reads().getLowReviews(ORG, PROPERTY, SINCE, BELOW_41, 25)
+
+    expect(low).toHaveLength(1)
+    expect(Object.keys(low[0] ?? {}).sort()).toEqual(['reviewId', 'reviewedAt', 'stars'])
+  })
+
+  it('refuses to read more than 25', async () => {
+    await expect(
+      reads().getLowReviews(ORG, PROPERTY, SINCE, BELOW_41, 26),
+    ).rejects.toThrow(RangeError)
+  })
+
+  it('has nothing for another tenant', async () => {
+    await insertReview({ rating: 2, reviewedAt: '2026-10-20T10:00:00Z' })
+
+    await expect(
+      reads().getLowReviews(OTHER_ORG, PROPERTY, SINCE, BELOW_41, 25),
+    ).resolves.toEqual([])
   })
 })

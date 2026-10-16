@@ -4,9 +4,11 @@
 // composes THE serving-eligibility predicate (ADR 0031, clock-injected) and
 // joins the Property on its current binding epoch, so a review observed under
 // an earlier binding never counts. No review content leaves this module, and
-// the week sums behind the goal's chart never leave it either (round 5).
+// the week sums behind the goal's chart never leave it either (round 5). The
+// low reviews leave as an id, stars and a creation time only (the owner's
+// exception for the tracking page, ADR 0067, 2026-10-17).
 
-import { and, count, desc, eq, gte, sql, sum, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, gte, lte, sql, sum, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   properties,
@@ -14,11 +16,13 @@ import {
   reviews,
 } from '#/shared/db/schema'
 import type { Clock } from '#/shared/domain/clock'
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import { reviewId, type OrganizationId, type PropertyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import {
+  GOOGLE_RATING_LOW_REVIEW_LIMIT,
   GOOGLE_RATING_SUMMARY_MAX_COUNT_WINDOWS,
   GOOGLE_SHOWN_NUMBER_LIMIT,
+  type GoogleRatingLowReview,
   type GoogleRatingTotals,
   type GoogleShownNumber,
   type ReviewGoogleRatingReads,
@@ -219,6 +223,49 @@ async function shownNumberChanges(
   }))
 }
 
+/** The highest stars a low review can have: a five never sets a goal back. */
+const LOW_REVIEW_MAX_STARS = 4
+
+/**
+ * The newest current Google reviews since `since` under `belowThousandths`
+ * and at most 4★: id, stars and creation time, nothing else.
+ */
+async function lowReviews(
+  deps: { db: Database; clock: Clock },
+  scope: Readonly<{
+    organizationId: OrganizationId
+    propertyId: PropertyId
+    since: Date
+  }>,
+  belowThousandths: number,
+  limit: number,
+): Promise<readonly GoogleRatingLowReview[]> {
+  const rows = await deps.db
+    .select({ id: reviews.id, rating: reviews.rating, reviewedAt: reviews.reviewedAt })
+    .from(reviews)
+    .innerJoin(properties, currentBinding)
+    .where(
+      and(
+        currentGoogleReviews(
+          scope.organizationId,
+          scope.propertyId,
+          deps.clock(),
+          scope.since,
+        ),
+        sql`${reviews.rating} * 1000 < ${belowThousandths}`,
+        lte(reviews.rating, LOW_REVIEW_MAX_STARS),
+      ),
+    )
+    .orderBy(desc(reviews.reviewedAt), desc(reviews.id))
+    .limit(limit)
+  // Eligibility already requires both; the guard only narrows the types.
+  return rows.flatMap((row) =>
+    row.rating === null || row.reviewedAt === null
+      ? []
+      : [{ reviewId: reviewId(row.id), stars: row.rating, reviewedAt: row.reviewedAt }],
+  )
+}
+
 export const createGoogleRatingReads = (deps: {
   db: Database
   clock: Clock
@@ -338,6 +385,21 @@ export const createGoogleRatingReads = (deps: {
           .orderBy(reviewDay)
         return rows.map((row) => ({ day: row.day, count: Number(row.count) }))
       })
+    },
+
+    async getLowReviews(organizationId, propertyId, since, belowThousandths, limit) {
+      if (
+        !Number.isInteger(limit) ||
+        limit < 0 ||
+        limit > GOOGLE_RATING_LOW_REVIEW_LIMIT
+      ) {
+        throw new RangeError(
+          `A low-review read returns at most ${GOOGLE_RATING_LOW_REVIEW_LIMIT} reviews`,
+        )
+      }
+      return trace('review.googleRatingReads.getLowReviews', () =>
+        lowReviews(deps, { organizationId, propertyId, since }, belowThousandths, limit),
+      )
     },
 
     async getStarDistribution(organizationId, propertyId, since) {
