@@ -471,10 +471,24 @@ export const WelcomeLinesPerLanguage: Story = {
 // Closing the property's wording keeps what was typed in it: the fold hides its
 // form rather than removing it, so an unsaved edit (and the guard that asks
 // before leaving with one) survives.
+const DIAG_VARIANT = import.meta.env.VITE_DIAG_VARIANT as string | undefined
+
+function variantResources(): PortalEditorResources {
+  const resources = makeResources(action(async () => undefined))
+  if (DIAG_VARIANT !== 'preview-off') return resources
+  return { ...resources, getPortalPreview: () => new Promise(() => undefined) }
+}
+
 export const PropertyWordingKeepsAnUnsavedEdit: Story = {
-  args: { resources: makeResources(action(async () => undefined)) },
+  args: { resources: variantResources() },
   play: async ({ canvasElement }) => {
-    diag('PW step 0 play begins')
+    if (DIAG_VARIANT === 'no-transition') {
+      const style = document.createElement('style')
+      style.textContent =
+        '*, *::before, *::after { transition: none !important; animation: none !important; }'
+      document.head.appendChild(style)
+    }
+    diag(`PW step 0 play begins (variant ${DIAG_VARIANT ?? 'none'})`)
     const english = languageCard(canvasElement, /English/)
     const fold = english.getByRole('button', { name: /Property wording/ })
     await userEvent.click(fold)
