@@ -206,8 +206,10 @@ const starsSoFar = (average: number): string =>
   `${formatNumber(average, { maximumFractionDigits: 2 })}★`
 
 /**
- * What the forecasts assume, after the count: the plan mixed with the new
- * reviews, or their own average while they are too low (round 4, X3).
+ * What the goal's numbers assume, after the count: the plan mixed with the new
+ * reviews, or their own average while they are too low (round 4, X3). A
+ * too-low goal shows no forecast, only Still needed and the next tenth, so
+ * its note says "the numbers".
  */
 function sinceSetNote(plan: RatingGoalPlanProgressView): string {
   const { reviewCount } = plan.sinceSet
@@ -215,7 +217,7 @@ function sinceSetNote(plan: RatingGoalPlanProgressView): string {
   const since = `${reviewsText(reviewCount)} since the goal was set`
   switch (plan.qualityBasis) {
     case 'since_set':
-      return `${since} · forecasts use their average`
+      return `${since} · the numbers use their average`
     case 'blended':
       return `${since} · forecasts use ${starsSoFar(plan.assumedAverage)}, your plan mixed with them`
     case 'planned':

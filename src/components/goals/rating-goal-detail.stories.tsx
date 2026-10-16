@@ -212,7 +212,7 @@ export const NewReviewsTooLow: Story = {
     const plan = within(canvas.getByRole('region', { name: 'Your plan' }))
     await expect(plan.getByText('3.75★ · plan 4.5★')).toBeVisible()
     await expect(
-      plan.getByText('12 reviews since the goal was set · forecasts use their average'),
+      plan.getByText('12 reviews since the goal was set · the numbers use their average'),
     ).toBeVisible()
   },
 }

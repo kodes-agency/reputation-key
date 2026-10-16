@@ -209,9 +209,9 @@ describe('your plan', () => {
     ).toBe('No new reviews since the goal was set')
   })
 
-  it('says the forecasts use the new reviews’ own average while they are too low', () => {
+  it('says the numbers use the new reviews’ own average while they are too low', () => {
     expect(yourPlanLines(DETAIL_TOO_LOW.plan!)[1]?.note).toBe(
-      '12 reviews since the goal was set · forecasts use their average',
+      '12 reviews since the goal was set · the numbers use their average',
     )
   })
 
