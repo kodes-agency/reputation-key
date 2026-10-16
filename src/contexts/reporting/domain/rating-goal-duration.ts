@@ -4,24 +4,18 @@
 // reviews it needs at the planned average, at the chosen pace) and a likely
 // range: the fast end at an average 0.1★ better and asking 10% more, the slow
 // end at 0.1★ worse and asking 10% less, open when 0.1★ worse no longer reaches
-// the goal (the mock's rule; card and detail keep `forecastArrival`). The
-// recommended goal is the highest one reached within six months even at 0.1★
+// the goal. Since round 5 that range is the one arrival rule tracking uses too
+// (rating-goal-arrival.ts, PLAN-D E1). The recommended goal is the highest one reached within six months even at 0.1★
 // below plan, at least the next one. Days are integer fractions
 // (reviews × 70 / tenths a week), so no float decides a branch: "within six
 // months" is `reviews × 70 ≤ 182 × tenths`.
 
-import {
-  FORECAST_MIX_DRIFT_THOUSANDTHS,
-  FORECAST_PACE_DRIFT_PERCENT,
-} from './rating-goal-forecast'
-import {
-  compareRatios,
-  fromThousandths,
-  thresholdThousandths,
-} from './rating-goal-numbers'
+import { FORECAST_MIX_DRIFT_THOUSANDTHS } from './rating-goal-forecast'
+import { ratio } from './rating-goal-numbers'
 import type { PaceChip } from './rating-goal-pace-chips'
 import { reachableAt } from './rating-goal-average'
-import { PERFECT_TENTHS, planNeeds, type RatingGoalNumbers } from './rating-goal-stops'
+import { arrivalDays, chosenRate, type DayFraction } from './rating-goal-arrival'
+import { planNeeds, type RatingGoalNumbers } from './rating-goal-stops'
 
 /** "Within six months". */
 export const SIX_MONTHS_DAYS = 182
@@ -29,10 +23,6 @@ export const SIX_MONTHS_DAYS = 182
 const DAYS_PER_REVIEW_A_WEEK = 70
 /** The average drift of the likely range in tenths (0.1★). */
 const DRIFT_TENTHS = FORECAST_MIX_DRIFT_THOUSANDTHS / 100
-const PERCENT = 100
-
-/** Days as an integer fraction. */
-export type DayFraction = Readonly<{ num: number; den: number }>
 
 /** The days a count of reviews takes at a pace in tenths a week. */
 export const daysAt = (reviews: number, tenthsPerWeek: number): DayFraction => ({
@@ -54,42 +44,27 @@ function needAt(numbers: RatingGoalNumbers, targetTenths: number, qualityTenths:
 }
 
 /**
- * The highest tenth the exact average already clears (Google lags behind the
- * cache, D28), else the shown one. A goal there needs no review, so none is.
+ * The likely range's ends at a planned average and a chosen pace; `slow` is
+ * null (open) when 0.1★ less never gets there. The one arrival rule
+ * (`arrivalDays`); a goal the setup offers always needs reviews, so its
+ * arrival is always in days.
  */
-export function earnedTenths(numbers: RatingGoalNumbers): number {
-  let earned = numbers.displayedTenths
-  while (
-    earned < PERFECT_TENTHS &&
-    compareRatios(numbers.exact, fromThousandths(thresholdThousandths(earned + 1))) >= 0
-  ) {
-    earned++
-  }
-  return earned
-}
-
-/** The likely range's ends; `slow` is null (open) when 0.1★ less never gets there. */
 export function likelyDays(
   numbers: RatingGoalNumbers,
   targetTenths: number,
   qualityTenths: number,
   tenthsPerWeek: number,
 ): Readonly<{ fast: DayFraction; slow: DayFraction | null }> {
-  const better = Math.min(PERFECT_TENTHS, qualityTenths + DRIFT_TENTHS)
-  const worse = qualityTenths - DRIFT_TENTHS
-  const fastNeed = needAt(numbers, targetTenths, better) ?? 0
-  const slowNeed = reachableAt(numbers.displayedTenths, targetTenths, worse)
-    ? needAt(numbers, targetTenths, worse)
-    : null
-  const ends = (reviews: number, percent: number): DayFraction => ({
-    num: reviews * DAYS_PER_REVIEW_A_WEEK * PERCENT,
-    den: tenthsPerWeek * percent,
-  })
-  return {
-    fast: ends(fastNeed, PERCENT + FORECAST_PACE_DRIFT_PERCENT),
-    slow:
-      slowNeed === null ? null : ends(slowNeed, PERCENT - FORECAST_PACE_DRIFT_PERCENT),
+  const arrival = arrivalDays(
+    numbers,
+    targetTenths,
+    ratio(qualityTenths, 10),
+    chosenRate(tenthsPerWeek),
+  )
+  if (arrival.kind !== 'days') {
+    throw new RangeError(`A goal the setup offers arrives in days: ${targetTenths}`)
   }
+  return { fast: arrival.fast, slow: arrival.slow }
 }
 
 /**

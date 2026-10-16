@@ -22,7 +22,7 @@ import {
   type RecentMix,
   type ReviewsNeeded,
 } from '../domain/rating-goal-numbers'
-import { earnedTenths } from '../domain/rating-goal-duration'
+import { earnedTenths } from '../domain/rating-goal-arrival'
 import { forecastArrival, type RatingForecast } from '../domain/rating-goal-forecast'
 import { googleNumbersView } from '../domain/google-numbers'
 import { currentPacePerWeek, paceRatio } from '../domain/rating-goal-pace'
