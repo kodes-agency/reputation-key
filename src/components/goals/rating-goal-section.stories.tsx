@@ -122,7 +122,7 @@ async function expectSquares(canvas: Canvas, count: number) {
 async function expectLadder(canvas: Canvas, name: string) {
   const ladders = canvas
     .getAllByRole('img', { hidden: true })
-    .filter((picture) => picture.getAttribute('aria-label') === name)
+    .filter((picture: HTMLElement) => picture.getAttribute('aria-label') === name)
   await expect(ladders).toHaveLength(2)
 }
 
