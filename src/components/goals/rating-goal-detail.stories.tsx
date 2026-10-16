@@ -8,6 +8,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { tailwindIsCompiled } from '../../../.storybook/tailwind-compiled'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { RatingGoalDetail, RatingGoalMissing } from './rating-goal-detail'
 import { RatingGoalDetailActions } from './rating-goal-detail-actions'
@@ -21,6 +22,11 @@ import {
   DETAIL_PLAN_CHANGED,
   DETAIL_TOO_LOW,
 } from './rating-goal-detail.stories.fixtures'
+import {
+  DETAIL_FOUND_ENDED,
+  DETAIL_FOUND_REACHED,
+  DETAIL_WENT_BACK,
+} from './rating-goal-detail-outcomes.stories.fixtures'
 import { withRatingGoalRefusals } from './rating-goal-refusal'
 import {
   DETAIL,
@@ -32,12 +38,28 @@ import {
 } from './rating-goal.stories.fixtures'
 
 const NOW = new Date(FIXTURE_NOW)
+
+/**
+ * The chart's frame where Tailwind is not compiled (the Vitest story runner):
+ * `h-60` is inert there, so recharts would measure no height and draw nothing.
+ * The frame's 240 px stands in, so the plays can read the chart's own words.
+ * Where Tailwind is compiled the classes decide and nothing stands in.
+ */
+const CHART_FRAME = `[data-slot='chart'] { display: flex; width: 100%; height: 240px; }`
 const NAMES: Readonly<Record<string, string>> = { 'user-ana': 'Ana Petrova' }
 
 const meta: Meta<typeof RatingGoalDetail> = {
   title: 'Goals/RatingGoalDetail',
   component: RatingGoalDetail,
   parameters: { layout: 'padded' },
+  decorators: [
+    (Story) => (
+      <>
+        {tailwindIsCompiled() ? null : <style>{CHART_FRAME}</style>}
+        <Story />
+      </>
+    ),
+  ],
   args: {
     detail: DETAIL_HARBORLINE,
     readAt: NOW,
@@ -66,6 +88,14 @@ const findChart = (canvasElement: HTMLElement) =>
 /** The chart's caption, its reading and its accessible description. */
 const caption = (canvasElement: HTMLElement) =>
   canvasElement.querySelector('figcaption')?.textContent ?? null
+
+/** The climb's headline count ("18 new reviews to 4.1"), when the page shows one. */
+const headlineCount = (canvasElement: HTMLElement) =>
+  within(canvasElement).queryByText(
+    (_, element) =>
+      element?.tagName === 'P' &&
+      /new reviews? to \d\.\d$/u.test(element.textContent ?? ''),
+  )
 
 /** The rows of "What moved you", as text. */
 function movedRows(canvasElement: HTMLElement): string[] {
@@ -99,7 +129,14 @@ export const Monitoring: Story = {
     await expect(key.getByText('Google’s exact average')).toBeVisible()
     await expect(key.getByText('Your plan')).toBeVisible()
     await expect(key.getByText('Likely')).toBeVisible()
-    await expect(await findChart(canvasElement)).toBeInTheDocument()
+    const chart = await findChart(canvasElement)
+    // Words, not a Tab stop: nothing inside the figure takes focus.
+    await expect(chart.querySelector('[tabindex]:not([tabindex="-1"])')).toBeNull()
+    await expect(chart.querySelector('[role="application"]')).toBeNull()
+    await expect(within(chart).getByText('4.1 likely in 2–4 weeks')).toBeInTheDocument()
+    await expect(
+      within(chart).getByText('Your goal: Google shows 4.1 above this line'),
+    ).toBeInTheDocument()
     await expect(caption(canvasElement)).toBe(
       'Google’s exact average went from 3.91 when you set the goal to 4.02 today. 4.1 is likely in 2–4 weeks.',
     )
@@ -126,7 +163,33 @@ export const Monitoring: Story = {
   },
 }
 
-export const MonitoringLight: Story = { parameters: { theme: 'light' } }
+export const MonitoringLight: Story = {
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    await expect(await findChart(canvasElement)).toBeInTheDocument()
+  },
+}
+
+/** Google showed 4.0, then went back to 3.9: the warn-coloured dot and row, in both themes. */
+export const WentBack: Story = {
+  args: { detail: DETAIL_WENT_BACK },
+  play: async ({ canvasElement }) => {
+    const chart = await findChart(canvasElement)
+    // Under today's words on the chart, so named in the list only.
+    await expect(within(chart).queryByText('Back to 3.9')).toBeNull()
+    await expect(movedRows(canvasElement)).toEqual([
+      'This week2 new reviews',
+      'Oct 5Google went back to 3.9',
+      'Sep 30Google started showing 4.0',
+      'Sep 24Ana Petrova set the goal: 4.1 at 1 a day',
+    ])
+  },
+}
+
+export const WentBackLight: Story = {
+  ...WentBack,
+  parameters: { theme: 'light' },
+}
 
 /** The pace changed on 1 Oct: the cone starts at that week's Monday, the row says who. */
 export const PlanChanged: Story = {
@@ -154,7 +217,7 @@ export const GoogleSource: Story = {
     ).toBeVisible()
     await expect(await findChart(canvasElement)).toBeInTheDocument()
     await expect(caption(canvasElement)).toBe(
-      'Your review cache is still filling, so the line starts today.',
+      'Your review cache is still filling, so Google’s exact average is not drawn yet. 4.1 is likely in 2–4 weeks.',
     )
     const key = within(canvas.getByRole('list', { name: 'Chart key' }))
     await expect(key.queryByText('Google’s exact average')).toBeNull()
@@ -294,40 +357,41 @@ export const WaitingForGoogle: Story = {
   },
 }
 
-/** Found reached: said first, nothing that looks ahead. */
+/** Nothing that looks ahead: no count, no next step, no time, no likely band. */
+async function looksAheadNoMore(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement)
+  await expect(headlineCount(canvasElement)).toBeNull()
+  await expect(canvas.queryByText(/ next$/u)).toBeNull()
+  await expect(canvas.queryByText(/^After \d\.\d:/u)).toBeNull()
+  await expect(canvas.queryByText(/ in about /u)).toBeNull()
+  await expect(await findChart(canvasElement)).toBeInTheDocument()
+  await expect(caption(canvasElement)).not.toMatch(/likely/u)
+}
+
+/** Found reached (the exact average 4.07, past the goal's line): said first, nothing that looks ahead. */
 export const FoundReached: Story = {
-  args: {
-    detail: {
-      ...DETAIL_HARBORLINE,
-      state: 'reached',
-      status: 'reached',
-      google: { ...DETAIL_HARBORLINE.google!, shows: 4.1 },
-      chart: { ...DETAIL_HARBORLINE.chart!, likely: [] },
-    },
-  },
+  args: { detail: DETAIL_FOUND_REACHED },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
       canvas.getByText(/^Google shows 4\.1: the goal is reached\./),
     ).toBeVisible()
-    await expect(canvas.queryByText(/ in about /u)).toBeNull()
+    await looksAheadNoMore(canvasElement)
+    // Today's dot stays inside the chart, above the goal's line.
+    await expect(
+      within(await findChart(canvasElement)).getByText('Today 4.07'),
+    ).toBeInTheDocument()
   },
 }
 
 export const FoundEnded: Story = {
-  args: {
-    detail: {
-      ...DETAIL_HARBORLINE,
-      state: 'ended',
-      endedReason: 'google_location_changed',
-    },
-  },
+  args: { detail: DETAIL_FOUND_ENDED },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
       canvas.getByText(/^Ended: Google location changed\. It is in History now/),
     ).toBeVisible()
-    await expect(canvas.queryByText(/ in about /u)).toBeNull()
+    await looksAheadNoMore(canvasElement)
   },
 }
 
@@ -349,7 +413,15 @@ export const NoGoal: StoryObj<typeof RatingGoalMissing> = {
 export const Phone: Story = {
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
   play: async ({ canvasElement }) => {
-    await expect(await findChart(canvasElement)).toBeInTheDocument()
+    const chart = within(await findChart(canvasElement))
+    // A phone's short words: the line labels short, the band and dots left to the caption.
+    await expect(chart.getByText('Goal 4.1')).toBeInTheDocument()
+    await expect(chart.getByText('Plan set')).toBeInTheDocument()
+    await expect(chart.queryByText('4.1 likely in 2–4 weeks')).toBeNull()
+    await expect(chart.queryByText('Google shows 4.0')).toBeNull()
+    // Ticks every 8 weeks.
+    await expect(chart.getByText('In 8 weeks')).toBeInTheDocument()
+    await expect(chart.queryByText('In 4 weeks')).toBeNull()
     await expect(
       within(canvasElement).getByText(
         'Last 4 weeks · up from about 2 a month before the goal',
@@ -360,6 +432,9 @@ export const Phone: Story = {
 
 export const PhoneLight: Story = {
   parameters: { viewport: { defaultViewport: 'mobileStaff' }, theme: 'light' },
+  play: async ({ canvasElement }) => {
+    await expect(await findChart(canvasElement)).toBeInTheDocument()
+  },
 }
 
 const onChange = fn()
