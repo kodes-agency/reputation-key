@@ -15,6 +15,10 @@ import {
   DETAIL_OLD_GOAL,
   DETAIL_TOO_LOW,
 } from './rating-goal-detail.stories.fixtures'
+import {
+  DETAIL_FOUND_ENDED,
+  DETAIL_FOUND_REACHED,
+} from './rating-goal-detail-outcomes.stories.fixtures'
 import { DETAIL_BEFORE_TEN } from './rating-goal-plan.stories.fixtures'
 import { CARD_ACTUAL_PACE } from './rating-goal-tracking.stories.fixtures'
 
@@ -115,6 +119,17 @@ describe('your plan, so far', () => {
     expect(planSoFarTiles(DETAIL_OLD_GOAL)[0]?.detail).toBe('Last 4 weeks')
   })
 
+  it('says there were none before the goal rather than about 0 a month', () => {
+    const none = (trend: 'up' | 'same') =>
+      planSoFarTiles({
+        ...DETAIL_HARBORLINE,
+        planSoFar: { ...DETAIL_HARBORLINE.planSoFar, prePlan: { perMonth: 0, trend } },
+      })[0]?.detail
+
+    expect(none('up')).toBe('Last 4 weeks · none in the 4 weeks before the goal')
+    expect(none('same')).toBe('Last 4 weeks · none in the 4 weeks before the goal')
+  })
+
   it('gives no average before ten reviews, and says the numbers use theirs while too low', () => {
     expect(planSoFarTiles(DETAIL_BEFORE_TEN)[1]).toEqual({
       label: 'New reviews average',
@@ -145,6 +160,19 @@ describe('your plan, so far', () => {
       })[2]?.value,
     ).toBe('4.1 next')
     expect(planSoFarTiles(DETAIL_GOOGLE_SOURCE)).toHaveLength(3)
+  })
+
+  it('names no next step of a goal the read found reached or ended', () => {
+    expect(planSoFarTiles(DETAIL_FOUND_REACHED)[2]).toEqual({
+      label: 'Steps',
+      value: '4.1 reached',
+      detail: 'Your goal was 4.1',
+    })
+    expect(planSoFarTiles(DETAIL_FOUND_ENDED)[2]).toEqual({
+      label: 'Steps',
+      value: '4.0 reached',
+      detail: 'Your goal was 4.1',
+    })
   })
 
   it('has no tiles for a goal without a plan', () => {

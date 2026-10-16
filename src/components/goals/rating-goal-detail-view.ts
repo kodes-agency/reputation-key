@@ -135,6 +135,7 @@ function sinceSetNote(plan: RatingGoalPlanProgressView): string {
 function paceNote(detail: Detail): string {
   const before = detail.planSoFar.prePlan
   if (before === null) return 'Last 4 weeks'
+  if (before.perMonth === 0) return 'Last 4 weeks · none in the 4 weeks before the goal'
   const month = `about ${formatNumber(before.perMonth)} a month`
   switch (before.trend) {
     case 'up':
@@ -168,23 +169,35 @@ function averageTile(plan: RatingGoalPlanProgressView): DetailTile {
   }
 }
 
+/** The goal's next step and the number after it: only while the goal climbs. */
+function aheadOf(detail: Detail): Pick<Detail, 'next' | 'nextUp'> {
+  return detail.state === 'active'
+    ? { next: detail.next, nextUp: detail.nextUp }
+    : { next: null, nextUp: null }
+}
+
+function stepsNote(detail: Detail, up: Detail['nextUp']): string {
+  const goal = tenthsText(detail.targetTenths)
+  if (detail.state !== 'active') return `Your goal was ${goal}`
+  return up === null
+    ? `Your goal is ${goal}`
+    : `After ${goal}: ${tenthsText(up.targetTenths)} is about ${formatNumber(up.reviewsBeyondGoal)} more`
+}
+
 /** "4.0 reached · 4.1 next", and what the number after the goal takes. */
 function stepsTile(detail: Detail): DetailTile {
   const reached = detail.planSoFar.reachedTenths
-  const next = detail.next?.targetTenths ?? null
+  const ahead = aheadOf(detail)
+  const next = ahead.next?.targetTenths ?? null
   const parts = [
     reached === null ? null : `${tenthsText(reached)} reached`,
     next === null ? null : `${tenthsText(next)} next`,
   ].filter((part) => part !== null)
-  const up = detail.nextUp
   return {
     label: 'Steps',
     value:
       parts.length === 0 ? `Goal ${tenthsText(detail.targetTenths)}` : parts.join(' · '),
-    detail:
-      up === null
-        ? `Your goal is ${tenthsText(detail.targetTenths)}`
-        : `After ${tenthsText(detail.targetTenths)}: ${tenthsText(up.targetTenths)} is about ${formatNumber(up.reviewsBeyondGoal)} more`,
+    detail: stepsNote(detail, ahead.nextUp),
   }
 }
 

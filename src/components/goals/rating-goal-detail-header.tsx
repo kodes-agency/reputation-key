@@ -63,19 +63,31 @@ function Outlook({ detail, timezone, now }: Props) {
   return null
 }
 
-function ClimbHeader(props: Props) {
-  const { detail } = props
-  const lines = detailHeaderLines(detail)
+/** The count to the next number, "soon" and the count to the goal: only while the goal climbs. */
+function Headline({ detail }: Pick<Props, 'detail'>) {
+  if (detail.state !== 'active') return null
   const soon = soonText(detail)
   const goal = goalLineText(detail)
-  const said = [lines.arrival, lines.started].filter((line) => line !== null)
   return (
-    <div className="flex flex-col gap-2">
+    <>
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <RatingGoalClimbHeadline card={detail} />
         {soon === null ? null : <p className="text-sm">{soon}</p>}
       </div>
       {goal === null ? null : <p className={QUIET}>{goal}</p>}
+    </>
+  )
+}
+
+function ClimbHeader(props: Props) {
+  const { detail } = props
+  // A goal found reached or ended looks forward no more; the alert above says so.
+  if (detail.state !== 'active' && detail.exactAverageSource !== 'google') return null
+  const lines = detailHeaderLines(detail)
+  const said = [lines.arrival, lines.started].filter((line) => line !== null)
+  return (
+    <div className="flex flex-col gap-2">
+      <Headline detail={detail} />
       {said.length === 0 ? null : <p className="text-base">{said.join(' ')}</p>}
       {lines.possible === null ? null : <p className={QUIET}>{lines.possible}</p>}
       {lines.otherPace === null ? null : <p className={QUIET}>{lines.otherPace}</p>}
