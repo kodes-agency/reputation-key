@@ -413,19 +413,33 @@ review. It amends decision 4 of the 2026-10-15 amendment for the numbers only:
    its numbers use the since-set average itself, not the blend, so "Still
    needed" reads "Not reachable" beside the chip. A blend with a plan above the
    threshold would still reach the target and contradict it.
-4. **The words say so.** "at your plan's 4.5★ mixed with new reviews so far"
-   where a count is not reachable; "Your plan" notes "forecasts use 4.55★, your
-   plan mixed with them" (or "their average" while too low) and still shows the
-   new reviews' own average only from the tenth; the setup's planned average
-   says "Your real average takes over step by step as reviews arrive." and its
-   explanation "we count 4.5 stars as if 15 reviews gave it, so after 15 new
-   ones both weigh the same."
-5. **Notice volume is unchanged.** The evaluation and its notices read no
-   forecast average. A check over 24 representative goals for 26 weeks
-   (`application/rating-goal-blend-volume.test.ts`) gives the same Below pace,
-   too-low and reached notices at any planned quality; the assumed average
-   moves at most 0.06★ when the tenth review arrives where the switch moved
-   0.30★.
+4. **Before the tenth review, no verdict in the numbers either.** A few low
+   early reviews could pull a plain blend to the target's threshold or below,
+   so the numbers would read "Not reachable" under a Getting started or On pace
+   chip: a verdict on quality R2-5 holds to ten reviews (Olive Tree, plan 4.6★
+   for 4.4: two 1★ reviews blend to 4.18★, under the 4.35★ threshold). Before
+   the tenth review the blend is held at `minimumQualityTenths` for the target,
+   the least a plan may assume (a plan at that floor then reads as the plan
+   alone). From the tenth no floor is needed: a blend of the plan with reviews
+   that clear the threshold clears it too. A stored plan is never under the
+   floor, so a goal that is not too low never reads "Not reachable".
+5. **The words say so.** "Your plan" notes "forecasts use 4.55★, your plan
+   mixed with them" (or "the numbers use their average" while too low, since a
+   too-low goal shows no forecast, only "Still needed" and the next tenth) and
+   still shows the new reviews' own average only from the tenth; the setup's
+   planned average says "Your real average takes over step by step as reviews
+   arrive." and its explanation "we count 4.5 stars as if 15 reviews gave it,
+   so after 15 new ones both weigh the same. If 10 or more new reviews average
+   too low for your goal, their own average counts alone."
+6. **Notice volume cannot change.** The evaluation and its notices never read
+   the forecast average: neither imports `trackingMix`, which the check over 24
+   representative goals for 26 weeks
+   (`application/rating-goal-blend-volume.test.ts`) asserts. The check pins the
+   Below pace, too-low and reached notice counts and shows identical streams at
+   another planned quality; it is an independence result, not a before/after
+   run of R2-5's switch. On screen the assumed average moves at most 0.06★ when
+   the tenth review arrives where the switch moved 0.30★, and the check counts
+   chip and numbers disagreeing both ways (none as built).
 
 No data change: `qualityBasis` in the read DTOs gains `blended`, and
 `since_set` now means "too low"; "Your plan" adds `assumedAverage`.

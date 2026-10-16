@@ -126,7 +126,9 @@ metric authority.
   reviews (`trackingMix`, round 4 X3); the verdict still waits for ten reviews and judges
   their own average: `reviews_too_low` (that average at or below the threshold) replaced
   `cant_reach_at_mix`, and while a goal is too low its numbers use that average too, so the
-  chip and the numbers agree. The evaluation and its notices read no forecast average
+  chip and the numbers agree; before the tenth review the blend is held at
+  `minimumQualityTenths`, so a goal that is not too low never reads "not reachable"
+  before the verdict either. The evaluation and its notices read no forecast average
   (`application/rating-goal-blend-volume.test.ts` pins the notice volume). The review cache is read only through Review's
   `ReviewGoogleRatingReads` (counts and star sums, the serving eligibility, the current
   binding epoch; also since a goal was set, per calendar year, per calendar month with ten
