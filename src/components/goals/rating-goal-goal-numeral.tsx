@@ -6,7 +6,7 @@
 // pressable (`aria-disabled`) so the press can say why in the status line. The
 // mock's one-off sizes (128 px, 88 px on a phone) are inline: a utility of its
 // own would grow the one stylesheet every page loads first.
-import type { KeyboardEvent, Ref } from 'react'
+import { useState, type KeyboardEvent, type Ref } from 'react'
 import { Minus, Plus } from 'lucide-react'
 import { IconButton } from '#/components/ui/icon-button'
 
@@ -28,7 +28,12 @@ type Props = Readonly<{
   }>
   /** "Goal 4.1: 81 new reviews, in about 3 months at 1 a day". */
   say: string
-  /** What the polite live region speaks: the goal, or a hint at an end. */
+  /**
+   * What the polite live region speaks: the goal, or a hint at an end. It is
+   * off while the number has the focus, whose `aria-valuetext` says the goal
+   * then (an arrow key, Home, End, or a status link that moved the focus
+   * here), so each change is said once (PLAN-R4 B.8).
+   */
   live: string
   /** The number itself, for a link that takes the focus there when it goes. */
   spinRef: Ref<HTMLSpanElement>
@@ -68,6 +73,7 @@ function Strip({ digits, at }: Readonly<{ digits: readonly number[]; at: number 
 
 export function RatingGoalGoalNumeral({ spinRef, ...props }: Props) {
   const { targetTenths, minTenths, maxTenths, labels, small } = props
+  const [focused, setFocused] = useState(false)
   const keys: Readonly<Record<string, number>> = {
     ArrowUp: targetTenths + 1,
     ArrowRight: targetTenths + 1,
@@ -99,6 +105,8 @@ export function RatingGoalGoalNumeral({ spinRef, ...props }: Props) {
           ref={spinRef}
           role="spinbutton"
           tabIndex={0}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           data-autofocus=""
           aria-label="Goal on Google"
           aria-valuenow={targetTenths / 10}
@@ -131,7 +139,11 @@ export function RatingGoalGoalNumeral({ spinRef, ...props }: Props) {
           <Plus aria-hidden="true" />
         </IconButton>
       </div>
-      <span className="sr-only" aria-live="polite">
+      <span
+        data-slot="rating-goal-live"
+        className="sr-only"
+        aria-live={focused ? 'off' : 'polite'}
+      >
         {props.live}
       </span>
     </>

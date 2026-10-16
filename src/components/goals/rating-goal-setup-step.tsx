@@ -120,8 +120,9 @@ function Headline({ props, plan }: Readonly<{ props: Props; plan: Plan }>) {
   const parts = statusParts(plan, draft, unit)
   const say = goalSay(plan, unit)
   const spinRef = useRef<HTMLSpanElement>(null)
-  // A status link goes once it is used: the focus moves to the number, which
-  // then says the new goal, so it is not lost to the top of the dialog.
+  // A status link goes once it is used: the focus moves to the number first,
+  // which then says the new goal (the live region is off while it has the
+  // focus), so the focus is not lost and the goal is not said twice.
   const onAction = (action: StatusAction) => {
     spinRef.current?.focus()
     onDraft(actionOf(props, plan, action))

@@ -9,6 +9,7 @@ import { PLAN_POLICY_LINE } from './rating-goal-copy'
 import {
   aimsFor,
   clearMocks,
+  goalLive,
   Harness,
   numeral,
   openWizard,
@@ -59,11 +60,19 @@ export const CapHint: Story = {
     await userEvent.click(numeral(dialog))
     await userEvent.keyboard('{End}')
     await expect(numeral(dialog)).toHaveAttribute('aria-valuenow', '4.4')
+    // The focused number says the goal itself; the live region stays quiet.
+    await expect(numeral(dialog)).toHaveAttribute(
+      'aria-valuetext',
+      expect.stringMatching(/^Goal 4\.4: /u),
+    )
+    await expect(goalLive()).toHaveAttribute('aria-live', 'off')
     const raise = dialog.getByRole('button', {
       name: '4.4 is the highest goal at this average',
     })
     await expect(raise).toHaveAttribute('aria-disabled', 'true')
     await userEvent.click(raise)
+    await expect(goalLive()).toHaveAttribute('aria-live', 'polite')
+    await expect(goalLive()).toHaveTextContent('more than planned')
     await expect(statusLine()).toContain(
       '4.5 needs new reviews above 4.5 stars, more than planned',
     )

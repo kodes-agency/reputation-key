@@ -92,6 +92,10 @@ export type Dialog = Awaited<ReturnType<typeof openWizard>>
 export const numeral = (dialog: Dialog) =>
   dialog.getByRole('spinbutton', { name: 'Goal on Google' })
 
+/** The goal's polite live region (off while the number has the focus). */
+export const goalLive = (): Element | null =>
+  document.body.querySelector('[data-slot="rating-goal-live"]')
+
 /** The line under the goal, as one text, its parts a dot apart. */
 export const statusLine = (): string =>
   document.body
