@@ -47,11 +47,19 @@ type Props = Readonly<{
   onStart: (intent: RatingGoalWizardIntent) => void
 }>
 
+/**
+ * The climb card's height, so the read that fills it moves nothing (CLS):
+ * measured in the stories (2026-10-16) at 594px on a 390px phone and 312px at
+ * 1280px, and held between the two along the viewport in between.
+ */
+const PENDING_HEIGHT = 'clamp(312px, calc(718px - 31.7vw), 594px)'
+
 const Pending = () => (
   <Skeleton
     aria-hidden="true"
     data-slot="rating-goal-pending"
-    className="h-52 rounded-xl"
+    className="rounded-xl"
+    style={{ minHeight: PENDING_HEIGHT }}
   />
 )
 

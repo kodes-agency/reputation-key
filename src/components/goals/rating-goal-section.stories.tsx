@@ -11,10 +11,24 @@ import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import { Button } from '#/components/ui/button'
 import { RatingGoalHistory } from './rating-goal-history'
 import { RatingGoalSection } from './rating-goal-section'
+import { RATING_GOAL_HEADING_ID } from './rating-goal-card-header'
 import { SETUP_BETA } from './rating-goal-plan.stories.fixtures'
 import {
+  CARD_ACTUAL_PACE,
+  CARD_FAR_GOAL,
+  CARD_GETTING_STARTED,
+  CARD_GOOGLE_SOURCE,
+  CARD_HARBORLINE,
+  CARD_HARBORLINE_JUST_SET,
+  CARD_LAGS,
+  CARD_LAGS_MIDDLE,
+  CARD_NO_PACE,
+  CARD_OPEN_SLOW,
+  CARD_TOO_LOW,
+  CARD_WAITING,
+} from './rating-goal-tracking.stories.fixtures'
+import {
   CARD,
-  CARD_JUST_SET,
   CARD_KEEP,
   CARD_REACHED,
   FIXTURE_NOW,
@@ -79,112 +93,216 @@ const meta: Meta<typeof RatingGoalSection> = {
 
 export default meta
 type Story = StoryObj<typeof meta>
+type Canvas = ReturnType<typeof within>
 
-/** The simple card leads with two numbers and says nothing else. */
+/** Whether the squares of a headline are drawn, and how many. */
+async function expectSquares(canvas: Canvas, count: number) {
+  const squares = canvas.queryByRole('img', { name: /empty square/u })
+  if (count === 0) {
+    await expect(squares).toBeNull()
+    return
+  }
+  await expect(squares).toHaveAccessibleName(
+    `${count} empty squares, one for each new review still needed`,
+  )
+  await expect(squares?.children).toHaveLength(count)
+}
+
+/**
+ * The round 5 card (D2/D4): the ladder, the new reviews to the next number with
+ * a square for each, when the goal arrives, this week on its day, the first
+ * step and the ways on. The title takes the focus back from the wizard.
+ */
 export const OnPace: Story = {
+  args: { card: cardRead(CARD_HARBORLINE) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(
-      canvas.getByRole('heading', { level: 2, name: 'Google rating goal' }),
-    ).toBeVisible()
+    const heading = canvas.getByRole('heading', { level: 2, name: 'Google rating goal' })
+    await expect(heading).toHaveAttribute('id', RATING_GOAL_HEADING_ID)
+    heading.focus()
+    await expect(heading).toHaveFocus()
     await expect(canvas.getByText('On pace')).toBeVisible()
-    await expect(canvas.getByText('Google shows')).toBeVisible()
-    await expect(canvas.getByText('4.3')).toBeVisible()
-    await expect(canvas.getByText('4.5')).toBeVisible()
-    const bar = canvas.getByRole('progressbar', {
-      name: 'Progress toward Google showing 4.5',
-    })
-    await expect(bar).toHaveAttribute('aria-valuetext', 'Exact average 4.38 of 4.45')
-    await expect(canvas.getByText('This week: 6 of 11 reviews')).toBeVisible()
+    // Upright and across: one picture each, the same words (only one shows).
     await expect(
-      canvas.getByText(wholeText('Expected around Jul–Sep 2027')),
+      canvas.getAllByRole('img', {
+        name: 'Started at 3.9. Google shows 4.0 now. Your goal is 4.1. 4.2 is possible after that.',
+      }),
+    ).toHaveLength(2)
+    await expect(canvas.getByText(wholeText('18 new reviews to 4.1'))).toBeVisible()
+    await expectSquares(canvas, 18)
+    await expect(
+      canvas.getByText('4.1 in about 3 weeks at your 1 a day, likely 2–4 weeks.'),
+    ).toBeVisible()
+    await expect(canvas.getByText('4.2 is possible in about 4 months.')).toBeVisible()
+    await expect(
+      canvas.getByRole('progressbar', { name: 'New reviews this week' }),
+    ).toHaveAttribute('aria-valuetext', '2 of 7 new reviews this week')
+    await expect(canvas.getByText('2 of 7')).toBeVisible()
+    await expect(canvas.getByText('It’s Tuesday')).toBeVisible()
+    await expect(
+      canvas.getByText('Google shows 4.0 now, up from 3.9 when you started.'),
     ).toBeVisible()
     await expect(canvas.getByRole('link', { name: 'View details' })).toHaveAttribute(
       'href',
       `/properties/${FIXTURE_PROPERTY_ID}/goals/google-rating`,
     )
+    await expect(canvas.getByRole('link', { name: 'Open Portals' })).toHaveAttribute(
+      'href',
+      `/properties/${FIXTURE_PROPERTY_ID}/portals`,
+    )
+  },
+}
+
+/** 31 new reviews to 4.4 and 212 to the goal: past 30 the number stands alone. */
+export const FarGoal: Story = {
+  args: { card: cardRead(CARD_FAR_GOAL) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(wholeText('31 new reviews to 4.4'))).toBeVisible()
+    await expect(canvas.getByText('212 new reviews to your goal, 4.5.')).toBeVisible()
+    await expectSquares(canvas, 0)
+    await expect(
+      canvas.getByText(
+        '4.5 in about 5 months at your pace of the last 4 weeks, likely 4–8 months.',
+      ),
+    ).toBeVisible()
+  },
+}
+
+/** Five weeks in: the card works at the last four weeks' pace, and says so. */
+export const ActualPace: Story = {
+  args: { card: cardRead(CARD_ACTUAL_PACE) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(
+        '4.1 in about 3 weeks at your pace of the last 4 weeks, likely 2–4 weeks.',
+      ),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText('It’s Tuesday · 1 a day over the last 4 weeks'),
+    ).toBeVisible()
   },
 }
 
 export const JustSet: Story = {
-  args: { card: cardRead(CARD_JUST_SET) },
+  args: { card: cardRead(CARD_HARBORLINE_JUST_SET) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Getting started')).toBeVisible()
-    await expect(canvas.getByText('Aim for about 1.6 new reviews a day')).toBeVisible()
-    await expect(
-      canvas.getByText(wholeText('Expected around Apr 2027 – Apr 2028')),
-    ).toBeVisible()
+    await expect(canvas.getByText(wholeText('19 new reviews to 4.0'))).toBeVisible()
+    await expect(canvas.getByText('81 new reviews to your goal, 4.1.')).toBeVisible()
+    await expect(canvas.getByText('Aim for about 1 new review a day')).toBeVisible()
+    await expect(canvas.queryByRole('progressbar')).toBeNull()
   },
 }
 
-/** RepKey holds fewer reviews than Google counts: the bar says "About", never "Exact". */
-export const ApproximateNumbers: Story = {
-  args: {
-    card: cardRead({ ...CARD, exactAverage: 4.3, exactAverageSource: 'google' }),
-  },
+export const GettingStarted: Story = {
+  args: { card: cardRead(CARD_GETTING_STARTED) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const bar = canvas.getByRole('progressbar', {
-      name: 'Progress toward Google showing 4.5',
-    })
-    await expect(bar).toHaveAttribute('aria-valuetext', 'About 4.30 of 4.45')
+    await expect(canvas.getByText('Getting started')).toBeVisible()
+    await expectSquares(canvas, 12)
+    await expect(canvas.queryByText(/up from/u)).toBeNull()
+  },
+}
+
+/** RepKey holds fewer reviews than Google counts: every count is "about", no squares. */
+export const ApproximateNumbers: Story = {
+  args: { card: cardRead(CARD_GOOGLE_SOURCE) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(wholeText('about 18 new reviews to 4.1'))).toBeVisible()
+    await expectSquares(canvas, 0)
   },
 }
 
 export const BelowPace: Story = {
-  args: { card: cardRead({ ...CARD, status: 'below_pace', thisWeekCount: 2 }) },
+  args: {
+    card: cardRead({ ...CARD_HARBORLINE, status: 'below_pace', thisWeekCount: 1 }),
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Below pace')).toBeVisible()
-    await expect(canvas.getByText('This week: 2 of 11 reviews')).toBeVisible()
+    await expect(canvas.getByText('1 of 7')).toBeVisible()
   },
 }
 
 export const NewReviewsTooLow: Story = {
-  args: {
-    card: cardRead({
-      ...CARD,
-      status: 'reviews_too_low',
-      forecast: { kind: 'unreachable' },
-    }),
-  },
+  args: { card: cardRead(CARD_TOO_LOW) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    // The chip names the target; the outlook is the notice's own words (R2-5, R2-10).
-    await expect(canvas.getByText('New reviews too low for 4.5')).toBeVisible()
+    // The chip names the target; the card says the notice's own words and what helps (R2-5, R2-10, R2-12).
+    await expect(canvas.getByText('New reviews too low for 4.1')).toBeVisible()
     await expect(
       canvas.getByText(
-        'Since you set the goal, new reviews average below what 4.5 needs.',
+        /^Since you set the goal, new reviews average below what 4\.1 needs\./u,
       ),
     ).toBeVisible()
-    await expect(canvas.queryByText(/^Expected around/)).toBeNull()
+    await expectSquares(canvas, 0)
+    await expect(canvas.queryByText(/likely/u)).toBeNull()
   },
 }
 
-/** Google's numbers are a day old: its last number with its date, and why the goal waits. */
+/** Google's numbers are two days old: its last number with its date, and why the goal waits. */
 export const WaitingForGoogle: Story = {
-  args: {
-    card: cardRead({
-      ...CARD,
-      status: 'waiting_for_google',
-      google: { ...CARD.google!, current: false, asOf: '2026-10-12T08:00:00.000Z' },
-    }),
-  },
+  args: { card: cardRead(CARD_WAITING) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Waiting for Google')).toBeVisible()
     await expect(canvas.getByText('as of Oct 12')).toBeVisible()
     // The headline dates the numbers; the sentence does not say it again.
     await expect(canvas.getByText('Waiting for Google’s latest numbers.')).toBeVisible()
+    await expectSquares(canvas, 0)
   },
 }
 
+/** The cache clears the goal; Google still shows less. */
 export const GoogleShowsSoon: Story = {
-  args: { card: cardRead({ ...CARD, googleShowsSoon: true, progress: 1 }) },
+  args: { card: cardRead(CARD_LAGS) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Google should show 4.1 soon')).toBeVisible()
+    await expectSquares(canvas, 0)
+    await expect(canvas.queryByText(/likely/u)).toBeNull()
+  },
+}
+
+/** Google lags on 4.4: the card counts to the goal of 4.5 and says 4.4 is coming. */
+export const LagsMiddle: Story = {
+  args: { card: cardRead(CARD_LAGS_MIDDLE) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(wholeText('180 new reviews to 4.5'))).toBeVisible()
+    await expect(canvas.getByText('Google should show 4.4 soon')).toBeVisible()
+    await expect(canvas.queryByText(wholeText('0 new reviews to 4.4'))).toBeNull()
+    await expect(
+      canvas.getAllByRole('img', {
+        name: 'Google shows 4.3 now. Google should show 4.4 soon. Your goal is 4.5.',
+      }),
+    ).toHaveLength(2)
+  },
+}
+
+export const NoPace: Story = {
+  args: { card: cardRead(CARD_NO_PACE) },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByText('Google should show 4.5 soon'),
+      within(canvasElement).getByText(
+        'No new reviews in the last 4 weeks to work out when.',
+      ),
+    ).toBeVisible()
+  },
+}
+
+/** 0.1★ less never reaches 4.1: the likely range is open. */
+export const OpenSlowEnd: Story = {
+  args: { card: cardRead(CARD_OPEN_SLOW) },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText(
+        '4.1 in about 3 weeks at your 1 a day, likely 13 days or more.',
+      ),
     ).toBeVisible()
   },
 }
@@ -196,8 +314,7 @@ export const KeepHolding: Story = {
     await expect(canvas.getByText('Keeping 4.9 on Google')).toBeVisible()
     await expect(canvas.getByText('Holding')).toBeVisible()
     await expect(canvas.queryByRole('progressbar')).toBeNull()
-    await expect(canvas.queryByText(/a week/)).toBeNull()
-    await expect(canvas.queryByText(/^Expected around/)).toBeNull()
+    await expect(canvas.queryByText(/a week|new reviews|likely/u)).toBeNull()
   },
 }
 
@@ -213,8 +330,6 @@ export const KeepDroppedBelow: Story = {
     await expect(within(canvasElement).getByText('Dropped below')).toBeVisible()
   },
 }
-
-type Canvas = ReturnType<typeof within>
 
 /**
  * After a goal is reached: "Set your next goal" opens the setup. Keep is
@@ -572,26 +687,38 @@ export const ReadFailed: Story = {
   },
 }
 
+const PHONE = { viewport: { defaultViewport: 'mobileStaff' } } as const
+
 export const OnPacePhone: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByText('This week: 6 of 11 reviews')).toBeVisible()
-    // The card's one way on is a button-shaped link: a tap target on a phone.
+  ...OnPace,
+  parameters: PHONE,
+  play: async (context) => {
+    await OnPace.play?.(context)
+    // The card's ways on are button-shaped links: tap targets on a phone.
+    const canvas = within(context.canvasElement)
     await expect(canvas.getByRole('link', { name: 'View details' })).toHaveAttribute(
       'data-slot',
       'button',
     )
   },
 }
-
+export const FarGoalPhone: Story = { ...FarGoal, parameters: PHONE }
+export const ActualPacePhone: Story = { ...ActualPace, parameters: PHONE }
+export const JustSetPhone: Story = { ...JustSet, parameters: PHONE }
+export const ApproximateNumbersPhone: Story = { ...ApproximateNumbers, parameters: PHONE }
 /** The long chip drops below the title on a phone instead of squeezing it. */
-export const NewReviewsTooLowPhone: Story = {
-  ...NewReviewsTooLow,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-}
+export const NewReviewsTooLowPhone: Story = { ...NewReviewsTooLow, parameters: PHONE }
+export const WaitingForGooglePhone: Story = { ...WaitingForGoogle, parameters: PHONE }
+export const GoogleShowsSoonPhone: Story = { ...GoogleShowsSoon, parameters: PHONE }
+export const LagsMiddlePhone: Story = { ...LagsMiddle, parameters: PHONE }
+export const NoPacePhone: Story = { ...NoPace, parameters: PHONE }
+export const OpenSlowEndPhone: Story = { ...OpenSlowEnd, parameters: PHONE }
 
-export const OnPaceLight: Story = { parameters: { theme: 'light' } }
+export const OnPaceLight: Story = { ...OnPace, parameters: { theme: 'light' } }
+export const OnPacePhoneLight: Story = {
+  ...OnPace,
+  parameters: { ...PHONE, theme: 'light' },
+}
 
 /** The History view: reached and ended goals, their pace, dates and reason. */
 export const History: Story = {

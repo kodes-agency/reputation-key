@@ -16,7 +16,7 @@ export function RatingGoalSlots({ count }: Readonly<{ count: number }>) {
       {Array.from({ length: count }, (_, at) => (
         <span
           key={at}
-          className="size-4 rounded-sm border-2 border-dashed border-primary"
+          className="size-3.5 rounded-sm border-2 border-dashed border-primary"
         />
       ))}
     </div>
