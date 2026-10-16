@@ -37,6 +37,7 @@ import {
   dayOfInstant,
   daysFromToday,
   shiftDateKey,
+  weekStartInstant,
   weekStartKey,
 } from '../domain/rating-goal-weeks'
 import type { PropertyRatingGoal } from '../domain/rating-goal'
@@ -77,8 +78,35 @@ const thousandthsOf = (value: Ratio): number =>
 export const detailChartStart = (goal: PropertyRatingGoal, reading: RatingGoalReading) =>
   chartStart(goal.createdAt, reading.now, reading.facts.timezone)
 
-/** The exact average at each Monday from the chart's start (flat through a week without reviews), then today. */
-function historyPoints(detail: Detail, startKey: string): RatingGoalChartPoint[] | null {
+/**
+ * The weekly history is read from the chart's start, or from the Monday of the
+ * latest plan change's week when that is earlier: the cone starts from the
+ * average there (E15), and the chart still starts where it does.
+ */
+export function detailHistoryStart(
+  goal: PropertyRatingGoal,
+  reading: RatingGoalReading,
+  changes: RatingGoalChangeLog,
+): Readonly<{ key: string; instant: Date }> {
+  const start = detailChartStart(goal, reading)
+  const latest = changes.recent[0]
+  if (latest === undefined) return start
+  const { timezone } = reading.facts
+  const key = weekStartKey(latest.changedAt, timezone)
+  return key < start.key
+    ? { key, instant: weekStartInstant(latest.changedAt, timezone) }
+    : start
+}
+
+/**
+ * The exact average at each Monday from the history's start to this week's
+ * (flat through a week without reviews): a Monday stands where the week before
+ * it ended. None while the cache lacks some of Google's reviews.
+ */
+function mondayPoints(
+  detail: Detail,
+  startKey: string,
+): readonly RatingGoalChartPoint[] | null {
   const { reading, reads } = detail
   if (reading.exact?.source !== 'cache') return null
   const { now } = reading
@@ -86,11 +114,10 @@ function historyPoints(detail: Detail, startKey: string): RatingGoalChartPoint[]
   const ends = new Map(
     reads.history.weeks.map((week) => [week.weekStart, week.endAverageThousandths]),
   )
-  const walked = chartWeeks(startKey, now, timezone).reduce<
+  return chartWeeks(startKey, now, timezone).reduce<
     Readonly<{ value: number | null; points: readonly RatingGoalChartPoint[] }>
   >(
     ({ value, points }, monday) => ({
-      // A Monday stands where the week before it ended.
       points:
         value === null
           ? points
@@ -101,9 +128,21 @@ function historyPoints(detail: Detail, startKey: string): RatingGoalChartPoint[]
       value: ends.get(monday) ?? value,
     }),
     { value: reads.history.startAverageThousandths, points: [] },
-  )
-  const today = { day: 0, thousandths: thousandthsOf(reading.exact.value) }
-  return [...walked.points.filter((point) => point.day < 0), today]
+  ).points
+}
+
+/** The line drawn: the Mondays from the chart's first day, before today, then today. */
+function historyLine(
+  detail: Detail,
+  mondays: readonly RatingGoalChartPoint[] | null,
+  firstDay: number,
+): RatingGoalChartPoint[] | null {
+  const { exact } = detail.reading
+  if (mondays === null || exact?.source !== 'cache') return null
+  return [
+    ...mondays.filter((point) => point.day >= firstDay && point.day < 0),
+    { day: 0, thousandths: thousandthsOf(exact.value) },
+  ]
 }
 
 /** The exact average stored at the set, as an exact fraction (millionths). */
@@ -112,10 +151,15 @@ const baselineExact = (goal: PropertyRatingGoal): Ratio =>
 
 type Anchor = Readonly<{ kind: 'set' | 'changed'; day: number; start: ClimbStart | null }>
 
-/** Where the plan's cone starts: the latest plan change, else the set (E15). */
+/**
+ * Where the plan's cone starts: the latest plan change, else the set (E15). A
+ * change starts from its week's Monday, found among the Mondays (this one
+ * included) before today's point is added: today's average already holds
+ * today's reviews, which the count leaves out.
+ */
 function anchorOf(
   detail: Detail,
-  history: readonly RatingGoalChartPoint[] | null,
+  mondays: readonly RatingGoalChartPoint[] | null,
 ): Anchor {
   const { goal, reading, reads } = detail
   const { now } = reading
@@ -132,7 +176,7 @@ function anchorOf(
   }
   const monday = weekStartKey(latest.changedAt, timezone)
   const day = daysFromToday(monday, now, timezone)
-  const point = history?.find((each) => each.day === day)
+  const point = mondays?.find((each) => each.day === day)
   if (point === undefined || reading.google === null)
     return { kind: 'changed', day, start: null }
   const since = reads.history.weeks
@@ -175,6 +219,16 @@ function shownMoves(shown: readonly GoogleShownNumber[]): readonly ShownMove[] {
   })
 }
 
+/**
+ * Google's moves since the goal was set, oldest first: the chart's dots and
+ * the rows of "What moved you" are the same moves, so the chart is never the
+ * only place one is told.
+ */
+const movesSinceSet = (detail: Detail): readonly ShownMove[] =>
+  shownMoves(detail.reads.shown).filter(
+    (move) => move.at.getTime() >= detail.goal.createdAt.getTime(),
+  )
+
 /** The likely band: the card's own arrival, from today (E16); none without one. */
 function likelyOf(detail: Detail): RatingGoalChartView['likely'] {
   const { goal, reading, card } = detail
@@ -211,8 +265,12 @@ function chartView(detail: Detail): RatingGoalChartView | null {
   const { timezone } = reading.facts
   const start = detailChartStart(goal, reading)
   const firstDay = daysFromToday(start.key, now, timezone)
-  const history = historyPoints(detail, start.key)
-  const anchor = anchorOf(detail, history)
+  const mondays = mondayPoints(
+    detail,
+    detailHistoryStart(goal, reading, detail.reads.changes).key,
+  )
+  const history = historyLine(detail, mondays, firstDay)
+  const anchor = anchorOf(detail, mondays)
   return {
     firstDay,
     history,
@@ -234,7 +292,7 @@ function chartView(detail: Detail): RatingGoalChartView | null {
             firstDay,
           }),
     likely: likelyOf(detail),
-    shownChanges: shownMoves(detail.reads.shown)
+    shownChanges: movesSinceSet(detail)
       .map((move) => ({
         day: dayOfInstant(move.at, now, timezone),
         tenths: move.tenths,
@@ -277,8 +335,7 @@ function movedView(detail: Detail): RatingGoalMovedView {
     reads.changes.firstPerField,
   )
   return {
-    shownChanges: shownMoves(reads.shown)
-      .filter((move) => move.at.getTime() >= goal.createdAt.getTime())
+    shownChanges: movesSinceSet(detail)
       .map((move) => ({ at: move.at.toISOString(), tenths: move.tenths, up: move.up }))
       .reverse(),
     setBy: goal.createdBy,

@@ -144,6 +144,48 @@ describe('the climb chart', () => {
     expect(detail?.chart?.plan[0]).toEqual({ day: -16, low: 3912, high: 3912 })
   })
 
+  it('starts the cone from where last week ended when the plan changed this Monday morning', async () => {
+    // Monday 12 Oct, 15:00 in Sofia; the pace changed at 09:00 that morning.
+    const monday = new Date('2026-10-12T12:00:00.000Z')
+    paceChangedOnFirstOctober()
+    world.changes = [
+      { ...world.changes[0]!, changedAt: new Date('2026-10-12T06:00:00.000Z') },
+    ]
+
+    const detail = await getRatingGoalDetail(
+      { ...dependencies(world), now: () => monday },
+      { propertyId: PROPERTY },
+      actor,
+    )
+
+    // The week to 11 Oct ended at 3.965; today's 4 reviews are not in the start.
+    expect(detail?.chart?.anchor).toMatchObject({ day: 0, kind: 'changed' })
+    expect(detail?.chart?.plan[0]).toEqual({ day: 0, low: 3965, high: 3965 })
+  })
+
+  it('reads the history from a plan change older than the chart, and clips its cone at the chart’s start', async () => {
+    world.goals = [{ ...world.goals[0]!, createdAt: new Date(NOW.getTime() - 400 * DAY) }]
+    paceChangedOnFirstOctober()
+    // Monday 29 Sep 2025, 15:00 in Sofia: 380 days ago.
+    world.changes = [
+      { ...world.changes[0]!, changedAt: new Date(NOW.getTime() - 380 * DAY) },
+    ]
+
+    const detail = await readDetail()
+
+    // That Monday, 00:00 in Sofia; Google's number still from the chart's start.
+    expect(world.evidenceRequests).toEqual(
+      expect.arrayContaining([
+        { read: 'history', since: new Date('2025-09-28T21:00:00.000Z') },
+        { read: 'shown', since: new Date('2025-10-12T21:00:00.000Z') },
+      ]),
+    )
+    expect(detail?.chart?.firstDay).toBe(-366)
+    expect(detail?.chart?.history?.[0]).toEqual({ day: -366, thousandths: 3910 })
+    expect(detail?.chart?.anchor).toMatchObject({ day: -380, kind: 'changed' })
+    expect(detail?.chart?.plan[0]?.day).toBe(-366)
+  })
+
   it('draws the likely band from today with the card’s own arrival, to the goal’s line', async () => {
     const detail = await readDetail()
 
@@ -205,6 +247,23 @@ describe('the climb chart', () => {
 
     expect(detail?.chart).toBeNull()
     expect(detail?.planSoFar).toEqual({ prePlan: null, reachedTenths: null })
+  })
+
+  it('draws and lists Google’s moves from the set only, so every dot has its row', async () => {
+    world.shown = [
+      world.shown[0]!,
+      // Between the chart's start and the set (23 Sep).
+      { at: new Date('2026-09-10T08:00:00Z'), averageRating: 4, reviewCount: 255 },
+      { at: new Date('2026-09-15T08:00:00Z'), averageRating: 3.9, reviewCount: 256 },
+      world.shown[1]!,
+    ]
+
+    const detail = await readDetail()
+
+    expect(detail?.chart?.shownChanges).toEqual([{ day: -7, tenths: 40, up: true }])
+    expect(detail?.moved.shownChanges).toEqual([
+      { at: '2026-10-07T08:00:00.000Z', tenths: 40, up: true },
+    ])
   })
 })
 

@@ -38,7 +38,11 @@ import {
   planProgressView,
 } from '../rating-goal-views'
 import { forecastFor } from '../rating-goal-tracking-views'
-import { detailChartStart, detailTracking } from '../rating-goal-detail-views'
+import {
+  detailChartStart,
+  detailHistoryStart,
+  detailTracking,
+} from '../rating-goal-detail-views'
 import type { GoalActor } from './goal-program-shared'
 import {
   authorizeRatingGoal,
@@ -117,17 +121,26 @@ export async function getRatingGoalDetail(
   const { goal, reading } = evaluated
   const org = toOrganizationId(goal.organizationId)
   const property = toPropertyId(goal.propertyId)
-  // The chart reads from four weeks before the set's week (a year back at most).
+  // The chart reads from four weeks before the set's week (a year back at most);
+  // the weekly history from the latest plan change's week when that is earlier,
+  // so it starts once the change log is in, beside Google's number.
   const chartFrom = detailChartStart(goal, reading).instant
-  const [history, shown, changes] = await Promise.all([
-    deps.reviews.getWeeklyHistory(org, property, chartFrom),
-    deps.reviews.getShownNumberChanges(org, property, chartFrom),
-    deps.repository.listChanges(
-      goal.organizationId,
-      goal.propertyId,
-      goal.id,
-      RATING_GOAL_CHANGE_LOG_LIMIT,
+  const changesRead = deps.repository.listChanges(
+    goal.organizationId,
+    goal.propertyId,
+    goal.id,
+    RATING_GOAL_CHANGE_LOG_LIMIT,
+  )
+  const [changes, history, shown] = await Promise.all([
+    changesRead,
+    changesRead.then((log) =>
+      deps.reviews.getWeeklyHistory(
+        org,
+        property,
+        detailHistoryStart(goal, reading, log).instant,
+      ),
     ),
+    deps.reviews.getShownNumberChanges(org, property, chartFrom),
   ])
   // At the quality the goal now expects of new reviews: the plan's, the plan
   // mixed with new reviews, or theirs while too low (trackingMix).
