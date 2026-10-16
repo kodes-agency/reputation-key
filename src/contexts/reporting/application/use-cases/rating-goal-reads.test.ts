@@ -326,9 +326,11 @@ describe('the detail read', () => {
     expect(detail).toMatchObject({
       exactAverageSource: 'cache',
       lastFourWeeksPerWeek: 7,
-      stillNeeded: 454,
+      // At the plan's 4.7 blended with the 9 reviews since the set (4.11 of
+      // stars): (15 × 4.7 + 41) / 24 = 4.6458, so (3613.4 − 3500) / 0.1958.
+      stillNeeded: 580,
       bestCase: 207,
-      nextTenth: { targetTenths: 44, target: 4.4, reviewsNeeded: 92 },
+      nextTenth: { targetTenths: 44, target: 4.4, reviewsNeeded: 109 },
       baseline: { googleShows: 4.3, reviewCount: 790, exactAverage: 4.29 },
       weeks: [
         { weekStart: '2026-10-05', count: 0 },
@@ -356,7 +358,7 @@ describe('the detail read', () => {
     expect(detail!.forecastAtActualPace).toMatchObject({ kind: 'range' })
   })
 
-  it('sets the plan beside what happened, with no verdict before ten new reviews', async () => {
+  it('sets the plan beside what happened, blending before the verdict at ten', async () => {
     world.goals = [activeGoal()]
 
     const detail = await getRatingGoalDetail(dependencies(world), input, actor)
@@ -366,7 +368,9 @@ describe('the detail read', () => {
       googleShowsTenths: 43,
       qualityTenths: 47,
       sinceSet: { reviewCount: 9, average: null, averageTenths: null },
-      qualityBasis: 'planned',
+      qualityBasis: 'blended',
+      // (15 × 4.7 + 41) / 24.
+      assumedAverage: 4.646,
       paceTenthsPerWeek: 110,
       lastFourWeeksPerWeek: 7,
       forecast: detail!.forecastAtActualPace,
@@ -374,24 +378,40 @@ describe('the detail read', () => {
     expect(detail).toMatchObject({
       qualityTenths: 47,
       quality: 4.7,
-      qualityBasis: 'planned',
+      qualityBasis: 'blended',
     })
   })
 
-  it('works the goal out at the average of new reviews from the tenth on', async () => {
+  it('assumes the plan alone while no review arrived since the set', async () => {
     world.goals = [activeGoal()]
-    // 20 reviews since the set at 4.55: (812 × 4.45 − 3500) / 0.10 = 1,134.
+    world.summary = { ...world.summary, sinceSet: { count: 0, sum: 0 } }
+
+    const detail = await getRatingGoalDetail(dependencies(world), input, actor)
+
+    // (812 × 4.45 − 3500) / (4.7 − 4.45) = 453.6.
+    expect(detail).toMatchObject({
+      qualityBasis: 'planned',
+      stillNeeded: 454,
+      plan: { qualityBasis: 'planned', assumedAverage: 4.7 },
+    })
+  })
+
+  it('keeps blending from the tenth review on while new reviews clear the target', async () => {
+    world.goals = [activeGoal()]
+    // 20 reviews since the set at 4.55: (70.5 + 91) / 35 = 4.6143, so
+    // (812 × 4.45 − 3500) / 0.1643 = 690.3.
     world.summary = { ...world.summary, sinceSet: { count: 20, sum: 91 } }
 
     const detail = await getRatingGoalDetail(dependencies(world), input, actor)
 
     expect(detail).toMatchObject({
       status: 'below_pace',
-      qualityBasis: 'since_set',
-      stillNeeded: 1134,
+      qualityBasis: 'blended',
+      stillNeeded: 691,
       plan: {
         sinceSet: { reviewCount: 20, average: 4.55, averageTenths: 46 },
-        qualityBasis: 'since_set',
+        qualityBasis: 'blended',
+        assumedAverage: 4.614,
       },
     })
   })
@@ -402,10 +422,21 @@ describe('the detail read', () => {
 
     const detail = await getRatingGoalDetail(dependencies(world), input, actor)
 
+    // The numbers judge them as the status does: their own 4.45, not the blend
+    // (which would be 4.56 and reach 4.5), so the chip and the numbers agree.
     expect(detail).toMatchObject({
       status: 'reviews_too_low',
+      qualityBasis: 'since_set',
       stillNeeded: null,
       forecast: { kind: 'unreachable' },
+      forecastAtChosenPace: { kind: 'unreachable' },
+      forecastAtActualPace: { kind: 'unreachable' },
+      plan: {
+        sinceSet: { reviewCount: 20, average: 4.45, averageTenths: 45 },
+        qualityBasis: 'since_set',
+        assumedAverage: 4.45,
+        forecast: { kind: 'unreachable' },
+      },
     })
     expect(world.summaryRequests.at(-1)?.totalsSince).toEqual(activeGoal().createdAt)
   })

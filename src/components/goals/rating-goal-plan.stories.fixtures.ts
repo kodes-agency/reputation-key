@@ -30,7 +30,9 @@ const BEFORE_TEN_PLAN: NonNullable<RatingGoalDetailView['plan']> = {
   googleShowsTenths: 39,
   qualityTenths: 45,
   sinceSet: { reviewCount: 4, average: null, averageTenths: null },
-  qualityBasis: 'planned',
+  qualityBasis: 'blended',
+  // 19 stars from 4 reviews beside the plan's 4.5★ counted as 15: 86.5 / 19.
+  assumedAverage: 4.553,
   paceTenthsPerWeek: 20,
   lastFourWeeksPerWeek: 2,
   forecast: { kind: 'range', fromMonth: '2026-12', toMonth: '2027-02' },
@@ -38,8 +40,8 @@ const BEFORE_TEN_PLAN: NonNullable<RatingGoalDetailView['plan']> = {
 
 /**
  * The beta Property's goal (4.0 at 4.5★, 2 a week) a fortnight in: four reviews
- * since it was set, so no verdict on their stars yet and the numbers assume
- * the plan's 4.5★ (round 2, R2-5).
+ * since it was set, so no verdict on their stars yet (R2-5); the numbers assume
+ * the plan's 4.5★ mixed with them (round 4, X3).
  */
 export const DETAIL_BEFORE_TEN: RatingGoalDetailView = {
   ...DETAIL,
@@ -57,7 +59,7 @@ export const DETAIL_BEFORE_TEN: RatingGoalDetailView = {
   justSet: false,
   forecast: { kind: 'range', fromMonth: '2026-12', toMonth: '2027-02' },
   forecastBasis: 'chosen_pace',
-  qualityBasis: 'planned',
+  qualityBasis: 'blended',
   setAt: '2026-09-30T09:00:00.000Z',
   lastFourWeeksPerWeek: 2,
   stillNeeded: 15,
@@ -113,6 +115,7 @@ export const DETAIL_TOO_LOW: RatingGoalDetailView = {
     ...BEFORE_TEN_PLAN,
     sinceSet: { reviewCount: 12, average: 3.75, averageTenths: 38 },
     qualityBasis: 'since_set',
+    assumedAverage: 3.75,
     forecast: { kind: 'unreachable' },
   },
 }

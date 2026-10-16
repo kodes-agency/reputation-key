@@ -7,7 +7,8 @@
 //
 // A goal's own numbers (its forecast, what it still needs, the next tenth)
 // assume the quality the goal now expects of new reviews: its planned quality
-// until ten reviews arrived since it was set, then their average (round 2).
+// blended with the reviews since it was set, the plan counted as 15 reviews,
+// or their own average while they are too low for the target (round 4, X3).
 
 import {
   bestCaseReviewsNeeded,
@@ -36,6 +37,7 @@ import {
   cacheShowsTargetFirst,
   forecastPaceBasis,
   nextTenthMilestone,
+  QUALITY_VERDICT_MIN_REVIEWS,
   ratingProgress,
   trackingMix,
   type QualityBasis,
@@ -221,7 +223,11 @@ export function goalBasis(
 ): GoalBasis | null {
   const numbers = ratingBasis(reading)
   if (goal.mode === 'keep' || numbers === null || goal.qualityTenths === null) return null
-  const tracking = trackingMix(goal.qualityTenths, reading.sinceSet ?? NO_REVIEWS)
+  const tracking = trackingMix(
+    goal.qualityTenths,
+    reading.sinceSet ?? NO_REVIEWS,
+    goal.targetTenths,
+  )
   return { basis: { ...numbers, mix: tracking.mix }, qualityBasis: tracking.basis }
 }
 
@@ -330,12 +336,12 @@ export function nextTenthView(goal: PropertyRatingGoal, basis: RatingGoalBasis |
       }
 }
 
-/** The reviews since the set: their count, and their average once there are ten. */
-function sinceSetView(
-  sinceSet: RatingTotals,
-  qualityBasis: QualityBasis,
-): RatingGoalPlanProgressView['sinceSet'] {
-  if (qualityBasis === 'planned' || sinceSet.count === 0) {
+/**
+ * The reviews since the set: their count, and their average once there are
+ * ten, as the verdict waits for them (R2-5); the numbers blend them earlier.
+ */
+function sinceSetView(sinceSet: RatingTotals): RatingGoalPlanProgressView['sinceSet'] {
+  if (sinceSet.count < QUALITY_VERDICT_MIN_REVIEWS) {
     return { reviewCount: sinceSet.count, average: null, averageTenths: null }
   }
   const average = ratio(sinceSet.sum, sinceSet.count)
@@ -364,8 +370,9 @@ export function planProgressView(
     targetTenths: goal.targetTenths,
     googleShowsTenths: reading.google?.displayedTenths ?? null,
     qualityTenths: goal.qualityTenths,
-    sinceSet: sinceSetView(reading.sinceSet ?? NO_REVIEWS, numbers.qualityBasis),
+    sinceSet: sinceSetView(reading.sinceSet ?? NO_REVIEWS),
     qualityBasis: numbers.qualityBasis,
+    assumedAverage: round(ratioToNumber(numbers.basis.mix), 3),
     paceTenthsPerWeek: goal.paceTenthsPerWeek,
     lastFourWeeksPerWeek: round(ratioToNumber(actualPace), 2),
     forecast: forecastFor(numbers.basis, reading, goal.targetTenths, actualPace),

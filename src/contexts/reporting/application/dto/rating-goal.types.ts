@@ -28,7 +28,10 @@ export type {
   RatingGoalStatus,
 }
 
-/** `planned` until ten reviews arrived since the goal was set, then `since_set`. */
+/**
+ * `planned` while no review arrived since the goal was set, `blended` from the
+ * first, `since_set` while they are too low for the target.
+ */
 export type RatingQualityBasis = QualityBasis
 
 /**
@@ -119,8 +122,9 @@ export type RatingGoalCardView = Readonly<{
   /** Set in the last 7 days: "Aim for about N new reviews a week". */
   justSet: boolean
   /**
-   * Null for a keep goal. At the planned quality until ten reviews arrived
-   * since the goal was set, then at their average (`qualityBasis`).
+   * Null for a keep goal. At the planned quality blended with the reviews
+   * since the goal was set, or at their average while they are too low
+   * (`qualityBasis`).
    */
   forecast: RatingForecastView | null
   /** The chosen pace until the goal is 28 days old, then the actual pace. */
@@ -151,12 +155,14 @@ export type RatingGoalPlanProgressView = Readonly<{
   qualityTenths: number
   sinceSet: Readonly<{
     reviewCount: number
-    /** Their average to three decimals; null until ten reviews arrived ("after 10 reviews"). */
+    /** Their average to three decimals; null until ten arrived, as the verdict waits ("after 10 reviews"). */
     average: number | null
     /** Their average as a tenth, half up; null until ten reviews arrived. */
     averageTenths: number | null
   }>
   qualityBasis: RatingQualityBasis
+  /** The average the goal's numbers assume (`qualityBasis`), to three decimals. */
+  assumedAverage: number
   /** Pace: the chosen pace in tenths a week, against the last four weeks (a decimal a week). */
   paceTenthsPerWeek: number
   lastFourWeeksPerWeek: number

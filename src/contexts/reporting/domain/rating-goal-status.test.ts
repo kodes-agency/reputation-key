@@ -8,6 +8,7 @@ import {
   googleIsWaiting,
   keepStatus,
   nextTenthMilestone,
+  PLANNED_AVERAGE_WEIGHT_REVIEWS,
   ratingProgress,
   reviewsTooLow,
   statusPaceWindow,
@@ -117,18 +118,50 @@ describe('the status of a climb goal, top rule first', () => {
 })
 
 describe('the stars new reviews are expected to average', () => {
-  it('is the planned quality until ten reviews arrived since the goal was set', () => {
-    expect(trackingMix(47, { count: 9, sum: 9 })).toEqual({
+  it('is the planned quality while no review arrived since the goal was set', () => {
+    expect(trackingMix(47, { count: 0, sum: 0 }, 45)).toEqual({
       mix: ratio(47, 10),
       basis: 'planned',
     })
   })
 
-  it('is their own average from the tenth review on', () => {
-    expect(trackingMix(47, { count: 10, sum: 42 })).toEqual({
-      mix: ratio(42, 10),
+  it('blends the plan, counted as 15 reviews, with the first new review', () => {
+    // (15 × 4.7 + 4) / 16 = 74.5 / 16.
+    expect(PLANNED_AVERAGE_WEIGHT_REVIEWS).toBe(15)
+    expect(trackingMix(47, { count: 1, sum: 4 }, 45)).toEqual({
+      mix: ratio(745, 160),
+      basis: 'blended',
+    })
+  })
+
+  it('keeps blending before the verdict, however low the first nine are', () => {
+    // Nine one-star reviews: no verdict yet, (70.5 + 9) / 24 = 3.3125.
+    expect(trackingMix(47, { count: 9, sum: 9 }, 45)).toEqual({
+      mix: ratio(795, 240),
+      basis: 'blended',
+    })
+  })
+
+  it('blends from the tenth review on while they clear the target', () => {
+    // 20 reviews at 4.55 clear 4.5's 4.45: (70.5 + 91) / 35.
+    expect(trackingMix(47, { count: 20, sum: 91 }, 45)).toEqual({
+      mix: ratio(1615, 350),
+      basis: 'blended',
+    })
+  })
+
+  it('is their own average once they are too low, as the status says', () => {
+    // 20 reviews at exactly 4.45, the threshold of 4.5: too low, so no blend.
+    expect(trackingMix(47, { count: 20, sum: 89 }, 45)).toEqual({
+      mix: ratio(89, 20),
       basis: 'since_set',
     })
+  })
+
+  it('moves the planned average less at the tenth review than a switch would', () => {
+    // A plan of 4.5 with ten reviews at 4.1: the blend is 4.34, a switch was 4.1.
+    const { mix } = trackingMix(45, { count: 10, sum: 41 }, 40)
+    expect(mix).toEqual(ratio(1085, 250))
   })
 
   it('is too low only at ten reviews or more, at or below the threshold', () => {
