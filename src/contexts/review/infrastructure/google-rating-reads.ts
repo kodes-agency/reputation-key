@@ -62,8 +62,7 @@ const reviewWeek = sql<string>`TO_CHAR(DATE_TRUNC('week', ${reviews.reviewedAt} 
 /** The calendar year of a review in its Property's time zone. */
 const reviewYear = sql<number>`EXTRACT(YEAR FROM ${reviews.reviewedAt} AT TIME ZONE ${properties.timezone})::int`
 
-/** The calendar year and month of a review in its Property's time zone. */
-const reviewMonthYear = sql<number>`EXTRACT(YEAR FROM ${reviews.reviewedAt} AT TIME ZONE ${properties.timezone})::int`
+/** The calendar month of a review in its Property's time zone. */
 const reviewMonth = sql<number>`EXTRACT(MONTH FROM ${reviews.reviewedAt} AT TIME ZONE ${properties.timezone})::int`
 
 /** The civil date of a review in its Property's time zone, `YYYY-MM-DD`. */
@@ -166,7 +165,7 @@ export const createGoogleRatingReads = (deps: {
       return trace('review.googleRatingReads.getMonthlyTotals', async () => {
         const rows = await deps.db
           .select({
-            year: reviewMonthYear,
+            year: reviewYear,
             month: reviewMonth,
             count: count(),
             sum: sum(reviews.rating),
@@ -174,9 +173,9 @@ export const createGoogleRatingReads = (deps: {
           .from(reviews)
           .innerJoin(properties, currentBinding)
           .where(currentGoogleReviews(organizationId, propertyId, deps.clock(), since))
-          .groupBy(reviewMonthYear, reviewMonth)
+          .groupBy(reviewYear, reviewMonth)
           .having(sql`count(*) >= ${minimumCount}`)
-          .orderBy(reviewMonthYear, reviewMonth)
+          .orderBy(reviewYear, reviewMonth)
         return rows.map((row) => ({
           year: Number(row.year),
           month: Number(row.month),
