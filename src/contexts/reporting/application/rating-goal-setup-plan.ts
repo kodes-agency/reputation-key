@@ -59,6 +59,10 @@ export {
   perMonthOf,
 } from '../domain/rating-goal-pace-chips'
 export { ownAverageTenths } from '../domain/rating-goal-average'
+export {
+  HIGHEST_TARGET_TENTHS,
+  KEEP_FIRST_FROM_TENTHS,
+} from '../domain/rating-goal-stops'
 
 type Plan = Extract<RatingGoalSetupPlanView, { kind: 'plan' }>
 

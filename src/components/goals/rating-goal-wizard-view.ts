@@ -9,6 +9,7 @@ import type {
   ChangeRatingGoalSchemaInput,
   SetRatingGoalSchemaInput,
 } from '#/contexts/reporting/application/dto/rating-goal.dto'
+import { HIGHEST_TARGET_TENTHS } from '#/contexts/reporting/application/rating-goal-setup-plan'
 import { paceSentence } from './rating-goal-pace-words'
 import { likelyText, whenText } from './rating-goal-setup-time'
 import { tenthsText } from './rating-goal-view'
@@ -113,9 +114,6 @@ export function wizardReceipt(saved: SavedGoal): RatingGoalReceipt {
         : `${sentence(whenText(saved.days))}, likely ${likelyText(saved.likely)}.`,
   }
 }
-
-/** The highest tenth a goal can climb to (4.9). */
-const HIGHEST_TARGET_TENTHS = 49
 
 /**
  * Why Keep comes first at a shown 4.7 or 4.8 (X1, owner 2026-10-16): the next

@@ -7,6 +7,10 @@
 // next tenth needs new reviews of nearly five stars), or only "Keep 4.9" at 4.9
 // or 5.0, where no higher tenth can be planned (R2-9); after an end it did not
 // choose, a new goal (ADR 0067, decision 6).
+import {
+  HIGHEST_TARGET_TENTHS,
+  KEEP_FIRST_FROM_TENTHS,
+} from '#/contexts/reporting/application/rating-goal-setup-plan'
 import { Button } from '#/components/ui/button'
 import { Card, CardContent } from '#/components/ui/card'
 import { StatusBadge } from '#/components/ui/status-badge'
@@ -15,11 +19,6 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { RatingGoalCardHeader } from './rating-goal-card'
 import { endedSentence, ratingText, type RatingGoalOutcomeView } from './rating-goal-view'
 import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
-
-/** The highest tenth a goal can climb to (4.9): there is no "next" past it, only Keep. */
-const HIGHEST_TENTHS = 49
-/** Keep is offered from 4.7 (X1; Reporting's `offerKeepFirst`). */
-const KEEP_OFFERED_FROM_TENTHS = 47
 
 type Props = Readonly<{
   outcome: RatingGoalOutcomeView
@@ -64,8 +63,9 @@ function NextSteps({ outcome, onStart }: Pick<Props, 'outcome' | 'onStart'>) {
       {`Keep ${ratingText(outcome.target)}`}
     </Button>
   )
-  if (targetTenths < KEEP_OFFERED_FROM_TENTHS) return next
-  if (targetTenths >= HIGHEST_TENTHS) return keep
+  // Keep is offered from 4.7 (X1); from 4.9 there is no "next", only Keep.
+  if (targetTenths < KEEP_FIRST_FROM_TENTHS) return next
+  if (targetTenths >= HIGHEST_TARGET_TENTHS) return keep
   return (
     <>
       {next}
