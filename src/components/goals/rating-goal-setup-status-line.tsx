@@ -41,6 +41,7 @@ export function RatingGoalSetupStatusLine({
               type="button"
               variant="link"
               size="inline"
+              touch
               onClick={() => onAction(part.action)}
             >
               {part.text}

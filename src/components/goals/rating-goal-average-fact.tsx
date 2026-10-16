@@ -73,13 +73,20 @@ export function RatingGoalAverageFact(props: Props) {
               type="button"
               variant="link"
               size="inline"
+              touch
               onClick={ownOn ? props.onBackToAutomatic : props.onChange}
             >
               {ownOn ? 'Back to automatic' : 'Change'}
             </Button>
           )}
           {earlier ? (
-            <Button type="button" variant="link" size="inline" onClick={backFromEarlier}>
+            <Button
+              type="button"
+              variant="link"
+              size="inline"
+              touch
+              onClick={backFromEarlier}
+            >
               Back to automatic
             </Button>
           ) : null}

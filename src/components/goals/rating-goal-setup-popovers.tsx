@@ -41,7 +41,9 @@ function Explanation({
 }>) {
   return (
     <Popover open={props.open === which} onOpenChange={() => props.onToggle(which)}>
-      <ExplainTrigger className="text-link">{label}</ExplainTrigger>
+      <ExplainTrigger className="text-link max-md:min-h-(--control-touch)">
+        {label}
+      </ExplainTrigger>
       <PopoverContent
         side="top"
         aria-label={title}

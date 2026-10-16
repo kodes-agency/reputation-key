@@ -172,7 +172,13 @@ export function RatingGoalPaceControl(props: Props) {
           )}
           {paceNote(plan, unit)}
         </span>
-        <Button type="button" variant="link" size="inline" onClick={props.onToggleOwn}>
+        <Button
+          type="button"
+          variant="link"
+          size="inline"
+          touch
+          onClick={props.onToggleOwn}
+        >
           {ownOn ? 'Back to options' : 'Your own'}
         </Button>
       </div>
