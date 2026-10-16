@@ -121,10 +121,13 @@ metric authority.
   time and a likely range in exact day fractions (`domain/rating-goal-duration.ts`). A tenth
   the cache already clears while Google lags is never a goal. Keep comes first from 4.7.
   Components import these values only from `application/` (the components boundary).
-  Until ten reviews
-  arrived since a goal was set its numbers assume the planned quality, then those reviews'
-  average; `reviews_too_low` (that average at or below the threshold) replaced
-  `cant_reach_at_mix`. The review cache is read only through Review's
+  A goal's numbers (forecast, still needed, next tenth) assume the planned quality
+  blended with the reviews since it was set from the first one, the plan counted as 15
+  reviews (`trackingMix`, round 4 X3); the verdict still waits for ten reviews and judges
+  their own average: `reviews_too_low` (that average at or below the threshold) replaced
+  `cant_reach_at_mix`, and while a goal is too low its numbers use that average too, so the
+  chip and the numbers agree. The evaluation and its notices read no forecast average
+  (`application/rating-goal-blend-volume.test.ts` pins the notice volume). The review cache is read only through Review's
   `ReviewGoogleRatingReads` (counts and star sums, the serving eligibility, the current
   binding epoch; also since a goal was set, per calendar year, per calendar month with ten
   reviews and per local date, counts only); Google's own numbers

@@ -365,7 +365,7 @@ exact inputs (`workOutRatingGoal`); the server runs no planning maths for it.
    that is not today's automatic one, worded as "your plan's average". R2-5's
    switch is unchanged: from the tenth review since the goal was set, their own
    average replaces the planned one (the blend R4-2 proposes is a separate
-   change).
+   change; it replaced this switch the same day, see the next amendment).
 3. **The recommended goal** (R4-4) is the highest one reached within six months
    even if new reviews average 0.1★ below plan, at least the next tenth; the
    status line names the next one up ("4.2 possible in about 6 months"). − and
@@ -391,6 +391,44 @@ exact inputs (`workOutRatingGoal`); the server runs no planning maths for it.
 7. **Tracking words.** A plan reads per day ("2 a day", per week under one a
    day); progress is still counted per week ("This week: 9 of 14 reviews") and
    judged on the last four weeks as before.
+
+## Amended 2026-10-16 — new reviews take over step by step
+
+The owner approved R4-2's blend (X3, R4-5) as its own change after the setup.
+R2-5's hard switch made a goal's numbers jump on the day its tenth review
+since the set arrived (the plan's 4.5★ replaced at once by ten reviews' noisy
+average, ±0.3★ in the simulations); a blend moves them a little with every
+review. It amends decision 4 of the 2026-10-15 amendment for the numbers only:
+
+1. **The numbers blend from the first new review.** A climb goal's forecast,
+   "Still needed" and next tenth assume (W × q + s) / (W + n), where q is the
+   planned average, n the reviews since the goal was set, s their stars and
+   W = 15 (`PLANNED_AVERAGE_WEIGHT_REVIEWS`): the plan counts like fifteen
+   reviews, so after fifteen new ones both weigh the same. Exact rationals, as
+   every count. With no new review it is the plan's average.
+2. **The verdict does not blend.** "New reviews too low" still waits for ten
+   reviews and judges their own average against the target's threshold; its
+   notice is unchanged (R2-5, R2-10).
+3. **Too low, the numbers judge as the status does.** While a goal is too low
+   its numbers use the since-set average itself, not the blend, so "Still
+   needed" reads "Not reachable" beside the chip. A blend with a plan above the
+   threshold would still reach the target and contradict it.
+4. **The words say so.** "at your plan's 4.5★ mixed with new reviews so far"
+   where a count is not reachable; "Your plan" notes "forecasts use 4.55★, your
+   plan mixed with them" (or "their average" while too low) and still shows the
+   new reviews' own average only from the tenth; the setup's planned average
+   says "Your real average takes over step by step as reviews arrive." and its
+   explanation "we count 4.5 stars as if 15 reviews gave it, so after 15 new
+   ones both weigh the same."
+5. **Notice volume is unchanged.** The evaluation and its notices read no
+   forecast average. A check over 24 representative goals for 26 weeks
+   (`application/rating-goal-blend-volume.test.ts`) gives the same Below pace,
+   too-low and reached notices at any planned quality; the assumed average
+   moves at most 0.06★ when the tenth review arrives where the switch moved
+   0.30★.
+
+No data change: `qualityBasis` in the read DTOs gains `blended`, and
+`since_set` now means "too low"; "Your plan" adds `assumedAverage`.
 
 ## Rejected alternatives
 
