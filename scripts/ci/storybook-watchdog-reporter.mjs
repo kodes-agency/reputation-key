@@ -83,7 +83,7 @@ let diagnosing = false
 
 async function attach(target) {
   const session = cdpSession(target.webSocketDebuggerUrl)
-  const entry = { target, session, paused: null }
+  const entry = { target, session, paused: null, trail: [] }
   attached.set(target.id, entry)
   try {
     await session.opened
@@ -96,12 +96,21 @@ async function attach(target) {
       scriptUrls.set(msg.params.scriptId, msg.params.url)
       return
     }
+    if (msg.method === 'Runtime.consoleAPICalled') {
+      const first = msg.params.args?.[0]?.value
+      if (typeof first === 'string' && first.startsWith('[DIAG]')) {
+        entry.trail.push(`${((Date.now() - t0) / 1000).toFixed(2)} ${first}`)
+        if (entry.trail.length > 400) entry.trail.splice(0, entry.trail.length - 400)
+      }
+      return
+    }
     if (msg.method !== 'Debugger.paused') return
     if (diagnosing) entry.paused?.(msg)
     // A `debugger` statement in some library must not stop the run.
     else void session.send('Debugger.resume')
   })
   void session.closed.then(() => attached.delete(target.id))
+  await session.send('Runtime.enable', {}, 10_000)
   const enabled = await session.send('Debugger.enable', {}, 10_000)
   log(
     `ATTACH ${target.url.slice(0, 100)} debugger ${enabled.timedOut ? 'NOT enabled (page busy)' : 'enabled'}`,
@@ -123,7 +132,7 @@ async function attachNewPages() {
 async function sampleStacks(entry) {
   const { session, target } = entry
   log(`  page ${target.url.slice(0, 120)}`)
-  for (let sample = 1; sample <= 8; sample++) {
+  for (let sample = 1; sample <= 3; sample++) {
     const paused = new Promise((resolve) => {
       const timer = setTimeout(() => resolve(null), 6000)
       entry.paused = (msg) => {
@@ -194,6 +203,10 @@ async function diagnose(reason) {
   diagnosing = true
   try {
     for (const entry of attached.values()) {
+      log(
+        `  page ${entry.target.url.slice(0, 120)}: last ${Math.min(entry.trail.length, 160)} of ${entry.trail.length} [DIAG] lines`,
+      )
+      for (const line of entry.trail.slice(-160)) log(`    ${line}`)
       await sampleStacks(entry)
       await pageSnapshot(entry)
     }

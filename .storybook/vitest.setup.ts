@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, vi } from 'vitest'
-import { diag } from './diag'
+import { diag, diagFor } from './diag'
 
-beforeEach((context) => diag(`start ${context.task.name}`))
-afterEach((context) =>
-  diag(`end ${context.task.name} ${context.task.result?.state ?? '?'}`),
-)
+beforeEach((context) => {
+  diagFor(context.task.name === 'Property Wording Keeps An Unsaved Edit')
+  diag(`start ${context.task.name}`)
+})
+afterEach((context) => {
+  diag(`end ${context.task.name} ${context.task.result?.state ?? '?'}`)
+  diagFor(false)
+})
 
 // `@storybook/react` reads `globalThis.FRAMEWORK_OPTIONS` once at module load
 // to decide whether to mount stories under <StrictMode>. The Vite builder

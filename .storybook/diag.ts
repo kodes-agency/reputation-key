@@ -1,7 +1,8 @@
-// DIAG (temporary, diag branch only): a breadcrumb trail in localStorage, which
-// the orchestrator page shares with every test iframe, so the watchdog can read
-// where a stalled story stopped even if its iframe no longer answers.
-const DIAG_KEY = '__diag'
+// DIAG (temporary, diag branch only): breadcrumbs for the stalled story. Each one
+// goes to console.debug with a [DIAG] prefix, which the watchdog reporter hears
+// live over the DevTools protocol (Runtime.consoleAPICalled), so the trail
+// survives a renderer whose main thread later wedges.
+let enabled = false
 
 function describe(target: EventTarget | null): string {
   if (!(target instanceof Element)) return String(target)
@@ -12,35 +13,36 @@ function describe(target: EventTarget | null): string {
 }
 
 export function diag(message: string): void {
-  try {
-    const entries = JSON.parse(localStorage.getItem(DIAG_KEY) ?? '[]') as string[]
-    const frame =
-      new URLSearchParams(location.search).get('iframeId')?.split('/').pop() ??
-      location.pathname
-    entries.push(
-      `${Math.round(performance.timeOrigin + performance.now())} ${frame} ${message}`,
-    )
-    localStorage.setItem(DIAG_KEY, JSON.stringify(entries.slice(-400)))
-  } catch {
-    // diagnostics only
-  }
+  if (!enabled) return
+  console.debug(`[DIAG] ${Math.round(performance.now())} ${message}`)
 }
 
-for (const type of [
-  'pagehide',
-  'beforeunload',
-  'unload',
-  'visibilitychange',
-  'freeze',
-  'resume',
-]) {
-  window.addEventListener(
-    type,
-    () => diag(`window ${type} visibility=${document.visibilityState}`),
-    true,
-  )
+export function diagFor(on: boolean): void {
+  enabled = on
 }
-for (const type of ['keydown', 'click', 'focusin', 'focusout', 'submit', 'pointerdown']) {
+
+const EVENTS = [
+  'keydown',
+  'keyup',
+  'beforeinput',
+  'input',
+  'click',
+  'pointerdown',
+  'pointerup',
+  'mousedown',
+  'mouseup',
+  'focusin',
+  'focusout',
+  'submit',
+  'toggle',
+  'transitionstart',
+  'transitionend',
+  'animationstart',
+  'animationend',
+  'scroll',
+  'selectionchange',
+]
+for (const type of EVENTS) {
   document.addEventListener(
     type,
     (event) => {
@@ -52,4 +54,21 @@ for (const type of ['keydown', 'click', 'focusin', 'focusout', 'submit', 'pointe
     true,
   )
 }
-diag(`module loaded ${location.href}`)
+for (const type of ['pagehide', 'beforeunload', 'unload', 'visibilitychange', 'freeze']) {
+  window.addEventListener(type, () => diag(`window ${type}`), true)
+}
+new MutationObserver((records) => {
+  const changed = records
+    .map((r) =>
+      r.type === 'attributes'
+        ? `${describe(r.target)}@${r.attributeName}`
+        : `${r.type}:${describe(r.target)}`,
+    )
+    .slice(0, 6)
+  diag(`mutations ${records.length}: ${changed.join(' | ')}`)
+}).observe(document, {
+  subtree: true,
+  childList: true,
+  attributes: true,
+  characterData: true,
+})
