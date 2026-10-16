@@ -107,7 +107,7 @@ export function RatingGoalGoalNumeral(props: Props) {
         >
           <span
             aria-hidden="true"
-            className="display-title inline-flex leading-none font-bold tabular-nums"
+            className="display-title inline-flex leading-none font-bold"
             style={{ fontSize: small ? 88 : 128, height: '1em' }}
           >
             <Strip digits={WHOLE_DIGITS} at={Math.floor(targetTenths / 10)} />
