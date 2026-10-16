@@ -119,8 +119,10 @@ function Headline({ props, plan }: Readonly<{ props: Props; plan: Plan }>) {
   const labels = goalAriaLabels(plan)
   const parts = statusParts(plan, draft, unit)
   const say = goalSay(plan, unit)
+  // Full width, so the ruler keeps the mock's fixed width (its inline maxWidth)
+  // instead of the widest line's, and never resizes as − / + change the lines.
   return (
-    <div className="flex flex-col items-center text-center">
+    <div className="flex w-full flex-col items-center text-center">
       <RatingGoalGoalNumeral
         targetTenths={plan.goal.targetTenths}
         minTenths={plan.goal.minTenths}
