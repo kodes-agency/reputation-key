@@ -36,6 +36,7 @@ export const deliverBetaFeedback: BetaFeedbackDelivery = (input) => {
     message: formatBetaFeedbackMessage(input.data),
     source: 'repkey-native-beta-feedback',
     attachments: screenshotAttachments(input.data),
+    ...(input.reporter ? { reporter: input.reporter } : {}),
     tags: {
       feedback_type: input.data.kind,
       feedback_impact: input.data.impact,

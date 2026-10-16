@@ -72,6 +72,7 @@ mocks.container = {
     submit: submitBetaFeedback({
       store: triageStore,
       deliver: deliverBetaFeedback,
+      findReporterContact: async () => ({ name: 'Ana Admin', email: 'ana@example.com' }),
       clock: () => NOW,
       idGen: () => FEEDBACK_REFERENCE,
       hmacSecret: 'feedback-secret',
@@ -166,6 +167,7 @@ describe('submit beta feedback server function', () => {
       message: expect.stringContaining('Message: The reviews page did not load.'),
       source: 'repkey-native-beta-feedback',
       attachments: [],
+      reporter: { name: 'Ana Admin', email: 'ana@example.com' },
       tags: {
         feedback_type: 'bug',
         feedback_impact: 'cannot_complete',

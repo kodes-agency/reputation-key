@@ -12,7 +12,10 @@ import { deleteTestOrganizations, seedOrgs } from '#/shared/testing/integration-
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { betaFeedbackPseudonym } from '../application/beta-feedback-pseudonym'
 import { BetaFeedbackTriageRepository } from './beta-feedback-triage.repository'
-import { resolveBetaFeedbackReporter } from './beta-feedback-reporter'
+import {
+  findBetaFeedbackReporterContact,
+  resolveBetaFeedbackReporter,
+} from './beta-feedback-reporter'
 
 const SECRET = 'integration-beta-feedback-outcome-secret'
 const ORG = `org-bf-outcome-${randomUUID().slice(0, 8)}`
@@ -192,6 +195,21 @@ describe('reporter resolution', () => {
         organizationPseudonym: orgPseudonym,
         actorPseudonym: leaver,
       }),
+    ).resolves.toBeNull()
+  })
+})
+
+describe('reporter contact', () => {
+  it("reads the signed-in reporter's account name and email", async () => {
+    await expect(findBetaFeedbackReporterContact(db, REPORTER)).resolves.toEqual({
+      name: REPORTER,
+      email: `${REPORTER}@example.test`,
+    })
+  })
+
+  it('finds no contact for an account that does not exist', async () => {
+    await expect(
+      findBetaFeedbackReporterContact(db, 'user-who-never-existed'),
     ).resolves.toBeNull()
   })
 })

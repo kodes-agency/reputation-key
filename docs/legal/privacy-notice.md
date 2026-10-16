@@ -10,7 +10,7 @@ amended_on: 2026-10-16
 
 **Status:** Accepted for publication
 **Effective date:** 2026-10-16
-**Version:** 2.4
+**Version:** 2.5
 **Accountable owner:** Bozhidar Denev
 
 ## 1. About this notice
@@ -176,8 +176,9 @@ key from the internal identifiers of the Participant and of the Organization,
 the same on every report from that Participant or Organization. If the
 Participant chose to attach them, the report also names the error report it
 refers to and gives the size and block counts of the masked Bug layout. The
-Service does not add the Participant's name or email address to the report and
-does not send the layout itself. If the Participant attached a screenshot, the
+report also names the Participant by the name and email address of their
+account, so that it can be followed up; the Service does not send the layout
+itself. If the Participant attached a screenshot, the
 report carries it as an image file. The browser reduces it in size and encodes
 it again before sending, to at most 640 KB, which leaves out the metadata the
 original file held. The Service's own database keeps a record of each report
@@ -362,13 +363,21 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-10-16 and is version 2.4. It replaces version
-2.3, which took effect on 2026-10-16 and had replaced version 2.2, which took
-effect on 2026-10-13 and had replaced version 2.1, which took effect on
-2026-10-12 and had replaced version 2.0, which took effect on 2026-09-08.
+This notice takes effect on 2026-10-16 and is version 2.5. It replaces version
+2.4, which took effect on 2026-10-16 and had replaced version 2.3, which took
+effect on 2026-10-16 and had replaced version 2.2, which took effect on
+2026-10-13 and had replaced version 2.1, which took effect on 2026-10-12 and had
+replaced version 2.0, which took effect on 2026-09-08.
 Material changes will be announced to Participants by email at least 14 days
 before they take effect. The version and effective date will remain shown on
 this page.
+
+Version 2.5 adds the Participant's name and email address to a beta feedback
+report (section 2). Until version 2.5 a report named the Participant only by a
+pseudonym. The Service's own database still keeps no name or email address with
+a report, and the issue tracker never receives either. Version 2.5 takes effect
+on the day it is published, on the accountable owner's decision for the closed
+beta. Nothing else about the Service changes with version 2.5.
 
 Version 2.4 changes what an error report says about the error (section 2).
 Until version 2.4 the text of every error message was replaced. From version

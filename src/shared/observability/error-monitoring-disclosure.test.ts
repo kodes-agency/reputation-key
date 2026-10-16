@@ -646,6 +646,18 @@ describe('published error monitoring matches what a deployed cell does', () => {
     expect(horizon).toContain('kept by the provider with it')
   })
 
+  it('says a feedback report names its reporter by their account, as the capture adds after the scrubber', () => {
+    expect(prose()).toContain(
+      'The report also names the Participant by the name and email address of their account',
+    )
+    expect(noticeChanges(notice)).toContain(
+      "Version 2.5 adds the Participant's name and email address to a beta feedback report",
+    )
+    expect(contract).toContain(
+      'Privacy Notice version 2.5, effective 2026-10-16 on publication',
+    )
+  })
+
   it('keeps the record of what version 2.4 changed, in the notice and in the beta contract', () => {
     expect(noticeChanges(notice)).toContain(
       'Version 2.4 changes what an error report says about the error',

@@ -15,6 +15,7 @@ import { betaFeedbackPseudonym } from '../beta-feedback-pseudonym'
 import type {
   BetaFeedbackActor,
   BetaFeedbackDelivery,
+  BetaFeedbackReporterContact,
   BetaFeedbackSubmissionStore,
 } from '../ports/beta-feedback-submission.port'
 
@@ -26,6 +27,8 @@ export type SubmitBetaFeedbackOutput = Readonly<{ reference: string }>
 export type SubmitBetaFeedbackDeps = Readonly<{
   store: Pick<BetaFeedbackSubmissionStore, 'prepare' | 'markDelivered' | 'markFailed'>
   deliver: BetaFeedbackDelivery
+  /** The reporter's account name and email, for monitoring only. */
+  findReporterContact: (userId: string) => Promise<BetaFeedbackReporterContact | null>
   clock: () => Date
   idGen: () => string
   /** Keys the telemetry pseudonyms; never leaves the server. */
@@ -40,14 +43,16 @@ const PREPARED_REVISION = 0
  * Submit one beta-feedback report.
  *
  * Steps:
- * 1. Persist — prepare the triage row before anything leaves the server
- * 2. Deliver — hand the report to monitoring
- * 3. Persist — settle the row as delivered or failed
- * 4. Return — the opaque reference, or a BetaFeedbackError to retry
+ * 1. Read — the reporter's account name and email, before anything is written
+ * 2. Persist — prepare the triage row before anything leaves the server
+ * 3. Deliver — hand the report, named by its reporter, to monitoring
+ * 4. Persist — settle the row as delivered or failed
+ * 5. Return — the opaque reference, or a BetaFeedbackError to retry
  */
 export const submitBetaFeedback =
   (deps: SubmitBetaFeedbackDeps) =>
   async ({ actor, data }: SubmitBetaFeedbackInput): Promise<SubmitBetaFeedbackOutput> => {
+    const reporter = await deps.findReporterContact(actor.userId)
     const now = deps.clock()
     const reference = deps.idGen()
     await deps.store.prepare({
@@ -78,7 +83,13 @@ export const submitBetaFeedback =
       now,
     })
 
-    const delivery = deps.deliver({ data, actor, hmacSecret: deps.hmacSecret, reference })
+    const delivery = deps.deliver({
+      data,
+      actor,
+      reporter,
+      hmacSecret: deps.hmacSecret,
+      reference,
+    })
     if (delivery.status === 'failed') {
       await deps.store.markFailed({
         reference,

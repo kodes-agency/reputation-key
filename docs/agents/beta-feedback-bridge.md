@@ -6,7 +6,7 @@ How a report travels, and what each destination is allowed to hold.
 
 | Destination                              | Holds                                                                      |
 | ---------------------------------------- | -------------------------------------------------------------------------- |
-| **Sentry** (accepted processor)          | The reporter's words, plus controlled diagnostic tags.                     |
+| **Sentry** (accepted processor)          | The reporter's words and account name/email, plus controlled tags.         |
 | **Postgres** `beta_feedback_triage`      | Content-free: pseudonyms, closed enums, provider linkage, state evidence.  |
 | **GitHub** `kodes-agency/reputation-key` | Controlled triage vocabulary and monitoring links. Written by an operator. |
 
