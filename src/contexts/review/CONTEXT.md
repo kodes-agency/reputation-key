@@ -26,6 +26,14 @@ is not the identity or history authority.
   outside `publicApi`; no request path may call them.
 - Google-controlled Review/reply content, provider identifiers, observations, and
   reputation material are never exported as manager-authored data.
+- Reporting's Property Google rating goal reads the cache only through
+  `ReviewGoogleRatingReads` (`application/ports/google-rating-reads.port.ts`):
+  counts and star sums of servable Google reviews under the current binding,
+  never a review, and no window sum under ten reviews. For its tracking page
+  (round 5) Review also works out the exact average at each Property-local
+  week's end itself (`application/google-rating-week-history.ts`, the week
+  sums stay inside) and returns Google's own number over time from the
+  verified snapshot facts (ADR 0067, round 5, tracking detail).
 
 ## Model
 
