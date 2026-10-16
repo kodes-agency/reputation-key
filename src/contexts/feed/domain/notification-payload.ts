@@ -210,7 +210,8 @@ export type NotificationPayload = Readonly<{
 export type NotificationRatingGoalMode = 'climb' | 'keep'
 
 /** Over which days a below-pace notice counted the reviews. */
-export type NotificationRatingPaceWindow = 'last_4_weeks' | 'since_set'
+export type NotificationRatingPaceWindow =
+  'last_4_weeks' | 'since_set' | 'since_pace_change'
 
 export type NotificationImportOutcome = 'completed' | 'failed'
 
@@ -363,7 +364,11 @@ const PUBLISH_OUTCOMES: Record<string, true> = {
 
 const RATING_GOAL_MODES: Record<string, true> = { climb: true, keep: true }
 
-const RATING_PACE_WINDOWS: Record<string, true> = { last_4_weeks: true, since_set: true }
+const RATING_PACE_WINDOWS: Record<string, true> = {
+  last_4_weeks: true,
+  since_set: true,
+  since_pace_change: true,
+}
 
 /** Longest free-ish text we accept. Names, not prose. */
 const MAX_NAME_LENGTH = 120

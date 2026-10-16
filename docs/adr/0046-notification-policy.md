@@ -1228,6 +1228,13 @@ says it the way the plan reads:
 2. **Keep is offered from 4.7.** The Reached notice offers "Set your next goal,
    or keep 4.7." from a shown 4.7 (owner, X1), where the next tenth needs new
    reviews of nearly five stars; it said so from 4.9 before.
+3. **A window since the pace changed** (round 5, ADR 0067 tracking detail;
+   PLAN-D E24). The Below pace payload's window (`ratingPaceWindow`) may also
+   be `since_pace_change`, and the notice then reads "… since the pace
+   changed; the plan is 2 a day." Feed, the fact's schema and the consumer
+   accept it a deploy before Reporting writes it (the pace anchor that judges
+   a new pace from its change follows), so an older worker never refuses a
+   newer fact. Same two figures; nothing else in the payload moves.
 
 ## Consequences
 

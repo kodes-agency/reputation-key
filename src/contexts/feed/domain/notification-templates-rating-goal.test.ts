@@ -149,6 +149,17 @@ describe('entered Below pace', () => {
       }).body,
     ).toBe('No new reviews over the last 4 weeks; the goal’s pace is 11 a week.')
   })
+
+  it('counts since the pace changed when the window starts there', () => {
+    expect(
+      copy('goal.rating_below_pace', {
+        ...below,
+        ratingPacePerWeek: 2,
+        ratingRecentPaceTenths: 15,
+        ratingPaceWindow: 'since_pace_change',
+      }).body,
+    ).toBe('1.5 new reviews a week since the pace changed; the goal’s pace is 2 a week.')
+  })
 })
 
 describe('entered Below pace, for a plan in tenths a week (rounds 3 and 4)', () => {
@@ -171,6 +182,14 @@ describe('entered Below pace, for a plan in tenths a week (rounds 3 and 4)', () 
         ratingPaceWindow: 'since_set',
       }).body,
     ).toBe('1 new review a day since the goal was set; the plan is 1.5 a day.')
+    expect(
+      copy('goal.rating_below_pace', {
+        ...below,
+        ratingPaceTenthsPerWeek: 140,
+        ratingRecentPaceTenths: 0,
+        ratingPaceWindow: 'since_pace_change',
+      }).body,
+    ).toBe('No new reviews since the pace changed; the plan is 2 a day.')
   })
 
   it('says plainly when no review came in', () => {

@@ -326,6 +326,19 @@ describe('the rating goal fact’s pace', () => {
     expect(deps.jobs).toEqual([])
   })
 
+  it('takes a window counted since the pace changed, a deploy before any worker writes one', async () => {
+    const deps = makeDeps()
+
+    await handleRatingGoalTransitioned(
+      deps,
+      event({ ...belowPace, pacePerWeek: 14, paceWindow: 'since_pace_change' }),
+    )
+
+    expect(deps.jobs[0]?.data.payload).toMatchObject({
+      ratingPaceWindow: 'since_pace_change',
+    })
+  })
+
   it('still takes a fact written before the pace was kept in tenths', async () => {
     const deps = makeDeps()
 

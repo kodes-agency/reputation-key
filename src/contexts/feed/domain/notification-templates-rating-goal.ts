@@ -96,12 +96,21 @@ export const renderRatingGoalChanged = (p: NotificationPayload): RatingGoalNotic
 const perWeek = (paceTenths: number): string =>
   paceTenths % 10 === 0 ? String(paceTenths / 10) : (paceTenths / 10).toFixed(1)
 
+const PACE_WINDOW_WORDS: Readonly<
+  Record<NonNullable<NotificationPayload['ratingPaceWindow']>, string>
+> = {
+  last_4_weeks: 'over the last 4 weeks',
+  since_set: 'since the goal was set',
+  since_pace_change: 'since the pace changed',
+}
+
+/** The days a below-pace notice counted over, in words. */
+const paceWindowWords = (p: NotificationPayload): string =>
+  PACE_WINDOW_WORDS[p.ratingPaceWindow ?? 'last_4_weeks']
+
 /** "6 new reviews a week over the last 4 weeks", or "No new reviews since the goal was set". */
 const recentPace = (paceTenths: number, p: NotificationPayload): string => {
-  const window =
-    p.ratingPaceWindow === 'since_set'
-      ? 'since the goal was set'
-      : 'over the last 4 weeks'
+  const window = paceWindowWords(p)
   if (paceTenths === 0) return `No new reviews ${window}`
   const noun = paceTenths === 10 ? 'review' : 'reviews'
   return `${perWeek(paceTenths)} new ${noun} a week ${window}`
@@ -126,10 +135,7 @@ function belowPaceInTenths(
   planTenths: number,
   p: NotificationPayload,
 ) {
-  const window =
-    p.ratingPaceWindow === 'since_set'
-      ? 'since the goal was set'
-      : 'over the last 4 weeks'
+  const window = paceWindowWords(p)
   const daily = planTenths >= ONE_A_DAY_TENTHS
   const plan = daily ? `${perDay(planTenths)} a day` : `${perWeek(planTenths)} a week`
   if (recentTenths === 0) return `No new reviews ${window}; the plan is ${plan}.`

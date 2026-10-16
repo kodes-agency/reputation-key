@@ -61,7 +61,7 @@ type TransitionedPayload = Readonly<{
   /** Absent from a fact written before the pace was kept in tenths. */
   paceTenthsPerWeek?: number | null
   recentPaceTenths: number | null
-  paceWindow: 'last_4_weeks' | 'since_set' | null
+  paceWindow: 'last_4_weeks' | 'since_set' | 'since_pace_change' | null
 }>
 
 const NOTICE_TYPES: Readonly<Record<Transition, NotificationType>> = {
