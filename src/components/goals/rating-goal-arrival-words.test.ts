@@ -2,7 +2,6 @@
 // today in the setup's words, never a month (round 5, PLAN-D E1).
 import { describe, expect, it } from 'vitest'
 import {
-  arrivalLine,
   arrivalSentence,
   possibleSentence,
   shortArrival,
@@ -75,17 +74,6 @@ describe('when the card says the goal arrives', () => {
       ),
     ).toBe('No pace reaches 4.1 at the new reviews’ average.')
     expect(arrivalSentence(CARD_KEEP, AVERAGE)).toBeNull()
-  })
-})
-
-describe('an arrival on a line of its own', () => {
-  it('starts with a capital and stops', () => {
-    expect(arrivalLine(HARBORLINE_ARRIVAL, 4.1, AVERAGE)).toBe(
-      'In about 3 months, likely 9 weeks to 4 months.',
-    )
-    expect(arrivalLine({ kind: 'earned' }, 4.1, AVERAGE)).toBe(
-      'Google should show 4.1 soon.',
-    )
   })
 })
 

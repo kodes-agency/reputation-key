@@ -1,46 +1,85 @@
-// The detail page of the Property Google rating goal, worked out (pure): "Your
-// plan" against what happened since it was set (round 2, R2-11), forecasts at
-// the chosen pace and at the pace of the last four weeks, and how fresh
-// Google's numbers are (ADR 0067, decision 7).
+// The detail page of the Property Google rating goal, worked out (pure; round
+// 5, PLAN-D D-2, mock D3): the header's sentences under the headline (when the
+// goal arrives at the card's own pace, where Google stands against where it
+// started, the number possible after it, and the other pace once the goal
+// works at its actual one), the three tiles of "Your plan, so far" and how
+// fresh Google's numbers are. Every time is a duration, never a date (R4-3).
 import type {
   RatingGoalDetailView,
   RatingGoalPlanProgressView,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { formatNumber } from '#/lib/format'
-import { arrivalLine } from './rating-goal-arrival-words'
+import { arrivalSentence, possibleSentence } from './rating-goal-arrival-words'
+import { actualPaceText, paceText } from './rating-goal-pace-words'
+import { whenText } from './rating-goal-setup-time'
 import { assumedAverageWords, reviewsText, tenthsText } from './rating-goal-view'
-import { actualPaceText, paceText, planPaceNote } from './rating-goal-pace-words'
+
+type Detail = RatingGoalDetailView
+
+const tenthsOf = (rating: number): number => Math.round(rating * 10)
+
+/** The header gives a time only while the goal climbs on current numbers it can reach. */
+const gives = (detail: Detail): boolean =>
+  detail.state === 'active' &&
+  !detail.googleShowsSoon &&
+  detail.status !== 'reviews_too_low' &&
+  detail.status !== 'waiting_for_google'
 
 /**
- * Both forecasts the detail shows: at the chosen pace and at the actual one.
- * None while new reviews are too low for the target: the page says that once,
- * with what helps, rather than once per pace. A forecast no pace reaches names
- * the average it was worked out at (the plan's, the plan mixed with new
- * reviews, or theirs while too low).
+ * "Google shows 4.0 today, up from 3.9 when you started." (or "as when you
+ * started", or "down from"); none while Google's numbers are stale.
  */
-export function detailForecasts(
-  detail: RatingGoalDetailView,
-): readonly Readonly<{ label: string; text: string }>[] {
-  const plan = detail.paceTenthsPerWeek
-  if (plan === null || detail.status === 'reviews_too_low') return []
-  const average = assumedAverageWords(detail)
-  const sentence = (forecast: NonNullable<RatingGoalDetailView['forecast']>) =>
-    arrivalLine(forecast, detail.target, average)
-  const lines = [
-    detail.forecastAtChosenPace === null
-      ? null
-      : {
-          label: `At your chosen pace, ${paceText(plan)}`,
-          text: sentence(detail.forecastAtChosenPace),
-        },
-    detail.forecastAtActualPace === null
-      ? null
-      : {
-          label: `At your pace of the last 4 weeks, ${actualPaceText(detail.lastFourWeeksPerWeek, plan)}`,
-          text: sentence(detail.forecastAtActualPace),
-        },
-  ]
-  return lines.filter((line) => line !== null)
+function startedText(detail: Detail): string | null {
+  const shows = detail.google?.shows
+  if (shows === null || shows === undefined || detail.google?.current === false)
+    return null
+  const today = tenthsOf(shows)
+  const start = tenthsOf(detail.baseline.googleShows)
+  const now = `Google shows ${tenthsText(today)} today`
+  if (today === start) return `${now}, as when you started.`
+  return `${now}, ${today > start ? 'up' : 'down'} from ${tenthsText(start)} when you started.`
+}
+
+/**
+ * Q8, "the detail shows both": once the goal works at the pace of the last four
+ * weeks, the time at the chosen pace too ("At your 1 a day: in about 3
+ * months."), when it reads differently.
+ */
+function otherPaceText(detail: Detail): string | null {
+  const chosen = detail.forecastAtChosenPace
+  const pace = detail.paceTenthsPerWeek
+  if (
+    detail.forecastBasis !== 'actual_pace' ||
+    chosen?.kind !== 'days' ||
+    pace === null
+  ) {
+    return null
+  }
+  const when = whenText(chosen.central)
+  const actual = detail.forecast
+  if (actual?.kind === 'days' && whenText(actual.central) === when) return null
+  return `At your ${paceText(pace)}: ${when}.`
+}
+
+export type DetailHeaderLines = Readonly<{
+  arrival: string | null
+  started: string | null
+  possible: string | null
+  otherPace: string | null
+}>
+
+/** The sentences under the detail's headline; none for a goal this read found reached or ended. */
+export function detailHeaderLines(detail: Detail): DetailHeaderLines {
+  if (detail.state !== 'active') {
+    return { arrival: null, started: null, possible: null, otherPace: null }
+  }
+  const timed = gives(detail)
+  return {
+    arrival: timed ? arrivalSentence(detail, assumedAverageWords(detail)) : null,
+    started: startedText(detail),
+    possible: timed ? possibleSentence(detail) : null,
+    otherPace: timed ? otherPaceText(detail) : null,
+  }
 }
 
 const MINUTE = 60_000
@@ -67,8 +106,8 @@ export function freshnessText(asOf: string, readAt: Date): string {
   return `Google numbers checked ${when}`
 }
 
-/** One line of "Your plan": what happened so far against the plan. */
-export type PlanLine = Readonly<{ term: string; value: string; note: string | null }>
+/** One tile of "Your plan, so far": what happened against the plan. */
+export type DetailTile = Readonly<{ label: string; value: string; detail: string }>
 
 /** "4.61★": an average of new reviews, to the hundredth, never rounded onto a tenth it is not. */
 const starsSoFar = (average: number): string =>
@@ -76,9 +115,7 @@ const starsSoFar = (average: number): string =>
 
 /**
  * What the goal's numbers assume, after the count: the plan mixed with the new
- * reviews, or their own average while they are too low (round 4, X3). A
- * too-low goal shows no forecast, only Still needed, so its note says "the
- * numbers".
+ * reviews, or their own average while they are too low (round 4, X3).
  */
 function sinceSetNote(plan: RatingGoalPlanProgressView): string {
   const { reviewCount } = plan.sinceSet
@@ -94,41 +131,66 @@ function sinceSetNote(plan: RatingGoalPlanProgressView): string {
   }
 }
 
-function newReviewsLine(plan: RatingGoalPlanProgressView): PlanLine {
+/** "Last 4 weeks · up from about 2 a month before the goal". */
+function paceNote(detail: Detail): string {
+  const before = detail.planSoFar.prePlan
+  if (before === null) return 'Last 4 weeks'
+  const month = `about ${formatNumber(before.perMonth)} a month`
+  switch (before.trend) {
+    case 'up':
+      return `Last 4 weeks · up from ${month} before the goal`
+    case 'down':
+      return `Last 4 weeks · down from ${month} before the goal`
+    case 'same':
+      return `Last 4 weeks · ${month} before the goal too`
+  }
+}
+
+function paceTile(detail: Detail, plan: RatingGoalPlanProgressView): DetailTile {
+  return {
+    label: 'Pace',
+    value: `${actualPaceText(plan.lastFourWeeksPerWeek, plan.paceTenthsPerWeek)} · plan ${paceText(plan.paceTenthsPerWeek)}`,
+    detail: paceNote(detail),
+  }
+}
+
+/** The new reviews' average against the plan: "after 10 reviews" until there are ten (R2-5). */
+function averageTile(plan: RatingGoalPlanProgressView): DetailTile {
   const planned = `plan ${tenthsText(plan.qualityTenths)}★`
   const { average } = plan.sinceSet
   return {
-    term: 'New reviews average',
+    label: 'New reviews average',
     value:
       average === null
         ? `after 10 reviews · ${planned}`
         : `${starsSoFar(average)} · ${planned}`,
-    note: sinceSetNote(plan),
+    detail: sinceSetNote(plan),
   }
 }
 
-/**
- * "Your plan" (R2-11): the goal against what Google shows now, the planned
- * average against the reviews since the goal was set ("after 10 reviews" until
- * there are ten, as the verdict waits) with the average the forecasts use, and
- * the chosen pace against the last four weeks.
- */
-export function yourPlanLines(plan: RatingGoalPlanProgressView): readonly PlanLine[] {
-  const goal = `goal ${tenthsText(plan.targetTenths)}`
-  return [
-    {
-      term: 'Google shows',
-      value:
-        plan.googleShowsTenths === null
-          ? `not known yet · ${goal}`
-          : `${tenthsText(plan.googleShowsTenths)} · ${goal}`,
-      note: null,
-    },
-    newReviewsLine(plan),
-    {
-      term: 'Pace, last 4 weeks',
-      value: `${actualPaceText(plan.lastFourWeeksPerWeek, plan.paceTenthsPerWeek)} · plan ${paceText(plan.paceTenthsPerWeek)}`,
-      note: planPaceNote(plan.paceTenthsPerWeek),
-    },
-  ]
+/** "4.0 reached · 4.1 next", and what the number after the goal takes. */
+function stepsTile(detail: Detail): DetailTile {
+  const reached = detail.planSoFar.reachedTenths
+  const next = detail.next?.targetTenths ?? null
+  const parts = [
+    reached === null ? null : `${tenthsText(reached)} reached`,
+    next === null ? null : `${tenthsText(next)} next`,
+  ].filter((part) => part !== null)
+  const up = detail.nextUp
+  return {
+    label: 'Steps',
+    value:
+      parts.length === 0 ? `Goal ${tenthsText(detail.targetTenths)}` : parts.join(' · '),
+    detail:
+      up === null
+        ? `Your goal is ${tenthsText(detail.targetTenths)}`
+        : `After ${tenthsText(detail.targetTenths)}: ${tenthsText(up.targetTenths)} is about ${formatNumber(up.reviewsBeyondGoal)} more`,
+  }
+}
+
+/** "Your plan, so far" (D3): the pace, the new reviews' average and the steps; none to keep. */
+export function planSoFarTiles(detail: Detail): readonly DetailTile[] {
+  const plan = detail.plan
+  if (plan === null) return []
+  return [paceTile(detail, plan), averageTile(plan), stepsTile(detail)]
 }

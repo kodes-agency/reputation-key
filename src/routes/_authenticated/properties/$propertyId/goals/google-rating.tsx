@@ -128,6 +128,7 @@ function GoogleRatingGoalRoute() {
         actions={
           detail === null ? undefined : (
             <RatingGoalDetailActions
+              propertyId={propertyId}
               goal={detail}
               setup={setup.data}
               onChange={() => start({ kind: 'change', goal: detail })}

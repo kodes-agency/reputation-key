@@ -1,62 +1,158 @@
-// The detail page of the Google rating goal, worked out: "Your plan" against
-// what happened since it was set, when it arrives at both paces, and how fresh
+// The detail page of the Google rating goal, worked out (round 5, mock D3): the
+// sentences under the headline, the tiles of "Your plan, so far" and how fresh
 // Google's numbers are.
 import { describe, expect, it } from 'vitest'
-import { detailForecasts, freshnessText, yourPlanLines } from './rating-goal-detail-view'
-import { DETAIL_BEFORE_TEN, DETAIL_TOO_LOW } from './rating-goal-plan.stories.fixtures'
-import { assumedAverageWords } from './rating-goal-view'
-import { DETAIL } from './rating-goal.stories.fixtures'
+import {
+  detailHeaderLines,
+  freshnessText,
+  planSoFarTiles,
+} from './rating-goal-detail-view'
+import {
+  DETAIL_GOOGLE_SOURCE,
+  DETAIL_HARBORLINE,
+  DETAIL_LAGS,
+  DETAIL_LAGS_MIDDLE,
+  DETAIL_OLD_GOAL,
+  DETAIL_TOO_LOW,
+} from './rating-goal-detail.stories.fixtures'
+import { DETAIL_BEFORE_TEN } from './rating-goal-plan.stories.fixtures'
+import { CARD_ACTUAL_PACE } from './rating-goal-tracking.stories.fixtures'
 
-describe('the forecasts', () => {
-  it('forecasts at the chosen pace and at the pace of the last four weeks', () => {
-    expect(detailForecasts(DETAIL)).toEqual([
-      {
-        label: 'At your chosen pace, 1.6 a day',
-        text: 'In about 4 months, likely 3–7 months.',
+describe('the header’s sentences', () => {
+  it('says when at the card’s pace, where Google stands and what is possible after', () => {
+    expect(detailHeaderLines(DETAIL_HARBORLINE)).toEqual({
+      arrival: '4.1 in about 3 weeks at your 1 a day, likely 2–4 weeks.',
+      started: 'Google shows 4.0 today, up from 3.9 when you started.',
+      possible: '4.2 is possible in about 3 months.',
+      otherPace: null,
+    })
+  })
+
+  it('gives the chosen pace’s time too once the goal works at its actual pace', () => {
+    const lines = detailHeaderLines({
+      ...DETAIL_HARBORLINE,
+      ...CARD_ACTUAL_PACE,
+      // 27 in the last 28 days against 1 a day: the times read alike.
+      forecastAtChosenPace: {
+        kind: 'days',
+        central: { num: 63, den: 1 },
+        fast: { num: 50, den: 1 },
+        slow: null,
       },
-      {
-        label: 'At your pace of the last 4 weeks, 1.4 a day',
-        text: 'In about 5 months, likely 4–8 months.',
-      },
-    ])
+    })
+
+    expect(lines.arrival).toBe(
+      '4.1 in about 3 weeks at your pace of the last 4 weeks, likely 2–4 weeks.',
+    )
+    expect(lines.otherPace).toBe('At your 1 a day: in about 9 weeks.')
+    expect(
+      detailHeaderLines({ ...DETAIL_HARBORLINE, ...CARD_ACTUAL_PACE }).otherPace,
+    ).toBeNull()
   })
 
-  it('gives no forecast while new reviews are too low: the page says so once', () => {
-    expect(detailForecasts({ ...DETAIL, status: 'reviews_too_low' })).toEqual([])
+  it('says Google shows what it showed at the set, as when you started', () => {
+    expect(
+      detailHeaderLines({
+        ...DETAIL_HARBORLINE,
+        google: { ...DETAIL_HARBORLINE.google!, shows: 3.9 },
+      }).started,
+    ).toBe('Google shows 3.9 today, as when you started.')
   })
 
-  it('names the average the numbers assume: the plan’s, mixed with new reviews, or theirs', () => {
-    expect(assumedAverageWords({ ...DETAIL_BEFORE_TEN, qualityBasis: 'planned' })).toBe(
-      'at your plan’s 4.5★',
-    )
-    expect(assumedAverageWords(DETAIL_BEFORE_TEN)).toBe(
-      'at your plan’s 4.5★ mixed with new reviews so far',
-    )
-    expect(assumedAverageWords(DETAIL)).toBe(
-      'at your plan’s 4.7★ mixed with new reviews so far',
-    )
-    expect(assumedAverageWords(DETAIL_TOO_LOW)).toBe('at the new reviews’ average')
-    expect(assumedAverageWords({ qualityBasis: null, quality: null })).toBe(
-      'at the recent star mix',
-    )
+  it('gives no time while Google should show the goal soon or new reviews are too low', () => {
+    expect(detailHeaderLines(DETAIL_LAGS)).toMatchObject({
+      arrival: null,
+      possible: null,
+    })
+    expect(detailHeaderLines(DETAIL_TOO_LOW)).toMatchObject({
+      arrival: null,
+      possible: null,
+    })
   })
 
-  it('names the new reviews’ average when no pace reaches the target at it', () => {
-    // Waiting for Google keeps the status from saying "New reviews too low",
-    // so the forecasts say it, at the average they were worked out at.
-    const waiting = {
-      ...DETAIL_TOO_LOW,
-      status: 'waiting_for_google' as const,
-    }
+  it('says nothing more of a goal the read found reached', () => {
+    expect(detailHeaderLines({ ...DETAIL_HARBORLINE, state: 'reached' })).toEqual({
+      arrival: null,
+      started: null,
+      possible: null,
+      otherPace: null,
+    })
+  })
 
-    expect(detailForecasts(waiting).map((line) => line.text)).toEqual([
-      'No pace reaches 4.0 at the new reviews’ average.',
-      'No pace reaches 4.0 at the new reviews’ average.',
-    ])
+  it('says nothing of today while Google’s numbers are stale', () => {
+    const stale = { ...DETAIL_HARBORLINE.google!, current: false }
+
+    expect(detailHeaderLines({ ...DETAIL_HARBORLINE, google: stale }).started).toBeNull()
   })
 })
 
-describe('the rest of the page', () => {
+describe('your plan, so far', () => {
+  it('sets the pace, the new reviews’ average and the steps against the plan', () => {
+    expect(planSoFarTiles(DETAIL_HARBORLINE)).toEqual([
+      {
+        label: 'Pace',
+        value: '1 a day · plan 1 a day',
+        detail: 'Last 4 weeks · up from about 2 a month before the goal',
+      },
+      {
+        label: 'New reviews average',
+        value: '4.57★ · plan 4.5★',
+        detail:
+          '35 reviews since the goal was set · forecasts use 4.55★, your plan mixed with them',
+      },
+      {
+        label: 'Steps',
+        value: '4.0 reached · 4.1 next',
+        detail: 'After 4.1: 4.2 is about 80 more',
+      },
+    ])
+  })
+
+  it('says the pace was the same before the goal, or leaves it out when unknown', () => {
+    expect(planSoFarTiles(DETAIL_LAGS_MIDDLE)[0]?.detail).toBe(
+      'Last 4 weeks · about 30 a month before the goal too',
+    )
+    expect(planSoFarTiles(DETAIL_OLD_GOAL)[0]?.detail).toBe('Last 4 weeks')
+  })
+
+  it('gives no average before ten reviews, and says the numbers use theirs while too low', () => {
+    expect(planSoFarTiles(DETAIL_BEFORE_TEN)[1]).toEqual({
+      label: 'New reviews average',
+      value: 'after 10 reviews · plan 4.5★',
+      detail:
+        '4 reviews since the goal was set · forecasts use 4.55★, your plan mixed with them',
+    })
+    expect(
+      planSoFarTiles({
+        ...DETAIL_TOO_LOW,
+        plan: {
+          ...DETAIL_TOO_LOW.plan!,
+          sinceSet: { reviewCount: 12, average: 3.75, averageTenths: 38 },
+          qualityBasis: 'since_set',
+        },
+      })[1],
+    ).toMatchObject({
+      value: '3.75★ · plan 4.5★',
+      detail: '12 reviews since the goal was set · the numbers use their average',
+    })
+  })
+
+  it('names only the next step until Google shows more than at the set', () => {
+    expect(
+      planSoFarTiles({
+        ...DETAIL_HARBORLINE,
+        planSoFar: { ...DETAIL_HARBORLINE.planSoFar, reachedTenths: null },
+      })[2]?.value,
+    ).toBe('4.1 next')
+    expect(planSoFarTiles(DETAIL_GOOGLE_SOURCE)).toHaveLength(3)
+  })
+
+  it('has no tiles for a goal without a plan', () => {
+    expect(planSoFarTiles({ ...DETAIL_HARBORLINE, plan: null })).toEqual([])
+  })
+})
+
+describe('the foot', () => {
   it('says how long ago Google’s numbers were checked', () => {
     const readAt = new Date('2026-10-14T12:00:00.000Z')
 
@@ -71,62 +167,6 @@ describe('the rest of the page', () => {
     )
     expect(freshnessText('2026-10-11T12:00:00.000Z', readAt)).toBe(
       'Google numbers checked 3 days ago',
-    )
-  })
-})
-
-describe('your plan', () => {
-  it('puts the goal, the new reviews’ average and the pace against the plan', () => {
-    expect(yourPlanLines(DETAIL.plan!)).toEqual([
-      { term: 'Google shows', value: '4.3 · goal 4.5', note: null },
-      {
-        term: 'New reviews average',
-        value: '4.61★ · plan 4.7★',
-        note: '107 reviews since the goal was set · forecasts use 4.62★, your plan mixed with them',
-      },
-      {
-        term: 'Pace, last 4 weeks',
-        value: '1.4 a day · plan 1.6 a day',
-        note: 'About 11 a week · 50 a month',
-      },
-    ])
-  })
-
-  it('gives no average before ten reviews, but says the forecasts already mix them in', () => {
-    expect(yourPlanLines(DETAIL_BEFORE_TEN.plan!)[1]).toEqual({
-      term: 'New reviews average',
-      value: 'after 10 reviews · plan 4.5★',
-      note: '4 reviews since the goal was set · forecasts use 4.55★, your plan mixed with them',
-    })
-    expect(
-      yourPlanLines({
-        ...DETAIL_BEFORE_TEN.plan!,
-        sinceSet: { reviewCount: 0, average: null, averageTenths: null },
-        qualityBasis: 'planned',
-        assumedAverage: 4.5,
-      })[1]?.note,
-    ).toBe('No new reviews since the goal was set')
-  })
-
-  it('says the numbers use the new reviews’ own average while they are too low', () => {
-    expect(yourPlanLines(DETAIL_TOO_LOW.plan!)[1]?.note).toBe(
-      '12 reviews since the goal was set · the numbers use their average',
-    )
-  })
-
-  it('shows an average at or below the threshold as it is, never rounded onto the target', () => {
-    expect(yourPlanLines(DETAIL_TOO_LOW.plan!)[1]?.value).toBe('3.75★ · plan 4.5★')
-    expect(
-      yourPlanLines({
-        ...DETAIL_TOO_LOW.plan!,
-        sinceSet: { reviewCount: 20, average: 3.95, averageTenths: 40 },
-      })[1]?.value,
-    ).toBe('3.95★ · plan 4.5★')
-  })
-
-  it('says Google’s number is not known when it is missing', () => {
-    expect(yourPlanLines({ ...DETAIL.plan!, googleShowsTenths: null })[0]?.value).toBe(
-      'not known yet · goal 4.5',
     )
   })
 })
