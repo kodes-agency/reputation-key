@@ -96,12 +96,13 @@ async function insertLogRow(
   field: string,
   oldValue: string | null,
   newValue: string | null,
+  goal = 1,
 ): Promise<void> {
   await held.client.query(
     `INSERT INTO ${CHANGES} (id, goal_id, organization_id, property_id, changed_by,
        changed_at, field, old_value, new_value)
      VALUES ($1, $2, $3, $4, 'manager-1', now(), $5, $6, $7)`,
-    [goalId(100 + n), goalId(1), ORG, PROPERTY, field, oldValue, newValue],
+    [goalId(100 + n), goalId(goal), ORG, PROPERTY, field, oldValue, newValue],
   )
 }
 
@@ -141,6 +142,11 @@ beforeEach(async () => {
   await insertLogRow(1, 'pace', '14', '11')
   await insertLogRow(2, 'pace', '11', null)
   await insertLogRow(3, 'target', '44', '45')
+  // The old range's edges, 1 and 200 a week, on ended climb goals.
+  await insertOldGoal(3, 'climb', 1)
+  await insertOldGoal(4, 'climb', 200)
+  await insertLogRow(4, 'pace', '1', '200', 3)
+  await insertLogRow(5, 'pace', '200', '1', 3)
   for (const statement of STATEMENTS) await held.client.query(statement)
 })
 
@@ -151,12 +157,35 @@ afterEach(async () => {
 describe('migration 0060 on rating goals stored before it', () => {
   it('gives a climb goal its pace in tenths and leaves a keep goal without one', async () => {
     const { rows } = await held.client.query(
-      `SELECT id, pace_per_week, pace_tenths_per_week FROM ${GOALS} ORDER BY id`,
+      `SELECT id, pace_per_week, pace_tenths_per_week FROM ${GOALS}
+       WHERE id IN ($1, $2) ORDER BY id`,
+      [goalId(1), goalId(2)],
     )
 
     expect(rows).toEqual([
       { id: goalId(1), pace_per_week: 11, pace_tenths_per_week: 110 },
       { id: goalId(2), pace_per_week: null, pace_tenths_per_week: null },
+    ])
+  })
+
+  it('moves the old range edges, 1 and 200 a week, to 10 and 2000 tenths with whole mirrors', async () => {
+    const goals = await held.client.query(
+      `SELECT id, pace_per_week, pace_tenths_per_week FROM ${GOALS}
+       WHERE id IN ($1, $2) ORDER BY id`,
+      [goalId(3), goalId(4)],
+    )
+    const log = await held.client.query(
+      `SELECT old_value, new_value FROM ${CHANGES} WHERE goal_id = $1 ORDER BY id`,
+      [goalId(3)],
+    )
+
+    expect(goals.rows).toEqual([
+      { id: goalId(3), pace_per_week: 1, pace_tenths_per_week: 10 },
+      { id: goalId(4), pace_per_week: 200, pace_tenths_per_week: 2000 },
+    ])
+    expect(log.rows).toEqual([
+      { old_value: '10', new_value: '2000' },
+      { old_value: '2000', new_value: '10' },
     ])
   })
 
