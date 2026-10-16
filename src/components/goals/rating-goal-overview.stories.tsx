@@ -63,6 +63,16 @@ const words = (text: string) => (_content: string, element: Element | null) =>
   element?.textContent === text &&
   Array.from(element.children).every((child) => child.textContent !== text)
 
+/** Harborline's headline and its 18 squares, drawn at every width. */
+async function expectHeadlineAndSquares(card: ReturnType<typeof within>) {
+  await expect(card.getByText(words('18 new reviews to 4.1'))).toBeVisible()
+  await expect(
+    card.getByRole('img', {
+      name: '18 empty squares, one for each new review still needed',
+    }),
+  ).toBeVisible()
+}
+
 /** The same card as the Goals page (D4): the ladder, the new reviews to the next number, this week. */
 export const ActiveGoal: Story = {
   play: async ({ canvasElement }) => {
@@ -70,12 +80,7 @@ export const ActiveGoal: Story = {
     await expect(
       card.getByRole('heading', { level: 2, name: 'Google rating goal' }),
     ).toBeVisible()
-    await expect(card.getByText(words('18 new reviews to 4.1'))).toBeVisible()
-    await expect(
-      card.getByRole('img', {
-        name: '18 empty squares, one for each new review still needed',
-      }),
-    ).toBeVisible()
+    await expectHeadlineAndSquares(card)
     await expect(card.getByText('2 of 7')).toBeVisible()
     await expect(
       card.getByText('4.1 in about 3 weeks at your 1 a day, likely 2–4 weeks.'),
@@ -96,12 +101,7 @@ export const ActiveGoalPhone: Story = {
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
   play: async ({ canvasElement }) => {
     const card = within(canvasElement)
-    await expect(card.getByText(words('18 new reviews to 4.1'))).toBeVisible()
-    await expect(
-      card.getByRole('img', {
-        name: '18 empty squares, one for each new review still needed',
-      }),
-    ).toBeVisible()
+    await expectHeadlineAndSquares(card)
     await expect(card.getByText('This week 2 of 7 · 4.1 in about 3 weeks')).toBeVisible()
     await expect(card.getByRole('link', { name: 'View details' })).toBeVisible()
   },

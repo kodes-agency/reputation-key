@@ -114,6 +114,12 @@ async function expectSquares(canvas: Canvas, count: number) {
  * a square for each, when the goal arrives, this week on its day, the first
  * step and the ways on. The title takes the focus back from the wizard.
  */
+/** The headline, its figure in a span of its own, and the line under it. */
+async function expectHeadline(canvas: Canvas, headline: string, line: string) {
+  await expect(canvas.getByText(wholeText(headline))).toBeVisible()
+  await expect(canvas.getByText(line)).toBeVisible()
+}
+
 /**
  * The ladder is drawn twice, upright and across, with the same words as its
  * name; CSS shows one. A hidden picture has no accessible name, so the plays
@@ -175,8 +181,11 @@ export const FarGoal: Story = {
   args: { card: cardRead(CARD_FAR_GOAL) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(wholeText('31 new reviews to 4.4'))).toBeVisible()
-    await expect(canvas.getByText('212 new reviews to your goal, 4.5.')).toBeVisible()
+    await expectHeadline(
+      canvas,
+      '31 new reviews to 4.4',
+      '212 new reviews to your goal, 4.5.',
+    )
     await expectSquares(canvas, 0)
     await expect(
       canvas.getByText(
@@ -207,8 +216,11 @@ export const JustSet: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Getting started')).toBeVisible()
-    await expect(canvas.getByText(wholeText('19 new reviews to 4.0'))).toBeVisible()
-    await expect(canvas.getByText('81 new reviews to your goal, 4.1.')).toBeVisible()
+    await expectHeadline(
+      canvas,
+      '19 new reviews to 4.0',
+      '81 new reviews to your goal, 4.1.',
+    )
     await expect(canvas.getByText('Aim for about 1 new review a day')).toBeVisible()
     await expect(canvas.queryByRole('progressbar')).toBeNull()
     // The setup's receipt, word for word (R4-4).
@@ -303,8 +315,7 @@ export const LagsMiddle: Story = {
   args: { card: cardRead(CARD_LAGS_MIDDLE) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(wholeText('180 new reviews to 4.5'))).toBeVisible()
-    await expect(canvas.getByText('Google should show 4.4 soon')).toBeVisible()
+    await expectHeadline(canvas, '180 new reviews to 4.5', 'Google should show 4.4 soon')
     await expect(canvas.queryByText(wholeText('0 new reviews to 4.4'))).toBeNull()
     await expectLadder(
       canvas,
@@ -749,8 +760,11 @@ export const FarGoalPhone: Story = {
   parameters: PHONE,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(wholeText('31 new reviews to 4.4'))).toBeVisible()
-    await expect(canvas.getByText('212 new reviews to your goal, 4.5.')).toBeVisible()
+    await expectHeadline(
+      canvas,
+      '31 new reviews to 4.4',
+      '212 new reviews to your goal, 4.5.',
+    )
     await expectNarrowLine(canvas, 'This week 6 of 11 · 4.5 in about 5 months')
   },
 }
@@ -769,8 +783,11 @@ export const JustSetPhone: Story = {
   parameters: PHONE,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(wholeText('19 new reviews to 4.0'))).toBeVisible()
-    await expect(canvas.getByText('81 new reviews to your goal, 4.1.')).toBeVisible()
+    await expectHeadline(
+      canvas,
+      '19 new reviews to 4.0',
+      '81 new reviews to your goal, 4.1.',
+    )
     await expectNarrowLine(
       canvas,
       'Aim for about 1 new review a day · 4.1 in about 3 months',
@@ -787,8 +804,7 @@ export const LagsMiddlePhone: Story = {
   parameters: PHONE,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(wholeText('180 new reviews to 4.5'))).toBeVisible()
-    await expect(canvas.getByText('Google should show 4.4 soon')).toBeVisible()
+    await expectHeadline(canvas, '180 new reviews to 4.5', 'Google should show 4.4 soon')
     await expectNarrowLine(canvas, 'This week 6 of 7 · 4.5 in about 6 months')
   },
 }
