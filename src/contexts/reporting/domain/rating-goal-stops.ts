@@ -3,7 +3,8 @@
 // A climb target runs from the tenth above what Google shows up to 4.9; 5.0 is
 // never a target, because it needs every review from now on to be five stars.
 // What a target needs at a planned average is `planNeeds`. Keep is offered
-// first, in place of a climb, only when Google shows 4.9 or 5.0 (R2-9). Rounds
+// first from a shown 4.7 (owner, 2026-10-16, X1: a higher number needs new
+// reviews of nearly five stars); a climb stays possible below 4.9. Rounds
 // 3 and 4 (2026-10-16) retired the Realistic / Stretch labels and the 5.0 stop:
 // the setup recommends one goal and words its time (rating-goal-duration.ts).
 
@@ -87,6 +88,13 @@ export function planNeeds(
   }
 }
 
-/** Keep is offered first, in place of a climb, only when Google shows 4.9 or 5.0. */
+/**
+ * Keep is offered first from a shown 4.7 (X1, owner 2026-10-16; R2-9 said 4.9):
+ * at 4.7 the next tenth needs new reviews averaging 4.9★ or more, at 4.8 every
+ * one to be 5★. A goal to keep may be set from there, and a climb only with an
+ * average the manager types.
+ */
+export const KEEP_FIRST_FROM_TENTHS = 47
+
 export const offerKeepFirst = (displayedTenths: number): boolean =>
-  displayedTenths >= HIGHEST_TARGET_TENTHS
+  displayedTenths >= KEEP_FIRST_FROM_TENTHS

@@ -113,3 +113,20 @@ export function wizardReceipt(saved: SavedGoal): RatingGoalReceipt {
         : `${sentence(whenText(saved.days))}, likely ${likelyText(saved.likely)}.`,
   }
 }
+
+/** The highest tenth a goal can climb to (4.9). */
+const HIGHEST_TARGET_TENTHS = 49
+
+/**
+ * Why Keep comes first at a shown 4.7 or 4.8 (X1, owner 2026-10-16): the next
+ * tenth needs new reviews of nearly five stars. Null where there is no higher
+ * number at all.
+ */
+export function keepFirstSentence(shownTenths: number): string | null {
+  const next = shownTenths + 1
+  if (next > HIGHEST_TARGET_TENTHS) return null
+  const shown = tenthsText(shownTenths)
+  return next + 1 >= 50
+    ? `${tenthsText(next)} needs every new review to be 5★, so we suggest keeping ${shown}.`
+    : `${tenthsText(next)} needs new reviews averaging ${tenthsText(next + 1)}★ or more, so we suggest keeping ${shown}.`
+}

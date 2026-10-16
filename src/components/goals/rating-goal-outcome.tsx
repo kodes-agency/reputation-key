@@ -2,10 +2,10 @@
 // page for a while after it happened (`recentOutcome`): the snapshot consumer
 // usually reaches a goal before anyone looks, so the news comes from History as
 // often as from the read that found it. It says what happened, on which day,
-// and offers what comes next: after reaching, "Set your next goal" ("Pick a
-// plan", whose plans start from the next tenth or a realistic one a little
-// higher, round 2), or "Keep 4.9" at 4.9 or 5.0, where no higher tenth can be
-// planned and the only place Keep is offered (R2-9); after an end it did not
+// and offers what comes next: after reaching, "Set your next goal" (the setup,
+// opened on its recommendation), "Keep 4.7" beside it at 4.7 or 4.8 (X1: the
+// next tenth needs new reviews of nearly five stars), or only "Keep 4.9" at 4.9
+// or 5.0, where no higher tenth can be planned (R2-9); after an end it did not
 // choose, a new goal (ADR 0067, decision 6).
 import { Button } from '#/components/ui/button'
 import { Card, CardContent } from '#/components/ui/card'
@@ -18,6 +18,8 @@ import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
 
 /** The highest tenth a goal can climb to (4.9): there is no "next" past it, only Keep. */
 const HIGHEST_TENTHS = 49
+/** Keep is offered from 4.7 (X1; Reporting's `offerKeepFirst`). */
+const KEEP_OFFERED_FROM_TENTHS = 47
 
 type Props = Readonly<{
   outcome: RatingGoalOutcomeView
@@ -54,12 +56,21 @@ function NextSteps({ outcome, onStart }: Pick<Props, 'outcome' | 'onStart'>) {
   if (outcome.state === 'ended') {
     return <Button onClick={() => onStart({ kind: 'climb' })}>Set a new goal</Button>
   }
-  return targetTenths < HIGHEST_TENTHS ? (
+  const next = (
     <Button onClick={() => onStart({ kind: 'climb' })}>Set your next goal</Button>
-  ) : (
+  )
+  const keep = (
     <Button variant="outline" onClick={() => onStart({ kind: 'keep', targetTenths })}>
       {`Keep ${ratingText(outcome.target)}`}
     </Button>
+  )
+  if (targetTenths < KEEP_OFFERED_FROM_TENTHS) return next
+  if (targetTenths >= HIGHEST_TENTHS) return keep
+  return (
+    <>
+      {next}
+      {keep}
+    </>
   )
 }
 

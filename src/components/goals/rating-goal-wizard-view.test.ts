@@ -2,7 +2,11 @@
 // done screen says. What the setup screen offers is in the rating-goal-setup-*
 // tests.
 import { describe, expect, it } from 'vitest'
-import { wizardReceipt, wizardSubmission } from './rating-goal-wizard-view'
+import {
+  keepFirstSentence,
+  wizardReceipt,
+  wizardSubmission,
+} from './rating-goal-wizard-view'
 import { CARD, CARD_KEEP, FIXTURE_PROPERTY_ID } from './rating-goal.stories.fixtures'
 
 describe('what is saved', () => {
@@ -119,5 +123,21 @@ describe('what the done screen says', () => {
         likely: null,
       }),
     ).toEqual({ headline: 'Keeping 4.9 on Google', pace: null, forecast: null })
+  })
+})
+
+describe('Keep first at 4.7 and 4.8 (X1)', () => {
+  it('says why keeping is suggested, where a climb is still possible', () => {
+    expect(keepFirstSentence(47)).toBe(
+      '4.8 needs new reviews averaging 4.9★ or more, so we suggest keeping 4.7.',
+    )
+    expect(keepFirstSentence(48)).toBe(
+      '4.9 needs every new review to be 5★, so we suggest keeping 4.8.',
+    )
+  })
+
+  it('says nothing where there is no higher number', () => {
+    expect(keepFirstSentence(49)).toBeNull()
+    expect(keepFirstSentence(50)).toBeNull()
   })
 })

@@ -30,7 +30,7 @@ describe('reached', () => {
     })
   })
 
-  it('offers to keep the number only when Google shows 4.9 or 5.0 (R2-9)', () => {
+  it('offers to keep the number from 4.7 (X1; R2-9 said 4.9)', () => {
     const reached = (tenths: number) =>
       copy('goal.rating_reached', {
         ...AT,
@@ -38,7 +38,9 @@ describe('reached', () => {
         ratingTargetTenths: tenths,
       }).body
 
-    expect(reached(48)).toBe('Set your next goal.')
+    expect(reached(46)).toBe('Set your next goal.')
+    expect(reached(47)).toBe('Set your next goal, or keep 4.7.')
+    expect(reached(48)).toBe('Set your next goal, or keep 4.8.')
     expect(reached(49)).toBe('Set your next goal, or keep 4.9.')
     expect(reached(50)).toBe('Set your next goal, or keep 5.0.')
   })

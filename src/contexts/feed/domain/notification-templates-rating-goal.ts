@@ -43,11 +43,11 @@ const googleShows = (p: NotificationPayload): string | null =>
     : `Google now shows ${tenths(p.ratingShownTenths)}${forProperty(p)}`
 
 /**
- * Keep is offered only while Google shows 4.9 or 5.0, where no higher tenth can
- * be planned (round 2, R2-9; Reporting's `offerKeepFirst`, restated here as
- * Feed reads no Reporting module).
+ * Keep is offered from a shown 4.7, where a higher tenth needs new reviews of
+ * nearly five stars (X1, 2026-10-16; R2-9 said 4.9; Reporting's
+ * `offerKeepFirst`, restated here as Feed reads no Reporting module).
  */
-const KEEP_OFFERED_FROM_TENTHS = 49
+const KEEP_OFFERED_FROM_TENTHS = 47
 
 export const renderRatingGoalReached = (p: NotificationPayload): RatingGoalNoticeCopy => {
   const shows = googleShows(p)

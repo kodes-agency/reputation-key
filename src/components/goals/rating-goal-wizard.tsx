@@ -33,6 +33,7 @@ import { draftFromGoal, type SetupDraft } from './rating-goal-setup-draft'
 import { RatingGoalSetupStep } from './rating-goal-setup-step'
 import { ratingText, reviewsText, tenthsText } from './rating-goal-view'
 import {
+  keepFirstSentence,
   wizardReceipt,
   wizardSubmission,
   type RatingGoalReceipt,
@@ -78,14 +79,11 @@ function titleOf(step: Step, intent: RatingGoalWizardIntent): string {
 }
 
 /**
- * What the done screen says can come next, for the goal just set. A goal to
- * keep is set only at 4.9 or 5.0 (R2-9), where there is nothing higher to aim
- * for: it can only be ended.
+ * What the done screen says can come next, for the goal just set: a goal to
+ * keep can be ended (or, from 4.7, changed into a climb); a plan changed.
  */
-function doneDescription(intent: RatingGoalWizardIntent): string {
-  return intent.kind === 'keep'
-    ? 'You can end it at any time.'
-    : 'You can change the plan at any time.'
+function doneDescription(kept: boolean): string {
+  return kept ? 'You can end it at any time.' : 'You can change the plan at any time.'
 }
 
 /**
@@ -98,6 +96,7 @@ function descriptionOf(
   intent: RatingGoalWizardIntent,
   setup?: RatingGoalSetupView,
   propertyName?: string,
+  kept = true,
 ): string {
   switch (step) {
     case 'plan': {
@@ -110,7 +109,7 @@ function descriptionOf(
     case 'keep':
       return `We’ll watch that Google keeps showing ${intent.kind === 'keep' ? tenthsText(intent.targetTenths) : 'its number'}.`
     case 'done':
-      return doneDescription(intent)
+      return doneDescription(intent.kind === 'keep' && kept)
   }
 }
 
@@ -176,6 +175,8 @@ function useWizardFlow(props: RatingGoalWizardProps) {
   }
   return {
     step,
+    /** "Raise it anyway" at a shown 4.7 or 4.8: from Keep to the climb (X1). */
+    raise: () => setStep('plan'),
     draft,
     setDraft,
     receipt,
@@ -214,7 +215,13 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
       onOpenChange={props.onOpenChange}
       busy={flow.pending}
       title={titleOf(flow.step, intent)}
-      description={descriptionOf(flow.step, intent, setup.data, props.propertyName)}
+      description={descriptionOf(
+        flow.step,
+        intent,
+        setup.data,
+        props.propertyName,
+        flow.receipt?.pace === null,
+      )}
       titleRef={flow.titleRef}
       onCloseAutoFocus={props.onCloseAutoFocus}
       inline={props.inline}
@@ -227,10 +234,12 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
         />
       ) : setup.data === undefined ? (
         <SetupPending setup={setup} />
-      ) : intent.kind === 'keep' ? (
+      ) : intent.kind === 'keep' && flow.step === 'keep' ? (
         <RatingGoalKeepStep
           pending={flow.pending}
           banner={banner}
+          reason={setup.data.offersClimb ? keepFirstSentence(intent.targetTenths) : null}
+          onRaise={setup.data.offersClimb ? flow.raise : undefined}
           onStart={() => {
             const { submission, saved } = keepSave(intent, propertyId)
             if (submission !== null) void flow.save(submission, saved)
@@ -239,7 +248,7 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
       ) : (
         <RatingGoalSetupStep
           setup={setup.data}
-          intent={intent}
+          intent={intent.kind === 'keep' ? CLIMB : intent}
           propertyId={propertyId}
           draft={flow.draft ?? openingDraft(intent, setup.data)}
           onDraft={flow.setDraft}
@@ -252,6 +261,8 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
     </RatingGoalWizardFrame>
   )
 }
+
+const CLIMB: RatingGoalWizardIntent = { kind: 'climb' }
 
 /** A change opens on the goal's own plan; a new goal as recommended. */
 function openingDraft(

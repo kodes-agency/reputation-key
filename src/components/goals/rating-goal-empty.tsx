@@ -1,7 +1,7 @@
 // The Google section of the Goals page when the Property has no rating goal: the
-// door into the setup, the "keep" door when Google shows 4.9 or 5.0 and there
-// is no higher tenth to climb to (round 2, R2-9), or the plain reason a goal
-// cannot be set yet (ADR 0067; plan, Edge cases).
+// door into the setup, the "keep" door from a shown 4.7 (X1; at 4.9 or 5.0
+// there is no higher tenth at all, R2-9), or the plain reason a goal cannot be
+// set yet (ADR 0067; plan, Edge cases).
 // It leads with one sentence and one action, as every first-time screen must.
 import { Link } from '@tanstack/react-router'
 import { Target } from 'lucide-react'
@@ -10,7 +10,7 @@ import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { ratingText, reviewsText } from './rating-goal-view'
-import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
+import { keepFirstSentence, type RatingGoalWizardIntent } from './rating-goal-wizard-view'
 
 type Props = Readonly<{
   setup: RatingGoalSetupView
@@ -100,7 +100,8 @@ export function RatingGoalEmpty({ setup, propertyId, hasPortals, onStart }: Prop
         title={`Keep ${kept} on Google`}
         description={[
           google,
-          'There’s no higher number to aim for, so the goal is to keep it.',
+          (setup.offersClimb ? keepFirstSentence(Math.round(shows * 10)) : null) ??
+            'There’s no higher number to aim for, so the goal is to keep it.',
         ]
           .filter(Boolean)
           .join(' ')}

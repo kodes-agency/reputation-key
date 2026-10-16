@@ -58,6 +58,15 @@ describe('the setup read', () => {
     expect(world.calls).toContain('reviews.getYearlyTotals')
   })
 
+  it('offers Keep first from 4.7, and a climb still (X1)', async () => {
+    world.snapshot = { ...world.snapshot!, averageRating: Math.fround(4.7) }
+    world.summary = { ...world.summary, all: { count: 812, sum: 3817 } }
+
+    const setup = await getRatingGoalSetup(dependencies(world), input, actor)
+
+    expect(setup).toMatchObject({ offerKeepFirst: true, offersClimb: true })
+  })
+
   it('offers Keep first, and no climb, when Google shows 4.9', async () => {
     world.snapshot = { ...world.snapshot!, averageRating: 4.900000095367432 }
     world.summary = { ...world.summary, all: { count: 812, sum: 3970 } }
