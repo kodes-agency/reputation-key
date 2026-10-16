@@ -131,7 +131,9 @@ export const OwnAverage: Story = {
     await userEvent.type(own, '5.0{Enter}')
     await expect(dialog.getByText('your own number')).toBeVisible()
     await expect(
-      dialog.getByText('You set this. We switch to your real average as reviews arrive.'),
+      dialog.getByText(
+        'You set this. Your real average takes over step by step as reviews arrive.',
+      ),
     ).toBeVisible()
     await userEvent.click(numeral(dialog))
     await userEvent.keyboard('{End}')
@@ -169,7 +171,7 @@ export const PopoversOpenAndClose: Story = {
       await within(document.body).findByRole('dialog', { name: 'How we worked out 4.1' }),
     )
     await expect(
-      why.getByText('After your first 10 new reviews, their real average takes over.', {
+      why.getByText('their real average takes over step by step', {
         exact: false,
       }),
     ).toBeVisible()

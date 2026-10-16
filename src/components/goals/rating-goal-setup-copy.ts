@@ -1,9 +1,13 @@
 // The words of the one-screen setup (rounds 3 and 4, verbatim from the approved
-// mock E2-Number, with PLAN-R4's corrections: "takes over" for R2-5's switch,
-// the example worded around the planned average, and the new lines X6–X8, X22).
+// mock E2-Number, with PLAN-R4's corrections: the example worded around the
+// planned average and the new lines X6–X8, X22; "step by step" is back with
+// the blend of real reviews into the planned average, owner X3).
 // Pure: the step and the popovers print what this returns.
 import type { RatingGoalSetupInputs } from '#/contexts/reporting/application/dto/rating-goal-setup.types'
-import { perMonthOf } from '#/contexts/reporting/application/rating-goal-setup-plan'
+import {
+  PLANNED_AVERAGE_WEIGHT_REVIEWS,
+  perMonthOf,
+} from '#/contexts/reporting/application/rating-goal-setup-plan'
 import { formatMonthName, formatNumber } from '#/lib/format'
 import type { PaceUnit, SetupPlan } from './rating-goal-setup-draft'
 import { paceText } from './rating-goal-pace-words'
@@ -42,7 +46,13 @@ export function averageSourceText(average: Average, shownTenths: number): string
   }
 }
 
-const SWITCH = 'We switch to your real average as reviews arrive.'
+const SWITCH = 'Your real average takes over step by step as reviews arrive.'
+
+/** How the planned average gives way to the real one: a blend, the plan counted as 15 reviews. */
+const takesOverText = (q: string): string => {
+  const weight = PLANNED_AVERAGE_WEIGHT_REVIEWS
+  return `As new reviews arrive, their real average takes over step by step: we count ${q} stars as if ${weight} reviews gave it, so after ${weight} new ones both weigh the same.`
+}
 
 /** "4.8 needs new reviews averaging 4.9★ or more": the lowest goal at the lowest average. */
 const needsText = (plan: SetupPlan, star: string): string =>
@@ -128,7 +138,7 @@ function planText(plan: SetupPlan): string {
   const { average } = plan
   const q = tenthsText(average.tenths)
   if (average.source === 'needs_own') {
-    return `${needsText(plan, ' stars')}, so we plan at ${q} until you type your own. After your first 10 new reviews, their real average takes over.`
+    return `${needsText(plan, ' stars')}, so we plan at ${q} until you type your own. ${takesOverText(q)}`
   }
   if (average.source === 'own') return `You set new reviews at ${q} stars.`
   if (average.source === 'earlier') return `Your plan has new reviews at ${q} stars.`
@@ -137,7 +147,7 @@ function planText(plan: SetupPlan): string {
     average.evidence !== null && average.source !== 'halfway'
       ? `${evidenceLabel(average.evidence)} averaged ${tenthsText(average.evidence.tenths)}.`
       : `halfway between ${shows} and 5, because asked guests rate higher than those who write on their own.`
-  return `We plan new reviews at ${q} stars, never at today’s ${shows}: ${why} After your first 10 new reviews, their real average takes over.`
+  return `We plan new reviews at ${q} stars, never at today’s ${shows}: ${why} ${takesOverText(q)}`
 }
 
 /** "How we worked out {T}": five paragraphs. */
