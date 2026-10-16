@@ -119,7 +119,9 @@ export function RatingGoalPaceControl(props: Props) {
   const { plan, unit, ownOn, idBase, small } = props
   const { chips, recommendedIndex } = plan.pace
   const index = ownOn ? nearestChip(plan) : (plan.pace.chosenIndex ?? recommendedIndex)
+  // An own pace reads as itself, never as the stop the thumb sits nearest to.
   const valueText = (at: number) => {
+    if (ownOn) return paceText(plan.pace.tenthsPerWeek, unit)
     const chip = chips[at]
     const words = chip === undefined ? '' : paceText(chip.tenthsPerWeek, unit)
     return at === recommendedIndex ? `${words}, recommended` : words

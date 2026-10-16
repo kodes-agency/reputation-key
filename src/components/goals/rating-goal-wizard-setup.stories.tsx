@@ -105,6 +105,10 @@ export const OwnPaceClamp: Story = {
     await expect(
       dialog.getByText('We plan with up to 50 a day, so we used 50 a day.'),
     ).toBeVisible()
+    await expect(dialog.getByRole('slider', { name: 'New reviews' })).toHaveAttribute(
+      'aria-valuetext',
+      '50 a day',
+    )
   },
 }
 

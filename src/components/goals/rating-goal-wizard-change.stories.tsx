@@ -39,6 +39,10 @@ export const ChangePlanPrefilled: Story = {
     const dialog = await openWizard(canvasElement)
     await expect(numeral(dialog)).toHaveAttribute('aria-valuenow', '4.5')
     await expect(dialog.getByRole('textbox', { name: 'New reviews' })).toHaveValue('1.6')
+    await expect(dialog.getByRole('slider', { name: 'New reviews' })).toHaveAttribute(
+      'aria-valuetext',
+      '1.6 a day',
+    )
     const save = dialog.getByRole('button', { name: 'Save changes' })
     await expect(save).toBeDisabled()
     await expect(save).toHaveAccessibleDescription('Change the plan to save.')
