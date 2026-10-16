@@ -39,7 +39,9 @@ const SNAPSHOTS: Readonly<Record<string, Snapshot>> = {
 }
 
 const NONE = { count: 0, sum: 0 }
-const CACHES: Readonly<Record<string, Omit<Summary, 'counts' | 'sinceSet'>>> = {
+const CACHES: Readonly<
+  Record<string, Omit<Summary, 'counts' | 'sinceSet' | 'lastWeek'>>
+> = {
   empty: { all: NONE, mixWindow: NONE, mostRecent: NONE },
   'three old reviews': {
     all: { count: 3, sum: 12 },

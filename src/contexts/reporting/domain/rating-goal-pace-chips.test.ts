@@ -4,11 +4,13 @@ import {
   A_FEW_A_WEEK_TENTHS,
   OWN_PACE_MIN_TENTHS,
   dayTenthsOf,
+  easedPace,
   nowPerMonth,
   ownPaceTenths,
   paceChips,
   perMonthOf,
   provenPacePerDay,
+  raisedPace,
 } from './rating-goal-pace-chips'
 
 const tenthsOf = (chips: ReturnType<typeof paceChips>) =>
@@ -128,5 +130,22 @@ describe('a pace the manager types', () => {
   it('takes nothing readable as the lowest pace, clamped', () => {
     expect(ownPaceTenths('day', null)).toEqual({ tenths: 14, clamped: 'low' })
     expect(ownPaceTenths('month', Number.NaN)).toEqual({ tenths: 14, clamped: 'low' })
+  })
+})
+
+describe('the Monday check-in’s Raise and Ease (E27)', () => {
+  it('step over 1 a week, 3 a week, then 1, 2, 3, 5 … 50 a day', () => {
+    const steps = (pace: number) => [raisedPace(pace), easedPace(pace)]
+
+    expect(steps(70)).toEqual([140, 30])
+    expect(steps(30)).toEqual([70, 10])
+    expect(steps(100)).toEqual([140, 70])
+    expect(steps(14)).toEqual([30, 10])
+    expect(steps(20)).toEqual([30, 10])
+  })
+
+  it('stop at either end: no Raise past 50 a day, no Ease under 1 a week', () => {
+    expect([raisedPace(3500), easedPace(3500)]).toEqual([null, 2100])
+    expect([raisedPace(10), easedPace(10)]).toEqual([30, null])
   })
 })

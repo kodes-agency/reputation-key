@@ -66,6 +66,7 @@ const reading = (overrides: Partial<RatingGoalReading> = {}): RatingGoalReading 
   reviewsLast90Days: 30,
   extraCounts: [],
   sinceSet: { count: 12, sum: 56 },
+  range: null,
   ...overrides,
 })
 

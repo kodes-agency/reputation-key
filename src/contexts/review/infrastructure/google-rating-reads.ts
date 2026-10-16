@@ -20,9 +20,12 @@ import { reviewId, type OrganizationId, type PropertyId } from '#/shared/domain/
 import { trace } from '#/shared/observability/trace'
 import {
   GOOGLE_RATING_LOW_REVIEW_LIMIT,
+  GOOGLE_RATING_RANGE_MIN_COUNT,
   GOOGLE_RATING_SUMMARY_MAX_COUNT_WINDOWS,
   GOOGLE_SHOWN_NUMBER_LIMIT,
   type GoogleRatingLowReview,
+  type GoogleRatingRange,
+  type GoogleRatingRangeTotals,
   type GoogleRatingTotals,
   type GoogleShownNumber,
   type ReviewGoogleRatingReads,
@@ -82,6 +85,31 @@ const reviewMonth = sql<number>`EXTRACT(MONTH FROM ${reviews.reviewedAt} AT TIME
 
 /** The civil date of a review in its Property's time zone, `YYYY-MM-DD`. */
 const reviewDay = sql<string>`TO_CHAR(${reviews.reviewedAt} AT TIME ZONE ${properties.timezone}, 'YYYY-MM-DD')`
+
+/** A range's count and sum, when the request asks for them. */
+const rangeColumns = (
+  range: GoogleRatingRange | undefined,
+): Readonly<Record<string, SQL<number | null>>> => {
+  if (range === undefined) return {}
+  const inRange = sql`${reviews.reviewedAt} >= ${range.from} AND ${reviews.reviewedAt} < ${range.to}`
+  return {
+    rangeCount: sql<number>`count(*) FILTER (WHERE ${inRange})`,
+    rangeSum: sql<number | null>`sum(${reviews.rating}) FILTER (WHERE ${inRange})`,
+  }
+}
+
+/** The range's count, and its sum only from its minimum count. */
+function rangeTotalsOf(
+  range: GoogleRatingRange | undefined,
+  aggregate: Readonly<Record<string, unknown>>,
+): GoogleRatingRangeTotals | null {
+  if (range === undefined) return null
+  const totals = totalsOf({ count: aggregate.rangeCount, sum: aggregate.rangeSum })
+  return {
+    count: totals.count,
+    sum: totals.count >= range.minimumCount ? totals.sum : null,
+  }
+}
 
 /** The count and sum since an instant, when the request asks for them. */
 const totalsSinceColumns = (
@@ -275,6 +303,12 @@ export const createGoogleRatingReads = (deps: {
       if (request.countSince.length > GOOGLE_RATING_SUMMARY_MAX_COUNT_WINDOWS) {
         throw new RangeError('Too many count windows for one rating summary')
       }
+      if (
+        request.rangeTotals !== undefined &&
+        request.rangeTotals.minimumCount < GOOGLE_RATING_RANGE_MIN_COUNT
+      ) {
+        throw new RangeError('A range sum needs at least ten reviews')
+      }
       return trace('review.googleRatingReads.getRatingSummary', async () => {
         const now = deps.clock()
         const scope = currentGoogleReviews(organizationId, propertyId, now)
@@ -300,6 +334,7 @@ export const createGoogleRatingReads = (deps: {
               mixCount: countFrom(request.mixWindowStart),
               mixSum: sumFrom(request.mixWindowStart),
               ...totalsSinceColumns(request.totalsSince),
+              ...rangeColumns(request.rangeTotals),
               ...windows,
             })
             .from(reviews)
@@ -321,6 +356,7 @@ export const createGoogleRatingReads = (deps: {
             request.totalsSince === undefined
               ? null
               : totalsOf({ count: aggregate.totalsCount, sum: aggregate.totalsSum }),
+          rangeTotals: rangeTotalsOf(request.rangeTotals, aggregate),
         }
       })
     },

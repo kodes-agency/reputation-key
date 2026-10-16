@@ -58,6 +58,8 @@ import {
   setupEligibility,
   type RatingGoalReading,
 } from './rating-goal-reading'
+import type { GoogleRatingRangeTotals } from '#/contexts/review/application/public-api'
+import { recapView } from './rating-goal-recap-views'
 import {
   cardRate,
   cardTracking,
@@ -213,7 +215,11 @@ function cardForecast(
   }
 }
 
-export type CardCounts = Readonly<{ thisWeek: number }>
+export type CardCounts = Readonly<{
+  thisWeek: number
+  /** Last week's count, and its star sum only from ten reviews (the check-in). */
+  lastWeek: GoogleRatingRangeTotals
+}>
 
 /** The card: Google's number, the target, the climb to the next number and when it arrives. */
 export function buildCardView(
@@ -224,6 +230,13 @@ export function buildCardView(
 ): RatingGoalCardView {
   const numbers = goalBasis(goal, reading)
   const threshold = thresholdThousandths(goal.targetTenths)
+  const googleShowsSoon =
+    numbers !== null &&
+    cacheShowsTargetFirst(
+      numbers.basis.exact,
+      numbers.basis.displayedTenths,
+      goal.targetTenths,
+    )
   return {
     goalId: goal.id,
     version: goal.version,
@@ -239,18 +252,19 @@ export function buildCardView(
     google: googleView(reading),
     ...exactView(reading),
     threshold: threshold / 1000,
-    googleShowsSoon:
-      numbers !== null &&
-      cacheShowsTargetFirst(
-        numbers.basis.exact,
-        numbers.basis.displayedTenths,
-        goal.targetTenths,
-      ),
+    googleShowsSoon,
     thisWeekCount: counts.thisWeek,
     justSet: reading.now.getTime() - goal.createdAt.getTime() < JUST_SET_DAYS * DAY_MS,
     ...cardForecast(goal, numbers, reading),
     setAt: goal.createdAt.toISOString(),
     ...cardTracking(goal, reading, numbers?.basis ?? null),
+    recap: recapView(goal, {
+      status,
+      googleShowsSoon,
+      lastWeek: counts.lastWeek,
+      now: reading.now,
+      timezone: reading.facts.timezone,
+    }),
   }
 }
 

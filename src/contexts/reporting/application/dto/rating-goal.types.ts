@@ -165,6 +165,29 @@ export type RatingGoalCardView = Readonly<{
    * midnight shows the day before until its next read.
    */
   weekday: number
+  /** The Monday check-in, while it is due (Q4); null otherwise. */
+  recap: RatingGoalRecapView | null
+}>
+
+/**
+ * The Monday check-in (round 5, PLAN-D D-3, owner answer Q4): last
+ * Property-local week against the plan, and the paces Keep, Raise and Ease
+ * leave. Shown from Monday until a manager answers it or the week ends; it
+ * changes nothing by itself.
+ */
+export type RatingGoalRecapView = Readonly<{
+  /** Last week's Monday, `YYYY-MM-DD`: what Keep sends back. */
+  weekStart: string
+  /** New Google reviews created last week. */
+  count: number
+  /** Their average as a tenth, half up; null under ten reviews (no week sum leaves Review under ten). */
+  averageTenths: number | null
+  /** The whole reviews a week the plan asked for; null when the pace changed during last week. */
+  plannedLastWeek: number | null
+  /** The pace Raise moves to, in tenths a week; null at 50 a day. */
+  raiseToTenths: number | null
+  /** The pace Ease moves to, in tenths a week; null at 1 a week. */
+  easeToTenths: number | null
 }>
 
 export type RatingGoalChangeView = Readonly<{

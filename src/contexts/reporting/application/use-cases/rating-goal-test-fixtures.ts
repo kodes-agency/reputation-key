@@ -45,9 +45,11 @@ export type FakeWorld = {
    * Cache totals, the mix inputs, one count per window, and the reviews since
    * a goal was set (answered only when a read asks for them).
    */
-  summary: Omit<GoogleRatingSummary, 'countsSince' | 'totalsSince'> & {
+  summary: Omit<GoogleRatingSummary, 'countsSince' | 'totalsSince' | 'rangeTotals'> & {
     counts: readonly number[]
     sinceSet: GoogleRatingTotals
+    /** The reviews of last Property-local week (the range a card read asks for). */
+    lastWeek: GoogleRatingTotals
   }
   /** Each calendar year's totals, oldest first. */
   years: GoogleRatingYearTotals[]
@@ -105,6 +107,8 @@ export function exampleWorld(): FakeWorld {
       counts: [28, 0, 0, 0],
       // Nine reviews since a goal was set: no verdict on their stars yet.
       sinceSet: { count: 9, sum: 41 },
+      // Eight reviews last week: a count, and no star sum under ten.
+      lastWeek: { count: 8, sum: 37 },
     },
     years: [],
     months: [],
@@ -322,11 +326,21 @@ function fakeReviews(world: FakeWorld): ReviewGoogleRatingReads {
   return {
     getRatingSummary: async (_org, _property, request) => {
       world.summaryRequests = [...world.summaryRequests, request]
-      const { counts, sinceSet, ...totals } = world.summary
+      const { counts, sinceSet, lastWeek, ...totals } = world.summary
       return {
         ...totals,
         countsSince: request.countSince.map((_, i) => counts[i] ?? 0),
         totalsSince: request.totalsSince === undefined ? null : sinceSet,
+        rangeTotals:
+          request.rangeTotals === undefined
+            ? null
+            : {
+                count: lastWeek.count,
+                sum:
+                  lastWeek.count >= request.rangeTotals.minimumCount
+                    ? lastWeek.sum
+                    : null,
+              },
       }
     },
     getYearlyTotals: async () => world.years,

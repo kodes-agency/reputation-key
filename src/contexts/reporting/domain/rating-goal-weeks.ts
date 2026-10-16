@@ -75,6 +75,10 @@ export const propertyWeekday = (instant: Date, timezone: string): number =>
 export const weekStartInstant = (instant: Date, timezone: string): Date =>
   instantOf(mondayOf(civilDateAt(instant, timezone)), timezone)
 
+/** The instant last Property-local week started: the Monday before this week's, 00:00. */
+export const previousWeekStartInstant = (instant: Date, timezone: string): Date =>
+  instantOf(addDays(mondayOf(civilDateAt(instant, timezone)), -7), timezone)
+
 /** Whole Property-local days from today to a date `YYYY-MM-DD`: negative before today. */
 export const daysFromToday = (dateKey: string, now: Date, timezone: string): number =>
   dayNumber(dateOfKey(dateKey)) - dayNumber(civilDateAt(now, timezone))

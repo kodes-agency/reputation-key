@@ -1,7 +1,8 @@
 // ReviewGoogleRatingReads for the rating goal's tracking page, against real
-// PostgreSQL (round 5, PLAN-D D-2 and D-2b): the exact average at the end of
-// each Property-local week, Google's own number over time, and the low reviews
-// since a goal was set (the owner's per-review exception). The same reviews
+// PostgreSQL (round 5, PLAN-D D-2, D-2b and D-3): the exact average at the end of
+// each Property-local week, Google's own number over time, the low reviews
+// since a goal was set (the owner's per-review exception), and last week's
+// count with its star sum only from ten reviews. The same reviews
 // count as for every other goal read (servable, Google, current binding
 // epoch), weeks run Monday to Sunday in Sofia (UTC+3, UTC+2 from 25 Oct), and
 // no week sum leaves the read.
@@ -15,6 +16,7 @@ import {
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
 import { organizationId, propertyId } from '#/shared/domain/ids'
+import { GOOGLE_RATING_RANGE_MIN_COUNT } from '../../application/ports/google-rating-reads.port'
 import { createGoogleRatingReads } from '../google-rating-reads'
 
 const ORG = organizationId('org-google-rating-tracking-000000000001')
@@ -447,5 +449,57 @@ describe('the low reviews since a goal was set', () => {
     await expect(
       reads().getLowReviews(OTHER_ORG, PROPERTY, SINCE, BELOW_41, 25),
     ).resolves.toEqual([])
+  })
+})
+
+describe('last week’s totals in the summary’s one scan (D-3)', () => {
+  // Monday 26 October 00:00 to Monday 2 November 00:00 in Sofia (UTC+2).
+  const LAST_MONDAY = new Date('2026-10-25T22:00:00.000Z')
+  const THIS_MONDAY = new Date('2026-11-01T22:00:00.000Z')
+  const summaryOf = (minimumCount = GOOGLE_RATING_RANGE_MIN_COUNT) =>
+    reads().getRatingSummary(ORG, PROPERTY, {
+      mixWindowStart: SINCE,
+      mostRecentLimit: 25,
+      countSince: [],
+      rangeTotals: { from: LAST_MONDAY, to: THIS_MONDAY, minimumCount },
+    })
+
+  it('counts the week from its Monday to the next, with no sum under ten reviews', async () => {
+    await seedCountedReviews()
+    await seedExcludedReviews()
+    // On the next Monday's first instant: this week's, not last week's.
+    await insertReview({ rating: 1, reviewedAt: THIS_MONDAY.toISOString() })
+    await insertReview({ rating: 5, reviewedAt: LAST_MONDAY.toISOString() })
+
+    const summary = await summaryOf()
+
+    // The 3★ at 00:30 on Monday 26 Oct and the 5★ at its first instant.
+    expect(summary.rangeTotals).toEqual({ count: 2, sum: null })
+  })
+
+  it('gives the week’s star sum from ten reviews', async () => {
+    for (const [index, rating] of [5, 4, 5, 5, 4, 5, 3, 5, 5, 4].entries()) {
+      await insertReview({
+        rating,
+        reviewedAt: new Date(
+          LAST_MONDAY.getTime() + (index + 1) * 3_600_000,
+        ).toISOString(),
+      })
+    }
+
+    await expect(summaryOf()).resolves.toMatchObject({
+      rangeTotals: { count: 10, sum: 45 },
+    })
+  })
+
+  it('answers no range when none was asked, and refuses a minimum under ten', async () => {
+    const summary = await reads().getRatingSummary(ORG, PROPERTY, {
+      mixWindowStart: SINCE,
+      mostRecentLimit: 25,
+      countSince: [],
+    })
+
+    expect(summary.rangeTotals).toBeNull()
+    await expect(summaryOf(9)).rejects.toThrow(RangeError)
   })
 })

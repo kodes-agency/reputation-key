@@ -188,6 +188,7 @@ function readingOn(
     reviewsLast90Days: total(days.slice(Math.max(0, day - 90), day)).count,
     extraCounts: [],
     sinceSet,
+    range: null,
   }
 }
 
