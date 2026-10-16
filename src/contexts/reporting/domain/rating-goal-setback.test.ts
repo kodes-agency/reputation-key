@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ratio } from './rating-goal-numbers'
 import {
+  lowReviewReadBelow,
   needExact,
   setbackOf,
   whatSetYouBack,
@@ -99,6 +100,37 @@ describe('setbackOf (PLAN-D §2 golden rows)', () => {
   })
 })
 
+// 2,000 reviews at 4.04 and 400 since the set at 4.7, goal 4.1 (from 4.05):
+// a busy Property where a 4★ review sets the goal back about 0.16.
+const large: SetbackNumbers = {
+  reviewCount: 2000,
+  exact: ratio(8080, 2000),
+  sinceSet: { count: 400, sum: 1880 },
+  qualityTenths: 47,
+  targetTenths: 41,
+}
+
+describe('lowReviewReadBelow', () => {
+  it('reads every review under the threshold when a 4★ one sets the goal back about one', () => {
+    expect(lowReviewReadBelow(harborline(289, 1150, { count: 28, sum: 129 }))).toBe(4050)
+  })
+
+  it('stops at the stars that still set the goal back half a review or more', () => {
+    // 4★ adds about 0.16, 3★ about 1.8: read 1–3★ only.
+    expect(decimal(setbackOf(large, 3))).toBeGreaterThanOrEqual(0.5)
+    expect(lowReviewReadBelow(large)).toBe(4000)
+  })
+
+  it('reads every review under the threshold while new reviews are too low', () => {
+    expect(lowReviewReadBelow(harborline(271, 1061, { count: 10, sum: 40 }))).toBe(4050)
+  })
+
+  it('reads nothing when no review sets the goal back half a review', () => {
+    // 300 reviews at 4.3 already clear 4.05: no review adds to a count of 0.
+    expect(lowReviewReadBelow(harborline(300, 1290, { count: 39, sum: 190 }))).toBeNull()
+  })
+})
+
 describe('whatSetYouBack', () => {
   const review = (id: string, stars: number) => ({ id, stars })
 
@@ -114,15 +146,7 @@ describe('whatSetYouBack', () => {
   })
 
   it('leaves out a review that sets the goal back less than half a review', () => {
-    // 2,000 reviews at 4.04 and 400 since the set at 4.7: a 4★ review sits
-    // just under 4.05 and adds about 0.16 to what 4.1 needs.
-    const large = {
-      reviewCount: 2000,
-      exact: ratio(8080, 2000),
-      sinceSet: { count: 400, sum: 1880 },
-      qualityTenths: 47,
-      targetTenths: 41,
-    }
+    // A 4★ review sits just under 4.05 and adds about 0.16 to what 4.1 needs.
     expect(decimal(setbackOf(large, 4))).toBeCloseTo(0.157, 3)
     expect(whatSetYouBack(large, [review('a', 4)])).toEqual([])
   })

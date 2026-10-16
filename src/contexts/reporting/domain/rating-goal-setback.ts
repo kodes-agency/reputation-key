@@ -109,6 +109,30 @@ export function setbackOf(numbers: SetbackNumbers, stars: number): Ratio | null 
   )
 }
 
+/** The low stars a review may have: the owner's 4★ ceiling (Q2). */
+const LOW_STARS = [4, 3, 2, 1] as const
+
+/** Whether one review of `stars` sets the goal back about one new review or more. */
+const setsBack = (numbers: SetbackNumbers, stars: number): boolean => {
+  const setback = setbackOf(numbers, stars)
+  return setback !== null && compareRatios(setback, HALF) >= 0
+}
+
+/**
+ * The bound (thousandths, exclusive) a low-review read should take, or null
+ * when no review can be named. A review's setback depends only on its stars
+ * given today's numbers, so the read starts at the most stars that still set
+ * the goal back half a review: on a busy Property the newest 4★ reviews add
+ * almost nothing and would otherwise fill the read ahead of an older 1★ one.
+ * While no count reaches the goal, every review under the threshold is named.
+ */
+export function lowReviewReadBelow(numbers: SetbackNumbers): number | null {
+  const threshold = thresholdThousandths(numbers.targetTenths)
+  if (needToday(numbers) === null) return threshold
+  const most = LOW_STARS.find((stars) => setsBack(numbers, stars))
+  return most === undefined ? null : Math.min(threshold, (most + 1) * 1000)
+}
+
 /** A positive ratio as a whole number, half up. */
 const wholeHalfUp = (value: Ratio): number =>
   Number((2n * value.num + value.den) / (2n * value.den))
