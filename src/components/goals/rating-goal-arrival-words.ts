@@ -11,12 +11,7 @@ import type {
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { paceText } from './rating-goal-pace-words'
 import { likelyText, spanText, whenText } from './rating-goal-setup-time'
-import {
-  assumedAverageWords,
-  ratingText,
-  reviewsTooLowSentence,
-  waitingSentence,
-} from './rating-goal-view'
+import { ratingText } from './rating-goal-view'
 
 type DaysArrival = Extract<RatingArrivalView, { kind: 'days' }>
 
@@ -100,23 +95,4 @@ export function possibleSentence(
   const up = card.nextUp
   if (up === null || up.days.num > THREE_YEARS_DAYS * up.days.den) return null
   return `${ratingText(up.targetTenths / 10)} is possible in ${spanText(up.days)}.`
-}
-
-/**
- * The card's one line about what comes next: when the goal arrives, or the
- * sentence that stands in for it (waiting for Google, Google about to show the
- * target, new reviews too low for it). None for a goal that keeps a number.
- */
-export function cardOutlook(
-  card: RatingGoalCardView,
-  timezone: string,
-  now: Date,
-): string | null {
-  if (card.status === 'waiting_for_google') {
-    return waitingSentence(card.google, timezone, now)
-  }
-  if (card.mode === 'keep') return null
-  if (card.googleShowsSoon) return `Google should show ${ratingText(card.target)} soon`
-  if (card.status === 'reviews_too_low') return reviewsTooLowSentence(card.target)
-  return arrivalSentence(card, assumedAverageWords(card))
 }

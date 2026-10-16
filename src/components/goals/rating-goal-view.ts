@@ -13,12 +13,7 @@ import type {
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import type { StatusMap, StatusPresentation } from '#/components/ui/status-badge'
 import { formatNumber, formatShortDate } from '#/lib/format'
-import {
-  newReviewsAim,
-  paceChangeText,
-  paceText,
-  weeklyTarget,
-} from './rating-goal-pace-words'
+import { paceChangeText, paceText } from './rating-goal-pace-words'
 
 /** How a rating goal's status reads as a pill. */
 export const RATING_GOAL_STATUS: StatusMap<RatingGoalStatus> = {
@@ -132,17 +127,6 @@ export function assumedAverageWords(
   if (goal.qualityBasis === 'planned') return plan
   if (goal.qualityBasis === 'blended') return `${plan} mixed with new reviews so far`
   return 'at the recent star mix'
-}
-
-/**
- * The card's one pace line: the aim while the goal is new, per day ("Aim for
- * about 2 new reviews a day"), then this week against it, counted per week
- * ("This week: 9 of 14 reviews", R3-7).
- */
-export function cardPaceLine(card: RatingGoalCardView): string | null {
-  if (card.mode === 'keep' || card.paceTenthsPerWeek === null) return null
-  if (card.justSet) return `Aim for ${newReviewsAim(card.paceTenthsPerWeek)}`
-  return `This week: ${formatNumber(card.thisWeekCount)} of ${reviewsText(weeklyTarget(card.paceTenthsPerWeek))}`
 }
 
 /**

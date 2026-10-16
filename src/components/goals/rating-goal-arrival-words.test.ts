@@ -4,17 +4,9 @@ import { describe, expect, it } from 'vitest'
 import {
   arrivalLine,
   arrivalSentence,
-  cardOutlook,
   possibleSentence,
 } from './rating-goal-arrival-words'
-import {
-  CARD,
-  CARD_KEEP,
-  FIXTURE_NOW,
-  FIXTURE_TIMEZONE,
-} from './rating-goal.stories.fixtures'
-
-const NOW = new Date(FIXTURE_NOW)
+import { CARD, CARD_KEEP } from './rating-goal.stories.fixtures'
 
 /** Harborline at the set: 81 reviews at 1 a day; 60 at the fast end, 103 at the slow one. */
 const HARBORLINE_ARRIVAL = {
@@ -108,39 +100,5 @@ describe('the number above the goal', () => {
 
     expect(possibleSentence({ nextUp: far })).toBeNull()
     expect(possibleSentence({ nextUp: null })).toBeNull()
-  })
-})
-
-describe('the card’s one line about what comes next', () => {
-  it('is the arrival, or the sentence that stands in for it', () => {
-    expect(cardOutlook(CARD, FIXTURE_TIMEZONE, NOW)).toBe(
-      '4.5 in about 5 months at your pace of the last 4 weeks, likely 4–8 months.',
-    )
-    expect(cardOutlook({ ...CARD, googleShowsSoon: true }, FIXTURE_TIMEZONE, NOW)).toBe(
-      'Google should show 4.5 soon',
-    )
-    expect(
-      cardOutlook(
-        { ...CARD, status: 'reviews_too_low', forecast: { kind: 'unreachable' } },
-        FIXTURE_TIMEZONE,
-        NOW,
-      ),
-    ).toBe('Since you set the goal, new reviews average below what 4.5 needs.')
-    expect(cardOutlook(CARD_KEEP, FIXTURE_TIMEZONE, NOW)).toBeNull()
-  })
-
-  it('waits for Google without repeating the day the headline already gives', () => {
-    const waiting = {
-      ...CARD,
-      status: 'waiting_for_google' as const,
-      google: { ...CARD.google!, current: false, asOf: '2026-10-12T08:00:00.000Z' },
-    }
-
-    expect(cardOutlook(waiting, FIXTURE_TIMEZONE, NOW)).toBe(
-      'Waiting for Google’s latest numbers.',
-    )
-    expect(cardOutlook({ ...waiting, google: null }, FIXTURE_TIMEZONE, NOW)).toBe(
-      'Waiting for Google’s numbers.',
-    )
   })
 })

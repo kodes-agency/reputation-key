@@ -4,7 +4,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   averageProgressText,
-  cardPaceLine,
   changeText,
   exactProgressText,
   googleShows,
@@ -20,8 +19,6 @@ import {
 } from './rating-goal-view'
 import {
   CARD,
-  CARD_JUST_SET,
-  CARD_KEEP,
   CARD_REACHED,
   FIXTURE_NOW,
   FIXTURE_TIMEZONE,
@@ -81,21 +78,6 @@ describe('what Google shows', () => {
 })
 
 describe('the simple card', () => {
-  it('asks for a pace while the goal is new, then counts the week against it', () => {
-    expect(cardPaceLine(CARD_JUST_SET)).toBe('Aim for about 1.6 new reviews a day')
-    expect(cardPaceLine({ ...CARD_JUST_SET, paceTenthsPerWeek: 30 })).toBe(
-      'Aim for about 3 new reviews a week',
-    )
-    expect(cardPaceLine(CARD)).toBe('This week: 6 of 11 reviews')
-    expect(cardPaceLine({ ...CARD, paceTenthsPerWeek: 10, thisWeekCount: 0 })).toBe(
-      'This week: 0 of 1 review',
-    )
-  })
-
-  it('has no pace line for a goal that keeps a number', () => {
-    expect(cardPaceLine(CARD_KEEP)).toBeNull()
-  })
-
   it('names the day of numbers the headline does not date, and never a clock time', () => {
     const google = { ...CARD.google!, current: true, asOf: '2026-10-12T08:00:00.000Z' }
 
