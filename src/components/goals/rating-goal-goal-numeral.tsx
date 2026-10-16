@@ -6,7 +6,7 @@
 // pressable (`aria-disabled`) so the press can say why in the status line. The
 // mock's one-off sizes (128 px, 88 px on a phone) are inline: a utility of its
 // own would grow the one stylesheet every page loads first.
-import type { KeyboardEvent } from 'react'
+import type { KeyboardEvent, Ref } from 'react'
 import { Minus, Plus } from 'lucide-react'
 import { IconButton } from '#/components/ui/icon-button'
 
@@ -30,6 +30,8 @@ type Props = Readonly<{
   say: string
   /** What the polite live region speaks: the goal, or a hint at an end. */
   live: string
+  /** The number itself, for a link that takes the focus there when it goes. */
+  spinRef: Ref<HTMLSpanElement>
   small: boolean
   onLower: () => void
   onRaise: () => void
@@ -64,7 +66,7 @@ function Strip({ digits, at }: Readonly<{ digits: readonly number[]; at: number 
   )
 }
 
-export function RatingGoalGoalNumeral(props: Props) {
+export function RatingGoalGoalNumeral({ spinRef, ...props }: Props) {
   const { targetTenths, minTenths, maxTenths, labels, small } = props
   const keys: Readonly<Record<string, number>> = {
     ArrowUp: targetTenths + 1,
@@ -94,6 +96,7 @@ export function RatingGoalGoalNumeral(props: Props) {
           <Minus aria-hidden="true" />
         </IconButton>
         <span
+          ref={spinRef}
           role="spinbutton"
           tabIndex={0}
           data-autofocus=""

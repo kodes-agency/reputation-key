@@ -44,10 +44,11 @@ export const PinAndBack: Story = {
     await expect(numeral(dialog)).toHaveAttribute('aria-valuenow', '4.2')
     await expect(dialog.getByText('in about 6 months')).toBeVisible()
     await expect(statusLine()).toBe('Back to 4.1, recommended')
-    await userEvent.click(
-      dialog.getByRole('button', { name: 'Back to 4.1, recommended' }),
-    )
+    // From the keyboard: the link goes, and the focus moves to the number.
+    dialog.getByRole('button', { name: 'Back to 4.1, recommended' }).focus()
+    await userEvent.keyboard('{Enter}')
     await expect(numeral(dialog)).toHaveAttribute('aria-valuenow', '4.1')
+    await expect(numeral(dialog)).toHaveFocus()
     await expect(statusLine()).toBe('Recommended · 4.2 possible in about 6 months')
   },
 }
@@ -138,10 +139,10 @@ export const FasterPaceLink: Story = {
     await userEvent.click(dialog.getByRole('button', { name: 'Raise the goal to 4.2' }))
     await userEvent.click(dialog.getByRole('button', { name: 'Raise the goal to 4.3' }))
     await expect(dialog.getByText('in about a year')).toBeVisible()
-    await userEvent.click(
-      dialog.getByRole('button', { name: 'At 2 a day, about 6 months' }),
-    )
+    dialog.getByRole('button', { name: 'At 2 a day, about 6 months' }).focus()
+    await userEvent.keyboard('{Enter}')
     await expect(numeral(dialog)).toHaveAttribute('aria-valuenow', '4.3')
+    await expect(numeral(dialog)).toHaveFocus()
     await expect(dialog.getByText('in about 6 months')).toBeVisible()
     await expect(statusLine()).toBe('Back to 4.2, recommended')
     await expect(dialog.getByRole('slider', { name: 'New reviews' })).toHaveAttribute(

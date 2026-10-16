@@ -5,7 +5,7 @@
 // the pace and the average new reviews are planned at. Everything is worked
 // out here from the setup read's exact inputs and the draft, with no server
 // call (`workOutRatingGoal`). Composition only: each part words itself.
-import { useId, type FormEvent, type ReactNode } from 'react'
+import { useId, useRef, type FormEvent, type ReactNode } from 'react'
 import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { workOutRatingGoal } from '#/contexts/reporting/application/rating-goal-setup-plan'
 import { Button } from '#/components/ui/button'
@@ -119,6 +119,13 @@ function Headline({ props, plan }: Readonly<{ props: Props; plan: Plan }>) {
   const labels = goalAriaLabels(plan)
   const parts = statusParts(plan, draft, unit)
   const say = goalSay(plan, unit)
+  const spinRef = useRef<HTMLSpanElement>(null)
+  // A status link goes once it is used: the focus moves to the number, which
+  // then says the new goal, so it is not lost to the top of the dialog.
+  const onAction = (action: StatusAction) => {
+    spinRef.current?.focus()
+    onDraft(actionOf(props, plan, action))
+  }
   // Full width, so the ruler keeps the mock's fixed width (its inline maxWidth)
   // instead of the widest line's, and never resizes as − / + change the lines.
   return (
@@ -130,6 +137,7 @@ function Headline({ props, plan }: Readonly<{ props: Props; plan: Plan }>) {
         labels={labels}
         say={say}
         live={hintText(plan, draft) ?? say}
+        spinRef={spinRef}
         small={small}
         onLower={() => onDraft(steps.lowerGoal(draft, plan))}
         onRaise={() => onDraft(steps.raiseGoal(draft, plan))}
@@ -153,11 +161,7 @@ function Headline({ props, plan }: Readonly<{ props: Props; plan: Plan }>) {
         new reviews at {paceText(plan.pace.tenthsPerWeek, unit)} · likely{' '}
         {likelyText(plan.likely)}
       </p>
-      <RatingGoalSetupStatusLine
-        parts={parts}
-        small={small}
-        onAction={(action) => onDraft(actionOf(props, plan, action))}
-      />
+      <RatingGoalSetupStatusLine parts={parts} small={small} onAction={onAction} />
     </div>
   )
 }

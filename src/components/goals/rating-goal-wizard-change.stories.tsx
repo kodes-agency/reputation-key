@@ -77,7 +77,9 @@ export const ChangeKeepsThePlansAverage: Story = {
         'Kept from your plan. We switch to your real average as reviews arrive.',
       ),
     ).toBeVisible()
-    await userEvent.click(dialog.getByRole('button', { name: 'Back to automatic' }))
+    dialog.getByRole('button', { name: 'Back to automatic' }).focus()
+    await userEvent.keyboard('{Enter}')
+    await expect(dialog.getByRole('button', { name: 'Change' })).toHaveFocus()
     await userEvent.click(dialog.getByRole('button', { name: 'Save changes' }))
     await waitFor(() =>
       expect(changeMock).toHaveBeenCalledWith({

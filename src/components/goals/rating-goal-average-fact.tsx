@@ -5,6 +5,7 @@
 // earlier average (D30) offers both Change and Back to automatic. At a shown
 // 4.7 or 4.8 only a typed average plans a climb (X1), so the field is open and
 // there is no automatic one to go back to.
+import { useRef } from 'react'
 import { Star } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { RatingFigure } from '#/components/ui/rating-figure'
@@ -41,6 +42,13 @@ export function RatingGoalAverageFact(props: Props) {
   const { plan, ownOn, idBase } = props
   const { average } = plan
   const earlier = average.source === 'earlier' && !ownOn
+  const changeRef = useRef<HTMLButtonElement>(null)
+  // The second "Back to automatic" goes once used: the focus moves to "Change",
+  // which stays in place.
+  const backFromEarlier = () => {
+    changeRef.current?.focus()
+    props.onBackToAutomatic()
+  }
   return (
     <div className="mt-3 border-t pt-3">
       <div className="flex flex-wrap items-baseline gap-x-2" style={{ minHeight: 32 }}>
@@ -61,6 +69,7 @@ export function RatingGoalAverageFact(props: Props) {
         <span className="ms-auto inline-flex gap-3">
           {ownOn && average.ownOnly ? null : (
             <Button
+              ref={changeRef}
               type="button"
               variant="link"
               size="inline"
@@ -70,12 +79,7 @@ export function RatingGoalAverageFact(props: Props) {
             </Button>
           )}
           {earlier ? (
-            <Button
-              type="button"
-              variant="link"
-              size="inline"
-              onClick={props.onBackToAutomatic}
-            >
+            <Button type="button" variant="link" size="inline" onClick={backFromEarlier}>
               Back to automatic
             </Button>
           ) : null}
