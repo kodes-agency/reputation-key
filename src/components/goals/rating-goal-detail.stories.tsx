@@ -174,7 +174,7 @@ export const Monitoring: Story = {
 
 /** The links "What moved you" offers to the Inbox, by name. */
 const inboxLinks = (canvasElement: HTMLElement) =>
-  within(canvasElement).queryAllByRole('link', { name: /in the inbox$/u })
+  within(canvasElement).queryAllByRole('link', { name: /^Open in the inbox: /u })
 
 /** Two low reviews since the set: what each set the goal back, opened in the Inbox. */
 export const LowReviews: Story = {
@@ -188,7 +188,7 @@ export const LowReviews: Story = {
       'Sep 24Ana Petrova set the goal: 4.1 at 1 a day',
     ])
     const [first, second] = inboxLinks(canvasElement)
-    await expect(first).toHaveAccessibleName('Open the 1★ review of Oct 12 in the inbox')
+    await expect(first).toHaveAccessibleName('Open in the inbox: the 1★ review of Oct 12')
     await expect(first).toHaveAttribute(
       'href',
       `/properties/${FIXTURE_PROPERTY_ID}/reviews?itemId=${LOW_REVIEW_ITEM_ONE}`,
@@ -197,9 +197,12 @@ export const LowReviews: Story = {
       'href',
       `/properties/${FIXTURE_PROPERTY_ID}/reviews?itemId=${LOW_REVIEW_ITEM_TWO}`,
     )
-    // The Inbox item opens the review; no review id ever reaches the page.
     for (const link of inboxLinks(canvasElement)) {
+      // The Inbox item opens the review; no review id ever reaches the page.
       await expect(link.getAttribute('href')).not.toContain('reviewId=')
+      // Label in name (WCAG 2.5.3): saying the visible words finds the link.
+      await expect(link.textContent).toBe('Open in the inbox')
+      await expect(link.getAttribute('aria-label')).toContain(link.textContent)
     }
   },
 }

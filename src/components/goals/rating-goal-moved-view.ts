@@ -31,7 +31,7 @@ export type MovedRow = Readonly<{
   detail?: string | null
   /** A low review's Inbox item; null when this viewer may not open one. */
   inboxItemId?: string | null
-  /** The link's own name, which says which review it opens. */
+  /** The link's own name: its visible words first (WCAG 2.5.3), then which review it opens. */
   linkLabel?: string
 }>
 
@@ -83,7 +83,7 @@ function lowRows(detail: RatingGoalDetailView, context: MovedContext): Dated[] {
             ? null
             : `set you back about ${reviewCountText(review.setBack, false)}`,
         inboxItemId: review.inboxItemId,
-        linkLabel: `Open the ${review.stars}★ review of ${when} in the inbox`,
+        linkLabel: `Open in the inbox: the ${review.stars}★ review of ${when}`,
       },
     }
   })

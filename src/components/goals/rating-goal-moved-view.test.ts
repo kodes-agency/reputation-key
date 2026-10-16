@@ -166,7 +166,7 @@ describe('the low reviews since the set', () => {
         tone: 'warn',
         detail: 'set you back about 1 new review',
         inboxItemId: null,
-        linkLabel: 'Open the 1★ review of Oct 12 in the inbox',
+        linkLabel: 'Open in the inbox: the 1★ review of Oct 12',
       },
       {
         key: 'low-1',
@@ -175,7 +175,7 @@ describe('the low reviews since the set', () => {
         tone: 'warn',
         detail: 'set you back about 5 new reviews',
         inboxItemId: 'item-2',
-        linkLabel: 'Open the 2★ review of Oct 6 in the inbox',
+        linkLabel: 'Open in the inbox: the 2★ review of Oct 6',
       },
     ])
   })

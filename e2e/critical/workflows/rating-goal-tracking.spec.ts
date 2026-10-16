@@ -289,7 +289,7 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
     await expect(moved.getByText('set you back about 14 new reviews')).toBeVisible()
     await expect(moved.getByText('1★ review', { exact: true })).toHaveCount(0)
     const open = moved.getByRole('link', {
-      name: /^Open the 2★ review of .+ in the inbox$/u,
+      name: /^Open in the inbox: the 2★ review of .+$/u,
     })
     await expect(open).toHaveAttribute(
       'href',
