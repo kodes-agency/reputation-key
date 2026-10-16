@@ -336,6 +336,62 @@ and read; the one-screen setup follows in its own change.
    a goal waiting (no zero-review pace window, no Below pace notice) and keeps
    the setup closed until the import has filled it.
 
+## Amended 2026-10-16 — rounds 3 and 4, setup
+
+The setup is one screen opened already answered (the approved mocks E2 on a
+desktop and E4 on a phone): the number Google is to show, when it arrives and
+what it needs, then the plan behind it. A manager accepts it in one tap ("Aim
+for 4.1") or adjusts it. It is worked out on the page from the setup read's
+exact inputs (`workOutRatingGoal`); the server runs no planning maths for it.
+
+1. **Proactive pace chips replace Steady, Faster and Push** (R3-1, R3-3), and
+   with them the surge caution. The proven pace is the busier of the last 90
+   days and the busiest 30 consecutive local days of the last year, a day. The
+   recommendation is the nice pace (1, 2, 3, 5, 7, 10, 15, 20, 30 or 50 a day)
+   nearest one and a half times it, at least 1 a day, a tie going up. A quiet
+   Property (under 1 a day) is offered "A few a week" (3 a week), 1, 2, 3 and 5
+   a day; a busy one its busiest month, the recommendation and the three nice
+   paces above it. A manager may type a pace a day (one decimal) or a month,
+   clamped from 0.2 to 50 a day. A month is 30.4 days. Decision 1's "Steady /
+   Faster / Push or a whole number from 1 to 200" and the surge caution of the
+   Consequences no longer hold; the copy never asks for a number of guests and
+   says how to ask (R3-12).
+2. **The planned average is automatic** (R4-1, R4-3): the higher tenth of the
+   Property's best calendar month of the last twelve and its best calendar year
+   (each with ten reviews; a tie goes to the month), or halfway between the
+   shown number and five stars when that is higher, never above 4.8. It is
+   shown as a fact with its source; "Change" lets a manager type their own from
+   two tenths above the shown number to 5.0. Change plan keeps a stored average
+   that is not today's automatic one, worded as "your plan's average". R2-5's
+   switch is unchanged: from the tenth review since the goal was set, their own
+   average replaces the planned one (the blend R4-2 proposes is a separate
+   change).
+3. **The recommended goal** (R4-4) is the highest one reached within six months
+   even if new reviews average 0.1★ below plan, at least the next tenth; the
+   status line names the next one up ("4.2 possible in about 6 months"). − and
+   - pin another goal; "Back to 4.1, recommended" lets go. Over six months, the
+     status offers the first faster chip that gets there, keeping the goal it
+     names.
+4. **The setup's time is a central figure and a likely range**, not month
+   names: "in about 3 months, likely 9 weeks to 4 months", the range's ends at
+   0.1★ better and asking 10% more, 0.1★ worse and asking 10% less, open when
+   0.1★ worse no longer reaches the goal. Days are exact fractions; a range
+   reads "a weeks to b months" when its fast end is under 70 days. The card and
+   the detail page keep `forecastArrival`'s month ranges; the done screen repeats
+   the setup's words.
+5. **Google lagging behind the cache.** A tenth the cache's exact average
+   already clears while Google shows less is never a goal: the setup starts
+   above it and says "Google should show 4.0 soon"; when every tenth to 4.9 is
+   earned, it asks the manager to set the goal once Google catches up.
+6. **Keep first from a shown 4.7** (owner, X1, amending R2-9). At 4.7 the next
+   tenth needs new reviews averaging 4.9★ or more, at 4.8 every one to be 5★,
+   so the setup opens on Keep and says why; "Raise it anyway" opens the climb
+   with a typed average from two tenths above the shown number. A goal to keep
+   may be set from 4.7. 5.0 is never a target and the 5.0 stop is gone.
+7. **Tracking words.** A plan reads per day ("2 a day", per week under one a
+   day); progress is still counted per week ("This week: 9 of 14 reviews") and
+   judged on the last four weeks as before.
+
 ## Rejected alternatives
 
 - **A fourth Goal measure for the Google rating.** It would put Google data into

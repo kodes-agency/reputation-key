@@ -70,7 +70,7 @@ async function pressNotNow(
 export const Offered: Story = {
   play: async ({ canvasElement }) => {
     const { canvas, step } = await offeredStep(canvasElement)
-    await expect(step.getByRole('heading', { name: 'Pick a plan' })).toBeVisible()
+    await expect(step.getByRole('heading', { name: 'Your Google goal' })).toBeVisible()
     await expect(step.getByText('Google shows 3.9 from 261 reviews.')).toBeVisible()
     await expect(canvas.getByRole('status')).toHaveTextContent(RATING_GOAL_STEP_APPEARED)
   },
@@ -106,19 +106,6 @@ export const NotNow: Story = {
   },
 }
 
-/** "Not now" while building a plan of one's own, without closing it first. */
-export const NotNowFromBuildYourOwn: Story = {
-  play: async ({ canvasElement, args }) => {
-    const { canvas, step } = await offeredStep(canvasElement)
-    await userEvent.click(step.getByRole('button', { name: 'Build your own' }))
-    await expect(step.getByRole('radiogroup', { name: 'Goal on Google' })).toBeVisible()
-    await pressNotNow(step, args.onNotNow)
-    await expect(
-      canvas.findByText(/No Google rating goal for now/),
-    ).resolves.toBeVisible()
-  },
-}
-
 /** "Not now" could not be saved: the step stays, so it can be tried again. */
 export const NotNowFails: Story = {
   args: {
@@ -129,7 +116,7 @@ export const NotNowFails: Story = {
   play: async ({ canvasElement, args }) => {
     const { canvas, step } = await offeredStep(canvasElement)
     await pressNotNow(step, args.onNotNow)
-    await expect(step.getByRole('heading', { name: 'Pick a plan' })).toBeVisible()
+    await expect(step.getByRole('heading', { name: 'Your Google goal' })).toBeVisible()
     await expect(canvas.queryByText(/No Google rating goal for now/)).toBeNull()
   },
 }

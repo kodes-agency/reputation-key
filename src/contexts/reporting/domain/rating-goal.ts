@@ -15,7 +15,11 @@
 import { createErrorFactory } from '#/shared/domain/errors'
 import { isValidPaceTenths } from './rating-goal-pace'
 import { qualityProblem } from './rating-goal-quality'
-import { HIGHEST_TARGET_TENTHS, PERFECT_TENTHS } from './rating-goal-stops'
+import {
+  HIGHEST_TARGET_TENTHS,
+  KEEP_FIRST_FROM_TENTHS,
+  PERFECT_TENTHS,
+} from './rating-goal-stops'
 
 export type RatingGoalMode = 'climb' | 'keep'
 export type RatingGoalState = 'active' | 'reached' | 'ended'
@@ -158,8 +162,9 @@ const isTenth = (value: number): boolean => Number.isInteger(value)
 /**
  * A climb goal names a tenth above what Google shows, up to 4.9 (5.0 needs
  * every review to be five stars). A keep goal is set only while Google shows
- * 4.9 or 5.0, where no higher tenth can be planned (round 2, R2-9), and names
- * a tenth Google shows now or a lower one, 5.0 included.
+ * 4.7 or more (X1, 2026-10-16; R2-9 said 4.9), where a higher tenth needs new
+ * reviews of nearly five stars, and names a tenth Google shows now or a lower
+ * one, 5.0 included.
  */
 export function targetProblem(
   mode: RatingGoalMode,
@@ -172,7 +177,7 @@ export function targetProblem(
       ? null
       : 'invalid_target'
   }
-  return displayedTenths >= HIGHEST_TARGET_TENTHS &&
+  return displayedTenths >= KEEP_FIRST_FROM_TENTHS &&
     targetTenths >= LOWEST_TARGET_TENTHS &&
     targetTenths <= Math.min(displayedTenths, PERFECT_TENTHS)
     ? null

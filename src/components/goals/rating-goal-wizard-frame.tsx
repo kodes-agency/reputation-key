@@ -10,9 +10,9 @@
 //
 // The step's title takes the focus when the step changes (`titleRef`, tabIndex
 // -1), so a keyboard or screen-reader user hears where they are now instead of
-// being left on a button that is gone. The frame opens on the step's checked
-// choice (Pick a plan's preselected plan) when it has one, not on the first
-// button above it; a step with no choice opens as Radix opens it.
+// being left on a button that is gone. The frame opens on the step's own first
+// stop (`data-autofocus`: the setup's goal numeral) when it has one, not on the
+// first button above it; a step without one opens as Radix opens it.
 import type { ReactNode, Ref } from 'react'
 import { useIsMobile } from '#/components/hooks/use-mobile'
 import {
@@ -42,16 +42,14 @@ type Props = Readonly<{
   children: ReactNode
 }>
 
-/** Opening: the focus goes to the checked choice, when the step has one. */
-function focusCheckedChoice(event: Event): void {
+/** Opening: the focus goes to the step's own first stop (the goal's numeral), when it has one. */
+function focusStepStart(event: Event): void {
   const content = event.currentTarget
   if (!(content instanceof HTMLElement)) return
-  const checked = content.querySelector<HTMLElement>(
-    '[role="radio"][data-state="checked"]',
-  )
-  if (checked === null) return
+  const start = content.querySelector<HTMLElement>('[data-autofocus]')
+  if (start === null) return
   event.preventDefault()
-  checked.focus()
+  start.focus()
 }
 
 export function RatingGoalWizardFrame({
@@ -105,7 +103,7 @@ export function RatingGoalWizardFrame({
         <SheetContent
           side="bottom"
           data-wizard-frame="sheet"
-          onOpenAutoFocus={focusCheckedChoice}
+          onOpenAutoFocus={focusStepStart}
           onCloseAutoFocus={onCloseAutoFocus}
           className="h-dvh gap-4 overflow-y-auto p-(--dialog-pad) [--dialog-pad:1rem]"
         >
@@ -116,7 +114,7 @@ export function RatingGoalWizardFrame({
         <DialogContent
           size="lg"
           data-wizard-frame="dialog"
-          onOpenAutoFocus={focusCheckedChoice}
+          onOpenAutoFocus={focusStepStart}
           onCloseAutoFocus={onCloseAutoFocus}
         >
           {header}

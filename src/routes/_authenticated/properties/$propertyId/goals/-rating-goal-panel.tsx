@@ -17,6 +17,7 @@ import { wizardOnArrival } from '#/components/goals/rating-goal-arrival'
 import type { RatingGoalWizardIntent } from '#/components/goals/rating-goal-wizard-view'
 import { RatingGoalHistory } from '#/components/goals/rating-goal-history'
 import { RatingGoalSection } from '#/components/goals/rating-goal-section'
+import { propertyQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { ratingGoalHistoryQuery, ratingGoalSetupQuery } from './-rating-goal-queries'
 import {
@@ -91,7 +92,12 @@ export function RatingGoalPanel({
     enabled: view === 'history' || noActiveGoal,
     retry: false,
   })
-  const { start, wizard } = useRatingGoalWizard(propertyId, { hasPortals })
+  // The page's loader read the Property: only its name, for the wizard's header.
+  const property = useQuery({ ...propertyQuery(propertyId), retry: false })
+  const { start, wizard } = useRatingGoalWizard(propertyId, {
+    hasPortals,
+    propertyName: property.data?.property.name,
+  })
   useWizardOnArrival({
     asked: startOnArrival && view === 'active',
     card,

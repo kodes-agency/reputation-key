@@ -32,7 +32,7 @@ const keep49 = {
   paceTenthsPerWeek: null,
 } as const
 
-/** Google shows 4.9 (3980 / 812 = 4.9015): the only numbers Keep is set at (R2-9). */
+/** Google shows 4.9 (3980 / 812 = 4.9015): no climb is left, only Keep (R2-9, X1). */
 function showingFourNine(at: FakeWorld): void {
   at.snapshot = { ...at.snapshot!, averageRating: Math.fround(4.9) }
   at.summary = { ...at.summary, all: { count: 812, sum: 3980 } }
@@ -204,7 +204,16 @@ describe('setting a rating goal', () => {
     })
   })
 
-  it('keeps nothing while Google shows less than 4.9 (R2-9)', async () => {
+  it('keeps 4.7 once Google shows it (X1: Keep first from 4.7)', async () => {
+    world.snapshot = { ...world.snapshot!, averageRating: Math.fround(4.7) }
+    world.summary = { ...world.summary, all: { count: 812, sum: 3817 } }
+
+    await setRatingGoal(dependencies(world), { ...keep49, targetTenths: 47 }, actor)
+
+    expect(world.goals).toMatchObject([{ mode: 'keep', targetTenths: 47 }])
+  })
+
+  it('keeps nothing while Google shows less than 4.7', async () => {
     await expect(
       setRatingGoal(dependencies(world), { ...keep49, targetTenths: 43 }, actor),
     ).rejects.toMatchObject({ code: 'invalid_target' })

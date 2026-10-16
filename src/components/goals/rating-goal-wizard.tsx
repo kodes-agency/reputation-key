@@ -1,8 +1,9 @@
-// The Google rating goal wizard (ADR 0067, decision 9; round 2, R2-6): "Pick a
-// plan", then "Your goal is set"; or, for a goal that keeps the number Google
-// shows (offered only at 4.9 or 5.0), one step. A change opens "Pick a plan" on
-// the goal's own plan, saves only what differs against the version it was
-// opened on, and closes with a toast.
+// The Google rating goal wizard (ADR 0067, decision 9; rounds 3 and 4, E2/E4):
+// "Your Google goal", one screen opened already answered, then "Your goal is
+// set"; or, for a goal that keeps the number Google shows (offered first from
+// a shown 4.7, X1, the only choice at 4.9 or 5.0), one step. A change opens the screen on the goal's own plan,
+// saves only what differs against the version it was opened on, and closes
+// with a toast.
 //
 // A component with its two commands (set and change): the route hands in the
 // server functions and this owns the mutations, as the month target dialog
@@ -17,6 +18,7 @@ import type {
 } from '#/contexts/reporting/server/rating-goals'
 import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { useIsMobile } from '#/components/hooks/use-mobile'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { DialogFooter } from '#/components/ui/dialog'
 import { RatingGoalCancel } from './rating-goal-wizard-cancel'
@@ -27,10 +29,11 @@ import { withRatingGoalRefusals } from './rating-goal-refusal'
 import type { RegionRead } from './rating-goal-section'
 import { RatingGoalDone, RatingGoalKeepStep } from './rating-goal-wizard-done'
 import { RatingGoalWizardFrame } from './rating-goal-wizard-frame'
-import { RatingGoalPlanStep } from './rating-goal-plan-step'
-import type { PlanDraft } from './rating-goal-plan-view'
+import { draftFromGoal, type SetupDraft } from './rating-goal-setup-draft'
+import { RatingGoalSetupStep } from './rating-goal-setup-step'
 import { ratingText, reviewsText, tenthsText } from './rating-goal-view'
 import {
+  keepFirstSentence,
   wizardReceipt,
   wizardSubmission,
   type RatingGoalReceipt,
@@ -43,6 +46,8 @@ export type RatingGoalWizardProps = Readonly<{
   open: boolean
   onOpenChange: (open: boolean) => void
   propertyId: string
+  /** Named in the header of the setup screen, when the page knows it. */
+  propertyName?: string
   intent: RatingGoalWizardIntent
   setup: RegionRead<RatingGoalSetupView>
   /** The done screen offers portal goals when there are Portals, a Portal when not. */
@@ -68,33 +73,34 @@ type CommandOf<F extends (input: never) => unknown> = (
 type Step = 'plan' | 'keep' | 'done'
 
 function titleOf(step: Step, intent: RatingGoalWizardIntent): string {
-  if (step === 'plan') return 'Pick a plan'
+  if (step === 'plan') return 'Your Google goal'
   if (step === 'done') return 'Your goal is set'
   return `Keep ${intent.kind === 'keep' ? tenthsText(intent.targetTenths) : ''} on Google`
 }
 
 /**
- * What the done screen says can come next, for the goal just set. A goal to
- * keep is set only at 4.9 or 5.0 (R2-9), where there is nothing higher to aim
- * for: it can only be ended.
+ * What the done screen says can come next, for the goal just set: a goal to
+ * keep can be ended (or, from 4.7, changed into a climb); a plan changed.
  */
-function doneDescription(intent: RatingGoalWizardIntent): string {
-  return intent.kind === 'keep'
-    ? 'You can end it at any time.'
-    : 'You can change the plan at any time.'
+function doneDescription(kept: boolean): string {
+  return kept ? 'You can end it at any time.' : 'You can change the plan at any time.'
 }
 
 /**
- * What the screen starts from, in one sentence: what Google shows now for the
- * plans; the keep step's is the whole step.
+ * What the screen starts from, in one sentence: the Property for the setup
+ * screen (what Google shows when its name is not known); the keep step's is
+ * the whole step.
  */
 function descriptionOf(
   step: Step,
   intent: RatingGoalWizardIntent,
   setup?: RatingGoalSetupView,
+  propertyName?: string,
+  kept = true,
 ): string {
   switch (step) {
     case 'plan': {
+      if (propertyName !== undefined) return propertyName
       const google = setup?.google
       return google === undefined || google === null || google.shows === null
         ? 'The number you want Google to show, and how to get there.'
@@ -103,7 +109,7 @@ function descriptionOf(
     case 'keep':
       return `We’ll watch that Google keeps showing ${intent.kind === 'keep' ? tenthsText(intent.targetTenths) : 'its number'}.`
     case 'done':
-      return doneDescription(intent)
+      return doneDescription(intent.kind === 'keep' && kept)
   }
 }
 
@@ -144,7 +150,7 @@ function useRatingGoalCommands(props: RatingGoalWizardProps) {
  */
 function useWizardFlow(props: RatingGoalWizardProps) {
   const [step, setStep] = useState<Step>(props.intent.kind === 'keep' ? 'keep' : 'plan')
-  const [draft, setDraft] = useState<PlanDraft>({})
+  const [draft, setDraft] = useState<SetupDraft | null>(null)
   const [receipt, setReceipt] = useState<RatingGoalReceipt | null>(null)
   const { set, change } = useRatingGoalCommands(props)
   const titleRef = useRef<HTMLHeadingElement>(null)
@@ -169,6 +175,8 @@ function useWizardFlow(props: RatingGoalWizardProps) {
   }
   return {
     step,
+    /** "Raise it anyway" at a shown 4.7 or 4.8: from Keep to the climb (X1). */
+    raise: () => setStep('plan'),
     draft,
     setDraft,
     receipt,
@@ -189,58 +197,110 @@ function keepSave(
     saved: {
       mode: 'keep',
       targetTenths: intent.targetTenths,
-      pacePerWeek: null,
-      forecast: null,
+      paceTenthsPerWeek: null,
+      days: null,
+      likely: null,
     },
   }
 }
 
+type Flow = ReturnType<typeof useWizardFlow>
+
+/** The keep step, with "Raise it anyway" where a climb is still possible (X1). */
+function KeepStep({
+  props,
+  flow,
+  setup,
+  intent,
+}: Readonly<{
+  props: RatingGoalWizardProps
+  flow: Flow
+  setup: RatingGoalSetupView
+  intent: Extract<RatingGoalWizardIntent, { kind: 'keep' }>
+}>) {
+  return (
+    <RatingGoalKeepStep
+      pending={flow.pending}
+      banner={<DialogErrorBanner error={flow.error} />}
+      reason={setup.offersClimb ? keepFirstSentence(intent.targetTenths) : null}
+      onRaise={setup.offersClimb ? flow.raise : undefined}
+      onStart={() => {
+        const { submission, saved } = keepSave(intent, props.propertyId)
+        if (submission !== null) void flow.save(submission, saved)
+      }}
+    />
+  )
+}
+
+/** What the frame holds: the done screen, the read still going, Keep, or the one screen. */
+function WizardBody({
+  props,
+  flow,
+}: Readonly<{ props: RatingGoalWizardProps; flow: Flow }>) {
+  const { intent, setup } = props
+  const small = useIsMobile()
+  if (flow.step === 'done' && flow.receipt !== null) {
+    return (
+      <RatingGoalDone
+        receipt={flow.receipt}
+        propertyId={props.propertyId}
+        hasPortals={props.hasPortals}
+      />
+    )
+  }
+  if (setup.data === undefined) return <SetupPending setup={setup} />
+  if (intent.kind === 'keep' && flow.step === 'keep') {
+    return <KeepStep props={props} flow={flow} setup={setup.data} intent={intent} />
+  }
+  return (
+    <RatingGoalSetupStep
+      setup={setup.data}
+      intent={intent.kind === 'keep' ? CLIMB : intent}
+      propertyId={props.propertyId}
+      draft={flow.draft ?? openingDraft(intent, setup.data)}
+      onDraft={flow.setDraft}
+      pending={flow.pending}
+      banner={<DialogErrorBanner error={flow.error} />}
+      small={small}
+      onSave={flow.save}
+    />
+  )
+}
+
 export function RatingGoalWizard(props: RatingGoalWizardProps) {
-  const { intent, setup, propertyId } = props
+  const { intent, setup } = props
   const flow = useWizardFlow(props)
-  const banner = <DialogErrorBanner error={flow.error} />
   return (
     <RatingGoalWizardFrame
       open={props.open}
       onOpenChange={props.onOpenChange}
       busy={flow.pending}
       title={titleOf(flow.step, intent)}
-      description={descriptionOf(flow.step, intent, setup.data)}
+      description={descriptionOf(
+        flow.step,
+        intent,
+        setup.data,
+        props.propertyName,
+        flow.receipt?.pace === null,
+      )}
       titleRef={flow.titleRef}
       onCloseAutoFocus={props.onCloseAutoFocus}
       inline={props.inline}
     >
-      {flow.step === 'done' && flow.receipt !== null ? (
-        <RatingGoalDone
-          receipt={flow.receipt}
-          propertyId={propertyId}
-          hasPortals={props.hasPortals}
-        />
-      ) : setup.data === undefined ? (
-        <SetupPending setup={setup} />
-      ) : intent.kind === 'keep' ? (
-        <RatingGoalKeepStep
-          pending={flow.pending}
-          banner={banner}
-          onStart={() => {
-            const { submission, saved } = keepSave(intent, propertyId)
-            if (submission !== null) void flow.save(submission, saved)
-          }}
-        />
-      ) : (
-        <RatingGoalPlanStep
-          setup={setup.data}
-          intent={intent}
-          propertyId={propertyId}
-          draft={flow.draft}
-          onDraft={flow.setDraft}
-          pending={flow.pending}
-          banner={banner}
-          onSave={flow.save}
-        />
-      )}
+      <WizardBody props={props} flow={flow} />
     </RatingGoalWizardFrame>
   )
+}
+
+const CLIMB: RatingGoalWizardIntent = { kind: 'climb' }
+
+/** A change opens on the goal's own plan; a new goal as recommended. */
+function openingDraft(
+  intent: RatingGoalWizardIntent,
+  setup: RatingGoalSetupView,
+): SetupDraft {
+  if (intent.kind !== 'change' || setup.setupInputs === null) return {}
+  return draftFromGoal(setup.setupInputs, intent.goal)
 }
 
 /** While the setup reads: the room the step will take, or its failure and "Try again". */

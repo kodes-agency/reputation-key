@@ -1,30 +1,28 @@
 // What the Google rating goal wizard sends when the manager saves, and what its
-// done screen says. What "Pick a plan" offers is in rating-goal-plan-view.test.ts
-// and rating-goal-build-own-view.test.ts.
+// done screen says. What the setup screen offers is in the rating-goal-setup-*
+// tests.
 import { describe, expect, it } from 'vitest'
-import { wizardReceipt, wizardSubmission } from './rating-goal-wizard-view'
 import {
-  CARD,
-  CARD_KEEP,
-  FIXTURE_PROPERTY_ID,
-  SETUP,
-} from './rating-goal.stories.fixtures'
-
-const recommended = SETUP.planning?.plans.find((plan) => plan.key === 'recommended')
+  keepFirstSentence,
+  wizardReceipt,
+  wizardSubmission,
+} from './rating-goal-wizard-view'
+import { CARD, CARD_KEEP, FIXTURE_PROPERTY_ID } from './rating-goal.stories.fixtures'
 
 describe('what is saved', () => {
-  it('sets a goal to climb with its pace, or a goal to keep with none', () => {
-    expect(wizardSubmission({ kind: 'climb' }, FIXTURE_PROPERTY_ID, 44, 11, 47)).toEqual({
-      kind: 'set',
-      data: {
-        propertyId: FIXTURE_PROPERTY_ID,
-        mode: 'climb',
-        targetTenths: 44,
-        qualityTenths: 47,
-        // "Pick a plan" works in whole reviews a week; the goal stores tenths.
-        paceTenthsPerWeek: 110,
+  it('sets a goal to climb with its pace in tenths a week, or a goal to keep with none', () => {
+    expect(wizardSubmission({ kind: 'climb' }, FIXTURE_PROPERTY_ID, 44, 105, 47)).toEqual(
+      {
+        kind: 'set',
+        data: {
+          propertyId: FIXTURE_PROPERTY_ID,
+          mode: 'climb',
+          targetTenths: 44,
+          qualityTenths: 47,
+          paceTenthsPerWeek: 105,
+        },
       },
-    })
+    )
     expect(
       wizardSubmission(
         { kind: 'keep', targetTenths: 49 },
@@ -47,7 +45,7 @@ describe('what is saved', () => {
 
   it('changes only what differs, against the version the wizard opened on', () => {
     expect(
-      wizardSubmission({ kind: 'change', goal: CARD }, FIXTURE_PROPERTY_ID, 45, 14, 47),
+      wizardSubmission({ kind: 'change', goal: CARD }, FIXTURE_PROPERTY_ID, 45, 140, 47),
     ).toEqual({
       kind: 'change',
       data: {
@@ -62,7 +60,7 @@ describe('what is saved', () => {
         { kind: 'change', goal: CARD_KEEP },
         FIXTURE_PROPERTY_ID,
         44,
-        11,
+        70,
         47,
       ),
     ).toEqual({
@@ -74,32 +72,45 @@ describe('what is saved', () => {
         mode: 'climb',
         targetTenths: 44,
         qualityTenths: 47,
-        paceTenthsPerWeek: 110,
+        paceTenthsPerWeek: 70,
       },
     })
   })
 
   it('has nothing to send when a change changes nothing', () => {
     expect(
-      wizardSubmission({ kind: 'change', goal: CARD }, FIXTURE_PROPERTY_ID, 45, 11, 47),
+      wizardSubmission({ kind: 'change', goal: CARD }, FIXTURE_PROPERTY_ID, 45, 110, 47),
     ).toBeNull()
   })
 })
 
 describe('what the done screen says', () => {
-  it('says the target, the pace and the forecast of the plan set', () => {
+  it('says the target, the pace a day and the time the setup showed', () => {
     expect(
       wizardReceipt({
         mode: 'climb',
-        targetTenths: 44,
-        pacePerWeek: 11,
-        forecast: recommended?.forecast ?? null,
+        targetTenths: 41,
+        paceTenthsPerWeek: 70,
+        days: { num: 5670, den: 70 },
+        likely: { fast: { num: 462_000, den: 7700 }, slow: { num: 721_000, den: 6300 } },
       }),
     ).toEqual({
-      headline: '4.4 on Google',
-      pace: 'About 11 new reviews a week',
-      forecast: 'Expected around Nov 2026 – Jan 2027',
+      headline: '4.1 on Google',
+      pace: 'About 1 a day · about 7 a week',
+      forecast: 'In about 3 months, likely 9 weeks to 4 months.',
     })
+  })
+
+  it('says a goal far away the way the setup did', () => {
+    expect(
+      wizardReceipt({
+        mode: 'climb',
+        targetTenths: 47,
+        paceTenthsPerWeek: 30,
+        days: { num: 11_690, den: 3 },
+        likely: { fast: { num: 2121, den: 1 }, slow: null },
+      }).forecast,
+    ).toBe('More than 3 years away, likely more than 3 years.')
   })
 
   it('says only what is kept for a goal to keep', () => {
@@ -107,9 +118,26 @@ describe('what the done screen says', () => {
       wizardReceipt({
         mode: 'keep',
         targetTenths: 49,
-        pacePerWeek: null,
-        forecast: null,
+        paceTenthsPerWeek: null,
+        days: null,
+        likely: null,
       }),
     ).toEqual({ headline: 'Keeping 4.9 on Google', pace: null, forecast: null })
+  })
+})
+
+describe('Keep first at 4.7 and 4.8 (X1)', () => {
+  it('says why keeping is suggested, where a climb is still possible', () => {
+    expect(keepFirstSentence(47)).toBe(
+      '4.8 needs new reviews averaging 4.9★ or more, so we suggest keeping 4.7.',
+    )
+    expect(keepFirstSentence(48)).toBe(
+      '4.9 needs every new review to be 5★, so we suggest keeping 4.8.',
+    )
+  })
+
+  it('says nothing where there is no higher number', () => {
+    expect(keepFirstSentence(49)).toBeNull()
+    expect(keepFirstSentence(50)).toBeNull()
   })
 })

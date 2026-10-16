@@ -58,15 +58,31 @@ export function RatingGoalDone({
 export function RatingGoalKeepStep({
   pending,
   banner,
+  reason,
+  onRaise,
   onStart,
 }: Readonly<{
   pending: boolean
   /** The save's refusal, directly above the actions. */
   banner: ReactNode
+  /** At a shown 4.7 or 4.8, why keeping is suggested (X1); none where nothing is higher. */
+  reason: string | null
+  /** "Raise it anyway": the climb, with an average the manager types. */
+  onRaise?: () => void
   onStart: () => void
 }>) {
   return (
     <>
+      {reason === null ? null : (
+        <p className="text-sm text-muted-foreground">
+          {reason}{' '}
+          {onRaise === undefined ? null : (
+            <Button type="button" variant="link" size="inline" onClick={onRaise}>
+              Raise it anyway
+            </Button>
+          )}
+        </p>
+      )}
       {banner}
       <DialogFooter className="mt-auto">
         <RatingGoalCancel />

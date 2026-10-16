@@ -80,7 +80,7 @@ describe('RatingGoalCard', () => {
     const text = textOf(render(CARD_JUST_SET))
 
     expect(text).toContain('Getting started')
-    expect(text).toContain('Aim for about 11 new reviews a week')
+    expect(text).toContain('Aim for about 1.6 new reviews a day')
     expect(text).not.toContain('This week:')
   })
 

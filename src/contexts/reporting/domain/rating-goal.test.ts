@@ -25,8 +25,10 @@ describe('the target a rating goal may hold', () => {
     expect(targetProblem('keep', 9, 49)).toBe('invalid_target')
   })
 
-  it('keeps nothing while Google shows less than 4.9 (round 2, R2-9)', () => {
-    expect(targetProblem('keep', 48, 48)).toBe('invalid_target')
+  it('keeps from 4.7, where a higher number needs new reviews of nearly 5★ (X1)', () => {
+    expect(targetProblem('keep', 47, 47)).toBeNull()
+    expect(targetProblem('keep', 48, 48)).toBeNull()
+    expect(targetProblem('keep', 46, 46)).toBe('invalid_target')
     expect(targetProblem('keep', 45, 46)).toBe('invalid_target')
   })
 })

@@ -1,5 +1,5 @@
 // What the detail page lets a manager do with an active Google rating goal:
-// change its plan, which opens "Pick a plan" on it (goal.update), or end it
+// change its plan, which opens the setup on it (goal.update), or end it
 // (goal.cancel). A goal the
 // read found reached or ended has no actions; the Goals page offers the next.
 // Ending is final, so it confirms in the destructive tone; the confirmation
@@ -29,7 +29,7 @@ export function RatingGoalDetailActions({ goal, setup, onChange, onEnd }: Props)
   const { can } = usePermissions()
   if (goal.state !== 'active') return null
   const keep = goal.mode === 'keep'
-  const changeOffered = !keep || (setup?.planning ?? null) !== null
+  const changeOffered = !keep || setup?.offersClimb === true
   return (
     <>
       {can('goal.update') && changeOffered ? (

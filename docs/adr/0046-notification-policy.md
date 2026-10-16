@@ -1209,6 +1209,26 @@ Google shows 4.9 or 5.0. The Reached notice's body follows it: "Set your next
 goal." below 4.9, and "Set your next goal, or keep 4.9." (or 5.0) only there. Its
 title, action, payload, recipients and category are unchanged.
 
+## Amended 2026-10-16 — Below pace reads per day, and Keep is offered from 4.7
+
+A Google rating goal's pace is now stored in tenths of a review a week and read
+per day (ADR 0067, amended 2026-10-16, rounds 3 and 4), so the Below pace notice
+says it the way the plan reads:
+
+1. **Below pace per day.** When the payload carries the goal's pace in tenths a
+   week (`ratingPaceTenthsPerWeek`, an integer 10 to 3500), a plan of one a day
+   or more reads "0.9 new reviews a day over the last 4 weeks; the plan is 2 a
+   day." (since the goal was set, while it is younger; "No new reviews …" at
+   none), and a plan under one a day "1.5 new reviews a week …; the plan is 3 a
+   week." A payload without the field (a fact from before the release) keeps
+   the weekly sentence. The figures are the same two as before, the recent pace
+   of new Google reviews and the goal's pace: no star figure, nothing worked
+   out from review ratings (r.8 unchanged). Feed restates the one-a-day rule,
+   as it reads no Reporting module.
+2. **Keep is offered from 4.7.** The Reached notice offers "Set your next goal,
+   or keep 4.7." from a shown 4.7 (owner, X1), where the next tenth needs new
+   reviews of nearly five stars; it said so from 4.9 before.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

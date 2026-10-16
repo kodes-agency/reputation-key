@@ -1,0 +1,104 @@
+import { describe, expect, it } from 'vitest'
+import {
+  actualPaceText,
+  newReviewsAim,
+  paceChangeText,
+  paceSentence,
+  paceText,
+  perWeekText,
+  planPaceNote,
+  weeklyTarget,
+} from './rating-goal-pace-words'
+
+describe('a pace in words', () => {
+  it.each([
+    [70, '1 a day'],
+    [105, '1.5 a day'],
+    [140, '2 a day'],
+    [355, '5.1 a day'],
+    [3500, '50 a day'],
+  ])('reads %i tenths a week a day: %s', (tenths, words) => {
+    expect(paceText(tenths)).toBe(words)
+  })
+
+  it.each([
+    [30, '3 a week'],
+    [14, '1.4 a week'],
+    [10, '1 a week'],
+    [69, '6.9 a week'],
+  ])('reads a pace under one a day a week: %i is %s', (tenths, words) => {
+    expect(paceText(tenths)).toBe(words)
+  })
+
+  it.each([
+    [70, '30 a month'],
+    [46, '20 a month'],
+    [30, '13 a month'],
+  ])('reads %i tenths a week a month: %s', (tenths, words) => {
+    expect(paceText(tenths, 'month')).toBe(words)
+  })
+})
+
+describe('the weekly count a goal is held to', () => {
+  it.each([
+    [140, 14],
+    [105, 11],
+    [14, 1],
+    [10, 1],
+    [30, 3],
+  ])('is %i tenths a week, half up, at least one: %i', (tenths, weekly) => {
+    expect(weeklyTarget(tenths)).toBe(weekly)
+  })
+
+  it('reads a week with its decimal', () => {
+    expect(perWeekText(105)).toBe('10.5 a week')
+    expect(perWeekText(140)).toBe('14 a week')
+  })
+})
+
+describe('a plan’s pace in one sentence', () => {
+  it('reads a day, then about a week', () => {
+    expect(paceSentence(140)).toBe('2 a day · about 14 a week')
+    expect(paceSentence(105)).toBe('1.5 a day · about 11 a week')
+  })
+
+  it('reads a week, then about a month, under one a day', () => {
+    expect(paceSentence(30)).toBe('3 a week · about 13 a month')
+  })
+
+  it('adds the week and the month as a note under the plan', () => {
+    expect(planPaceNote(140)).toBe('About 14 a week · 60 a month')
+    expect(planPaceNote(30)).toBe('About 13 a month')
+  })
+})
+
+describe('the pace in tracking', () => {
+  it('aims a new goal per day, or per week under one a day', () => {
+    expect(newReviewsAim(140)).toBe('about 2 new reviews a day')
+    expect(newReviewsAim(70)).toBe('about 1 new review a day')
+    expect(newReviewsAim(30)).toBe('about 3 new reviews a week')
+    expect(newReviewsAim(10)).toBe('about 1 new review a week')
+  })
+
+  it('words a change of pace in one unit when both read the same way', () => {
+    expect(paceChangeText('140', '105')).toBe('Pace 2 → 1.5 a day')
+    expect(paceChangeText('140', '210')).toBe('Pace 2 → 3 a day')
+    expect(paceChangeText('30', '14')).toBe('Pace 3 → 1.4 a week')
+  })
+
+  it('names both units when the change crosses one a day', () => {
+    expect(paceChangeText('30', '70')).toBe('Pace 3 a week → 1 a day')
+    expect(paceChangeText(null, '70')).toBe('Pace none → 1 a day')
+  })
+
+  it('words the pace of the last four weeks the way the plan reads', () => {
+    expect(actualPaceText(9.5, 140)).toBe('1.4 a day')
+    expect(actualPaceText(2.25, 30)).toBe('2.3 a week')
+    expect(actualPaceText(0, 140)).toBe('0 a day')
+  })
+
+  it('reads a week when a pace above none rounds to 0 a day', () => {
+    expect(actualPaceText(0.25, 70)).toBe('0.3 a week')
+    expect(actualPaceText(0.3, 140)).toBe('0.3 a week')
+  })
+})

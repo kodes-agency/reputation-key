@@ -1,33 +1,26 @@
 // What the Google rating goal wizard opens for, sends and says when it is done
-// (pure). A goal to climb is one step, "Pick a plan" (round 2, R2-6:
-// `rating-goal-plan-view.ts`); a goal to keep is one step too, offered only when
-// Google shows 4.9 or 5.0 (R2-9). Nothing here is a date: a forecast is a month
-// range.
-import type {
-  RatingForecastView,
-  RatingGoalCardView,
-  RatingStopLabel,
-} from '#/contexts/reporting/application/dto/rating-goal.types'
+// (pure). A goal to climb is one screen, opened already answered (rounds 3 and
+// 4, E2/E4: `rating-goal-setup-*`); a goal to keep is one step too, offered
+// first from a shown 4.7 (X1), the only choice at 4.9 or 5.0. The done screen repeats the
+// time the setup showed (X11): no date, no month name.
+import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
+import type { RatingFraction } from '#/contexts/reporting/application/dto/rating-goal-setup.types'
 import type {
   ChangeRatingGoalSchemaInput,
   SetRatingGoalSchemaInput,
 } from '#/contexts/reporting/application/dto/rating-goal.dto'
-import type { StatusMap } from '#/components/ui/status-badge'
-import { forecastSentence, newReviewsAWeek, tenthsText } from './rating-goal-view'
+import { HIGHEST_TARGET_TENTHS } from '#/contexts/reporting/application/rating-goal-setup-plan'
+import { paceSentence } from './rating-goal-pace-words'
+import { likelyText, whenText } from './rating-goal-setup-time'
+import { tenthsText } from './rating-goal-view'
 
 /**
- * The goal a change starts from, as the card read it: "Pick a plan" prefills
- * from its pace a week, and a change is compared with its stored tenths.
+ * The goal a change starts from, as the card read it: the setup opens on its
+ * plan, and a change is compared with its stored tenths.
  */
 export type RatingGoalBeingChanged = Pick<
   RatingGoalCardView,
-  | 'goalId'
-  | 'version'
-  | 'mode'
-  | 'targetTenths'
-  | 'qualityTenths'
-  | 'pacePerWeek'
-  | 'paceTenthsPerWeek'
+  'goalId' | 'version' | 'mode' | 'targetTenths' | 'qualityTenths' | 'paceTenthsPerWeek'
 >
 
 /** Why the wizard opened: a goal to climb, a goal to keep, or a change. */
@@ -36,16 +29,6 @@ export type RatingGoalWizardIntent =
   | Readonly<{ kind: 'keep'; targetTenths: number }>
   | Readonly<{ kind: 'change'; goal: RatingGoalBeingChanged }>
 
-/** How a target's label reads as a chip, on the target row of "Build your own". */
-export const STOP_LABEL: StatusMap<RatingStopLabel> = {
-  realistic: { label: 'Realistic', tone: 'positive' },
-  stretch: { label: 'Stretch', tone: 'neutral' },
-  out_of_reach: { label: 'Out of reach', tone: 'warn' },
-}
-
-/** Why 5.0 is on the scale and cannot be picked. */
-export const PERFECT_STOP_REASON = 'needs every review from now on to be 5★'
-
 export type WizardSubmission =
   | Readonly<{ kind: 'set'; data: SetRatingGoalSchemaInput }>
   | Readonly<{ kind: 'change'; data: ChangeRatingGoalSchemaInput }>
@@ -53,17 +36,15 @@ export type WizardSubmission =
 /**
  * What saving sends. A new goal is set whole; a change names only what differs
  * from the goal it was opened on, with that goal's version, and is null when
- * nothing does.
+ * nothing does. The pace is in tenths of a review a week.
  */
 export function wizardSubmission(
   intent: RatingGoalWizardIntent,
   propertyId: string,
   targetTenths: number,
-  pacePerWeek: number | null,
+  paceTenthsPerWeek: number | null,
   qualityTenths: number | null,
 ): WizardSubmission | null {
-  // "Pick a plan" works in whole reviews a week; a goal stores tenths.
-  const paceTenthsPerWeek = pacePerWeek === null ? null : pacePerWeek * 10
   if (intent.kind !== 'change') {
     const mode = intent.kind === 'keep' ? 'keep' : 'climb'
     return {
@@ -98,34 +79,52 @@ export function wizardSubmission(
 
 /** What the done screen says was set. */
 export type RatingGoalReceipt = Readonly<{
-  /** "4.4 on Google", or "Keeping 4.9 on Google". */
+  /** "4.1 on Google", or "Keeping 4.9 on Google". */
   headline: string
-  /** "About 11 new reviews a week"; none for a goal to keep. */
+  /** "About 1 a day · about 7 a week"; none for a goal to keep. */
   pace: string | null
-  /** "Expected around Nov 2026 – Jan 2027", or why there is no month. */
+  /** "In about 3 months, likely 9 weeks to 4 months.", as the setup said it (X11). */
   forecast: string | null
 }>
 
-/** What a save set, with the forecast the wizard showed for it. */
+/** What a save set, with the time the setup showed for it. */
 export type SavedGoal = Readonly<{
   mode: 'climb' | 'keep'
   targetTenths: number
-  pacePerWeek: number | null
-  forecast: RatingForecastView | null
+  paceTenthsPerWeek: number | null
+  days: RatingFraction | null
+  likely: Readonly<{ fast: RatingFraction; slow: RatingFraction | null }> | null
 }>
+
+const sentence = (text: string): string =>
+  `${text.charAt(0).toUpperCase()}${text.slice(1)}`
 
 /** The done screen's two or three lines, from what was saved. */
 export function wizardReceipt(saved: SavedGoal): RatingGoalReceipt {
   const target = tenthsText(saved.targetTenths)
-  if (saved.mode === 'keep' || saved.pacePerWeek === null) {
+  if (saved.mode === 'keep' || saved.paceTenthsPerWeek === null) {
     return { headline: `Keeping ${target} on Google`, pace: null, forecast: null }
   }
   return {
     headline: `${target} on Google`,
-    pace: `About ${newReviewsAWeek(saved.pacePerWeek)}`,
+    pace: `About ${paceSentence(saved.paceTenthsPerWeek)}`,
     forecast:
-      saved.forecast === null
+      saved.days === null || saved.likely === null
         ? null
-        : forecastSentence(saved.forecast, saved.targetTenths / 10),
+        : `${sentence(whenText(saved.days))}, likely ${likelyText(saved.likely)}.`,
   }
+}
+
+/**
+ * Why Keep comes first at a shown 4.7 or 4.8 (X1, owner 2026-10-16): the next
+ * tenth needs new reviews of nearly five stars. Null where there is no higher
+ * number at all.
+ */
+export function keepFirstSentence(shownTenths: number): string | null {
+  const next = shownTenths + 1
+  if (next > HIGHEST_TARGET_TENTHS) return null
+  const shown = tenthsText(shownTenths)
+  return next + 1 >= 50
+    ? `${tenthsText(next)} needs every new review to be 5★, so we suggest keeping ${shown}.`
+    : `${tenthsText(next)} needs new reviews averaging ${tenthsText(next + 1)}★ or more, so we suggest keeping ${shown}.`
 }

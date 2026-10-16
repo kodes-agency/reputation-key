@@ -43,11 +43,11 @@ const googleShows = (p: NotificationPayload): string | null =>
     : `Google now shows ${tenths(p.ratingShownTenths)}${forProperty(p)}`
 
 /**
- * Keep is offered only while Google shows 4.9 or 5.0, where no higher tenth can
- * be planned (round 2, R2-9; Reporting's `offerKeepFirst`, restated here as
- * Feed reads no Reporting module).
+ * Keep is offered from a shown 4.7, where a higher tenth needs new reviews of
+ * nearly five stars (X1, 2026-10-16; R2-9 said 4.9; Reporting's
+ * `offerKeepFirst`, restated here as Feed reads no Reporting module).
  */
-const KEEP_OFFERED_FROM_TENTHS = 49
+const KEEP_OFFERED_FROM_TENTHS = 47
 
 export const renderRatingGoalReached = (p: NotificationPayload): RatingGoalNoticeCopy => {
   const shows = googleShows(p)
@@ -107,13 +107,56 @@ const recentPace = (paceTenths: number, p: NotificationPayload): string => {
   return `${perWeek(paceTenths)} new ${noun} a week ${window}`
 }
 
+/**
+ * A plan reads per day from one review a day, per week below it (rounds 3 and
+ * 4, R3-7). Restated from Reporting's `rating-goal-pace-words` (the components'
+ * pace words), as Feed reads no Reporting module: 70 tenths a week is 1 a day.
+ */
+const ONE_A_DAY_TENTHS = 70
+
+/** Tenths a week as a day, one decimal at most, half up: 105 is "1.5". */
+const perDay = (paceTenths: number): string => {
+  const dayTenths = Math.floor((2 * paceTenths + 7) / 14)
+  return dayTenths % 10 === 0 ? String(dayTenths / 10) : (dayTenths / 10).toFixed(1)
+}
+
+/** "0.9 new reviews a day over the last 4 weeks; the plan is 2 a day." */
+function belowPaceInTenths(
+  recentTenths: number,
+  planTenths: number,
+  p: NotificationPayload,
+) {
+  const window =
+    p.ratingPaceWindow === 'since_set'
+      ? 'since the goal was set'
+      : 'over the last 4 weeks'
+  const daily = planTenths >= ONE_A_DAY_TENTHS
+  const plan = daily ? `${perDay(planTenths)} a day` : `${perWeek(planTenths)} a week`
+  if (recentTenths === 0) return `No new reviews ${window}; the plan is ${plan}.`
+  // A review in four weeks is under 0.05 a day: it reads a week, never "0 a day".
+  const inDays = daily && perDay(recentTenths) !== '0'
+  const recent = inDays ? perDay(recentTenths) : perWeek(recentTenths)
+  const noun = recent === '1' ? 'review' : 'reviews'
+  return `${recent} new ${noun} a ${inDays ? 'day' : 'week'} ${window}; the plan is ${plan}.`
+}
+
+/** The Below pace sentence: per day for a plan in tenths a week, else the legacy weekly one. */
+function belowPaceBody(p: NotificationPayload): string {
+  if (p.ratingRecentPaceTenths === undefined) {
+    return 'New reviews are coming in slower than the goal’s pace.'
+  }
+  if (p.ratingPaceTenthsPerWeek !== undefined) {
+    return belowPaceInTenths(p.ratingRecentPaceTenths, p.ratingPaceTenthsPerWeek, p)
+  }
+  return p.ratingPacePerWeek === undefined
+    ? 'New reviews are coming in slower than the goal’s pace.'
+    : `${recentPace(p.ratingRecentPaceTenths, p)}; the goal’s pace is ${p.ratingPacePerWeek} a week.`
+}
+
 export const renderRatingGoalBelowPace = (
   p: NotificationPayload,
 ): RatingGoalNoticeCopy => {
-  const body =
-    p.ratingRecentPaceTenths === undefined || p.ratingPacePerWeek === undefined
-      ? 'New reviews are coming in slower than the goal’s pace.'
-      : `${recentPace(p.ratingRecentPaceTenths, p)}; the goal’s pace is ${p.ratingPacePerWeek} a week.`
+  const body = belowPaceBody(p)
   return {
     title:
       p.propertyName === undefined

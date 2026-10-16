@@ -25,7 +25,7 @@ const SENTENCES: Readonly<Record<string, string>> = {
     'That goal isn’t available any more: Google’s number may have moved. Close this and open it again.',
   invalid_quality:
     'That average is too close to what the goal needs. Pick a higher one, or close this and open it again.',
-  invalid_pace: 'Enter a whole number of reviews a week, from 1 to 200.',
+  invalid_pace: 'Enter a pace from 1 a week to 50 a day.',
   no_change: 'Nothing has changed. Pick another plan, or cancel.',
   organization_closing:
     'This organization is being closed, so its goals can’t be set or changed.',

@@ -49,7 +49,7 @@ const REACHED_LATELY: RatingGoalHistoryEntry = {
   goalId: CARD.goalId,
   targetTenths: 45,
   target: 4.5,
-  pacePerWeek: 11,
+  paceTenthsPerWeek: 110,
   setAt: CARD.setAt,
   reachedAt: '2026-10-12T05:10:00.000Z',
 }
@@ -111,7 +111,7 @@ export const JustSet: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Getting started')).toBeVisible()
-    await expect(canvas.getByText('Aim for about 11 new reviews a week')).toBeVisible()
+    await expect(canvas.getByText('Aim for about 1.6 new reviews a day')).toBeVisible()
     await expect(
       canvas.getByText(wholeText('Expected around Apr 2027 – Apr 2028')),
     ).toBeVisible()
@@ -217,8 +217,8 @@ export const KeepDroppedBelow: Story = {
 type Canvas = ReturnType<typeof within>
 
 /**
- * After a goal is reached: "Set your next goal" opens Pick a plan. Keep is
- * offered only at 4.9 or 5.0 (R2-9), so 4.5 has no "Keep 4.5".
+ * After a goal is reached: "Set your next goal" opens the setup. Keep is
+ * offered from 4.7 (X1), so 4.5 has no "Keep 4.5".
  */
 async function expectNextGoalDoors(canvas: Canvas, onStart: unknown) {
   await userEvent.click(canvas.getByRole('button', { name: 'Set your next goal' }))
@@ -226,7 +226,7 @@ async function expectNextGoalDoors(canvas: Canvas, onStart: unknown) {
   await expect(canvas.queryByRole('button', { name: /^Keep/ })).toBeNull()
 }
 
-/** With no goal: the title, its sentence, and "Set goal", which opens Pick a plan. */
+/** With no goal: the title, its sentence, and "Set goal", which opens the setup. */
 async function expectPlanDoor(
   canvas: Canvas,
   onStart: unknown,
@@ -238,7 +238,7 @@ async function expectPlanDoor(
   await expect(onStart).toHaveBeenCalledWith({ kind: 'climb' })
 }
 
-/** Reached: the day, then the next goal ("Pick a plan"). */
+/** Reached: the day, then the next goal (the setup). */
 export const Reached: Story = {
   args: { card: cardRead(CARD_REACHED) },
   play: async ({ canvasElement, args }) => {
@@ -451,8 +451,7 @@ export const SetYourGoal: Story = {
 
 /**
  * The beta property (3.9 from 261, recent reviews under what 4.0 needs) is
- * offered a plan to raise it, never "keep it" (round 2): Keep is first only when
- * Google shows 4.9 or 5.0.
+ * offered a goal to raise it, never "keep it": Keep is first only from 4.7.
  */
 export const LowRatingPicksAPlan: Story = {
   args: { card: cardRead(null), setup: read(SETUP_BETA) },
@@ -462,7 +461,7 @@ export const LowRatingPicksAPlan: Story = {
     await expectPlanDoor(
       canvas,
       args.onStart,
-      'Google shows 3.9 from 261 reviews. Pick a plan to raise it: the number to reach, how good new reviews will be and a weekly pace.',
+      'Google shows 3.9 from 261 reviews. We suggest a number Google can show and how many new reviews a day get you there.',
     )
   },
 }
@@ -604,7 +603,7 @@ export const History: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Reach 4.3 on Google')).toBeVisible()
-    await expect(canvas.getByText('9 a week · set Mar 2 · reached Jul 28')).toBeVisible()
+    await expect(canvas.getByText('1.3 a day · set Mar 2 · reached Jul 28')).toBeVisible()
     await expect(canvas.getByText('Keep 4.2 on Google')).toBeVisible()
     await expect(
       canvas.getByText('set Nov 10, 2025 · ended Feb 20 · Google location changed'),

@@ -2,7 +2,8 @@
 //
 // Builders from the domain values to the DTO types in dto/rating-goal.types.ts.
 // No I/O: the use cases read, evaluate and pass the results here. The setup
-// view's plans are built by rating-goal-planning.ts, which the page shares.
+// view carries the exact inputs the page works its plan out from
+// (rating-goal-setup-plan.ts); no planning maths runs here (PLAN-R4 D18).
 //
 // A goal's own numbers (its forecast, what it still needs, the next tenth)
 // assume the quality the goal now expects of new reviews: its planned quality
@@ -20,14 +21,10 @@ import {
   type RecentMix,
   type ReviewsNeeded,
 } from '../domain/rating-goal-numbers'
+import { earnedTenths } from '../domain/rating-goal-duration'
 import { forecastArrival, type RatingForecast } from '../domain/rating-goal-forecast'
 import { googleNumbersView } from '../domain/google-numbers'
-import {
-  currentPacePerWeek,
-  paceRatio,
-  paceSuggestions,
-} from '../domain/rating-goal-pace'
-import { offerKeepFirst } from '../domain/rating-goal-plans'
+import { currentPacePerWeek, paceRatio } from '../domain/rating-goal-pace'
 import { bestYear, nearestTenth, type YearTotals } from '../domain/rating-goal-quality'
 import {
   bestMonth,
@@ -43,7 +40,11 @@ import {
   trackingMix,
   type QualityBasis,
 } from '../domain/rating-goal-status'
-import { perfectStop, type RatingGoalBasis } from '../domain/rating-goal-stops'
+import {
+  HIGHEST_TARGET_TENTHS,
+  offerKeepFirst,
+  type RatingGoalBasis,
+} from '../domain/rating-goal-stops'
 import type {
   PropertyRatingGoal,
   RatingGoalChange,
@@ -53,14 +54,12 @@ import type {
   GoogleNumbersView,
   RatingGoalCardView,
   RatingGoalChangeView,
-  RatingGoalForecastInputs,
   RatingGoalHistoryEntry,
   RatingGoalPlanProgressView,
   RatingGoalSetupView,
   RecentMixView,
 } from './dto/rating-goal.types'
 import type { RatingGoalSetupInputs } from './dto/rating-goal-setup.types'
-import { paceViewOf, ratingGoalPlanning, ratingGoalStops } from './rating-goal-planning'
 import {
   ratingBasis,
   setupEligibility,
@@ -77,16 +76,6 @@ const round = (value: number, decimals: number): number => {
 }
 
 export const tenthsToRating = (tenths: number): number => tenths / 10
-
-/** A pace in tenths a week as a decimal a week, for "Pick a plan" (PR B removes it). */
-const perWeekOf = (paceTenthsPerWeek: number | null): number | null =>
-  paceTenthsPerWeek === null ? null : paceTenthsPerWeek / 10
-
-/** The pace fields every goal view carries: tenths a week, and a decimal a week. */
-const paceFields = (goal: PropertyRatingGoal) => ({
-  paceTenthsPerWeek: goal.paceTenthsPerWeek,
-  pacePerWeek: perWeekOf(goal.paceTenthsPerWeek),
-})
 
 const neededView = (needed: ReviewsNeeded): number | null =>
   needed === 'unreachable' ? null : needed
@@ -135,43 +124,6 @@ export function forecastFor(
 }
 
 const ratioView = (value: Ratio) => ({ num: Number(value.num), den: Number(value.den) })
-
-function forecastInputs(
-  basis: RatingGoalBasis,
-  reading: RatingGoalReading,
-  years: readonly YearTotals[],
-): RatingGoalForecastInputs {
-  const best = bestYear(years)
-  return {
-    reviewCount: basis.reviewCount,
-    displayedTenths: basis.displayedTenths,
-    exact: ratioView(basis.exact),
-    mix: ratioView(basis.mix),
-    bestYear:
-      best === null
-        ? null
-        : {
-            year: best.year,
-            average: ratioView(best.average),
-            reviewCount: best.reviewCount,
-          },
-    reviewsLast28Days: reading.reviewsLast28Days,
-    timezone: reading.facts.timezone,
-    asOf: reading.now.toISOString(),
-  }
-}
-
-/** The plans and stops of the setup view, worked out from its exact inputs. */
-function planningOf(
-  inputs: RatingGoalForecastInputs | null,
-): Pick<RatingGoalSetupView, 'stops' | 'preselectedTenths' | 'planning'> {
-  const planning = inputs === null ? null : ratingGoalPlanning(inputs)
-  return {
-    stops: inputs === null ? [] : ratingGoalStops(inputs),
-    preselectedTenths: planning?.recommendedTargetTenths ?? null,
-    planning,
-  }
-}
 
 /** The setup's evidence, read from the review cache beside the reading. */
 type SetupEvidence = Readonly<{
@@ -223,40 +175,39 @@ function setupInputsOf(
 }
 
 /**
- * Everything the setup shows: "Pick a plan" worked out from one reading and
- * the yearly totals, and the one-screen setup's inputs beside it.
+ * Everything the setup shows: whether a goal may be set, Google's numbers, and
+ * the exact inputs the one-screen setup works its plan out from. `offersClimb`
+ * says whether a climb can be planned, with no planning maths.
  */
 export function buildSetupView(
   reading: RatingGoalReading,
   hasActiveGoal: boolean,
   evidence: SetupEvidence,
 ): RatingGoalSetupView {
-  const { years } = evidence
-  const paces = paceSuggestions(reading.reviewsLast28Days)
+  const eligibility = setupEligibility(reading)
+  const setupInputs = setupInputsOf(reading, evidence)
   const basis = ratingBasis(reading)
-  const inputs = basis ? forecastInputs(basis, reading, years) : null
   return {
-    eligibility: setupEligibility(reading),
+    eligibility,
     hasActiveGoal,
     google: googleView(reading),
     ...exactView(reading),
-    recentMix: mixView(reading.mix),
-    currentPacePerWeek: round(
-      ratioToNumber(currentPacePerWeek(reading.reviewsLast28Days)),
-      2,
-    ),
-    paces: {
-      steady: paceViewOf(paces.steady),
-      faster: paceViewOf(paces.faster),
-      push: paceViewOf(paces.push),
-    },
-    ...planningOf(inputs),
-    perfectStop: basis ? perfectStop(basis.displayedTenths) : null,
-    offerKeepFirst: basis ? offerKeepFirst(basis.displayedTenths) : false,
-    forecastInputs: inputs,
-    setupInputs: setupInputsOf(reading, evidence),
+    offerKeepFirst: basis !== null && offerKeepFirst(basis.displayedTenths),
+    setupInputs,
+    offersClimb: eligibility.eligible && setupInputs !== null && climbable(setupInputs),
   }
 }
+
+/**
+ * A climb is left while the reviews have earned less than 4.9; above it Google
+ * catches up with a tenth already earned (D28). One exact comparison, no plan.
+ */
+const climbable = (inputs: RatingGoalSetupInputs): boolean =>
+  earnedTenths({
+    reviewCount: inputs.reviewCount,
+    displayedTenths: inputs.displayedTenths,
+    exact: ratio(inputs.exact.num, inputs.exact.den),
+  }) < HIGHEST_TARGET_TENTHS
 
 export type GoalBasis = Readonly<{ basis: RatingGoalBasis; qualityBasis: QualityBasis }>
 
@@ -315,7 +266,7 @@ export function buildCardView(
     target: tenthsToRating(goal.targetTenths),
     qualityTenths: goal.qualityTenths,
     quality: goal.qualityTenths === null ? null : tenthsToRating(goal.qualityTenths),
-    ...paceFields(goal),
+    paceTenthsPerWeek: goal.paceTenthsPerWeek,
     status,
     google: googleView(reading),
     ...exactView(reading),
@@ -341,16 +292,13 @@ export function buildCardView(
   }
 }
 
-/** A logged pace (tenths a week) as a decimal a week, as "Pick a plan" words it. */
-const loggedValue = (field: RatingGoalChange['field'], value: string | null) =>
-  field === 'pace' && value !== null ? String(Number(value) / 10) : value
-
+/** One change as logged: a pace in tenths of a review a week, a target or average in tenths. */
 export const changeView = (change: RatingGoalChange): RatingGoalChangeView => ({
   changedBy: change.changedBy,
   changedAt: change.changedAt.toISOString(),
   field: change.field,
-  oldValue: loggedValue(change.field, change.oldValue),
-  newValue: loggedValue(change.field, change.newValue),
+  oldValue: change.oldValue,
+  newValue: change.newValue,
 })
 
 /** Still needed and its best case at the goal's target, or nothing for keep. */
@@ -419,7 +367,6 @@ export function planProgressView(
     sinceSet: sinceSetView(reading.sinceSet ?? NO_REVIEWS, numbers.qualityBasis),
     qualityBasis: numbers.qualityBasis,
     paceTenthsPerWeek: goal.paceTenthsPerWeek,
-    pacePerWeek: goal.paceTenthsPerWeek / 10,
     lastFourWeeksPerWeek: round(ratioToNumber(actualPace), 2),
     forecast: forecastFor(numbers.basis, reading, goal.targetTenths, actualPace),
   }
@@ -431,7 +378,7 @@ export const historyEntry = (goal: PropertyRatingGoal): RatingGoalHistoryEntry =
   targetTenths: goal.targetTenths,
   target: tenthsToRating(goal.targetTenths),
   qualityTenths: goal.qualityTenths,
-  ...paceFields(goal),
+  paceTenthsPerWeek: goal.paceTenthsPerWeek,
   state: goal.state === 'reached' ? 'reached' : 'ended',
   endedReason: goal.endedReason,
   setAt: goal.createdAt.toISOString(),
