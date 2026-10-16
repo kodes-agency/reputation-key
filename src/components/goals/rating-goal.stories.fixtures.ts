@@ -97,7 +97,7 @@ export const CARD: RatingGoalCardView = {
   justSet: false,
   forecast: range('2027-07', '2027-09'),
   forecastBasis: 'actual_pace',
-  qualityBasis: 'since_set',
+  qualityBasis: 'blended',
   setAt: '2026-08-03T09:00:00.000Z',
 }
 
@@ -195,7 +195,9 @@ export const DETAIL: RatingGoalDetailView = {
     googleShowsTenths: 43,
     qualityTenths: 47,
     sinceSet: { reviewCount: 107, average: 4.607, averageTenths: 46 },
-    qualityBasis: 'since_set',
+    qualityBasis: 'blended',
+    // 493 stars from 107 reviews beside the plan's 4.7★ counted as 15: 563.5 / 122.
+    assumedAverage: 4.619,
     paceTenthsPerWeek: 110,
     lastFourWeeksPerWeek: 9.5,
     forecast: range('2027-07', '2027-09'),

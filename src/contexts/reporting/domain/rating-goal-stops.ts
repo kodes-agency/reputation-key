@@ -35,8 +35,9 @@ export type RatingGoalNumbers = Readonly<{
 
 /**
  * The numbers a goal is worked out from, with the stars new reviews are
- * expected to average: a goal's planned quality until ten reviews arrived
- * since it was set, then their average (rating-goal-status.ts trackingMix).
+ * expected to average: a goal's planned quality blended with the reviews
+ * since it was set, or their own average while they are too low
+ * (rating-goal-status.ts trackingMix).
  */
 export type RatingGoalBasis = RatingGoalNumbers & Readonly<{ mix: Ratio }>
 

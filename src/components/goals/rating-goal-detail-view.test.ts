@@ -42,9 +42,17 @@ describe('the forecasts', () => {
     expect(detailForecasts({ ...DETAIL, status: 'reviews_too_low' })).toEqual([])
   })
 
-  it('names the average the numbers assume: the plan’s until ten reviews, then theirs', () => {
-    expect(assumedAverageWords(DETAIL_BEFORE_TEN)).toBe('at your plan’s 4.5★')
-    expect(assumedAverageWords(DETAIL)).toBe('at the new reviews’ average')
+  it('names the average the numbers assume: the plan’s, mixed with new reviews, or theirs', () => {
+    expect(assumedAverageWords({ ...DETAIL_BEFORE_TEN, qualityBasis: 'planned' })).toBe(
+      'at your plan’s 4.5★',
+    )
+    expect(assumedAverageWords(DETAIL_BEFORE_TEN)).toBe(
+      'at your plan’s 4.5★ mixed with new reviews so far',
+    )
+    expect(assumedAverageWords(DETAIL)).toBe(
+      'at your plan’s 4.7★ mixed with new reviews so far',
+    )
+    expect(assumedAverageWords(DETAIL_TOO_LOW)).toBe('at the new reviews’ average')
     expect(assumedAverageWords({ qualityBasis: null, quality: null })).toBe(
       'at the recent star mix',
     )
@@ -99,6 +107,7 @@ describe('the progress', () => {
     expect(
       nextTenthLine({
         ...DETAIL,
+        qualityBasis: 'since_set',
         nextTenth: { targetTenths: 44, target: 4.4, reviewsNeeded: null },
       }),
     ).toBe('Next: Google shows 4.4 — not reachable at the new reviews’ average')
@@ -120,7 +129,13 @@ describe('the tiles', () => {
   })
 
   it('says a target the new reviews’ average does not reach is not reachable', () => {
-    expect(detailTiles({ ...DETAIL, stillNeeded: null })[2]).toEqual({
+    // Only new reviews too low for the target leave it out of reach: before the
+    // tenth review the numbers never assume less than the target's minimum
+    // quality (or a plan below it), and from it a blend with reviews that clear
+    // the threshold clears it too (trackingMix).
+    expect(
+      detailTiles({ ...DETAIL, qualityBasis: 'since_set', stillNeeded: null })[2],
+    ).toEqual({
       label: 'Still needed',
       value: 'Not reachable',
       detail: 'at the new reviews’ average',
@@ -168,7 +183,7 @@ describe('your plan', () => {
       {
         term: 'New reviews average',
         value: '4.61★ · plan 4.7★',
-        note: '107 reviews since the goal was set',
+        note: '107 reviews since the goal was set · forecasts use 4.62★, your plan mixed with them',
       },
       {
         term: 'Pace, last 4 weeks',
@@ -178,18 +193,26 @@ describe('your plan', () => {
     ])
   })
 
-  it('gives no average before ten reviews arrived since the goal was set', () => {
+  it('gives no average before ten reviews, but says the forecasts already mix them in', () => {
     expect(yourPlanLines(DETAIL_BEFORE_TEN.plan!)[1]).toEqual({
       term: 'New reviews average',
       value: 'after 10 reviews · plan 4.5★',
-      note: '4 reviews since the goal was set',
+      note: '4 reviews since the goal was set · forecasts use 4.55★, your plan mixed with them',
     })
     expect(
       yourPlanLines({
         ...DETAIL_BEFORE_TEN.plan!,
         sinceSet: { reviewCount: 0, average: null, averageTenths: null },
+        qualityBasis: 'planned',
+        assumedAverage: 4.5,
       })[1]?.note,
     ).toBe('No new reviews since the goal was set')
+  })
+
+  it('says the numbers use the new reviews’ own average while they are too low', () => {
+    expect(yourPlanLines(DETAIL_TOO_LOW.plan!)[1]?.note).toBe(
+      '12 reviews since the goal was set · the numbers use their average',
+    )
   })
 
   it('shows an average at or below the threshold as it is, never rounded onto the target', () => {

@@ -17,8 +17,12 @@
 // There is no deadline and no "missed".
 //
 // Until ten reviews arrived since the goal was set there is no verdict on
-// their stars, and the goal's numbers assume its planned quality; from the
-// tenth on they assume the average of those reviews (trackingMix).
+// their stars. The goal's numbers assume its planned quality blended with the
+// reviews since the set from the first one, the plan counted as 15 reviews
+// (round 4, X3). Before the tenth they never assume less than the least a plan
+// for the target may assume (minimumQualityTenths, or the plan if it is lower):
+// below it a blend could read "not reachable", a verdict R2-5 holds to ten.
+// While those reviews are too low, their own average (trackingMix).
 
 import {
   compareRatios,
@@ -31,6 +35,7 @@ import {
   type RatingTotals,
   type ReviewsNeeded,
 } from './rating-goal-numbers'
+import { minimumQualityTenths } from './rating-goal-quality'
 import type { RatingGoalBasis } from './rating-goal-stops'
 import type { RatingGoalStatus } from './rating-goal'
 
@@ -42,8 +47,13 @@ const GETTING_STARTED_DAYS = 14
 const FULL_PACE_WINDOW_DAYS = 28
 /** On pace at this share of the chosen pace or more. */
 const ON_PACE_PERCENT = 90
-/** New reviews are judged, and plan with their own average, from this many since the set. */
-const QUALITY_VERDICT_MIN_REVIEWS = 10
+/** New reviews are judged on their own average from this many since the set (R2-5). */
+export const QUALITY_VERDICT_MIN_REVIEWS = 10
+/**
+ * The planned average counts like this many reviews in the average a goal's
+ * numbers assume, so new reviews take over step by step (R4-2, owner X3).
+ */
+export const PLANNED_AVERAGE_WEIGHT_REVIEWS = 15
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
@@ -97,26 +107,70 @@ function isOnPace(
   )
 }
 
-/** `planned` until ten reviews arrived since the goal was set, then `since_set`. */
-export type QualityBasis = 'planned' | 'since_set'
+/**
+ * Which average a goal's numbers assume: `planned` while no review arrived
+ * since the set, or before the tenth while the blend is held at a floor that is
+ * the plan itself (a plan at the target's minimum quality); `blended` from the
+ * first review otherwise (the plan counted as PLANNED_AVERAGE_WEIGHT_REVIEWS
+ * reviews beside them, held at the target's minimum quality before the tenth);
+ * and `since_set` while they are too low for the target, so the numbers say
+ * what the status says.
+ */
+export type QualityBasis = 'planned' | 'blended' | 'since_set'
 
 export type TrackingMix = Readonly<{ mix: Ratio; basis: QualityBasis }>
 
-/** The stars new reviews are expected to average: the plan's, then their own from the tenth on. */
+/**
+ * The stars new reviews are expected to average (round 4, X3): the plan's
+ * tenths q blended with the n reviews since the set and their star sum s,
+ * (W × q / 10 + s) / (W + n), exact. Too low for the target, their own
+ * average (s / n) instead: the verdict judges them unblended (`reviewsTooLow`).
+ * Before the tenth review the blend is held at min(q, minimumQualityTenths(T)):
+ * lower, it could read "not reachable" under a chip that is not too low (R2-5).
+ * From the tenth on no floor is needed: a blend of the plan with reviews that
+ * clear the threshold clears it too.
+ */
 export function trackingMix(
   plannedQualityTenths: number,
   sinceSet: RatingTotals,
+  targetTenths: number,
 ): TrackingMix {
-  return sinceSet.count >= QUALITY_VERDICT_MIN_REVIEWS
-    ? { mix: ratio(sinceSet.sum, sinceSet.count), basis: 'since_set' }
-    : { mix: ratio(plannedQualityTenths, 10), basis: 'planned' }
+  if (reviewsTooLow(sinceSet, targetTenths)) {
+    return { mix: ratio(sinceSet.sum, sinceSet.count), basis: 'since_set' }
+  }
+  if (sinceSet.count === 0) {
+    return { mix: ratio(plannedQualityTenths, 10), basis: 'planned' }
+  }
+  const blend = blendedMix(plannedQualityTenths, sinceSet)
+  if (sinceSet.count >= QUALITY_VERDICT_MIN_REVIEWS)
+    return { mix: blend, basis: 'blended' }
+  const floorTenths = Math.min(plannedQualityTenths, minimumQualityTenths(targetTenths))
+  if (compareRatios(blend, ratio(floorTenths, 10)) >= 0) {
+    return { mix: blend, basis: 'blended' }
+  }
+  const basis = floorTenths === plannedQualityTenths ? 'planned' : 'blended'
+  return { mix: ratio(floorTenths, 10), basis }
+}
+
+/** (W × q / 10 + s) / (W + n), exact. */
+function blendedMix(plannedQualityTenths: number, sinceSet: RatingTotals): Ratio {
+  const weight = PLANNED_AVERAGE_WEIGHT_REVIEWS
+  return ratio(
+    weight * plannedQualityTenths + 10 * sinceSet.sum,
+    10 * (weight + sinceSet.count),
+  )
+}
+
+/** Above the target's threshold: the average that makes Google show it. */
+function clearsThreshold(average: Ratio, targetTenths: number): boolean {
+  const threshold = fromThousandths(thresholdThousandths(targetTenths))
+  return compareRatios(average, threshold) > 0
 }
 
 /** Ten or more reviews since the set average at or below the target's threshold. */
 export function reviewsTooLow(sinceSet: RatingTotals, targetTenths: number): boolean {
   if (sinceSet.count < QUALITY_VERDICT_MIN_REVIEWS) return false
-  const threshold = fromThousandths(thresholdThousandths(targetTenths))
-  return compareRatios(ratio(sinceSet.sum, sinceSet.count), threshold) <= 0
+  return !clearsThreshold(ratio(sinceSet.sum, sinceSet.count), targetTenths)
 }
 
 export type ClimbStatusInput = Readonly<{

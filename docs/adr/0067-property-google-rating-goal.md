@@ -365,7 +365,7 @@ exact inputs (`workOutRatingGoal`); the server runs no planning maths for it.
    that is not today's automatic one, worded as "your plan's average". R2-5's
    switch is unchanged: from the tenth review since the goal was set, their own
    average replaces the planned one (the blend R4-2 proposes is a separate
-   change).
+   change; it replaced this switch the same day, see the next amendment).
 3. **The recommended goal** (R4-4) is the highest one reached within six months
    even if new reviews average 0.1★ below plan, at least the next tenth; the
    status line names the next one up ("4.2 possible in about 6 months"). − and
@@ -391,6 +391,58 @@ exact inputs (`workOutRatingGoal`); the server runs no planning maths for it.
 7. **Tracking words.** A plan reads per day ("2 a day", per week under one a
    day); progress is still counted per week ("This week: 9 of 14 reviews") and
    judged on the last four weeks as before.
+
+## Amended 2026-10-16 — new reviews take over step by step
+
+The owner approved R4-2's blend (X3, R4-5) as its own change after the setup.
+R2-5's hard switch made a goal's numbers jump on the day its tenth review
+since the set arrived (the plan's 4.5★ replaced at once by ten reviews' noisy
+average, ±0.3★ in the simulations); a blend moves them a little with every
+review. It amends decision 4 of the 2026-10-15 amendment for the numbers only:
+
+1. **The numbers blend from the first new review.** A climb goal's forecast,
+   "Still needed" and next tenth assume (W × q + s) / (W + n), where q is the
+   planned average, n the reviews since the goal was set, s their stars and
+   W = 15 (`PLANNED_AVERAGE_WEIGHT_REVIEWS`): the plan counts like fifteen
+   reviews, so after fifteen new ones both weigh the same. Exact rationals, as
+   every count. With no new review it is the plan's average.
+2. **The verdict does not blend.** "New reviews too low" still waits for ten
+   reviews and judges their own average against the target's threshold; its
+   notice is unchanged (R2-5, R2-10).
+3. **Too low, the numbers judge as the status does.** While a goal is too low
+   its numbers use the since-set average itself, not the blend, so "Still
+   needed" reads "Not reachable" beside the chip. A blend with a plan above the
+   threshold would still reach the target and contradict it.
+4. **Before the tenth review, no verdict in the numbers either.** A few low
+   early reviews could pull a plain blend to the target's threshold or below,
+   so the numbers would read "Not reachable" under a Getting started or On pace
+   chip: a verdict on quality R2-5 holds to ten reviews (Olive Tree, plan 4.6★
+   for 4.4: two 1★ reviews blend to 4.18★, under the 4.35★ threshold). Before
+   the tenth review the blend is held at `minimumQualityTenths` for the target,
+   the least a plan may assume (a plan at that floor then reads as the plan
+   alone). From the tenth no floor is needed: a blend of the plan with reviews
+   that clear the threshold clears it too. A stored plan is never under the
+   floor, so a goal that is not too low never reads "Not reachable".
+5. **The words say so.** "Your plan" notes "forecasts use 4.55★, your plan
+   mixed with them" (or "the numbers use their average" while too low, since a
+   too-low goal shows no forecast, only "Still needed" and the next tenth) and
+   still shows the new reviews' own average only from the tenth; the setup's
+   planned average says "Your real average takes over step by step as reviews
+   arrive." and its explanation "we count 4.5 stars as if 15 reviews gave it,
+   so after 15 new ones both weigh the same. If 10 or more new reviews average
+   too low for your goal, their own average counts alone."
+6. **Notice volume cannot change.** The evaluation and its notices never read
+   the forecast average: neither imports `trackingMix`, which the check over 24
+   representative goals for 26 weeks
+   (`application/rating-goal-blend-volume.test.ts`) asserts. The check pins the
+   Below pace, too-low and reached notice counts and shows identical streams at
+   another planned quality; it is an independence result, not a before/after
+   run of R2-5's switch. On screen the assumed average moves at most 0.06★ when
+   the tenth review arrives where the switch moved 0.30★, and the check counts
+   chip and numbers disagreeing both ways (none as built).
+
+No data change: `qualityBasis` in the read DTOs gains `blended`, and
+`since_set` now means "too low"; "Your plan" adds `assumedAverage`.
 
 ## Rejected alternatives
 

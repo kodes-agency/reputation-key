@@ -74,7 +74,7 @@ export const ChangeKeepsThePlansAverage: Story = {
     await expect(dialog.getByText('your plan’s average')).toBeVisible()
     await expect(
       dialog.getByText(
-        'Kept from your plan. We switch to your real average as reviews arrive.',
+        'Kept from your plan. Your real average takes over step by step as reviews arrive.',
       ),
     ).toBeVisible()
     dialog.getByRole('button', { name: 'Back to automatic' }).focus()

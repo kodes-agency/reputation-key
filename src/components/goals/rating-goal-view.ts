@@ -155,16 +155,18 @@ export function dateParts(text: string): readonly TextPart[] {
 }
 
 /**
- * The average a goal's numbers assume: the plan's until ten reviews arrived
- * since it was set, then theirs (round 2, R2-5).
+ * The average a goal's numbers assume: the plan's until a review arrived since
+ * it was set, then the plan's mixed with them step by step, and theirs alone
+ * while they are too low for the target (round 4, X3).
  */
 export function assumedAverageWords(
   goal: Pick<RatingGoalCardView, 'qualityBasis' | 'quality'>,
 ): string {
   if (goal.qualityBasis === 'since_set') return 'at the new reviews’ average'
-  if (goal.qualityBasis === 'planned' && goal.quality !== null) {
-    return `at your plan’s ${ratingText(goal.quality)}★`
-  }
+  if (goal.quality === null) return 'at the recent star mix'
+  const plan = `at your plan’s ${ratingText(goal.quality)}★`
+  if (goal.qualityBasis === 'planned') return plan
+  if (goal.qualityBasis === 'blended') return `${plan} mixed with new reviews so far`
   return 'at the recent star mix'
 }
 

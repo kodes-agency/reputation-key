@@ -47,7 +47,8 @@ export function aboutHowLong(reviews: number, perWeek: number): string {
  * Both forecasts the detail shows: at the chosen pace and at the actual one.
  * None while new reviews are too low for the target: the page says that once,
  * with what helps, rather than once per pace. A forecast no pace reaches names
- * the average it was worked out at (the plan's, then the new reviews').
+ * the average it was worked out at (the plan's, the plan mixed with new
+ * reviews, or theirs while too low).
  */
 export function detailForecasts(
   detail: RatingGoalDetailView,
@@ -204,27 +205,44 @@ export type PlanLine = Readonly<{ term: string; value: string; note: string | nu
 const starsSoFar = (average: number): string =>
   `${formatNumber(average, { maximumFractionDigits: 2 })}★`
 
+/**
+ * What the goal's numbers assume, after the count: the plan mixed with the new
+ * reviews, or their own average while they are too low (round 4, X3). A
+ * too-low goal shows no forecast, only Still needed and the next tenth, so
+ * its note says "the numbers".
+ */
+function sinceSetNote(plan: RatingGoalPlanProgressView): string {
+  const { reviewCount } = plan.sinceSet
+  if (reviewCount === 0) return 'No new reviews since the goal was set'
+  const since = `${reviewsText(reviewCount)} since the goal was set`
+  switch (plan.qualityBasis) {
+    case 'since_set':
+      return `${since} · the numbers use their average`
+    case 'blended':
+      return `${since} · forecasts use ${starsSoFar(plan.assumedAverage)}, your plan mixed with them`
+    case 'planned':
+      return since
+  }
+}
+
 function newReviewsLine(plan: RatingGoalPlanProgressView): PlanLine {
   const planned = `plan ${tenthsText(plan.qualityTenths)}★`
-  const { reviewCount, average } = plan.sinceSet
-  const since =
-    reviewCount === 0
-      ? 'No new reviews since the goal was set'
-      : `${reviewsText(reviewCount)} since the goal was set`
+  const { average } = plan.sinceSet
   return {
     term: 'New reviews average',
     value:
       average === null
         ? `after 10 reviews · ${planned}`
         : `${starsSoFar(average)} · ${planned}`,
-    note: since,
+    note: sinceSetNote(plan),
   }
 }
 
 /**
  * "Your plan" (R2-11): the goal against what Google shows now, the planned
  * average against the reviews since the goal was set ("after 10 reviews" until
- * there are ten), and the chosen pace against the last four weeks.
+ * there are ten, as the verdict waits) with the average the forecasts use, and
+ * the chosen pace against the last four weeks.
  */
 export function yourPlanLines(plan: RatingGoalPlanProgressView): readonly PlanLine[] {
   const goal = `goal ${tenthsText(plan.targetTenths)}`

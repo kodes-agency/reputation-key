@@ -139,7 +139,8 @@ export async function getRatingGoalDetail(
       RATING_GOAL_CHANGE_LOG_LIMIT,
     ),
   ])
-  // At the quality the goal now expects of new reviews (planned, then theirs).
+  // At the quality the goal now expects of new reviews: the plan's, the plan
+  // mixed with new reviews, or theirs while too low (trackingMix).
   const basis = goalBasis(goal, reading)?.basis ?? null
   const actualPace = currentPacePerWeek(reading.reviewsLast28Days)
   const climbing = basis !== null && goal.paceTenthsPerWeek !== null

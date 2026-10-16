@@ -58,6 +58,8 @@ export {
   ownPaceTenths,
   perMonthOf,
 } from '../domain/rating-goal-pace-chips'
+/** The planned average counts like this many reviews as real ones arrive (X3). */
+export { PLANNED_AVERAGE_WEIGHT_REVIEWS } from '../domain/rating-goal-status'
 export { ownAverageTenths } from '../domain/rating-goal-average'
 export {
   HIGHEST_TARGET_TENTHS,

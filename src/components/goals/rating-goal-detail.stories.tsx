@@ -68,7 +68,11 @@ export const Monitoring: Story = {
     await expect(plan.getByText('4.3 · goal 4.5')).toBeVisible()
     await expect(plan.getByText('New reviews average')).toBeVisible()
     await expect(plan.getByText('4.61★ · plan 4.7★')).toBeVisible()
-    await expect(plan.getByText('107 reviews since the goal was set')).toBeVisible()
+    await expect(
+      plan.getByText(
+        '107 reviews since the goal was set · forecasts use 4.62★, your plan mixed with them',
+      ),
+    ).toBeVisible()
     await expect(plan.getByText('1.4 a day · plan 1.6 a day')).toBeVisible()
     await expect(plan.getByText('About 11 a week · 50 a month')).toBeVisible()
     // The plan's pace is in the plan, not said again above it.
@@ -167,7 +171,7 @@ export const KeepGoal: Story = {
 
 /**
  * The beta property's goal a fortnight in: four reviews since it was set, so no
- * verdict on their stars yet, and the numbers assume the plan's 4.5★.
+ * verdict on their stars yet; the numbers mix them into the plan's 4.5★.
  */
 export const BeforeTenReviews: Story = {
   args: { detail: DETAIL_BEFORE_TEN },
@@ -176,10 +180,14 @@ export const BeforeTenReviews: Story = {
     const plan = within(canvas.getByRole('region', { name: 'Your plan' }))
     await expect(plan.getByText('3.9 · goal 4.0')).toBeVisible()
     await expect(plan.getByText('after 10 reviews · plan 4.5★')).toBeVisible()
-    await expect(plan.getByText('4 reviews since the goal was set')).toBeVisible()
+    await expect(
+      plan.getByText(
+        '4 reviews since the goal was set · forecasts use 4.55★, your plan mixed with them',
+      ),
+    ).toBeVisible()
     await expect(plan.getByText('2 a week · plan 2 a week')).toBeVisible()
     await expect(canvas.queryByRole('alert')).toBeNull()
-    // Both forecasts assume the plan's 4.5★ until there are ten reviews.
+    // Both forecasts assume the plan's 4.5★ mixed with the four reviews.
     await expect(
       canvas.getAllByText(wholeText('Expected around Dec 2026 – Feb 2027')),
     ).toHaveLength(2)
@@ -203,6 +211,9 @@ export const NewReviewsTooLow: Story = {
     await expect(canvas.getByText('at the new reviews’ average')).toBeVisible()
     const plan = within(canvas.getByRole('region', { name: 'Your plan' }))
     await expect(plan.getByText('3.75★ · plan 4.5★')).toBeVisible()
+    await expect(
+      plan.getByText('12 reviews since the goal was set · the numbers use their average'),
+    ).toBeVisible()
   },
 }
 
