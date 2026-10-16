@@ -113,7 +113,7 @@ async function openBuildYourOwn(dialog: Dialog) {
 const row = (dialog: Dialog, name: string) =>
   within(dialog.getByRole('radiogroup', { name }))
 
-/** Presses "Set goal" and checks the plan sent: target and average in tenths, reviews a week. */
+/** Presses "Set goal" and checks the plan sent: target and average in tenths, the pace in tenths of a review a week. */
 async function setsPlan(
   dialog: Dialog,
   targetTenths: number,
@@ -128,7 +128,7 @@ async function setsPlan(
         mode: 'climb',
         targetTenths,
         qualityTenths,
-        pacePerWeek,
+        paceTenthsPerWeek: pacePerWeek * 10,
       },
     }),
   )
@@ -478,7 +478,7 @@ export const KeepFirst: Story = {
           mode: 'keep',
           targetTenths: 50,
           qualityTenths: null,
-          pacePerWeek: null,
+          paceTenthsPerWeek: null,
         },
       }),
     )
@@ -542,7 +542,7 @@ export const ChangePlan: Story = {
           propertyId: FIXTURE_PROPERTY_ID,
           goalId: CARD.goalId,
           expectedVersion: CARD.version,
-          pacePerWeek: 14,
+          paceTenthsPerWeek: 140,
         },
       }),
     )

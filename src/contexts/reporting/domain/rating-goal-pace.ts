@@ -17,6 +17,10 @@ const PACE_WINDOW_WEEKS = PACE_WINDOW_DAYS / 7
 export const MIN_PACE_PER_WEEK = 1
 export const MAX_PACE_PER_WEEK = 200
 
+/** A goal's pace in tenths of a review a week: 1 a week to 50 a day. */
+export const MIN_PACE_TENTHS_PER_WEEK = 10
+export const MAX_PACE_TENTHS_PER_WEEK = 3500
+
 /** Suggestions never fall below these, even at no reviews at all. */
 const SUGGESTION_FLOORS = { steady: 1, faster: 2, push: 3 } as const
 
@@ -77,3 +81,19 @@ export function surgeCaution(customPerWeek: number, reviewsLast28Days: number): 
     SURGE_CAUTION_MULTIPLE * Math.max(reviewsLast28Days, PACE_WINDOW_WEEKS)
   )
 }
+
+export const isValidPaceTenths = (tenthsPerWeek: number): boolean =>
+  Number.isInteger(tenthsPerWeek) &&
+  tenthsPerWeek >= MIN_PACE_TENTHS_PER_WEEK &&
+  tenthsPerWeek <= MAX_PACE_TENTHS_PER_WEEK
+
+/**
+ * The whole weekly mirror of a pace in tenths: half up, at least one. The
+ * database CHECK holds `pace_per_week` to the same integer division
+ * (migration 0060), so the two never disagree.
+ */
+export const legacyPacePerWeek = (tenthsPerWeek: number): number =>
+  Math.max(1, Math.floor((tenthsPerWeek + 5) / 10))
+
+/** A pace in tenths of a review a week as an exact ratio of reviews a week. */
+export const paceRatio = (tenthsPerWeek: number): Ratio => ratio(tenthsPerWeek, 10)

@@ -31,15 +31,17 @@ type Overrides = Readonly<{
   displayedTenths?: number | null
   outcome?: 'continues' | 'reached' | 'ended'
   pace?: RatingGoalNoticeInput['pace']
+  paceTenthsPerWeek?: number
 }>
 
-/** A climb goal for 4.5 at 11 a week, 40 days old, Google showing 4.3. */
+/** A climb goal for 4.5 at 11 a week (110 tenths), 40 days old, Google showing 4.3. */
 const decide = (overrides: Overrides = {}) =>
   decideRatingGoalNotices({
     goal: {
       mode: overrides.mode ?? 'climb',
       targetTenths: overrides.targetTenths ?? 45,
-      pacePerWeek: overrides.mode === 'keep' ? null : 11,
+      paceTenthsPerWeek:
+        overrides.mode === 'keep' ? null : (overrides.paceTenthsPerWeek ?? 110),
       lastEvaluation: mark(overrides.previous),
     },
     evaluation: {
@@ -200,11 +202,23 @@ describe('entered Below pace', () => {
       {
         transition: 'entered_below_pace',
         targetTenths: 45,
+        paceTenthsPerWeek: 110,
         pacePerWeek: 11,
         recentPaceTenths: 65,
         paceWindow: 'last_4_weeks',
       },
     ])
+  })
+
+  it('carries the pace in tenths a week, and whole reviews a week for older readers', () => {
+    // 1.5 a day is 10.5 a week: 105 tenths, 11 a week rounded half up.
+    const [notice] = decide({
+      status: 'below_pace',
+      paceTenthsPerWeek: 105,
+      pace: { reviews: 26, window: { start: daysAgo(28), end: NOW } },
+    }).notices
+
+    expect(notice).toMatchObject({ paceTenthsPerWeek: 105, pacePerWeek: 11 })
   })
 
   it('counts since the goal was set while it is younger than four weeks', () => {

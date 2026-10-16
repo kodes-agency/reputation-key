@@ -66,6 +66,8 @@ async function backTo0058(): Promise<void> {
     `ALTER TABLE ${GOALS} DROP CONSTRAINT ${GOALS}_notice_mark_check`,
     `ALTER TABLE ${CHANGES} DROP CONSTRAINT ${CHANGES}_value_check`,
     `ALTER TABLE ${GOALS} DROP COLUMN quality_tenths`,
+    // Added by 0060, after this migration: gone again in the 0058 shape.
+    `ALTER TABLE ${GOALS} DROP COLUMN pace_tenths_per_week`,
     `ALTER TABLE ${GOALS} ADD CONSTRAINT ${GOALS}_plan_check ${BEFORE.plan}`,
     `ALTER TABLE ${GOALS} ADD CONSTRAINT ${GOALS}_evaluation_check ${BEFORE.evaluation}`,
     `ALTER TABLE ${GOALS} ADD CONSTRAINT ${GOALS}_notice_mark_check ${BEFORE.noticeMark}`,

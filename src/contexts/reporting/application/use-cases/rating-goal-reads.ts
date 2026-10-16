@@ -1,7 +1,11 @@
 // Property Google rating goal — the reads: setup, simple card, detail, history.
 //
 // The setup read also asks Review for each calendar year's totals: the best
-// year is evidence for the plans' quality ("Like your best year").
+// year is evidence for the plans' quality ("Like your best year"). Since rounds
+// 3 and 4 it asks, in the same parallel read, for each calendar month's totals
+// with ten reviews and the reviews per local date: the best month and the
+// busiest 30 days the one-screen setup plans from (PLAN-R4 D18). Over generous
+// UTC bounds; the domain trims them to the Property's calendar.
 //
 // The card and the detail evaluate the active goal as they read it, through
 // the same evaluation the snapshot consumer runs, so a goal Google now shows
@@ -9,9 +13,14 @@
 // Google location changed is ended) the first time anyone looks, even before
 // Google's next numbers arrive.
 
-import { displayedTenths, ratio, ratioToNumber } from '../../domain/rating-goal-numbers'
-import { currentPacePerWeek } from '../../domain/rating-goal-pace'
+import { displayedTenths, ratioToNumber } from '../../domain/rating-goal-numbers'
+import { currentPacePerWeek, paceRatio } from '../../domain/rating-goal-pace'
 import { weeklySeries, weeklySeriesStart } from '../../domain/rating-goal-weeks'
+import {
+  DAY_READ_LOOKBACK_DAYS,
+  EVIDENCE_MIN_REVIEWS,
+  MONTH_READ_LOOKBACK_DAYS,
+} from '../../domain/rating-goal-evidence'
 import {
   organizationId as toOrganizationId,
   propertyId as toPropertyId,
@@ -53,6 +62,10 @@ export type RatingGoalPropertyInput = Readonly<{ propertyId: string }>
 
 const round2 = (value: number): number => Math.round(value * 100) / 100
 
+const DAY_MS = 24 * 60 * 60 * 1000
+const daysBefore = (now: Date, days: number): Date =>
+  new Date(now.getTime() - days * DAY_MS)
+
 /** "Pick a plan": Google's numbers, eligibility, plans, stops, paces and forecasts. */
 export async function getRatingGoalSetup(
   deps: RatingGoalDependencies,
@@ -60,15 +73,22 @@ export async function getRatingGoalSetup(
   actor: GoalActor,
 ): Promise<RatingGoalSetupView> {
   await authorizeRatingGoal(deps, actor, input.propertyId, 'goal.read')
-  const [reading, active, years] = await Promise.all([
-    requireReading(deps, actor.organizationId, input.propertyId, deps.now()),
+  const now = deps.now()
+  const org = toOrganizationId(actor.organizationId)
+  const property = toPropertyId(input.propertyId)
+  const [reading, active, years, months, days] = await Promise.all([
+    requireReading(deps, actor.organizationId, input.propertyId, now),
     deps.repository.findActive(actor.organizationId, input.propertyId),
-    deps.reviews.getYearlyTotals(
-      toOrganizationId(actor.organizationId),
-      toPropertyId(input.propertyId),
+    deps.reviews.getYearlyTotals(org, property),
+    deps.reviews.getMonthlyTotals(
+      org,
+      property,
+      daysBefore(now, MONTH_READ_LOOKBACK_DAYS),
+      EVIDENCE_MIN_REVIEWS,
     ),
+    deps.reviews.getDailyCounts(org, property, daysBefore(now, DAY_READ_LOOKBACK_DAYS)),
   ])
-  return buildSetupView(reading, active !== null, years)
+  return buildSetupView(reading, active !== null, { years, months, days })
 }
 
 const cardOf = (evaluated: EvaluatedRatingGoal): RatingGoalCardView =>
@@ -119,13 +139,18 @@ export async function getRatingGoalDetail(
   // At the quality the goal now expects of new reviews (planned, then theirs).
   const basis = goalBasis(goal, reading)?.basis ?? null
   const actualPace = currentPacePerWeek(reading.reviewsLast28Days)
-  const climbing = basis !== null && goal.pacePerWeek !== null
+  const climbing = basis !== null && goal.paceTenthsPerWeek !== null
   return {
     ...cardOf(evaluated),
     lastFourWeeksPerWeek: round2(ratioToNumber(actualPace)),
     ...stillNeeded(goal, basis),
     forecastAtChosenPace: climbing
-      ? forecastFor(basis, reading, goal.targetTenths, ratio(goal.pacePerWeek ?? 0, 1))
+      ? forecastFor(
+          basis,
+          reading,
+          goal.targetTenths,
+          paceRatio(goal.paceTenthsPerWeek ?? 0),
+        )
       : null,
     forecastAtActualPace: climbing
       ? forecastFor(basis, reading, goal.targetTenths, actualPace)

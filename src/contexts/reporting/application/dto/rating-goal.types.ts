@@ -23,6 +23,7 @@ import type { PaceKey } from '../../domain/rating-goal-pace'
 import type { RatingPlanKey } from '../../domain/rating-goal-plans'
 import type { QualityAnchorKind } from '../../domain/rating-goal-quality'
 import type { QualityBasis } from '../../domain/rating-goal-status'
+import type { RatingGoalSetupInputs } from './rating-goal-setup.types'
 
 export type {
   GoogleNumbersView,
@@ -224,6 +225,11 @@ export type RatingGoalSetupView = Readonly<{
   offerKeepFirst: boolean
   planning: RatingGoalPlanningView | null
   forecastInputs: RatingGoalForecastInputs | null
+  /**
+   * What the one-screen setup works its plan out from (rounds 3 and 4); null
+   * while Google's numbers are waiting or show no tenth.
+   */
+  setupInputs: RatingGoalSetupInputs | null
 }>
 
 export type RatingGoalCardView = Readonly<{
@@ -243,6 +249,9 @@ export type RatingGoalCardView = Readonly<{
   /** The planned quality of new reviews, in tenths; null for a keep goal. */
   qualityTenths: number | null
   quality: number | null
+  /** The pace in tenths of a review a week (105 is 1.5 a day); null for a keep goal. */
+  paceTenthsPerWeek: number | null
+  /** The same pace a week, a decimal (10.5); "Pick a plan" reads it until it is replaced. */
   pacePerWeek: number | null
   status: RatingGoalStatus
   google: GoogleNumbersView | null
@@ -298,7 +307,11 @@ export type RatingGoalPlanProgressView = Readonly<{
     averageTenths: number | null
   }>
   qualityBasis: RatingQualityBasis
-  /** Pace: the chosen pace against the last four weeks (two decimals). */
+  /**
+   * Pace: the chosen pace, in tenths a week and as a decimal a week, against
+   * the last four weeks (two decimals).
+   */
+  paceTenthsPerWeek: number
   pacePerWeek: number
   lastFourWeeksPerWeek: number
   /** At so-far values: the quality the goal now assumes and the last four weeks' pace. */
@@ -335,6 +348,8 @@ export type RatingGoalHistoryEntry = Readonly<{
   targetTenths: number
   target: number
   qualityTenths: number | null
+  /** In tenths of a review a week; `pacePerWeek` is the same a week, a decimal. */
+  paceTenthsPerWeek: number | null
   pacePerWeek: number | null
   state: 'reached' | 'ended'
   endedReason: RatingGoalEndedReason | null

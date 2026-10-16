@@ -277,7 +277,7 @@ describe('a Property Google rating goal on PostgreSQL', () => {
         mode: 'climb',
         targetTenths: 44,
         qualityTenths: 48,
-        pacePerWeek: 2,
+        paceTenthsPerWeek: 20,
       },
       actor,
     )
@@ -313,7 +313,7 @@ describe('a Property Google rating goal on PostgreSQL', () => {
         mode: 'climb',
         targetTenths: 44,
         qualityTenths: 48,
-        pacePerWeek: 2,
+        paceTenthsPerWeek: 20,
       },
       actor,
     )
@@ -384,7 +384,7 @@ describe('a Property Google rating goal on PostgreSQL', () => {
         mode: 'climb',
         targetTenths: 44,
         qualityTenths: 48,
-        pacePerWeek: 2,
+        paceTenthsPerWeek: 20,
       },
       actor,
     )
@@ -450,7 +450,7 @@ describe('a Property Google rating goal on PostgreSQL', () => {
           mode: 'climb',
           targetTenths: 45,
           qualityTenths: 48,
-          pacePerWeek: 2,
+          paceTenthsPerWeek: 20,
         },
         actor,
       ),
@@ -469,7 +469,7 @@ describe('the notices of a Property Google rating goal on PostgreSQL', () => {
         mode: 'climb',
         targetTenths: 44,
         qualityTenths: 48,
-        pacePerWeek: 2,
+        paceTenthsPerWeek: 20,
       },
       actor,
     )
@@ -506,7 +506,7 @@ describe('the notices of a Property Google rating goal on PostgreSQL', () => {
         mode: 'climb',
         targetTenths: 46,
         qualityTenths: 48,
-        pacePerWeek: 2,
+        paceTenthsPerWeek: 20,
       },
       actor,
     )
@@ -536,7 +536,7 @@ describe('the notices of a Property Google rating goal on PostgreSQL', () => {
         mode: 'climb',
         targetTenths: 44,
         qualityTenths: 48,
-        pacePerWeek: 20,
+        paceTenthsPerWeek: 200,
       },
       actor,
     )
@@ -555,6 +555,7 @@ describe('the notices of a Property Google rating goal on PostgreSQL', () => {
         goalId: set.goalId,
         transition: 'entered_below_pace',
         pacePerWeek: 20,
+        paceTenthsPerWeek: 200,
         recentPaceTenths: 15,
         paceWindow: 'last_4_weeks',
       }),
@@ -590,7 +591,7 @@ describe('the notices of a Property Google rating goal on PostgreSQL', () => {
           mode: 'climb',
           targetTenths: 44,
           qualityTenths: 48,
-          pacePerWeek: 2,
+          paceTenthsPerWeek: 20,
         },
         actor,
       )
@@ -625,6 +626,7 @@ describe('the notices of a Property Google rating goal on PostgreSQL', () => {
           shownTenths: null,
           previousTenths: null,
           pacePerWeek: null,
+          paceTenthsPerWeek: null,
           recentPaceTenths: null,
           paceWindow: null,
         }),
@@ -683,7 +685,7 @@ describe('the notices of a Property Google rating goal on PostgreSQL', () => {
         mode: 'climb',
         targetTenths: 49,
         qualityTenths: 50,
-        pacePerWeek: 2,
+        paceTenthsPerWeek: 20,
       },
       actor,
     )

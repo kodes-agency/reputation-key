@@ -180,12 +180,14 @@ describe('the Google rating goal notice route', () => {
         shownTenths: null,
         previousTenths: null,
         pacePerWeek: 11,
+        paceTenthsPerWeek: 105,
         recentPaceTenths: 65,
         paceWindow: 'last_4_weeks',
       },
       'goal.rating_below_pace',
       {
         ratingPacePerWeek: 11,
+        ratingPaceTenthsPerWeek: 105,
         ratingRecentPaceTenths: 65,
         ratingPaceWindow: 'last_4_weeks',
       },
@@ -283,5 +285,54 @@ describe('the Google rating goal notice route', () => {
       ),
     ).rejects.toThrow('reached needs shownTenths')
     expect(deps.jobs).toEqual([])
+  })
+})
+
+describe('the rating goal fact’s pace', () => {
+  const belowPace = {
+    transition: 'entered_below_pace',
+    shownTenths: null,
+    previousTenths: null,
+    recentPaceTenths: 65,
+    paceWindow: 'last_4_weeks',
+  }
+
+  it('takes a pace up to 50 a day in tenths, beside whole reviews a week up to 350', async () => {
+    const deps = makeDeps()
+
+    await handleRatingGoalTransitioned(
+      deps,
+      event({ ...belowPace, pacePerWeek: 350, paceTenthsPerWeek: 3500 }),
+    )
+
+    expect(deps.jobs[0]?.data.payload).toMatchObject({
+      ratingPacePerWeek: 350,
+      ratingPaceTenthsPerWeek: 3500,
+    })
+  })
+
+  it('refuses a pace above 50 a day', async () => {
+    const deps = makeDeps()
+
+    await expect(
+      handleRatingGoalTransitioned(
+        deps,
+        event({ ...belowPace, pacePerWeek: 350, paceTenthsPerWeek: 3501 }),
+      ),
+    ).rejects.toThrow(/"paceTenthsPerWeek"/u)
+    await expect(
+      handleRatingGoalTransitioned(deps, event({ ...belowPace, pacePerWeek: 351 })),
+    ).rejects.toThrow(/"pacePerWeek"/u)
+    expect(deps.jobs).toEqual([])
+  })
+
+  it('still takes a fact written before the pace was kept in tenths', async () => {
+    const deps = makeDeps()
+
+    await handleRatingGoalTransitioned(deps, event({ ...belowPace, pacePerWeek: 11 }))
+
+    const payload = deps.jobs[0]?.data.payload as Record<string, unknown>
+    expect(payload).toMatchObject({ ratingPacePerWeek: 11 })
+    expect(payload).not.toHaveProperty('ratingPaceTenthsPerWeek')
   })
 })

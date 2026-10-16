@@ -421,6 +421,13 @@
       "when": 1794000000000,
       "tag": "0059_rating_goal_planned_quality",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1794100000000,
+      "tag": "0060_rating_goal_pace_tenths",
+      "breakpoints": true
     }
   ]
 }

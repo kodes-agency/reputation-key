@@ -21,7 +21,8 @@ describe('what is saved', () => {
         mode: 'climb',
         targetTenths: 44,
         qualityTenths: 47,
-        pacePerWeek: 11,
+        // "Pick a plan" works in whole reviews a week; the goal stores tenths.
+        paceTenthsPerWeek: 110,
       },
     })
     expect(
@@ -39,7 +40,7 @@ describe('what is saved', () => {
         mode: 'keep',
         targetTenths: 49,
         qualityTenths: null,
-        pacePerWeek: null,
+        paceTenthsPerWeek: null,
       },
     })
   })
@@ -53,7 +54,7 @@ describe('what is saved', () => {
         propertyId: FIXTURE_PROPERTY_ID,
         goalId: CARD.goalId,
         expectedVersion: 3,
-        pacePerWeek: 14,
+        paceTenthsPerWeek: 140,
       },
     })
     expect(
@@ -73,7 +74,7 @@ describe('what is saved', () => {
         mode: 'climb',
         targetTenths: 44,
         qualityTenths: 47,
-        pacePerWeek: 11,
+        paceTenthsPerWeek: 110,
       },
     })
   })

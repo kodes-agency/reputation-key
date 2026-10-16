@@ -91,7 +91,10 @@ metric authority.
 - **Property Google rating goal (implementation)**: One active goal per Property (`property_rating_goals`, a partial unique index); a
   climb goal names a tenth from 1.1 to 4.9, a planned quality in tenths (`quality_tenths`,
   migration 0059: at least 0.15★ above the target's threshold in the domain, at least the
-  target in the database) and a pace from 1 to 200 a week, a keep goal a tenth Google shows
+  target in the database) and a pace in tenths of a review a week (`pace_tenths_per_week`,
+  migration 0060: 10 to 3500, 1 a week to 50 a day; `pace_per_week` is its whole weekly
+  mirror for one release, held equal to it by the CHECK, and the set and change schemas
+  map a legacy whole weekly `pacePerWeek` × 10 for that release), a keep goal a tenth Google shows
   now and neither, set only while Google shows 4.9 or 5.0 (R2-9: the commands refuse a
   keep goal below, as the screens offer none). The plan (target, quality, pace) is version-checked as a whole. There is no deadline and no "missed": a goal runs
   until Google shows the target (reached), or it is ended by a manager, by its Google
@@ -120,9 +123,17 @@ metric authority.
   average; `reviews_too_low` (that average at or below the threshold) replaced
   `cant_reach_at_mix`. The review cache is read only through Review's
   `ReviewGoogleRatingReads` (counts and star sums, the serving eligibility, the current
-  binding epoch; also since a goal was set, and per calendar year); Google's own numbers
+  binding epoch; also since a goal was set, per calendar year, per calendar month with ten
+  reviews and per local date, counts only); Google's own numbers
   come from the Current on Google snapshot. A goal may be set only on an active Property with at least ten Google
-  reviews (Google's count decides that first, current or not) and current numbers. A set
+  reviews (Google's count decides that first, current or not) and current numbers; a
+  reading waits for Google while its numbers are not current, show no tenth or give no
+  exact average, or the review cache holds no review (an empty or expired cache). The setup
+  read also returns `setupInputs` (`application/dto/rating-goal-setup.types.ts`, rounds 3
+  and 4): Google's numbers, the exact average, the best calendar month of the last twelve
+  and the best year with ten reviews, the reviews of the last 90 days and the busiest 30
+  local dates of the last 365 (`domain/rating-goal-evidence.ts`), from which the one-screen
+  setup works its plan out on the page; the server runs no planning maths for it. A set
   goal stores the tenth Google showed and the status it starts in. A goal is evaluated by
   its card and detail reads and by `goal.google-rating-evaluation` when Review verifies
   Google's numbers, through one evaluation (`application/rating-goal-evaluation.ts`) that
@@ -349,8 +360,9 @@ epoch, so a repeat ends nothing and adds the receipt.
 Reporting writes `goal.rating_goal.transitioned` (`domain/goal-events.ts`), one per rating
 goal notice, inside the evaluation's own write (a read, `goal.google-rating-evaluation` or
 the daily `rating-goal.evaluate`). Its payload is identifiers, closed enums and the
-Property-level figures the notice states (Google's shown tenth, the target, the pace and the
-recent pace), never a review or a figure RepKey works out from review ratings; Feed's
+Property-level figures the notice states (Google's shown tenth, the target, the pace in
+tenths a week `paceTenthsPerWeek` beside its whole weekly legacy mirror `pacePerWeek`, 1 to
+350, and the recent pace), never a review or a figure RepKey works out from review ratings; Feed's
 `notification.on-rating-goal-transitioned` consumes it.
 
 ## Verification

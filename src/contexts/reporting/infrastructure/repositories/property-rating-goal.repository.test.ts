@@ -29,6 +29,7 @@ import type {
   RatingGoalPlan,
   RatingGoalStatus,
 } from '../../domain/rating-goal'
+import { legacyPacePerWeek } from '../../domain/rating-goal-pace'
 import {
   createPropertyRatingGoalRepository,
   createRatingGoalPropertyFactsReader,
@@ -56,7 +57,7 @@ const newGoal = (
   mode: 'climb',
   targetTenths: 45,
   qualityTenths: 47,
-  pacePerWeek: 11,
+  paceTenthsPerWeek: 110,
   baseline: { reviewCount: 812, googleAverage: 4.3, exactAverage: 4.31 },
   lastEvaluation: {
     displayedTenths: 43,
@@ -127,7 +128,7 @@ describe('one active rating goal per Property', () => {
       mode: 'climb',
       targetTenths: 45,
       qualityTenths: 47,
-      pacePerWeek: 11,
+      paceTenthsPerWeek: 110,
       state: 'active',
       sourceEpoch: 2,
       baseline: { reviewCount: 812, googleAverage: 4.3, exactAverage: 4.31 },
@@ -184,7 +185,7 @@ describe('a manager’s change', () => {
       mode: 'climb' as const,
       targetTenths: 46,
       qualityTenths: 48,
-      pacePerWeek: 14,
+      paceTenthsPerWeek: 140,
     },
     changes: [
       {
@@ -206,8 +207,8 @@ describe('a manager’s change', () => {
         changedBy: 'manager-2',
         changedAt: LATER,
         field: 'pace' as const,
-        oldValue: '11',
-        newValue: '14',
+        oldValue: '110',
+        newValue: '140',
       },
       {
         id: goalId(103),
@@ -230,7 +231,7 @@ describe('a manager’s change', () => {
     await expect(repository().findById(ORG, PROPERTY, goalId(1))).resolves.toMatchObject({
       targetTenths: 46,
       qualityTenths: 48,
-      pacePerWeek: 14,
+      paceTenthsPerWeek: 140,
       version: 2,
     })
     const log = await repository().listChanges(ORG, PROPERTY, goalId(1), 50)
@@ -245,7 +246,7 @@ describe('a manager’s change', () => {
       // One change at one instant reads mode, target, quality, then pace.
       ['target', '45', '46', 'manager-2'],
       ['quality', '47', '48', 'manager-2'],
-      ['pace', '11', '14', 'manager-2'],
+      ['pace', '110', '140', 'manager-2'],
     ])
   })
 
@@ -357,7 +358,7 @@ describe('an evaluation write', () => {
   it('refuses an evaluation worked out on a target a manager has since changed', async () => {
     // Read on 4.5 while Google showed 4.5; the manager then moved the target to 4.6.
     await changePlanTo(
-      { mode: 'climb', targetTenths: 46, qualityTenths: 47, pacePerWeek: 11 },
+      { mode: 'climb', targetTenths: 46, qualityTenths: 47, paceTenthsPerWeek: 110 },
       [{ field: 'target', oldValue: '45', newValue: '46' }],
     )
 
@@ -373,12 +374,12 @@ describe('an evaluation write', () => {
 
   it('refuses a reached evaluation from before a switch to keep, without breaking the table rules', async () => {
     await changePlanTo(
-      { mode: 'keep', targetTenths: 43, qualityTenths: null, pacePerWeek: null },
+      { mode: 'keep', targetTenths: 43, qualityTenths: null, paceTenthsPerWeek: null },
       [
         { field: 'mode', oldValue: 'climb', newValue: 'keep' },
         { field: 'target', oldValue: '45', newValue: '43' },
         { field: 'quality', oldValue: '47', newValue: null },
-        { field: 'pace', oldValue: '11', newValue: null },
+        { field: 'pace', oldValue: '110', newValue: null },
       ],
     )
 
@@ -465,6 +466,7 @@ describe('an evaluation write', () => {
             {
               transition: 'entered_below_pace',
               targetTenths: 45,
+              paceTenthsPerWeek: 110,
               pacePerWeek: 11,
               recentPaceTenths: 65,
               paceWindow: 'last_4_weeks',
@@ -487,10 +489,12 @@ describe('an evaluation write', () => {
         shownTenths: 42,
         previousTenths: 43,
         pacePerWeek: null,
+        paceTenthsPerWeek: null,
       }),
       expect.objectContaining({
         transition: 'entered_below_pace',
         pacePerWeek: 11,
+        paceTenthsPerWeek: 110,
         recentPaceTenths: 65,
         paceWindow: 'last_4_weeks',
         shownTenths: null,
@@ -585,6 +589,7 @@ describe('an evaluation write', () => {
       shownTenths: null,
       previousTenths: null,
       pacePerWeek: null,
+      paceTenthsPerWeek: null,
       recentPaceTenths: null,
       paceWindow: null,
     })
@@ -674,12 +679,12 @@ describe('an evaluation write', () => {
     )
 
     await changePlanTo(
-      { mode: 'climb', targetTenths: 45, qualityTenths: 47, pacePerWeek: 8 },
-      [{ field: 'pace', oldValue: '11', newValue: '8' }],
+      { mode: 'climb', targetTenths: 45, qualityTenths: 47, paceTenthsPerWeek: 80 },
+      [{ field: 'pace', oldValue: '110', newValue: '80' }],
     )
 
     await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
-      pacePerWeek: 8,
+      paceTenthsPerWeek: 80,
       lastEvaluation: {
         status: 'below_pace',
         knownStatus: null,
@@ -692,8 +697,8 @@ describe('an evaluation write', () => {
 
   it('stores the status a new plan puts the goal in, without a notice', async () => {
     await changePlanTo(
-      { mode: 'climb', targetTenths: 45, qualityTenths: 47, pacePerWeek: 20 },
-      [{ field: 'pace', oldValue: '11', newValue: '20' }],
+      { mode: 'climb', targetTenths: 45, qualityTenths: 47, paceTenthsPerWeek: 200 },
+      [{ field: 'pace', oldValue: '110', newValue: '200' }],
     )
 
     await expect(
@@ -843,6 +848,7 @@ describe('the table holds the plan and the log to their rules', () => {
           targetTenths: 45,
           qualityTenths: 47,
           pacePerWeek: 11,
+          paceTenthsPerWeek: 110,
           baselineReviewCount: 812,
           baselineGoogleAverage: 4.3,
           baselineExactAverage: 4.31,
@@ -865,6 +871,7 @@ describe('the table holds the plan and the log to their rules', () => {
           targetTenths: 45,
           qualityTenths: 47,
           pacePerWeek: 11,
+          paceTenthsPerWeek: 110,
           baselineReviewCount: 812,
           baselineGoogleAverage: 4.3,
           baselineExactAverage: 4.31,
@@ -897,6 +904,7 @@ describe('the table holds the plan and the log to their rules', () => {
           targetTenths: 45,
           qualityTenths: 47,
           pacePerWeek: 11,
+          paceTenthsPerWeek: 110,
           baselineReviewCount: 812,
           baselineGoogleAverage: 4.3,
           baselineExactAverage: 4.31,
@@ -911,7 +919,13 @@ describe('the table holds the plan and the log to their rules', () => {
     await expect(insert({ qualityTenths: 44 })).resolves.toBe('23514')
     await expect(insert({ qualityTenths: 51 })).resolves.toBe('23514')
     await expect(
-      insert({ mode: 'keep', targetTenths: 43, pacePerWeek: null, qualityTenths: 47 }),
+      insert({
+        mode: 'keep',
+        targetTenths: 43,
+        pacePerWeek: null,
+        paceTenthsPerWeek: null,
+        qualityTenths: 47,
+      }),
     ).resolves.toBe('23514')
     await expect(insert({ qualityTenths: 45 })).resolves.toBeUndefined()
   })
@@ -928,6 +942,7 @@ describe('the table holds the plan and the log to their rules', () => {
           targetTenths: 45,
           qualityTenths: 47,
           pacePerWeek: 11,
+          paceTenthsPerWeek: 110,
           baselineReviewCount: 812,
           baselineGoogleAverage: 4.3,
           baselineExactAverage: 4.31,
@@ -936,7 +951,9 @@ describe('the table holds the plan and the log to their rules', () => {
         }),
       )
 
-    await expect(insert({ pacePerWeek: null })).resolves.toBe('23514')
+    await expect(insert({ pacePerWeek: null, paceTenthsPerWeek: null })).resolves.toBe(
+      '23514',
+    )
     await expect(insert({ targetTenths: 50 })).resolves.toBe('23514')
     await expect(insert({ mode: 'keep', qualityTenths: null })).resolves.toBe('23514')
     await expect(insert({ status: 'reached' })).resolves.toBe('23514')
@@ -945,6 +962,72 @@ describe('the table holds the plan and the log to their rules', () => {
       insert({ status: 'ended', endedReason: 'deadline_missed', endedAt: LATER }),
     ).resolves.toBe('23514')
     await expect(insert({})).resolves.toBeUndefined()
+  })
+
+  it('holds the whole weekly pace equal to the tenths, half up and at least one', async () => {
+    const insert = (values: Partial<typeof propertyRatingGoals.$inferInsert>) =>
+      refused(() =>
+        held.db.insert(propertyRatingGoals).values({
+          id: goalId(9),
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          sourceEpoch: 2,
+          mode: 'climb',
+          targetTenths: 45,
+          qualityTenths: 47,
+          baselineReviewCount: 812,
+          baselineGoogleAverage: 4.3,
+          baselineExactAverage: 4.31,
+          createdBy: 'manager-1',
+          ...values,
+        }),
+      )
+
+    // The same table as legacyPacePerWeek's (rating-goal-pace.test.ts).
+    for (const [tenths, perWeek] of [
+      [10, 1],
+      [14, 1],
+      [15, 2],
+      [105, 11],
+      [3500, 350],
+    ] as const) {
+      await expect(
+        insert({ paceTenthsPerWeek: tenths, pacePerWeek: perWeek }),
+      ).resolves.toBeUndefined()
+      await expect(
+        insert({ id: goalId(10), paceTenthsPerWeek: tenths, pacePerWeek: perWeek + 1 }),
+      ).resolves.toBe('23514')
+      expect(legacyPacePerWeek(tenths)).toBe(perWeek)
+      await held.client.query('DELETE FROM property_rating_goals WHERE id = $1', [
+        goalId(9),
+      ])
+    }
+    await expect(insert({ paceTenthsPerWeek: 105, pacePerWeek: 10 })).resolves.toBe(
+      '23514',
+    )
+    await expect(insert({ paceTenthsPerWeek: 110, pacePerWeek: null })).resolves.toBe(
+      '23514',
+    )
+    await expect(insert({ paceTenthsPerWeek: null, pacePerWeek: 11 })).resolves.toBe(
+      '23514',
+    )
+    await expect(insert({ paceTenthsPerWeek: 9, pacePerWeek: 1 })).resolves.toBe('23514')
+    await expect(insert({ paceTenthsPerWeek: 3501, pacePerWeek: 351 })).resolves.toBe(
+      '23514',
+    )
+  })
+
+  it('round-trips a pace in tenths and writes its whole weekly mirror', async () => {
+    await repository().insert(newGoal({ paceTenthsPerWeek: 105 }))
+
+    await expect(repository().findActive(ORG, PROPERTY)).resolves.toMatchObject({
+      paceTenthsPerWeek: 105,
+    })
+    const { rows } = await held.client.query<{ pace_per_week: number }>(
+      'SELECT pace_per_week FROM property_rating_goals WHERE id = $1',
+      [goalId(1)],
+    )
+    expect(rows).toEqual([{ pace_per_week: 11 }])
   })
 
   it('refuses a log row that names another Property’s goal or changes nothing', async () => {
@@ -959,15 +1042,21 @@ describe('the table holds the plan and the log to their rules', () => {
           changedBy: 'manager-1',
           changedAt: LATER,
           field: 'pace',
-          oldValue: '11',
-          newValue: '14',
+          oldValue: '110',
+          newValue: '140',
           ...values,
         }),
       )
 
     await expect(logRow({ propertyId: OTHER_PROPERTY })).resolves.toBe('23503')
-    await expect(logRow({ newValue: '11' })).resolves.toBe('23514')
-    await expect(logRow({ newValue: '201' })).resolves.toBe('23514')
+    await expect(logRow({ newValue: '110' })).resolves.toBe('23514')
+    // A pace is logged in tenths of a review a week, 10 to 3500.
+    await expect(logRow({ newValue: '3501' })).resolves.toBe('23514')
+    await expect(logRow({ newValue: '9' })).resolves.toBe('23514')
+    await expect(logRow({ newValue: '010' })).resolves.toBe('23514')
+    await expect(
+      logRow({ id: goalId(206), oldValue: '35', newValue: '3500' }),
+    ).resolves.toBeUndefined()
     await expect(
       logRow({ field: 'target', oldValue: null, newValue: '45' }),
     ).resolves.toBe('23514')
@@ -975,7 +1064,7 @@ describe('the table holds the plan and the log to their rules', () => {
       logRow({ field: 'mode', oldValue: null, newValue: 'keep' }),
     ).resolves.toBe('23514')
     await expect(
-      logRow({ id: goalId(203), field: 'pace', oldValue: '11', newValue: null }),
+      logRow({ id: goalId(203), field: 'pace', oldValue: '110', newValue: null }),
     ).resolves.toBeUndefined()
     await expect(
       logRow({ field: 'mode', oldValue: 'climb', newValue: 'hold' }),

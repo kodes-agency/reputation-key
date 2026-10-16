@@ -21,7 +21,7 @@ const climb = {
   mode: 'climb',
   targetTenths: 44,
   qualityTenths: 47,
-  pacePerWeek: 11,
+  paceTenthsPerWeek: 110,
 } as const
 
 const keep49 = {
@@ -29,7 +29,7 @@ const keep49 = {
   mode: 'keep',
   targetTenths: 49,
   qualityTenths: null,
-  pacePerWeek: null,
+  paceTenthsPerWeek: null,
 } as const
 
 /** Google shows 4.9 (3980 / 812 = 4.9015): the only numbers Keep is set at (R2-9). */
@@ -39,6 +39,17 @@ function showingFourNine(at: FakeWorld): void {
 }
 
 describe('setting a rating goal', () => {
+  it('takes a planned quality exactly at the target’s floor and a pace of 1.5 a day', async () => {
+    // 4.4 needs new reviews at 4.5 or more; 1.5 a day is 105 tenths a week.
+    await setRatingGoal(
+      dependencies(world),
+      { ...climb, qualityTenths: 45, paceTenthsPerWeek: 105 },
+      actor,
+    )
+
+    expect(world.goals[0]).toMatchObject({ qualityTenths: 45, paceTenthsPerWeek: 105 })
+  })
+
   it('stores the plan, the binding epoch and the baselines it starts from', async () => {
     const result = await setRatingGoal(dependencies(world), climb, actor)
 
@@ -50,7 +61,7 @@ describe('setting a rating goal', () => {
       mode: 'climb',
       targetTenths: 44,
       qualityTenths: 47,
-      pacePerWeek: 11,
+      paceTenthsPerWeek: 110,
       state: 'active',
       createdBy: 'manager-1',
       createdAt: NOW,
@@ -189,7 +200,7 @@ describe('setting a rating goal', () => {
       mode: 'keep',
       targetTenths: 49,
       qualityTenths: null,
-      pacePerWeek: null,
+      paceTenthsPerWeek: null,
     })
   })
 
@@ -232,14 +243,14 @@ describe('changing a rating goal', () => {
   it('logs each changed field with who and when, and moves the version', async () => {
     const result = await changeRatingGoal(
       dependencies(world),
-      { ...change, targetTenths: 46, pacePerWeek: 14 },
+      { ...change, targetTenths: 46, paceTenthsPerWeek: 140 },
       actor,
     )
 
     expect(result).toEqual({ goalId: change.goalId, version: 2 })
     expect(world.goals[0]).toMatchObject({
       targetTenths: 46,
-      pacePerWeek: 14,
+      paceTenthsPerWeek: 140,
       version: 2,
     })
     expect(
@@ -260,8 +271,8 @@ describe('changing a rating goal', () => {
       },
       {
         field: 'pace',
-        oldValue: '11',
-        newValue: '14',
+        oldValue: '110',
+        newValue: '140',
         changedBy: 'manager-1',
         changedAt: NOW,
       },
@@ -297,9 +308,13 @@ describe('changing a rating goal', () => {
   it('changes a pace without asking Google again', async () => {
     world.snapshot = null
 
-    await changeRatingGoal(dependencies(world), { ...change, pacePerWeek: 7 }, actor)
+    await changeRatingGoal(
+      dependencies(world),
+      { ...change, paceTenthsPerWeek: 70 },
+      actor,
+    )
 
-    expect(world.goals[0]!.pacePerWeek).toBe(7)
+    expect(world.goals[0]!.paceTenthsPerWeek).toBe(70)
     expect(world.summaryRequests).toEqual([])
   })
 
@@ -316,7 +331,7 @@ describe('changing a rating goal', () => {
       mode: 'keep',
       targetTenths: 49,
       qualityTenths: null,
-      pacePerWeek: null,
+      paceTenthsPerWeek: null,
     })
     expect(world.changes.map((row) => row.field)).toEqual([
       'mode',
@@ -332,20 +347,26 @@ describe('changing a rating goal', () => {
         mode: 'keep',
         targetTenths: 43,
         qualityTenths: null,
-        pacePerWeek: null,
+        paceTenthsPerWeek: null,
       }),
     ]
 
     await expect(
       changeRatingGoal(
         dependencies(world),
-        { ...change, mode: 'climb', targetTenths: 44, pacePerWeek: 11 },
+        { ...change, mode: 'climb', targetTenths: 44, paceTenthsPerWeek: 110 },
         actor,
       ),
     ).rejects.toMatchObject({ code: 'invalid_quality' })
     await changeRatingGoal(
       dependencies(world),
-      { ...change, mode: 'climb', targetTenths: 44, qualityTenths: 47, pacePerWeek: 11 },
+      {
+        ...change,
+        mode: 'climb',
+        targetTenths: 44,
+        qualityTenths: 47,
+        paceTenthsPerWeek: 110,
+      },
       actor,
     )
 
@@ -356,7 +377,7 @@ describe('changing a rating goal', () => {
     await expect(
       changeRatingGoal(
         dependencies(world),
-        { ...change, expectedVersion: 2, pacePerWeek: 7 },
+        { ...change, expectedVersion: 2, paceTenthsPerWeek: 70 },
         actor,
       ),
     ).rejects.toMatchObject({ code: 'version_conflict' })
@@ -366,24 +387,52 @@ describe('changing a rating goal', () => {
     world.goals = [activeGoal({ state: 'reached', reachedAt: NOW })]
 
     await expect(
-      changeRatingGoal(dependencies(world), { ...change, pacePerWeek: 7 }, actor),
+      changeRatingGoal(dependencies(world), { ...change, paceTenthsPerWeek: 70 }, actor),
     ).rejects.toMatchObject({ code: 'not_active' })
   })
 
   it('refuses a change that changes nothing, and a pace out of range', async () => {
     await expect(
-      changeRatingGoal(dependencies(world), { ...change, pacePerWeek: 11 }, actor),
+      changeRatingGoal(dependencies(world), { ...change, paceTenthsPerWeek: 110 }, actor),
     ).rejects.toMatchObject({ code: 'no_change' })
-    await expect(
-      changeRatingGoal(dependencies(world), { ...change, pacePerWeek: 201 }, actor),
-    ).rejects.toMatchObject({ code: 'invalid_pace' })
+    for (const paceTenthsPerWeek of [9, 3501, 10.5]) {
+      await expect(
+        changeRatingGoal(dependencies(world), { ...change, paceTenthsPerWeek }, actor),
+      ).rejects.toMatchObject({ code: 'invalid_pace' })
+    }
+    expect(world.changes).toEqual([])
+  })
+
+  it('takes a pace from 1 a week to 50 a day, in tenths', async () => {
+    await changeRatingGoal(
+      dependencies(world),
+      { ...change, paceTenthsPerWeek: 3500 },
+      actor,
+    )
+    await changeRatingGoal(
+      dependencies(world),
+      { ...change, expectedVersion: 2, paceTenthsPerWeek: 10 },
+      actor,
+    )
+
+    expect(world.goals[0]).toMatchObject({ paceTenthsPerWeek: 10, version: 3 })
+    expect(
+      world.changes.map(({ field, oldValue, newValue }) => [field, oldValue, newValue]),
+    ).toEqual([
+      ['pace', '110', '3500'],
+      ['pace', '3500', '10'],
+    ])
   })
 
   it('answers not found for a goal of another Property', async () => {
     await expect(
       changeRatingGoal(
         dependencies(world),
-        { ...change, propertyId: '30000000-0000-4000-8000-000000000099', pacePerWeek: 7 },
+        {
+          ...change,
+          propertyId: '30000000-0000-4000-8000-000000000099',
+          paceTenthsPerWeek: 70,
+        },
         actor,
       ),
     ).rejects.toMatchObject({ code: 'not_found' })

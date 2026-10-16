@@ -84,7 +84,7 @@ const climb = {
   mode: 'climb' as const,
   targetTenths: 45,
   qualityTenths: 47,
-  pacePerWeek: 11,
+  paceTenthsPerWeek: 110,
 }
 
 describe('Property Google rating goal server functions', () => {
@@ -120,14 +120,14 @@ describe('Property Google rating goal server functions', () => {
 
     await withStartContext(() => setRatingGoal({ data: climb }))
     await withStartContext(() =>
-      changeRatingGoal({ data: { ...identity, pacePerWeek: 14 } }),
+      changeRatingGoal({ data: { ...identity, paceTenthsPerWeek: 140 } }),
     )
     await withStartContext(() => endRatingGoal({ data: identity }))
 
     expect(mocks.set).toHaveBeenCalledWith(expect.any(Object), climb, manager)
     expect(mocks.change).toHaveBeenCalledWith(
       expect.any(Object),
-      { ...identity, pacePerWeek: 14 },
+      { ...identity, paceTenthsPerWeek: 140 },
       manager,
     )
     expect(mocks.end).toHaveBeenCalledWith(expect.any(Object), identity, manager)
@@ -242,19 +242,19 @@ describe('Property Google rating goal server functions', () => {
 
 describe('Property Google rating goal input', () => {
   it('needs a pace and a planned quality to climb, and neither to keep', () => {
-    const keep = { ...climb, mode: 'keep', qualityTenths: null, pacePerWeek: null }
+    const keep = { ...climb, mode: 'keep', qualityTenths: null, paceTenthsPerWeek: null }
 
     expect(setRatingGoalSchema.safeParse(climb).success).toBe(true)
-    expect(setRatingGoalSchema.safeParse({ ...climb, pacePerWeek: null }).success).toBe(
-      false,
-    )
+    expect(
+      setRatingGoalSchema.safeParse({ ...climb, paceTenthsPerWeek: null }).success,
+    ).toBe(false)
     expect(setRatingGoalSchema.safeParse({ ...climb, qualityTenths: null }).success).toBe(
       false,
     )
     expect(setRatingGoalSchema.safeParse(keep).success).toBe(true)
-    expect(setRatingGoalSchema.safeParse({ ...keep, pacePerWeek: 11 }).success).toBe(
-      false,
-    )
+    expect(
+      setRatingGoalSchema.safeParse({ ...keep, paceTenthsPerWeek: 110 }).success,
+    ).toBe(false)
     expect(setRatingGoalSchema.safeParse({ ...keep, qualityTenths: 47 }).success).toBe(
       false,
     )
@@ -271,14 +271,21 @@ describe('Property Google rating goal input', () => {
     )
   })
 
-  it('takes a target in tenths from 1.0 to 5.0 and a whole pace from 1 to 200', () => {
+  it('takes a target in tenths from 1.0 to 5.0 and a pace from 1 a week to 50 a day', () => {
     for (const targetTenths of [9, 51, 44.5]) {
       expect(setRatingGoalSchema.safeParse({ ...climb, targetTenths }).success).toBe(
         false,
       )
     }
-    for (const pacePerWeek of [0, 201, 2.5]) {
-      expect(setRatingGoalSchema.safeParse({ ...climb, pacePerWeek }).success).toBe(false)
+    for (const paceTenthsPerWeek of [9, 3501, 10.5]) {
+      expect(setRatingGoalSchema.safeParse({ ...climb, paceTenthsPerWeek }).success).toBe(
+        false,
+      )
+    }
+    for (const paceTenthsPerWeek of [10, 3500]) {
+      expect(setRatingGoalSchema.safeParse({ ...climb, paceTenthsPerWeek }).success).toBe(
+        true,
+      )
     }
     expect(
       setRatingGoalSchema.safeParse({ ...climb, propertyId: 'not-a-uuid' }).success,
@@ -300,6 +307,90 @@ describe('Property Google rating goal input', () => {
         ...identity,
         expectedVersion: 0,
         targetTenths: 46,
+      }).success,
+    ).toBe(false)
+  })
+})
+
+// Legacy: one release, dropped with pace_per_week (contract follow-up). A page
+// opened before the release still sends whole reviews a week as `pacePerWeek`.
+// The validator maps it before a use case sees the request.
+describe('Property Google rating goal input from a page opened before the release', () => {
+  const identity = { propertyId: PROPERTY_ID, goalId: GOAL_ID, expectedVersion: 1 }
+  const { paceTenthsPerWeek: _tenths, ...legacyClimb } = climb
+
+  it('applies a change of target, quality and a whole weekly pace together', () => {
+    expect(
+      changeRatingGoalSchema.parse({
+        ...identity,
+        targetTenths: 46,
+        qualityTenths: 48,
+        pacePerWeek: 11,
+      }),
+    ).toEqual({
+      ...identity,
+      targetTenths: 46,
+      qualityTenths: 48,
+      paceTenthsPerWeek: 110,
+    })
+  })
+
+  it('sets a goal from a whole weekly pace', () => {
+    expect(setRatingGoalSchema.parse({ ...legacyClimb, pacePerWeek: 3 })).toEqual({
+      ...legacyClimb,
+      paceTenthsPerWeek: 30,
+    })
+  })
+
+  it('switches to keep without a pace, either way it is named', () => {
+    const toKeep = { ...identity, mode: 'keep', targetTenths: 49, qualityTenths: null }
+
+    expect(changeRatingGoalSchema.parse({ ...toKeep, pacePerWeek: null })).toEqual({
+      ...toKeep,
+      paceTenthsPerWeek: null,
+    })
+    expect(changeRatingGoalSchema.parse({ ...toKeep, paceTenthsPerWeek: null })).toEqual({
+      ...toKeep,
+      paceTenthsPerWeek: null,
+    })
+    expect(changeRatingGoalSchema.parse(toKeep)).toEqual(toKeep)
+  })
+
+  it('refuses the pace sent both ways', () => {
+    expect(
+      changeRatingGoalSchema.safeParse({
+        ...identity,
+        pacePerWeek: 11,
+        paceTenthsPerWeek: 110,
+      }).success,
+    ).toBe(false)
+    expect(setRatingGoalSchema.safeParse({ ...climb, pacePerWeek: 11 }).success).toBe(
+      false,
+    )
+  })
+
+  it('takes a whole weekly pace from 1 to 200 only', () => {
+    for (const pacePerWeek of [0, 201, 2.5]) {
+      expect(setRatingGoalSchema.safeParse({ ...legacyClimb, pacePerWeek }).success).toBe(
+        false,
+      )
+      expect(changeRatingGoalSchema.safeParse({ ...identity, pacePerWeek }).success).toBe(
+        false,
+      )
+    }
+    expect(
+      setRatingGoalSchema.safeParse({ ...legacyClimb, pacePerWeek: 200 }).success,
+    ).toBe(true)
+  })
+
+  it('still needs a pace to climb and none to keep', () => {
+    expect(setRatingGoalSchema.safeParse(legacyClimb).success).toBe(false)
+    expect(
+      setRatingGoalSchema.safeParse({
+        ...legacyClimb,
+        mode: 'keep',
+        qualityTenths: null,
+        pacePerWeek: 3,
       }).success,
     ).toBe(false)
   })

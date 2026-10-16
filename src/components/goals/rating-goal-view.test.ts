@@ -128,9 +128,9 @@ describe('the simple card', () => {
   it('asks for a pace while the goal is new, then counts the week against it', () => {
     expect(cardPaceLine(CARD_JUST_SET)).toBe('Aim for about 11 new reviews a week')
     expect(cardPaceLine(CARD)).toBe('This week: 6 of 11 reviews')
-    expect(cardPaceLine({ ...CARD, pacePerWeek: 1, thisWeekCount: 0 })).toBe(
-      'This week: 0 of 1 review',
-    )
+    expect(
+      cardPaceLine({ ...CARD, paceTenthsPerWeek: 10, pacePerWeek: 1, thisWeekCount: 0 }),
+    ).toBe('This week: 0 of 1 review')
   })
 
   it('has no pace line for a goal that keeps a number', () => {

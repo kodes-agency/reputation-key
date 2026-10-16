@@ -80,10 +80,21 @@ export function statusPaceWindow(goalCreatedAt: Date, now: Date): PaceWindow | n
 export const forecastPaceBasis = (goalCreatedAt: Date, now: Date): 'chosen' | 'actual' =>
   ageMs(goalCreatedAt, now) >= FULL_PACE_WINDOW_DAYS * DAY_MS ? 'actual' : 'chosen'
 
-/** reviews / weeks(window) ≥ 90% × chosen, in integers. */
-function isOnPace(reviews: number, window: PaceWindow, chosenPerWeek: number): boolean {
-  const windowMs = window.end.getTime() - window.start.getTime()
-  return reviews * WEEK_MS * 100 >= ON_PACE_PERCENT * chosenPerWeek * windowMs
+/**
+ * reviews / weeks(window) ≥ 90% × chosen, with the chosen pace in tenths a
+ * week. Compared in BigInt: as Numbers the products pass 2^53 above about
+ * 14,900 reviews in the window, where a comparison could silently round.
+ */
+function isOnPace(
+  reviews: number,
+  window: PaceWindow,
+  chosenTenthsPerWeek: number,
+): boolean {
+  const windowMs = BigInt(window.end.getTime() - window.start.getTime())
+  return (
+    BigInt(reviews) * BigInt(WEEK_MS) * 1000n >=
+    BigInt(ON_PACE_PERCENT) * BigInt(chosenTenthsPerWeek) * windowMs
+  )
 }
 
 /** `planned` until ten reviews arrived since the goal was set, then `since_set`. */
@@ -116,7 +127,8 @@ export type ClimbStatusInput = Readonly<{
   sinceSet: RatingTotals
   goalCreatedAt: Date
   now: Date
-  chosenPerWeek: number
+  /** The goal's pace in tenths of a review a week. */
+  chosenTenthsPerWeek: number
   /** Reviews created in `statusPaceWindow`; null while there is none. */
   reviewsInPaceWindow: number | null
 }>
@@ -127,7 +139,7 @@ export function climbStatus(input: ClimbStatusInput): RatingGoalStatus {
   if (reviewsTooLow(input.sinceSet, input.targetTenths)) return 'reviews_too_low'
   const window = statusPaceWindow(input.goalCreatedAt, input.now)
   if (window === null || input.reviewsInPaceWindow === null) return 'getting_started'
-  return isOnPace(input.reviewsInPaceWindow, window, input.chosenPerWeek)
+  return isOnPace(input.reviewsInPaceWindow, window, input.chosenTenthsPerWeek)
     ? 'on_pace'
     : 'below_pace'
 }

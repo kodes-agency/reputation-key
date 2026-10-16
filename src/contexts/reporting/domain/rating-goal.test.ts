@@ -32,12 +32,19 @@ describe('the target a rating goal may hold', () => {
 })
 
 describe('the pace a rating goal may hold', () => {
-  it('needs a whole weekly pace from 1 to 200 to climb, and none to keep', () => {
-    expect(paceProblem('climb', 11)).toBeNull()
+  it('needs a pace from 1 a week to 50 a day, in whole tenths a week, to climb', () => {
+    expect(paceProblem('climb', 10)).toBeNull()
+    expect(paceProblem('climb', 105)).toBeNull()
+    expect(paceProblem('climb', 3500)).toBeNull()
+    expect(paceProblem('climb', 9)).toBe('invalid_pace')
+    expect(paceProblem('climb', 3501)).toBe('invalid_pace')
+    expect(paceProblem('climb', 10.5)).toBe('invalid_pace')
     expect(paceProblem('climb', null)).toBe('invalid_pace')
-    expect(paceProblem('climb', 201)).toBe('invalid_pace')
+  })
+
+  it('needs no pace to keep', () => {
     expect(paceProblem('keep', null)).toBeNull()
-    expect(paceProblem('keep', 5)).toBe('invalid_pace')
+    expect(paceProblem('keep', 50)).toBe('invalid_pace')
   })
 })
 
@@ -59,7 +66,7 @@ describe('the change log rows a change writes', () => {
     mode: 'climb',
     targetTenths: 45,
     qualityTenths: 47,
-    pacePerWeek: 11,
+    paceTenthsPerWeek: 110,
   } as const
 
   it('writes one row per changed field, old to new, as text', () => {
@@ -68,12 +75,13 @@ describe('the change log rows a change writes', () => {
         ...current,
         targetTenths: 46,
         qualityTenths: 48,
-        pacePerWeek: 14,
+        paceTenthsPerWeek: 105,
       }),
     ).toEqual([
       { field: 'target', oldValue: '45', newValue: '46' },
       { field: 'quality', oldValue: '47', newValue: '48' },
-      { field: 'pace', oldValue: '11', newValue: '14' },
+      // The pace is logged in tenths of a review a week: 11 a week → 1.5 a day.
+      { field: 'pace', oldValue: '110', newValue: '105' },
     ])
   })
 
@@ -83,12 +91,12 @@ describe('the change log rows a change writes', () => {
         mode: 'keep',
         targetTenths: 45,
         qualityTenths: null,
-        pacePerWeek: null,
+        paceTenthsPerWeek: null,
       }),
     ).toEqual([
       { field: 'mode', oldValue: 'climb', newValue: 'keep' },
       { field: 'quality', oldValue: '47', newValue: null },
-      { field: 'pace', oldValue: '11', newValue: null },
+      { field: 'pace', oldValue: '110', newValue: null },
     ])
   })
 

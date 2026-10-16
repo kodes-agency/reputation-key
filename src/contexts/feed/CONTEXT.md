@@ -329,7 +329,10 @@ change notices about a Property figure, never workforce recognition. The fact
 carries the figures the copy states and Feed reads nothing from Reporting for
 them: the tenths Google shows for the Property now and before and the goal's
 target, the goal's mode and pace, and the recent pace of new reviews, admitted
-by the payload allowlist as bounded integers (`rating*`). A review's rating
+by the payload allowlist as bounded integers (`rating*`). The pace is
+`ratingPaceTenthsPerWeek` (tenths of a review a week, 10 to 3500, migration 0060) beside `ratingPacePerWeek`, its whole weekly mirror (1 to 350), which the
+Below pace copy still reads until the plan reads per day; a fact written before
+tenths carries the mirror only. A review's rating
 never is, and neither is any figure RepKey works out from review ratings (the
 only rating figures are the tenths Google itself shows and the target): the
 New reviews too low copy states no star figure. The copy lives in `domain/notification-templates-rating-goal.ts`; a row

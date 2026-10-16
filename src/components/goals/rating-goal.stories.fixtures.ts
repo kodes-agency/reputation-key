@@ -68,6 +68,8 @@ export const SETUP: RatingGoalSetupView = {
   offerKeepFirst: false,
   planning: ratingGoalPlanning(FORECAST_INPUTS),
   forecastInputs: FORECAST_INPUTS,
+  // "Pick a plan" reads none of it; the one-screen setup's stories bring their own.
+  setupInputs: null,
 }
 
 /** Property B of the beta: 19 reviews, all five stars, Google shows 5.0. */
@@ -106,6 +108,7 @@ export const CARD: RatingGoalCardView = {
   target: 4.5,
   qualityTenths: 47,
   quality: 4.7,
+  paceTenthsPerWeek: 110,
   pacePerWeek: 11,
   status: 'on_pace',
   google: GOOGLE,
@@ -143,6 +146,7 @@ export const CARD_KEEP: RatingGoalCardView = {
   target: 4.9,
   qualityTenths: null,
   quality: null,
+  paceTenthsPerWeek: null,
   pacePerWeek: null,
   status: 'holding',
   google: { ...GOOGLE, shows: 4.9 },
@@ -216,6 +220,7 @@ export const DETAIL: RatingGoalDetailView = {
     qualityTenths: 47,
     sinceSet: { reviewCount: 107, average: 4.607, averageTenths: 46 },
     qualityBasis: 'since_set',
+    paceTenthsPerWeek: 110,
     pacePerWeek: 11,
     lastFourWeeksPerWeek: 9.5,
     forecast: range('2027-07', '2027-09'),
@@ -229,6 +234,7 @@ export const HISTORY: readonly RatingGoalHistoryEntry[] = [
     targetTenths: 43,
     target: 4.3,
     qualityTenths: 46,
+    paceTenthsPerWeek: 90,
     pacePerWeek: 9,
     state: 'reached',
     endedReason: null,
@@ -244,6 +250,7 @@ export const HISTORY: readonly RatingGoalHistoryEntry[] = [
     targetTenths: 42,
     target: 4.2,
     qualityTenths: null,
+    paceTenthsPerWeek: null,
     pacePerWeek: null,
     state: 'ended',
     endedReason: 'google_location_changed',

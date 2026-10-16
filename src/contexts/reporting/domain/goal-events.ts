@@ -102,7 +102,10 @@ export type GoalRatingGoalTransitioned = Readonly<{
   targetTenths: number
   shownTenths: number | null
   previousTenths: number | null
+  /** Legacy: whole reviews a week, one release; dropped once the outbox drained. */
   pacePerWeek: number | null
+  /** The goal's pace in tenths of a review a week. */
+  paceTenthsPerWeek: number | null
   recentPaceTenths: number | null
   paceWindow: RatingGoalPaceWindowKind | null
   occurredAt: Date
@@ -260,6 +263,7 @@ export const goalRatingGoalTransitioned = (
     shownTenths: 'shownTenths' in notice ? notice.shownTenths : null,
     previousTenths: 'previousTenths' in notice ? notice.previousTenths : null,
     pacePerWeek: 'pacePerWeek' in notice ? notice.pacePerWeek : null,
+    paceTenthsPerWeek: 'paceTenthsPerWeek' in notice ? notice.paceTenthsPerWeek : null,
     recentPaceTenths: 'recentPaceTenths' in notice ? notice.recentPaceTenths : null,
     paceWindow: 'paceWindow' in notice ? notice.paceWindow : null,
     occurredAt: args.occurredAt,

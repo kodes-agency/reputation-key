@@ -26,6 +26,7 @@ import { properties } from '#/shared/db/schema/property.schema'
 import { trace } from '#/shared/observability/trace'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { goalRatingGoalTransitioned } from '../../domain/goal-events'
+import { legacyPacePerWeek } from '../../domain/rating-goal-pace'
 import type {
   PropertyRatingGoal,
   RatingGoalChange,
@@ -47,6 +48,15 @@ type GoalRow = typeof propertyRatingGoals.$inferSelect
 type ChangeRow = typeof propertyRatingGoalChanges.$inferSelect
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 
+/**
+ * The pace in tenths a week and its whole weekly mirror, which the plan CHECK
+ * holds equal for one release (migration 0060).
+ */
+const paceColumns = (paceTenthsPerWeek: number | null) => ({
+  paceTenthsPerWeek,
+  pacePerWeek: paceTenthsPerWeek === null ? null : legacyPacePerWeek(paceTenthsPerWeek),
+})
+
 const goalFromRow = (row: GoalRow): PropertyRatingGoal => ({
   id: row.id,
   organizationId: row.organizationId,
@@ -55,7 +65,7 @@ const goalFromRow = (row: GoalRow): PropertyRatingGoal => ({
   mode: row.mode as RatingGoalMode,
   targetTenths: row.targetTenths,
   qualityTenths: row.qualityTenths,
-  pacePerWeek: row.pacePerWeek,
+  paceTenthsPerWeek: row.paceTenthsPerWeek,
   state: row.status as RatingGoalState,
   endedReason: row.endedReason as RatingGoalEndedReason | null,
   baseline: {
@@ -262,7 +272,7 @@ export const createPropertyRatingGoalRepository = (
           mode: goal.mode,
           targetTenths: goal.targetTenths,
           qualityTenths: goal.qualityTenths,
-          pacePerWeek: goal.pacePerWeek,
+          ...paceColumns(goal.paceTenthsPerWeek),
           status: 'active',
           baselineReviewCount: goal.baseline.reviewCount,
           baselineGoogleAverage: goal.baseline.googleAverage,
@@ -292,7 +302,7 @@ export const createPropertyRatingGoalRepository = (
             mode: change.plan.mode,
             targetTenths: change.plan.targetTenths,
             qualityTenths: change.plan.qualityTenths,
-            pacePerWeek: change.plan.pacePerWeek,
+            ...paceColumns(change.plan.paceTenthsPerWeek),
             // The status the new plan puts the goal in is the manager's own
             // doing: the next evaluation stores it without a notice.
             lastKnownStatus: null,

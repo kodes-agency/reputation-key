@@ -532,8 +532,10 @@ export const goalMonthTargetChanges = pgTable(
 // subjects or metric readings. One active goal per Property, aimed at the
 // one-decimal number Google shows. A climb goal's plan is its target, its
 // planned quality (the average stars, in tenths, it assumes new reviews bring;
-// migration 0059) and its weekly pace. `source_epoch` is the Property's Google
-// binding epoch when the goal was set; a goal outlives no change of it. The
+// migration 0059) and its pace in tenths of a review a week (migration 0060;
+// `pace_per_week` is its whole weekly mirror for one release). `source_epoch`
+// is the Property's Google binding epoch when the goal was set; a goal
+// outlives no change of it. The
 // `last_*` columns are what the set or the last evaluation stored, so the next
 // one can tell a transition (a tenth gained or lost, a new status) from a
 // repeat.
@@ -548,7 +550,10 @@ export const propertyRatingGoals = pgTable(
     sourceEpoch: integer('source_epoch').notNull(),
     mode: varchar('mode', { length: 8 }).notNull(),
     targetTenths: smallint('target_tenths').notNull(),
+    // Legacy: one release, the whole weekly mirror of `pace_tenths_per_week`
+    // (migration 0060), dropped by the contract follow-up.
     pacePerWeek: smallint('pace_per_week'),
+    paceTenthsPerWeek: smallint('pace_tenths_per_week'),
     qualityTenths: smallint('quality_tenths'),
     status: varchar('status', { length: 8 }).notNull().default('active'),
     endedReason: varchar('ended_reason', { length: 32 }),
@@ -598,8 +603,8 @@ export const propertyRatingGoals = pgTable(
     ),
     check(
       'property_rating_goals_plan_check',
-      sql`(${t.mode} = 'climb' AND ${t.pacePerWeek} IS NOT NULL AND ${t.qualityTenths} IS NOT NULL AND ${t.targetTenths} BETWEEN 11 AND 49 AND ${t.pacePerWeek} BETWEEN 1 AND 200 AND ${t.qualityTenths} BETWEEN ${t.targetTenths} AND 50)
-        OR (${t.mode} = 'keep' AND ${t.pacePerWeek} IS NULL AND ${t.qualityTenths} IS NULL AND ${t.targetTenths} BETWEEN 10 AND 50)`,
+      sql`(${t.mode} = 'climb' AND ${t.pacePerWeek} IS NOT NULL AND ${t.paceTenthsPerWeek} IS NOT NULL AND ${t.qualityTenths} IS NOT NULL AND ${t.targetTenths} BETWEEN 11 AND 49 AND ${t.paceTenthsPerWeek} BETWEEN 10 AND 3500 AND ${t.pacePerWeek} = GREATEST(1, (${t.paceTenthsPerWeek} + 5) / 10) AND ${t.qualityTenths} BETWEEN ${t.targetTenths} AND 50)
+        OR (${t.mode} = 'keep' AND ${t.pacePerWeek} IS NULL AND ${t.paceTenthsPerWeek} IS NULL AND ${t.qualityTenths} IS NULL AND ${t.targetTenths} BETWEEN 10 AND 50)`,
     ),
     check(
       'property_rating_goals_status_check',
@@ -628,8 +633,9 @@ export const propertyRatingGoals = pgTable(
 
 // Each change to a rating goal's target, planned quality, pace or mode: who,
 // when, old -> new, one row per field. No reason (ADR 0067). Values are text:
-// a target or a quality in tenths, a pace a week (a quality or a pace is NULL
-// when a goal keeps instead), or a mode.
+// a target or a quality in tenths, a pace in tenths of a review a week (10 to
+// 3500, migration 0060; a quality or a pace is NULL when a goal keeps
+// instead), or a mode.
 export const propertyRatingGoalChanges = pgTable(
   'property_rating_goal_changes',
   {
@@ -668,8 +674,8 @@ export const propertyRatingGoalChanges = pgTable(
           AND (${t.oldValue} IS NULL OR ${t.oldValue} ~ '^([1-4][0-9]|50)$')
           AND (${t.newValue} IS NULL OR ${t.newValue} ~ '^([1-4][0-9]|50)$'))
         OR (${t.field} = 'pace'
-          AND (${t.oldValue} IS NULL OR ${t.oldValue} ~ '^([1-9][0-9]?|1[0-9][0-9]|200)$')
-          AND (${t.newValue} IS NULL OR ${t.newValue} ~ '^([1-9][0-9]?|1[0-9][0-9]|200)$'))
+          AND (${t.oldValue} IS NULL OR ${t.oldValue} ~ '^([1-9][0-9]{1,2}|[12][0-9]{3}|3[0-4][0-9]{2}|3500)$')
+          AND (${t.newValue} IS NULL OR ${t.newValue} ~ '^([1-9][0-9]{1,2}|[12][0-9]{3}|3[0-4][0-9]{2}|3500)$'))
         OR (${t.field} = 'mode' AND ${t.oldValue} IS NOT NULL AND ${t.newValue} IS NOT NULL
           AND ${t.oldValue} IN ('climb', 'keep') AND ${t.newValue} IN ('climb', 'keep'))
       )`,

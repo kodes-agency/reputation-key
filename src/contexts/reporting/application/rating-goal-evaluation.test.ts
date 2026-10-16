@@ -21,7 +21,7 @@ const goal = (overrides: Partial<PropertyRatingGoal> = {}): PropertyRatingGoal =
   mode: 'climb',
   targetTenths: 45,
   qualityTenths: 47,
-  pacePerWeek: 10,
+  paceTenthsPerWeek: 100,
   state: 'active',
   endedReason: null,
   baseline: { reviewCount: 800, googleAverage: 4.3, exactAverage: 4.31 },
@@ -61,6 +61,7 @@ const reading = (overrides: Partial<RatingGoalReading> = {}): RatingGoalReading 
   exact: { value: ratio(431, 100), source: 'cache' },
   mix: { value: ratio(470, 100), reviewCount: 30, basis: 'last_90_days' },
   reviewsLast28Days: 40,
+  reviewsLast90Days: 30,
   extraCounts: [],
   sinceSet: { count: 12, sum: 56 },
   ...overrides,
@@ -148,7 +149,7 @@ describe('evaluating an active rating goal', () => {
       mode: 'keep',
       targetTenths: 44,
       qualityTenths: null,
-      pacePerWeek: null,
+      paceTenthsPerWeek: null,
     })
 
     expect(evaluateRatingGoal(keep, reading(), null).status).toBe('dropped_below')
@@ -166,7 +167,7 @@ describe('evaluating an active rating goal', () => {
       mode: 'keep',
       targetTenths: 43,
       qualityTenths: null,
-      pacePerWeek: null,
+      paceTenthsPerWeek: null,
     })
 
     expect(evaluateRatingGoal(keep, reading(), null).outcome).toEqual({

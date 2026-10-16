@@ -116,6 +116,7 @@ describe('parseNotificationPayload', () => {
       ratingTargetTenths: 45,
       ratingGoalMode: 'climb',
       ratingPacePerWeek: 11,
+      ratingPaceTenthsPerWeek: 105,
       ratingRecentPaceTenths: 65,
       ratingPaceWindow: 'last_4_weeks',
     }
@@ -138,8 +139,20 @@ describe('parseNotificationPayload', () => {
         ratingTargetTenths: 9,
         ratingGoalMode: 'hold',
         ratingPacePerWeek: 0,
+        ratingPaceTenthsPerWeek: 9,
         ratingRecentPaceTenths: -1,
         ratingPaceWindow: 'last_week',
+      }),
+    ).toEqual({})
+    expect(
+      parseNotificationPayload({
+        ratingPacePerWeek: 351,
+        ratingPaceTenthsPerWeek: 3501,
+      }),
+    ).toEqual({})
+    expect(
+      parseNotificationPayload({
+        ratingPaceTenthsPerWeek: 10.5,
       }),
     ).toEqual({})
     expect(
@@ -147,7 +160,8 @@ describe('parseNotificationPayload', () => {
         ratingShownTenths: 0,
         ratingTargetTenths: 50,
         ratingGoalMode: 'keep',
-        ratingPacePerWeek: 200,
+        ratingPacePerWeek: 350,
+        ratingPaceTenthsPerWeek: 3500,
         ratingRecentPaceTenths: 0,
         ratingPaceWindow: 'since_set',
       }),
@@ -155,7 +169,8 @@ describe('parseNotificationPayload', () => {
       ratingShownTenths: 0,
       ratingTargetTenths: 50,
       ratingGoalMode: 'keep',
-      ratingPacePerWeek: 200,
+      ratingPacePerWeek: 350,
+      ratingPaceTenthsPerWeek: 3500,
       ratingRecentPaceTenths: 0,
       ratingPaceWindow: 'since_set',
     })

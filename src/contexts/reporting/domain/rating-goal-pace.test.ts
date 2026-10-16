@@ -4,7 +4,12 @@ import {
   MAX_PACE_PER_WEEK,
   MIN_PACE_PER_WEEK,
   currentPacePerWeek,
+  MAX_PACE_TENTHS_PER_WEEK,
+  MIN_PACE_TENTHS_PER_WEEK,
   isValidPace,
+  isValidPaceTenths,
+  legacyPacePerWeek,
+  paceRatio,
   paceSuggestions,
   perDay,
   perMonth,
@@ -72,5 +77,36 @@ describe('a custom pace', () => {
     // Current pace 0.25 a week: the floor is 2 × 1.
     expect(surgeCaution(2, 1)).toBe(false)
     expect(surgeCaution(3, 1)).toBe(true)
+  })
+})
+
+describe('a pace in tenths of a review a week', () => {
+  it('runs from 1 a week to 50 a day', () => {
+    expect(MIN_PACE_TENTHS_PER_WEEK).toBe(10)
+    expect(MAX_PACE_TENTHS_PER_WEEK).toBe(3500)
+    expect(isValidPaceTenths(10)).toBe(true)
+    expect(isValidPaceTenths(3500)).toBe(true)
+    expect(isValidPaceTenths(9)).toBe(false)
+    expect(isValidPaceTenths(3501)).toBe(false)
+    expect(isValidPaceTenths(14.5)).toBe(false)
+  })
+
+  it('is a ratio of reviews a week', () => {
+    expect(paceRatio(105)).toEqual(ratio(21, 2))
+    expect(paceRatio(70)).toEqual(ratio(7, 1))
+  })
+
+  it('mirrors as whole reviews a week, half up and at least one', () => {
+    // The same table runs against the database CHECK (repository test).
+    const mirrors = [
+      [10, 1],
+      [14, 1],
+      [15, 2],
+      [105, 11],
+      [3500, 350],
+    ] as const
+    for (const [tenths, perWeek] of mirrors) {
+      expect(legacyPacePerWeek(tenths)).toBe(perWeek)
+    }
   })
 })

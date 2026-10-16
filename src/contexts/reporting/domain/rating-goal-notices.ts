@@ -26,6 +26,7 @@
 
 import type { PropertyRatingGoal, RatingGoalMode, RatingGoalStatus } from './rating-goal'
 import type { PaceWindow } from './rating-goal-status'
+import { legacyPacePerWeek } from './rating-goal-pace'
 
 /** A goal tells its managers it fell below pace at most once in this many days. */
 export const BELOW_PACE_NOTICE_DAYS = 14
@@ -60,6 +61,9 @@ export type RatingGoalNotice =
   | Readonly<{
       transition: 'entered_below_pace'
       targetTenths: number
+      /** The goal's pace in tenths of a review a week. */
+      paceTenthsPerWeek: number
+      /** Its whole weekly mirror, for readers from before tenths (one release). */
       pacePerWeek: number
       /** New reviews a week in the pace window, in tenths, rounded down. */
       recentPaceTenths: number
@@ -75,7 +79,7 @@ export type RatingGoalNotice =
 export type RatingGoalNoticeInput = Readonly<{
   goal: Pick<
     PropertyRatingGoal,
-    'mode' | 'targetTenths' | 'pacePerWeek' | 'lastEvaluation'
+    'mode' | 'targetTenths' | 'paceTenthsPerWeek' | 'lastEvaluation'
   >
   evaluation: Readonly<{
     status: RatingGoalStatus
@@ -130,7 +134,7 @@ function tenthNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null {
 
 function belowPaceNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null {
   const { goal, pace } = input
-  if (pace === null || goal.pacePerWeek === null) return null
+  if (pace === null || goal.paceTenthsPerWeek === null) return null
   if (
     !mayTell(goal.lastEvaluation.belowPaceNoticedAt, input.now, BELOW_PACE_NOTICE_DAYS)
   ) {
@@ -139,7 +143,8 @@ function belowPaceNotice(input: RatingGoalNoticeInput): RatingGoalNotice | null 
   return {
     transition: 'entered_below_pace',
     targetTenths: goal.targetTenths,
-    pacePerWeek: goal.pacePerWeek,
+    paceTenthsPerWeek: goal.paceTenthsPerWeek,
+    pacePerWeek: legacyPacePerWeek(goal.paceTenthsPerWeek),
     recentPaceTenths: recentPaceTenths(pace.reviews, pace.window),
     paceWindow: paceWindowKind(pace.window),
   }

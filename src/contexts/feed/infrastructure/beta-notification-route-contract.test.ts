@@ -510,6 +510,7 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       notice: {
         transition: 'entered_below_pace',
         targetTenths: 45,
+        paceTenthsPerWeek: 110,
         pacePerWeek: 11,
         recentPaceTenths: 65,
         paceWindow: 'last_4_weeks',

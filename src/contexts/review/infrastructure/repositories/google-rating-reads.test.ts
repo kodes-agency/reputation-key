@@ -307,3 +307,118 @@ describe('Google rating reads for the rating goal', () => {
     ).rejects.toThrow(/Too many count windows/u)
   })
 })
+
+describe('Google rating reads per calendar month and per date', () => {
+  it('sums each calendar month of the Property time zone with enough reviews', async () => {
+    // 21:30 UTC on 31 Jul is 00:30 on 1 Aug in Sofia (UTC+3): it counts in August.
+    for (const [suffix, rating, reviewedAt] of [
+      ['30', 5, '2026-07-31T21:30:00Z'],
+      ['31', 4, '2026-08-10T10:00:00Z'],
+      ['32', 2, '2026-07-31T20:30:00Z'],
+    ] as const) {
+      await insertReview({
+        id: `2c200000-0000-4000-8000-0000000000${suffix}`,
+        rating,
+        reviewedAt,
+      })
+    }
+
+    const months = await reads().getMonthlyTotals(
+      ORG,
+      PROPERTY,
+      new Date('2026-05-01T00:00:00Z'),
+      1,
+    )
+
+    // The earlier binding, the expired cache, another Property and the removed
+    // review never count in October.
+    expect(months).toEqual([
+      { year: 2026, month: 6, count: 1, sum: 5 },
+      { year: 2026, month: 7, count: 1, sum: 2 },
+      { year: 2026, month: 8, count: 2, sum: 9 },
+      { year: 2026, month: 10, count: 3, sum: 12 },
+    ])
+  })
+
+  it('leaves out the months under the minimum count and those before since', async () => {
+    const months = await reads().getMonthlyTotals(
+      ORG,
+      PROPERTY,
+      new Date('2026-07-01T00:00:00Z'),
+      2,
+    )
+
+    // June is before since; October's three reviews meet the minimum of two.
+    expect(months).toEqual([{ year: 2026, month: 10, count: 3, sum: 12 }])
+    await expect(
+      reads().getMonthlyTotals(ORG, PROPERTY, new Date('2026-05-01T00:00:00Z'), 4),
+    ).resolves.toEqual([])
+  })
+
+  it('counts each Property-local date, a local midnight and the DST night included', async () => {
+    // Sofia is UTC+2 until 03:00 on Sunday 29 Mar 2026, then UTC+3.
+    // 22:30 UTC on 28 Mar is 00:30 on 29 Mar; 00:30 UTC is 02:30 and 01:30 UTC
+    // is 04:30 on the same local date.
+    for (const [suffix, reviewedAt] of [
+      ['40', '2026-03-28T22:30:00Z'],
+      ['41', '2026-03-29T00:30:00Z'],
+      ['42', '2026-03-29T01:30:00Z'],
+      ['43', '2026-03-28T21:30:00Z'],
+    ] as const) {
+      await insertReview({
+        id: `2c200000-0000-4000-8000-0000000000${suffix}`,
+        rating: 5,
+        reviewedAt,
+      })
+    }
+
+    const days = await reads().getDailyCounts(
+      ORG,
+      PROPERTY,
+      new Date('2026-03-01T00:00:00Z'),
+    )
+
+    expect(days).toEqual([
+      { day: '2026-03-28', count: 1 },
+      { day: '2026-03-29', count: 3 },
+      { day: '2026-06-01', count: 1 },
+      { day: '2026-10-01', count: 1 },
+      { day: '2026-10-18', count: 1 },
+      { day: '2026-10-19', count: 1 },
+    ])
+  })
+
+  it('counts dates from since on, never the excluded reviews', async () => {
+    const days = await reads().getDailyCounts(
+      ORG,
+      PROPERTY,
+      new Date('2026-10-01T00:00:00Z'),
+    )
+
+    // 20:30 UTC on 18 Oct is 23:30 that day in Sofia; 21:30 UTC is 19 Oct.
+    expect(days).toEqual([
+      { day: '2026-10-01', count: 1 },
+      { day: '2026-10-18', count: 1 },
+      { day: '2026-10-19', count: 1 },
+    ])
+  })
+
+  it('counts nothing for another Organization or an earlier binding epoch', async () => {
+    const since = new Date('2026-01-01T00:00:00Z')
+
+    await expect(
+      reads().getMonthlyTotals(OTHER_ORG, PROPERTY, since, 1),
+    ).resolves.toEqual([])
+    await expect(reads().getDailyCounts(OTHER_ORG, PROPERTY, since)).resolves.toEqual([])
+    await expect(
+      reads().getDailyCounts(OTHER_ORG, FOREIGN_PROPERTY, since),
+    ).resolves.toEqual([{ day: '2026-10-19', count: 1 }])
+
+    await held.client.query('UPDATE properties SET source_epoch = 3 WHERE id = $1', [
+      PROPERTY,
+    ])
+
+    await expect(reads().getMonthlyTotals(ORG, PROPERTY, since, 1)).resolves.toEqual([])
+    await expect(reads().getDailyCounts(ORG, PROPERTY, since)).resolves.toEqual([])
+  })
+})

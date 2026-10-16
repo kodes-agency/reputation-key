@@ -60,7 +60,7 @@ function goalStatus(
       targetTenths: goal.targetTenths,
     })
   }
-  if (reading.waiting || reading.mix === null) return 'waiting_for_google'
+  if (reading.waiting) return 'waiting_for_google'
   return climbStatus({
     waiting: false,
     displayedTenths: displayed,
@@ -68,7 +68,7 @@ function goalStatus(
     sinceSet: reading.sinceSet ?? NO_REVIEWS,
     goalCreatedAt: goal.createdAt,
     now: reading.now,
-    chosenPerWeek: goal.pacePerWeek ?? 0,
+    chosenTenthsPerWeek: goal.paceTenthsPerWeek ?? 0,
     reviewsInPaceWindow,
   })
 }

@@ -106,7 +106,12 @@ const goalRatingGoalTransitionedSchema = z
     targetTenths: z.number().int().min(10).max(50),
     shownTenths: tenthSchema.nullable(),
     previousTenths: tenthSchema.nullable(),
-    pacePerWeek: z.number().int().min(1).max(200).nullable(),
+    // Legacy: whole reviews a week, the mirror of the tenths below (one
+    // release). Widened to 350 (50 a day); still what Below pace needs, so a
+    // fact from an older worker keeps validating.
+    pacePerWeek: z.number().int().min(1).max(350).nullable(),
+    /** The goal's pace in tenths of a review a week (migration 0060). */
+    paceTenthsPerWeek: z.number().int().min(10).max(3500).nullable().optional(),
     recentPaceTenths: z.number().int().min(0).max(100_000).nullable(),
     paceWindow: z.enum(['last_4_weeks', 'since_set']).nullable(),
     occurredAt: z.iso.datetime(),
