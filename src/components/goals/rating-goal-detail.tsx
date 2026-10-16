@@ -180,7 +180,10 @@ function WeeklyBars({ detail }: Pick<Props, 'detail'>) {
       </CardHeader>
       <CardContent>
         <Suspense fallback={<Skeleton aria-hidden="true" className="h-60 w-full" />}>
-          <RatingGoalWeeklyChart weeks={detail.weeks} pacePerWeek={detail.pacePerWeek} />
+          <RatingGoalWeeklyChart
+            weeks={detail.weeks}
+            paceTenthsPerWeek={detail.paceTenthsPerWeek}
+          />
         </Suspense>
       </CardContent>
     </Card>

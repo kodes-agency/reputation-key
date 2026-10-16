@@ -16,7 +16,12 @@ import {
   reviewsText,
   tenthsText,
 } from './rating-goal-view'
-import { planPaceNote } from './rating-goal-pace-words'
+import {
+  actualPaceText,
+  paceText,
+  planPaceNote,
+  weeklyTarget,
+} from './rating-goal-pace-words'
 
 const WEEKS_A_YEAR = 52
 /** Below this many weeks a span reads in weeks; below this many months, in months. */
@@ -38,9 +43,6 @@ export function aboutHowLong(reviews: number, perWeek: number): string {
   return `about ${formatNumber(weeks / WEEKS_A_YEAR, { maximumFractionDigits: 1 })} years`
 }
 
-const perWeekText = (perWeek: number): string =>
-  `${formatNumber(perWeek, { maximumFractionDigits: 2 })} a week`
-
 /**
  * Both forecasts the detail shows: at the chosen pace and at the actual one.
  * None while new reviews are too low for the target: the page says that once,
@@ -50,7 +52,8 @@ const perWeekText = (perWeek: number): string =>
 export function detailForecasts(
   detail: RatingGoalDetailView,
 ): readonly Readonly<{ label: string; text: string }>[] {
-  if (detail.pacePerWeek === null || detail.status === 'reviews_too_low') return []
+  const plan = detail.paceTenthsPerWeek
+  if (plan === null || detail.status === 'reviews_too_low') return []
   const average = assumedAverageWords(detail)
   const sentence = (forecast: NonNullable<RatingGoalDetailView['forecast']>) =>
     forecastSentence(forecast, detail.target, undefined, average)
@@ -58,13 +61,13 @@ export function detailForecasts(
     detail.forecastAtChosenPace === null
       ? null
       : {
-          label: `At your chosen pace, ${perWeekText(detail.pacePerWeek)}`,
+          label: `At your chosen pace, ${paceText(plan)}`,
           text: sentence(detail.forecastAtChosenPace),
         },
     detail.forecastAtActualPace === null
       ? null
       : {
-          label: `At your pace of the last 4 weeks, ${perWeekText(detail.lastFourWeeksPerWeek)}`,
+          label: `At your pace of the last 4 weeks, ${actualPaceText(detail.lastFourWeeksPerWeek, plan)}`,
           text: sentence(detail.forecastAtActualPace),
         },
   ]
@@ -73,8 +76,9 @@ export function detailForecasts(
 
 /** The quiet best case: if every new review is five stars. */
 export function bestCaseLine(detail: RatingGoalDetailView): string | null {
-  if (detail.bestCase === null || detail.pacePerWeek === null) return null
-  return `If every new review is 5★: ${formatNumber(detail.bestCase)} more reviews, ${aboutHowLong(detail.bestCase, detail.pacePerWeek)} at ${perWeekText(detail.pacePerWeek)}.`
+  const plan = detail.paceTenthsPerWeek
+  if (detail.bestCase === null || plan === null) return null
+  return `If every new review is 5★: ${formatNumber(detail.bestCase)} more reviews, ${aboutHowLong(detail.bestCase, plan / 10)} at ${paceText(plan)}.`
 }
 
 /**
@@ -117,18 +121,18 @@ export type DetailTile = Readonly<{ label: string; value: string; detail: string
 
 /** This week against the pace, the last four weeks, and what is still needed. */
 export function detailTiles(detail: RatingGoalDetailView): readonly DetailTile[] {
-  if (detail.pacePerWeek === null) return []
-  const pace = detail.pacePerWeek
+  const pace = detail.paceTenthsPerWeek
+  if (pace === null) return []
   return [
     {
       label: 'This week',
-      value: `${formatNumber(detail.thisWeekCount)} of ${formatNumber(pace)}`,
+      value: `${formatNumber(detail.thisWeekCount)} of ${formatNumber(weeklyTarget(pace))}`,
       detail: 'new reviews since Monday',
     },
     {
       label: 'Last 4 weeks',
-      value: perWeekText(detail.lastFourWeeksPerWeek),
-      detail: `your pace is ${perWeekText(pace)}`,
+      value: actualPaceText(detail.lastFourWeeksPerWeek, pace),
+      detail: `your pace is ${paceText(pace)}`,
     },
     detail.stillNeeded === null
       ? {
@@ -160,13 +164,13 @@ export function starMixSummary(
 /** The weekly chart's one line, which is also its accessible description. */
 export function weeklyCaption(
   weeks: readonly Readonly<{ count: number }>[],
-  pacePerWeek: number | null,
+  paceTenthsPerWeek: number | null,
 ): string {
   const total = weeks.reduce((sum, week) => sum + week.count, 0)
   const span = `${formatNumber(total)} new ${total === 1 ? 'review' : 'reviews'} in ${weeks.length} ${weeks.length === 1 ? 'week' : 'weeks'}`
-  return pacePerWeek === null
+  return paceTenthsPerWeek === null
     ? `${span}.`
-    : `${span}; the pace is ${perWeekText(pacePerWeek)}.`
+    : `${span}; the plan is ${paceText(paceTenthsPerWeek)}.`
 }
 
 const MINUTE = 60_000
@@ -236,7 +240,7 @@ export function yourPlanLines(plan: RatingGoalPlanProgressView): readonly PlanLi
     newReviewsLine(plan),
     {
       term: 'Pace, last 4 weeks',
-      value: `${perWeekText(plan.lastFourWeeksPerWeek)} · plan ${perWeekText(plan.pacePerWeek)}`,
+      value: `${actualPaceText(plan.lastFourWeeksPerWeek, plan.paceTenthsPerWeek)} · plan ${paceText(plan.paceTenthsPerWeek)}`,
       note: planPaceNote(plan.paceTenthsPerWeek),
     },
   ]

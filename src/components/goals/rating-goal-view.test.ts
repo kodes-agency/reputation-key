@@ -126,7 +126,10 @@ describe('the forecast', () => {
 
 describe('the simple card', () => {
   it('asks for a pace while the goal is new, then counts the week against it', () => {
-    expect(cardPaceLine(CARD_JUST_SET)).toBe('Aim for about 11 new reviews a week')
+    expect(cardPaceLine(CARD_JUST_SET)).toBe('Aim for about 1.6 new reviews a day')
+    expect(cardPaceLine({ ...CARD_JUST_SET, paceTenthsPerWeek: 30 })).toBe(
+      'Aim for about 3 new reviews a week',
+    )
     expect(cardPaceLine(CARD)).toBe('This week: 6 of 11 reviews')
     expect(
       cardPaceLine({ ...CARD, paceTenthsPerWeek: 10, pacePerWeek: 1, thisWeekCount: 0 }),
@@ -217,7 +220,7 @@ describe('the history', () => {
   it('says a reached goal’s target, pace and both dates', () => {
     expect(historyEntryView(HISTORY[0]!, FIXTURE_TIMEZONE, NOW)).toEqual({
       title: 'Reach 4.3 on Google',
-      summary: '9 a week · set Mar 2 · reached Jul 28',
+      summary: '1.3 a day · set Mar 2 · reached Jul 28',
       status: { label: 'Reached', tone: 'positive' },
     })
   })
@@ -285,12 +288,13 @@ describe('the change log', () => {
     expect(
       changeText({ ...change, field: 'target', oldValue: '44', newValue: '45' }),
     ).toBe('Target 4.4 → 4.5')
-    expect(changeText({ ...change, field: 'pace', oldValue: '14', newValue: '11' })).toBe(
-      'Pace 14 → 11 a week',
-    )
-    expect(changeText({ ...change, field: 'pace', oldValue: '11', newValue: null })).toBe(
-      'Pace 11 a week → none',
-    )
+    // The log keeps tenths of a review a week: never "0.2 → 0.3".
+    expect(
+      changeText({ ...change, field: 'pace', oldValue: '140', newValue: '105' }),
+    ).toBe('Pace 2 → 1.5 a day')
+    expect(
+      changeText({ ...change, field: 'pace', oldValue: '110', newValue: null }),
+    ).toBe('Pace 1.6 a day → none')
     expect(
       changeText({ ...change, field: 'mode', oldValue: 'climb', newValue: 'keep' }),
     ).toBe('Goal reach → keep')

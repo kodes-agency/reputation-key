@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  actualPaceText,
+  newReviewsAim,
+  paceChangeText,
   paceSentence,
   paceText,
   perWeekText,
@@ -66,5 +69,31 @@ describe('a plan’s pace in one sentence', () => {
   it('adds the week and the month as a note under the plan', () => {
     expect(planPaceNote(140)).toBe('About 14 a week · 60 a month')
     expect(planPaceNote(30)).toBe('About 13 a month')
+  })
+})
+
+describe('the pace in tracking', () => {
+  it('aims a new goal per day, or per week under one a day', () => {
+    expect(newReviewsAim(140)).toBe('about 2 new reviews a day')
+    expect(newReviewsAim(70)).toBe('about 1 new review a day')
+    expect(newReviewsAim(30)).toBe('about 3 new reviews a week')
+    expect(newReviewsAim(10)).toBe('about 1 new review a week')
+  })
+
+  it('words a change of pace in one unit when both read the same way', () => {
+    expect(paceChangeText('140', '105')).toBe('Pace 2 → 1.5 a day')
+    expect(paceChangeText('140', '210')).toBe('Pace 2 → 3 a day')
+    expect(paceChangeText('30', '14')).toBe('Pace 3 → 1.4 a week')
+  })
+
+  it('names both units when the change crosses one a day', () => {
+    expect(paceChangeText('30', '70')).toBe('Pace 3 a week → 1 a day')
+    expect(paceChangeText(null, '70')).toBe('Pace none → 1 a day')
+  })
+
+  it('words the pace of the last four weeks the way the plan reads', () => {
+    expect(actualPaceText(9.5, 140)).toBe('1.4 a day')
+    expect(actualPaceText(2.25, 30)).toBe('2.3 a week')
+    expect(actualPaceText(0, 140)).toBe('0 a day')
   })
 })

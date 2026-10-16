@@ -13,6 +13,12 @@ import type {
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import type { StatusMap, StatusPresentation } from '#/components/ui/status-badge'
 import { formatMonthKey, formatNumber, formatShortDate } from '#/lib/format'
+import {
+  newReviewsAim,
+  paceChangeText,
+  paceText,
+  weeklyTarget,
+} from './rating-goal-pace-words'
 
 /** How a rating goal's status reads as a pill. */
 export const RATING_GOAL_STATUS: StatusMap<RatingGoalStatus> = {
@@ -185,15 +191,15 @@ export function forecastSentence(
   }
 }
 
-/** "11 new reviews a week". */
-export const newReviewsAWeek = (pace: number): string =>
-  `${formatNumber(pace)} new ${pace === 1 ? 'review' : 'reviews'} a week`
-
-/** The card's one pace line: the aim while the goal is new, then this week against it. */
+/**
+ * The card's one pace line: the aim while the goal is new, per day ("Aim for
+ * about 2 new reviews a day"), then this week against it, counted per week
+ * ("This week: 9 of 14 reviews", R3-7).
+ */
 export function cardPaceLine(card: RatingGoalCardView): string | null {
-  if (card.mode === 'keep' || card.pacePerWeek === null) return null
-  if (card.justSet) return `Aim for about ${newReviewsAWeek(card.pacePerWeek)}`
-  return `This week: ${formatNumber(card.thisWeekCount)} of ${reviewsText(card.pacePerWeek)}`
+  if (card.mode === 'keep' || card.paceTenthsPerWeek === null) return null
+  if (card.justSet) return `Aim for ${newReviewsAim(card.paceTenthsPerWeek)}`
+  return `This week: ${formatNumber(card.thisWeekCount)} of ${reviewsText(weeklyTarget(card.paceTenthsPerWeek))}`
 }
 
 /**
@@ -319,7 +325,7 @@ export function historyEntryView(
   const ended = day(entry.endedAt)
   const reason = entry.state === 'ended' ? entry.endedReason : null
   const parts = [
-    entry.pacePerWeek === null ? null : `${formatNumber(entry.pacePerWeek)} a week`,
+    entry.paceTenthsPerWeek === null ? null : paceText(entry.paceTenthsPerWeek),
     `set ${day(entry.setAt) ?? 'on an unknown day'}`,
     reached === null ? null : `reached ${reached}`,
     ended === null
@@ -340,9 +346,6 @@ const MODE_WORD: Readonly<Record<string, string>> = { climb: 'reach', keep: 'kee
 const tenthsValue = (value: string | null): string =>
   value === null ? 'none' : tenthsText(Number(value))
 
-const paceValue = (value: string | null): string =>
-  value === null ? 'none' : `${formatNumber(Number(value))} a week`
-
 /** "New reviews average 4.5★ → 4.7★", "set to 4.5★" on a goal that had none. */
 function qualityChangeText(oldValue: string | null, newValue: string | null): string {
   const stars = (value: string | null) =>
@@ -353,8 +356,8 @@ function qualityChangeText(oldValue: string | null, newValue: string | null): st
 }
 
 /**
- * One change, old to new: "Target 4.4 → 4.5", "Pace 14 → 11 a week", "New
- * reviews average 4.5★ → 4.7★".
+ * One change, old to new: "Target 4.4 → 4.5", "Pace 2 → 1.5 a day" (the log
+ * keeps tenths of a review a week), "New reviews average 4.5★ → 4.7★".
  */
 export function changeText(change: RatingGoalChangeView): string {
   const { oldValue, newValue } = change
@@ -362,9 +365,7 @@ export function changeText(change: RatingGoalChangeView): string {
     case 'target':
       return `Target ${tenthsValue(oldValue)} → ${tenthsValue(newValue)}`
     case 'pace':
-      return oldValue !== null && newValue !== null
-        ? `Pace ${formatNumber(Number(oldValue))} → ${paceValue(newValue)}`
-        : `Pace ${paceValue(oldValue)} → ${paceValue(newValue)}`
+      return paceChangeText(oldValue, newValue)
     case 'mode':
       return `Goal ${MODE_WORD[oldValue ?? ''] ?? 'none'} → ${MODE_WORD[newValue ?? ''] ?? 'none'}`
     case 'quality':

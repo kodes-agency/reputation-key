@@ -56,3 +56,37 @@ export function planPaceNote(tenthsPerWeek: number): string {
     ? `About ${formatNumber(weeklyTarget(tenthsPerWeek))} a week · ${monthText(tenthsPerWeek)}`
     : `About ${monthText(tenthsPerWeek)}`
 }
+
+/** "about 2 new reviews a day", "about 3 new reviews a week": a new goal's aim. */
+export function newReviewsAim(tenthsPerWeek: number): string {
+  const daily = readsPerDay(tenthsPerWeek)
+  const count = daily ? dayTenthsOf(tenthsPerWeek) : tenthsPerWeek
+  const noun = count === TENTHS ? 'review' : 'reviews'
+  return `about ${oneDecimal(count / TENTHS)} new ${noun} a ${daily ? 'day' : 'week'}`
+}
+
+/** A logged pace (tenths a week, as text) as a number of its unit; null as "none". */
+const loggedPace = (value: string | null): number | null =>
+  value === null || !Number.isFinite(Number(value)) ? null : Number(value)
+
+/**
+ * A change of pace from the log: "Pace 2 → 1.5 a day" when both read the same
+ * way, "Pace 3 a week → 1 a day" when the change crosses one a day.
+ */
+export function paceChangeText(oldValue: string | null, newValue: string | null): string {
+  const from = loggedPace(oldValue)
+  const to = loggedPace(newValue)
+  const words = (tenths: number | null) => (tenths === null ? 'none' : paceText(tenths))
+  if (from === null || to === null || readsPerDay(from) !== readsPerDay(to)) {
+    return `Pace ${words(from)} → ${words(to)}`
+  }
+  const bare = (tenths: number) => paceText(tenths).replace(/ a (day|week)$/u, '')
+  return `Pace ${bare(from)} → ${paceText(to)}`
+}
+
+/** The pace of the last four weeks (a decimal a week) in the unit the plan reads in. */
+export function actualPaceText(perWeek: number, planTenthsPerWeek: number): string {
+  return readsPerDay(planTenthsPerWeek)
+    ? `${oneDecimal(Math.round((perWeek / 7) * TENTHS) / TENTHS)} a day`
+    : `${oneDecimal(perWeek)} a week`
+}

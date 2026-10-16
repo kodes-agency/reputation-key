@@ -11,6 +11,7 @@ import {
 import { ChartFrame } from '#/components/features/shared/chart-frame'
 import { formatLocalDate } from '#/lib/format'
 import { weeklyCaption } from './rating-goal-detail-view'
+import { perWeekText } from './rating-goal-pace-words'
 
 const config = {
   count: { label: 'New reviews', color: 'var(--muted-foreground)' },
@@ -18,15 +19,15 @@ const config = {
 
 type Props = Readonly<{
   weeks: readonly Readonly<{ weekStart: string; count: number }>[]
-  /** The chosen weekly pace, drawn as the dashed line; none for a goal to keep. */
-  pacePerWeek: number | null
+  /** The plan's pace in tenths of a review a week, drawn a week as the dashed line; none to keep. */
+  paceTenthsPerWeek: number | null
 }>
 
 /** "Oct 12": the Monday a week starts on, a stored day that no zone moves. */
 const weekLabel = (weekStart: string): string =>
   formatLocalDate(weekStart, { year: false }) ?? weekStart
 
-export function RatingGoalWeeklyChart({ weeks, pacePerWeek }: Props) {
+export function RatingGoalWeeklyChart({ weeks, paceTenthsPerWeek }: Props) {
   if (weeks.length === 0) {
     return (
       <p className="py-6 text-sm text-muted-foreground">
@@ -37,7 +38,7 @@ export function RatingGoalWeeklyChart({ weeks, pacePerWeek }: Props) {
   return (
     <ChartFrame
       label="New Google reviews each week"
-      caption={weeklyCaption(weeks, pacePerWeek)}
+      caption={weeklyCaption(weeks, paceTenthsPerWeek)}
       size="standard"
       config={config}
     >
@@ -66,9 +67,9 @@ export function RatingGoalWeeklyChart({ weeks, pacePerWeek }: Props) {
           }
         />
         <Bar dataKey="count" fill="var(--color-count)" radius={[4, 4, 0, 0]} />
-        {pacePerWeek === null ? null : (
+        {paceTenthsPerWeek === null ? null : (
           <ReferenceLine
-            y={pacePerWeek}
+            y={paceTenthsPerWeek / 10}
             stroke="var(--foreground)"
             strokeDasharray="6 4"
             strokeWidth={2}
@@ -76,7 +77,7 @@ export function RatingGoalWeeklyChart({ weeks, pacePerWeek }: Props) {
             // A halo in the card's colour keeps the label legible where a bar
             // runs up behind it, as one does on a phone.
             label={{
-              value: `Pace ${pacePerWeek}`,
+              value: `Plan ${perWeekText(paceTenthsPerWeek)}`,
               position: 'insideTopRight',
               fill: 'var(--foreground)',
               fontSize: 12,

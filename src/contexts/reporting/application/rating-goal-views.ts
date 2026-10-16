@@ -351,16 +351,13 @@ export function buildCardView(
   }
 }
 
-/** A logged pace (tenths a week) as a decimal a week, as "Pick a plan" words it. */
-const loggedValue = (field: RatingGoalChange['field'], value: string | null) =>
-  field === 'pace' && value !== null ? String(Number(value) / 10) : value
-
+/** One change as logged: a pace in tenths of a review a week, a target or average in tenths. */
 export const changeView = (change: RatingGoalChange): RatingGoalChangeView => ({
   changedBy: change.changedBy,
   changedAt: change.changedAt.toISOString(),
   field: change.field,
-  oldValue: loggedValue(change.field, change.oldValue),
-  newValue: loggedValue(change.field, change.newValue),
+  oldValue: change.oldValue,
+  newValue: change.newValue,
 })
 
 /** Still needed and its best case at the goal's target, or nothing for keep. */

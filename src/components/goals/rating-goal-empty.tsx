@@ -1,5 +1,5 @@
 // The Google section of the Goals page when the Property has no rating goal: the
-// door into "Pick a plan", the "keep" door when Google shows 4.9 or 5.0 and there
+// door into the setup, the "keep" door when Google shows 4.9 or 5.0 and there
 // is no higher tenth to climb to (round 2, R2-9), or the plain reason a goal
 // cannot be set yet (ADR 0067; plan, Edge cases).
 // It leads with one sentence and one action, as every first-time screen must.
@@ -126,7 +126,7 @@ export function RatingGoalEmpty({ setup, propertyId, hasPortals, onStart }: Prop
       title="Set your Google rating goal"
       description={[
         google,
-        'Pick a plan to raise it: the number to reach, how good new reviews will be and a weekly pace.',
+        'We suggest a number Google can show and how many new reviews a day get you there.',
       ]
         .filter(Boolean)
         .join(' ')}
