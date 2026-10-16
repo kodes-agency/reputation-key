@@ -93,10 +93,6 @@ export const planCaution = (
     ? MORE_THAN_A_YEAR
     : null
 
-/** The policy line under the plans (R2-12, approved verbatim). */
-export const PLAN_POLICY_LINE =
-  'Your Portals offer every guest the same Google review link. Asking every guest, not only the ones who would write anyway, and better stays are what move this number.'
-
 /** "4.5★". */
 export const starsText = (stars: number): string => `${ratingText(stars)}★`
 

@@ -33,7 +33,7 @@ import { QUIET } from './rating-goal-option'
 import { RatingGoalPlanRow } from './rating-goal-plan-row'
 import type { OwnPlan, RowPick } from './rating-goal-plan-view'
 import { tenthsText } from './rating-goal-view'
-import { PERFECT_STOP_REASON, STOP_LABEL } from './rating-goal-wizard-view'
+import { PERFECT_STOP_REASON, STOP_LABEL } from './rating-goal-build-own-view'
 import { RatingGoalWholeDates } from './rating-goal-whole-dates'
 
 type Props = Readonly<{

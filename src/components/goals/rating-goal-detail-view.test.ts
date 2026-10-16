@@ -173,7 +173,7 @@ describe('your plan', () => {
       {
         term: 'Pace, last 4 weeks',
         value: '9.5 a week · plan 11 a week',
-        note: 'Your plan is 48 a month · 1.6 a day',
+        note: 'About 11 a week · 50 a month',
       },
     ])
   })

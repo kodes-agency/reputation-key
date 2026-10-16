@@ -8,16 +8,15 @@ import type {
   RatingGoalDetailView,
   RatingGoalPlanProgressView,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
-import { ratingGoalPaceView } from '#/contexts/reporting/application/rating-goal-preview'
 import { formatNumber } from '#/lib/format'
 import {
   assumedAverageWords,
   forecastSentence,
-  perMonthAndDay,
   ratingText,
   reviewsText,
   tenthsText,
 } from './rating-goal-view'
+import { planPaceNote } from './rating-goal-pace-words'
 
 const WEEKS_A_YEAR = 52
 /** Below this many weeks a span reads in weeks; below this many months, in months. */
@@ -238,7 +237,7 @@ export function yourPlanLines(plan: RatingGoalPlanProgressView): readonly PlanLi
     {
       term: 'Pace, last 4 weeks',
       value: `${perWeekText(plan.lastFourWeeksPerWeek)} · plan ${perWeekText(plan.pacePerWeek)}`,
-      note: `Your plan is ${perMonthAndDay(ratingGoalPaceView(plan.pacePerWeek))}`,
+      note: planPaceNote(plan.paceTenthsPerWeek),
     },
   ]
 }

@@ -4,7 +4,6 @@
 // never a date; "review" means a Google review and nothing else.
 import type {
   GoogleNumbersView,
-  RatingPaceView,
   RatingForecastView,
   RatingGoalCardView,
   RatingGoalChangeView,
@@ -185,10 +184,6 @@ export function forecastSentence(
       return 'More than ten years away at this pace'
   }
 }
-
-/** "48 a month · 1.6 a day": what only the chosen pace also shows. */
-export const perMonthAndDay = (pace: RatingPaceView): string =>
-  `${formatNumber(pace.perMonth)} a month · ${formatNumber(pace.perDay)} a day`
 
 /** "11 new reviews a week". */
 export const newReviewsAWeek = (pace: number): string =>

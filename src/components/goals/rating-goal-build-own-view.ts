@@ -13,10 +13,11 @@ import type {
   RatingPlanProblem,
   RatingQualityAnchorKind,
   RatingQualityOptionView,
+  RatingStopLabel,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { ratingGoalQualityChoice } from '#/contexts/reporting/application/rating-goal-planning'
 import { previewRatingGoalPlan } from '#/contexts/reporting/application/rating-goal-preview'
-import type { StatusPresentation } from '#/components/ui/status-badge'
+import type { StatusMap, StatusPresentation } from '#/components/ui/status-badge'
 import { formatNumber } from '#/lib/format'
 import { forecastSentence, tenthsText } from './rating-goal-view'
 import {
@@ -26,7 +27,16 @@ import {
   type OwnPlan,
   type RowPick,
 } from './rating-goal-plan-view'
-import { STOP_LABEL } from './rating-goal-wizard-view'
+
+/** How a target's label reads as a chip, on the target row of "Build your own". */
+export const STOP_LABEL: StatusMap<RatingStopLabel> = {
+  realistic: { label: 'Realistic', tone: 'positive' },
+  stretch: { label: 'Stretch', tone: 'neutral' },
+  out_of_reach: { label: 'Out of reach', tone: 'warn' },
+}
+
+/** Why 5.0 is on the scale and cannot be picked. */
+export const PERFECT_STOP_REASON = 'needs every review from now on to be 5★'
 
 /** One option of a row: what it reads, its chip, and whether it is the recommendation. */
 export type RowOption = Readonly<{

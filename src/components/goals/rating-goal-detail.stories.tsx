@@ -60,7 +60,7 @@ export const Monitoring: Story = {
     await expect(plan.getByText('4.61★ · plan 4.7★')).toBeVisible()
     await expect(plan.getByText('107 reviews since the goal was set')).toBeVisible()
     await expect(plan.getByText('9.5 a week · plan 11 a week')).toBeVisible()
-    await expect(plan.getByText('Your plan is 48 a month · 1.6 a day')).toBeVisible()
+    await expect(plan.getByText('About 11 a week · 50 a month')).toBeVisible()
     // The plan's pace is in the plan, not said again above it.
     await expect(canvas.queryByText(/^Your pace:/)).toBeNull()
     await expect(canvas.getByText('At your chosen pace, 11 a week')).toBeVisible()

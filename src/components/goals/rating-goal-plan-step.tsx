@@ -28,12 +28,12 @@ import {
   openOwn,
   ownValues,
   pickCard,
-  PLAN_POLICY_LINE,
   qualityAssumption,
   resolvePlanDraft,
   type PlanDraft,
   type ResolvedPlan,
 } from './rating-goal-plan-view'
+import { PLAN_POLICY_LINE } from './rating-goal-copy'
 import { RatingGoalCancel } from './rating-goal-wizard-cancel'
 import {
   wizardSubmission,

@@ -6,13 +6,11 @@
 import type {
   RatingForecastView,
   RatingGoalCardView,
-  RatingStopLabel,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import type {
   ChangeRatingGoalSchemaInput,
   SetRatingGoalSchemaInput,
 } from '#/contexts/reporting/application/dto/rating-goal.dto'
-import type { StatusMap } from '#/components/ui/status-badge'
 import { forecastSentence, newReviewsAWeek, tenthsText } from './rating-goal-view'
 
 /**
@@ -35,16 +33,6 @@ export type RatingGoalWizardIntent =
   | Readonly<{ kind: 'climb' }>
   | Readonly<{ kind: 'keep'; targetTenths: number }>
   | Readonly<{ kind: 'change'; goal: RatingGoalBeingChanged }>
-
-/** How a target's label reads as a chip, on the target row of "Build your own". */
-export const STOP_LABEL: StatusMap<RatingStopLabel> = {
-  realistic: { label: 'Realistic', tone: 'positive' },
-  stretch: { label: 'Stretch', tone: 'neutral' },
-  out_of_reach: { label: 'Out of reach', tone: 'warn' },
-}
-
-/** Why 5.0 is on the scale and cannot be picked. */
-export const PERFECT_STOP_REASON = 'needs every review from now on to be 5★'
 
 export type WizardSubmission =
   | Readonly<{ kind: 'set'; data: SetRatingGoalSchemaInput }>
