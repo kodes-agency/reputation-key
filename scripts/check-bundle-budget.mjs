@@ -566,7 +566,10 @@
 // Fresh production builds measured 307,493 B (75 js + 1 css) on main
 // ec78f3bde, 307,543 B right after the card commit and 307,528 B at the PR's
 // end: +35 B, all in the entry's preload map (the headline the keep card and
-// the detail share is a chunk of its own now). 172 B spare.
+// the detail share is a chunk of its own now). 172 B spare. After the review
+// fixes (the narrow card, the detail's next number, the link-coloured goal
+// number) a fresh build measured 307,543 B, +15 B, still no raise and no new
+// class (the stylesheet is byte for byte the same): 157 B spare.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
