@@ -2,6 +2,7 @@
 // layout normally provides. The story wraps the editor with the header's
 // save-status line so the play tests can watch what a manager would see.
 import type { Meta, StoryObj } from '@storybook/react'
+import { diag } from '../../../../../.storybook/diag'
 import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
 import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
@@ -473,20 +474,28 @@ export const WelcomeLinesPerLanguage: Story = {
 export const PropertyWordingKeepsAnUnsavedEdit: Story = {
   args: { resources: makeResources(action(async () => undefined)) },
   play: async ({ canvasElement }) => {
+    diag('PW step 0 play begins')
     const english = languageCard(canvasElement, /English/)
     const fold = english.getByRole('button', { name: /Property wording/ })
     await userEvent.click(fold)
+    diag('PW step 1 fold opened')
     const field = english.getByLabelText('Welcome line', {
       selector: '#portal-content-title-en',
     })
     await userEvent.clear(field)
+    diag('PW step 2 cleared')
     await userEvent.type(field, 'Welcome to the resort')
+    diag(`PW step 3 typed value=${(field as HTMLInputElement).value}`)
     await userEvent.click(fold)
+    diag('PW step 4 fold closed')
     await expect(fold).toHaveAttribute('aria-expanded', 'false')
+    diag('PW step 5 expect closed ok')
     await userEvent.click(fold)
+    diag('PW step 6 fold reopened')
     await expect(
       english.getByLabelText('Welcome line', { selector: '#portal-content-title-en' }),
     ).toHaveValue('Welcome to the resort')
+    diag('PW step 7 done')
   },
 }
 

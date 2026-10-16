@@ -167,6 +167,12 @@ const SNAPSHOT = `(() => {
     }
     lines.push('iframe' + info)
   }
+  try {
+    const trail = JSON.parse(localStorage.getItem('__diag') ?? '[]')
+    lines.push('diag trail (last 150):\\n      ' + trail.slice(-150).join('\\n      '))
+  } catch (error) {
+    lines.push('diag trail unreadable: ' + error)
+  }
   return lines.join('\\n')
 })()`
 
