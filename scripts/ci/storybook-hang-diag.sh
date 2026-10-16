@@ -17,7 +17,7 @@ else
 fi
 for i in $(seq 1 "$iterations"); do
   echo "::group::iteration $i ($mode)"
-  CDP_PORT=9222 STALL_MS=60000 TRACE_FILE=trace-$i.txt REPKEY_STORYBOOK_TESTS=true \
+  CDP_PORT=9222 STALL_MS=45000 TRACE_FILE=trace-$i.txt REPKEY_STORYBOOK_TESTS=true \
     timeout -s KILL "$limit" pnpm exec vitest run --project=storybook \
     --reporter=./scripts/ci/storybook-watchdog-reporter.mjs --reporter=dot $target
   rc=$?

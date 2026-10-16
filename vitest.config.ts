@@ -50,9 +50,15 @@ const storybookProject: TestProjectConfiguration[] =
               enabled: true,
               headless: true,
               provider: playwright({
-                launchOptions: process.env.CDP_PORT
-                  ? { args: [`--remote-debugging-port=${process.env.CDP_PORT}`] }
-                  : {},
+                launchOptions: {
+                  args: [
+                    ...(process.env.CDP_PORT
+                      ? [`--remote-debugging-port=${process.env.CDP_PORT}`]
+                      : []),
+                    ...(process.env.CHROMIUM_EXTRA_ARGS?.split(' ').filter(Boolean) ??
+                      []),
+                  ],
+                },
               }),
               instances: [{ browser: 'chromium' }],
             },
