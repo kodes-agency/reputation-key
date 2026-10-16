@@ -570,6 +570,15 @@
 // fixes (the narrow card, the detail's next number, the link-coloured goal
 // number) a fresh build measured 307,543 B, +15 B, still no raise and no new
 // class (the stylesheet is byte for byte the same): 157 B spare.
+//
+// 2026-10-16 (Google rating goal, round 5, PR D-2: the tracking detail): no
+// raise. The detail page and its climb chart load with the goal's route chunk
+// and a lazy chart chunk (1,132 B; recharts' ComposedChart, Area and
+// ReferenceDot join the lazy vendor-charts group, 90,625 -> 91,002 B); every
+// class the page uses was already in the stylesheet (byte for byte the same,
+// 27,781 B). Fresh production builds measured 307,543 B (75 js + 1 css) on
+// D-1's head 5f1f57015 and 307,523 B after the detail commit: -20 B, the
+// retired weekly chart's preload entry. 177 B spare.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
