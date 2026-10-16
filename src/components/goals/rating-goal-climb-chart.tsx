@@ -43,13 +43,23 @@ export function RatingGoalClimbChart({ model }: Readonly<{ model: ClimbChartMode
   const { chart } = model
   return (
     <ChartFrame label="The climb, step by step" caption={model.caption} config={config}>
-      <ComposedChart margin={{ left: 8, right: 8, top: 16, bottom: 0 }}>
+      {/*
+        No accessibility layer: without a tooltip it is a Tab stop that does
+        nothing. The figure's name and caption are the text alternative, and
+        the rows below say the same facts.
+      */}
+      <ComposedChart
+        accessibilityLayer={false}
+        margin={{ left: 8, right: 8, top: 16, bottom: 0 }}
+      >
         <XAxis
           type="number"
           dataKey="day"
           domain={[...model.xDomain]}
           ticks={[...(phone ? model.phoneTicks : model.ticks)]}
           tickFormatter={dayTickLabel}
+          // Exactly the ticks the model spaced for the span; none dropped.
+          interval={0}
           tickLine={false}
           axisLine={false}
           allowDataOverflow
@@ -135,16 +145,20 @@ export function RatingGoalClimbChart({ model }: Readonly<{ model: ClimbChartMode
             }
           />
         ))}
-        {/* On a phone the band's words are in the caption, not over the goal's line. */}
+        {/*
+          Above the goal's line, where nothing else is drawn: the band runs up
+          to the line from below, so its words never cover it (and need no
+          halo). On a phone they are in the caption.
+        */}
         {phone || model.bandAt === null || model.bandLabel === null ? null : (
           <ReferenceDot
             x={model.bandAt.day}
             y={model.bandAt.thousandths}
             r={0}
             label={{
-              ...LABEL,
               value: model.bandLabel,
-              position: 'bottom',
+              position: 'top',
+              fontSize: 12,
               fill: 'var(--link)',
               fontWeight: 600,
             }}

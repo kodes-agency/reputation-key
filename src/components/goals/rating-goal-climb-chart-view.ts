@@ -15,15 +15,24 @@ import { likelyText } from './rating-goal-setup-time'
 import { tenthsText } from './rating-goal-view'
 
 const WEEK = 7
-/** A tick every 4 weeks, every 8 over a span longer than half a year (and on a phone). */
+/** A tick every 4 weeks up to half a year, every 8 up to a year, every 16 beyond (doubled on a phone). */
 const TICK_WEEKS = 4
 const HALF_YEAR_DAYS = 182
+const YEAR_DAYS = 365
 /** The chart looks at least 8 weeks ahead, and a week past where both bands meet the goal. */
 const MIN_AHEAD_DAYS = 56
 /** Room below the lowest point and above the goal's line, in thousandths. */
 const MARGIN_BELOW = 15
 const MARGIN_ABOVE = 40
+/** Room above the highest point drawn (today's dot and its words), when that is above the goal's line. */
+const MARGIN_ABOVE_POINT = 20
 const STEP = 10
+/** Half a tick's words, as a share of the chart's width: on a desktop and on a phone. */
+const TICK_EDGE = 0.03
+const PHONE_TICK_EDGE = 0.1
+/** "Today 4.02" sits left of today's dot: about this share of the chart's width and height. */
+const TODAY_WORDS_WIDTH = 0.1
+const TODAY_WORDS_HEIGHT = 0.12
 
 export type ChartLine = Readonly<{
   thousandths: number
@@ -52,7 +61,11 @@ export type ClimbChartModel = Readonly<{
   anchorShortLabel: string
   todayLabel: string
   bandLabel: string | null
-  /** Where the band's words sit: on the goal's line, between its two ends. */
+  /**
+   * Where the band's words sit: just above the goal's line, between where its
+   * two edges reach it. No band point rises above the goal's line, so the words
+   * never cover the band.
+   */
   bandAt: Readonly<{ day: number; thousandths: number }> | null
   caption: string
 }>
@@ -81,25 +94,54 @@ function xDomainOf(chart: RatingGoalChartView, cap: number): readonly [number, n
   return [chart.firstDay, Math.max(MIN_AHEAD_DAYS, ...ends)]
 }
 
-/** Ticks on whole multiples of the step from today, inside the domain. */
-function ticksOf([from, to]: readonly [number, number], stepWeeks: number): number[] {
+/**
+ * Ticks on whole multiples of the step from today, inside the domain and far
+ * enough from its ends that their words are not cut off: a share of the span
+ * (half a tick's words, wider on a phone).
+ */
+function ticksOf(
+  [from, to]: readonly [number, number],
+  stepWeeks: number,
+  edgeShare: number,
+): number[] {
   const step = stepWeeks * WEEK
-  const first = Math.ceil(from / step)
-  const last = Math.floor(to / step)
+  const edge = (to - from) * edgeShare
+  const first = Math.ceil((from + edge) / step)
+  const last = Math.floor((to - edge) / step)
   return Array.from(
     { length: Math.max(0, last - first + 1) },
     (_, i) => (first + i) * step,
   )
 }
 
+/** The tick step in weeks for a span of days: 4, 8 past half a year, 16 past a year. */
+function tickWeeksOf([from, to]: readonly [number, number]): number {
+  const span = to - from
+  if (span > YEAR_DAYS) return 4 * TICK_WEEKS
+  return span > HALF_YEAR_DAYS ? 2 * TICK_WEEKS : TICK_WEEKS
+}
+
+/**
+ * From below the lowest point to above the goal's line, or above the highest
+ * point drawn when the exact average is past the goal's line (Google lagging
+ * on the goal, a goal found reached, one review moving a small Property's
+ * average): the axis clips what is outside, so nothing drawn may be.
+ */
 function yDomainOf(chart: RatingGoalChartView, cap: number): readonly [number, number] {
-  const values = [
+  const drawn = [
     ...(chart.history ?? []).map((point) => point.thousandths),
-    ...[...chart.plan, ...chart.likely].map((point) => point.low),
-    chart.today ?? cap,
+    ...(chart.today === null ? [] : [chart.today]),
   ]
-  const lowest = Math.min(...values) - MARGIN_BELOW
-  return [Math.floor(lowest / STEP) * STEP, Math.ceil((cap + MARGIN_ABOVE) / STEP) * STEP]
+  const bands = [...chart.plan, ...chart.likely]
+  const lowest =
+    Math.min(cap, ...drawn, ...bands.map((point) => point.low)) - MARGIN_BELOW
+  const highest = Math.max(
+    cap + MARGIN_ABOVE,
+    ...[...drawn, ...bands.map((point) => point.high)].map(
+      (value) => value + MARGIN_ABOVE_POINT,
+    ),
+  )
+  return [Math.floor(lowest / STEP) * STEP, Math.ceil(highest / STEP) * STEP]
 }
 
 function linesOf(
@@ -144,6 +186,23 @@ function dotsOf(chart: RatingGoalChartView): ChartDot[] {
   })
 }
 
+/**
+ * Whether a dot's words would sit under today's ("Today 4.02", left of today's
+ * dot): a move in the last tenth of the span, near today's height.
+ */
+function underTodayWords(
+  dot: ChartDot,
+  today: number | null,
+  [from, to]: readonly [number, number],
+  [low, high]: readonly [number, number],
+): boolean {
+  if (today === null) return false
+  return (
+    dot.day >= -(to - from) * TODAY_WORDS_WIDTH &&
+    Math.abs(dot.thousandths - today) <= (high - low) * TODAY_WORDS_HEIGHT
+  )
+}
+
 /** On the goal's line, between where the band's fast and slow edges reach it. */
 function bandAtOf(chart: RatingGoalChartView, cap: number): ClimbChartModel['bandAt'] {
   const fast = chart.likely.find((point) => point.high >= cap)?.day
@@ -152,17 +211,24 @@ function bandAtOf(chart: RatingGoalChartView, cap: number): ClimbChartModel['ban
   return { day: Math.round((fast + slow) / 2), thousandths: cap }
 }
 
-/** "4.1 likely in 9 weeks to 4 months": the header's own likely words. */
+/** "4.1 likely in 9 weeks to 4 months": the header's own likely words; none once the goal is no longer active. */
 function bandLabelOf(detail: RatingGoalDetailView): string | null {
-  if (detail.forecast?.kind !== 'days' || detail.chart?.likely.length === 0) return null
+  if (
+    detail.state !== 'active' ||
+    detail.forecast?.kind !== 'days' ||
+    detail.chart?.likely.length === 0
+  ) {
+    return null
+  }
   return `${tenthsText(detail.targetTenths)} likely in ${likelyText(detail.forecast)}`
 }
 
+/** What the chart shows, then the band in a sentence (the chart's text alternative). */
 function captionOf(detail: RatingGoalDetailView, chart: RatingGoalChartView): string {
-  if (chart.history === null || chart.today === null) {
-    return 'Your review cache is still filling, so the line starts today.'
-  }
-  const went = `Google’s exact average went from ${twoDecimals(Math.round(detail.baseline.exactAverage * 1000))} when you set the goal to ${twoDecimals(chart.today)} today.`
+  const went =
+    chart.history === null || chart.today === null
+      ? 'Your review cache is still filling, so Google’s exact average is not drawn yet.'
+      : `Google’s exact average went from ${twoDecimals(Math.round(detail.baseline.exactAverage * 1000))} when you set the goal to ${twoDecimals(chart.today)} today.`
   const band = bandLabelOf(detail)
   return band === null
     ? went
@@ -178,16 +244,22 @@ export function climbChartModel(detail: RatingGoalDetailView): ClimbChartModel |
     Math.round(detail.threshold * 1000)
   const xDomain = xDomainOf(chart, goalLine)
   const yDomain = yDomainOf(chart, goalLine)
-  const step = xDomain[1] - xDomain[0] > HALF_YEAR_DAYS ? 2 * TICK_WEEKS : TICK_WEEKS
+  const step = tickWeeksOf(xDomain)
   const { anchor } = chart
   return {
     chart,
     xDomain,
     yDomain,
-    ticks: ticksOf(xDomain, step),
-    phoneTicks: ticksOf(xDomain, 2 * step),
+    ticks: ticksOf(xDomain, step, TICK_EDGE),
+    phoneTicks: ticksOf(xDomain, 2 * step, PHONE_TICK_EDGE),
     lines: linesOf(chart, detail.targetTenths, yDomain),
-    dots: dotsOf(chart).filter((dot) => dot.day >= xDomain[0]),
+    dots: dotsOf(chart)
+      .filter((dot) => dot.day >= xDomain[0])
+      .map((dot) =>
+        underTodayWords(dot, chart.today, xDomain, yDomain)
+          ? { ...dot, label: null }
+          : dot,
+      ),
     anchorLabel: `${anchor.kind === 'set' ? 'Plan set' : 'Plan changed'} · ${paceText(anchor.paceTenthsPerWeek)} at ${tenthsText(anchor.qualityTenths)}★`,
     anchorShortLabel: anchor.kind === 'set' ? 'Plan set' : 'Plan changed',
     todayLabel: chart.today === null ? 'Today' : `Today ${twoDecimals(chart.today)}`,
