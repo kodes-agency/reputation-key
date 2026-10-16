@@ -108,6 +108,8 @@ export type { ReviewServingStats } from './ports/serving-stats.port'
 // Reporting's Property Google rating goal reads current Google review counts
 // and star sums through this Review-owned port (eligibility enforced here).
 export type {
+  GoogleRatingDayCount,
+  GoogleRatingMonthTotals,
   GoogleRatingStarCount,
   GoogleRatingSummary,
   GoogleRatingSummaryRequest,

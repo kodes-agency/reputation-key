@@ -107,6 +107,8 @@ describe('Review context build', () => {
       'findByPropertyId',
     ])
     expect(Object.keys(api.lookups.googleRatingReads).sort()).toEqual([
+      'getDailyCounts',
+      'getMonthlyTotals',
       'getRatingSummary',
       'getStarDistribution',
       'getWeeklyCounts',

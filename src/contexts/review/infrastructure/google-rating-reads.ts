@@ -62,6 +62,13 @@ const reviewWeek = sql<string>`TO_CHAR(DATE_TRUNC('week', ${reviews.reviewedAt} 
 /** The calendar year of a review in its Property's time zone. */
 const reviewYear = sql<number>`EXTRACT(YEAR FROM ${reviews.reviewedAt} AT TIME ZONE ${properties.timezone})::int`
 
+/** The calendar year and month of a review in its Property's time zone. */
+const reviewMonthYear = sql<number>`EXTRACT(YEAR FROM ${reviews.reviewedAt} AT TIME ZONE ${properties.timezone})::int`
+const reviewMonth = sql<number>`EXTRACT(MONTH FROM ${reviews.reviewedAt} AT TIME ZONE ${properties.timezone})::int`
+
+/** The civil date of a review in its Property's time zone, `YYYY-MM-DD`. */
+const reviewDay = sql<string>`TO_CHAR(${reviews.reviewedAt} AT TIME ZONE ${properties.timezone}, 'YYYY-MM-DD')`
+
 /** The count and sum since an instant, when the request asks for them. */
 const totalsSinceColumns = (
   instant: Date | undefined,
@@ -152,6 +159,42 @@ export const createGoogleRatingReads = (deps: {
           .groupBy(reviewYear)
           .orderBy(reviewYear)
         return rows.map((row) => ({ year: Number(row.year), ...totalsOf(row) }))
+      })
+    },
+
+    async getMonthlyTotals(organizationId, propertyId, since, minimumCount) {
+      return trace('review.googleRatingReads.getMonthlyTotals', async () => {
+        const rows = await deps.db
+          .select({
+            year: reviewMonthYear,
+            month: reviewMonth,
+            count: count(),
+            sum: sum(reviews.rating),
+          })
+          .from(reviews)
+          .innerJoin(properties, currentBinding)
+          .where(currentGoogleReviews(organizationId, propertyId, deps.clock(), since))
+          .groupBy(reviewMonthYear, reviewMonth)
+          .having(sql`count(*) >= ${minimumCount}`)
+          .orderBy(reviewMonthYear, reviewMonth)
+        return rows.map((row) => ({
+          year: Number(row.year),
+          month: Number(row.month),
+          ...totalsOf(row),
+        }))
+      })
+    },
+
+    async getDailyCounts(organizationId, propertyId, since) {
+      return trace('review.googleRatingReads.getDailyCounts', async () => {
+        const rows = await deps.db
+          .select({ day: reviewDay, count: count() })
+          .from(reviews)
+          .innerJoin(properties, currentBinding)
+          .where(currentGoogleReviews(organizationId, propertyId, deps.clock(), since))
+          .groupBy(reviewDay)
+          .orderBy(reviewDay)
+        return rows.map((row) => ({ day: row.day, count: Number(row.count) }))
       })
     },
 

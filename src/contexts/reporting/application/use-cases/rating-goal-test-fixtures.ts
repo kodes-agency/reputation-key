@@ -1,5 +1,7 @@
 // In-memory doubles for the Property Google rating goal use-case tests.
 import type {
+  GoogleRatingDayCount,
+  GoogleRatingMonthTotals,
   GoogleRatingSummary,
   GoogleRatingSummaryRequest,
   GoogleRatingTotals,
@@ -45,6 +47,10 @@ export type FakeWorld = {
   }
   /** Each calendar year's totals, oldest first. */
   years: GoogleRatingYearTotals[]
+  /** Each calendar month's totals with enough reviews, oldest first. */
+  months: GoogleRatingMonthTotals[]
+  /** Reviews per Property-local date, oldest first. */
+  days: GoogleRatingDayCount[]
   held: boolean
   goals: PropertyRatingGoal[]
   changes: RatingGoalChange[]
@@ -55,6 +61,11 @@ export type FakeWorld = {
   authorizations: string[]
   deny: boolean
   summaryRequests: GoogleRatingSummaryRequest[]
+  /** The bounds each month and day read was asked with, in order. */
+  evidenceRequests: Array<
+    | Readonly<{ read: 'months'; since: Date; minimumCount: number }>
+    | Readonly<{ read: 'days'; since: Date }>
+  >
   /** Every port call, in order: `policy.authorize`, `repository.findActive`, ... */
   calls: string[]
 }
@@ -83,6 +94,8 @@ export function exampleWorld(): FakeWorld {
       sinceSet: { count: 9, sum: 41 },
     },
     years: [],
+    months: [],
+    days: [],
     held: false,
     goals: [],
     changes: [],
@@ -91,6 +104,7 @@ export function exampleWorld(): FakeWorld {
     authorizations: [],
     deny: false,
     summaryRequests: [],
+    evidenceRequests: [],
     calls: [],
   }
 }
@@ -289,6 +303,17 @@ function fakeReviews(world: FakeWorld): ReviewGoogleRatingReads {
       }
     },
     getYearlyTotals: async () => world.years,
+    getMonthlyTotals: async (_org, _property, since, minimumCount) => {
+      world.evidenceRequests = [
+        ...world.evidenceRequests,
+        { read: 'months', since, minimumCount },
+      ]
+      return world.months
+    },
+    getDailyCounts: async (_org, _property, since) => {
+      world.evidenceRequests = [...world.evidenceRequests, { read: 'days', since }]
+      return world.days
+    },
     getWeeklyCounts: async () => [{ weekStart: '2026-10-12', count: 3 }],
     getStarDistribution: async () =>
       [1, 2, 3, 4, 5].map((stars) => ({ stars, count: stars === 5 ? 3 : 0 })),
