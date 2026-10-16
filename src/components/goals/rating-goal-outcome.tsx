@@ -16,7 +16,7 @@ import { Card, CardContent } from '#/components/ui/card'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { formatShortDate } from '#/lib/format'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { RatingGoalCardHeader } from './rating-goal-card'
+import { RatingGoalCardHeader } from './rating-goal-card-header'
 import { endedSentence, ratingText, type RatingGoalOutcomeView } from './rating-goal-view'
 import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
 

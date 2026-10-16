@@ -1,6 +1,6 @@
 // The detail page of the Google rating goal, worked out: "Your plan" against
-// what happened since it was set, the forecasts at both paces and the best case, the bar from where the goal started to the line
-// Google shows the target at with the next tenth marked, the three tiles, the
+// what happened since it was set, when it arrives at both paces and the best case, the bar from where the goal started to the line
+// Google shows the target at with the next number marked, the three tiles, the
 // star mix, the weekly chart's words and how fresh Google's numbers are.
 import { describe, expect, it } from 'vitest'
 import {
@@ -30,10 +30,13 @@ describe('how long a count of reviews takes', () => {
 describe('the forecasts', () => {
   it('forecasts at the chosen pace and at the pace of the last four weeks', () => {
     expect(detailForecasts(DETAIL)).toEqual([
-      { label: 'At your chosen pace, 1.6 a day', text: 'Expected around Mar–Nov 2027' },
+      {
+        label: 'At your chosen pace, 1.6 a day',
+        text: 'In about 4 months, likely 3–7 months.',
+      },
       {
         label: 'At your pace of the last 4 weeks, 1.4 a day',
-        text: 'Expected around Jul–Sep 2027',
+        text: 'In about 5 months, likely 4–8 months.',
       },
     ])
   })
@@ -67,8 +70,8 @@ describe('the forecasts', () => {
     }
 
     expect(detailForecasts(waiting).map((line) => line.text)).toEqual([
-      'No pace reaches 4.0 at the new reviews’ average',
-      'No pace reaches 4.0 at the new reviews’ average',
+      'No pace reaches 4.0 at the new reviews’ average.',
+      'No pace reaches 4.0 at the new reviews’ average.',
     ])
   })
 
@@ -81,7 +84,7 @@ describe('the forecasts', () => {
 })
 
 describe('the progress', () => {
-  it('marks the next tenth on the way from the start to the line', () => {
+  it('marks the next number on the way from the start to the line', () => {
     const marks = progressMarks(DETAIL)
 
     expect(marks.value).toBe(0.52)
@@ -91,27 +94,44 @@ describe('the progress', () => {
     expect(marks.end).toBe('4.45 shows 4.5')
   })
 
-  it('marks nothing when the next tenth is the target itself', () => {
+  it('marks nothing when the next number is the target itself', () => {
     expect(
       progressMarks({
         ...DETAIL,
-        nextTenth: { targetTenths: 45, target: 4.5, reviewsNeeded: 212 },
+        next: { targetTenths: 45, target: 4.5, reviewsNeeded: 212 },
       }).marker,
     ).toBeNull()
   })
 
-  it('says how far the next tenth is', () => {
+  it('says how far the next number Google can show is', () => {
     expect(nextTenthLine(DETAIL)).toBe(
       'Next: Google shows 4.4 after about 31 more reviews',
     )
+    expect(nextTenthLine({ ...DETAIL, next: null })).toBeNull()
+  })
+
+  it('agrees with the card while Google lags on a middle number (shown 4.3, exact 4.36)', () => {
+    // The card counts 180 to the goal of 4.5 and says 4.4 is coming soon.
+    const lagsMiddle = {
+      ...DETAIL,
+      google: { ...DETAIL.google!, shows: 4.3 },
+      exactAverage: 4.36,
+      next: { targetTenths: 45, target: 4.5, reviewsNeeded: 180 },
+      earnedTenths: 44,
+      stillNeeded: 180,
+    }
+
+    expect(nextTenthLine(lagsMiddle)).toBe('Google should show 4.4 soon')
+    expect(progressMarks(lagsMiddle).marker).toBeNull()
+  })
+
+  it('says nothing more when the next number is the goal', () => {
     expect(
       nextTenthLine({
         ...DETAIL,
-        qualityBasis: 'since_set',
-        nextTenth: { targetTenths: 44, target: 4.4, reviewsNeeded: null },
+        next: { targetTenths: 45, target: 4.5, reviewsNeeded: 212 },
       }),
-    ).toBe('Next: Google shows 4.4 — not reachable at the new reviews’ average')
-    expect(nextTenthLine({ ...DETAIL, nextTenth: null })).toBeNull()
+    ).toBeNull()
   })
 })
 

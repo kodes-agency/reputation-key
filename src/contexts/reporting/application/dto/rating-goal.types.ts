@@ -18,7 +18,7 @@ import type {
 import type { RatingGoalEligibility } from '../../domain/rating-goal-stops'
 import type { GoogleNumbersView } from '../../domain/google-numbers'
 import type { QualityBasis } from '../../domain/rating-goal-status'
-import type { RatingGoalSetupInputs } from './rating-goal-setup.types'
+import type { RatingFraction, RatingGoalSetupInputs } from './rating-goal-setup.types'
 
 export type {
   GoogleNumbersView,
@@ -41,16 +41,25 @@ export type RatingQualityBasis = QualityBasis
  */
 export type RatingExactAverageSource = 'cache' | 'google'
 
-/** When a target is expected. `YYYY-MM` months in the Property's time zone. */
-export type RatingForecastView =
-  /** The quality new reviews are expected to bring does not clear the target: no pace reaches it. */
+/**
+ * When a target is expected, as durations from today in exact days (round 5,
+ * PLAN-D E1/E3): the central time and the likely range (new reviews 0.1★
+ * better at 10% more a week, and 0.1★ worse at 10% less). No calendar date.
+ */
+export type RatingArrivalView =
+  /** The average new reviews are expected to bring does not clear the target: no pace reaches it. */
   | Readonly<{ kind: 'unreachable' }>
-  /** No reviews at the pace this forecast uses. */
+  /** No reviews at the pace this arrival uses. */
   | Readonly<{ kind: 'no_pace' }>
-  /** More than ten years away. */
-  | Readonly<{ kind: 'beyond_horizon' }>
-  /** `toMonth` is null when the late end is open. */
-  | Readonly<{ kind: 'range'; fromMonth: string; toMonth: string | null }>
+  /** The cache already clears the target; Google does not show it yet. */
+  | Readonly<{ kind: 'earned' }>
+  /** `slow` is null when the late end is open. */
+  | Readonly<{
+      kind: 'days'
+      central: RatingFraction
+      fast: RatingFraction
+      slow: RatingFraction | null
+    }>
 
 export type RecentMixView = Readonly<{
   /** Average stars of the reviews the mix is taken from, three decimals. */
@@ -126,12 +135,45 @@ export type RatingGoalCardView = Readonly<{
    * since the goal was set, or at their average while they are too low
    * (`qualityBasis`).
    */
-  forecast: RatingForecastView | null
+  forecast: RatingArrivalView | null
   /** The chosen pace until the goal is 28 days old, then the actual pace. */
   forecastBasis: 'chosen_pace' | 'actual_pace' | null
   /** Null for a keep goal. */
   qualityBasis: RatingQualityBasis | null
   setAt: string
+  /**
+   * The number the card counts to (PLAN-D E5): the tenth above what the
+   * reviews have earned, at most the goal, with the new reviews it takes
+   * (never 0). Null for a keep goal, without Google's numbers, once the
+   * reviews have earned the goal (`googleShowsSoon`) or when no average
+   * reaches it.
+   */
+  next: Readonly<{ targetTenths: number; target: number; reviewsNeeded: number }> | null
+  /** A tenth the cache clears and Google does not show yet, short of the goal: "Google should show 4.4 soon". */
+  earnedTenths: number | null
+  /** New reviews to the goal itself; null for a keep goal or when no average reaches it. */
+  stillNeeded: number | null
+  /** Reviews of the last 28 days per week, two decimals. */
+  lastFourWeeksPerWeek: number
+  /** What Google showed, and the cache held, when the goal was set. */
+  baseline: Readonly<{ googleShows: number; reviewCount: number; exactAverage: number }>
+  /**
+   * The number above the goal, "possible in about N" (R4-4), at the same pace
+   * as `forecast`: the reviews it takes beyond the goal and the days to it
+   * from today. Null for a keep goal, at 4.9, or when the average does not
+   * clear it.
+   */
+  nextUp: Readonly<{
+    targetTenths: number
+    reviewsBeyondGoal: number
+    days: RatingFraction
+  }> | null
+  /**
+   * The day of the Property week, 1 Monday … 7 Sunday, worked out on the
+   * server at every card read (PLAN-D E9). A page that stays focused past
+   * midnight shows the day before until its next read.
+   */
+  weekday: number
 }>
 
 export type RatingGoalChangeView = Readonly<{
@@ -167,24 +209,15 @@ export type RatingGoalPlanProgressView = Readonly<{
   paceTenthsPerWeek: number
   lastFourWeeksPerWeek: number
   /** At so-far values: the quality the goal now assumes and the last four weeks' pace. */
-  forecast: RatingForecastView
+  forecast: RatingArrivalView
 }>
 
 export type RatingGoalDetailView = RatingGoalCardView &
   Readonly<{
-    /** Reviews of the last 28 days per week, two decimals. */
-    lastFourWeeksPerWeek: number
-    stillNeeded: number | null
     bestCase: number | null
-    forecastAtChosenPace: RatingForecastView | null
-    forecastAtActualPace: RatingForecastView | null
-    nextTenth: Readonly<{
-      targetTenths: number
-      target: number
-      reviewsNeeded: number | null
-    }> | null
+    forecastAtChosenPace: RatingArrivalView | null
+    forecastAtActualPace: RatingArrivalView | null
     recentMix: RecentMixView | null
-    baseline: Readonly<{ googleShows: number; reviewCount: number; exactAverage: number }>
     /** Monday-to-Sunday weeks since the goal was set, a year at most. */
     weeks: readonly Readonly<{ weekStart: string; count: number }>[]
     /** Stars of the reviews created since the goal was set. */

@@ -1,10 +1,10 @@
 // What the Property Google rating goal says, worked out once for the simple
 // card, the detail page and the history (ADR 0067). Google's own number leads;
-// the exact average is progress ("4.38 of 4.45"); a forecast is a month range,
-// never a date; "review" means a Google review and nothing else.
+// the exact average is progress ("4.38 of 4.45"); when a goal arrives is a
+// duration from today (rating-goal-arrival-words.ts), never a date; "review"
+// means a Google review and nothing else.
 import type {
   GoogleNumbersView,
-  RatingForecastView,
   RatingGoalCardView,
   RatingGoalChangeView,
   RatingGoalEndedReason,
@@ -12,13 +12,8 @@ import type {
   RatingGoalStatus,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import type { StatusMap, StatusPresentation } from '#/components/ui/status-badge'
-import { formatMonthKey, formatNumber, formatShortDate } from '#/lib/format'
-import {
-  newReviewsAim,
-  paceChangeText,
-  paceText,
-  weeklyTarget,
-} from './rating-goal-pace-words'
+import { formatNumber, formatShortDate } from '#/lib/format'
+import { paceChangeText, paceText } from './rating-goal-pace-words'
 
 /** How a rating goal's status reads as a pill. */
 export const RATING_GOAL_STATUS: StatusMap<RatingGoalStatus> = {
@@ -118,42 +113,6 @@ export function googleShows(
   return { figure: ratingText(google.shows), asOf: day === null ? null : `as of ${day}` }
 }
 
-type ForecastRange = Extract<RatingForecastView, { kind: 'range' }>
-
-/** "Jul–Sep 2027", "Nov 2026 – Jan 2027", "Jul 2027", "Dec 2028 or later". */
-export function forecastMonths({ fromMonth, toMonth }: ForecastRange): string {
-  const from = formatMonthKey(fromMonth) ?? fromMonth
-  if (toMonth === null) return `${from} or later`
-  if (toMonth === fromMonth) return from
-  const to = formatMonthKey(toMonth) ?? toMonth
-  if (toMonth.slice(0, 4) !== fromMonth.slice(0, 4)) return `${from} – ${to}`
-  return `${formatMonthKey(fromMonth, { year: false }) ?? fromMonth}–${to}`
-}
-
-/** A run of a sentence, and whether a line may break inside it. */
-export type TextPart = Readonly<{ text: string; whole: boolean }>
-
-/** "Jan 2027", with the dash after it when it starts a range ("Dec 2026 –"). */
-const MONTH_YEAR = /[A-Z][a-z]+ \d{4}(?: –)?/gu
-
-/**
- * A forecast cut where a line may break: between the two ends of a month range,
- * never inside "Jan 2027" nor before the dash ("Dec 2026 –" then "Jan 2027").
- * The words are unchanged, so a screen reader and a test read the same text.
- */
-export function dateParts(text: string): readonly TextPart[] {
-  const parts: TextPart[] = []
-  let from = 0
-  for (const match of text.matchAll(MONTH_YEAR)) {
-    if (match.index > from)
-      parts.push({ text: text.slice(from, match.index), whole: false })
-    parts.push({ text: match[0], whole: true })
-    from = match.index + match[0].length
-  }
-  if (from < text.length) parts.push({ text: text.slice(from), whole: false })
-  return parts
-}
-
 /**
  * The average a goal's numbers assume: the plan's until a review arrived since
  * it was set, then the plan's mixed with them step by step, and theirs alone
@@ -171,40 +130,6 @@ export function assumedAverageWords(
 }
 
 /**
- * A forecast as one sentence: when, or why no month can be given. A goal's
- * forecast that no pace reaches names the average it was worked out at
- * (`assumedAverageWords`); a plan's names "this average", the one beside it.
- */
-export function forecastSentence(
-  forecast: RatingForecastView,
-  target: number,
-  lead = 'Expected around',
-  average = 'at this average',
-): string {
-  switch (forecast.kind) {
-    case 'range':
-      return `${lead} ${forecastMonths(forecast)}`
-    case 'unreachable':
-      return `No pace reaches ${ratingText(target)} ${average}`
-    case 'no_pace':
-      return 'No new reviews in the last 4 weeks to forecast from'
-    case 'beyond_horizon':
-      return 'More than ten years away at this pace'
-  }
-}
-
-/**
- * The card's one pace line: the aim while the goal is new, per day ("Aim for
- * about 2 new reviews a day"), then this week against it, counted per week
- * ("This week: 9 of 14 reviews", R3-7).
- */
-export function cardPaceLine(card: RatingGoalCardView): string | null {
-  if (card.mode === 'keep' || card.paceTenthsPerWeek === null) return null
-  if (card.justSet) return `Aim for ${newReviewsAim(card.paceTenthsPerWeek)}`
-  return `This week: ${formatNumber(card.thisWeekCount)} of ${reviewsText(weeklyTarget(card.paceTenthsPerWeek))}`
-}
-
-/**
  * Why the goal waits for Google. The headline already dates numbers that are
  * not current ("as of Oct 12"), so the sentence names the day only when it
  * does not; never a clock time, which would have to name its zone.
@@ -219,27 +144,6 @@ export function waitingSentence(
   return day === null
     ? 'Waiting for Google’s latest numbers.'
     : `Waiting for Google’s latest numbers. These are from ${day}.`
-}
-
-/**
- * The card's one line about what comes next: the forecast, or the sentence
- * that stands in for it (waiting for Google, Google about to show the target,
- * no pace reaching it at the recent mix). None for a goal that keeps a number.
- */
-export function cardOutlook(
-  card: RatingGoalCardView,
-  timezone: string,
-  now: Date,
-): string | null {
-  if (card.status === 'waiting_for_google') {
-    return waitingSentence(card.google, timezone, now)
-  }
-  if (card.mode === 'keep') return null
-  if (card.googleShowsSoon) return `Google should show ${ratingText(card.target)} soon`
-  if (card.status === 'reviews_too_low') return reviewsTooLowSentence(card.target)
-  return card.forecast === null
-    ? null
-    : forecastSentence(card.forecast, card.target, undefined, assumedAverageWords(card))
 }
 
 const ENDED_REASON: Readonly<Record<RatingGoalEndedReason, string>> = {

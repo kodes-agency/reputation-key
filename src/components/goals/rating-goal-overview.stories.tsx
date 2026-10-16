@@ -1,5 +1,5 @@
 // The Google rating goal on the Property Overview in each state it can be in:
-// the simple card of an active goal, a goal reached lately, the one-line prompt
+// the card of an active goal (round 5, D4), a goal reached lately, the one-line prompt
 // into the wizard (to climb, or to keep the number when nothing higher is in
 // reach), and nothing at all (too few Google reviews, "Not now" chosen, a viewer
 // who may not set goals, a read on its way or failed). The Storybook Vitest project compiles no
@@ -9,7 +9,11 @@ import { expect, fn, userEvent, within } from 'storybook/test'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import { RatingGoalOverview } from './rating-goal-overview'
 import {
-  CARD,
+  CARD_FAR_GOAL,
+  CARD_HARBORLINE,
+  CARD_LAGS_MIDDLE,
+} from './rating-goal-tracking.stories.fixtures'
+import {
   CARD_REACHED,
   FIXTURE_NOW,
   FIXTURE_PROPERTY_ID,
@@ -29,7 +33,7 @@ const meta: Meta<typeof RatingGoalOverview> = {
     propertyId: FIXTURE_PROPERTY_ID,
     timezone: FIXTURE_TIMEZONE,
     now: NOW,
-    card: CARD,
+    card: CARD_HARBORLINE,
     cardReadAt: NOW,
     setup: undefined,
     history: undefined,
@@ -54,16 +58,75 @@ async function pressPrompt(canvasElement: HTMLElement) {
   await userEvent.click(prompt)
 }
 
-/** The same simple card as the Goals page: two numbers, one bar, one pace line. */
+/** The words of an element, which may be split across spans (a figure in its own). */
+const words = (text: string) => (_content: string, element: Element | null) =>
+  element?.textContent === text &&
+  Array.from(element.children).every((child) => child.textContent !== text)
+
+/** Harborline's headline and its 18 squares, drawn at every width. */
+async function expectHeadlineAndSquares(card: ReturnType<typeof within>) {
+  await expect(card.getByText(words('18 new reviews to 4.1'))).toBeVisible()
+  await expect(
+    card.getByRole('img', {
+      name: '18 empty squares, one for each new review still needed',
+    }),
+  ).toBeVisible()
+}
+
+/** The same card as the Goals page (D4): the ladder, the new reviews to the next number, this week. */
 export const ActiveGoal: Story = {
   play: async ({ canvasElement }) => {
     const card = within(canvasElement)
+    await expect(
+      card.getByRole('heading', { level: 2, name: 'Google rating goal' }),
+    ).toBeVisible()
+    await expectHeadlineAndSquares(card)
+    await expect(card.getByText('2 of 7')).toBeVisible()
+    await expect(
+      card.getByText('4.1 in about 3 weeks at your 1 a day, likely 2–4 weeks.'),
+    ).toBeVisible()
     await expect(card.getByRole('link', { name: 'View details' })).toHaveAttribute(
       'href',
       `/properties/${FIXTURE_PROPERTY_ID}/goals/google-rating`,
     )
-    await expect(card.getByText('This week: 6 of 11 reviews')).toBeVisible()
     await expect(card.queryByRole('button', { name: /Set your Google/ })).toBeNull()
+  },
+}
+
+/**
+ * The Overview on a phone: the card's own container draws D4's short card, so
+ * this week and when are one line and the rest waits for the wide card.
+ */
+export const ActiveGoalPhone: Story = {
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+  play: async ({ canvasElement }) => {
+    const card = within(canvasElement)
+    await expectHeadlineAndSquares(card)
+    await expect(card.getByText('This week 2 of 7 · 4.1 in about 3 weeks')).toBeVisible()
+    await expect(card.getByRole('link', { name: 'View details' })).toBeVisible()
+  },
+}
+
+export const ActiveGoalLight: Story = { ...ActiveGoal, parameters: { theme: 'light' } }
+
+/** A far goal: 31 to 4.4 and the goal's own total, no squares. */
+export const FarGoal: Story = {
+  args: { card: CARD_FAR_GOAL },
+  play: async ({ canvasElement }) => {
+    const card = within(canvasElement)
+    await expect(card.getByText(words('31 new reviews to 4.4'))).toBeVisible()
+    await expect(card.getByText('212 new reviews to your goal, 4.5.')).toBeVisible()
+    await expect(card.queryByRole('img', { name: /empty square/u })).toBeNull()
+  },
+}
+
+/** Google lags on 4.4: the card counts to 4.5 and says 4.4 is coming. */
+export const LagsMiddle: Story = {
+  args: { card: CARD_LAGS_MIDDLE },
+  play: async ({ canvasElement }) => {
+    const card = within(canvasElement)
+    await expect(card.getByText(words('180 new reviews to 4.5'))).toBeVisible()
+    await expect(card.getByText('Google should show 4.4 soon')).toBeVisible()
   },
 }
 

@@ -13,7 +13,8 @@ import type {
 import { RegionError } from '#/components/ui/region-error'
 import { SectionTitle } from '#/components/ui/section-title'
 import { Skeleton } from '#/components/ui/skeleton'
-import { RATING_GOAL_HEADING_ID, RatingGoalCard } from './rating-goal-card'
+import { RatingGoalCard } from './rating-goal-card'
+import { RATING_GOAL_HEADING_ID } from './rating-goal-card-header'
 import { RatingGoalEmpty } from './rating-goal-empty'
 import { RatingGoalOutcome } from './rating-goal-outcome'
 import {
@@ -46,11 +47,22 @@ type Props = Readonly<{
   onStart: (intent: RatingGoalWizardIntent) => void
 }>
 
+/**
+ * The climb card's height, so the read that fills it moves nothing (CLS),
+ * measured in the stories (2026-10-16, D4's short card on a phone): 386px at
+ * 320px, 340px from 390px until the card turns wide at a 768px viewport, and
+ * 312px on a desktop. The first term follows the small phones, the second
+ * holds 340px below 768px and drops out above it.
+ */
+const PENDING_HEIGHT =
+  'max(clamp(312px, calc(596px - 65.7vw), 386px), min(340px, calc((768px - 100vw) * 1000)))'
+
 const Pending = () => (
   <Skeleton
     aria-hidden="true"
     data-slot="rating-goal-pending"
-    className="h-52 rounded-xl"
+    className="rounded-xl"
+    style={{ minHeight: PENDING_HEIGHT }}
   />
 )
 

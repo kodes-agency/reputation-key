@@ -8,7 +8,6 @@ import { paceChips } from './rating-goal-pace-chips'
 import {
   SIX_MONTHS_DAYS,
   daysAt,
-  earnedTenths,
   fasterPaceChip,
   likelyDays,
   recommendedGoal,
@@ -101,20 +100,6 @@ describe('the likely range', () => {
 
   it('leaves the slow end open when 0.1★ less no longer reaches the goal', () => {
     expect(likelyDays(numbers(500, 2300, 46), 47, 48, 70).slow).toBeNull()
-  })
-})
-
-describe('what Google has already earned', () => {
-  it('is the shown tenth while the cache is below the next threshold', () => {
-    expect(earnedTenths(HARBORLINE)).toBe(39)
-  })
-
-  it('is the highest tenth the cache already clears while Google lags (3.96 shows 3.9)', () => {
-    expect(earnedTenths(numbers(100, 396, 39))).toBe(40)
-  })
-
-  it('reaches 5.0 when every review is five stars', () => {
-    expect(earnedTenths(numbers(20, 100, 49))).toBe(50)
   })
 })
 

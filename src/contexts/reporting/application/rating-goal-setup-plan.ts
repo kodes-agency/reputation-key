@@ -20,9 +20,9 @@ import {
   ownAverageFloor,
   reachableAt,
 } from '../domain/rating-goal-average'
+import { earnedTenths } from '../domain/rating-goal-arrival'
 import {
   daysAt,
-  earnedTenths,
   fasterPaceChip,
   likelyDays,
   recommendedGoal,

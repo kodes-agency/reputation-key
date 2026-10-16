@@ -7,7 +7,7 @@ import type {
   RatingGoalDetailView,
   RatingGoalSetupView,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
-import { DETAIL, SETUP } from './rating-goal.stories.fixtures'
+import { DETAIL, inDays, SETUP } from './rating-goal.stories.fixtures'
 import { HARBORLINE } from './rating-goal-setup.stories.fixtures'
 
 const BETA_GOOGLE = {
@@ -35,7 +35,8 @@ const BEFORE_TEN_PLAN: NonNullable<RatingGoalDetailView['plan']> = {
   assumedAverage: 4.553,
   paceTenthsPerWeek: 20,
   lastFourWeeksPerWeek: 2,
-  forecast: { kind: 'range', fromMonth: '2026-12', toMonth: '2027-02' },
+  // 15 reviews at 2 a week.
+  forecast: inDays(53, 40, 70),
 }
 
 /**
@@ -57,16 +58,16 @@ export const DETAIL_BEFORE_TEN: RatingGoalDetailView = {
   progress: 0.24,
   thisWeekCount: 1,
   justSet: false,
-  forecast: { kind: 'range', fromMonth: '2026-12', toMonth: '2027-02' },
+  forecast: inDays(53, 40, 70),
   forecastBasis: 'chosen_pace',
   qualityBasis: 'blended',
   setAt: '2026-09-30T09:00:00.000Z',
   lastFourWeeksPerWeek: 2,
   stillNeeded: 15,
+  next: { targetTenths: 40, target: 4, reviewsNeeded: 15 },
   bestCase: 9,
-  forecastAtChosenPace: { kind: 'range', fromMonth: '2026-12', toMonth: '2027-02' },
-  forecastAtActualPace: { kind: 'range', fromMonth: '2026-12', toMonth: '2027-02' },
-  nextTenth: null,
+  forecastAtChosenPace: inDays(53, 40, 70),
+  forecastAtActualPace: inDays(53, 40, 70),
   recentMix: { average: 4, reviewCount: 25, basis: 'most_recent' },
   baseline: { googleShows: 3.9, reviewCount: 261, exactAverage: 3.912 },
   weeks: [
@@ -97,6 +98,7 @@ export const DETAIL_TOO_LOW: RatingGoalDetailView = {
   qualityBasis: 'since_set',
   setAt: '2026-08-03T09:00:00.000Z',
   stillNeeded: null,
+  next: null,
   bestCase: 12,
   forecastAtChosenPace: { kind: 'unreachable' },
   forecastAtActualPace: { kind: 'unreachable' },

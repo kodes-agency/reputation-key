@@ -108,8 +108,13 @@ metric authority.
   shows 4.5, one named rule), so a target's threshold is five hundredths below it; the exact
   average is the cache's sum over count when the cache holds every review Google counts,
   otherwise Google's figure; the recent mix is the last 90 days at ten reviews or more,
-  else the most recent 25; reviews needed is ceil(N(θ − E)/(q − θ)) at a quality q; the
-  forecast is a month range in the Property's time zone (quality ± 0.1, pace ± 10%).
+  else the most recent 25; reviews needed is ceil(N(θ − E)/(q − θ)) at a quality q; when a
+  goal arrives is one rule for setup and tracking in exact days (`domain/rating-goal-arrival.ts`,
+  round 5): a central time and a likely range (quality ± 0.1, pace ± 10%), never a month.
+  The card read also hands on the climb (`application/rating-goal-tracking-views.ts`): the
+  next number Google can show (skipping a tenth it should show soon), what the goal still
+  needs, the number above it as possible, the last four weeks and the day of the Property
+  week, all from the numbers it already reads.
   The setup (rounds 3 and 4, 2026-10-16) is one screen worked out on the page from the
   setup read's exact inputs (`application/rating-goal-setup-plan.ts`, `workOutRatingGoal`,
   client-safe, never throwing on what a manager typed): the planned average is automatic
@@ -121,7 +126,7 @@ metric authority.
   time and a likely range in exact day fractions (`domain/rating-goal-duration.ts`). A tenth
   the cache already clears while Google lags is never a goal. Keep comes first from 4.7.
   Components import these values only from `application/` (the components boundary).
-  A goal's numbers (forecast, still needed, next tenth) assume the planned quality
+  A goal's numbers (forecast, still needed, next number) assume the planned quality
   blended with the reviews since it was set from the first one, the plan counted as 15
   reviews (`trackingMix`, round 4 X3); the verdict still waits for ten reviews and judges
   their own average: `reviews_too_low` (that average at or below the threshold) replaced

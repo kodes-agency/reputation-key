@@ -12,7 +12,7 @@ import { lazy, Suspense, useRef, useState, type ReactNode } from 'react'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
-import { RATING_GOAL_HEADING_ID } from '#/components/goals/rating-goal-card'
+import { RATING_GOAL_HEADING_ID } from '#/components/goals/rating-goal-card-header'
 import type { RegionRead } from '#/components/goals/rating-goal-section'
 import type { RatingGoalWizardIntent } from '#/components/goals/rating-goal-wizard-view'
 import {

@@ -238,8 +238,23 @@ describe('the simple card', () => {
       justSet: false,
       googleShowsSoon: false,
       forecastBasis: 'actual_pace',
-      forecast: { kind: 'range' },
+      forecast: { kind: 'days' },
+      // 4.4 at the plan's 4.7 blended with the 9 reviews since the set (4.6458).
+      next: { targetTenths: 44, target: 4.4, reviewsNeeded: 109 },
+      earnedTenths: null,
+      stillNeeded: 580,
+      lastFourWeeksPerWeek: 10,
+      baseline: { googleShows: 4.3, reviewCount: 790, exactAverage: 4.29 },
+      // 4.6 needs new reviews averaging 4.7 or more.
+      nextUp: null,
+      // 14 Oct 2026 is a Wednesday in Sofia.
+      weekday: 3,
     })
+    // 580 reviews at the 40 of the last 28 days: 406 days.
+    const forecast = card!.forecast
+    expect(forecast?.kind === 'days' && forecast.central.num / forecast.central.den).toBe(
+      406,
+    )
     // From the baseline 4.29 to 4.45, the exact 4.3103 is an eighth of the way.
     expect(card!.progress).toBeCloseTo(0.127, 3)
     expect(world.goals[0]!.lastEvaluation).toMatchObject({
@@ -330,7 +345,7 @@ describe('the detail read', () => {
       // stars): (15 × 4.7 + 41) / 24 = 4.6458, so (3613.4 − 3500) / 0.1958.
       stillNeeded: 580,
       bestCase: 207,
-      nextTenth: { targetTenths: 44, target: 4.4, reviewsNeeded: 109 },
+      next: { targetTenths: 44, target: 4.4, reviewsNeeded: 109 },
       baseline: { googleShows: 4.3, reviewCount: 790, exactAverage: 4.29 },
       weeks: [
         { weekStart: '2026-10-05', count: 0 },
@@ -354,8 +369,8 @@ describe('the detail read', () => {
         },
       ],
     })
-    expect(detail!.forecastAtChosenPace).toMatchObject({ kind: 'range' })
-    expect(detail!.forecastAtActualPace).toMatchObject({ kind: 'range' })
+    expect(detail!.forecastAtChosenPace).toMatchObject({ kind: 'days' })
+    expect(detail!.forecastAtActualPace).toMatchObject({ kind: 'days' })
   })
 
   it('sets the plan beside what happened, blending before the verdict at ten', async () => {

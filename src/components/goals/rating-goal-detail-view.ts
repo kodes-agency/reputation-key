@@ -2,16 +2,16 @@
 // full monitoring view the simple card leaves out. "Your plan" against what
 // happened since it was set (round 2, R2-11), forecasts at the chosen pace and
 // at the pace of the last four weeks, the best case, the bar from where the
-// goal started to the line Google shows the target at, the next tenth, the
+// goal started to the line Google shows the target at, the next number, the
 // tiles, the star mix and how fresh Google's numbers are (ADR 0067, decision 7).
 import type {
   RatingGoalDetailView,
   RatingGoalPlanProgressView,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { formatNumber } from '#/lib/format'
+import { arrivalLine } from './rating-goal-arrival-words'
 import {
   assumedAverageWords,
-  forecastSentence,
   ratingText,
   reviewsText,
   tenthsText,
@@ -57,7 +57,7 @@ export function detailForecasts(
   if (plan === null || detail.status === 'reviews_too_low') return []
   const average = assumedAverageWords(detail)
   const sentence = (forecast: NonNullable<RatingGoalDetailView['forecast']>) =>
-    forecastSentence(forecast, detail.target, undefined, average)
+    arrivalLine(forecast, detail.target, average)
   const lines = [
     detail.forecastAtChosenPace === null
       ? null
@@ -84,8 +84,8 @@ export function bestCaseLine(detail: RatingGoalDetailView): string | null {
 
 /**
  * The bar runs from the exact average the goal started at to the line Google
- * shows the target at. The next tenth is marked on it when it is short of the
- * target.
+ * shows the target at. The next number Google can show (the card's, E5) is
+ * marked on it when it is short of the target.
  */
 export function progressMarks(detail: RatingGoalDetailView): Readonly<{
   value: number
@@ -95,7 +95,7 @@ export function progressMarks(detail: RatingGoalDetailView): Readonly<{
 }> {
   const from = detail.baseline.exactAverage
   const span = detail.threshold - from
-  const next = detail.nextTenth
+  const next = detail.next
   const marker =
     next !== null && next.targetTenths < detail.targetTenths && span > 0
       ? (next.target - 0.05 - from) / span
@@ -108,14 +108,20 @@ export function progressMarks(detail: RatingGoalDetailView): Readonly<{
   }
 }
 
-/** "Next: Google shows 4.4 after about 31 more reviews". */
+/**
+ * "Next: Google shows 4.4 after about 31 more reviews", counted as the card
+ * counts (E5): to the next number Google can show. While Google lags on a
+ * tenth the reviews already earned, "Google should show 4.4 soon" instead, so
+ * the page never says "after about 0 more reviews". Nothing when the next
+ * number is the goal: the page counts to the goal already.
+ */
 export function nextTenthLine(detail: RatingGoalDetailView): string | null {
-  const next = detail.nextTenth
-  if (next === null) return null
-  const shows = `Next: Google shows ${ratingText(next.target)}`
-  return next.reviewsNeeded === null
-    ? `${shows} — not reachable ${assumedAverageWords(detail)}`
-    : `${shows} after about ${formatNumber(next.reviewsNeeded)} more ${next.reviewsNeeded === 1 ? 'review' : 'reviews'}`
+  if (detail.earnedTenths !== null && !detail.googleShowsSoon) {
+    return `Google should show ${tenthsText(detail.earnedTenths)} soon`
+  }
+  const next = detail.next
+  if (next === null || next.targetTenths === detail.targetTenths) return null
+  return `Next: Google shows ${ratingText(next.target)} after about ${formatNumber(next.reviewsNeeded)} more ${next.reviewsNeeded === 1 ? 'review' : 'reviews'}`
 }
 
 export type DetailTile = Readonly<{ label: string; value: string; detail: string }>
@@ -208,8 +214,8 @@ const starsSoFar = (average: number): string =>
 /**
  * What the goal's numbers assume, after the count: the plan mixed with the new
  * reviews, or their own average while they are too low (round 4, X3). A
- * too-low goal shows no forecast, only Still needed and the next tenth, so
- * its note says "the numbers".
+ * too-low goal shows no forecast, only Still needed, so its note says "the
+ * numbers".
  */
 function sinceSetNote(plan: RatingGoalPlanProgressView): string {
   const { reviewCount } = plan.sinceSet

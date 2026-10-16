@@ -17,8 +17,14 @@ export const FIXTURE_TIMEZONE = 'Europe/Sofia'
 /** When every fixture was read. */
 export const FIXTURE_NOW = '2026-10-14T12:00:00.000Z'
 
-const range = (fromMonth: string, toMonth: string | null) =>
-  ({ kind: 'range', fromMonth, toMonth }) as const
+/** An arrival in whole days from today: the central time and the likely range. */
+export const inDays = (central: number, fast: number, slow: number | null) =>
+  ({
+    kind: 'days',
+    central: { num: central, den: 1 },
+    fast: { num: fast, den: 1 },
+    slow: slow === null ? null : { num: slow, den: 1 },
+  }) as const
 
 /** The worked example as the setup read hands it to the page. */
 const SETUP_INPUTS: RatingGoalSetupInputs = {
@@ -95,10 +101,19 @@ export const CARD: RatingGoalCardView = {
   googleShowsSoon: false,
   thisWeekCount: 6,
   justSet: false,
-  forecast: range('2027-07', '2027-09'),
+  // 212 reviews at 9.5 a week (38 in the last 28 days).
+  forecast: inDays(156, 120, 230),
   forecastBasis: 'actual_pace',
   qualityBasis: 'blended',
   setAt: '2026-08-03T09:00:00.000Z',
+  next: { targetTenths: 44, target: 4.4, reviewsNeeded: 31 },
+  earnedTenths: null,
+  stillNeeded: 212,
+  lastFourWeeksPerWeek: 9.5,
+  baseline: { googleShows: 4.3, reviewCount: 812, exactAverage: 4.31 },
+  nextUp: null,
+  // 14 Oct 2026 is a Wednesday.
+  weekday: 3,
 }
 
 export const CARD_JUST_SET: RatingGoalCardView = {
@@ -108,10 +123,13 @@ export const CARD_JUST_SET: RatingGoalCardView = {
   progress: 0,
   thisWeekCount: 0,
   justSet: true,
-  forecast: range('2027-04', '2028-04'),
+  // 454 reviews at 11 a week.
+  forecast: inDays(289, 210, 420),
   forecastBasis: 'chosen_pace',
   qualityBasis: 'planned',
   setAt: '2026-10-13T09:00:00.000Z',
+  next: { targetTenths: 44, target: 4.4, reviewsNeeded: 109 },
+  stillNeeded: 454,
 }
 
 /** A goal to keep, which is set from a shown 4.7 (X1; R2-9 said 4.9). */
@@ -131,6 +149,8 @@ export const CARD_KEEP: RatingGoalCardView = {
   forecast: null,
   forecastBasis: null,
   qualityBasis: null,
+  next: null,
+  stillNeeded: null,
 }
 
 export const CARD_REACHED: RatingGoalCardView = {
@@ -141,18 +161,17 @@ export const CARD_REACHED: RatingGoalCardView = {
   exactAverage: 4.452,
   progress: 1,
   forecast: null,
+  next: null,
+  stillNeeded: null,
 }
 
 export const DETAIL: RatingGoalDetailView = {
   ...CARD,
-  lastFourWeeksPerWeek: 9.5,
-  stillNeeded: 212,
   bestCase: 97,
-  forecastAtChosenPace: range('2027-03', '2027-11'),
-  forecastAtActualPace: range('2027-07', '2027-09'),
-  nextTenth: { targetTenths: 44, target: 4.4, reviewsNeeded: 31 },
+  // 212 reviews at 11 a week, then at 9.5.
+  forecastAtChosenPace: inDays(135, 104, 199),
+  forecastAtActualPace: inDays(156, 120, 230),
   recentMix: { average: 4.7, reviewCount: 84, basis: 'last_90_days' },
-  baseline: { googleShows: 4.3, reviewCount: 812, exactAverage: 4.31 },
   weeks: [
     { weekStart: '2026-08-03', count: 9 },
     { weekStart: '2026-08-10', count: 12 },
@@ -200,7 +219,7 @@ export const DETAIL: RatingGoalDetailView = {
     assumedAverage: 4.619,
     paceTenthsPerWeek: 110,
     lastFourWeeksPerWeek: 9.5,
-    forecast: range('2027-07', '2027-09'),
+    forecast: inDays(156, 120, 230),
   },
 }
 

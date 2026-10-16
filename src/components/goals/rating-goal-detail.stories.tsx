@@ -21,7 +21,6 @@ import {
   SETUP,
   SETUP_KEEP_FIRST,
 } from './rating-goal.stories.fixtures'
-import { wholeText } from './rating-goal-wizard.stories.play'
 
 const NOW = new Date(FIXTURE_NOW)
 const NAMES: Readonly<Record<string, string>> = { 'user-ana': 'Ana Petrova' }
@@ -78,15 +77,11 @@ export const Monitoring: Story = {
     // The plan's pace is in the plan, not said again above it.
     await expect(canvas.queryByText(/^Your pace:/)).toBeNull()
     await expect(canvas.getByText('At your chosen pace, 1.6 a day')).toBeVisible()
-    await expect(
-      canvas.getByText(wholeText('Expected around Mar–Nov 2027')),
-    ).toBeVisible()
+    await expect(canvas.getByText('In about 4 months, likely 3–7 months.')).toBeVisible()
     await expect(
       canvas.getByText('At your pace of the last 4 weeks, 1.4 a day'),
     ).toBeVisible()
-    await expect(
-      canvas.getByText(wholeText('Expected around Jul–Sep 2027')),
-    ).toBeVisible()
+    await expect(canvas.getByText('In about 5 months, likely 4–8 months.')).toBeVisible()
     await expect(
       canvas.getByText(
         'If every new review is 5★: 97 more reviews, about 2 months at 1.6 a day.',
@@ -155,7 +150,6 @@ export const KeepGoal: Story = {
       forecast: null,
       forecastAtChosenPace: null,
       forecastAtActualPace: null,
-      nextTenth: null,
       changes: [],
     },
   },
@@ -189,7 +183,7 @@ export const BeforeTenReviews: Story = {
     await expect(canvas.queryByRole('alert')).toBeNull()
     // Both forecasts assume the plan's 4.5★ mixed with the four reviews.
     await expect(
-      canvas.getAllByText(wholeText('Expected around Dec 2026 – Feb 2027')),
+      canvas.getAllByText('In about 8 weeks, likely 6 weeks to 2 months.'),
     ).toHaveLength(2)
   },
 }
@@ -277,6 +271,14 @@ export const ApproximateNumbers: Story = {
   },
 }
 
+/** A goal the read found reached or ended says so first, and nothing about when. */
+async function saysFirst(canvasElement: HTMLElement, said: RegExp) {
+  const canvas = within(canvasElement)
+  await expect(canvas.getByText(said)).toBeVisible()
+  await expect(canvas.queryByText(/likely/u)).toBeNull()
+  return canvas
+}
+
 /** Found reached: what it was and how it went, nothing that looks ahead. */
 export const FoundReached: Story = {
   args: {
@@ -290,11 +292,10 @@ export const FoundReached: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(
-      canvas.getByText(/^Google shows 4\.5: the goal is reached\./),
-    ).toBeVisible()
-    await expect(canvas.queryByText(/^Expected around/)).toBeNull()
+    const canvas = await saysFirst(
+      canvasElement,
+      /^Google shows 4\.5: the goal is reached\./,
+    )
     await looksNoFurther(canvas, canvasElement)
     await expect(canvas.getByText('Pace 2 → 1.6 a day')).toBeVisible()
   },
@@ -305,11 +306,10 @@ export const FoundEnded: Story = {
     detail: { ...DETAIL, state: 'ended', endedReason: 'google_location_changed' },
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(
-      canvas.getByText(/^Ended: Google location changed\. It is in History now/),
-    ).toBeVisible()
-    await expect(canvas.queryByText(/^Expected around/)).toBeNull()
+    const canvas = await saysFirst(
+      canvasElement,
+      /^Ended: Google location changed\. It is in History now/,
+    )
     await expect(canvas.queryByRole('progressbar')).toBeNull()
   },
 }

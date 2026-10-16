@@ -1,7 +1,9 @@
 // Property Google rating goal — Monday-to-Sunday weeks (pure).
 //
 // "This week" and the weekly bars of a goal count reviews in Monday-to-Sunday
-// weeks of the Property's time zone (the owner's default). A week is named
+// weeks of the Property's time zone (the owner's default); the card names the
+// day of that week ("It’s Tuesday") from the server, so the page and its first
+// paint agree (PLAN-D E9). A week is named
 // by its Monday (`YYYY-MM-DD`), the same key PostgreSQL's
 // `date_trunc('week', ts AT TIME ZONE tz)` produces, and starts at local
 // midnight on that Monday, whatever the clocks did that weekend.
@@ -33,11 +35,12 @@ function addDays(date: CivilDate, days: number): CivilDate {
   }
 }
 
+/** Days since Monday of a civil date: 0 on Monday, 6 on Sunday. */
+const daysSinceMonday = (date: CivilDate): number =>
+  (new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay() + 6) % 7
+
 /** The Monday of a civil date's week. */
-function mondayOf(date: CivilDate): CivilDate {
-  const weekday = new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay()
-  return addDays(date, -((weekday + 6) % 7))
-}
+const mondayOf = (date: CivilDate): CivilDate => addDays(date, -daysSinceMonday(date))
 
 const keyOf = (date: CivilDate): string =>
   `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`
@@ -51,6 +54,10 @@ const instantOf = (date: CivilDate, timezone: string): Date =>
 /** The Property-local Monday of the week an instant falls in. */
 export const weekStartKey = (instant: Date, timezone: string): string =>
   keyOf(mondayOf(civilDateAt(instant, timezone)))
+
+/** The day of the Property-local week an instant falls on: 1 Monday … 7 Sunday. */
+export const propertyWeekday = (instant: Date, timezone: string): number =>
+  daysSinceMonday(civilDateAt(instant, timezone)) + 1
 
 /** The instant the Property-local week of `instant` starts: Monday, 00:00. */
 export const weekStartInstant = (instant: Date, timezone: string): Date =>

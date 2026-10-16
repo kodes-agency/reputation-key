@@ -33,6 +33,10 @@ const DASHED_ALLOWED: Readonly<Record<string, string>> = {
     'the frame a photograph will fill',
   'src/components/features/property/settings/property-setup-strip.tsx':
     'a step chip that is not yet done',
+  'src/components/goals/rating-goal-ladder.tsx':
+    'a number the rating goal climbs to that is still ahead',
+  'src/components/goals/rating-goal-slots.tsx':
+    'one empty square per new review a rating goal still needs, a count and not a message',
 }
 
 /** A dashed edge, as the utility or as an arbitrary property. */

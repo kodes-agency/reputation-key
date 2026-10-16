@@ -4,13 +4,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   averageProgressText,
-  cardOutlook,
-  cardPaceLine,
   changeText,
-  dateParts,
   exactProgressText,
-  forecastMonths,
-  forecastSentence,
   googleShows,
   historyEntryView,
   OUTCOME_SHOWN_FOR_DAYS,
@@ -24,8 +19,6 @@ import {
 } from './rating-goal-view'
 import {
   CARD,
-  CARD_JUST_SET,
-  CARD_KEEP,
   CARD_REACHED,
   FIXTURE_NOW,
   FIXTURE_TIMEZONE,
@@ -84,99 +77,7 @@ describe('what Google shows', () => {
   })
 })
 
-describe('the forecast', () => {
-  it('names the months of a range, the year once when they share it', () => {
-    expect(
-      forecastMonths({ kind: 'range', fromMonth: '2027-07', toMonth: '2027-09' }),
-    ).toBe('Jul–Sep 2027')
-    expect(
-      forecastMonths({ kind: 'range', fromMonth: '2026-11', toMonth: '2027-01' }),
-    ).toBe('Nov 2026 – Jan 2027')
-    expect(
-      forecastMonths({ kind: 'range', fromMonth: '2027-07', toMonth: '2027-07' }),
-    ).toBe('Jul 2027')
-    expect(forecastMonths({ kind: 'range', fromMonth: '2028-12', toMonth: null })).toBe(
-      'Dec 2028 or later',
-    )
-  })
-
-  it('says why there is no range instead of drawing one', () => {
-    expect(forecastSentence({ kind: 'unreachable' }, 4.8)).toBe(
-      'No pace reaches 4.8 at this average',
-    )
-    // A goal's forecasts are worked out at its plan's quality, then at the new
-    // reviews' average: the sentence names which (round 2).
-    expect(
-      forecastSentence(
-        { kind: 'unreachable' },
-        4,
-        'Expected around',
-        'at the new reviews’ average',
-      ),
-    ).toBe('No pace reaches 4.0 at the new reviews’ average')
-    expect(forecastSentence({ kind: 'no_pace' }, 4.5)).toBe(
-      'No new reviews in the last 4 weeks to forecast from',
-    )
-    expect(forecastSentence({ kind: 'beyond_horizon' }, 4.7)).toBe(
-      'More than ten years away at this pace',
-    )
-    expect(forecastSentence(CARD.forecast!, 4.5)).toBe('Expected around Jul–Sep 2027')
-  })
-})
-
 describe('the simple card', () => {
-  it('asks for a pace while the goal is new, then counts the week against it', () => {
-    expect(cardPaceLine(CARD_JUST_SET)).toBe('Aim for about 1.6 new reviews a day')
-    expect(cardPaceLine({ ...CARD_JUST_SET, paceTenthsPerWeek: 30 })).toBe(
-      'Aim for about 3 new reviews a week',
-    )
-    expect(cardPaceLine(CARD)).toBe('This week: 6 of 11 reviews')
-    expect(cardPaceLine({ ...CARD, paceTenthsPerWeek: 10, thisWeekCount: 0 })).toBe(
-      'This week: 0 of 1 review',
-    )
-  })
-
-  it('has no pace line for a goal that keeps a number', () => {
-    expect(cardPaceLine(CARD_KEEP)).toBeNull()
-    expect(cardOutlook(CARD_KEEP, FIXTURE_TIMEZONE, NOW)).toBeNull()
-  })
-
-  it('forecasts, or says why it cannot, one line', () => {
-    expect(cardOutlook(CARD, FIXTURE_TIMEZONE, NOW)).toBe('Expected around Jul–Sep 2027')
-    expect(cardOutlook({ ...CARD, googleShowsSoon: true }, FIXTURE_TIMEZONE, NOW)).toBe(
-      'Google should show 4.5 soon',
-    )
-    expect(
-      cardOutlook(
-        { ...CARD, status: 'reviews_too_low', forecast: { kind: 'unreachable' } },
-        FIXTURE_TIMEZONE,
-        NOW,
-      ),
-    ).toBe('Since you set the goal, new reviews average below what 4.5 needs.')
-    expect(
-      cardOutlook(
-        { ...CARD, forecast: { kind: 'unreachable' }, qualityBasis: 'since_set' },
-        FIXTURE_TIMEZONE,
-        NOW,
-      ),
-    ).toBe('No pace reaches 4.5 at the new reviews’ average')
-  })
-
-  it('waits for Google without repeating the day the headline already gives', () => {
-    const waiting = {
-      ...CARD,
-      status: 'waiting_for_google' as const,
-      google: { ...CARD.google!, current: false, asOf: '2026-10-12T08:00:00.000Z' },
-    }
-
-    expect(cardOutlook(waiting, FIXTURE_TIMEZONE, NOW)).toBe(
-      'Waiting for Google’s latest numbers.',
-    )
-    expect(cardOutlook({ ...waiting, google: null }, FIXTURE_TIMEZONE, NOW)).toBe(
-      'Waiting for Google’s numbers.',
-    )
-  })
-
   it('names the day of numbers the headline does not date, and never a clock time', () => {
     const google = { ...CARD.google!, current: true, asOf: '2026-10-12T08:00:00.000Z' }
 
@@ -313,28 +214,5 @@ describe('the change log', () => {
     expect(changeText({ ...quality, oldValue: '45', newValue: null })).toBe(
       'New reviews average 4.5★ → none',
     )
-  })
-})
-
-describe('a forecast on screen', () => {
-  it('breaks a line only between the two ends of a month range', () => {
-    expect(dateParts('around Dec 2026 – Jan 2027')).toEqual([
-      { text: 'around ', whole: false },
-      { text: 'Dec 2026 –', whole: true },
-      { text: ' ', whole: false },
-      { text: 'Jan 2027', whole: true },
-    ])
-    expect(dateParts('19 more reviews · around Jul–Sep 2027')).toEqual([
-      { text: '19 more reviews · around Jul–', whole: false },
-      { text: 'Sep 2027', whole: true },
-    ])
-    expect(dateParts('Expected around Dec 2028 or later')).toEqual([
-      { text: 'Expected around ', whole: false },
-      { text: 'Dec 2028', whole: true },
-      { text: ' or later', whole: false },
-    ])
-    expect(dateParts('Waiting for Google’s numbers.')).toEqual([
-      { text: 'Waiting for Google’s numbers.', whole: false },
-    ])
   })
 })
