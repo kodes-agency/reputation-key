@@ -471,6 +471,9 @@ export const WelcomeLinesPerLanguage: Story = {
 /** A preview read that never answers: the pane stays on its loading placeholder. */
 const previewNeverLoads: PortalPreviewReader = () => new Promise(() => undefined)
 
+// Diag only: the control arm draws the guest page as before the fix.
+const DIAG_PREVIEW_ON = import.meta.env.VITE_DIAG_VARIANT === 'preview-on'
+
 // Closing the property's wording keeps what was typed in it: the fold hides its
 // form rather than removing it, so an unsaved edit (and the guard that asks
 // before leaving with one) survives.
@@ -486,7 +489,7 @@ export const PropertyWordingKeepsAnUnsavedEdit: Story = {
   args: {
     resources: {
       ...makeResources(action(async () => undefined)),
-      getPortalPreview: previewNeverLoads,
+      getPortalPreview: DIAG_PREVIEW_ON ? previewReader() : previewNeverLoads,
     },
   },
   play: async ({ canvasElement }) => {
@@ -508,7 +511,9 @@ export const PropertyWordingKeepsAnUnsavedEdit: Story = {
     const preview = within(
       within(canvasElement).getByRole('complementary', { name: 'Live preview' }),
     )
-    await expect(preview.getByText('Loading preview…')).toBeInTheDocument()
+    if (!DIAG_PREVIEW_ON) {
+      await expect(preview.getByText('Loading preview…')).toBeInTheDocument()
+    }
   },
 }
 
