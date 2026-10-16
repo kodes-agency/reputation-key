@@ -296,6 +296,44 @@ chip names the target while new reviews are too low ("New reviews too low for
 4.0"), and the detail page's "Your plan" sets the goal, the new reviews'
 average (after ten) and the pace against the plan, above the forecasts.
 
+## Amended 2026-10-16 — rounds 3 and 4, storage
+
+The setup now plans a pace a day ("1.5 a day") or a month ("20 a month") and
+plans new reviews from the Property's best month and busiest 30 days (owner
+decisions R3-1 to R3-12 and R4-1 to R4-4). This amendment covers what is stored
+and read; the one-screen setup follows in its own change.
+
+1. **A pace in tenths of a review a week.** A climb goal stores its pace in
+   `pace_tenths_per_week` (migration 0060), whole tenths from 10 (1 a week) to
+   3500 (50 a day): the one unit in which a pace a day or a month round-trips
+   (1.5 a day is 105; 20 a month reads back as 20 a month). Tracking stays
+   integer maths: on pace is reviews × week × 1000 ≥ 90 × tenths × window,
+   compared in BigInt. The change log's `pace` rows are tenths; 0060 rewrote the
+   old rows × 10, so the field has one meaning.
+2. **One release of legacy fields.** `pace_per_week` stays as the whole weekly
+   mirror, `GREATEST(1, (tenths + 5) / 10)`, held equal by the plan CHECK, so a
+   worker still running the release before reads a pace it knows. The set and
+   change schemas also accept a legacy whole weekly `pacePerWeek` (1 to 200,
+   mapped × 10; a request naming the pace both ways is refused), so a page
+   opened before the release keeps working instead of having its pace stripped.
+   `goal.rating_goal.transitioned` adds `paceTenthsPerWeek` and keeps
+   `pacePerWeek` (widened to 350); Feed's payload carries both. A contract
+   migration drops the mirror and the legacy fields once no release reads them.
+3. **Two more Review reads, counts and sums only.** Review answers the totals
+   of each Property-local calendar month with at least ten reviews and the count
+   of reviews on each Property-local date (no sum: a date with one review would
+   expose its rating, and a month under ten is never returned). Reporting trims
+   them to the best month of the last twelve and the busiest 30 consecutive
+   local dates of the last 365, and the setup read returns them with Google's
+   numbers as `setupInputs`. The server runs no planning maths for them; the
+   page works the plan out.
+4. **Waiting for Google on an empty cache.** A reading waits while Google's
+   numbers are not current, show no tenth or give no exact average, or the
+   review cache holds no review. The last replaces the recent mix's absence,
+   which held exactly when the cache was empty: an empty or expired cache keeps
+   a goal waiting (no zero-review pace window, no Below pace notice) and keeps
+   the setup closed until the import has filled it.
+
 ## Rejected alternatives
 
 - **A fourth Goal measure for the Google rating.** It would put Google data into
