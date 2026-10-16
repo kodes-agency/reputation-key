@@ -28,6 +28,8 @@ type Stage = 'offered' | 'set' | 'not_now'
 
 export type SetupRatingGoalStepProps = Readonly<{
   propertyId: string
+  /** Named in the wizard's header, once it is read. */
+  propertyName?: string
   /** The goal's setup read: the wizard is offered once it says a goal can be set. */
   setup: RegionRead<RatingGoalSetupView>
   setRatingGoalFn: RatingGoalWizardProps['setRatingGoalFn']
@@ -62,6 +64,7 @@ function NoGoalForNow({ propertyId }: Readonly<{ propertyId: string }>) {
 
 export function SetupRatingGoalStep({
   propertyId,
+  propertyName,
   setup,
   setRatingGoalFn,
   changeRatingGoalFn,
@@ -98,6 +101,7 @@ export function SetupRatingGoalStep({
               if (!open) close()
             }}
             propertyId={propertyId}
+            propertyName={propertyName}
             intent={intent}
             setup={setup}
             // A Property just imported has no Portal yet: the one next step is a first one.

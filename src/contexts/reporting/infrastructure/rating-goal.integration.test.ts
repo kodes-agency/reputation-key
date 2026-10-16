@@ -254,21 +254,16 @@ describe('a Property Google rating goal on PostgreSQL', () => {
       google: { shows: 4.3, reviewCount: 15, current: true },
       exactAverage: 4.333,
       exactAverageSource: 'cache',
-      recentMix: { average: 4.818, reviewCount: 11, basis: 'last_90_days' },
-      preselectedTenths: 46,
+      offersClimb: true,
     })
-    // At its own quality, the recent mix as a tenth: ceil((15 × 4.35 − 65) / (4.8 − 4.35)) = 1.
-    expect(setup.stops[0]).toMatchObject({
-      targetTenths: 44,
-      qualityTenths: 48,
-      reviewsNeeded: 1,
-      label: 'realistic',
+    // The page works the plan out from these: the cache's exact 65 / 15.
+    expect(setup.setupInputs).toMatchObject({
+      reviewCount: 15,
+      displayedTenths: 43,
+      exact: { num: 13, den: 3 },
+      exactSource: 'cache',
+      reviewsLast90Days: 11,
     })
-    expect(setup.planning?.plans.map((plan) => plan.key)).toEqual([
-      'cautious',
-      'recommended',
-      'ambitious',
-    ])
 
     const set = await api.set(
       allow,

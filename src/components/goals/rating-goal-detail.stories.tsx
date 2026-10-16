@@ -47,6 +47,16 @@ const meta: Meta<typeof RatingGoalDetail> = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+/** A goal that looks forward no more: no pace line, no bar, no tiles. */
+async function looksNoFurther(
+  canvas: ReturnType<typeof within>,
+  canvasElement: HTMLElement,
+) {
+  await expect(canvas.queryByText(/^Your pace/)).toBeNull()
+  await expect(canvas.queryByRole('progressbar')).toBeNull()
+  await expect(canvasElement.querySelector('[data-slot="metric-strip"]')).toBeNull()
+}
+
 export const Monitoring: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -59,23 +69,23 @@ export const Monitoring: Story = {
     await expect(plan.getByText('New reviews average')).toBeVisible()
     await expect(plan.getByText('4.61★ · plan 4.7★')).toBeVisible()
     await expect(plan.getByText('107 reviews since the goal was set')).toBeVisible()
-    await expect(plan.getByText('9.5 a week · plan 11 a week')).toBeVisible()
-    await expect(plan.getByText('Your plan is 48 a month · 1.6 a day')).toBeVisible()
+    await expect(plan.getByText('1.4 a day · plan 1.6 a day')).toBeVisible()
+    await expect(plan.getByText('About 11 a week · 50 a month')).toBeVisible()
     // The plan's pace is in the plan, not said again above it.
     await expect(canvas.queryByText(/^Your pace:/)).toBeNull()
-    await expect(canvas.getByText('At your chosen pace, 11 a week')).toBeVisible()
+    await expect(canvas.getByText('At your chosen pace, 1.6 a day')).toBeVisible()
     await expect(
       canvas.getByText(wholeText('Expected around Mar–Nov 2027')),
     ).toBeVisible()
     await expect(
-      canvas.getByText('At your pace of the last 4 weeks, 9.5 a week'),
+      canvas.getByText('At your pace of the last 4 weeks, 1.4 a day'),
     ).toBeVisible()
     await expect(
       canvas.getByText(wholeText('Expected around Jul–Sep 2027')),
     ).toBeVisible()
     await expect(
       canvas.getByText(
-        'If every new review is 5★: 97 more reviews, about 2 months at 11 a week.',
+        'If every new review is 5★: 97 more reviews, about 2 months at 1.6 a day.',
       ),
     ).toBeVisible()
 
@@ -92,13 +102,13 @@ export const Monitoring: Story = {
     await expect(strip).toHaveAttribute('aria-label', 'This goal in numbers')
     const tiles = within(strip!)
     await expect(tiles.getByText('6 of 11')).toBeVisible()
-    await expect(tiles.getByText('9.5 a week')).toBeVisible()
+    await expect(tiles.getByText('1.4 a day')).toBeVisible()
     await expect(tiles.getByText('212 reviews')).toBeVisible()
 
     await expect(
       canvas.getByText('107 reviews since the goal was set · average 4.61★'),
     ).toBeVisible()
-    await expect(canvas.getByText('Pace 14 → 11 a week')).toBeVisible()
+    await expect(canvas.getByText('Pace 2 → 1.6 a day')).toBeVisible()
     await expect(canvas.getByText('Target 4.4 → 4.5')).toBeVisible()
     await expect(canvas.getAllByText(/^Ana Petrova · /)).toHaveLength(2)
     await expect(
@@ -133,7 +143,7 @@ export const KeepGoal: Story = {
       quality: null,
       qualityBasis: null,
       plan: null,
-      pacePerWeek: null,
+      paceTenthsPerWeek: null,
       status: 'holding',
       progress: null,
       stillNeeded: null,
@@ -150,9 +160,7 @@ export const KeepGoal: Story = {
     await expect(
       canvas.getByRole('heading', { name: 'Keeping 4.9 on Google' }),
     ).toBeVisible()
-    await expect(canvas.queryByText(/^Your pace/)).toBeNull()
-    await expect(canvas.queryByRole('progressbar')).toBeNull()
-    await expect(canvasElement.querySelector('[data-slot="metric-strip"]')).toBeNull()
+    await looksNoFurther(canvas, canvasElement)
     await expect(canvas.getByText('No changes since the goal was set.')).toBeVisible()
   },
 }
@@ -276,10 +284,8 @@ export const FoundReached: Story = {
       canvas.getByText(/^Google shows 4\.5: the goal is reached\./),
     ).toBeVisible()
     await expect(canvas.queryByText(/^Expected around/)).toBeNull()
-    await expect(canvas.queryByText(/^Your pace/)).toBeNull()
-    await expect(canvas.queryByRole('progressbar')).toBeNull()
-    await expect(canvasElement.querySelector('[data-slot="metric-strip"]')).toBeNull()
-    await expect(canvas.getByText('Pace 14 → 11 a week')).toBeVisible()
+    await looksNoFurther(canvas, canvasElement)
+    await expect(canvas.getByText('Pace 2 → 1.6 a day')).toBeVisible()
   },
 }
 
@@ -410,7 +416,7 @@ export const KeepGoalWithNothingHigher: StoryObj<typeof RatingGoalDetailActions>
   render: () => (
     <div className="flex gap-2">
       <RatingGoalDetailActions
-        goal={{ ...DETAIL, mode: 'keep', pacePerWeek: null }}
+        goal={{ ...DETAIL, mode: 'keep', paceTenthsPerWeek: null }}
         setup={SETUP_KEEP_FIRST}
         onChange={fn()}
         onEnd={fn()}

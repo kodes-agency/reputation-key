@@ -11,7 +11,6 @@ import { lazy, Suspense } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Target } from 'lucide-react'
 import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/rating-goal.types'
-import { ratingGoalPaceView } from '#/contexts/reporting/application/rating-goal-preview'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
@@ -33,12 +32,12 @@ import {
   progressMarks,
   yourPlanLines,
 } from './rating-goal-detail-view'
-import { PLAN_POLICY_LINE } from './rating-goal-plan-view'
+import { PLAN_POLICY_LINE } from './rating-goal-copy'
+import { paceSentence } from './rating-goal-pace-words'
 import {
   APPROXIMATE_NUMBERS,
   averageProgressText,
   endedSentence,
-  perMonthAndDay,
   ratingText,
   reviewsTooLowSentence,
 } from './rating-goal-view'
@@ -89,11 +88,8 @@ function Outlook({ detail }: Pick<Props, 'detail'>) {
   const forecasts = detailForecasts(detail)
   return (
     <>
-      {detail.pacePerWeek === null || detail.plan !== null ? null : (
-        <p className="text-base">
-          Your pace: {detail.pacePerWeek} a week ·{' '}
-          {perMonthAndDay(ratingGoalPaceView(detail.pacePerWeek))}
-        </p>
+      {detail.paceTenthsPerWeek === null || detail.plan !== null ? null : (
+        <p className="text-base">Your pace: {paceSentence(detail.paceTenthsPerWeek)}</p>
       )}
       {detail.googleShowsSoon ? (
         <Alert variant="info">
@@ -184,7 +180,10 @@ function WeeklyBars({ detail }: Pick<Props, 'detail'>) {
       </CardHeader>
       <CardContent>
         <Suspense fallback={<Skeleton aria-hidden="true" className="h-60 w-full" />}>
-          <RatingGoalWeeklyChart weeks={detail.weeks} pacePerWeek={detail.pacePerWeek} />
+          <RatingGoalWeeklyChart
+            weeks={detail.weeks}
+            paceTenthsPerWeek={detail.paceTenthsPerWeek}
+          />
         </Suspense>
       </CardContent>
     </Card>

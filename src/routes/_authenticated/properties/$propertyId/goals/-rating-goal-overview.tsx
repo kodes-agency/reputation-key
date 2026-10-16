@@ -16,6 +16,8 @@ import {
 
 type Props = Readonly<{
   propertyId: string
+  /** Named in the wizard's header. */
+  propertyName: string
   timezone: string
   /** The wizard's done screen offers portal goals when there are Portals, a Portal when not. */
   hasPortals: boolean
@@ -28,6 +30,7 @@ type Props = Readonly<{
 
 export function OverviewRatingGoal({
   propertyId,
+  propertyName,
   timezone,
   hasPortals,
   notNowChosen,
@@ -45,7 +48,7 @@ export function OverviewRatingGoal({
     enabled: noActiveGoal,
     retry: false,
   })
-  const { start, wizard } = useRatingGoalWizard(propertyId, { hasPortals })
+  const { start, wizard } = useRatingGoalWizard(propertyId, { hasPortals, propertyName })
   // A door to the wizard is on screen: fetch its chunk now, so the click opens it at once.
   const doorShown = can('goal.create') && noActiveGoal
   useEffect(() => {

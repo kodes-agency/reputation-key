@@ -30,9 +30,9 @@ describe('how long a count of reviews takes', () => {
 describe('the forecasts', () => {
   it('forecasts at the chosen pace and at the pace of the last four weeks', () => {
     expect(detailForecasts(DETAIL)).toEqual([
-      { label: 'At your chosen pace, 11 a week', text: 'Expected around Mar–Nov 2027' },
+      { label: 'At your chosen pace, 1.6 a day', text: 'Expected around Mar–Nov 2027' },
       {
-        label: 'At your pace of the last 4 weeks, 9.5 a week',
+        label: 'At your pace of the last 4 weeks, 1.4 a day',
         text: 'Expected around Jul–Sep 2027',
       },
     ])
@@ -66,7 +66,7 @@ describe('the forecasts', () => {
 
   it('says the best case quietly', () => {
     expect(bestCaseLine(DETAIL)).toBe(
-      'If every new review is 5★: 97 more reviews, about 2 months at 11 a week.',
+      'If every new review is 5★: 97 more reviews, about 2 months at 1.6 a day.',
     )
     expect(bestCaseLine({ ...DETAIL, bestCase: null })).toBeNull()
   })
@@ -110,7 +110,7 @@ describe('the tiles', () => {
   it('counts this week, the last four weeks and what is still needed', () => {
     expect(detailTiles(DETAIL)).toEqual([
       { label: 'This week', value: '6 of 11', detail: 'new reviews since Monday' },
-      { label: 'Last 4 weeks', value: '9.5 a week', detail: 'your pace is 11 a week' },
+      { label: 'Last 4 weeks', value: '1.4 a day', detail: 'your pace is 1.6 a day' },
       {
         label: 'Still needed',
         value: '212 reviews',
@@ -137,8 +137,8 @@ describe('the rest of the page', () => {
   })
 
   it('reads the weekly chart in one line', () => {
-    expect(weeklyCaption(DETAIL.weeks, 11)).toBe(
-      '107 new reviews in 11 weeks; the pace is 11 a week.',
+    expect(weeklyCaption(DETAIL.weeks, 110)).toBe(
+      '107 new reviews in 11 weeks; the plan is 1.6 a day.',
     )
     expect(weeklyCaption(DETAIL.weeks, null)).toBe('107 new reviews in 11 weeks.')
   })
@@ -172,8 +172,8 @@ describe('your plan', () => {
       },
       {
         term: 'Pace, last 4 weeks',
-        value: '9.5 a week · plan 11 a week',
-        note: 'Your plan is 48 a month · 1.6 a day',
+        value: '1.4 a day · plan 1.6 a day',
+        note: 'About 11 a week · 50 a month',
       },
     ])
   })

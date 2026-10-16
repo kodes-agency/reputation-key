@@ -540,6 +540,13 @@
 // responses): fresh production builds measured 309,282 B (75 js + 1 css) against
 // 308,612 B on main 7ddd92006, +670 B, all in the TanStack vendor chunk. A
 // critical advisory is not optional, so the budget moves to 309,300 B (18 B spare).
+//
+// 2026-10-16 (Google rating goal, rounds 3 and 4, PR B: the one-screen setup):
+// no raise. Every new module is behind the wizard's lazy chunk and every class
+// the setup uses was already in the stylesheet (its one-off sizes are inline
+// styles). Measured right after the components landed: 308,586 B; at the PR's
+// end: 308,595 B (75 js + 1 css, the stylesheet 27,787 B, 38 B less with Pick
+// a plan's cards gone), against 308,596 B on PR A's head.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
