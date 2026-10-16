@@ -24,6 +24,7 @@ import {
   type SentryBreadcrumb,
   type SentryEventHint,
 } from './sentry-event-scrub'
+import { type FeedbackReporter, withFeedbackReporter } from './feedback-reporter'
 
 const ERROR_MONITOR_FLUSH_BUDGET_MS = 1_500
 
@@ -124,6 +125,8 @@ export interface FeedbackCaptureParams {
   readonly tags: Readonly<Record<string, string>>
   /** A screenshot the reporter attached; sent as a file of the event, not as text. */
   readonly attachments?: ReadonlyArray<FeedbackAttachment>
+  /** The signed-in reporter's account name and email, added after the scrubber. */
+  readonly reporter?: FeedbackReporter
 }
 
 export interface FeedbackAttachment {
@@ -358,6 +361,11 @@ export function createErrorMonitor(deps: {
           return sdk.withScope((scope) => {
             scope.clear()
             scope.addEventProcessor(scrubSentryEvent)
+            // After the scrubber, so the reporter's name and email are the
+            // one thing it does not decide (feedback-reporter.ts).
+            if (params.reporter) {
+              scope.addEventProcessor(withFeedbackReporter(params.reporter))
+            }
             return sdk.captureFeedback(safeParams, safeHint, scope)
           })
         })

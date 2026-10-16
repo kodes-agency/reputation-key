@@ -127,6 +127,7 @@ import { submitBetaFeedback } from './application/use-cases/submit-beta-feedback
 import { listMyBetaFeedback } from './application/use-cases/list-my-beta-feedback'
 import { BetaFeedbackTriageRepository } from './infrastructure/beta-feedback-triage.repository'
 import { deliverBetaFeedback } from './infrastructure/adapters/beta-feedback-sentry-delivery.adapter'
+import { findBetaFeedbackReporterContact } from './infrastructure/beta-feedback-reporter'
 
 /** Exactly the reactivation probes composition must supply, or none at all. */
 export type OrganizationReactivationProbeBindings = OrganizationReactivationReadinessDeps
@@ -549,6 +550,7 @@ function buildBetaFeedbackRequests(deps: IdentityContextDeps) {
     submit: submitBetaFeedback({
       store,
       deliver: deliverBetaFeedback,
+      findReporterContact: (userId) => findBetaFeedbackReporterContact(deps.db, userId),
       clock: deps.clock,
       idGen: deps.idGen,
       hmacSecret,

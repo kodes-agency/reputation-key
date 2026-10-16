@@ -41,6 +41,8 @@ const actor = {
   role: 'AccountAdmin',
 } as const
 
+const reporter = { name: 'Ana Admin', email: 'ana@example.com' } as const
+
 describe('beta feedback delivery to monitoring', () => {
   beforeEach(() => {
     captured.params.length = 0
@@ -52,6 +54,7 @@ describe('beta feedback delivery to monitoring', () => {
     const result = deliverBetaFeedback({
       data: report({ mediaType: 'image/webp', base64 }),
       actor,
+      reporter,
       hmacSecret: 'secret',
       reference: '00000000-0000-4000-8000-000000000001',
     })
@@ -69,6 +72,7 @@ describe('beta feedback delivery to monitoring', () => {
     deliverBetaFeedback({
       data: report(null),
       actor,
+      reporter,
       hmacSecret: 'secret',
       reference: '00000000-0000-4000-8000-000000000002',
     })
@@ -76,5 +80,31 @@ describe('beta feedback delivery to monitoring', () => {
     const [sent] = captured.params
     expect(sent?.attachments).toEqual([])
     expect(sent?.message).not.toContain('Screenshot:')
+  })
+
+  it("names the report by the reporter's account, outside the report text", () => {
+    deliverBetaFeedback({
+      data: report(null),
+      actor,
+      reporter,
+      hmacSecret: 'secret',
+      reference: '00000000-0000-4000-8000-000000000003',
+    })
+
+    const [sent] = captured.params
+    expect(sent?.reporter).toEqual(reporter)
+    expect(sent?.message).not.toContain(reporter.email)
+  })
+
+  it('sends no reporter when the account is gone', () => {
+    deliverBetaFeedback({
+      data: report(null),
+      actor,
+      reporter: null,
+      hmacSecret: 'secret',
+      reference: '00000000-0000-4000-8000-000000000004',
+    })
+
+    expect(captured.params[0]).not.toHaveProperty('reporter')
   })
 })

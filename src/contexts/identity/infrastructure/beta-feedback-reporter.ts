@@ -17,7 +17,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { member, organization } from '#/shared/db/schema/auth'
+import { member, organization, user } from '#/shared/db/schema/auth'
 import { betaFeedbackPseudonym } from '../application/beta-feedback-pseudonym'
 
 export type BetaFeedbackReporter = Readonly<{
@@ -67,4 +67,21 @@ export async function resolveBetaFeedbackReporter(
     ),
   )
   return reporter ? { organizationId: match.id, userId: reporter.userId } : null
+}
+
+/**
+ * The account name and email of a signed-in reporter, which a report carries
+ * to monitoring (Privacy Notice 2.5). The triage row still stores neither.
+ */
+export async function findBetaFeedbackReporterContact(
+  db: Database,
+  userId: string,
+): Promise<Readonly<{ name: string | null; email: string }> | null> {
+  const [row] = await db
+    .select({ name: user.name, email: user.email })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
+  if (!row) return null
+  return { name: row.name.trim() || null, email: row.email }
 }

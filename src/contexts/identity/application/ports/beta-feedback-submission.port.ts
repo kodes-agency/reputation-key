@@ -96,6 +96,13 @@ export type BetaFeedbackActor = Readonly<{
   role: Role
 }>
 
+/**
+ * The reporter's account name and email, which a report carries to monitoring
+ * (Privacy Notice 2.5). Null when the account is gone; the triage row never
+ * stores it.
+ */
+export type BetaFeedbackReporterContact = Readonly<{ name: string | null; email: string }>
+
 export type BetaFeedbackDeliveryResult =
   | Readonly<{ status: 'delivered'; providerReference: string }>
   | Readonly<{
@@ -108,6 +115,7 @@ export type BetaFeedbackDelivery = (
   input: Readonly<{
     data: BetaFeedbackInput
     actor: BetaFeedbackActor
+    reporter: BetaFeedbackReporterContact | null
     hmacSecret: string
     reference: string
   }>,
