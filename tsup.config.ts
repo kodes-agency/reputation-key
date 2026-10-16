@@ -1,7 +1,28 @@
 // Credential keywords (e.g. secret variables) are checked by regex,
 // so the format __VAR_NAME__ below does not trigger the credential-pattern detector.
 
+import { sentryEsbuildPlugin } from '@sentry/esbuild-plugin'
 import { defineConfig } from 'tsup'
+
+// The worker bundle and the web preload are built here, not by Vite, so the
+// Vite plugin's source-map upload never sees them, and their stack traces
+// reached Sentry as bundle lines. With the image build's token present, this
+// injects debug ids and uploads their maps. It deletes nothing: the Dockerfile
+// checks the worker's maps and then deletes every map itself. Local builds
+// have no token and skip it.
+function sentrySourceMapUpload() {
+  if (!process.env.SENTRY_AUTH_TOKEN) return []
+  return [
+    sentryEsbuildPlugin({
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      // No `.git` in the image build context to associate commits from.
+      release: { name: process.env.SOURCE_REVISION, setCommits: false },
+      telemetry: false,
+    }),
+  ]
+}
 
 export default defineConfig([
   {
@@ -19,6 +40,7 @@ export default defineConfig([
     splitting: false,
     sourcemap: true,
     clean: true,
+    esbuildPlugins: sentrySourceMapUpload(),
     esbuildOptions(options) {
       options.alias = { '#': './src' }
       // The print kit's fonts are imported as `*.ttf?inline` (Vite's spelling of
@@ -58,6 +80,7 @@ export default defineConfig([
     splitting: false,
     sourcemap: true,
     clean: false,
+    esbuildPlugins: sentrySourceMapUpload(),
     outExtension: () => ({ js: '.mjs' }),
     esbuildOptions(options) {
       options.alias = { '#': './src' }

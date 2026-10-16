@@ -346,10 +346,31 @@ or chat transcript.
    `web-observability-preload.mjs`/`worker-observability-preload.js` before the
    application entries. A command or bundle override that bypasses either
    boundary is configuration drift.
-4. In Sentry, filter by `release`, `environment`, `service`, and
-   `processing_cell`. Events intentionally omit request bodies, headers,
-   cookies, user/extra data, exception messages, breadcrumb content, local
-   variables, and source context.
+4. In Sentry, filter by `release`, `environment`, `service` (`web`, `worker`,
+   or `browser`), and `processing_cell`. Events intentionally omit request
+   bodies, headers, cookies, user/extra data, exception messages, breadcrumb
+   content, local variables, and source context. What tells one failure from
+   another instead (src/shared/observability/error-facts.ts):
+   - `error_code`: the code the error was thrown with (`internal_error`,
+     `temporarily_unavailable`, `ECONNREFUSED`, a SQLSTATE); `cause_code`: the
+     first code in its `cause` chain. An unexpected server-function failure
+     keeps the original as the cause of its `InternalError`, so the event
+     carries both stacks.
+   - `db_code`, `db_constraint`, `db_table`, `db_column`: a Postgres refusal's
+     SQLSTATE and schema names, never its values.
+   - `error_kind`: `chunk_load` (a code file the tab asked for is gone, often
+     an open tab after a deploy) or `network` (the request never completed).
+   - Browser events only: `route` (the route template, such as
+     `/_authenticated/properties/$propertyId/inbox/`, never the address) and
+     the browser's name, major version, and operating system.
+5. Unreadable stack frames (bundle files such as `_ssr/x-B1f6QYIB.mjs` line 43574) mean the source maps for that release are missing. The image build
+   uploads them when the repository has the `SENTRY_AUTH_TOKEN` secret and
+   the `SENTRY_ORG`/`SENTRY_PROJECT` variables: server bundles and the worker
+   by debug id, browser chunks by release (no per-chunk snippet, which would
+   have cost first paint 16.8 KB). Read the `docker image group (web)` job log
+   for `sentry-cli` and `[sentry-vite-plugin] Error` lines; `skipping
+source-map upload` means the token is unset. Events from releases built
+   before the upload worked stay unreadable.
 
 **Containment:** Do not disable monitoring, and do not deploy an earlier image:
 recovery is forward-only (§28). Runtime SDK/transport exceptions already fail

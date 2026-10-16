@@ -26,6 +26,22 @@ describe('serverFunctionErrorAdapter', () => {
     expect(restored.message).toBe('Valid session required')
   })
 
+  it('never carries the cause to the browser', () => {
+    const failure = new ServerFunctionError(
+      'InternalError',
+      'Internal server error',
+      'internal_error',
+      500,
+      { cause: new Error('relation "replies" does not exist') },
+    )
+
+    const wire = serverFunctionErrorAdapter.toSerializable(failure)
+
+    expect(wire).not.toHaveProperty('cause')
+    expect(JSON.stringify(wire)).not.toContain('replies')
+    expect(serverFunctionErrorAdapter.fromSerializable(wire).cause).toBeUndefined()
+  })
+
   it('leaves ordinary errors to the framework default', () => {
     expect(serverFunctionErrorAdapter.test(refusal)).toBe(true)
     expect(serverFunctionErrorAdapter.test(new Error('boom'))).toBe(false)

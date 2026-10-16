@@ -547,6 +547,17 @@
 // styles). Measured right after the components landed: 308,586 B; at the PR's
 // end: 308,595 B (75 js + 1 css, the stylesheet 27,787 B, 38 B less with Pick
 // a plan's cards gone), against 308,596 B on PR A's head.
+//
+// 2026-10-16 (error monitoring: readable Sentry issues): the browser's Sentry
+// event hooks, the scrubber with its field vocabulary among them, now load
+// with the SDK chunk instead of in first paint; router.tsx gains only a route
+// reader. Fresh production builds measured 307,486 B (75 js + 1 css) on main
+// 53ee12819 and 307,498 B on 9086f137f (the goals PR C adds 12 B), against
+// 309,273 B on ba6925ccf, about -1,780 B, so the budget is lowered to
+// 307,700 B (202 B spare). The image build now uploads source maps, and
+// browser chunks upload by release rather than by debug id: a debug-id snippet
+// in every chunk measured 324,298 B, and this gate builds without the token,
+// so it would never have seen that (scripts/build/sentry-source-map-upload.ts).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -558,7 +569,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 309_300, // raised to 309,300 on 2026-10-16 for the TanStack security release, measured 309,282 (main 308,612); raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
+  initialClosureGzip: 307_700, // lowered to 307,700 on 2026-10-16 once the browser's Sentry event hooks left first paint, measured 307,498 (main 309,273); raised to 309,300 on 2026-10-16 for the TanStack security release, measured 309,282 (main 308,612); raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 

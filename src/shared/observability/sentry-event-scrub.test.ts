@@ -3,6 +3,7 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   dropExpectedRefusals,
   filterAndScrubSentryTransaction,
+  scrubErrorEvent,
   scrubSentryBreadcrumb,
   scrubSentryEvent,
 } from './sentry-event-scrub'
@@ -241,6 +242,68 @@ describe('telemetry PII scrubbing (B3.5)', () => {
     })
     expect(JSON.stringify(scrubbed)).not.toContain(marker)
     expect(JSON.stringify(scrubbed)).not.toContain('manager@example.com')
+  })
+})
+
+describe('scrubErrorEvent', () => {
+  const marker = 'guest-wrote-this@example.invalid'
+
+  it('tags the event with the codes the thrown error carries, and still replaces its message', () => {
+    const cause = Object.assign(new Error(`insert failed for ${marker}`), {
+      severity: 'ERROR',
+      code: '23505',
+      constraint: 'users_email_key',
+      table: 'users',
+    })
+    const thrown = new ServerFunctionError(
+      'InternalError',
+      'Internal server error',
+      'internal_error',
+      500,
+      { cause },
+    )
+
+    const scrubbed = scrubErrorEvent(
+      {
+        exception: { values: [{ type: 'InternalError', value: marker }] },
+        tags: { service: 'web' },
+      },
+      { originalException: thrown },
+    ) as Record<string, unknown>
+
+    expect(scrubbed.tags).toEqual({
+      service: 'web',
+      error_code: 'internal_error',
+      cause_code: '23505',
+      db_code: '23505',
+      db_constraint: 'users_email_key',
+      db_table: 'users',
+    })
+    expect(JSON.stringify(scrubbed)).not.toContain(marker)
+  })
+
+  it('scrubs an event that has no exception hint', () => {
+    expect(scrubErrorEvent({ message: marker })).toEqual({ message: '[REDACTED]' })
+  })
+
+  it('keeps a browser name and major version, and nothing else of the browser', () => {
+    const scrubbed = scrubErrorEvent({
+      contexts: {
+        browser: { name: 'Safari', version: '18', user_agent: marker },
+      },
+    }) as Record<string, unknown>
+
+    expect(scrubbed.contexts).toEqual({ browser: { name: 'Safari', version: '18' } })
+  })
+
+  it('keeps a route template tag', () => {
+    const scrubbed = scrubErrorEvent({
+      tags: { route: '/_authenticated/properties/$propertyId/inbox/' },
+    }) as Record<string, unknown>
+
+    expect(scrubbed.tags).toEqual({
+      route: '/_authenticated/properties/$propertyId/inbox/',
+    })
   })
 })
 

@@ -15,6 +15,7 @@ import {
   RouteNotFound,
 } from '#/components/layout/route-page-state'
 import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
+import { setBrowserRouteSource } from '#/shared/observability/browser-route'
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'
 
 /**
@@ -74,6 +75,11 @@ export function getRouter() {
   // Wire SSR dehydration/hydration + streaming between Router and Query.
   // By default this also wraps the router output in <QueryClientProvider>.
   setupRouterSsrQueryIntegration({ router, queryClient })
+
+  // A browser error report names the route template the page was on.
+  if (typeof document !== 'undefined') {
+    setBrowserRouteSource(() => router.state.matches.at(-1)?.routeId)
+  }
 
   return router
 }

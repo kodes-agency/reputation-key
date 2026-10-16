@@ -38,7 +38,15 @@ export function throwContextError(
     `← THROW ${errorName}(${e.code}) → ${status}`,
   )
 
-  throw new ServerFunctionError(errorName, e.message, e.code, status)
+  // A domain error class keeps the stack of where it was raised; monitoring
+  // reads it through `cause`, and the wire form never carries it.
+  throw new ServerFunctionError(
+    errorName,
+    e.message,
+    e.code,
+    status,
+    e instanceof Error ? { cause: e } : undefined,
+  )
 }
 /**
  * better-auth throws `APIError` (status is a string label like "FORBIDDEN") for
@@ -113,7 +121,7 @@ export function catchUntagged(e: unknown): never {
       `← THROW APIError(${statusName}) → ${httpStatus}`,
     )
 
-    throw new ServerFunctionError('APIError', message, code, httpStatus)
+    throw new ServerFunctionError('APIError', message, code, httpStatus, { cause: e })
   }
 
   logger.error(
@@ -126,10 +134,13 @@ export function catchUntagged(e: unknown): never {
     `← THROW InternalError → 500`,
   )
 
+  // The original stays the cause so error monitoring receives its stack (the
+  // SDK reads `cause` chains); the client still sees only this generic 500.
   throw new ServerFunctionError(
     'InternalError',
     'Internal server error',
     'internal_error',
     500,
+    { cause: e },
   )
 }

@@ -1,4 +1,5 @@
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'
+import { errorFactTags } from './error-facts'
 import { isSensitiveObservabilityField } from './sensitive-field-policy'
 
 export type SentryEventHint = Readonly<{ originalException?: unknown }>
@@ -9,10 +10,25 @@ export type SentryEventHint = Readonly<{ originalException?: unknown }>
  * Sentry's server function middleware and the browser SDK bypass it.
  */
 export function dropExpectedRefusals<T>(
-  scrub: (event: T) => T,
+  scrub: (event: T, hint?: SentryEventHint) => T,
 ): (event: T, hint?: SentryEventHint) => T | null {
   return (event, hint) =>
-    isExpectedRefusal(hint?.originalException) ? null : scrub(event)
+    isExpectedRefusal(hint?.originalException) ? null : scrub(event, hint)
+}
+
+/**
+ * Scrub an error event after tagging it with the codes the thrown error
+ * carries (see error-facts.ts). The message is still replaced: the codes are
+ * what tells one failure from another.
+ */
+export function scrubErrorEvent<T>(event: T, hint?: SentryEventHint): T {
+  const record = asRecord(event)
+  const facts = errorFactTags(hint?.originalException)
+  if (!record || Object.keys(facts).length === 0) return scrubSentryEvent(event)
+  return scrubSentryEvent({
+    ...record,
+    tags: { ...asRecord(record.tags), ...facts },
+  } as T)
 }
 
 const REDACTED = '[REDACTED]'
@@ -27,6 +43,16 @@ const ALLOWED_EVENT_TAGS: Readonly<Record<string, true>> = {
   job_name: true,
   alert: true,
   alert_severity: true,
+  // Content-free facts about an error event: the page's route template and
+  // the codes read from the thrown error (error-facts.ts).
+  route: true,
+  error_code: true,
+  cause_code: true,
+  error_kind: true,
+  db_code: true,
+  db_constraint: true,
+  db_table: true,
+  db_column: true,
   feedback_type: true,
   feedback_impact: true,
   feedback_route: true,
@@ -49,6 +75,9 @@ const ALLOWED_EVENT_TAGS: Readonly<Record<string, true>> = {
 
 const ALLOWED_CONTEXT_FIELDS: Readonly<Record<string, Readonly<Record<string, true>>>> = {
   app: { app_name: true, app_version: true, app_build: true },
+  // A browser's name and major version, read from the user-agent text its own
+  // request already shows the provider. The text itself stays out.
+  browser: { name: true, version: true },
   device: {
     arch: true,
     brand: true,
