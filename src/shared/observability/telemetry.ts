@@ -390,36 +390,50 @@ const preloadSafeLogger: ErrorMonitoringLogger = Object.freeze({
   },
 })
 
-const processMonitor = createErrorMonitor({
-  sentry: Sentry as unknown as ErrorMonitoringSdk,
-  // Monitoring is preloaded before the application environment parser. Keep
-  // this diagnostic sink dependency-free and content-free;
-  // createErrorMonitor's public seam still accepts the normal structured
-  // logger in unit tests and other embeddings.
-  logger: preloadSafeLogger,
-})
+// BQC-7.1 again: the production web build evaluates this module three times
+// (the --import preload, the Nitro app chunk and the lazy SSR chunk that runs
+// server functions and server routes), and only the first two initialize. A
+// module-level monitor left the SSR copy unbound, so beta feedback failed as
+// `monitoring_unavailable` and server-route captures went nowhere. Symbol.for
+// keys the monitor on the process-global registry so every copy shares the
+// one the preload initialized.
+const PROCESS_MONITOR_KEY = Symbol.for('repkey.shared.observability.processMonitor')
+type ProcessMonitorStore = { [PROCESS_MONITOR_KEY]?: ErrorMonitor }
+
+function processMonitor(): ErrorMonitor {
+  const store = globalThis as ProcessMonitorStore
+  store[PROCESS_MONITOR_KEY] ??= createErrorMonitor({
+    sentry: Sentry as unknown as ErrorMonitoringSdk,
+    // Monitoring is preloaded before the application environment parser. Keep
+    // this diagnostic sink dependency-free and content-free;
+    // createErrorMonitor's public seam still accepts the normal structured
+    // logger in unit tests and other embeddings.
+    logger: preloadSafeLogger,
+  })
+  return store[PROCESS_MONITOR_KEY]
+}
 
 export function initObservability(
   service: ObservabilityService,
 ): ObservabilityInitResult {
-  return processMonitor.initialize(buildObservabilityConfig(service))
+  return processMonitor().initialize(buildObservabilityConfig(service))
 }
 
 export function captureObservabilityException(
   error: unknown,
   context: ErrorCaptureContext,
 ): void {
-  processMonitor.captureException(error, context)
+  processMonitor().captureException(error, context)
 }
 
 export function captureObservabilityFeedback(
   params: FeedbackCaptureParams,
 ): string | undefined {
-  return processMonitor.captureFeedback(params)
+  return processMonitor().captureFeedback(params)
 }
 
 export function flushObservability(
   timeoutMs = ERROR_MONITOR_FLUSH_BUDGET_MS,
 ): Promise<boolean> {
-  return processMonitor.flush(timeoutMs)
+  return processMonitor().flush(timeoutMs)
 }
