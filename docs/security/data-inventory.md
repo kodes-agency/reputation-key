@@ -222,7 +222,8 @@ Guest browser → Signed session → Rating/Feedback → PostgreSQL (IP hashed)
   it with the event. Separately, after a Bug-only consent and explicit capture
   action on an allowlisted route, a Bug may keep a masked layout made solely
   from quantized rectangle geometry and closed block kinds, first-party and
-  never sent to Sentry. A report sends no name/email, raw tenant/property/route
+  never sent to Sentry. A report sends its reporter's account name and email
+  (Privacy Notice 2.5, owner decision 2026-10-16) but no raw tenant/property/route
   identifiers, cookies, request bodies, or replay. User-entered report text can
   still contain personal data despite automated redaction, so the UI warns
   managers not to type guest/review/contact/credential content and the Sentry

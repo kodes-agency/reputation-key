@@ -12,6 +12,11 @@ on:
 # starved each other, so the oldest reached its 120-minute timeout without
 # finishing. Superseded PR runs are cancelled; main is never cancelled, because
 # its runs gate the release.
+#
+# Because main's runs queue one at a time, every job carries `timeout-minutes`
+# (about 2-3x its longest green run): without one, a hung job holds the queue
+# for GitHub's 6-hour default. On 2026-10-16 storybook-test hung twice and held
+# every later merge and deploy until it was cancelled by hand.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -25,6 +30,7 @@ jobs:
   # ~5.3m measured: independent source and policy gates need no services.
   static:
     runs-on: ubuntu-latest
+    timeout-minutes: 20 # longest green run ~8 min
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -71,6 +77,7 @@ jobs:
   test-unit:
     name: test-unit (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
+    timeout-minutes: 10 # longest green run ~3 min
     strategy:
       fail-fast: false
       matrix:
@@ -109,6 +116,7 @@ jobs:
   # scratch database; vitest.config.ts explicitly marks unit DB/Redis-free.
   test-integration:
     runs-on: ubuntu-latest
+    timeout-minutes: 25 # longest green run ~10 min
 
     services:
       postgres:
@@ -236,6 +244,7 @@ jobs:
   # The booted security-header probe needs Redis, but no PostgreSQL.
   artifacts:
     runs-on: ubuntu-latest
+    timeout-minutes: 10 # longest green run ~2 min
 
     services:
       redis:
@@ -359,6 +368,7 @@ jobs:
     needs: [static, test-unit, test-integration, artifacts]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5 # longest green run ~1 min
     steps:
       - name: Require every check shard to succeed
         if: >-
@@ -376,6 +386,7 @@ jobs:
   docker-images:
     name: docker image group (${{ matrix.group }})
     runs-on: ubuntu-latest
+    timeout-minutes: 25 # longest green run ~8 min
     permissions:
       contents: read
       packages: write
@@ -665,6 +676,7 @@ jobs:
     needs: [docker-images]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 10 # longest green run ~1 min
     permissions:
       contents: read
       packages: write
@@ -805,6 +817,7 @@ jobs:
   # license requirement) — the official image is pinned by digest instead.
   secrets:
     runs-on: ubuntu-latest
+    timeout-minutes: 10 # longest green run ~1 min
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -832,6 +845,7 @@ jobs:
 
   storybook-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20 # longest green run ~14 min
     # Component-test coverage: renders every story in headless Chromium and
     # runs its play function plus axe — the hard gate for BQR-5.4 a11y.
     #
@@ -1029,6 +1043,7 @@ jobs:
     needs: [e2e-shard]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5 # longest green run ~1 min
     steps:
       - name: Require every e2e shard to succeed
         if: needs.e2e-shard.result != 'success'

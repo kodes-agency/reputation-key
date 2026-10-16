@@ -165,6 +165,64 @@ describe('error monitoring runtime', () => {
     )
   })
 
+  it("adds the reporter's account name and email after the scrubber, as the last processor", () => {
+    const sentry = sdk()
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+    monitor.initialize(baseConfig)
+
+    monitor.captureFeedback({
+      message: 'The total row is missing.',
+      source: 'repkey-native-beta-feedback',
+      tags: { feedback_type: 'bug' },
+      reporter: { name: 'Ana Admin', email: 'ana@example.com' },
+    })
+
+    const [params, , scope] = sentry.captureFeedback.mock.calls[0] ?? []
+    expect(params).not.toHaveProperty('reporter')
+    if (!scope) throw new Error('expected feedback capture scope')
+    const processors = vi.mocked(scope.addEventProcessor).mock.calls.map(([fn]) => fn)
+    expect(processors).toHaveLength(2)
+    expect(processors[0]).toBe(scrubSentryEvent)
+    const event = {
+      type: 'feedback',
+      contexts: {
+        feedback: {
+          message: 'The total row is missing.',
+          source: 'repkey-native-beta-feedback',
+          contact_email: 'someone-else@example.com',
+        },
+      },
+    }
+    const sent = processors.reduce<unknown>((current, fn) => fn(current), event)
+    expect(sent).toMatchObject({
+      contexts: {
+        feedback: {
+          message: 'The total row is missing.',
+          name: 'Ana Admin',
+          contact_email: 'ana@example.com',
+        },
+      },
+    })
+  })
+
+  it('adds no reporter processor when the reporter is unknown', () => {
+    const sentry = sdk()
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+    monitor.initialize(baseConfig)
+
+    monitor.captureFeedback({
+      message: 'The total row is missing.',
+      source: 'repkey-native-beta-feedback',
+      tags: { feedback_type: 'bug' },
+    })
+
+    const scope = sentry.captureFeedback.mock.calls[0]?.[2]
+    if (!scope) throw new Error('expected feedback capture scope')
+    expect(vi.mocked(scope.addEventProcessor).mock.calls.map(([fn]) => fn)).toEqual([
+      scrubSentryEvent,
+    ])
+  })
+
   it('hands an attached screenshot to the SDK as an attachment, outside the report text', () => {
     const sentry = sdk()
     const monitor = createErrorMonitor({ sentry, logger: logger() })

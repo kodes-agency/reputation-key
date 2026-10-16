@@ -13,6 +13,7 @@ const SECRET = 'beta-feedback-test-secret'
 const REFERENCE = '00000000-0000-4000-8000-0000000000f1'
 const NOW = new Date('2026-08-28T08:00:00.000Z')
 const PROVIDER_REFERENCE = 'a'.repeat(32)
+const REPORTER = { name: 'Ana Admin', email: 'ana@example.com' } as const
 
 const actor = {
   organizationId: 'organization-1',
@@ -39,17 +40,44 @@ function setup(delivery: ReturnType<BetaFeedbackDelivery>) {
     markFailed: vi.fn().mockResolvedValue(row),
   }
   const deliver = vi.fn<BetaFeedbackDelivery>().mockReturnValue(delivery)
+  const findReporterContact = vi.fn().mockResolvedValue(REPORTER)
   const submit = submitBetaFeedback({
     store,
     deliver,
+    findReporterContact,
     clock: () => NOW,
     idGen: () => REFERENCE,
     hmacSecret: SECRET,
   })
-  return { store, deliver, submit }
+  return { store, deliver, findReporterContact, submit }
 }
 
 describe('submitBetaFeedback', () => {
+  it("hands monitoring the reporter's account name and email, never the triage row", async () => {
+    const { store, deliver, findReporterContact, submit } = setup({
+      status: 'delivered',
+      providerReference: PROVIDER_REFERENCE,
+    })
+
+    await submit({ actor, data: bug })
+
+    expect(findReporterContact).toHaveBeenCalledWith(actor.userId)
+    expect(deliver).toHaveBeenCalledWith(expect.objectContaining({ reporter: REPORTER }))
+    expect(JSON.stringify(store.prepare.mock.calls)).not.toContain(REPORTER.email)
+  })
+
+  it('writes nothing when the reporter cannot be read', async () => {
+    const { store, deliver, findReporterContact, submit } = setup({
+      status: 'delivered',
+      providerReference: PROVIDER_REFERENCE,
+    })
+    findReporterContact.mockRejectedValue(new Error('database unavailable'))
+
+    await expect(submit({ actor, data: bug })).rejects.toThrow('database unavailable')
+    expect(store.prepare).not.toHaveBeenCalled()
+    expect(deliver).not.toHaveBeenCalled()
+  })
+
   it('prepares the pseudonymous row, delivers, then settles it delivered at revision 0', async () => {
     const { store, deliver, submit } = setup({
       status: 'delivered',
@@ -81,6 +109,7 @@ describe('submitBetaFeedback', () => {
     expect(deliver).toHaveBeenCalledWith({
       data: bug,
       actor,
+      reporter: REPORTER,
       hmacSecret: SECRET,
       reference: REFERENCE,
     })
