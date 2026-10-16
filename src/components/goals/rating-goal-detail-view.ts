@@ -9,9 +9,9 @@ import type {
   RatingGoalPlanProgressView,
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { formatNumber } from '#/lib/format'
+import { arrivalLine } from './rating-goal-arrival-words'
 import {
   assumedAverageWords,
-  forecastSentence,
   ratingText,
   reviewsText,
   tenthsText,
@@ -57,7 +57,7 @@ export function detailForecasts(
   if (plan === null || detail.status === 'reviews_too_low') return []
   const average = assumedAverageWords(detail)
   const sentence = (forecast: NonNullable<RatingGoalDetailView['forecast']>) =>
-    forecastSentence(forecast, detail.target, undefined, average)
+    arrivalLine(forecast, detail.target, average)
   const lines = [
     detail.forecastAtChosenPace === null
       ? null

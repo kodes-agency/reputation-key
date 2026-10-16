@@ -15,17 +15,15 @@ import {
   displayedTenths,
   ratio,
   ratioToNumber,
-  reviewsNeeded,
   thresholdThousandths,
   type Ratio,
   type RatingTotals,
   type RecentMix,
   type ReviewsNeeded,
 } from '../domain/rating-goal-numbers'
-import { earnedTenths } from '../domain/rating-goal-arrival'
-import { forecastArrival, type RatingForecast } from '../domain/rating-goal-forecast'
+import { actualRate, earnedTenths } from '../domain/rating-goal-arrival'
 import { googleNumbersView } from '../domain/google-numbers'
-import { currentPacePerWeek, paceRatio } from '../domain/rating-goal-pace'
+import { currentPacePerWeek } from '../domain/rating-goal-pace'
 import { bestYear, nearestTenth, type YearTotals } from '../domain/rating-goal-quality'
 import {
   bestMonth,
@@ -35,7 +33,6 @@ import {
 } from '../domain/rating-goal-evidence'
 import {
   cacheShowsTargetFirst,
-  forecastPaceBasis,
   nextTenthMilestone,
   QUALITY_VERDICT_MIN_REVIEWS,
   ratingProgress,
@@ -67,6 +64,12 @@ import {
   setupEligibility,
   type RatingGoalReading,
 } from './rating-goal-reading'
+import {
+  cardRate,
+  cardTracking,
+  forecastFor,
+  tenthsToRating,
+} from './rating-goal-tracking-views'
 
 const JUST_SET_DAYS = 7
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -76,8 +79,6 @@ const round = (value: number, decimals: number): number => {
   const scale = 10 ** decimals
   return Math.round(value * scale) / scale
 }
-
-export const tenthsToRating = (tenths: number): number => tenths / 10
 
 const neededView = (needed: ReviewsNeeded): number | null =>
   needed === 'unreachable' ? null : needed
@@ -106,24 +107,6 @@ export const mixView = (mix: RecentMix | null): RecentMixView | null =>
         reviewCount: mix.reviewCount,
         basis: mix.basis,
       }
-
-/** The forecast for one target at one weekly pace, at the basis's mix. */
-export function forecastFor(
-  basis: RatingGoalBasis,
-  reading: Pick<RatingGoalReading, 'now' | 'facts'>,
-  targetTenths: number,
-  pacePerWeek: Ratio,
-): RatingForecast {
-  return forecastArrival({
-    reviewCount: basis.reviewCount,
-    exact: basis.exact,
-    thresholdThousandths: thresholdThousandths(targetTenths),
-    mix: basis.mix,
-    pacePerWeek,
-    now: reading.now,
-    timezone: reading.facts.timezone,
-  })
-}
 
 const ratioView = (value: Ratio) => ({ num: Number(value.num), den: Number(value.den) })
 
@@ -231,29 +214,26 @@ export function goalBasis(
   return { basis: { ...numbers, mix: tracking.mix }, qualityBasis: tracking.basis }
 }
 
-/** The forecast the simple card shows: chosen pace for 28 days, then actual. */
+/** When the card says the goal arrives: chosen pace for 28 days, then actual (Q8). */
 function cardForecast(
   goal: PropertyRatingGoal,
   numbers: GoalBasis | null,
   reading: RatingGoalReading,
 ): Pick<RatingGoalCardView, 'forecast' | 'forecastBasis' | 'qualityBasis'> {
-  if (numbers === null || goal.paceTenthsPerWeek === null) {
+  const rate = cardRate(goal, reading)
+  if (numbers === null || rate === null) {
     return { forecast: null, forecastBasis: null, qualityBasis: null }
   }
-  const actual = forecastPaceBasis(goal.createdAt, reading.now) === 'actual'
-  const pace = actual
-    ? currentPacePerWeek(reading.reviewsLast28Days)
-    : paceRatio(goal.paceTenthsPerWeek)
   return {
-    forecast: forecastFor(numbers.basis, reading, goal.targetTenths, pace),
-    forecastBasis: actual ? 'actual_pace' : 'chosen_pace',
+    forecast: forecastFor(numbers.basis, goal.targetTenths, rate.rate),
+    forecastBasis: rate.basis,
     qualityBasis: numbers.qualityBasis,
   }
 }
 
 export type CardCounts = Readonly<{ thisWeek: number }>
 
-/** The simple card: Google's number, the target, progress, pace line and forecast. */
+/** The card: Google's number, the target, the climb to the next number and when it arrives. */
 export function buildCardView(
   goal: PropertyRatingGoal,
   status: RatingGoalStatus,
@@ -295,6 +275,7 @@ export function buildCardView(
     justSet: reading.now.getTime() - goal.createdAt.getTime() < JUST_SET_DAYS * DAY_MS,
     ...cardForecast(goal, numbers, reading),
     setAt: goal.createdAt.toISOString(),
+    ...cardTracking(goal, reading, numbers?.basis ?? null),
   }
 }
 
@@ -307,21 +288,19 @@ export const changeView = (change: RatingGoalChange): RatingGoalChangeView => ({
   newValue: change.newValue,
 })
 
-/** Still needed and its best case at the goal's target, or nothing for keep. */
-export function stillNeeded(
+/** Reviews to the goal's target if every new one is five stars, or nothing for keep. */
+export function bestCaseNeeded(
   goal: PropertyRatingGoal,
   basis: RatingGoalBasis | null,
-): Readonly<{ stillNeeded: number | null; bestCase: number | null }> {
-  if (goal.mode === 'keep' || basis === null) return { stillNeeded: null, bestCase: null }
-  const plan = {
-    reviewCount: basis.reviewCount,
-    exact: basis.exact,
-    thresholdThousandths: thresholdThousandths(goal.targetTenths),
-  }
-  return {
-    stillNeeded: neededView(reviewsNeeded({ ...plan, mix: basis.mix })),
-    bestCase: neededView(bestCaseReviewsNeeded(plan)),
-  }
+): number | null {
+  if (goal.mode === 'keep' || basis === null) return null
+  return neededView(
+    bestCaseReviewsNeeded({
+      reviewCount: basis.reviewCount,
+      exact: basis.exact,
+      thresholdThousandths: thresholdThousandths(goal.targetTenths),
+    }),
+  )
 }
 
 export function nextTenthView(goal: PropertyRatingGoal, basis: RatingGoalBasis | null) {
@@ -375,7 +354,11 @@ export function planProgressView(
     assumedAverage: round(ratioToNumber(numbers.basis.mix), 3),
     paceTenthsPerWeek: goal.paceTenthsPerWeek,
     lastFourWeeksPerWeek: round(ratioToNumber(actualPace), 2),
-    forecast: forecastFor(numbers.basis, reading, goal.targetTenths, actualPace),
+    forecast: forecastFor(
+      numbers.basis,
+      goal.targetTenths,
+      actualRate(reading.reviewsLast28Days),
+    ),
   }
 }
 

@@ -6,9 +6,9 @@ import { expect, userEvent, waitFor, type within } from 'storybook/test'
 type Scope = ReturnType<typeof within>
 
 /**
- * A forecast sentence as the screen sets it. Its dates sit in nowrap spans
- * (`RatingGoalWholeDates`), so the sentence is an element's words, not one text
- * node: this matches the innermost element whose words are exactly `text`.
+ * A sentence as the screen sets it, which may be an element's words rather
+ * than one text node (a figure in its own span): this matches the innermost
+ * element whose words are exactly `text`.
  */
 export const wholeText =
   (text: string) =>

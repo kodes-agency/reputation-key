@@ -13,8 +13,7 @@
 // Google location changed is ended) the first time anyone looks, even before
 // Google's next numbers arrive.
 
-import { displayedTenths, ratioToNumber } from '../../domain/rating-goal-numbers'
-import { currentPacePerWeek, paceRatio } from '../../domain/rating-goal-pace'
+import { actualRate, chosenRate } from '../../domain/rating-goal-arrival'
 import { weeklySeries, weeklySeriesStart } from '../../domain/rating-goal-weeks'
 import {
   DAY_READ_LOOKBACK_DAYS,
@@ -32,18 +31,17 @@ import type {
   RatingGoalSetupView,
 } from '../dto/rating-goal.types'
 import {
+  bestCaseNeeded,
   buildCardView,
   buildSetupView,
   changeView,
-  forecastFor,
   goalBasis,
   historyEntry,
   mixView,
   nextTenthView,
   planProgressView,
-  stillNeeded,
-  tenthsToRating,
 } from '../rating-goal-views'
+import { forecastFor } from '../rating-goal-tracking-views'
 import type { GoalActor } from './goal-program-shared'
 import {
   authorizeRatingGoal,
@@ -59,8 +57,6 @@ const RATING_GOAL_HISTORY_LIMIT = 20
 const RATING_GOAL_CHANGE_LOG_LIMIT = 50
 
 export type RatingGoalPropertyInput = Readonly<{ propertyId: string }>
-
-const round2 = (value: number): number => Math.round(value * 100) / 100
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const daysBefore = (now: Date, days: number): Date =>
@@ -142,30 +138,19 @@ export async function getRatingGoalDetail(
   // At the quality the goal now expects of new reviews: the plan's, the plan
   // mixed with new reviews, or theirs while too low (trackingMix).
   const basis = goalBasis(goal, reading)?.basis ?? null
-  const actualPace = currentPacePerWeek(reading.reviewsLast28Days)
-  const climbing = basis !== null && goal.paceTenthsPerWeek !== null
+  const pace = goal.paceTenthsPerWeek
+  const climbing = basis !== null && pace !== null
   return {
     ...cardOf(evaluated),
-    lastFourWeeksPerWeek: round2(ratioToNumber(actualPace)),
-    ...stillNeeded(goal, basis),
+    bestCase: bestCaseNeeded(goal, basis),
     forecastAtChosenPace: climbing
-      ? forecastFor(
-          basis,
-          reading,
-          goal.targetTenths,
-          paceRatio(goal.paceTenthsPerWeek ?? 0),
-        )
+      ? forecastFor(basis, goal.targetTenths, chosenRate(pace))
       : null,
     forecastAtActualPace: climbing
-      ? forecastFor(basis, reading, goal.targetTenths, actualPace)
+      ? forecastFor(basis, goal.targetTenths, actualRate(reading.reviewsLast28Days))
       : null,
     nextTenth: nextTenthView(goal, basis),
     recentMix: mixView(reading.mix),
-    baseline: {
-      googleShows: tenthsToRating(displayedTenths(goal.baseline.googleAverage)),
-      reviewCount: goal.baseline.reviewCount,
-      exactAverage: Math.round(goal.baseline.exactAverage * 1000) / 1000,
-    },
     weeks: weeklySeries(goal.createdAt, reading.now, timezone, weekCounts),
     starsSinceSet,
     changes: changes.map(changeView),

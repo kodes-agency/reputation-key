@@ -1,5 +1,5 @@
 // The detail page of the Google rating goal, worked out: "Your plan" against
-// what happened since it was set, the forecasts at both paces and the best case, the bar from where the goal started to the line
+// what happened since it was set, when it arrives at both paces and the best case, the bar from where the goal started to the line
 // Google shows the target at with the next tenth marked, the three tiles, the
 // star mix, the weekly chart's words and how fresh Google's numbers are.
 import { describe, expect, it } from 'vitest'
@@ -30,10 +30,13 @@ describe('how long a count of reviews takes', () => {
 describe('the forecasts', () => {
   it('forecasts at the chosen pace and at the pace of the last four weeks', () => {
     expect(detailForecasts(DETAIL)).toEqual([
-      { label: 'At your chosen pace, 1.6 a day', text: 'Expected around Mar–Nov 2027' },
+      {
+        label: 'At your chosen pace, 1.6 a day',
+        text: 'In about 4 months, likely 3–7 months.',
+      },
       {
         label: 'At your pace of the last 4 weeks, 1.4 a day',
-        text: 'Expected around Jul–Sep 2027',
+        text: 'In about 5 months, likely 4–8 months.',
       },
     ])
   })
@@ -67,8 +70,8 @@ describe('the forecasts', () => {
     }
 
     expect(detailForecasts(waiting).map((line) => line.text)).toEqual([
-      'No pace reaches 4.0 at the new reviews’ average',
-      'No pace reaches 4.0 at the new reviews’ average',
+      'No pace reaches 4.0 at the new reviews’ average.',
+      'No pace reaches 4.0 at the new reviews’ average.',
     ])
   })
 

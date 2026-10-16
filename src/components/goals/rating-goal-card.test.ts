@@ -62,7 +62,9 @@ describe('RatingGoalCard', () => {
     expect(html.match(/role="progressbar"/gu)).toHaveLength(1)
     expect(html).toContain('aria-valuetext="Exact average 4.38 of 4.45"')
     expect(text).toContain('This week: 6 of 11 reviews')
-    expect(text).toContain('Expected around Jul–Sep 2027')
+    expect(text).toContain(
+      '4.5 in about 5 months at your pace of the last 4 weeks, likely 4–8 months.',
+    )
     expect(html).toContain(
       `href="/properties/${FIXTURE_PROPERTY_ID}/goals/google-rating"`,
     )
@@ -92,7 +94,7 @@ describe('RatingGoalCard', () => {
     expect(text).toContain('Holding')
     expect(text).not.toContain('your goal')
     expect(html).not.toContain('progressbar')
-    expect(text).not.toMatch(/a week|Expected around/u)
+    expect(text).not.toMatch(/a week|likely/u)
   })
 
   it('keeps Google’s last number with its date while it waits for Google', () => {
@@ -108,7 +110,7 @@ describe('RatingGoalCard', () => {
     // The date sits under the two numbers, so they never break apart around it.
     expect(text).toContain('Google shows 4.3 → your goal 4.5 as of Oct 12')
     expect(text).toContain('Waiting for Google’s latest numbers.')
-    expect(text).not.toMatch(/GMT|Expected around/u)
+    expect(text).not.toMatch(/GMT|likely/u)
   })
 
   it('keeps each number with its words, and the arrow with the first', () => {

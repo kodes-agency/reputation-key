@@ -10,7 +10,6 @@ import {
   formatLocalDate,
   formatLongDate,
   formatMonthDay,
-  formatMonthKey,
   formatMonthName,
   formatMonthYear,
   formatNumber,
@@ -117,20 +116,6 @@ describe('formatLocalDate', () => {
 
   it.each(['', 'yesterday', '2026-13-45'])('is null for %j', (value) => {
     expect(formatLocalDate(value)).toBeNull()
-  })
-})
-
-describe('formatMonthKey', () => {
-  it('prints a stored calendar month as that month, short, whatever zone the reader is in', () => {
-    expect(formatMonthKey('2027-07')).toBe('Jul 2027')
-  })
-
-  it('can leave the year out for a month a range already dates', () => {
-    expect(formatMonthKey('2027-07', { year: false })).toBe('Jul')
-  })
-
-  it.each(['', 'July', '2027-13', '2027-7'])('is null for %j', (value) => {
-    expect(formatMonthKey(value)).toBeNull()
   })
 })
 

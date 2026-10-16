@@ -41,7 +41,6 @@ import {
   ratingText,
   reviewsTooLowSentence,
 } from './rating-goal-view'
-import { RatingGoalWholeDates } from './rating-goal-whole-dates'
 
 // Recharts is a chunk of its own, loaded once the page is up.
 const RatingGoalWeeklyChart = lazy(() =>
@@ -112,7 +111,7 @@ function Outlook({ detail }: Pick<Props, 'detail'>) {
         <DescriptionList stacked aria-label="When Google is expected to show it">
           {forecasts.map((line) => (
             <DescriptionItem key={line.label} term={line.label}>
-              <RatingGoalWholeDates text={line.text} />
+              {line.text}
             </DescriptionItem>
           ))}
         </DescriptionList>
