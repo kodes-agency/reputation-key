@@ -319,10 +319,10 @@ describe('the rating goal fact’s pace', () => {
         deps,
         event({ ...belowPace, pacePerWeek: 350, paceTenthsPerWeek: 3501 }),
       ),
-    ).rejects.toThrow()
+    ).rejects.toThrow(/"paceTenthsPerWeek"/u)
     await expect(
       handleRatingGoalTransitioned(deps, event({ ...belowPace, pacePerWeek: 351 })),
-    ).rejects.toThrow()
+    ).rejects.toThrow(/"pacePerWeek"/u)
     expect(deps.jobs).toEqual([])
   })
 
