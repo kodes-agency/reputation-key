@@ -95,8 +95,9 @@ metric authority.
   migration 0060: 10 to 3500, 1 a week to 50 a day; `pace_per_week` is its whole weekly
   mirror for one release, held equal to it by the CHECK, and the set and change schemas
   map a legacy whole weekly `pacePerWeek` × 10 for that release), a keep goal a tenth Google shows
-  now and neither, set only while Google shows 4.9 or 5.0 (R2-9: the commands refuse a
-  keep goal below, as the screens offer none). The plan (target, quality, pace) is version-checked as a whole. There is no deadline and no "missed": a goal runs
+  now and neither, set only while Google shows 4.7 or more (X1, 2026-10-16, amending R2-9:
+  the next tenth needs new reviews of nearly five stars there; the commands refuse a keep
+  goal below, as the screens offer none). The plan (target, quality, pace) is version-checked as a whole. There is no deadline and no "missed": a goal runs
   until Google shows the target (reached), or it is ended by a manager, by its Google
   location changing (the Property's binding epoch moved) or by its Property being archived.
   Changes of target, quality, pace or mode are logged with who, when, old and new value,
@@ -109,16 +110,18 @@ metric authority.
   otherwise Google's figure; the recent mix is the last 90 days at ten reviews or more,
   else the most recent 25; reviews needed is ceil(N(θ − E)/(q − θ)) at a quality q; the
   forecast is a month range in the Property's time zone (quality ± 0.1, pace ± 10%).
-  "Pick a plan" (round 2, 2026-10-15; `domain/rating-goal-quality.ts`,
-  `domain/rating-goal-plans.ts`, `application/rating-goal-planning.ts`): a quality comes
-  from evidence anchors (like now, the best calendar year with ten reviews, a step above
-  what the target needs, Excellent 4.8), never below the floor; every target is worked out
-  at its own recommended quality; three plans share the recommended target's quality
-  (Cautious, Recommended, Ambitious: the highest row target the quality clears by 0.15★
-  and Push reaches within 52 weeks, R2-13), and "Build your own" is worked out on the page from
-  the setup read's exact inputs (`application/rating-goal-preview.ts`). A plan and a
-  preview carry their reach, the target label's rule at the plan's own pace, so a screen
-  can say a plan is more than a year away. Until ten reviews
+  The setup (rounds 3 and 4, 2026-10-16) is one screen worked out on the page from the
+  setup read's exact inputs (`application/rating-goal-setup-plan.ts`, `workOutRatingGoal`,
+  client-safe, never throwing on what a manager typed): the planned average is automatic
+  (`domain/rating-goal-average.ts`: the better tenth of the best month and year, or halfway
+  to five stars, at most 4.8; a typed one from two tenths above the shown number to 5.0),
+  the pace chips come from the proven pace (`domain/rating-goal-pace-chips.ts`: 1.5 times
+  the busier of the last 90 days and the busiest 30, to a nice pace a day, at least 1), and
+  the recommended goal is the highest within six months at 0.1★ below plan, with a central
+  time and a likely range in exact day fractions (`domain/rating-goal-duration.ts`). A tenth
+  the cache already clears while Google lags is never a goal. Keep comes first from 4.7.
+  Components import these values only from `application/` (the components boundary).
+  Until ten reviews
   arrived since a goal was set its numbers assume the planned quality, then those reviews'
   average; `reviews_too_low` (that average at or below the threshold) replaced
   `cant_reach_at_mix`. The review cache is read only through Review's
@@ -133,7 +136,8 @@ metric authority.
   and 4): Google's numbers, the exact average, the best calendar month of the last twelve
   and the best year with ten reviews, the reviews of the last 90 days and the busiest 30
   local dates of the last 365 (`domain/rating-goal-evidence.ts`), from which the one-screen
-  setup works its plan out on the page; the server runs no planning maths for it. A set
+  setup works its plan out on the page; the server runs no planning maths for it (the
+  view's `offersClimb` says whether a climb can be planned at all). A set
   goal stores the tenth Google showed and the status it starts in. A goal is evaluated by
   its card and detail reads and by `goal.google-rating-evaluation` when Review verifies
   Google's numbers, through one evaluation (`application/rating-goal-evaluation.ts`) that
@@ -143,8 +147,9 @@ metric authority.
   (`property_archived`) when it was set under an earlier binding epoch than the archive's,
   so a late fact never ends a goal set after a Restore.
 - **Property Google rating goal notices**: five, change-only (ADR 0067 decision 6; ADR
-  0046, amended 2026-10-14 and 2026-10-15): reached; Google showing another tenth; entered
-  Below pace, at most once in 14 days; entered New reviews too low (ten or more reviews
+  0046, amended 2026-10-14, 2026-10-15 and 2026-10-16): reached (offering Keep from 4.7);
+  Google showing another tenth; entered Below pace, at most once in 14 days, read per day
+  when the payload carries the pace in tenths a week; entered New reviews too low (ten or more reviews
   since the set, averaging at or below the threshold), also at most once in 14 days and
   with no star figure; a keep goal dropped below.
   `domain/rating-goal-notices.ts` decides them from what the goal last stored: the tenth
