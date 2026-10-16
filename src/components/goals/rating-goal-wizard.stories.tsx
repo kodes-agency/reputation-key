@@ -169,6 +169,13 @@ export const KeepFirstAt47: Story = {
       dialog.getByRole('textbox', { name: 'New reviews planned at' }),
     ).toHaveValue('4.9')
     await expect(dialog.queryByRole('button', { name: 'Back to automatic' })).toBeNull()
+    await expect(dialog.getByText('the lowest we plan with')).toBeVisible()
+    await expect(
+      dialog.getByText(
+        '4.8 needs new reviews averaging 4.9★ or more; type the average you expect.',
+        { exact: false },
+      ),
+    ).toBeVisible()
     await aimsFor(dialog, 48, 49, 70)
   },
 }

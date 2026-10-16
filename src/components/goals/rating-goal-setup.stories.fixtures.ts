@@ -79,6 +79,9 @@ export const EDGE_46 = setupInputs({ reviewCount: 500, displayedTenths: 46 }, 23
 /** 4.7 from 500: Keep first, or raise it with a typed average (X1). */
 export const EDGE_47 = setupInputs({ reviewCount: 500, displayedTenths: 47 }, 2350)
 
+/** Google shows 4.6 while the cache has earned 4.7 (4.66): a climb needs a typed average. */
+export const LAGS_AT_47 = setupInputs({ reviewCount: 500, displayedTenths: 46 }, 2330)
+
 /** Google shows 3.9 while the complete cache averages 3.96 (D28). */
 export const GOOGLE_LAGS = setupInputs(
   { reviewCount: 100, displayedTenths: 39, reviewsLast90Days: 10, busiest30Days: 6 },

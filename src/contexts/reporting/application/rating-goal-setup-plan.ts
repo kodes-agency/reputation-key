@@ -104,7 +104,9 @@ function averageOf(
     const source = choices.ownAverageTenths === null ? 'earlier' : 'own'
     return { ...base, tenths, source, clamped: tenths !== typed }
   }
-  if (ownOnly) return { ...base, tenths: ownMinTenths, source: 'own', clamped: false }
+  if (ownOnly) {
+    return { ...base, tenths: ownMinTenths, source: 'needs_own', clamped: false }
+  }
   return { ...base, tenths: automatic.tenths, source: automatic.source, clamped: false }
 }
 

@@ -16,6 +16,7 @@ import {
   EDGE_47,
   GOOGLE_LAGS,
   HARBORLINE,
+  LAGS_AT_47,
   LOW_RATING,
   OLIVE_TREE,
   SEAVIEW,
@@ -53,14 +54,38 @@ describe('where the planned average comes from', () => {
   })
 
   it('says why, for each source', () => {
-    expect(averageWhyText(planOf(HARBORLINE).average)).toBe(
+    expect(averageWhyText(planOf(HARBORLINE))).toBe(
       'Guests who write on their own are often the unhappy ones, so guests you ask usually rate you higher. We switch to your real average as reviews arrive.',
     )
-    expect(averageWhyText(planOf(HARBORLINE, { ownAverageTenths: 47 }).average)).toBe(
+    expect(averageWhyText(planOf(HARBORLINE, { ownAverageTenths: 47 }))).toBe(
       'You set this. We switch to your real average as reviews arrive.',
     )
-    expect(averageWhyText(planOf(HARBORLINE, { keptAverageTenths: 47 }).average)).toBe(
+    expect(averageWhyText(planOf(HARBORLINE, { keptAverageTenths: 47 }))).toBe(
       'Kept from your plan. We switch to your real average as reviews arrive.',
+    )
+  })
+})
+
+describe('an average only a typed one plans (X1, D28)', () => {
+  it.each([
+    [EDGE_47, '4.8 needs new reviews averaging 4.9★ or more'],
+    [LAGS_AT_47, '4.8 needs new reviews averaging 4.9★ or more'],
+  ])('says what the goal needs, not that the manager set it', (inputs, needs) => {
+    const plan = planOf(inputs)
+    expect(averageSourceText(plan.average, inputs.displayedTenths)).toBe(
+      'the lowest we plan with',
+    )
+    expect(averageWhyText(plan)).toBe(
+      `${needs}; type the average you expect. We switch to your real average as reviews arrive.`,
+    )
+    expect(paragraphs(inputs)[2]).toBe(
+      '4.8 needs new reviews averaging 4.9 stars or more, so we plan at 4.9 until you type your own. After your first 10 new reviews, their real average takes over.',
+    )
+  })
+
+  it('suggests the next step up from the tenth earned, not from what Google shows', () => {
+    expect(paragraphs(LAGS_AT_47)[1]).toMatch(
+      /^4\.8 is the next step up from 4\.7, which Google should show soon, so we suggest it\./u,
     )
   })
 })
@@ -150,7 +175,9 @@ describe('how we worked out the goal', () => {
   })
 
   it('names a typed average and the plan’s earlier one', () => {
-    expect(paragraphs(EDGE_47)[2]).toBe('You set new reviews at 4.9 stars.')
+    expect(paragraphs(EDGE_47, { ownAverageTenths: 50 })[2]).toBe(
+      'You set new reviews at 5.0 stars.',
+    )
     expect(paragraphs(HARBORLINE, { keptAverageTenths: 47 })[2]).toBe(
       'Your plan has new reviews at 4.7 stars.',
     )

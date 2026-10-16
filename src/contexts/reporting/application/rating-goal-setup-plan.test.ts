@@ -314,7 +314,11 @@ describe('the edges', () => {
     'plans %i tenths only at a typed average, starting at its floor',
     (shown, sum, floor, goal) => {
       const plan = planOf(inputs({ reviewCount: 500, displayedTenths: shown }, sum))
-      expect(plan.average).toMatchObject({ tenths: floor, source: 'own', ownOnly: true })
+      expect(plan.average).toMatchObject({
+        tenths: floor,
+        source: 'needs_own',
+        ownOnly: true,
+      })
       expect(plan.goal.targetTenths).toBe(goal)
       expect(plan.reviewsNeeded).toBe(167)
     },
@@ -340,6 +344,22 @@ describe('the edges', () => {
     })
     expect(plan.reviewsNeeded).toBe(55)
     expect(plan.average.ownMinTenths).toBe(42)
+  })
+
+  it('needs a typed average when Google shows 4.6 but 4.7 is earned (D28, X1)', () => {
+    const plan = planOf(inputs({ reviewCount: 500, displayedTenths: 46 }, 2330))
+    expect(plan.average).toMatchObject({
+      tenths: 49,
+      source: 'needs_own',
+      ownOnly: true,
+      ownMinTenths: 49,
+    })
+    expect(plan.goal).toMatchObject({ earnedTenths: 47, minTenths: 48, targetTenths: 48 })
+    expect(
+      planOf(inputs({ reviewCount: 500, displayedTenths: 46 }, 2330), {
+        ownAverageTenths: 50,
+      }).average,
+    ).toMatchObject({ tenths: 50, source: 'own' })
   })
 
   it('is catching up when the cache has earned every tenth to 4.9', () => {

@@ -58,9 +58,13 @@ export type RatingPaceChipView = Readonly<{
   tenthsPerWeek: number
 }>
 
-/** Where the planned average comes from. */
+/**
+ * Where the planned average comes from. `needs_own`: the automatic average
+ * reaches no goal (a shown 4.7 or 4.8, or a 4.6 that has earned 4.7), so the
+ * plan starts at the lowest average a manager may type, until they type one.
+ */
 export type RatingAverageSource =
-  'best_month' | 'best_year' | 'halfway' | 'own' | 'earlier'
+  'best_month' | 'best_year' | 'halfway' | 'own' | 'earlier' | 'needs_own'
 
 export type RatingAverageEvidenceView =
   | Readonly<{ kind: 'best_month'; year: number; month: number; tenths: number }>

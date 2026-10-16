@@ -30,6 +30,8 @@ export function averageSourceText(average: Average, shownTenths: number): string
   switch (average.source) {
     case 'own':
       return 'your own number'
+    case 'needs_own':
+      return 'the lowest we plan with'
     case 'earlier':
       return 'your plan’s average'
     case 'halfway':
@@ -42,8 +44,16 @@ export function averageSourceText(average: Average, shownTenths: number): string
 
 const SWITCH = 'We switch to your real average as reviews arrive.'
 
+/** "4.8 needs new reviews averaging 4.9★ or more": the lowest goal at the lowest average. */
+const needsText = (plan: SetupPlan, star: string): string =>
+  `${tenthsText(plan.goal.minTenths)} needs new reviews averaging ${tenthsText(plan.average.ownMinTenths)}${star} or more`
+
 /** The line under the planned average. */
-export function averageWhyText(average: Average): string {
+export function averageWhyText(plan: SetupPlan): string {
+  const { average } = plan
+  if (average.source === 'needs_own') {
+    return `${needsText(plan, '★')}; type the average you expect. ${SWITCH}`
+  }
   if (average.source === 'own') return `You set this. ${SWITCH}`
   if (average.source === 'earlier') return `Kept from your plan. ${SWITCH}`
   return `Guests who write on their own are often the unhappy ones, so guests you ask usually rate you higher. ${SWITCH}`
@@ -93,20 +103,33 @@ export function exampleText(qualityTenths: number): string {
 
 /** "{T} is the highest…", "You chose…": why this goal. */
 function recommendationText(plan: SetupPlan, unit: PaceUnit): string {
-  const { targetTenths, recommendedTenths, recommendedIsSafe } = plan.goal
+  const {
+    targetTenths,
+    recommendedTenths,
+    recommendedIsSafe,
+    shownTenths,
+    earnedTenths,
+  } = plan.goal
   const pace = paceText(plan.pace.tenthsPerWeek, unit)
   if (targetTenths !== recommendedTenths) {
     return `You chose ${tenthsText(targetTenths)}. We suggest ${tenthsText(recommendedTenths)}: the highest you can count on within 6 months at ${pace}.`
   }
+  const from =
+    earnedTenths > shownTenths
+      ? `${tenthsText(earnedTenths)}, which Google should show soon`
+      : 'today'
   return recommendedIsSafe
     ? `${tenthsText(targetTenths)} is the highest number you can count on within 6 months at ${pace}, even if new reviews average 0.1 stars lower than planned.`
-    : `${tenthsText(targetTenths)} is the next step up from today, so we suggest it.`
+    : `${tenthsText(targetTenths)} is the next step up from ${from}, so we suggest it.`
 }
 
 /** Where the planned average comes from, in a sentence. */
 function planText(plan: SetupPlan): string {
   const { average } = plan
   const q = tenthsText(average.tenths)
+  if (average.source === 'needs_own') {
+    return `${needsText(plan, ' stars')}, so we plan at ${q} until you type your own. After your first 10 new reviews, their real average takes over.`
+  }
   if (average.source === 'own') return `You set new reviews at ${q} stars.`
   if (average.source === 'earlier') return `Your plan has new reviews at ${q} stars.`
   const shows = tenthsText(plan.goal.shownTenths)

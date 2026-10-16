@@ -86,7 +86,7 @@ export function RatingGoalAverageFact(props: Props) {
         {props.message === undefined ? null : (
           <span className={TONE_INK.warn}>{props.message} </span>
         )}
-        {averageWhyText(average)}
+        {averageWhyText(plan)}
       </p>
     </div>
   )
