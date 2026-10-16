@@ -23,7 +23,7 @@ import {
 import { trackingMix } from './rating-goal-status'
 
 /** The page names this many low reviews at most. */
-export const LOW_REVIEW_ROWS = 10
+const LOW_REVIEW_ROWS = 10
 
 /** Half a review: a setback from here reads "about 1". */
 const HALF = ratio(1, 2)
