@@ -129,8 +129,10 @@ describe('the tiles', () => {
   })
 
   it('says a target the new reviews’ average does not reach is not reachable', () => {
-    // Only new reviews too low for the target leave it out of reach: a blend
-    // of them with a plan above the threshold always reaches it.
+    // Only new reviews too low for the target leave it out of reach: before the
+    // tenth review the numbers never assume less than the target's minimum
+    // quality (or a plan below it), and from it a blend with reviews that clear
+    // the threshold clears it too (trackingMix).
     expect(
       detailTiles({ ...DETAIL, qualityBasis: 'since_set', stillNeeded: null })[2],
     ).toEqual({

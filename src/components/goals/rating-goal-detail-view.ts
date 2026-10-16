@@ -47,7 +47,8 @@ export function aboutHowLong(reviews: number, perWeek: number): string {
  * Both forecasts the detail shows: at the chosen pace and at the actual one.
  * None while new reviews are too low for the target: the page says that once,
  * with what helps, rather than once per pace. A forecast no pace reaches names
- * the average it was worked out at (the plan's, then the new reviews').
+ * the average it was worked out at (the plan's, the plan mixed with new
+ * reviews, or theirs while too low).
  */
 export function detailForecasts(
   detail: RatingGoalDetailView,
