@@ -1,17 +1,16 @@
 // "New reviews planned at 4.5★" (R4-1, R4-3): the average a plan assumes, as a
 // fact with where it comes from, and "Change" behind a link for the manager
 // who wants their own. A typed average is applied on Enter or when the field
-// is left, clamped from its floor to 5.0 with an amber reason. Change plan's
+// is left, clamped from its floor to 5.0 with its reason. Change plan’s
 // earlier average (D30) offers both Change and Back to automatic. At a shown
 // 4.7 or 4.8 only a typed average plans a climb (X1), so the field is open and
 // there is no automatic one to go back to.
 import { Star } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { RatingFigure } from '#/components/ui/rating-figure'
-import { TONE_INK } from '#/components/ui/tone'
 import { averageSourceText, averageWhyText } from './rating-goal-setup-copy'
 import type { SetupPlan } from './rating-goal-setup-draft'
-import { RatingGoalTypedNumber } from './rating-goal-typed-number'
+import { RatingGoalClampNote, RatingGoalTypedNumber } from './rating-goal-typed-number'
 import { tenthsText } from './rating-goal-view'
 
 type Props = Readonly<{
@@ -84,7 +83,7 @@ export function RatingGoalAverageFact(props: Props) {
       </div>
       <p id={`${idBase}-average-why`} className="mt-0.5 text-xs text-muted-foreground">
         {props.message === undefined ? null : (
-          <span className={TONE_INK.warn}>{props.message} </span>
+          <RatingGoalClampNote>{props.message}</RatingGoalClampNote>
         )}
         {averageWhyText(plan)}
       </p>

@@ -9,12 +9,11 @@
 import { Button } from '#/components/ui/button'
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import { Slider } from '#/components/ui/slider'
-import { TONE_INK } from '#/components/ui/tone'
 import { cn } from '#/lib/utils'
 import { HOW_TO_ASK_LINE } from './rating-goal-copy'
 import { paceText } from './rating-goal-pace-words'
 import { paceNote } from './rating-goal-setup-copy'
-import { RatingGoalTypedNumber } from './rating-goal-typed-number'
+import { RatingGoalClampNote, RatingGoalTypedNumber } from './rating-goal-typed-number'
 import type { PaceUnit, SetupPlan } from './rating-goal-setup-draft'
 import {
   dayTenthsOf,
@@ -169,7 +168,7 @@ export function RatingGoalPaceControl(props: Props) {
       <div className="flex items-baseline gap-4 text-sm text-muted-foreground">
         <span id={`${idBase}-pace-note`} className="flex-1">
           {props.message === undefined ? null : (
-            <span className={TONE_INK.warn}>{props.message} </span>
+            <RatingGoalClampNote>{props.message}</RatingGoalClampNote>
           )}
           {paceNote(plan, unit)}
         </span>
