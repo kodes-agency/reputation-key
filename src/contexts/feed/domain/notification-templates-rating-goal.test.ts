@@ -184,6 +184,20 @@ describe('entered Below pace, for a plan in tenths a week (rounds 3 and 4)', () 
     ).toBe('No new reviews over the last 4 weeks; the plan is 2 a day.')
   })
 
+  it.each([
+    [2, '0.2 new reviews a week over the last 4 weeks; the plan is 1 a day.'],
+    [3, '0.3 new reviews a week over the last 4 weeks; the plan is 1 a day.'],
+  ])('reads a week when %i tenths a week round to 0 a day', (recentTenths, body) => {
+    expect(
+      copy('goal.rating_below_pace', {
+        ...below,
+        ratingPaceTenthsPerWeek: 70,
+        ratingRecentPaceTenths: recentTenths,
+        ratingPaceWindow: 'last_4_weeks',
+      }).body,
+    ).toBe(body)
+  })
+
   it('reads a week for a plan under one a day', () => {
     expect(
       copy('goal.rating_below_pace', {

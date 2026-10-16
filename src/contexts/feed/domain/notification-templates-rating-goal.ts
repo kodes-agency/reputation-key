@@ -133,9 +133,11 @@ function belowPaceInTenths(
   const daily = planTenths >= ONE_A_DAY_TENTHS
   const plan = daily ? `${perDay(planTenths)} a day` : `${perWeek(planTenths)} a week`
   if (recentTenths === 0) return `No new reviews ${window}; the plan is ${plan}.`
-  const recent = daily ? perDay(recentTenths) : perWeek(recentTenths)
+  // A review in four weeks is under 0.05 a day: it reads a week, never "0 a day".
+  const inDays = daily && perDay(recentTenths) !== '0'
+  const recent = inDays ? perDay(recentTenths) : perWeek(recentTenths)
   const noun = recent === '1' ? 'review' : 'reviews'
-  return `${recent} new ${noun} a ${daily ? 'day' : 'week'} ${window}; the plan is ${plan}.`
+  return `${recent} new ${noun} a ${inDays ? 'day' : 'week'} ${window}; the plan is ${plan}.`
 }
 
 /** The Below pace sentence: per day for a plan in tenths a week, else the legacy weekly one. */

@@ -83,9 +83,12 @@ export function paceChangeText(oldValue: string | null, newValue: string | null)
   return `Pace ${bare(from)} → ${paceText(to)}`
 }
 
-/** The pace of the last four weeks (a decimal a week) in the unit the plan reads in. */
+/**
+ * The pace of the last four weeks (a decimal a week) in the unit the plan reads
+ * in; a pace above none that rounds to 0 a day reads a week ("0.3 a week").
+ */
 export function actualPaceText(perWeek: number, planTenthsPerWeek: number): string {
-  return readsPerDay(planTenthsPerWeek)
-    ? `${oneDecimal(Math.round((perWeek / 7) * TENTHS) / TENTHS)} a day`
-    : `${oneDecimal(perWeek)} a week`
+  const perDay = Math.round((perWeek / 7) * TENTHS) / TENTHS
+  const inDays = readsPerDay(planTenthsPerWeek) && (perDay > 0 || perWeek === 0)
+  return inDays ? `${oneDecimal(perDay)} a day` : `${oneDecimal(perWeek)} a week`
 }

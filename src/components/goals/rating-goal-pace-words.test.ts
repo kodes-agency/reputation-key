@@ -96,4 +96,9 @@ describe('the pace in tracking', () => {
     expect(actualPaceText(2.25, 30)).toBe('2.3 a week')
     expect(actualPaceText(0, 140)).toBe('0 a day')
   })
+
+  it('reads a week when a pace above none rounds to 0 a day', () => {
+    expect(actualPaceText(0.25, 70)).toBe('0.3 a week')
+    expect(actualPaceText(0.3, 140)).toBe('0.3 a week')
+  })
 })
