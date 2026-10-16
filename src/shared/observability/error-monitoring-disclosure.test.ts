@@ -12,7 +12,9 @@
 //     check and the region guard);
 //   - beta feedback text goes to it, minus an email address, at no more than
 //     6,000 characters (the feedback seam and the feedback contract);
-//   - an error message is replaced before a report leaves (the scrubber);
+//   - an error message is replaced before a report leaves, unless the runtime
+//     raised the error, which keeps its first line without what it quotes
+//     (the scrubber);
 //   - a browser sends the provider an error report when a page fails, a count
 //     when it did not send a report, and no record of a page being opened (the
 //     pinned browser SDK, started the way a page starts it, on a page that is
@@ -460,19 +462,40 @@ describe('published error monitoring matches what a deployed cell does', () => {
     )
   })
 
-  it('says an error message is replaced before a report leaves, as the scrubber does', () => {
+  it('says an error message is replaced before a report leaves unless the runtime raised it, as the scrubber does', () => {
     const marker = 'the guest wrote that the room was cold'
     const scrubbed = scrubSentryEvent({
       message: marker,
-      exception: { values: [{ type: 'Error', value: marker }] },
+      exception: {
+        values: [
+          { type: 'Error', value: marker },
+          {
+            type: 'TypeError',
+            value: `Cannot read properties of undefined (reading '${marker}')`,
+          },
+          { type: 'TypeError', value: `x is undefined\n${marker}` },
+        ],
+      },
     })
 
     expect(scrubbed).toEqual({
       message: '[REDACTED]',
-      exception: { values: [{ type: 'Error', value: '[REDACTED]' }] },
+      exception: {
+        values: [
+          { type: 'Error', value: '[REDACTED]' },
+          {
+            type: 'TypeError',
+            value: 'Cannot read properties of undefined (reading "…")',
+          },
+          { type: 'TypeError', value: 'x is undefined' },
+        ],
+      },
     })
     expect(prose()).toContain(
-      'the text of an error message is replaced before a report is sent',
+      'the text of an error message is replaced before a report is sent, unless the error is of a kind the browser or server software raises itself about the program',
+    )
+    expect(prose()).toContain(
+      'after the Service removes anything in quotation marks, web addresses, file paths, email addresses, identifiers, keys, and numbers of four or more digits',
     )
   })
 
@@ -621,6 +644,16 @@ describe('published error monitoring matches what a deployed cell does', () => {
     const horizon = retentionHorizon(notice, SCREENSHOT_CLASS)
     expect(horizon).toContain('Not kept by the Service')
     expect(horizon).toContain('kept by the provider with it')
+  })
+
+  it('keeps the record of what version 2.4 changed, in the notice and in the beta contract', () => {
+    expect(noticeChanges(notice)).toContain(
+      'Version 2.4 changes what an error report says about the error',
+    )
+    expect(noticeChanges(notice)).toContain('every other error message is still replaced')
+    expect(contract).toContain(
+      'Privacy Notice version 2.4, effective 2026-10-16 on publication',
+    )
   })
 
   it('keeps the record of what version 2.3 changed, in the notice and in the beta contract', () => {

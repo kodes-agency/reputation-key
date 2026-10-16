@@ -77,7 +77,7 @@ function serializeCanonicalObject(value: object, seen: Set<object>): string {
     assertUnicodeScalarString(key)
     const descriptor = descriptors[key]
     if (!isSafeDataDescriptor(descriptor)) {
-      throw new TypeError(`RFC 8785 object contains an unsafe property: ${key}`)
+      throw new TypeError(`RFC 8785 object contains an unsafe property: "${key}"`)
     }
     members[index] =
       `${JSON.stringify(key)}:${serializeCanonical(descriptor.value, seen)}`

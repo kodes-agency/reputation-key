@@ -60,7 +60,7 @@ export function assertClosedJsonAndFreeze(
       descriptor.get ||
       descriptor.set
     ) {
-      throw new TypeError(`${errorPrefix} has an unsafe property: ${key}`)
+      throw new TypeError(`${errorPrefix} has an unsafe property: "${key}"`)
     }
     if (
       descriptor.value === undefined ||
@@ -68,7 +68,7 @@ export function assertClosedJsonAndFreeze(
       typeof descriptor.value === 'symbol' ||
       typeof descriptor.value === 'function'
     ) {
-      throw new TypeError(`${errorPrefix} has an unsupported property: ${key}`)
+      throw new TypeError(`${errorPrefix} has an unsupported property: "${key}"`)
     }
     assertClosedJsonAndFreeze(descriptor.value, errorPrefix, state, depth + 1)
   }

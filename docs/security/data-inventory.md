@@ -201,6 +201,10 @@ Guest browser → Signed session → Rating/Feedback → PostgreSQL (IP hashed)
 - Traces (`src/shared/observability/trace.ts`) record operation name + duration only — no payload data.
 - Sentry error monitoring (active for beta) uses a US-only DSN guard and
   outbound allowlist scrubbers for error events, transactions, and breadcrumbs.
+  An error event's message is replaced unless the runtime raised the error
+  (TypeError and kin), which keeps its first line with values removed; the
+  event also names the route pattern, the browser's name, major version and
+  operating system, and the codes the error carries (Privacy Notice 2.4).
   The browser SDK is started without its `BrowserSession` integration
   (`src/instrument.client.ts`), so no session record leaves a browser for a
   page view: a browser sends the provider an error report when a page fails
