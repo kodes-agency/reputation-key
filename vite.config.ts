@@ -1,10 +1,10 @@
 import tailwindcss from '@tailwindcss/vite'
 import { devtools } from '@tanstack/devtools-vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
-import { sentryTanstackStart } from '@sentry/tanstackstart-react/vite'
 import viteReact from '@vitejs/plugin-react'
 import { nitro } from 'nitro/vite'
 import { loadEnv, defineConfig, type Plugin } from 'vite'
+import { sentrySourceMapUpload } from './scripts/build/sentry-source-map-upload'
 import { withholdClientSourceMaps } from './scripts/build/withhold-client-source-maps'
 
 /**
@@ -283,6 +283,10 @@ const config = defineConfig(({ mode }) => {
                     // function before its imports enter the client graph.
                     '**/shared/observability/sentry-event-scrub.ts',
                     '**/shared/observability/sensitive-field-policy.ts',
+                    '**/shared/observability/error-facts.ts',
+                    '**/shared/observability/browser-error-event.ts',
+                    '**/shared/observability/browser-family.ts',
+                    '**/shared/observability/browser-route.ts',
                     '**/shared/observability/browser-exception-capture.ts',
                     '**/shared/observability/recorded-browser-errors.ts',
                     '**/shared/observability/browser-observability.server.ts',
@@ -292,16 +296,7 @@ const config = defineConfig(({ mode }) => {
             }),
           ]),
       ...(isBuild && !isStorybook && process.env.SENTRY_AUTH_TOKEN
-        ? sentryTanstackStart({
-            org: process.env.SENTRY_ORG,
-            project: process.env.SENTRY_PROJECT,
-            authToken: process.env.SENTRY_AUTH_TOKEN,
-            release: { name: process.env.SOURCE_REVISION },
-            sourcemaps: {
-              filesToDeleteAfterUpload: ['./.output/**/*.map'],
-            },
-            telemetry: false,
-          })
+        ? sentrySourceMapUpload(process.env)
         : []),
       viteReact(),
     ],

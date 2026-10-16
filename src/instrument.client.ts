@@ -1,14 +1,12 @@
 import type * as SentrySdk from '@sentry/tanstackstart-react'
+import type * as BrowserErrorEvent from '#/shared/observability/browser-error-event'
 import { setBrowserExceptionCapture } from '#/shared/observability/browser-exception-capture'
 import { rememberRecordedError } from '#/shared/observability/recorded-browser-errors'
-import {
-  dropExpectedRefusals,
-  scrubSentryBreadcrumb,
-  scrubSentryEvent,
-} from '#/shared/observability/sentry-event-scrub'
 
 type BrowserSentrySdk = Pick<typeof SentrySdk, 'captureException' | 'init'>
 type BrowserSentryLoader = () => Promise<BrowserSentrySdk>
+type BrowserEventHooks = Pick<typeof BrowserErrorEvent, 'beforeSend' | 'beforeBreadcrumb'>
+type BrowserEventHooksLoader = () => Promise<BrowserEventHooks>
 
 const MAX_BUFFERED_ERRORS = 10
 const loadBrowserSentry: BrowserSentryLoader = () =>
@@ -16,6 +14,12 @@ const loadBrowserSentry: BrowserSentryLoader = () =>
     captureException,
     init,
   }))
+// The event hooks (the scrubber among them) load with the SDK rather than in
+// first paint: nothing is sent before the SDK is there to send it.
+const loadBrowserEventHooks: BrowserEventHooksLoader = () =>
+  import('#/shared/observability/browser-error-event').then(
+    ({ beforeSend, beforeBreadcrumb }) => ({ beforeSend, beforeBreadcrumb }),
+  )
 
 type BrowserObservabilityDocument = Readonly<{
   querySelector(selector: string): Pick<Element, 'getAttribute'> | null
@@ -31,6 +35,7 @@ function metaContent(
 export async function initializeBrowserObservability(
   root: BrowserObservabilityDocument,
   loadSentry: BrowserSentryLoader = loadBrowserSentry,
+  loadEventHooks: BrowserEventHooksLoader = loadBrowserEventHooks,
 ): Promise<void> {
   setBrowserExceptionCapture()
   const dsn = metaContent(root, 'repkey-sentry-dsn')
@@ -53,7 +58,7 @@ export async function initializeBrowserObservability(
   window.addEventListener('unhandledrejection', onUnhandledRejection)
 
   try {
-    const Sentry = await loadSentry()
+    const [Sentry, hooks] = await Promise.all([loadSentry(), loadEventHooks()])
     Sentry.init({
       dsn,
       release: metaContent(root, 'repkey-sentry-release'),
@@ -70,8 +75,8 @@ export async function initializeBrowserObservability(
       // if it comes back while the notice still says so.
       integrations: (defaults) =>
         defaults.filter((integration) => integration.name !== 'BrowserSession'),
-      beforeSend: dropExpectedRefusals(scrubSentryEvent),
-      beforeBreadcrumb: scrubSentryBreadcrumb,
+      beforeSend: hooks.beforeSend,
+      beforeBreadcrumb: hooks.beforeBreadcrumb,
     })
     // The returned event id is the only thing kept: it lets a Bug report point
     // at an exception monitoring already holds, without re-sending anything.

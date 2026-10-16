@@ -65,12 +65,23 @@ describe('production error-monitoring wiring', () => {
     const routePageState = read('src/components/layout/route-page-state.tsx')
     const guardedRouteError = read('src/components/layout/use-guarded-route-error.tsx')
     const telemetry = read('src/shared/observability/telemetry.ts')
+    const browserEvents = read('src/shared/observability/browser-error-event.ts')
     const viteConfig = read('vite.config.ts')
 
-    expect(instrumentation).toContain("from '#/shared/observability/sentry-event-scrub'")
+    // The SDK and its event hooks (the scrubber among them) both load lazily.
     expect(instrumentation).toContain("import('@sentry/tanstackstart-react')")
     expect(instrumentation).not.toMatch(
       /^import(?!\s+type\b)[^;\n]*['"]@sentry\/tanstackstart-react['"]/mu,
+    )
+    expect(instrumentation).toContain(
+      "import('#/shared/observability/browser-error-event')",
+    )
+    expect(instrumentation).not.toMatch(
+      /^import(?!\s+type\b)[^;\n]*['"]#\/shared\/observability\/browser-error-event['"]/mu,
+    )
+    expect(browserEvents).toContain("from './sentry-event-scrub'")
+    expect(browserEvents).toContain(
+      'export { scrubSentryBreadcrumb as beforeBreadcrumb }',
     )
     expect(instrumentation).toContain(
       "from '#/shared/observability/browser-exception-capture'",
@@ -87,7 +98,8 @@ describe('production error-monitoring wiring', () => {
     expect(router).not.toContain("from '@sentry/tanstackstart-react'")
     expect(routePageState).not.toContain("from '@sentry/tanstackstart-react'")
     expect(guardedRouteError).not.toContain("from '@sentry/tanstackstart-react'")
-    expect(instrumentation).toContain('beforeBreadcrumb: scrubSentryBreadcrumb')
+    expect(instrumentation).toContain('beforeSend: hooks.beforeSend')
+    expect(instrumentation).toContain('beforeBreadcrumb: hooks.beforeBreadcrumb')
     expect(viteConfig).toContain("'**/shared/observability/browser-exception-capture.ts'")
     expect(telemetry).toContain("from './sentry-event-scrub'")
     expect(telemetry).not.toContain('function scrubSentryEvent')

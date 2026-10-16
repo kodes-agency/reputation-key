@@ -16,6 +16,7 @@ import { z } from 'zod/v4'
 import {
   dropExpectedRefusals,
   filterAndScrubSentryTransaction,
+  scrubErrorEvent,
   scrubSentryBreadcrumb,
   scrubSentryEvent,
   scrubSentryTags,
@@ -268,7 +269,7 @@ export function createErrorMonitor(deps: {
                   integration.name !== 'LocalVariablesAsync' &&
                   integration.name !== 'ContextLines',
               ),
-            beforeSend: dropExpectedRefusals(scrubSentryEvent),
+            beforeSend: dropExpectedRefusals(scrubErrorEvent),
             beforeSendTransaction: filterAndScrubSentryTransaction,
             beforeBreadcrumb: scrubSentryBreadcrumb,
           })

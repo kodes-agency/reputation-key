@@ -82,6 +82,19 @@ describe('catchUntagged', () => {
     expect(surface(denial)).toBe(denial)
   })
 
+  // Error monitoring reads the cause chain: without it every unexpected
+  // server-function failure reached Sentry as this wrapper alone, with the
+  // wrapper's stack and none of the original's.
+  it('keeps the original failure as the cause of the generic 500', () => {
+    const original = new TypeError("Cannot read properties of undefined (reading 'id')")
+    expect(surface(original).cause).toBe(original)
+  })
+
+  it('keeps a better-auth APIError as the cause of what it becomes', () => {
+    const original = APIError.fromStatus('FORBIDDEN')
+    expect(surface(original).cause).toBe(original)
+  })
+
   it('masks truly unknown errors as a generic 500 (no stack/SQL leak)', () => {
     const thrown = surface(new Error('relation "organizationRole" does not exist'))
     expect(thrown.status).toBe(500)

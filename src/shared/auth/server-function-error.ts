@@ -14,8 +14,18 @@ export class ServerFunctionError extends Error {
   readonly code: string
   readonly status: number
 
-  constructor(errorName: string, message: string, code: string, status: number) {
-    super(message)
+  /**
+   * `options.cause` keeps the failure this error was built from, for error
+   * monitoring on the server. The serialization adapter below never sends it.
+   */
+  constructor(
+    errorName: string,
+    message: string,
+    code: string,
+    status: number,
+    options?: ErrorOptions,
+  ) {
+    super(message, options)
     this.name = errorName
     this._tag = errorName
     this.code = code

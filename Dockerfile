@@ -95,6 +95,18 @@ RUN pnpm install --frozen-lockfile
 
 # ── Build web, worker and migration bundles ─────────────────────────────────
 FROM deps AS build
+# The source-map upload runs `sentry-cli`, which verifies TLS against the
+# system trust store, and the slim base ships none: until 2026-10-16 every
+# upload failed with "unable to get local issuer certificate" (Node carries
+# its own store, so nothing else noticed). Installed in this stage only — the
+# images copy build output, never this stage's packages — and pinned exactly,
+# as in `base`; `openssl` is the package's own dependency, at the patched
+# version `base` already carries.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates=20250419 \
+        openssl=3.5.7-1~deb13u3 \
+    && rm -rf /var/lib/apt/lists/*
 ARG SOURCE_REVISION
 ARG SENTRY_ORG
 ARG SENTRY_PROJECT
