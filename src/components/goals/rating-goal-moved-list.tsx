@@ -60,7 +60,7 @@ function RowText({ row, propertyId }: Readonly<{ row: MovedRow; propertyId: stri
           params={{ propertyId }}
           search={{ itemId: row.inboxItemId }}
           aria-label={row.linkLabel}
-          className="inline-flex min-h-11 items-center md:min-h-0"
+          className="-my-3 inline-block py-3 md:my-0 md:py-0"
         >
           Open in the inbox
         </InlineLink>

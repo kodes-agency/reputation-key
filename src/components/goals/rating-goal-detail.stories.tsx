@@ -212,6 +212,12 @@ export const LowReviewsLight: Story = {
   parameters: { theme: 'light' },
 }
 
+/** On a phone the link's touch target grows without moving its words off the date's line. */
+export const LowReviewsPhone: Story = {
+  ...LowReviews,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+}
+
 /** A viewer the policy refuses the Inbox: the rows say the same, with no link. */
 export const LowReviewWithoutInbox: Story = {
   args: { detail: DETAIL_LOW_REVIEWS_WITHOUT_INBOX },
