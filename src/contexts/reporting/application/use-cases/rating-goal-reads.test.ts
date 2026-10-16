@@ -443,6 +443,106 @@ describe('the detail read', () => {
   })
 })
 
+describe('the detail read’s low reviews and this week’s stars', () => {
+  const lowReview = (id: string, stars: number, day: number) => ({
+    reviewId: `60000000-0000-4000-8000-${id.padStart(12, '0')}` as never,
+    stars,
+    reviewedAt: new Date(NOW.getTime() - day * DAY),
+  })
+
+  it('names each low review since the set with the new reviews it set the goal back', async () => {
+    world.goals = [activeGoal()]
+    world.lowReviews = [lowReview('1', 2, 1), lowReview('2', 4, 3), lowReview('3', 1, 5)]
+
+    const detail = await getRatingGoalDetail(dependencies(world), input, actor)
+
+    // Goal 4.5 (from 4.45), 812 reviews at 4.3103, 9 since the set summing 41:
+    // the goal needs 579.1 at the blend 4.6458. Without the 2★ it would need
+    // 356.9 (811 at 4.3132, the blend 4.7609): it set the goal back about 222.
+    expect(detail?.moved.lowReviews).toEqual([
+      {
+        reviewId: '60000000-0000-4000-8000-000000000001',
+        at: new Date(NOW.getTime() - DAY).toISOString(),
+        stars: 2,
+        setBack: 222,
+      },
+      {
+        reviewId: '60000000-0000-4000-8000-000000000002',
+        at: new Date(NOW.getTime() - 3 * DAY).toISOString(),
+        stars: 4,
+        setBack: 75,
+      },
+      {
+        reviewId: '60000000-0000-4000-8000-000000000003',
+        at: new Date(NOW.getTime() - 5 * DAY).toISOString(),
+        stars: 1,
+        setBack: 269,
+      },
+    ])
+    expect(world.evidenceRequests).toContainEqual({
+      read: 'low',
+      since: activeGoal().createdAt,
+      belowThousandths: 4450,
+      limit: 25,
+    })
+  })
+
+  it('splits this Property-local week’s reviews by star', async () => {
+    world.goals = [activeGoal()]
+    world.stars = [1, 2, 3, 4, 5].map((stars) => ({ stars, count: stars === 5 ? 2 : 0 }))
+
+    const detail = await getRatingGoalDetail(dependencies(world), input, actor)
+
+    expect(detail?.moved.thisWeek).toEqual({ count: 2, allStars: 5, averageTenths: 50 })
+    // Wednesday 14 Oct 2026: the week began on Monday 12 Oct, 00:00 in Sofia.
+    expect(world.evidenceRequests).toContainEqual({
+      read: 'stars',
+      since: new Date('2026-10-11T21:00:00.000Z'),
+    })
+  })
+
+  it('reads no low review for a goal set to keep a number', async () => {
+    world.goals = [
+      activeGoal({
+        mode: 'keep',
+        targetTenths: 43,
+        qualityTenths: null,
+        paceTenthsPerWeek: null,
+      }),
+    ]
+    world.lowReviews = [lowReview('1', 2, 1)]
+
+    const detail = await getRatingGoalDetail(dependencies(world), input, actor)
+
+    expect(detail?.moved.lowReviews).toEqual([])
+    expect(world.evidenceRequests.map((request) => request.read)).not.toContain('low')
+  })
+
+  it('reads no low review once the read finds the goal reached', async () => {
+    // Google shows 4.5: the goal is reached as it is read.
+    world.goals = [activeGoal()]
+    world.snapshot = { ...world.snapshot!, averageRating: 4.5 }
+    world.lowReviews = [lowReview('1', 2, 1)]
+
+    const detail = await getRatingGoalDetail(dependencies(world), input, actor)
+
+    expect(detail?.state).toBe('reached')
+    expect(detail?.moved.lowReviews).toEqual([])
+  })
+
+  it('names low reviews without a setback while new reviews are too low', async () => {
+    world.goals = [activeGoal()]
+    world.summary = { ...world.summary, sinceSet: { count: 20, sum: 89 } }
+    world.lowReviews = [lowReview('1', 2, 1)]
+
+    const detail = await getRatingGoalDetail(dependencies(world), input, actor)
+
+    expect(detail?.moved.lowReviews).toEqual([
+      expect.objectContaining({ stars: 2, setBack: null }),
+    ])
+  })
+})
+
 describe('the history read', () => {
   it('lists reached and ended goals only', async () => {
     world.goals = [

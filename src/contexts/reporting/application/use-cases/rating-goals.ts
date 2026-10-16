@@ -7,7 +7,7 @@
 import type {
   RatingGoalCardView,
   RatingGoalChangeResult,
-  RatingGoalDetailView,
+  RatingGoalDetailRead,
   RatingGoalEndResult,
   RatingGoalHistoryEntry,
   RatingGoalNotNowResult,
@@ -54,7 +54,8 @@ type Request<I, O> = (
 export type RatingGoalRequestApi = Readonly<{
   setup: Request<RatingGoalPropertyInput, RatingGoalSetupView>
   card: Request<RatingGoalPropertyInput, RatingGoalCardView | null>
-  detail: Request<RatingGoalPropertyInput, RatingGoalDetailView | null>
+  /** The low reviews still carry Review's ids: the server function links them to the Inbox. */
+  detail: Request<RatingGoalPropertyInput, RatingGoalDetailRead | null>
   history: Request<RatingGoalPropertyInput, readonly RatingGoalHistoryEntry[]>
   set: Request<SetRatingGoalInput, RatingGoalSetResult>
   change: Request<ChangeRatingGoalInput, RatingGoalChangeResult>

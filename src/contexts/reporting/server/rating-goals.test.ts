@@ -98,9 +98,11 @@ describe('Property Google rating goal server functions', () => {
     const input = { propertyId: PROPERTY_ID }
     // In-process, a handler result is merged as middleware context, so the
     // doubles answer with an object rather than the null an empty card is.
-    for (const use of [mocks.setup, mocks.card, mocks.detail, mocks.history]) {
+    for (const use of [mocks.setup, mocks.card, mocks.history]) {
       use.mockResolvedValue({ goalId: GOAL_ID })
     }
+    // The detail's low reviews go through the Inbox links; none here.
+    mocks.detail.mockResolvedValue({ goalId: GOAL_ID, moved: { lowReviews: [] } })
 
     await withStartContext(() => getRatingGoalSetup({ data: input }))
     await withStartContext(() => getRatingGoalCard({ data: input }))

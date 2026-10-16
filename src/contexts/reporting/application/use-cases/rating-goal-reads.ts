@@ -12,6 +12,10 @@
 // the target of is reached (and one whose Property was archived or whose
 // Google location changed is ended) the first time anyone looks, even before
 // Google's next numbers arrive.
+//
+// Since round 5 (D-2b, the owner's exception) the detail also reads the low
+// reviews since the set and this week's star split, live: the rows go to the
+// server function with Review's ids, which it turns into Inbox items.
 
 import { actualRate, chosenRate } from '../../domain/rating-goal-arrival'
 import {
@@ -23,9 +27,11 @@ import {
   organizationId as toOrganizationId,
   propertyId as toPropertyId,
 } from '#/shared/domain/ids'
+import { thresholdThousandths } from '../../domain/rating-goal-numbers'
+import { weekStartInstant } from '../../domain/rating-goal-weeks'
 import type {
   RatingGoalCardView,
-  RatingGoalDetailView,
+  RatingGoalDetailRead,
   RatingGoalHistoryEntry,
   RatingGoalSetupView,
 } from '../dto/rating-goal.types'
@@ -43,6 +49,12 @@ import {
   detailHistoryStart,
   detailTracking,
 } from '../rating-goal-detail-views'
+import {
+  LOW_REVIEW_READ_LIMIT,
+  lowReviewRows,
+  setbackNumbers,
+  thisWeekView,
+} from '../rating-goal-low-reviews'
 import type { GoalActor } from './goal-program-shared'
 import {
   authorizeRatingGoal,
@@ -108,12 +120,15 @@ export async function getRatingGoalCard(
   return cardOf(await evaluateActiveRatingGoal(deps, active))
 }
 
-/** The monitoring view of the active goal, or null when the Property has none. */
+/**
+ * The monitoring view of the active goal, or null when the Property has none.
+ * Its low reviews still carry Review's ids: the server function links them.
+ */
 export async function getRatingGoalDetail(
   deps: RatingGoalDependencies,
   input: RatingGoalPropertyInput,
   actor: GoalActor,
-): Promise<RatingGoalDetailView | null> {
+): Promise<RatingGoalDetailRead | null> {
   await authorizeRatingGoal(deps, actor, input.propertyId, 'goal.read')
   const active = await deps.repository.findActive(actor.organizationId, input.propertyId)
   if (active === null) return null
@@ -131,7 +146,8 @@ export async function getRatingGoalDetail(
     goal.id,
     RATING_GOAL_CHANGE_LOG_LIMIT,
   )
-  const [changes, history, shown] = await Promise.all([
+  const setback = setbackNumbers(goal, reading)
+  const [changes, history, shown, low, thisWeek] = await Promise.all([
     changesRead,
     changesRead.then((log) =>
       deps.reviews.getWeeklyHistory(
@@ -141,6 +157,20 @@ export async function getRatingGoalDetail(
       ),
     ),
     deps.reviews.getShownNumberChanges(org, property, chartFrom),
+    setback === null
+      ? []
+      : deps.reviews.getLowReviews(
+          org,
+          property,
+          goal.createdAt,
+          thresholdThousandths(goal.targetTenths),
+          LOW_REVIEW_READ_LIMIT,
+        ),
+    deps.reviews.getStarDistribution(
+      org,
+      property,
+      weekStartInstant(reading.now, reading.facts.timezone),
+    ),
   ])
   // At the quality the goal now expects of new reviews: the plan's, the plan
   // mixed with new reviews, or theirs while too low (trackingMix).
@@ -148,6 +178,12 @@ export async function getRatingGoalDetail(
   const pace = goal.paceTenthsPerWeek
   const climbing = basis !== null && pace !== null
   const card = cardOf(evaluated)
+  const tracking = detailTracking({
+    goal,
+    reading,
+    card,
+    reads: { history, shown, changes },
+  })
   return {
     ...card,
     forecastAtChosenPace: climbing
@@ -158,7 +194,12 @@ export async function getRatingGoalDetail(
       : null,
     changes: changes.recent.map(changeView),
     plan: planProgressView(goal, reading),
-    ...detailTracking({ goal, reading, card, reads: { history, shown, changes } }),
+    ...tracking,
+    moved: {
+      ...tracking.moved,
+      thisWeek: thisWeekView(thisWeek),
+      lowReviews: lowReviewRows(setback, low),
+    },
   }
 }
 
