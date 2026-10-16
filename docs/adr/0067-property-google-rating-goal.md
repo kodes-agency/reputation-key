@@ -378,7 +378,7 @@ exact inputs (`workOutRatingGoal`); the server runs no planning maths for it.
    0.1★ worse no longer reaches the goal. Days are exact fractions; a range
    reads "a weeks to b months" when its fast end is under 70 days. The card and
    the detail page keep `forecastArrival`'s month ranges; the done screen repeats
-   the setup's words.
+   the setup's words. (Round 5 retired the month ranges; see its amendment.)
 5. **Google lagging behind the cache.** A tenth the cache's exact average
    already clears while Google shows less is never a goal: the setup starts
    above it and says "Google should show 4.0 soon"; when every tenth to 4.9 is
@@ -443,6 +443,58 @@ review. It amends decision 4 of the 2026-10-15 amendment for the numbers only:
 
 No data change: `qualityBasis` in the read DTOs gains `blended`, and
 `since_set` now means "too low"; "Your plan" adds `assumedAverage`.
+
+## Amended 2026-10-16 — round 5, tracking card
+
+The owner chose R3-8's tracking blend (canvas row D, mocks D2 and D4; R5-1)
+and answered PLAN-D's questions (Q1: "new reviews"). This first part changes
+the card on the Goals page and the Property Overview; the detail page, the
+low-review rows and the Monday check-in follow in their own amendments.
+
+1. **Months are retired; one arrival rule.** Every time a goal names is a
+   duration from today in the setup's own words ("4.1 in about 3 months at
+   your 1 a day, likely 9 weeks to 4 months"), worked out by one rule for the
+   setup and for tracking (`domain/rating-goal-arrival.ts`, `arrivalDays`):
+   the central time at the average the goal assumes; the fast end at 0.1★
+   better (never above five stars) and 10% more a week; the slow end at 0.1★
+   worse and 10% less, open when 0.1★ worse no longer clears the goal by
+   0.15★ (the setup's margin). A pace is reviews per days, so the chosen pace
+   (tenths a week per 70 days) and the actual one (the last 28 days' reviews
+   per 28) stay exact integers. This closes the split decision 4 of the setup
+   amendment left (`forecastArrival`'s month ranges on the card and the
+   detail): `forecastArrival`, its month helpers and `RatingForecastView` are
+   gone, and the setup's `likelyDays` is a wrapper over the same rule. The card
+   keeps Q8's basis: the chosen pace until the goal is 28 days old, then the
+   last four weeks', and the sentence names which.
+2. **The headline counts to the next number Google can show**: "18 new
+   reviews to 4.1", the next number being the tenth above what the reviews
+   have earned, at most the goal. A tenth the cache already clears while
+   Google shows less is skipped and named beside the headline ("Google should
+   show 4.4 soon"), so the card never says "0 new reviews to 4.4"; once the
+   reviews have earned the goal itself the headline is "Google should show 4.1
+   soon". When the headline counts to a nearer number, a quiet line gives the
+   goal's own total ("212 new reviews to your goal, 4.5."). The unit is "new
+   reviews" (Q1): reviews at the average the goal assumes, not five-star ones.
+3. **The ladder** shows where the goal started (while Google shows more now),
+   today, a tenth Google should show soon, the next number when it is not the
+   goal, the goal, and the number above it as possible (R4-4: "4.2 is possible
+   in about 6 months", at the same pace as the arrival, offered while the
+   average clears it by 0.15★), five numbers at most, the start dropped first.
+4. **One empty square per review the headline counts**, from 1 to 30, and only
+   while RepKey holds every review Google counts: past 30 the squares are
+   noise, and under Google's own rounded figure (where every count reads
+   "about") a row of squares would promise a count nobody knows.
+5. **This week and the first step.** "This week: 2 of 7" with the day of the
+   Property week ("It’s Tuesday", worked out on the server at every card read)
+   and, once the goal works at its actual pace, the last four weeks' pace a
+   day or a week (R3-7, also for a goal set "a month"; no unit is stored).
+   "Google shows 4.0 now, up from 3.9 when you started." once it does. The
+   card's exact-average progress bar is retired; the exact average stays on
+   the detail page.
+6. **No new read.** The card read computes everything from the numbers it
+   already reads (the next number, what the goal still needs, the number above
+   it, the last four weeks, the baseline and the weekday): no extra query, no
+   new query key, nothing new in first paint.
 
 ## Rejected alternatives
 
