@@ -2,7 +2,8 @@
 // D-2 and D-2b, mock D3), worked out (pure): this week's new reviews and their
 // stars first, then each day Google's own number moved, each change of the
 // plan and each low review since the set, newest first, and the day the goal
-// was set, always last. Past events keep their short dates (E21); only
+// was set, always last. Google's moves and the plan's changes keep their
+// place; the low reviews fill the rows left. Past events keep their short dates (E21); only
 // arrivals are durations. A low review says what it set the goal back ("about
 // 8 new reviews", measured today against the goal) and links to the Inbox
 // item that opens it, when this viewer may open one: the page never has its
@@ -19,6 +20,8 @@ import { changeText, tenthsText } from './rating-goal-view'
 
 /** The list shows this many rows at most, the set's row among them. */
 const MAX_ROWS = 12
+/** The rows between This week and the set. */
+const EVENT_ROWS = MAX_ROWS - 2
 
 export type MovedRow = Readonly<{
   key: string
@@ -143,6 +146,14 @@ function setRow(detail: RatingGoalDetailView, context: MovedContext): MovedRow {
   }
 }
 
+/**
+ * Newest first, EVENT_ROWS at most. Google's moves and the plan's changes are
+ * what the chart marks, so they take their slots first and the low reviews
+ * the ones left: the list stays the chart's words.
+ */
+const newest = (events: readonly Dated[]): Dated[] =>
+  [...events].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, EVENT_ROWS)
+
 /** The rows, This week first and the set last, twelve at most. */
 export function movedRows(
   detail: RatingGoalDetailView,
@@ -154,13 +165,8 @@ export function movedRows(
     text: thisWeekText(detail.moved.thisWeek),
     tone: null,
   }
-  const events = [
-    ...googleRows(detail, context),
-    ...planRows(detail, context),
-    ...lowRows(detail, context),
-  ]
-    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
-    .slice(0, MAX_ROWS - 2)
-    .map((event) => event.row)
+  const marked = newest([...googleRows(detail, context), ...planRows(detail, context)])
+  const low = newest(lowRows(detail, context)).slice(0, EVENT_ROWS - marked.length)
+  const events = newest([...marked, ...low]).map((event) => event.row)
   return [week, ...events, setRow(detail, context)]
 }

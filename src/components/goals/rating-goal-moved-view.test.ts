@@ -212,4 +212,22 @@ describe('the low reviews since the set', () => {
       'set',
     ])
   })
+
+  it('keeps Google’s moves and the plan’s changes when newer low reviews would fill the list', () => {
+    // Ten low reviews, all newer than Google's move on Oct 8: the chart's
+    // markers keep their words, and the low reviews take the slots left.
+    const lowReviews = Array.from({ length: 10 }, (_, index) =>
+      lowReview(new Date(Date.UTC(2026, 9, 9, 8 + index)).toISOString(), 4, 1, null),
+    )
+    const rows = movedRows(
+      { ...DETAIL_HARBORLINE, moved: { ...DETAIL_HARBORLINE.moved, lowReviews } },
+      context,
+    )
+
+    expect(rows).toHaveLength(12)
+    expect(rows.map((row) => row.key)).toContain('google-2026-10-08T07:00:00.000Z')
+    expect(rows.filter((row) => row.key.startsWith('low-'))).toHaveLength(9)
+    expect(rows.at(-2)?.key).toBe('google-2026-10-08T07:00:00.000Z')
+    expect(rows[1]?.key).toBe('low-9')
+  })
 })
