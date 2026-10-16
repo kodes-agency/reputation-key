@@ -68,6 +68,20 @@ function Legend({ model }: Readonly<{ model: ClimbChartModel }>) {
   )
 }
 
+/**
+ * While recharts loads: the chart's caption (its text alternative, there from
+ * the first paint) above a block of the chart's height, as ChartFrame lays
+ * them out, so nothing below moves when the chart arrives.
+ */
+function ClimbPending({ caption }: Readonly<{ caption: string }>) {
+  return (
+    <figure className="min-w-0 space-y-2">
+      <figcaption className="text-sm text-muted-foreground">{caption}</figcaption>
+      <Skeleton aria-hidden="true" className="h-60 w-full" />
+    </figure>
+  )
+}
+
 function Climb({ model }: Readonly<{ model: ClimbChartModel }>) {
   return (
     <Card className="gap-4">
@@ -76,7 +90,7 @@ function Climb({ model }: Readonly<{ model: ClimbChartModel }>) {
         <Legend model={model} />
       </CardHeader>
       <CardContent>
-        <Suspense fallback={<Skeleton aria-hidden="true" className="h-60 w-full" />}>
+        <Suspense fallback={<ClimbPending caption={model.caption} />}>
           <RatingGoalClimbChart model={model} />
         </Suspense>
       </CardContent>
