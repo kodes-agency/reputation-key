@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { waitsForGoogle } from '#/components/features/property-setup/setup-rating-goal-offer'
 import { SetupRatingGoalStep } from '#/components/features/property-setup/setup-rating-goal-step'
+import { propertyQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import {
@@ -36,9 +37,12 @@ function AllowedImportRatingGoalStep({ propertyId }: Readonly<{ propertyId: stri
         : false,
   })
   const notNow = useRatingGoalNotNowAction(propertyId)
+  // Only for the wizard's header: the step works without it.
+  const property = useQuery({ ...propertyQuery(propertyId), retry: false })
   return (
     <SetupRatingGoalStep
       propertyId={propertyId}
+      propertyName={property.data?.property.name}
       setup={regionRead(setup)}
       setRatingGoalFn={ratingGoalCommands.setRatingGoal}
       changeRatingGoalFn={ratingGoalCommands.changeRatingGoal}

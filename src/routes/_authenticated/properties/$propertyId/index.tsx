@@ -108,6 +108,7 @@ function PropertyOverviewRoute() {
         goals ? (
           <OverviewRatingGoal
             propertyId={propertyId}
+            propertyName={propData.property.name}
             timezone={propData.property.timezone}
             hasPortals={portals.any}
             notNowChosen={ratingGoalNotNowChosen(setup)}

@@ -1,8 +1,9 @@
-// The Google rating goal wizard (ADR 0067, decision 9; round 2, R2-6): "Pick a
-// plan", then "Your goal is set"; or, for a goal that keeps the number Google
-// shows (offered only at 4.9 or 5.0), one step. A change opens "Pick a plan" on
-// the goal's own plan, saves only what differs against the version it was
-// opened on, and closes with a toast.
+// The Google rating goal wizard (ADR 0067, decision 9; rounds 3 and 4, E2/E4):
+// "Your Google goal", one screen opened already answered, then "Your goal is
+// set"; or, for a goal that keeps the number Google shows (offered first only
+// at 4.9 or 5.0), one step. A change opens the screen on the goal's own plan,
+// saves only what differs against the version it was opened on, and closes
+// with a toast.
 //
 // A component with its two commands (set and change): the route hands in the
 // server functions and this owns the mutations, as the month target dialog
@@ -17,6 +18,7 @@ import type {
 } from '#/contexts/reporting/server/rating-goals'
 import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { useIsMobile } from '#/components/hooks/use-mobile'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { DialogFooter } from '#/components/ui/dialog'
 import { RatingGoalCancel } from './rating-goal-wizard-cancel'
@@ -27,8 +29,8 @@ import { withRatingGoalRefusals } from './rating-goal-refusal'
 import type { RegionRead } from './rating-goal-section'
 import { RatingGoalDone, RatingGoalKeepStep } from './rating-goal-wizard-done'
 import { RatingGoalWizardFrame } from './rating-goal-wizard-frame'
-import { RatingGoalPlanStep } from './rating-goal-plan-step'
-import type { PlanDraft } from './rating-goal-plan-view'
+import { draftFromGoal, type SetupDraft } from './rating-goal-setup-draft'
+import { RatingGoalSetupStep } from './rating-goal-setup-step'
 import { ratingText, reviewsText, tenthsText } from './rating-goal-view'
 import {
   wizardReceipt,
@@ -43,6 +45,8 @@ export type RatingGoalWizardProps = Readonly<{
   open: boolean
   onOpenChange: (open: boolean) => void
   propertyId: string
+  /** Named in the header of the setup screen, when the page knows it. */
+  propertyName?: string
   intent: RatingGoalWizardIntent
   setup: RegionRead<RatingGoalSetupView>
   /** The done screen offers portal goals when there are Portals, a Portal when not. */
@@ -68,7 +72,7 @@ type CommandOf<F extends (input: never) => unknown> = (
 type Step = 'plan' | 'keep' | 'done'
 
 function titleOf(step: Step, intent: RatingGoalWizardIntent): string {
-  if (step === 'plan') return 'Pick a plan'
+  if (step === 'plan') return 'Your Google goal'
   if (step === 'done') return 'Your goal is set'
   return `Keep ${intent.kind === 'keep' ? tenthsText(intent.targetTenths) : ''} on Google`
 }
@@ -85,16 +89,19 @@ function doneDescription(intent: RatingGoalWizardIntent): string {
 }
 
 /**
- * What the screen starts from, in one sentence: what Google shows now for the
- * plans; the keep step's is the whole step.
+ * What the screen starts from, in one sentence: the Property for the setup
+ * screen (what Google shows when its name is not known); the keep step's is
+ * the whole step.
  */
 function descriptionOf(
   step: Step,
   intent: RatingGoalWizardIntent,
   setup?: RatingGoalSetupView,
+  propertyName?: string,
 ): string {
   switch (step) {
     case 'plan': {
+      if (propertyName !== undefined) return propertyName
       const google = setup?.google
       return google === undefined || google === null || google.shows === null
         ? 'The number you want Google to show, and how to get there.'
@@ -144,7 +151,7 @@ function useRatingGoalCommands(props: RatingGoalWizardProps) {
  */
 function useWizardFlow(props: RatingGoalWizardProps) {
   const [step, setStep] = useState<Step>(props.intent.kind === 'keep' ? 'keep' : 'plan')
-  const [draft, setDraft] = useState<PlanDraft>({})
+  const [draft, setDraft] = useState<SetupDraft | null>(null)
   const [receipt, setReceipt] = useState<RatingGoalReceipt | null>(null)
   const { set, change } = useRatingGoalCommands(props)
   const titleRef = useRef<HTMLHeadingElement>(null)
@@ -189,8 +196,9 @@ function keepSave(
     saved: {
       mode: 'keep',
       targetTenths: intent.targetTenths,
-      pacePerWeek: null,
-      forecast: null,
+      paceTenthsPerWeek: null,
+      days: null,
+      likely: null,
     },
   }
 }
@@ -198,6 +206,7 @@ function keepSave(
 export function RatingGoalWizard(props: RatingGoalWizardProps) {
   const { intent, setup, propertyId } = props
   const flow = useWizardFlow(props)
+  const small = useIsMobile()
   const banner = <DialogErrorBanner error={flow.error} />
   return (
     <RatingGoalWizardFrame
@@ -205,7 +214,7 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
       onOpenChange={props.onOpenChange}
       busy={flow.pending}
       title={titleOf(flow.step, intent)}
-      description={descriptionOf(flow.step, intent, setup.data)}
+      description={descriptionOf(flow.step, intent, setup.data, props.propertyName)}
       titleRef={flow.titleRef}
       onCloseAutoFocus={props.onCloseAutoFocus}
       inline={props.inline}
@@ -228,19 +237,29 @@ export function RatingGoalWizard(props: RatingGoalWizardProps) {
           }}
         />
       ) : (
-        <RatingGoalPlanStep
+        <RatingGoalSetupStep
           setup={setup.data}
           intent={intent}
           propertyId={propertyId}
-          draft={flow.draft}
+          draft={flow.draft ?? openingDraft(intent, setup.data)}
           onDraft={flow.setDraft}
           pending={flow.pending}
           banner={banner}
+          small={small}
           onSave={flow.save}
         />
       )}
     </RatingGoalWizardFrame>
   )
+}
+
+/** A change opens on the goal's own plan; a new goal as recommended. */
+function openingDraft(
+  intent: RatingGoalWizardIntent,
+  setup: RatingGoalSetupView,
+): SetupDraft {
+  if (intent.kind !== 'change' || setup.setupInputs === null) return {}
+  return draftFromGoal(setup.setupInputs, intent.goal)
 }
 
 /** While the setup reads: the room the step will take, or its failure and "Try again". */

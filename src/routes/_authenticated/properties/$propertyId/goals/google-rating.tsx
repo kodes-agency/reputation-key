@@ -105,6 +105,7 @@ function GoogleRatingGoalRoute() {
   // The wizard's setup, read ahead while the goal can change: the change opens on it.
   const { start, wizard, setup } = useRatingGoalWizard(propertyId, {
     hasPortals: true,
+    propertyName: name,
     readSetup: active && canDo('goal.update'),
   })
   const members = useQuery({

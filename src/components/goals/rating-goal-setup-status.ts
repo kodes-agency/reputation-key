@@ -51,6 +51,10 @@ function hintOf(plan: SetupPlan, draft: SetupDraft): StatusPart | null {
   return null
 }
 
+/** The hint a press at an end raised, for the live region; null without one. */
+export const hintText = (plan: SetupPlan, draft: SetupDraft): string | null =>
+  draft.hint === undefined ? null : (hintOf(plan, draft)?.text ?? null)
+
 /** Why the recommendation is the one it is. */
 function reasonOf(plan: SetupPlan): string {
   if (!plan.goal.recommendedIsSafe) {

@@ -28,6 +28,8 @@ import {
 
 type Props = Readonly<{
   propertyId: string
+  /** Named in the wizard's header. */
+  propertyName: string
   timezone: string
   view: 'active' | 'history'
   /** The done screen's one next step (portal goals, or a first Portal), and too few reviews' link. */
@@ -72,6 +74,7 @@ function useWizardOnArrival(
 
 export function RatingGoalPanel({
   propertyId,
+  propertyName,
   timezone,
   view,
   hasPortals,
@@ -91,7 +94,7 @@ export function RatingGoalPanel({
     enabled: view === 'history' || noActiveGoal,
     retry: false,
   })
-  const { start, wizard } = useRatingGoalWizard(propertyId, { hasPortals })
+  const { start, wizard } = useRatingGoalWizard(propertyId, { hasPortals, propertyName })
   useWizardOnArrival({
     asked: startOnArrival && view === 'active',
     card,

@@ -87,7 +87,7 @@ function useFocusReturn() {
  */
 export function useRatingGoalWizard(
   propertyId: string,
-  options: Readonly<{ hasPortals: boolean; readSetup?: boolean }>,
+  options: Readonly<{ hasPortals: boolean; readSetup?: boolean; propertyName?: string }>,
 ): Readonly<{
   start: (intent: RatingGoalWizardIntent) => void
   wizard: ReactNode
@@ -115,6 +115,7 @@ export function useRatingGoalWizard(
             setOpening((current) => (current === null ? null : { ...current, open }))
           }
           propertyId={propertyId}
+          propertyName={options.propertyName}
           intent={opening.intent}
           setup={regionRead(setup)}
           hasPortals={options.hasPortals}
