@@ -177,8 +177,13 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
         (g) =>
           g.organizationId === org && g.propertyId === property && g.state !== 'active',
       ),
-    listChanges: async (_org, _property, goalId) =>
-      world.changes.filter((change) => change.goalId === goalId).reverse(),
+    listChanges: async (_org, _property, goalId, limit) => {
+      const log = world.changes.filter((change) => change.goalId === goalId)
+      const firstPerField = log.filter(
+        (change, index) => log.findIndex((row) => row.field === change.field) === index,
+      )
+      return { recent: [...log].reverse().slice(0, limit), firstPerField }
+    },
     insert: async (goal) => {
       if (
         world.goals.some((g) => g.propertyId === goal.propertyId && g.state === 'active')

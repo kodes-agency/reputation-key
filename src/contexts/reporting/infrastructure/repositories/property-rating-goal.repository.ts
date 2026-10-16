@@ -15,7 +15,21 @@
 // another one already stored, changes nothing and tells nobody. The notices an
 // evaluation raises are written as outbox facts in its own transaction.
 
-import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  gt,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm'
+import { unionAll } from 'drizzle-orm/pg-core'
 import type { Database } from '#/shared/db'
 import {
   propertyRatingGoalChanges,
@@ -100,6 +114,20 @@ const changeFromRow = (row: ChangeRow): RatingGoalChange => ({
   oldValue: row.oldValue,
   newValue: row.newValue,
 })
+
+const changeColumns = getTableColumns(propertyRatingGoalChanges)
+
+const FIELD_ORDER: Readonly<Record<RatingGoalChangeField, number>> = {
+  mode: 0,
+  target: 1,
+  quality: 2,
+  pace: 3,
+}
+
+/** Newest first; one change's rows in the order it wrote them (changeFieldOrder). */
+const newestFirst = (left: RatingGoalChange, right: RatingGoalChange): number =>
+  right.changedAt.getTime() - left.changedAt.getTime() ||
+  FIELD_ORDER[left.field] - FIELD_ORDER[right.field]
 
 /** One change writes its rows at one instant: mode, target, quality, then pace. */
 const changeFieldOrder = sql`CASE ${propertyRatingGoalChanges.field}
@@ -245,19 +273,34 @@ export const createPropertyRatingGoalRepository = (
   },
 
   listChanges: async (organizationId, propertyId, goalId, limit) => {
-    const rows = await db
-      .select()
+    const scope = and(
+      eq(propertyRatingGoalChanges.organizationId, organizationId),
+      eq(propertyRatingGoalChanges.propertyId, propertyId),
+      eq(propertyRatingGoalChanges.goalId, goalId),
+    )
+    const recent = db
+      .select({ ...changeColumns, first: sql<boolean>`false` })
       .from(propertyRatingGoalChanges)
-      .where(
-        and(
-          eq(propertyRatingGoalChanges.organizationId, organizationId),
-          eq(propertyRatingGoalChanges.propertyId, propertyId),
-          eq(propertyRatingGoalChanges.goalId, goalId),
-        ),
-      )
+      .where(scope)
       .orderBy(desc(propertyRatingGoalChanges.changedAt), changeFieldOrder)
       .limit(limit)
-    return rows.map(changeFromRow)
+    // The oldest row of each field: its old value is what the goal was set with.
+    const firstPerField = db
+      .selectDistinctOn([propertyRatingGoalChanges.field], {
+        ...changeColumns,
+        first: sql<boolean>`true`,
+      })
+      .from(propertyRatingGoalChanges)
+      .where(scope)
+      .orderBy(propertyRatingGoalChanges.field, asc(propertyRatingGoalChanges.changedAt))
+    const rows = await unionAll(recent, firstPerField)
+    return {
+      recent: rows
+        .filter((row) => !row.first)
+        .map(changeFromRow)
+        .sort(newestFirst),
+      firstPerField: rows.filter((row) => row.first).map(changeFromRow),
+    }
   },
 
   insert: (goal) =>

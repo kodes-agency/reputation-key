@@ -119,6 +119,18 @@ export type RatingGoalScope = Readonly<{
 /** Where the daily evaluation's listing continues: after this goal. */
 export type RatingGoalScopeCursor = Pick<RatingGoalScope, 'goalId'>
 
+/**
+ * A goal's change log as the detail reads it: the newest changes, and the
+ * oldest change of each field, whose old value is what the goal was set with
+ * (PLAN-D E31), however long the log grows.
+ */
+export type RatingGoalChangeLog = Readonly<{
+  /** Newest first, at most the limit. */
+  recent: readonly RatingGoalChange[]
+  /** One per field that ever changed, the oldest. */
+  firstPerField: readonly RatingGoalChange[]
+}>
+
 /** A manager's "Not now" for a Property's rating goal. */
 export type RatingGoalNotNow = Readonly<{
   organizationId: string
@@ -145,13 +157,13 @@ export type PropertyRatingGoalRepository = Readonly<{
     propertyId: string,
     limit: number,
   ): Promise<readonly PropertyRatingGoal[]>
-  /** A goal's change log, newest first. */
+  /** A goal's change log, newest first, with each field's first change, in one read. */
   listChanges(
     organizationId: string,
     propertyId: string,
     goalId: string,
     limit: number,
-  ): Promise<readonly RatingGoalChange[]>
+  ): Promise<RatingGoalChangeLog>
   /** `active_exists` when the Property already has an active goal. */
   insert(goal: NewPropertyRatingGoal): Promise<'inserted' | 'active_exists'>
   changePlan(change: RatingGoalPlanChange): Promise<RatingGoalWriteResult>

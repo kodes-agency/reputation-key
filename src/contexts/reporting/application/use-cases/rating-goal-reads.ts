@@ -151,7 +151,7 @@ export async function getRatingGoalDetail(
     recentMix: mixView(reading.mix),
     weeks: weeklySeries(goal.createdAt, reading.now, timezone, weekCounts),
     starsSinceSet,
-    changes: changes.map(changeView),
+    changes: changes.recent.map(changeView),
     plan: planProgressView(goal, reading),
   }
 }
