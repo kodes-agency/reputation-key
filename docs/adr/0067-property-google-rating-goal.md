@@ -535,7 +535,9 @@ ten reviews, and no read returns a review.
    the snapshot in force when the chart starts and each later one whose
    one-decimal number differs from the one before it (newest 100 at most).
    These are Property-level figures Google publishes; nothing is stored for
-   the goal.
+   the goal. The read finds the in-force instant first and compares only the
+   facts from it on, so its cost follows the chart's span, not the years of
+   facts a Property keeps.
 
 3. **The page.** The header leads with the card's headline and says when the
    goal arrives at the card's own pace (the same arrival object the chart's
@@ -545,8 +547,9 @@ ten reviews, and no read returns a review.
    too (Q8). "The climb, step by step" draws the exact average at each
    Monday from four weeks before the set's week (a year back at most), the
    plan as a cone from the set (the stored baseline) or the latest plan change
-   (the history at that week's Monday, no interpolation; none under a partial
-   cache), the likely band from today, a line for each tenth and Google's own
+   (the history at that week's Monday, no interpolation, read from that Monday
+   when it is older than the chart and clipped at the chart's start; none under
+   a partial cache), the likely band from today, a line for each tenth and Google's own
    moves, in weeks from today, never dates, in a chunk of its own. "Your
    plan, so far" sets the last four weeks' pace against the plan and the four
    full weeks before the goal, the new reviews' average against the plan's,
