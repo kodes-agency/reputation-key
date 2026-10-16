@@ -163,7 +163,6 @@ async function dumpTrace() {
 
 /** Pages attached so far, by target id. */
 const attached = new Map()
-let diagnosing = false
 
 async function attach(target) {
   const session = cdpSession(target.webSocketDebuggerUrl)
@@ -189,8 +188,10 @@ async function attach(target) {
       return
     }
     if (msg.method !== 'Debugger.paused') return
-    if (diagnosing) entry.paused?.(msg)
-    // A `debugger` statement in some library must not stop the run.
+    // Only a sample that is waiting keeps the page paused (it resumes it after
+    // reading the stack). A pause that lands after its sample gave up, or a
+    // `debugger` statement in some library, must not leave the page stopped.
+    if (entry.paused) entry.paused(msg)
     else void session.send('Debugger.resume')
   })
   void session.closed.then(() => attached.delete(target.id))
@@ -288,7 +289,6 @@ async function pageSnapshot(entry) {
 async function diagnose(reason) {
   log(`WATCHDOG ${reason}`)
   await dumpTrace().catch((error) => log(`TRACE dump failed: ${error?.message ?? error}`))
-  diagnosing = true
   try {
     for (const entry of attached.values()) {
       log(
@@ -298,8 +298,8 @@ async function diagnose(reason) {
       await sampleStacks(entry)
       await pageSnapshot(entry)
     }
-  } finally {
-    diagnosing = false
+  } catch (error) {
+    log(`  diagnosis failed: ${error?.message ?? error}`)
   }
 }
 
