@@ -5,6 +5,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
 import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
+import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
 import { PortalEditor } from './portal-editor'
 import { PortalDraftAutosaveProvider } from './portal-draft-autosave-context'
 import { PortalDraftSaveStatus } from './portal-draft-save-status'
@@ -467,11 +468,27 @@ export const WelcomeLinesPerLanguage: Story = {
   },
 }
 
+/** A preview read that never answers: the pane stays on its loading placeholder. */
+const previewNeverLoads: PortalPreviewReader = () => new Promise(() => undefined)
+
 // Closing the property's wording keeps what was typed in it: the fold hides its
 // form rather than removing it, so an unsaved edit (and the guard that asks
 // before leaving with one) survives.
+//
+// It runs without the live preview. With the guest page drawn beside it, these
+// fold toggles and this fast typing wedged headless Chromium on Linux CI in
+// about one run of this file in fifty: tile raster work the compositor had
+// scheduled never ran, so the page's main thread blocked for good waiting to
+// commit the next frame, no test timeout could fire, and storybook-test hung
+// until the job was cancelled. Without the preview, none in 585 runs. See its
+// row in docs/operations/e2e-flake-register.md.
 export const PropertyWordingKeepsAnUnsavedEdit: Story = {
-  args: { resources: makeResources(action(async () => undefined)) },
+  args: {
+    resources: {
+      ...makeResources(action(async () => undefined)),
+      getPortalPreview: previewNeverLoads,
+    },
+  },
   play: async ({ canvasElement }) => {
     const english = languageCard(canvasElement, /English/)
     const fold = english.getByRole('button', { name: /Property wording/ })
@@ -487,6 +504,11 @@ export const PropertyWordingKeepsAnUnsavedEdit: Story = {
     await expect(
       english.getByLabelText('Welcome line', { selector: '#portal-content-title-en' }),
     ).toHaveValue('Welcome to the resort')
+    // The guest page never drew beside the typing (see above).
+    const preview = within(
+      within(canvasElement).getByRole('complementary', { name: 'Live preview' }),
+    )
+    await expect(preview.getByText('Loading preview…')).toBeInTheDocument()
   },
 }
 
