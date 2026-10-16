@@ -36,6 +36,12 @@ type Props = Readonly<{
   onGoTo: (tenths: number) => void
 }>
 
+/**
+ * One digit column. `clipPath` hides the strip's other digits; `overflowY:
+ * clip` also keeps them out of the scrollable area, so the dialog or the
+ * phone sheet never scrolls into the empty space below a strip (up to 49em
+ * of it at a low goal). Sideways the digit may still overhang its column.
+ */
 function Strip({ digits, at }: Readonly<{ digits: readonly number[]; at: number }>) {
   return (
     <span
@@ -43,6 +49,7 @@ function Strip({ digits, at }: Readonly<{ digits: readonly number[]; at: number 
         display: 'inline-block',
         width: '0.64em',
         height: '1em',
+        overflowY: 'clip',
         clipPath: 'inset(0 -0.15em)',
       }}
     >
