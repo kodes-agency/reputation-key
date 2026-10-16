@@ -38,7 +38,6 @@ import {
   goalBasis,
   historyEntry,
   mixView,
-  nextTenthView,
   planProgressView,
 } from '../rating-goal-views'
 import { forecastFor } from '../rating-goal-tracking-views'
@@ -149,7 +148,6 @@ export async function getRatingGoalDetail(
     forecastAtActualPace: climbing
       ? forecastFor(basis, goal.targetTenths, actualRate(reading.reviewsLast28Days))
       : null,
-    nextTenth: nextTenthView(goal, basis),
     recentMix: mixView(reading.mix),
     weeks: weeklySeries(goal.createdAt, reading.now, timezone, weekCounts),
     starsSinceSet,

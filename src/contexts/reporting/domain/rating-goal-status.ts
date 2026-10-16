@@ -29,14 +29,11 @@ import {
   fromThousandths,
   ratio,
   ratioToNumber,
-  reviewsNeeded,
   thresholdThousandths,
   type Ratio,
   type RatingTotals,
-  type ReviewsNeeded,
 } from './rating-goal-numbers'
 import { minimumQualityTenths } from './rating-goal-quality'
-import type { RatingGoalBasis } from './rating-goal-stops'
 import type { RatingGoalStatus } from './rating-goal'
 
 /** Google's numbers older than this make a goal wait for Google. */
@@ -219,29 +216,6 @@ export function ratingProgress(
   const span = threshold - baselineExact
   if (span <= 0) return current >= threshold ? 1 : 0
   return Math.min(1, Math.max(0, (current - baselineExact) / span))
-}
-
-export type NextTenthMilestone = Readonly<{
-  targetTenths: number
-  reviewsNeeded: ReviewsNeeded
-}>
-
-/** Reviews to the tenth above what Google shows, while it is not past the target. */
-export function nextTenthMilestone(
-  basis: RatingGoalBasis,
-  targetTenths: number,
-): NextTenthMilestone | null {
-  const next = basis.displayedTenths + 1
-  if (next > targetTenths) return null
-  return {
-    targetTenths: next,
-    reviewsNeeded: reviewsNeeded({
-      reviewCount: basis.reviewCount,
-      exact: basis.exact,
-      thresholdThousandths: thresholdThousandths(next),
-      mix: basis.mix,
-    }),
-  }
 }
 
 /** The exact average has crossed the target's threshold; Google shows less. */

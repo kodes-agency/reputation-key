@@ -7,7 +7,6 @@ import {
   forecastPaceBasis,
   googleIsWaiting,
   keepStatus,
-  nextTenthMilestone,
   PLANNED_AVERAGE_WEIGHT_REVIEWS,
   ratingProgress,
   reviewsTooLow,
@@ -265,36 +264,6 @@ describe('progress towards the threshold', () => {
   it('is complete or nothing when the baseline already met the threshold', () => {
     expect(ratingProgress(ratio(446, 100), 4.46, 4450)).toBe(1)
     expect(ratingProgress(ratio(444, 100), 4.46, 4450)).toBe(0)
-  })
-})
-
-describe('the next tenth on the way', () => {
-  it('counts the reviews to the tenth above what Google shows', () => {
-    expect(
-      nextTenthMilestone(
-        {
-          reviewCount: 812,
-          displayedTenths: 43,
-          exact: ratio(431, 100),
-          mix: ratio(470, 100),
-        },
-        45,
-      ),
-    ).toEqual({ targetTenths: 44, reviewsNeeded: 93 })
-  })
-
-  it('has none past the target', () => {
-    expect(
-      nextTenthMilestone(
-        {
-          reviewCount: 812,
-          displayedTenths: 45,
-          exact: ratio(45, 10),
-          mix: ratio(47, 10),
-        },
-        45,
-      ),
-    ).toBeNull()
   })
 })
 

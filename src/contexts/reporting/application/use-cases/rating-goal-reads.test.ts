@@ -345,7 +345,7 @@ describe('the detail read', () => {
       // stars): (15 × 4.7 + 41) / 24 = 4.6458, so (3613.4 − 3500) / 0.1958.
       stillNeeded: 580,
       bestCase: 207,
-      nextTenth: { targetTenths: 44, target: 4.4, reviewsNeeded: 109 },
+      next: { targetTenths: 44, target: 4.4, reviewsNeeded: 109 },
       baseline: { googleShows: 4.3, reviewCount: 790, exactAverage: 4.29 },
       weeks: [
         { weekStart: '2026-10-05', count: 0 },

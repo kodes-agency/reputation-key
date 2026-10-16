@@ -68,7 +68,6 @@ export const DETAIL_BEFORE_TEN: RatingGoalDetailView = {
   bestCase: 9,
   forecastAtChosenPace: inDays(53, 40, 70),
   forecastAtActualPace: inDays(53, 40, 70),
-  nextTenth: null,
   recentMix: { average: 4, reviewCount: 25, basis: 'most_recent' },
   baseline: { googleShows: 3.9, reviewCount: 261, exactAverage: 3.912 },
   weeks: [

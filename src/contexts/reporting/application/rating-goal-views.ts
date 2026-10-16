@@ -33,7 +33,6 @@ import {
 } from '../domain/rating-goal-evidence'
 import {
   cacheShowsTargetFirst,
-  nextTenthMilestone,
   QUALITY_VERDICT_MIN_REVIEWS,
   ratingProgress,
   trackingMix,
@@ -301,18 +300,6 @@ export function bestCaseNeeded(
       thresholdThousandths: thresholdThousandths(goal.targetTenths),
     }),
   )
-}
-
-export function nextTenthView(goal: PropertyRatingGoal, basis: RatingGoalBasis | null) {
-  if (goal.mode === 'keep' || basis === null) return null
-  const next = nextTenthMilestone(basis, goal.targetTenths)
-  return next === null
-    ? null
-    : {
-        targetTenths: next.targetTenths,
-        target: tenthsToRating(next.targetTenths),
-        reviewsNeeded: neededView(next.reviewsNeeded),
-      }
 }
 
 /**

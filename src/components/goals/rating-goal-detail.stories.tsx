@@ -150,7 +150,6 @@ export const KeepGoal: Story = {
       forecast: null,
       forecastAtChosenPace: null,
       forecastAtActualPace: null,
-      nextTenth: null,
       changes: [],
     },
   },

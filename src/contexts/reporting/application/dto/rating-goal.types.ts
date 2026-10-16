@@ -217,11 +217,6 @@ export type RatingGoalDetailView = RatingGoalCardView &
     bestCase: number | null
     forecastAtChosenPace: RatingArrivalView | null
     forecastAtActualPace: RatingArrivalView | null
-    nextTenth: Readonly<{
-      targetTenths: number
-      target: number
-      reviewsNeeded: number | null
-    }> | null
     recentMix: RecentMixView | null
     /** Monday-to-Sunday weeks since the goal was set, a year at most. */
     weeks: readonly Readonly<{ weekStart: string; count: number }>[]

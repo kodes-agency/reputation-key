@@ -171,7 +171,6 @@ export const DETAIL: RatingGoalDetailView = {
   // 212 reviews at 11 a week, then at 9.5.
   forecastAtChosenPace: inDays(135, 104, 199),
   forecastAtActualPace: inDays(156, 120, 230),
-  nextTenth: { targetTenths: 44, target: 4.4, reviewsNeeded: 31 },
   recentMix: { average: 4.7, reviewCount: 84, basis: 'last_90_days' },
   weeks: [
     { weekStart: '2026-08-03', count: 9 },
