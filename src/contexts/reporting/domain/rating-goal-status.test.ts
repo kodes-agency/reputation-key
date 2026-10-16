@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ratio } from './rating-goal-numbers'
+import { compareRatios, ratio } from './rating-goal-numbers'
 import {
   GOOGLE_NUMBERS_FRESH_HOURS,
   cacheShowsTargetFirst,
@@ -134,12 +134,57 @@ describe('the stars new reviews are expected to average', () => {
     })
   })
 
-  it('keeps blending before the verdict, however low the first nine are', () => {
-    // Nine one-star reviews: no verdict yet, (70.5 + 9) / 24 = 3.3125.
-    expect(trackingMix(47, { count: 9, sum: 9 }, 45)).toEqual({
-      mix: ratio(795, 240),
+  it('keeps blending before the verdict while the blend still clears the target', () => {
+    // Nine reviews at 4.0: no verdict yet, (70.5 + 36) / 24 = 4.4375 clears 4.0's 3.95.
+    expect(trackingMix(47, { count: 9, sum: 36 }, 40)).toEqual({
+      mix: ratio(1065, 240),
       basis: 'blended',
     })
+  })
+
+  it('one 2★ review after a floor plan keeps the goal reachable before the verdict', () => {
+    // A plan at 4.6 for 4.5 (threshold 4.45): the blend (69 + 2) / 16 = 4.4375
+    // would read "not reachable" after one review, a verdict R2-5 holds to ten.
+    // The floor is the plan itself, so the numbers assume the plan.
+    expect(trackingMix(46, { count: 1, sum: 2 }, 45)).toEqual({
+      mix: ratio(46, 10),
+      basis: 'planned',
+    })
+  })
+
+  it('holds the blend at the target’s minimum quality before the verdict', () => {
+    // Plan 4.8 for 4.5: three 3★ reviews blend to (72 + 9) / 18 = 4.5, under
+    // 4.6, the least a plan for 4.5 may assume; one 4★ review blends to 4.75.
+    expect(trackingMix(48, { count: 3, sum: 9 }, 45)).toEqual({
+      mix: ratio(46, 10),
+      basis: 'blended',
+    })
+    expect(trackingMix(48, { count: 1, sum: 4 }, 45)).toEqual({
+      mix: ratio(760, 160),
+      basis: 'blended',
+    })
+  })
+
+  it('holds no floor from the tenth review on', () => {
+    // Plan 4.6 for 4.5, 20 reviews at 4.5 (not too low): (69 + 90) / 35 = 4.543.
+    expect(trackingMix(46, { count: 20, sum: 90 }, 45)).toEqual({
+      mix: ratio(1590, 350),
+      basis: 'blended',
+    })
+  })
+
+  it('never lets the numbers fall below the target’s minimum quality before ten reviews', () => {
+    // Every star sum for 1..9 reviews, plans at the floor up to 0.2 above it.
+    for (const target of [38, 40, 43, 45, 48]) {
+      for (const plan of [target + 1, target + 2, target + 3].filter((q) => q <= 50)) {
+        for (let count = 1; count < 10; count++) {
+          for (let sum = count; sum <= 5 * count; sum++) {
+            const { mix } = trackingMix(plan, { count, sum }, target)
+            expect(compareRatios(mix, ratio(target + 1, 10))).toBeGreaterThanOrEqual(0)
+          }
+        }
+      }
+    }
   })
 
   it('blends from the tenth review on while they clear the target', () => {
