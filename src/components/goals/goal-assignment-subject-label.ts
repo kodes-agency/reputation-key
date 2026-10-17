@@ -18,6 +18,11 @@ export function goalAssignmentSubjectLabel(
   return portals.find((portal) => portal.id === subject.portalId)?.name ?? 'Portal'
 }
 
+// Pinned, not the runtime's: the server and the browser must order the same
+// names alike ("Spa" before "Рецепция" in every language), and "Bar 2" comes
+// before "Bar 10".
+const byName = new Intl.Collator('en', { sensitivity: 'base', numeric: true })
+
 const SUBJECT_ORDER: Readonly<Record<GoalSubject['kind'], number>> = {
   property: 0,
   portal_group: 1,
@@ -44,7 +49,7 @@ export function goalListSubjectText(
     .sort(
       (left, right) =>
         SUBJECT_ORDER[left.kind] - SUBJECT_ORDER[right.kind] ||
-        left.name.localeCompare(right.name),
+        byName.compare(left.name, right.name),
     )
     .map(({ name }) => name)
   const [first, second] = names

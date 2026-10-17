@@ -45,6 +45,33 @@ describe('who a row says its goal is for', () => {
     expect(goalListSubjectText([spa, rooms], nameOf)).toBe('Rooms (group) and Spa')
   })
 
+  // The server and the browser order the names alike, whatever the browser's
+  // own language: a Cyrillic name after a Latin one, and "Bar 2" before "Bar 10".
+  it('orders names the same for every reader, numbers by value', () => {
+    const named = (names: Readonly<Record<string, string>>) => (subject: GoalSubject) =>
+      subject.kind === 'portal' ? (names[subject.portalId] ?? 'Portal') : 'Portal'
+    const portal = (portalId: string): GoalSubject => ({ kind: 'portal', portalId })
+
+    expect(
+      goalListSubjectText(
+        [portal('reception'), portal('spa')],
+        named({ reception: 'Рецепция', spa: 'Spa' }),
+      ),
+    ).toBe('Spa and Рецепция')
+    expect(
+      goalListSubjectText(
+        [portal('bar-10'), portal('bar-2'), portal('bar-1')],
+        named({ 'bar-10': 'Bar 10', 'bar-2': 'Bar 2', 'bar-1': 'Bar 1' }),
+      ),
+    ).toBe('Bar 1 and 2 more')
+    expect(
+      goalListSubjectText(
+        [portal('bar-10'), portal('bar-2')],
+        named({ 'bar-10': 'Bar 10', 'bar-2': 'Bar 2' }),
+      ),
+    ).toBe('Bar 2 and Bar 10')
+  })
+
   it('says nothing for a goal with no subject', () => {
     expect(goalListSubjectText([], nameOf)).toBeNull()
   })
