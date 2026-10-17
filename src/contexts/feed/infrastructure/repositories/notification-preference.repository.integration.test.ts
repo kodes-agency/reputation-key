@@ -367,6 +367,54 @@ describe.sequential('personal notification delivery (real PostgreSQL)', () => {
     })
   })
 
+  // Migration 0063 writes `portal_goals` rows while an old web server is still
+  // serving (ADR 0046, amended 2026-10-17). Its reads only cast the stored
+  // category, and its settings page draws the categories it knows, so the
+  // copied rows must come back as rows, never as an error.
+  it('an old web reads portal_goals rows without throwing', async () => {
+    const repo = createNotificationPreferenceRepository(db)
+    const copied = {
+      userId: USER,
+      organizationId: ORG,
+      enabled: false,
+      cadence: 'daily',
+      createdAt: CREATED,
+      updatedAt: CREATED,
+    }
+    for (const category of ['recognition', 'portal_goals']) {
+      await db
+        .insert(notificationPreferences)
+        .values({ ...copied, propertyId: PROPERTY, category, channel: 'in_app' })
+      await db
+        .insert(notificationCategoryDefaults)
+        .values({ ...copied, category, channel: 'email' })
+    }
+
+    const stored = await repo.findByUser(USER, ORG)
+    const storedDefaults = await repo.findCategoryDefaults(USER, ORG)
+
+    expect(
+      stored.map(({ category, channel, enabled }) => ({ category, channel, enabled })),
+    ).toEqual(
+      expect.arrayContaining([
+        { category: 'recognition', channel: 'in_app', enabled: false },
+        { category: 'portal_goals', channel: 'in_app', enabled: false },
+      ]),
+    )
+    expect(stored).toHaveLength(2)
+    expect(storedDefaults.map(({ category }) => category).sort()).toEqual([
+      'portal_goals',
+      'recognition',
+    ])
+    // Each goal's row answers for itself at delivery.
+    await expect(
+      repo.resolveForDelivery(USER, ORG, PROPERTY, 'portal_goals', 'in_app'),
+    ).resolves.toEqual({ enabled: false, cadence: 'daily' })
+    await expect(
+      repo.resolveForDelivery(USER, ORG, OTHER_PROPERTY, 'portal_goals', 'email'),
+    ).resolves.toEqual({ enabled: false, cadence: 'daily' })
+  })
+
   it("gives a property with no row of its own the person's category default", async () => {
     const repo = createNotificationPreferenceRepository(db)
     await repo.saveCategoryDefault(categoryDefault({ enabled: true }), PROPERTY)
