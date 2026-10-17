@@ -1,6 +1,6 @@
-// "What moved you" (round 5, PLAN-D D-2, mock D3): this week first, Google's
-// moves and the plan's changes newest first with their short dates, the set
-// last, and no per-review value.
+// "What moved you" (round 5, PLAN-D D-2 and D-2b, mock D3): this week first
+// with its stars, Google's moves, the plan's changes and the low reviews
+// newest first with their short dates, the set last.
 import { describe, expect, it } from 'vitest'
 import { movedRows, thisWeekText } from './rating-goal-moved-view'
 import {
@@ -18,7 +18,7 @@ const context = {
 describe('what moved you', () => {
   it('starts with this week, then Google’s move, and ends with the set', () => {
     expect(movedRows(DETAIL_HARBORLINE, context)).toEqual([
-      { key: 'week', when: 'This week', text: '2 new reviews', tone: null },
+      { key: 'week', when: 'This week', text: '2 new reviews, both 5★', tone: null },
       {
         key: 'google-2026-10-08T07:00:00.000Z',
         when: 'Oct 8',
@@ -38,7 +38,7 @@ describe('what moved you', () => {
     const rows = movedRows(DETAIL_PLAN_CHANGED, context)
 
     expect(rows.map((row) => row.text)).toEqual([
-      '2 new reviews',
+      '2 new reviews, both 5★',
       'Google started showing 4.0',
       'Ana Petrova changed the plan: Pace 5 a week → 1 a day',
       'Ana Petrova set the goal: 4.1 at 5 a week',
@@ -125,9 +125,109 @@ describe('what moved you', () => {
 })
 
 describe('this week', () => {
-  it('counts the new reviews, with no stars', () => {
-    expect(thisWeekText(0)).toBe('No new reviews yet')
-    expect(thisWeekText(1)).toBe('1 new review')
-    expect(thisWeekText(3)).toBe('3 new reviews')
+  const week = (count: number, allStars: number | null, averageTenths: number | null) =>
+    thisWeekText({ count, allStars, averageTenths })
+
+  it('says how many new reviews came and their stars', () => {
+    expect(week(0, null, null)).toBe('No new reviews yet')
+    expect(week(1, 4, 40)).toBe('1 new review, 4★')
+    expect(week(2, 5, 50)).toBe('2 new reviews, both 5★')
+    expect(week(3, 5, 50)).toBe('3 new reviews, all 5★')
+    expect(week(3, null, 47)).toBe('3 new reviews, average 4.7★')
+  })
+})
+
+describe('the low reviews since the set', () => {
+  const lowReview = (
+    at: string,
+    stars: number,
+    setBack: number | null,
+    inboxItemId: string | null,
+  ) => ({ at, stars, setBack, inboxItemId })
+  const withLow = (lowReviews: ReturnType<typeof lowReview>[]) => ({
+    ...DETAIL_HARBORLINE,
+    moved: { ...DETAIL_HARBORLINE.moved, shownChanges: [], lowReviews },
+  })
+
+  it('says what each set the goal back, with the Inbox item that opens it, newest first', () => {
+    const rows = movedRows(
+      withLow([
+        lowReview('2026-10-12T15:00:00.000Z', 1, 1, null),
+        lowReview('2026-10-06T16:20:00.000Z', 2, 5, 'item-2'),
+      ]),
+      context,
+    )
+
+    expect(rows.slice(1, 3)).toEqual([
+      {
+        key: 'low-0',
+        when: 'Oct 12',
+        text: '1★ review',
+        tone: 'warn',
+        detail: 'set you back about 1 new review',
+        inboxItemId: null,
+        linkLabel: 'Open in the inbox: the 1★ review of Oct 12',
+      },
+      {
+        key: 'low-1',
+        when: 'Oct 6',
+        text: '2★ review',
+        tone: 'warn',
+        detail: 'set you back about 5 new reviews',
+        inboxItemId: 'item-2',
+        linkLabel: 'Open in the inbox: the 2★ review of Oct 6',
+      },
+    ])
+  })
+
+  it('names a review without a setback while no count reaches the goal', () => {
+    const rows = movedRows(
+      withLow([lowReview('2026-10-12T15:00:00.000Z', 1, null, 'item-1')]),
+      context,
+    )
+
+    expect(rows[1]).toMatchObject({
+      text: '1★ review',
+      detail: null,
+      inboxItemId: 'item-1',
+    })
+  })
+
+  it('sorts the low reviews among the other events by date', () => {
+    const rows = movedRows(
+      {
+        ...withLow([lowReview('2026-10-06T16:20:00.000Z', 2, 5, 'item-2')]),
+        moved: {
+          ...DETAIL_HARBORLINE.moved,
+          lowReviews: [lowReview('2026-10-06T16:20:00.000Z', 2, 5, 'item-2')],
+        },
+      },
+      context,
+    )
+
+    expect(rows.map((row) => row.key)).toEqual([
+      'week',
+      'google-2026-10-08T07:00:00.000Z',
+      'low-0',
+      'set',
+    ])
+  })
+
+  it('keeps Google’s moves and the plan’s changes when newer low reviews would fill the list', () => {
+    // Ten low reviews, all newer than Google's move on Oct 8: the chart's
+    // markers keep their words, and the low reviews take the slots left.
+    const lowReviews = Array.from({ length: 10 }, (_, index) =>
+      lowReview(new Date(Date.UTC(2026, 9, 9, 8 + index)).toISOString(), 4, 1, null),
+    )
+    const rows = movedRows(
+      { ...DETAIL_HARBORLINE, moved: { ...DETAIL_HARBORLINE.moved, lowReviews } },
+      context,
+    )
+
+    expect(rows).toHaveLength(12)
+    expect(rows.map((row) => row.key)).toContain('google-2026-10-08T07:00:00.000Z')
+    expect(rows.filter((row) => row.key.startsWith('low-'))).toHaveLength(9)
+    expect(rows.at(-2)?.key).toBe('google-2026-10-08T07:00:00.000Z')
+    expect(rows[1]?.key).toBe('low-9')
   })
 })

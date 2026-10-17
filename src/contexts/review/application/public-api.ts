@@ -110,6 +110,7 @@ export type { ReviewServingStats } from './ports/serving-stats.port'
 export type {
   GoogleRatingDayCount,
   GoogleRatingHistory,
+  GoogleRatingLowReview,
   GoogleRatingMonthTotals,
   GoogleRatingStarCount,
   GoogleRatingSummary,

@@ -2,7 +2,8 @@
 // headline with when the goal arrives, "The climb, step by step" (the exact
 // average, the plan's cone and the likely band, in a lazy chart), "Your plan,
 // so far" and "What moved you"; and its actions, which only a manager allowed
-// to change or end a goal sees. The Storybook Vitest project compiles no
+// to change or end a goal sees; the low reviews since the set, each linked to
+// the Inbox item that opens it (D-2b). The Storybook Vitest project compiles no
 // Tailwind, so the plays assert words, roles and what the actions do, not
 // pixels.
 import type { Meta, StoryObj } from '@storybook/react-vite'
@@ -27,6 +28,13 @@ import {
   DETAIL_FOUND_REACHED,
   DETAIL_WENT_BACK,
 } from './rating-goal-detail-outcomes.stories.fixtures'
+import {
+  DETAIL_LOW_REVIEWS,
+  DETAIL_LOW_REVIEWS_WITHOUT_INBOX,
+  DETAIL_SETBACK_NULL,
+  LOW_REVIEW_ITEM_ONE,
+  LOW_REVIEW_ITEM_TWO,
+} from './rating-goal-low-reviews.stories.fixtures'
 import { withRatingGoalRefusals } from './rating-goal-refusal'
 import {
   DETAIL,
@@ -61,6 +69,7 @@ const meta: Meta<typeof RatingGoalDetail> = {
     ),
   ],
   args: {
+    propertyId: FIXTURE_PROPERTY_ID,
     detail: DETAIL_HARBORLINE,
     readAt: NOW,
     timezone: FIXTURE_TIMEZONE,
@@ -151,7 +160,7 @@ export const Monitoring: Story = {
     await expect(plan.getByText('After 4.1: 4.2 is about 80 more')).toBeVisible()
 
     await expect(movedRows(canvasElement)).toEqual([
-      'This week2 new reviews',
+      'This week2 new reviews, both 5★',
       'Oct 8Google started showing 4.0',
       'Sep 24Ana Petrova set the goal: 4.1 at 1 a day',
     ])
@@ -160,6 +169,82 @@ export const Monitoring: Story = {
         'Google numbers checked 12 minutes ago · Owners and managers only',
       ),
     ).toBeVisible()
+  },
+}
+
+/** The links "What moved you" offers to the Inbox, by name. */
+const inboxLinks = (canvasElement: HTMLElement) =>
+  within(canvasElement).queryAllByRole('link', { name: /^Open in the inbox: /u })
+
+/** Two low reviews since the set: what each set the goal back, opened in the Inbox. */
+export const LowReviews: Story = {
+  args: { detail: DETAIL_LOW_REVIEWS },
+  play: async ({ canvasElement }) => {
+    await expect(movedRows(canvasElement)).toEqual([
+      'This week2 new reviews, both 5★',
+      'Oct 121★ review · set you back about 8 new reviewsOpen in the inbox',
+      'Oct 8Google started showing 4.0',
+      'Oct 62★ review · set you back about 5 new reviewsOpen in the inbox',
+      'Sep 24Ana Petrova set the goal: 4.1 at 1 a day',
+    ])
+    const [first, second] = inboxLinks(canvasElement)
+    await expect(first).toHaveAccessibleName('Open in the inbox: the 1★ review of Oct 12')
+    await expect(first).toHaveAttribute(
+      'href',
+      `/properties/${FIXTURE_PROPERTY_ID}/reviews?itemId=${LOW_REVIEW_ITEM_ONE}`,
+    )
+    await expect(second).toHaveAttribute(
+      'href',
+      `/properties/${FIXTURE_PROPERTY_ID}/reviews?itemId=${LOW_REVIEW_ITEM_TWO}`,
+    )
+    for (const link of inboxLinks(canvasElement)) {
+      // The Inbox item opens the review; no review id ever reaches the page.
+      await expect(link.getAttribute('href')).not.toContain('reviewId=')
+      // Label in name (WCAG 2.5.3): saying the visible words finds the link.
+      await expect(link.textContent).toBe('Open in the inbox')
+      await expect(link.getAttribute('aria-label')).toContain(link.textContent)
+    }
+  },
+}
+
+export const LowReviewsLight: Story = {
+  ...LowReviews,
+  parameters: { theme: 'light' },
+}
+
+/** On a phone the link's touch target grows without moving its words off the date's line. */
+export const LowReviewsPhone: Story = {
+  ...LowReviews,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+}
+
+/** A viewer the policy refuses the Inbox: the rows say the same, with no link. */
+export const LowReviewWithoutInbox: Story = {
+  args: { detail: DETAIL_LOW_REVIEWS_WITHOUT_INBOX },
+  play: async ({ canvasElement }) => {
+    await expect(movedRows(canvasElement)).toContain(
+      'Oct 121★ review · set you back about 8 new reviews',
+    )
+    await expect(inboxLinks(canvasElement)).toEqual([])
+  },
+}
+
+/** No low review since the set: no row and no link to the Inbox. */
+export const NoLowReviews: Story = {
+  play: async ({ canvasElement }) => {
+    await expect(movedRows(canvasElement).some((row) => row.includes('★ review'))).toBe(
+      false,
+    )
+    await expect(inboxLinks(canvasElement)).toEqual([])
+  },
+}
+
+/** New reviews too low to reach 4.1: the review is named without a setback. */
+export const SetbackNull: Story = {
+  args: { detail: DETAIL_SETBACK_NULL },
+  play: async ({ canvasElement }) => {
+    await expect(movedRows(canvasElement)).toContain('Oct 121★ reviewOpen in the inbox')
+    await expect(inboxLinks(canvasElement)).toHaveLength(1)
   },
 }
 
@@ -178,7 +263,7 @@ export const WentBack: Story = {
     // Under today's words on the chart, so named in the list only.
     await expect(within(chart).queryByText('Back to 3.9')).toBeNull()
     await expect(movedRows(canvasElement)).toEqual([
-      'This week2 new reviews',
+      'This week2 new reviews, both 5★',
       'Oct 5Google went back to 3.9',
       'Sep 30Google started showing 4.0',
       'Sep 24Ana Petrova set the goal: 4.1 at 1 a day',
@@ -197,7 +282,7 @@ export const PlanChanged: Story = {
   play: async ({ canvasElement }) => {
     await expect(await findChart(canvasElement)).toBeInTheDocument()
     await expect(movedRows(canvasElement)).toEqual([
-      'This week2 new reviews',
+      'This week2 new reviews, both 5★',
       'Oct 8Google started showing 4.0',
       'Oct 1Ana Petrova changed the plan: Pace 5 a week → 1 a day',
       'Sep 24Ana Petrova set the goal: 4.1 at 5 a week',

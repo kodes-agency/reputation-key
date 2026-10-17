@@ -149,6 +149,7 @@ function GoogleRatingGoalRoute() {
         <RatingGoalMissing propertyId={propertyId} />
       ) : (
         <RatingGoalDetail
+          propertyId={propertyId}
           detail={detail}
           readAt={new Date(read.dataUpdatedAt)}
           timezone={timezone}
