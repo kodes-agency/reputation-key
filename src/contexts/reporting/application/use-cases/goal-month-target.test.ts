@@ -136,6 +136,7 @@ function monthTargetChanged(
     note: input.note,
     createdBy: input.actorId,
     createdAt: input.at,
+    ...(input.targetSource ? { targetSource: input.targetSource } : {}),
   }))
   return {
     ...afterRevision,
@@ -656,6 +657,41 @@ describe('changeMonthTarget', () => {
       expect(stored().results.map((result) => result.programVersionId)).toEqual([
         goal.version.id,
         goal.version.id,
+      ])
+    })
+
+    it('stores where the new target came from with the change and on the version for the months after', async () => {
+      const { createGoal, change, stored, setNow } = setup()
+      await createGoal([LOBBY, POOL])
+      setNow(MARCH_20)
+
+      await change({ applyToFollowing: true, targetSource: 'recommended' })
+
+      expect(stored().targetChanges?.map((logged) => logged.targetSource)).toEqual([
+        'recommended',
+        'recommended',
+      ])
+      expect(stored().version).toMatchObject({
+        version: 2,
+        targetValue: 20,
+        targetSource: 'recommended',
+      })
+    })
+
+    it('stores the source on the version when only the months after take the target, and none on a change not told', async () => {
+      const { createGoal, change, stored } = setup()
+      await createGoal()
+      await change()
+
+      await change({ expectedTarget: 20, applyToFollowing: true, targetSource: 'own' })
+
+      expect(stored().version).toMatchObject({
+        version: 2,
+        targetValue: 20,
+        targetSource: 'own',
+      })
+      expect(stored().targetChanges?.map((logged) => logged.targetSource)).toEqual([
+        undefined,
       ])
     })
 

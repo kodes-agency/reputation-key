@@ -475,6 +475,7 @@ describe.sequential('Goal Organization Export contributor', () => {
         note: 'Terrace closed for two weeks',
         created_by: 'user-goal-export',
         created_at: '2026-06-20T10:00:00.000000Z',
+        target_source: null,
       },
     ])
     expect(changes.map(({ id }) => id)).not.toContain(other.targetChangeId)
@@ -482,6 +483,103 @@ describe.sequential('Goal Organization Export contributor', () => {
       contribution.entries.find((entry) => entry.path === 'goal/results.csv')!.bytes,
     )
     expect(csv).toContain(`goal_month_target_change,${fixture.targetChangeId},`)
+  })
+
+  it('exports the Monthly portal goal facts of migration 0062 and the Not-now deferrals', async () => {
+    const fixture = await seedFixture()
+    const other = await seedFixture()
+    const endedAt = '2026-08-03T10:00:00.000000Z'
+    await lease.pool.query(
+      `UPDATE goal_programs
+       SET status = 'ended', check_in_answered_month = '2026-08',
+           ended_at = $2::timestamptz, ended_by = 'user-goal-stopper'
+       WHERE id = $1`,
+      [fixture.ratingCountProgram.programId, endedAt],
+    )
+    await lease.pool.query(
+      `UPDATE goal_program_versions SET target_source = 'recommended' WHERE id = $1`,
+      [fixture.ratingCountProgram.versionId],
+    )
+    await lease.pool.query(
+      `UPDATE goal_month_target_changes SET target_source = 'own' WHERE id = $1`,
+      [fixture.targetChangeId],
+    )
+    for (const [organizationId, propertyId] of [
+      [fixture.organizationId, fixture.propertyId],
+      [other.organizationId, other.propertyId],
+    ]) {
+      await lease.pool.query(
+        `INSERT INTO portal_goal_prompt_deferrals
+           (organization_id, property_id, month, deferred_by, deferred_at)
+         VALUES ($1, $2, '2026-09', 'user-goal-export',
+                 TIMESTAMPTZ '2026-08-30T09:00:00Z')`,
+        [organizationId, propertyId],
+      )
+    }
+
+    const contribution = await createGoalOrganizationExportAdapter(db).contribute({
+      organizationId: fixture.organizationId,
+      requestId: randomUUID(),
+      asOf: new Date(Date.now() - 1000),
+    })
+
+    expect(contribution.entries.map(({ path }) => path)).toEqual([
+      'goal/portal-goal-not-now.csv',
+      'goal/portal-goal-not-now.json',
+      'goal/programs.csv',
+      'goal/programs.json',
+      'goal/results.csv',
+      'goal/results.json',
+      'goal/subject-assignments.csv',
+      'goal/subject-assignments.json',
+    ])
+    expect(
+      records(
+        contribution.entries,
+        'goal/portal-goal-not-now.json',
+        'portal_goal_not_now',
+      ),
+    ).toEqual([
+      {
+        property_id: fixture.propertyId,
+        month: '2026-09',
+        deferred_by: 'user-goal-export',
+        deferred_at: '2026-08-30T09:00:00.000000Z',
+      },
+    ])
+    const programs = records(contribution.entries, 'goal/programs.json', 'goal_program')
+    expect(
+      programs.find((program) => program.id === fixture.ratingCountProgram.programId),
+    ).toMatchObject({
+      status: 'ended',
+      check_in_answered_month: '2026-08',
+      ended_at: endedAt,
+      ended_by: 'user-goal-stopper',
+    })
+    expect(
+      programs.find((program) => program.id === fixture.scanProgram.programId),
+    ).toMatchObject({ check_in_answered_month: null, ended_at: null, ended_by: null })
+    const versions = records(
+      contribution.entries,
+      'goal/programs.json',
+      'goal_program_version',
+    )
+    expect(
+      versions
+        .map(({ id, target_source }) => ({ id, target_source }))
+        .sort((a, b) => String(a.id).localeCompare(String(b.id))),
+    ).toEqual(
+      [
+        { id: fixture.scanProgram.versionId, target_source: null },
+        { id: fixture.ratingCountProgram.versionId, target_source: 'recommended' },
+        { id: fixture.ratingAverageProgram.versionId, target_source: null },
+      ].sort((a, b) => a.id.localeCompare(b.id)),
+    )
+    expect(
+      records(contribution.entries, 'goal/results.json', 'goal_month_target_change'),
+    ).toEqual([
+      expect.objectContaining({ id: fixture.targetChangeId, target_source: 'own' }),
+    ])
   })
 
   it('answers no_data for an Organization that configured no goal', async () => {

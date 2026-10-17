@@ -165,6 +165,25 @@ describe('goal organization lifecycle phases', () => {
     ])
   })
 
+  it('deletes Not-now deferrals with the Organization', async () => {
+    const { tx, statements } = createFakeTx({ tenantRows: 1 })
+
+    await GOAL_ORGANIZATION_LIFECYCLE_PHASES.purge(tx, REQUEST)
+
+    // A Monthly portal goal's "Not now" names only its Property, so it goes
+    // with the Goal Program family it belongs to.
+    expect(GOAL_PURGE_TABLES).toContain('portal_goal_prompt_deferrals')
+    const deletes = statements.filter((statement) =>
+      statement.text.includes('DELETE FROM portal_goal_prompt_deferrals'),
+    )
+    expect(deletes).toEqual([
+      {
+        text: 'DELETE FROM portal_goal_prompt_deferrals WHERE organization_id = ?',
+        params: [ORGANIZATION_ID],
+      },
+    ])
+  })
+
   it('counts every table of the purge plan as tenant rows', async () => {
     const { tx, statements } = createFakeTx({ tenantRows: 0 })
 
