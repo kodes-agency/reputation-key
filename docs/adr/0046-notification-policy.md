@@ -1274,9 +1274,11 @@ monthly goal wants the numbers.
    named `rating`, no average is stated (an average goal's notice states no
    figure), and the Google and review boundary is untouched.
 3. **The marker rule is unchanged.** `goalMarker` still says, in the same two
-   sentences, that the goal was set or its target changed during the month. It
-   follows the figures in the body; the in-app row's line under the title
-   states the figures and leaves the marker to the body.
+   sentences, that the goal was set or its target changed during the month
+   ("today's marker sentence stays", P-8). It follows the figures in the body
+   and, as before, in the in-app row's line under the title: "met" against a
+   goal set on the 20th would overstate it. Only the fallback "Open the goal
+   to see the numbers." stays out of the row.
 4. **The copy (P-8).** Met: "Seaview Hotel met its November portal goal" /
    "Your portals brought in 41 private ratings. The goal was 40." For a goal on
    one Portal or Portal Group: "Reception met its November portal goal" /
@@ -1290,7 +1292,9 @@ monthly goal wants the numbers.
    "November portal goal met", "Portal goal result updated". The action is
    "See the goal" for both. Email's facts line names only the Property, so a
    goal's daily digest line, under that Property's heading, shows the body.
-   The copy lives in `domain/notification-templates-portal-goal.ts`.
+   The bell row's facts line names the Property too, for a goal on one Portal
+   or Portal Group as well, whose title names only the Portal. The copy lives
+   in `domain/notification-templates-portal-goal.ts`.
 5. **Recipients.** Every Portal-goal notice, whatever its subject, goes to the
    responsible managers of the Property the goal sits in, with AccountAdmins
    as the fallback: a goal on one Portal is still the Property's news, not

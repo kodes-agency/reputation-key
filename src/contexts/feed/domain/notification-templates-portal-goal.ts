@@ -113,8 +113,10 @@ const noticeCopy = (
 ): PortalGoalNoticeCopy => ({
   title,
   body: sentence(statement, markerClause(p), statement === '' ? OPEN_FOR_NUMBERS : ''),
-  // The row under the title states the figures; the marker stays in the body.
-  detail: statement,
+  // The row under the title states the figures and keeps the marker after
+  // them (P-8); only the fallback that sends the reader to the goal is left
+  // to the body.
+  detail: sentence(statement, markerClause(p)),
   actionLabel: SEE_THE_GOAL,
   // Email's facts line names the Property; a digest drops it under the
   // Property's heading and shows the body instead.

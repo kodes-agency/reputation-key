@@ -1335,22 +1335,38 @@ describe('renderNotification — portal goal notices', () => {
       expect(met.body).toBe(
         `Your portals brought in 41 private ratings. The goal was 40. ${clause}`,
       )
-      // The row under the title states the figures; the body adds the marker.
-      expect(met.detail).toBe(
-        'Your portals brought in 41 private ratings. The goal was 40.',
-      )
+      // The marker sentence stays (P-8), in the row under the title too:
+      // "met" against a goal set on the 20th would overstate it.
+      expect(met.detail).toBe(met.body)
+      const revised = renderNotification('goal.result_revised', {
+        ...SEAVIEW,
+        goalOutcome: 'not_met',
+        goalCount: 39,
+        goalMarker,
+      })
+      expect(revised.body).toBe(`A correction changed November to 39 of 40. ${clause}`)
+      expect(revised.detail).toBe(revised.body)
+    },
+  )
+
+  it.each([
+    ['set_in_month', 'The goal was set during the month.'],
+    ['target_changed', 'The target was changed during the month.'],
+  ] as const)(
+    'keeps the %s marker in the row when no figure is known',
+    (goalMarker, clause) => {
+      const gap = { goalMarker, goalSubjectKind: 'property' } as const
+      // The body sends the reader to the goal; the row says only the marker.
+      expect(renderNotification('goal.completed', gap)).toMatchObject({
+        body: `${clause} Open the goal to see the numbers.`,
+        detail: clause,
+      })
       expect(
-        renderNotification('goal.result_revised', {
-          ...SEAVIEW,
-          goalOutcome: 'not_met',
-          goalCount: 39,
-          goalMarker,
-        }).body,
-      ).toBe(`A correction changed November to 39 of 40. ${clause}`)
-      expect(
-        renderNotification('goal.completed', { goalMarker, goalSubjectKind: 'property' })
-          .body,
-      ).toBe(`${clause} Open the goal to see the numbers.`)
+        renderNotification('goal.result_revised', { ...gap, goalOutcome: 'met' }),
+      ).toMatchObject({
+        body: `${clause} Open the goal to see the numbers.`,
+        detail: clause,
+      })
     },
   )
 
