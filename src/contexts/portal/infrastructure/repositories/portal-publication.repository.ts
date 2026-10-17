@@ -10,8 +10,11 @@ import {
   lt,
   lte,
   max,
+  notExists,
   or,
+  sql,
 } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { z } from 'zod/v4'
 import type { Database } from '#/shared/db'
 import { portals, portalTokens } from '#/shared/db/schema/portal.schema'
@@ -191,6 +194,9 @@ function activationFromRow(row: ActivationRow): PortalPublicationActivation | nu
 
 /** Versions a chart marks inside one window; far more than anyone publishes in 180 days. */
 const MAX_ACTIVATIONS_BETWEEN = 100
+
+/** The closing reasons that end a live run; `replaced` hands it to the next activation. */
+const RUN_BREAKS = ['disabled', 'archived']
 
 /**
  * A localized row keeps its own copy of the configuration's locale and look
@@ -469,6 +475,53 @@ export const createPortalPublicationRepository = (
           ? [{ version: row.version, kind: row.kind, activatedAt: row.activatedAt }]
           : [],
       )
+    }),
+
+  listActivationsForPortals: (organizationId, portalIds) =>
+    trace('portalPublication.listActivationsForPortals', async () => {
+      if (portalIds.length === 0) return []
+      const activation = portalPublicationActivations
+      const previous = alias(portalPublicationActivations, 'previous_activation')
+      // One range per Portal on portal_sequence_unique. A row is kept when it is
+      // open, ends a run, or starts one (no activation before it handed the run
+      // over). Republishes inside a run are left out: they change no run.
+      const rows = await db
+        .select()
+        .from(activation)
+        .where(
+          and(
+            eq(activation.organizationId, unbrand(organizationId)),
+            inArray(
+              activation.portalId,
+              portalIds.map((id) => unbrand(id)),
+            ),
+            or(
+              isNull(activation.deactivatedAt),
+              inArray(activation.deactivationReason, RUN_BREAKS),
+              notExists(
+                db
+                  .select({ found: sql`1` })
+                  .from(previous)
+                  .where(
+                    and(
+                      eq(previous.organizationId, activation.organizationId),
+                      eq(previous.portalId, activation.portalId),
+                      eq(
+                        previous.activationSequence,
+                        sql`${activation.activationSequence} - 1`,
+                      ),
+                      eq(previous.deactivationReason, 'replaced'),
+                    ),
+                  ),
+              ),
+            ),
+          ),
+        )
+        .orderBy(asc(activation.portalId), asc(activation.activationSequence))
+      return rows.flatMap((row) => {
+        const parsed = activationFromRow(row)
+        return parsed ? [parsed] : []
+      })
     }),
 
   listOpenPendingContentChanges: (organizationId, propertyId, portalId) =>

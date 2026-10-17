@@ -63,6 +63,7 @@ const setup = (
       nextCursor: null,
     }),
     listActivationsBetween: async () => [],
+    listActivationsForPortals: async () => [],
     resolveActiveByTokenDigest: async () => null,
   }
   const deps = {
