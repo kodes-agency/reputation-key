@@ -602,8 +602,10 @@
 // on main 2c9fb2a0e and 307,567 B with goalListSubjectText in goal-live-view.ts,
 // which made a chunk the Goals list and a goal's page share and grew the
 // entry's preload map; beside goalAssignmentSubjectLabel, in a module both
-// already load, it measured 307,539 B: +9 B. vendor-charts 91,003 B (lazy).
-// 161 B spare.
+// already load, it measured 307,539 B: +9 B. After the review fixes (a pinned
+// name order, grouped and singular counts in the results matrix, one subject
+// name on a goal's page) it measured 307,533 B: +3 B. vendor-charts 91,004 B
+// (lazy). 167 B spare.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
