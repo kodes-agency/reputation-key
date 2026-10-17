@@ -188,6 +188,38 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
     ])
   })
 
+  // Goal email is daily only, so the digest line is where a portal goal's
+  // figures reach a reader by email. Under the Property's heading its facts
+  // line is empty, and the line shows the body that states them.
+  it("states a portal goal's figures on its digest line", () => {
+    const goal = [
+      buildDigestItem({
+        propertyId: 'prop-s',
+        type: 'goal.completed',
+        resourceType: 'goal',
+        resourceId: 'result-11',
+        payload: {
+          propertyName: 'Seaview Hotel',
+          goalMonth: '2026-11',
+          goalSubjectKind: 'property',
+          goalOutcome: 'met',
+          goalMeasure: 'portal_rating_count',
+          goalCount: 41,
+          goalTargetCount: 40,
+        },
+      }),
+    ]
+
+    const [line] = groupItemsByProperty(goal, new Map(), url)[0]!.items
+
+    expect(line!.rendered).toMatchObject({
+      title: 'Seaview Hotel met its November portal goal',
+      body: 'Your portals brought in 41 private ratings. The goal was 40.',
+      summary: '',
+      actionLabel: 'See the goal',
+    })
+  })
+
   it('never renders a bare property UUID as a heading', () => {
     const nameless = [
       buildDigestItem({

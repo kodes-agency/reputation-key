@@ -1043,20 +1043,6 @@ describe('notificationLink', () => {
     })
   })
 
-  it('describes a revised Goal result without claiming it was achieved', () => {
-    expect(
-      renderNotification('goal.result_revised', {
-        goalName: 'Monthly guest engagement',
-      }),
-    ).toEqual({
-      title: 'Goal result updated: Monthly guest engagement',
-      body: 'A monthly result changed. Open the goal to see the current metrics.',
-      detail: '',
-      actionLabel: 'View result',
-      summary: 'Monthly guest engagement',
-    })
-  })
-
   // Google refused the grant for good: sync and replies have already stopped,
   // so the notice leads with the one action that restores them. The
   // connection is the Organization's, so its delivery Property is not named.
@@ -1129,147 +1115,39 @@ describe('notificationLink', () => {
   it.each([
     ['a month key that never went through the allowlist', { goalMonth: 'last month' }],
     ['a target time that is not an instant', { targetDueAt: 'tomorrow' }],
+    [
+      "a goal's figures that never went through the allowlist",
+      {
+        goalMonth: '2026-11',
+        goalSubjectKind: 'portal',
+        goalSubjectName: 'Reception',
+        goalMeasure: 'portal_rating_count',
+        goalCount: 'forty',
+        goalTargetCount: -1,
+      },
+    ],
+    [
+      'goal facts outside their enums',
+      {
+        goalSubjectKind: 'team',
+        goalOutcome: 'maybe',
+        goalMarker: 'soon',
+        goalMeasure: 'stars',
+      },
+    ],
   ] as const)('renders rather than throwing on %s', (_case, payload) => {
     // Both facts are formatted, and both render in the bell's own paint: a
     // payload that reached a template unparsed must shorten the copy, never
     // take the feed down with a RangeError.
     for (const type of NOTIFICATION_TYPES) {
-      const rendered = renderNotification(type, payload, { timeZone: 'UTC' })
+      const rendered = renderNotification(type, payload as NotificationPayload, {
+        timeZone: 'UTC',
+      })
       expect(rendered.title).not.toBe('')
       expect(rendered.title).not.toMatch(/undefined|NaN|Invalid/)
       expect(rendered.body).not.toMatch(/undefined|NaN|Invalid/)
     }
   })
-
-  it('names the month, the subject and the direction of a goal result', () => {
-    expect(
-      renderNotification('goal.completed', {
-        goalName: 'Lobby QR scans',
-        propertyName: 'Riverside Hotel',
-        goalMonth: '2026-10',
-        goalSubjectKind: 'portal',
-      }),
-    ).toEqual({
-      title: 'October goal met: Lobby QR scans at Riverside Hotel',
-      body: 'This Portal goal hit its target. Open the goal to see the numbers.',
-      detail: 'This Portal goal hit its target.',
-      actionLabel: 'View progress',
-      summary: 'Riverside Hotel · Lobby QR scans · Portal',
-    })
-  })
-
-  it('the goal-met notice says when a goal was set during its month', () => {
-    const payload = {
-      goalName: 'Lobby QR scans',
-      propertyName: 'Riverside Hotel',
-      goalMonth: '2026-10',
-      goalSubjectKind: 'portal',
-      goalOutcome: 'met',
-    } as const
-
-    expect(
-      renderNotification('goal.completed', { ...payload, goalMarker: 'set_in_month' }),
-    ).toEqual({
-      title: 'October goal met: Lobby QR scans at Riverside Hotel',
-      body: 'This Portal goal hit its target. The goal was set during the month. Open the goal to see the numbers.',
-      // The row under the title carries it too: "met" alone would overstate it.
-      detail: 'This Portal goal hit its target. The goal was set during the month.',
-      actionLabel: 'View progress',
-      summary: 'Riverside Hotel · Lobby QR scans · Portal',
-    })
-    // A goal in place for the whole month says nothing more than before.
-    expect(renderNotification('goal.completed', payload).body).toBe(
-      'This Portal goal hit its target. Open the goal to see the numbers.',
-    )
-  })
-
-  it('keeps the marker when the subject of the goal did not resolve', () => {
-    expect(
-      renderNotification('goal.completed', { goalMarker: 'set_in_month' }),
-    ).toMatchObject({
-      body: 'This goal hit its target. The goal was set during the month. Open the goal to see the numbers.',
-      detail: 'The goal was set during the month.',
-    })
-  })
-
-  it.each([
-    ['met', 'This Portal goal now meets its target.'],
-    ['not_met', 'This Portal goal no longer meets its target.'],
-    ['unavailable', 'This Portal goal has no usable result for the month.'],
-  ] as const)(
-    'a corrected result (%s) says when the goal was set during its month',
-    (goalOutcome, outcomeSentence) => {
-      const rendered = renderNotification('goal.result_revised', {
-        goalName: 'Lobby QR scans',
-        goalMonth: '2026-10',
-        goalSubjectKind: 'portal',
-        goalOutcome,
-        goalMarker: 'set_in_month',
-      })
-
-      expect(rendered.body).toBe(
-        `${outcomeSentence} The goal was set during the month. Open the goal to see the current metrics.`,
-      )
-      expect(rendered.detail).toBe(
-        `${outcomeSentence} The goal was set during the month.`,
-      )
-    },
-  )
-
-  it('says a changed target in its own words, apart from a late start', () => {
-    expect(
-      renderNotification('goal.completed', {
-        goalSubjectKind: 'portal',
-        goalMarker: 'target_changed',
-      }).body,
-    ).toBe(
-      'This Portal goal hit its target. The target was changed during the month. Open the goal to see the numbers.',
-    )
-  })
-
-  it.each([
-    ['not_met', 'October goal no longer met: Lobby QR scans'],
-    ['met', 'October goal met: Lobby QR scans'],
-    ['unavailable', 'October goal result unavailable: Lobby QR scans'],
-  ] as const)('says which way a corrected result went (%s)', (goalOutcome, title) => {
-    expect(
-      renderNotification('goal.result_revised', {
-        goalName: 'Lobby QR scans',
-        goalMonth: '2026-10',
-        goalOutcome,
-      }).title,
-    ).toBe(title)
-  })
-
-  it('tells a Portal Group goal apart from a Portal one', () => {
-    expect(
-      renderNotification('goal.result_revised', {
-        goalName: 'Lobby QR scans',
-        goalSubjectKind: 'portal_group',
-        goalOutcome: 'not_met',
-      }).body,
-    ).toBe(
-      'This Portal Group goal no longer meets its target. Open the goal to see the current metrics.',
-    )
-  })
-
-  it('goal.completed sends the reader to the goal', () => {
-    expect(renderNotification('goal.completed', {}).body).toBe(
-      'This goal hit its target. Open the goal to see the numbers.',
-    )
-  })
-
-  it.each(['goal.completed', 'goal.result_revised'] as const)(
-    '%s says which Property the goal belongs to in its title',
-    (type) => {
-      const title = renderNotification(type, {
-        goalName: 'Reply within 24h',
-        propertyName: 'Riverside Hotel',
-      }).title
-
-      expect(title).toMatch(/: Reply within 24h at Riverside Hotel$/)
-    },
-  )
 
   it('covers every resource type', () => {
     const types: ReadonlyArray<Parameters<typeof notificationLink>[0]> = [
@@ -1282,6 +1160,255 @@ describe('notificationLink', () => {
     ]
     for (const t of types) {
       expect(notificationLink(t, 'r', 'p').path).toMatch(/^\//)
+    }
+  })
+})
+
+// The two portal goal notices, as approved under P-8 (PROPOSAL §4.5; ADR
+// 0046, amended 2026-10-17): whose goal, which month, and for a count the
+// month's figure against its target. The Seaview fixtures are the deck's.
+describe('renderNotification — portal goal notices', () => {
+  const SEAVIEW: NotificationPayload = {
+    propertyName: 'Seaview Hotel',
+    goalName: 'Monthly portal goal',
+    goalMonth: '2026-11',
+    goalSubjectKind: 'property',
+    goalMeasure: 'portal_rating_count',
+    goalCount: 41,
+    goalTargetCount: 40,
+  }
+  const RECEPTION: NotificationPayload = {
+    ...SEAVIEW,
+    goalSubjectKind: 'portal',
+    goalSubjectName: 'Reception',
+    goalCount: 22,
+    goalTargetCount: 20,
+  }
+
+  it('a met property goal names the property and its count', () => {
+    expect(renderNotification('goal.completed', SEAVIEW)).toEqual({
+      title: 'Seaview Hotel met its November portal goal',
+      body: 'Your portals brought in 41 private ratings. The goal was 40.',
+      detail: 'Your portals brought in 41 private ratings. The goal was 40.',
+      actionLabel: 'See the goal',
+      summary: 'Seaview Hotel',
+    })
+  })
+
+  it.each([
+    ['portal', 'Reception'],
+    ['portal_group', 'Front desk'],
+  ] as const)('a met portal goal names the portal (%s)', (goalSubjectKind, name) => {
+    expect(
+      renderNotification('goal.completed', {
+        ...RECEPTION,
+        goalSubjectKind,
+        goalSubjectName: name,
+      }),
+    ).toMatchObject({
+      title: `${name} met its November portal goal`,
+      body: `${name} brought in 22 private ratings. The goal was 20.`,
+      actionLabel: 'See the goal',
+      // Email's facts line still says which Property the portal is at.
+      summary: 'Seaview Hotel',
+    })
+  })
+
+  it.each([
+    [
+      'not_met',
+      39,
+      'Seaview Hotel\u2019s November portal goal: no longer met',
+      'A correction changed November to 39 of 40.',
+    ],
+    [
+      'met',
+      41,
+      'Seaview Hotel\u2019s November portal goal: now met',
+      'A correction changed November to 41 of 40.',
+    ],
+    [
+      'unavailable',
+      undefined,
+      'Seaview Hotel\u2019s November portal goal: result unavailable',
+      'A correction left November with no usable result.',
+    ],
+  ] as const)(
+    'a correction says what the month changed to (%s)',
+    (goalOutcome, goalCount, title, body) => {
+      expect(
+        renderNotification('goal.result_revised', { ...SEAVIEW, goalOutcome, goalCount }),
+      ).toEqual({
+        title,
+        body,
+        detail: body,
+        actionLabel: 'See the goal',
+        summary: 'Seaview Hotel',
+      })
+    },
+  )
+
+  it("a correction to a portal's goal names the portal", () => {
+    expect(
+      renderNotification('goal.result_revised', {
+        ...RECEPTION,
+        goalOutcome: 'not_met',
+        goalCount: 19,
+      }),
+    ).toMatchObject({
+      title: 'Reception\u2019s November portal goal: no longer met',
+      body: 'A correction changed November to 19 of 20.',
+    })
+  })
+
+  it('scans say scans', () => {
+    const scans = { ...SEAVIEW, goalMeasure: 'qualified_scans' as const }
+    expect(
+      renderNotification('goal.completed', {
+        ...scans,
+        goalCount: 412,
+        goalTargetCount: 400,
+      }).body,
+    ).toBe('Your portals brought in 412 scans. The goal was 400.')
+    expect(
+      renderNotification('goal.completed', { ...scans, goalCount: 1, goalTargetCount: 1 })
+        .body,
+    ).toBe('Your portals brought in 1 scan. The goal was 1.')
+  })
+
+  it('one private rating is singular', () => {
+    expect(
+      renderNotification('goal.completed', {
+        ...RECEPTION,
+        goalCount: 1,
+        goalTargetCount: 1,
+      }).body,
+    ).toBe('Reception brought in 1 private rating. The goal was 1.')
+    expect(
+      renderNotification('goal.result_revised', {
+        ...SEAVIEW,
+        goalOutcome: 'not_met',
+        goalCount: 0,
+      }).body,
+    ).toBe('A correction changed November to 0 of 40.')
+  })
+
+  it.each([
+    ['an average', { goalMeasure: 'portal_rating_average' } as const],
+    ['no measure', { goalMeasure: undefined }],
+    ['no count', { goalCount: undefined }],
+    ['no target', { goalTargetCount: undefined }],
+  ])('an average or missing figures fall back to see the numbers (%s)', (_case, gap) => {
+    const payload = { ...SEAVIEW, ...gap }
+    // Same title; the body sends the reader to the goal, and the row under
+    // the title has nothing to add.
+    expect(renderNotification('goal.completed', payload)).toMatchObject({
+      title: 'Seaview Hotel met its November portal goal',
+      body: 'Open the goal to see the numbers.',
+      detail: '',
+    })
+    expect(
+      renderNotification('goal.result_revised', { ...payload, goalOutcome: 'met' }),
+    ).toMatchObject({
+      title: 'Seaview Hotel\u2019s November portal goal: now met',
+      body: 'Open the goal to see the numbers.',
+      detail: '',
+    })
+  })
+
+  it('a portal goal whose portal has no name falls back to the goal', () => {
+    expect(
+      renderNotification('goal.completed', { ...RECEPTION, goalSubjectName: undefined }),
+    ).toMatchObject({
+      title: 'November portal goal met',
+      body: 'Open the goal to see the numbers.',
+    })
+  })
+
+  it.each([
+    ['set_in_month', 'The goal was set during the month.'],
+    ['target_changed', 'The target was changed during the month.'],
+  ] as const)(
+    'appends the %s marker unchanged, after the figures',
+    (goalMarker, clause) => {
+      const met = renderNotification('goal.completed', { ...SEAVIEW, goalMarker })
+      expect(met.body).toBe(
+        `Your portals brought in 41 private ratings. The goal was 40. ${clause}`,
+      )
+      // The row under the title states the figures; the body adds the marker.
+      expect(met.detail).toBe(
+        'Your portals brought in 41 private ratings. The goal was 40.',
+      )
+      expect(
+        renderNotification('goal.result_revised', {
+          ...SEAVIEW,
+          goalOutcome: 'not_met',
+          goalCount: 39,
+          goalMarker,
+        }).body,
+      ).toBe(`A correction changed November to 39 of 40. ${clause}`)
+      expect(
+        renderNotification('goal.completed', { goalMarker, goalSubjectKind: 'property' })
+          .body,
+      ).toBe(`${clause} Open the goal to see the numbers.`)
+    },
+  )
+
+  it.each([
+    ['no subject name or month', {}, 'Portal goal met', 'Portal goal result updated'],
+    [
+      'a name but no month',
+      { propertyName: 'Seaview Hotel', goalSubjectKind: 'property' },
+      'Seaview Hotel met its portal goal',
+      'Seaview Hotel\u2019s portal goal: no longer met',
+    ],
+    [
+      'a month but no name',
+      { goalMonth: '2026-11', goalSubjectKind: 'property' },
+      'November portal goal met',
+      'November portal goal: no longer met',
+    ],
+  ] as const)('titles with %s', (_case, payload, completed, revised) => {
+    expect(renderNotification('goal.completed', payload).title).toBe(completed)
+    expect(
+      renderNotification('goal.result_revised', { ...payload, goalOutcome: 'not_met' })
+        .title,
+    ).toBe(revised)
+  })
+
+  it('a correction that does not say which way it went is an update', () => {
+    expect(renderNotification('goal.result_revised', SEAVIEW)).toEqual({
+      title: 'Portal goal result updated',
+      body: 'Open the goal to see the numbers.',
+      detail: '',
+      actionLabel: 'See the goal',
+      summary: 'Seaview Hotel',
+    })
+  })
+
+  // The in-app row names the Property in its facts line and shows the title
+  // without it. A Property goal's title then still says which month.
+  it("the row's title without the Property keeps the month", () => {
+    const withoutProperty = { ...SEAVIEW, propertyName: undefined }
+    expect(renderNotification('goal.completed', withoutProperty).title).toBe(
+      'November portal goal met',
+    )
+    expect(
+      renderNotification('goal.result_revised', {
+        ...withoutProperty,
+        goalOutcome: 'not_met',
+      }).title,
+    ).toBe('November portal goal: no longer met')
+  })
+
+  it('never calls a portal goal a Google rating goal or a review', () => {
+    for (const type of ['goal.completed', 'goal.result_revised'] as const) {
+      for (const goalOutcome of ['met', 'not_met', 'unavailable'] as const) {
+        const r = renderNotification(type, { ...SEAVIEW, goalOutcome })
+        expect([r.title, r.body, r.summary].join(' ')).not.toMatch(
+          /google|review|rating goal/i,
+        )
+      }
     }
   })
 })
