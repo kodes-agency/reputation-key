@@ -5,6 +5,8 @@
 // The title leaves the Property out. The facts line names it, and only where
 // the notice's own copy would have: a Google reconnect notice is filed under
 // a Property as its delivery anchor, and its copy deliberately never names it.
+// A notice whose title cannot name it, a goal on one Portal, names it in its
+// facts summary alone; the row then says it in the name a screen reader hears.
 
 import {
   isActionableNotificationType,
@@ -70,13 +72,18 @@ export function notificationRowView(
   const payload = notification.payload
   const context = { timeZone: options.timeZone }
   const full = renderNotification(notification.type, payload, context)
-  const title = renderNotification(
+  const stripped = renderNotification(
     notification.type,
     { ...payload, propertyName: undefined },
     context,
-  ).title
+  )
+  const title = stripped.title
   const tone = toneOf(notification)
-  const namesProperty = full.title !== title
+  // A goal on one Portal is named after the Portal, so its title never names
+  // the Property; its facts summary is the Property alone, and still does.
+  const namesPropertyOnlyInFacts =
+    full.title === title && stripped.summary === '' && full.summary !== ''
+  const namesProperty = full.title !== title || namesPropertyOnlyInFacts
   const property =
     options.showProperty && namesProperty ? (payload.propertyName ?? null) : null
   const targetPassed =
@@ -87,6 +94,7 @@ export function notificationRowView(
 
   const accessibleName = [
     full.title,
+    namesPropertyOnlyInFacts ? (property ?? '') : '',
     tone === 'done' ? 'done' : '',
     targetPassed ? 'target passed' : '',
     payload.guestRating === undefined ? '' : `rated ${payload.guestRating} of 5`,

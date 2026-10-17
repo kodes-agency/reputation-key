@@ -227,19 +227,72 @@ const SEAVIEW_GOAL = {
   goalTargetCount: 40,
 } as const
 
-export const PortalGoalMet: Story = rowSays({
-  notification: {
-    id: '20000000-0000-4000-8000-000000000034',
-    type: 'goal.completed',
-    resourceType: 'goal',
-    payload: { ...SEAVIEW_GOAL, goalOutcome: 'met' },
-  },
-  title: 'November portal goal met',
-  facts: ['Seaview Hotel'],
-  detail: 'Your portals brought in 41 private ratings. The goal was 40.',
-  name: /^Seaview Hotel met its November portal goal, \d+ minutes? ago, unread$/,
-  neverSays: /hit its target|This Portal goal/,
-})
+export const PortalGoalMet: Story = {
+  ...rowSays({
+    notification: {
+      id: '20000000-0000-4000-8000-000000000034',
+      type: 'goal.completed',
+      resourceType: 'goal',
+      payload: { ...SEAVIEW_GOAL, goalOutcome: 'met' },
+    },
+    title: 'November portal goal met',
+    facts: ['Seaview Hotel'],
+    detail: 'Your portals brought in 41 private ratings. The goal was 40.',
+    name: /^Seaview Hotel met its November portal goal, \d+ minutes? ago, unread$/,
+    neverSays: /hit its target|This Portal goal/,
+  }),
+  parameters: { theme: 'light' },
+}
+
+/**
+ * A goal set on the 20th that was met says so (deck N-6): "met" alone would
+ * overstate it, so the marker sentence stays after the figures in the row too.
+ */
+export const PortalGoalSetDuringTheMonth: Story = {
+  ...rowSays({
+    notification: {
+      id: '20000000-0000-4000-8000-0000000000c6',
+      type: 'goal.completed',
+      resourceType: 'goal',
+      payload: { ...SEAVIEW_GOAL, goalOutcome: 'met', goalMarker: 'set_in_month' },
+    },
+    title: 'November portal goal met',
+    facts: ['Seaview Hotel'],
+    detail:
+      'Your portals brought in 41 private ratings. The goal was 40. The goal was set during the month.',
+    name: /^Seaview Hotel met its November portal goal, \d+ minutes? ago, unread$/,
+  }),
+  parameters: { viewport: { defaultViewport: 'desktopManager' } },
+}
+
+/**
+ * A goal on one Portal is named after the Portal (deck N-2), so its title never
+ * says which Property. The facts line still does, and so does the name a
+ * screen reader hears: an account with a "Reception" at every Property can
+ * tell them apart.
+ */
+export const PortalGoalOnOnePortalNamesItsProperty: Story = {
+  ...rowSays({
+    notification: {
+      id: '20000000-0000-4000-8000-0000000000c7',
+      type: 'goal.completed',
+      resourceType: 'goal',
+      payload: {
+        ...SEAVIEW_GOAL,
+        goalSubjectKind: 'portal',
+        goalSubjectName: 'Reception',
+        goalCount: 22,
+        goalTargetCount: 20,
+        goalOutcome: 'met',
+      },
+    },
+    title: 'Reception met its November portal goal',
+    facts: ['Seaview Hotel'],
+    detail: 'Reception brought in 22 private ratings. The goal was 20.',
+    name: /^Reception met its November portal goal, Seaview Hotel, \d+ minutes? ago, unread$/,
+  }),
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+}
 
 /**
  * A correction took a met month back below its target (deck N-3). The row
