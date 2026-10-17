@@ -30,6 +30,13 @@ const IDS = {
   revision: '91000000-0000-4000-8000-000000000007',
 } as const
 const ORG = 'organization-goal-notification'
+/** A Property count goal's month: 41 private ratings against 40. */
+const FIGURES = {
+  metric: 'portal_rating_count',
+  value: 41,
+  target: 40,
+  subjectName: null,
+} as const
 const MANAGER = userId('manager-goal-notification')
 const ADMIN = userId('admin-goal-notification')
 
@@ -100,6 +107,7 @@ const makeDeps = () => {
         subject: { kind: 'property' as const, propertyId: IDS.property },
         setDuringMonth: false,
         targetChangedInMonth: false,
+        ...FIGURES,
       })),
       findMonthlyResultRevisionNotificationFacts: vi.fn(
         async () =>
@@ -117,6 +125,7 @@ const makeDeps = () => {
             subject: { kind: 'property' as const, propertyId: IDS.property },
             setDuringMonth: false,
             targetChangedInMonth: false,
+            ...FIGURES,
           }) as MonthlyResultRevisionNotificationFacts | null,
       ),
     },
@@ -369,6 +378,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       subject: { kind: 'property', propertyId: IDS.property },
       setDuringMonth: false,
       targetChangedInMonth: false,
+      ...FIGURES,
       [key]: value,
     })
 
@@ -510,6 +520,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       subject: { kind: 'property', propertyId: IDS.property },
       setDuringMonth: false,
       targetChangedInMonth: false,
+      ...FIGURES,
     })
 
     await expect(
@@ -555,6 +566,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       subject: { kind: 'property', propertyId: IDS.property },
       setDuringMonth: false,
       targetChangedInMonth: false,
+      ...FIGURES,
     })
 
     await expect(
@@ -598,6 +610,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       subject: { kind: 'property', propertyId: IDS.property },
       setDuringMonth: false,
       targetChangedInMonth: false,
+      ...FIGURES,
     })
     // Like BullMQ, an add under an id the queue still holds is a no-op.
     const held = new Map<string, unknown>()
@@ -656,6 +669,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
       subject: { kind: 'property', propertyId: IDS.property },
       setDuringMonth: false,
       targetChangedInMonth: false,
+      ...FIGURES,
     })
 
     await expect(

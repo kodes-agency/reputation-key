@@ -1,4 +1,4 @@
-import type { GoalSubject } from '../../domain/goal-program'
+import type { GoalMetric, GoalSubject } from '../../domain/goal-program'
 import type { GoalMetricEvaluation } from '../../domain/goal-program'
 
 export type FindMonthlyResultNotificationFactsInput = Readonly<{
@@ -33,6 +33,21 @@ export type MonthlyResultNotificationFacts = Readonly<{
    * at delivery time; no event carries it.
    */
   targetChangedInMonth: boolean
+  /** The measure the month was judged on: its version's. */
+  metric: GoalMetric
+  /**
+   * The month's figure as it stands now: its latest correction's when it has
+   * one, the closed row's otherwise. Null when the month has no usable figure.
+   */
+  value: number | null
+  /** The target the month was judged against: its own, else its version's. */
+  target: number
+  /**
+   * The Portal's or Portal Group's name, for a goal on one of those; null for
+   * a Property goal, whose notice names the Property from Property facts.
+   * Tenant-authored, and read at delivery time; no event carries it.
+   */
+  subjectName: string | null
 }>
 
 export type FindMonthlyResultRevisionNotificationFactsInput = Readonly<{

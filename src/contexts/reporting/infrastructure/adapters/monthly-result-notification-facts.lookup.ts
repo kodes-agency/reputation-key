@@ -8,8 +8,10 @@ import {
   goalResultRevisions,
   goalSubjectAssignments,
 } from '#/shared/db/schema/goal.schema'
+import { portalGroups } from '#/shared/db/schema/portal-group.schema'
+import { portals } from '#/shared/db/schema/portal.schema'
 import type { MonthlyResultNotificationFactsLookup } from '../../application/ports/monthly-result-notification-facts.lookup'
-import { parseGoalSubject } from '../../domain/goal-program'
+import { parseGoalSubject, type GoalMetric } from '../../domain/goal-program'
 
 /** The correction a notice was raised for; the head is joined separately. */
 const requestedRevision = alias(goalResultRevisions, 'requested_revision')
@@ -33,6 +35,39 @@ const targetChangedInMonth =
     'target_changed_in_month',
   )
 
+/**
+ * The target the month was judged against: a target of its own when it was
+ * changed while the month ran, else its version's.
+ */
+const judgedTarget =
+  sql<number>`coalesce(${goalMonthlyResults.targetValue}, ${goalProgramVersions.targetValue})`
+    .mapWith(Number)
+    .as('judged_target')
+
+/**
+ * The name of the Portal or Portal Group a goal is on; null for a Property
+ * goal. A Portal context table read behind this port (ADR 0008 r.2): the name
+ * is tenant-authored, so it is read when the notice is raised, never carried
+ * by an event (ADR 0030).
+ */
+const subjectName = sql<
+  string | null
+>`coalesce(${portals.name}, ${portalGroups.name})`.as('subject_name')
+
+/** The Portal a goal is on, inside the result's own tenant and Property. */
+const subjectPortal = and(
+  eq(portals.organizationId, goalSubjectAssignments.organizationId),
+  eq(portals.propertyId, goalSubjectAssignments.propertyId),
+  eq(portals.id, goalSubjectAssignments.portalId),
+)
+
+/** The Portal Group a goal is on, inside the result's own tenant and Property. */
+const subjectPortalGroup = and(
+  eq(portalGroups.organizationId, goalSubjectAssignments.organizationId),
+  eq(portalGroups.propertyId, goalSubjectAssignments.propertyId),
+  eq(portalGroups.id, goalSubjectAssignments.portalGroupId),
+)
+
 export const createMonthlyResultNotificationFactsLookup = (
   db: Database,
 ): MonthlyResultNotificationFactsLookup => {
@@ -53,10 +88,15 @@ export const createMonthlyResultNotificationFactsLookup = (
               'period_month',
             ),
           closedAchieved: goalMonthlyResults.achieved,
+          closedValue: goalMonthlyResults.value,
           headRevisionId: goalResultRevisions.id,
           headAchieved: goalResultRevisions.achieved,
+          headValue: goalResultRevisions.value,
           setDuringMonth,
           targetChangedInMonth,
+          metric: goalProgramVersions.metricKey,
+          target: judgedTarget,
+          subjectName,
         })
         .from(goalMonthlyResults)
         .leftJoin(
@@ -99,6 +139,8 @@ export const createMonthlyResultNotificationFactsLookup = (
             eq(goalPrograms.id, goalMonthlyResults.programId),
           ),
         )
+        .leftJoin(portals, subjectPortal)
+        .leftJoin(portalGroups, subjectPortalGroup)
         .where(
           and(
             eq(goalMonthlyResults.organizationId, input.organizationId),
@@ -127,6 +169,11 @@ export const createMonthlyResultNotificationFactsLookup = (
         subject,
         setDuringMonth: row.setDuringMonth,
         targetChangedInMonth: row.targetChangedInMonth,
+        // The CHECK on goal_program_versions admits only the three measures.
+        metric: row.metric as GoalMetric,
+        value: row.headRevisionId ? row.headValue : row.closedValue,
+        target: row.target,
+        subjectName: row.subjectName,
       }
     },
 
@@ -146,8 +193,12 @@ export const createMonthlyResultNotificationFactsLookup = (
           revision: goalResultRevisions.revision,
           evaluationState: goalResultRevisions.evaluationState,
           achieved: goalResultRevisions.achieved,
+          value: goalResultRevisions.value,
           setDuringMonth,
           targetChangedInMonth,
+          metric: goalProgramVersions.metricKey,
+          target: judgedTarget,
+          subjectName,
           periodMonth:
             sql<string>`to_char(${goalMonthlyResults.periodStart} AT TIME ZONE ${goalMonthlyResults.propertyTimezone}, 'YYYY-MM')`.as(
               'period_month',
@@ -204,6 +255,8 @@ export const createMonthlyResultNotificationFactsLookup = (
             eq(goalPrograms.id, goalMonthlyResults.programId),
           ),
         )
+        .leftJoin(portals, subjectPortal)
+        .leftJoin(portalGroups, subjectPortalGroup)
         .where(
           and(
             eq(goalMonthlyResults.organizationId, input.organizationId),
@@ -244,6 +297,10 @@ export const createMonthlyResultNotificationFactsLookup = (
         revision: row.revision,
         evaluationState,
         achieved: row.achieved,
+        metric: row.metric as GoalMetric,
+        value: row.value,
+        target: row.target,
+        subjectName: row.subjectName,
       }
     },
   }
