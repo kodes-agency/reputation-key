@@ -354,6 +354,42 @@ const isListed = (
   Readonly<{ publicationState: 'published' | 'disabled' }> =>
   portal.publicationState !== 'draft'
 
+/** Per measure: unreadable when flagged, nothing when R = 0, else ready. */
+function measureState(
+  isUnreadable: boolean,
+  rate: ExactCount,
+): MeasureRecommendation['state'] {
+  if (isUnreadable) return 'unreadable'
+  return rate.num === 0n ? 'nothing' : 'ready'
+}
+
+/** The month so far, what the listed published Portals leave of it, and the basis. */
+function propertyTotals(
+  input: RecommendPortalGoalInput,
+  bases: readonly PortalBasis[],
+  context: Context,
+  unreadable: ReadonlySet<PortalGoalMeasure>,
+) {
+  const { window, monthFirstDay } = context
+  const month = sumWhere(input.days, (row) => row.localDay >= monthFirstDay)
+  const published = bases.filter(({ facts }) => facts.publicationState === 'published')
+  return {
+    month,
+    monthToDate: perMeasure((measure) =>
+      unreadable.has(measure) ? null : month[measure],
+    ),
+    elsewhere: perMeasure(
+      (measure) =>
+        month[measure] -
+        published.reduce((sum, { facts }) => sum + facts.monthToDate[measure], 0),
+    ),
+    windowTotals: sumWhere(
+      input.days,
+      (row) => row.localDay >= window.firstDay && row.localDay <= window.lastDay,
+    ),
+  }
+}
+
 export function recommendPortalGoal(
   input: RecommendPortalGoalInput,
 ): PortalGoalRecommendation {
@@ -373,22 +409,17 @@ export function recommendPortalGoal(
     .map((portal) => portalBasisOf(portal, context))
   const established = bases.filter((basis) => basis.established)
   const unreadable = new Set(input.unreadable.map((entry) => entry.measure))
-  const monthTotals = sumWhere(input.days, (row) => row.localDay >= months.firstDay)
+  const { month, ...totals } = propertyTotals(input, bases, context, unreadable)
   const measures = perMeasure((measure) => {
     const rate = propertyRate(established, measure)
-    const state = unreadable.has(measure)
-      ? 'unreadable'
-      : rate.num === 0n
-        ? 'nothing'
-        : 'ready'
-    return measureRecommendation(state, rate, months, monthTotals[measure])
+    const state = measureState(unreadable.has(measure), rate)
+    return measureRecommendation(state, rate, months, month[measure])
   })
   const state = recommendationState(
     perMeasure((measure) => measures[measure].state),
     bases.some((basis) => basis.live),
     established.length > 0,
   )
-  const published = bases.filter(({ facts }) => facts.publicationState === 'published')
   return {
     asOf: now.toISOString(),
     timezone,
@@ -400,18 +431,7 @@ export function recommendPortalGoal(
     basis: basisOf(established),
     months: { current: months.current, next: months.next },
     measures,
-    monthToDate: perMeasure((measure) =>
-      unreadable.has(measure) ? null : monthTotals[measure],
-    ),
-    elsewhere: perMeasure(
-      (measure) =>
-        monthTotals[measure] -
-        published.reduce((sum, { facts }) => sum + facts.monthToDate[measure], 0),
-    ),
-    windowTotals: sumWhere(
-      input.days,
-      (row) => row.localDay >= window.firstDay && row.localDay <= window.lastDay,
-    ),
+    ...totals,
     portals: bases.map(({ facts }) => facts),
     drafts: input.portals
       .filter((portal) => portal.publicationState === 'draft')
