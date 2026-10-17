@@ -138,6 +138,16 @@ export const endRatingGoalSchema = z.object({
   expectedVersion: z.int().min(1),
 })
 
+/**
+ * Keep the pace for this week: the Monday check-in of `weekStart` (last week's
+ * Monday, as the card read sent it) is answered.
+ */
+export const keepRatingGoalPaceSchema = z.object({
+  propertyId: uuid,
+  goalId: uuid,
+  weekStart: z.iso.date(),
+})
+
 export type SetRatingGoalSchemaInput = z.infer<typeof setRatingGoalSchema>
 export type ChangeRatingGoalSchemaInput = z.infer<typeof changeRatingGoalSchema>
 export type EndRatingGoalSchemaInput = z.infer<typeof endRatingGoalSchema>

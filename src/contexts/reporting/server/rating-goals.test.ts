@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   set: vi.fn(),
   change: vi.fn(),
   end: vi.fn(),
+  keep: vi.fn(),
   defer: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('#/composition', () => ({
         set: mocks.set,
         change: mocks.change,
         end: mocks.end,
+        keep: mocks.keep,
         defer: mocks.defer,
       },
     },
@@ -49,6 +51,7 @@ vi.mock('#/shared/auth/execution-policy', () => ({
 import { ratingGoalError } from '../domain/rating-goal'
 import {
   changeRatingGoalSchema,
+  keepRatingGoalPaceSchema,
   setRatingGoalSchema,
 } from '../application/dto/rating-goal.dto'
 import {
@@ -59,6 +62,7 @@ import {
   getRatingGoalDetail,
   getRatingGoalHistory,
   getRatingGoalSetup,
+  keepRatingGoalPace,
   setRatingGoal,
 } from './rating-goals'
 
@@ -147,6 +151,31 @@ describe('Property Google rating goal server functions', () => {
     expect(mocks.defer).toHaveBeenCalledWith(expect.any(Object), input, manager)
   })
 
+  it('forwards a Keep of the week the check-in looked back on', async () => {
+    // Arrange
+    const input = { propertyId: PROPERTY_ID, goalId: GOAL_ID, weekStart: '2026-10-05' }
+    mocks.keep.mockResolvedValue({ goalId: GOAL_ID, weekStart: '2026-10-05' })
+
+    // Act
+    await withStartContext(() => keepRatingGoalPace({ data: input }))
+
+    // Assert
+    expect(mocks.keep).toHaveBeenCalledWith(expect.any(Object), input, manager)
+  })
+
+  it('takes a Keep’s week only as a date', () => {
+    const input = { propertyId: PROPERTY_ID, goalId: GOAL_ID, weekStart: '2026-10-05' }
+
+    expect(keepRatingGoalPaceSchema.safeParse(input).success).toBe(true)
+    expect(
+      keepRatingGoalPaceSchema.safeParse({ ...input, weekStart: 'last week' }).success,
+    ).toBe(false)
+    expect(
+      keepRatingGoalPaceSchema.safeParse({ ...input, weekStart: '2026-10-05T00:00:00Z' })
+        .success,
+    ).toBe(false)
+  })
+
   it('asks the execution policy for goal.use and the action on the named Property', async () => {
     mocks.set.mockResolvedValue({ goalId: GOAL_ID, version: 1 })
     await withStartContext(() => setRatingGoal({ data: climb }))
@@ -224,6 +253,7 @@ describe('Property Google rating goal server functions', () => {
     ['version_conflict', 409],
     ['not_active', 409],
     ['organization_closing', 409],
+    ['recap_closed', 409],
     ['not_found', 404],
     ['forbidden', 403],
     ['invalid_target', 400],

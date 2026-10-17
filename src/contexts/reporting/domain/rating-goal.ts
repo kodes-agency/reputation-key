@@ -152,6 +152,8 @@ export type RatingGoalErrorCode =
   | 'no_change'
   /** The Organization's closure holds it: no goal is set there. */
   | 'organization_closing'
+  /** The Monday check-in a Keep answers is not the one open now (round 5, Q4). */
+  | 'recap_closed'
 
 export type RatingGoalError = Readonly<{
   _tag: 'RatingGoalError'

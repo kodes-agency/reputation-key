@@ -379,6 +379,26 @@ export const createPropertyRatingGoalRepository = (
       }),
     ),
 
+  // The Monday check-in's Keep: no version and no log row, so another
+  // manager's open form stays valid; never back to an earlier week.
+  markRecapAnswered: (answer) =>
+    trace('reporting.ratingGoal.markRecapAnswered', async () => {
+      const marked = await db
+        .update(propertyRatingGoals)
+        .set({
+          recapAnsweredWeek: sql`GREATEST(${propertyRatingGoals.recapAnsweredWeek}, ${answer.weekStart}::date)`,
+        })
+        .where(
+          and(
+            goalScope(answer.organizationId, answer.propertyId),
+            eq(propertyRatingGoals.id, answer.goalId),
+            eq(propertyRatingGoals.status, 'active'),
+          ),
+        )
+        .returning({ id: propertyRatingGoals.id })
+      return marked.length > 0
+    }),
+
   endByManager: (end) =>
     trace('reporting.ratingGoal.endByManager', () =>
       db.transaction(async (tx) => {

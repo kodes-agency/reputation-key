@@ -13,7 +13,12 @@ import {
   PROPERTY,
   type FakeWorld,
 } from './rating-goal-test-fixtures'
-import { changeRatingGoal, endRatingGoal, setRatingGoal } from './rating-goal-commands'
+import {
+  changeRatingGoal,
+  endRatingGoal,
+  keepRatingGoalPace,
+  setRatingGoal,
+} from './rating-goal-commands'
 import {
   getRatingGoalCard,
   getRatingGoalDetail,
@@ -78,6 +83,17 @@ const USE_CASES: readonly UseCaseRow[] = [
     action: 'goal.update',
     withActiveGoal: true,
     run: (deps) => changeRatingGoal(deps, { ...goalRef, targetTenths: 46 }, actor),
+  },
+  {
+    name: 'keepRatingGoalPace',
+    action: 'goal.update',
+    withActiveGoal: true,
+    run: (deps) =>
+      keepRatingGoalPace(
+        deps,
+        { propertyId: PROPERTY, goalId: activeGoal().id, weekStart: '2026-10-05' },
+        actor,
+      ),
   },
   {
     name: 'endRatingGoal',

@@ -358,6 +358,8 @@ export type RatingGoalHistoryEntry = Readonly<{
 export type RatingGoalSetResult = Readonly<{ goalId: string; version: number }>
 export type RatingGoalChangeResult = Readonly<{ goalId: string; version: number }>
 export type RatingGoalEndResult = Readonly<{ goalId: string; ended: true }>
+/** The pace was kept for this week: the check-in of `weekStart` is answered. */
+export type RatingGoalKeepResult = Readonly<{ goalId: string; weekStart: string }>
 
 /** "Not now" was recorded for the Property's rating goal (or already was). */
 export type RatingGoalNotNowResult = Readonly<{ propertyId: string }>

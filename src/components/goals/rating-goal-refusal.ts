@@ -29,6 +29,7 @@ const SENTENCES: Readonly<Record<string, string>> = {
   no_change: 'Nothing has changed. Pick another plan, or cancel.',
   organization_closing:
     'This organization is being closed, so its goals can’t be set or changed.',
+  recap_closed: 'This week’s check-in has closed. Reload to see the latest.',
 }
 
 /** The code of a rating goal refusal; null for any other failure. */

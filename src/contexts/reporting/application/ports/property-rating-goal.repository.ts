@@ -143,6 +143,15 @@ export type RatingGoalChangeLog = Readonly<{
   firstPerField: readonly RatingGoalChange[]
 }>
 
+/** A manager's Keep in the Monday check-in: the week it answers, by its Monday. */
+export type RatingGoalRecapAnswer = Readonly<{
+  organizationId: string
+  propertyId: string
+  goalId: string
+  /** Last week's Monday, `YYYY-MM-DD`. */
+  weekStart: string
+}>
+
 /** A manager's "Not now" for a Property's rating goal. */
 export type RatingGoalNotNow = Readonly<{
   organizationId: string
@@ -179,6 +188,12 @@ export type PropertyRatingGoalRepository = Readonly<{
   /** `active_exists` when the Property already has an active goal. */
   insert(goal: NewPropertyRatingGoal): Promise<'inserted' | 'active_exists'>
   changePlan(change: RatingGoalPlanChange): Promise<RatingGoalWriteResult>
+  /**
+   * Records that a manager kept the pace for the week (the Monday check-in):
+   * on an active goal, never moving its version or logging a change, never
+   * back to an earlier week. False when the goal is not active.
+   */
+  markRecapAnswered(answer: RatingGoalRecapAnswer): Promise<boolean>
   endByManager(end: RatingGoalManagerEnd): Promise<RatingGoalWriteResult>
   /**
    * Stores an evaluation on an active goal when it differs from the stored one

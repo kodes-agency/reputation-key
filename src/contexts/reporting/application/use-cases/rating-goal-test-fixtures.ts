@@ -234,6 +234,19 @@ function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
       world.changes = [...world.changes, ...change.changes]
       return 'written'
     },
+    markRecapAnswered: async (answer) => {
+      const goal = find(
+        (g) =>
+          g.organizationId === answer.organizationId &&
+          g.propertyId === answer.propertyId &&
+          g.id === answer.goalId,
+      )
+      if (!goal || goal.state !== 'active') return false
+      const earlier =
+        goal.recapAnsweredWeek !== null && goal.recapAnsweredWeek > answer.weekStart
+      if (!earlier) replace({ ...goal, recapAnsweredWeek: answer.weekStart })
+      return true
+    },
     endByManager: async (end) => {
       const goal = find((g) => g.id === end.goalId)
       if (!goal || goal.state !== 'active') return 'not_active'

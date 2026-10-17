@@ -2,7 +2,7 @@
 // (migration 0061, round 5 D-3) against real PostgreSQL: a set writes its own
 // clock as the pace start, never the column's DEFAULT; a change of plan writes
 // the pace start the use case worked out, and only a change that moves the pace
-// moves it.
+// moves it; a Keep stores its week with no version and no log row.
 //
 // One held transaction per test, always rolled back.
 
@@ -169,5 +169,55 @@ describe('the status a change of plan leaves the goal knowing', () => {
 
     const goal = await stored()
     expect(goal?.lastEvaluation.knownStatus).toBeNull()
+  })
+})
+
+describe('a manager’s Keep in the Monday check-in', () => {
+  const answer = (weekStart: string) =>
+    repository().markRecapAnswered({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      goalId: GOAL,
+      weekStart,
+    })
+
+  it('stores the week once, twice over, with no version and no log row', async () => {
+    await expect(answer('2026-01-26')).resolves.toBe(true)
+    await expect(answer('2026-01-26')).resolves.toBe(true)
+
+    await expect(stored()).resolves.toMatchObject({
+      recapAnsweredWeek: '2026-01-26',
+      version: 1,
+      updatedAt: SET_AT,
+    })
+    const log = await repository().listChanges(ORG, PROPERTY, GOAL, 50)
+    expect(log.recent).toEqual([])
+  })
+
+  it('never goes back to an earlier week', async () => {
+    await answer('2026-02-02')
+    await answer('2026-01-26')
+
+    await expect(stored()).resolves.toMatchObject({ recapAnsweredWeek: '2026-02-02' })
+  })
+
+  it('stores nothing on a goal that is no longer active, or in another Organization', async () => {
+    await repository().endByManager({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      goalId: GOAL,
+      expectedVersion: 1,
+      endedAt: LATER,
+    })
+
+    await expect(answer('2026-01-26')).resolves.toBe(false)
+    await expect(
+      repository().markRecapAnswered({
+        organizationId: 'org-rating-goal-pace-since-other',
+        propertyId: PROPERTY,
+        goalId: GOAL,
+        weekStart: '2026-01-26',
+      }),
+    ).resolves.toBe(false)
   })
 })
