@@ -12,7 +12,8 @@
 // THE BOUNDARY (ADR 0046 r.8, ADR 0031, BQC-1.2). Payload carries
 // "property/resource/status metadata" ONLY:
 //
-//   ALLOWED   tenant-authored organization, property and goal names, the locally collected
+//   ALLOWED   tenant-authored organization, property and goal names, the name of
+//             the Portal or Portal Group a goal is on, the locally collected
 //             1-5 guest rating, actor ROLE, counts, when a wait began, platform
 //             enum, whether an approver gave a reason, how a publication
 //             ended (closed enum), an internal moderation reason
@@ -20,7 +21,10 @@
 //             is a Low ratings one for its reader (`lowRating`: the outcome of
 //             the reader's own threshold, never the stars), the one marker
 //             a Goal notice may carry about its month (`goalMarker`: a closed
-//             enum, never a date, a target or a person), and the Property-level
+//             enum, never a date, a target or a person), a portal goal's
+//             measure (closed enum) and, for a count measure, its month's count
+//             and target as whole numbers (ADR 0046, amended 2026-10-17), and
+//             the Property-level
 //             figures a Google rating goal notice states (`rating*`: the tenths
 //             Google shows for the Property now and before and the goal's
 //             target, the goal's mode and pace, and the recent pace of new
@@ -33,9 +37,11 @@
 //             review ratings), and any other employee's NAME or email.
 //
 // `parseNotificationPayload` is the only way a payload enters the domain, and
-// it drops every unrecognised key. A new field must be added here AND to
-// PROTECTED_FIELD_REGISTRY (`notifications.payload`) — the governance test
-// fails otherwise.
+// it drops every unrecognised key. A new field is added here, to the type and
+// to the parser, and to the ALLOWED list above; the "parses every field" test
+// fails when the parser misses one. PROTECTED_FIELD_REGISTRY governs the
+// `notifications.payload` COLUMN as a whole (protected-field-registry.ts), so
+// it has no per-key entry to add.
 
 /** Star rating collected locally through a RepKey guest Portal. */
 export type NotificationGuestRating = 1 | 2 | 3 | 4 | 5
@@ -177,6 +183,20 @@ export type NotificationPayload = Readonly<{
    * it was not in place for the whole month. Absent for a goal that was.
    */
   goalMarker?: NotificationGoalMarker
+  /** What a portal goal counts or averages. */
+  goalMeasure?: NotificationGoalMeasure
+  /**
+   * A count goal's month as it stands now, and the target it was judged
+   * against: whole numbers, kept only with a count measure. An average states
+   * neither; its notice sends the reader to the goal.
+   */
+  goalCount?: number
+  goalTargetCount?: number
+  /**
+   * Tenant-authored name of the Portal or Portal Group a goal is on. A
+   * Property goal carries none: its notice names the Property.
+   */
+  goalSubjectName?: string
   /**
    * How a Property's first Google review import ended
    * (`property.review_import_finished`). Absent degrades to the neutral copy.
@@ -236,6 +256,10 @@ export type NotificationGoalOutcome = 'met' | 'not_met' | 'unavailable'
  * month ran. One marker per notice; never when, by whom or to what.
  */
 export type NotificationGoalMarker = 'set_in_month' | 'target_changed'
+
+/** The three measures a portal goal is set on. */
+export type NotificationGoalMeasure =
+  'qualified_scans' | 'portal_rating_count' | 'portal_rating_average'
 
 /** A Portal health state that asks for attention; `healthy` never notifies. */
 export type NotificationPortalHealthStatus = 'degraded' | 'unavailable'
@@ -335,6 +359,15 @@ const GOAL_MARKERS: Record<string, true> = {
   set_in_month: true,
   target_changed: true,
 }
+
+const GOAL_MEASURES: Record<string, true> = {
+  qualified_scans: true,
+  portal_rating_count: true,
+  portal_rating_average: true,
+}
+
+/** A goal's count or target: a whole number up to a billion. */
+const MAX_GOAL_COUNT = 1_000_000_000
 
 const REOPEN_REASONS: Record<string, true> = {
   guest_follow_up_still_needed: true,
@@ -511,6 +544,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   )
   set('goalOutcome', takeMember<NotificationGoalOutcome>(raw.goalOutcome, GOAL_OUTCOMES))
   set('goalMarker', takeMember<NotificationGoalMarker>(raw.goalMarker, GOAL_MARKERS))
+  setPortalGoalFigures(raw, set)
   const importOutcome = takeMember<NotificationImportOutcome>(
     raw.importOutcome,
     IMPORT_OUTCOMES,
@@ -533,6 +567,23 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   setRatingGoalFigures(raw, set)
 
   return parsed as NotificationPayload
+}
+
+/**
+ * A portal goal notice's measure, figures and subject name. Counts belong to a
+ * count measure only: without one, "4" could be an average.
+ */
+function setPortalGoalFigures(
+  raw: RawPayload,
+  set: (key: keyof NotificationPayload, value: unknown) => void,
+): void {
+  const measure = takeMember<NotificationGoalMeasure>(raw.goalMeasure, GOAL_MEASURES)
+  set('goalMeasure', measure)
+  if (measure === 'qualified_scans' || measure === 'portal_rating_count') {
+    set('goalCount', takeIntegerIn(raw.goalCount, 0, MAX_GOAL_COUNT))
+    set('goalTargetCount', takeIntegerIn(raw.goalTargetCount, 0, MAX_GOAL_COUNT))
+  }
+  set('goalSubjectName', takeText(raw.goalSubjectName, MAX_NAME_LENGTH))
 }
 
 /** The Google rating goal notices' figures, each in its own range. */
