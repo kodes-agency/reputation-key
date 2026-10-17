@@ -89,6 +89,18 @@ export type PortalPublicationRepository = Readonly<{
       Readonly<{ version: number; kind: 'publish' | 'rollback'; activatedAt: Date }>
     >
   >
+  /**
+   * For several Portals of one Organization in one read, ordered by Portal and
+   * sequence: every activation that overlaps `[since, ∞)`, plus the ones that
+   * bound a run before it (each Portal's first activation, every one a disable
+   * or an archive closed, and the one after each of those). Enough for
+   * `liveRunStart` and `liveIntervals`, however long ago the run began.
+   */
+  listActivationsForPortals: (
+    organizationId: OrganizationId,
+    portalIds: readonly PortalId[],
+    since: Date,
+  ) => Promise<readonly PortalPublicationActivation[]>
   listOpenPendingContentChanges?: (
     organizationId: OrganizationId,
     propertyId: PropertyId,
