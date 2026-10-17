@@ -18,12 +18,19 @@ import { formatNumber } from '#/lib/format'
 import { MetricDelta } from '#/components/ui/metric-delta'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { RatingFigure } from '#/components/ui/rating-figure'
+import { replyTimeMissing, type ReplyTimeMissing } from './reply-time-missing'
 
 export interface PropertyRatingsPageProps {
   property: Readonly<{ id: string; name: string }>
   dashboard: DashboardData
   range: DashboardRange
   onRangeChange: (range: DashboardRange) => void
+}
+
+const REPLY_TIME_MISSING: Readonly<Record<ReplyTimeMissing, string>> = {
+  no_reviews: 'No reviews needed a reply in this period.',
+  no_replies: 'No reviews have been replied to yet.',
+  no_reply_times: 'Google has not said when these replies were made.',
 }
 
 function formatReplyTime(hours: number): string {
@@ -76,12 +83,9 @@ export function PropertyRatingsPage({
     replyPerformance.avgReplyHours === null
       ? null
       : formatReplyTime(replyPerformance.avgReplyHours)
+  const missingReplyTime = replyTimeMissing(hasReviews, replyPerformance)
   const replyTimeContext =
-    replyTimeValue === null
-      ? hasReviews
-        ? 'No reviews have been replied to yet.'
-        : 'No reviews needed a reply in this period.'
-      : null
+    missingReplyTime === null ? null : REPLY_TIME_MISSING[missingReplyTime]
 
   return (
     <PageShell tier="dashboard">
@@ -148,7 +152,7 @@ export function PropertyRatingsPage({
           <Metric label="Reply rate">
             <MetricValue value={replyRateValue} detail={replyRateContext} />
           </Metric>
-          <Metric label="Average reply time">
+          <Metric label={<GlossaryTerm term="reply-time" />}>
             <MetricValue value={replyTimeValue} detail={replyTimeContext} />
           </Metric>
         </MetricStrip>

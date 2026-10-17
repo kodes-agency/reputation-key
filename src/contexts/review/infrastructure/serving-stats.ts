@@ -1,21 +1,43 @@
 // Review context — ReviewServingStats implementation (BQC-5.5).
 //
-// Review-owned governed aggregate serving reads over reviews + replies. The
-// SQL moved here from the dashboard review-stats adapter, with ONE behavior
-// change (the point of the move): EVERY review-content read now applies THE
-// source-eligibility predicate — `contentExpiresAt IS NOT NULL AND
-// contentExpiresAt > now` with `now` INJECTED from the composition clock
-// (BQC-5.3 — never DB now()). This mirrors isContentEligibleForRead
-// (application/source-content-lifecycle, ADR 0031): clock-less rows fail
-// closed. The replies join applies the same eligibility on the review side —
-// a reply of an expired review is not servable.
+// Review-owned governed aggregate serving reads over reviews, replies and
+// Google's reply truth (the current reply observation). The SQL moved here
+// from the dashboard review-stats adapter, with ONE behavior change (the point
+// of the move): EVERY review-content read now applies THE source-eligibility
+// predicate — `contentExpiresAt IS NOT NULL AND contentExpiresAt > now` with
+// `now` INJECTED from the composition clock (BQC-5.3 — never DB now()). This
+// mirrors isContentEligibleForRead (application/source-content-lifecycle,
+// ADR 0031): clock-less rows fail closed. The reply joins apply the same
+// eligibility on the review side — a reply of an expired review is not
+// servable.
+//
+// A review is replied when Google shows a reply to it (its observation head
+// is `live`) or RepKey published one. A reply written directly on Google is
+// only an observation: the legacy `google_sync` mirror row is deleted once the
+// observation is recorded, so `replies` alone undercounts.
+//
+// These reads take only the head's state and Google's reply time, never reply
+// text, so they are gated by the review's eligibility alone. The Inbox shows
+// the reply text and reads it through `createEligibleGoogleReplyReads`
+// (application/eligible-reads.ts), which also drops an observation whose own
+// content clock has lapsed. That clock is set once when the observation is
+// recorded: a later fetch that finds the same reply restates the head without
+// moving it, while the review's clock moves on every fetch. So a servable
+// review whose reply has not changed for the cache window counts as replied
+// here although the Inbox no longer shows its Google reply text.
 //
 // F055 NOTE: reviews table has no deletedAt column — soft-delete filtering is
 // not needed here. If a soft-delete column is added, filter it in the
 // where-builders below (one place per query family).
 
 import type { Database } from '#/shared/db'
-import { properties, reviews, replies } from '#/shared/db/schema'
+import {
+  googleReplyObservationHeads,
+  googleReplyObservations,
+  properties,
+  reviews,
+  replies,
+} from '#/shared/db/schema'
 import { and, count, avg, eq, gte, gt, lt, desc, isNotNull, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
@@ -115,6 +137,58 @@ async function queryDailySeries(
   }))
 }
 
+/**
+ * Per review, the `published_at` of its published reply: RepKey's own reply
+ * first, else a legacy Google mirror's. For RepKey's reply that is when RepKey
+ * confirmed it on Google: normally just after posting it, later when a publish
+ * had an uncertain outcome, and again after an edit sent from RepKey. Read
+ * LATERAL, one index lookup per review. An aggregate with no GROUP BY always
+ * yields a row, so the join keeps every review; `publishedAt` is null when
+ * nothing was published. Drizzle names the column unqualified in the outer
+ * query, hence a name no joined table has.
+ */
+function publishedRepKeyReply(db: Database, organizationId: OrganizationId) {
+  return db
+    .select({
+      publishedAt: sql<string | null>`COALESCE(
+        max(${replies.publishedAt}) FILTER (WHERE ${replies.source} = 'internal'),
+        max(${replies.publishedAt})
+      )`.as('repkey_reply_published_at'),
+    })
+    .from(replies)
+    .where(
+      and(
+        eq(replies.reviewId, reviews.id),
+        eq(replies.organizationId, organizationId),
+        eq(replies.status, 'published'),
+        isNotNull(replies.publishedAt),
+      ),
+    )
+    .as('published_repkey_reply')
+}
+
+/**
+ * The review's current observation head, when Google shows a reply. The
+ * organization predicates here and in `headObservation` restate what the
+ * tenant foreign keys (head → observation → review) already guarantee; they
+ * are kept so no join relies on that alone.
+ */
+const liveGoogleReplyHead = (organizationId: OrganizationId) =>
+  and(
+    eq(googleReplyObservationHeads.reviewId, reviews.id),
+    eq(googleReplyObservationHeads.organizationId, organizationId),
+    eq(googleReplyObservationHeads.propertyId, reviews.propertyId),
+    eq(googleReplyObservationHeads.state, 'live'),
+  )
+
+/** The observation that head points at, which carries Google's reply time. */
+const headObservation = (organizationId: OrganizationId) =>
+  and(
+    eq(googleReplyObservations.id, googleReplyObservationHeads.observationId),
+    eq(googleReplyObservations.organizationId, organizationId),
+    eq(googleReplyObservations.reviewId, reviews.id),
+  )
+
 /** A recent review as selected: both columns are nullable in the schema. */
 type RecentReviewSelection = Omit<ServingRecentReviewRow, 'rating' | 'reviewedAt'> &
   Readonly<{ rating: number | null; reviewedAt: Date | null }>
@@ -212,52 +286,63 @@ export const createServingStats = (deps: {
     })
   },
 
+  /**
+   * Of the period's servable reviews, how many have a reply on Google (a live
+   * observation head, or a reply RepKey published) and how long a reply took.
+   * Reviews are counted, never replies, so a review answered both ways counts
+   * once. A reply's time is RepKey's `published_at` (see
+   * `publishedRepKeyReply`), else the time Google reports for the reply (its
+   * last edit). A replied review with neither still counts for the rate but
+   * not the average: `observed_at` is when RepKey read Google, which for
+   * history imported later would be far from the reply.
+   */
   async getReplyPerformance(organizationId, propertyId, startDate, endDate) {
     return trace('review.servingStats.getReplyPerformance', async () => {
-      const now = deps.clock()
-      const [reviewCountRow, replyAgg] = await Promise.all([
-        deps.db
-          .select({ count: count() })
-          .from(reviews)
-          .where(servingPeriodWhere(organizationId, propertyId, startDate, endDate, now)),
-        deps.db
-          .select({
-            repliedCount: count(),
-            avgHours: avg(
-              sql<number>`EXTRACT(EPOCH FROM (replies.published_at - reviews.reviewed_at)) / 3600`,
-            ),
-          })
-          .from(replies)
-          .innerJoin(reviews, eq(replies.reviewId, reviews.id))
-          .where(
-            and(
-              eq(replies.organizationId, organizationId),
-              // F131: Add orgId filter on reviews table for tenant isolation
-              eq(reviews.organizationId, organizationId),
-              eq(reviews.propertyId, propertyId),
-              eq(replies.status, 'published'),
-              gte(reviews.reviewedAt, startDate),
-              lt(reviews.reviewedAt, endDate),
-              sql`replies.published_at IS NOT NULL`,
-              // BQC-5.5: a reply of an expired review is not servable.
-              contentEligible(now),
-            ),
+      const repKeyReply = publishedRepKeyReply(deps.db, organizationId)
+      const replyAt = sql`COALESCE(${repKeyReply.publishedAt}, ${googleReplyObservations.providerUpdatedAt})`
+      const rows = await deps.db
+        .select({
+          totalReviews: count(),
+          repliedCount: sql<string>`count(*) FILTER (
+            WHERE ${repKeyReply.publishedAt} IS NOT NULL
+              OR ${googleReplyObservationHeads.reviewId} IS NOT NULL
+          )`,
+          timedCount: count(replyAt),
+          avgHours: avg(
+            sql`EXTRACT(EPOCH FROM (${replyAt} - ${reviews.reviewedAt})) / 3600`,
           ),
-      ])
+        })
+        .from(reviews)
+        .leftJoinLateral(repKeyReply, sql`true`)
+        .leftJoin(googleReplyObservationHeads, liveGoogleReplyHead(organizationId))
+        .leftJoin(googleReplyObservations, headObservation(organizationId))
+        // BQC-5.5: a reply of an expired review is not servable.
+        .where(
+          servingPeriodWhere(
+            organizationId,
+            propertyId,
+            startDate,
+            endDate,
+            deps.clock(),
+          ),
+        )
 
-      const totalReviews = Number(reviewCountRow[0]?.count ?? 0)
-      const repliedCount = Number(replyAgg[0]?.repliedCount ?? 0)
-      const avgReplyHours =
-        repliedCount > 0 ? Math.round(Number(replyAgg[0]?.avgHours ?? 0)) : null
-
-      return { totalReviews, repliedCount, avgReplyHours }
+      const row = rows[0]
+      const timedCount = Number(row?.timedCount ?? 0)
+      return {
+        totalReviews: Number(row?.totalReviews ?? 0),
+        repliedCount: Number(row?.repliedCount ?? 0),
+        avgReplyHours: timedCount > 0 ? Math.round(Number(row?.avgHours ?? 0)) : null,
+      }
     })
   },
 
   async getRecentReviews(organizationId, propertyId, limit) {
     return trace('review.servingStats.getRecentReviews', async () => {
       // F138: Replaced O(n) per-row EXISTS subqueries with a single LEFT JOIN.
-      // COALESCE picks the most advanced reply status per review.
+      // COALESCE picks the most advanced reply status per review. A reply
+      // Google shows (live observation head) is published whether or not
+      // RepKey sent it, and outranks an open RepKey draft.
       //
       // `rating` and `reviewedAt` are the columns themselves. A raw
       // `sql<Date>` template is a type annotation with no decoder, and the
@@ -277,6 +362,11 @@ export const createServingStats = (deps: {
                   WHERE replies.review_id = reviews.id
                   AND replies.organization_id = ${organizationId}
                   AND replies.status = 'published'
+                ) OR EXISTS (
+                  SELECT 1 FROM google_reply_observation_heads
+                  WHERE google_reply_observation_heads.review_id = reviews.id
+                  AND google_reply_observation_heads.organization_id = ${organizationId}
+                  AND google_reply_observation_heads.state = 'live'
                 ) THEN 'published'
                 WHEN EXISTS (
                   SELECT 1 FROM replies
