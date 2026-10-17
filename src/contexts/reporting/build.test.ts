@@ -131,6 +131,30 @@ describe('buildReportingContext', () => {
     })
   })
 
+  it("composes the Monthly portal goal's card behind its own goal.create check", async () => {
+    const listGoalReadinessFacts = vi.fn(async () => ({ portals: [], truncated: false }))
+    const context = build({
+      portalApi: {
+        listGoalReadinessFacts,
+      } as unknown as ReportingContextBuildInput['portalApi'],
+    })
+    const authorize = vi.fn(async (request: { action: string }) => {
+      if (request.action === 'goal.create') throw new Error('refused')
+    })
+
+    await expect(
+      context.publicApi.programs.monthlyPortalGoal.card(
+        { authorize },
+        { propertyId: 'property-1' },
+        { organizationId: 'org-1', userId: 'manager-1', role: 'PropertyManager' },
+      ),
+    ).rejects.toThrow('refused')
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'goal.create', propertyId: 'property-1' }),
+    )
+    expect(listGoalReadinessFacts).not.toHaveBeenCalled()
+  })
+
   it('builds no Organization export or lifecycle contributor of its own', () => {
     // LIF-01: the metric, goal and dashboard contributors are built by
     // composition/organization-export-contributors.ts, never by this build: a

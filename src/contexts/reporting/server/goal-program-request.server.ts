@@ -1,7 +1,8 @@
 // Server-only request plumbing for the Goal Program server functions.
 //
-// goal-programs.ts, goal-program-details.ts, goal-bulk-create.ts and
-// goal-month-target.ts run their handlers through `withGoalPrograms`. It
+// goal-programs.ts, goal-program-details.ts, goal-bulk-create.ts,
+// goal-month-target.ts and monthly-portal-goals.ts run their handlers through
+// `withGoalPrograms`. It
 // reaches the composition root and the server-only error throwers, so it lives
 // in a *.server.ts module: a server-function module that exported it would
 // carry those imports into the client build, which the import protection
@@ -22,6 +23,7 @@ import type { GoalBulkCreateRequestApi } from '../application/use-cases/goal-bul
 import type { GoalMonthPreviewRequestApi } from '../application/use-cases/goal-month-preview'
 import type { GoalProgressRequestApi } from '../application/use-cases/goal-progress'
 import type { GoalListProgressRequestApi } from '../application/use-cases/goal-list-progress'
+import type { MonthlyPortalGoalRequestApi } from '../application/use-cases/monthly-portal-goal-card'
 
 export const requestActor = (
   ctx: Awaited<ReturnType<typeof resolveTenantContext>>,
@@ -86,7 +88,8 @@ export async function withGoalPrograms<T>(
       GoalProgressRequestApi &
       GoalListProgressRequestApi &
       GoalMonthPreviewRequestApi &
-      GoalBulkCreateRequestApi,
+      GoalBulkCreateRequestApi &
+      MonthlyPortalGoalRequestApi,
     policy: GoalExecutionPolicy,
     actor: GoalActor,
   ) => Promise<T>,

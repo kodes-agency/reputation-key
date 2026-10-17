@@ -3,9 +3,11 @@
 //
 // Who may read it is whoever may set the goal: it authorizes `goal.create`
 // (under `goal.use` and the Property grant, through the execution policy)
-// before anything is read, as the month preview does. Then it reads the
-// clock once, the Property's time zone and Portal's facts about its Portals
-// together, and the Property's goal-count readings in one statement: the
+// before anything is read, as the month preview does. A composed read that has
+// asked for `goal.create` itself (the Monthly portal goal's card) gathers it
+// with `gatherPortalGoalRecommendation` at the instant it read its own clock.
+// Either way it reads the Property's time zone and Portal's facts about its
+// Portals together, and the Property's goal-count readings in one statement: the
 // basis and this month as one range, never before both measures began, with
 // each published Portal's last scan looked for from its code's date (at most a
 // year back). The counts wait for the Portals because those dates come from
@@ -80,20 +82,21 @@ function scanLookbackOf(portals: readonly RecommendationPortal[], now: Date) {
   )
 }
 
-export async function readPortalGoalRecommendation(
-  deps: PortalGoalRecommendationDeps,
-  input: Readonly<{ propertyId: string }>,
-  actor: GoalActor,
+/** What the recommendation reads, for a caller that has authorized `goal.create`. */
+export type PortalGoalRecommendationReads = Pick<
+  PortalGoalRecommendationDeps,
+  'subjects' | 'facts'
+>
+
+/**
+ * The recommendation at `now`, read for a caller that has already asked the
+ * policy for `goal.create` on the Property: it authorizes nothing itself.
+ */
+export async function gatherPortalGoalRecommendation(
+  deps: PortalGoalRecommendationReads,
+  input: Readonly<{ organizationId: string; propertyId: string; now: Date }>,
 ): Promise<PortalGoalRecommendation> {
-  const { organizationId } = actor
-  const { propertyId } = input
-  await deps.policy.authorize({
-    actor,
-    organizationId,
-    propertyId,
-    action: 'goal.create',
-  })
-  const now = deps.now()
+  const { organizationId, propertyId, now } = input
   const [timezone, listed] = await Promise.all([
     deps.subjects.getTimezone(organizationId, propertyId),
     deps.facts.listPortalReadiness(organizationId, propertyId, now),
@@ -115,6 +118,26 @@ export async function readPortalGoalRecommendation(
     portals: listed.portals,
     truncated: listed.truncated,
     ...counts,
+  })
+}
+
+export async function readPortalGoalRecommendation(
+  deps: PortalGoalRecommendationDeps,
+  input: Readonly<{ propertyId: string }>,
+  actor: GoalActor,
+): Promise<PortalGoalRecommendation> {
+  const { organizationId } = actor
+  const { propertyId } = input
+  await deps.policy.authorize({
+    actor,
+    organizationId,
+    propertyId,
+    action: 'goal.create',
+  })
+  return gatherPortalGoalRecommendation(deps, {
+    organizationId,
+    propertyId,
+    now: deps.now(),
   })
 }
 
