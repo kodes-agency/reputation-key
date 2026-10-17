@@ -99,8 +99,10 @@ metric authority.
   S counted so far and L days left (both with today), the same over S + R × L, the first
   at least `up(S)`. `roundUp` and `up` share one grid (`domain/goal-number-steps.ts`):
   1–29, then fives to 100, tens to 500, fifties above. Each measure has its own state:
-  `unreadable` when a reading the governed read would quarantine is in the range, `nothing`
-  when R = 0 (no choices), else `ready`. The Property's state is `no_live_portal`, then
+  `unreadable` when a reading the governed read would quarantine is in this month (any
+  Portal or none; S then reads null) or on a live day of a joined Portal in the basis (one
+  that touches neither, last month's on a draft for one, changes nothing), `nothing` when
+  R = 0 (no choices), else `ready`. The Property's state is `no_live_portal`, then
   `getting_ready` (no joined Portal; `readyOn` is the day the closest live one joins),
   then from the measures: ratings `ready` → `ready`; ratings `nothing` with scans `ready` →
   `scans_only` (scans offered first); both `nothing` → `nothing_counted`; else

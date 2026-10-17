@@ -340,7 +340,13 @@ describe('the recommended number for a monthly portal goal', () => {
         ...spread('portal-reception', 'portal_rating_count', TWO_WEEKS, 11),
         ...spread('portal-reception', 'qualified_scans', TWO_WEEKS, 23),
       ],
-      unreadable: [{ portalId: 'portal-reception', measure: 'portal_rating_count' }],
+      unreadable: [
+        {
+          portalId: 'portal-reception',
+          measure: 'portal_rating_count',
+          localDay: '2026-10-12',
+        },
+      ],
     })
 
     expect(recommendation.state).toBe('unreadable')
@@ -357,6 +363,83 @@ describe('the recommended number for a monthly portal goal', () => {
     expect(recommendation.measures.qualified_scans.state).toBe('ready')
     expect(recommendation.measures.qualified_scans.fullMonth.next).toMatchObject({
       aBitMore: 55,
+    })
+  })
+
+  it('a reading that cannot be trusted this month spoils the month so far, whatever its portal', () => {
+    const seaview = recommend({
+      portals: SEAVIEW_PORTALS,
+      days: SEAVIEW_RATINGS,
+      unreadable: [
+        { portalId: null, measure: 'portal_rating_count', localDay: '2026-10-02' },
+      ],
+    })
+
+    expect(seaview.state).toBe('unreadable')
+    expect(seaview.monthToDate.portal_rating_count).toBeNull()
+    expect(seaview.measures.portal_rating_count.state).toBe('unreadable')
+    expect(seaview.measures.portal_rating_count.fromToday).toBeNull()
+  })
+
+  it('one on a live day of a joined portal in the basis spoils the rate, the month still read', () => {
+    // Reception live since Sep 1, so Sep 27 is one of its live days in the basis.
+    const october = recommend({
+      portals: [livePortal('Reception', '2026-09-01')],
+      days: [
+        ...spread(
+          'portal-reception',
+          'portal_rating_count',
+          daysFrom('2026-09-25', '2026-09-30'),
+          20,
+        ),
+        ...spread(
+          'portal-reception',
+          'portal_rating_count',
+          daysFrom('2026-10-01', '2026-10-22'),
+          12,
+        ),
+      ],
+      unreadable: [
+        {
+          portalId: 'portal-reception',
+          measure: 'portal_rating_count',
+          localDay: '2026-09-27',
+        },
+      ],
+    })
+
+    expect(october.state).toBe('unreadable')
+    expect(october.measures.portal_rating_count.fullMonth.next).toBeNull()
+    expect(october.monthToDate.portal_rating_count).toBe(12)
+  })
+
+  it('one last month that the rate leaves out keeps the measure ready', () => {
+    // On Oct 23 the basis starts Sep 25. Sep 28 is before Reception went live,
+    // and the other two readings have no portal the rate reads.
+    const seaview = recommend({
+      portals: SEAVIEW_PORTALS,
+      days: SEAVIEW_RATINGS,
+      unreadable: [
+        { portalId: null, measure: 'portal_rating_count', localDay: '2026-09-28' },
+        {
+          portalId: 'portal-archived',
+          measure: 'portal_rating_count',
+          localDay: '2026-09-29',
+        },
+        {
+          portalId: 'portal-reception',
+          measure: 'portal_rating_count',
+          localDay: '2026-09-28',
+        },
+      ],
+    })
+
+    expect(seaview.state).toBe('ready')
+    expect(seaview.monthToDate.portal_rating_count).toBe(16)
+    expect(seaview.measures.portal_rating_count.fullMonth.next).toMatchObject({
+      usual: 35,
+      aBitMore: 40,
+      stretch: 45,
     })
   })
 

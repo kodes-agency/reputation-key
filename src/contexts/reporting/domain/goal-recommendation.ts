@@ -50,6 +50,7 @@ import type {
   PortalGoalRecommendationState,
   RecommendationDayCount,
   RecommendationPortal,
+  RecommendationUnreadableDay,
   RecommendationWindow,
   RecommendPortalGoalInput,
 } from './goal-recommendation-types'
@@ -161,6 +162,8 @@ type PortalBasis = Readonly<{
   facts: PortalFacts
   live: boolean
   established: boolean
+  /** Its live days in the basis, the days its rate counts. */
+  liveDays: ReadonlySet<string>
 }>
 
 function quietFields(fact: PortalQuietFact | null) {
@@ -207,6 +210,7 @@ function portalBasisOf(
   return {
     live,
     established,
+    liveDays: days,
     facts: {
       portalId: portal.portalId,
       name: portal.name,
@@ -354,6 +358,34 @@ const isListed = (
   Readonly<{ publicationState: 'published' | 'disabled' }> =>
   portal.publicationState !== 'draft'
 
+type Spoiled = Readonly<{
+  /** Measures whose month so far S holds a reading that cannot be trusted. */
+  month: ReadonlySet<PortalGoalMeasure>
+  /** Measures whose rate R does. */
+  rate: ReadonlySet<PortalGoalMeasure>
+}>
+
+/**
+ * What a reading the governed read would quarantine spoils: the month so far
+ * when it is this month (any Portal or none, as S counts them all), the rate
+ * when it is on a live day of a joined Portal in the basis. One that touches
+ * neither, last month's on a draft for one, changes nothing.
+ */
+function spoiledBy(
+  flags: readonly RecommendationUnreadableDay[],
+  established: readonly PortalBasis[],
+  monthFirstDay: string,
+): Spoiled {
+  const month = new Set<PortalGoalMeasure>()
+  const rate = new Set<PortalGoalMeasure>()
+  for (const flag of flags) {
+    if (flag.localDay >= monthFirstDay) month.add(flag.measure)
+    const joined = established.find(({ facts }) => facts.portalId === flag.portalId)
+    if (joined?.liveDays.has(flag.localDay)) rate.add(flag.measure)
+  }
+  return { month, rate }
+}
+
 /** Per measure: unreadable when flagged, nothing when R = 0, else ready. */
 function measureState(
   isUnreadable: boolean,
@@ -368,7 +400,7 @@ function propertyTotals(
   input: RecommendPortalGoalInput,
   bases: readonly PortalBasis[],
   context: Context,
-  unreadable: ReadonlySet<PortalGoalMeasure>,
+  spoiledMonth: ReadonlySet<PortalGoalMeasure>,
 ) {
   const { window, monthFirstDay } = context
   const month = sumWhere(input.days, (row) => row.localDay >= monthFirstDay)
@@ -376,7 +408,7 @@ function propertyTotals(
   return {
     month,
     monthToDate: perMeasure((measure) =>
-      unreadable.has(measure) ? null : month[measure],
+      spoiledMonth.has(measure) ? null : month[measure],
     ),
     elsewhere: perMeasure(
       (measure) =>
@@ -408,11 +440,13 @@ export function recommendPortalGoal(
     .filter(isListed)
     .map((portal) => portalBasisOf(portal, context))
   const established = bases.filter((basis) => basis.established)
-  const unreadable = new Set(input.unreadable.map((entry) => entry.measure))
-  const { month, ...totals } = propertyTotals(input, bases, context, unreadable)
+  const spoiled = spoiledBy(input.unreadable, established, months.firstDay)
+  const { month, ...totals } = propertyTotals(input, bases, context, spoiled.month)
   const measures = perMeasure((measure) => {
     const rate = propertyRate(established, measure)
-    const state = measureState(unreadable.has(measure), rate)
+    // The current month's choices stand on S and every choice on R.
+    const isSpoiled = spoiled.month.has(measure) || spoiled.rate.has(measure)
+    const state = measureState(isSpoiled, rate)
     return measureRecommendation(state, rate, months, month[measure])
   })
   const state = recommendationState(

@@ -114,6 +114,16 @@ export type RecommendationDayCount = Readonly<{
   count: number
 }>
 
+/**
+ * A Portal's (or no Portal's) local day holding a reading of the measure that the
+ * governed read would quarantine.
+ */
+export type RecommendationUnreadableDay = Readonly<{
+  portalId: string | null
+  measure: PortalGoalMeasure
+  localDay: string
+}>
+
 export type RecommendPortalGoalInput = Readonly<{
   now: Date
   timezone: string
@@ -124,7 +134,7 @@ export type RecommendPortalGoalInput = Readonly<{
   truncated: boolean
   days: readonly RecommendationDayCount[]
   /** Where a reading the governed read would quarantine was found. */
-  unreadable: readonly Readonly<{ portalId: string | null; measure: PortalGoalMeasure }>[]
+  unreadable: readonly RecommendationUnreadableDay[]
   lastScanAt: ReadonlyMap<string, Date>
 }>
 

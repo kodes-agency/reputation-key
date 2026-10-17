@@ -6,9 +6,9 @@
 // Neither checks a permission; the use case has authorized `goal.create` first.
 
 import type {
-  PortalGoalMeasure,
   RecommendationDayCount,
   RecommendationPortal,
+  RecommendationUnreadableDay,
 } from '../../domain/goal-recommendation-types'
 
 export type GoalRecommendationCountsQuery = Readonly<{
@@ -26,8 +26,8 @@ export type GoalRecommendationCountsQuery = Readonly<{
 export type GoalRecommendationCounts = Readonly<{
   /** Each Portal's (or no Portal's) readings per measure and local day. */
   days: readonly RecommendationDayCount[]
-  /** Where a reading the governed read would quarantine was found. */
-  unreadable: readonly Readonly<{ portalId: string | null; measure: PortalGoalMeasure }>[]
+  /** Each Portal's (or no Portal's) day with a reading the governed read would quarantine. */
+  unreadable: readonly RecommendationUnreadableDay[]
   /** A Portal's last scan in its lookback, when it had one. */
   lastScanAt: ReadonlyMap<string, Date>
 }>

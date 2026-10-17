@@ -270,7 +270,9 @@ describe('the readings behind the recommended number', () => {
 
     const { unreadable } = await countsOf(property)
 
-    expect(unreadable).toEqual([{ portalId: reception, measure: 'portal_rating_count' }])
+    expect(unreadable).toEqual([
+      { portalId: reception, measure: 'portal_rating_count', localDay: '2026-10-12' },
+    ])
   })
 
   it('days follow the Property calendar', async () => {

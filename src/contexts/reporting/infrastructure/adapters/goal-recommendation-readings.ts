@@ -5,9 +5,10 @@
 // private-rating-count goal versions (…1301, …1302). It reads them as the
 // behind-pace count does (`goal-running-months.ts`): every reading of the
 // Property at its latest correction, a reading the governed read would
-// quarantine flagged so its Portal and measure are not trusted, and the
-// outbox completeness proof left out. A suggestion needs only the counts, and
-// the figure a running goal shows still comes from the governed read.
+// quarantine flagged with its Portal, measure and day (the domain decides what
+// it spoils), and the outbox completeness proof left out. A suggestion needs
+// only the counts, and the figure a running goal shows still comes from the
+// governed read.
 //
 // One statement, however many Portals:
 // - each Portal's (or no Portal's) count per measure and Property-local day,
@@ -196,7 +197,11 @@ function countsOf(rows: readonly Row[]): GoalRecommendationCounts {
     if (!measure || !row.local_day) continue
     const count = countOf(row.value)
     if (row.unreadable || count === null) {
-      unreadable.set(`${row.portal_id}:${measure}`, { portalId: row.portal_id, measure })
+      unreadable.set(`${row.portal_id}:${measure}:${row.local_day}`, {
+        portalId: row.portal_id,
+        measure,
+        localDay: row.local_day,
+      })
     }
     if (count)
       days.push({ portalId: row.portal_id, measure, localDay: row.local_day, count })
