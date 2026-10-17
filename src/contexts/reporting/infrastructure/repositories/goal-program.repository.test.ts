@@ -775,6 +775,58 @@ describe.sequential('Goal Program repository (integration)', () => {
     ])
   })
 
+  it('ending a goal records who and when', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const targetPropertyId = await createPropertyFixture('Ended record Property')
+    const periodStart = new Date('2026-01-01T00:00:00.000Z')
+    const original = programBundle({
+      propertyId: targetPropertyId,
+      status: 'active',
+      effectiveFrom: periodStart,
+      at: periodStart,
+      withOpenResult: { end: new Date('2026-02-01T00:00:00.000Z') },
+    })
+    await repository.create({ bundle: original, auditAction: 'goal.program.created' })
+    const endRecord = async () =>
+      (
+        await lease.pool.query(
+          `SELECT status, ended_at, ended_by FROM goal_programs
+           WHERE organization_id = $1 AND property_id = $2 AND id = $3`,
+          [organizationId, targetPropertyId, original.program.id],
+        )
+      ).rows
+    const change = (
+      expectedStatus: 'active' | 'paused',
+      status: 'paused' | 'ended',
+      actorId: string,
+      at: Date,
+    ) =>
+      repository.changeStatus({
+        organizationId,
+        propertyId: targetPropertyId,
+        programId: original.program.id,
+        expectedStatus,
+        status,
+        reason: null,
+        actorId,
+        at,
+      })
+
+    // Pausing ends nothing, so it records no end.
+    await change('active', 'paused', 'manager-2', new Date('2026-01-10T08:00:00.000Z'))
+    expect(await endRecord()).toEqual([
+      { status: 'paused', ended_at: null, ended_by: null },
+    ])
+
+    const endedAt = new Date('2026-01-12T09:30:00.000Z')
+    await expect(change('paused', 'ended', 'manager-3', endedAt)).resolves.toMatchObject({
+      status: 'ended',
+    })
+    expect(await endRecord()).toEqual([
+      { status: 'ended', ended_at: endedAt, ended_by: 'manager-3' },
+    ])
+  })
+
   it('finds only exact-version closed results inside the half-open impacted month', async () => {
     const repository = createGoalProgramRepository(getDb())
     const targetPropertyId = await createPropertyFixture('Correction Goal Property')

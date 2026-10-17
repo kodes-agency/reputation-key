@@ -263,6 +263,7 @@ export type GoalProgramRepository = Readonly<{
    * [from, from) whenever it is ended, so its subjects are free at once. A
    * Program that has started closes at the latest of the command time and the
    * end of a month still open or reconciling, which stays inside its window.
+   * Ending also records who ended the Program (`actorId`) and when (`at`).
    */
   changeStatus(
     input: Readonly<{
