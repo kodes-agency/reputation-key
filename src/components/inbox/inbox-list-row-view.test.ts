@@ -45,4 +45,19 @@ describe('inboxRowView', () => {
     expect(view.content).toBe('Rating only — the guest left no text')
     expect(view.isNew).toBe(false)
   })
+
+  it('marks the row urgent exactly when it prints the Urgent signal', () => {
+    const urgent = inboxRowView(item, { assignmentOptions: [], viewedUpTo: null })
+    expect(urgent.isUrgent).toBe(true)
+    expect(urgent.signals).toContain('Urgent')
+
+    for (const attention of ['high', 'medium', 'low', null, undefined] as const) {
+      const view = inboxRowView(
+        { ...item, attention },
+        { assignmentOptions: [], viewedUpTo: null },
+      )
+      expect(view.isUrgent).toBe(false)
+      expect(view.signals).not.toContain('Urgent')
+    }
+  })
 })

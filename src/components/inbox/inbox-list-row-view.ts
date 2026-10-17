@@ -20,12 +20,16 @@ function inboxRowContent(item: InboxItem): string {
   return item.snippet?.trim() || 'Content unavailable'
 }
 
+function isInboxRowUrgent(item: InboxItem): boolean {
+  return item.attention === 'urgent'
+}
+
 function inboxRowSignals(item: InboxItem): ReadonlyArray<InboxRowSignal> {
   const signals: string[] = []
   const reply = replyStateRowLabel(item.replyState)
   if (reply) signals.push(reply)
   if (item.isEscalated && item.escalationResolvedAt === null) signals.push('Escalated')
-  if (item.attention === 'urgent') signals.push('Urgent')
+  if (isInboxRowUrgent(item)) signals.push('Urgent')
   return signals
 }
 
@@ -50,6 +54,9 @@ export function inboxRowView(
     name,
     content: inboxRowContent(item),
     signals,
+    // The row's tint follows the same test as its "Urgent" label, so the two
+    // can never disagree.
+    isUrgent: isInboxRowUrgent(item),
     isNew,
     age: formatCompactAge(item.sourceDate, options.now),
     owner: resolveInboxOwner(

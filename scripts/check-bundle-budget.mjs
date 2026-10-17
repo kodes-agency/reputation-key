@@ -626,6 +626,16 @@
 // 307,533 B: +0 B; vendor-charts 91,004 B (lazy). Rebased onto PG-03 and PG-04
 // (main 79056dc8b, 307,540 B) it measured 307,540 B: +0 B. 160 B spare under
 // 307,700; the ceiling for the whole portal-goal build is 308,300 (owner, P-9).
+//
+// 2026-10-17 (Inbox: urgent reviews stand out in the list): no raise. The
+// urgent row's tint is one new rule in the stylesheet (the negative tone's
+// fill at 80%), 27,795 -> 27,811 B. Its alert icon comes from ui/tone.ts,
+// which the Toaster already puts in first paint, and the row loads with the
+// Inbox route. Fresh production builds measured 307,530 B (75 js + 1 css) on
+// main 2c9fb2a0e and 307,543 B with the change: +13 B, the stylesheet +16 B
+// and the entry -3 B (it names chunks by hash). Rebased onto the portal goal
+// stages, PG-06 and the reply-rate fix (main bebc1fae6) it measured 307,564 B. 136 B
+// spare.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
