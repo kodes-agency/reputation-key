@@ -1,10 +1,7 @@
 // Portal context — goal-readiness facts tests
 
 import { describe, expect, it, vi } from 'vitest'
-import {
-  createGoalReadinessFacts,
-  type GoalReadinessFactsDeps,
-} from './goal-readiness-facts'
+import { createGoalReadinessFacts } from './goal-readiness-facts'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { buildTestPortal } from '#/shared/testing/fixtures'
 import {
@@ -16,6 +13,8 @@ import {
 import type { Portal, PortalGroup } from '../domain/types'
 import type { PortalPublicationActivation } from '../domain/portal-publication-snapshot'
 import type { ResolvablePortalTokenSummary } from './ports/portal-token.repository'
+
+type GoalReadinessFactsDeps = Parameters<typeof createGoalReadinessFacts>[0]
 
 // Oct 23, 2026, 12:00 in Sofia (UTC+3).
 const AS_OF = new Date('2026-10-23T09:00:00.000Z')
@@ -199,11 +198,12 @@ describe('listGoalReadinessFacts', () => {
         },
       ],
     })
-    expect(listActivationsForPortals).toHaveBeenCalledWith(
-      ORG,
-      [lobby.id, reception.id, restaurant.id, spa.id],
-      SIXTY_DAYS_BEFORE,
-    )
+    expect(listActivationsForPortals).toHaveBeenCalledWith(ORG, [
+      lobby.id,
+      reception.id,
+      restaurant.id,
+      spa.id,
+    ])
     expect(listGroupsForPortals).toHaveBeenCalledWith(
       ORG,
       [lobby.id, reception.id, restaurant.id, spa.id],
@@ -224,11 +224,28 @@ describe('listGoalReadinessFacts', () => {
     const read = await facts.listGoalReadinessFacts(ORG, PROPERTY, AS_OF)
 
     expect(read.portals.map((fact) => fact.name)).toEqual(['Reception'])
-    expect(listActivationsForPortals).toHaveBeenCalledWith(
-      ORG,
-      [reception.id],
-      SIXTY_DAYS_BEFORE,
-    )
+    expect(listActivationsForPortals).toHaveBeenCalledWith(ORG, [reception.id])
+  })
+
+  it('live intervals reach back 60 days; live since keeps the start of the run', async () => {
+    const reception = portal(1, 'Reception')
+    const { facts } = setup({
+      portals: [reception],
+      activations: [
+        activation(reception, 1, '2026-07-01T06:00:00.000Z', {
+          at: '2026-08-01T06:00:00.000Z',
+          reason: 'disabled',
+        }),
+        activation(reception, 2, '2026-08-03T06:00:00.000Z', null),
+      ],
+    })
+
+    const read = await facts.listGoalReadinessFacts(ORG, PROPERTY, AS_OF)
+
+    expect(read.portals[0]).toMatchObject({
+      liveSince: new Date('2026-08-03T06:00:00.000Z'),
+      liveIntervals: [{ from: SIXTY_DAYS_BEFORE, to: null }],
+    })
   })
 
   it('a code counts once its access artifact is published', async () => {

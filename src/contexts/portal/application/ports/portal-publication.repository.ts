@@ -91,15 +91,15 @@ export type PortalPublicationRepository = Readonly<{
   >
   /**
    * For several Portals of one Organization in one read, ordered by Portal and
-   * sequence: every activation that overlaps `[since, ∞)`, plus the ones that
-   * bound a run before it (each Portal's first activation, every one a disable
-   * or an archive closed, and the one after each of those). Enough for
+   * sequence: the activations that bound each run, over the Portal's whole
+   * history. That is each Portal's first activation, every one a disable or an
+   * archive closed, the one after each of those, and the open one. No time
+   * bound: a Portal has as many rows as it has runs, about two each. Enough for
    * `liveRunStart` and `liveIntervals`, however long ago the run began.
    */
   listActivationsForPortals: (
     organizationId: OrganizationId,
     portalIds: readonly PortalId[],
-    since: Date,
   ) => Promise<readonly PortalPublicationActivation[]>
   listOpenPendingContentChanges?: (
     organizationId: OrganizationId,

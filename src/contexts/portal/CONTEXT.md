@@ -53,11 +53,13 @@ Publishing starts one; a republish or a rollback closes the live activation as
 Organization closing, which closes as `disabled`) ends it, and the next publication
 starts a new one. `liveRunStart` is when the current run began (null when the Portal
 is not live): the day it "went live", however often it was republished since.
-`liveIntervals` lists the runs that overlap a window, clipped to it. The rule needs
-only the activations that bound a run (each run's first, the one that closed it and
-the open one), so `listActivationsForPortals` reads those plus every activation that
-overlaps its window, one statement for many Portals on
-`portal_publication_activations_portal_sequence_unique`.
+`liveIntervals` lists the runs that overlap a window, clipped to it; a run closed at
+its own start (an Organization closing can write one) gives none. The rule needs
+only the activations that bound each run (its first, the one that closed it and the
+open one), so `listActivationsForPortals` reads only those, over the Portal's whole
+history, about two rows a run, in one statement for many Portals on
+`portal_publication_activations_portal_sequence_unique`. A `published` state is not
+live by itself (an Organization closing keeps it): readers decide from `liveSince`.
 
 Archive is the Portal's removal, so it asks `portal.delete` (an AccountAdmin), the
 permission the Portals pages offer Archive on and the one a group's archive asks.

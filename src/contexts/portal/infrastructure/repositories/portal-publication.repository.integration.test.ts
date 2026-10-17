@@ -2,6 +2,7 @@
 // facts (`listActivationsForPortals`), against real PostgreSQL.
 
 import { describe, expect, it } from 'vitest'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId, type PortalId } from '#/shared/domain/ids'
@@ -11,6 +12,7 @@ import {
 } from '#/shared/db/schema/portal-publication.schema'
 import { buildLegacyPortalPublicationSnapshot } from '../../application/__fixtures__/legacy-snapshot-builder'
 import { snapshotToRow } from '../portal-publication-commands'
+import { liveRunStart } from '../../domain/portal-live-run'
 import { createPortalPublicationRepository } from './portal-publication.repository'
 
 const ORG = organizationId('org-portal-live-runs-00000000000001')
@@ -20,6 +22,7 @@ const OTHER_PROPERTY = propertyId('f6d00000-0000-4000-8000-000000000002')
 const RECEPTION = portalId('f6e00000-0000-4000-8000-000000000001')
 const SPA = portalId('f6e00000-0000-4000-8000-000000000002')
 const ELSEWHERE = portalId('f6e00000-0000-4000-8000-000000000003')
+const GARDEN = portalId('f6e00000-0000-4000-8000-000000000004')
 const CREATED = new Date('2026-05-01T06:00:00.000Z')
 
 const { getPool } = setupIntegrationDb({
@@ -132,12 +135,12 @@ describe.sequential('listActivationsForPortals (real PostgreSQL)', () => {
         '2026-05-25T06:00:00.000Z',
         { at: '2026-06-10T06:00:00.000Z', reason: 'replaced' },
       ],
-      // 3: mid-run, closed before the window: left out.
+      // 3: mid-run: left out.
       [
         '2026-06-10T06:00:00.000Z',
         { at: '2026-07-01T06:00:00.000Z', reason: 'replaced' },
       ],
-      // 4: closed inside the window.
+      // 4: mid-run and closed recently: left out too.
       [
         '2026-07-01T06:00:00.000Z',
         { at: '2026-08-20T06:00:00.000Z', reason: 'replaced' },
@@ -156,29 +159,60 @@ describe.sequential('listActivationsForPortals (real PostgreSQL)', () => {
         { at: '2026-09-05T06:00:00.000Z', reason: 'disabled' },
       ],
     ])
+    const garden = await seedPortal(ORG, PROPERTY, GARDEN, 'garden')
+    await seedActivations(ORG, PROPERTY, GARDEN, garden, [
+      [
+        '2026-05-02T06:00:00.000Z',
+        { at: '2026-05-10T06:00:00.000Z', reason: 'replaced' },
+      ],
+      // Archived in June, restored, then published again in July: the archive
+      // ends the first run. Without this row the new run would join the old one.
+      [
+        '2026-05-10T06:00:00.000Z',
+        { at: '2026-06-01T06:00:00.000Z', reason: 'archived' },
+      ],
+      ['2026-07-01T06:00:00.000Z', null],
+    ])
     const elsewhere = await seedPortal(OTHER_ORG, OTHER_PROPERTY, ELSEWHERE, 'elsewhere')
     await seedActivations(OTHER_ORG, OTHER_PROPERTY, ELSEWHERE, elsewhere, [
       ['2026-09-01T06:00:00.000Z', null],
     ])
-    const repo = createPortalPublicationRepository(getDb())
-    const since = new Date('2026-08-18T00:00:00.000Z')
+    let statements = 0
+    const counted = drizzle(getPool(), {
+      logger: {
+        logQuery() {
+          statements += 1
+        },
+      },
+    })
+    const repo = createPortalPublicationRepository(counted)
 
-    const read = await repo.listActivationsForPortals(
-      ORG,
-      [SPA, RECEPTION, ELSEWHERE],
-      since,
-    )
+    const read = await repo.listActivationsForPortals(ORG, [
+      SPA,
+      GARDEN,
+      RECEPTION,
+      ELSEWHERE,
+    ])
 
+    expect(statements).toBe(1)
     expect(
       read.map((row) => [row.portalId, row.activationSequence, row.deactivationReason]),
     ).toEqual([
       [RECEPTION, 1, 'disabled'],
       [RECEPTION, 2, 'replaced'],
-      [RECEPTION, 4, 'replaced'],
       [RECEPTION, 5, null],
       [SPA, 1, 'replaced'],
       [SPA, 2, 'disabled'],
+      [GARDEN, 1, 'replaced'],
+      [GARDEN, 2, 'archived'],
+      [GARDEN, 3, null],
     ])
+    expect(liveRunStart(read.filter((row) => row.portalId === RECEPTION))).toEqual(
+      new Date('2026-05-25T06:00:00.000Z'),
+    )
+    expect(liveRunStart(read.filter((row) => row.portalId === GARDEN))).toEqual(
+      new Date('2026-07-01T06:00:00.000Z'),
+    )
     expect(read.find((row) => row.activationSequence === 5)).toMatchObject({
       organizationId: ORG,
       propertyId: PROPERTY,
@@ -187,8 +221,8 @@ describe.sequential('listActivationsForPortals (real PostgreSQL)', () => {
       deactivatedAt: null,
     })
     await expect(
-      repo.listActivationsForPortals(OTHER_ORG, [RECEPTION, SPA], since),
+      repo.listActivationsForPortals(OTHER_ORG, [RECEPTION, SPA, GARDEN]),
     ).resolves.toEqual([])
-    await expect(repo.listActivationsForPortals(ORG, [], since)).resolves.toEqual([])
+    await expect(repo.listActivationsForPortals(ORG, [])).resolves.toEqual([])
   })
 })

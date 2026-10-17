@@ -4,7 +4,6 @@ import {
   count,
   desc,
   eq,
-  gt,
   gte,
   inArray,
   isNull,
@@ -478,14 +477,14 @@ export const createPortalPublicationRepository = (
       )
     }),
 
-  listActivationsForPortals: (organizationId, portalIds, since) =>
+  listActivationsForPortals: (organizationId, portalIds) =>
     trace('portalPublication.listActivationsForPortals', async () => {
       if (portalIds.length === 0) return []
       const activation = portalPublicationActivations
       const previous = alias(portalPublicationActivations, 'previous_activation')
-      // One range per Portal on portal_sequence_unique. A row is kept when it
-      // overlaps the window, ends a run, or starts one (no activation before it
-      // handed the run over), so a run older than the window keeps its start.
+      // One range per Portal on portal_sequence_unique. A row is kept when it is
+      // open, ends a run, or starts one (no activation before it handed the run
+      // over). Republishes inside a run are left out: they change no run.
       const rows = await db
         .select()
         .from(activation)
@@ -498,7 +497,6 @@ export const createPortalPublicationRepository = (
             ),
             or(
               isNull(activation.deactivatedAt),
-              gt(activation.deactivatedAt, since),
               inArray(activation.deactivationReason, RUN_BREAKS),
               notExists(
                 db

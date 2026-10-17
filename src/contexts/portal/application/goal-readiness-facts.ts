@@ -32,9 +32,15 @@ const MAX_PORTALS = 100
 /** How far back the live intervals reach: the 28-day basis and this month, with room. */
 const LIVE_INTERVAL_LOOKBACK_MS = 60 * 24 * 60 * 60 * 1000
 
-export type GoalReadinessFact = Readonly<{
+type GoalReadinessFact = Readonly<{
   portalId: PortalId
   name: string
+  /**
+   * The Portal's stored state. `published` does not by itself mean live: an
+   * Organization closing closes the activation and keeps the state, and a guest
+   * reaches a Portal only while both hold. Decide "live" from `liveSince` and
+   * `liveIntervals`, never from this.
+   */
   publicationState: 'draft' | 'published' | 'disabled'
   /** When the current live run began; null when the Portal is not live. */
   liveSince: Date | null
@@ -53,7 +59,7 @@ export type GoalReadinessFacts = Readonly<{
   truncated: boolean
 }>
 
-export type GoalReadinessFactsDeps = Readonly<{
+type GoalReadinessFactsDeps = Readonly<{
   portalRepo: Pick<PortalRepository, 'listByProperty'>
   publicationRepo: Pick<PortalPublicationRepository, 'listActivationsForPortals'>
   portalTokenRepo: Pick<PortalTokenRepository, 'findResolvableSummariesForPortals'>
@@ -82,7 +88,7 @@ export const createGoalReadinessFacts = (deps: GoalReadinessFactsDeps) => ({
     const portalIds = portals.map((portal) => portal.id)
     const since = new Date(asOf.getTime() - LIVE_INTERVAL_LOOKBACK_MS)
     const [activations, tokens, groups] = await Promise.all([
-      deps.publicationRepo.listActivationsForPortals(organizationId, portalIds, since),
+      deps.publicationRepo.listActivationsForPortals(organizationId, portalIds),
       deps.portalTokenRepo.findResolvableSummariesForPortals(
         organizationId,
         portalIds,
