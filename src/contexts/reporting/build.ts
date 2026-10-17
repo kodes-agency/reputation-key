@@ -6,6 +6,8 @@ import type { ConsumerRegistry } from '#/shared/outbox'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   metricReadingId,
+  organizationId as toOrganizationId,
+  propertyId as toPropertyId,
   type OrganizationId,
   type PortalGroupId,
   type PortalId,
@@ -65,6 +67,12 @@ import {
   readGoalMonthPreview,
   type GoalMonthPreviewRequestApi,
 } from './application/use-cases/goal-month-preview'
+import {
+  readPortalGoalRecommendation,
+  type PortalGoalRecommendationRequestApi,
+} from './application/use-cases/goal-recommendation-read'
+import type { GoalRecommendationFactsPort } from './application/ports/goal-recommendation-facts.port'
+import { readGoalRecommendationCounts } from './infrastructure/adapters/goal-recommendation-readings'
 import {
   createGoalProgramProgressReader,
   createGoalProgressReader,
@@ -342,6 +350,27 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     createGoalProgramProgressReader(goalProgressDeps(policy))
   const readGoalListProgress = (policy: GoalExecutionPolicy) =>
     createGoalListProgressReader(goalProgressDeps(policy))
+  // The Monthly portal goal's recommended number: Portal's facts about the
+  // Property's Portals, and its goal-count readings in one statement.
+  const goalRecommendationFacts: GoalRecommendationFactsPort = {
+    listPortalReadiness: (organizationId, propertyId, asOf) =>
+      input.portalApi.listGoalReadinessFacts(
+        toOrganizationId(organizationId),
+        toPropertyId(propertyId),
+        asOf,
+      ),
+    readDailyCounts: (query) => readGoalRecommendationCounts(input.db, query),
+  }
+  const goalRecommendationDeps = (policy: GoalExecutionPolicy) => ({
+    policy,
+    subjects: goalProgramSubjects,
+    facts: goalRecommendationFacts,
+    now: input.clock,
+  })
+  const goalRecommendation: PortalGoalRecommendationRequestApi = Object.freeze({
+    read: (policy, ...args) =>
+      readPortalGoalRecommendation(goalRecommendationDeps(policy), ...args),
+  })
   const programs: GoalProgramRequestApi &
     GoalProgressRequestApi &
     GoalListProgressRequestApi &
@@ -401,6 +430,9 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
       repos: { goalProgramRepo } satisfies Readonly<{
         goalProgramRepo: GoalProgramRepository
       }>,
+      // No request surface yet: the Monthly portal goal's card read (PG-08) is
+      // its first caller.
+      useCases: { goalRecommendation },
     },
   } as const
 }
@@ -591,6 +623,7 @@ export function buildReportingContext(input: ReportingContextBuildInput) {
       },
       useCases: {
         ...metric.internal.useCases,
+        ...goal.internal.useCases,
         ...dashboard.internal.useCases,
       },
     }),
