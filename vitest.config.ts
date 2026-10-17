@@ -2,6 +2,7 @@ import { defineConfig, type TestProjectConfiguration } from 'vitest/config'
 import { resolve } from 'path'
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
 import { playwright } from '@vitest/browser-playwright'
+import { storybookStoryStarts } from './scripts/ci/storybook-story-starts'
 import { testEnvironment } from './src/shared/testing/test-environment'
 
 // B0.3: Do NOT load .env here — Vitest must not inherit developer .env
@@ -51,6 +52,10 @@ const storybookProject: TestProjectConfiguration[] =
               headless: true,
               provider: playwright({}),
               instances: [{ browser: 'chromium' }],
+              // Every story's page awaits this before it renders, so the CI
+              // stall guard can name a page that freezes. Without the guard,
+              // as in local runs and the Storybook UI's, it does nothing.
+              commands: { storybookStoryStarts },
             },
           },
         },

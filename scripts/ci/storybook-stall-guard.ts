@@ -10,14 +10,14 @@
 //
 // This reporter runs in Vitest's Node process, which stays alive while a page
 // is frozen. It notes the time of every update a started test file sends
-// (tests and suites starting and finishing, hooks); when one file has sent
-// nothing for STALL_MS it prints the file and the story it most likely froze
-// in, and exits the run with a failure. It knows a frozen page only as a quiet
-// one, so the threshold sits well above anything a live page can be quiet
-// for: Vitest's browser hook timeout is 30 s and its test timeout 15 s, and a
-// live page reports either one itself. The slowest green story takes about
-// 4 s, the slowest file 27 s, and a 45 s threshold on the hang diagnostics
-// never fired on about 150 healthy CI batches.
+// (tests and suites starting and finishing, hooks, and each story's own word
+// that it started); when one file has sent nothing for STALL_MS it prints the
+// file and the story it froze in, and exits the run with a failure. It knows a
+// frozen page only as a quiet one, so the threshold sits well above anything a
+// live page can be quiet for: Vitest's browser hook timeout is 30 s and its
+// test timeout 15 s, and a live page reports either one itself. The slowest
+// green story takes about 4 s, the slowest file 27 s, and a 45 s threshold on
+// the hang diagnostics never fired on about 150 healthy CI batches.
 //
 // What it cannot see: a page that freezes while Vitest is still importing a
 // file (it watches files from their start), and, once it exits, the other
@@ -27,6 +27,8 @@
 // The storybook-test job adds it with `--reporter`; locally it is opt-in.
 
 import type { Reporter } from 'vitest/node'
+// With its extension, so plain Node can load the guard too, as its tests do.
+import { listenForStoryStarts, type StoryStart } from './storybook-story-starts.ts'
 
 export const STALL_MS = 45_000
 const CHECK_EVERY_MS = 1_000
@@ -47,6 +49,7 @@ type GuardedModule = Readonly<{
 type GuardedSuite = Readonly<{ type: 'suite'; fullName: string; module: GuardedModule }>
 type GuardedTest = Readonly<{
   type: 'test'
+  id: string
   fullName: string
   module: GuardedModule
   result: () => Readonly<{ state: string }>
@@ -66,9 +69,17 @@ export type StalledFile = Readonly<{
   runningMs: number
   /** The last update it sent, such as `test "Button > Default" started`. */
   lastEvent: string
-  /** The first test it had not reported finished: where it most likely froze. */
+  /** The story it froze in, or before; null when it froze after its last story. */
   stuck: string | null
-  /** The test after `stuck`, where it froze if `stuck` finished in the batch that never came. */
+  /**
+   * Whether its page confirmed `stuck` started (storybook-story-starts.ts).
+   * True: it froze in `stuck`. False: the page confirmed an earlier story,
+   * which then finished, and never `stuck`, so it froze before `stuck`
+   * rendered. Null: the page confirmed none of its stories, so `stuck` is the
+   * first it had not reported finished, and `orNext` the other candidate.
+   */
+  startConfirmed: boolean | null
+  /** Only when `startConfirmed` is null: the test after `stuck`, where it froze if `stuck` finished in the batch that never came. */
   orNext: string | null
   /** The last test before `stuck` that ran, with its state; null if none had. */
   lastFinished: string | null
@@ -107,30 +118,73 @@ function moduleOf(entity: GuardedHook['entity']): GuardedModule {
   return entity.type === 'module' ? entity : entity.module
 }
 
-// Where the file froze is read from its tests' states, and is a best guess.
-// The page sends states and events together, in batches at most one per
-// 100 ms, and a page that freezes never sends the batch it was filling. A
-// probe story that froze at once showed both shapes: locally the last update
-// had the story before it passed, in its afterEach; on CI it had that story
-// still running, last heard of ending its beforeEach. So the stuck story is
-// the first the file had not reported finished or, when that one finished in
-// the lost batch, the one after it. A story on CI mostly takes longer than one
-// batch, so the lost batch rarely spans more.
+type Candidates = Readonly<{
+  stuckAt: number
+  startConfirmed: boolean | null
+  orNextAt: number
+}>
+
+// Where the file froze. A file's stories run one at a time, and each story's
+// page confirms it started, and waits for the answer, before it renders
+// (storybook-story-starts.ts). So when the story the page confirmed last has
+// not finished, the page froze in it, even if the stories before it never
+// reported finishing. When that story did finish, the page froze after it and
+// before the next one rendered.
+//
+// Without a confirmation, it is a guess from the tests' states. The page sends
+// states and events together, in batches at most one per 100 ms, and a page
+// that freezes never sends the batch it was filling. A probe story that froze
+// at once showed both shapes: locally the last update had the story before it
+// passed, in its afterEach; on CI it had that story still running, last heard
+// of ending its beforeEach. So the stuck story is the first the file had not
+// reported finished or, when that one finished in the lost batch, the one
+// after it. A story on CI mostly takes longer than one batch, so the lost batch
+// rarely spans more.
+function candidates(
+  tests: readonly GuardedTest[],
+  startedId: string | undefined,
+): Candidates {
+  const pendingAfter = (index: number): number =>
+    tests.findIndex((test, at) => at > index && isPending(test))
+  const started =
+    startedId === undefined ? undefined : tests.find((test) => test.id === startedId)
+  if (started === undefined) {
+    const stuckAt = pendingAfter(-1)
+    return {
+      stuckAt,
+      startConfirmed: null,
+      orNextAt: stuckAt === -1 ? -1 : pendingAfter(stuckAt),
+    }
+  }
+  const startedAt = tests.indexOf(started)
+  if (isPending(started))
+    return { stuckAt: startedAt, startConfirmed: true, orNextAt: -1 }
+  const stuckAt = pendingAfter(startedAt)
+  return { stuckAt, startConfirmed: stuckAt === -1 ? null : false, orNextAt: -1 }
+}
+
 function whereItFroze(
   progress: FileProgress,
+  startedId: string | undefined,
 ): Pick<
   StalledFile,
-  'stuck' | 'orNext' | 'lastFinished' | 'finished' | 'total' | 'unreadable'
+  | 'stuck'
+  | 'startConfirmed'
+  | 'orNext'
+  | 'lastFinished'
+  | 'finished'
+  | 'total'
+  | 'unreadable'
 > {
   try {
     const tests = [...progress.module.children.allTests()]
-    const stuckAt = tests.findIndex(isPending)
+    const { stuckAt, startConfirmed, orNextAt } = candidates(tests, startedId)
     const before = stuckAt === -1 ? tests : tests.slice(0, stuckAt)
     const lastRan = before.filter((test) => RAN.has(test.result().state)).at(-1)
-    const after = stuckAt === -1 ? [] : tests.slice(stuckAt + 1)
     return {
       stuck: tests[stuckAt]?.fullName ?? null,
-      orNext: after.find(isPending)?.fullName ?? null,
+      startConfirmed,
+      orNext: tests[orNextAt]?.fullName ?? null,
       lastFinished: lastRan ? `${lastRan.fullName} (${lastRan.result().state})` : null,
       finished: tests.filter((test) => !isPending(test)).length,
       total: tests.length,
@@ -140,6 +194,7 @@ function whereItFroze(
     // Vitest's task objects changed shape: the run must still fail, naming the file.
     return {
       stuck: null,
+      startConfirmed: null,
       orNext: null,
       lastFinished: null,
       finished: 0,
@@ -149,20 +204,39 @@ function whereItFroze(
   }
 }
 
-function stalledFile(progress: FileProgress, now: number): StalledFile {
+function stalledFile(
+  progress: FileProgress,
+  startedId: string | undefined,
+  now: number,
+): StalledFile {
   return {
     file: progress.module.relativeModuleId,
     quietMs: now - progress.lastEventAt,
     runningMs: now - progress.startedAt,
     lastEvent: progress.lastEvent,
-    ...whereItFroze(progress),
+    ...whereItFroze(progress, startedId),
   }
+}
+
+/** The quoted full name of the test with `testId`, for the update that confirmed it started. */
+function confirmedName(module: GuardedModule, testId: string): string {
+  try {
+    for (const test of module.children.allTests()) {
+      if (test.id === testId) return `"${test.fullName}"`
+    }
+  } catch {
+    // Unreadable tests are reported, with the error, if the file stalls.
+  }
+  return testId
 }
 
 function stuckLine(file: StalledFile): string {
   if (file.unreadable !== null)
     return `unknown, its tests could not be read (${file.unreadable})`
   if (file.stuck === null) return "the file's teardown, after its last story"
+  if (file.startConfirmed === true) return `${file.stuck} (its page confirmed it started)`
+  if (file.startConfirmed === false)
+    return `${file.stuck}, before its page confirmed it started`
   return file.orNext === null
     ? `${file.stuck}, or the file's teardown after it`
     : `${file.stuck}, or the story after it, ${file.orNext}`
@@ -185,8 +259,10 @@ export function describeStalls(stalled: readonly StalledFile[]): string {
   })
   return [
     ...blocks,
-    'A story page sends its updates in batches, at most one per 100 ms, and a frozen page never',
-    'sends its last one: the stuck story is the first it had not reported finished, or the next.',
+    "Each story's page confirms it started, and waits for the answer, before the story renders.",
+    'Without a confirmation the guard goes by the batches a page sends its other updates in, at',
+    'most one per 100 ms, and a frozen page never sends its last one: the stuck story is then',
+    'the first it had not reported finished, or the next.',
     "A frozen page runs no JavaScript, so Vitest's own test timeout cannot fire there.",
     'Failing the run now instead of waiting for the job timeout.',
   ].join('\n')
@@ -219,12 +295,21 @@ export default class StorybookStallGuard implements Reporter {
   readonly #stallMs: number
   readonly #onStall: (stalled: readonly StalledFile[]) => void
   readonly #files = new Map<string, FileProgress>()
+  /** Per file id, the test id of the story its page confirmed started last, this run. */
+  readonly #started = new Map<string, string>()
   #timer: ReturnType<typeof setInterval> | null = null
+  #stopListening: (() => void) | null = null
   #reported = false
 
   constructor(options: StallGuardOptions = {}) {
     this.#stallMs = options.stallMs ?? STALL_MS
     this.#onStall = options.onStall ?? failTheRun
+  }
+
+  onTestRunStart(): void {
+    this.#started.clear()
+    if (this.#stopListening !== null || this.#reported) return
+    this.#stopListening = listenForStoryStarts((start) => this.#storyStarted(start))
   }
 
   onTestModuleStart(module: GuardedModule): void {
@@ -285,7 +370,23 @@ export default class StorybookStallGuard implements Reporter {
     if (quiet.length === 0) return
     this.#reported = true
     this.#stop()
-    this.#onStall(quiet.map((progress) => stalledFile(progress, now)))
+    this.#onStall(
+      quiet.map((progress) =>
+        stalledFile(progress, this.#started.get(progress.module.id), now),
+      ),
+    )
+  }
+
+  // A confirmation can come before the batch that reports its file started,
+  // so it is kept by file id whether or not that file is watched yet.
+  #storyStarted(start: StoryStart): void {
+    this.#started.set(start.fileId, start.testId)
+    const progress = this.#files.get(start.fileId)
+    if (progress === undefined) return
+    this.#progress(
+      progress.module,
+      `page confirmed ${confirmedName(progress.module, start.testId)} started`,
+    )
   }
 
   #progress(module: GuardedModule, event: string): void {
@@ -309,5 +410,7 @@ export default class StorybookStallGuard implements Reporter {
   #stop(): void {
     if (this.#timer !== null) clearInterval(this.#timer)
     this.#timer = null
+    this.#stopListening?.()
+    this.#stopListening = null
   }
 }
