@@ -45,7 +45,17 @@ function render(properties: readonly PropertySetupPlan[]): string {
   )
 }
 
-const textOf = (markup: string): string => markup.replace(/<[^>]+>/gu, '')
+// Strips tags until none are left, so a tag split by a removed one cannot
+// survive a single pass (CodeQL js/incomplete-multi-character-sanitization).
+const textOf = (markup: string): string => {
+  let text = markup
+  let previous: string
+  do {
+    previous = text
+    text = text.replace(/<[^>]+>/gu, '')
+  } while (text !== previous)
+  return text
+}
 
 /** The save button: the last button of the review, after Back. */
 function saveButtonText(html: string): string {
