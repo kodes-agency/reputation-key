@@ -24,7 +24,7 @@ import {
   type RatingGoalMode,
   type RatingGoalPlan,
 } from '../../domain/rating-goal'
-import { weeklyRecapDue } from '../../domain/rating-goal-recap'
+import { recapWeekStart, weeklyRecapDue } from '../../domain/rating-goal-recap'
 import type {
   RatingGoalChangeResult,
   RatingGoalEndResult,
@@ -329,12 +329,29 @@ const openRecapWeek = ({
       })?.weekStart ?? null)
     : null
 
+/**
+ * True when Keep repeats the week already answered and that week is still the
+ * one a check-in open now looks back on. A stale tab's week is not: this
+ * week's check-in may still be unanswered, so it falls through and is refused.
+ */
+async function repeatsOpenWeek(
+  deps: RatingGoalDependencies,
+  organizationId: string,
+  goal: PropertyRatingGoal,
+  weekStart: string,
+): Promise<boolean> {
+  if (goal.recapAnsweredWeek !== weekStart) return false
+  const facts = await deps.properties.findPropertyFacts(organizationId, goal.propertyId)
+  return facts !== null && recapWeekStart(deps.now(), facts.timezone) === weekStart
+}
+
 const recapClosed = () =>
   ratingGoalError('recap_closed', 'This week’s check-in has closed')
 
 /**
  * Keeps the pace for this week: answers the Monday check-in it names for every
- * manager. A repeat of the same week succeeds; any other week, or a check-in
+ * manager. A repeat of the week already answered succeeds while that week is
+ * still the open check-in's; any other week, or a check-in
  * that closed (the pace changed this week, the week ended, the status no
  * longer asks), is refused `recap_closed`.
  */
@@ -352,7 +369,8 @@ export async function keepRatingGoalPace(
   if (goal === null) throw ratingGoalError('not_found', 'Rating goal not found')
   if (goal.state !== 'active' || goal.mode !== 'climb') throwWriteRefusal('not_active')
   const kept = { goalId: goal.id, weekStart: input.weekStart }
-  if (goal.recapAnsweredWeek === input.weekStart) return kept
+  if (await repeatsOpenWeek(deps, actor.organizationId, goal, input.weekStart))
+    return kept
   const evaluated = await evaluateActiveRatingGoal(deps, goal)
   if (evaluated.goal.state !== 'active') throwWriteRefusal('not_active')
   if (openRecapWeek(evaluated) !== input.weekStart) throw recapClosed()

@@ -53,6 +53,10 @@ export type WeeklyRecapDue = Readonly<{
 const isClimbing = (goal: RecapGoal): boolean =>
   goal.mode === 'climb' && goal.state === 'active' && goal.paceTenthsPerWeek !== null
 
+/** Last week's Monday, `YYYY-MM-DD`: the only week a check-in open now can answer. */
+export const recapWeekStart = (now: Date, timezone: string): string =>
+  shiftDateKey(weekStartKey(now, timezone), -7)
+
 /** The check-in due on the card now, or null. */
 export function weeklyRecapDue(input: WeeklyRecapInput): WeeklyRecapDue | null {
   const { goal, now, timezone } = input
@@ -61,7 +65,7 @@ export function weeklyRecapDue(input: WeeklyRecapInput): WeeklyRecapDue | null {
   }
   const lastMonday = previousWeekStartInstant(now, timezone)
   if (lastMonday.getTime() < goal.createdAt.getTime()) return null
-  const weekStart = shiftDateKey(weekStartKey(now, timezone), -7)
+  const weekStart = recapWeekStart(now, timezone)
   const changedThisWeek =
     goal.paceSince.getTime() >= weekStartInstant(now, timezone).getTime()
   if (goal.recapAnsweredWeek === weekStart || changedThisWeek) return null

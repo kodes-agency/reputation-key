@@ -65,6 +65,15 @@ describe('keeping the pace for this week', () => {
     expect(world.goals[0]?.recapAnsweredWeek).toBe(LAST_WEEK)
   })
 
+  it('refuses a stale tab repeating a week already answered: this week’s check-in is newer', async () => {
+    world.goals = [activeGoal({ recapAnsweredWeek: '2026-09-28' })]
+
+    await expect(keep('2026-09-28')).rejects.toMatchObject({ code: 'recap_closed' })
+
+    expect(world.goals[0]?.recapAnsweredWeek).toBe('2026-09-28')
+    await expect(recap()).resolves.toMatchObject({ weekStart: LAST_WEEK })
+  })
+
   it('refuses a week whose check-in is not the one open now', async () => {
     await expect(keep('2026-09-28')).rejects.toMatchObject({ code: 'recap_closed' })
 
