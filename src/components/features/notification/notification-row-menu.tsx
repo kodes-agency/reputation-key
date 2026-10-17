@@ -22,8 +22,8 @@ import type { NotificationRowActions } from './types'
 
 type Props = Readonly<{
   notification: NotificationView
-  /** Human name of the notification's category, e.g. "Action needed". */
-  categoryLabel: string
+  /** The category as a sentence writes it, e.g. "action needed". */
+  categoryInSentence: string
   /** Used only for the trigger's accessible name, never rendered. */
   title: string
   actions: NotificationRowActions
@@ -31,7 +31,7 @@ type Props = Readonly<{
 
 export function NotificationRowMenu({
   notification,
-  categoryLabel,
+  categoryInSentence,
   title,
   actions,
 }: Props) {
@@ -73,7 +73,7 @@ export function NotificationRowMenu({
             icon={BellOff}
             onSelect={() => actions.onMuteCategory(notification)}
           >
-            Mute {categoryLabel.toLowerCase()} for this property
+            Mute {categoryInSentence} for this property
           </RowActionsItem>
         </>
       )}

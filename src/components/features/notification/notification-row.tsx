@@ -25,7 +25,7 @@ import {
   notificationLink,
   type NotificationView,
 } from '#/contexts/feed/application/public-api'
-import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
+import { categoryInSentence } from '#/components/features/settings/notifications-type-rows'
 import {
   DEFAULT_NOTIFICATION_FORMAT,
   formatAbsoluteTime,
@@ -141,7 +141,7 @@ export function NotificationRow({
       <span className="shrink-0 py-2 pr-1.5 pl-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 has-[[data-state=open]]:opacity-100 pointer-coarse:opacity-100">
         <NotificationRowMenu
           notification={notification}
-          categoryLabel={CATEGORY_COPY[notification.category].label}
+          categoryInSentence={categoryInSentence(notification.category)}
           title={view.fullTitle}
           actions={actions}
         />

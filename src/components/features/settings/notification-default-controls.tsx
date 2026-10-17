@@ -7,6 +7,7 @@ import { InheritedSetting } from '#/components/forms/inherited-setting'
 import { Button } from '#/components/ui/button'
 import type { ConfigurableNotificationCategory } from '#/contexts/feed/application/public-api'
 import { namesInBrief, type SetDifferently } from './notification-apply-everywhere'
+import { categoryInSentence } from './notifications-type-rows'
 
 // Every row repeats "In-app", "Email", "Cadence" and "Quiet from", so each
 // control's name carries the category: a screen-reader user tabbing through
@@ -106,7 +107,7 @@ export function DefaultControls({
           title={`Reset ${count} ${count === 1 ? 'property' : 'properties'} to your default?`}
           description={`${namesInBrief(setDifferently.map((property) => property.name))} ${
             count === 1 ? 'loses its' : 'lose their'
-          } own ${categoryLabel.toLowerCase()} settings${
+          } own ${categoryInSentence(category)} settings${
             includesMute ? ', including a mute from the notification bell,' : ''
           } and ${count === 1 ? 'follows' : 'follow'} your default instead.`}
           cancelLabel="Keep them"

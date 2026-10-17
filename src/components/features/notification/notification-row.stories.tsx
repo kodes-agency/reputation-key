@@ -768,6 +768,37 @@ export const GoalResultCanBeMuted: Story = {
 }
 
 /**
+ * The Google rating goal's changes have a row of their own, so muting them
+ * leaves the portal goals' results on. Google stays a name in the menu.
+ */
+export const RatingGoalChangeCanBeMuted: Story = {
+  args: {
+    notification: makeNotification({
+      id: '20000000-0000-4000-8000-0000000000a2',
+      type: 'goal.rating_changed',
+      status: 'read',
+      resourceType: 'goal',
+      payload: {
+        propertyName: 'Harbour View Suites',
+        ratingShownTenths: 44,
+        ratingPreviousTenths: 43,
+        ratingTargetTenths: 45,
+        ratingGoalMode: 'climb',
+      },
+    }),
+  },
+  play: async ({ canvasElement, args }) => {
+    const menu = await openRowMenu(canvasElement)
+    await userEvent.click(
+      await findVisibleMenuItem(menu, 'Mute Google rating goal for this property'),
+    )
+    expect(actions.onMuteCategory).toHaveBeenCalledWith(args.notification)
+    expect(args.notification.category).toBe('recognition')
+    await expectMenuSettled(canvasElement)
+  },
+}
+
+/**
  * ADR 0059: the reporter's own beta report reached an outcome. Organization-
  * scoped, so nothing names a Property; the deep link opens the Feedback
  * dialog's "Your reports" through an anchor, and never carries the report

@@ -47,3 +47,12 @@ export const CATEGORY_COPY: Readonly<
     description: 'Monthly results of your portal goals.',
   },
 }
+
+/**
+ * A category's label inside a sentence ("Mute portal goals for this
+ * property"): lower case, but Google stays a name.
+ */
+export const categoryInSentence = (category: NotificationCategory): string =>
+  category === 'recognition'
+    ? CATEGORY_COPY[category].label
+    : CATEGORY_COPY[category].label.toLowerCase()
