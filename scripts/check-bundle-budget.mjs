@@ -621,9 +621,10 @@
 // repository and a member on Portal's public API, whose type it reaches by a
 // type-only import); no client module imports anything new. A fresh production
 // build on the PR head measured 307,530 B (75 js + 1 css), the D-3 figure its
-// base main 2c9fb2a0e carries (only CI scripts changed after D-3): +0 B;
-// vendor-charts 91,003 B (lazy). 170 B spare under 307,700; the ceiling for the
-// whole portal-goal build is 308,300 (owner, P-9).
+// base main 2c9fb2a0e carries (only CI scripts changed after D-3): +0 B.
+// Rebased onto PG-01 and PG-02 (main 9ca3b05ca, 307,533 B) it measured
+// 307,533 B: +0 B; vendor-charts 91,004 B (lazy). 167 B spare under 307,700;
+// the ceiling for the whole portal-goal build is 308,300 (owner, P-9).
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
