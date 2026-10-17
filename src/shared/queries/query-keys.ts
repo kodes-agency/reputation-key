@@ -246,6 +246,18 @@ export const goalKeys = {
     [...goalKeys.all, 'rating-goal', propertyId] as const,
   ratingGoalRead: (propertyId: string, read: 'card' | 'detail' | 'setup' | 'history') =>
     [...goalKeys.ratingGoal(propertyId), read] as const,
+  /**
+   * The Property's Monthly portal goal, apart from the Google rating goal. Its
+   * reads (the Goals page card, the goal page, the add sheet) and each Portal's
+   * Results line sit under this key, so one invalidation after a set, change,
+   * check-in or stop refreshes them all.
+   */
+  portalGoal: (propertyId: string) =>
+    [...goalKeys.all, 'portal-goal', propertyId] as const,
+  portalGoalRead: (propertyId: string, read: 'card' | 'page' | 'add') =>
+    [...goalKeys.portalGoal(propertyId), read] as const,
+  portalGoalLine: (propertyId: string, portalId: string) =>
+    [...goalKeys.portalGoal(propertyId), 'line', portalId] as const,
 }
 
 // ── Staff participation and portal responsibility ────────────────────────

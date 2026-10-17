@@ -24,7 +24,9 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
+import { walk } from '#/shared/testing/source-tree'
 
 const ROOT = process.cwd()
 const ROUTES = join(ROOT, 'src', 'routes')
@@ -89,5 +91,72 @@ describe('route server-fn bundles', () => {
         members.length,
       )
     }
+  })
+})
+
+// The Monthly portal goal's server functions stay out of first paint only while
+// nothing imports their module statically: a server-function module that two
+// entries share is grouped with the stubs first paint loads (vite.config.ts,
+// `app-server-fns`), and a shared module reached statically is in the closure
+// (PLAN §0.2, §3.3). Its one way in is its own `import()` in the Goals route's
+// queries module.
+describe('the Monthly portal goal server functions', () => {
+  const MODULE = /^(?:#\/contexts\/reporting\/server|\.)\/monthly-portal-goals$/u
+
+  /** How a file reaches the module: statically (a value import or re-export), or by import(). */
+  function reaches(file: string, text: string) {
+    const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true)
+    const found = { statically: false, dynamically: false }
+    const visit = (node: ts.Node): void => {
+      if (
+        (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+        node.moduleSpecifier &&
+        ts.isStringLiteral(node.moduleSpecifier) &&
+        MODULE.test(node.moduleSpecifier.text)
+      ) {
+        const typeOnly = ts.isImportDeclaration(node)
+          ? node.importClause?.isTypeOnly === true
+          : node.isTypeOnly
+        if (!typeOnly) found.statically = true
+      }
+      if (
+        ts.isCallExpression(node) &&
+        node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+        node.arguments[0] !== undefined &&
+        ts.isStringLiteral(node.arguments[0]) &&
+        MODULE.test(node.arguments[0].text)
+      ) {
+        found.dynamically = true
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(source)
+    return found
+  }
+
+  const sources = walk(join(ROOT, 'src'))
+    .filter((full) => /\.tsx?$/u.test(full) && !/\.test\.tsx?$/u.test(full))
+    .map((full) => {
+      const file = relative(ROOT, full)
+      return { file, ...reaches(file, readFileSync(full, 'utf8')) }
+    })
+
+  it('are reached only by their own import()', () => {
+    expect(sources.filter((source) => source.statically).map(({ file }) => file)).toEqual(
+      [],
+    )
+    expect(
+      sources.filter((source) => source.dynamically).map(({ file }) => file),
+    ).toEqual([
+      join(
+        'src',
+        'routes',
+        '_authenticated',
+        'properties',
+        '$propertyId',
+        'goals',
+        '-portal-goal-queries.ts',
+      ),
+    ])
   })
 })
