@@ -244,6 +244,9 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     getPropertyReplyLanguage: input.sources.property.getPropertyReplyLanguage
       ? (orgId, pid) => input.sources.property.getPropertyReplyLanguage!(orgId, pid)
       : undefined,
+    getGoogleReviewDestination: input.sources.property.getGoogleReviewDestination
+      ? (orgId, pid) => input.sources.property.getGoogleReviewDestination!(orgId, pid)
+      : undefined,
   })
   const replyLookup: ReplyLookupPort = createReplyLookupAdapter({
     findByReviewId: (id, orgId) => input.sources.reply.findByReviewId(id, orgId),

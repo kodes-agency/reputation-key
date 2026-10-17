@@ -81,6 +81,7 @@ function review(): Omit<Review, 'createdAt' | 'updatedAt'> {
     googleConnectionId: null,
     reviewerName: 'Guest',
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: 4,
     text: 'A review imported in a burst',
     translatedText: null,

@@ -48,6 +48,7 @@ const initial: Omit<Review, 'createdAt' | 'updatedAt'> = {
   googleConnectionId: null,
   reviewerName: 'Guest',
   reviewerProfilePhotoUrl: null,
+  googleReviewUrl: null,
   rating: 4,
   text: 'Original review',
   translatedText: null,

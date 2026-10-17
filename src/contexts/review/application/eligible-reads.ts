@@ -22,6 +22,12 @@ export type EligibleReviewSnippet = Readonly<{
   /** Provider machine translation; `text` holds the guest's original words. */
   translatedText: string | null
   reviewerProfilePhotoUrl: string | null
+  /**
+   * The review's own Business Profile page, served under the same eligibility
+   * as the words: a Google identifier is provider content (ADR 0031), so an
+   * expired or erased Review offers no link.
+   */
+  googleReviewUrl: string | null
   rating: number | null
   languageCode: string | null
 }>
@@ -99,6 +105,7 @@ export const createEligibleReads = (deps: {
         text: r.text,
         translatedText: r.translatedText,
         reviewerProfilePhotoUrl: r.reviewerProfilePhotoUrl,
+        googleReviewUrl: r.googleReviewUrl,
         rating: r.rating,
         languageCode: r.languageCode,
       },
@@ -117,6 +124,7 @@ export const createEligibleReads = (deps: {
         text: r.text,
         translatedText: r.translatedText,
         reviewerProfilePhotoUrl: r.reviewerProfilePhotoUrl,
+        googleReviewUrl: r.googleReviewUrl,
         rating: r.rating,
         languageCode: r.languageCode,
       })

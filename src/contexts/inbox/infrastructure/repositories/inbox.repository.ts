@@ -53,6 +53,7 @@ import type {
 } from '#/shared/domain/ids'
 import { reviewId, feedbackId, inboxItemId, propertyId } from '#/shared/domain/ids'
 import { inboxItemFromRow, inboxItemToInsertRow } from '../mappers/inbox.mapper'
+import { feedbackItemDetail, reviewItemDetail } from '../mappers/inbox-detail.mapper'
 import { trace } from '#/shared/observability/trace'
 import { inboxError } from '../../domain/errors'
 
@@ -820,13 +821,12 @@ export const createInboxRepository = (
         )
 
         if (item.sourceType === 'review') {
-          // BQC-1.2: content comes only from the eligibility-enforcing lookup;
-          // expired/missing yields a typed status, never stale fields.
+          // BQC-1.2: content comes only from the eligibility-enforcing lookup
+          // (`reviewItemDetail`): expired/missing yields a typed status.
           const result = await ports.reviewLookup.getReviewSnippetById(
             reviewId(item.sourceId),
             orgId,
           )
-          const snippet = result.status === 'available' ? result.snippet : null
           log.debug(
             {
               contentStatus: result.status,
@@ -834,28 +834,7 @@ export const createInboxRepository = (
             },
             'inbox findDetailById review enrichment',
           )
-          return {
-            item: {
-              ...item,
-              propertyName,
-              reviewerName: snippet?.reviewerName ?? null,
-              reviewLanguageCode: snippet?.languageCode ?? null,
-            },
-            reviewText: snippet?.text ?? null,
-            reviewTranslatedText: snippet?.translatedText ?? null,
-            reviewerProfilePhotoUrl: snippet?.reviewerProfilePhotoUrl ?? null,
-            reviewContentStatus: result.status,
-            // The stars ride with the words. `snippet` is already null unless
-            // `result.status === 'available'`, so this expression gives the
-            // same eligibility answer the four fields around it give — an
-            // ineligible source asserts no rating. It is deliberately NOT
-            // written onto `item.rating`: the projection NULLs that column on
-            // purpose (`inbox-command-store.ts:936`, `:1416`) and the list
-            // reads it, so the governed number stays a detail-only field.
-            reviewRating: snippet?.rating ?? null,
-            feedbackComment: null,
-            feedbackRatingValue: null,
-          }
+          return reviewItemDetail({ ...item, propertyName }, result)
         }
 
         // sourceType === 'feedback'
@@ -867,20 +846,7 @@ export const createInboxRepository = (
           { duration: runtime.clock().getTime() - start },
           'inbox findDetailById complete',
         )
-        return {
-          item: { ...item, propertyName, reviewerName: null },
-          reviewText: null,
-          reviewTranslatedText: null,
-          reviewerProfilePhotoUrl: null,
-          reviewContentStatus: null,
-          // Private feedback has no review to rate. Its own number is
-          // `feedbackRatingValue` below, from the feedback lookup; leaving
-          // `reviewRating` null keeps the two sources from being confused by a
-          // consumer that reads one field for both.
-          reviewRating: null,
-          feedbackComment: snippet?.comment ?? null,
-          feedbackRatingValue: snippet?.ratingValue ?? null,
-        }
+        return feedbackItemDetail({ ...item, propertyName }, snippet)
       })
     },
   }

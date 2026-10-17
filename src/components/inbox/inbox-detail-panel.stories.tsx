@@ -163,6 +163,8 @@ export const Populated: Story = {
         reviewText: 'Great location and very clean rooms.',
         reviewTranslatedText: null,
         reviewerProfilePhotoUrl: null,
+        googleReviewUrl: null,
+        googlePropertyReviewsUrl: null,
         reviewContentStatus: 'available',
         // Plan row 7: the stars come from the detail payload, not the item row.
         reviewRating: 4,

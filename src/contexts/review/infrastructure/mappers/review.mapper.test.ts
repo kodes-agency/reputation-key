@@ -22,6 +22,9 @@ const sampleRow: ReviewRow = {
   googleConnectionId: 'conn-uuid-001',
   reviewerName: 'Jane Doe',
   reviewerProfilePhotoUrl: 'https://example.com/photo.jpg',
+  // Synthetic (test-fixtures/google-provider-identifiers-v1.json).
+  googleReviewUrl:
+    'https://business.google.com/n/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-reply-token-0001',
   rating: 5,
   text: 'Great place!',
   translatedText: null,
@@ -69,6 +72,7 @@ describe('reviewFromRow', () => {
     expect(review.externalLocationId).toBe(GOOGLE_LOCATION_PRIMARY_RESOURCE)
     expect(review.reviewerName).toBe('Jane Doe')
     expect(review.reviewerProfilePhotoUrl).toBe('https://example.com/photo.jpg')
+    expect(review.googleReviewUrl).toBe(sampleRow.googleReviewUrl)
     expect(review.rating).toBe(5)
     expect(review.text).toBe('Great place!')
     expect(review.languageCode).toBe('en')
@@ -93,6 +97,7 @@ describe('reviewFromRow', () => {
       ...sampleRow,
       reviewerName: null,
       reviewerProfilePhotoUrl: null,
+      googleReviewUrl: null,
       text: null,
       languageCode: null,
       sentimentLabel: null,
@@ -168,6 +173,7 @@ describe('reviewToRow', () => {
     expect(row.googleConnectionId).toBe(sampleRow.googleConnectionId)
     expect(row.reviewerName).toBe(sampleRow.reviewerName)
     expect(row.reviewerProfilePhotoUrl).toBe(sampleRow.reviewerProfilePhotoUrl)
+    expect(row.googleReviewUrl).toBe(sampleRow.googleReviewUrl)
     expect(row.rating).toBe(sampleRow.rating)
     expect(row.text).toBe(sampleRow.text)
     expect(row.languageCode).toBe(sampleRow.languageCode)

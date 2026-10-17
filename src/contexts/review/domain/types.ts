@@ -37,6 +37,14 @@ export type Review = Readonly<{
   googleConnectionId: GoogleConnectionId | null
   reviewerName: string | null
   reviewerProfilePhotoUrl: string | null
+  /**
+   * The review's own Business Profile page (Google's `reviewReplyUrl`), as the
+   * last successful fetch returned it, or null. Provider cache data under ADR
+   * 0031: stored with the erasable source content, rewritten on every applied
+   * fetch, erased with the content, and outside every digest, observation and
+   * AI input, so it never makes a Review look changed.
+   */
+  googleReviewUrl: string | null
   rating: StarRating
   text: string | null
   /**
@@ -214,6 +222,13 @@ export type GoogleReview = Readonly<{
   externalLocationId: string
   reviewerName: string | null
   reviewerProfilePhotoUrl: string | null
+  /**
+   * Google's `reviewReplyUrl` for this review, kept only in the one shape Google
+   * sends for the review's own location (`normalizeGoogleReviewReplyUrl`), else
+   * null. It opens the review on the Business Profile and needs the Google
+   * account that manages it; its token cannot be derived from `externalId`.
+   */
+  googleReviewUrl: string | null
   rating: StarRating
   text: string | null
   /** Google's machine translation; `text` holds the guest's original words. */

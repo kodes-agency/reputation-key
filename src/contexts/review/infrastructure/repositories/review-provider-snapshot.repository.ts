@@ -5,7 +5,6 @@ import type { Tx } from '#/shared/outbox/commit'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import {
   reviewProviderDeletionCandidates,
-  reviewGoogleReputationSnapshotFacts,
   reviewProviderHistoryCutoffs,
   reviewProviderSnapshotMembers,
   reviewProviderSnapshotRuns,
@@ -13,6 +12,7 @@ import {
   reviewProviderSubjects,
   reviews,
 } from '#/shared/db/schema/review.schema'
+import { reviewGoogleReputationSnapshotFacts } from '#/shared/db/schema/review-reputation.schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type {
   ReviewProviderHistoryCutoff,

@@ -106,6 +106,7 @@ const review = (): Review => ({
   googleConnectionId: googleConnectionId(CONNECTION),
   reviewerName: 'Jane Doe',
   reviewerProfilePhotoUrl: null,
+  googleReviewUrl: null,
   rating: 5,
   text: 'Great place!',
   translatedText: null,

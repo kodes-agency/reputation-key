@@ -9,6 +9,8 @@ import {
 import { TONE_FILL, TONE_INK } from '#/components/ui/tone'
 import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
 import { cn } from '#/lib/utils'
+import { GoogleLinkedText } from './google-review-anchor'
+import type { GoogleReviewLink } from './google-review-link'
 import { MESSAGE_PROSE_CLASS } from './guest-message'
 import { INBOX_CHIP_STATIC_CLASS } from './inbox-chip'
 import { personInitials } from './person-initials'
@@ -123,6 +125,11 @@ function shownReply(reply: NonNullable<ReplyData>): ReplyOnScreen | null {
 type Props = Readonly<{
   reply: ReplyData
   propertyName: string | null
+  /**
+   * Where "look at the review on Google" in the detail and check lines goes
+   * (`googleReviewLink`); null or absent leaves those words plain text.
+   */
+  googleLink?: GoogleReviewLink | null
   isSaving: boolean
   /** Whether the pane's published-reply editor is open — see `ReplyMessageActions`. */
   isEditing: boolean
@@ -180,6 +187,7 @@ type Props = Readonly<{
 export function ReplyMessage({
   reply,
   propertyName,
+  googleLink = null,
   isSaving,
   isEditing,
   onApprove,
@@ -270,7 +278,7 @@ export function ReplyMessage({
 
           {view.detail && (
             <p className={cn(MESSAGE_PROSE_CLASS, 'mt-2 text-xs text-muted-foreground')}>
-              {view.detail}
+              <GoogleLinkedText text={view.detail} link={googleLink} />
             </p>
           )}
 
@@ -298,7 +306,7 @@ export function ReplyMessage({
             onEditPublished={onEditPublished}
             onEditRejected={onEditRejected}
           />
-          <ReplyCheckStatus message={checkRun.statusMessage} />
+          <ReplyCheckStatus message={checkRun.statusMessage} googleLink={googleLink} />
         </article>
       </TimelineContent>
     </TimelineItem>

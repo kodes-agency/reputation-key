@@ -57,6 +57,7 @@ fallback.
 | Rating             | `review_source_contents.rating`                     | Aggregation, display   | 30 days from fetch                        | Field-level erasure                                           |
 | Language code      | `review_source_contents.language_code`              | Display                | 30 days from fetch                        | Field-level erasure                                           |
 | Google review ID   | `review_source_contents.external_id`                | Sync dedup             | 30 days from fetch                        | Field-level erasure; HMAC subject mapping reconnects identity |
+| Google review page | `review_source_contents.google_review_url`          | Inbox "Open on Google" | 30 days from fetch                        | Field-level erasure                                           |
 | Review snippet     | `inbox_items.snippet`                               | Inbox preview          | 30 days from source                       | TTL purge job                                                 |
 
 **Enforcement of the 30 days:** on reads only. A serving read withholds a

@@ -48,6 +48,7 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     googleConnectionId: null,
     reviewerName: 'Secret Reviewer',
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: 5,
     text: 'Private review text that must never enter the template library response.',
     translatedText: null,

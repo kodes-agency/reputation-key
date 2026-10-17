@@ -946,6 +946,7 @@ describe('inbox repository — detail view', () => {
             translatedText:
               'The hotel was clean and cosy, and the breakfast was very tasty.',
             reviewerProfilePhotoUrl: null,
+            googleReviewUrl: null,
             rating: 5,
             languageCode: 'bg',
           },
@@ -981,6 +982,7 @@ describe('inbox repository — detail view', () => {
             text: 'Wonderful stay.',
             translatedText: null,
             reviewerProfilePhotoUrl: null,
+            googleReviewUrl: null,
             rating: 5,
             languageCode: 'en',
           },
@@ -1048,6 +1050,7 @@ describe('inbox repository — detail view', () => {
       text: 'Wonderful stay.',
       translatedText: null,
       reviewerProfilePhotoUrl: null,
+      googleReviewUrl: null,
       rating,
       languageCode: 'en',
     },
@@ -1107,6 +1110,31 @@ describe('inbox repository — detail view', () => {
     expect(detail!.reviewRating).toBeNull()
   })
 
+  it("findDetailById carries the review's Google page with its words, and only then", async () => {
+    const item = await createdReviewItem()
+    // Synthetic (test-fixtures/google-provider-identifiers-v1.json).
+    const page =
+      'https://business.google.com/n/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-reply-token-0001'
+    const available = availableWithRating(5)
+    if (available.status !== 'available') throw new Error('expected available')
+
+    const served = await repoAnswering({
+      ...available,
+      snippet: { ...available.snippet, googleReviewUrl: page },
+    }).findDetailById(item.id, ORG_A)
+    expect(served!.googleReviewUrl).toBe(page)
+
+    const expired = await repoAnswering({ status: 'expired' }).findDetailById(
+      item.id,
+      ORG_A,
+    )
+    expect(expired!.googleReviewUrl).toBeNull()
+
+    const missing = await repo.findDetailById(item.id, ORG_A)
+    expect(missing!.reviewContentStatus).toBe('not_found')
+    expect(missing!.googleReviewUrl).toBeNull()
+  })
+
   it('findDetailById withholds the rating of a not_found review', async () => {
     const item = await createdReviewItem()
 
@@ -1164,6 +1192,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
                 translatedText: null,
                 reviewerName: 'Live Reviewer',
                 reviewerProfilePhotoUrl: null,
+                googleReviewUrl: null,
                 rating: 5,
                 languageCode: 'en',
               },
@@ -1197,6 +1226,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
                 translatedText: null,
                 reviewerName: null,
                 reviewerProfilePhotoUrl: null,
+                googleReviewUrl: null,
                 rating: 4,
                 languageCode: null,
               },

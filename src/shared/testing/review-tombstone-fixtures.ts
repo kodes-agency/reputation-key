@@ -121,7 +121,8 @@ export async function eraseKeepingContentClock(
     `UPDATE reviews
      SET external_id = NULL, external_location_id = NULL,
          google_connection_id = NULL, reviewer_name = NULL,
-         reviewer_profile_photo_url = NULL, rating = NULL, text = NULL,
+         reviewer_profile_photo_url = NULL, google_review_url = NULL,
+         rating = NULL, text = NULL,
          translated_text = NULL, language_code = NULL, reviewed_at = NULL,
          expires_at = NULL, source_created_at = NULL, source_updated_at = NULL,
          content_hash = NULL, ai_source_byte_length = NULL,

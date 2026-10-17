@@ -122,6 +122,24 @@ type ItemProps = Omit<ComponentProps<typeof DropdownMenuItem>, 'variant' | 'asCh
       }>
   )
 
+/**
+ * An item's label with its second line: what `description` draws, exported for
+ * an `asChild` item (a link), which writes its own label. The space between the
+ * lines is for the accessible name: a flex column drops it from the layout, but
+ * without it the name runs the two lines together where no stylesheet applies.
+ */
+export function RowActionsItemText({
+  label,
+  description,
+}: Readonly<{ label: ReactNode; description: ReactNode }>) {
+  return (
+    <span className="flex flex-col">
+      <span>{label}</span>{' '}
+      <span className="text-xs text-muted-foreground">{description}</span>
+    </span>
+  )
+}
+
 export function RowActionsItem({
   destructive = false,
   opensDialog = false,
@@ -151,10 +169,7 @@ export function RowActionsItem({
           {description === undefined ? (
             label
           ) : (
-            <span className="flex flex-col">
-              <span>{label}</span>
-              <span className="text-xs text-muted-foreground">{description}</span>
-            </span>
+            <RowActionsItemText label={label} description={description} />
           )}
         </>
       )}

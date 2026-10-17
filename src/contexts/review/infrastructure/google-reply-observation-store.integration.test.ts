@@ -72,6 +72,7 @@ function makeReview(
     googleConnectionId: null,
     reviewerName: 'Observation test guest',
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: 5,
     text: 'Material review text',
     translatedText: null,

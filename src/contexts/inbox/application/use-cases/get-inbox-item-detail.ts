@@ -71,6 +71,13 @@ export type InboxItemDetailResult = Readonly<
     analysis: InboxReviewAnalysis | null
     propertyDefaultReplyLanguage?: string | null
     reviewReplyLanguage?: string | null
+    /**
+     * The Property's public reviews page on Google, for a review item only: the
+     * place a manager is sent when `googleReviewUrl` is null. Property-level and
+     * public (it opens signed out), so it needs no content eligibility; only a
+     * verified destination yields one (`property-lookup.adapter.ts`).
+     */
+    googlePropertyReviewsUrl: string | null
     /** Manager-only private-feedback outcome history, including internal notes. */
     feedbackHandling: FeedbackHandlingState | null
     /** Current Handling Cycle target; elapsed/overdue state uses one server instant. */
@@ -123,9 +130,9 @@ export const getInboxItemDetail =
     // scope so Staff (who lack it) never receive reply data. Mild tension
     // with ADR 0009 §6 ("each use case maps to exactly one permission") —
     // justified by mandatory leak prevention.
-    // The five enrichments are INDEPENDENT of one another — each reads a
-    // different store off the already-loaded `detail` — so they are issued
-    // together. Awaited in sequence, the pane's hot path paid their latencies
+    // The six enrichments are INDEPENDENT of one another — each reads off the
+    // already-loaded `detail` and none needs another's answer — so they are
+    // issued together. Awaited in sequence, the pane's hot path paid their latencies
     // one after another; concurrently it pays roughly the slowest one (the
     // feedback branch's two reads count once, in its own thunk). That branch is
     // the only one with an internal order (its scope check gates its read), and
@@ -170,11 +177,13 @@ export const getInboxItemDetail =
       feedbackHandling,
       responseTarget,
       configuredPropertyLanguage,
+      googlePropertyReviewsUrl,
     ]: [
       InboxReviewAnalysis | null,
       ReplyView | null,
       FeedbackHandlingState | null,
       ResponseTargetView | null,
+      string | null,
       string | null,
     ] = await Promise.all([
       isReview && deps.aiInsights
@@ -201,6 +210,12 @@ export const getInboxItemDetail =
         : null,
       deps.propertyLookup?.getPropertyReplyLanguageById
         ? deps.propertyLookup.getPropertyReplyLanguageById(
+            detail.item.propertyId,
+            ctx.organizationId,
+          )
+        : null,
+      isReview && deps.propertyLookup?.getPropertyGoogleReviewsPageById
+        ? deps.propertyLookup.getPropertyGoogleReviewsPageById(
             detail.item.propertyId,
             ctx.organizationId,
           )
@@ -232,6 +247,7 @@ export const getInboxItemDetail =
       analysis,
       propertyDefaultReplyLanguage,
       reviewReplyLanguage,
+      googlePropertyReviewsUrl,
       feedbackHandling,
       responseTarget,
     }

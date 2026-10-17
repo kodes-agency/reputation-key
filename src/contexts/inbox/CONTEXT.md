@@ -30,6 +30,17 @@ one source revision; its compare-and-swap head selects the current episode and
 state revision. Feedback Handling Outcomes are append-only manager results, and
 corrections supersede rather than rewrite them.
 
+A Review item's detail carries the way to the review on Google: its own
+Business Profile page (`googleReviewUrl`, from Review's eligible snippet, so
+null whenever the words are not served) and, as the fallback, the Property's
+public reviews page (`googlePropertyReviewsUrl`, from a `verified` Property
+destination naming a place: `https://search.google.com/local/reviews?placeid=`).
+The second needs no content eligibility: it is Property-level and opens signed
+out. The first carries the Business Profile location id to a reader who holds
+`inbox.read ∧ review.read`, because that is the page; nothing else in an
+Inbox payload names a provider identifier. Both are links only (a new tab,
+`noopener noreferrer`, no referrer) and Inbox stores neither.
+
 A guest edit (a new Material Revision) that lands on a CLOSED Review cycle
 reopens the item: the transition is `reopened` with reason
 `material_revision_changed`, because a reply written for revision N does not

@@ -146,6 +146,7 @@ function burstReview(index: number): Omit<Review, 'createdAt' | 'updatedAt'> {
     googleConnectionId: null,
     reviewerName: 'Guest',
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: ((index % 5) + 1) as StarRating,
     text: `Burst review ${index}`,
     translatedText: null,

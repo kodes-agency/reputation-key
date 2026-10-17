@@ -114,6 +114,8 @@ const readDetail = async (): Promise<InboxItemDetailResult> => ({
   reviewText: 'Lovely room and a quiet night.',
   reviewTranslatedText: null,
   reviewerProfilePhotoUrl: null,
+  googleReviewUrl: null,
+  googlePropertyReviewsUrl: null,
   reviewContentStatus: 'available',
   reviewRating: 5,
   feedbackComment: null,

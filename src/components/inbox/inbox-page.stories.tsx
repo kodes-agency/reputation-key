@@ -216,6 +216,8 @@ const approvedDetail: InboxItemDetailResult = {
   reviewTranslatedText:
     'A comfortable place to stay, rarely seen in Bulgaria, and includes breakfast.',
   reviewerProfilePhotoUrl: null,
+  googleReviewUrl: null,
+  googlePropertyReviewsUrl: null,
   reviewContentStatus: 'available',
   // Plan row 7: the stars come from the detail payload, not the item row —
   // the projection NULLs a review row's own copy (`inbox-command-store.ts:936`).

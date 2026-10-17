@@ -341,6 +341,8 @@ function reviewDetail(over: Partial<InboxItemDetailResult> = {}): InboxItemDetai
     reviewText: REVIEW_TEXT,
     reviewTranslatedText: null,
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
+    googlePropertyReviewsUrl: null,
     reviewContentStatus: 'available',
     // Plan row 7: the stars come from the detail payload, not the item row.
     reviewRating: 4,
@@ -363,6 +365,8 @@ function feedbackDetail(
     reviewText: null,
     reviewTranslatedText: null,
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
+    googlePropertyReviewsUrl: null,
     reviewContentStatus: null,
     // A review's field; feedback's own number is `feedbackRatingValue` below.
     reviewRating: null,
@@ -1168,6 +1172,42 @@ export const HeaderAt320: Story = {
     await expect(
       canvas.getByRole('button', { name: 'More actions for this review' }),
     ).toBeVisible()
+  },
+}
+
+/**
+ * "Open on Google" from the phone sheet, at the narrowest supported width: the
+ * header's one menu now also holds the way to the review on Google, a real
+ * new-tab link with the sign-in line under it. Geometry is not gateable here
+ * (no Tailwind, see the file header); what is real is that the trigger is still
+ * in the 320 px header and the link is reachable by role.
+ */
+export const OpenOnGoogleFromThePhoneSheet: Story = {
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+  args: {
+    detailState: makeDetailState({
+      detail: reviewDetail({
+        // Synthetic (test-fixtures/google-provider-identifiers-v1.json).
+        googleReviewUrl:
+          'https://business.google.com/n/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-reply-token-0001',
+      }),
+    }),
+  },
+  play: async () => {
+    const canvas = pane()
+    expectTheMobileFrame(canvas)
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'More actions for this review' }),
+    )
+    const menu = within(await canvas.findByRole('menu'))
+    const open = menu.getByRole('menuitem', { name: /^Open on Google/ })
+    expect(open).toHaveAttribute('target', '_blank')
+    expect(open).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(
+      within(open).getByText(/sign in with the account that manages/i),
+    ).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(canvas.queryByRole('menu')).toBeNull())
   },
 }
 

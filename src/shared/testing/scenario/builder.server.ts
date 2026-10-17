@@ -200,6 +200,7 @@ async function createReviews(
       translatedText: null,
       reviewerName: spec.reviewerName ?? `Sim Reviewer ${created + 1}`,
       reviewerProfilePhotoUrl: null,
+      googleReviewUrl: null,
       languageCode: 'en',
       reviewedAt,
       expiresAt: new Date(reviewedAt.getTime() + 30 * MS_PER_DAY),

@@ -15,6 +15,8 @@ export type ReviewSnippet = Readonly<{
   /** Provider machine translation; `text` holds the guest's original words. */
   translatedText: string | null
   reviewerProfilePhotoUrl: string | null
+  /** The review's own Business Profile page; null when Google gave none. */
+  googleReviewUrl: string | null
   rating: number | null
   languageCode: string | null
 }>

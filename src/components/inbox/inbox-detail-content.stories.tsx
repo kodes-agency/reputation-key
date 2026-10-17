@@ -58,6 +58,8 @@ const reviewDetail: InboxItemDetailResult = {
   reviewText: 'Wonderful stay — the front desk went above and beyond!',
   reviewTranslatedText: null,
   reviewerProfilePhotoUrl: null,
+  googleReviewUrl: null,
+  googlePropertyReviewsUrl: null,
   reviewContentStatus: 'available',
   // Plan row 7: the guest's stars reach the pane on the detail payload, from
   // the same `ReviewSnippet` as `reviewText` and under the same eligibility
@@ -76,6 +78,8 @@ const feedbackDetail: InboxItemDetailResult = {
   reviewText: null,
   reviewTranslatedText: null,
   reviewerProfilePhotoUrl: null,
+  googleReviewUrl: null,
+  googlePropertyReviewsUrl: null,
   reviewContentStatus: null,
   // A review's field, and null on feedback: the feedback node reads
   // `feedbackRatingValue` and never the review path.

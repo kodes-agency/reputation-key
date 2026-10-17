@@ -27,6 +27,11 @@ import {
 } from '#/shared/google-review-comment'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import {
+  reportRefusedReviewPages,
+  reviewPageUrl,
+  reviewReplyUrlField,
+} from './google-review-page'
+import {
   executeGoogleProviderJson,
   executeGoogleProviderRaw,
   gatewayFailureError,
@@ -70,6 +75,9 @@ const STAR_RATING_MAP: Readonly<Record<string, StarRating | undefined>> = {
 // dropped (zod's default strip) so nothing unmodelled reaches the domain, while
 // every field we do read stays fully validated. The sibling Google adapters
 // (gbp-api, google-business-information) already tolerate unknown keys.
+//
+// `reviewReplyUrl` is read since 2026-10-17 ("Open on Google" in the Inbox) and
+// never fails a page (`google-review-page.ts`).
 const gbpReviewItemSchema = z.object({
   name: z.string().min(1).max(1_024),
   starRating: z.string(),
@@ -88,6 +96,7 @@ const gbpReviewItemSchema = z.object({
     .optional(),
   createTime: z.string().min(1).max(64),
   updateTime: z.string().min(1).max(64).optional(),
+  reviewReplyUrl: reviewReplyUrlField,
 })
 
 const gbpReviewsPageSchema = z
@@ -362,6 +371,7 @@ function mapReview(
     externalLocationId: locationName,
     reviewerName: raw.reviewer?.displayName ?? null,
     reviewerProfilePhotoUrl: raw.reviewer?.profilePhotoUrl ?? null,
+    googleReviewUrl: reviewPageUrl(raw, resource.locationId),
     rating,
     text: comment.original,
     translatedText: comment.translation,
@@ -615,8 +625,14 @@ export const createGoogleReviewApiAdapter = (
       )
       throw reviewApiError('malformed_response', false)
     }
-    const reviews =
-      parsed.data.reviews?.map((review) => mapReview(review, input.locationName)) ?? []
+    const rawReviews = parsed.data.reviews ?? []
+    const reviews = rawReviews.map((review) => mapReview(review, input.locationName))
+    reportRefusedReviewPages(
+      deps.logger,
+      'reviews.list',
+      rawReviews,
+      reviews.map((review) => review.googleReviewUrl),
+    )
     let nextCursorRef: string | null = null
     const nextPageToken = parsed.data.nextPageToken
     if (nextPageToken) {
@@ -748,7 +764,14 @@ export const createGoogleReviewApiAdapter = (
     await assertAuthorizationCurrent(input, context.cursorAuthorization)
     const parsed = gbpReviewItemSchema.safeParse(raw)
     if (!parsed.success) throw reviewApiError('malformed_response', false)
-    return { status: 'found', review: mapReview(parsed.data, input.locationName) }
+    const review = mapReview(parsed.data, input.locationName)
+    reportRefusedReviewPages(
+      deps.logger,
+      'reviews.get',
+      [parsed.data],
+      [review.googleReviewUrl],
+    )
+    return { status: 'found', review }
   }
 
   const discardReviewCursors: GoogleReviewApiPort['discardReviewCursors'] = async (

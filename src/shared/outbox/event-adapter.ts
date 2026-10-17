@@ -63,6 +63,7 @@ const CONTENT_FIELDS_TO_STRIP: ReadonlySet<string> = new Set([
   'text',
   'reviewerName',
   'reviewerProfilePhotoUrl',
+  'googleReviewUrl',
   'rejectionReason',
   'snippet',
   'noteText',

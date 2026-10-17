@@ -54,6 +54,7 @@ function review(id: ReviewId, ordinal: number): Omit<Review, 'createdAt' | 'upda
     googleConnectionId: null,
     reviewerName: `Guest ${ordinal}`,
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: 4,
     text: `Original review ${ordinal}`,
     translatedText: null,

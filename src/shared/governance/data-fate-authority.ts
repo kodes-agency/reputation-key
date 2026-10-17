@@ -641,10 +641,17 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exportNames: [
       'googleReplyObservations',
       'materialReviewRevisions',
-      'reviewGoogleReputationSnapshotFacts',
       'reviewProviderSnapshotMembers',
       'reviewSourceObservations',
     ],
+    owner: 'review',
+    disposition: 'recoverable_archive',
+    authority: 'REV-01',
+    exitCriteria: RETAINED_HISTORY,
+  }),
+  ...rows({
+    schemaFile: 'review-reputation.schema.ts',
+    exportNames: ['reviewGoogleReputationSnapshotFacts'],
     owner: 'review',
     disposition: 'recoverable_archive',
     authority: 'REV-01',

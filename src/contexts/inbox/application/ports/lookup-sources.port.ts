@@ -80,6 +80,15 @@ export type PropertyLookupSource = Readonly<{
     orgId: OrganizationId,
     propertyId: PropertyId,
   ) => Promise<string | null>
+  /**
+   * The Property's Google review destination as Property holds it. Only a
+   * `verified` one may be rendered (Property CONTEXT, invariant 2); the adapter
+   * decides that. Optional for legacy source fixtures, as above.
+   */
+  getGoogleReviewDestination?: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<Readonly<{ state: string; uri: string | null }> | null>
 }>
 
 /** Review-owned reply reads (satisfied by the reply repository). */

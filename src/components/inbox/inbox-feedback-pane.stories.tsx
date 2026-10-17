@@ -145,6 +145,8 @@ function detailFor(
     reviewText: null,
     reviewTranslatedText: null,
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
+    googlePropertyReviewsUrl: null,
     reviewContentStatus: null,
     // A review's field; feedback's own number is `feedbackRatingValue` below.
     reviewRating: null,

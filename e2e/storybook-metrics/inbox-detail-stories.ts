@@ -25,6 +25,7 @@
 import { COMPOSITION_GROUPS } from './inbox-detail-compositions'
 import {
   DESKTOP,
+  EVERY_WIDTH,
   FOLLOWS_THE_WINDOW,
   PANE,
   PHONE,
@@ -46,6 +47,7 @@ const COLLAPSED = 'inbox-replycomposer-collapsed--'
 const MOBILE_SHEET = 'inbox-mobile-390--'
 const DETAIL_SHEET = 'inbox-detail-sheet--'
 const DETAIL_PANEL = 'inbox-detail-panel--'
+const COPY_MENU = 'inbox-detail-copy-menu--'
 const FILTER_SHEET = 'inbox-filter-sheet--'
 
 const REGION_GROUPS: ReadonlyArray<Group> = [
@@ -413,6 +415,7 @@ const REGION_GROUPS: ReadonlyArray<Group> = [
       'loading-state',
       'error-state',
       'header-at-320',
+      'open-on-google-from-the-phone-sheet',
       'review-open-light',
     ],
     withPrimary: [
@@ -444,6 +447,21 @@ const REGION_GROUPS: ReadonlyArray<Group> = [
     widths: DESKTOP,
     stories: ['populated', 'loading', 'error-state'],
     withPrimary: ['populated'],
+  },
+  // ── Region 1's menu on its own: the trigger, and the menu each play leaves
+  // closed. Its open items are measured where the pane mounts them, in the
+  // phone sheet (`open-on-google-from-the-phone-sheet` above).
+  {
+    prefix: COPY_MENU,
+    pane: PANE.root,
+    widths: EVERY_WIDTH,
+    stories: [
+      'with-review-page',
+      'with-review-page-light',
+      'property-fallback-only',
+      'no-google-page',
+      'link-without-text',
+    ],
   },
   // ── The phone's filter sheet, not part of the detail pane ────────────────
   // It is a bottom sheet over the list, and the only surface with 36 px choice

@@ -50,6 +50,7 @@ import {
   REPLY_CHECK_COPY,
   replyCheckMutationOptions,
 } from './reply-check-feedback'
+import type { GoogleReviewLink } from './google-review-link'
 import { openConfirmation } from './reply-editor.stories.play'
 import { ReplyMessage } from './reply-message'
 import { REPLY_CHIP_WORDS } from './reply-state-copy'
@@ -1575,4 +1576,85 @@ export const UnnamedProperty: Story = {
     expect(within(article).queryAllByRole('heading')).toHaveLength(0)
     expect(article.textContent ?? '').not.toContain(RAW_ID_MARKER)
   },
+}
+
+// ── the way to Google ────────────────────────────────────────────────────────
+
+/** Synthetic pages (test-fixtures/google-provider-identifiers-v1.json). */
+const REVIEW_PAGE_LINK: GoogleReviewLink = {
+  kind: 'review',
+  href: 'https://business.google.com/n/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-reply-token-0001',
+}
+const PROPERTY_PAGE_LINK: GoogleReviewLink = {
+  kind: 'property',
+  href: 'https://search.google.com/local/reviews?placeid=repkey-synthetic-place-0001',
+}
+
+/** The words that send a manager to Google, as the link they become. */
+function expectGoogleLink(scope: HTMLElement, link: GoogleReviewLink): void {
+  const anchor = within(scope).getByRole('link', {
+    name: /look at the review on google/i,
+  })
+  expect(anchor).toHaveAttribute('href', link.href)
+  expect(anchor).toHaveAttribute('target', '_blank')
+  expect(anchor).toHaveAttribute('rel', 'noopener noreferrer')
+  expect(anchor).toHaveAttribute('referrerpolicy', 'no-referrer')
+  expect(anchor).toHaveAccessibleName(
+    link.kind === 'property'
+      ? /this property's reviews, opens in a new tab/i
+      : /look at the review on google\s*\(opens in a new tab\)$/i,
+  )
+}
+
+/**
+ * RepKey stopped checking and sends the manager to Google; the review has its
+ * own page there, so the words that say so are the link to it.
+ */
+export const NeedsCheckLinksTheReviewOnGoogle: Story = {
+  args: { reply: NEEDS_CHECK_REPLY, googleLink: REVIEW_PAGE_LINK },
+  play: async ({ canvasElement }) => {
+    resetSpies()
+    const message = expectConfirmedStatus(
+      canvasElement,
+      'Needs a check',
+      /stopped checking automatically/i,
+    )
+    expectGoogleLink(
+      message.getByText(/stopped checking automatically/i),
+      REVIEW_PAGE_LINK,
+    )
+  },
+}
+
+/** No page anywhere: the same sentence, plain, and no link in the message. */
+export const NeedsCheckWithNoGooglePage: Story = {
+  args: { reply: NEEDS_CHECK_REPLY, googleLink: null },
+  play: async ({ canvasElement }) => {
+    const message = expectConfirmedStatus(
+      canvasElement,
+      'Needs a check',
+      /or look at the review on Google\.$/i,
+    )
+    expect(message.queryAllByRole('link')).toHaveLength(0)
+  },
+}
+
+/**
+ * The check line that sends the manager to Google links there too, to the
+ * Property's reviews when the review has no page of its own.
+ */
+export const NeedsCheckUnreadableLinksThePropertyReviews: Story = {
+  ...checkStory(
+    async () => checkResult('unreadable_on_google'),
+    async ({ canvasElement }) => {
+      const { line } = await clickCheck(canvasElement)
+      await waitFor(() =>
+        expect(line).toHaveTextContent(
+          /can't confirm this one\. Look at the review on Google/,
+        ),
+      )
+      expectGoogleLink(line, PROPERTY_PAGE_LINK)
+    },
+  ),
+  args: { reply: NEEDS_CHECK_REPLY, googleLink: PROPERTY_PAGE_LINK },
 }

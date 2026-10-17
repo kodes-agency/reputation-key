@@ -49,6 +49,7 @@ function makeReview(id: string): Review {
     googleConnectionId: CONN_ID,
     reviewerName: 'Jane',
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: 5,
     text: 'Great!',
     translatedText: null,
