@@ -94,6 +94,79 @@ describe('ConsentCheckbox', () => {
     )
   })
 
+  it('wraps a long unbroken word in its sentence instead of widening the frame', () => {
+    expect(render()).toMatch(
+      /<label[^>]*class="[^"]*wrap-anywhere[^"]*"[^>]*for="consent"/u,
+    )
+  })
+
+  // A label holds phrasing content, so a sentence that ends in a list ("for
+  // these 2 properties:") keeps the list outside it, under it in the frame.
+  it('draws what the sentence lists under it, as a list, before its line of help', () => {
+    const html = render({
+      children: 'I agree for these 2 properties:',
+      listed: [
+        { key: 'a', label: 'Hotel A' },
+        { key: 'b', label: 'Cafe B' },
+      ],
+      description: 'Help.',
+      error: 'Required.',
+    })
+
+    expect(html).toMatch(/I agree for these 2 properties:<\/label><ul /u)
+    expect(html).toMatch(/<ul [^>]*><li[^>]*>Hotel A<\/li><li[^>]*>Cafe B<\/li><\/ul>/u)
+    expect(html.indexOf('Cafe B')).toBeLessThan(html.indexOf('Help.'))
+  })
+
+  // A description flattens a list into its words with nothing between them:
+  // "Hotel A Cafe B" could be one name. The box is described by the same names
+  // as one sentence, commas between them, ahead of the help and the refusal.
+  it('reads what the sentence lists as one comma-separated sentence, first in its description', () => {
+    const html = render({
+      children: 'I agree for these 2 properties:',
+      listed: [
+        { key: 'a', label: 'Hotel A' },
+        { key: 'b', label: 'Cafe B' },
+      ],
+      description: 'Help.',
+      error: 'Required.',
+    })
+
+    expect(html).toContain(
+      'aria-describedby="consent-listed consent-description consent-error"',
+    )
+    expect(html).toContain('<span id="consent-listed" hidden="">Hotel A, Cafe B.</span>')
+  })
+
+  it('ends the read-out list with one full stop, never two', () => {
+    const html = render({
+      listed: [
+        { key: 'a', label: 'Hotel A' },
+        { key: 'b', label: 'Smith & Co.' },
+      ],
+    })
+
+    expect(html).toContain('>Hotel A, Smith &amp; Co.</span>')
+  })
+
+  it('runs a list of seven or more in two columns from sm up', () => {
+    const entries = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        key: String(index),
+        label: `Place ${index + 1}`,
+      }))
+
+    expect(render({ listed: entries(6) })).not.toContain('sm:columns-2')
+    expect(render({ listed: entries(7) })).toMatch(/<ul [^>]*class="[^"]*sm:columns-2/u)
+  })
+
+  it('draws no list and describes nothing extra when the sentence lists nothing', () => {
+    const html = render({ listed: [], description: 'Help.' })
+
+    expect(html).not.toContain('<ul')
+    expect(html).toContain('aria-describedby="consent-description"')
+  })
+
   it('passes a name through for a form that posts the box', () => {
     expect(render({ name: 'profileAcknowledged' })).toContain(
       'name="profileAcknowledged"',

@@ -3,7 +3,6 @@ import type {
   MerchantAiState,
 } from '#/contexts/identity/application/public-api'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
-import { renderMerchantAiNoticeCta } from '#/shared/merchant-ai-notice-contract'
 import { StatusBadge, type StatusMap } from '#/components/ui/status-badge'
 import {
   Card,
@@ -66,9 +65,7 @@ export function MerchantAiAuthorizationCard(props: Props) {
       />
       <MerchantAiSettingsActions
         propertyName={props.propertyName}
-        enableCallToAction={renderMerchantAiNoticeCta(props.notice.payload, [
-          props.propertyName,
-        ])}
+        enableCallToAction={props.notice.payload.ctaTemplate}
         canRevoke={props.state === 'enabled'}
         isEnabled={props.state === 'enabled'}
         canEnable={props.canSubmit}

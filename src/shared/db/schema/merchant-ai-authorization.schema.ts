@@ -52,10 +52,12 @@ const validRuntimeProfileMap = (
  * The execution contract a consent row or enablement head may record. Each
  * known notice version is pinned to its own digest, so a row may never mix a
  * version with another version's digest, and the source, routing and redaction
- * profiles are fixed. The set grows by one arm per notice version; the
- * constants live in merchant-ai-notice-contract.ts. Both tables admit exactly
- * this set, so it is declared once. Column references render table-qualified,
- * exactly as the migrations recorded them.
+ * profiles are fixed. The set grows by one arm per notice version (0016 for
+ * 2026-09-15, 0064 for 2026-10-17); the constants live in
+ * merchant-ai-notice-contract.ts. A valid row is not an admitted one: which
+ * notices still admit AI work is `isMerchantAiNoticeInForce`. Both tables
+ * admit exactly this set, so it is declared once. Column references render
+ * table-qualified, exactly as the migrations recorded them.
  */
 const validExecutionContract = (
   t: Readonly<
@@ -82,6 +84,8 @@ const validExecutionContract = (
             AND ${t.noticeDigest} = 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1')
           OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-15.v1'
             AND ${t.noticeDigest} = '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-10-17.v1'
+            AND ${t.noticeDigest} = '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e')
         )
         AND ${t.sourcePolicyId} = 'google-business-profile-source-policy-v1'
         AND ${t.routingPolicyVersion} = 1
@@ -294,7 +298,8 @@ export const merchantAiEnablement = pgTable(
     ),
     // Same known-version set as the evidence table: an enablement row granted
     // under an earlier notice stays valid until the owner re-consents under the
-    // current one; the settings page re-enables Save when the versions differ.
+    // current one; the settings page re-enables Save when its notice is no
+    // longer in force.
     check('merchant_ai_enablement_contract_valid', validExecutionContract(t)),
     check(
       'merchant_ai_enablement_capabilities_valid',

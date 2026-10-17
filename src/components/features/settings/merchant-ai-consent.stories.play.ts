@@ -10,7 +10,10 @@ export const AI_CONSENT_ACKNOWLEDGEMENT =
  * outside the story canvas. Shared by the Settings and import-onboarding
  * stories.
  */
-export async function consentToAi(canvasElement: HTMLElement): Promise<void> {
+export async function consentToAi(
+  canvasElement: HTMLElement,
+  propertyName: string,
+): Promise<void> {
   const canvas = within(canvasElement)
   const enable = canvas.getByRole('button', { name: /^enable ai features$/i })
   await expect(enable).toBeDisabled()
@@ -19,5 +22,12 @@ export async function consentToAi(canvasElement: HTMLElement): Promise<void> {
   )
   await userEvent.click(enable)
   const page = within(canvasElement.ownerDocument.body)
+  // The confirmation asks the notice's call to action, which names no property,
+  // and says in its description which property the consent is for.
+  const confirmation = page.getByRole('alertdialog', { name: 'Enable AI features?' })
+  await expect(confirmation).toBeVisible()
+  await expect(confirmation).toHaveAccessibleDescription(
+    `You confirm the data-handling notice above and authorize review analysis, editable reply drafting, and de-identified property trends for ${propertyName}.`,
+  )
   await userEvent.click(page.getByRole('button', { name: /confirm & enable/i }))
 }

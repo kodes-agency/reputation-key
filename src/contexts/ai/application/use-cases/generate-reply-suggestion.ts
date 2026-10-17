@@ -103,8 +103,8 @@ export type GenerateReplySuggestionResult =
       status: 'unavailable'
       code:
         | 'not_authorized'
-        // AI is enabled, under a notice older than the served one. Drafting
-        // resumes once an AccountAdmin confirms the served notice.
+        // AI is enabled, under a notice no longer in force. Drafting resumes
+        // once an AccountAdmin confirms the served notice.
         | 'consent_renewal_required'
         | 'source_changed'
         // A language exists in the catalogue but has no reply templates.
@@ -570,9 +570,9 @@ async function resolveDraftingGrant(
   ) {
     return refusedWith('not_authorized')
   }
-  // Enabled, but under a notice this build no longer serves. The gateway would
-  // refuse the request by throwing once an attempt is claimed, so the manager
-  // is told here what the Property needs.
+  // Enabled, but under a notice this build no longer holds in force. The
+  // gateway would refuse the request by throwing once an attempt is claimed, so
+  // the manager is told here what the Property needs.
   if (!isAiAuthorizationUnderServedContract(authorization, 'reply_drafting')) {
     return refusedWith('consent_renewal_required')
   }

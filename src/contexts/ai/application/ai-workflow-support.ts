@@ -2,7 +2,10 @@ import { createHash } from 'node:crypto'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
 import { AI_REVIEW_SOURCE_CONTRACT_VERSION } from '#/shared/ai-review-source-contract'
-import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import {
+  getAiRuntimeCapability,
+  isAiRuntimeNoticeInForce,
+} from '#/shared/ai-runtime-capability-contract'
 import type { AiMerchantAuthorizationSnapshot } from './ports/ai-authorization.port'
 import type { AiControlPort } from './ports/ai-control.port'
 import type { AiOperationRecord } from './ports/ai-operation-store.port'
@@ -29,10 +32,13 @@ export function aiReviewSourceProvenance(
 
 /**
  * Whether a Property's AI authorization was recorded under the contract this
- * build serves for `capability`: the notice, by version and digest, and the
- * provider deployment profile. A new notice ships with a deploy, and a Property
- * enabled under the previous one keeps that version on its enablement until an
- * AccountAdmin confirms the new one (docs/BETA.md, section 2).
+ * build serves for `capability`: a notice, by version and digest, that the
+ * runtime catalogue holds in force, and the provider deployment profile. A new
+ * notice ships with a deploy, and a Property enabled under the previous one
+ * keeps that version on its enablement. When the new notice changes only how
+ * consent is asked (2026-10-17: the call to action), the previous one stays in
+ * force and AI keeps running; otherwise it lapses until an AccountAdmin
+ * confirms the new one (docs/BETA.md, section 2).
  *
  * The gateway refuses any other binding, but by throwing from its request
  * check ("route binding is cross-wired"), after an operation and an execution
@@ -49,8 +55,7 @@ export function isAiAuthorizationUnderServedContract(
 ): boolean {
   const served = getAiRuntimeCapability(capability)
   return (
-    authorization.noticeVersion === served.noticeVersion &&
-    authorization.noticeDigest === served.noticeDigest &&
+    isAiRuntimeNoticeInForce(served, authorization) &&
     authorization.providerDeploymentProfileVersion ===
       served.providerDeploymentProfileVersion
   )

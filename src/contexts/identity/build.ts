@@ -51,6 +51,7 @@ import { createMerchantAiAuthorizationStore } from './infrastructure/repositorie
 import { createMerchantAiDecisionDeferralStore } from './infrastructure/repositories/merchant-ai-decision.repository'
 import { createMerchantAiOverviewReader } from './infrastructure/repositories/merchant-ai-overview.repository'
 import {
+  isMerchantAiNoticeInForce,
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
   MERCHANT_AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION,
@@ -669,8 +670,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
         at: input.now,
       }),
     clock: deps.clock,
-    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    isNoticeInForce: isMerchantAiNoticeInForce,
   })
   const merchantAiAuthorization = createMerchantAiAuthorization({
     store: createMerchantAiAuthorizationStore(deps.db, deps.idGen),

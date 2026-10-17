@@ -172,7 +172,7 @@ export const AwaitingConsent: Story = {
     ).toHaveAccessibleName(
       `I have read this notice and agree to this data use for ${property.name} on behalf of my organization.`,
     )
-    await consentToAi(canvasElement)
+    await consentToAi(canvasElement, property.name)
     await waitFor(() => expect(enableAction).toHaveBeenCalledOnce())
     // Consent names the notice that was on screen, not a password.
     expect(enableAction.mock.calls[0]?.[0].data.acknowledgement).toEqual(SERVED_NOTICE)
@@ -192,7 +192,7 @@ export const ConsentRefused: Story = {
   play: async ({ canvasElement }) => {
     refusedEnableAction.mockClear()
     const canvas = within(canvasElement)
-    await consentToAi(canvasElement)
+    await consentToAi(canvasElement, property.name)
     await waitFor(() => expect(refusedEnableAction).toHaveBeenCalledOnce())
     const page = within(canvasElement.ownerDocument.body)
     expect(await page.findByText(NOTICE_CHANGED)).toBeVisible()
@@ -314,6 +314,33 @@ export const ReconsentAfterNoticeReversion: Story = {
       'reply_drafting',
       'property_trends',
     ])
+  },
+}
+
+// The 2026-10-17 notice changed only its call to action, so a Property
+// consented under 2026-09-15 is in force: nothing asks it to consent again, and
+// Save waits for a capability change exactly as it does under the served
+// notice (EnabledSelectiveControls saves one, consented under the served one).
+export const NoReconsentUnderANoticeInForce: Story = {
+  args: {
+    snapshot: {
+      ...enabled,
+      noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+      noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const save = canvas.getByRole('button', { name: /save feature access/i })
+    const acknowledgement = canvas.getByRole('checkbox', {
+      name: AI_CONSENT_ACKNOWLEDGEMENT,
+    })
+
+    await userEvent.click(acknowledgement)
+    // Ticked, with nothing changed: there is nothing to consent to again.
+    await expect(save).toBeDisabled()
+    await userEvent.click(canvas.getByLabelText(/property trends/i))
+    await expect(save).toBeEnabled()
   },
 }
 

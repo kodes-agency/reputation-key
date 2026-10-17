@@ -78,7 +78,7 @@ async function reviewWithAiAnswer(canvasElement: HTMLElement, choice: RegExp) {
 /**
  * Twenty locations get the same questions as one: each keeps its own name,
  * suggested languages, the importing admin as manager, and one consent
- * ceremony naming every property.
+ * ceremony whose acknowledgement lists every property. The button names none.
  */
 export const ThreePropertiesOneCeremony: Story = {
   args: batchArgs(),
@@ -103,13 +103,15 @@ export const ThreePropertiesOneCeremony: Story = {
     const table = await reviewWithAiAnswer(canvasElement, /turn on ai features/i)
     await expect(table.getByRole('rowheader', { name: 'Casa Lisboa' })).toBeVisible()
     await expect(table.getAllByText(STORY_ADMIN.name)).toHaveLength(3)
-    const cta = canvas.getByRole('button', {
-      name: 'Enable AI features for Hotel Berlin Mitte, Casa Lisboa and Athens Rooms',
-    })
+    const cta = canvas.getByRole('button', { name: 'Enable AI features' })
     await expect(cta).toBeDisabled()
-    await userEvent.click(
-      canvas.getByRole('checkbox', { name: /I have read this notice and agree/i }),
+    const acknowledgement = canvas.getByRole('checkbox', {
+      name: 'I have read this notice and agree to this data use on behalf of my organization for these 3 properties:',
+    })
+    await expect(acknowledgement).toHaveAccessibleDescription(
+      /^Hotel Berlin Mitte, Casa Lisboa, Athens Rooms\. Required to enable AI features/,
     )
+    await userEvent.click(acknowledgement)
     await userEvent.click(cta)
 
     await expect(canvas.findByText('Setup saved')).resolves.toBeVisible()
@@ -170,14 +172,15 @@ export const PerPropertyOverrides: Story = {
     )
     await userEvent.click(canvas.getByRole('button', { name: /review answers/i }))
 
-    await userEvent.click(
-      await canvas.findByRole('checkbox', { name: /I have read this notice and agree/i }),
+    const acknowledgement = await canvas.findByRole('checkbox', {
+      name: /I have read this notice and agree .* for these 2 properties:$/i,
+    })
+    // The property answered "not now" is not in the consent.
+    await expect(acknowledgement).toHaveAccessibleDescription(
+      /^Hotel Berlin Mitte, Casa Lisboa\. Required/,
     )
-    await userEvent.click(
-      canvas.getByRole('button', {
-        name: 'Enable AI features for Hotel Berlin Mitte and Casa Lisboa',
-      }),
-    )
+    await userEvent.click(acknowledgement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Enable AI features' }))
 
     await expect(canvas.findByText('Setup saved')).resolves.toBeVisible()
     await expect(fns.deferMerchantAiDecision).toHaveBeenCalledOnce()

@@ -1,15 +1,23 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
 import {
-  MERCHANT_AI_NOTICE_DIGEST,
-  MERCHANT_AI_NOTICE_VERSION,
+  MERCHANT_AI_NOTICES_IN_FORCE,
   canonicalizeRfc8785,
+  isMerchantAiNoticeInForce,
+  type MerchantAiNoticeReference,
 } from './merchant-ai-notice-contract'
 import {
   CURRENT_MERCHANT_AI_CAPABILITIES,
   type CapabilityRuntimeProfileVersions,
   type MerchantAiCapability,
 } from './domain/merchant-ai-capability'
+
+const noticeInForceSchema = z
+  .object({
+    noticeVersion: z.string().min(1).max(100),
+    noticeDigest: z.string().regex(/^[0-9a-f]{64}$/),
+  })
+  .strict()
 
 const runtimeEntrySchema = z
   .object({
@@ -38,12 +46,17 @@ const runtimeEntrySchema = z
       'property-trend-v1',
     ]),
     providerDeploymentProfileVersion: z.literal('private-beta-global-v1'),
-    noticeVersion: z.literal(MERCHANT_AI_NOTICE_VERSION),
-    noticeDigest: z.literal(MERCHANT_AI_NOTICE_DIGEST),
+    // The notices whose consent admits this capability: the served one first,
+    // then each earlier one it keeps in force (merchant-ai-notice-contract.ts).
+    noticesInForce: z.array(noticeInForceSchema).min(1),
   })
   .strict()
 
-export type AiRuntimeCapabilityV1 = Readonly<z.infer<typeof runtimeEntrySchema>>
+export type AiRuntimeCapabilityV1 = Readonly<
+  Omit<z.infer<typeof runtimeEntrySchema>, 'noticesInForce'> & {
+    noticesInForce: ReadonlyArray<MerchantAiNoticeReference>
+  }
+>
 
 const EXPECTED_RUNTIME_CAPABILITIES = Object.freeze([
   Object.freeze({
@@ -56,8 +69,7 @@ const EXPECTED_RUNTIME_CAPABILITIES = Object.freeze([
     caller: 'worker',
     operationProfileVersion: 'review-analysis-v2',
     providerDeploymentProfileVersion: 'private-beta-global-v1',
-    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE,
   }),
   Object.freeze({
     capability: 'reply_drafting',
@@ -69,8 +81,7 @@ const EXPECTED_RUNTIME_CAPABILITIES = Object.freeze([
     caller: 'web',
     operationProfileVersion: 'reply-suggestion-v1',
     providerDeploymentProfileVersion: 'private-beta-global-v1',
-    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE,
   }),
   Object.freeze({
     capability: 'property_trends',
@@ -82,8 +93,7 @@ const EXPECTED_RUNTIME_CAPABILITIES = Object.freeze([
     caller: 'worker',
     operationProfileVersion: 'property-trend-v1',
     providerDeploymentProfileVersion: 'private-beta-global-v1',
-    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE,
   }),
 ] as const)
 
@@ -108,7 +118,16 @@ export function parseAiRuntimeCapabilitiesV1(
       failContract(`entry ${index} is missing, reordered, or cross-wired`)
     }
   }
-  return Object.freeze(parsed.map((entry) => Object.freeze(entry)))
+  return Object.freeze(
+    parsed.map((entry) =>
+      Object.freeze({
+        ...entry,
+        noticesInForce: Object.freeze(
+          entry.noticesInForce.map((notice) => Object.freeze(notice)),
+        ),
+      }),
+    ),
+  )
 }
 
 export const AI_RUNTIME_CAPABILITIES_V1 = parseAiRuntimeCapabilitiesV1(
@@ -155,4 +174,17 @@ export function getAiRuntimeCapability(
   )
   if (!entry) failContract(`unknown capability ${capability}`)
   return entry
+}
+
+/**
+ * Whether consent recorded under `notice` admits `entry`'s capability: the
+ * notice, by version and its own digest, is one the catalogue holds in force.
+ * The use cases ask it before claiming work and the gateway's request check
+ * asks it again, so the two cannot disagree.
+ */
+export function isAiRuntimeNoticeInForce(
+  entry: Pick<AiRuntimeCapabilityV1, 'noticesInForce'>,
+  notice: MerchantAiNoticeReference,
+): boolean {
+  return isMerchantAiNoticeInForce(notice, entry.noticesInForce)
 }

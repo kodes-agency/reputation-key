@@ -220,9 +220,7 @@ export function buildSetupPlan(
   }
 }
 
-/** Names of the properties the consent ceremony covers, in import order. */
-export function aiEnabledPropertyNames(plan: SetupPlan): readonly string[] {
-  return plan.properties
-    .filter((property) => property.ai === 'enable')
-    .map((property) => property.propertyName)
+/** The properties the consent ceremony covers, in import order. */
+export function aiEnabledProperties(plan: SetupPlan): readonly PropertySetupPlan[] {
+  return plan.properties.filter((property) => property.ai === 'enable')
 }

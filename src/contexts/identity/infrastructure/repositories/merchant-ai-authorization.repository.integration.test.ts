@@ -6,6 +6,7 @@ import { getDb } from '#/shared/db'
 import { properties } from '#/shared/db/schema'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
+  isMerchantAiNoticeInForce,
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
@@ -42,6 +43,10 @@ const NOW = new Date('2026-08-15T12:00:00.000Z')
 const PREVIOUS_NOTICE_VERSION = 'merchant-ai-notice-2026-09-08.v1'
 const PREVIOUS_NOTICE_DIGEST =
   'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865'
+const NOTICE_2026_09_15 = {
+  noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+  noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+} as const
 
 const store = createMerchantAiAuthorizationStore(db, randomUUID)
 
@@ -474,9 +479,9 @@ describe('Merchant AI authorization store', () => {
         (SELECT notice_version FROM merchant_ai_consent_evidence WHERE organization_id = ${ORG}) AS evidence_version
     `)
     expect(recorded.rows[0]).toEqual({
-      head_version: 'merchant-ai-notice-2026-09-15.v1',
+      head_version: 'merchant-ai-notice-2026-10-17.v1',
       head_digest: MERCHANT_AI_NOTICE_DIGEST,
-      evidence_version: 'merchant-ai-notice-2026-09-15.v1',
+      evidence_version: 'merchant-ai-notice-2026-10-17.v1',
     })
 
     const refusedPairs = [
@@ -552,6 +557,104 @@ describe('Merchant AI authorization store', () => {
       WHERE tgname = 'merchant_ai_enablement_transition_guard'
     `)
     expect(guard.rows).toEqual([{ tgenabled: 'O' }])
+  })
+
+  // The 2026-10-17 notice changed only its call to action, and a deploy
+  // rewrites no head: one granted under 2026-09-15 stays valid in both CHECKs,
+  // keeps every capability's consent active, and is in force, so nobody
+  // re-consents. The next consent a manager gives is the served notice's.
+  //
+  // That next consent moves the head off 2026-09-15, and every analysis stored
+  // under 2026-09-15 is bound to that notice: the output store reads none under
+  // another notice than the head's (`readAnalysisForDelivery`). So the move is a
+  // contract change, as `apply_merchant_ai_transition_v1` counts it: every
+  // capability the Property had or keeps advances its epoch, and the Review
+  // Analysis watermark resets so the enrollment replay analyses the history
+  // again under the served notice. Pinned here so that one-time replay is a
+  // tested contract rather than a side effect (docs/BETA.md §2, 2026-10-17).
+  it('keeps a grant under the 2026-09-15 notice active; its next consent records the served notice and advances every epoch once', async () => {
+    const enabled = await store.mutate(command(NOTICE_2026_09_15))
+    expect(enabled).toMatchObject({ state: 'enabled', ...NOTICE_2026_09_15 })
+    expect(isMerchantAiNoticeInForce(enabled)).toBe(true)
+    for (const [purpose, capability] of [
+      ['ai.analyze', 'review_analysis'],
+      ['ai.generate_reply', 'reply_drafting'],
+      ['ai.detect_trends', 'property_trends'],
+    ] as const) {
+      await expect(
+        hasActiveMerchantAiConsent(db, {
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          purpose,
+          expectedFence: fence(enabled, capability),
+        }),
+      ).resolves.toBe(true)
+    }
+
+    // A review arrives under the 2026-09-15 consent, after its watermark.
+    const arrivedUnder0915 = await advanceAnalysisHead()
+    expect(arrivedUnder0915).toBeGreaterThan(enabled.analysisStartSequence)
+    const changed = await store.mutate(
+      command({
+        operation: 'change',
+        idempotencyKey: 'served-notice-change',
+        expectedStateVersion: enabled.stateVersion,
+        capabilities: ['review_analysis', 'reply_drafting'],
+        reasonCode: 'capabilities_changed',
+      }),
+    )
+    expect(changed).toMatchObject({
+      authorizationLineageId: enabled.authorizationLineageId,
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+      capabilityEpochs: {
+        review_analysis: enabled.capabilityEpochs.review_analysis + 1,
+        reply_drafting: enabled.capabilityEpochs.reply_drafting + 1,
+        property_trends: enabled.capabilityEpochs.property_trends + 1,
+      },
+    })
+    // The watermark moved to the head: the replay covers that review too.
+    expect(changed.analysisStartSequence).toBe(arrivedUnder0915)
+
+    // Under the served notice the same kind of change moves only the capability
+    // it adds, and the analysis watermark stays where the replay started.
+    await advanceAnalysisHead()
+    const readded = await store.mutate(
+      command({
+        operation: 'change',
+        idempotencyKey: 'served-notice-readd',
+        expectedStateVersion: changed.stateVersion,
+        capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
+        reasonCode: 'capabilities_changed',
+      }),
+    )
+    expect(readded).toMatchObject({
+      capabilityEpochs: {
+        ...changed.capabilityEpochs,
+        property_trends: changed.capabilityEpochs.property_trends + 1,
+      },
+      analysisStartSequence: changed.analysisStartSequence,
+    })
+    const evidence = await db.execute(sql`
+      SELECT notice_version, notice_digest
+      FROM merchant_ai_consent_evidence
+      WHERE organization_id = ${ORG}
+      ORDER BY state_version
+    `)
+    expect(evidence.rows).toEqual([
+      {
+        notice_version: NOTICE_2026_09_15.noticeVersion,
+        notice_digest: NOTICE_2026_09_15.noticeDigest,
+      },
+      {
+        notice_version: 'merchant-ai-notice-2026-10-17.v1',
+        notice_digest: MERCHANT_AI_NOTICE_DIGEST,
+      },
+      {
+        notice_version: 'merchant-ai-notice-2026-10-17.v1',
+        notice_digest: MERCHANT_AI_NOTICE_DIGEST,
+      },
+    ])
   })
 
   it('enforces transition, optimistic-version, and material-change rules', async () => {

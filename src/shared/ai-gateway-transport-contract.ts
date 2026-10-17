@@ -17,7 +17,10 @@ import {
   REPLY_TEMPLATE_LANGUAGE_GROUPS,
   parseCanonicalReplyLanguageTag,
 } from './ai-review-language-catalogue'
-import { AI_RUNTIME_CAPABILITIES_V1 } from './ai-runtime-capability-contract'
+import {
+  AI_RUNTIME_CAPABILITIES_V1,
+  isAiRuntimeNoticeInForce,
+} from './ai-runtime-capability-contract'
 import {
   AI_ANALYSIS_V2_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
@@ -271,8 +274,7 @@ export const aiGatewayRouteRequestSchema = z
       value.binding.operationProfileVersion !== entry.operationProfileVersion ||
       value.binding.providerDeploymentProfileVersion !==
         entry.providerDeploymentProfileVersion ||
-      value.binding.noticeVersion !== entry.noticeVersion ||
-      value.binding.noticeDigest !== entry.noticeDigest
+      !isAiRuntimeNoticeInForce(entry, value.binding)
     ) {
       context.addIssue({ code: 'custom', message: 'route binding is cross-wired' })
     }
