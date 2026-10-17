@@ -65,8 +65,8 @@ export type GoalListProgress = Readonly<{
   /**
    * Subjects below pace, for a count goal: how many of several, or 1 or 0 for
    * a goal with one subject. Null when nothing was judged: an average, a month
-   * in its first days, subjects too many to read, or figures that cannot be
-   * read.
+   * in its first days or expecting too few yet (`goalPace`), subjects too many
+   * to read, or figures that cannot be read.
    */
   belowPace: number | null
 }>

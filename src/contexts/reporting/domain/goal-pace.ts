@@ -13,6 +13,9 @@
 //   Exactly 90% is on pace.
 // - The first three days of a month are not judged: a few days of a count say
 //   little, and the month has only just begun.
+// - Nor is a month that expects fewer than 5 by today (target x days gone <
+//   5 x days in the month): a target of 10 in a 30-day month is judged from
+//   day 15, and a target of 4 never is.
 // - An average has no pace. It is a level to hold, not a total to build up.
 //
 // Pure, and built on integers so a count on the edge is decided exactly.
@@ -26,6 +29,9 @@ export const GOAL_PACE_THRESHOLD_PERCENT = 90
 /** Days at the start of a month that are never judged. */
 export const GOAL_PACE_QUIET_DAYS = 3
 
+/** A month that expects fewer than this by today is not judged. */
+export const GOAL_PACE_MINIMUM_EXPECTED = 5
+
 const DAY_MS = 86_400_000
 
 export type GoalPaceState =
@@ -35,6 +41,8 @@ export type GoalPaceState =
   | 'on_pace'
   /** Within the first days of the month, which are not judged. */
   | 'too_early'
+  /** Fewer than `GOAL_PACE_MINIMUM_EXPECTED` expected by today, which is not judged. */
+  | 'too_few_expected'
   /** An average, which has no pace. */
   | 'not_applicable'
 
@@ -108,6 +116,9 @@ export function goalPace(input: GoalPaceInput): GoalPace {
   const days = goalMonthDays(input.period, input.now, input.timezone)
   if (!isCount(input.metric)) return { state: 'not_applicable', ...days }
   if (days.elapsedDays <= GOAL_PACE_QUIET_DAYS) return { state: 'too_early', ...days }
+  if (input.target * days.elapsedDays < GOAL_PACE_MINIMUM_EXPECTED * days.totalDays) {
+    return { state: 'too_few_expected', ...days }
+  }
   const behind = isBelowThreshold(
     input.value,
     input.target,
