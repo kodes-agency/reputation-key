@@ -12,9 +12,9 @@
 //     daily means, and is held back below the average floor;
 //   - the prior figure is left out when the prior window predates the measure.
 // Days are Property-local calendar days, as `property_local_date` records them.
-// Pure: only `shared/domain` is imported.
+// Pure: only `shared/domain` and the local-day arithmetic are imported.
 
-import { propertyWallClockAt } from '#/shared/domain/property-calendar'
+import { addLocalDays, daysBetween, localDateOf } from './local-days'
 
 export const SERIES_BUCKET_DAYS = 7
 
@@ -89,32 +89,6 @@ export type BuildPortalResultsSeriesInput = Readonly<{
   ready: SeriesReadiness
   averageMinSample: number
 }>
-
-function pad(value: number): string {
-  return String(value).padStart(2, '0')
-}
-
-/** The Property-local calendar date of an instant, as `YYYY-MM-DD`. */
-export function localDateOf(date: Date, timezone: string): string {
-  const { year, month, day } = propertyWallClockAt(date, timezone)
-  return `${year}-${pad(month)}-${pad(day)}`
-}
-
-function utcDay(localDate: string): number {
-  const [year = 0, month = 1, day = 1] = localDate.split('-').map(Number)
-  return Date.UTC(year, month - 1, day)
-}
-
-const MS_PER_DAY = 86_400_000
-
-export function addLocalDays(localDate: string, days: number): string {
-  const moved = new Date(utcDay(localDate) + days * MS_PER_DAY)
-  return `${moved.getUTCFullYear()}-${pad(moved.getUTCMonth() + 1)}-${pad(moved.getUTCDate())}`
-}
-
-function daysBetween(fromLocalDate: string, toLocalDate: string): number {
-  return Math.round((utcDay(toLocalDate) - utcDay(fromLocalDate)) / MS_PER_DAY)
-}
 
 /** The first and last Property-local day of a half-open window, for its label. */
 export function localDayRange(

@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createConsumerRegistry } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildReportingContext, type ReportingContextBuildInput } from './build'
 
-function build() {
+function build(patch: Partial<ReportingContextBuildInput> = {}) {
   const input: ReportingContextBuildInput = {
     db: {} as ReportingContextBuildInput['db'],
     clock: () => new Date('2026-08-27T00:00:00.000Z'),
@@ -18,6 +18,7 @@ function build() {
     reviewGoogleRatingReads: {} as ReportingContextBuildInput['reviewGoogleRatingReads'],
     inboxTargets: {} as ReportingContextBuildInput['inboxTargets'],
     guestResponseIntegrity: {} as ReportingContextBuildInput['guestResponseIntegrity'],
+    ...patch,
   }
   return buildReportingContext(input)
 }
@@ -83,6 +84,50 @@ describe('buildReportingContext', () => {
     expect(registry.list()).toContainEqual({
       eventType: 'property.archived',
       consumerName: 'goal.on-property-archived',
+    })
+  })
+
+  it("composes the portal goal recommendation over Portal's readiness facts and one readings statement", async () => {
+    const statements: unknown[] = []
+    const tx = {
+      execute: vi.fn(async (statement: unknown) => {
+        statements.push(statement)
+        return { rows: [] }
+      }),
+    }
+    const listGoalReadinessFacts = vi.fn(async () => ({ portals: [], truncated: false }))
+    const context = build({
+      db: {
+        transaction: async (read: (inner: typeof tx) => Promise<unknown>) => read(tx),
+      } as unknown as ReportingContextBuildInput['db'],
+      portalApi: {
+        listGoalReadinessFacts,
+      } as unknown as ReportingContextBuildInput['portalApi'],
+      propertyApi: {
+        getPropertyTimezone: async () => 'Europe/Sofia',
+      } as unknown as ReportingContextBuildInput['propertyApi'],
+    })
+    const authorize = vi.fn(async () => undefined)
+
+    const recommendation = await context.internal.useCases.goalRecommendation.read(
+      { authorize },
+      { propertyId: 'property-1' },
+      { organizationId: 'org-1', userId: 'manager-1', role: 'PropertyManager' },
+    )
+
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'goal.create' }),
+    )
+    expect(listGoalReadinessFacts).toHaveBeenCalledWith(
+      'org-1',
+      'property-1',
+      new Date('2026-08-27T00:00:00.000Z'),
+    )
+    // The statement timeout, then the one readings statement.
+    expect(statements).toHaveLength(2)
+    expect(recommendation).toMatchObject({
+      state: 'no_live_portal',
+      timezone: 'Europe/Sofia',
     })
   })
 
