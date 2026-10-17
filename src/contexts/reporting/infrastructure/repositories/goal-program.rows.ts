@@ -33,10 +33,24 @@ export function hasPostgresErrorCode(error: unknown, code: string): boolean {
   return false
 }
 
+/**
+ * The Program as the port knows it. The columns migration 0062 added (the
+ * answered check-in and who ended it when) are written by their own commands
+ * and are not part of it.
+ */
 export function mapProgram(row: typeof goalPrograms.$inferSelect): GoalProgram {
   return {
-    ...row,
+    id: row.id,
+    organizationId: row.organizationId,
+    propertyId: row.propertyId,
+    name: row.name,
+    description: row.description,
     status: row.status as GoalProgram['status'],
+    statusReason: row.statusReason,
+    currentVersion: row.currentVersion,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   }
 }
 
