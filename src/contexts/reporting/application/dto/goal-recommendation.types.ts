@@ -5,4 +5,7 @@
 // (`domain/goal-recommendation-types.ts`); each is re-exported here when a
 // reader outside Reporting's domain first needs it.
 
-export type { PortalGoalRecommendation } from '../../domain/goal-recommendation-types'
+export type {
+  PortalGoalMeasure,
+  PortalGoalRecommendation,
+} from '../../domain/goal-recommendation-types'
