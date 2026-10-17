@@ -1575,6 +1575,36 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await page.reload()
     await expect(reviewEmailSwitch).toBeEnabled({ timeout: 15_000 })
     await expectState(initiallyEnabled)
+
+    // J10. The two goals have a row each (ADR 0046, amended 2026-10-17), and
+    // the Portal goals row saves on its own: a toggle survives a reload, and
+    // so does the restore. Self-baselining, like the email switch above.
+    await expect(
+      page.getByRole('heading', { name: 'Google rating goal', exact: true }),
+    ).toBeVisible()
+    const portalGoalsInApp = page.getByRole('switch', {
+      name: 'Portal goals: In-app',
+      exact: true,
+    })
+    await expect(portalGoalsInApp).toBeEnabled({ timeout: 15_000 })
+    const portalGoalsInitially =
+      (await portalGoalsInApp.getAttribute('data-state')) === 'checked'
+    const expectPortalGoals = async (enabled: boolean) => {
+      if (enabled) await expect(portalGoalsInApp).toBeChecked()
+      else await expect(portalGoalsInApp).not.toBeChecked()
+    }
+
+    await clickWhenReady(portalGoalsInApp)
+    await expect(page.getByText('Notification preference updated')).toBeVisible()
+    await page.reload()
+    await expect(portalGoalsInApp).toBeEnabled({ timeout: 15_000 })
+    await expectPortalGoals(!portalGoalsInitially)
+
+    await clickWhenReady(portalGoalsInApp)
+    await expect(page.getByText('Notification preference updated')).toBeVisible()
+    await page.reload()
+    await expect(portalGoalsInApp).toBeEnabled({ timeout: 15_000 })
+    await expectPortalGoals(portalGoalsInitially)
   })
 
   test('security and organization mutations persist and restore their baselines', async ({

@@ -116,7 +116,13 @@ export type NotificationCategory =
   | 'low_ratings'
   | 'arrivals'
   | 'workflow_collaboration'
+  // The Google rating goal's change notices, shown as "Google rating goal".
+  // The name stays because stored rows and preferences carry it (ADR 0046,
+  // amended 2026-10-17).
   | 'recognition'
+  // A Monthly portal goal's results, shown as "Portal goals" (ADR 0046,
+  // amended 2026-10-17). Migration 0063 gave it every "Goals" answer.
+  | 'portal_goals'
 /** Categories a user may configure for a Property. Mandatory is Organization policy. */
 export type ConfigurableNotificationCategory = Exclude<NotificationCategory, 'mandatory'>
 export type NotificationChannel = 'in_app' | 'email'

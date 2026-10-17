@@ -36,10 +36,23 @@ export const CATEGORY_COPY: Readonly<
     label: 'Workflow and collaboration',
     description: 'Assignments, notes, and reply updates.',
   },
-  // `recognition` carries Goals only: monthly goal results (ADR 0046, amended
-  // 2026-09-22) and the Google rating goal's changes (amended 2026-10-14).
+  // One row per goal (ADR 0046, amended 2026-10-17). `recognition` keeps its
+  // stored name and carries only the Google rating goal's changes.
   recognition: {
-    label: 'Goals',
-    description: 'Goal results and Google rating goal changes for your properties.',
+    label: 'Google rating goal',
+    description: 'Changes to your Google rating goal.',
+  },
+  portal_goals: {
+    label: 'Portal goals',
+    description: 'Monthly results of your portal goals.',
   },
 }
+
+/**
+ * A category's label inside a sentence ("Mute portal goals for this
+ * property"): lower case, but Google stays a name.
+ */
+export const categoryInSentence = (category: NotificationCategory): string =>
+  category === 'recognition'
+    ? CATEGORY_COPY[category].label
+    : CATEGORY_COPY[category].label.toLowerCase()

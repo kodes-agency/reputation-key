@@ -10,12 +10,14 @@ describe('notification preference API contract', () => {
     expect(notificationPreferenceCategory.safeParse('mandatory').success).toBe(false)
   })
 
-  it.each(['urgent_operational', 'workflow_collaboration', 'recognition'] as const)(
-    'accepts configurable Property category %s',
-    (category) => {
-      expect(notificationPreferenceCategory.safeParse(category).success).toBe(true)
-    },
-  )
+  it.each([
+    'urgent_operational',
+    'workflow_collaboration',
+    'recognition',
+    'portal_goals',
+  ] as const)('accepts configurable Property category %s', (category) => {
+    expect(notificationPreferenceCategory.safeParse(category).success).toBe(true)
+  })
 })
 
 describe('notification preference update contract', () => {

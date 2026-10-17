@@ -144,6 +144,29 @@ describe('executable beta notification trigger matrix', () => {
     expect(liveTypes.filter((type) => type === 'reply.pending_approval')).toHaveLength(1)
   })
 
+  // ADR 0046, amended 2026-10-17: each goal has its own row, so each goal's
+  // facts must reach only the category that row switches.
+  it('files the monthly portal goal results under Portal goals and the Google rating goal changes under recognition', () => {
+    const categoriesOf = (eventType: string) =>
+      BETA_NOTIFICATION_TRIGGER_MATRIX.filter((row) => row.eventType === eventType)
+        .flatMap((row) => row.notifications)
+        .map((policy) => [policy.type, policy.category])
+
+    expect(categoriesOf('goal.monthly_result.closed')).toEqual([
+      ['goal.completed', 'portal_goals'],
+    ])
+    expect(categoriesOf('goal.monthly_result.revised')).toEqual([
+      ['goal.result_revised', 'portal_goals'],
+    ])
+    expect(categoriesOf('goal.rating_goal.transitioned')).toEqual([
+      ['goal.rating_reached', 'recognition'],
+      ['goal.rating_changed', 'recognition'],
+      ['goal.rating_below_pace', 'recognition'],
+      ['goal.rating_too_low', 'recognition'],
+      ['goal.rating_keep_dropped', 'recognition'],
+    ])
+  })
+
   // The reverse of the policy's "every advertised category governs a type".
   // A live notice in a category with no control can be neither muted, nor
   // filtered to, nor opted in to email: that is how goal results sat under a

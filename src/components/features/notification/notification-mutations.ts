@@ -24,7 +24,7 @@ import {
   actionFailureMessage as failed,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
-import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
+import { categoryInSentence } from '#/components/features/settings/notifications-type-rows'
 import { notificationKeys } from '#/shared/queries/query-keys'
 import type {
   NotificationListFilter,
@@ -50,7 +50,7 @@ const readNow = (row: NotificationView): NotificationView => ({
  * Property name say without a second line.
  */
 function muteConfirmation(notification: NotificationView): string {
-  const category = CATEGORY_COPY[notification.category].label.toLowerCase()
+  const category = categoryInSentence(notification.category)
   const property = notification.payload.propertyName ?? 'this property'
   return `In-app ${category} notices muted for ${property}, including earlier ones.`
 }

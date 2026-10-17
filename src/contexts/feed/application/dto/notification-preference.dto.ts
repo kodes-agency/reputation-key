@@ -16,6 +16,7 @@ export const notificationPreferenceCategory = z.enum([
   'arrivals',
   'workflow_collaboration',
   'recognition',
+  'portal_goals',
 ])
 
 const notificationChannel = z.enum(['in_app', 'email'])

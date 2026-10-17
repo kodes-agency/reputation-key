@@ -743,6 +743,8 @@ export const ActionNeededCannotBeMuted: Story = {
 /**
  * Goal results are a configurable category, so their rows offer a mute. One
  * Program over every Portal can close hundreds of results in the same hour.
+ * A portal goal's result mutes Portal goals only (ADR 0046, amended
+ * 2026-10-17).
  */
 export const GoalResultCanBeMuted: Story = {
   args: {
@@ -756,8 +758,42 @@ export const GoalResultCanBeMuted: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const menu = await openRowMenu(canvasElement)
-    await userEvent.click(await findVisibleMenuItem(menu, 'Mute goals for this property'))
+    await userEvent.click(
+      await findVisibleMenuItem(menu, 'Mute portal goals for this property'),
+    )
     expect(actions.onMuteCategory).toHaveBeenCalledWith(args.notification)
+    expect(args.notification.category).toBe('portal_goals')
+    await expectMenuSettled(canvasElement)
+  },
+}
+
+/**
+ * The Google rating goal's changes have a row of their own, so muting them
+ * leaves the portal goals' results on. Google stays a name in the menu.
+ */
+export const RatingGoalChangeCanBeMuted: Story = {
+  args: {
+    notification: makeNotification({
+      id: '20000000-0000-4000-8000-0000000000a2',
+      type: 'goal.rating_changed',
+      status: 'read',
+      resourceType: 'goal',
+      payload: {
+        propertyName: 'Harbour View Suites',
+        ratingShownTenths: 44,
+        ratingPreviousTenths: 43,
+        ratingTargetTenths: 45,
+        ratingGoalMode: 'climb',
+      },
+    }),
+  },
+  play: async ({ canvasElement, args }) => {
+    const menu = await openRowMenu(canvasElement)
+    await userEvent.click(
+      await findVisibleMenuItem(menu, 'Mute Google rating goal for this property'),
+    )
+    expect(actions.onMuteCategory).toHaveBeenCalledWith(args.notification)
+    expect(args.notification.category).toBe('recognition')
     await expectMenuSettled(canvasElement)
   },
 }

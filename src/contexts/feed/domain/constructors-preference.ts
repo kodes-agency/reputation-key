@@ -36,6 +36,7 @@ const CATEGORIES: Readonly<Record<NotificationCategory, true>> = {
   arrivals: true,
   workflow_collaboration: true,
   recognition: true,
+  portal_goals: true,
 }
 const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/
 

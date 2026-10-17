@@ -654,6 +654,23 @@
 // chunks by hash, so one change compresses differently on each base. 116 B
 // spare under 307,700; the ceiling for the whole portal-goal build is 308,300
 // (owner, P-9).
+//
+// 2026-10-17 (Monthly portal goal, PG-17: migration 0063, the notification row
+// split): no raise. The category copy is first paint (the notification row
+// reads it): "Goals" becomes "Google rating goal", "Portal goals" is added, and
+// categoryInSentence keeps Google a name in the mute and reset sentences
+// (notifications-type-rows 441 -> 497 B gzip). The category lists gain
+// portal_goals (notification-delivery-policy 545 -> 554 B); -notification-fns
+// -14 B. No new class; the stylesheet is byte for byte the same on base and
+// head (27,795 B). Fresh production builds measured 307,515 B (75 js + 1 css)
+// on the PG-04 head 460fb7f84 and 307,578 B on the PG-17 head: +63 B. Rebased
+// onto PG-04 on PG-01..PG-03 (a94ef41f5, 307,540 B) it measured 307,608 B:
+// +68 B, the entry +19 B. 92 B spare. 2026-10-18, the review fixes (docs,
+// stories, a metrics file) change no client module; the branch was measured
+// once more on main 89ec42dbb (PG-04 as #854, then #855, PG-06 #859 and #857)
+// without rebasing it: main 307,564 B, PG-17 applied 307,634 B, +70 B, the
+// stylesheet 27,811 B on both. Rebased onto PG-05 (main f764b7b88) it
+// measured 307,636 B. 64 B spare under 307,700; no raise.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
