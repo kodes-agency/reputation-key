@@ -606,6 +606,14 @@
 // name order, grouped and singular counts in the results matrix, one subject
 // name on a goal's page) it measured 307,533 B: +3 B. vendor-charts 91,004 B
 // (lazy). 167 B spare.
+//
+// 2026-10-17 (Monthly portal goal, PG-04: migration 0062, the goal facts): no
+// raise. No UI changes; the month target command's schema gains an optional
+// number source, which only the goal's own route chunk loads (_goalId,
+// 8,974 -> 8,996 B gzip, lazy). The domain's new type costs nothing. Fresh
+// production builds measured 307,530 B (75 js + 1 css) on main 2c9fb2a0e and
+// 307,515 B on the PG-04 head: -15 B, all in the entry's preload map (chunk
+// names). The stylesheet is unchanged. 185 B spare.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
