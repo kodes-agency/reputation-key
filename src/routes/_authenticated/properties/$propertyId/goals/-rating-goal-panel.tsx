@@ -24,6 +24,7 @@ import {
   preloadRatingGoalWizard,
   regionRead,
   useRatingGoalCard,
+  useRatingGoalRecapCommands,
   useRatingGoalWizard,
 } from './-rating-goal-wizard-host'
 
@@ -98,6 +99,7 @@ export function RatingGoalPanel({
     hasPortals,
     propertyName: property.data?.property.name,
   })
+  const recap = useRatingGoalRecapCommands(propertyId)
   useWizardOnArrival({
     asked: startOnArrival && view === 'active',
     card,
@@ -124,6 +126,7 @@ export function RatingGoalPanel({
           history={regionRead(history)}
           hasPortals={hasPortals}
           onStart={start}
+          recap={recap}
         />
       ) : (
         <RatingGoalHistory history={regionRead(history)} timezone={timezone} now={now} />
