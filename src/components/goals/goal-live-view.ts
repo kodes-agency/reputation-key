@@ -127,8 +127,8 @@ export function goalLiveShape(
 }
 
 /**
- * The quiet line of a row: the measure, the target, the subjects when the live
- * line does not name them, and when the target was set. Parts that are not
+ * The quiet line of a row: the measure, the target, who the goal is for by
+ * name (`goalListSubjectText`), and when the target was set. Parts that are not
  * there are left out.
  */
 export function goalListSummary(parts: readonly (string | null)[]): string {
