@@ -361,8 +361,11 @@ const isListed = (
 type Spoiled = Readonly<{
   /** Measures whose month so far S holds a reading that cannot be trusted. */
   month: ReadonlySet<PortalGoalMeasure>
-  /** Measures whose rate R does. */
-  rate: ReadonlySet<PortalGoalMeasure>
+  /**
+   * Measures with one in S or in the rate R, so unreadable: the current
+   * month's choices stand on S, and every choice on R.
+   */
+  measures: ReadonlySet<PortalGoalMeasure>
 }>
 
 /**
@@ -383,7 +386,7 @@ function spoiledBy(
     const joined = established.find(({ facts }) => facts.portalId === flag.portalId)
     if (joined?.liveDays.has(flag.localDay)) rate.add(flag.measure)
   }
-  return { month, rate }
+  return { month, measures: new Set([...month, ...rate]) }
 }
 
 /** Per measure: unreadable when flagged, nothing when R = 0, else ready. */
@@ -444,9 +447,7 @@ export function recommendPortalGoal(
   const { month, ...totals } = propertyTotals(input, bases, context, spoiled.month)
   const measures = perMeasure((measure) => {
     const rate = propertyRate(established, measure)
-    // The current month's choices stand on S and every choice on R.
-    const isSpoiled = spoiled.month.has(measure) || spoiled.rate.has(measure)
-    const state = measureState(isSpoiled, rate)
+    const state = measureState(spoiled.measures.has(measure), rate)
     return measureRecommendation(state, rate, months, month[measure])
   })
   const state = recommendationState(
