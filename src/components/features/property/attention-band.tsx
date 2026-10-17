@@ -126,9 +126,11 @@ export function AttentionBand({
         >
           <ChipContent
             icon={Target}
-            count={signals.goalsBehindPace}
+            count={signals.goalsBehindPace === 1 ? null : signals.goalsBehindPace}
             label={
-              signals.goalsBehindPace === 1 ? 'goal behind pace' : 'goals behind pace'
+              signals.goalsBehindPace === 1
+                ? 'Portal goal below pace'
+                : 'portal goals below pace'
             }
           />
         </Link>

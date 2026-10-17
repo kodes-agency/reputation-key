@@ -53,7 +53,7 @@ export const DASHBOARD_GLOSSARY: Readonly<Record<GlossaryTermKey, GlossaryEntry>
   'needs-attention': {
     term: 'Needs attention',
     definition:
-      'Work waiting on you: reviews to triage, replies past their due time, escalated items, a rating that dropped, and goals behind pace.',
+      'Work waiting on you: reviews to triage, replies past their due time, escalated items, a rating that dropped, and portal goals below pace.',
   },
   'reply-rate': {
     term: 'Reply rate',
