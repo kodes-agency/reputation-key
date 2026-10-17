@@ -449,6 +449,13 @@
       "when": 1794400000000,
       "tag": "0063_notification_portal_goals_carryover",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1794500000000,
+      "tag": "0064_merchant_ai_notice_cta_without_names",
+      "breakpoints": true
     }
   ]
 }

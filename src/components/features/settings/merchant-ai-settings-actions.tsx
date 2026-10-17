@@ -21,7 +21,7 @@ export function MerchantAiSettingsActions({
   onResetSelection,
 }: Readonly<{
   propertyName: string
-  /** The notice's call to action, rendered for this property. */
+  /** The notice's call to action. It names no property: the acknowledgement does. */
   enableCallToAction: string
   canRevoke: boolean
   isEnabled: boolean

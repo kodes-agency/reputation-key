@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  isMerchantAiNoticeInForce,
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
@@ -14,6 +15,10 @@ const NOW = new Date('2026-09-15T12:00:00.000Z')
 const PREVIOUS_NOTICE_VERSION = 'merchant-ai-notice-2026-09-08.v1'
 const PREVIOUS_NOTICE_DIGEST =
   'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865'
+const NOTICE_2026_09_15 = {
+  noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+  noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+} as const
 const input = { organizationId: 'org-overview', actorUserId: 'admin-1' } as const
 
 function record(
@@ -52,8 +57,7 @@ function harness(
     reader: { listOverview: vi.fn(async () => records) },
     resolveManagementScope: vi.fn(async () => scope),
     clock: () => NOW,
-    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    isNoticeInForce: isMerchantAiNoticeInForce,
   } satisfies MerchantAiOverviewDeps
   return { deps, list: listMerchantAiOverview(deps) }
 }
@@ -97,13 +101,17 @@ describe('listMerchantAiOverview', () => {
     })
   })
 
-  it('flags re-consent only for consent recorded under a notice other than the served one', async () => {
+  it('flags re-consent only for consent recorded under a notice no longer in force', async () => {
     const previous = {
       noticeVersion: PREVIOUS_NOTICE_VERSION,
       noticeDigest: PREVIOUS_NOTICE_DIGEST,
     }
     const { list } = harness([
       record('enabled-current', { authorization: authorization('enabled') }),
+      // The served notice changed only its call to action: nobody re-consents.
+      record('enabled-2026-09-15', {
+        authorization: authorization('enabled', NOTICE_2026_09_15),
+      }),
       record('enabled-previous', { authorization: authorization('enabled', previous) }),
       record('revoked-previous', { authorization: authorization('revoked', previous) }),
       record('revoked-current', { authorization: authorization('revoked') }),
@@ -125,6 +133,7 @@ describe('listMerchantAiOverview', () => {
       ),
     ).toEqual({
       'enabled-current': false,
+      'enabled-2026-09-15': false,
       'enabled-previous': true,
       'revoked-previous': true,
       'revoked-current': false,

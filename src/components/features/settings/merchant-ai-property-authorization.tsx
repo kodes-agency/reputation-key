@@ -3,7 +3,10 @@ import type {
   CurrentMerchantAiCapability,
   MerchantAiSnapshot,
 } from '#/contexts/identity/application/public-api'
-import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import {
+  isMerchantAiNoticeInForce,
+  type MerchantAiNoticeDto,
+} from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import type { Action } from '#/components/hooks/use-action'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import type { MerchantAiPropertyOption } from './merchant-ai-settings-content'
@@ -84,12 +87,12 @@ export function MerchantAiPropertyAuthorization({
       ),
     [notice.payload.capabilities, selectedCapabilities, snapshot],
   )
-  // A re-versioned notice is a real change even when the capability set is
-  // identical: consent has to be re-granted against the notice on screen.
-  // Mirrors the notice half of `executionContractChanged` in
-  // merchant-ai-authorization.repository.ts.
-  const contractChanged =
-    snapshot.noticeVersion !== notice.version || snapshot.noticeDigest !== notice.digest
+  // A consent under a notice no longer in force is a real change even when the
+  // capability set is identical: it has to be re-granted against the notice on
+  // screen. A notice the served one keeps in force (2026-09-15, which differed
+  // only in its call to action) needs nothing, so Save waits for a capability
+  // change, as it does under the served notice.
+  const contractChanged = !isMerchantAiNoticeInForce(snapshot)
 
   const toggleCapability = (
     capability: CurrentMerchantAiCapability,

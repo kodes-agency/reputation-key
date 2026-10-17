@@ -19,5 +19,9 @@ export async function consentToAi(canvasElement: HTMLElement): Promise<void> {
   )
   await userEvent.click(enable)
   const page = within(canvasElement.ownerDocument.body)
+  // The confirmation asks the notice's call to action, which names no property.
+  await expect(
+    page.getByRole('alertdialog', { name: 'Enable AI features?' }),
+  ).toBeVisible()
   await userEvent.click(page.getByRole('button', { name: /confirm & enable/i }))
 }

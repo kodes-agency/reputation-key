@@ -45,15 +45,20 @@ Review Analysis and never make a second provider-generation call.
 
 All three are dark until the AccountAdmin authorization, live access, notice version, provider policy, platform gate, runtime catalogue, and cell-local admission/egress controls agree. Property Trends additionally requires Review Analysis. A capability being present in code or schema is not activation.
 
-An authorization recorded under a notice, or a provider deployment profile,
-other than the one this build serves is refused before an operation is claimed
+An authorization recorded under a notice the runtime catalogue does not hold
+in force, or under another provider deployment profile than the one this build
+serves, is refused before an operation is claimed
 (`isAiAuthorizationUnderServedContract`, `application/ai-workflow-support.ts`).
-A reply draft answers `consent_renewal_required`, which the composer shows as
-the notice needing an AccountAdmin's confirmation. A review is settled as not
-analysable, with no operation: re-consent bumps the Review Analysis epoch and
-the enrollment replay analyses the history again. The gateway's request check
-compares the same catalogue values and stays as the second line; it throws, so
-it must never be the first.
+The notices in force are the served one and each earlier notice whose data use
+it repeats word for word (`MERCHANT_AI_NOTICES_IN_FORCE`): since 2026-10-17, which
+changed only the call to action, a consent under 2026-09-15 keeps AI running and
+binds its operations under its own version. A reply draft under a lapsed notice
+answers `consent_renewal_required`, which the composer shows as the notice
+needing an AccountAdmin's confirmation. A review is settled as not analysable,
+with no operation: re-consent bumps the Review Analysis epoch and the enrollment
+replay analyses the history again. The gateway's request check compares the
+same catalogue values (`isAiRuntimeNoticeInForce`) and stays as the second line;
+it throws, so it must never be the first.
 
 Operations, settlements, derivative generations, enrollment heads, schedules,
 and output lineage pin authorization, source, policy, model, and lifecycle fences.

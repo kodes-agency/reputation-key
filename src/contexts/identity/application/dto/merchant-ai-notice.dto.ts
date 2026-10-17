@@ -6,6 +6,7 @@ import {
 import { AI_SOURCE_POLICY_ID_V1 } from '#/shared/ai-source-profile'
 
 export {
+  isMerchantAiNoticeInForce,
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'

@@ -94,6 +94,39 @@ describe('ConsentCheckbox', () => {
     )
   })
 
+  it('wraps a long unbroken word in its sentence instead of widening the frame', () => {
+    expect(render()).toMatch(
+      /<label[^>]*class="[^"]*wrap-anywhere[^"]*"[^>]*for="consent"/u,
+    )
+  })
+
+  // A label holds phrasing content, so a sentence that ends in a list ("for
+  // these 3 properties:") keeps the list outside it, under it in the frame.
+  it('draws what the sentence lists under it, read first in the checkbox description', () => {
+    const html = render({
+      children: 'I agree for these 2 properties:',
+      details: createElement(
+        'ul',
+        null,
+        createElement('li', { key: 'a' }, 'Hotel A'),
+        createElement('li', { key: 'b' }, 'Cafe B'),
+      ),
+      description: 'Help.',
+      error: 'Required.',
+    })
+
+    expect(html).toMatch(
+      /I agree for these 2 properties:<\/label><div id="consent-details"/u,
+    )
+    expect(html).toMatch(
+      /<div id="consent-details"[^>]*><ul><li>Hotel A<\/li><li>Cafe B<\/li><\/ul><\/div>/u,
+    )
+    expect(html).toContain(
+      'aria-describedby="consent-details consent-description consent-error"',
+    )
+    expect(html.indexOf('Cafe B')).toBeLessThan(html.indexOf('Help.'))
+  })
+
   it('passes a name through for a form that posts the box', () => {
     expect(render({ name: 'profileAcknowledged' })).toContain(
       'name="profileAcknowledged"',

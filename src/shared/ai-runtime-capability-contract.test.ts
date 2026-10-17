@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AI_RUNTIME_CAPABILITIES_V1,
   AI_RUNTIME_CAPABILITIES_V1_DIGEST,
+  isAiRuntimeNoticeInForce,
   parseAiRuntimeCapabilitiesV1,
   resolveAiRuntimeCapabilitySet,
 } from './ai-runtime-capability-contract'
@@ -9,7 +10,13 @@ import { CURRENT_MERCHANT_AI_CAPABILITIES } from './domain/merchant-ai-capabilit
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
+  MERCHANT_AI_NOTICES_IN_FORCE,
 } from './merchant-ai-notice-contract'
+
+const NOTICE_2026_09_15 = {
+  noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+  noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+}
 
 describe('AI runtime capability contract', () => {
   it('owns one canonical complete runtime mapping for every Merchant capability', () => {
@@ -24,8 +31,34 @@ describe('AI runtime capability contract', () => {
     expect(AI_RUNTIME_CAPABILITIES_V1_DIGEST).toMatch(/^[0-9a-f]{64}$/)
     for (const entry of AI_RUNTIME_CAPABILITIES_V1) {
       expect(entry.providerDeploymentProfileVersion).toBe('private-beta-global-v1')
-      expect(entry.noticeVersion).toBe(MERCHANT_AI_NOTICE_VERSION)
-      expect(entry.noticeDigest).toBe(MERCHANT_AI_NOTICE_DIGEST)
+      expect(entry.noticesInForce).toEqual(MERCHANT_AI_NOTICES_IN_FORCE)
+    }
+  })
+
+  // The 2026-10-17 notice changed only its call to action. A Property consented
+  // under 2026-09-15 keeps every capability running after the deploy.
+  it('admits consent under the served notice and the 2026-09-15 notice it keeps in force', () => {
+    for (const entry of AI_RUNTIME_CAPABILITIES_V1) {
+      expect(
+        isAiRuntimeNoticeInForce(entry, {
+          noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+          noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+        }),
+      ).toBe(true)
+      expect(isAiRuntimeNoticeInForce(entry, NOTICE_2026_09_15)).toBe(true)
+      expect(
+        isAiRuntimeNoticeInForce(entry, {
+          noticeVersion: 'merchant-ai-notice-2026-09-09.v1',
+          noticeDigest:
+            'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1',
+        }),
+      ).toBe(false)
+      expect(
+        isAiRuntimeNoticeInForce(entry, {
+          ...NOTICE_2026_09_15,
+          noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+        }),
+      ).toBe(false)
     }
   })
 
@@ -48,6 +81,12 @@ describe('AI runtime capability contract', () => {
         index === 0 ? { ...entry, purpose: 'ai.generate_reply' } : entry,
       ),
       valid.map((entry, index) => (index === 0 ? { ...entry, unknown: true } : entry)),
+      // A capability may not admit a notice the others do not.
+      valid.map((entry, index) =>
+        index === 0
+          ? { ...entry, noticesInForce: entry.noticesInForce.slice(0, 1) }
+          : entry,
+      ),
     ]
 
     for (const candidate of candidates) {

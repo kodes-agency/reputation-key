@@ -243,6 +243,14 @@ stay bespoke. Multi-property imports get "apply to all" defaults.
 | 18  | Delivery order?                                                                             | A (AI admission + composer: decisions 13–16) first, then B (setup state + settings hub: 1, 9–12), then C (wizard + consent batch: 2–8, 17). Each its own branch and PR series off main. Admission ADR ships in A; ADR 0050 amendment and notice version bump ship in C. Plan: docs/plan/property-setup-plan.md.                                                                                                                                                                                                                                                                                   | 2026-09-15 |
 | 19  | Should the public display name default, and does the wizard ask it?                         | Yes to both. An imported Property starts with its confirmed name as the public display name (existing Properties are backfilled), so AI reply drafts work straight after import. "Set up properties" asks the name first with that default filled in; a person's save confirms it, and a skipped question keeps the automatic name. The field stays separate from the workspace name (decision 11).                                                                                                                                                                                               | 2026-09-15 |
 
+**Amended 2026-10-17 (decision 3, owner).** The call to action no longer names the
+properties: it reads "Enable AI features" for one property or many, because twenty names
+ran the button off the page. The acknowledgement names every property the ceremony
+covers, one in its sentence and several as a list under it. This is notice
+`merchant-ai-notice-2026-10-17.v1`; it changes nothing else, so consent recorded under
+`merchant-ai-notice-2026-09-15.v1` stays in force and nobody re-consents (`docs/BETA.md`
+§2).
+
 ## 7. Constraints to respect
 
 - `docs/BETA.md` §3 "AI": all three capabilities stay off until AccountAdmin AI Authorization;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  aiEnabledPropertyNames,
+  aiEnabledProperties,
   buildSetupPlan,
   defaultManagerIds,
   initialSetupAnswers,
@@ -119,7 +119,7 @@ describe('building the setup plan', () => {
     )
     expect(plan.properties.every((entry) => entry.ai === 'enable')).toBe(true)
     expect(plan.aiCapabilities).toEqual(['review_analysis', 'reply_drafting'])
-    expect(aiEnabledPropertyNames(plan)).toEqual([
+    expect(aiEnabledProperties(plan).map(({ propertyName }) => propertyName)).toEqual([
       'Hotel Berlin',
       'Casa Lisboa',
       'Athens Rooms',

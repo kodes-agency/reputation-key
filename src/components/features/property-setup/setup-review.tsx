@@ -12,13 +12,10 @@ import {
   TableHeader,
   TableRow,
 } from '#/components/ui/table'
-import {
-  formatMerchantAiPropertyNames,
-  renderMerchantAiNoticeCta,
-} from '#/shared/merchant-ai-notice-contract'
+import { cn } from '#/lib/utils'
 import type { SetupMember } from './property-setup-contract'
 import {
-  aiEnabledPropertyNames,
+  aiEnabledProperties,
   type PropertySetupPlan,
   type SetupPlan,
   type SetupPropertyFacts,
@@ -82,6 +79,61 @@ function aiCell(
   return facts?.aiDecided ? 'Already decided' : SKIPPED
 }
 
+/** From this many properties the acknowledged list runs in two columns. */
+const LIST_IN_COLUMNS_FROM = 7
+
+/**
+ * The one acknowledgement of a consent ceremony, naming every property it
+ * covers: one in its sentence, several as a list under it. The call to action
+ * names none (merchant-ai-notice-2026-10-17.v1), so this is where a manager
+ * reads what they agree for.
+ */
+function AiAcknowledgement({
+  properties,
+  acknowledged,
+  saving,
+  onAcknowledgedChange,
+}: Readonly<{
+  properties: readonly PropertySetupPlan[]
+  acknowledged: boolean
+  saving: boolean
+  onAcknowledgedChange: (acknowledged: boolean) => void
+}>) {
+  const several = properties.length > 1
+  return (
+    <ConsentCheckbox
+      id="setup-ai-acknowledgement"
+      checked={acknowledged}
+      disabled={saving}
+      onCheckedChange={onAcknowledgedChange}
+      description="Required to enable AI features. RepKey records who agreed and the notice version they read."
+      details={
+        several ? (
+          <ul
+            className={cn(
+              'list-disc text-sm',
+              properties.length >= LIST_IN_COLUMNS_FROM && 'gap-x-8 sm:columns-2',
+            )}
+          >
+            {properties.map((property) => (
+              <li
+                key={property.propertyId}
+                className="ml-5 break-inside-avoid wrap-anywhere"
+              >
+                {property.propertyName}
+              </li>
+            ))}
+          </ul>
+        ) : undefined
+      }
+    >
+      {several
+        ? `I have read this notice and agree to this data use on behalf of my organization for these ${properties.length} properties:`
+        : `I have read this notice and agree to this data use for ${properties[0]?.propertyName} on behalf of my organization.`}
+    </ConsentCheckbox>
+  )
+}
+
 /**
  * What will be saved for every property, and, when AI is turned on, the
  * consent ceremony (decisions 3 and 4): the served notice, one explicit
@@ -99,8 +151,8 @@ export function SetupReview({
   onSave,
 }: Props) {
   const factsById = new Map(facts.map((property) => [property.propertyId, property]))
-  const aiNames = aiEnabledPropertyNames(plan)
-  const consentNeeded = aiNames.length > 0
+  const aiProperties = aiEnabledProperties(plan)
+  const consentNeeded = aiProperties.length > 0
   const nothingToSave = plan.properties.every(
     (entry) =>
       entry.displayName === null &&
@@ -165,16 +217,12 @@ export function SetupReview({
             <p className="mt-1 text-sm text-muted-foreground">{notice.payload.summary}</p>
           </div>
           <MerchantAiDataHandling notice={notice} />
-          <ConsentCheckbox
-            id="setup-ai-acknowledgement"
-            checked={acknowledged}
-            disabled={saving}
-            onCheckedChange={onAcknowledgedChange}
-            description="Required to enable AI features. RepKey records who agreed and the notice version they read."
-          >
-            I have read this notice and agree to this data use for{' '}
-            {formatMerchantAiPropertyNames(aiNames)} on behalf of my organization.
-          </ConsentCheckbox>
+          <AiAcknowledgement
+            properties={aiProperties}
+            acknowledged={acknowledged}
+            saving={saving}
+            onAcknowledgedChange={onAcknowledgedChange}
+          />
         </section>
       ) : null}
 
@@ -192,14 +240,11 @@ export function SetupReview({
         <BackButton label="Back to questions" disabled={saving} onClick={onBack} />
         <Button
           type="button"
-          className="h-auto min-h-9 whitespace-normal text-balance"
           pending={saving}
           disabled={nothingToSave || (consentNeeded && !acknowledged)}
           onClick={onSave}
         >
-          {consentNeeded
-            ? renderMerchantAiNoticeCta(notice.payload, aiNames)
-            : 'Save setup'}
+          {consentNeeded ? notice.payload.ctaTemplate : 'Save setup'}
         </Button>
       </div>
     </section>

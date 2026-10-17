@@ -1250,6 +1250,10 @@ describe('generate reply suggestion: operation binding', () => {
 // after the operation and an execution attempt had been claimed, so the
 // manager got an unclassified server error.
 describe('generate reply suggestion: a consent recorded under an earlier notice', () => {
+  const NOTICE_2026_09_15 = {
+    noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+    noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+  }
   const EARLIER_NOTICE = {
     noticeVersion: 'merchant-ai-notice-2026-09-09.v1',
     noticeDigest: 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1',
@@ -1260,6 +1264,23 @@ describe('generate reply suggestion: a consent recorded under an earlier notice'
 
     await expect(harness.generate(INPUT)).resolves.toMatchObject({ status: 'ready' })
     expect(harness.mocks.generateReply).toHaveBeenCalledOnce()
+  })
+
+  // The 2026-10-17 notice changed only its call to action, so a Property
+  // consented under 2026-09-15 keeps drafting and nobody re-consents.
+  it('drafts under the 2026-09-15 notice, which the served one keeps in force', async () => {
+    const harness = createHarness({
+      checksGatewayRequest: true,
+      consentNotice: NOTICE_2026_09_15,
+    })
+
+    await expect(harness.generate(INPUT)).resolves.toMatchObject({ status: 'ready' })
+    expect(harness.mocks.generateReply).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        binding: expect.objectContaining(NOTICE_2026_09_15),
+      }),
+      expect.anything(),
+    )
   })
 
   it.each([

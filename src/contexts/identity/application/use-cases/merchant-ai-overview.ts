@@ -2,7 +2,7 @@
 //
 // Read-only. It lists, for each Property the actor may manage AI for, the
 // authorization state and capabilities, the notice the state was granted
-// under, whether that notice is stale against the served one, any standing
+// under, whether that notice is no longer in force, any standing
 // "not now" decision, and whether the Google source is bound. Analysis
 // coverage and spend belong to other reads.
 
@@ -51,9 +51,13 @@ export type MerchantAiOverviewDeps = Readonly<{
     input: Readonly<{ organizationId: string; actorUserId: string; now: Date }>,
   ): Promise<MerchantAiManagementScope>
   clock: () => Date
-  /** The notice version and digest currently served to managers. */
-  noticeVersion: string
-  noticeDigest: string
+  /**
+   * Whether consent recorded under a notice is in force: the served notice, or
+   * an earlier one it keeps in force (`isMerchantAiNoticeInForce`).
+   */
+  isNoticeInForce(
+    notice: Readonly<{ noticeVersion: string; noticeDigest: string }>,
+  ): boolean
 }>
 
 export type MerchantAiOverviewInput = Readonly<{
@@ -68,7 +72,7 @@ export type MerchantAiOverviewEntry = Readonly<{
   capabilities: ReadonlyArray<MerchantAiCapability>
   /** The notice the current state was recorded under; null when never authorized. */
   noticeVersion: string | null
-  /** An enabled or revoked authorization recorded under a notice other than the served one. */
+  /** An enabled or revoked authorization recorded under a notice no longer in force. */
   reconsentRequired: boolean
   /** ISO-8601 instant of a standing "not now" decision, or null. */
   decisionDeferredAt: string | null
@@ -90,7 +94,7 @@ function validateInput(input: MerchantAiOverviewInput): void {
 
 function toEntry(
   record: MerchantAiOverviewRecord,
-  served: Readonly<{ noticeVersion: string; noticeDigest: string }>,
+  isNoticeInForce: MerchantAiOverviewDeps['isNoticeInForce'],
 ): MerchantAiOverviewEntry {
   const authorization = record.authorization
   const consented =
@@ -102,10 +106,7 @@ function toEntry(
     state: authorization?.state ?? 'disabled',
     capabilities: authorization?.capabilities ?? Object.freeze([]),
     noticeVersion: authorization?.noticeVersion ?? null,
-    reconsentRequired:
-      consented &&
-      (authorization.noticeVersion !== served.noticeVersion ||
-        authorization.noticeDigest !== served.noticeDigest),
+    reconsentRequired: consented && !isNoticeInForce(authorization),
     decisionDeferredAt: record.decisionDeferredAt?.toISOString() ?? null,
     googleBindingActive: record.googleBindingActive,
   })
@@ -135,7 +136,9 @@ export const listMerchantAiOverview =
       propertyIds: scope.kind === 'organization' ? null : scope.propertyIds,
     })
     return Object.freeze({
-      properties: Object.freeze(records.map((record) => toEntry(record, deps))),
+      properties: Object.freeze(
+        records.map((record) => toEntry(record, deps.isNoticeInForce)),
+      ),
     })
   }
 

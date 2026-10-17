@@ -1076,6 +1076,10 @@ describe('analyze review event: operation binding', () => {
 describe('analyze review event: a consent recorded under an earlier notice', () => {
   beforeEach(withPinnedLanguageRuntime)
 
+  const NOTICE_2026_09_15 = {
+    noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+    noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+  }
   const EARLIER_NOTICE = {
     noticeVersion: 'merchant-ai-notice-2026-09-09.v1',
     noticeDigest: 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1',
@@ -1086,6 +1090,23 @@ describe('analyze review event: a consent recorded under an earlier notice', () 
 
     await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
     expect(harness.mocks.analyzeReview).toHaveBeenCalledOnce()
+  })
+
+  // The 2026-10-17 notice changed only its call to action, so a Property
+  // consented under 2026-09-15 keeps its reviews analysed with no re-consent.
+  it('analyses under the 2026-09-15 notice, which the served one keeps in force', async () => {
+    const harness = createHarness({
+      checksGatewayRequest: true,
+      consentNotice: NOTICE_2026_09_15,
+    })
+
+    await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
+    expect(harness.mocks.analyzeReview).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        binding: expect.objectContaining(NOTICE_2026_09_15),
+      }),
+      expect.anything(),
+    )
   })
 
   it.each([

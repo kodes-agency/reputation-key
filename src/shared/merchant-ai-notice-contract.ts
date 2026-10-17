@@ -3,12 +3,26 @@ export { canonicalizeRfc8785 } from './canonical-json'
 
 // Changelog — every entry is a new version; the newest is first.
 //
+// merchant-ai-notice-2026-10-17.v1 — the call to action names no Property
+// (owner decision, 2026-10-17):
+//   - The call to action reads "Enable AI features" however many Properties the
+//     ceremony covers. Naming every one made a twenty-Property import's button
+//     one line too long for the page. The acknowledgement still names every
+//     Property the consent covers: one in its sentence, several as a list
+//     under it.
+//   - Nothing else changed. The data use, capabilities, retention, risks and
+//     the evidence (actor, notice version, digest, ceremony id) are those of
+//     2026-09-15, so consent recorded under 2026-09-15 stays in force and
+//     nobody re-consents (`MERCHANT_AI_NOTICES_IN_FORCE`). The contract test
+//     recomputes the 2026-09-15 digest from this payload with only the old
+//     call to action put back.
+//
 // merchant-ai-notice-2026-09-15.v1 — the consent ceremony (decisions 3 and 4 in
 // docs/plan/property-setup-exploration.md §6):
 //   - One ceremony may authorize AI for several Properties at once, such as an
-//     import batch. The call to action names every Property it covers
-//     (`{propertyNames}`). Enablement and evidence stay per Property; the rows
-//     one ceremony writes share its ceremony id.
+//     import batch. The call to action named every Property it covered
+//     (`{propertyNames}`, until 2026-10-17). Enablement and evidence stay per
+//     Property; the rows one ceremony writes share its ceremony id.
 //   - The password step-up is removed from AI consent everywhere, deliberately,
 //     as a change to consent assurance rather than an oversight. Consent is now
 //     the notice rendered at this version and digest, an explicit acknowledgement
@@ -23,8 +37,9 @@ export { canonicalizeRfc8785 } from './canonical-json'
 // Historical consent stays valid at its own version: the enablement and evidence
 // CHECKs keep every known (version, digest) pair
 // (merchant-ai-authorization.schema.ts), and a head granted under an earlier
-// version is re-granted, not rewritten.
-export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-09-15.v1' as const
+// version is re-granted, not rewritten. Whether it still admits AI work is
+// `isMerchantAiNoticeInForce`.
+export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-10-17.v1' as const
 
 const capabilitySchema = z
   .object({
@@ -70,7 +85,7 @@ const noticePayloadSchema = z
       retentionRowSchema,
     ]),
     risks: z.array(z.string().min(1)).min(1),
-    ctaTemplate: z.literal('Enable AI features for {propertyNames}'),
+    ctaTemplate: z.literal('Enable AI features'),
     requiresStepUp: z.literal(false),
     processingRegion: z.literal('global'),
   })
@@ -187,38 +202,57 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
     'AI analysis and suggestions can be inaccurate.',
     'Provider retention has no guaranteed per-request deletion date.',
   ]),
-  ctaTemplate: 'Enable AI features for {propertyNames}',
+  ctaTemplate: 'Enable AI features',
   requiresStepUp: false,
   processingRegion: 'global',
 })
 noticePayloadSchema.parse(MERCHANT_AI_NOTICE_PAYLOAD)
 
 export const MERCHANT_AI_NOTICE_DIGEST =
-  '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c' as const
+  '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e' as const
+
+/** The notice a consent was recorded under, by version and digest. */
+export type MerchantAiNoticeReference = Readonly<{
+  noticeVersion: string
+  noticeDigest: string
+}>
 
 /**
- * Join Property names the way the call to action reads them: "Hotel A",
- * "Hotel A and Hotel B", "Hotel A, Hotel B and Cafe C".
+ * The notices whose consent is in force: the served one, then every earlier
+ * notice whose data use the served one repeats word for word, so a Property
+ * consented under it keeps AI running and nobody re-consents. Only new consent
+ * is recorded under the served notice. A version that changes what a merchant
+ * agrees to is never listed: consent under the versions before it lapses, and
+ * every enabled Property re-consents (2026-09-09, 2026-09-15).
  */
-export function formatMerchantAiPropertyNames(
-  propertyNames: ReadonlyArray<string>,
-): string {
-  if (propertyNames.length === 0) {
-    throw new TypeError('The Merchant AI call to action names at least one property')
-  }
-  if (propertyNames.length === 1) return propertyNames[0]!
-  return `${propertyNames.slice(0, -1).join(', ')} and ${propertyNames.at(-1)!}`
+export const MERCHANT_AI_NOTICES_IN_FORCE: ReadonlyArray<MerchantAiNoticeReference> =
+  Object.freeze([
+    Object.freeze({
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    }),
+    // Differs only in its call to action, which named every Property.
+    Object.freeze({
+      noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+      noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+    }),
+  ])
+
+/**
+ * Whether consent recorded under `notice` is in force: its version, with its own
+ * digest, is listed in `inForce` (by default the notices this build serves).
+ */
+export function isMerchantAiNoticeInForce(
+  notice: MerchantAiNoticeReference,
+  inForce: ReadonlyArray<MerchantAiNoticeReference> = MERCHANT_AI_NOTICES_IN_FORCE,
+): boolean {
+  return inForce.some(
+    (listed) =>
+      listed.noticeVersion === notice.noticeVersion &&
+      listed.noticeDigest === notice.noticeDigest,
+  )
 }
 
-/** The notice's call to action for every Property one consent ceremony covers. */
-export function renderMerchantAiNoticeCta(
-  payload: Pick<MerchantAiNoticePayload, 'ctaTemplate'>,
-  propertyNames: ReadonlyArray<string>,
-): string {
-  const names = formatMerchantAiPropertyNames(propertyNames)
-  // A replacer function: a name containing `$&` must not be read as a pattern.
-  return payload.ctaTemplate.replace('{propertyNames}', () => names)
-}
 function isLowercaseSha256(value: string): boolean {
   if (value.length !== 64) return false
   for (let index = 0; index < value.length; index += 1) {

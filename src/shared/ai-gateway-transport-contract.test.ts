@@ -228,6 +228,37 @@ describe('AI gateway caller-wire contract', () => {
     ).toThrow(ZodError)
   })
 
+  // A Property consented under the 2026-09-15 notice keeps that version on its
+  // enablement, and every operation it claims binds it. The 2026-10-17 notice
+  // changed only its call to action, so the gateway serves both; a binding under
+  // a notice no longer in force is cross-wired.
+  it('accepts a binding under a notice in force and refuses one under a lapsed notice', () => {
+    const notice20260915 = {
+      noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+      noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+    }
+    for (const request of [analysisRequest(), replyRequest(), trendRequest()]) {
+      const inForce = { ...request, binding: { ...request.binding, ...notice20260915 } }
+      expect(parseAiGatewayRouteRequest(inForce)).toEqual(inForce)
+
+      for (const lapsed of [
+        {
+          noticeVersion: 'merchant-ai-notice-2026-09-09.v1',
+          noticeDigest:
+            'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1',
+        },
+        { ...notice20260915, noticeDigest: request.binding.noticeDigest },
+      ]) {
+        expect(() =>
+          parseAiGatewayRouteRequest({
+            ...request,
+            binding: { ...request.binding, ...lapsed },
+          }),
+        ).toThrow(/route binding is cross-wired/)
+      }
+    }
+  })
+
   it('accepts only strict route-matched success and error responses', () => {
     const success = {
       route: 'review-analysis',
