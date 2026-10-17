@@ -32,7 +32,6 @@ export type GoalResultsMatrixRow = Readonly<{
   scope: GoalSubject['kind']
   subject: GoalSubject
   subjectName: string
-  ungroupedPortal: boolean
   metric: GoalMetric
   availability: GoalResultsMatrixAvailability
   outcome: 'met' | 'not_met' | 'pending'
@@ -65,28 +64,19 @@ export type GoalResultsMatrix = Readonly<{
     propertyTimezone: string
     rows: readonly GoalResultsMatrixRow[]
   }>[]
-  unassignedPortals: readonly Readonly<{
-    portalId: string
-    portalName: string
-    groupName: string | null
-    message: 'No Goal Programs assigned'
-  }>[]
 }>
 
 type GoalResultsMatrixInput = Readonly<{
   programs: readonly GoalProgramBundle[]
   property: Readonly<{ id: string; name: string }>
-  portalGroups: readonly Readonly<{
-    id: string
-    name: string
-    portalIds: readonly string[]
-  }>[]
-  portals: readonly Readonly<{
-    id: string
-    name: string
-    publicationState?: 'draft' | 'published' | 'disabled' | 'archived'
-  }>[]
+  portalGroups: readonly Readonly<{ id: string; name: string }>[]
+  portals: readonly Readonly<{ id: string; name: string }>[]
 }>
+
+// Pinned, not the runtime's: the Goals page builds the matrix on the server and
+// again in the browser, and both must order the rows alike ("Bar 2" before
+// "Bar 10", "Spa" before "Рецепция" in every language).
+const byName = new Intl.Collator('en', { sensitivity: 'base', numeric: true })
 
 const scopeOrder: Readonly<Record<GoalSubject['kind'], number>> = {
   property: 0,
@@ -125,34 +115,47 @@ function evidenceFor(
   }
 }
 
-function countNoun(metric: GoalMetric): string {
-  return metric === 'qualified_scans'
-    ? 'verified qualified scans'
-    : 'eligible private ratings'
+// A count grouped as the live line groups it ("1,234"), with the locale pinned
+// so the server and the browser word a month alike. `formatNumber` is UI-side
+// (`#/lib/format`), out of this layer's reach; this is its en-US shape.
+const wholeNumber = new Intl.NumberFormat('en-US')
+
+/** "1 scan", "64 private ratings", "1,234 scans": one is singular. */
+function countWords(metric: GoalMetric, value: number): string {
+  const one = value === 1
+  const noun =
+    metric === 'qualified_scans'
+      ? one
+        ? 'scan'
+        : 'scans'
+      : one
+        ? 'private rating'
+        : 'private ratings'
+  return `${wholeNumber.format(value)} ${noun}`
 }
 
+/**
+ * A month's result in plain words: "Met: 64 private ratings, the goal was 60.",
+ * "Updating: the final figure is on its way.", "More ratings needed: 6 of 10."
+ */
 function resultExplanation(
   metric: GoalMetric,
   target: number,
   minimumSample: number,
   evaluation: GoalMetricEvaluation,
 ): string {
-  if (evaluation.state === 'updating') {
-    return evaluation.value === null
-      ? 'Updating: evidence is still being verified; no outcome yet.'
-      : `Updating: ${evaluation.value} is the last verified value; no outcome yet.`
-  }
+  if (evaluation.state === 'updating') return 'Updating: the final figure is on its way.'
   if (evaluation.state === 'insufficient_data') {
-    return `Insufficient data: ${evaluation.sampleCount} of ${minimumSample} required eligible ratings are ready.`
+    return `More ratings needed: ${evaluation.sampleCount} of ${minimumSample}.`
   }
   if (evaluation.state !== 'eligible' || evaluation.value === null) {
     return 'Unavailable: this result cannot be decided from current evidence.'
   }
   const prefix = evaluation.achieved ? 'Met' : 'Not met'
   if (metric === 'portal_rating_average') {
-    return `${prefix}: ${evaluation.value.toFixed(1)} average from ${evaluation.sampleCount} eligible ratings; target is at least ${target.toFixed(1)}.`
+    return `${prefix}: ${evaluation.value.toFixed(1)} from ${evaluation.sampleCount} ratings, the goal was ${target.toFixed(1)}.`
   }
-  return `${prefix}: ${evaluation.value} ${countNoun(metric)}; target is at least ${target}.`
+  return `${prefix}: ${countWords(metric, evaluation.value)}, the goal was ${wholeNumber.format(target)}.`
 }
 
 function subjectName(subject: GoalSubject, input: GoalResultsMatrixInput): string {
@@ -171,9 +174,6 @@ function subjectName(subject: GoalSubject, input: GoalResultsMatrixInput): strin
  * pins. It deliberately exposes no comparative score or ordinal position.
  */
 export function buildGoalResultsMatrix(input: GoalResultsMatrixInput): GoalResultsMatrix {
-  const groupedPortalIds = new Set(
-    input.portalGroups.flatMap((group) => [...group.portalIds]),
-  )
   const months = new Map<
     string,
     {
@@ -208,9 +208,6 @@ export function buildGoalResultsMatrix(input: GoalResultsMatrixInput): GoalResul
         scope: assignment.subject.kind,
         subject: assignment.subject,
         subjectName: subjectName(assignment.subject, input),
-        ungroupedPortal:
-          assignment.subject.kind === 'portal' &&
-          !groupedPortalIds.has(assignment.subject.portalId),
         metric: version.metric,
         availability: availabilityFor(result.evaluation.state),
         outcome:
@@ -252,26 +249,6 @@ export function buildGoalResultsMatrix(input: GoalResultsMatrixInput): GoalResul
     }
   }
 
-  // Property and Group rows stay aggregate subjects; counting their members as
-  // hidden Portal assignments would contradict the explicit-scope contract.
-  const assignedPortalIds = new Set(
-    input.programs.flatMap((bundle) =>
-      bundle.program.status === 'ended'
-        ? []
-        : bundle.assignments.flatMap((assignment) =>
-            assignment.programVersionId === bundle.version.id &&
-            assignment.subject.kind === 'portal'
-              ? [assignment.subject.portalId]
-              : [],
-          ),
-    ),
-  )
-  const groupByPortalId = new Map(
-    input.portalGroups.flatMap((group) =>
-      group.portalIds.map((portalId) => [portalId, group.name] as const),
-    ),
-  )
-
   return {
     months: [...months.values()]
       .sort((left, right) => right.periodStart.getTime() - left.periodStart.getTime())
@@ -280,23 +257,12 @@ export function buildGoalResultsMatrix(input: GoalResultsMatrixInput): GoalResul
         rows: month.rows.sort(
           (left, right) =>
             scopeOrder[left.scope] - scopeOrder[right.scope] ||
-            left.subjectName.localeCompare(right.subjectName) ||
-            left.targetProvenance.programName.localeCompare(
+            byName.compare(left.subjectName, right.subjectName) ||
+            byName.compare(
+              left.targetProvenance.programName,
               right.targetProvenance.programName,
             ),
         ),
-      })),
-    unassignedPortals: input.portals
-      .filter(
-        (portal) =>
-          portal.publicationState !== 'archived' && !assignedPortalIds.has(portal.id),
-      )
-      .sort((left, right) => left.name.localeCompare(right.name))
-      .map((portal) => ({
-        portalId: portal.id,
-        portalName: portal.name,
-        groupName: groupByPortalId.get(portal.id) ?? null,
-        message: 'No Goal Programs assigned' as const,
       })),
   }
 }

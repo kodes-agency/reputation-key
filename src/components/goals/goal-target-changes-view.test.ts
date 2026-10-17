@@ -285,7 +285,7 @@ describe('buildGoalTargetChanges', () => {
 
     expect(said(goal)).toEqual([
       [
-        'Elena Petrova changed the measure to Private rating average, with a target of 4.5',
+        'Elena Petrova changed the measure to Average private rating, with a target of 4.5',
         'Applies from Nov 1.',
       ],
     ])

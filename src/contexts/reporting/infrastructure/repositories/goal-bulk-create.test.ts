@@ -221,7 +221,7 @@ describe.sequential('Goals for several subjects (integration)', () => {
     expect(
       (await savedGoals()).find((goal) => goal.metric === 'qualified_scans'),
     ).toEqual({
-      name: 'North wing · Qualified scans',
+      name: 'North wing · Scans',
       status: 'scheduled',
       metric: 'qualified_scans',
       target: 300,

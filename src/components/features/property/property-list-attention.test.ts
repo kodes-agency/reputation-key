@@ -30,12 +30,18 @@ describe('attention', () => {
     ).toEqual([
       { text: '3 overdue', urgent: true },
       { text: '1 escalated', urgent: false },
-      { text: '1 goal behind pace', urgent: false },
-    ])
-    expect(attentionQualifiers(attention({ total: 2, goalsBehindPace: 2 }))).toEqual([
-      { text: '2 goals behind pace', urgent: false },
+      { text: 'Portal goal below pace', urgent: false },
     ])
     expect(attentionQualifiers(attention({ total: 4, itemsToTriage: 4 }))).toEqual([])
+  })
+
+  it('says Portal goal below pace for one, and the count for two', () => {
+    expect(attentionQualifiers(attention({ total: 1, goalsBehindPace: 1 }))).toEqual([
+      { text: 'Portal goal below pace', urgent: false },
+    ])
+    expect(attentionQualifiers(attention({ total: 2, goalsBehindPace: 2 }))).toEqual([
+      { text: '2 portal goals below pace', urgent: false },
+    ])
   })
 
   it('opens the queue that holds the count', () => {

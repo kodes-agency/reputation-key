@@ -195,7 +195,7 @@ describe('createGoalsForSubjects', () => {
     expect(saved.map((bundle) => bundle.program.name)).toEqual([
       'Lobby · Private ratings',
       'North wing · Private ratings',
-      'Rooftop bar · Private rating average',
+      'Rooftop bar · Average private rating',
     ])
   })
 
@@ -211,7 +211,7 @@ describe('createGoalsForSubjects', () => {
 
     const name = saved[0]?.program.name ?? ''
     expect(name).toHaveLength(200)
-    expect(name).toBe(`${'L'.repeat(182)} · Qualified scans`)
+    expect(name).toBe(`${'L'.repeat(192)} · Scans`)
   })
 
   it('authorises goal.create once for the whole save', async () => {

@@ -90,7 +90,7 @@ describe('goalCardView', () => {
     )
 
     expect(view).toMatchObject({
-      title: 'September · Private rating average',
+      title: 'September · Average private rating',
       figure: '4.5',
       target: 'of 4.6',
     })

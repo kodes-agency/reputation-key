@@ -226,7 +226,7 @@ export const Default: Story = {
     // The count opens the queue that holds it; overdue is its qualifier, not a part.
     expect(
       canvas.getByRole('link', {
-        name: '8 need attention at Hotel Elegance: 3 overdue, 1 escalated, 1 goal behind pace',
+        name: '8 need attention at Hotel Elegance: 3 overdue, 1 escalated, Portal goal below pace',
       }),
     ).toHaveAttribute('href', '/properties/prop-elegance/reviews?queue=open')
     expect(
