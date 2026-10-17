@@ -22,7 +22,7 @@ import { openStory } from './storybook-story'
 
 /**
  * The stories, and the narrowest cell each is held to. The figure sentence alone
- * ("12,345 of 15,000 so far · 14 days left", 245 px) wraps in a narrower cell
+ * ("12,345 of 15,000 so far · 15 days left", 245 px) wraps in a narrower cell
  * than its note ever does, and always did: that wrap is the sentence's, not the
  * note's, and a placeholder cannot know the digits it will be given. So a story
  * is measured down to the narrowest cell its own sentence fits (measured

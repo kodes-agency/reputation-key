@@ -54,7 +54,7 @@ const meta: Meta<typeof GoalProgramCard> = {
   args: {
     goal: changed,
     plan: monthTargetPlan(changed, NOW, FIXTURE_ZONE),
-    subjectCount: 1,
+    forWhom: 'Lobby',
     canManage: true,
     frame,
   },
@@ -82,6 +82,9 @@ export const ThisMonthAndTheMonthsAfter: Story = {
     expect(canvas.getByText('Counts from Oct 1 · set on Sep 20')).toBeInTheDocument()
     expect(canvas.queryByText('Target:')).toBeNull()
     expect(canvas.queryByText(/Version/)).toBeNull()
+    // Who the goal is for, by name: never a count of subjects, never the zone.
+    expect(canvas.getByText('For:').closest('p')).toHaveTextContent('For: Lobby')
+    expect(canvas.queryByText(/Subjects|Timezone/)).toBeNull()
   },
 }
 

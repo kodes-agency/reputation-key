@@ -50,6 +50,7 @@ import {
   goalNoResultsText,
 } from '#/components/goals/goal-detail-view'
 import { goalSubjectKey } from '#/components/goals/goal-subject-picker'
+import { goalListSubjectText } from '#/components/goals/goal-live-view'
 import { formatDate } from '#/lib/format'
 
 const goalQuery = (propertyId: string, programId: string) =>
@@ -252,7 +253,10 @@ function GoalDetailRoute() {
       <GoalProgramCard
         goal={data}
         plan={monthPlan}
-        subjectCount={currentAssignments.length}
+        forWhom={goalListSubjectText(
+          currentAssignments.map((assignment) => assignment.subject),
+          subjectLabel,
+        )}
         canManage={canManage}
         frame={calendar}
       />

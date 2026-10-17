@@ -25,7 +25,7 @@ describe('GoalLiveLine', () => {
     const html = render(goal())
 
     expect(html).toContain('data-slot="goal-live-line"')
-    expect(html).toContain('64 of 120 so far · 14 days left')
+    expect(html).toContain('64 of 120 so far · 15 days left')
     expect(html).toContain('role="progressbar"')
     expect(html).toContain('aria-valuenow="64"')
     expect(html).toContain('aria-valuemin="0"')
@@ -46,7 +46,7 @@ describe('GoalLiveLine', () => {
       }),
     )
 
-    expect(html).toContain('4.6 so far · target 4.5 · 14 days left')
+    expect(html).toContain('4.6 so far · target 4.5 · 15 days left')
     expect(html).not.toContain('progressbar')
   })
 
@@ -111,12 +111,12 @@ describe('GoalLiveLine below pace', () => {
   it('keeps the figure sentence as it was and says "below pace" in a note of its own', () => {
     const html = belowPace()
 
-    expect(sentenceOf(html)).toBe('64 of 120 so far · 14 days left')
+    expect(sentenceOf(html)).toBe('64 of 120 so far · 15 days left')
     expect(noteOf(html)).toBe('below pace')
   })
 
   it('puts no separator in the words, so a wrapped note can never leave one dangling', () => {
-    expect(textOf(belowPace())).toBe('64 of 120 so far · 14 days leftbelow pace')
+    expect(textOf(belowPace())).toBe('64 of 120 so far · 15 days leftbelow pace')
   })
 
   it('reads the sentence, then the note, then the bar', () => {
@@ -178,7 +178,7 @@ describe('GoalLiveLine below pace', () => {
           },
         }),
       ),
-    ).toBe('1,234 of 2,500 so far · 14 days left')
+    ).toBe('1,234 of 2,500 so far · 15 days left')
   })
 
   it('says nothing for an average, or for a figure that cannot be read, even when belowPace is 1', () => {

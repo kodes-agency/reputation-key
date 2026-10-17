@@ -12,7 +12,10 @@ import {
 } from '#/contexts/reporting/server/goal-programs'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
-import { buildGoalResultsMatrix } from '#/contexts/reporting/application/public-api'
+import {
+  buildGoalResultsMatrix,
+  type GoalSubject,
+} from '#/contexts/reporting/application/public-api'
 import { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
 import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
@@ -37,6 +40,7 @@ import { ROW_NAME_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
 import { GOAL_STATUS } from '#/components/goals/goal-status'
 import { goalMetricLabel } from '#/components/goals/goal-metric-label'
+import { goalAssignmentSubjectLabel } from '#/components/goals/goal-assignment-subject-label'
 import { goalListTarget } from '#/components/goals/goal-month-target-view'
 import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
@@ -151,6 +155,13 @@ function GoalsRoute() {
     portalGroups: subjectNames.groups,
     portals: subjectNames.portals,
   })
+  const subjectName = (subject: GoalSubject) =>
+    goalAssignmentSubjectLabel(
+      subject,
+      propData.property.name,
+      subjectNames.groups,
+      subjectNames.portals,
+    )
 
   return (
     <PageShell tier="dashboard">
@@ -227,9 +238,9 @@ function GoalsRoute() {
             <DataTableBody>
               {goals.map((goal) => {
                 const { program, version, assignments } = goal
-                const currentAssignmentCount = assignments.filter(
-                  (assignment) => assignment.programVersionId === version.id,
-                ).length
+                const currentSubjects = assignments
+                  .filter((assignment) => assignment.programVersionId === version.id)
+                  .map((assignment) => assignment.subject)
                 // This month's target while a month runs, with its marker when
                 // it was changed; "set on" ends the row only where the target's
                 // own text does not already say when.
@@ -250,7 +261,7 @@ function GoalsRoute() {
                   ? goalLiveShape({
                       status: program.status,
                       metric: target.metric,
-                      subjectCount: currentAssignmentCount,
+                      subjectCount: currentSubjects.length,
                     })
                   : null
                 return (
@@ -267,7 +278,7 @@ function GoalsRoute() {
                         {goalListSummary([
                           goalMetricLabel(target.metric),
                           target.text,
-                          goalListSubjectText(currentAssignmentCount, liveGoal),
+                          goalListSubjectText(currentSubjects, subjectName),
                           setOn,
                         ])}
                       </p>

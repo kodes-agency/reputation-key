@@ -1,4 +1,5 @@
-// What a Goals row says under an active goal about the month so far.
+// What a Goals row says under an active goal about the month so far, and who
+// the goal is for.
 //
 // It is the live month to date and never the month's result, so it counts and
 // does not judge: "64 of 120 so far", never "on track". The one thing it may
@@ -8,10 +9,12 @@
 // pace, that note; an average gets its figure against the target and no pace;
 // a goal with several subjects gets how many are below pace. A figure that
 // cannot be read says so and is never a zero, and an average too thin to show
-// asks for more ratings. Pure.
+// asks for more ratings. The quiet line names who a goal is for, never a count
+// of subjects. Today counts as a day left. Pure.
 import type {
   GoalListProgress,
   GoalMetric,
+  GoalSubject,
 } from '#/contexts/reporting/application/public-api'
 import { goalMetricLabel } from './goal-metric-label'
 import { goalFigure, goalSoFarNote } from './goal-so-far'
@@ -40,20 +43,20 @@ const BELOW_PACE = 'below pace'
 
 type Month = NonNullable<GoalListProgress['month']>
 
-const plural = (count: number, one: string, many: string): string =>
-  count === 1 ? one : many
-
-/** "14 days left"; the last day of the month has none left after today. */
-function daysLeftText(daysLeft: number): string {
-  if (daysLeft <= 0) return 'last day'
-  return `${daysLeft} ${plural(daysLeft, 'day', 'days')} left`
+/**
+ * "9 days left" on Nov 22 of a 30-day month: today is one of them. The last day
+ * of the month is "last day". Takes the whole days that begin after today.
+ */
+export function daysLeftWords(daysAfterToday: number): string {
+  const left = daysAfterToday + 1
+  return left <= 1 ? 'last day' : `${left} days left`
 }
 
 function countLine(goal: GoalListProgress, month: Month, value: number): GoalLiveView {
   const target = goalFigure(goal.metric, month.targetValue)
   const soFar = `${goalFigure(goal.metric, value)} of ${target} so far`
   return {
-    text: `${soFar} · ${daysLeftText(goal.daysLeft)}`,
+    text: `${soFar} · ${daysLeftWords(goal.daysLeft)}`,
     paceNote: goal.belowPace === 1 ? BELOW_PACE : null,
     bar: {
       value,
@@ -67,7 +70,7 @@ function countLine(goal: GoalListProgress, month: Month, value: number): GoalLiv
 function averageLine(goal: GoalListProgress, month: Month): GoalLiveView {
   const { reading } = month
   const target = `target ${goalFigure(goal.metric, month.targetValue)}`
-  const left = daysLeftText(goal.daysLeft)
+  const left = daysLeftWords(goal.daysLeft)
   if (reading.kind === 'live') {
     return {
       text: `${goalFigure(goal.metric, reading.value)} so far · ${target} · ${left}`,
@@ -126,17 +129,41 @@ export function goalLiveShape(
   return bar ? 'line_and_bar' : 'line'
 }
 
+const SUBJECT_ORDER: Readonly<Record<GoalSubject['kind'], number>> = {
+  property: 0,
+  portal_group: 1,
+  portal: 2,
+}
+
 /**
- * The subjects a row names in its quiet line. A goal with several subjects has
- * them in its live line, so the quiet line leaves them out; otherwise it names
- * them, as it always has.
+ * Who a goal is for, by name: "Reception", the property's name or "Rooms
+ * (group)" for one; "Reception and Spa" for two; "Reception and 2 more" for
+ * three or more. The property comes first, then groups, then portals, each in
+ * name order. Null for a goal with no subject. `nameOf` gives a subject's own
+ * name.
  */
 export function goalListSubjectText(
-  count: number,
-  live: GoalListProgress | undefined,
+  subjects: readonly GoalSubject[],
+  nameOf: (subject: GoalSubject) => string,
 ): string | null {
-  if (live !== undefined && live.month === null && live.subjectCount > 1) return null
-  return `${count} ${plural(count, 'subject', 'subjects')}`
+  const names = subjects
+    .map((subject) => ({
+      kind: subject.kind,
+      name:
+        subject.kind === 'portal_group' ? `${nameOf(subject)} (group)` : nameOf(subject),
+    }))
+    .sort(
+      (left, right) =>
+        SUBJECT_ORDER[left.kind] - SUBJECT_ORDER[right.kind] ||
+        left.name.localeCompare(right.name),
+    )
+    .map(({ name }) => name)
+  const [first, second] = names
+  if (first === undefined) return null
+  if (second === undefined) return first
+  return names.length === 2
+    ? `${first} and ${second}`
+    : `${first} and ${names.length - 1} more`
 }
 
 /**
