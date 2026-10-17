@@ -717,20 +717,19 @@ describe('in a real Vitest run', () => {
     // reporter below has checked, so it cannot finish first. The update that
     // says it started must reach the reporter while it runs, and Vitest's
     // 100 ms batching can hold an update until the next one; the end of a
-    // beforeEach longer than a batch always sends at once. That beforeEach
-    // first writes down the task ids `waits` sees, which a story's page sends
-    // through the browser command.
+    // beforeEach longer than a batch always sends at once. Before `waits`
+    // starts, `renders` writes down its task ids, the ones a story's page
+    // sends through the browser command as `task.file.id` and `task.id`.
     await writeFile(
       join(root, 'quiet.test.ts'),
       [
         "import { existsSync, writeFileSync } from 'node:fs'",
         'const sleep = (ms) => new Promise((settle) => setTimeout(settle, ms))',
-        'beforeEach(async ({ task }) => {',
-        "  if (task.name !== 'waits') return",
-        `  writeFileSync(${JSON.stringify(started)}, JSON.stringify({ fileId: task.file.id, testId: task.id }))`,
-        '  await sleep(150)',
+        "beforeEach(async ({ task }) => { if (task.name === 'waits') await sleep(150) })",
+        "test('renders', ({ task }) => {",
+        "  const waits = task.file.tasks.find((test) => test.name === 'waits')",
+        `  writeFileSync(${JSON.stringify(started)}, JSON.stringify({ fileId: waits.file.id, testId: waits.id }))`,
         '})',
-        "test('renders', () => {})",
         "test('waits', async () => {",
         `  for (let i = 0; i < 500 && !existsSync(${JSON.stringify(checked)}); i++) await sleep(20)`,
         '})',
@@ -795,17 +794,18 @@ describe('in a real Vitest run', () => {
     expect(fromPath).toEqual([])
   })
 
-  it('hears a story confirm it started, by the task ids the story sees', async () => {
+  it('hears a story confirm it started, by the task ids the test runner gives it', async () => {
     const stalls: (readonly StalledFile[])[] = []
-    // Once the beforeEach of `waits` has ended, its ids are written down: sends
-    // them as the story's page would, checks as if the threshold had passed,
-    // and lets `waits` finish. The guard hears them only if Vitest started its
-    // run, and names `waits` alone only if the ids are the reporters' ones.
+    // When `waits` is reported started, sends its ids as the story's page
+    // would, checks as if the threshold had passed, and lets `waits` finish.
+    // The guard hears them only if Vitest started its run, and names `waits`
+    // alone only if they are the ids its reporters see.
     class ConfirmThenCheck extends StorybookStallGuard {
-      override onHookEnd(hook: Parameters<StorybookStallGuard['onHookEnd']>[0]): void {
-        super.onHookEnd(hook)
-        if (hook.name !== 'beforeEach' || hook.entity.type !== 'test') return
-        if (hook.entity.fullName !== 'waits') return
+      override onTestCaseReady(
+        test: Parameters<StorybookStallGuard['onTestCaseReady']>[0],
+      ): void {
+        super.onTestCaseReady(test)
+        if (test.fullName !== 'waits') return
         announceStoryStart(JSON.parse(readFileSync(started, 'utf8')))
         this.check(performance.now() + 2 * STALL_MS)
         writeFileSync(checked, '')
