@@ -16,6 +16,7 @@ import {
   type GoalMetric,
   type GoalProgramStatus,
   type GoalSubject,
+  type GoalTargetSource,
 } from '../../domain/goal-program'
 import { resolveGoalStart, type GoalMonthlyPeriod } from '../../domain/goal-start'
 import {
@@ -37,6 +38,8 @@ export type CreateGoalDefinition = Readonly<{
   metric: GoalMetric
   targetValue: number
   subjects: readonly GoalSubject[]
+  /** Where the number came from, stored on the first version; omitted, none is. */
+  targetSource?: GoalTargetSource
 }>
 
 export type CreateGoalInput = CreateGoalDefinition &
@@ -110,6 +113,7 @@ function newProgramBundle(
     changeReason: 'created',
     createdBy: actor.userId,
     createdAt: now,
+    targetSource: input.targetSource,
   }
   const assignments = input.subjects.map((subject) =>
     assignmentFor({

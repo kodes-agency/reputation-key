@@ -17,6 +17,11 @@ export type GoalMetric = (typeof GOAL_METRICS)[number]
 export type GoalSubjectKind = 'property' | 'portal_group' | 'portal'
 export type GoalProgramStatus = 'scheduled' | 'active' | 'paused' | 'ended'
 export type GoalMonthlyResultStatus = 'open' | 'reconciling' | 'closed'
+/**
+ * Where a goal's number came from (ADR 0068): the number RepKey recommended
+ * for that month and measure, or one the manager typed.
+ */
+export type GoalTargetSource = 'recommended' | 'own'
 
 export type GoalMetricReading = Readonly<{
   dataQuality: 'eligible' | 'updating' | 'unavailable' | 'quarantined'

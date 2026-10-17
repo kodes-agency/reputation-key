@@ -33,6 +33,8 @@ export const changeGoalMonthTargetSchema = z.object({
   applyToFollowing: z.boolean(),
   // Optional, and stored with the change only when one was written.
   note: z.string().trim().max(500).optional(),
+  // Where the new target came from (migration 0062); omitted, none is stored.
+  targetSource: z.enum(['recommended', 'own']).optional(),
 })
 
 export type ChangeGoalMonthTargetInput = z.infer<typeof changeGoalMonthTargetSchema>

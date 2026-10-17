@@ -12,6 +12,7 @@ import {
   type GoalMetric,
   type GoalProgramStatus,
   type GoalSubject,
+  type GoalTargetSource,
 } from '../../domain/goal-program'
 import { nextRevisionStart } from '../goal-revision-start'
 import {
@@ -72,6 +73,8 @@ type ReviseGoalInput = Readonly<{
    * the head has moved, instead of changing a goal it never showed.
    */
   expectedVersion?: number
+  /** Where the new number came from, stored on the new version; omitted, none is. */
+  targetSource?: GoalTargetSource
 }>
 
 /**
@@ -192,6 +195,7 @@ async function reviseGoal(
     changeReason: noteOf(input.reason) ?? 'revised',
     createdBy: actor.userId,
     createdAt: now,
+    targetSource: input.targetSource,
   }
   const assignments = input.subjects.map((subject) =>
     assignmentFor({

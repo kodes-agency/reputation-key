@@ -4,6 +4,7 @@ import type {
   GoalMonthlyResultStatus,
   GoalProgramStatus,
   GoalSubject,
+  GoalTargetSource,
 } from '../../domain/goal-program'
 
 export type GoalProgram = Readonly<{
@@ -37,6 +38,13 @@ export type GoalProgramVersion = Readonly<{
   changeReason: string
   createdBy: string
   createdAt: Date
+  /**
+   * Where the version's number came from (migration 0062). Absent, or null,
+   * when the command that wrote it did not say: every version written before
+   * 0062, by an old web server, or by a command that does not ask. A read
+   * names it only when one was stored.
+   */
+  targetSource?: GoalTargetSource | null
 }>
 
 export type GoalSubjectAssignment = Readonly<{
@@ -170,6 +178,11 @@ export type GoalMonthTargetChange = Readonly<{
   note: string | null
   createdBy: string
   createdAt: Date
+  /**
+   * Where the new number came from (migration 0062), as on a version: named
+   * by a read only when one was stored.
+   */
+  targetSource?: GoalTargetSource | null
 }>
 
 export type GoalProgramBundle = Readonly<{
@@ -360,6 +373,8 @@ export type GoalProgramRepository = Readonly<{
         }> | null
       }>
       note: string | null
+      /** Where the new target came from; stored on every log row of this change. */
+      targetSource?: GoalTargetSource | null
       actorId: string
       at: Date
     }>,

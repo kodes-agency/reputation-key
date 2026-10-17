@@ -18,7 +18,7 @@ import type {
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from '../../application/ports/goal-program.repository'
-import { parseGoalSubject } from '../../domain/goal-program'
+import { parseGoalSubject, type GoalTargetSource } from '../../domain/goal-program'
 
 export class GoalProgramRevisionConflict extends Error {}
 
@@ -54,6 +54,17 @@ export function mapProgram(row: typeof goalPrograms.$inferSelect): GoalProgram {
   }
 }
 
+/**
+ * Where a stored number came from, as a read names it: only when the row
+ * records one. A row written before migration 0062, or by a command that did
+ * not say, gives nothing.
+ */
+export function storedTargetSource(
+  value: string | null,
+): Readonly<{ targetSource?: GoalTargetSource }> {
+  return value === 'recommended' || value === 'own' ? { targetSource: value } : {}
+}
+
 export function mapVersion(
   row: typeof goalProgramVersions.$inferSelect,
 ): GoalProgramVersion {
@@ -74,6 +85,7 @@ export function mapVersion(
     changeReason: row.changeReason,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
+    ...storedTargetSource(row.targetSource),
   }
 }
 
@@ -196,6 +208,7 @@ export const versionValues = (version: GoalProgramVersion) => ({
   changeReason: version.changeReason,
   createdBy: version.createdBy,
   createdAt: version.createdAt,
+  targetSource: version.targetSource ?? null,
 })
 
 export const assignmentValues = (assignment: GoalSubjectAssignment) => ({

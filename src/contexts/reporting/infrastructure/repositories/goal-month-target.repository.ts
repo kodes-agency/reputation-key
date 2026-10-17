@@ -18,7 +18,11 @@ import type {
   GoalMonthTargetChange,
   GoalProgramRepository,
 } from '../../application/ports/goal-program.repository'
-import { GoalProgramRevisionConflict, hasPostgresErrorCode } from './goal-program.rows'
+import {
+  GoalProgramRevisionConflict,
+  hasPostgresErrorCode,
+  storedTargetSource,
+} from './goal-program.rows'
 
 type ChangeMonthTargetInput = Parameters<GoalProgramRepository['changeMonthTarget']>[0]
 
@@ -49,6 +53,7 @@ function mapTargetChange(
     note: row.note,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
+    ...storedTargetSource(row.targetSource),
   }
 }
 
@@ -221,6 +226,7 @@ export const createGoalMonthTargetRepository = (
             followingReason: reason,
             followingVersionId: revision?.version.id ?? null,
             note: input.note,
+            targetSource: input.targetSource ?? null,
             createdBy: input.actorId,
             createdAt: input.at,
           })),
