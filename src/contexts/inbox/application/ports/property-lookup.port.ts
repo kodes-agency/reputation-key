@@ -13,6 +13,15 @@ export type PropertyLookupPort = Readonly<{
     propertyId: PropertyId,
     orgId: OrganizationId,
   ): Promise<string | null>
+  /**
+   * The Property's public reviews page on Google, the fallback for a review
+   * with no Business Profile page of its own; null unless the Property holds a
+   * verified write-a-review destination naming a place.
+   */
+  getPropertyGoogleReviewsPageById?(
+    propertyId: PropertyId,
+    orgId: OrganizationId,
+  ): Promise<string | null>
   getPropertyNamesByIds(
     propertyIds: ReadonlyArray<PropertyId>,
     orgId: OrganizationId,

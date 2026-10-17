@@ -43,6 +43,7 @@ function makeRefreshDueReview(overrides: Partial<Review> = {}): Review {
     googleConnectionId: CONN_ID,
     reviewerName: null,
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: 3,
     text: null,
     translatedText: null,

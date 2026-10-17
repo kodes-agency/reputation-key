@@ -22,12 +22,17 @@ function makeReview(overrides: Record<string, unknown> = {}): Review {
     text: 'Great stay',
     translatedText: null,
     reviewerProfilePhotoUrl: 'https://photo.example/j.jpg',
+    googleReviewUrl: null,
     rating: 5,
     languageCode: null,
     contentExpiresAt: FRESH_EXPIRY,
     ...overrides,
   } as Review
 }
+
+/** Synthetic (test-fixtures/google-provider-identifiers-v1.json). */
+const REVIEW_PAGE =
+  'https://business.google.com/n/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-reply-token-0001'
 
 function makeDeps(
   rowOverrides: Record<string, unknown> | null = {},
@@ -68,9 +73,33 @@ describe('eligible reads (BQC-1.4)', () => {
       text: 'Great stay',
       translatedText: null,
       reviewerProfilePhotoUrl: 'https://photo.example/j.jpg',
+      googleReviewUrl: null,
       rating: 5,
       languageCode: null,
     })
+  })
+
+  it("serves the review's Google page with the words, single and batch", async () => {
+    const { reads } = makeDeps({ googleReviewUrl: REVIEW_PAGE })
+    const result = await reads.getReviewSnippetById(reviewId('rev-1'), ORG)
+    if (result.status !== 'available') throw new Error('expected available')
+    expect(result.snippet.googleReviewUrl).toBe(REVIEW_PAGE)
+
+    const map = await reads.getReviewSnippetsByIds([reviewId('rev-1')], ORG)
+    expect(map.get('rev-1')?.googleReviewUrl).toBe(REVIEW_PAGE)
+  })
+
+  it("offers no Google page once the review's content has expired", async () => {
+    const { reads } = makeDeps({
+      googleReviewUrl: REVIEW_PAGE,
+      contentExpiresAt: STALE_EXPIRY,
+    })
+    const result = await reads.getReviewSnippetById(reviewId('rev-1'), ORG)
+    expect(result).toEqual({ status: 'expired' })
+    expect(JSON.stringify(result)).not.toContain('business.google.com')
+
+    const map = await reads.getReviewSnippetsByIds([reviewId('rev-1')], ORG)
+    expect(map.size).toBe(0)
   })
 
   it("carries the provider translation alongside the guest's original text", async () => {

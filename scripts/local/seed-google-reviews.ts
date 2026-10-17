@@ -15,10 +15,8 @@ import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import type { Database } from '../../src/shared/db'
 import { properties } from '../../src/shared/db/schema/property.schema'
-import {
-  reviewGoogleReputationSnapshotFacts,
-  reviews,
-} from '../../src/shared/db/schema/review.schema'
+import { reviewGoogleReputationSnapshotFacts } from '../../src/shared/db/schema/review-reputation.schema'
+import { reviews } from '../../src/shared/db/schema/review.schema'
 import { metricReadings } from '../../src/shared/db/schema/metric.schema'
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import { registerAllEventSchemas } from '../../src/shared/events/schema-registrations'

@@ -217,6 +217,13 @@ export type InboxItemDetail = Readonly<{
   /** Google's machine translation of `reviewText`; null when none was served. */
   reviewTranslatedText: string | null
   reviewerProfilePhotoUrl: string | null
+  /**
+   * The review's own Business Profile page ("Open on Google"), from the same
+   * eligible `ReviewSnippet` as the words, so null for `expired`, `not_found`
+   * and feedback, and when Google gave none. It opens the merchant view: Google
+   * asks for the account that manages the profile.
+   */
+  googleReviewUrl: string | null
   /** BQC-1.2: typed eligibility outcome of the authorized review read. */
   reviewContentStatus: 'available' | 'expired' | 'not_found' | null
   /**

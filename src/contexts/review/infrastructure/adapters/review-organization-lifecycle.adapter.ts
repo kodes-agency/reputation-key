@@ -422,6 +422,7 @@ async function purge(
             google_connection_id = NULL,
             reviewer_name = NULL,
             reviewer_profile_photo_url = NULL,
+            google_review_url = NULL,
             rating = NULL,
             text = NULL,
             translated_text = NULL,

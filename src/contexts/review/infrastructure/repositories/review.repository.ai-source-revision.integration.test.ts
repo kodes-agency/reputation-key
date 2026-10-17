@@ -107,6 +107,7 @@ async function store(
     googleConnectionId: null,
     reviewerName: null,
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: 4,
     text,
     translatedText: null,

@@ -160,6 +160,8 @@ export const Open: Story = {
         reviewText: 'Quick and friendly check-in.',
         reviewTranslatedText: null,
         reviewerProfilePhotoUrl: null,
+        googleReviewUrl: null,
+        googlePropertyReviewsUrl: null,
         reviewContentStatus: 'available',
         // Plan row 7: the stars come from the detail payload, not the item row.
         reviewRating: 4,

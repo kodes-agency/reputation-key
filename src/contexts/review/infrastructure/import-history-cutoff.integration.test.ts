@@ -213,6 +213,7 @@ function providerReview(
     externalLocationId: locationOf(property),
     reviewerName: `Guest ${slug}`,
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: 4,
     text: `Review ${slug}`,
     translatedText: null,

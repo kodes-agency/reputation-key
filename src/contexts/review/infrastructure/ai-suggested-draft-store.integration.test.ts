@@ -205,6 +205,7 @@ function reviewFixture(
     googleConnectionId: null,
     reviewerName: 'Guest',
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: 5,
     text: 'A thoughtful review',
     translatedText: null,

@@ -37,6 +37,7 @@ const SCOPE_PROVIDER_REVIEW = {
   externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
   reviewerName: 'Existing guest',
   reviewerProfilePhotoUrl: null,
+  googleReviewUrl: null,
   rating: 4,
   text: 'Existing review',
   translatedText: null,
@@ -70,6 +71,7 @@ function scopeReview(overrides: Partial<Review> = {}): Review {
     googleConnectionId: SCOPE_CONNECTION,
     reviewerName: SCOPE_PROVIDER_REVIEW.reviewerName,
     reviewerProfilePhotoUrl: SCOPE_PROVIDER_REVIEW.reviewerProfilePhotoUrl,
+    googleReviewUrl: SCOPE_PROVIDER_REVIEW.googleReviewUrl,
     rating: SCOPE_PROVIDER_REVIEW.rating,
     text: SCOPE_PROVIDER_REVIEW.text,
     translatedText: SCOPE_PROVIDER_REVIEW.translatedText,
@@ -414,6 +416,56 @@ describe('Review provider observation under the source text revisions', () => {
   })
 })
 
+describe("Review provider observation of the review's page on Google", () => {
+  // Synthetic (test-fixtures/google-provider-identifiers-v1.json).
+  const PAGE = `https://business.google.com/n/${GOOGLE_REVIEW_PRIMARY_SEGMENTS.locationId}/reviews/repkey-synthetic-do-not-use-reply-token-0001`
+
+  it('carries the page on a first sighting', async () => {
+    const { writer, upsertAndRecord } = scopeWriter(null)
+
+    await writer.persist(
+      scopeObservation({ review: { ...SCOPE_PROVIDER_REVIEW, googleReviewUrl: PAGE } }),
+    )
+
+    expect(upsertAndRecord.mock.calls[0]?.[0]).toMatchObject({ googleReviewUrl: PAGE })
+  })
+
+  it.each([
+    ['starts sending a page', null, PAGE],
+    ['stops sending one', PAGE, null],
+  ])(
+    'refreshes an unchanged Review quietly when Google %s, writing what it sent',
+    async (_case, stored, sent) => {
+      const existing = scopeReview({ sourceEpoch: 4, googleReviewUrl: stored })
+      const refresh = (googleReviewUrl: string | null) => {
+        const written = scopeWriter(existing)
+        return written.writer
+          .persist(
+            scopeObservation({
+              sourceEpoch: 4,
+              review: { ...SCOPE_PROVIDER_REVIEW, googleReviewUrl },
+            }),
+          )
+          .then(() => written)
+      }
+      // The same fetch with the page as it was stored is the baseline.
+      const same = await refresh(stored)
+      const changed = await refresh(sent)
+
+      // The page is in no digest and no AI source, so it never reads as an edit.
+      expect(changed.upsertAndRecord).not.toHaveBeenCalled()
+      expect(changed.upsert).toHaveBeenCalledTimes(1)
+      const { googleReviewUrl, ...rest } = changed.upsert.mock.calls[0]![0]
+      const { googleReviewUrl: baseline, ...expected } = same.upsert.mock.calls[0]![0]
+      expect(googleReviewUrl).toBe(sent)
+      expect(baseline).toBe(stored)
+      expect(rest).toEqual(expected)
+      expect(rest.sourceRevision).toBe(existing.sourceRevision)
+      expect(rest.aiSourceDigest).toBe(existing.aiSourceDigest)
+    },
+  )
+})
+
 describe('Review provider observation identity', () => {
   it('does not conflate an absent reply with the literal live reply "absent"', () => {
     const common = {
@@ -613,6 +665,7 @@ describe('Review provider observation identity', () => {
         externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
         reviewerName: 'Guest',
         reviewerProfilePhotoUrl: null,
+        googleReviewUrl: null,
         rating: 2,
         text: 'Corrected source content',
         translatedText: null,

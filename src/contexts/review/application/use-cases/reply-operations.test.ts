@@ -61,6 +61,7 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     googleConnectionId: null,
     reviewerName: 'Jane',
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: 5,
     text: 'Great!',
     translatedText: null,

@@ -98,6 +98,7 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     googleConnectionId: googleConnectionId('52000000-0000-4000-8000-000000000030'),
     reviewerName: 'Jane',
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: 5,
     text: 'Great!',
     translatedText: null,

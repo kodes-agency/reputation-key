@@ -256,6 +256,7 @@ async function seedReview(
     googleConnectionId: null,
     reviewerName: 'Guest',
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: 5 as const,
     text: 'A thoughtful review',
     translatedText: null,

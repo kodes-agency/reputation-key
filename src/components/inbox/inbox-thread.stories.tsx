@@ -131,6 +131,8 @@ const reviewDetail: InboxItemDetailResult = {
   reviewText: REVIEW_TEXT,
   reviewTranslatedText: null,
   reviewerProfilePhotoUrl: null,
+  googleReviewUrl: null,
+  googlePropertyReviewsUrl: null,
   reviewContentStatus: 'available',
   /**
    * Plan row 7. The rating arrives on the detail payload, carried from the same

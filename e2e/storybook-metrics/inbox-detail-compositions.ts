@@ -145,6 +145,9 @@ export const COMPOSITION_GROUPS: ReadonlyArray<Group> = [
       'needs-check-review-missing',
       'needs-check-error',
       'unknown-status-is-read-only',
+      'needs-check-links-the-review-on-google',
+      'needs-check-with-no-google-page',
+      'needs-check-unreadable-links-the-property-reviews',
     ],
   },
   {

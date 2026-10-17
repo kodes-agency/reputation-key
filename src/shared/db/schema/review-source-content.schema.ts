@@ -47,6 +47,8 @@ export const reviewSourceContents = pgTable(
     ),
     reviewerName: varchar('reviewer_name', { length: 255 }),
     reviewerProfilePhotoUrl: varchar('reviewer_profile_photo_url', { length: 1000 }),
+    /** Google's per-review Business Profile page (`reviewReplyUrl`), migration 0063. */
+    googleReviewUrl: varchar('google_review_url', { length: 2048 }),
     rating: integer('rating').notNull(),
     text: text('text'),
     translatedText: text('translated_text'),

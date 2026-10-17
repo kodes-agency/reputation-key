@@ -82,6 +82,33 @@ function providerReview() {
   }
 }
 
+// Synthetic only (test-fixtures/google-provider-identifiers-v1.json): the
+// catalogue's location and a token that says what it is. Google's real shape is
+// https://business.google.com/n/{location}/reviews/{opaque token}.
+const LOCATION_ID = GOOGLE_REVIEW_PRIMARY_SEGMENTS.locationId
+const REVIEW_PAGE_URL = `https://business.google.com/n/${LOCATION_ID}/reviews/repkey-synthetic-do-not-use-reply-token-0001`
+const SECOND_REVIEW_NAME = GOOGLE_REVIEW_PRIMARY_RESOURCE.replace(/0001$/u, '0002')
+const SECOND_REVIEW_PAGE = REVIEW_PAGE_URL.replace(/0001$/u, '0002')
+
+/** A 200 JSON answer from the gateway. */
+function jsonAnswer(body: unknown): Mock {
+  return vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    headers: {
+      contentType: 'application/json; charset=utf-8',
+      cacheControl: null,
+      retryAfter: null,
+    },
+    body: new TextEncoder().encode(JSON.stringify(body)),
+  })
+}
+
+/** One complete page holding `reviews`. */
+function reviewsPage(reviews: readonly unknown[]): Mock {
+  return jsonAnswer({ reviews, totalReviewCount: reviews.length, averageRating: 5 })
+}
+
 function createAdapter(
   input: Readonly<{
     execute: Mock
@@ -256,7 +283,7 @@ describe('GoogleReviewApiAdapter', () => {
               ...providerReview(),
               reviewId: 'provider-review-id',
               updateTime: '2026-08-02T10:00:00.000Z',
-              reviewReplyUrl: 'https://business.google.com/reviews/reply',
+              reviewReplyUrl: REVIEW_PAGE_URL,
               reviewer: { displayName: 'Guest', isAnonymous: false },
             },
           ],
@@ -278,11 +305,102 @@ describe('GoogleReviewApiAdapter', () => {
         text: 'Excellent stay',
         sourceCreatedAt: new Date('2026-08-01T10:00:00.000Z'),
         sourceUpdatedAt: new Date('2026-08-02T10:00:00.000Z'),
+        // `reviewReplyUrl` is read (2026-10-17) and carried under its domain
+        // name; every other unmodelled field is still dropped.
+        googleReviewUrl: REVIEW_PAGE_URL,
       }),
     ])
     const serialized = JSON.stringify(page)
     expect(serialized).not.toContain('reviewReplyUrl')
     expect(serialized).not.toContain('provider-review-id')
+  })
+
+  it('reads no review page from a review that carries none, and logs nothing', async () => {
+    const { api, warn } = createAdapter({ execute: reviewsPage([providerReview()]) })
+
+    const page = await api.listReviewsPage(listInput())
+
+    expect(page.reviews[0]?.googleReviewUrl).toBeNull()
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'a page at another location',
+      REVIEW_PAGE_URL.replace(`/n/${LOCATION_ID}/`, '/n/0001/'),
+    ],
+    ['another host', REVIEW_PAGE_URL.replace('business.google.com', 'evil.example')],
+    ['the old made-up shape', 'https://business.google.com/reviews/reply'],
+    ['a query', `${REVIEW_PAGE_URL}?authuser=1`],
+    ['a value over 2,048 characters', `${REVIEW_PAGE_URL}${'A'.repeat(2_048)}`],
+    ['an empty string', ''],
+    ['a number', 42],
+    ['null', null],
+    ['an object', { href: REVIEW_PAGE_URL }],
+  ])(
+    'keeps the review and the page when reviewReplyUrl is %s, counting the refusal without its value',
+    async (_case, reviewReplyUrl) => {
+      const execute = reviewsPage([
+        { ...providerReview(), reviewReplyUrl },
+        {
+          ...providerReview(),
+          name: SECOND_REVIEW_NAME,
+          reviewReplyUrl: SECOND_REVIEW_PAGE,
+        },
+      ])
+      const { api, warn } = createAdapter({ execute })
+
+      const page = await api.listReviewsPage(listInput())
+
+      expect(page.reviews.map((review) => review.googleReviewUrl)).toEqual([
+        null,
+        SECOND_REVIEW_PAGE,
+      ])
+      expect(page.reviews[0]).toEqual(
+        expect.objectContaining({ externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId }),
+      )
+      expect(warn).toHaveBeenCalledOnce()
+      expect(warn).toHaveBeenCalledWith(
+        { event: 'reviews_reply_url_refused', operation: 'reviews.list', refused: 1 },
+        'Google review page links refused',
+      )
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('business.google.com')
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('evil.example')
+    },
+  )
+
+  it('reads the review page on the targeted read too, and refuses one the same way', async () => {
+    const getInput = {
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      connectionId: CONNECTION_ID,
+      sourceEpoch: 17,
+      locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+    }
+    const found = createAdapter({
+      execute: jsonAnswer({ ...providerReview(), reviewReplyUrl: REVIEW_PAGE_URL }),
+    })
+    await expect(found.api.getReview(getInput)).resolves.toEqual({
+      status: 'found',
+      review: expect.objectContaining({ googleReviewUrl: REVIEW_PAGE_URL }),
+    })
+    expect(found.warn).not.toHaveBeenCalled()
+
+    const refused = createAdapter({
+      execute: jsonAnswer({
+        ...providerReview(),
+        reviewReplyUrl: 'https://evil.example/',
+      }),
+    })
+    await expect(refused.api.getReview(getInput)).resolves.toEqual({
+      status: 'found',
+      review: expect.objectContaining({ googleReviewUrl: null }),
+    })
+    expect(refused.warn).toHaveBeenCalledWith(
+      { event: 'reviews_reply_url_refused', operation: 'reviews.get', refused: 1 },
+      'Google review page links refused',
+    )
   })
 
   it.each([

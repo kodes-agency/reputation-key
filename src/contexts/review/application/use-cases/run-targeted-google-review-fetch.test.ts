@@ -29,6 +29,7 @@ const review: GoogleReview = {
   externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
   reviewerName: 'Synthetic Reviewer',
   reviewerProfilePhotoUrl: null,
+  googleReviewUrl: null,
   rating: 4,
   text: 'Synthetic review body',
   translatedText: null,

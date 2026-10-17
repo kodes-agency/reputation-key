@@ -331,6 +331,10 @@ function buildObservedReview(
     googleConnectionId: input.connectionId,
     reviewerName: input.review.reviewerName,
     reviewerProfilePhotoUrl: input.review.reviewerProfilePhotoUrl,
+    // Outside every digest and the AI source (above and `classifyObservation`),
+    // so a link Google starts or stops sending is written by the quiet refresh
+    // and never reads as a guest edit.
+    googleReviewUrl: input.review.googleReviewUrl,
     rating: input.review.rating,
     text: input.review.text,
     translatedText: input.review.translatedText,

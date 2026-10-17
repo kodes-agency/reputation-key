@@ -475,6 +475,7 @@ async function writeObservedReviewRow(
             googleConnectionId: row.googleConnectionId,
             reviewerName: row.reviewerName,
             reviewerProfilePhotoUrl: row.reviewerProfilePhotoUrl,
+            googleReviewUrl: row.googleReviewUrl,
             rating: row.rating,
             text: row.text,
             translatedText: row.translatedText,

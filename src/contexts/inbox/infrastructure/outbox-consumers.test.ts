@@ -123,6 +123,7 @@ const AVAILABLE_SNIPPET: ReviewSnippetResult = {
     translatedText: null,
     reviewerName: 'Jane',
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: 4,
     languageCode: 'en',
   },

@@ -16,6 +16,7 @@ import { inboxKeys } from '#/shared/queries/query-keys'
 import { GuestMessage } from './guest-message'
 import { historyEventLine } from './history-event-line'
 import { HistoryEventNode } from './history-event-node'
+import { googleReviewLink } from './google-review-link'
 import { buildThread, foldEarlierEvents } from './inbox-thread-model'
 import { NoteIndicator, NoteMessage } from './note-message'
 import { ReplyMessage } from './reply-message'
@@ -353,6 +354,7 @@ function ThreadRow({
         <ReplyMessage
           reply={entry.reply}
           propertyName={item.propertyName}
+          googleLink={googleReviewLink(detail)}
           {...replyActions}
         />
       )

@@ -102,6 +102,7 @@ function makeReview(): Review {
     googleConnectionId: null,
     reviewerName: 'Jane Doe',
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     rating: 5,
     text: 'Great place!',
     translatedText: null,

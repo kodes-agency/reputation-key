@@ -100,6 +100,7 @@ export const EXCLUDED_STORIES: Readonly<Record<string, string>> = {
   'inbox-replymessage--needs-check-cancelled':
     'the check cancels the publication, so the reply leaves the thread: the story ends on the harness button (170 x 56 px at every width) and a toast',
   'inbox-replymessage--draft-is-not-in-the-thread': RENDERS_NOTHING,
+  'inbox-detail-copy-menu--nothing-to-offer': RENDERS_NOTHING,
   'inbox-replymessage--no-reply-is-not-in-the-thread': RENDERS_NOTHING,
   'inbox-notes-thread--without-write-permission': RENDERS_NOTHING,
   'inbox-detail-content-feedback--handling-primary-alone-without-permission':

@@ -34,7 +34,11 @@
 // >= 44 px (row 20: "menu items 44", "Collapsed pill 44 px (unchanged)"). At
 // 768 and up everything is >= 24 px — WCAG 2.5.8 AA. Desktop density is
 // deliberate: the pane's toolbar members are 32 px outlined buttons (row 2),
-// and a 36 px floor there would re-inflate the strip row 20 deflated.
+// and a 36 px floor there would re-inflate the strip row 20 deflated. A link
+// set inside a sentence (an inline `a[href]` beside its parent's own text, such
+// as "look at the review on Google") is WCAG 2.5.8's inline exception: its box
+// is the line it sits on, so no floor applies to it, while overflow, clipping
+// and layers are judged as for anything else (`TargetKind` `inline`).
 //
 // Geometry has four ways to put content where a finger cannot reach it, and
 // each needs its own probe, because each hides from the others (a fifth, for
@@ -179,7 +183,7 @@ export const COMPOSER_PRIMARY_NAMES = [
 
 export type Box = Readonly<{ x: number; y: number; width: number; height: number }>
 
-export type TargetKind = 'control' | 'menu-row' | 'pill'
+export type TargetKind = 'control' | 'menu-row' | 'pill' | 'inline'
 
 export type MeasuredTarget = Readonly<{
   name: string
@@ -442,14 +446,31 @@ function measureInPage(args: MeasureArgs): PaneReport {
         box: boxOf(hitAreaOf(el)),
       }))
 
+  // An `a[href]` laid out inline beside text of its own parent is a link in a
+  // sentence; a link styled as a block, a button or standing alone is not.
+  const isInSentence = (el: Element): boolean =>
+    el.matches('a[href]') &&
+    styleOf(el).display === 'inline' &&
+    [...(el.parentElement?.childNodes ?? [])].some(
+      (node) =>
+        node !== el &&
+        node.nodeType === Node.TEXT_NODE &&
+        (node.textContent ?? '').trim() !== '',
+    )
   const paneKind = (el: Element): TargetKind =>
-    el.tagName === 'BUTTON' &&
-    el.getAttribute('aria-expanded') === 'false' &&
-    args.pillNames.includes(nameOf(el))
-      ? 'pill'
-      : 'control'
+    isInSentence(el)
+      ? 'inline'
+      : el.tagName === 'BUTTON' &&
+          el.getAttribute('aria-expanded') === 'false' &&
+          args.pillNames.includes(nameOf(el))
+        ? 'pill'
+        : 'control'
   const layerKind = (el: Element): TargetKind =>
-    el.closest(args.rowListSelector) === null ? 'control' : 'menu-row'
+    isInSentence(el)
+      ? 'inline'
+      : el.closest(args.rowListSelector) === null
+        ? 'control'
+        : 'menu-row'
 
   // Probe 1 and 2 of the header: the root itself, whatever its `overflow`,
   // and every horizontal SCROLLER inside it. A `truncate` span is

@@ -47,6 +47,7 @@ export async function upsertReviewSourceContent(
       review.googleConnectionId == null ? null : unbrand(review.googleConnectionId),
     reviewerName: review.reviewerName,
     reviewerProfilePhotoUrl: review.reviewerProfilePhotoUrl,
+    googleReviewUrl: review.googleReviewUrl,
     rating: review.rating,
     text: review.text,
     translatedText: review.translatedText,
@@ -78,6 +79,9 @@ export async function upsertReviewSourceContent(
         googleConnectionId: values.googleConnectionId,
         reviewerName: values.reviewerName,
         reviewerProfilePhotoUrl: values.reviewerProfilePhotoUrl,
+        // Rewritten by every fetch, absent included: the link is what the last
+        // successful read returned, never one an earlier read left behind.
+        googleReviewUrl: values.googleReviewUrl,
         rating: values.rating,
         text: values.text,
         translatedText: values.translatedText,
@@ -130,6 +134,7 @@ export async function eraseReviewSourceContent(
       googleConnectionId: null,
       reviewerName: null,
       reviewerProfilePhotoUrl: null,
+      googleReviewUrl: null,
       rating: null,
       text: null,
       translatedText: null,

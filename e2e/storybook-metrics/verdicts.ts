@@ -43,6 +43,8 @@ export type Expectations = Readonly<{
 
 function minimumFor(kind: TargetKind, width: number, override?: number): number {
   if (override !== undefined) return override
+  // WCAG 2.5.8's inline exception: a link in a sentence takes the line's height.
+  if (kind === 'inline') return 0
   if (width >= PHONE_BELOW_PX) return DESKTOP_TARGET_MIN_PX
   return kind === 'control' ? PHONE_CONTROL_MIN_PX : PHONE_THUMB_MIN_PX
 }

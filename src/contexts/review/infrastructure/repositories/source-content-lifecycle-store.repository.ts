@@ -547,6 +547,7 @@ export const createReviewSourceContentLifecycleStore = (
           AND ${reviews.googleConnectionId} IS NOT DISTINCT FROM ${reviewSourceContents.googleConnectionId}
           AND ${reviews.reviewerName} IS NOT DISTINCT FROM ${reviewSourceContents.reviewerName}
           AND ${reviews.reviewerProfilePhotoUrl} IS NOT DISTINCT FROM ${reviewSourceContents.reviewerProfilePhotoUrl}
+          AND ${reviews.googleReviewUrl} IS NOT DISTINCT FROM ${reviewSourceContents.googleReviewUrl}
           AND ${reviews.rating} IS NOT DISTINCT FROM ${reviewSourceContents.rating}
           AND ${reviews.text} IS NOT DISTINCT FROM ${reviewSourceContents.text}
           AND ${reviews.translatedText} IS NOT DISTINCT FROM ${reviewSourceContents.translatedText}
@@ -620,6 +621,7 @@ export const createReviewSourceContentLifecycleStore = (
           OR ${reviews.googleConnectionId} IS NOT NULL
           OR ${reviews.reviewerName} IS NOT NULL
           OR ${reviews.reviewerProfilePhotoUrl} IS NOT NULL
+          OR ${reviews.googleReviewUrl} IS NOT NULL
           OR ${reviews.rating} IS NOT NULL
           OR ${reviews.text} IS NOT NULL
           OR ${reviews.translatedText} IS NOT NULL

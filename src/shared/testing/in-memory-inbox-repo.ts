@@ -398,6 +398,7 @@ export function createInMemoryInboxRepo(): InboxRepository & {
           reviewText: 'Test review text',
           reviewTranslatedText: null,
           reviewerProfilePhotoUrl: null,
+          googleReviewUrl: null,
           reviewContentStatus: 'available' as const,
           reviewRating: IN_MEMORY_REVIEW_RATING,
           feedbackComment: null,
@@ -409,6 +410,7 @@ export function createInMemoryInboxRepo(): InboxRepository & {
         reviewText: null,
         reviewTranslatedText: null,
         reviewerProfilePhotoUrl: null,
+        googleReviewUrl: null,
         reviewContentStatus: null,
         // Feedback has no review to rate; its number is `feedbackRatingValue`.
         reviewRating: null,

@@ -85,6 +85,7 @@ function makeDetail(
     reviewText: 'Test review',
     reviewTranslatedText: null,
     reviewerProfilePhotoUrl: null,
+    googleReviewUrl: null,
     reviewContentStatus: 'available',
     reviewRating: 4,
     feedbackComment: null,
@@ -293,6 +294,99 @@ describe('getInboxItemDetail', () => {
     expect(result.item.rating).toBe(3)
     expect(result.feedbackRatingValue).toBe(3)
     expect(result.reviewRating).toBeNull()
+  })
+
+  // ── the way to Google ────────────────────────────────────────────────
+  // The per-review page rides on the repository's eligible snippet, like the
+  // words; the Property's public reviews page is the use case's own read.
+
+  /** Synthetic pages (test-fixtures/google-provider-identifiers-v1.json). */
+  const REVIEW_PAGE =
+    'https://business.google.com/n/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-reply-token-0001'
+  const PROPERTY_PAGE =
+    'https://search.google.com/local/reviews?placeid=repkey-synthetic-place-0001'
+
+  const propertyLookup = (page: string | null) => ({
+    getPropertyNameById: vi.fn(async () => null),
+    getPropertyNamesByIds: vi.fn(async () => new Map()),
+    getPropertyGoogleReviewsPageById: vi.fn(async () => page),
+  })
+
+  it("returns the review's own page and the Property's reviews page for a review", async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    setDetail(makeDetail(makeItem(), { googleReviewUrl: REVIEW_PAGE }))
+    const lookup = propertyLookup(PROPERTY_PAGE)
+
+    const useCase = getInboxItemDetail({
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+      propertyLookup: lookup,
+    })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    expect(result.googleReviewUrl).toBe(REVIEW_PAGE)
+    expect(result.googlePropertyReviewsUrl).toBe(PROPERTY_PAGE)
+    expect(lookup.getPropertyGoogleReviewsPageById).toHaveBeenCalledWith(PROP_ID, ORG_ID)
+  })
+
+  it("keeps the Property's page when the review's content is no longer served", async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    setDetail(
+      makeDetail(makeItem(), {
+        reviewText: null,
+        reviewContentStatus: 'expired',
+        reviewRating: null,
+        googleReviewUrl: null,
+      }),
+    )
+
+    const useCase = getInboxItemDetail({
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+      propertyLookup: propertyLookup(PROPERTY_PAGE),
+    })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    expect(result.googleReviewUrl).toBeNull()
+    expect(result.googlePropertyReviewsUrl).toBe(PROPERTY_PAGE)
+  })
+
+  it('reads no Google page for private feedback', async () => {
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { repo, staffApi, replyLookup, setDetail } = setup(scopedApi)
+    setDetail(
+      makeDetail(makeItem({ sourceType: 'feedback', sourceId: feedbackId('fb-1') }), {
+        reviewContentStatus: null,
+      }),
+    )
+    const lookup = propertyLookup(PROPERTY_PAGE)
+
+    const useCase = getInboxItemDetail({
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+      propertyLookup: lookup,
+    })
+    const result = await useCase(
+      { inboxItemId: ITEM_ID },
+      ctxWith('inbox.read', 'feedback.read'),
+    )
+
+    expect(result.googlePropertyReviewsUrl).toBeNull()
+    expect(lookup.getPropertyGoogleReviewsPageById).not.toHaveBeenCalled()
+  })
+
+  it('answers an explicit null when no Property lookup is wired', async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    setDetail(makeDetail(makeItem()))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    expect(result.googlePropertyReviewsUrl).toBeNull()
+    expect(Object.hasOwn(result, 'googlePropertyReviewsUrl')).toBe(true)
   })
 
   it('attaches only the current property-scoped review analysis', async () => {

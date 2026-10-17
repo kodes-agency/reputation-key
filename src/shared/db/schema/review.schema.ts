@@ -71,6 +71,10 @@ export const reviews = pgTable(
     ),
     reviewerName: varchar('reviewer_name', { length: 255 }),
     reviewerProfilePhotoUrl: varchar('reviewer_profile_photo_url', { length: 1000 }),
+    // Google's per-review Business Profile page (`reviewReplyUrl`), migration
+    // 0063. Provider cache data like the columns around it: dual-written with
+    // review_source_contents, erased with them, never part of a digest.
+    googleReviewUrl: varchar('google_review_url', { length: 2048 }),
     rating: integer('rating'),
     // Google concatenates its machine translation and the guest's original into
     // one `comment` field: "(Translated by Google) <en>\n\n(Original) <src>".
@@ -217,6 +221,7 @@ export const reviews = pgTable(
         AND ${t.googleConnectionId} IS NULL
         AND ${t.reviewerName} IS NULL
         AND ${t.reviewerProfilePhotoUrl} IS NULL
+        AND ${t.googleReviewUrl} IS NULL
         AND ${t.rating} IS NULL
         AND ${t.text} IS NULL
         AND ${t.translatedText} IS NULL
@@ -656,46 +661,8 @@ export const reviewProviderHistoryCutoffs = pgTable(
   ],
 )
 
-/** Append-only, content-minimal proof emitted only when one Google provider
- * snapshot has completed both scans and its bounded deletion reconciliation. */
-export const reviewGoogleReputationSnapshotFacts = pgTable(
-  'review_google_reputation_snapshot_facts',
-  {
-    runId: uuid('run_id').primaryKey(),
-    eventId: uuid('event_id').notNull(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    sourceEpoch: integer('source_epoch').notNull(),
-    reviewCount: integer('review_count').notNull(),
-    averageRating: doublePrecision('average_rating'),
-    evaluatedAt: timestamp('evaluated_at', { withTimezone: true }).notNull(),
-    createdAt: createdAtColumn(),
-  },
-  (t) => [
-    uniqueIndex('review_google_reputation_snapshot_event_unique').on(t.eventId),
-    index('review_google_reputation_snapshot_scope_idx').on(
-      t.organizationId,
-      t.propertyId,
-      t.sourceEpoch,
-      t.evaluatedAt.desc(),
-    ),
-    foreignKey({
-      name: 'review_google_reputation_snapshot_property_tenant_fk',
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-    }).onDelete('cascade'),
-    check(
-      'review_google_reputation_snapshot_source_epoch_valid',
-      sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647`,
-    ),
-    check(
-      'review_google_reputation_snapshot_value_valid',
-      sql`(${t.reviewCount} = 0 AND ${t.averageRating} IS NULL)
-        OR (${t.reviewCount} BETWEEN 1 AND 10000
-          AND ${t.averageRating} BETWEEN 0 AND 5)`,
-    ),
-  ],
-)
+// `review_google_reputation_snapshot_facts`, the verified reputation facts a
+// completed snapshot writes, lives in ./review-reputation.schema.ts.
 
 export const reviewProviderSubjects = pgTable(
   'review_provider_subjects',
