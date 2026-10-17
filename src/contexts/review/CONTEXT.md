@@ -62,7 +62,7 @@ content and immutable observations attach to numbered Material Review Revisions;
 material changes and source-epoch carries create exact immutable bindings.
 
 A Review's own page on Google (`googleReviewUrl`, Google's output-only
-`reviewReplyUrl`, migration 0063) is part of that erasable content. The review
+`reviewReplyUrl`, migration 0065) is part of that erasable content. The review
 adapter keeps it only in the one shape Google sends for the review's own
 location (`#/shared/domain/google-review-links`) and reads anything else as
 none; a refused value never fails the page. Every applied fetch writes it to

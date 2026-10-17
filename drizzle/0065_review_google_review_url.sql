@@ -38,7 +38,7 @@
 -- Purely additive for old code otherwise: it names its columns in every
 -- statement and never reads these. Roll forward, never back: the down step is
 -- the constraint restated without `google_review_url`, both columns dropped,
--- and the 0063 row out of drizzle.__drizzle_migrations.
+-- and the 0065 row out of drizzle.__drizzle_migrations.
 ALTER TABLE "reviews" ADD COLUMN "google_review_url" varchar(2048);
 --> statement-breakpoint
 ALTER TABLE "review_source_contents" ADD COLUMN "google_review_url" varchar(2048);

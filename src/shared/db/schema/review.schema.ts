@@ -72,7 +72,7 @@ export const reviews = pgTable(
     reviewerName: varchar('reviewer_name', { length: 255 }),
     reviewerProfilePhotoUrl: varchar('reviewer_profile_photo_url', { length: 1000 }),
     // Google's per-review Business Profile page (`reviewReplyUrl`), migration
-    // 0063. Provider cache data like the columns around it: dual-written with
+    // 0065. Provider cache data like the columns around it: dual-written with
     // review_source_contents, erased with them, never part of a digest.
     googleReviewUrl: varchar('google_review_url', { length: 2048 }),
     rating: integer('rating'),
