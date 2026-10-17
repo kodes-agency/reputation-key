@@ -39,15 +39,22 @@ export function ratingGoalRefusalCode(error: unknown): string | null {
     : null
 }
 
+/** A caller's own sentence for a code, where the shared one names a step it has not got. */
+export type RatingGoalSentences = Readonly<Record<string, string>>
+
 /**
- * A rating goal refusal with its sentence as the message. Any other failure (a
- * code with no sentence here, a fault) is handed back as it is, and the banner
- * applies its own rule to it.
+ * A rating goal refusal with its sentence as the message (the caller's own
+ * sentence for a code first). Any other failure (a code with no sentence, a
+ * fault) is handed back as it is, and the banner applies its own rule to it.
  */
-export function ratingGoalRefusal(error: unknown): unknown {
+export function ratingGoalRefusal(
+  error: unknown,
+  sentences: RatingGoalSentences = {},
+): unknown {
   const code = ratingGoalRefusalCode(error)
   if (code === null || !isServerFunctionError(error)) return error
-  const sentence = Object.hasOwn(SENTENCES, code) ? SENTENCES[code] : undefined
+  const words = { ...SENTENCES, ...sentences }
+  const sentence = Object.hasOwn(words, code) ? words[code] : undefined
   if (sentence === undefined || sentence === error.message) return error
   return new ServerFunctionError(error.name, sentence, code, error.status)
 }
@@ -55,12 +62,13 @@ export function ratingGoalRefusal(error: unknown): unknown {
 /** The same command, refusing in sentences. */
 export function withRatingGoalRefusals<TInput, TOutput>(
   command: (input: TInput) => Promise<TOutput>,
+  sentences: RatingGoalSentences = {},
 ): (input: TInput) => Promise<TOutput> {
   return async (input) => {
     try {
       return await command(input)
     } catch (error) {
-      throw ratingGoalRefusal(error)
+      throw ratingGoalRefusal(error, sentences)
     }
   }
 }

@@ -6,8 +6,11 @@
 // cannot change the goal). The Storybook Vitest project compiles no Tailwind,
 // so the plays assert words, roles and what each button sends.
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
+import { RATING_GOAL_HEADING_ID } from './rating-goal-card-header'
 import {
   RatingGoalCardWithRecap,
   type RatingGoalRecapCommands,
@@ -57,7 +60,10 @@ const meta: Meta<typeof RatingGoalCardWithRecap> = {
       onAnswered: answeredMock,
     },
   },
+  decorators: [ToasterDecorator],
   beforeEach: () => {
+    // Sonner's store outlives a story; a Toaster that mounts replays what still shows.
+    toast.dismiss()
     keepMock.mockClear()
     changePaceMock.mockClear()
     answeredMock.mockClear()
@@ -82,6 +88,16 @@ async function expectRegion(canvas: Canvas) {
   await expect(within(region).queryAllByRole('status')).toEqual([])
   await expect(region.closest('[role="status"]')).toBeNull()
   return within(region)
+}
+
+/** Once answered, the focus is on the card's title and a toast says what happened. */
+async function expectAnswered(toastText: string) {
+  await waitFor(() =>
+    expect(document.activeElement).toHaveAttribute('id', RATING_GOAL_HEADING_ID),
+  )
+  const shown = await within(document.body).findByText(toastText)
+  // Retried: the toast is in the page before it has faded in.
+  await waitFor(() => expect(shown).toBeVisible())
 }
 
 const buttonNames = (region: ReturnType<typeof within>) =>
@@ -127,6 +143,7 @@ export const Keep: Story = {
       },
     })
     await expect(changePaceMock).not.toHaveBeenCalled()
+    await expectAnswered('Kept 1 a day for this week.')
   },
 }
 
@@ -145,6 +162,7 @@ export const Raise: Story = {
         paceTenthsPerWeek: 140,
       },
     })
+    await expectAnswered('Pace changed to 2 a day. Getting started again for 2 weeks.')
   },
 }
 
@@ -228,10 +246,34 @@ export const RefusedVersionConflict: Story = {
 
     await expect(
       await region.findByText(
-        'This goal changed after you opened this. Close it and open it again to start from the latest.',
+        'This goal was changed by someone else. Reload to see the latest.',
       ),
     ).toBeVisible()
+    // The check-in has nothing to close: the wizard's sentence is not said here.
+    await expect(region.queryByText(/Close it and open it again/u)).toBeNull()
     await expect(answeredMock).not.toHaveBeenCalled()
+  },
+}
+
+/** Two refusals in a row: the banner says the latest press's, never an older one. */
+export const RefusedTwice: Story = {
+  play: async ({ canvasElement }) => {
+    keepMock.mockRejectedValueOnce(refusal('recap_closed'))
+    changePaceMock.mockRejectedValueOnce(refusal('version_conflict'))
+    const region = await expectRegion(within(canvasElement))
+    await userEvent.click(region.getByRole('button', { name: 'Keep 1 a day' }))
+    await region.findByText('This week’s check-in has closed. Reload to see the latest.')
+
+    await userEvent.click(region.getByRole('button', { name: 'Ease to 3 a week' }))
+
+    await expect(
+      await region.findByText(
+        'This goal was changed by someone else. Reload to see the latest.',
+      ),
+    ).toBeVisible()
+    await expect(
+      region.queryByText('This week’s check-in has closed. Reload to see the latest.'),
+    ).toBeNull()
   },
 }
 
@@ -258,6 +300,9 @@ const expectNoRecap = async (canvasElement: HTMLElement) => {
   ).toBeVisible()
 }
 
+// Answered and TooLow pass cards that carry no check-in: they show the card
+// draws none then. Which reads carry one is ruled (and tested) on the server,
+// in domain/rating-goal-recap.test.ts.
 export const Answered: Story = {
   args: { card: CARD_RECAP_ANSWERED },
   play: async ({ canvasElement }) => expectNoRecap(canvasElement),

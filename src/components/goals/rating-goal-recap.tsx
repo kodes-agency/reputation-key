@@ -7,7 +7,7 @@
 // Goals page and the Property Overview), as the wizard's do; once one is
 // answered the page reads the goal again, the check-in is gone, and the focus
 // goes to the card's title.
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import type {
   RatingGoalCardView,
@@ -21,7 +21,12 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { RatingGoalCard } from './rating-goal-card'
 import { RATING_GOAL_HEADING_ID } from './rating-goal-card-header'
 import { withRatingGoalRefusals } from './rating-goal-refusal'
-import { recapToasts, recapWords, type RecapChoice } from './rating-goal-recap-view'
+import {
+  recapRefusals,
+  recapToasts,
+  recapWords,
+  type RecapChoice,
+} from './rating-goal-recap-view'
 
 type GoalRef = Readonly<{ propertyId: string; goalId: string }>
 
@@ -47,36 +52,54 @@ type Props = Readonly<{
 
 const focusTitle = () => document.getElementById(RATING_GOAL_HEADING_ID)?.focus()
 
-/** Keep, and a change of pace: each refusing in plain words, each read again once answered. */
+type Pressed = 'keep' | 'change' | null
+
+/**
+ * Keep, and a change of pace: each refusing in plain words, each read again
+ * once answered. The two keep their errors apart, so the banner says the one
+ * pressed last, never an older refusal of the other.
+ */
 function useRecapCommands({ card, propertyId, commands }: Props) {
+  const [pressed, setPressed] = useState<Pressed>(null)
   const answered = async () => {
     await commands.onAnswered()
     focusTitle()
   }
-  const keep = useActionMutation(withRatingGoalRefusals(commands.keepPaceFn), {
-    successMessage:
-      card.paceTenthsPerWeek === null
-        ? undefined
-        : recapToasts.kept(card.paceTenthsPerWeek),
-    onSuccess: answered,
-  })
-  const change = useActionMutation(withRatingGoalRefusals(commands.changeRatingGoalFn), {
-    onSuccess: async (_, input) => {
-      await answered()
-      // The toast names the pace that was sent: Raise and Ease share the command.
-      toast.success(recapToasts.changed(input.data.paceTenthsPerWeek))
+  const keep = useActionMutation(
+    withRatingGoalRefusals(commands.keepPaceFn, recapRefusals),
+    {
+      successMessage:
+        card.paceTenthsPerWeek === null
+          ? undefined
+          : recapToasts.kept(card.paceTenthsPerWeek),
+      onSuccess: answered,
     },
-  })
+  )
+  const change = useActionMutation(
+    withRatingGoalRefusals(commands.changeRatingGoalFn, recapRefusals),
+    {
+      onSuccess: async (_, input) => {
+        await answered()
+        // The toast names the pace that was sent: Raise and Ease share the command.
+        toast.success(recapToasts.changed(input.data.paceTenthsPerWeek))
+      },
+    },
+  )
   const goal = { propertyId, goalId: card.goalId }
+  const errors = { keep: keep.error, change: change.error }
   return {
     pending: keep.isPending || change.isPending,
-    error: keep.error ?? change.error,
-    keep: (weekStart: string) =>
-      keep({ data: { ...goal, weekStart } }).catch(() => undefined),
-    change: (pace: number) =>
-      change({
+    error: pressed === null ? null : errors[pressed],
+    keep: (weekStart: string) => {
+      setPressed('keep')
+      return keep({ data: { ...goal, weekStart } }).catch(() => undefined)
+    },
+    change: (pace: number) => {
+      setPressed('change')
+      return change({
         data: { ...goal, expectedVersion: card.version, paceTenthsPerWeek: pace },
-      }).catch(() => undefined),
+      }).catch(() => undefined)
+    },
   }
 }
 

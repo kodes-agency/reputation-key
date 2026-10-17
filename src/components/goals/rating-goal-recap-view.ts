@@ -81,3 +81,12 @@ export const recapToasts = {
   changed: (pace: number): string =>
     `Pace changed to ${paceText(pace)}. Getting started again for 2 weeks.`,
 } as const
+
+/**
+ * The check-in's own refusal words. It has nothing to close (the wizard's
+ * version_conflict sentence says "Close it"), and the page is not read again
+ * on a refusal, so every later press would be refused too: it says "Reload".
+ */
+export const recapRefusals = {
+  version_conflict: 'This goal was changed by someone else. Reload to see the latest.',
+} as const
