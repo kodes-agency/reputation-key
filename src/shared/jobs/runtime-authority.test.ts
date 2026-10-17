@@ -260,6 +260,78 @@ describe('job runtime authority', () => {
     ).toEqual({ ready: true, reasons: [] })
   })
 
+  describe('a terminal failure followed by a success', () => {
+    const failedThenSucceeded = observation({
+      lastTerminalFailureAt: new Date('2026-08-27T02:56:30.000Z'),
+      lastSucceededAt: new Date('2026-08-27T02:57:00.000Z'),
+    })
+
+    it('clears repair for an active schedule, whose next firing repeats the pass', () => {
+      expect(
+        assessJobRuntime({
+          contract: scheduledContract(),
+          observation: failedThenSucceeded,
+          runtimeStartedAt: STARTED,
+          now: NOW,
+        }),
+      ).toEqual({ ready: true, reasons: [] })
+    })
+
+    it('keeps an active schedule in repair while its latest firing is the failed one', () => {
+      expect(
+        assessJobRuntime({
+          contract: scheduledContract(),
+          observation: {
+            ...failedThenSucceeded,
+            lastTerminalFailureAt: new Date('2026-08-27T02:58:00.000Z'),
+          },
+          runtimeStartedAt: STARTED,
+          now: NOW,
+        }),
+      ).toEqual({ ready: false, reasons: ['repair_required'] })
+    })
+
+    it('keeps on-demand work in repair until a governed redrive succeeds', () => {
+      const onDemand = scheduledContract({
+        schedule: 'none',
+        lastSuccessObjectiveMs: null,
+      })
+      const unrelatedSuccess = { ...failedThenSucceeded, schedulerRegistered: false }
+
+      expect(
+        assessJobRuntime({
+          contract: onDemand,
+          observation: unrelatedSuccess,
+          runtimeStartedAt: STARTED,
+          now: NOW,
+        }),
+      ).toEqual({ ready: false, reasons: ['repair_required'] })
+
+      expect(
+        assessJobRuntime({
+          contract: onDemand,
+          observation: {
+            ...unrelatedSuccess,
+            lastRepairAt: new Date('2026-08-27T02:57:00.000Z'),
+          },
+          runtimeStartedAt: STARTED,
+          now: NOW,
+        }),
+      ).toEqual({ ready: true, reasons: [] })
+    })
+
+    it('keeps a quarantined family in repair: it has no firing to repeat the pass', () => {
+      expect(
+        assessJobRuntime({
+          contract: scheduledContract({ posture: 'quarantined' }),
+          observation: { ...failedThenSucceeded, schedulerRegistered: false },
+          runtimeStartedAt: STARTED,
+          now: NOW,
+        }),
+      ).toEqual({ ready: false, reasons: ['repair_required'] })
+    })
+  })
+
   it('keeps stalled work visible until a later success or repair is observed', () => {
     const stalled = observation({
       lastStalledAt: new Date('2026-08-27T02:58:00.000Z'),
