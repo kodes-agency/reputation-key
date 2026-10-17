@@ -7,6 +7,7 @@ describe('notification email cadence', () => {
   // 2026-09-22).
   it('offers goal email as a daily digest only', () => {
     expect(offeredEmailCadences('recognition')).toEqual(['daily'])
+    expect(offeredEmailCadences('portal_goals')).toEqual(['daily'])
     expect(offeredEmailCadences('workflow_collaboration')).toEqual(['immediate', 'daily'])
     expect(offeredEmailCadences('urgent_operational')).toEqual(['immediate', 'daily'])
   })
@@ -16,5 +17,13 @@ describe('notification email cadence', () => {
     expect(effectiveEmailCadence('workflow_collaboration', 'immediate')).toBe('immediate')
     expect(effectiveEmailCadence('urgent_operational', undefined)).toBe('immediate')
     expect(effectiveEmailCadence('recognition', undefined)).toBe('daily')
+  })
+
+  // ADR 0046, amended 2026-10-17. Only the row is new: a Program over every
+  // Portal still closes its results in the same hour.
+  it('Portal goals are a daily digest only', () => {
+    expect(offeredEmailCadences('portal_goals')).toEqual(['daily'])
+    expect(effectiveEmailCadence('portal_goals', 'immediate')).toBe('daily')
+    expect(effectiveEmailCadence('portal_goals', undefined)).toBe('daily')
   })
 })

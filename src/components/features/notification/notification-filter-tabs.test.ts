@@ -8,7 +8,11 @@ import {
 } from '@tanstack/react-router'
 import { describe, expect, it } from 'vitest'
 import { NotificationFilterTabs } from './notification-filter-tabs'
-import type { NotificationFilter } from './notification-filters'
+import {
+  notificationFilterScope,
+  parseNotificationFilter,
+  type NotificationFilter,
+} from './notification-filters'
 
 const PROPERTY = '10000000-0000-4000-8000-000000000101'
 
@@ -65,5 +69,24 @@ describe('NotificationFilterTabs', () => {
       expect(tag).toContain(`filter=${filter}`)
       expect(tag).toContain(`property=${PROPERTY}`)
     }
+  })
+
+  // ADR 0046, amended 2026-10-17: "Goals" became two rows. A link written
+  // before the split names `recognition`; it opens the page, not an error.
+  it('opens a bookmarked goals filter, from before or after the split, on Needs you', () => {
+    for (const bookmarked of ['recognition', 'portal_goals']) {
+      const filter = parseNotificationFilter(bookmarked)
+      expect(filter).toBe('needs_you')
+
+      const html = render(`/notifications?filter=${bookmarked}`, filter)
+      expect(anchorNamed(html, 'Needs you')).toContain('aria-current="page"')
+    }
+  })
+
+  it('names each goal row in a filter-scoped announcement by its own label', () => {
+    expect(notificationFilterScope('recognition')).toBe(
+      'Google rating goal notifications',
+    )
+    expect(notificationFilterScope('portal_goals')).toBe('Portal goals notifications')
   })
 })

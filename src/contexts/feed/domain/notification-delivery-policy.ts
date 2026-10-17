@@ -99,20 +99,21 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   // other AccountAdmins need to know their Google review sync and replies
   // stopped: collaboration, in-app, never mailed.
   'integration.google_disconnected': 'workflow_collaboration',
-  // Recognition, NOT a digest: `digest_summary` defaulted to
+  // Portal goals, NOT a digest: `digest_summary` defaulted to
   // {in_app:false, email:false}, so a goal completion classified as a digest
   // was DROPPED entirely for any tenant without preference rows — nothing was
-  // persisted and nothing was mailed. A completed goal is recognition under
-  // ADR 0046 ("On privately"). The digest category itself is retired; a daily
-  // digest is a cadence (see domain/notification-types.ts). Goal results are
-  // the category's only live types, so people see it as "Goals" (ADR 0046,
-  // amended 2026-09-22). Not workflow: muting a goal row must not also mute
-  // assignments and notes.
-  'goal.completed': 'recognition',
-  'goal.result_revised': 'recognition',
-  // The Property Google rating goal's change notices are Goals too, in name
-  // only: they tell a Property's managers about a Property figure and are not
-  // workforce recognition (ADR 0049 rule 2; ADR 0046, amended 2026-10-14).
+  // persisted and nothing was mailed. The digest category itself is retired; a
+  // daily digest is a cadence (see domain/notification-types.ts). Not
+  // workflow: muting a goal row must not also mute assignments and notes.
+  // They left `recognition` when the Google rating goal got a row of its own
+  // (ADR 0046, amended 2026-10-17): muting one goal never mutes the other.
+  // Stored rows keep the category they were written with.
+  'goal.completed': 'portal_goals',
+  'goal.result_revised': 'portal_goals',
+  // The Property Google rating goal's change notices are `recognition`, shown
+  // as "Google rating goal", in name only: they tell a Property's managers
+  // about a Property figure and are not workforce recognition (ADR 0049 rule
+  // 2; ADR 0046, amended 2026-10-14 and 2026-10-17).
   'goal.rating_reached': 'recognition',
   'goal.rating_changed': 'recognition',
   'goal.rating_below_pace': 'recognition',
@@ -231,13 +232,15 @@ export const NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> = [
   'arrivals',
   'workflow_collaboration',
   'recognition',
+  'portal_goals',
 ]
 
 /**
  * Categories offered as Property preference controls. `mandatory` is
  * Organization policy and therefore has no Property preference row.
- * `recognition` carries the live goal results, so it is a control like the
- * others: in-app on by default, email opt-in (ADR 0046).
+ * `recognition` (the Google rating goal) and `portal_goals` carry the live
+ * goal notices, so each is a control like the others: in-app on by default,
+ * email opt-in (ADR 0046).
  */
 export const NOTIFICATION_SETTINGS_CATEGORIES: ReadonlyArray<ConfigurableNotificationCategory> =
   [
@@ -246,6 +249,7 @@ export const NOTIFICATION_SETTINGS_CATEGORIES: ReadonlyArray<ConfigurableNotific
     'arrivals',
     'workflow_collaboration',
     'recognition',
+    'portal_goals',
   ]
 
 /**

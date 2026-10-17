@@ -369,14 +369,16 @@ describe('notification delivery policy', () => {
 
   // ── Category surfaces ─────────────────────────────────────────────
 
-  it('offers goal results (recognition) as a Property control and a filter', () => {
+  it('offers Portal goals and the Google rating goal as two Property controls and two filters', () => {
     expect(NOTIFICATION_CATEGORIES).toContain('recognition')
+    expect(NOTIFICATION_CATEGORIES).toContain('portal_goals')
     expect(NOTIFICATION_SETTINGS_CATEGORIES).toEqual([
       'urgent_operational',
       'low_ratings',
       'arrivals',
       'workflow_collaboration',
       'recognition',
+      'portal_goals',
     ])
     // Low ratings governs no type by itself (a rating decides it per reader),
     // so it is not a filter.
@@ -386,6 +388,7 @@ describe('notification delivery policy', () => {
       'arrivals',
       'workflow_collaboration',
       'recognition',
+      'portal_goals',
     ])
   })
 
@@ -441,8 +444,29 @@ describe('notification delivery policy', () => {
     }
   })
 
-  it('classifies a completed goal as recognition, not a digest', () => {
-    expect(classifyNotification('goal.completed')).toBe('recognition')
-    expect(classifyNotification('goal.result_revised')).toBe('recognition')
+  // ADR 0046, amended 2026-10-17: the two goals no longer share a row. Muting
+  // the Google rating goal must not silence a portal goal's monthly result,
+  // nor the other way round.
+  it('pins every goal.rating_* to recognition and the two portal types to portal_goals', () => {
+    const ratingGoalTypes = NOTIFICATION_TYPES.filter((type) =>
+      type.startsWith('goal.rating_'),
+    )
+    expect(ratingGoalTypes).toEqual([
+      'goal.rating_reached',
+      'goal.rating_changed',
+      'goal.rating_below_pace',
+      'goal.rating_too_low',
+      'goal.rating_keep_dropped',
+    ])
+    for (const type of ratingGoalTypes) {
+      expect(classifyNotification(type), type).toBe('recognition')
+    }
+    // A completed goal is never a digest category either: it was one, and a
+    // digest category defaulted to off on both channels.
+    expect(classifyNotification('goal.completed')).toBe('portal_goals')
+    expect(classifyNotification('goal.result_revised')).toBe('portal_goals')
+    expect(
+      NOTIFICATION_TYPES.filter((type) => classifyNotification(type) === 'portal_goals'),
+    ).toEqual(['goal.completed', 'goal.result_revised'])
   })
 })

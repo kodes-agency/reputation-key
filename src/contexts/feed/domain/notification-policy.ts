@@ -51,6 +51,7 @@ const DEFAULT_POLICY: Readonly<
   arrivals: { in_app: false, email: false },
   workflow_collaboration: { in_app: true, email: false },
   recognition: { in_app: true, email: false },
+  portal_goals: { in_app: true, email: false },
 }
 
 export function getDefaultEnabled(

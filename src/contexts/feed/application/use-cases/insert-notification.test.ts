@@ -507,11 +507,19 @@ describe('insertNotification', () => {
       },
     })
 
-    expect(deps.preferenceRepo.resolveForDelivery).toHaveBeenCalled()
+    // Asked under Portal goals, the row migration 0063 copied every "Goals"
+    // answer into (ADR 0046, amended 2026-10-17).
+    expect(deps.preferenceRepo.resolveForDelivery).toHaveBeenCalledWith(
+      USER_ID,
+      ORG_ID,
+      PROPERTY_ID,
+      'portal_goals',
+      'in_app',
+    )
     expect(deps.notificationRepo.insert).toHaveBeenCalledOnce()
     // The frozen snapshot is the approved copy (P-8), figures included.
     expect(result).toMatchObject({
-      category: 'recognition',
+      category: 'portal_goals',
       title: 'Seaview Hotel met its November portal goal',
       body: 'Your portals brought in 41 private ratings. The goal was 40.',
     })
@@ -536,7 +544,7 @@ describe('insertNotification', () => {
     })
 
     expect(deps.emailRepo.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ category: 'recognition', cadence: 'daily' }),
+      expect.objectContaining({ category: 'portal_goals', cadence: 'daily' }),
     )
     expect(deps.enqueueImmediateEmail).not.toHaveBeenCalled()
   })

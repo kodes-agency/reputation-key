@@ -42,6 +42,15 @@ describe('notification policy', () => {
     expect(getDefaultEnabled('recognition', 'email')).toBe(false)
   })
 
+  it('shows Portal goals in the app and emails them only on request, like the Google rating goal', () => {
+    for (const category of ['recognition', 'portal_goals'] as const) {
+      expect(getDefaultEnabled(category, 'in_app'), category).toBe(true)
+      expect(getDefaultEnabled(category, 'email'), category).toBe(false)
+      expect(isPreferenceDisableable(category, 'in_app'), category).toBe(true)
+      expect(getDefaultCadence(category), category).toBe('daily')
+    }
+  })
+
   it('keeps mandatory channels enabled and non-disableable by default', () => {
     expect(getDefaultEnabled('mandatory', 'email')).toBe(true)
     expect(isPreferenceDisableable('mandatory', 'email')).toBe(false)

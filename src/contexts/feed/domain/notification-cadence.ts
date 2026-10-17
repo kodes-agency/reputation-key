@@ -12,15 +12,18 @@ const EVERY_EMAIL_CADENCE: readonly NotificationCadence[] = ['immediate', 'daily
 const DAILY_EMAIL_ONLY: readonly NotificationCadence[] = ['daily']
 
 /**
- * Email cadences a person may choose for a category. Goals (`recognition`)
- * are a daily digest only: one Program over up to 250 Portals closes its
- * results in the same hour, and an immediate cadence would send each as its
- * own email (ADR 0046, amended 2026-09-22).
+ * Email cadences a person may choose for a category. Both goals are a daily
+ * digest only: one Program over up to 250 Portals closes its results in the
+ * same hour, and an immediate cadence would send each as its own email (ADR
+ * 0046, amended 2026-09-22). The Google rating goal (`recognition`) kept the
+ * rule when Portal goals got a row of their own (amended 2026-10-17).
  */
 export function offeredEmailCadences(
   category: NotificationCategory,
 ): readonly NotificationCadence[] {
-  return category === 'recognition' ? DAILY_EMAIL_ONLY : EVERY_EMAIL_CADENCE
+  return category === 'recognition' || category === 'portal_goals'
+    ? DAILY_EMAIL_ONLY
+    : EVERY_EMAIL_CADENCE
 }
 
 /**

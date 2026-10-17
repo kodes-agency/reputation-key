@@ -40,6 +40,7 @@ const preferences: readonly NotificationPreference[] = [
   preference({ category: 'workflow_collaboration', channel: 'in_app', enabled: true }),
   preference({ category: 'workflow_collaboration', channel: 'email', enabled: false }),
   preference({ category: 'recognition', channel: 'email', cadence: 'daily' }),
+  preference({ category: 'portal_goals', channel: 'email', cadence: 'daily' }),
 ]
 
 /** No quiet hours and no bypass: what a person who never chose either has. */
@@ -164,40 +165,99 @@ export const EmailAllowed: Story = {
   },
 }
 
+/** The settings row a category's heading names. */
+function rowNamed(canvasElement: HTMLElement, name: string) {
+  const heading = within(canvasElement).getByRole('heading', { name })
+  const fieldset = heading.closest('fieldset')
+  if (!fieldset) throw new Error(`the ${name} notification fieldset is missing`)
+  return fieldset
+}
+
 /**
- * Goal results are live notices, so they get a row like any other optional
- * category: in-app on by default, email opt-in (ADR 0046). They used to sit in
- * a hidden `recognition` category nobody could mute or email.
+ * Goal notices are live, so each goal gets a row like any other optional
+ * category: in-app on by default, email opt-in (ADR 0046). The Google rating
+ * goal and the portal goals have a row each (amended 2026-10-17), so muting
+ * one never silences the other. They used to share one "Goals" row, and
+ * before that a hidden `recognition` category nobody could mute or email.
  */
-export const GoalsAreConfigurable: Story = {
+export const EachGoalHasItsOwnRow: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const heading = canvas.getByRole('heading', { name: 'Goals' })
-    const fieldset = heading.closest('fieldset')
-    if (!fieldset) throw new Error('goal notification fieldset is missing')
-    const row = within(fieldset)
+    expect(canvas.queryByRole('heading', { name: 'Goals' })).toBeNull()
+
+    const google = within(rowNamed(canvasElement, 'Google rating goal'))
+    expect(google.getByText('Changes to your Google rating goal.')).toBeInTheDocument()
     expect(
-      row.getByText('Goal results and Google rating goal changes for your properties.'),
-    ).toBeInTheDocument()
-    expect(
-      row.getByLabelText('In-app', { selector: '#recognition-in_app' }),
+      google.getByLabelText('In-app', { selector: '#recognition-in_app' }),
     ).toBeEnabled()
-    expect(row.getByLabelText('Email', { selector: '#recognition-email' })).toBeEnabled()
+    expect(
+      google.getByLabelText('Email', { selector: '#recognition-email' }),
+    ).toBeEnabled()
+
+    const portals = within(rowNamed(canvasElement, 'Portal goals'))
+    expect(portals.getByText('Monthly results of your portal goals.')).toBeInTheDocument()
+    expect(
+      portals.getByLabelText('In-app', { selector: '#portal_goals-in_app' }),
+    ).toBeEnabled()
+    expect(
+      portals.getByLabelText('Email', { selector: '#portal_goals-email' }),
+    ).toBeEnabled()
+
+    // The Google rating goal's row comes first, the portal goals' right after.
+    const headings = canvas
+      .getAllByRole('heading', { level: 3 })
+      .map((h) => h.textContent)
+    expect(headings.slice(-2)).toEqual(['Google rating goal', 'Portal goals'])
     expect(canvas.queryByText(/past awards/i)).toBeNull()
   },
 }
 
 /**
+ * Switching Portal goals saves the `portal_goals` row and nothing of the
+ * Google rating goal's: that is the point of two rows.
+ */
+export const PortalGoalsSaveTheirOwnRow: Story = {
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    const canvas = within(canvasElement)
+
+    await userEvent.click(canvas.getByRole('switch', { name: 'Portal goals: In-app' }))
+
+    await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledOnce())
+    expect(updatePreferenceMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        propertyId: PROPERTY_ID,
+        category: 'portal_goals',
+        channel: 'in_app',
+        enabled: false,
+      }),
+    })
+    expect(
+      canvas.getByRole('switch', { name: 'Google rating goal: In-app' }),
+    ).toBeChecked()
+  },
+}
+
+/**
  * One Goal Program over up to 250 Portals closes its results in the same hour,
- * so goal email is a daily digest only (ADR 0046, amended 2026-09-22). A row
- * saved before that may still say immediate; saving must not send it back.
+ * so goal email is a daily digest only (ADR 0046, amended 2026-09-22), for
+ * both goals' rows (amended 2026-10-17). A row saved before that may still say
+ * immediate; saving must not send it back.
  */
 export const GoalEmailIsDailyOnly: Story = {
   args: {
     preferences: [
-      ...preferences.filter((item) => item.category !== 'recognition'),
+      ...preferences.filter(
+        (item) => item.category !== 'recognition' && item.category !== 'portal_goals',
+      ),
       preference({
         category: 'recognition',
+        channel: 'email',
+        enabled: false,
+        cadence: 'immediate',
+      }),
+      preference({
+        category: 'portal_goals',
         channel: 'email',
         enabled: false,
         cadence: 'immediate',
@@ -207,19 +267,24 @@ export const GoalEmailIsDailyOnly: Story = {
   play: async ({ canvasElement }) => {
     updatePreferenceMock.mockClear()
     const canvas = within(canvasElement)
-    const goalCadence = canvas.getByLabelText('Cadence', {
-      selector: '#recognition-cadence',
-    })
-    expect(goalCadence).toHaveTextContent('Daily at 08:00')
-    expect(goalCadence).toBeDisabled()
-    // Dimmed for a reason it states, and no promise of a choice email would
-    // not bring.
-    expect(goalCadence).toHaveAccessibleDescription('Always emailed daily at 08:00.')
-    expect(
-      within(canvas.getByRole('group', { name: 'Goals' })).queryByText(
-        'Turn on email to choose when it arrives.',
-      ),
-    ).toBeNull()
+    for (const [category, name] of [
+      ['recognition', 'Google rating goal'],
+      ['portal_goals', 'Portal goals'],
+    ] as const) {
+      const goalCadence = canvas.getByLabelText('Cadence', {
+        selector: `#${category}-cadence`,
+      })
+      expect(goalCadence).toHaveTextContent('Daily at 08:00')
+      expect(goalCadence).toBeDisabled()
+      // Dimmed for a reason it states, and no promise of a choice email would
+      // not bring.
+      expect(goalCadence).toHaveAccessibleDescription('Always emailed daily at 08:00.')
+      expect(
+        within(canvas.getByRole('group', { name })).queryByText(
+          'Turn on email to choose when it arrives.',
+        ),
+      ).toBeNull()
+    }
     // A category whose email is on still offers the choice. (Workflow's email
     // is off in these fixtures, and cadence waits until email is on.)
     expect(
@@ -227,12 +292,12 @@ export const GoalEmailIsDailyOnly: Story = {
     ).toBeEnabled()
 
     await userEvent.click(
-      canvas.getByLabelText('Email', { selector: '#recognition-email' }),
+      canvas.getByLabelText('Email', { selector: '#portal_goals-email' }),
     )
     await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledOnce())
     expect(updatePreferenceMock).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        category: 'recognition',
+        category: 'portal_goals',
         channel: 'email',
         enabled: true,
         cadence: 'daily',
@@ -274,7 +339,10 @@ export const EmailUnavailableForProperty: Story = {
     expect(
       canvas.getByRole('switch', { name: 'Workflow and collaboration: Email' }),
     ).toBeDisabled()
-    expect(canvas.getByRole('switch', { name: 'Goals: Email' })).toBeDisabled()
+    expect(
+      canvas.getByRole('switch', { name: 'Google rating goal: Email' }),
+    ).toBeDisabled()
+    expect(canvas.getByRole('switch', { name: 'Portal goals: Email' })).toBeDisabled()
     // In-app is a separate capability and stays operable.
     expect(
       canvas.getByRole('switch', { name: 'Workflow and collaboration: In-app' }),
@@ -1174,3 +1242,45 @@ export const LowRatingsDefaultCarriesTheThreshold: Story = {
     })
   },
 }
+
+/** Stands in for the utilities layer, which this runner does not compile: a link in a sentence stays underlined (axe link-in-text-block). */
+const UTILITY_LAYER = `@layer utilities {
+  .underline { text-decoration-line: underline; }
+}`
+
+/**
+ * The two goal rows at one width: both drawn, both names whole, and nothing
+ * wider than the page. "Google rating goal" is the longest label the rows
+ * have had, so the narrowest phone is where it would push a control out.
+ */
+const goalRowsAt = (
+  viewport: 'mobileNarrow' | 'mobileStaff' | 'tablet' | 'desktopManager',
+  width: number,
+  theme: 'dark' | 'light' = 'dark',
+): Story => ({
+  parameters: { viewport: { defaultViewport: viewport }, theme },
+  decorators: [
+    (Story) => (
+      <div data-testid="goal-rows-frame" style={{ width }}>
+        {theme === 'light' ? <style>{UTILITY_LAYER}</style> : null}
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const frame = within(canvasElement).getByTestId('goal-rows-frame')
+    for (const name of ['Google rating goal', 'Portal goals']) {
+      const row = rowNamed(canvasElement, name)
+      expect(row.scrollWidth).toBeLessThanOrEqual(row.clientWidth)
+      expect(within(row).getByRole('switch', { name: `${name}: In-app` })).toBeVisible()
+      expect(within(row).getByRole('switch', { name: `${name}: Email` })).toBeVisible()
+    }
+    expect(frame.scrollWidth).toBeLessThanOrEqual(width)
+  },
+})
+
+export const GoalRowsAtMobileNarrow: Story = goalRowsAt('mobileNarrow', 320)
+export const GoalRowsAtMobileStaff: Story = goalRowsAt('mobileStaff', 390)
+export const GoalRowsAtTablet: Story = goalRowsAt('tablet', 820)
+export const GoalRowsAtDesktopManager: Story = goalRowsAt('desktopManager', 1440)
+export const GoalRowsInLightTheme: Story = goalRowsAt('mobileNarrow', 320, 'light')

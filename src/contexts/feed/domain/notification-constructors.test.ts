@@ -453,6 +453,12 @@ describe('notification constructors', () => {
       message: 'Goal email is sent once a day',
       code: 'invalid_input',
     },
+    {
+      caseName: 'immediate portal goal email',
+      input: { category: 'portal_goals' as const },
+      message: 'Goal email is sent once a day',
+      code: 'invalid_input',
+    },
   ])('rejects $caseName preferences', ({ input, message, code }) => {
     const result = createNotificationPreference(
       { ...preferenceBase, ...input },
@@ -463,14 +469,17 @@ describe('notification constructors', () => {
     if (result.isErr()) expect(result.error).toMatchObject({ code, message })
   })
 
-  it('accepts goal email as a daily digest', () => {
-    const result = createNotificationPreference(
-      { ...preferenceBase, category: 'recognition', cadence: 'daily' },
-      () => NOW,
-    )
+  it.each(['recognition', 'portal_goals'] as const)(
+    'accepts %s email as a daily digest',
+    (category) => {
+      const result = createNotificationPreference(
+        { ...preferenceBase, category, cadence: 'daily' },
+        () => NOW,
+      )
 
-    expect(result.isOk()).toBe(true)
-  })
+      expect(result.isOk()).toBe(true)
+    },
+  )
 
   it('does not create an enabled in-app preference for a mandatory notice', () => {
     const result = createNotificationPreference(

@@ -119,16 +119,28 @@ describe('createNotificationCategoryDefault', () => {
     }
   })
 
-  it('refuses an immediate goal-email default, which would be one mail per result', () => {
+  it.each(['recognition', 'portal_goals'] as const)(
+    'refuses an immediate %s email default, which would be one mail per result',
+    (category) => {
+      const result = createNotificationCategoryDefault(
+        { ...base, category, cadence: 'immediate' },
+        () => NOW,
+      )
+
+      expect(result.isErr()).toBe(true)
+      if (result.isErr()) {
+        expect(result.error).toMatchObject({ message: 'Goal email is sent once a day' })
+      }
+    },
+  )
+
+  it('keeps a Portal goals default as a daily digest', () => {
     const result = createNotificationCategoryDefault(
-      { ...base, category: 'recognition', cadence: 'immediate' },
+      { ...base, category: 'portal_goals', cadence: 'daily' },
       () => NOW,
     )
 
-    expect(result.isErr()).toBe(true)
-    if (result.isErr()) {
-      expect(result.error).toMatchObject({ message: 'Goal email is sent once a day' })
-    }
+    expect(result.isOk()).toBe(true)
   })
 })
 

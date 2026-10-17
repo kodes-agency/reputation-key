@@ -17,6 +17,7 @@ describe('mail class', () => {
       'urgent_operational',
       'workflow_collaboration',
       'recognition',
+      'portal_goals',
     ] as const) {
       expect(mailClassForCategory(category)).toBe('optional')
     }

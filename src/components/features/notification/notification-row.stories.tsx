@@ -743,6 +743,8 @@ export const ActionNeededCannotBeMuted: Story = {
 /**
  * Goal results are a configurable category, so their rows offer a mute. One
  * Program over every Portal can close hundreds of results in the same hour.
+ * A portal goal's result mutes Portal goals only (ADR 0046, amended
+ * 2026-10-17).
  */
 export const GoalResultCanBeMuted: Story = {
   args: {
@@ -756,8 +758,11 @@ export const GoalResultCanBeMuted: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const menu = await openRowMenu(canvasElement)
-    await userEvent.click(await findVisibleMenuItem(menu, 'Mute goals for this property'))
+    await userEvent.click(
+      await findVisibleMenuItem(menu, 'Mute portal goals for this property'),
+    )
     expect(actions.onMuteCategory).toHaveBeenCalledWith(args.notification)
+    expect(args.notification.category).toBe('portal_goals')
     await expectMenuSettled(canvasElement)
   },
 }
