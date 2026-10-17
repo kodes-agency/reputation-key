@@ -20,58 +20,30 @@
 // nudge needs only the count. A month with a reading that read would quarantine
 // (an approximate or malformed one, one from a source the measure does not
 // allow) comes back without a figure and is not counted, as the page would show
-// it as unreadable.
+// it as unreadable. How one reading counts, and when it is unreadable, is
+// spelled once in `goal-count-readings.sql.ts`, which the recommended number's
+// read shares.
 
 import { sql, type SQL } from 'drizzle-orm'
 import type { Tx } from '#/shared/db'
 import type { OrganizationId } from '#/shared/domain/ids'
-import type { MetricKey } from '#/shared/domain/metric-keys'
-import { findMetricVersionById, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { findMetricVersionById } from '../../domain/metric-registry'
 import type { MetricScope } from '../../domain/metric-registry'
 import { goalVersionIsUsable } from '../../domain/goal-metric-version-usable'
 import type { RunningCountMonth } from '../../domain/goal-pace'
+import {
+  correctionTipJoin,
+  effectiveReadingValue,
+  GOAL_COUNT_SPECS,
+  goalCountSpecRows,
+  unreadableReading,
+  type GoalCountSpec,
+} from './goal-count-readings.sql'
 
 type CountMetric = RunningCountMonth['metric']
 
-type CountSpec = Readonly<{
-  versionId: string
-  metricKey: MetricKey
-  sourcePolicies: readonly string[]
-}>
-
-function countSpec(versionId: string): CountSpec {
-  const governed = findMetricVersionById(versionId)
-  if (!governed || !governed.version.permittedConsumers.includes('goal')) {
-    throw new Error(`Goal count metric is unavailable: ${versionId}`)
-  }
-  return {
-    versionId,
-    metricKey: governed.definition.key,
-    sourcePolicies: governed.version.sourcePolicyAllowlist,
-  }
-}
-
-const COUNT_SPECS: readonly CountSpec[] = [
-  countSpec(METRIC_VERSION_IDS.qualifiedScanGoal),
-  countSpec(METRIC_VERSION_IDS.portalRatingCountGoal),
-]
-
-const SPEC_BY_VERSION: ReadonlyMap<string, CountSpec> = new Map(
-  COUNT_SPECS.map((spec) => [spec.versionId, spec]),
-)
-
-const specRows = sql.join(
-  COUNT_SPECS.map(
-    (spec) => sql`(
-      ${spec.versionId}::uuid,
-      ${spec.metricKey}::text,
-      ARRAY[${sql.join(
-        spec.sourcePolicies.map((policy) => sql`${policy}`),
-        sql`, `,
-      )}]::text[]
-    )`,
-  ),
-  sql`, `,
+const SPEC_BY_VERSION: ReadonlyMap<string, GoalCountSpec> = new Map(
+  GOAL_COUNT_SPECS.map((spec) => [spec.versionId, spec]),
 )
 
 export type RunningCountMonthsScope = Readonly<{
@@ -227,7 +199,7 @@ function runningCountMonthsQuery(scope: RunningCountMonthsScope): SQL {
       running.target_value,
       CASE WHEN live.unreadable THEN NULL ELSE live.value END AS value
     FROM running
-    JOIN (VALUES ${specRows}) AS spec(version_id, metric_key, source_policies)
+    JOIN (VALUES ${goalCountSpecRows}) AS spec(version_id, metric_key, source_policies)
       ON spec.version_id = running.metric_definition_version_id
     CROSS JOIN LATERAL (
       SELECT coalesce(sum(counted.effective_value), 0) AS value,
@@ -236,28 +208,10 @@ function runningCountMonthsQuery(scope: RunningCountMonthsScope): SQL {
           false
         ) AS unreadable
       FROM (
-        SELECT CASE tip.kind
-            WHEN 'retract' THEN NULL
-            WHEN 'replace' THEN tip.replacement_value
-            WHEN 'adjust' THEN readings.exact_value + tip.exact_delta
-            ELSE readings.exact_value
-          END AS effective_value,
-          (
-            readings.data_quality IS NULL
-            OR readings.data_quality NOT IN ('exact', 'delayed', 'reconciling')
-            OR readings.sample_count IS NULL
-            OR readings.sample_count < 0
-            OR readings.source_policy IS NULL
-            OR NOT (readings.source_policy = ANY(spec.source_policies))
-            OR readings.metric_key <> spec.metric_key
-          ) AS unreadable
+        SELECT ${effectiveReadingValue} AS effective_value,
+          ${unreadableReading} AS unreadable
         FROM metric_readings AS readings
-        LEFT JOIN metric_corrections AS tip
-          ON tip.reading_id = readings.id
-          AND NOT EXISTS (
-            SELECT 1 FROM metric_corrections AS successor
-            WHERE successor.supersedes_correction_id = tip.id
-          )
+        ${correctionTipJoin}
         WHERE readings.organization_id = running.organization_id
           AND readings.property_id = running.property_id
           AND readings.definition_version_id = running.metric_definition_version_id
