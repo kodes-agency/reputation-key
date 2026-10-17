@@ -685,6 +685,23 @@
 // without rebasing it: main 307,564 B, PG-17 applied 307,634 B, +70 B, the
 // stylesheet 27,811 B on both. Rebased onto PG-05 (main f764b7b88) it
 // measured 307,636 B. 64 B spare under 307,700; no raise.
+//
+// 2026-10-18 (Monthly portal goal, PG-08: the Portal goals section and its card
+// before a goal): raised to 307,850 B, under the build's ceiling of 308,300
+// (owner, P-9). The section, the card and its words load with the Goals route's
+// component chunk (goals-*.js 11,618 B, lazy); the card's server function is a
+// stub chunk of its own (192 B) reached only by -portal-goal-queries' import(),
+// and the two query modules are lazy too (215 B and 427 B). Every class they
+// use was already in the stylesheet (byte for byte the same). First paint gains
+// the three Portal-goal key members of query-keys.ts (1,703 -> 1,733 B) and, in
+// the entry, the Goals loader's one import of -goals-page-prefetch with the
+// names of its two new chunks. Destructuring that import made the bundler wrap
+// it (307,709 B); calling it through the module does not. Fresh production
+// builds measured 307,564 B (75 js + 1 css) on the base, PG-07's head
+// f93ec05cb, and 307,698 B on the head: +134 B (entry +100 B). Replayed onto
+// main b31e4640a, which measured 307,671 B (PG-07, PG-05, PG-17, #856, #862
+// and #864 on it), it measured 307,799 B: +128 B (entry +94 B), over 307,700,
+// so the budget moves to 307,850. 51 B spare; 501 B left under the ceiling.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -696,7 +713,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 307_700, // lowered to 307,700 on 2026-10-16 once the browser's Sentry event hooks left first paint, measured 307,498 (main 309,273); raised to 309,300 on 2026-10-16 for the TanStack security release, measured 309,282 (main 308,612); raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
+  initialClosureGzip: 307_850, // raised to 307,850 on 2026-10-18 for the Monthly portal goal card (PG-08), measured 307,799 on main b31e4640a (main 307,671), under the build's ceiling of 308,300 (owner, P-9); lowered to 307,700 on 2026-10-16 once the browser's Sentry event hooks left first paint, measured 307,498 (main 309,273); raised to 309,300 on 2026-10-16 for the TanStack security release, measured 309,282 (main 308,612); raised to 308,800 on 2026-10-15 for the rating goal placements, measured 308,596; raised to 308,600 on 2026-10-15 with both rating goal branches merged, measured 308,400; raised on 2026-10-14 for the Google rating goal's route and loader import, measured 308,083 (base 307,705); lowered on 2026-10-13 once the goal and Inbox command DTOs left first paint, measured 307,524 (main 310,599); lowered to 309,500 on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every raise, lowering and its measurement is in the dated notes above
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
