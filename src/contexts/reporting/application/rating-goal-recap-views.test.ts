@@ -14,6 +14,7 @@ import {
   type FakeWorld,
 } from './use-cases/rating-goal-test-fixtures'
 import { getRatingGoalCard } from './use-cases/rating-goal-reads'
+import { recapView } from './rating-goal-recap-views'
 
 let world: FakeWorld
 
@@ -87,5 +88,28 @@ describe('the Monday check-in on the card', () => {
       }),
     ]
     await expect(readRecap()).resolves.toBeNull()
+  })
+})
+
+describe('the check-in built from what the card read found', () => {
+  const facts = {
+    status: 'on_pace' as const,
+    googleShowsSoon: false,
+    now: new Date('2026-10-14T12:00:00.000Z'),
+    timezone: 'Europe/Sofia',
+  }
+
+  it('names no average for a week without reviews, and no plan without a pace', () => {
+    expect(
+      recapView(activeGoal(), { ...facts, lastWeek: { count: 0, sum: null } }),
+    ).toEqual(
+      expect.objectContaining({ count: 0, averageTenths: null, plannedLastWeek: 11 }),
+    )
+    expect(
+      recapView(
+        activeGoal({ mode: 'keep', paceTenthsPerWeek: null, qualityTenths: null }),
+        { ...facts, status: 'holding', lastWeek: { count: 3, sum: null } },
+      ),
+    ).toBeNull()
   })
 })
