@@ -18,7 +18,6 @@ import type { PortalPublicationRepository } from '../ports/portal-publication.re
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalResponsibleManagerRepository } from '../ports/portal-responsible-manager.repository'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
-import type { Portal } from '../../domain/types'
 import type { PortalHealth } from '../../domain/portal-health'
 import type { PortalPublicationState } from '../../domain/portal-publication'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -31,6 +30,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { portalError } from '../../domain/errors'
 import { toPortalTokenStatus, type PortalTokenStatus } from '../portal-token-status'
 import type { PortalAddressCipher } from '../ports/portal-address-cipher.port'
+import { comparePortalsByName } from '../portal-name-order'
 
 export type ListPortalOverviewInput = Readonly<
   | { scope: 'property'; propertyId: string }
@@ -77,12 +77,6 @@ export type PortalOverviewRow = Readonly<{
   token: PortalTokenStatus
 }>
 
-const compareByNameThenId = (a: Portal, b: Portal): number => {
-  const byName = a.name.toLowerCase().localeCompare(b.name.toLowerCase())
-  if (byName !== 0) return byName
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
-}
-
 const groupByPortal = <T extends Readonly<{ portalId: string }>>(
   rows: readonly T[],
 ): ReadonlyMap<string, readonly T[]> => {
@@ -125,7 +119,7 @@ export const listPortalOverview =
     const portals = listed
       .filter((portal) => accessible === null || accessible.includes(portal.propertyId))
       .filter((portal) => !narrowedTo || narrowedTo.includes(portal.propertyId))
-      .sort(compareByNameThenId)
+      .sort(comparePortalsByName)
     if (portals.length === 0) return []
 
     const portalIds = portals.map((portal) => portal.id)

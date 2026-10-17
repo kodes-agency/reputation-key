@@ -106,6 +106,7 @@ import {
   updatePortalResponsibleManagers,
 } from './application/use-cases/portal-responsible-managers'
 import { getPortalContactRequestManagerAuthorityFacts } from './application/use-cases/portal-contact-request-authority'
+import { createGoalReadinessFacts } from './application/goal-readiness-facts'
 import { createPortalWorkflowFactStore } from './infrastructure/portal-workflow-fact-store'
 import { createAtomicPortalCommandStore } from './infrastructure/portal-command-store'
 import { decidePublicExecution } from '#/shared/auth/execution-policy'
@@ -703,6 +704,12 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       clock: deps.clock,
     }),
     listPublicationActivationsBetween: portalPublicationRepo.listActivationsBetween,
+    ...createGoalReadinessFacts({
+      portalRepo,
+      publicationRepo: portalPublicationRepo,
+      portalTokenRepo,
+      portalGroupRepo,
+    }),
     getResponsibleManagerUserIds: async (orgId: OrganizationId, pid: PortalId) => {
       const facts = await contactRequestManagerAuthorityFacts(orgId, pid)
       return facts?.responsibleManagerUserIds ?? []
