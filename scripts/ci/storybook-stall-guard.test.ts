@@ -1,12 +1,15 @@
-// The storybook stall guard, driven two ways. Reporter events from small
+// The storybook stall guard, driven three ways. Reporter events from small
 // stand-ins for Vitest's TestModule and TestCase, under fake timers, pin down
 // what it reports and when: only a started file that has gone quiet, measured
-// from its last event, once. One real Vitest run then checks that the events
-// it listens for are the ones Vitest sends, and that Vitest can load it from
-// its path the way the storybook-test job does, so a Vitest upgrade that
-// renames them fails here instead of leaving the guard watching nothing.
+// from its last update, once. A child process runs its default ending: the
+// report, the annotation, exit 1, and no timer that holds a process open. One
+// real Vitest run checks that the updates it listens for are the ones Vitest
+// sends, and that Vitest can load it from its path as the storybook-test job
+// does, so a Vitest upgrade that renames them fails here instead of leaving
+// the guard watching nothing.
 
 import { execFile } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -26,7 +29,6 @@ type FakeState = 'pending' | 'passed' | 'failed' | 'skipped'
 
 type FakeTest = {
   readonly type: 'test'
-  readonly id: string
   readonly fullName: string
   readonly module: FakeModule
   state: FakeState
@@ -53,7 +55,6 @@ function fakeModule(file: string, names: readonly string[]): FakeModule {
   for (const name of names) {
     const test: FakeTest = {
       type: 'test',
-      id: `${file}:${name}`,
       fullName: `Probe > ${name}`,
       module,
       state: 'pending',
@@ -102,7 +103,7 @@ describe('a started file that goes quiet', () => {
     vi.useRealTimers()
   })
 
-  it('names the file, the last test that finished and the one in flight', () => {
+  it('names the file, the first story not reported finished, and the one after it', () => {
     const module = fakeModule(FILE, ['Renders', 'Freezes', 'After'])
     guard.onTestModuleStart(module)
     runTest(guard, module, 'Renders')
@@ -117,33 +118,20 @@ describe('a started file that goes quiet', () => {
           quietMs: STALL_MS,
           runningMs: STALL_MS,
           lastEvent: 'test "Probe > Freezes" started',
+          stuck: 'Probe > Freezes',
+          orNext: 'Probe > After',
           lastFinished: 'Probe > Renders (passed)',
-          likelyStuck: { test: 'Probe > Freezes', started: true },
           finished: 1,
           total: 3,
+          unreadable: null,
         },
       ],
     ])
   })
 
-  it('names the next test when the stuck one was never reported started', () => {
-    const module = fakeModule(FILE, ['Renders', 'Freezes', 'After'])
-    guard.onTestModuleStart(module)
-    runTest(guard, module, 'Renders', 'failed')
-
-    vi.advanceTimersByTime(STALL_MS)
-
-    expect(stalls[0]?.[0]).toMatchObject({
-      lastEvent: 'test "Probe > Renders" failed',
-      lastFinished: 'Probe > Renders (failed)',
-      likelyStuck: { test: 'Probe > Freezes', started: false },
-    })
-  })
-
-  it('reads the stuck test from the states when the last events never came', () => {
-    // As the probe story froze: the page had sent the first story's state as
-    // passed, and that its afterEach started, but not that it finished nor
-    // that the second one started.
+  it('goes by the states when the last updates had the story passed, in its afterEach', () => {
+    // The probe story's local run: its page sent that the story before it
+    // passed and began its afterEach, then froze in the probe.
     const module = fakeModule(FILE, ['Renders', 'Freezes', 'After'])
     const renders = testNamed(module, 'Renders')
     guard.onTestModuleStart(module)
@@ -155,44 +143,63 @@ describe('a started file that goes quiet', () => {
 
     expect(stalls[0]?.[0]).toMatchObject({
       lastEvent: 'afterEach of "Probe > Renders" started',
+      stuck: 'Probe > Freezes',
+      orNext: 'Probe > After',
       lastFinished: 'Probe > Renders (passed)',
-      likelyStuck: { test: 'Probe > Freezes', started: false },
       finished: 1,
     })
   })
 
-  it('passes over a skipped test for the last one that finished', () => {
-    const module = fakeModule(FILE, ['Renders', 'Skipped', 'Freezes'])
+  it('offers the next story when the last updates had the one before still running', () => {
+    // The probe story's CI run: the last update was the story before it
+    // ending its beforeEach, so that story's finish was in the batch that
+    // never came, and the probe is the next one.
+    const module = fakeModule(FILE, ['Renders', 'Freezes', 'After'])
+    const renders = testNamed(module, 'Renders')
+    guard.onTestModuleStart(module)
+    guard.onTestCaseReady(renders)
+    guard.onHookEnd({ name: 'beforeEach', entity: renders })
+
+    vi.advanceTimersByTime(STALL_MS)
+
+    expect(stalls[0]?.[0]).toMatchObject({
+      lastEvent: 'beforeEach of "Probe > Renders" ended',
+      stuck: 'Probe > Renders',
+      orNext: 'Probe > Freezes',
+      lastFinished: null,
+      finished: 0,
+    })
+  })
+
+  it('passes over skipped tests on both sides of the stuck one', () => {
+    const module = fakeModule(FILE, ['Renders', 'Off', 'Freezes', 'Also off', 'After'])
+    guard.onTestModuleStart(module)
+    runTest(guard, module, 'Renders', 'failed')
+    testNamed(module, 'Off').state = 'skipped'
+    testNamed(module, 'Also off').state = 'skipped'
+
+    vi.advanceTimersByTime(STALL_MS)
+
+    expect(stalls[0]?.[0]).toMatchObject({
+      stuck: 'Probe > Freezes',
+      orNext: 'Probe > After',
+      lastFinished: 'Probe > Renders (failed)',
+      finished: 3,
+      total: 5,
+    })
+  })
+
+  it('names the last story and nothing after it when that is the one left', () => {
+    const module = fakeModule(FILE, ['Renders', 'Freezes'])
     guard.onTestModuleStart(module)
     runTest(guard, module, 'Renders')
-    testNamed(module, 'Skipped').state = 'skipped'
 
     vi.advanceTimersByTime(STALL_MS)
 
-    expect(stalls[0]?.[0]).toMatchObject({
-      lastFinished: 'Probe > Renders (passed)',
-      likelyStuck: { test: 'Probe > Freezes', started: false },
-      finished: 2,
-      total: 3,
-    })
+    expect(stalls[0]?.[0]).toMatchObject({ stuck: 'Probe > Freezes', orNext: null })
   })
 
-  it('names the first test when none has finished', () => {
-    const module = fakeModule(FILE, ['Freezes', 'After'])
-    guard.onTestModuleStart(module)
-
-    vi.advanceTimersByTime(STALL_MS)
-
-    expect(stalls[0]?.[0]).toMatchObject({
-      lastEvent: 'file started',
-      lastFinished: null,
-      likelyStuck: { test: 'Probe > Freezes', started: false },
-      finished: 0,
-      total: 2,
-    })
-  })
-
-  it('names no test when every test had finished', () => {
+  it('names no story when the file had reported them all finished', () => {
     const module = fakeModule(FILE, ['Renders'])
     guard.onTestModuleStart(module)
     runTest(guard, module, 'Renders')
@@ -202,14 +209,35 @@ describe('a started file that goes quiet', () => {
 
     expect(stalls[0]?.[0]).toMatchObject({
       lastEvent: `afterAll of ${FILE} started`,
+      stuck: null,
+      orNext: null,
       lastFinished: 'Probe > Renders (passed)',
-      likelyStuck: null,
       finished: 1,
       total: 1,
     })
   })
 
-  it('counts from the last event, not from the start of the file', () => {
+  it('still reports the file when its tests cannot be read', () => {
+    const module = {
+      ...fakeModule(FILE, ['Renders']),
+      children: {
+        allTests: () => {
+          throw new TypeError('allTests is gone')
+        },
+      },
+    }
+    guard.onTestModuleStart(module)
+
+    vi.advanceTimersByTime(STALL_MS)
+
+    expect(stalls[0]?.[0]).toMatchObject({
+      file: FILE,
+      stuck: null,
+      unreadable: 'TypeError: allTests is gone',
+    })
+  })
+
+  it('counts from the last update, not from the start of the file', () => {
     const module = fakeModule(FILE, ['Slow', 'Freezes'])
     guard.onTestModuleStart(module)
     vi.advanceTimersByTime(STALL_MS - 5_000)
@@ -223,11 +251,11 @@ describe('a started file that goes quiet', () => {
     expect(stalls[0]?.[0]).toMatchObject({
       quietMs: STALL_MS,
       runningMs: 2 * STALL_MS - 5_000,
-      likelyStuck: { test: 'Probe > Slow', started: true },
+      stuck: 'Probe > Slow',
     })
   })
 
-  it('takes every hook and suite event as progress', () => {
+  it('takes every hook and suite update as progress', () => {
     const module = fakeModule(FILE, ['Renders'])
     const test = testNamed(module, 'Renders')
     const suite = { type: 'suite', fullName: 'Probe', module } as const
@@ -254,7 +282,7 @@ describe('a started file that goes quiet', () => {
     expect(stalls[0]?.[0]).toMatchObject({ lastEvent: 'suite "Probe" finished' })
   })
 
-  it('reports the quiet file and not the one still reporting', () => {
+  it('reports the quiet file and not the one still sending', () => {
     const quiet = fakeModule(FILE, ['Freezes'])
     const busy = fakeModule('src/components/ui/busy.stories.tsx', ['One', 'Two'])
     guard.onTestModuleStart(quiet)
@@ -282,6 +310,7 @@ describe('a started file that goes quiet', () => {
     guard.onTestModuleStart(fakeModule(FILE, ['Freezes']))
 
     vi.advanceTimersByTime(10 * STALL_MS)
+    guard.check(performance.now() + 10 * STALL_MS)
 
     expect(stalls).toHaveLength(1)
     expect(vi.getTimerCount()).toBe(0)
@@ -309,73 +338,52 @@ describe('a started file that goes quiet', () => {
   })
 })
 
-describe('a run that never ends its way', () => {
-  it('lets the process exit: the guard alone keeps nothing alive', async () => {
-    // A started file and no run end, as when Vitest dies mid-run: the process
-    // must still exit on its own rather than wait on the guard's timer.
-    const script = [
-      `const { default: Guard } = await import(${JSON.stringify(GUARD_URL)})`,
-      'const guard = new Guard({ onStall: () => process.exit(3) })',
-      "guard.onTestModuleStart({ type: 'module', id: 'm', relativeModuleId: 'm.stories.tsx',",
-      '  children: { allTests: () => [] } })',
-    ].join('\n')
-
-    // Rejects when the child exits non-zero or is killed for outliving the timeout.
-    const exited = await runNode(
-      process.execPath,
-      ['--input-type=module', '-e', script],
-      {
-        timeout: 10_000,
-      },
-    )
-
-    expect(exited.stdout).toBe('')
-  })
-})
-
 describe('the report', () => {
   const stuck: StalledFile = {
     file: FILE,
     quietMs: 45_400,
     runningMs: 52_600,
-    lastEvent: 'test "Probe > Freezes" started',
-    lastFinished: 'Probe > Renders (passed)',
-    likelyStuck: { test: 'Probe > Freezes', started: true },
-    finished: 1,
+    lastEvent: 'beforeEach of "Probe > Renders" ended',
+    stuck: 'Probe > Renders',
+    orNext: 'Probe > Freezes',
+    lastFinished: null,
+    finished: 0,
     total: 3,
+    unreadable: null,
   }
 
-  it('names the file, the last test that finished and the likely stuck one', () => {
+  it('names the file, where it most likely froze, and its last update', () => {
     expect(describeStalls([stuck])).toBe(
       [
-        `Storybook stall guard: ${FILE} reported nothing for 45 s (running 53 s, 1 of 3 tests finished).`,
-        '  Last finished: Probe > Renders (passed)',
-        '  Likely stuck:  Probe > Freezes (started, never finished)',
-        '  Last event:    test "Probe > Freezes" started',
-        "A frozen story page runs no JavaScript, so Vitest's own test timeout cannot fire there.",
+        `Storybook stall guard: ${FILE} sent no update for 45 s (running 53 s, 0 of 3 tests reported finished).`,
+        '  Stuck in:      Probe > Renders, or the story after it, Probe > Freezes',
+        '  Last finished: none reported',
+        '  Last update:   beforeEach of "Probe > Renders" ended',
+        'A story page sends its updates in batches, at most one per 100 ms, and a frozen page never',
+        'sends its last one: the stuck story is the first it had not reported finished, or the next.',
+        "A frozen page runs no JavaScript, so Vitest's own test timeout cannot fire there.",
         'Failing the run now instead of waiting for the job timeout.',
       ].join('\n'),
     )
   })
 
-  it('says when the likely stuck test is only the next one in the file', () => {
-    const report = describeStalls([
-      {
-        ...stuck,
-        lastFinished: null,
-        likelyStuck: { test: 'Probe > Renders', started: false },
-      },
-    ])
-
-    expect(report).toContain('  Last finished: none yet\n')
-    expect(report).toContain(
-      '  Likely stuck:  Probe > Renders (next in the file; its start was never reported)\n',
+  it('names the teardown when no story is left', () => {
+    expect(describeStalls([{ ...stuck, orNext: null }])).toContain(
+      "  Stuck in:      Probe > Renders, or the file's teardown after it\n",
+    )
+    expect(describeStalls([{ ...stuck, stuck: null, orNext: null }])).toContain(
+      "  Stuck in:      the file's teardown, after its last story\n",
     )
   })
 
-  it('says when the file went quiet after its last test', () => {
-    expect(describeStalls([{ ...stuck, likelyStuck: null }])).toContain(
-      '  Likely stuck:  none left: the file went quiet after its last test\n',
+  it('says when its tests could not be read', () => {
+    const report = describeStalls([
+      { ...stuck, stuck: null, orNext: null, unreadable: 'TypeError: allTests is gone' },
+    ])
+
+    expect(report).toContain(`${FILE} sent no update for 45 s (running 53 s).\n`)
+    expect(report).toContain(
+      '  Stuck in:      unknown, its tests could not be read (TypeError: allTests is gone)\n',
     )
   })
 
@@ -384,29 +392,114 @@ describe('the report', () => {
       stallAnnotation({
         ...stuck,
         file: 'src/a,b:c.stories.tsx',
-        likelyStuck: { test: 'Probe > 100% done\nnext', started: true },
+        stuck: 'Probe > 100% done\nnext',
       }),
     ).toBe(
       '::error file=src/a%2Cb%3Ac.stories.tsx,title=Storybook stall::' +
-        'Probe > 100%25 done%0Anext froze: its file reported nothing for 45 s. ' +
-        'Last finished: Probe > Renders (passed).',
+        'Stuck in Probe > 100%25 done%0Anext, or the story after it, Probe > Freezes: ' +
+        'the file sent no update for 45 s.',
     )
   })
 })
 
+type Exited = Readonly<{ code: number | null; stdout: string; stderr: string }>
+
+function isExecFailure(
+  error: unknown,
+): error is Readonly<{ code?: unknown; stdout: string; stderr: string }> {
+  return (
+    typeof error === 'object' && error !== null && 'stdout' in error && 'stderr' in error
+  )
+}
+
+/** Runs `script` as an ES module in a fresh Node, with the guard importable. */
+async function runScript(script: string, env: NodeJS.ProcessEnv): Promise<Exited> {
+  try {
+    const { stdout, stderr } = await runNode(
+      process.execPath,
+      ['--input-type=module', '--no-warnings', '-e', script],
+      { env, timeout: 15_000 },
+    )
+    return { code: 0, stdout, stderr }
+  } catch (error) {
+    if (!isExecFailure(error)) throw error
+    const code = typeof error.code === 'number' ? error.code : null
+    return { code, stdout: error.stdout, stderr: error.stderr }
+  }
+}
+
+// One started file with one test still running, as a frozen page leaves it.
+const startStuckFile = [
+  `const { default: Guard } = await import(${JSON.stringify(GUARD_URL)})`,
+  "const module = { type: 'module', id: 'm', relativeModuleId: 'src/a.stories.tsx',",
+  "  children: { allTests: () => [{ type: 'test', fullName: 'A > Freezes', module,",
+  "    result: () => ({ state: 'pending' }) }] } }",
+].join('\n')
+
+describe('in a process of its own', () => {
+  it('lets the process exit: the guard alone keeps nothing alive', async () => {
+    // A started file and no run end, as when Vitest dies mid-run.
+    const exited = await runScript(
+      [
+        startStuckFile,
+        'new Guard({ onStall: () => process.exit(3) }).onTestModuleStart(module)',
+      ].join('\n'),
+      process.env,
+    )
+
+    expect(exited).toEqual({ code: 0, stdout: '', stderr: '' })
+  })
+
+  it.each([
+    { env: 'true', annotated: true },
+    { env: 'false', annotated: false },
+  ])(
+    'fails the run with the report, annotating it when GITHUB_ACTIONS is $env',
+    async ({ env, annotated }) => {
+      // Something else keeps the process alive, as Vitest's server does.
+      const exited = await runScript(
+        [
+          startStuckFile,
+          'new Guard({ stallMs: 300 }).onTestModuleStart(module)',
+          'setTimeout(() => process.exit(5), 10_000)',
+        ].join('\n'),
+        { ...process.env, GITHUB_ACTIONS: env },
+      )
+
+      expect(exited.code).toBe(1)
+      expect(exited.stderr).toContain(
+        'Storybook stall guard: src/a.stories.tsx sent no update for ',
+      )
+      expect(exited.stderr).toContain('  Stuck in:      A > Freezes, or the file')
+      expect(
+        exited.stderr.includes('::error file=src/a.stories.tsx,title=Storybook stall::'),
+      ).toBe(annotated)
+    },
+  )
+})
+
 describe('in a real Vitest run', () => {
   let root = ''
+  let checked = ''
 
   beforeEach(async () => {
     root = await realpath(await mkdtemp(join(tmpdir(), 'stall-guard-')))
-    // The second test stays quiet for longer than the threshold below, which is
-    // all the guard can see of a frozen page, and then passes, so the run ends
-    // green and the guard must already have reported it.
+    checked = join(root, 'checked')
+    // `waits` stands in for a story whose page froze. It runs until the
+    // reporter below has checked, so it cannot finish first. The update that
+    // says it started must reach the reporter while it runs, and Vitest's
+    // 100 ms batching can hold an update until the next one; the end of a
+    // beforeEach longer than a batch always sends at once.
     await writeFile(
       join(root, 'quiet.test.ts'),
       [
+        "import { existsSync } from 'node:fs'",
+        'const sleep = (ms) => new Promise((settle) => setTimeout(settle, ms))',
+        "beforeEach(async ({ task }) => { if (task.name === 'waits') await sleep(150) })",
         "test('renders', () => {})",
-        "test('goes quiet', () => new Promise((settle) => setTimeout(settle, 2_000)))",
+        "test('waits', async () => {",
+        `  for (let i = 0; i < 500 && !existsSync(${JSON.stringify(checked)}); i++) await sleep(20)`,
+        '})',
         "test('runs after', () => {})",
       ].join('\n'),
     )
@@ -416,12 +509,23 @@ describe('in a real Vitest run', () => {
     await rm(root, { recursive: true, force: true })
   })
 
-  it('hears the events it needs from Vitest, loaded from its path', async () => {
+  it('hears the updates it needs from Vitest, and loads from its path', async () => {
     const stalls: (readonly StalledFile[])[] = []
-    const options: StallGuardOptions = {
-      stallMs: 500,
-      onStall: (stalled) => stalls.push(stalled),
+    const fromPath: (readonly StalledFile[])[] = []
+    // Checks as if the threshold had passed the moment `waits` was reported
+    // started, so what it reads is what Vitest had delivered by then, with no
+    // race against the clock; then lets `waits` finish.
+    class CheckWhenWaiting extends StorybookStallGuard {
+      override onTestCaseReady(
+        test: Parameters<StorybookStallGuard['onTestCaseReady']>[0],
+      ): void {
+        super.onTestCaseReady(test)
+        if (test.fullName !== 'waits') return
+        this.check(performance.now() + 2 * STALL_MS)
+        writeFileSync(checked, '')
+      }
     }
+    const loaded: StallGuardOptions = { onStall: (stalled) => fromPath.push(stalled) }
     const vitest = await createVitest('test', {
       root,
       config: false,
@@ -429,7 +533,10 @@ describe('in a real Vitest run', () => {
       watch: false,
       cache: false,
       include: ['*.test.ts'],
-      reporters: [[GUARD, options]],
+      reporters: [
+        new CheckWhenWaiting({ onStall: (stalled) => stalls.push(stalled) }),
+        [GUARD, loaded],
+      ],
     })
     try {
       await vitest.start()
@@ -441,11 +548,15 @@ describe('in a real Vitest run', () => {
       [
         expect.objectContaining({
           file: 'quiet.test.ts',
+          lastEvent: 'test "waits" started',
+          stuck: 'waits',
+          orNext: 'runs after',
           lastFinished: 'renders (passed)',
-          likelyStuck: { test: 'goes quiet', started: true },
+          finished: 1,
           total: 3,
         }),
       ],
     ])
+    expect(fromPath).toEqual([])
   })
 })
