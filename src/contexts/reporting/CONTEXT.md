@@ -84,6 +84,40 @@ metric authority.
   month with a reading the governed read would quarantine has no figure and is not counted. An
   integration test holds its sum to `queryGoalAggregate` on the same readings. A goal counts once
   however many subjects are behind.
+- **Goal recommendation** (Monthly portal goal, ADR 0068; `domain/goal-recommendation.ts`,
+  read by `application/use-cases/goal-recommendation-read.ts`): the number a Property's
+  monthly portal goal is offered, never a result. The basis W is the 28 whole
+  Property-local days ending yesterday. A Portal's live days are the days of W, from the
+  goal versions' first day (2026-08-01) on, on which a publication activation was open for
+  any part of the day (the go-live day is day 1; a short disable drops only the whole days
+  it covers). A Portal joins the rate when it is published, live and has 14 live days;
+  draft, disabled, archived and deleted Portals never do, though their readings count in
+  the month. The rate R is the sum of each joined Portal's readings on its live days over
+  its live days, as an exact BigInt rational. For a month of D days, x = R × D: "your
+  usual" `roundUp(x)`, "a bit more" (recommended) `max(roundUp(1.1x), up(usual))`,
+  "stretch" `max(roundUp(1.2x), up(a bit more))`; for the rest of the current month, with
+  S counted so far and L days left (both with today), the same over S + R × L, the first
+  at least `up(S)`. `roundUp` and `up` share one grid (`domain/goal-number-steps.ts`):
+  1–29, then fives to 100, tens to 500, fifties above. Each measure has its own state:
+  `unreadable` when a reading the governed read would quarantine is in the range, `nothing`
+  when R = 0 (no choices), else `ready`. The Property's state is `no_live_portal`, then
+  `getting_ready` (no joined Portal; `readyOn` is the day the closest live one joins),
+  then from the measures: ratings `ready` → `ready`; ratings `nothing` with scans `ready` →
+  `scans_only` (scans offered first); both `nothing` → `nothing_counted`; else
+  `unreadable`. S counts every reading of the Property, a Portal's or not; what the listed
+  published Portals do not account for is `elsewhere`. Each Portal also gets its readiness
+  steps and at most one quiet fact (`domain/goal-portal-readiness.ts`): no scans since a
+  day once its own usual would have brought 5, or no scan in the 14 or more days since its
+  code was made. The read authorizes `goal.create`, then reads the time zone and Portal's
+  facts together, then the readings in one statement
+  (`infrastructure/adapters/goal-recommendation-readings.ts`): the basis and this month as
+  one range on versions …1301 and …1302, grouped by Portal (none kept), measure and local
+  day, at the latest correction, with the unreadable flag, plus each listed Portal's last
+  unretracted scan from its code's date (at most a year back). Like the behind-pace count
+  it skips only the outbox completeness proof; both spell a counted reading once, in
+  `infrastructure/adapters/goal-count-readings.sql.ts`. An integration test holds its
+  month to `queryGoalAggregate` for the Property, readings with no Portal and an archived
+  Portal's included.
 - **Goals for several subjects**: one save that creates one Goal Program per row, each for
   one Portal or one Portal Group with its own target (`createGoalsForSubjects`, at most 50
   rows). It is authorised once and its start month is resolved once, so every goal of a save
@@ -347,6 +381,12 @@ under `server/` are the request boundary used by routes. Reporting depends on pu
 interfaces from Property, Portal, Staff, Review, Inbox, and Guest; none of their repositories
 are imported. Metric-to-Goal and Metric-to-Dashboard collaboration is internal and follows
 the normal domain/application/infrastructure layer rules.
+
+The Monthly portal goal's recommendation reads Portal's `listGoalReadinessFacts`
+(`PortalPublicApi`): each non-archived Portal's state, live since and live intervals, code
+date and marker, in name order, at most 100. It has no request surface yet; the reporting
+context composes it as `internal.useCases.goalRecommendation`, and the card read (PG-08)
+is its first caller.
 
 The Property-scoped dashboard reads authorize their own reader. `getDashboardData`,
 `getPropertyOverview`, `getAttentionSignals`, `getPortalAnalytics` and
