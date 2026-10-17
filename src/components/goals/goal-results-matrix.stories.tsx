@@ -163,10 +163,79 @@ export const AllEvidenceStatesLight: Story = {
   parameters: { theme: 'light' },
 }
 
-/** On a 320 px phone the table scrolls in its own frame and keeps its words. */
+/** The same month at each width the page is read at; the words stay the same. */
 export const AllEvidenceStatesNarrowPhone: Story = {
   ...AllEvidenceStates,
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+
+export const AllEvidenceStatesPhone: Story = {
+  ...AllEvidenceStates,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+}
+
+export const AllEvidenceStatesTablet: Story = {
+  ...AllEvidenceStates,
+  parameters: { viewport: { defaultViewport: 'tablet' } },
+}
+
+export const AllEvidenceStatesDesktop: Story = {
+  ...AllEvidenceStates,
+  parameters: { viewport: { defaultViewport: 'desktopManager' } },
+}
+
+// One is singular, and a large count is grouped, in the evidence and the number.
+const oneAndThousands: GoalResultsMatrixModel = {
+  months: [
+    {
+      periodStart: START,
+      periodEnd: END,
+      propertyTimezone: 'America/New_York',
+      rows: [
+        row('one-rating', {
+          metric: 'portal_rating_count',
+          outcome: 'met',
+          evidence: { kind: 'count', value: 1, sampleCount: 1 },
+          explanation: 'Met: 1 private rating, the goal was 1.',
+          targetProvenance: {
+            programName: 'Monthly ratings',
+            programVersion: 1,
+            metricDefinitionVersionId: '11111111-1111-4111-8111-111111111302',
+            targetValue: 1,
+            effectiveFrom: START,
+            setAt: new Date('2026-06-18T15:00:00.000Z'),
+          },
+        }),
+        row('thousands', {
+          subjectName: 'Front desk QR',
+          scope: 'portal',
+          subject: { kind: 'portal', portalId: 'portal-1' },
+          outcome: 'met',
+          evidence: { kind: 'count', value: 1234, sampleCount: 1234 },
+          explanation: 'Met: 1,234 scans, the goal was 1,200.',
+          targetProvenance: {
+            programName: 'Front desk scans',
+            programVersion: 1,
+            metricDefinitionVersionId: '11111111-1111-4111-8111-111111111301',
+            targetValue: 1200,
+            effectiveFrom: START,
+            setAt: new Date('2026-06-18T15:00:00.000Z'),
+          },
+        }),
+      ],
+    },
+  ],
+}
+
+export const OneAndThousands: Story = {
+  args: { matrix: oneAndThousands, now: new Date('2026-08-05T12:00:00.000Z') },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('1 private rating')).toBeVisible()
+    await expect(canvas.getByText('1,234 scans')).toBeVisible()
+    await expect(canvas.getByText(/Front desk scans · target 1,200/)).toBeVisible()
+    expect(canvas.queryByText(/\b1 private ratings\b|1234/u)).toBeNull()
+  },
 }
 
 export const TargetSetInAnEarlierYear: Story = {

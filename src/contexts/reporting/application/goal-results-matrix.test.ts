@@ -440,6 +440,86 @@ describe('Goal Results Matrix', () => {
     )
   })
 
+  it('says one in the singular and groups a large number as the live line does', () => {
+    const judged = (
+      id: string,
+      metric: GoalMetric,
+      target: number,
+      value: number,
+      achieved: boolean,
+    ) =>
+      bundle({
+        id,
+        name: id,
+        metric,
+        target,
+        subject: { kind: 'property', propertyId: 'property-1' },
+        evaluation: {
+          state: 'eligible',
+          value,
+          sampleCount: value,
+          achieved,
+          reason: null,
+        },
+      })
+    const matrix = buildGoalResultsMatrix({
+      ...catalogue,
+      programs: [
+        judged('one-rating', 'portal_rating_count', 1, 1, true),
+        judged('one-scan', 'qualified_scans', 2, 1, false),
+        judged('many-scans', 'qualified_scans', 1200, 1234, true),
+      ],
+    })
+    const explanationOf = (programId: string) =>
+      matrix.months[0]?.rows.find((row) => row.programId === programId)?.explanation
+
+    expect(explanationOf('one-rating')).toBe('Met: 1 private rating, the goal was 1.')
+    expect(explanationOf('one-scan')).toBe('Not met: 1 scan, the goal was 2.')
+    expect(explanationOf('many-scans')).toBe('Met: 1,234 scans, the goal was 1,200.')
+  })
+
+  // The page builds the matrix on the server and again in the browser, so the
+  // order is pinned, not the reader's language: "Bar 2" before "Bar 10".
+  it('orders rows by name the same way for every reader, numbers by value', () => {
+    const portalGoal = (id: string) =>
+      bundle({
+        id,
+        name: id,
+        metric: 'qualified_scans',
+        target: 10,
+        subject: { kind: 'portal', portalId: id },
+        evaluation: {
+          state: 'eligible',
+          value: 5,
+          sampleCount: 5,
+          achieved: false,
+          reason: null,
+        },
+      })
+    const matrix = buildGoalResultsMatrix({
+      ...catalogue,
+      portals: [
+        { id: 'bar-10', name: 'Bar 10' },
+        { id: 'bar-2', name: 'Bar 2' },
+        { id: 'reception', name: 'Рецепция' },
+        { id: 'spa', name: 'Spa' },
+      ],
+      programs: [
+        portalGoal('reception'),
+        portalGoal('bar-10'),
+        portalGoal('spa'),
+        portalGoal('bar-2'),
+      ],
+    })
+
+    expect(matrix.months[0]?.rows.map((row) => row.subjectName)).toEqual([
+      'Bar 2',
+      'Bar 10',
+      'Spa',
+      'Рецепция',
+    ])
+  })
+
   it('lists no portal without a goal: a first visit shows nothing to fix', () => {
     const matrix = buildGoalResultsMatrix({ ...catalogue, programs: [] })
 

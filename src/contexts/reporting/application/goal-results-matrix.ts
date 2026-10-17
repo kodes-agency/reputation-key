@@ -73,6 +73,11 @@ type GoalResultsMatrixInput = Readonly<{
   portals: readonly Readonly<{ id: string; name: string }>[]
 }>
 
+// Pinned, not the runtime's: the Goals page builds the matrix on the server and
+// again in the browser, and both must order the rows alike ("Bar 2" before
+// "Bar 10", "Spa" before "Рецепция" in every language).
+const byName = new Intl.Collator('en', { sensitivity: 'base', numeric: true })
+
 const scopeOrder: Readonly<Record<GoalSubject['kind'], number>> = {
   property: 0,
   portal_group: 1,
@@ -110,8 +115,23 @@ function evidenceFor(
   }
 }
 
-function countNoun(metric: GoalMetric): string {
-  return metric === 'qualified_scans' ? 'scans' : 'private ratings'
+// A count grouped as the live line groups it ("1,234"), with the locale pinned
+// so the server and the browser word a month alike. `formatNumber` is UI-side
+// (`#/lib/format`), out of this layer's reach; this is its en-US shape.
+const wholeNumber = new Intl.NumberFormat('en-US')
+
+/** "1 scan", "64 private ratings", "1,234 scans": one is singular. */
+function countWords(metric: GoalMetric, value: number): string {
+  const one = value === 1
+  const noun =
+    metric === 'qualified_scans'
+      ? one
+        ? 'scan'
+        : 'scans'
+      : one
+        ? 'private rating'
+        : 'private ratings'
+  return `${wholeNumber.format(value)} ${noun}`
 }
 
 /**
@@ -135,7 +155,7 @@ function resultExplanation(
   if (metric === 'portal_rating_average') {
     return `${prefix}: ${evaluation.value.toFixed(1)} from ${evaluation.sampleCount} ratings, the goal was ${target.toFixed(1)}.`
   }
-  return `${prefix}: ${evaluation.value} ${countNoun(metric)}, the goal was ${target}.`
+  return `${prefix}: ${countWords(metric, evaluation.value)}, the goal was ${wholeNumber.format(target)}.`
 }
 
 function subjectName(subject: GoalSubject, input: GoalResultsMatrixInput): string {
@@ -237,8 +257,9 @@ export function buildGoalResultsMatrix(input: GoalResultsMatrixInput): GoalResul
         rows: month.rows.sort(
           (left, right) =>
             scopeOrder[left.scope] - scopeOrder[right.scope] ||
-            left.subjectName.localeCompare(right.subjectName) ||
-            left.targetProvenance.programName.localeCompare(
+            byName.compare(left.subjectName, right.subjectName) ||
+            byName.compare(
+              left.targetProvenance.programName,
               right.targetProvenance.programName,
             ),
         ),

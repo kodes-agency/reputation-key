@@ -14,7 +14,7 @@ import {
   TableRow,
 } from '#/components/ui/table'
 import { AvailabilityLine } from '#/components/features/dashboard/availability-line'
-import { formatDate, formatMonthYear, formatShortDate } from '#/lib/format'
+import { formatDate, formatMonthYear, formatNumber, formatShortDate } from '#/lib/format'
 import { goalMetricLabel } from './goal-metric-label'
 import { goalTargetMarkerLine } from './goal-target-marker'
 
@@ -140,7 +140,10 @@ function MatrixRow({
   )
 }
 
-/** "64 scans", "64 private ratings", "4.6 from 12 ratings", "6 of 10 ratings so far". */
+/**
+ * "64 scans", "1 private rating", "1,234 scans", "4.6 from 12 ratings",
+ * "6 of 10 ratings so far": one is singular, and a count is grouped.
+ */
 function evidenceLabel(evidence: GoalResultsMatrixEvidence, metric: string): string {
   if (evidence.kind === 'average') {
     return evidence.value === null
@@ -148,9 +151,16 @@ function evidenceLabel(evidence: GoalResultsMatrixEvidence, metric: string): str
       : `${evidence.value.toFixed(1)} from ${evidence.sampleCount} ratings`
   }
   if (evidence.value === null) return 'No verified count available'
-  return metric === 'qualified_scans'
-    ? `${evidence.value} scans`
-    : `${evidence.value} private ratings`
+  const one = evidence.value === 1
+  const noun =
+    metric === 'qualified_scans'
+      ? one
+        ? 'scan'
+        : 'scans'
+      : one
+        ? 'private rating'
+        : 'private ratings'
+  return `${formatNumber(evidence.value)} ${noun}`
 }
 
 function scopeLabel(row: GoalResultsMatrixRow): string {
@@ -160,5 +170,5 @@ function scopeLabel(row: GoalResultsMatrixRow): string {
 }
 
 function formatTarget(value: number, metric: string): string {
-  return metric === 'portal_rating_average' ? value.toFixed(1) : String(value)
+  return metric === 'portal_rating_average' ? value.toFixed(1) : formatNumber(value)
 }
