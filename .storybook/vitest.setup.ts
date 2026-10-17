@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, vi } from 'vitest'
 import { commands } from 'vitest/browser'
 import type { StoryStart } from '../scripts/ci/storybook-story-starts'
 import { stopUpdateLoop } from './stop-update-loop'
@@ -65,8 +65,16 @@ function renderArgument(value: unknown): string {
 // and wait until it has heard. A page that then freezes is named exactly,
 // which its batched updates cannot do (scripts/ci/storybook-story-starts.ts).
 // With no guard listening, the answer comes straight back.
+const storyStartRoundTrips: number[] = []
 beforeEach(async ({ task }) => {
+  const sentAt = performance.now()
   await commands.storybookStoryStarts({ fileId: task.file.id, testId: task.id })
+  storyStartRoundTrips.push(performance.now() - sentAt)
+})
+afterAll(() => {
+  console.log(
+    `STORY_START_RTT ${JSON.stringify(storyStartRoundTrips.map((ms) => Math.round(ms * 1000) / 1000))}`,
+  )
 })
 
 beforeEach(() => {
