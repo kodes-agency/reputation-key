@@ -81,8 +81,8 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
       // The Google section and the Portal goals section, from one module fetched
       // on demand: their reads and server functions stay out of first paint,
       // and a failure stays in its own section.
-      import('./-goals-page-prefetch').then(({ prefetchGoalsPage }) =>
-        prefetchGoalsPage(
+      import('./-goals-page-prefetch').then((prefetch) =>
+        prefetch.prefetchGoalsPage(
           context.queryClient,
           propertyId,
           (context as AuthRouteContext).role,

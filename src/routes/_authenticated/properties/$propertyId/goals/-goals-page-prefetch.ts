@@ -10,6 +10,8 @@ import type { Role } from '#/shared/domain/roles'
 import { prefetchPortalGoalSection } from './-portal-goal-queries'
 import { prefetchRatingGoalSection } from './-rating-goal-queries'
 
+// The loader calls this through its import, never destructured: that would
+// cost first paint a wrapper that spells the name three times.
 export async function prefetchGoalsPage(
   queryClient: QueryClient,
   propertyId: string,
