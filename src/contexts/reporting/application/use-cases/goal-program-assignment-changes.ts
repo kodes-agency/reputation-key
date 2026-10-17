@@ -178,6 +178,8 @@ export async function changeAssignments(
     changeReason: noteOf(input.reason) ?? 'subjects_changed',
     createdBy: actor.userId,
     createdAt: selectedAt,
+    // The number stays the head's, so where it came from does too.
+    targetSource: current.version.targetSource,
   }
   const assignments = [...nextByIdentity.values()].map((subject) =>
     assignmentFor({

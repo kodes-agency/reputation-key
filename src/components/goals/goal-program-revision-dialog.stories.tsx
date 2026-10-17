@@ -245,19 +245,19 @@ export const MetricIsTheSharedSelect: Story = {
     reviseMock.mockClear()
     const dialog = await openRevise(canvasElement)
     const metric = dialog.getByRole('combobox', { name: 'Metric' })
-    expect(metric).toHaveTextContent('Private rating count')
+    expect(metric).toHaveTextContent('Private ratings')
 
     await userEvent.click(metric)
     const options = await within(document.body).findAllByRole('option')
     expect(options.map((option) => option.textContent)).toEqual([
-      'Qualified scans',
-      'Private rating count',
-      'Private rating average',
+      'Scans',
+      'Private ratings',
+      'Average private rating',
     ])
     await userEvent.click(
-      within(document.body).getByRole('option', { name: 'Private rating average' }),
+      within(document.body).getByRole('option', { name: 'Average private rating' }),
     )
-    expect(metric).toHaveTextContent('Private rating average')
+    expect(metric).toHaveTextContent('Average private rating')
 
     // An average is out of five stars, so the target comes down with it.
     const target = dialog.getByLabelText('Monthly target')

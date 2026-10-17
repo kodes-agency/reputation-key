@@ -699,6 +699,134 @@ describe.sequential('Goal Program repository (integration)', () => {
     ).resolves.toBe('created')
   })
 
+  it('create and revise store where the number came from, and a version not told stores none', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const targetPropertyId = await createPropertyFixture('Number source Property')
+    const at = new Date('2026-01-15T12:00:00.000Z')
+    const created = programBundle({
+      propertyId: targetPropertyId,
+      status: 'scheduled',
+      effectiveFrom: new Date('2026-02-01T00:00:00.000Z'),
+      at,
+    })
+    const first: GoalProgramVersion = { ...created.version, targetSource: 'recommended' }
+    await expect(
+      repository.create({
+        bundle: { ...created, version: first, versions: [first] },
+        auditAction: 'goal.program.created',
+      }),
+    ).resolves.toBe('created')
+    // Each revision replaces a head no month opened under.
+    const reviseTo = async (
+      expectedVersion: GoalProgramVersion,
+      patch: Pick<GoalProgramVersion, 'targetValue' | 'targetSource'>,
+    ): Promise<GoalProgramVersion> => {
+      const version: GoalProgramVersion = {
+        ...expectedVersion,
+        ...patch,
+        id: randomUUID(),
+        version: expectedVersion.version + 1,
+        changeReason: 'revised',
+      }
+      await expect(
+        repository.revise({
+          expectedVersion,
+          version,
+          assignments: [
+            assignment(
+              created.program.id,
+              version.id,
+              version.effectiveFrom,
+              at,
+              targetPropertyId,
+            ),
+          ],
+          supersedeRowlessHead: true,
+          actorId: 'manager-1',
+          at,
+        }),
+      ).resolves.toBe(true)
+      return version
+    }
+
+    const second = await reviseTo(first, { targetValue: 30, targetSource: 'own' })
+    await reviseTo(second, { targetValue: 35, targetSource: null })
+
+    const stored = await lease.pool.query(
+      `SELECT version, target_source FROM goal_program_versions
+       WHERE organization_id = $1 AND property_id = $2 AND program_id = $3
+       ORDER BY version`,
+      [organizationId, targetPropertyId, created.program.id],
+    )
+    expect(stored.rows).toEqual([
+      { version: 1, target_source: 'recommended' },
+      { version: 2, target_source: 'own' },
+      { version: 3, target_source: null },
+    ])
+    const read = await repository.get(
+      organizationId,
+      targetPropertyId,
+      created.program.id,
+    )
+    expect(read?.versions.map((version) => version.targetSource)).toEqual([
+      'recommended',
+      'own',
+      undefined,
+    ])
+  })
+
+  it('ending a goal records who and when', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const targetPropertyId = await createPropertyFixture('Ended record Property')
+    const periodStart = new Date('2026-01-01T00:00:00.000Z')
+    const original = programBundle({
+      propertyId: targetPropertyId,
+      status: 'active',
+      effectiveFrom: periodStart,
+      at: periodStart,
+      withOpenResult: { end: new Date('2026-02-01T00:00:00.000Z') },
+    })
+    await repository.create({ bundle: original, auditAction: 'goal.program.created' })
+    const endRecord = async () =>
+      (
+        await lease.pool.query(
+          `SELECT status, ended_at, ended_by FROM goal_programs
+           WHERE organization_id = $1 AND property_id = $2 AND id = $3`,
+          [organizationId, targetPropertyId, original.program.id],
+        )
+      ).rows
+    const change = (
+      expectedStatus: 'active' | 'paused',
+      status: 'paused' | 'ended',
+      actorId: string,
+      at: Date,
+    ) =>
+      repository.changeStatus({
+        organizationId,
+        propertyId: targetPropertyId,
+        programId: original.program.id,
+        expectedStatus,
+        status,
+        reason: null,
+        actorId,
+        at,
+      })
+
+    // Pausing ends nothing, so it records no end.
+    await change('active', 'paused', 'manager-2', new Date('2026-01-10T08:00:00.000Z'))
+    expect(await endRecord()).toEqual([
+      { status: 'paused', ended_at: null, ended_by: null },
+    ])
+
+    const endedAt = new Date('2026-01-12T09:30:00.000Z')
+    await expect(change('paused', 'ended', 'manager-3', endedAt)).resolves.toMatchObject({
+      status: 'ended',
+    })
+    expect(await endRecord()).toEqual([
+      { status: 'ended', ended_at: endedAt, ended_by: 'manager-3' },
+    ])
+  })
+
   it('finds only exact-version closed results inside the half-open impacted month', async () => {
     const repository = createGoalProgramRepository(getDb())
     const targetPropertyId = await createPropertyFixture('Correction Goal Property')

@@ -36,14 +36,18 @@ export type ServingVolumeRow = Readonly<{
   count: number
 }>
 
-/** Reply performance aggregates. */
+/**
+ * Reply performance aggregates. `repliedCount` counts reviews with a reply on
+ * Google (Google shows one, or RepKey published one), each once.
+ * `avgReplyHours` is null when no replied review has a reply time.
+ */
 export type ServingReplyPerformanceRow = Readonly<{
   totalReviews: number
   repliedCount: number
   avgReplyHours: number | null
 }>
 
-/** Recent review row with reply status. */
+/** Recent review row with reply status ('published' when Google shows a reply). */
 export type ServingRecentReviewRow = Readonly<{
   id: string
   rating: number
@@ -85,7 +89,12 @@ export type ReviewServingStats = Readonly<{
     endDate: Date,
   ): Promise<readonly ServingVolumeRow[]>
 
-  /** Reply rate + avg hours for a period (eligible reviews only). */
+  /**
+   * Reply rate + avg hours for a period (eligible reviews only). A reply's
+   * time is when RepKey last confirmed its reply on Google, else the time
+   * Google reports for the reply (its last edit); a replied review with
+   * neither is left out of the average only.
+   */
   getReplyPerformance(
     organizationId: OrganizationId,
     propertyId: PropertyId,

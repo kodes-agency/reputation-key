@@ -594,6 +594,27 @@
 // measured 307,517 B (75 js + 1 css) on D-2's head e9810d689 and 307,512 B after
 // the components commit: -5 B. Rebased onto D-2b (main 44e873b2b, 307,518 B)
 // it measured 307,530 B: +12 B, the check-in beside the low reviews. 170 B spare.
+//
+// 2026-10-17 (Monthly portal goal, PG-01: wording and first-visit clean-up): no
+// raise. Every change is words in the Goals, goal page, Overview and Properties
+// route chunks, and classes only left (the stylesheet is byte for byte the
+// same, 27,795 B). Fresh production builds measured 307,530 B (75 js + 1 css)
+// on main 2c9fb2a0e and 307,567 B with goalListSubjectText in goal-live-view.ts,
+// which made a chunk the Goals list and a goal's page share and grew the
+// entry's preload map; beside goalAssignmentSubjectLabel, in a module both
+// already load, it measured 307,539 B: +9 B. After the review fixes (a pinned
+// name order, grouped and singular counts in the results matrix, one subject
+// name on a goal's page) it measured 307,533 B: +3 B. vendor-charts 91,004 B
+// (lazy). 167 B spare.
+//
+// 2026-10-17 (Monthly portal goal, PG-04: migration 0062, the goal facts): no
+// raise. No UI changes; the month target command's schema gains an optional
+// number source, which only the goal's own route chunk loads (_goalId,
+// 8,974 -> 8,996 B gzip, lazy). The domain's new type costs nothing. Fresh
+// production builds measured 307,530 B (75 js + 1 css) on main 2c9fb2a0e and
+// 307,515 B on the PG-04 head: -15 B, all in the entry's preload map (chunk
+// names). The stylesheet is unchanged. Rebased onto PG-01..PG-03 (main
+// 51a871831, 307,533 B) it measured 307,540 B: +7 B. 160 B spare.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'

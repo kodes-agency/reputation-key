@@ -220,6 +220,13 @@ async function seedTenantRows(
      VALUES ($1::uuid, $2, 'user:test', $3)`,
     [fixture.propertyId, organizationId, VERSION_FROM],
   )
+  // A Monthly portal goal's "Not now" on the Overview names only its Property.
+  await lease.pool.query(
+    `INSERT INTO portal_goal_prompt_deferrals
+       (property_id, organization_id, month, deferred_by, deferred_at)
+     VALUES ($1::uuid, $2, '2026-08', 'user:test', $3)`,
+    [fixture.propertyId, organizationId, VERSION_FROM],
+  )
 
   return fixture
 }
@@ -495,6 +502,30 @@ describe.sequential('goal Organization lifecycle contributor', () => {
     expect(persisted[0]!.evidence_ref).toMatch(
       /^goal:purge:v1:tenant_rows_deleted:rows:\d+$/u,
     )
+  })
+
+  it('deletes Not-now deferrals with the Organization', async () => {
+    const fixture = await seedTenantRows('goal-lifecycle-org', 'paused')
+    const bystander = await seedTenantRows('goal-lifecycle-bystander', 'paused')
+    await requestClosure(fixture)
+    await advance(fixture.organizationId, 'closing', 'closing_prepared')
+    await advance(fixture.organizationId, 'purge_pending', 'recovery_window_elapsed')
+    await advance(fixture.organizationId, 'purging', 'irreversible_purge_authorized')
+    const notNow = async (organizationId: string) =>
+      (
+        await lease.pool.query(
+          `SELECT count(*)::int AS rows FROM portal_goal_prompt_deferrals
+           WHERE organization_id = $1`,
+          [organizationId],
+        )
+      ).rows
+    expect(await notNow(fixture.organizationId)).toEqual([{ rows: 1 }])
+
+    await createGoalOrganizationLifecycleAdapter(db).purge(contribution(fixture, 4))
+
+    // The Property is another context's and stays; its "Not now" does not.
+    expect(await notNow(fixture.organizationId)).toEqual([{ rows: 0 }])
+    expect(await notNow(bystander.organizationId)).toEqual([{ rows: 1 }])
   })
 
   it('reports why a purge failed, and a failed purge leaves the guard on', async () => {

@@ -50,6 +50,10 @@ import {
   goalNoResultsText,
 } from '#/components/goals/goal-detail-view'
 import { goalSubjectKey } from '#/components/goals/goal-subject-picker'
+import {
+  goalAssignmentSubjectLabel,
+  goalListSubjectText,
+} from '#/components/goals/goal-assignment-subject-label'
 import { formatDate } from '#/lib/format'
 
 const goalQuery = (propertyId: string, programId: string) =>
@@ -165,19 +169,14 @@ function GoalDetailRoute() {
     endMutation({ data: { propertyId, programId: goalId, status: 'ended' } })
   const formatDay = (date: Date): string =>
     formatDate(date, version.propertyTimezone) ?? ''
-  const subjectLabel = (subject: GoalSubject) => {
-    if (subject.kind === 'property') return propData.property.name
-    if (subject.kind === 'portal_group') {
-      return (
-        subjectNames.groups.find((group) => group.id === subject.portalGroupId)?.name ??
-        'Portal group'
-      )
-    }
-    return (
-      subjectNames.portals.find((portal) => portal.id === subject.portalId)?.name ??
-      'Portal'
+  // A subject's name as the Goals list says it, so a row and this page agree.
+  const subjectLabel = (subject: GoalSubject) =>
+    goalAssignmentSubjectLabel(
+      subject,
+      propData.property.name,
+      subjectNames.groups,
+      subjectNames.portals,
     )
-  }
 
   return (
     <PageShell key={`${propertyId}:${goalId}`}>
@@ -252,7 +251,10 @@ function GoalDetailRoute() {
       <GoalProgramCard
         goal={data}
         plan={monthPlan}
-        subjectCount={currentAssignments.length}
+        forWhom={goalListSubjectText(
+          currentAssignments.map((assignment) => assignment.subject),
+          subjectLabel,
+        )}
         canManage={canManage}
         frame={calendar}
       />

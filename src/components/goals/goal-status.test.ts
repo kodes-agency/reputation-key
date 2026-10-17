@@ -20,25 +20,32 @@ describe('a goal program status', () => {
 })
 
 describe('a goal month result', () => {
-  it('is achieved or not achieved once the month could be judged', () => {
+  it('a met month is Met in the positive tone', () => {
     expect(goalResultStatus({ state: 'eligible', achieved: true }, false)).toEqual({
-      label: 'Achieved',
+      label: 'Met',
       tone: 'positive',
     })
-    expect(goalResultStatus({ state: 'eligible', achieved: false }, false)).toEqual({
-      label: 'Not achieved',
-      tone: 'negative',
-    })
-    expect(goalResultStatus({ state: 'eligible', achieved: null }, false)).toEqual({
-      label: 'Not achieved',
-      tone: 'negative',
+  })
+
+  it('a missed month is Not met and never red', () => {
+    for (const achieved of [false, null]) {
+      expect(goalResultStatus({ state: 'eligible', achieved }, false)).toEqual({
+        label: 'Not met',
+        tone: 'neutral',
+      })
+    }
+  })
+
+  it('a month being checked is neutral', () => {
+    expect(goalResultStatus({ state: 'quarantined', achieved: null }, false)).toEqual({
+      label: 'Being checked',
+      tone: 'neutral',
     })
   })
 
   it.each([
     ['insufficient_data', 'More ratings needed', 'neutral'],
     ['updating', 'Updating', 'neutral'],
-    ['quarantined', 'Needs review', 'warn'],
     ['unavailable', 'Unavailable', 'neutral'],
   ] as const)('says why a %s month has no verdict: "%s"', (state, label, tone) => {
     expect(goalResultStatus({ state, achieved: null }, false)).toEqual({ label, tone })
@@ -46,8 +53,12 @@ describe('a goal month result', () => {
 
   it('marks a corrected result in the label and keeps its tone', () => {
     expect(goalResultStatus({ state: 'eligible', achieved: true }, true)).toEqual({
-      label: 'Corrected · Achieved',
+      label: 'Corrected · Met',
       tone: 'positive',
+    })
+    expect(goalResultStatus({ state: 'eligible', achieved: false }, true)).toEqual({
+      label: 'Corrected · Not met',
+      tone: 'neutral',
     })
   })
 })

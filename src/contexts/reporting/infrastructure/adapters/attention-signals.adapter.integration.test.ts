@@ -176,6 +176,8 @@ const LATE = NOW
 // Day 4: the first day that is judged. Day 3 is not.
 const FOURTH_DAY = new Date('2026-08-04T12:00:00.000Z')
 const THIRD_DAY = new Date('2026-08-03T12:00:00.000Z')
+const TENTH_DAY = new Date('2026-08-10T12:00:00.000Z')
+const TWENTIETH_DAY = new Date('2026-08-20T12:00:00.000Z')
 
 describe('attention signal work-set union', () => {
   it('counts Dashboard-owned work anchors while leaving overdue targets to Inbox', async () => {
@@ -213,6 +215,16 @@ describe('goals behind pace, counted from the live month', () => {
   it('does not flag the first three days of the month', async () => {
     await expect(behindPaceAt(THIRD_DAY, 0)).resolves.toBe(0)
     await expect(behindPaceAt(FOURTH_DAY, 0)).resolves.toBe(1)
+  })
+
+  it('a 10-a-month goal with nothing on the 10th is not behind pace', async () => {
+    // 10 x 10 / 31 = 3.2 expected by the 10th: fewer than 5, so it is not judged.
+    await expect(behindPaceAt(TENTH_DAY, 0, { target: 10 })).resolves.toBe(0)
+  })
+
+  it('it is behind on the 20th', async () => {
+    // 10 x 20 / 31 = 6.5 expected by the 20th: judged, and nothing counted is behind.
+    await expect(behindPaceAt(TWENTIETH_DAY, 0, { target: 10 })).resolves.toBe(1)
   })
 
   it('never flags an average', async () => {

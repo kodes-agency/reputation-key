@@ -87,3 +87,35 @@ describe('the form of a month target change', () => {
     })
   })
 })
+
+describe('where a changed month target came from', () => {
+  const command = (targetSource?: unknown) =>
+    changeGoalMonthTargetSchema.safeParse({
+      propertyId: PROPERTY_ID,
+      programId: PROGRAM_ID,
+      month: '2026-11',
+      targetValue: 45,
+      expectedTarget: 40,
+      expectedVersion: 1,
+      expectedFollowingMonth: '2026-12',
+      applyToFollowing: true,
+      ...(targetSource === undefined ? {} : { targetSource }),
+    })
+
+  it('takes the recommended number or the manager’s own, and nothing else', () => {
+    expect(command('recommended')).toMatchObject({
+      success: true,
+      data: { targetSource: 'recommended' },
+    })
+    expect(command('own')).toMatchObject({ success: true, data: { targetSource: 'own' } })
+    expect(command('suggested').success).toBe(false)
+    expect(command(null).success).toBe(false)
+  })
+
+  it('leaves it out when the form does not say', () => {
+    const parsed = command()
+
+    expect(parsed.success).toBe(true)
+    expect(parsed.data).not.toHaveProperty('targetSource')
+  })
+})

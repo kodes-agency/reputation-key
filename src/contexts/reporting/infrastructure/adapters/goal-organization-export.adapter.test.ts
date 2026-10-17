@@ -19,6 +19,7 @@ const TABLE_MARKERS = [
   'property_rating_goal_changes',
   'property_rating_goal_deferrals',
   'property_rating_goals',
+  'portal_goal_prompt_deferrals',
 ] as const
 
 function queryText(query: SQL): string {
@@ -64,6 +65,9 @@ const PROGRAM_ROW: Row = {
   created_by: 'user-1',
   created_at: '2026-08-01T00:00:00.000000Z',
   updated_at: '2026-08-01T00:00:00.000000Z',
+  check_in_answered_month: null,
+  ended_at: null,
+  ended_by: null,
 }
 
 function programVersionRow(id: string, metricKey: string, target: string): Row {
@@ -83,6 +87,7 @@ function programVersionRow(id: string, metricKey: string, target: string): Row {
     change_reason: 'initial',
     created_by: 'user-1',
     created_at: '2026-08-01T00:00:00.000000Z',
+    target_source: null,
   }
 }
 
@@ -176,6 +181,7 @@ const TARGET_CHANGE_ROW: Row = {
   note: 'The terrace was closed for two weeks',
   created_by: 'user-2',
   created_at: '2026-07-20T10:00:00.000000Z',
+  target_source: 'own',
 }
 
 const FIXTURE: FixtureRows = {
@@ -337,7 +343,7 @@ describe('Goal Organization Export contributor', () => {
         RESULTS_HEADER_BEFORE_MONTH_TARGETS,
       )
       // What the month target brought: the change log's columns, then the
-      // column a month gained.
+      // column a month gained, then where a change's number came from (0062).
       expect(header.slice(RESULTS_HEADER_BEFORE_MONTH_TARGETS.length)).toEqual([
         'change_id',
         'previous_target_value',
@@ -347,6 +353,7 @@ describe('Goal Organization Export contributor', () => {
         'following_version_id',
         'note',
         'target_value',
+        'target_source',
       ])
     })
 
@@ -378,8 +385,9 @@ describe('Goal Organization Export contributor', () => {
         goal_month_target_changes: [{ ...TARGET_CHANGE_ROW, note: '=1+1' }],
       })
 
-      // A change has no month target of its own, so that last cell is empty.
-      expect(csv).toContain(",'=1+1,\n")
+      // A change has no month target of its own, so that cell is empty; the
+      // change's number source closes the line.
+      expect(csv).toContain(",'=1+1,,own\n")
       expect(csv).not.toContain(',=1+1')
       expect(records.goal_month_target_change![0]).toMatchObject({ note: '=1+1' })
     })
@@ -536,6 +544,180 @@ describe('Goal Organization Export contributor', () => {
           /WHERE organization_id =/u,
         )
       }
+    })
+  })
+
+  describe("a Monthly portal goal's facts (migration 0062)", () => {
+    /** The heading of goal/programs.csv before migration 0062. */
+    const PROGRAMS_HEADER_BEFORE_0062 = [
+      'record_type',
+      'id',
+      'property_id',
+      'name',
+      'description',
+      'status',
+      'status_reason',
+      'current_version',
+      'created_by',
+      'created_at',
+      'updated_at',
+      'program_id',
+      'version',
+      'metric_definition_id',
+      'metric_definition_version_id',
+      'metric_key',
+      'metric_minimum_sample',
+      'target_value',
+      'property_timezone',
+      'effective_from',
+      'effective_to',
+      'change_reason',
+    ]
+    const STOPPED_PROGRAM_ROW: Row = {
+      ...PROGRAM_ROW,
+      status: 'ended',
+      check_in_answered_month: '2026-11',
+      ended_at: '2026-11-12T08:00:00.000000Z',
+      ended_by: 'user-2',
+    }
+    const RECOMMENDED_VERSION_ROW: Row = {
+      ...programVersionRow(
+        '50000000-0000-4000-8000-000000000004',
+        'portal_rating_count',
+        '40',
+      ),
+      target_source: 'recommended',
+    }
+    const NOT_NOW_ROW: Row = {
+      property_id: PROGRAM_ROW.property_id,
+      month: '2026-11',
+      deferred_by: 'user-3',
+      deferred_at: '2026-10-30T09:00:00.000000Z',
+    }
+
+    async function exportOf(rows: FixtureRows) {
+      const contribution = await createGoalOrganizationExportAdapter(
+        fakeDatabase(rows),
+      ).contribute({ organizationId: 'org-goal-export', requestId: 'a', asOf: AS_OF })
+      const text = (path: string) =>
+        Buffer.from(
+          contribution.entries.find((entry) => entry.path === path)!.bytes,
+        ).toString('utf8')
+      const records = (path: string) =>
+        (
+          JSON.parse(text(path)) as {
+            records: Record<string, readonly Record<string, unknown>[]>
+          }
+        ).records
+      return {
+        contribution,
+        text,
+        records,
+        paths: contribution.entries.map((entry) => entry.path),
+      }
+    }
+
+    it('keeps every column the versions file already had where it was', async () => {
+      const { text } = await exportOf(FIXTURE)
+
+      const header = text('goal/programs.csv').split('\n')[0]!.split(',')
+      expect(header.slice(0, PROGRAMS_HEADER_BEFORE_0062.length)).toEqual(
+        PROGRAMS_HEADER_BEFORE_0062,
+      )
+      // What 0062 brought: a Program's check-in and end record, then a
+      // version's number source.
+      expect(header.slice(PROGRAMS_HEADER_BEFORE_0062.length)).toEqual([
+        'check_in_answered_month',
+        'ended_at',
+        'ended_by',
+        'target_source',
+      ])
+    })
+
+    it('exports who ended a goal and when, its kept check-in and each number’s source', async () => {
+      const { text, records } = await exportOf({
+        ...FIXTURE,
+        goal_programs: [STOPPED_PROGRAM_ROW],
+        goal_program_versions: [RECOMMENDED_VERSION_ROW],
+      })
+
+      expect(records('goal/programs.json')).toEqual({
+        goal_program: [STOPPED_PROGRAM_ROW],
+        goal_program_version: [RECOMMENDED_VERSION_ROW],
+      })
+      const [headerLine, ...lines] = text('goal/programs.csv').trimEnd().split('\n')
+      const header = headerLine!.split(',')
+      const cell = (prefix: string, column: string) =>
+        lines.find((line) => line.startsWith(prefix))!.split(',')[header.indexOf(column)]
+      expect(cell('goal_program,', 'ended_at')).toBe('2026-11-12T08:00:00.000000Z')
+      expect(cell('goal_program,', 'ended_by')).toBe('user-2')
+      expect(cell('goal_program,', 'check_in_answered_month')).toBe('2026-11')
+      expect(cell('goal_program_version,', 'target_source')).toBe('recommended')
+      expect(cell('goal_program_version,', 'ended_by')).toBe('')
+    })
+
+    it('exports Not-now deferrals', async () => {
+      const { text, records, paths } = await exportOf({
+        ...FIXTURE,
+        portal_goal_prompt_deferrals: [NOT_NOW_ROW],
+      })
+
+      expect(records('goal/portal-goal-not-now.json')).toEqual({
+        portal_goal_not_now: [NOT_NOW_ROW],
+      })
+      expect(text('goal/portal-goal-not-now.csv')).toBe(
+        'record_type,property_id,month,deferred_by,deferred_at\n' +
+          `portal_goal_not_now,${PROGRAM_ROW.property_id},2026-11,user-3,2026-10-30T09:00:00.000000Z\n`,
+      )
+      // In the archive's byte order: "portal-…" sorts before "programs".
+      expect(paths).toEqual([
+        'goal/portal-goal-not-now.csv',
+        'goal/portal-goal-not-now.json',
+        'goal/programs.csv',
+        'goal/programs.json',
+        'goal/subject-assignments.csv',
+        'goal/subject-assignments.json',
+      ])
+    })
+
+    it('exports the Not-now deferrals of an Organization that set no goal', async () => {
+      const { contribution, paths } = await exportOf({
+        portal_goal_prompt_deferrals: [NOT_NOW_ROW],
+      })
+
+      expect(contribution.coverage).toBe('complete')
+      expect(paths).toEqual([
+        'goal/portal-goal-not-now.csv',
+        'goal/portal-goal-not-now.json',
+      ])
+    })
+
+    it('reads the Not-now deferrals for this Organization only', async () => {
+      const seen: string[] = []
+      const snapshot = {
+        execute: async (query: SQL) => {
+          const text = queryText(query)
+          seen.push(text)
+          return {
+            rows: text.includes('transaction_timestamp()')
+              ? [{ snapshot_at: SNAPSHOT_AT }]
+              : [],
+          }
+        },
+      }
+      const db = {
+        transaction: async (work: (tx: unknown) => Promise<unknown>) => work(snapshot),
+      } as unknown as Database
+
+      await createGoalOrganizationExportAdapter(db).contribute({
+        organizationId: 'org-goal-export',
+        requestId: 'a',
+        asOf: AS_OF,
+      })
+
+      expect(
+        seen.find((text) => text.includes('FROM portal_goal_prompt_deferrals')),
+      ).toMatch(/WHERE organization_id =/u)
     })
   })
 })

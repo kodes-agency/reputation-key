@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GoalListProgress } from '#/contexts/reporting/application/public-api'
 import {
-  goalListSubjectText,
+  daysLeftWords,
   goalListSummary,
   goalLiveShape,
   goalLiveView,
@@ -25,12 +25,12 @@ describe('the live line of a goal with one count subject', () => {
     const line = goalLiveView(goal())
 
     expect(line).toEqual({
-      text: '64 of 120 so far · 14 days left',
+      text: '64 of 120 so far · 15 days left',
       paceNote: null,
       bar: {
         value: 64,
         max: 120,
-        label: 'Qualified scans so far this month',
+        label: 'Scans so far this month',
         valueText: '64 of 120 so far',
       },
     })
@@ -47,7 +47,7 @@ describe('the live line of a goal with one count subject', () => {
       }),
     )
 
-    expect(line?.text).toBe('1,234 of 2,500 so far · 14 days left')
+    expect(line?.text).toBe('1,234 of 2,500 so far · 15 days left')
     expect(line?.bar?.label).toBe('Private ratings so far this month')
   })
 
@@ -61,7 +61,7 @@ describe('the live line of a goal with one count subject', () => {
       }),
     )
 
-    expect(line?.text).toBe('150 of 120 so far · 14 days left')
+    expect(line?.text).toBe('150 of 120 so far · 15 days left')
     expect(line?.bar).toMatchObject({ value: 150, max: 120 })
   })
 
@@ -75,13 +75,13 @@ describe('the live line of a goal with one count subject', () => {
       }),
     )
 
-    expect(line?.text).toBe('0 of 120 so far · 14 days left')
+    expect(line?.text).toBe('0 of 120 so far · 15 days left')
   })
 
   it.each([
-    [1, '1 day left'],
+    [1, '2 days left'],
     [0, 'last day'],
-  ])('words %i days left as "%s"', (daysLeft, words) => {
+  ])('words %i days after today as "%s"', (daysLeft, words) => {
     expect(goalLiveView(goal({ daysLeft }))?.text).toBe(`64 of 120 so far · ${words}`)
   })
 
@@ -106,12 +106,12 @@ describe('the pace note of a goal with one count subject', () => {
 
   it('adds "below pace" after the figure and the days left, and keeps the bar', () => {
     expect(paced(1)).toEqual({
-      text: '64 of 120 so far · 14 days left',
+      text: '64 of 120 so far · 15 days left',
       paceNote: 'below pace',
       bar: {
         value: 64,
         max: 120,
-        label: 'Qualified scans so far this month',
+        label: 'Scans so far this month',
         valueText: '64 of 120 so far',
       },
     })
@@ -168,7 +168,7 @@ describe('the live line of a goal with one average subject', () => {
     const line = goalLiveView(average({ kind: 'live', value: 4.62, sampleCount: 31 }))
 
     expect(line).toEqual({
-      text: '4.6 so far · target 4.5 · 14 days left',
+      text: '4.6 so far · target 4.5 · 15 days left',
       paceNote: null,
       bar: null,
     })
@@ -180,7 +180,7 @@ describe('the live line of a goal with one average subject', () => {
     )
 
     expect(line).toEqual({
-      text: 'More ratings needed · 4 of 10 so far · target 4.5 · 14 days left',
+      text: 'More ratings needed · 4 of 10 so far · target 4.5 · 15 days left',
       paceNote: null,
       bar: null,
     })
@@ -228,32 +228,35 @@ describe('the live line of a goal with several subjects', () => {
   })
 })
 
-describe('the subjects a row names beside its live line', () => {
-  it('leaves the count to the live line when that says it', () => {
-    expect(goalListSubjectText(3, goal({ subjectCount: 3, month: null }))).toBeNull()
+describe('the days left in a month', () => {
+  it('counts today as a day left: 9 on Nov 22', () => {
+    // Nov 22 of a 30-day month: 8 whole days begin after today.
+    expect(daysLeftWords(8)).toBe('9 days left')
   })
 
-  it('names them when there is no live line, or the live line is about one subject', () => {
-    expect(goalListSubjectText(3, undefined)).toBe('3 subjects')
-    expect(goalListSubjectText(1, goal())).toBe('1 subject')
-    expect(goalListSubjectText(1, undefined)).toBe('1 subject')
+  it('the last day says last day', () => {
+    expect(daysLeftWords(0)).toBe('last day')
+  })
+
+  it('says 2 days left the day before the last', () => {
+    expect(daysLeftWords(1)).toBe('2 days left')
   })
 })
 
 describe('the quiet line of a row', () => {
   it('joins the measure, the target, the subjects and when it was set', () => {
-    expect(
-      goalListSummary(['Qualified scans', 'target 120', '1 subject', 'set on Sep 20']),
-    ).toBe('Qualified scans · target 120 · 1 subject · set on Sep 20')
+    expect(goalListSummary(['Scans', 'target 120', 'Reception', 'set on Sep 20'])).toBe(
+      'Scans · target 120 · Reception · set on Sep 20',
+    )
   })
 
   it('leaves out what is not there, so no dot hangs on the end', () => {
-    expect(goalListSummary(['Qualified scans', 'target 120', null, null])).toBe(
-      'Qualified scans · target 120',
+    expect(goalListSummary(['Scans', 'target 120', null, null])).toBe(
+      'Scans · target 120',
     )
-    expect(
-      goalListSummary(['Qualified scans', 'target 120', null, 'set on Sep 20']),
-    ).toBe('Qualified scans · target 120 · set on Sep 20')
+    expect(goalListSummary(['Scans', 'target 120', null, 'set on Sep 20'])).toBe(
+      'Scans · target 120 · set on Sep 20',
+    )
   })
 })
 

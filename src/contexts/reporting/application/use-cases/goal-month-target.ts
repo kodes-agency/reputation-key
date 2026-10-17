@@ -17,6 +17,7 @@ import {
   validateGoalTarget,
   type GoalMetric,
   type GoalSubject,
+  type GoalTargetSource,
 } from '../../domain/goal-program'
 import type { GovernedMetricVersion } from '../../domain/metric-registry'
 import { effectiveMonthTarget } from '../goal-effective-month-target'
@@ -69,6 +70,11 @@ export type ChangeMonthTargetInput = Readonly<{
    * month changes, on the version when only the months after do.
    */
   note?: string
+  /**
+   * Where the new target came from, stored with the change and on the version
+   * it writes for the months after; omitted, none is.
+   */
+  targetSource?: GoalTargetSource
 }>
 
 export type GoalMonthTargetChangeResult = Readonly<{
@@ -168,6 +174,8 @@ type RevisionFacts = Readonly<{
   target: number
   /** What the version records as its reason: the kind of change, or the manager's note. */
   changeReason: string
+  /** Where the target came from, as the command was told. */
+  targetSource: GoalTargetSource | undefined
   timezone: string
   now: Date
 }>
@@ -232,6 +240,7 @@ async function followingRevision(
     changeReason: facts.changeReason,
     createdBy: actor.userId,
     createdAt: now,
+    targetSource: facts.targetSource,
   }
   const assignments = subjects.map((subject) =>
     assignmentFor({
@@ -404,6 +413,7 @@ async function changeOnce(
     // after change there is no log row, so the version carries the note, as
     // the version of an ordinary revision does.
     changeReason: alreadySet ? (note ?? TARGET_CHANGED) : TARGET_CHANGED,
+    targetSource: input.targetSource,
     timezone,
     now,
   })
@@ -442,6 +452,7 @@ async function changeOnce(
       revision,
     },
     note,
+    targetSource: input.targetSource,
     actorId: actor.userId,
     at: now,
   })

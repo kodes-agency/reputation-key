@@ -28,7 +28,13 @@ metric authority.
   the retraction of its own reading. The key `<fact id>:retract` of the earlier code, one
   for the first reading only, is still read.
 - **Goal Program**: versioned monthly target over an approved metric and subject set. A month
-  still running can carry its own target; once its period ends that target is locked.
+  still running can carry its own target; once its period ends that target is locked. A
+  version and a month target change keep where their number came from (`target_source`:
+  `recommended` or `own`, none when the command was not told), and an ended Program who ended
+  it and when (`ended_at`, `ended_by`, none for an end before migration 0062). The month whose
+  check-in a manager kept (`check_in_answered_month`) and the Overview's "Not now" for a
+  Monthly portal goal (`portal_goal_prompt_deferrals`, one row per Property, cascading with it)
+  are kept for the Monthly portal goal (ADR 0068).
 - **Goal monthly result**: evaluation head with append-only revision evidence.
 - **Goal progress**: the live month to date of the goals that target one subject (a Portal
   Group's goal card), read through the Program list's own authorisation and visibility and
@@ -59,9 +65,16 @@ metric authority.
   count measure expects the month's target times the share of the month gone, in whole
   Property-local calendar days with today included (the Results window's convention). It is
   behind pace below 90% of that, and exactly 90% is on pace. The first three days of a month are
-  not judged, and an average has no pace. One rule feeds the Goals list ("below pace" on a row
-  with one subject, "N below pace" on one with several), the Overview chip and the Properties
-  list. The chip and the list count the figure from the readings of every running month of an
+  not judged, nor is a month that expects fewer than `GOAL_PACE_MINIMUM_EXPECTED` (5) by today
+  (`too_few_expected`: `target x days gone < 5 x days in the month`, owner decision 2026-10-17);
+  an average has no pace. So a target of 10 in a 30-day month is judged from day 15, one of 8 in
+  a 31-day month from day 20, and one of 4 never. One rule feeds the Goals list ("below pace" on
+  a row with one subject, "N below pace" on one with several), the Overview chip and the
+  Properties list. The guard is integer only and lives in `goalPace` alone, so the set-based read
+  below needs no change, and a parity test (`application/goal-pace-parity.test.ts`) holds the
+  three to the same verdict on small months. This is the Portal goals' pace only: the Google
+  rating goal's pace (`domain/rating-goal-pace*`) is a separate rule and is untouched. The chip
+  and the list count the figure from the readings of every running month of an
   active count goal in one statement
   (`infrastructure/adapters/goal-running-months.ts`), because a month still running stores no
   value: its result row stays `updating` until it closes. That read sums what the goal's own page

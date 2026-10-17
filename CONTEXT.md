@@ -231,6 +231,7 @@ decisions now live in that ADR, so an old citation can be followed:
 | 0057 | Inbox Queues                                                 | Inbox Workspace                              | —                             |
 | 0058 | AI Admission Lanes and Paced Review Analysis                 | AI, Review Analysis                          | —                             |
 | 0067 | Property Google Rating Goal                                  | Reporting, Goals, Google Data                | —                             |
+| 0068 | Monthly Portal Goal                                          | Reporting, Goals                             | —                             |
 
 ## Key Files
 

@@ -73,9 +73,14 @@ export type ReviewVolumePoint = Readonly<{
 // ─── Reply Performance ───
 
 export type ReplyPerformance = Readonly<{
-  /** % of reviews with a published reply (0–100) */
+  /** % of reviews with a reply on Google, sent from RepKey or written there (0–100) */
   replyRate: number
-  /** Average hours from reviewedAt to publishedAt. Null when no replies. */
+  /**
+   * Average hours from reviewedAt to the reply: when RepKey last confirmed
+   * its reply on Google, else the time Google reports for the reply (its last
+   * edit). Null when no replied review has a time, which can happen while
+   * replyRate is above zero.
+   */
   avgReplyHours: number | null
 }>
 
