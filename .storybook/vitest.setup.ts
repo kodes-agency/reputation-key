@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, vi } from 'vitest'
+import { stopUpdateLoop } from './stop-update-loop'
 
 // `@storybook/react` reads `globalThis.FRAMEWORK_OPTIONS` once at module load
 // to decide whether to mount stories under <StrictMode>. The Vite builder
@@ -55,6 +56,9 @@ beforeEach(() => {
   recordedErrors = []
   const spy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
     recordedErrors.push(args)
+    // Recording is not enough for an effect that re-renders its component for
+    // ever: the page never reaches afterEach. See stop-update-loop.ts.
+    stopUpdateLoop(args)
   })
   restoreConsoleError = () => spy.mockRestore()
 })
