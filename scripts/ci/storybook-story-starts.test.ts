@@ -3,6 +3,8 @@
 // copy of this module, as vitest.config.ts's bundled command and the guard
 // loaded by Vitest's module runner are two copies in one process.
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   announceStoryStart,
@@ -58,6 +60,21 @@ describe('a story start', () => {
     announceStoryStart(START)
 
     expect(heard).toEqual([])
+  })
+
+  // Without this hook every story still passes, and the guard quietly goes
+  // back to naming two candidates. A config without the command is loud
+  // already: every story fails on the unknown command.
+  it('is sent by the first beforeEach of every story', () => {
+    const setup = readFileSync(
+      resolve(import.meta.dirname, '../../.storybook/vitest.setup.ts'),
+      'utf8',
+    )
+    const firstHook = setup.slice(setup.indexOf('beforeEach('))
+
+    expect(firstHook.slice(0, firstHook.indexOf('\n})'))).toContain(
+      'await commands.storybookStoryStarts({ fileId: task.file.id, testId: task.id })',
+    )
   })
 
   it('must carry both task ids', () => {

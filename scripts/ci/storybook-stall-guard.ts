@@ -69,19 +69,24 @@ export type StalledFile = Readonly<{
   runningMs: number
   /** The last update it sent, such as `test "Button > Default" started`. */
   lastEvent: string
-  /** The story it froze in, or before; null when it froze after its last story. */
+  /** The story it froze in; null when it froze after its last story. */
   stuck: string | null
   /**
-   * Whether its page confirmed `stuck` started (storybook-story-starts.ts).
-   * True: it froze in `stuck`. False: the page confirmed an earlier story,
-   * which then finished, and never `stuck`, so it froze before `stuck`
-   * rendered. Null: the page confirmed none of its stories, so `stuck` is the
+   * What its page confirmed (storybook-story-starts.ts). 'started': `stuck`
+   * is the last story the page confirmed, and it had not reported it
+   * finished, so the page froze in it. 'finished': the same, but reported
+   * finished, so the page froze in its teardown, before the next story's own
+   * code ran. Null: the page confirmed none of its stories, so `stuck` is the
    * first it had not reported finished, and `orNext` the other candidate.
    */
-  startConfirmed: boolean | null
-  /** Only when `startConfirmed` is null: the test after `stuck`, where it froze if `stuck` finished in the batch that never came. */
+  confirmed: 'started' | 'finished' | null
+  /**
+   * When `confirmed` is null, the test after `stuck`, where it froze if `stuck`
+   * finished in the batch that never came. When 'finished', the next story,
+   * which had not started.
+   */
   orNext: string | null
-  /** The last test before `stuck` that ran, with its state; null if none had. */
+  /** The last test that ran, up to `stuck`, with its state; null if none had. */
   lastFinished: string | null
   /** Tests it reported finished or skipped, of `total`. */
   finished: number
@@ -120,16 +125,17 @@ function moduleOf(entity: GuardedHook['entity']): GuardedModule {
 
 type Candidates = Readonly<{
   stuckAt: number
-  startConfirmed: boolean | null
+  confirmed: StalledFile['confirmed']
   orNextAt: number
 }>
 
 // Where the file froze. A file's stories run one at a time, and each story's
-// page confirms it started, and waits for the answer, before it renders
-// (storybook-story-starts.ts). So when the story the page confirmed last has
-// not finished, the page froze in it, even if the stories before it never
-// reported finishing. When that story did finish, the page froze after it and
-// before the next one rendered.
+// page confirms it started, and waits for the answer, before any of its own
+// code runs (storybook-story-starts.ts). So the page froze in the story it
+// confirmed last, even if the stories before it never reported finishing.
+// Vitest records a story's result before its afterEach, so a confirmed story
+// reported finished froze in its teardown, still on screen, before the next
+// story's own code ran.
 //
 // Without a confirmation, it is a guess from the tests' states. The page sends
 // states and events together, in batches at most one per 100 ms, and a page
@@ -152,15 +158,14 @@ function candidates(
     const stuckAt = pendingAfter(-1)
     return {
       stuckAt,
-      startConfirmed: null,
+      confirmed: null,
       orNextAt: stuckAt === -1 ? -1 : pendingAfter(stuckAt),
     }
   }
   const startedAt = tests.indexOf(started)
   if (isPending(started))
-    return { stuckAt: startedAt, startConfirmed: true, orNextAt: -1 }
-  const stuckAt = pendingAfter(startedAt)
-  return { stuckAt, startConfirmed: stuckAt === -1 ? null : false, orNextAt: -1 }
+    return { stuckAt: startedAt, confirmed: 'started', orNextAt: -1 }
+  return { stuckAt: startedAt, confirmed: 'finished', orNextAt: pendingAfter(startedAt) }
 }
 
 function whereItFroze(
@@ -168,22 +173,18 @@ function whereItFroze(
   startedId: string | undefined,
 ): Pick<
   StalledFile,
-  | 'stuck'
-  | 'startConfirmed'
-  | 'orNext'
-  | 'lastFinished'
-  | 'finished'
-  | 'total'
-  | 'unreadable'
+  'stuck' | 'confirmed' | 'orNext' | 'lastFinished' | 'finished' | 'total' | 'unreadable'
 > {
   try {
     const tests = [...progress.module.children.allTests()]
-    const { stuckAt, startConfirmed, orNextAt } = candidates(tests, startedId)
-    const before = stuckAt === -1 ? tests : tests.slice(0, stuckAt)
+    const { stuckAt, confirmed, orNextAt } = candidates(tests, startedId)
+    // A story it froze in the teardown of has finished, and counts.
+    const ranUpTo = confirmed === 'finished' ? stuckAt + 1 : stuckAt
+    const before = stuckAt === -1 ? tests : tests.slice(0, ranUpTo)
     const lastRan = before.filter((test) => RAN.has(test.result().state)).at(-1)
     return {
       stuck: tests[stuckAt]?.fullName ?? null,
-      startConfirmed,
+      confirmed,
       orNext: tests[orNextAt]?.fullName ?? null,
       lastFinished: lastRan ? `${lastRan.fullName} (${lastRan.result().state})` : null,
       finished: tests.filter((test) => !isPending(test)).length,
@@ -194,7 +195,7 @@ function whereItFroze(
     // Vitest's task objects changed shape: the run must still fail, naming the file.
     return {
       stuck: null,
-      startConfirmed: null,
+      confirmed: null,
       orNext: null,
       lastFinished: null,
       finished: 0,
@@ -234,9 +235,11 @@ function stuckLine(file: StalledFile): string {
   if (file.unreadable !== null)
     return `unknown, its tests could not be read (${file.unreadable})`
   if (file.stuck === null) return "the file's teardown, after its last story"
-  if (file.startConfirmed === true) return `${file.stuck} (its page confirmed it started)`
-  if (file.startConfirmed === false)
-    return `${file.stuck}, before its page confirmed it started`
+  if (file.confirmed === 'started') return `${file.stuck} (its page confirmed it started)`
+  if (file.confirmed === 'finished')
+    return file.orNext === null
+      ? `the teardown of ${file.stuck}, or the file's teardown after it`
+      : `the teardown of ${file.stuck}, after it finished and before ${file.orNext} started`
   return file.orNext === null
     ? `${file.stuck}, or the file's teardown after it`
     : `${file.stuck}, or the story after it, ${file.orNext}`

@@ -129,7 +129,7 @@ describe('a started file that goes quiet', () => {
           runningMs: STALL_MS,
           lastEvent: 'test "Probe > Freezes" started',
           stuck: 'Probe > Freezes',
-          startConfirmed: null,
+          confirmed: null,
           orNext: 'Probe > After',
           lastFinished: 'Probe > Renders (passed)',
           finished: 1,
@@ -382,7 +382,7 @@ describe('a quiet file whose page confirmed a story started', () => {
           runningMs: STALL_MS,
           lastEvent: 'page confirmed "Probe > Freezes" started',
           stuck: 'Probe > Freezes',
-          startConfirmed: true,
+          confirmed: 'started',
           orNext: null,
           lastFinished: 'Probe > Renders (passed)',
           finished: 1,
@@ -409,35 +409,36 @@ describe('a quiet file whose page confirmed a story started', () => {
 
     expect(stalls[0]?.[0]).toMatchObject({
       stuck: 'Probe > Freezes',
-      startConfirmed: true,
+      confirmed: 'started',
       orNext: null,
       lastFinished: null,
       finished: 0,
     })
   })
 
-  it('names the next story as not started when the confirmed one had finished', () => {
-    // It froze in the confirmed story's afterEach or the next one's setup:
-    // the next story never got to render, so the one after it is no candidate.
-    const module = fakeModule(FILE, ['Renders', 'Freezes', 'After'])
-    const renders = testNamed(module, 'Renders')
+  it('names the teardown of the confirmed story when it had reported finishing', () => {
+    // Vitest records a story's result before its afterEach, so the page froze
+    // there, with the story still on screen: the next story never started.
+    const module = fakeModule(FILE, ['Tears Down', 'Next', 'After'])
+    const tearsDown = testNamed(module, 'Tears Down')
     guard.onTestModuleStart(module)
-    confirmStarted(module, 'Renders')
-    runTest(guard, module, 'Renders')
-    guard.onHookStart({ name: 'afterEach', entity: renders })
+    confirmStarted(module, 'Tears Down')
+    guard.onTestCaseReady(tearsDown)
+    tearsDown.state = 'passed'
+    guard.onHookStart({ name: 'afterEach', entity: tearsDown })
 
     vi.advanceTimersByTime(STALL_MS)
 
     expect(stalls[0]?.[0]).toMatchObject({
-      lastEvent: 'afterEach of "Probe > Renders" started',
-      stuck: 'Probe > Freezes',
-      startConfirmed: false,
-      orNext: null,
-      lastFinished: 'Probe > Renders (passed)',
+      lastEvent: 'afterEach of "Probe > Tears Down" started',
+      stuck: 'Probe > Tears Down',
+      confirmed: 'finished',
+      orNext: 'Probe > Next',
+      lastFinished: 'Probe > Tears Down (passed)',
     })
   })
 
-  it("names the file's teardown when the confirmed story was its last, and finished", () => {
+  it('names the teardown of its last story, or of the file, when that story had finished', () => {
     const module = fakeModule(FILE, ['Renders'])
     guard.onTestModuleStart(module)
     confirmStarted(module, 'Renders')
@@ -446,8 +447,8 @@ describe('a quiet file whose page confirmed a story started', () => {
     vi.advanceTimersByTime(STALL_MS)
 
     expect(stalls[0]?.[0]).toMatchObject({
-      stuck: null,
-      startConfirmed: null,
+      stuck: 'Probe > Renders',
+      confirmed: 'finished',
       orNext: null,
       lastFinished: 'Probe > Renders (passed)',
     })
@@ -463,7 +464,7 @@ describe('a quiet file whose page confirmed a story started', () => {
     expect(stalls[0]?.[0]).toMatchObject({
       lastEvent: 'file started',
       stuck: 'Probe > Freezes',
-      startConfirmed: true,
+      confirmed: 'started',
     })
   })
 
@@ -495,7 +496,7 @@ describe('a quiet file whose page confirmed a story started', () => {
     expect(stalls[0]?.[0]).toMatchObject({
       lastEvent: 'page confirmed another-files-story started',
       stuck: 'Probe > Renders',
-      startConfirmed: null,
+      confirmed: null,
       orNext: 'Probe > Freezes',
     })
   })
@@ -510,7 +511,7 @@ describe('a quiet file whose page confirmed a story started', () => {
 
     expect(stalls[0]?.[0]).toMatchObject({
       lastEvent: 'file started',
-      startConfirmed: null,
+      confirmed: null,
     })
   })
 
@@ -525,7 +526,7 @@ describe('a quiet file whose page confirmed a story started', () => {
 
     expect(stalls[0]?.[0]).toMatchObject({
       stuck: 'Probe > Freezes',
-      startConfirmed: null,
+      confirmed: null,
     })
   })
 })
@@ -537,18 +538,18 @@ describe('the report', () => {
     runningMs: 52_600,
     lastEvent: 'beforeEach of "Probe > Renders" ended',
     stuck: 'Probe > Renders',
-    startConfirmed: null,
+    confirmed: null,
     orNext: 'Probe > Freezes',
     lastFinished: null,
     finished: 0,
     total: 3,
     unreadable: null,
   }
-  const confirmed: StalledFile = {
+  const named: StalledFile = {
     ...stuck,
     lastEvent: 'page confirmed "Probe > Freezes" started',
     stuck: 'Probe > Freezes',
-    startConfirmed: true,
+    confirmed: 'started',
     orNext: null,
   }
 
@@ -570,7 +571,7 @@ describe('the report', () => {
   })
 
   it('names the story its page confirmed started, alone', () => {
-    expect(describeStalls([confirmed])).toContain(
+    expect(describeStalls([named])).toContain(
       [
         '  Stuck in:      Probe > Freezes (its page confirmed it started)',
         '  Last finished: none reported',
@@ -579,9 +580,19 @@ describe('the report', () => {
     )
   })
 
-  it('says when the page froze before the stuck story started', () => {
-    expect(describeStalls([{ ...confirmed, startConfirmed: false }])).toContain(
-      '  Stuck in:      Probe > Freezes, before its page confirmed it started\n',
+  it('names the teardown of a confirmed story that had finished', () => {
+    const tornDown: StalledFile = {
+      ...named,
+      stuck: 'Probe > Renders',
+      confirmed: 'finished',
+      orNext: 'Probe > Freezes',
+    }
+
+    expect(describeStalls([tornDown])).toContain(
+      '  Stuck in:      the teardown of Probe > Renders, after it finished and before Probe > Freezes started\n',
+    )
+    expect(describeStalls([{ ...tornDown, orNext: null }])).toContain(
+      "  Stuck in:      the teardown of Probe > Renders, or the file's teardown after it\n",
     )
   })
 
@@ -620,7 +631,7 @@ describe('the report', () => {
   })
 
   it('names the confirmed story alone in the annotation too', () => {
-    expect(stallAnnotation(confirmed)).toBe(
+    expect(stallAnnotation(named)).toBe(
       `::error file=${FILE},title=Storybook stall::` +
         'Stuck in Probe > Freezes (its page confirmed it started): ' +
         'the file sent no update for 45 s.',
@@ -783,7 +794,7 @@ describe('in a real Vitest run', () => {
           file: 'quiet.test.ts',
           lastEvent: 'test "waits" started',
           stuck: 'waits',
-          startConfirmed: null,
+          confirmed: null,
           orNext: 'runs after',
           lastFinished: 'renders (passed)',
           finished: 1,
@@ -832,7 +843,7 @@ describe('in a real Vitest run', () => {
           file: 'quiet.test.ts',
           lastEvent: 'page confirmed "waits" started',
           stuck: 'waits',
-          startConfirmed: true,
+          confirmed: 'started',
           orNext: null,
           lastFinished: 'renders (passed)',
         }),
