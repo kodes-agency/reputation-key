@@ -25,9 +25,9 @@ import type { PortalResponseIntegritySummary } from '#/contexts/guest/applicatio
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import { portalLifetimeAnalyticsData } from './portal-lifetime-analytics'
 import { PORTAL_RESULTS_THRESHOLDS } from '../../domain/portal-results-thresholds'
+import { localDateOf } from '../../domain/local-days'
 import {
   buildPortalResultsSeries,
-  localDateOf,
   localDayRange,
   placeVersionMarker,
   type PortalVersionMarker,

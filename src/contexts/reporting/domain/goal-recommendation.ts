@@ -38,7 +38,7 @@ import {
   portalReadiness,
   type PortalQuietFact,
 } from './goal-portal-readiness'
-import { addLocalDays, localDateOf } from './portal-results-series'
+import { addLocalDays, localDateOf } from './local-days'
 import type {
   Choices,
   MeasureRecommendation,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { propertyWallClockToInstant } from '#/shared/domain/property-calendar'
-import { addLocalDays } from './portal-results-series'
+import { addLocalDays } from './local-days'
 import { recommendationWindow, recommendPortalGoal } from './goal-recommendation'
 import type {
   PortalGoalMeasure,

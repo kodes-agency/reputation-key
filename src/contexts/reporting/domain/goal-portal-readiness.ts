@@ -11,6 +11,8 @@
 // Days are Property-local calendar days as `YYYY-MM-DD`, decided by the
 // server. Pure.
 
+import { daysBetween } from './local-days'
+
 /** A quiet spell is worth a word once the Portal's usual would have brought this many. */
 const QUIET_EXPECTED_SCANS = 5
 /** A code is old enough to have been scanned after this many local days. */
@@ -64,18 +66,6 @@ export type PortalQuietInput = Readonly<{
   lastScanOn: string | null
 }>
 
-const MS_PER_DAY = 86_400_000
-
-/** A local day as a count of days, so two of them subtract. */
-function dayNumber(localDay: string): number {
-  const [year = 0, month = 1, day = 1] = localDay.split('-').map(Number)
-  return Date.UTC(year, month - 1, day) / MS_PER_DAY
-}
-
-/** Whole local days from `from` to `to`: 0 for the same day. */
-const localDaysFrom = (from: string, to: string): number =>
-  dayNumber(to) - dayNumber(from)
-
 /** round(numerator / denominator), half up, for non-negative integers. */
 const roundHalfUp = (numerator: number, denominator: number): number =>
   Math.floor((2 * numerator + denominator) / (2 * denominator))
@@ -84,14 +74,14 @@ function noScanSinceCode(input: PortalQuietInput): PortalQuietFact | null {
   if (!input.readiness.live || input.codeMadeOn === null || input.lastScanOn !== null) {
     return null
   }
-  const days = localDaysFrom(input.codeMadeOn, input.today)
+  const days = daysBetween(input.codeMadeOn, input.today)
   return days >= CODE_SETTLE_DAYS ? { kind: 'no_scan_since_code', days } : null
 }
 
 function noScansSince(input: PortalQuietInput): PortalQuietFact | null {
   if (!input.established || input.lastScanOn === null || input.scans <= 0) return null
   // The whole days after the last scan's day, today (still going) left out.
-  const silentDays = localDaysFrom(input.lastScanOn, input.today) - 1
+  const silentDays = daysBetween(input.lastScanOn, input.today) - 1
   // silentDays × scans / liveDays ≥ 5, compared whole.
   if (silentDays * input.scans < QUIET_EXPECTED_SCANS * input.liveDays) return null
   return {

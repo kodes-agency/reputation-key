@@ -1,9 +1,7 @@
 // Portal results series — the weekly view behind the Results tab's chart.
 import { describe, expect, it } from 'vitest'
 import {
-  addLocalDays,
   buildPortalResultsSeries,
-  localDateOf,
   localDayRange,
   placeVersionMarker,
   windowLocalDays,
@@ -47,16 +45,6 @@ function build(
 }
 
 describe('local dates', () => {
-  it('reads the date in the Property zone, not in UTC', () => {
-    expect(localDateOf(START, SOFIA)).toBe('2026-09-01')
-    expect(localDateOf(START, 'UTC')).toBe('2026-08-31')
-  })
-
-  it('adds days across month ends', () => {
-    expect(addLocalDays('2026-08-30', 3)).toBe('2026-09-02')
-    expect(addLocalDays('2026-03-01', -1)).toBe('2026-02-28')
-  })
-
   it('counts the local days of a window whose end is exclusive', () => {
     expect(windowLocalDays(START, END, SOFIA)).toBe(30)
     // The prior window ends at the next window's midnight: 2-31 Aug is 30 days.
