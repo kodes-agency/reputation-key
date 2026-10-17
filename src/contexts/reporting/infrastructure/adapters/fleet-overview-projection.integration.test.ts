@@ -712,6 +712,53 @@ describe('fleet overview projection integration', () => {
     ).toEqual([812, null, 9, 10])
   })
 
+  it('goalsBehindPace leaves out a goal that expects fewer than 5 by today', async () => {
+    // Day 9 of 31: a target of 10 expects 2.9 so far and is not judged; one of
+    // 20 expects 5.8, so nothing counted is behind pace.
+    const small = properties[84]!.propertyId
+    const judged = properties[85]!.propertyId
+    for (const [property, versionTarget] of [
+      [small, 10],
+      [judged, 20],
+    ] as const) {
+      await seedRunningGoalMonth({
+        property,
+        versionTarget,
+        monthTarget: null,
+        scansSoFar: 0,
+      })
+    }
+    const getFleet = getFleetOverview({
+      projection: createFleetOverviewProjectionAdapter(db),
+      resolveAccessiblePropertyIds: async () => [small, judged],
+      clock: () => NOW,
+      inboxTargets,
+    })
+
+    const result = await getFleet({
+      organizationId: ORG,
+      scope: { userId: userId('fleet-projection-small-goal'), organizationWide: false },
+      portalReadEnabled: true,
+      goalReadEnabled: true,
+      timeRange: '30d',
+    })
+
+    expect(
+      new Map(
+        result.entries.map((entry) => [
+          entry.propertyId,
+          entry.attentionSignals.goalsBehindPace,
+        ]),
+      ),
+    ).toEqual(
+      new Map([
+        [small, 0],
+        [judged, 1],
+      ]),
+    )
+    expect(result.totals.totalAttention).toBe(1)
+  })
+
   it('reads no goal for a reader who may not use goals', async () => {
     const property = properties[80]!.propertyId
     await seedRunningGoalMonth({
