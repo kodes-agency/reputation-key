@@ -98,7 +98,7 @@ export type EvaluatedRatingGoal = Readonly<{
 }>
 
 /** Last week's average is told only from this many reviews (Q4; Review gives no sum under it). */
-export const LAST_WEEK_AVERAGE_MIN_REVIEWS = 10
+const LAST_WEEK_AVERAGE_MIN_REVIEWS = 10
 
 /**
  * Reads an active goal's numbers (with this week, last week, its pace window

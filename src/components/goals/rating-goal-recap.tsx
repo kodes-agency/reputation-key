@@ -104,7 +104,7 @@ function ChoiceButton({
   )
 }
 
-export function RatingGoalRecap(props: Props) {
+function RatingGoalRecap(props: Props) {
   const labelId = useId()
   const words = recapWords(props.card)
   const commands = useRecapCommands(props)

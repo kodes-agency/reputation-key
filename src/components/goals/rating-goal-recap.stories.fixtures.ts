@@ -8,7 +8,7 @@ import type {
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { CARD_HARBORLINE, CARD_TOO_LOW } from './rating-goal-tracking.stories.fixtures'
 
-export const RECAP_HARBORLINE: RatingGoalRecapView = {
+const RECAP_HARBORLINE: RatingGoalRecapView = {
   weekStart: '2026-10-05',
   count: 8,
   averageTenths: null,
