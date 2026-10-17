@@ -327,9 +327,10 @@ responsible managers, AccountAdmins as the fallback (`goalNoticeScope`, asked
 by the fan-out and by both delivery rechecks). The copy lives in
 `domain/notification-templates-portal-goal.ts`.
 
-A Property's Google rating goal raises five Goals notices (ADR 0046, amended
-2026-10-14 and 2026-10-15): reached (offering to keep the number only when
-Google shows 4.9 or 5.0), a tenth gained or lost on Google, entered
+A Property's Google rating goal raises five Google rating goal notices
+(`recognition`; ADR 0046, amended 2026-10-14, 2026-10-15 and 2026-10-17):
+reached (offering to keep the number only when Google shows 4.9 or 5.0), a
+tenth gained or lost on Google, entered
 Below pace (at most once in 14 days), entered New reviews too low
 (`goal.rating_too_low`: ten or more reviews since the goal was set average at or
 below what its target needs; also at most once in 14 days; it replaced the

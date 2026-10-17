@@ -1186,6 +1186,9 @@ carries only its outcome.
 
 ## Amended 2026-10-15 — "New reviews too low" replaces the Google rating goal's Can't reach notice
 
+(The category is shown as "Google rating goal" since 2026-10-17; see "Portal
+goals get their own row" below.)
+
 ADR 0067 (amended 2026-10-15) gives a climb goal a planned quality and judges
 the Google reviews that arrived since the goal was set, from the tenth of them
 on, instead of the recent mix. Its fourth notice changes with it:
@@ -1341,11 +1344,17 @@ result, and the other way round.
    they were written with: an old web server asserts a notice's category when
    it reads one (`notification-row.mapper.ts`), so a rewrite would break its
    bell during a rolling deploy. For the same reason the split is
-   forward-only: once the new worker writes `portal_goals` notices, an old web
-   cannot read them. A `goal.completed` notice written before the split stays
-   under `recognition`; the beta had no portal goal, so none exists. A link
-   bookmarked with `?filter=recognition` opens Needs you, like every filter the
-   page no longer offers.
+   forward-only: once the new worker writes `portal_goals` notices and queues
+   `portal_goals` emails, an old web or an old worker (a worker rollback, or an
+   old worker still running while the new one starts) cannot read them, since
+   the bell and the email jobs load notices through that check. Undoing 0063
+   by deleting the copied answers is enough only while no `portal_goals` notice
+   or queued email exists; after that it also means moving those rows back to
+   `recognition`. Either is data-destructive, so it waits for the owner. A
+   `goal.completed` notice written before the split stays under `recognition`;
+   the beta had no portal goal, so none exists. A link bookmarked with
+   `?filter=recognition` opens Needs you, like every filter the page no longer
+   offers.
 
 ## Consequences
 

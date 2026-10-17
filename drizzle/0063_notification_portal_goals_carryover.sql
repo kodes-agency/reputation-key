@@ -17,16 +17,25 @@
 -- reads both.
 --
 -- Deploy: web runs this in preDeploy, then the new worker writes
--- `portal_goals` notices. Forward-only: once those exist, rolling web back
--- breaks the bell. Never in the same deploy as 0062: pending files share one
--- transaction.
+-- `portal_goals` notices and queues `portal_goals` emails. Forward-only: once
+-- those exist, an old web or an old worker (a rollback, or an old worker still
+-- running while the new one starts) fails on them, because the bell and the
+-- email jobs read notices through that check. Never in the same deploy as
+-- 0062: pending files share one transaction.
 --
--- Down: delete the copied rows (`DELETE ... WHERE category = 'portal_goals'`
--- in the three tables) and the 0063 row of drizzle.__drizzle_migrations. That
--- deletes answers people gave since, so it is data-destructive: ask the owner.
+-- Down: only while `SELECT count(*) FROM notifications WHERE category =
+-- 'portal_goals'` and the same count on notification_email_queue are both 0.
+-- Then delete the copied rows (`DELETE ... WHERE category = 'portal_goals'` in
+-- the three settings tables) and the 0063 row of drizzle.__drizzle_migrations.
+-- If either count is above 0, a rollback also needs `UPDATE notifications SET
+-- category = 'recognition' WHERE category = 'portal_goals'` and the same
+-- UPDATE on notification_email_queue. Both delete answers people gave since or
+-- change stored rows, so they are data-destructive: ask the owner.
 --
--- Beta state: counted read-only before and after the deploy (PR body);
--- `recognition` must equal `portal_goals` in each table.
+-- Beta state: checked read-only before and after the deploy (PR body): no
+-- `recognition` row from before this migration lacks its `portal_goals` twin,
+-- no `recognition` answer is newer than its copy, and no goal-result notice
+-- or queued email exists under `recognition`.
 INSERT INTO "notification_preferences" ("user_id", "organization_id", "property_id", "category", "channel", "enabled", "cadence", "created_at", "updated_at")
 SELECT "user_id", "organization_id", "property_id", 'portal_goals', "channel", "enabled", "cadence", now(), now()
 FROM "notification_preferences"
